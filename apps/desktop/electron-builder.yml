@@ -1,0 +1,56 @@
+appId: com.agentmate.app
+productName: AgentMate
+directories:
+  output: release
+
+# node-pty is N-API based and ships working prebuilt binaries for every
+# platform we target — electron-builder's default native-rebuild step tries
+# to compile it from source instead, which fails because the npm-published
+# tarball is missing the winpty git submodule's build scripts. Skip it.
+npmRebuild: false
+
+files:
+  - out/**/*
+  - package.json
+
+extraResources:
+  - from: resources/example-skill-repo
+    to: example-skill-repo
+
+# node-pty ships native .node/.dll/.exe files that must exist as real files on
+# disk (it also spawns conpty/winpty helper executables at runtime) — they
+# can't be loaded from inside the asar archive.
+asarUnpack:
+  - '**/node_modules/node-pty/**'
+
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+
+mac:
+  target:
+    - target: dmg
+      arch: [x64, arm64]
+  category: public.app-category.developer-tools
+
+linux:
+  target:
+    - target: AppImage
+      arch: [x64]
+    - target: deb
+      arch: [x64]
+  category: Development
+
+# No real update server exists yet — this is a placeholder so electron-updater
+# has a valid config shape to read. Point `url` at real infra before wiring up
+# actual auto-update checks in the main process.
+publish:
+  provider: generic
+  url: https://updates.agentmate.example.com
+  channel: latest

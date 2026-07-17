@@ -1,0 +1,167 @@
+@import 'tailwindcss';
+/* Inter and Vazirmatn are imported as JS modules in main.tsx — see the note
+   there about Vite/Tailwind v4 not rebasing these packages' font url()s. */
+@plugin 'tailwindcss-animate';
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme inline {
+  --color-background: hsl(var(--background));
+  --color-foreground: hsl(var(--foreground));
+  --color-card: hsl(var(--card));
+  --color-card-foreground: hsl(var(--card-foreground));
+  --color-popover: hsl(var(--popover));
+  --color-popover-foreground: hsl(var(--popover-foreground));
+  --color-primary: hsl(var(--primary));
+  --color-primary-foreground: hsl(var(--primary-foreground));
+  --color-secondary: hsl(var(--secondary));
+  --color-secondary-foreground: hsl(var(--secondary-foreground));
+  --color-muted: hsl(var(--muted));
+  --color-muted-foreground: hsl(var(--muted-foreground));
+  --color-accent: hsl(var(--accent));
+  --color-accent-foreground: hsl(var(--accent-foreground));
+  --color-destructive: hsl(var(--destructive));
+  --color-destructive-foreground: hsl(var(--destructive-foreground));
+  --color-border: hsl(var(--border));
+  --color-input: hsl(var(--input));
+  --color-ring: hsl(var(--ring));
+  --color-success: hsl(var(--success));
+  --color-success-foreground: hsl(var(--success-foreground));
+  --color-warning: hsl(var(--warning));
+  --color-warning-foreground: hsl(var(--warning-foreground));
+  --radius-lg: var(--radius);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-sm: calc(var(--radius) - 4px);
+}
+
+/* Light theme mirrors the dark design language: a flat neutral canvas, gray
+   boxes one step darker than it, and the same green accent (deepened for
+   contrast against light surfaces). */
+:root {
+  --background: 0 0% 96%;
+  --foreground: 0 0% 9%;
+  --card: 0 0% 91%;
+  --card-foreground: 0 0% 9%;
+  --popover: 0 0% 94%;
+  --popover-foreground: 0 0% 9%;
+  --primary: 150 100% 30%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 0 0% 88%;
+  --secondary-foreground: 0 0% 12%;
+  --muted: 0 0% 88%;
+  --muted-foreground: 0 0% 40%;
+  --accent: 0 0% 84%;
+  --accent-foreground: 0 0% 12%;
+  --destructive: 4 78% 50%;
+  --destructive-foreground: 0 0% 100%;
+  --success: 150 100% 27%;
+  --success-foreground: 0 0% 100%;
+  --warning: 38 92% 40%;
+  --warning-foreground: 0 0% 100%;
+  --border: 0 0% 83%;
+  --input: 0 0% 83%;
+  --ring: 150 100% 30%;
+  --radius: 0.85rem;
+}
+
+/* Dark theme matches the reference mood board: pure-black main canvas,
+   neutral near-black boxes one step lighter, and a saturated spring-green
+   accent. The green gradient lives only on the sidebar (see .sidebar-gradient). */
+.dark {
+  --background: 0 0% 4%;
+  --foreground: 0 0% 95%;
+  --card: 0 0% 11%;
+  --card-foreground: 0 0% 95%;
+  --popover: 0 0% 10%;
+  --popover-foreground: 0 0% 95%;
+  --primary: 150 100% 45%;
+  --primary-foreground: 0 0% 4%;
+  --secondary: 0 0% 15%;
+  --secondary-foreground: 0 0% 95%;
+  --muted: 0 0% 15%;
+  --muted-foreground: 0 0% 62%;
+  --accent: 0 0% 18%;
+  --accent-foreground: 0 0% 95%;
+  --destructive: 4 72% 58%;
+  --destructive-foreground: 0 0% 100%;
+  --success: 150 100% 42%;
+  --success-foreground: 0 0% 4%;
+  --warning: 38 92% 50%;
+  --warning-foreground: 30 40% 10%;
+  --border: 0 0% 17%;
+  --input: 0 0% 17%;
+  --ring: 150 100% 45%;
+}
+
+* {
+  border-color: hsl(var(--border));
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  background-color: hsl(var(--background));
+  color: hsl(var(--foreground));
+  font-family:
+    'Inter Variable', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial,
+    sans-serif;
+  transition:
+    background-color 200ms ease,
+    color 200ms ease;
+  overflow: hidden;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: hsl(var(--foreground) / 0.12);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-track {
+  background-color: transparent;
+}
+
+/* Applied automatically to text inputs/textareas whose current value
+   contains Persian/Arabic script — see lib/rtl.ts. */
+.font-vazirmatn {
+  font-family: 'Vazirmatn Variable', 'Inter Variable', -apple-system, BlinkMacSystemFont,
+    'Segoe UI', sans-serif;
+}
+
+/* The only gradient surface in the app: a green wash over the sidebar,
+   echoing the reference design. Deep green-to-black in dark mode, a soft
+   mint tint in light mode. */
+.sidebar-gradient {
+  background: linear-gradient(
+    180deg,
+    hsl(0 0% 96%) 0%,
+    hsl(150 20% 92%) 55%,
+    hsl(152 38% 84%) 100%
+  );
+}
+
+.dark .sidebar-gradient {
+  background: linear-gradient(
+    180deg,
+    hsl(0 0% 4%) 0%,
+    hsl(160 22% 6%) 50%,
+    hsl(159 45% 12%) 100%
+  );
+}
+
+/* Windows 11 caption glyphs (minimize / maximize / restore / close) use the
+   system's Segoe icon fonts so the buttons look native. */
+.caption-glyph {
+  font-family: 'Segoe Fluent Icons', 'Segoe MDL2 Assets', sans-serif;
+  font-size: 10px;
+  line-height: 1;
+  -webkit-font-smoothing: antialiased;
+}

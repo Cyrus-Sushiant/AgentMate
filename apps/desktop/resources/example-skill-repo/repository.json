@@ -1,0 +1,32 @@
+{
+  "name": "AgentMate Examples",
+  "description": "A small bundled set of example skills to demonstrate the Skill Marketplace.",
+  "skills": [
+    {
+      "id": "code-review-checklist",
+      "name": "Code Review Checklist",
+      "description": "A structured checklist an agent should run through before approving a code review.",
+      "category": "Code Review",
+      "tags": ["review", "quality"],
+      "author": "AgentMate",
+      "version": "1.0.0",
+      "popularity": 100,
+      "dependencies": [],
+      "compatibility": ["claude-code", "gemini-cli", "opencode", "codex-cli"],
+      "files": [{ "path": "SKILL.md", "url": "code-review-checklist/SKILL.md" }]
+    },
+    {
+      "id": "commit-message-guide",
+      "name": "Commit Message Guide",
+      "description": "Conventions an agent should follow when writing git commit messages.",
+      "category": "Documentation",
+      "tags": ["git", "docs"],
+      "author": "AgentMate",
+      "version": "1.0.0",
+      "popularity": 80,
+      "dependencies": [],
+      "compatibility": ["claude-code", "gemini-cli", "opencode", "codex-cli", "aider"],
+      "files": [{ "path": "SKILL.md", "url": "commit-message-guide/SKILL.md" }]
+    }
+  ]
+}

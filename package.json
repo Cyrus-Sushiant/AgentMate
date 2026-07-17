@@ -1,0 +1,27 @@
+{
+  "name": "agentmat",
+  "private": true,
+  "version": "0.1.0",
+  "description": "AgentMate — AI Agent Management Platform",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "pnpm --filter @agentmat/core build && pnpm --filter @agentmat/desktop dev",
+    "build": "pnpm --filter @agentmat/core build && pnpm --filter @agentmat/desktop build",
+    "package": "pnpm --filter @agentmat/desktop package",
+    "typecheck": "pnpm -r typecheck",
+    "lint": "pnpm -r lint"
+  },
+  "devDependencies": {
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.64.0",
+    "@eslint/js": "^10.0.1",
+    "globals": "^17.7.0",
+    "eslint": "^10.7.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "prettier": "^3.9.5"
+  },
+  "packageManager": "pnpm@11.13.1"
+}
