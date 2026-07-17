@@ -1,11 +1,12 @@
 import { AnimatePresence, motion } from 'framer-motion';
-import { Moon, Sun, SunMoon, TerminalSquare } from '@/components/icons';
+import { AnglesLeft, AnglesRight, Moon, Sun, SunMoon, TerminalSquare } from '@/components/icons';
 import { Outlet, useLocation } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 import { TitleBar } from './TitleBar';
 import { Button } from '@/components/ui/button';
 import { useThemeStore } from '@/stores/themeStore';
 import { useTerminalStore } from '@/stores/terminalStore';
+import { useUiStore } from '@/stores/uiStore';
 import { TerminalDrawer } from '@/components/terminal/TerminalDrawer';
 import { cn } from '@/lib/utils';
 
@@ -35,18 +36,30 @@ function ThemeToggle(): React.JSX.Element {
 function TopBar(): React.JSX.Element {
   const isTerminalOpen = useTerminalStore((s) => s.isOpen);
   const toggleDrawer = useTerminalStore((s) => s.toggleDrawer);
+  const sidebarCollapsed = useUiStore((s) => s.sidebarCollapsed);
+  const toggleSidebar = useUiStore((s) => s.toggleSidebar);
 
   return (
-    <div className="flex h-12 shrink-0 items-center justify-end gap-1 border-b border-border px-3">
+    <div className="flex h-12 shrink-0 items-center justify-between gap-1 border-b border-border px-3">
       <Button
-        variant={isTerminalOpen ? 'secondary' : 'ghost'}
+        variant="ghost"
         size="icon"
-        title="Toggle terminal"
-        onClick={toggleDrawer}
+        title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+        onClick={toggleSidebar}
       >
-        <TerminalSquare className="h-4 w-4" />
+        {sidebarCollapsed ? <AnglesRight className="h-4 w-4" /> : <AnglesLeft className="h-4 w-4" />}
       </Button>
-      <ThemeToggle />
+      <div className="flex items-center gap-1">
+        <Button
+          variant={isTerminalOpen ? 'secondary' : 'ghost'}
+          size="icon"
+          title="Toggle terminal"
+          onClick={toggleDrawer}
+        >
+          <TerminalSquare className="h-4 w-4" />
+        </Button>
+        <ThemeToggle />
+      </div>
     </div>
   );
 }

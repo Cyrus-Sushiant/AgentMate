@@ -1,7 +1,5 @@
 import { NavLink } from 'react-router-dom';
 import {
-  AnglesLeft,
-  AnglesRight,
   Blocks,
   FolderKanban,
   History,
@@ -25,7 +23,6 @@ const NAV_ITEMS = [
 
 export function Sidebar(): React.JSX.Element {
   const collapsed = useUiStore((s) => s.sidebarCollapsed);
-  const toggleSidebar = useUiStore((s) => s.toggleSidebar);
 
   return (
     <aside
@@ -34,18 +31,6 @@ export function Sidebar(): React.JSX.Element {
         collapsed ? 'w-16' : 'w-56',
       )}
     >
-      <button
-        type="button"
-        title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-        onClick={toggleSidebar}
-        className={cn(
-          'mb-3 flex h-8 items-center rounded-lg text-muted-foreground transition-colors hover:bg-foreground/[0.06] hover:text-foreground',
-          collapsed ? 'w-full justify-center' : 'w-fit justify-start px-2',
-        )}
-      >
-        {collapsed ? <AnglesRight className="h-4 w-4" /> : <AnglesLeft className="h-4 w-4" />}
-      </button>
-
       <nav className="flex flex-1 flex-col gap-1">
         {NAV_ITEMS.map((item) => (
           <NavLink
