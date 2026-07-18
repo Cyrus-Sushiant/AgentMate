@@ -1,6 +1,6 @@
 import { mkdir, readFile, unlink, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import type { NotificationHookKind, Project } from '@agentmat/core';
+import type { DetectedClaudeHook, NotificationHookKind, Project } from '@agentmat/core';
 import { portFilePath } from './hookServer';
 
 const HOOK_FILE_NAME: Record<NotificationHookKind, string> = {
@@ -164,4 +164,96 @@ export async function installProjectNotificationHooks(
   }
 
   return result;
+}
+
+function settingsPathFor(projectFolderPath: string): string {
+  return join(projectFolderPath, '.claude', 'settings.json');
+}
+
+function isAgentMateCommand(command: string): boolean {
+  return Object.values(HOOK_FILE_NAME).some((marker) => command.includes(marker));
+}
+
+/**
+ * Lists every hook command found in this project's `.claude/settings.json`, including ones
+ * AgentMate didn't create. Each entry's `id` encodes its position (`event:groupIndex:hookIndex`)
+ * so it can be targeted by {@link updateClaudeHook} / {@link deleteClaudeHook} on the same read.
+ */
+export async function listClaudeHooks(projectFolderPath: string): Promise<DetectedClaudeHook[]> {
+  const settings = await readClaudeSettings(settingsPathFor(projectFolderPath));
+  const entries: DetectedClaudeHook[] = [];
+
+  for (const [event, groups] of Object.entries(settings.hooks ?? {})) {
+    groups.forEach((group, groupIndex) => {
+      group.hooks.forEach((hook, hookIndex) => {
+        entries.push({
+          id: `${event}:${groupIndex}:${hookIndex}`,
+          event,
+          matcher: group.matcher,
+          command: hook.command,
+          managedByAgentMate: isAgentMateCommand(hook.command),
+        });
+      });
+    });
+  }
+
+  return entries;
+}
+
+function parseHookId(id: string): { event: string; groupIndex: number; hookIndex: number } {
+  const [event, groupIndexStr, hookIndexStr] = id.split(':');
+  const groupIndex = Number(groupIndexStr);
+  const hookIndex = Number(hookIndexStr);
+  if (!event || Number.isNaN(groupIndex) || Number.isNaN(hookIndex)) {
+    throw new Error(`Invalid hook id: ${id}`);
+  }
+  return { event, groupIndex, hookIndex };
+}
+
+/** Edits the matcher and/or command of a single hook entry previously returned by {@link listClaudeHooks}. */
+export async function updateClaudeHook(
+  projectFolderPath: string,
+  id: string,
+  updates: { matcher?: string; command: string },
+): Promise<void> {
+  const settingsPath = settingsPathFor(projectFolderPath);
+  const settings = await readClaudeSettings(settingsPath);
+  const { event, groupIndex, hookIndex } = parseHookId(id);
+
+  const group = settings.hooks?.[event]?.[groupIndex];
+  const hook = group?.hooks[hookIndex];
+  if (!group || !hook) throw new Error(`Hook ${id} not found`);
+
+  hook.command = updates.command;
+  if (updates.matcher) {
+    group.matcher = updates.matcher;
+  } else {
+    delete group.matcher;
+  }
+
+  await writeFile(settingsPath, JSON.stringify(settings, null, 2), 'utf-8');
+}
+
+/** Removes a single hook entry previously returned by {@link listClaudeHooks}, cleaning up empty groups/events. */
+export async function deleteClaudeHook(projectFolderPath: string, id: string): Promise<void> {
+  const settingsPath = settingsPathFor(projectFolderPath);
+  const settings = await readClaudeSettings(settingsPath);
+  const { event, groupIndex, hookIndex } = parseHookId(id);
+
+  const groups = settings.hooks?.[event];
+  const group = groups?.[groupIndex];
+  if (!groups || !group || !group.hooks[hookIndex]) throw new Error(`Hook ${id} not found`);
+
+  group.hooks.splice(hookIndex, 1);
+  if (group.hooks.length === 0) {
+    groups.splice(groupIndex, 1);
+  }
+  if (groups.length === 0) {
+    delete settings.hooks?.[event];
+  }
+  if (settings.hooks && Object.keys(settings.hooks).length === 0) {
+    delete settings.hooks;
+  }
+
+  await writeFile(settingsPath, JSON.stringify(settings, null, 2), 'utf-8');
 }

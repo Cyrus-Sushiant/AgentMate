@@ -28,6 +28,17 @@ export interface ProjectNotificationSettings {
   confirmation: ProjectNotificationHook;
 }
 
+/** A single hook command found in a project's .claude/settings.json. */
+export interface DetectedClaudeHook {
+  /** Stable within one read of settings.json; re-derived as `${event}:${groupIndex}:${hookIndex}`. */
+  id: string;
+  event: string;
+  matcher?: string;
+  command: string;
+  /** True when this is one of AgentMate's own Completion/Confirmation hooks (shown elsewhere). */
+  managedByAgentMate: boolean;
+}
+
 export interface Project {
   id: string;
   name: string;

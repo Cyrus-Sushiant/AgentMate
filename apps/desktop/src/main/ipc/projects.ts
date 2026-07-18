@@ -3,11 +3,16 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { dialog, ipcMain } from 'electron';
 import { BOOTSTRAP_FOLDERS, defaultProjectNotifications, getBootstrapFiles } from '@agentmat/core';
-import type { Project, ProjectNotificationSettings } from '@agentmat/core';
+import type { DetectedClaudeHook, Project, ProjectNotificationSettings } from '@agentmat/core';
 import { IPC } from '../../shared/ipcChannels';
 import type { CreateProjectInput } from '../../shared/apiTypes';
 import { store, logActivity } from '../store';
-import { installProjectNotificationHooks } from '../notifications/hookInstaller';
+import {
+  deleteClaudeHook,
+  installProjectNotificationHooks,
+  listClaudeHooks,
+  updateClaudeHook,
+} from '../notifications/hookInstaller';
 
 export function registerProjectHandlers(): void {
   ipcMain.handle(IPC.projects.list, (): Promise<Project[]> => store.getProjects());
@@ -105,6 +110,41 @@ export function registerProjectHandlers(): void {
       });
 
       return { createdFiles };
+    },
+  );
+
+  ipcMain.handle(
+    IPC.projects.listClaudeHooks,
+    async (_event, projectId: string): Promise<DetectedClaudeHook[]> => {
+      const projects = await store.getProjects();
+      const project = projects.find((p) => p.id === projectId);
+      if (!project) throw new Error(`Project ${projectId} not found`);
+      return listClaudeHooks(project.folderPath);
+    },
+  );
+
+  ipcMain.handle(
+    IPC.projects.updateClaudeHook,
+    async (
+      _event,
+      projectId: string,
+      hookId: string,
+      updates: { matcher?: string; command: string },
+    ): Promise<void> => {
+      const projects = await store.getProjects();
+      const project = projects.find((p) => p.id === projectId);
+      if (!project) throw new Error(`Project ${projectId} not found`);
+      await updateClaudeHook(project.folderPath, hookId, updates);
+    },
+  );
+
+  ipcMain.handle(
+    IPC.projects.deleteClaudeHook,
+    async (_event, projectId: string, hookId: string): Promise<void> => {
+      const projects = await store.getProjects();
+      const project = projects.find((p) => p.id === projectId);
+      if (!project) throw new Error(`Project ${projectId} not found`);
+      await deleteClaudeHook(project.folderPath, hookId);
     },
   );
 

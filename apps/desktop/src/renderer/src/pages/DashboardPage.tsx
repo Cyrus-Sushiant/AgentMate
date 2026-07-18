@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -62,12 +63,34 @@ function countryCodeToFlagEmoji(countryCode: string): string {
   );
 }
 
+// Defers `ready` until the browser is idle after mount, so callers can hold
+// off starting slow/network-bound work (IP lookup, CLI update checks) until
+// the page's core content has already painted, instead of competing with it.
+function useIdleAfterMount(): boolean {
+  const [ready, setReady] = useState(false);
+  useEffect(() => {
+    const w = window as Window & {
+      requestIdleCallback?: (cb: () => void) => number;
+      cancelIdleCallback?: (id: number) => void;
+    };
+    if (typeof w.requestIdleCallback === 'function') {
+      const id = w.requestIdleCallback(() => setReady(true));
+      return () => w.cancelIdleCallback?.(id);
+    }
+    const id = window.setTimeout(() => setReady(true), 200);
+    return () => window.clearTimeout(id);
+  }, []);
+  return ready;
+}
+
 function CliUpdateRow({ cli, status }: { cli: CliDefinition; status: InstalledCli }): React.JSX.Element {
   const openSession = useTerminalStore((s) => s.openSession);
+  const deferReady = useIdleAfterMount();
   const updateQuery = useQuery({
     queryKey: queryKeys.cliUpdateCheck(cli.id, status.version),
     queryFn: () => window.agentmat.cli.checkForUpdate(cli.id, status.version),
     staleTime: 10 * 60_000,
+    enabled: deferReady,
   });
 
   async function handleUpdate(): Promise<void> {
@@ -92,7 +115,7 @@ function CliUpdateRow({ cli, status }: { cli: CliDefinition; status: InstalledCl
         </div>
       </div>
       <div className="flex shrink-0 items-center gap-2">
-        {updateQuery.isLoading ? (
+        {updateQuery.isPending ? (
           <Badge variant="outline">Checking…</Badge>
         ) : !result?.supported ? (
           <Badge variant="outline">No update check</Badge>
@@ -133,11 +156,13 @@ export default function DashboardPage(): React.JSX.Element {
     queryKey: queryKeys.repositories,
     queryFn: () => window.agentmat.skills.listRepositories(),
   });
+  const ipGeoDeferReady = useIdleAfterMount();
   const ipGeoQuery = useQuery({
     queryKey: queryKeys.ipGeo,
     queryFn: () => window.agentmat.ipGeo.lookup(),
     staleTime: Infinity,
     retry: false,
+    enabled: ipGeoDeferReady,
   });
 
   const installedCount = cliQuery.data?.filter((c) => c.installed).length ?? 0;
@@ -204,13 +229,37 @@ export default function DashboardPage(): React.JSX.Element {
           </CardContent>
         </Card>
         <Card>
-          <CardHeader className="pb-2">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="flex items-center gap-2 text-xs text-muted-foreground">
-              <Sparkles className="h-3.5 w-3.5" /> Recent Activity
+              <Globe className="h-3.5 w-3.5" /> Your Location
             </CardTitle>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => void ipGeoQuery.refetch()}
+              disabled={ipGeoQuery.isFetching}
+            >
+              <RefreshCw className={ipGeoQuery.isFetching ? 'h-3.5 w-3.5 animate-spin' : 'h-3.5 w-3.5'} />
+            </Button>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-semibold">{activityQuery.data?.length ?? 0}</div>
+            {ipGeoQuery.isPending ? (
+              <div className="text-sm text-muted-foreground">Looking up…</div>
+            ) : ipGeoQuery.isError || !ipGeoQuery.data ? (
+              <div className="text-sm text-destructive">Unavailable</div>
+            ) : (
+              <div className="min-w-0 space-y-1">
+                <div className="flex items-center gap-2 text-2xl font-semibold">
+                  <span className="shrink-0 text-xl leading-none">
+                    {countryCodeToFlagEmoji(ipGeoQuery.data.countryCode)}
+                  </span>
+                  <span className="truncate">{ipGeoQuery.data.country}</span>
+                </div>
+                <div className="truncate font-mono text-xs text-muted-foreground">
+                  {ipGeoQuery.data.ip || '—'}
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -433,49 +482,6 @@ export default function DashboardPage(): React.JSX.Element {
                   </span>
                 </div>
               ))
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0">
-            <CardTitle className="flex items-center gap-2">
-              <Globe className="h-4 w-4" /> Your Location
-            </CardTitle>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => void ipGeoQuery.refetch()}
-              disabled={ipGeoQuery.isFetching}
-            >
-              <RefreshCw className={ipGeoQuery.isFetching ? 'h-4 w-4 animate-spin' : 'h-4 w-4'} />
-            </Button>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {ipGeoQuery.isLoading ? (
-              <p className="text-sm text-muted-foreground">Looking up your IP address…</p>
-            ) : ipGeoQuery.isError || !ipGeoQuery.data ? (
-              <p className="text-sm text-destructive">
-                Couldn't determine your IP address. Check your connection and try again.
-              </p>
-            ) : (
-              <>
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-muted-foreground">IP Address</span>
-                  <span className="font-mono">{ipGeoQuery.data.ip || '—'}</span>
-                </div>
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-muted-foreground">Country</span>
-                  <span className="flex items-center gap-2">
-                    <span className="text-lg leading-none">
-                      {countryCodeToFlagEmoji(ipGeoQuery.data.countryCode)}
-                    </span>
-                    {ipGeoQuery.data.country}
-                  </span>
-                </div>
-              </>
             )}
           </CardContent>
         </Card>

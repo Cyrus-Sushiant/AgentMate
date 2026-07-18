@@ -21,6 +21,9 @@ export const IPC = {
     bootstrap: 'projects:bootstrap',
     pickFolder: 'projects:pickFolder',
     updateNotifications: 'projects:updateNotifications',
+    listClaudeHooks: 'projects:listClaudeHooks',
+    updateClaudeHook: 'projects:updateClaudeHook',
+    deleteClaudeHook: 'projects:deleteClaudeHook',
   },
   notifications: {
     sendTest: 'notifications:sendTest',

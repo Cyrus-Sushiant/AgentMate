@@ -29,6 +29,7 @@ import { CliLogo } from '@/components/cliLogos';
 import { CLI_REGISTRY } from '@agentmat/core';
 import type {
   CliDefinition,
+  DetectedClaudeHook,
   NotificationHookKind,
   Project,
   ProjectNotificationHook,
@@ -38,7 +39,17 @@ import type {
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Combobox } from '@/components/ui/combobox';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Separator } from '@/components/ui/separator';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
@@ -313,6 +324,8 @@ export default function ProjectDetailPage(): React.JSX.Element {
               </div>
             </dl>
           </div>
+
+          <ProjectHooksCard project={project} />
         </div>
       </div>
 
@@ -373,6 +386,177 @@ function ProjectConfigEditor({ projectFolderPath }: { projectFolderPath: string 
       </div>
       <MonacoEditor value={content} onChange={setContent} language="json" className="min-h-[320px]" />
     </div>
+  );
+}
+
+const HOOK_LABELS: Record<NotificationHookKind, string> = {
+  completion: 'Completion',
+  confirmation: 'Confirmation',
+};
+
+function ProjectHooksCard({ project }: { project: Project }): React.JSX.Element {
+  const queryClient = useQueryClient();
+  const kinds: NotificationHookKind[] = ['completion', 'confirmation'];
+  const [editingHook, setEditingHook] = useState<DetectedClaudeHook | null>(null);
+
+  const claudeHooksQuery = useQuery({
+    queryKey: queryKeys.claudeHooks(project.id),
+    queryFn: () => window.agentmat.projects.listClaudeHooks(project.id),
+  });
+  const otherHooks = (claudeHooksQuery.data ?? []).filter((h) => !h.managedByAgentMate);
+
+  const deleteMutation = useMutation({
+    mutationFn: (hookId: string) => window.agentmat.projects.deleteClaudeHook(project.id, hookId),
+    onSuccess: () => {
+      toast.success('Hook removed.');
+      void queryClient.invalidateQueries({ queryKey: queryKeys.claudeHooks(project.id) });
+    },
+  });
+
+  return (
+    <div className="rounded-2xl border border-border bg-card p-5">
+      <p className="mb-3 text-xs font-medium text-muted-foreground">Hooks</p>
+      <div className="space-y-3 text-sm">
+        {kinds.map((kind) => {
+          const hook = project.notifications[kind];
+          const installed = hook.enabled && !!hook.cliId;
+          const cli = CLI_REGISTRY.find((c) => c.id === hook.cliId);
+
+          return (
+            <div key={kind} className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-1.5 text-muted-foreground">
+                <Bell className="h-3.5 w-3.5" />
+                {HOOK_LABELS[kind]}
+              </div>
+              {installed ? (
+                <Badge variant="success" className="gap-1">
+                  <CliLogo cliId={hook.cliId ?? ''} className="h-3 w-3" />
+                  {cli?.name ?? hook.cliId}
+                </Badge>
+              ) : (
+                <Badge variant="outline">Not installed</Badge>
+              )}
+            </div>
+          );
+        })}
+
+        {otherHooks.length > 0 && (
+          <>
+            <Separator />
+            {otherHooks.map((hook) => (
+              <div key={hook.id} className="flex items-start justify-between gap-2">
+                <div className="min-w-0 space-y-0.5">
+                  <div className="flex items-center gap-1.5 text-muted-foreground">
+                    <Bell className="h-3.5 w-3.5 shrink-0" />
+                    <span className="truncate">
+                      {hook.event}
+                      {hook.matcher ? ` · ${hook.matcher}` : ''}
+                    </span>
+                  </div>
+                  <p className="truncate font-mono text-xs text-muted-foreground/80" title={hook.command}>
+                    {hook.command}
+                  </p>
+                </div>
+                <div className="flex shrink-0 items-center gap-1">
+                  <Button variant="ghost" size="icon" title="Edit hook" onClick={() => setEditingHook(hook)}>
+                    <Pencil className="h-3.5 w-3.5" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    title="Delete hook"
+                    onClick={() => {
+                      if (confirm(`Remove this ${hook.event} hook from .claude/settings.json?`)) {
+                        deleteMutation.mutate(hook.id);
+                      }
+                    }}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </>
+        )}
+      </div>
+
+      <EditClaudeHookDialog
+        projectId={project.id}
+        hook={editingHook}
+        onOpenChange={(open) => {
+          if (!open) setEditingHook(null);
+        }}
+      />
+    </div>
+  );
+}
+
+function EditClaudeHookDialog({
+  projectId,
+  hook,
+  onOpenChange,
+}: {
+  projectId: string;
+  hook: DetectedClaudeHook | null;
+  onOpenChange: (open: boolean) => void;
+}): React.JSX.Element {
+  const queryClient = useQueryClient();
+  const [command, setCommand] = useState('');
+  const [matcher, setMatcher] = useState('');
+
+  useEffect(() => {
+    if (hook) {
+      setCommand(hook.command);
+      setMatcher(hook.matcher ?? '');
+    }
+  }, [hook]);
+
+  const updateMutation = useMutation({
+    mutationFn: () => {
+      if (!hook) return Promise.resolve();
+      return window.agentmat.projects.updateClaudeHook(projectId, hook.id, {
+        command,
+        matcher: matcher || undefined,
+      });
+    },
+    onSuccess: () => {
+      toast.success('Hook updated.');
+      void queryClient.invalidateQueries({ queryKey: queryKeys.claudeHooks(projectId) });
+      onOpenChange(false);
+    },
+  });
+
+  return (
+    <Dialog open={!!hook} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Edit hook</DialogTitle>
+          <DialogDescription>{hook?.event} hook in .claude/settings.json</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3">
+          <div className="space-y-1.5">
+            <Label>Matcher</Label>
+            <Input
+              value={matcher}
+              onChange={(e) => setMatcher(e.target.value)}
+              placeholder="Optional tool/event matcher"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label>Command</Label>
+            <Textarea value={command} onChange={(e) => setCommand(e.target.value)} rows={3} />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button
+            disabled={updateMutation.isPending || !command.trim()}
+            onClick={() => updateMutation.mutate()}
+          >
+            <Save className="h-4 w-4" /> Save
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 

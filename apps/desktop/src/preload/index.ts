@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer } from 'electron';
 import type {
   AppSettings,
   CliUpdateCheckResult,
+  DetectedClaudeHook,
   InstalledCli,
   Project,
   ProjectNotificationSettings,
@@ -85,6 +86,15 @@ const projects = {
   pickFolder: (): Promise<string | null> => ipcRenderer.invoke(IPC.projects.pickFolder),
   updateNotifications: (projectId: string, notifications: ProjectNotificationSettings): Promise<Project> =>
     ipcRenderer.invoke(IPC.projects.updateNotifications, projectId, notifications),
+  listClaudeHooks: (projectId: string): Promise<DetectedClaudeHook[]> =>
+    ipcRenderer.invoke(IPC.projects.listClaudeHooks, projectId),
+  updateClaudeHook: (
+    projectId: string,
+    hookId: string,
+    updates: { matcher?: string; command: string },
+  ): Promise<void> => ipcRenderer.invoke(IPC.projects.updateClaudeHook, projectId, hookId, updates),
+  deleteClaudeHook: (projectId: string, hookId: string): Promise<void> =>
+    ipcRenderer.invoke(IPC.projects.deleteClaudeHook, projectId, hookId),
 };
 
 const skills = {
