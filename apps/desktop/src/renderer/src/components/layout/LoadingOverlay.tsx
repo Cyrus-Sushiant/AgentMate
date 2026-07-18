@@ -41,11 +41,7 @@ export function LoadingOverlay({ show, label }: LoadingOverlayProps): React.JSX.
               animate={{ rotate: 360 }}
               transition={{ duration: 1.1, ease: 'linear', repeat: Infinity }}
             />
-            <img
-              src={appIcon}
-              alt=""
-              className="h-11 w-11 rounded-lg shadow-[0_0_18px_rgba(16,185,129,0.55)]"
-            />
+            <img src={appIcon} alt="" className="h-11 w-11" />
           </motion.div>
           {label && <p className="text-sm text-muted-foreground">{label}</p>}
         </motion.div>

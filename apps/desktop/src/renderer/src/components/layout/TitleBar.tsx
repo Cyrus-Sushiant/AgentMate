@@ -142,7 +142,7 @@ export function TitleBar(): React.JSX.Element {
       <div className="flex items-center gap-3">
         {isMac && <MacTrafficLights {...controlProps} />}
         <div className="flex items-center gap-2">
-          <img src={appIcon} alt="" className="h-6 w-6 rounded-md shadow-[0_0_12px_rgba(16,185,129,0.5)]" />
+          <img src={appIcon} alt="" className="h-6 w-6" />
           <span className="text-sm font-semibold tracking-tight text-foreground">AgentMate</span>
         </div>
       </div>
