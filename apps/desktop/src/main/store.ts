@@ -44,6 +44,13 @@ const DEFAULT_SETTINGS: AppSettings = {
   telegramBotToken: null,
   telegramChatId: null,
   telegramScheduledTasksChatId: null,
+  openaiApiKey: null,
+  openaiModel: 'gpt-4o-mini',
+  ollamaBaseUrl: 'http://localhost:11434',
+  ollamaModel: '',
+  geminiApiKey: null,
+  geminiModel: 'gemini-2.0-flash',
+  dashboardChartOrder: [],
 };
 
 /** Older projects.json entries predate the notifications field. */

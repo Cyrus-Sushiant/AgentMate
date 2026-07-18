@@ -79,6 +79,7 @@ export const IPC = {
   },
   shell: {
     openExternal: 'shell:openExternal',
+    openPath: 'shell:openPath',
   },
   promptHistory: {
     list: 'promptHistory:list',
@@ -89,6 +90,10 @@ export const IPC = {
   },
   translate: {
     text: 'translate:text',
+  },
+  ai: {
+    ask: 'ai:ask',
+    listOllamaModels: 'ai:listOllamaModels',
   },
   scheduledTasks: {
     list: 'scheduledTasks:list',

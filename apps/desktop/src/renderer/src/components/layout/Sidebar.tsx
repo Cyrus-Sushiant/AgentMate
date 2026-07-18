@@ -4,6 +4,7 @@ import {
   FolderKanban,
   History,
   LayoutDashboard,
+  MessageSquare,
   Plug,
   SettingsIcon,
   Sparkles,
@@ -15,12 +16,13 @@ import { SimpleTooltip } from '@/components/ui/tooltip';
 
 export const NAV_ITEMS = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard, end: true },
-  { to: '/cli-manager', label: 'AI CLI Manager', icon: TerminalSquare },
   { to: '/prompt-builder', label: 'Prompt Builder', icon: Sparkles },
   { to: '/prompt-history', label: 'Prompt History', icon: History },
   { to: '/projects', label: 'Projects', icon: FolderKanban },
   { to: '/skills', label: 'Skills', icon: Blocks },
   { to: '/mcp', label: 'MCP Servers', icon: Plug },
+  { to: '/cli-manager', label: 'AI CLI Manager', icon: TerminalSquare },
+  { to: '/ask-ai', label: 'Ask AI', icon: MessageSquare },
   { to: '/settings', label: 'Settings', icon: SettingsIcon },
 ];
 
@@ -46,14 +48,14 @@ export function Sidebar(): React.JSX.Element {
                   'group relative flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
                   collapsed && 'justify-center px-0',
                   isActive
-                    ? 'bg-primary font-semibold text-primary-foreground'
+                    ? 'bg-primary/15 font-semibold text-primary'
                     : 'text-muted-foreground hover:bg-foreground/[0.06] hover:text-foreground',
                 )
               }
             >
               {({ isActive }) => (
                 <>
-                  <item.icon className={cn('h-4 w-4 shrink-0', isActive && 'text-primary-foreground')} />
+                  <item.icon className={cn('h-4 w-4 shrink-0', isActive && 'text-primary')} />
                   {!collapsed && <span>{item.label}</span>}
                 </>
               )}

@@ -1,10 +1,9 @@
 import { execFile } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
 import os from 'node:os';
-import path from 'node:path';
 import { promisify } from 'node:util';
 import { ipcMain } from 'electron';
-import type { PingResult, SystemStatsSample } from '../../shared/apiTypes';
+import type { DiskUsage, GpuUsage, PingResult, SystemStatsSample } from '../../shared/apiTypes';
 import { IPC } from '../../shared/ipcChannels';
 import { store } from '../store';
 
@@ -53,56 +52,131 @@ function sampleMemory(): Pick<SystemStatsSample, 'memPercent' | 'memUsedBytes' |
   };
 }
 
-async function sampleDisk(): Promise<
-  Pick<SystemStatsSample, 'diskPercent' | 'diskUsedBytes' | 'diskTotalBytes'>
-> {
+interface DiskIoSnapshot {
+  readBytes: number;
+  writeBytes: number;
+  timestamp: number;
+}
+
+let lastDiskIoSnapshots = new Map<string, DiskIoSnapshot>();
+
+// Enumerates every physical disk's live read/write throughput (not capacity)
+// so the dashboard can chart I/O activity for all of them at once.
+async function sampleDisks(): Promise<DiskUsage[]> {
   try {
     if (process.platform === 'win32') {
-      const driveLetter = path.parse(os.homedir()).root.replace(/[\\:]/g, '');
+      // PhysicalDisk (not LogicalDisk) — a single physical disk can host
+      // several drive letters, and I/O activity happens on the physical
+      // spindle/SSD, not the logical volume. This WMI class already reports
+      // a rolling per-second rate, no manual delta needed.
       const { stdout } = await execFileAsync('powershell', [
         '-NoProfile',
         '-Command',
-        `Get-PSDrive -Name ${driveLetter} | Select-Object Used,Free | ConvertTo-Json`,
+        'Get-CimInstance Win32_PerfFormattedData_PerfDisk_PhysicalDisk | Select-Object Name,DiskReadBytesPersec,DiskWriteBytesPersec | ConvertTo-Json',
       ]);
-      const parsed = JSON.parse(stdout) as { Used: number; Free: number };
-      const diskUsedBytes = parsed.Used;
-      const diskTotalBytes = parsed.Used + parsed.Free;
-      return { diskPercent: (diskUsedBytes / diskTotalBytes) * 100, diskUsedBytes, diskTotalBytes };
+      const parsed = JSON.parse(stdout) as
+        | { Name: string; DiskReadBytesPersec: number | null; DiskWriteBytesPersec: number | null }
+        | { Name: string; DiskReadBytesPersec: number | null; DiskWriteBytesPersec: number | null }[];
+      const rows = Array.isArray(parsed) ? parsed : [parsed];
+      return rows
+        // "_Total" is the aggregate row across all disks — each disk is already listed on its own.
+        .filter((r) => r.Name !== '_Total')
+        .map((r) => {
+          // Instance names look like "0 C:" or "1 D: E:" — index followed by
+          // the drive letter(s) that live on that physical disk.
+          const index = r.Name.match(/^\d+/)?.[0];
+          return {
+            id: r.Name,
+            label: index ? `Disk ${index}` : r.Name,
+            readBytesPerSec: r.DiskReadBytesPersec ?? 0,
+            writeBytesPerSec: r.DiskWriteBytesPersec ?? 0,
+          };
+        });
     }
 
-    const { stdout } = await execFileAsync('df', ['-k', os.homedir()]);
-    const line = stdout.trim().split('\n').at(-1) ?? '';
-    const cols = line.trim().split(/\s+/);
-    const diskUsedBytes = Number(cols[2]) * 1024;
-    const diskTotalBytes = Number(cols[1]) * 1024;
-    if (!diskTotalBytes) return { diskPercent: 0, diskUsedBytes: 0, diskTotalBytes: 0 };
-    return { diskPercent: (diskUsedBytes / diskTotalBytes) * 100, diskUsedBytes, diskTotalBytes };
+    if (process.platform === 'linux') {
+      const data = await readFile('/proc/diskstats', 'utf-8');
+      const timestamp = Date.now();
+      const previous = lastDiskIoSnapshots;
+      const next = new Map<string, DiskIoSnapshot>();
+      const results: DiskUsage[] = [];
+      for (const line of data.split('\n')) {
+        const cols = line.trim().split(/\s+/);
+        if (cols.length < 14) continue;
+        const name = cols[2];
+        // Whole disks only (sda, nvme0n1, vda…) — skips partitions, loop and ram devices.
+        if (!/^(sd[a-z]+|nvme\d+n\d+|vd[a-z]+|xvd[a-z]+|hd[a-z]+)$/.test(name)) continue;
+        const readBytes = Number(cols[5]) * 512;
+        const writeBytes = Number(cols[9]) * 512;
+        next.set(name, { readBytes, writeBytes, timestamp });
+        const prev = previous.get(name);
+        if (!prev) continue;
+        const elapsedSec = (timestamp - prev.timestamp) / 1000;
+        if (elapsedSec <= 0) continue;
+        results.push({
+          id: name,
+          label: name,
+          readBytesPerSec: Math.max(0, (readBytes - prev.readBytes) / elapsedSec),
+          writeBytesPerSec: Math.max(0, (writeBytes - prev.writeBytes) / elapsedSec),
+        });
+      }
+      lastDiskIoSnapshots = next;
+      return results;
+    }
+
+    if (process.platform === 'darwin') {
+      // `-w 1` waits 1s between the two samples so the second one reflects a
+      // real interval; macOS iostat only reports combined throughput per
+      // disk, not a read/write split.
+      const { stdout } = await execFileAsync('iostat', ['-d', '-c', '2', '-w', '1']);
+      const lines = stdout.trim().split('\n');
+      if (lines.length < 4) return [];
+      const diskNames = lines[0].trim().split(/\s+/);
+      const lastRow = (lines.at(-1) ?? '').trim().split(/\s+/).map(Number);
+      const results: DiskUsage[] = [];
+      diskNames.forEach((name, i) => {
+        const mbPerSec = lastRow[i * 3 + 2];
+        if (!Number.isFinite(mbPerSec)) return;
+        results.push({
+          id: name,
+          label: name,
+          readBytesPerSec: mbPerSec * 1024 * 1024,
+          writeBytesPerSec: 0,
+        });
+      });
+      return results;
+    }
+
+    return [];
   } catch {
-    return { diskPercent: 0, diskUsedBytes: 0, diskTotalBytes: 0 };
+    return [];
   }
 }
 
-async function sampleGpu(): Promise<
-  Pick<SystemStatsSample, 'gpuPercent' | 'gpuMemUsedBytes' | 'gpuMemTotalBytes'>
-> {
+async function sampleGpus(): Promise<GpuUsage[]> {
   try {
     // Only NVIDIA GPUs expose live utilization through a standard CLI;
     // other vendors would need vendor-specific tooling we don't ship.
     const { stdout } = await execFileAsync('nvidia-smi', [
-      '--query-gpu=utilization.gpu,memory.used,memory.total',
+      '--query-gpu=index,name,utilization.gpu,memory.used,memory.total',
       '--format=csv,noheader,nounits',
     ]);
-    const [util, memUsed, memTotal] = stdout.trim().split(',').map((v) => Number(v.trim()));
-    if (![util, memUsed, memTotal].every(Number.isFinite)) {
-      return { gpuPercent: null, gpuMemUsedBytes: null, gpuMemTotalBytes: null };
-    }
-    return {
-      gpuPercent: util,
-      gpuMemUsedBytes: memUsed * 1024 * 1024,
-      gpuMemTotalBytes: memTotal * 1024 * 1024,
-    };
+    return stdout
+      .trim()
+      .split('\n')
+      .map((line) => {
+        const [index, name, util, memUsed, memTotal] = line.split(',').map((v) => v.trim());
+        return {
+          id: index,
+          label: name,
+          percent: Number(util),
+          memUsedBytes: Number(memUsed) * 1024 * 1024,
+          memTotalBytes: Number(memTotal) * 1024 * 1024,
+        };
+      })
+      .filter((g) => Number.isFinite(g.percent));
   } catch {
-    return { gpuPercent: null, gpuMemUsedBytes: null, gpuMemTotalBytes: null };
+    return [];
   }
 }
 
@@ -201,18 +275,18 @@ export function registerSystemStatsHandlers(): void {
     // Older settings.json files predate this field.
     const hosts = (settings.pingTargets ?? []).map((h) => h.trim()).filter(Boolean);
 
-    const [net, pings, disk, gpu] = await Promise.all([
+    const [net, pings, disks, gpus] = await Promise.all([
       sampleNetworkRates(),
       Promise.all(hosts.map((host) => pingHost(host))),
-      sampleDisk(),
-      sampleGpu(),
+      sampleDisks(),
+      sampleGpus(),
     ]);
     return {
       timestamp: Date.now(),
       cpuPercent: sampleCpuPercent(),
       ...sampleMemory(),
-      ...disk,
-      ...gpu,
+      disks,
+      gpus,
       ...net,
       pings,
     };

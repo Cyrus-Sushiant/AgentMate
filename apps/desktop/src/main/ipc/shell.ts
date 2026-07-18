@@ -9,4 +9,9 @@ export function registerShellHandlers(): void {
     }
     await shell.openExternal(url);
   });
+
+  ipcMain.handle(IPC.shell.openPath, async (_event, path: string): Promise<void> => {
+    const error = await shell.openPath(path);
+    if (error) throw new Error(error);
+  });
 }

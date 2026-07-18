@@ -14,6 +14,7 @@ import {
   File,
   FileCog,
   Folder,
+  FolderOpen,
   FolderTree,
   Pencil,
   Play,
@@ -148,6 +149,20 @@ export default function ProjectDetailPage(): React.JSX.Element {
     toast.success('Path copied to clipboard.');
   }
 
+  async function handleOpenInFileExplorer(): Promise<void> {
+    if (!project) return;
+    try {
+      await window.agentmat.shell.openPath(project.folderPath);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to open folder.');
+    }
+  }
+
+  function handleOpenTerminalHere(): void {
+    if (!project) return;
+    openSession({ title: project.name, cwd: project.folderPath, projectId: project.id });
+  }
+
   if (projectsQuery.isLoading) {
     return <p className="p-6 text-sm text-muted-foreground">Loading project…</p>;
   }
@@ -188,16 +203,34 @@ export default function ProjectDetailPage(): React.JSX.Element {
                   </Badge>
                 ))}
               </div>
-              <button
-                type="button"
-                onClick={() => void handleCopyPath()}
-                className="flex max-w-full items-center gap-1.5 truncate text-xs text-muted-foreground hover:text-foreground"
-                title="Copy path"
-              >
-                <Folder className="h-3 w-3 shrink-0" />
-                <span className="truncate">{project.folderPath}</span>
-                <Copy className="h-3 w-3 shrink-0" />
-              </button>
+              <div className="flex max-w-full items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => void handleCopyPath()}
+                  className="flex min-w-0 items-center gap-1.5 truncate text-xs text-muted-foreground hover:text-foreground"
+                  title="Copy path"
+                >
+                  <Folder className="h-3 w-3 shrink-0" />
+                  <span className="truncate">{project.folderPath}</span>
+                  <Copy className="h-3 w-3 shrink-0" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleOpenInFileExplorer()}
+                  className="shrink-0 text-muted-foreground hover:text-foreground"
+                  title="Open in File Explorer"
+                >
+                  <FolderOpen className="h-3 w-3" />
+                </button>
+                <button
+                  type="button"
+                  onClick={handleOpenTerminalHere}
+                  className="shrink-0 text-muted-foreground hover:text-foreground"
+                  title="Open terminal here"
+                >
+                  <TerminalSquare className="h-3 w-3" />
+                </button>
+              </div>
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-2">

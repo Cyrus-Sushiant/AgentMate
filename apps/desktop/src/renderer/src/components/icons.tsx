@@ -15,6 +15,7 @@ import {
   faCircleQuestion,
   faClock,
   faClockRotateLeft,
+  faComments,
   faCloudArrowDown,
   faCopy,
   faDisplay,
@@ -29,6 +30,7 @@ import {
   faGaugeHigh,
   faGear,
   faGlobe,
+  faGripVertical,
   faHardDrive,
   faLanguage,
   faMagnifyingGlass,
@@ -124,6 +126,7 @@ export const NetworkIcon = makeIcon(faNetworkWired);
 export const SatelliteDish = makeIcon(faSatelliteDish);
 export const HardDrive = makeIcon(faHardDrive);
 export const Gpu = makeIcon(faDisplay);
+export const GripVertical = makeIcon(faGripVertical);
 
 // CLI manager icons.
 export const CloudDownload = makeIcon(faCloudArrowDown);
@@ -143,3 +146,6 @@ export const TriangleAlert = makeIcon(faTriangleExclamation);
 
 // MCP marketplace icons.
 export const Plug = makeIcon(faPlug);
+
+// Ask AI icons.
+export const MessageSquare = makeIcon(faComments);

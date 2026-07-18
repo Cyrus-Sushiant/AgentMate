@@ -2,6 +2,7 @@ import { join } from 'node:path';
 import { app, BrowserWindow, session, shell } from 'electron';
 import icon from '../../resources/icon.ico?asset';
 import { registerActivityHandlers } from './ipc/activity';
+import { registerAiHandlers } from './ipc/ai';
 import { registerCliDetectionHandlers } from './ipc/cliDetection';
 import { registerFileSystemHandlers } from './ipc/fileSystem';
 import { registerIpGeoHandlers } from './ipc/ipGeo';
@@ -92,6 +93,7 @@ function registerAllIpcHandlers(): void {
   registerIpGeoHandlers();
   registerScheduledTaskHandlers();
   registerNotificationHandlers();
+  registerAiHandlers();
 }
 
 app.whenReady().then(() => {

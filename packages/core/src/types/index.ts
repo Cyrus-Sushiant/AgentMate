@@ -12,6 +12,20 @@ export interface AppSettings {
   telegramChatId: string | null;
   /** Chat/group ID scheduled tasks are posted to and kept in sync with as their status changes. */
   telegramScheduledTasksChatId: string | null;
+  /** API key for OpenAI's Chat Completions API, used by the Ask AI page. */
+  openaiApiKey: string | null;
+  /** Model id sent with OpenAI requests, e.g. "gpt-4o-mini". */
+  openaiModel: string;
+  /** Base URL of a local Ollama server, e.g. "http://localhost:11434". */
+  ollamaBaseUrl: string;
+  /** Last model selected for Ollama requests on the Ask AI page. */
+  ollamaModel: string;
+  /** API key for Google's Gemini API, used by the Ask AI page. */
+  geminiApiKey: string | null;
+  /** Model id sent with Gemini requests, e.g. "gemini-2.0-flash". */
+  geminiModel: string;
+  /** User-defined display order for the dashboard's stat chart cards (ids from DASHBOARD_CHART_IDS). */
+  dashboardChartOrder: string[];
 }
 
 export type AgentType = 'claude-code' | 'gemini' | 'opencode' | 'codex' | 'generic';

@@ -1,7 +1,15 @@
 import { useEffect, useRef } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useIsFetching, useIsMutating } from '@tanstack/react-query';
-import { AnglesLeft, AnglesRight, Moon, Sun, SunMoon, TerminalSquare } from '@/components/icons';
+import {
+  AnglesLeft,
+  AnglesRight,
+  MessageSquare,
+  Moon,
+  Sun,
+  SunMoon,
+  TerminalSquare,
+} from '@/components/icons';
 import { Outlet, useLocation } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 import { TitleBar } from './TitleBar';
@@ -13,8 +21,10 @@ import { useTerminalStore } from '@/stores/terminalStore';
 import { useUiStore } from '@/stores/uiStore';
 import { usePageHeaderStore } from '@/stores/pageHeaderStore';
 import { useSearchStore } from '@/stores/searchStore';
+import { useAskAiStore } from '@/stores/askAiStore';
 import { TerminalDrawer } from '@/components/terminal/TerminalDrawer';
 import { CommandPalette } from '@/components/search/CommandPalette';
+import { AskAiModal } from '@/components/askAi/AskAiModal';
 import { useDelayedLoading } from '@/hooks/useDelayedLoading';
 import { cn } from '@/lib/utils';
 
@@ -59,6 +69,7 @@ function TopBar(): React.JSX.Element {
   const activeSession = sessions.find((s) => s.id === activeSessionId);
   const pageTitle = usePageHeaderStore((s) => s.title);
   const pageSubtitle = usePageHeaderStore((s) => s.subtitle);
+  const openAskAi = useAskAiStore((s) => s.openModal);
 
   return (
     <div className="flex h-16 shrink-0 items-center justify-between gap-3 border-b border-border px-3">
@@ -85,6 +96,11 @@ function TopBar(): React.JSX.Element {
         <SimpleTooltip label="Toggle terminal">
           <Button variant={isTerminalOpen ? 'secondary' : 'ghost'} size="icon" onClick={toggleDrawer}>
             <TerminalSquare className="h-4 w-4" />
+          </Button>
+        </SimpleTooltip>
+        <SimpleTooltip label="Ask AI">
+          <Button variant="ghost" size="icon" onClick={openAskAi}>
+            <MessageSquare className="h-4 w-4" />
           </Button>
         </SimpleTooltip>
         <ThemeToggle />
@@ -122,6 +138,7 @@ export function AppShell(): React.JSX.Element {
     <div className="relative flex h-full w-full flex-col overflow-hidden bg-background text-foreground">
       <TitleBar />
       <CommandPalette />
+      <AskAiModal />
       <div className="flex min-h-0 flex-1 overflow-hidden">
         <Sidebar />
         <div className="relative flex min-w-0 flex-1 flex-col">

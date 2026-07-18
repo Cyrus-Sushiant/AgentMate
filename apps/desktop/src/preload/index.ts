@@ -29,6 +29,8 @@ import type {
   AddPromptHistoryInput,
   PromptHistoryEntry,
   TranslateTextInput,
+  AskAiInput,
+  AskAiResult,
   SystemStatsSample,
   IpGeoInfo,
   DetectChatIdResult,
@@ -184,6 +186,7 @@ const activity = {
 
 const shellApi = {
   openExternal: (url: string): Promise<void> => ipcRenderer.invoke(IPC.shell.openExternal, url),
+  openPath: (path: string): Promise<void> => ipcRenderer.invoke(IPC.shell.openPath, path),
 };
 
 const promptHistory = {
@@ -199,6 +202,11 @@ const promptHistory = {
 
 const translate = {
   text: (input: TranslateTextInput): Promise<string> => ipcRenderer.invoke(IPC.translate.text, input),
+};
+
+const ai = {
+  ask: (input: AskAiInput): Promise<AskAiResult> => ipcRenderer.invoke(IPC.ai.ask, input),
+  listOllamaModels: (): Promise<string[]> => ipcRenderer.invoke(IPC.ai.listOllamaModels),
 };
 
 const system = {
@@ -260,6 +268,7 @@ const agentmatApi = {
   window: windowControls,
   promptHistory,
   translate,
+  ai,
   system,
   ipGeo,
   scheduledTasks,

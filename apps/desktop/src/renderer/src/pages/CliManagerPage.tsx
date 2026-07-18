@@ -35,7 +35,9 @@ export default function CliManagerPage(): React.JSX.Element {
   const openSession = useTerminalStore((s) => s.openSession);
   const [showAll, setShowAll] = useState(false);
   const [checkingCliId, setCheckingCliId] = useState<string | null>(null);
+  const [checkingAll, setCheckingAll] = useState(false);
   const [pendingUpdate, setPendingUpdate] = useState<PendingUpdate | null>(null);
+  const [, setUpdateQueue] = useState<PendingUpdate[]>([]);
 
   const cliQuery = useQuery({
     queryKey: queryKeys.cliStatus,
@@ -89,7 +91,60 @@ export default function CliManagerPage(): React.JSX.Element {
     if (!pendingUpdate) return;
     openSession({ title: `Update ${pendingUpdate.cli.name}`, initialInput: pendingUpdate.command });
     toast.info(`Press Enter in the terminal to update ${pendingUpdate.cli.name}.`);
-    setPendingUpdate(null);
+    dismissPendingUpdate();
+  }
+
+  function dismissPendingUpdate(): void {
+    setUpdateQueue((queue) => {
+      const [next, ...rest] = queue;
+      setPendingUpdate(next ?? null);
+      return rest;
+    });
+  }
+
+  async function handleCheckAllForUpdates(): Promise<void> {
+    const installedClis = CLI_REGISTRY.filter((cli) => cliQuery.data?.find((c) => c.id === cli.id)?.installed);
+    if (installedClis.length === 0) {
+      toast.info('No installed CLIs to check.');
+      return;
+    }
+
+    setCheckingAll(true);
+    try {
+      const updates: PendingUpdate[] = [];
+      let uncheckable = 0;
+
+      for (const cli of installedClis) {
+        const currentVersion = cliQuery.data?.find((c) => c.id === cli.id)?.version ?? null;
+        const result = await window.agentmat.cli.checkForUpdate(cli.id, currentVersion);
+        if (!result.supported || !result.latestVersion) {
+          uncheckable += 1;
+          continue;
+        }
+        if (result.updateAvailable) {
+          const command = await window.agentmat.cli.getUpdateCommand(cli.id);
+          if (command) {
+            updates.push({ cli, currentVersion, latestVersion: result.latestVersion, command });
+          }
+        }
+      }
+
+      if (updates.length === 0) {
+        toast.success(
+          uncheckable > 0
+            ? `All checkable CLIs are up to date (${uncheckable} could not be checked).`
+            : 'All CLIs are up to date.'
+        );
+        return;
+      }
+
+      toast.info(`${updates.length} CLI update${updates.length > 1 ? 's' : ''} available.`);
+      const [first, ...rest] = updates;
+      setPendingUpdate(first);
+      setUpdateQueue(rest);
+    } finally {
+      setCheckingAll(false);
+    }
   }
 
   usePageHeader('AI CLI Manager', 'Detected AI coding CLIs on this machine. Install missing ones with one click.');
@@ -103,6 +158,10 @@ export default function CliManagerPage(): React.JSX.Element {
               {showAll ? 'Hide not installed' : `Show all CLIs (${notInstalledCount} not installed)`}
             </Button>
           )}
+          <Button variant="outline" disabled={checkingAll} onClick={() => void handleCheckAllForUpdates()}>
+            <CloudDownload className={checkingAll ? 'animate-pulse' : undefined} />
+            {checkingAll ? 'Checking updates…' : 'Check all for updates'}
+          </Button>
           <Button
             variant="outline"
             onClick={() => {
@@ -183,7 +242,7 @@ export default function CliManagerPage(): React.JSX.Element {
         })}
       </div>
 
-      <Dialog open={pendingUpdate !== null} onOpenChange={(open) => !open && setPendingUpdate(null)}>
+      <Dialog open={pendingUpdate !== null} onOpenChange={(open) => !open && dismissPendingUpdate()}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Update {pendingUpdate?.cli.name}?</DialogTitle>
@@ -204,7 +263,7 @@ export default function CliManagerPage(): React.JSX.Element {
             </code>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setPendingUpdate(null)}>
+            <Button variant="outline" onClick={dismissPendingUpdate}>
               Cancel
             </Button>
             <Button onClick={handleConfirmUpdate}>Update</Button>

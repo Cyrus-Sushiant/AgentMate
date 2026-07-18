@@ -73,6 +73,21 @@ export interface TranslateTextInput {
   targetLang: string;
 }
 
+export type AiProvider = 'openai' | 'ollama' | 'gemini';
+
+export interface AskAiInput {
+  provider: AiProvider;
+  /** Model id — an OpenAI/Gemini model name, or an Ollama model tag from listOllamaModels(). */
+  model: string;
+  prompt: string;
+}
+
+export interface AskAiResult {
+  ok: boolean;
+  text: string;
+  error?: string;
+}
+
 export interface ScheduledTaskInput {
   rawInput: string;
   promptType: string;
@@ -123,19 +138,33 @@ export interface ConfirmationForwardedPayload {
   text: string;
 }
 
+export interface DiskUsage {
+  /** Drive letter (Windows) or device name (macOS/Linux) — stable across samples. */
+  id: string;
+  label: string;
+  readBytesPerSec: number;
+  writeBytesPerSec: number;
+}
+
+export interface GpuUsage {
+  /** GPU index reported by `nvidia-smi` — stable across samples. */
+  id: string;
+  label: string;
+  percent: number;
+  memUsedBytes: number;
+  memTotalBytes: number;
+}
+
 export interface SystemStatsSample {
   timestamp: number;
   cpuPercent: number;
   memPercent: number;
   memUsedBytes: number;
   memTotalBytes: number;
-  diskPercent: number;
-  diskUsedBytes: number;
-  diskTotalBytes: number;
-  /** Null when no supported GPU (currently NVIDIA via `nvidia-smi`) could be queried. */
-  gpuPercent: number | null;
-  gpuMemUsedBytes: number | null;
-  gpuMemTotalBytes: number | null;
+  /** Empty when no fixed disk could be queried. */
+  disks: DiskUsage[];
+  /** Empty when no supported GPU (currently NVIDIA via `nvidia-smi`) could be queried. */
+  gpus: GpuUsage[];
   netRxBytesPerSec: number;
   netTxBytesPerSec: number;
   pings: PingResult[];

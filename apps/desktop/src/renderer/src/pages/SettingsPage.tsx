@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
-import { Blocks, Monitor, Moon, Robot, SatelliteDish, Send, Sun } from '@/components/icons';
+import { Blocks, MessageSquare, Monitor, Moon, Robot, SatelliteDish, Send, Sun } from '@/components/icons';
 import { CLI_REGISTRY } from '@agentmat/core';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -111,6 +111,39 @@ export default function SettingsPage(): React.JSX.Element {
     }
   }
 
+  const [openaiApiKey, setOpenaiApiKey] = useState('');
+  const [openaiModel, setOpenaiModel] = useState('');
+  const [ollamaBaseUrl, setOllamaBaseUrl] = useState('');
+  const [geminiApiKey, setGeminiApiKey] = useState('');
+  const [geminiModel, setGeminiModel] = useState('');
+  const [aiDirty, setAiDirty] = useState(false);
+
+  useEffect(() => {
+    if (!aiDirty && settingsQuery.data) {
+      setOpenaiApiKey(settingsQuery.data.openaiApiKey ?? '');
+      setOpenaiModel(settingsQuery.data.openaiModel);
+      setOllamaBaseUrl(settingsQuery.data.ollamaBaseUrl);
+      setGeminiApiKey(settingsQuery.data.geminiApiKey ?? '');
+      setGeminiModel(settingsQuery.data.geminiModel);
+    }
+  }, [settingsQuery.data, aiDirty]);
+
+  const saveAiMutation = useMutation({
+    mutationFn: () =>
+      window.agentmat.settings.update({
+        openaiApiKey: openaiApiKey.trim() || null,
+        openaiModel: openaiModel.trim() || 'gpt-4o-mini',
+        ollamaBaseUrl: ollamaBaseUrl.trim() || 'http://localhost:11434',
+        geminiApiKey: geminiApiKey.trim() || null,
+        geminiModel: geminiModel.trim() || 'gemini-2.0-flash',
+      }),
+    onSuccess: () => {
+      toast.success('AI provider settings saved.');
+      setAiDirty(false);
+      void queryClient.invalidateQueries({ queryKey: queryKeys.settings });
+    },
+  });
+
   const [pingTargetsText, setPingTargetsText] = useState(() => pingTargets.join(', '));
   const [pingTargetsDirty, setPingTargetsDirty] = useState(false);
 
@@ -212,6 +245,132 @@ export default function SettingsPage(): React.JSX.Element {
             variant="outline"
             disabled={!pingTargetsDirty}
             onClick={handleSavePingTargets}
+          >
+            Save
+          </Button>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <MessageSquare className="h-4 w-4" /> Ask AI Providers
+          </CardTitle>
+          <CardDescription>
+            Configure the providers used by Ask AI — an OpenAI API key for GPT models, a Gemini API
+            key for Google's models, and/or the address of a local Ollama server.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-1.5">
+            <Label htmlFor="openai-api-key">OpenAI API key</Label>
+            <Input
+              id="openai-api-key"
+              type="password"
+              value={openaiApiKey}
+              onChange={(e) => {
+                setOpenaiApiKey(e.target.value);
+                setAiDirty(true);
+              }}
+              placeholder="sk-…"
+              className="max-w-md font-mono"
+              autoComplete="off"
+            />
+            <p className="text-xs text-muted-foreground">
+              Create one at{' '}
+              <button
+                type="button"
+                className="underline underline-offset-2 hover:text-foreground"
+                onClick={() =>
+                  void window.agentmat.shell.openExternal('https://platform.openai.com/api-keys')
+                }
+              >
+                platform.openai.com/api-keys
+              </button>
+              .
+            </p>
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="openai-model">Default OpenAI model</Label>
+            <Input
+              id="openai-model"
+              value={openaiModel}
+              onChange={(e) => {
+                setOpenaiModel(e.target.value);
+                setAiDirty(true);
+              }}
+              placeholder="gpt-4o-mini"
+              className="max-w-xs font-mono"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="ollama-base-url">Ollama server URL</Label>
+            <Input
+              id="ollama-base-url"
+              value={ollamaBaseUrl}
+              onChange={(e) => {
+                setOllamaBaseUrl(e.target.value);
+                setAiDirty(true);
+              }}
+              placeholder="http://localhost:11434"
+              className="max-w-xs font-mono"
+            />
+            <p className="text-xs text-muted-foreground">
+              Address of a running{' '}
+              <button
+                type="button"
+                className="underline underline-offset-2 hover:text-foreground"
+                onClick={() => void window.agentmat.shell.openExternal('https://ollama.com')}
+              >
+                Ollama
+              </button>{' '}
+              instance. Leave the default if it runs on this machine.
+            </p>
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="gemini-api-key">Gemini API key</Label>
+            <Input
+              id="gemini-api-key"
+              type="password"
+              value={geminiApiKey}
+              onChange={(e) => {
+                setGeminiApiKey(e.target.value);
+                setAiDirty(true);
+              }}
+              placeholder="AIza…"
+              className="max-w-md font-mono"
+              autoComplete="off"
+            />
+            <p className="text-xs text-muted-foreground">
+              Create one at{' '}
+              <button
+                type="button"
+                className="underline underline-offset-2 hover:text-foreground"
+                onClick={() =>
+                  void window.agentmat.shell.openExternal('https://aistudio.google.com/apikey')
+                }
+              >
+                aistudio.google.com/apikey
+              </button>
+              .
+            </p>
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="gemini-model">Default Gemini model</Label>
+            <Input
+              id="gemini-model"
+              value={geminiModel}
+              onChange={(e) => {
+                setGeminiModel(e.target.value);
+                setAiDirty(true);
+              }}
+              placeholder="gemini-2.0-flash"
+              className="max-w-xs font-mono"
+            />
+          </div>
+          <Button
+            disabled={!aiDirty || saveAiMutation.isPending}
+            onClick={() => saveAiMutation.mutate()}
           >
             Save
           </Button>

@@ -8,6 +8,7 @@ import { queryClient } from './queryClient';
 import { initTheme } from './stores/themeStore';
 import { initDefaultCli } from './stores/cliStore';
 import { initPingTargets } from './stores/pingTargetsStore';
+import { initDashboardOrder } from './stores/dashboardOrderStore';
 import { AppShell } from './components/layout/AppShell';
 import DashboardPage from './pages/DashboardPage';
 import CliManagerPage from './pages/CliManagerPage';
@@ -17,6 +18,7 @@ import ProjectsPage from './pages/ProjectsPage';
 import ProjectDetailPage from './pages/ProjectDetailPage';
 import SkillsPage from './pages/SkillsPage';
 import McpPage from './pages/McpPage';
+import AskAiPage from './pages/AskAiPage';
 import SettingsPage from './pages/SettingsPage';
 
 export default function App(): React.JSX.Element {
@@ -24,6 +26,7 @@ export default function App(): React.JSX.Element {
     void initTheme();
     void initDefaultCli();
     void initPingTargets();
+    void initDashboardOrder();
   }, []);
 
   return (
@@ -40,6 +43,7 @@ export default function App(): React.JSX.Element {
               <Route path="projects/:projectId" element={<ProjectDetailPage />} />
               <Route path="skills" element={<SkillsPage />} />
               <Route path="mcp" element={<McpPage />} />
+              <Route path="ask-ai" element={<AskAiPage />} />
               <Route path="settings" element={<SettingsPage />} />
             </Route>
           </Routes>

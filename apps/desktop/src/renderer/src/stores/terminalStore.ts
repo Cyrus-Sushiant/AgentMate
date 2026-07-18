@@ -4,6 +4,7 @@ export interface TerminalSessionMeta {
   id: string;
   title: string;
   cwd?: string;
+  shell?: string;
   initialInput?: string;
   projectId?: string;
 }
@@ -33,6 +34,7 @@ export const useTerminalStore = create<TerminalState>((set, get) => ({
       id,
       title: meta.title,
       cwd: meta.cwd,
+      shell: meta.shell,
       initialInput: meta.initialInput,
       projectId: meta.projectId,
     };
