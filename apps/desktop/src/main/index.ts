@@ -1,5 +1,5 @@
 import { join } from 'node:path';
-import { app, BrowserWindow, session, shell } from 'electron';
+import { app, BrowserWindow, desktopCapturer, session, shell } from 'electron';
 import icon from '../../resources/icon.ico?asset';
 import { registerActivityHandlers } from './ipc/activity';
 import { registerAiHandlers } from './ipc/ai';
@@ -11,6 +11,7 @@ import { registerMcpHandlers } from './ipc/mcp';
 import { registerNotificationHandlers } from './ipc/notifications';
 import { registerProjectHandlers } from './ipc/projects';
 import { registerPromptHistoryHandlers } from './ipc/promptHistory';
+import { registerRemoteHandlers } from './ipc/remote';
 import { registerScheduledTaskHandlers } from './ipc/scheduledTasks';
 import { registerSettingsHandlers } from './ipc/settings';
 import { registerShellHandlers } from './ipc/shell';
@@ -22,6 +23,7 @@ import { registerTranslateHandlers } from './ipc/translate';
 import { registerWindowHandlers } from './ipc/window';
 import { seedExampleRepositoryIfEmpty } from './exampleSkillRepo';
 import { startHookServer, stopHookServer } from './notifications/hookServer';
+import { remoteManager } from './remote/manager';
 import { checkForUpdatesQuietly } from './updater';
 
 app.setName('AgentMate');
@@ -53,6 +55,7 @@ function createMainWindow(): void {
 
   win.once('ready-to-show', () => win.show());
   registerWindowHandlers(win);
+  remoteManager.init(win);
 
   if (process.env.ELECTRON_RENDERER_URL) {
     win.webContents.on('console-message', (_event, _level, message, line, sourceId) => {
@@ -96,6 +99,7 @@ function registerAllIpcHandlers(): void {
   registerNotificationHandlers();
   registerAiHandlers();
   registerGitHandlers();
+  registerRemoteHandlers();
 }
 
 app.whenReady().then(() => {
@@ -115,6 +119,19 @@ app.whenReady().then(() => {
       },
     });
   });
+
+  // When the Remote page (host side) calls getDisplayMedia, capture the primary
+  // screen directly instead of popping the OS source picker — the operator has
+  // already opted in by starting a host session.
+  session.defaultSession.setDisplayMediaRequestHandler(
+    (_request, callback) => {
+      desktopCapturer
+        .getSources({ types: ['screen'] })
+        .then((sources) => callback(sources.length ? { video: sources[0] } : {}))
+        .catch(() => callback({}));
+    },
+    { useSystemPicker: false },
+  );
 
   registerAllIpcHandlers();
   void seedExampleRepositoryIfEmpty();
@@ -143,4 +160,5 @@ app.on('window-all-closed', () => {
 app.on('before-quit', () => {
   killAllTerminalSessions();
   stopHookServer();
+  remoteManager.shutdown();
 });

@@ -206,3 +206,81 @@ export interface SystemStatsSample {
   netTxBytesPerSec: number;
   pings: PingResult[];
 }
+
+// --- Remote control ------------------------------------------------------------
+
+export interface RemoteNetworkInterface {
+  /** Adapter name, e.g. "Wi-Fi" or "eth0". */
+  name: string;
+  address: string;
+}
+
+export interface RemoteScreenSize {
+  width: number;
+  height: number;
+}
+
+/** A controller currently connected to this machine while it is hosting. */
+export interface RemotePeerInfo {
+  id: string;
+  deviceName: string;
+  address: string;
+  connectedAt: number;
+}
+
+export type RemoteConnectionStatus = 'idle' | 'connecting' | 'connected' | 'error';
+
+/** This machine's outbound connection to a remote host (controller side). */
+export interface RemoteConnectionInfo {
+  status: RemoteConnectionStatus;
+  remoteDeviceName: string | null;
+  remoteScreen: RemoteScreenSize | null;
+  error?: string;
+}
+
+/** A live one-time pairing code plus its QR rendering. */
+export interface RemotePairingInfo {
+  code: string;
+  qrDataUrl: string;
+  expiresAt: number;
+}
+
+export interface RemoteState {
+  deviceName: string;
+  hosting: boolean;
+  hostIp: string | null;
+  hostPort: number;
+  /** Whether OS-level input injection is available on this platform. */
+  inputSupported: boolean;
+  pairing: RemotePairingInfo | null;
+  peers: RemotePeerInfo[];
+  connection: RemoteConnectionInfo;
+  interfaces: RemoteNetworkInterface[];
+}
+
+export type RemoteFileDirection = 'incoming' | 'outgoing';
+
+export interface RemoteFileProgress {
+  transferId: string;
+  name: string;
+  direction: RemoteFileDirection;
+  transferred: number;
+  total: number;
+  done: boolean;
+  error?: string;
+  /** Absolute path where an incoming file was saved (set when done). */
+  savedPath?: string;
+}
+
+export type RemoteLogLevel = 'info' | 'success' | 'warning' | 'error';
+
+export interface RemoteLogEvent {
+  level: RemoteLogLevel;
+  message: string;
+  at: number;
+}
+
+export interface StartHostInput {
+  ip: string;
+  port: number;
+}

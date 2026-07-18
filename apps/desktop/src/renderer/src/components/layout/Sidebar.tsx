@@ -1,6 +1,7 @@
 import { NavLink } from 'react-router-dom';
 import {
   Blocks,
+  Broadcast,
   FolderKanban,
   History,
   LayoutDashboard,
@@ -23,6 +24,7 @@ export const NAV_ITEMS = [
   { to: '/mcp', label: 'MCP Servers', icon: Plug },
   { to: '/cli-manager', label: 'AI CLI Manager', icon: TerminalSquare },
   { to: '/ask-ai', label: 'Ask AI', icon: MessageSquare },
+  { to: '/remote', label: 'Remote', icon: Broadcast },
   { to: '/settings', label: 'Settings', icon: SettingsIcon },
 ];
 

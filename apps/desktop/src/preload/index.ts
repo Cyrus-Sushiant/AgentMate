@@ -41,7 +41,15 @@ import type {
   GitOpResult,
   CreatePullRequestInput,
   CreatePullRequestResult,
+  RemoteState,
+  RemoteNetworkInterface,
+  RemotePairingInfo,
+  RemoteScreenSize,
+  RemoteFileProgress,
+  RemoteLogEvent,
+  StartHostInput,
 } from '../shared/apiTypes';
+import type { RemoteInputEvent } from '../shared/remoteProtocol';
 
 interface TerminalDataPayload {
   sessionId: string;
@@ -260,6 +268,45 @@ const git = {
     ipcRenderer.invoke(IPC.git.createPullRequest, input),
 };
 
+function subscribe<T>(channel: string, callback: (payload: T) => void): () => void {
+  const listener = (_event: Electron.IpcRendererEvent, payload: T): void => callback(payload);
+  ipcRenderer.on(channel, listener);
+  return () => ipcRenderer.removeListener(channel, listener);
+}
+
+const remote = {
+  getState: (): Promise<RemoteState> => ipcRenderer.invoke(IPC.remote.getState),
+  listInterfaces: (): Promise<RemoteNetworkInterface[]> =>
+    ipcRenderer.invoke(IPC.remote.listInterfaces),
+  startHost: (input: StartHostInput): Promise<RemoteState> =>
+    ipcRenderer.invoke(IPC.remote.startHost, input),
+  stopHost: (): Promise<void> => ipcRenderer.invoke(IPC.remote.stopHost),
+  generatePairingCode: (): Promise<RemotePairingInfo> =>
+    ipcRenderer.invoke(IPC.remote.generatePairingCode),
+  connect: (code: string): Promise<{ ok: boolean; error?: string }> =>
+    ipcRenderer.invoke(IPC.remote.connect, code),
+  disconnect: (): Promise<void> => ipcRenderer.invoke(IPC.remote.disconnect),
+  sendClipboard: (): Promise<void> => ipcRenderer.invoke(IPC.remote.sendClipboard),
+  sendFile: (): Promise<void> => ipcRenderer.invoke(IPC.remote.sendFile),
+
+  // Fire-and-forget, high-frequency channels.
+  sendInput: (event: RemoteInputEvent): void => ipcRenderer.send(IPC.remote.sendInput, event),
+  setScreenInfo: (size: RemoteScreenSize): void =>
+    ipcRenderer.send(IPC.remote.setScreenInfo, size),
+  hostTile: (tile: ArrayBuffer): void => ipcRenderer.send(IPC.remote.hostTile, tile),
+
+  onState: (cb: (state: RemoteState) => void): (() => void) => subscribe(IPC.remote.onState, cb),
+  onCaptureStart: (cb: () => void): (() => void) => subscribe(IPC.remote.onCaptureStart, cb),
+  onCaptureStop: (cb: () => void): (() => void) => subscribe(IPC.remote.onCaptureStop, cb),
+  onFrameTile: (cb: (tile: Uint8Array) => void): (() => void) =>
+    subscribe(IPC.remote.onFrameTile, cb),
+  onScreenInfo: (cb: (size: RemoteScreenSize) => void): (() => void) =>
+    subscribe(IPC.remote.onScreenInfo, cb),
+  onFileProgress: (cb: (progress: RemoteFileProgress) => void): (() => void) =>
+    subscribe(IPC.remote.onFileProgress, cb),
+  onLog: (cb: (event: RemoteLogEvent) => void): (() => void) => subscribe(IPC.remote.onLog, cb),
+};
+
 const windowControls = {
   minimize: (): Promise<void> => ipcRenderer.invoke(IPC.window.minimize),
   maximizeToggle: (): Promise<void> => ipcRenderer.invoke(IPC.window.maximizeToggle),
@@ -294,6 +341,7 @@ const agentmatApi = {
   scheduledTasks,
   notifications,
   git,
+  remote,
 };
 
 export type AgentmatApi = typeof agentmatApi;

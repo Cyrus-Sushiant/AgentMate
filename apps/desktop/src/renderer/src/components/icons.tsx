@@ -36,7 +36,10 @@ import {
   faGlobe,
   faGripVertical,
   faHardDrive,
+  faKeyboard,
   faLanguage,
+  faLink,
+  faLinkSlash,
   faMagnifyingGlass,
   faMemory,
   faMicrochip,
@@ -47,9 +50,14 @@ import {
   faPlay,
   faPlug,
   faPlus,
+  faPowerOff,
+  faQrcode,
   faRobot,
   faSatelliteDish,
   faSort,
+  faTowerBroadcast,
+  faUpload,
+  faWifi,
   faSun,
   faTableColumns,
   faTag,
@@ -153,6 +161,16 @@ export const Plug = makeIcon(faPlug);
 
 // Ask AI icons.
 export const MessageSquare = makeIcon(faComments);
+
+// Remote control icons.
+export const Broadcast = makeIcon(faTowerBroadcast);
+export const QrCode = makeIcon(faQrcode);
+export const Link = makeIcon(faLink);
+export const LinkOff = makeIcon(faLinkSlash);
+export const Power = makeIcon(faPowerOff);
+export const Wifi = makeIcon(faWifi);
+export const Keyboard = makeIcon(faKeyboard);
+export const Upload = makeIcon(faUpload);
 
 // Git tab icons.
 export const GitBranch = makeIcon(faCodeBranch);
