@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { queryKeys } from '@/lib/queryKeys';
+import { usePageHeader } from '@/stores/pageHeaderStore';
 
 export default function PromptHistoryPage(): React.JSX.Element {
   const [search, setSearch] = useState('');
@@ -30,15 +31,10 @@ export default function PromptHistoryPage(): React.JSX.Element {
     toast.success('Copied to clipboard.');
   }
 
+  usePageHeader('Prompt History', "Every prompt you've generated or translated, searchable.");
+
   return (
     <div className="mx-auto max-w-5xl space-y-6 p-6">
-      <div>
-        <h1 className="text-xl font-semibold">Prompt History</h1>
-        <p className="text-sm text-muted-foreground">
-          Every prompt you've generated or translated, searchable.
-        </p>
-      </div>
-
       <div className="relative max-w-sm">
         <Search className="pointer-events-none absolute left-2.5 top-2.5 z-10 h-4 w-4 text-muted-foreground" />
         <Input

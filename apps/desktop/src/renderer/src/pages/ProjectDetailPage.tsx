@@ -11,6 +11,7 @@ import { MonacoEditor } from '@/components/editor/MonacoEditor';
 import { ProjectFileBrowser } from '@/components/projects/ProjectFileBrowser';
 import { ProjectFormDialog, type ProjectFormValues } from '@/components/projects/ProjectFormDialog';
 import { queryKeys } from '@/lib/queryKeys';
+import { usePageHeader } from '@/stores/pageHeaderStore';
 import { useTerminalStore } from '@/stores/terminalStore';
 
 export default function ProjectDetailPage(): React.JSX.Element {
@@ -25,6 +26,8 @@ export default function ProjectDetailPage(): React.JSX.Element {
     queryFn: () => window.agentmat.projects.list(),
   });
   const project = projectsQuery.data?.find((p) => p.id === projectId);
+
+  usePageHeader(project?.name ?? '', project?.folderPath);
 
   const installedSkillsQuery = useQuery({
     queryKey: queryKeys.installedSkills(projectId ?? ''),
@@ -69,13 +72,9 @@ export default function ProjectDetailPage(): React.JSX.Element {
   return (
     <div className="mx-auto max-w-5xl space-y-6 p-6">
       <div className="flex items-center justify-between">
-        <div>
-          <Button variant="ghost" size="sm" onClick={() => navigate('/projects')} className="mb-2 -ml-2">
-            <ArrowLeft /> Projects
-          </Button>
-          <h1 className="text-xl font-semibold">{project.name}</h1>
-          <p className="text-sm text-muted-foreground">{project.folderPath}</p>
-        </div>
+        <Button variant="ghost" size="sm" onClick={() => navigate('/projects')} className="-ml-2">
+          <ArrowLeft /> Projects
+        </Button>
         <Button variant="outline" onClick={() => setEditOpen(true)}>
           <Pencil /> Edit
         </Button>

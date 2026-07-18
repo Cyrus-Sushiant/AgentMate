@@ -18,6 +18,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { queryKeys } from '@/lib/queryKeys';
+import { usePageHeader } from '@/stores/pageHeaderStore';
 
 const SOURCE_TYPES: { value: SkillRepositorySourceType; label: string }[] = [
   { value: 'url', label: 'URL (JSON index)' },
@@ -143,15 +144,11 @@ export default function SkillsPage(): React.JSX.Element {
     if (picked) setRepoSource(picked);
   }
 
+  usePageHeader('Skill Marketplace', 'Install skills into a project from configurable repositories.');
+
   return (
     <div className="mx-auto max-w-6xl space-y-6 p-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-semibold">Skill Marketplace</h1>
-          <p className="text-sm text-muted-foreground">
-            Install skills into a project from configurable repositories.
-          </p>
-        </div>
+      <div className="flex justify-end">
         <Button onClick={() => setAddRepoOpen(true)}>
           <Plus /> Add Repository
         </Button>

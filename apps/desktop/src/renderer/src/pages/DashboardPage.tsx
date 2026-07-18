@@ -14,6 +14,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { queryKeys } from '@/lib/queryKeys';
+import { usePageHeader } from '@/stores/pageHeaderStore';
 
 function timeAgo(iso: string): string {
   const diffMs = Date.now() - new Date(iso).getTime();
@@ -48,15 +49,10 @@ export default function DashboardPage(): React.JSX.Element {
 
   const installedCount = cliQuery.data?.filter((c) => c.installed).length ?? 0;
 
+  usePageHeader('Dashboard', 'Your AI CLIs, projects, and activity at a glance.');
+
   return (
     <div className="mx-auto max-w-6xl space-y-6 p-6">
-      <div>
-        <h1 className="text-xl font-semibold">Dashboard</h1>
-        <p className="text-sm text-muted-foreground">
-          Your AI CLIs, projects, and activity at a glance.
-        </p>
-      </div>
-
       <div className="flex flex-wrap gap-2">
         <Button onClick={() => navigate('/projects?new=1')}>
           <FolderPlus /> New Project
@@ -174,6 +170,8 @@ export default function DashboardPage(): React.JSX.Element {
           </CardContent>
         </Card>
       </div>
+
+      <div className="rounded-2xl border border-border bg-card p-5 text-card-foreground transition-colors" />
     </div>
   );
 }

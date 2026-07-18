@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Combobox } from '@/components/ui/combobox';
 import { queryKeys } from '@/lib/queryKeys';
+import { usePageHeader } from '@/stores/pageHeaderStore';
 import { useCliStore } from '@/stores/cliStore';
 import { useThemeStore } from '@/stores/themeStore';
 import type { ThemeMode } from '@agentmat/core';
@@ -29,13 +30,10 @@ export default function SettingsPage(): React.JSX.Element {
     queryFn: () => window.agentmat.skills.listRepositories(),
   });
 
+  usePageHeader('Settings', 'Configure defaults for AgentMate.');
+
   return (
     <div className="mx-auto max-w-3xl space-y-6 p-6">
-      <div>
-        <h1 className="text-xl font-semibold">Settings</h1>
-        <p className="text-sm text-muted-foreground">Configure defaults for AgentMate.</p>
-      </div>
-
       <Card>
         <CardHeader>
           <CardTitle>Default CLI</CardTitle>

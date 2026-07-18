@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { queryKeys } from '@/lib/queryKeys';
+import { usePageHeader } from '@/stores/pageHeaderStore';
 import { useCliStore } from '@/stores/cliStore';
 import { useTerminalStore } from '@/stores/terminalStore';
 
@@ -37,15 +38,11 @@ export default function CliManagerPage(): React.JSX.Element {
     toast.info(`Press Enter in the terminal to install ${cliName}.`);
   }
 
+  usePageHeader('AI CLI Manager', 'Detected AI coding CLIs on this machine. Install missing ones with one click.');
+
   return (
     <div className="mx-auto max-w-6xl space-y-6 p-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-semibold">AI CLI Manager</h1>
-          <p className="text-sm text-muted-foreground">
-            Detected AI coding CLIs on this machine. Install missing ones with one click.
-          </p>
-        </div>
+      <div className="flex justify-end">
         <div className="flex gap-2">
           {notInstalledCount > 0 && (
             <Button variant="outline" onClick={() => setShowAll((v) => !v)}>

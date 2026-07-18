@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { queryKeys } from '@/lib/queryKeys';
+import { usePageHeader } from '@/stores/pageHeaderStore';
 import { ProjectFormDialog, type ProjectFormValues } from '@/components/projects/ProjectFormDialog';
 
 export default function ProjectsPage(): React.JSX.Element {
@@ -45,15 +46,11 @@ export default function ProjectsPage(): React.JSX.Element {
     },
   });
 
+  usePageHeader('Projects', 'Manage the projects AgentMate bootstraps and works with.');
+
   return (
     <div className="mx-auto max-w-6xl space-y-6 p-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-semibold">Projects</h1>
-          <p className="text-sm text-muted-foreground">
-            Manage the projects AgentMate bootstraps and works with.
-          </p>
-        </div>
+      <div className="flex justify-end">
         <Button onClick={() => setDialogOpen(true)}>
           <Plus /> New Project
         </Button>

@@ -18,6 +18,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { MonacoEditor } from '@/components/editor/MonacoEditor';
 import { queryKeys } from '@/lib/queryKeys';
+import { usePageHeader } from '@/stores/pageHeaderStore';
 import { useCliStore } from '@/stores/cliStore';
 import { useTerminalStore } from '@/stores/terminalStore';
 
@@ -142,16 +143,11 @@ export default function PromptBuilderPage(): React.JSX.Element {
     openSession({ title: cliForSendTo.name, initialInput: command });
   }
 
+  usePageHeader('Prompt Builder', 'Describe what you want; AgentMate structures it into a professional prompt.');
+
   return (
     <div className="mx-auto grid max-w-6xl grid-cols-1 gap-6 p-6 lg:grid-cols-2">
       <div className="space-y-4">
-        <div>
-          <h1 className="text-xl font-semibold">Prompt Builder</h1>
-          <p className="text-sm text-muted-foreground">
-            Describe what you want; AgentMate structures it into a professional prompt.
-          </p>
-        </div>
-
         <div className="space-y-2">
           <Label htmlFor="raw-input">Your request</Label>
           <Textarea

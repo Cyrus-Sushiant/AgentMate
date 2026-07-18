@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { useThemeStore } from '@/stores/themeStore';
 import { useTerminalStore } from '@/stores/terminalStore';
 import { useUiStore } from '@/stores/uiStore';
+import { usePageHeaderStore } from '@/stores/pageHeaderStore';
 import { TerminalDrawer } from '@/components/terminal/TerminalDrawer';
 import { cn } from '@/lib/utils';
 
@@ -36,11 +37,16 @@ function ThemeToggle(): React.JSX.Element {
 function TopBar(): React.JSX.Element {
   const isTerminalOpen = useTerminalStore((s) => s.isOpen);
   const toggleDrawer = useTerminalStore((s) => s.toggleDrawer);
+  const sessions = useTerminalStore((s) => s.sessions);
+  const activeSessionId = useTerminalStore((s) => s.activeSessionId);
   const sidebarCollapsed = useUiStore((s) => s.sidebarCollapsed);
   const toggleSidebar = useUiStore((s) => s.toggleSidebar);
+  const activeSession = sessions.find((s) => s.id === activeSessionId);
+  const pageTitle = usePageHeaderStore((s) => s.title);
+  const pageSubtitle = usePageHeaderStore((s) => s.subtitle);
 
   return (
-    <div className="flex h-12 shrink-0 items-center justify-between gap-1 border-b border-border px-3">
+    <div className="flex h-16 shrink-0 items-center gap-3 border-b border-border px-3">
       <Button
         variant="ghost"
         size="icon"
@@ -49,7 +55,18 @@ function TopBar(): React.JSX.Element {
       >
         {sidebarCollapsed ? <AnglesRight className="h-4 w-4" /> : <AnglesLeft className="h-4 w-4" />}
       </Button>
-      <div className="flex items-center gap-1">
+      <div className="flex min-w-0 flex-1 flex-col justify-center">
+        {pageTitle && <span className="truncate text-base font-semibold">{pageTitle}</span>}
+        {pageSubtitle && (
+          <span className="truncate text-xs text-muted-foreground">{pageSubtitle}</span>
+        )}
+      </div>
+      <div className="flex shrink-0 items-center gap-2">
+        {activeSession && (
+          <span className="max-w-[16rem] truncate text-xs text-muted-foreground">
+            {activeSession.title}
+          </span>
+        )}
         <Button
           variant={isTerminalOpen ? 'secondary' : 'ghost'}
           size="icon"

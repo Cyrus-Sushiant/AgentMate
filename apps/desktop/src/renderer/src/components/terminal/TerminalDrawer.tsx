@@ -20,9 +20,10 @@ export function TerminalDrawer(): React.JSX.Element | null {
             No terminal sessions. Install a CLI or open one from a project.
           </span>
         ) : (
-          sessions.map((session) => (
+          sessions.map((session, index) => (
             <button
               key={session.id}
+              title={session.title}
               onClick={() => setActiveSession(session.id)}
               className={cn(
                 'group flex items-center gap-2 rounded-t-md px-3 py-1.5 text-xs',
@@ -31,7 +32,7 @@ export function TerminalDrawer(): React.JSX.Element | null {
                   : 'text-white/50 hover:text-white/80',
               )}
             >
-              {session.title}
+              {index + 1}
               <X
                 className="h-3 w-3 opacity-0 group-hover:opacity-100"
                 onClick={(e) => {
