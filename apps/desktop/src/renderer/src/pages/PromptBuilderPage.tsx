@@ -4,6 +4,7 @@ import { toast } from 'sonner';
 import { Copy, Download, Languages, Save, Sparkles, TerminalSquare } from '@/components/icons';
 import { CLI_REGISTRY, PROMPT_TYPES, TARGET_AIS, generatePrompt } from '@agentmat/core';
 import type { PromptType, TargetAI } from '@agentmat/core';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
@@ -146,94 +147,98 @@ export default function PromptBuilderPage(): React.JSX.Element {
   usePageHeader('Prompt Builder', 'Describe what you want; AgentMate structures it into a professional prompt.');
 
   return (
-    <div className="mx-auto grid max-w-6xl grid-cols-1 gap-6 p-6 lg:grid-cols-2">
-      <div className="space-y-4">
-        <div className="space-y-2">
-          <Label htmlFor="raw-input">Your request</Label>
-          <Textarea
-            id="raw-input"
-            rows={8}
-            placeholder="e.g. Add a login form with email/password validation…"
-            value={rawInput}
-            onChange={(e) => setRawInput(e.target.value)}
-          />
-        </div>
+    <div className="mx-auto flex w-full max-w-6xl flex-1 flex-col p-6">
+      <Card className="flex flex-1 flex-col">
+        <CardContent className="grid flex-1 grid-cols-1 gap-6 p-5 lg:grid-cols-2">
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="raw-input">Your request</Label>
+              <Textarea
+                id="raw-input"
+                rows={8}
+                placeholder="e.g. Add a login form with email/password validation…"
+                value={rawInput}
+                onChange={(e) => setRawInput(e.target.value)}
+              />
+            </div>
 
-        <div className="grid grid-cols-2 gap-3">
-          <div className="space-y-2">
-            <Label>Prompt Type</Label>
-            <Combobox
-              value={promptType}
-              onChange={(v) => setPromptType(v as PromptType)}
-              options={PROMPT_TYPES.map((type) => ({ value: type, label: type }))}
-            />
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label>Prompt Type</Label>
+                <Combobox
+                  value={promptType}
+                  onChange={(v) => setPromptType(v as PromptType)}
+                  options={PROMPT_TYPES.map((type) => ({ value: type, label: type }))}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Target AI</Label>
+                <Combobox
+                  value={targetAI}
+                  onChange={(v) => setTargetAI(v as TargetAI)}
+                  options={TARGET_AIS.map((ai) => ({ value: ai, label: ai }))}
+                />
+              </div>
+            </div>
+
+            <Button onClick={handleGenerate} className="w-full">
+              <Sparkles /> Generate Prompt
+            </Button>
+
+            <div className="flex items-center gap-2">
+              <div className="h-px flex-1 bg-border" />
+              <span className="text-xs text-muted-foreground">or translate directly</span>
+              <div className="h-px flex-1 bg-border" />
+            </div>
+
+            <div className="flex gap-2">
+              <Combobox
+                className="flex-1"
+                value={targetLang}
+                onChange={setTargetLang}
+                options={TRANSLATE_LANGUAGES}
+              />
+              <Button variant="secondary" onClick={() => void handleTranslate()} disabled={isTranslating}>
+                <Languages /> {isTranslating ? 'Translating…' : 'Translate'}
+              </Button>
+            </div>
           </div>
-          <div className="space-y-2">
-            <Label>Target AI</Label>
-            <Combobox
-              value={targetAI}
-              onChange={(v) => setTargetAI(v as TargetAI)}
-              options={TARGET_AIS.map((ai) => ({ value: ai, label: ai }))}
-            />
+
+          <div className="flex flex-col space-y-3">
+            <Label>Generated prompt</Label>
+            <MonacoEditor value={generated} onChange={setGenerated} className="min-h-[420px] flex-1" />
+            <div className="flex flex-wrap gap-2">
+              <Button variant="outline" size="sm" disabled={!generated} onClick={() => void handleCopy()}>
+                <Copy /> Copy
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={!generated}
+                onClick={() => setSaveDialogOpen(true)}
+              >
+                <Save /> Save Template
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={!generated}
+                onClick={() => void handleSendToCli()}
+              >
+                <TerminalSquare /> Send to CLI
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={!generated}
+                onClick={() => void handleExportMarkdown()}
+              >
+                <Download /> Export Markdown
+              </Button>
+            </div>
           </div>
-        </div>
-
-        <Button onClick={handleGenerate} className="w-full">
-          <Sparkles /> Generate Prompt
-        </Button>
-
-        <div className="flex items-center gap-2">
-          <div className="h-px flex-1 bg-border" />
-          <span className="text-xs text-muted-foreground">or translate directly</span>
-          <div className="h-px flex-1 bg-border" />
-        </div>
-
-        <div className="flex gap-2">
-          <Combobox
-            className="flex-1"
-            value={targetLang}
-            onChange={setTargetLang}
-            options={TRANSLATE_LANGUAGES}
-          />
-          <Button variant="secondary" onClick={() => void handleTranslate()} disabled={isTranslating}>
-            <Languages /> {isTranslating ? 'Translating…' : 'Translate'}
-          </Button>
-        </div>
-      </div>
-
-      <div className="flex flex-col space-y-3">
-        <Label>Generated prompt</Label>
-        <MonacoEditor value={generated} onChange={setGenerated} className="min-h-[420px] flex-1" />
-        <div className="flex flex-wrap gap-2">
-          <Button variant="outline" size="sm" disabled={!generated} onClick={() => void handleCopy()}>
-            <Copy /> Copy
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={!generated}
-            onClick={() => setSaveDialogOpen(true)}
-          >
-            <Save /> Save Template
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={!generated}
-            onClick={() => void handleSendToCli()}
-          >
-            <TerminalSquare /> Send to CLI
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={!generated}
-            onClick={() => void handleExportMarkdown()}
-          >
-            <Download /> Export Markdown
-          </Button>
-        </div>
-      </div>
+        </CardContent>
+      </Card>
 
       <Dialog open={saveDialogOpen} onOpenChange={setSaveDialogOpen}>
         <DialogContent>

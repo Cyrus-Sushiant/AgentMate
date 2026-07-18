@@ -91,7 +91,7 @@ export function AppShell(): React.JSX.Element {
         <Sidebar />
         <div className="relative flex min-w-0 flex-1 flex-col">
           <TopBar />
-          <div className={cn('relative min-h-0 flex-1 overflow-y-auto')}>
+          <div className={cn('relative flex min-h-0 flex-1 flex-col overflow-y-auto')}>
             <AnimatePresence mode="wait">
               <motion.div
                 key={location.pathname}
@@ -99,7 +99,7 @@ export function AppShell(): React.JSX.Element {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -6 }}
                 transition={{ duration: 0.15, ease: 'easeOut' }}
-                className="min-h-full"
+                className="flex min-h-full flex-1 flex-col"
               >
                 <Outlet />
               </motion.div>
