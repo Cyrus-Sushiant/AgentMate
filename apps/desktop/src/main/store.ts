@@ -12,6 +12,7 @@ import type {
 } from '@agentmat/core';
 import { defaultProjectNotifications } from '@agentmat/core';
 import type { SkillRepository } from '@agentmat/core';
+import type { McpRepository } from '@agentmat/core';
 
 function dataDir(): string {
   return join(app.getPath('userData'), 'data');
@@ -42,6 +43,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   pingTargets: ['1.1.1.1'],
   telegramBotToken: null,
   telegramChatId: null,
+  telegramScheduledTasksChatId: null,
 };
 
 /** Older projects.json entries predate the notifications field. */
@@ -76,6 +78,10 @@ export const store = {
   getRepositories: (): Promise<SkillRepository[]> => readJsonFile('repositories.json', []),
   setRepositories: (repos: SkillRepository[]): Promise<void> =>
     writeJsonFile('repositories.json', repos),
+
+  getMcpRepositories: (): Promise<McpRepository[]> => readJsonFile('mcp-repositories.json', []),
+  setMcpRepositories: (repos: McpRepository[]): Promise<void> =>
+    writeJsonFile('mcp-repositories.json', repos),
 
   getScheduledTasks: (): Promise<ScheduledTask[]> => readJsonFile('scheduled-tasks.json', []),
   setScheduledTasks: (tasks: ScheduledTask[]): Promise<void> =>

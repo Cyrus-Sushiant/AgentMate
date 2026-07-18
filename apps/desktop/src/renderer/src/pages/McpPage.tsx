@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useLocation, useSearchParams } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
-import { FolderOpen, Plus, RefreshCw, Search, Trash2 } from '@/components/icons';
-import type { SkillRepositorySourceType } from '@agentmat/core';
+import { FolderOpen, Plug, Plus, RefreshCw, Search, Trash2 } from '@/components/icons';
+import type { McpRepositorySourceType, McpServer } from '@agentmat/core';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -14,6 +14,7 @@ import { SimpleTooltip } from '@/components/ui/tooltip';
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -21,33 +22,33 @@ import {
 import { queryKeys } from '@/lib/queryKeys';
 import { usePageHeader } from '@/stores/pageHeaderStore';
 
-const SOURCE_TYPES: { value: SkillRepositorySourceType; label: string }[] = [
+const SOURCE_TYPES: { value: McpRepositorySourceType; label: string }[] = [
   { value: 'url', label: 'URL (JSON index)' },
   { value: 'git', label: 'Git repository' },
   { value: 'local-folder', label: 'Local folder' },
 ];
 
-export default function SkillsPage(): React.JSX.Element {
+export default function McpPage(): React.JSX.Element {
   const [searchParams] = useSearchParams();
-  const location = useLocation();
-  const navState = location.state as { repositoryId?: string; query?: string } | null;
   const queryClient = useQueryClient();
 
   const [selectedProjectId, setSelectedProjectId] = useState(searchParams.get('projectId') ?? '');
-  const [selectedRepoId, setSelectedRepoId] = useState<string>(navState?.repositoryId ?? '');
-  const [search, setSearch] = useState(navState?.query ?? '');
+  const [selectedRepoId, setSelectedRepoId] = useState<string>('');
+  const [search, setSearch] = useState('');
   const [addRepoOpen, setAddRepoOpen] = useState(false);
   const [repoName, setRepoName] = useState('');
-  const [repoSourceType, setRepoSourceType] = useState<SkillRepositorySourceType>('local-folder');
+  const [repoSourceType, setRepoSourceType] = useState<McpRepositorySourceType>('local-folder');
   const [repoSource, setRepoSource] = useState('');
+  const [envServer, setEnvServer] = useState<McpServer | null>(null);
+  const [envValues, setEnvValues] = useState<Record<string, string>>({});
 
   const projectsQuery = useQuery({
     queryKey: queryKeys.projects,
     queryFn: () => window.agentmat.projects.list(),
   });
   const reposQuery = useQuery({
-    queryKey: queryKeys.repositories,
-    queryFn: () => window.agentmat.skills.listRepositories(),
+    queryKey: queryKeys.mcpRepositories,
+    queryFn: () => window.agentmat.mcp.listRepositories(),
   });
 
   useEffect(() => {
@@ -57,20 +58,20 @@ export default function SkillsPage(): React.JSX.Element {
   }, [reposQuery.data, selectedRepoId]);
 
   const repoIndexQuery = useQuery({
-    queryKey: queryKeys.repositoryIndex(selectedRepoId),
-    queryFn: () => window.agentmat.skills.getRepositoryIndex(selectedRepoId),
+    queryKey: queryKeys.mcpRepositoryIndex(selectedRepoId),
+    queryFn: () => window.agentmat.mcp.getRepositoryIndex(selectedRepoId),
     enabled: !!selectedRepoId,
   });
 
-  const installedSkillsQuery = useQuery({
-    queryKey: queryKeys.installedSkills(selectedProjectId),
-    queryFn: () => window.agentmat.skills.listInstalled(selectedProjectId),
+  const installedServersQuery = useQuery({
+    queryKey: queryKeys.installedMcpServers(selectedProjectId),
+    queryFn: () => window.agentmat.mcp.listInstalled(selectedProjectId),
     enabled: !!selectedProjectId,
   });
 
   const addRepoMutation = useMutation({
     mutationFn: () =>
-      window.agentmat.skills.addRepository({
+      window.agentmat.mcp.addRepository({
         name: repoName,
         sourceType: repoSourceType,
         source: repoSource,
@@ -80,60 +81,61 @@ export default function SkillsPage(): React.JSX.Element {
       setAddRepoOpen(false);
       setRepoName('');
       setRepoSource('');
-      void queryClient.invalidateQueries({ queryKey: queryKeys.repositories });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.mcpRepositories });
     },
     onError: (error: Error) => toast.error(error.message),
   });
 
   const removeRepoMutation = useMutation({
-    mutationFn: (id: string) => window.agentmat.skills.removeRepository(id),
+    mutationFn: (id: string) => window.agentmat.mcp.removeRepository(id),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: queryKeys.repositories });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.mcpRepositories });
       setSelectedRepoId('');
     },
   });
 
   const refreshRepoMutation = useMutation({
-    mutationFn: (id: string) => window.agentmat.skills.refreshRepository(id),
+    mutationFn: (id: string) => window.agentmat.mcp.refreshRepository(id),
     onSuccess: () => {
       toast.success('Repository refreshed.');
-      void queryClient.invalidateQueries({ queryKey: queryKeys.repositoryIndex(selectedRepoId) });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.mcpRepositoryIndex(selectedRepoId) });
     },
     onError: (error: Error) => toast.error(error.message),
   });
 
   const installMutation = useMutation({
-    mutationFn: (skillId: string) =>
-      window.agentmat.skills.install({
+    mutationFn: (params: { serverId: string; env?: Record<string, string> }) =>
+      window.agentmat.mcp.install({
         projectId: selectedProjectId,
         repositoryId: selectedRepoId,
-        skillId,
+        serverId: params.serverId,
+        env: params.env,
       }),
     onSuccess: () => {
-      toast.success('Skill installed.');
-      void queryClient.invalidateQueries({ queryKey: queryKeys.installedSkills(selectedProjectId) });
+      toast.success('MCP server installed.');
+      void queryClient.invalidateQueries({ queryKey: queryKeys.installedMcpServers(selectedProjectId) });
     },
     onError: (error: Error) => toast.error(error.message),
   });
 
-  const removeSkillMutation = useMutation({
-    mutationFn: (skillId: string) =>
-      window.agentmat.skills.remove({ projectId: selectedProjectId, skillId }),
+  const removeServerMutation = useMutation({
+    mutationFn: (serverId: string) =>
+      window.agentmat.mcp.remove({ projectId: selectedProjectId, serverId }),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: queryKeys.installedSkills(selectedProjectId) });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.installedMcpServers(selectedProjectId) });
     },
   });
 
   const installedIds = useMemo(
-    () => new Set(installedSkillsQuery.data?.map((s) => s.skillId) ?? []),
-    [installedSkillsQuery.data],
+    () => new Set(installedServersQuery.data?.map((s) => s.serverId) ?? []),
+    [installedServersQuery.data],
   );
 
-  const filteredSkills = useMemo(() => {
-    const skills = repoIndexQuery.data?.skills ?? [];
+  const filteredServers = useMemo(() => {
+    const servers = repoIndexQuery.data?.servers ?? [];
     const q = search.trim().toLowerCase();
-    if (!q) return skills;
-    return skills.filter(
+    if (!q) return servers;
+    return servers.filter(
       (s) =>
         s.name.toLowerCase().includes(q) ||
         s.description.toLowerCase().includes(q) ||
@@ -143,11 +145,26 @@ export default function SkillsPage(): React.JSX.Element {
   }, [repoIndexQuery.data, search]);
 
   async function handlePickLocalFolder(): Promise<void> {
-    const picked = await window.agentmat.skills.pickLocalRepository();
+    const picked = await window.agentmat.mcp.pickLocalRepository();
     if (picked) setRepoSource(picked);
   }
 
-  usePageHeader('Skill Marketplace', 'Install skills into a project from configurable repositories.');
+  function handleInstallClick(server: McpServer): void {
+    if (server.requiredEnv.length > 0) {
+      setEnvValues(Object.fromEntries(server.requiredEnv.map((key) => [key, ''])));
+      setEnvServer(server);
+      return;
+    }
+    installMutation.mutate({ serverId: server.id });
+  }
+
+  function handleConfirmEnvInstall(): void {
+    if (!envServer) return;
+    installMutation.mutate({ serverId: envServer.id, env: envValues });
+    setEnvServer(null);
+  }
+
+  usePageHeader('MCP Marketplace', 'Install MCP servers into a project from configurable repositories.');
 
   return (
     <div className="space-y-6 p-6">
@@ -212,7 +229,7 @@ export default function SkillsPage(): React.JSX.Element {
             <Search className="pointer-events-none absolute left-2.5 top-2.5 z-10 h-4 w-4 text-muted-foreground" />
             <Input
               className="pl-8"
-              placeholder="Search skills by name, tag, category…"
+              placeholder="Search MCP servers by name, tag, category…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
@@ -221,38 +238,39 @@ export default function SkillsPage(): React.JSX.Element {
       </div>
 
       {!selectedProjectId && (
-        <p className="text-sm text-amber-500">Choose a target project to enable installing skills.</p>
+        <p className="text-sm text-amber-500">Choose a target project to enable installing MCP servers.</p>
       )}
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {filteredSkills.map((skill) => {
-          const isInstalled = installedIds.has(skill.id);
+        {filteredServers.map((server) => {
+          const isInstalled = installedIds.has(server.id);
           return (
-            <Card key={skill.id} className="flex flex-col">
+            <Card key={server.id} className="flex flex-col">
               <CardHeader>
                 <div className="flex items-start justify-between gap-2">
-                  <CardTitle>{skill.name}</CardTitle>
-                  <Badge variant="outline">{skill.category}</Badge>
+                  <CardTitle>{server.name}</CardTitle>
+                  <Badge variant="outline">{server.category}</Badge>
                 </div>
-                <CardDescription>{skill.description}</CardDescription>
+                <CardDescription>{server.description}</CardDescription>
               </CardHeader>
               <CardContent className="mt-auto space-y-3">
                 <div className="flex flex-wrap gap-1.5">
-                  {skill.tags.map((tag) => (
+                  <Badge variant="secondary">{server.config.transport}</Badge>
+                  {server.tags.map((tag) => (
                     <Badge key={tag} variant="secondary">
                       {tag}
                     </Badge>
                   ))}
                 </div>
                 <div className="text-xs text-muted-foreground">
-                  {skill.author} · v{skill.version}
+                  {server.author} · v{server.version}
                 </div>
                 <div className="flex items-center gap-2">
                   {isInstalled ? (
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => removeSkillMutation.mutate(skill.id)}
+                      onClick={() => removeServerMutation.mutate(server.id)}
                     >
                       <Trash2 /> Remove
                     </Button>
@@ -260,16 +278,16 @@ export default function SkillsPage(): React.JSX.Element {
                     <Button
                       size="sm"
                       disabled={!selectedProjectId || installMutation.isPending}
-                      onClick={() => installMutation.mutate(skill.id)}
+                      onClick={() => handleInstallClick(server)}
                     >
-                      Install
+                      <Plug /> Install
                     </Button>
                   )}
-                  {skill.documentationUrl && (
+                  {server.documentationUrl && (
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => void window.agentmat.shell.openExternal(skill.documentationUrl!)}
+                      onClick={() => void window.agentmat.shell.openExternal(server.documentationUrl!)}
                     >
                       Docs
                     </Button>
@@ -295,7 +313,7 @@ export default function SkillsPage(): React.JSX.Element {
               <Label>Type</Label>
               <Combobox
                 value={repoSourceType}
-                onChange={(v) => setRepoSourceType(v as SkillRepositorySourceType)}
+                onChange={(v) => setRepoSourceType(v as McpRepositorySourceType)}
                 options={SOURCE_TYPES.map((t) => ({ value: t.value, label: t.label }))}
               />
             </div>
@@ -314,7 +332,7 @@ export default function SkillsPage(): React.JSX.Element {
                   onChange={(e) => setRepoSource(e.target.value)}
                   placeholder={
                     repoSourceType === 'git'
-                      ? 'https://github.com/org/skills.git'
+                      ? 'https://github.com/org/mcp-servers.git'
                       : 'https://example.com/repository.json'
                   }
                 />
@@ -327,6 +345,41 @@ export default function SkillsPage(): React.JSX.Element {
               onClick={() => addRepoMutation.mutate()}
             >
               Add
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!envServer} onOpenChange={(open) => !open && setEnvServer(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Configure {envServer?.name}</DialogTitle>
+            <DialogDescription>
+              This server needs a few values before it can connect. They're written to this
+              project's <code>.mcp.json</code>.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            {envServer?.requiredEnv.map((key) => (
+              <div key={key} className="space-y-1.5">
+                <Label>{key}</Label>
+                <Input
+                  type="password"
+                  value={envValues[key] ?? ''}
+                  onChange={(e) => setEnvValues((prev) => ({ ...prev, [key]: e.target.value }))}
+                />
+              </div>
+            ))}
+          </div>
+          <DialogFooter>
+            <Button
+              disabled={
+                installMutation.isPending ||
+                (envServer?.requiredEnv.some((key) => !envValues[key]?.trim()) ?? false)
+              }
+              onClick={handleConfirmEnvInstall}
+            >
+              <Plug /> Install
             </Button>
           </DialogFooter>
         </DialogContent>

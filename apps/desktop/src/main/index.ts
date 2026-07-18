@@ -1,9 +1,11 @@
 import { join } from 'node:path';
 import { app, BrowserWindow, session, shell } from 'electron';
+import icon from '../../resources/icon.ico?asset';
 import { registerActivityHandlers } from './ipc/activity';
 import { registerCliDetectionHandlers } from './ipc/cliDetection';
 import { registerFileSystemHandlers } from './ipc/fileSystem';
 import { registerIpGeoHandlers } from './ipc/ipGeo';
+import { registerMcpHandlers } from './ipc/mcp';
 import { registerNotificationHandlers } from './ipc/notifications';
 import { registerProjectHandlers } from './ipc/projects';
 import { registerPromptHistoryHandlers } from './ipc/promptHistory';
@@ -37,6 +39,7 @@ function createMainWindow(): void {
     frame: false,
     autoHideMenuBar: true,
     backgroundColor: '#050807',
+    icon,
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       contextIsolation: true,
@@ -77,6 +80,7 @@ function registerAllIpcHandlers(): void {
   registerTerminalHandlers();
   registerProjectHandlers();
   registerSkillHandlers();
+  registerMcpHandlers();
   registerFileSystemHandlers();
   registerSettingsHandlers();
   registerTemplateHandlers();

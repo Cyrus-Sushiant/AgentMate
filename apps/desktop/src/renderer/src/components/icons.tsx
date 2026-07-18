@@ -19,6 +19,7 @@ import {
   faCopy,
   faDisplay,
   faDownload,
+  faEye,
   faFile,
   faFloppyDisk,
   faFolder,
@@ -28,6 +29,7 @@ import {
   faGaugeHigh,
   faGear,
   faGlobe,
+  faHardDrive,
   faLanguage,
   faMagnifyingGlass,
   faMemory,
@@ -37,6 +39,7 @@ import {
   faPaperPlane,
   faPen,
   faPlay,
+  faPlug,
   faPlus,
   faRobot,
   faSatelliteDish,
@@ -77,6 +80,7 @@ export const Check = makeIcon(faCheck);
 export const ChevronsUpDown = makeIcon(faSort);
 export const Copy = makeIcon(faCopy);
 export const Download = makeIcon(faDownload);
+export const Eye = makeIcon(faEye);
 export const ExternalLink = makeIcon(faArrowUpRightFromSquare);
 export const File = makeIcon(faFile);
 export const FileCog = makeIcon(faGear);
@@ -118,6 +122,8 @@ export const Cpu = makeIcon(faMicrochip);
 export const MemoryStick = makeIcon(faMemory);
 export const NetworkIcon = makeIcon(faNetworkWired);
 export const SatelliteDish = makeIcon(faSatelliteDish);
+export const HardDrive = makeIcon(faHardDrive);
+export const Gpu = makeIcon(faDisplay);
 
 // CLI manager icons.
 export const CloudDownload = makeIcon(faCloudArrowDown);
@@ -134,3 +140,6 @@ export const CircleCheck = makeIcon(faCircleCheck);
 export const CircleQuestion = makeIcon(faCircleQuestion);
 export const Robot = makeIcon(faRobot);
 export const TriangleAlert = makeIcon(faTriangleExclamation);
+
+// MCP marketplace icons.
+export const Plug = makeIcon(faPlug);

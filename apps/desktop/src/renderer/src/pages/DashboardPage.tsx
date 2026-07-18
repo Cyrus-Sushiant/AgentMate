@@ -8,6 +8,8 @@ import {
   Cpu,
   FolderKanban,
   Globe,
+  Gpu,
+  HardDrive,
   MemoryStick,
   NetworkIcon,
   RefreshCw,
@@ -325,6 +327,80 @@ export default function DashboardPage(): React.JSX.Element {
                 },
               ]}
             />
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center gap-2 text-xs text-muted-foreground">
+              <HardDrive className="h-3.5 w-3.5" /> Disk Usage
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="mb-2 flex items-baseline gap-2">
+              <span className="text-2xl font-semibold">
+                {latest ? formatPercent(latest.diskPercent) : '—'}
+              </span>
+              {latest && (
+                <span className="text-xs text-muted-foreground">
+                  {formatBytes(latest.diskUsedBytes)} / {formatBytes(latest.diskTotalBytes)}
+                </span>
+              )}
+            </div>
+            <SparklineChart
+              timestamps={timestamps}
+              domainMin={0}
+              domainMax={100}
+              formatValue={formatPercent}
+              formatTime={formatClockTime}
+              series={[
+                {
+                  key: 'disk',
+                  label: 'Disk',
+                  color: 'hsl(var(--primary))',
+                  values: statsHistory.map((s) => s.diskPercent),
+                },
+              ]}
+            />
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center gap-2 text-xs text-muted-foreground">
+              <Gpu className="h-3.5 w-3.5" /> GPU Usage
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="mb-2 flex items-baseline gap-2">
+              <span className="text-2xl font-semibold">
+                {latest?.gpuPercent != null ? formatPercent(latest.gpuPercent) : '—'}
+              </span>
+              {latest?.gpuMemUsedBytes != null && latest.gpuMemTotalBytes != null && (
+                <span className="text-xs text-muted-foreground">
+                  {formatBytes(latest.gpuMemUsedBytes)} / {formatBytes(latest.gpuMemTotalBytes)}
+                </span>
+              )}
+            </div>
+            {latest && latest.gpuPercent == null ? (
+              <p className="text-sm text-muted-foreground">No supported GPU detected.</p>
+            ) : (
+              <SparklineChart
+                timestamps={timestamps}
+                domainMin={0}
+                domainMax={100}
+                formatValue={formatPercent}
+                formatTime={formatClockTime}
+                series={[
+                  {
+                    key: 'gpu',
+                    label: 'GPU',
+                    color: 'hsl(var(--primary))',
+                    values: statsHistory.map((s) => s.gpuPercent ?? 0),
+                  },
+                ]}
+              />
+            )}
           </CardContent>
         </Card>
 

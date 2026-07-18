@@ -3,6 +3,7 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import { HashRouter, Route, Routes } from 'react-router-dom';
 import { Toaster } from 'sonner';
 import { TooltipProvider } from './components/ui/tooltip';
+import { ConfirmDialogHost } from './components/ConfirmDialog';
 import { queryClient } from './queryClient';
 import { initTheme } from './stores/themeStore';
 import { initDefaultCli } from './stores/cliStore';
@@ -15,6 +16,7 @@ import PromptHistoryPage from './pages/PromptHistoryPage';
 import ProjectsPage from './pages/ProjectsPage';
 import ProjectDetailPage from './pages/ProjectDetailPage';
 import SkillsPage from './pages/SkillsPage';
+import McpPage from './pages/McpPage';
 import SettingsPage from './pages/SettingsPage';
 
 export default function App(): React.JSX.Element {
@@ -37,11 +39,13 @@ export default function App(): React.JSX.Element {
               <Route path="projects" element={<ProjectsPage />} />
               <Route path="projects/:projectId" element={<ProjectDetailPage />} />
               <Route path="skills" element={<SkillsPage />} />
+              <Route path="mcp" element={<McpPage />} />
               <Route path="settings" element={<SettingsPage />} />
             </Route>
           </Routes>
         </HashRouter>
         <Toaster theme="system" position="bottom-right" richColors closeButton />
+        <ConfirmDialogHost />
       </TooltipProvider>
     </QueryClientProvider>
   );

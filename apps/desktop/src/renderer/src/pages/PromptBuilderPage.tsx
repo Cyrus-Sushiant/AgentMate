@@ -206,6 +206,7 @@ export default function PromptBuilderPage(): React.JSX.Element {
       toast.error('Describe what you want before generating a prompt.');
       return;
     }
+    setGenerated('');
     const content = generatePrompt({ rawInput, promptType, targetAI });
     setGenerated(content);
     void logHistory('generate', content);
@@ -216,6 +217,7 @@ export default function PromptBuilderPage(): React.JSX.Element {
       toast.error('Enter some text before translating.');
       return;
     }
+    setGenerated('');
     setIsTranslating(true);
     try {
       const translated = await window.agentmat.translate.text({ text: rawInput, targetLang });

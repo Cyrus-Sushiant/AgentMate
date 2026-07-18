@@ -13,6 +13,9 @@ import type {
   SkillRepository,
   SkillRepositoryIndex,
   SkillRepositorySourceType,
+  McpRepository,
+  McpRepositoryIndex,
+  McpRepositorySourceType,
 } from '@agentmat/core';
 import { IPC } from '../shared/ipcChannels';
 import type {
@@ -22,6 +25,7 @@ import type {
   SaveTemplateInput,
   DirectoryEntry,
   InstalledSkillRecord,
+  InstalledMcpServerRecord,
   AddPromptHistoryInput,
   PromptHistoryEntry,
   TranslateTextInput,
@@ -119,6 +123,33 @@ const skills = {
     ipcRenderer.invoke(IPC.skills.remove, params),
   listInstalled: (projectId: string): Promise<InstalledSkillRecord[]> =>
     ipcRenderer.invoke(IPC.skills.listInstalled, projectId),
+};
+
+const mcp = {
+  listRepositories: (): Promise<McpRepository[]> => ipcRenderer.invoke(IPC.mcp.listRepositories),
+  addRepository: (input: {
+    name: string;
+    sourceType: McpRepositorySourceType;
+    source: string;
+  }): Promise<McpRepository> => ipcRenderer.invoke(IPC.mcp.addRepository, input),
+  removeRepository: (repositoryId: string): Promise<void> =>
+    ipcRenderer.invoke(IPC.mcp.removeRepository, repositoryId),
+  refreshRepository: (repositoryId: string): Promise<McpRepositoryIndex> =>
+    ipcRenderer.invoke(IPC.mcp.refreshRepository, repositoryId),
+  getRepositoryIndex: (repositoryId: string): Promise<McpRepositoryIndex> =>
+    ipcRenderer.invoke(IPC.mcp.getRepositoryIndex, repositoryId),
+  pickLocalRepository: (): Promise<string | null> =>
+    ipcRenderer.invoke(IPC.mcp.pickLocalRepository),
+  install: (params: {
+    projectId: string;
+    repositoryId: string;
+    serverId: string;
+    env?: Record<string, string>;
+  }): Promise<void> => ipcRenderer.invoke(IPC.mcp.install, params),
+  remove: (params: { projectId: string; serverId: string }): Promise<void> =>
+    ipcRenderer.invoke(IPC.mcp.remove, params),
+  listInstalled: (projectId: string): Promise<InstalledMcpServerRecord[]> =>
+    ipcRenderer.invoke(IPC.mcp.listInstalled, projectId),
 };
 
 const fs = {
@@ -220,6 +251,7 @@ const agentmatApi = {
   terminal,
   projects,
   skills,
+  mcp,
   fs,
   settings,
   templates,

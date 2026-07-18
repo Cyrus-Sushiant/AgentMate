@@ -1,5 +1,6 @@
 import { mkdir, readFile, unlink, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { CLI_REGISTRY } from '@agentmat/core';
 import type { DetectedClaudeHook, NotificationHookKind, Project } from '@agentmat/core';
 import { portFilePath } from './hookServer';
 
@@ -186,6 +187,28 @@ function isAgentMateCommand(command: string): boolean {
  * didn't create. Each entry's `id` encodes where it lives (`file:event:groupIndex:hookIndex`)
  * so it can be targeted by {@link updateClaudeHook} / {@link deleteClaudeHook} on a later read.
  */
+/**
+ * Attributes a hook to a specific agent. These hooks all live in Claude Code's settings, so they
+ * belong to Claude Code unless the command clearly shells out to another known agent (e.g. `codex`
+ * or `gemini`), in which case we attribute it there. Defaults to `claude-code`.
+ */
+function identifyHookCli(command: string): string {
+  for (const cli of CLI_REGISTRY) {
+    if (cli.id === 'claude-code') continue;
+    for (const exe of cli.executableNames) {
+      // Match the executable as a standalone token so e.g. "gemini" doesn't hit inside "geminid".
+      if (new RegExp(`(?<![\\w-])${escapeRegExp(exe)}(?![\\w-])`).test(command)) {
+        return cli.id;
+      }
+    }
+  }
+  return 'claude-code';
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 export async function listClaudeHooks(projectFolderPath: string): Promise<DetectedClaudeHook[]> {
   const entries: DetectedClaudeHook[] = [];
 
@@ -200,6 +223,9 @@ export async function listClaudeHooks(projectFolderPath: string): Promise<Detect
             matcher: group.matcher,
             hook,
             managedByAgentMate: isAgentMateCommand(hook.command ?? ''),
+            // These all live in Claude Code's settings, so they're Claude Code hooks unless the
+            // command clearly shells out to another agent.
+            cliId: identifyHookCli(hook.command ?? ''),
           });
         });
       });

@@ -12,6 +12,7 @@ npmRebuild: false
 files:
   - out/**/*
   - package.json
+  - resources/icon.ico
 
 extraResources:
   - from: resources/example-skill-repo
@@ -24,6 +25,7 @@ asarUnpack:
   - '**/node_modules/node-pty/**'
 
 win:
+  icon: build/icon.png
   target:
     - target: nsis
       arch: [x64]
@@ -34,12 +36,14 @@ nsis:
   createDesktopShortcut: true
 
 mac:
+  icon: build/icon.png
   target:
     - target: dmg
       arch: [x64, arm64]
   category: public.app-category.developer-tools
 
 linux:
+  icon: build/icon.png
   target:
     - target: AppImage
       arch: [x64]

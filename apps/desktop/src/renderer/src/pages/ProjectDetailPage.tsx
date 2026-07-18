@@ -17,6 +17,7 @@ import {
   FolderTree,
   Pencil,
   Play,
+  Plug,
   Save,
   Send,
   TerminalSquare,
@@ -61,6 +62,7 @@ import { timeAgo } from '@/lib/time';
 import { usePageHeader } from '@/stores/pageHeaderStore';
 import { useCliStore } from '@/stores/cliStore';
 import { useTerminalStore } from '@/stores/terminalStore';
+import { confirmDialog } from '@/stores/confirmStore';
 
 const TARGET_AI_TO_CLI_ID: Record<string, string> = {
   Claude: 'claude-code',
@@ -94,6 +96,12 @@ export default function ProjectDetailPage(): React.JSX.Element {
     enabled: !!projectId,
   });
 
+  const installedMcpServersQuery = useQuery({
+    queryKey: queryKeys.installedMcpServers(projectId ?? ''),
+    queryFn: () => window.agentmat.mcp.listInstalled(projectId!),
+    enabled: !!projectId,
+  });
+
   const updateMutation = useMutation({
     mutationFn: (values: ProjectFormValues) => window.agentmat.projects.update(projectId!, values),
     onSuccess: () => {
@@ -115,6 +123,13 @@ export default function ProjectDetailPage(): React.JSX.Element {
     mutationFn: (skillId: string) => window.agentmat.skills.remove({ projectId: projectId!, skillId }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.installedSkills(projectId ?? '') });
+    },
+  });
+
+  const removeMcpServerMutation = useMutation({
+    mutationFn: (serverId: string) => window.agentmat.mcp.remove({ projectId: projectId!, serverId }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.installedMcpServers(projectId ?? '') });
     },
   });
 
@@ -194,9 +209,14 @@ export default function ProjectDetailPage(): React.JSX.Element {
               size="sm"
               className="text-destructive hover:text-destructive"
               onClick={() => {
-                if (confirm(`Remove "${project.name}" from AgentMate? Files on disk are kept.`)) {
-                  deleteMutation.mutate();
-                }
+                void confirmDialog({
+                  title: `Remove "${project.name}"?`,
+                  description: 'This removes it from AgentMate. Files on disk are kept.',
+                  confirmLabel: 'Remove',
+                  variant: 'destructive',
+                }).then((confirmed) => {
+                  if (confirmed) deleteMutation.mutate();
+                });
               }}
             >
               <Trash2 /> Delete
@@ -217,6 +237,9 @@ export default function ProjectDetailPage(): React.JSX.Element {
               </TabsTrigger>
               <TabsTrigger value="skills" className="gap-1.5">
                 <Blocks className="h-3.5 w-3.5" /> Skills
+              </TabsTrigger>
+              <TabsTrigger value="mcp" className="gap-1.5">
+                <Plug className="h-3.5 w-3.5" /> MCP
               </TabsTrigger>
               <TabsTrigger value="schedule" className="gap-1.5">
                 <CalendarDays className="h-3.5 w-3.5" /> Schedule
@@ -269,6 +292,31 @@ export default function ProjectDetailPage(): React.JSX.Element {
                         {skill.skillId} <span className="text-muted-foreground">v{skill.version}</span>
                       </span>
                       <Button variant="ghost" size="icon" onClick={() => removeSkillMutation.mutate(skill.skillId)}>
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </TabsContent>
+
+            <TabsContent value="mcp" className="space-y-3">
+              <div className="flex items-center justify-between">
+                <p className="text-sm text-muted-foreground">MCP servers installed into this project.</p>
+                <Button variant="outline" onClick={() => navigate(`/mcp?projectId=${project.id}`)}>
+                  <Plug /> Browse Marketplace
+                </Button>
+              </div>
+              {installedMcpServersQuery.data?.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No MCP servers installed yet.</p>
+              ) : (
+                <div className="space-y-2">
+                  {installedMcpServersQuery.data?.map((server) => (
+                    <div key={server.serverId} className="flex items-center justify-between rounded-lg border border-border bg-card px-3 py-2 text-sm">
+                      <span>
+                        {server.serverId} <span className="text-muted-foreground">v{server.version}</span>
+                      </span>
+                      <Button variant="ghost" size="icon" onClick={() => removeMcpServerMutation.mutate(server.serverId)}>
                         <Trash2 className="h-4 w-4" />
                       </Button>
                     </div>
@@ -390,6 +438,15 @@ function ProjectConfigEditor({ projectFolderPath }: { projectFolderPath: string 
 /** `${sourceFile}:${event}:${groupIndex}:${hookIndex}` → the settings file this hook lives in. */
 function sourceFileLabel(hookId: string): string {
   return hookId.split(':')[0] ?? 'settings.json';
+}
+
+/**
+ * The hook's agent logo. These hooks all live in Claude Code's settings files, so anything
+ * unrecognized is attributed to Claude Code rather than shown as a generic bell.
+ */
+function HookAgentIcon({ cliId, className }: { cliId?: string; className?: string }): React.JSX.Element {
+  const known = cliId != null && CLI_REGISTRY.some((c) => c.id === cliId);
+  return <CliLogo cliId={known ? cliId : 'claude-code'} className={className} />;
 }
 
 /** Best-effort one-line summary of a raw hook body for the list view (command + args, if present). */
@@ -714,7 +771,7 @@ function HooksTab({ project }: { project: Project }): React.JSX.Element {
             >
               <div className="min-w-0 space-y-0.5">
                 <div className="flex flex-wrap items-center gap-1.5 text-muted-foreground">
-                  <Bell className="h-3.5 w-3.5 shrink-0" />
+                  <HookAgentIcon cliId={hook.cliId} className="h-3.5 w-3.5 shrink-0" />
                   <span className="font-medium text-foreground">{hook.event}</span>
                   {hook.matcher && <span>· {hook.matcher}</span>}
                   <Badge variant="outline" className="text-[10px]">
@@ -737,9 +794,14 @@ function HooksTab({ project }: { project: Project }): React.JSX.Element {
                   size="icon"
                   title="Delete hook"
                   onClick={() => {
-                    if (confirm(`Remove this ${hook.event} hook from ${sourceFileLabel(hook.id)}?`)) {
-                      deleteHookMutation.mutate(hook.id);
-                    }
+                    void confirmDialog({
+                      title: `Remove ${hook.event} hook?`,
+                      description: `This removes it from ${sourceFileLabel(hook.id)}.`,
+                      confirmLabel: 'Remove',
+                      variant: 'destructive',
+                    }).then((confirmed) => {
+                      if (confirmed) deleteHookMutation.mutate(hook.id);
+                    });
                   }}
                 >
                   <Trash2 className="h-3.5 w-3.5" />

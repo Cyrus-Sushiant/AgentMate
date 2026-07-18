@@ -1,6 +1,8 @@
 export interface TelegramSendResult {
   ok: boolean;
   error?: string;
+  /** message_id of the sent message, used to edit it in place later (e.g. status updates). */
+  messageId?: number;
 }
 
 export async function sendTelegramMessage(
@@ -14,8 +16,37 @@ export async function sendTelegramMessage(
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ chat_id: chatId, text }),
     });
+    const data = (await response.json()) as {
+      ok: boolean;
+      description?: string;
+      result?: { message_id: number };
+    };
+    if (!response.ok || !data.ok) {
+      return { ok: false, error: data.description ?? `Telegram API returned ${response.status}` };
+    }
+    return { ok: true, messageId: data.result?.message_id };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : String(error) };
+  }
+}
+
+/** Edits a previously sent message in place, e.g. to reflect a scheduled task's new status. */
+export async function editTelegramMessage(
+  botToken: string,
+  chatId: string,
+  messageId: number,
+  text: string,
+): Promise<TelegramSendResult> {
+  try {
+    const response = await fetch(`https://api.telegram.org/bot${botToken}/editMessageText`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chat_id: chatId, message_id: messageId, text }),
+    });
     const data = (await response.json()) as { ok: boolean; description?: string };
     if (!response.ok || !data.ok) {
+      // Telegram errors here if the new text is identical to the old — harmless, treat as success.
+      if (data.description?.includes('message is not modified')) return { ok: true };
       return { ok: false, error: data.description ?? `Telegram API returned ${response.status}` };
     }
     return { ok: true };

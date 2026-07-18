@@ -41,6 +41,17 @@ export const IPC = {
     remove: 'skills:remove',
     listInstalled: 'skills:listInstalled',
   },
+  mcp: {
+    listRepositories: 'mcp:listRepositories',
+    addRepository: 'mcp:addRepository',
+    removeRepository: 'mcp:removeRepository',
+    refreshRepository: 'mcp:refreshRepository',
+    getRepositoryIndex: 'mcp:getRepositoryIndex',
+    pickLocalRepository: 'mcp:pickLocalRepository',
+    install: 'mcp:install',
+    remove: 'mcp:remove',
+    listInstalled: 'mcp:listInstalled',
+  },
   fs: {
     readFile: 'fs:readFile',
     writeFile: 'fs:writeFile',

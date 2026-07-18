@@ -46,6 +46,7 @@ export default function SettingsPage(): React.JSX.Element {
 
   const [botToken, setBotToken] = useState('');
   const [chatId, setChatId] = useState('');
+  const [scheduledTasksChatId, setScheduledTasksChatId] = useState('');
   const [telegramDirty, setTelegramDirty] = useState(false);
   const [detectingChatId, setDetectingChatId] = useState(false);
   const [sendingTest, setSendingTest] = useState(false);
@@ -54,6 +55,7 @@ export default function SettingsPage(): React.JSX.Element {
     if (!telegramDirty && settingsQuery.data) {
       setBotToken(settingsQuery.data.telegramBotToken ?? '');
       setChatId(settingsQuery.data.telegramChatId ?? '');
+      setScheduledTasksChatId(settingsQuery.data.telegramScheduledTasksChatId ?? '');
     }
   }, [settingsQuery.data, telegramDirty]);
 
@@ -62,6 +64,7 @@ export default function SettingsPage(): React.JSX.Element {
       window.agentmat.settings.update({
         telegramBotToken: botToken.trim() || null,
         telegramChatId: chatId.trim() || null,
+        telegramScheduledTasksChatId: scheduledTasksChatId.trim() || null,
       }),
     onSuccess: () => {
       toast.success('Telegram bot settings saved.');
@@ -274,6 +277,23 @@ export default function SettingsPage(): React.JSX.Element {
             <p className="text-xs text-muted-foreground">
               Message your bot on Telegram once, then click detect — no need to hunt for your chat ID
               manually.
+            </p>
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="telegram-scheduled-tasks-chat-id">Scheduled tasks chat/group ID</Label>
+            <Input
+              id="telegram-scheduled-tasks-chat-id"
+              value={scheduledTasksChatId}
+              onChange={(e) => {
+                setScheduledTasksChatId(e.target.value);
+                setTelegramDirty(true);
+              }}
+              placeholder="e.g. -1001234567890"
+              className="max-w-xs font-mono"
+            />
+            <p className="text-xs text-muted-foreground">
+              Optional. When set, every scheduled task is posted here and the message is edited in
+              place whenever its status changes.
             </p>
           </div>
           <div className="flex items-center gap-2 pt-1">

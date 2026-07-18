@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input';
 import { queryKeys } from '@/lib/queryKeys';
 import { timeAgo } from '@/lib/time';
 import { usePageHeader } from '@/stores/pageHeaderStore';
+import { confirmDialog } from '@/stores/confirmStore';
 import { ProjectFormDialog, type ProjectFormValues } from '@/components/projects/ProjectFormDialog';
 
 export default function ProjectsPage(): React.JSX.Element {
@@ -127,9 +128,14 @@ export default function ProjectsPage(): React.JSX.Element {
                     className="shrink-0 opacity-0 transition-opacity group-hover:opacity-100"
                     onClick={(e) => {
                       e.stopPropagation();
-                      if (confirm(`Remove "${project.name}" from AgentMate? Files on disk are kept.`)) {
-                        deleteMutation.mutate(project.id);
-                      }
+                      void confirmDialog({
+                        title: `Remove "${project.name}"?`,
+                        description: 'This removes it from AgentMate. Files on disk are kept.',
+                        confirmLabel: 'Remove',
+                        variant: 'destructive',
+                      }).then((confirmed) => {
+                        if (confirmed) deleteMutation.mutate(project.id);
+                      });
                     }}
                   >
                     <Trash2 className="h-4 w-4" />

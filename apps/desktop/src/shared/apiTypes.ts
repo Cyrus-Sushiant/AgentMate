@@ -40,6 +40,13 @@ export interface InstalledSkillRecord {
   installedAt: string;
 }
 
+export interface InstalledMcpServerRecord {
+  serverId: string;
+  repositoryId: string;
+  version: string;
+  installedAt: string;
+}
+
 export type PromptHistorySource = 'generate' | 'translate';
 
 export interface PromptHistoryEntry {
@@ -122,6 +129,13 @@ export interface SystemStatsSample {
   memPercent: number;
   memUsedBytes: number;
   memTotalBytes: number;
+  diskPercent: number;
+  diskUsedBytes: number;
+  diskTotalBytes: number;
+  /** Null when no supported GPU (currently NVIDIA via `nvidia-smi`) could be queried. */
+  gpuPercent: number | null;
+  gpuMemUsedBytes: number | null;
+  gpuMemTotalBytes: number | null;
   netRxBytesPerSec: number;
   netTxBytesPerSec: number;
   pings: PingResult[];

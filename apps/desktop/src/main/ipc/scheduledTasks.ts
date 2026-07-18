@@ -4,6 +4,24 @@ import type { ScheduledTask, ScheduledTaskStatus } from '@agentmat/core';
 import { IPC } from '../../shared/ipcChannels';
 import type { CreateScheduledTasksInput } from '../../shared/apiTypes';
 import { store } from '../store';
+import { editTelegramMessage, sendTelegramMessage } from '../notifications/telegramApi';
+
+const STATUS_LABEL: Record<ScheduledTaskStatus, string> = {
+  pending: '⏳ Pending',
+  completed: '✅ Completed',
+  cancelled: '❌ Cancelled',
+};
+
+function renderTaskMessage(task: ScheduledTask, projectName: string): string {
+  return [
+    `📅 Scheduled task — ${projectName}`,
+    `Target: ${task.targetAI}`,
+    `Run at: ${new Date(task.runAt).toLocaleString()}`,
+    `Status: ${STATUS_LABEL[task.status]}`,
+    '',
+    task.content,
+  ].join('\n');
+}
 
 export function registerScheduledTaskHandlers(): void {
   ipcMain.handle(
@@ -34,6 +52,25 @@ export function registerScheduledTaskHandlers(): void {
         status: 'pending',
         createdAt: now,
       }));
+
+      const [settings, projects] = await Promise.all([store.getSettings(), store.getProjects()]);
+      const { telegramBotToken, telegramScheduledTasksChatId } = settings;
+      if (telegramBotToken && telegramScheduledTasksChatId) {
+        const projectName =
+          projects.find((p) => p.id === input.projectId)?.name ?? 'Unknown project';
+        for (const task of created) {
+          const result = await sendTelegramMessage(
+            telegramBotToken,
+            telegramScheduledTasksChatId,
+            renderTaskMessage(task, projectName),
+          );
+          if (result.ok) {
+            task.telegramChatId = telegramScheduledTasksChatId;
+            task.telegramMessageId = result.messageId ?? null;
+          }
+        }
+      }
+
       const tasks = await store.getScheduledTasks();
       tasks.push(...created);
       await store.setScheduledTasks(tasks);
@@ -47,8 +84,24 @@ export function registerScheduledTaskHandlers(): void {
       const tasks = await store.getScheduledTasks();
       const index = tasks.findIndex((task) => task.id === taskId);
       if (index === -1) return;
-      tasks[index] = { ...tasks[index], status };
+      const updated = { ...tasks[index], status };
+      tasks[index] = updated;
       await store.setScheduledTasks(tasks);
+
+      if (updated.telegramChatId && updated.telegramMessageId) {
+        const settings = await store.getSettings();
+        if (settings.telegramBotToken) {
+          const projects = await store.getProjects();
+          const projectName =
+            projects.find((p) => p.id === updated.projectId)?.name ?? 'Unknown project';
+          await editTelegramMessage(
+            settings.telegramBotToken,
+            updated.telegramChatId,
+            updated.telegramMessageId,
+            renderTaskMessage(updated, projectName),
+          );
+        }
+      }
     },
   );
 

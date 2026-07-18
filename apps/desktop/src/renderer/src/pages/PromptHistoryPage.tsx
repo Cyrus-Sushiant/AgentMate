@@ -1,13 +1,22 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useLocation } from 'react-router-dom';
 import { toast } from 'sonner';
-import { Copy, History, Languages, Search, Sparkles, Tag, Trash2, X } from '@/components/icons';
+import { Copy, Eye, History, Languages, Search, Sparkles, Tag, Trash2, X } from '@/components/icons';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { queryKeys } from '@/lib/queryKeys';
 import { usePageHeader } from '@/stores/pageHeaderStore';
+import { confirmDialog } from '@/stores/confirmStore';
 import type { PromptHistoryEntry } from '../../../shared/apiTypes';
 
 function TagEditor({ entry }: { entry: PromptHistoryEntry }): React.JSX.Element {
@@ -81,7 +90,9 @@ function TagEditor({ entry }: { entry: PromptHistoryEntry }): React.JSX.Element 
 }
 
 export default function PromptHistoryPage(): React.JSX.Element {
+  const location = useLocation();
   const [search, setSearch] = useState('');
+  const [selectedEntry, setSelectedEntry] = useState<PromptHistoryEntry | null>(null);
   const queryClient = useQueryClient();
 
   const historyQuery = useQuery({
@@ -89,6 +100,13 @@ export default function PromptHistoryPage(): React.JSX.Element {
     queryFn: () =>
       search.trim() ? window.agentmat.promptHistory.search(search.trim()) : window.agentmat.promptHistory.list(),
   });
+
+  useEffect(() => {
+    const openEntryId = (location.state as { openEntryId?: string } | null)?.openEntryId;
+    if (!openEntryId || !historyQuery.data) return;
+    const found = historyQuery.data.find((entry) => entry.id === openEntryId);
+    if (found) setSelectedEntry(found);
+  }, [location.state, historyQuery.data]);
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => window.agentmat.promptHistory.remove(id),
@@ -179,13 +197,25 @@ export default function PromptHistoryPage(): React.JSX.Element {
               <CardContent className="space-y-3">
                 <TagEditor entry={entry} />
                 <div className="flex items-center gap-2">
+                  <Button variant="outline" size="sm" onClick={() => setSelectedEntry(entry)}>
+                    <Eye /> View details
+                  </Button>
                   <Button variant="outline" size="sm" onClick={() => void handleCopy(entry.content)}>
                     <Copy /> Copy
                   </Button>
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => deleteMutation.mutate(entry.id)}
+                    onClick={() => {
+                      void confirmDialog({
+                        title: 'Delete this prompt history entry?',
+                        description: 'This cannot be undone.',
+                        confirmLabel: 'Delete',
+                        variant: 'destructive',
+                      }).then((confirmed) => {
+                        if (confirmed) deleteMutation.mutate(entry.id);
+                      });
+                    }}
                     disabled={deleteMutation.isPending}
                   >
                     <Trash2 /> Delete
@@ -196,6 +226,63 @@ export default function PromptHistoryPage(): React.JSX.Element {
           ))}
         </div>
       )}
+
+      <Dialog open={selectedEntry !== null} onOpenChange={(open) => !open && setSelectedEntry(null)}>
+        <DialogContent className="max-w-2xl">
+          {selectedEntry ? (
+            <>
+              <DialogHeader>
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <DialogTitle>{selectedEntry.promptType}</DialogTitle>
+                  <Badge variant="outline">{selectedEntry.targetAI}</Badge>
+                  <Badge variant="secondary">
+                    {selectedEntry.source === 'translate' ? (
+                      <>
+                        <Languages className="h-3 w-3" /> Translated
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="h-3 w-3" /> Generated
+                      </>
+                    )}
+                  </Badge>
+                </div>
+                <DialogDescription>{new Date(selectedEntry.createdAt).toLocaleString()}</DialogDescription>
+              </DialogHeader>
+              <div className="max-h-[60vh] space-y-4 overflow-y-auto">
+                {selectedEntry.tags.length > 0 ? (
+                  <div className="flex flex-wrap gap-1.5">
+                    {selectedEntry.tags.map((tag) => (
+                      <Badge key={tag} variant="outline">
+                        {tag}
+                      </Badge>
+                    ))}
+                  </div>
+                ) : null}
+                <div className="space-y-1.5">
+                  <p className="text-xs font-medium text-muted-foreground">Original input</p>
+                  <p className="whitespace-pre-wrap rounded-lg border border-border bg-muted/40 p-3 text-sm">
+                    {selectedEntry.rawInput}
+                  </p>
+                </div>
+                <div className="space-y-1.5">
+                  <p className="text-xs font-medium text-muted-foreground">
+                    {selectedEntry.source === 'translate' ? 'Translated prompt' : 'Generated prompt'}
+                  </p>
+                  <p className="whitespace-pre-wrap rounded-lg border border-border bg-muted/40 p-3 text-sm">
+                    {selectedEntry.content}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button variant="outline" size="sm" onClick={() => void handleCopy(selectedEntry.content)}>
+                  <Copy /> Copy
+                </Button>
+              </div>
+            </>
+          ) : null}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

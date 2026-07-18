@@ -4,6 +4,7 @@ import {
   FolderKanban,
   History,
   LayoutDashboard,
+  Plug,
   SettingsIcon,
   Sparkles,
   TerminalSquare,
@@ -12,13 +13,14 @@ import { cn } from '@/lib/utils';
 import { useUiStore } from '@/stores/uiStore';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 
-const NAV_ITEMS = [
+export const NAV_ITEMS = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard, end: true },
   { to: '/cli-manager', label: 'AI CLI Manager', icon: TerminalSquare },
   { to: '/prompt-builder', label: 'Prompt Builder', icon: Sparkles },
   { to: '/prompt-history', label: 'Prompt History', icon: History },
   { to: '/projects', label: 'Projects', icon: FolderKanban },
   { to: '/skills', label: 'Skills', icon: Blocks },
+  { to: '/mcp', label: 'MCP Servers', icon: Plug },
   { to: '/settings', label: 'Settings', icon: SettingsIcon },
 ];
 

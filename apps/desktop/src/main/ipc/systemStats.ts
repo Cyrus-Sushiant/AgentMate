@@ -1,6 +1,7 @@
 import { execFile } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
 import os from 'node:os';
+import path from 'node:path';
 import { promisify } from 'node:util';
 import { ipcMain } from 'electron';
 import type { PingResult, SystemStatsSample } from '../../shared/apiTypes';
@@ -50,6 +51,59 @@ function sampleMemory(): Pick<SystemStatsSample, 'memPercent' | 'memUsedBytes' |
     memUsedBytes,
     memTotalBytes,
   };
+}
+
+async function sampleDisk(): Promise<
+  Pick<SystemStatsSample, 'diskPercent' | 'diskUsedBytes' | 'diskTotalBytes'>
+> {
+  try {
+    if (process.platform === 'win32') {
+      const driveLetter = path.parse(os.homedir()).root.replace(/[\\:]/g, '');
+      const { stdout } = await execFileAsync('powershell', [
+        '-NoProfile',
+        '-Command',
+        `Get-PSDrive -Name ${driveLetter} | Select-Object Used,Free | ConvertTo-Json`,
+      ]);
+      const parsed = JSON.parse(stdout) as { Used: number; Free: number };
+      const diskUsedBytes = parsed.Used;
+      const diskTotalBytes = parsed.Used + parsed.Free;
+      return { diskPercent: (diskUsedBytes / diskTotalBytes) * 100, diskUsedBytes, diskTotalBytes };
+    }
+
+    const { stdout } = await execFileAsync('df', ['-k', os.homedir()]);
+    const line = stdout.trim().split('\n').at(-1) ?? '';
+    const cols = line.trim().split(/\s+/);
+    const diskUsedBytes = Number(cols[2]) * 1024;
+    const diskTotalBytes = Number(cols[1]) * 1024;
+    if (!diskTotalBytes) return { diskPercent: 0, diskUsedBytes: 0, diskTotalBytes: 0 };
+    return { diskPercent: (diskUsedBytes / diskTotalBytes) * 100, diskUsedBytes, diskTotalBytes };
+  } catch {
+    return { diskPercent: 0, diskUsedBytes: 0, diskTotalBytes: 0 };
+  }
+}
+
+async function sampleGpu(): Promise<
+  Pick<SystemStatsSample, 'gpuPercent' | 'gpuMemUsedBytes' | 'gpuMemTotalBytes'>
+> {
+  try {
+    // Only NVIDIA GPUs expose live utilization through a standard CLI;
+    // other vendors would need vendor-specific tooling we don't ship.
+    const { stdout } = await execFileAsync('nvidia-smi', [
+      '--query-gpu=utilization.gpu,memory.used,memory.total',
+      '--format=csv,noheader,nounits',
+    ]);
+    const [util, memUsed, memTotal] = stdout.trim().split(',').map((v) => Number(v.trim()));
+    if (![util, memUsed, memTotal].every(Number.isFinite)) {
+      return { gpuPercent: null, gpuMemUsedBytes: null, gpuMemTotalBytes: null };
+    }
+    return {
+      gpuPercent: util,
+      gpuMemUsedBytes: memUsed * 1024 * 1024,
+      gpuMemTotalBytes: memTotal * 1024 * 1024,
+    };
+  } catch {
+    return { gpuPercent: null, gpuMemUsedBytes: null, gpuMemTotalBytes: null };
+  }
 }
 
 interface NetTotals {
@@ -147,14 +201,18 @@ export function registerSystemStatsHandlers(): void {
     // Older settings.json files predate this field.
     const hosts = (settings.pingTargets ?? []).map((h) => h.trim()).filter(Boolean);
 
-    const [net, pings] = await Promise.all([
+    const [net, pings, disk, gpu] = await Promise.all([
       sampleNetworkRates(),
       Promise.all(hosts.map((host) => pingHost(host))),
+      sampleDisk(),
+      sampleGpu(),
     ]);
     return {
       timestamp: Date.now(),
       cpuPercent: sampleCpuPercent(),
       ...sampleMemory(),
+      ...disk,
+      ...gpu,
       ...net,
       pings,
     };

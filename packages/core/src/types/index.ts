@@ -10,6 +10,8 @@ export interface AppSettings {
   telegramBotToken: string | null;
   /** Chat/user ID the bot should message; also where confirmation replies are read from. */
   telegramChatId: string | null;
+  /** Chat/group ID scheduled tasks are posted to and kept in sync with as their status changes. */
+  telegramScheduledTasksChatId: string | null;
 }
 
 export type AgentType = 'claude-code' | 'gemini' | 'opencode' | 'codex' | 'generic';
@@ -38,6 +40,8 @@ export interface DetectedClaudeHook {
   hook: Record<string, unknown>;
   /** True when this is one of AgentMate's own Completion/Confirmation hooks (shown elsewhere). */
   managedByAgentMate: boolean;
+  /** CLI_REGISTRY id of the owning agent: 'claude-code', or another agent inferred from the command. */
+  cliId: string;
 }
 
 export interface Project {
@@ -126,4 +130,8 @@ export interface ScheduledTask {
   runAt: string;
   status: ScheduledTaskStatus;
   createdAt: string;
+  /** Telegram chat/group this task's status message was posted to, so edits target the same chat. */
+  telegramChatId?: string | null;
+  /** message_id of the Telegram message tracking this task, used to edit it in place on status changes. */
+  telegramMessageId?: number | null;
 }
