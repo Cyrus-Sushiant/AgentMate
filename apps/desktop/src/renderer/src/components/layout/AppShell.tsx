@@ -6,6 +6,7 @@ import { Sidebar } from './Sidebar';
 import { TitleBar } from './TitleBar';
 import { LoadingOverlay } from './LoadingOverlay';
 import { Button } from '@/components/ui/button';
+import { SimpleTooltip } from '@/components/ui/tooltip';
 import { useThemeStore } from '@/stores/themeStore';
 import { useTerminalStore } from '@/stores/terminalStore';
 import { useUiStore } from '@/stores/uiStore';
@@ -30,17 +31,18 @@ function ThemeToggle(): React.JSX.Element {
   const Icon = THEME_ICON[theme];
 
   return (
-    <Button
-      variant="ghost"
-      size="icon"
-      title={`Theme: ${theme}`}
-      onClick={() => {
-        const next = THEME_CYCLE[(THEME_CYCLE.indexOf(theme) + 1) % THEME_CYCLE.length];
-        setTheme(next);
-      }}
-    >
-      <Icon className="h-4 w-4" />
-    </Button>
+    <SimpleTooltip label={`Theme: ${theme}`}>
+      <Button
+        variant="ghost"
+        size="icon"
+        onClick={() => {
+          const next = THEME_CYCLE[(THEME_CYCLE.indexOf(theme) + 1) % THEME_CYCLE.length];
+          setTheme(next);
+        }}
+      >
+        <Icon className="h-4 w-4" />
+      </Button>
+    </SimpleTooltip>
   );
 }
 
@@ -57,14 +59,11 @@ function TopBar(): React.JSX.Element {
 
   return (
     <div className="flex h-16 shrink-0 items-center gap-3 border-b border-border px-3">
-      <Button
-        variant="ghost"
-        size="icon"
-        title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-        onClick={toggleSidebar}
-      >
-        {sidebarCollapsed ? <AnglesRight className="h-4 w-4" /> : <AnglesLeft className="h-4 w-4" />}
-      </Button>
+      <SimpleTooltip label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}>
+        <Button variant="ghost" size="icon" onClick={toggleSidebar}>
+          {sidebarCollapsed ? <AnglesRight className="h-4 w-4" /> : <AnglesLeft className="h-4 w-4" />}
+        </Button>
+      </SimpleTooltip>
       <div className="flex min-w-0 flex-1 flex-col justify-center">
         {pageTitle && <span className="truncate text-base font-semibold">{pageTitle}</span>}
         {pageSubtitle && (
@@ -77,14 +76,11 @@ function TopBar(): React.JSX.Element {
             {activeSession.title}
           </span>
         )}
-        <Button
-          variant={isTerminalOpen ? 'secondary' : 'ghost'}
-          size="icon"
-          title="Toggle terminal"
-          onClick={toggleDrawer}
-        >
-          <TerminalSquare className="h-4 w-4" />
-        </Button>
+        <SimpleTooltip label="Toggle terminal">
+          <Button variant={isTerminalOpen ? 'secondary' : 'ghost'} size="icon" onClick={toggleDrawer}>
+            <TerminalSquare className="h-4 w-4" />
+          </Button>
+        </SimpleTooltip>
         <ThemeToggle />
       </div>
     </div>

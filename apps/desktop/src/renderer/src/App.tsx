@@ -2,9 +2,11 @@ import { useEffect } from 'react';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { HashRouter, Route, Routes } from 'react-router-dom';
 import { Toaster } from 'sonner';
+import { TooltipProvider } from './components/ui/tooltip';
 import { queryClient } from './queryClient';
 import { initTheme } from './stores/themeStore';
 import { initDefaultCli } from './stores/cliStore';
+import { initPingTargets } from './stores/pingTargetsStore';
 import { AppShell } from './components/layout/AppShell';
 import DashboardPage from './pages/DashboardPage';
 import CliManagerPage from './pages/CliManagerPage';
@@ -19,25 +21,28 @@ export default function App(): React.JSX.Element {
   useEffect(() => {
     void initTheme();
     void initDefaultCli();
+    void initPingTargets();
   }, []);
 
   return (
     <QueryClientProvider client={queryClient}>
-      <HashRouter>
-        <Routes>
-          <Route element={<AppShell />}>
-            <Route index element={<DashboardPage />} />
-            <Route path="cli-manager" element={<CliManagerPage />} />
-            <Route path="prompt-builder" element={<PromptBuilderPage />} />
-            <Route path="prompt-history" element={<PromptHistoryPage />} />
-            <Route path="projects" element={<ProjectsPage />} />
-            <Route path="projects/:projectId" element={<ProjectDetailPage />} />
-            <Route path="skills" element={<SkillsPage />} />
-            <Route path="settings" element={<SettingsPage />} />
-          </Route>
-        </Routes>
-      </HashRouter>
-      <Toaster theme="system" position="bottom-right" richColors closeButton />
+      <TooltipProvider delayDuration={300} skipDelayDuration={100}>
+        <HashRouter>
+          <Routes>
+            <Route element={<AppShell />}>
+              <Route index element={<DashboardPage />} />
+              <Route path="cli-manager" element={<CliManagerPage />} />
+              <Route path="prompt-builder" element={<PromptBuilderPage />} />
+              <Route path="prompt-history" element={<PromptHistoryPage />} />
+              <Route path="projects" element={<ProjectsPage />} />
+              <Route path="projects/:projectId" element={<ProjectDetailPage />} />
+              <Route path="skills" element={<SkillsPage />} />
+              <Route path="settings" element={<SettingsPage />} />
+            </Route>
+          </Routes>
+        </HashRouter>
+        <Toaster theme="system" position="bottom-right" richColors closeButton />
+      </TooltipProvider>
     </QueryClientProvider>
   );
 }

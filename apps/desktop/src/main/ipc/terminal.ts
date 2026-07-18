@@ -14,6 +14,8 @@ function defaultShell(): AllowedShell {
 
 interface TerminalSession {
   pty: pty.IPty;
+  projectId?: string;
+  createdAt: number;
 }
 
 const sessions = new Map<string, TerminalSession>();
@@ -35,7 +37,7 @@ export function registerTerminalHandlers(): void {
       });
 
       const sessionId = randomUUID();
-      sessions.set(sessionId, { pty: ptyProcess });
+      sessions.set(sessionId, { pty: ptyProcess, projectId: options.projectId, createdAt: Date.now() });
 
       const sender = event.sender;
       ptyProcess.onData((data) => {
@@ -80,4 +82,19 @@ export function killAllTerminalSessions(): void {
     session.pty.kill();
   }
   sessions.clear();
+}
+
+/** Most recently opened terminal session tagged with this project, if any is still open. */
+export function findSessionIdForProject(projectId: string): string | null {
+  let best: { id: string; createdAt: number } | null = null;
+  for (const [id, session] of sessions) {
+    if (session.projectId === projectId && (!best || session.createdAt > best.createdAt)) {
+      best = { id, createdAt: session.createdAt };
+    }
+  }
+  return best?.id ?? null;
+}
+
+export function writeToSession(sessionId: string, data: string): void {
+  sessions.get(sessionId)?.pty.write(data);
 }

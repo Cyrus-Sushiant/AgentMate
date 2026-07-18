@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Combobox } from '@/components/ui/combobox';
+import { SimpleTooltip } from '@/components/ui/tooltip';
 import {
   Dialog,
   DialogContent,
@@ -180,22 +181,24 @@ export default function SkillsPage(): React.JSX.Element {
             />
             {selectedRepoId && (
               <>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  title="Refresh"
-                  onClick={() => refreshRepoMutation.mutate(selectedRepoId)}
-                >
-                  <RefreshCw className="h-4 w-4" />
-                </Button>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  title="Remove repository"
-                  onClick={() => removeRepoMutation.mutate(selectedRepoId)}
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
+                <SimpleTooltip label="Refresh">
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={() => refreshRepoMutation.mutate(selectedRepoId)}
+                  >
+                    <RefreshCw className="h-4 w-4" />
+                  </Button>
+                </SimpleTooltip>
+                <SimpleTooltip label="Remove repository">
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={() => removeRepoMutation.mutate(selectedRepoId)}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </SimpleTooltip>
               </>
             )}
           </div>

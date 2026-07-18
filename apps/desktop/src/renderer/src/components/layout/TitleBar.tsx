@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Sparkles, WindowMaximize, WindowMinimize, X } from '@/components/icons';
+import { SimpleTooltip } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 
 function TrafficLight({
@@ -14,17 +15,18 @@ function TrafficLight({
   title: string;
 }): React.JSX.Element {
   return (
-    <button
-      type="button"
-      title={title}
-      onClick={onClick}
-      className={cn(
-        'group/dot flex h-3.5 w-3.5 items-center justify-center rounded-full transition-transform hover:scale-110 [-webkit-app-region:no-drag]',
-        color,
-      )}
-    >
-      <Icon className="h-2 w-2 text-black/60 opacity-0 transition-opacity group-hover/dot:opacity-100" />
-    </button>
+    <SimpleTooltip label={title}>
+      <button
+        type="button"
+        onClick={onClick}
+        className={cn(
+          'group/dot flex h-3.5 w-3.5 items-center justify-center rounded-full transition-transform hover:scale-110 [-webkit-app-region:no-drag]',
+          color,
+        )}
+      >
+        <Icon className="h-2 w-2 text-black/60 opacity-0 transition-opacity group-hover/dot:opacity-100" />
+      </button>
+    </SimpleTooltip>
   );
 }
 
@@ -58,36 +60,39 @@ function NativeCaptionButtons({
 }: WindowControlsProps): React.JSX.Element {
   return (
     <div className="flex h-11 items-stretch [-webkit-app-region:no-drag]">
-      <button
-        type="button"
-        title="Minimize"
-        onClick={onMinimize}
-        className="flex w-[46px] items-center justify-center text-foreground/80 transition-colors hover:bg-black/5 hover:text-foreground dark:hover:bg-white/10"
-      >
-        <span className="caption-glyph" aria-hidden="true">
-          {GLYPH.minimize}
-        </span>
-      </button>
-      <button
-        type="button"
-        title={isMaximized ? 'Restore' : 'Maximize'}
-        onClick={onMaximizeToggle}
-        className="flex w-[46px] items-center justify-center text-foreground/80 transition-colors hover:bg-black/5 hover:text-foreground dark:hover:bg-white/10"
-      >
-        <span className="caption-glyph" aria-hidden="true">
-          {isMaximized ? GLYPH.restore : GLYPH.maximize}
-        </span>
-      </button>
-      <button
-        type="button"
-        title="Close"
-        onClick={onClose}
-        className="flex w-[46px] items-center justify-center text-foreground/80 transition-colors hover:bg-[#c42b1c] hover:text-white"
-      >
-        <span className="caption-glyph" aria-hidden="true">
-          {GLYPH.close}
-        </span>
-      </button>
+      <SimpleTooltip label="Minimize" side="bottom">
+        <button
+          type="button"
+          onClick={onMinimize}
+          className="flex w-[46px] items-center justify-center text-foreground/80 transition-colors hover:bg-black/5 hover:text-foreground dark:hover:bg-white/10"
+        >
+          <span className="caption-glyph" aria-hidden="true">
+            {GLYPH.minimize}
+          </span>
+        </button>
+      </SimpleTooltip>
+      <SimpleTooltip label={isMaximized ? 'Restore' : 'Maximize'} side="bottom">
+        <button
+          type="button"
+          onClick={onMaximizeToggle}
+          className="flex w-[46px] items-center justify-center text-foreground/80 transition-colors hover:bg-black/5 hover:text-foreground dark:hover:bg-white/10"
+        >
+          <span className="caption-glyph" aria-hidden="true">
+            {isMaximized ? GLYPH.restore : GLYPH.maximize}
+          </span>
+        </button>
+      </SimpleTooltip>
+      <SimpleTooltip label="Close" side="bottom">
+        <button
+          type="button"
+          onClick={onClose}
+          className="flex w-[46px] items-center justify-center text-foreground/80 transition-colors hover:bg-[#c42b1c] hover:text-white"
+        >
+          <span className="caption-glyph" aria-hidden="true">
+            {GLYPH.close}
+          </span>
+        </button>
+      </SimpleTooltip>
     </div>
   );
 }

@@ -10,6 +10,7 @@ import {
 } from '@/components/icons';
 import { cn } from '@/lib/utils';
 import { useUiStore } from '@/stores/uiStore';
+import { SimpleTooltip } from '@/components/ui/tooltip';
 
 const NAV_ITEMS = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard, end: true },
@@ -32,30 +33,39 @@ export function Sidebar(): React.JSX.Element {
       )}
     >
       <nav className="flex flex-1 flex-col gap-1">
-        {NAV_ITEMS.map((item) => (
-          <NavLink
-            key={item.to}
-            to={item.to}
-            end={item.end}
-            title={collapsed ? item.label : undefined}
-            className={({ isActive }) =>
-              cn(
-                'group relative flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
-                collapsed && 'justify-center px-0',
-                isActive
-                  ? 'bg-primary font-semibold text-primary-foreground'
-                  : 'text-muted-foreground hover:bg-foreground/[0.06] hover:text-foreground',
-              )
-            }
-          >
-            {({ isActive }) => (
-              <>
-                <item.icon className={cn('h-4 w-4 shrink-0', isActive && 'text-primary-foreground')} />
-                {!collapsed && <span>{item.label}</span>}
-              </>
-            )}
-          </NavLink>
-        ))}
+        {NAV_ITEMS.map((item) => {
+          const link = (
+            <NavLink
+              key={item.to}
+              to={item.to}
+              end={item.end}
+              className={({ isActive }) =>
+                cn(
+                  'group relative flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
+                  collapsed && 'justify-center px-0',
+                  isActive
+                    ? 'bg-primary font-semibold text-primary-foreground'
+                    : 'text-muted-foreground hover:bg-foreground/[0.06] hover:text-foreground',
+                )
+              }
+            >
+              {({ isActive }) => (
+                <>
+                  <item.icon className={cn('h-4 w-4 shrink-0', isActive && 'text-primary-foreground')} />
+                  {!collapsed && <span>{item.label}</span>}
+                </>
+              )}
+            </NavLink>
+          );
+
+          return collapsed ? (
+            <SimpleTooltip key={item.to} label={item.label} side="right">
+              {link}
+            </SimpleTooltip>
+          ) : (
+            link
+          );
+        })}
       </nav>
 
       {!collapsed && (

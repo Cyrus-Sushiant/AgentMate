@@ -3,17 +3,21 @@ import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import {
   Blocks,
+  CloudDownload,
   Cpu,
   FolderKanban,
+  Globe,
   MemoryStick,
   NetworkIcon,
   RefreshCw,
   SatelliteDish,
+  SettingsIcon,
   Sparkles,
   TerminalSquare,
   FolderPlus,
 } from '@/components/icons';
-import { CLI_REGISTRY } from '@agentmat/core';
+import { CLI_REGISTRY, type CliDefinition, type InstalledCli } from '@agentmat/core';
+import { CliLogo } from '@/components/cliLogos';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -23,6 +27,7 @@ import { useChartColors } from '@/lib/chartColors';
 import { queryKeys } from '@/lib/queryKeys';
 import { timeAgo } from '@/lib/time';
 import { usePageHeader } from '@/stores/pageHeaderStore';
+import { useTerminalStore } from '@/stores/terminalStore';
 
 function formatPercent(value: number): string {
   return `${value.toFixed(0)}%`;
@@ -47,6 +52,67 @@ function formatBytes(bytes: number): string {
   return `${(bytes / 1024 ** 3).toFixed(1)} GB`;
 }
 
+// Country flags are the Unicode "regional indicator" letter pair for the
+// ISO 3166-1 alpha-2 code — there's no dedicated flag codepoint, the
+// renderer's font composes the pair into a flag glyph.
+function countryCodeToFlagEmoji(countryCode: string): string {
+  if (countryCode.length !== 2) return '';
+  return String.fromCodePoint(
+    ...[...countryCode.toUpperCase()].map((char) => 127397 + char.charCodeAt(0)),
+  );
+}
+
+function CliUpdateRow({ cli, status }: { cli: CliDefinition; status: InstalledCli }): React.JSX.Element {
+  const openSession = useTerminalStore((s) => s.openSession);
+  const updateQuery = useQuery({
+    queryKey: queryKeys.cliUpdateCheck(cli.id, status.version),
+    queryFn: () => window.agentmat.cli.checkForUpdate(cli.id, status.version),
+    staleTime: 10 * 60_000,
+  });
+
+  async function handleUpdate(): Promise<void> {
+    const command = await window.agentmat.cli.getUpdateCommand(cli.id);
+    if (!command) {
+      toast.error(`No update command available for ${cli.name} on this OS.`);
+      return;
+    }
+    openSession({ title: `Update ${cli.name}`, initialInput: command });
+    toast.info(`Press Enter in the terminal to update ${cli.name}.`);
+  }
+
+  const result = updateQuery.data;
+
+  return (
+    <div className="flex items-center justify-between gap-2 rounded-lg border border-border bg-card px-3 py-2">
+      <div className="flex min-w-0 items-center gap-2">
+        <CliLogo cliId={cli.id} className="h-4 w-4 shrink-0" />
+        <div className="min-w-0">
+          <div className="truncate text-sm font-medium">{cli.name}</div>
+          <div className="text-xs text-muted-foreground">{status.version ?? 'unknown version'}</div>
+        </div>
+      </div>
+      <div className="flex shrink-0 items-center gap-2">
+        {updateQuery.isLoading ? (
+          <Badge variant="outline">Checking…</Badge>
+        ) : !result?.supported ? (
+          <Badge variant="outline">No update check</Badge>
+        ) : !result.latestVersion ? (
+          <Badge variant="outline">Check failed</Badge>
+        ) : result.updateAvailable ? (
+          <>
+            <Badge variant="warning">v{result.latestVersion} available</Badge>
+            <Button size="sm" variant="outline" onClick={() => void handleUpdate()}>
+              <CloudDownload className="h-3.5 w-3.5" /> Update
+            </Button>
+          </>
+        ) : (
+          <Badge variant="success">Up to date</Badge>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function DashboardPage(): React.JSX.Element {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -67,6 +133,12 @@ export default function DashboardPage(): React.JSX.Element {
     queryKey: queryKeys.repositories,
     queryFn: () => window.agentmat.skills.listRepositories(),
   });
+  const ipGeoQuery = useQuery({
+    queryKey: queryKeys.ipGeo,
+    queryFn: () => window.agentmat.ipGeo.lookup(),
+    staleTime: Infinity,
+    retry: false,
+  });
 
   const installedCount = cliQuery.data?.filter((c) => c.installed).length ?? 0;
 
@@ -74,6 +146,7 @@ export default function DashboardPage(): React.JSX.Element {
   const chartColors = useChartColors();
   const timestamps = statsHistory.map((s) => s.timestamp);
   const latest = statsHistory.at(-1);
+  const pings = latest?.pings ?? [];
 
   usePageHeader('Dashboard', 'Your AI CLIs, projects, and activity at a glance.');
 
@@ -138,61 +211,6 @@ export default function DashboardPage(): React.JSX.Element {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-semibold">{activityQuery.data?.length ?? 0}</div>
-          </CardContent>
-        </Card>
-      </div>
-
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle>Installed AI CLIs</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            {CLI_REGISTRY.filter((cli) => cliQuery.data?.find((c) => c.id === cli.id)?.installed).map(
-              (cli) => {
-                const status = cliQuery.data?.find((c) => c.id === cli.id);
-                return (
-                  <div key={cli.id} className="flex items-center justify-between rounded-lg border border-border bg-card px-3 py-2">
-                    <div>
-                      <div className="text-sm font-medium">{cli.name}</div>
-                      <div className="text-xs text-muted-foreground">{status?.version}</div>
-                    </div>
-                    <Badge variant="success">Installed</Badge>
-                  </div>
-                );
-              },
-            )}
-            {installedCount === 0 && (
-              <p className="text-sm text-muted-foreground">
-                No AI CLIs detected yet. Visit the{' '}
-                <button className="underline underline-offset-2" onClick={() => navigate('/cli-manager')}>
-                  CLI Manager
-                </button>{' '}
-                to install one.
-              </p>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Recent Activity</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            {!activityQuery.data || activityQuery.data.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                Nothing yet — install a CLI or create a project to get started.
-              </p>
-            ) : (
-              activityQuery.data.slice(0, 8).map((event) => (
-                <div key={event.id} className="flex items-center justify-between text-sm">
-                  <span className="truncate">{event.message}</span>
-                  <span className="shrink-0 text-xs text-muted-foreground">
-                    {timeAgo(event.createdAt)}
-                  </span>
-                </div>
-              ))
-            )}
           </CardContent>
         </Card>
       </div>
@@ -316,36 +334,149 @@ export default function DashboardPage(): React.JSX.Element {
         </Card>
 
         <Card>
-          <CardHeader className="pb-2">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="flex items-center gap-2 text-xs text-muted-foreground">
-              <SatelliteDish className="h-3.5 w-3.5" /> Network Status (ping 1.1.1.1)
+              <SatelliteDish className="h-3.5 w-3.5" /> Network Status
             </CardTitle>
+            <Button variant="ghost" size="icon" title="Manage ping targets" onClick={() => navigate('/settings')}>
+              <SettingsIcon className="h-3.5 w-3.5" />
+            </Button>
           </CardHeader>
           <CardContent>
-            <div className="mb-2 flex items-center gap-2">
-              <span className="text-2xl font-semibold">
-                {latest?.pingMs != null ? formatMs(latest.pingMs) : '—'}
-              </span>
-              {latest && (
-                <Badge variant={latest.pingAlive ? 'success' : 'destructive'}>
-                  {latest.pingAlive ? 'Online' : 'Offline'}
-                </Badge>
-              )}
-            </div>
-            <SparklineChart
-              timestamps={timestamps}
-              domainMin={0}
-              formatValue={formatMs}
-              formatTime={formatClockTime}
-              series={[
-                {
-                  key: 'ping',
-                  label: 'Latency',
-                  color: 'hsl(var(--primary))',
-                  values: statsHistory.map((s) => s.pingMs ?? 0),
-                },
-              ]}
-            />
+            {pings.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                No ping targets configured. Add one in{' '}
+                <button className="underline underline-offset-2" onClick={() => navigate('/settings')}>
+                  Settings
+                </button>
+                .
+              </p>
+            ) : (
+              <>
+                <div className="mb-2 flex flex-wrap items-center gap-x-4 gap-y-1.5">
+                  {pings.map((p, i) => (
+                    <div key={p.host} className="flex items-center gap-1.5 text-sm">
+                      <span
+                        className="inline-block h-2 w-2 shrink-0 rounded-full"
+                        style={{
+                          backgroundColor: chartColors.categorical[i % chartColors.categorical.length],
+                        }}
+                      />
+                      <span className="font-medium">{p.host}</span>
+                      <span className="text-xs text-muted-foreground">
+                        {p.latencyMs != null ? formatMs(p.latencyMs) : '—'}
+                      </span>
+                      <Badge variant={p.alive ? 'success' : 'destructive'}>
+                        {p.alive ? 'Online' : 'Offline'}
+                      </Badge>
+                    </div>
+                  ))}
+                </div>
+                <SparklineChart
+                  timestamps={timestamps}
+                  domainMin={0}
+                  formatValue={formatMs}
+                  formatTime={formatClockTime}
+                  series={pings.map((p, i) => ({
+                    key: p.host,
+                    label: p.host,
+                    color: chartColors.categorical[i % chartColors.categorical.length],
+                    values: statsHistory.map((s) => s.pings.find((x) => x.host === p.host)?.latencyMs ?? 0),
+                  }))}
+                />
+              </>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle>Installed AI CLIs</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {CLI_REGISTRY.filter((cli) => cliQuery.data?.find((c) => c.id === cli.id)?.installed).map(
+              (cli) => {
+                const status = cliQuery.data?.find((c) => c.id === cli.id);
+                if (!status) return null;
+                return <CliUpdateRow key={cli.id} cli={cli} status={status} />;
+              },
+            )}
+            {installedCount === 0 && (
+              <p className="text-sm text-muted-foreground">
+                No AI CLIs detected yet. Visit the{' '}
+                <button className="underline underline-offset-2" onClick={() => navigate('/cli-manager')}>
+                  CLI Manager
+                </button>{' '}
+                to install one.
+              </p>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Recent Activity</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {!activityQuery.data || activityQuery.data.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                Nothing yet — install a CLI or create a project to get started.
+              </p>
+            ) : (
+              activityQuery.data.slice(0, 8).map((event) => (
+                <div key={event.id} className="flex items-center justify-between text-sm">
+                  <span className="truncate">{event.message}</span>
+                  <span className="shrink-0 text-xs text-muted-foreground">
+                    {timeAgo(event.createdAt)}
+                  </span>
+                </div>
+              ))
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0">
+            <CardTitle className="flex items-center gap-2">
+              <Globe className="h-4 w-4" /> Your Location
+            </CardTitle>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => void ipGeoQuery.refetch()}
+              disabled={ipGeoQuery.isFetching}
+            >
+              <RefreshCw className={ipGeoQuery.isFetching ? 'h-4 w-4 animate-spin' : 'h-4 w-4'} />
+            </Button>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {ipGeoQuery.isLoading ? (
+              <p className="text-sm text-muted-foreground">Looking up your IP address…</p>
+            ) : ipGeoQuery.isError || !ipGeoQuery.data ? (
+              <p className="text-sm text-destructive">
+                Couldn't determine your IP address. Check your connection and try again.
+              </p>
+            ) : (
+              <>
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">IP Address</span>
+                  <span className="font-mono">{ipGeoQuery.data.ip || '—'}</span>
+                </div>
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">Country</span>
+                  <span className="flex items-center gap-2">
+                    <span className="text-lg leading-none">
+                      {countryCodeToFlagEmoji(ipGeoQuery.data.countryCode)}
+                    </span>
+                    {ipGeoQuery.data.country}
+                  </span>
+                </div>
+              </>
+            )}
           </CardContent>
         </Card>
       </div>

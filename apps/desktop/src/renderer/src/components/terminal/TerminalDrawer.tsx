@@ -1,5 +1,6 @@
 import { X } from '@/components/icons';
 import { useTerminalStore } from '@/stores/terminalStore';
+import { SimpleTooltip } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import { TerminalPane } from './TerminalPane';
 
@@ -21,26 +22,26 @@ export function TerminalDrawer(): React.JSX.Element | null {
           </span>
         ) : (
           sessions.map((session, index) => (
-            <button
-              key={session.id}
-              title={session.title}
-              onClick={() => setActiveSession(session.id)}
-              className={cn(
-                'group flex items-center gap-2 rounded-t-md px-3 py-1.5 text-xs',
-                session.id === activeSessionId
-                  ? 'bg-white/10 text-white'
-                  : 'text-white/50 hover:text-white/80',
-              )}
-            >
-              {index + 1}
-              <X
-                className="h-3 w-3 opacity-0 group-hover:opacity-100"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  closeSession(session.id);
-                }}
-              />
-            </button>
+            <SimpleTooltip key={session.id} label={session.title}>
+              <button
+                onClick={() => setActiveSession(session.id)}
+                className={cn(
+                  'group flex items-center gap-2 rounded-t-md px-3 py-1.5 text-xs',
+                  session.id === activeSessionId
+                    ? 'bg-white/10 text-white'
+                    : 'text-white/50 hover:text-white/80',
+                )}
+              >
+                {index + 1}
+                <X
+                  className="h-3 w-3 opacity-0 group-hover:opacity-100"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    closeSession(session.id);
+                  }}
+                />
+              </button>
+            </SimpleTooltip>
           ))
         )}
       </div>

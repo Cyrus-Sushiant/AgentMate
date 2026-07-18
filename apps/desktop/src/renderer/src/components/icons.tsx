@@ -7,8 +7,13 @@ import {
   faArrowLeft,
   faArrowsRotate,
   faArrowUpRightFromSquare,
+  faBell,
+  faCalendarDays,
   faCheck,
+  faCircleCheck,
   faCircleHalfStroke,
+  faCircleQuestion,
+  faClock,
   faClockRotateLeft,
   faCloudArrowDown,
   faCopy,
@@ -22,21 +27,26 @@ import {
   faFolderTree,
   faGaugeHigh,
   faGear,
+  faGlobe,
   faLanguage,
   faMagnifyingGlass,
   faMemory,
   faMicrochip,
   faMoon,
   faNetworkWired,
+  faPaperPlane,
   faPen,
+  faPlay,
   faPlus,
   faRobot,
   faSatelliteDish,
   faSort,
   faSun,
   faTableColumns,
+  faTag,
   faTerminal,
   faTrashCan,
+  faTriangleExclamation,
   faCubes,
   faWandMagic,
   faWandMagicSparkles,
@@ -75,6 +85,7 @@ export const FolderKanban = makeIcon(faTableColumns);
 export const FolderOpen = makeIcon(faFolderOpen);
 export const FolderPlus = makeIcon(faFolderPlus);
 export const FolderTree = makeIcon(faFolderTree);
+export const Globe = makeIcon(faGlobe);
 export const LayoutDashboard = makeIcon(faGaugeHigh);
 export const Monitor = makeIcon(faDisplay);
 export const Moon = makeIcon(faMoon);
@@ -87,6 +98,7 @@ export const SettingsIcon = makeIcon(faGear);
 export const Sparkles = makeIcon(faWandMagicSparkles);
 export const Sun = makeIcon(faSun);
 export const SunMoon = makeIcon(faCircleHalfStroke);
+export const Tag = makeIcon(faTag);
 export const TerminalSquare = makeIcon(faTerminal);
 export const Trash2 = makeIcon(faTrashCan);
 export const Wand2 = makeIcon(faWandMagic);
@@ -108,5 +120,17 @@ export const NetworkIcon = makeIcon(faNetworkWired);
 export const SatelliteDish = makeIcon(faSatelliteDish);
 
 // CLI manager icons.
-export const Bot = makeIcon(faRobot);
 export const CloudDownload = makeIcon(faCloudArrowDown);
+
+// Prompt scheduling icons.
+export const CalendarDays = makeIcon(faCalendarDays);
+export const Clock = makeIcon(faClock);
+export const Play = makeIcon(faPlay);
+
+// Notification hook icons.
+export const Bell = makeIcon(faBell);
+export const Send = makeIcon(faPaperPlane);
+export const CircleCheck = makeIcon(faCircleCheck);
+export const CircleQuestion = makeIcon(faCircleQuestion);
+export const Robot = makeIcon(faRobot);
+export const TriangleAlert = makeIcon(faTriangleExclamation);

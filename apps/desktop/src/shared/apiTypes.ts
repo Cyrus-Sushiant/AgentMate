@@ -1,4 +1,4 @@
-import type { AgentType } from '@agentmat/core';
+import type { AgentType, ProjectNotificationSettings } from '@agentmat/core';
 
 export interface CreateTerminalOptions {
   cwd?: string;
@@ -7,6 +7,8 @@ export interface CreateTerminalOptions {
   rows?: number;
   /** Text to pre-fill into the shell's input line, not yet submitted (e.g. an install command). */
   initialInput?: string;
+  /** Associates this session with a project so confirmation-hook replies can be forwarded to it. */
+  projectId?: string;
 }
 
 export interface CreateProjectInput {
@@ -47,6 +49,7 @@ export interface PromptHistoryEntry {
   targetAI: string;
   content: string;
   source: PromptHistorySource;
+  tags: string[];
   createdAt: string;
 }
 
@@ -63,6 +66,56 @@ export interface TranslateTextInput {
   targetLang: string;
 }
 
+export interface ScheduledTaskInput {
+  rawInput: string;
+  promptType: string;
+  targetAI: string;
+  content: string;
+  runAt: string;
+}
+
+export interface CreateScheduledTasksInput {
+  projectId: string;
+  tasks: ScheduledTaskInput[];
+}
+
+export interface PingResult {
+  host: string;
+  alive: boolean;
+  latencyMs: number | null;
+}
+
+export interface IpGeoInfo {
+  ip: string;
+  country: string;
+  countryCode: string;
+}
+
+export interface UpdateProjectNotificationsInput {
+  projectId: string;
+  notifications: ProjectNotificationSettings;
+}
+
+export interface SendTestNotificationInput {
+  message: string;
+}
+
+export interface NotificationSendResult {
+  ok: boolean;
+  error?: string;
+}
+
+export interface DetectChatIdResult {
+  chatId: string | null;
+  error?: string;
+}
+
+export interface ConfirmationForwardedPayload {
+  projectId: string;
+  sessionId: string;
+  text: string;
+}
+
 export interface SystemStatsSample {
   timestamp: number;
   cpuPercent: number;
@@ -71,6 +124,5 @@ export interface SystemStatsSample {
   memTotalBytes: number;
   netRxBytesPerSec: number;
   netTxBytesPerSec: number;
-  pingMs: number | null;
-  pingAlive: boolean;
+  pings: PingResult[];
 }

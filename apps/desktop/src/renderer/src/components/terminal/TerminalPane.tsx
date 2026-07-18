@@ -63,7 +63,7 @@ export function TerminalPane({ meta, active, onExit }: TerminalPaneProps): React
     let unsubscribeExit: (() => void) | undefined;
 
     void window.agentmat.terminal
-      .create({ cwd: meta.cwd, initialInput: meta.initialInput })
+      .create({ cwd: meta.cwd, initialInput: meta.initialInput, projectId: meta.projectId })
       .then((id) => {
         if (disposed) {
           void window.agentmat.terminal.kill(id);

@@ -5,6 +5,7 @@ export interface TerminalSessionMeta {
   title: string;
   cwd?: string;
   initialInput?: string;
+  projectId?: string;
 }
 
 interface TerminalState {
@@ -28,7 +29,13 @@ export const useTerminalStore = create<TerminalState>((set, get) => ({
   toggleDrawer: () => set((state) => ({ isOpen: !state.isOpen })),
   openSession: (meta) => {
     const id = meta.id ?? crypto.randomUUID();
-    const session: TerminalSessionMeta = { id, title: meta.title, cwd: meta.cwd, initialInput: meta.initialInput };
+    const session: TerminalSessionMeta = {
+      id,
+      title: meta.title,
+      cwd: meta.cwd,
+      initialInput: meta.initialInput,
+      projectId: meta.projectId,
+    };
     set((state) => ({
       sessions: [...state.sessions, session],
       activeSessionId: id,

@@ -1,7 +1,19 @@
 import { useMemo, useState } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useShallow } from 'zustand/react/shallow';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { Copy, Download, Languages, Save, Sparkles, TerminalSquare } from '@/components/icons';
+import {
+  CalendarDays,
+  Clock,
+  Copy,
+  Download,
+  Languages,
+  Plus,
+  Save,
+  Sparkles,
+  TerminalSquare,
+  Trash2,
+} from '@/components/icons';
 import { CLI_REGISTRY, PROMPT_TYPES, TARGET_AIS, generatePrompt } from '@agentmat/core';
 import type { PromptType, TargetAI } from '@agentmat/core';
 import { Card, CardContent } from '@/components/ui/card';
@@ -22,6 +34,26 @@ import { queryKeys } from '@/lib/queryKeys';
 import { usePageHeader } from '@/stores/pageHeaderStore';
 import { useCliStore } from '@/stores/cliStore';
 import { useTerminalStore } from '@/stores/terminalStore';
+import { usePromptBuilderStore, type PromptBuilderStatus } from '@/stores/promptBuilderStore';
+
+interface ScheduleQueueItem {
+  id: string;
+  text: string;
+  /** Value of a datetime-local input, e.g. "2026-07-19T10:00". */
+  runAt: string;
+}
+
+const STATUS_OPTIONS: { value: PromptBuilderStatus; label: string }[] = [
+  { value: 'draft', label: 'Draft' },
+  { value: 'scheduled', label: 'Scheduled' },
+];
+
+function defaultRunAt(): string {
+  const d = new Date(Date.now() + 60 * 60 * 1000);
+  d.setSeconds(0, 0);
+  const tzOffsetMs = d.getTimezoneOffset() * 60000;
+  return new Date(d.getTime() - tzOffsetMs).toISOString().slice(0, 16);
+}
 
 const TRANSLATE_LANGUAGES = [
   { value: 'en', label: 'English' },
@@ -48,18 +80,53 @@ const TARGET_AI_TO_CLI_ID: Record<TargetAI, string> = {
 };
 
 export default function PromptBuilderPage(): React.JSX.Element {
-  const [rawInput, setRawInput] = useState('');
-  const [promptType, setPromptType] = useState<PromptType>('Full Stack');
-  const [targetAI, setTargetAI] = useState<TargetAI>('Claude');
-  const [generated, setGenerated] = useState('');
+  const {
+    rawInput,
+    setRawInput,
+    promptType,
+    setPromptType,
+    targetAI,
+    setTargetAI,
+    generated,
+    setGenerated,
+    targetLang,
+    setTargetLang,
+    projectId,
+    setProjectId,
+    status,
+    setStatus,
+  } = usePromptBuilderStore(
+    useShallow((s) => ({
+      rawInput: s.rawInput,
+      setRawInput: s.setRawInput,
+      promptType: s.promptType,
+      setPromptType: s.setPromptType,
+      targetAI: s.targetAI,
+      setTargetAI: s.setTargetAI,
+      generated: s.generated,
+      setGenerated: s.setGenerated,
+      targetLang: s.targetLang,
+      setTargetLang: s.setTargetLang,
+      projectId: s.projectId,
+      setProjectId: s.setProjectId,
+      status: s.status,
+      setStatus: s.setStatus,
+    })),
+  );
   const [saveDialogOpen, setSaveDialogOpen] = useState(false);
   const [templateName, setTemplateName] = useState('');
-  const [targetLang, setTargetLang] = useState('en');
   const [isTranslating, setIsTranslating] = useState(false);
+  const [scheduleQueue, setScheduleQueue] = useState<ScheduleQueueItem[]>([]);
 
   const queryClient = useQueryClient();
   const defaultCliId = useCliStore((s) => s.defaultCliId);
   const openSession = useTerminalStore((s) => s.openSession);
+
+  const projectsQuery = useQuery({
+    queryKey: queryKeys.projects,
+    queryFn: () => window.agentmat.projects.list(),
+  });
+  const projects = projectsQuery.data ?? [];
 
   const saveTemplateMutation = useMutation({
     mutationFn: () =>
@@ -76,6 +143,50 @@ export default function PromptBuilderPage(): React.JSX.Element {
       void queryClient.invalidateQueries({ queryKey: queryKeys.templates });
     },
   });
+
+  const saveScheduleMutation = useMutation({
+    mutationFn: () => {
+      if (!projectId) throw new Error('No project selected');
+      return window.agentmat.scheduledTasks.createMany({
+        projectId,
+        tasks: scheduleQueue.map((item) => ({
+          rawInput: item.text,
+          promptType,
+          targetAI,
+          content: generatePrompt({ rawInput: item.text, promptType, targetAI }),
+          runAt: new Date(item.runAt).toISOString(),
+        })),
+      });
+    },
+    onSuccess: () => {
+      toast.success('Scheduled series saved — view it on the project’s Schedule tab.');
+      setScheduleQueue([]);
+      void queryClient.invalidateQueries({ queryKey: queryKeys.scheduledTasks(projectId!) });
+    },
+    onError: () => toast.error('Could not save the schedule.'),
+  });
+
+  function addQueueItem(): void {
+    setScheduleQueue((items) => [
+      ...items,
+      { id: crypto.randomUUID(), text: rawInput, runAt: defaultRunAt() },
+    ]);
+  }
+
+  function updateQueueItem(id: string, updates: Partial<Omit<ScheduleQueueItem, 'id'>>): void {
+    setScheduleQueue((items) =>
+      items.map((item) => (item.id === id ? { ...item, ...updates } : item)),
+    );
+  }
+
+  function removeQueueItem(id: string): void {
+    setScheduleQueue((items) => items.filter((item) => item.id !== id));
+  }
+
+  const canSaveSchedule =
+    !!projectId &&
+    scheduleQueue.length > 0 &&
+    scheduleQueue.every((item) => item.text.trim() && item.runAt);
 
   const cliForSendTo = useMemo(() => {
     const cliId = defaultCliId ?? TARGET_AI_TO_CLI_ID[targetAI];
@@ -150,12 +261,12 @@ export default function PromptBuilderPage(): React.JSX.Element {
     <div className="mx-auto flex w-full max-w-6xl flex-1 flex-col p-6">
       <Card className="flex flex-1 flex-col">
         <CardContent className="grid flex-1 grid-cols-1 gap-6 p-5 lg:grid-cols-2">
-          <div className="space-y-4">
-            <div className="space-y-2">
+          <div className="flex flex-1 flex-col space-y-4">
+            <div className="flex flex-1 flex-col space-y-2">
               <Label htmlFor="raw-input">Your request</Label>
               <Textarea
                 id="raw-input"
-                rows={8}
+                className="min-h-[280px] flex-1 resize-none"
                 placeholder="e.g. Add a login form with email/password validation…"
                 value={rawInput}
                 onChange={(e) => setRawInput(e.target.value)}
@@ -180,6 +291,99 @@ export default function PromptBuilderPage(): React.JSX.Element {
                 />
               </div>
             </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label>Project</Label>
+                <Combobox
+                  value={projectId ?? ''}
+                  onChange={(v) => setProjectId(v || null)}
+                  placeholder="No project"
+                  emptyText="No projects yet."
+                  options={projects.map((p) => ({ value: p.id, label: p.name }))}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Status</Label>
+                <Combobox
+                  value={status}
+                  onChange={(v) => setStatus(v as PromptBuilderStatus)}
+                  options={STATUS_OPTIONS}
+                />
+              </div>
+            </div>
+
+            {status === 'scheduled' && (
+              <div className="space-y-3 rounded-lg border border-border p-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5 text-sm font-medium">
+                    <CalendarDays className="h-4 w-4" /> Scheduled series
+                  </div>
+                  <Button variant="outline" size="sm" onClick={addQueueItem}>
+                    <Plus /> Add task
+                  </Button>
+                </div>
+
+                {!projectId && (
+                  <p className="text-xs text-muted-foreground">
+                    Choose a project above so this series has somewhere to run later.
+                  </p>
+                )}
+
+                {scheduleQueue.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">
+                    No tasks queued yet. Add one to build a series of prompts to run on this
+                    project later.
+                  </p>
+                ) : (
+                  <div className="space-y-2">
+                    {scheduleQueue.map((item, index) => (
+                      <div
+                        key={item.id}
+                        className="space-y-1.5 rounded-md border border-border bg-card p-2"
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-xs text-muted-foreground">Task {index + 1}</span>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => removeQueueItem(item.id)}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                        <Textarea
+                          rows={2}
+                          placeholder="What should run at this time?"
+                          value={item.text}
+                          onChange={(e) => updateQueueItem(item.id, { text: e.target.value })}
+                        />
+                        <div className="flex items-center gap-1.5">
+                          <Clock className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                          <Input
+                            type="datetime-local"
+                            className="h-8 text-xs"
+                            value={item.runAt}
+                            onChange={(e) => updateQueueItem(item.id, { runAt: e.target.value })}
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <Button
+                  className="w-full"
+                  disabled={!canSaveSchedule || saveScheduleMutation.isPending}
+                  onClick={() => saveScheduleMutation.mutate()}
+                >
+                  <CalendarDays />{' '}
+                  {saveScheduleMutation.isPending
+                    ? 'Saving…'
+                    : `Save ${scheduleQueue.length || ''} task(s) to schedule`}
+                </Button>
+              </div>
+            )}
 
             <Button onClick={handleGenerate} className="w-full">
               <Sparkles /> Generate Prompt

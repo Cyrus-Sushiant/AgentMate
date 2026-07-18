@@ -3,12 +3,11 @@ import { readFile } from 'node:fs/promises';
 import os from 'node:os';
 import { promisify } from 'node:util';
 import { ipcMain } from 'electron';
-import type { SystemStatsSample } from '../../shared/apiTypes';
+import type { PingResult, SystemStatsSample } from '../../shared/apiTypes';
 import { IPC } from '../../shared/ipcChannels';
+import { store } from '../store';
 
 const execFileAsync = promisify(execFile);
-
-const PING_HOST = '1.1.1.1';
 
 interface CpuSnapshot {
   idle: number;
@@ -127,7 +126,7 @@ async function sampleNetworkRates(): Promise<
   };
 }
 
-async function pingHost(host: string): Promise<Pick<SystemStatsSample, 'pingMs' | 'pingAlive'>> {
+async function pingHost(host: string): Promise<PingResult> {
   const isWin = process.platform === 'win32';
   const args = isWin ? ['-n', '1', '-w', '1500', host] : ['-c', '1', '-W', '2', host];
   try {
@@ -135,22 +134,29 @@ async function pingHost(host: string): Promise<Pick<SystemStatsSample, 'pingMs' 
     const match = isWin
       ? stdout.match(/time[=<](\d+)ms/i)
       : stdout.match(/time=([\d.]+)\s*ms/i);
-    if (!match) return { pingMs: null, pingAlive: false };
-    return { pingMs: Math.round(Number(match[1])), pingAlive: true };
+    if (!match) return { host, latencyMs: null, alive: false };
+    return { host, latencyMs: Math.round(Number(match[1])), alive: true };
   } catch {
-    return { pingMs: null, pingAlive: false };
+    return { host, latencyMs: null, alive: false };
   }
 }
 
 export function registerSystemStatsHandlers(): void {
   ipcMain.handle(IPC.system.sample, async (): Promise<SystemStatsSample> => {
-    const [net, ping] = await Promise.all([sampleNetworkRates(), pingHost(PING_HOST)]);
+    const settings = await store.getSettings();
+    // Older settings.json files predate this field.
+    const hosts = (settings.pingTargets ?? []).map((h) => h.trim()).filter(Boolean);
+
+    const [net, pings] = await Promise.all([
+      sampleNetworkRates(),
+      Promise.all(hosts.map((host) => pingHost(host))),
+    ]);
     return {
       timestamp: Date.now(),
       cpuPercent: sampleCpuPercent(),
       ...sampleMemory(),
       ...net,
-      ...ping,
+      pings,
     };
   });
 }

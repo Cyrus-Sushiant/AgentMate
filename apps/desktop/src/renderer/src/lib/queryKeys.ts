@@ -10,4 +10,8 @@ export const queryKeys = {
   settings: ['settings'] as const,
   promptHistory: ['prompt-history'] as const,
   promptHistorySearch: (query: string) => ['prompt-history', query] as const,
+  ipGeo: ['ip-geo'] as const,
+  cliUpdateCheck: (cliId: string, version: string | null) =>
+    ['cli-update-check', cliId, version] as const,
+  scheduledTasks: (projectId: string) => ['scheduled-tasks', projectId] as const,
 };

@@ -3,8 +3,11 @@ import { app, BrowserWindow, session, shell } from 'electron';
 import { registerActivityHandlers } from './ipc/activity';
 import { registerCliDetectionHandlers } from './ipc/cliDetection';
 import { registerFileSystemHandlers } from './ipc/fileSystem';
+import { registerIpGeoHandlers } from './ipc/ipGeo';
+import { registerNotificationHandlers } from './ipc/notifications';
 import { registerProjectHandlers } from './ipc/projects';
 import { registerPromptHistoryHandlers } from './ipc/promptHistory';
+import { registerScheduledTaskHandlers } from './ipc/scheduledTasks';
 import { registerSettingsHandlers } from './ipc/settings';
 import { registerShellHandlers } from './ipc/shell';
 import { registerSkillHandlers } from './ipc/skills';
@@ -14,6 +17,7 @@ import { killAllTerminalSessions, registerTerminalHandlers } from './ipc/termina
 import { registerTranslateHandlers } from './ipc/translate';
 import { registerWindowHandlers } from './ipc/window';
 import { seedExampleRepositoryIfEmpty } from './exampleSkillRepo';
+import { startHookServer, stopHookServer } from './notifications/hookServer';
 import { checkForUpdatesQuietly } from './updater';
 
 app.setName('AgentMate');
@@ -81,6 +85,9 @@ function registerAllIpcHandlers(): void {
   registerPromptHistoryHandlers();
   registerTranslateHandlers();
   registerSystemStatsHandlers();
+  registerIpGeoHandlers();
+  registerScheduledTaskHandlers();
+  registerNotificationHandlers();
 }
 
 app.whenReady().then(() => {
@@ -103,6 +110,7 @@ app.whenReady().then(() => {
 
   registerAllIpcHandlers();
   void seedExampleRepositoryIfEmpty();
+  void startHookServer();
   createMainWindow();
   checkForUpdatesQuietly();
 
@@ -126,4 +134,5 @@ app.on('window-all-closed', () => {
 
 app.on('before-quit', () => {
   killAllTerminalSessions();
+  stopHookServer();
 });

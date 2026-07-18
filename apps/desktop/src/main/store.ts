@@ -8,7 +8,9 @@ import type {
   AppSettings,
   Project,
   PromptTemplate,
+  ScheduledTask,
 } from '@agentmat/core';
+import { defaultProjectNotifications } from '@agentmat/core';
 import type { SkillRepository } from '@agentmat/core';
 
 function dataDir(): string {
@@ -37,13 +39,30 @@ const DEFAULT_SETTINGS: AppSettings = {
   defaultCliId: null,
   theme: 'system',
   skillRepositoryIds: [],
+  pingTargets: ['1.1.1.1'],
+  telegramBotToken: null,
+  telegramChatId: null,
 };
 
+/** Older projects.json entries predate the notifications field. */
+function withProjectDefaults(project: Project): Project {
+  return {
+    ...project,
+    notifications: project.notifications ?? defaultProjectNotifications(),
+  };
+}
+
 export const store = {
-  getProjects: (): Promise<Project[]> => readJsonFile('projects.json', []),
+  getProjects: async (): Promise<Project[]> => {
+    const projects = await readJsonFile<Project[]>('projects.json', []);
+    return projects.map(withProjectDefaults);
+  },
   setProjects: (projects: Project[]): Promise<void> => writeJsonFile('projects.json', projects),
 
-  getSettings: (): Promise<AppSettings> => readJsonFile('settings.json', DEFAULT_SETTINGS),
+  getSettings: async (): Promise<AppSettings> => ({
+    ...DEFAULT_SETTINGS,
+    ...(await readJsonFile<Partial<AppSettings>>('settings.json', DEFAULT_SETTINGS)),
+  }),
   setSettings: (settings: AppSettings): Promise<void> => writeJsonFile('settings.json', settings),
 
   getActivity: (): Promise<ActivityEvent[]> => readJsonFile('activity-log.json', []),
@@ -57,6 +76,10 @@ export const store = {
   getRepositories: (): Promise<SkillRepository[]> => readJsonFile('repositories.json', []),
   setRepositories: (repos: SkillRepository[]): Promise<void> =>
     writeJsonFile('repositories.json', repos),
+
+  getScheduledTasks: (): Promise<ScheduledTask[]> => readJsonFile('scheduled-tasks.json', []),
+  setScheduledTasks: (tasks: ScheduledTask[]): Promise<void> =>
+    writeJsonFile('scheduled-tasks.json', tasks),
 };
 
 export async function logActivity(

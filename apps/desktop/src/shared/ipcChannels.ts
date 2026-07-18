@@ -20,6 +20,12 @@ export const IPC = {
     delete: 'projects:delete',
     bootstrap: 'projects:bootstrap',
     pickFolder: 'projects:pickFolder',
+    updateNotifications: 'projects:updateNotifications',
+  },
+  notifications: {
+    sendTest: 'notifications:sendTest',
+    detectChatId: 'notifications:detectChatId',
+    onConfirmationForwarded: 'notifications:onConfirmationForwarded',
   },
   skills: {
     listRepositories: 'skills:listRepositories',
@@ -54,6 +60,9 @@ export const IPC = {
   system: {
     sample: 'system:sample',
   },
+  ipGeo: {
+    lookup: 'ipGeo:lookup',
+  },
   shell: {
     openExternal: 'shell:openExternal',
   },
@@ -62,9 +71,17 @@ export const IPC = {
     search: 'promptHistory:search',
     add: 'promptHistory:add',
     remove: 'promptHistory:remove',
+    setTags: 'promptHistory:setTags',
   },
   translate: {
     text: 'translate:text',
+  },
+  scheduledTasks: {
+    list: 'scheduledTasks:list',
+    listByProject: 'scheduledTasks:listByProject',
+    createMany: 'scheduledTasks:createMany',
+    updateStatus: 'scheduledTasks:updateStatus',
+    remove: 'scheduledTasks:remove',
   },
   window: {
     minimize: 'window:minimize',

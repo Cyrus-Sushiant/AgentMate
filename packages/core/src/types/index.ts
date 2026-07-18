@@ -6,9 +6,27 @@ export interface AppSettings {
   skillRepositoryIds: string[];
   /** Hosts/IPs pinged for the dashboard's Network Status graph. */
   pingTargets: string[];
+  /** Bot token from @BotFather, used to send notification-hook messages. */
+  telegramBotToken: string | null;
+  /** Chat/user ID the bot should message; also where confirmation replies are read from. */
+  telegramChatId: string | null;
 }
 
 export type AgentType = 'claude-code' | 'gemini' | 'opencode' | 'codex' | 'generic';
+
+export type NotificationHookKind = 'completion' | 'confirmation';
+
+export interface ProjectNotificationHook {
+  enabled: boolean;
+  /** CLI_REGISTRY id of the installed agent this hook is wired to (e.g. "claude-code"). */
+  cliId: string | null;
+  message: string;
+}
+
+export interface ProjectNotificationSettings {
+  completion: ProjectNotificationHook;
+  confirmation: ProjectNotificationHook;
+}
 
 export interface Project {
   id: string;
@@ -18,6 +36,7 @@ export interface Project {
   tags: string[];
   agentType: AgentType;
   notes: string;
+  notifications: ProjectNotificationSettings;
   createdAt: string;
   updatedAt: string;
 }
@@ -58,11 +77,41 @@ export interface ActivityEvent {
   metadata?: Record<string, string>;
 }
 
+export function defaultProjectNotifications(): ProjectNotificationSettings {
+  return {
+    completion: {
+      enabled: false,
+      cliId: null,
+      message: '✅ {{project}} has finished its work.',
+    },
+    confirmation: {
+      enabled: false,
+      cliId: null,
+      message: '⏸️ {{project}} needs your confirmation to continue. Reply to this message to continue.',
+    },
+  };
+}
+
 export interface PromptTemplate {
   id: string;
   name: string;
   promptType: string;
   targetAI: string;
   content: string;
+  createdAt: string;
+}
+
+export type ScheduledTaskStatus = 'pending' | 'completed' | 'cancelled';
+
+export interface ScheduledTask {
+  id: string;
+  projectId: string;
+  rawInput: string;
+  promptType: string;
+  targetAI: string;
+  content: string;
+  /** ISO datetime the task is scheduled to run at. */
+  runAt: string;
+  status: ScheduledTaskStatus;
   createdAt: string;
 }

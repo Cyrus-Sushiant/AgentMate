@@ -4,8 +4,11 @@ import type {
   CliUpdateCheckResult,
   InstalledCli,
   Project,
+  ProjectNotificationSettings,
   PromptTemplate,
   ActivityEvent,
+  ScheduledTask,
+  ScheduledTaskStatus,
   SkillRepository,
   SkillRepositoryIndex,
   SkillRepositorySourceType,
@@ -14,6 +17,7 @@ import { IPC } from '../shared/ipcChannels';
 import type {
   CreateTerminalOptions,
   CreateProjectInput,
+  CreateScheduledTasksInput,
   SaveTemplateInput,
   DirectoryEntry,
   InstalledSkillRecord,
@@ -21,6 +25,11 @@ import type {
   PromptHistoryEntry,
   TranslateTextInput,
   SystemStatsSample,
+  IpGeoInfo,
+  DetectChatIdResult,
+  NotificationSendResult,
+  SendTestNotificationInput,
+  ConfirmationForwardedPayload,
 } from '../shared/apiTypes';
 
 interface TerminalDataPayload {
@@ -74,6 +83,8 @@ const projects = {
   bootstrap: (projectId: string): Promise<{ createdFiles: string[] }> =>
     ipcRenderer.invoke(IPC.projects.bootstrap, projectId),
   pickFolder: (): Promise<string | null> => ipcRenderer.invoke(IPC.projects.pickFolder),
+  updateNotifications: (projectId: string, notifications: ProjectNotificationSettings): Promise<Project> =>
+    ipcRenderer.invoke(IPC.projects.updateNotifications, projectId, notifications),
 };
 
 const skills = {
@@ -141,6 +152,8 @@ const promptHistory = {
   add: (input: AddPromptHistoryInput): Promise<PromptHistoryEntry> =>
     ipcRenderer.invoke(IPC.promptHistory.add, input),
   remove: (id: string): Promise<void> => ipcRenderer.invoke(IPC.promptHistory.remove, id),
+  setTags: (id: string, tags: string[]): Promise<void> =>
+    ipcRenderer.invoke(IPC.promptHistory.setTags, id, tags),
 };
 
 const translate = {
@@ -149,6 +162,33 @@ const translate = {
 
 const system = {
   sample: (): Promise<SystemStatsSample> => ipcRenderer.invoke(IPC.system.sample),
+};
+
+const ipGeo = {
+  lookup: (): Promise<IpGeoInfo> => ipcRenderer.invoke(IPC.ipGeo.lookup),
+};
+
+const scheduledTasks = {
+  list: (): Promise<ScheduledTask[]> => ipcRenderer.invoke(IPC.scheduledTasks.list),
+  listByProject: (projectId: string): Promise<ScheduledTask[]> =>
+    ipcRenderer.invoke(IPC.scheduledTasks.listByProject, projectId),
+  createMany: (input: CreateScheduledTasksInput): Promise<ScheduledTask[]> =>
+    ipcRenderer.invoke(IPC.scheduledTasks.createMany, input),
+  updateStatus: (taskId: string, status: ScheduledTaskStatus): Promise<void> =>
+    ipcRenderer.invoke(IPC.scheduledTasks.updateStatus, taskId, status),
+  remove: (taskId: string): Promise<void> => ipcRenderer.invoke(IPC.scheduledTasks.remove, taskId),
+};
+
+const notifications = {
+  sendTest: (input: SendTestNotificationInput): Promise<NotificationSendResult> =>
+    ipcRenderer.invoke(IPC.notifications.sendTest, input),
+  detectChatId: (): Promise<DetectChatIdResult> => ipcRenderer.invoke(IPC.notifications.detectChatId),
+  onConfirmationForwarded: (callback: (payload: ConfirmationForwardedPayload) => void): (() => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, payload: ConfirmationForwardedPayload): void =>
+      callback(payload);
+    ipcRenderer.on(IPC.notifications.onConfirmationForwarded, listener);
+    return () => ipcRenderer.removeListener(IPC.notifications.onConfirmationForwarded, listener);
+  },
 };
 
 const windowControls = {
@@ -179,6 +219,9 @@ const agentmatApi = {
   promptHistory,
   translate,
   system,
+  ipGeo,
+  scheduledTasks,
+  notifications,
 };
 
 export type AgentmatApi = typeof agentmatApi;

@@ -1,11 +1,13 @@
 import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { Bot, CloudDownload, ExternalLink, RefreshCw, TerminalSquare } from '@/components/icons';
+import { CloudDownload, ExternalLink, RefreshCw, TerminalSquare } from '@/components/icons';
+import { CliLogo } from '@/components/cliLogos';
 import { CLI_REGISTRY, type CliDefinition } from '@agentmat/core';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { SimpleTooltip } from '@/components/ui/tooltip';
 import {
   Dialog,
   DialogContent,
@@ -129,7 +131,7 @@ export default function CliManagerPage(): React.JSX.Element {
               <CardHeader>
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex items-center gap-2">
-                    <Bot className="h-4 w-4 text-muted-foreground" />
+                    <CliLogo cliId={cli.id} className="h-4 w-4" />
                     <CardTitle>{cli.name}</CardTitle>
                   </div>
                   <Badge variant={status?.installed ? 'success' : 'outline'}>
@@ -148,15 +150,16 @@ export default function CliManagerPage(): React.JSX.Element {
                     >
                       {isDefault ? 'Default CLI' : 'Set as default'}
                     </Button>
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      title="Check for updates"
-                      disabled={checkingCliId === cli.id}
-                      onClick={() => void handleCheckForUpdate(cli, status.version)}
-                    >
-                      <CloudDownload className={checkingCliId === cli.id ? 'h-4 w-4 animate-pulse' : 'h-4 w-4'} />
-                    </Button>
+                    <SimpleTooltip label="Check for updates">
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        disabled={checkingCliId === cli.id}
+                        onClick={() => void handleCheckForUpdate(cli, status.version)}
+                      >
+                        <CloudDownload className={checkingCliId === cli.id ? 'h-4 w-4 animate-pulse' : 'h-4 w-4'} />
+                      </Button>
+                    </SimpleTooltip>
                   </>
                 ) : (
                   <Button size="sm" onClick={() => void handleInstall(cli.id, cli.name)}>
@@ -164,14 +167,15 @@ export default function CliManagerPage(): React.JSX.Element {
                   </Button>
                 )}
                 {cli.homepageUrl && (
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    title="Open homepage"
-                    onClick={() => void window.agentmat.shell.openExternal(cli.homepageUrl!)}
-                  >
-                    <ExternalLink className="h-4 w-4" />
-                  </Button>
+                  <SimpleTooltip label="Open homepage">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => void window.agentmat.shell.openExternal(cli.homepageUrl!)}
+                    >
+                      <ExternalLink className="h-4 w-4" />
+                    </Button>
+                  </SimpleTooltip>
                 )}
               </CardContent>
             </Card>

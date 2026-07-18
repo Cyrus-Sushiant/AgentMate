@@ -18,6 +18,7 @@ interface PromptHistoryRow {
   target_ai: string;
   content: string;
   source: PromptHistorySource;
+  tags: string;
   created_at: string;
 }
 
@@ -29,6 +30,7 @@ function rowToEntry(row: PromptHistoryRow): PromptHistoryEntry {
     targetAI: row.target_ai,
     content: row.content,
     source: row.source,
+    tags: row.tags ? (JSON.parse(row.tags) as string[]) : [],
     createdAt: row.created_at,
   };
 }
@@ -51,12 +53,21 @@ function getDb(): Database.Database {
     );
     CREATE INDEX IF NOT EXISTS idx_prompt_history_created_at ON prompt_history(created_at DESC);
   `);
+  const columns = db.prepare('PRAGMA table_info(prompt_history)').all() as Array<{ name: string }>;
+  if (!columns.some((c) => c.name === 'tags')) {
+    db.exec(`ALTER TABLE prompt_history ADD COLUMN tags TEXT NOT NULL DEFAULT '[]'`);
+  }
   return db;
 }
 
 export const promptHistoryDb = {
   add(input: AddPromptHistoryInput): PromptHistoryEntry {
-    const entry: PromptHistoryEntry = { id: randomUUID(), createdAt: new Date().toISOString(), ...input };
+    const entry: PromptHistoryEntry = {
+      id: randomUUID(),
+      createdAt: new Date().toISOString(),
+      tags: [],
+      ...input,
+    };
     getDb()
       .prepare(
         `INSERT INTO prompt_history (id, raw_input, prompt_type, target_ai, content, source, created_at)
@@ -87,5 +98,11 @@ export const promptHistoryDb = {
 
   remove(id: string): void {
     getDb().prepare('DELETE FROM prompt_history WHERE id = ?').run(id);
+  },
+
+  setTags(id: string, tags: string[]): void {
+    getDb()
+      .prepare('UPDATE prompt_history SET tags = @tags WHERE id = @id')
+      .run({ id, tags: JSON.stringify(tags) });
   },
 };

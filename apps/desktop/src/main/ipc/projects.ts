@@ -2,11 +2,12 @@ import { randomUUID } from 'node:crypto';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { dialog, ipcMain } from 'electron';
-import { BOOTSTRAP_FOLDERS, getBootstrapFiles } from '@agentmat/core';
-import type { Project } from '@agentmat/core';
+import { BOOTSTRAP_FOLDERS, defaultProjectNotifications, getBootstrapFiles } from '@agentmat/core';
+import type { Project, ProjectNotificationSettings } from '@agentmat/core';
 import { IPC } from '../../shared/ipcChannels';
 import type { CreateProjectInput } from '../../shared/apiTypes';
 import { store, logActivity } from '../store';
+import { installProjectNotificationHooks } from '../notifications/hookInstaller';
 
 export function registerProjectHandlers(): void {
   ipcMain.handle(IPC.projects.list, (): Promise<Project[]> => store.getProjects());
@@ -23,6 +24,7 @@ export function registerProjectHandlers(): void {
         tags: input.tags,
         agentType: input.agentType,
         notes: input.notes,
+        notifications: defaultProjectNotifications(),
         createdAt: now,
         updatedAt: now,
       };
@@ -49,6 +51,20 @@ export function registerProjectHandlers(): void {
       };
       projects[index] = updated;
       await store.setProjects(projects);
+      return updated;
+    },
+  );
+
+  ipcMain.handle(
+    IPC.projects.updateNotifications,
+    async (_event, projectId: string, notifications: ProjectNotificationSettings): Promise<Project> => {
+      const projects = await store.getProjects();
+      const index = projects.findIndex((p) => p.id === projectId);
+      if (index === -1) throw new Error(`Project ${projectId} not found`);
+      const updated: Project = { ...projects[index], notifications, updatedAt: new Date().toISOString() };
+      projects[index] = updated;
+      await store.setProjects(projects);
+      await installProjectNotificationHooks(updated);
       return updated;
     },
   );
