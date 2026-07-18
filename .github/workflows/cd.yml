@@ -1,0 +1,123 @@
+name: CD
+
+# Builds the AgentMate desktop app for Windows, macOS, and Linux and
+# publishes the installers to a GitHub Release.
+#
+# Triggers:
+#   - Pushing a tag like "v1.2.3" builds and releases automatically.
+#   - Manual "Run workflow" dispatch also works; supply the tag to release as.
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to publish to (e.g. v0.1.0). Required for manual runs."
+        required: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: cd-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            build_args: ""
+          - os: ubuntu-latest
+            build_args: ""
+          # macos-latest runners are Apple Silicon (arm64) and macos-13 runners
+          # are Intel (x64). electron-builder.yml targets both mac arches, but
+          # native modules (better-sqlite3) only get rebuilt for the host's
+          # own architecture, so each arch is built on its matching runner and
+          # pinned with an explicit --arm64/--x64 flag rather than letting
+          # electron-builder attempt both from a single host.
+          - os: macos-latest
+            build_args: "--arm64"
+          - os: macos-13
+            build_args: "--x64"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install libfuse2 (required to build AppImage)
+        if: matrix.os == 'ubuntu-latest'
+        run: sudo apt-get update && sudo apt-get install -y libfuse2
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build core package
+        run: pnpm --filter @agentmat/core build
+
+      - name: Rebuild native modules for Electron
+        run: pnpm --filter @agentmat/desktop rebuild:native
+
+      - name: Build desktop app
+        run: pnpm --filter @agentmat/desktop build
+
+      - name: Package installer
+        run: pnpm --filter @agentmat/desktop exec electron-builder --publish never ${{ matrix.build_args }}
+
+      - name: Upload installer artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: desktop-installer-${{ matrix.os }}
+          if-no-files-found: ignore
+          path: |
+            apps/desktop/release/*.exe
+            apps/desktop/release/*.exe.blockmap
+            apps/desktop/release/*.dmg
+            apps/desktop/release/*.dmg.blockmap
+            apps/desktop/release/*.AppImage
+            apps/desktop/release/*.deb
+            apps/desktop/release/*.zip
+
+  release:
+    name: Publish GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Determine release tag
+        id: tag
+        run: |
+          if [ "${{ github.ref_type }}" = "tag" ]; then
+            echo "tag=${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=${{ inputs.tag }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Download installer artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: desktop-installer-*
+          path: dist-release
+          merge-multiple: true
+
+      - name: Create/update GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag.outputs.tag }}
+          name: AgentMate ${{ steps.tag.outputs.tag }}
+          draft: false
+          files: dist-release/**/*
