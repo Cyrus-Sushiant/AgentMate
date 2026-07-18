@@ -1,15 +1,30 @@
 import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { ExternalLink, RefreshCw, TerminalSquare } from '@/components/icons';
-import { CLI_REGISTRY } from '@agentmat/core';
+import { Bot, CloudDownload, ExternalLink, RefreshCw, TerminalSquare } from '@/components/icons';
+import { CLI_REGISTRY, type CliDefinition } from '@agentmat/core';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { queryKeys } from '@/lib/queryKeys';
 import { usePageHeader } from '@/stores/pageHeaderStore';
 import { useCliStore } from '@/stores/cliStore';
 import { useTerminalStore } from '@/stores/terminalStore';
+
+interface PendingUpdate {
+  cli: CliDefinition;
+  currentVersion: string | null;
+  latestVersion: string;
+  command: string;
+}
 
 export default function CliManagerPage(): React.JSX.Element {
   const queryClient = useQueryClient();
@@ -17,6 +32,8 @@ export default function CliManagerPage(): React.JSX.Element {
   const setDefaultCliId = useCliStore((s) => s.setDefaultCliId);
   const openSession = useTerminalStore((s) => s.openSession);
   const [showAll, setShowAll] = useState(false);
+  const [checkingCliId, setCheckingCliId] = useState<string | null>(null);
+  const [pendingUpdate, setPendingUpdate] = useState<PendingUpdate | null>(null);
 
   const cliQuery = useQuery({
     queryKey: queryKeys.cliStatus,
@@ -38,10 +55,45 @@ export default function CliManagerPage(): React.JSX.Element {
     toast.info(`Press Enter in the terminal to install ${cliName}.`);
   }
 
+  async function handleCheckForUpdate(cli: CliDefinition, currentVersion: string | null): Promise<void> {
+    setCheckingCliId(cli.id);
+    try {
+      const result = await window.agentmat.cli.checkForUpdate(cli.id, currentVersion);
+      if (!result.supported) {
+        toast.info(`Can't check updates for ${cli.name} automatically.`);
+        return;
+      }
+      if (!result.latestVersion) {
+        toast.error(`Couldn't reach the update server for ${cli.name}.`);
+        return;
+      }
+      if (!result.updateAvailable) {
+        toast.success(`${cli.name} is up to date (v${result.latestVersion}).`);
+        return;
+      }
+
+      const command = await window.agentmat.cli.getUpdateCommand(cli.id);
+      if (!command) {
+        toast.error(`No update command available for ${cli.name} on this OS.`);
+        return;
+      }
+      setPendingUpdate({ cli, currentVersion, latestVersion: result.latestVersion, command });
+    } finally {
+      setCheckingCliId(null);
+    }
+  }
+
+  function handleConfirmUpdate(): void {
+    if (!pendingUpdate) return;
+    openSession({ title: `Update ${pendingUpdate.cli.name}`, initialInput: pendingUpdate.command });
+    toast.info(`Press Enter in the terminal to update ${pendingUpdate.cli.name}.`);
+    setPendingUpdate(null);
+  }
+
   usePageHeader('AI CLI Manager', 'Detected AI coding CLIs on this machine. Install missing ones with one click.');
 
   return (
-    <div className="mx-auto max-w-6xl space-y-6 p-6">
+    <div className="space-y-6 p-6">
       <div className="flex justify-end">
         <div className="flex gap-2">
           {notInstalledCount > 0 && (
@@ -76,7 +128,10 @@ export default function CliManagerPage(): React.JSX.Element {
             <Card key={cli.id} className="flex flex-col">
               <CardHeader>
                 <div className="flex items-start justify-between gap-2">
-                  <CardTitle>{cli.name}</CardTitle>
+                  <div className="flex items-center gap-2">
+                    <Bot className="h-4 w-4 text-muted-foreground" />
+                    <CardTitle>{cli.name}</CardTitle>
+                  </div>
                   <Badge variant={status?.installed ? 'success' : 'outline'}>
                     {status?.installed ? (status.version ?? 'Installed') : 'Not installed'}
                   </Badge>
@@ -85,13 +140,24 @@ export default function CliManagerPage(): React.JSX.Element {
               </CardHeader>
               <CardContent className="mt-auto flex items-center gap-2">
                 {status?.installed ? (
-                  <Button
-                    variant={isDefault ? 'secondary' : 'outline'}
-                    size="sm"
-                    onClick={() => setDefaultCliId(isDefault ? null : cli.id)}
-                  >
-                    {isDefault ? 'Default CLI' : 'Set as default'}
-                  </Button>
+                  <>
+                    <Button
+                      variant={isDefault ? 'secondary' : 'outline'}
+                      size="sm"
+                      onClick={() => setDefaultCliId(isDefault ? null : cli.id)}
+                    >
+                      {isDefault ? 'Default CLI' : 'Set as default'}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      title="Check for updates"
+                      disabled={checkingCliId === cli.id}
+                      onClick={() => void handleCheckForUpdate(cli, status.version)}
+                    >
+                      <CloudDownload className={checkingCliId === cli.id ? 'h-4 w-4 animate-pulse' : 'h-4 w-4'} />
+                    </Button>
+                  </>
                 ) : (
                   <Button size="sm" onClick={() => void handleInstall(cli.id, cli.name)}>
                     <TerminalSquare /> Install
@@ -112,6 +178,35 @@ export default function CliManagerPage(): React.JSX.Element {
           );
         })}
       </div>
+
+      <Dialog open={pendingUpdate !== null} onOpenChange={(open) => !open && setPendingUpdate(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Update {pendingUpdate?.cli.name}?</DialogTitle>
+            <DialogDescription>
+              This opens a terminal session and runs the update command below.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2 text-sm">
+            <p>
+              <span className="text-muted-foreground">Current version:</span>{' '}
+              {pendingUpdate?.currentVersion ?? 'unknown'}
+            </p>
+            <p>
+              <span className="text-muted-foreground">Latest version:</span> {pendingUpdate?.latestVersion}
+            </p>
+            <code className="block overflow-x-auto rounded bg-muted px-3 py-2 font-mono text-xs">
+              {pendingUpdate?.command}
+            </code>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPendingUpdate(null)}>
+              Cancel
+            </Button>
+            <Button onClick={handleConfirmUpdate}>Update</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

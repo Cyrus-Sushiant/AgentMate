@@ -62,3 +62,15 @@ export interface TranslateTextInput {
   text: string;
   targetLang: string;
 }
+
+export interface SystemStatsSample {
+  timestamp: number;
+  cpuPercent: number;
+  memPercent: number;
+  memUsedBytes: number;
+  memTotalBytes: number;
+  netRxBytesPerSec: number;
+  netTxBytesPerSec: number;
+  pingMs: number | null;
+  pingAlive: boolean;
+}

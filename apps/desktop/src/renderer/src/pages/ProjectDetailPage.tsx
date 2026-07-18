@@ -2,7 +2,18 @@ import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useParams } from 'react-router-dom';
 import { toast } from 'sonner';
-import { ArrowLeft, Blocks, FileCog, FolderTree, Pencil, TerminalSquare, Trash2, Wand2 } from '@/components/icons';
+import {
+  ArrowLeft,
+  Blocks,
+  Copy,
+  File,
+  FileCog,
+  FolderTree,
+  Pencil,
+  TerminalSquare,
+  Trash2,
+  Wand2,
+} from '@/components/icons';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -59,47 +70,97 @@ export default function ProjectDetailPage(): React.JSX.Element {
     },
   });
 
+  const deleteMutation = useMutation({
+    mutationFn: () => window.agentmat.projects.delete(projectId!),
+    onSuccess: () => {
+      toast.success('Project removed.');
+      void queryClient.invalidateQueries({ queryKey: queryKeys.projects });
+      navigate('/projects');
+    },
+  });
+
+  async function handleCopyPath(): Promise<void> {
+    if (!project) return;
+    await navigator.clipboard.writeText(project.folderPath);
+    toast.success('Path copied to clipboard.');
+  }
+
+  if (projectsQuery.isLoading) {
+    return <p className="p-6 text-sm text-muted-foreground">Loading project…</p>;
+  }
+
   if (!project) {
     return (
-      <div className="p-6">
-        <Button variant="ghost" onClick={() => navigate('/projects')}>
+      <div className="space-y-3 p-6">
+        <Button variant="ghost" size="sm" onClick={() => navigate('/projects')} className="-ml-2">
           <ArrowLeft /> Back to Projects
         </Button>
+        <p className="text-sm text-muted-foreground">This project could not be found.</p>
       </div>
     );
   }
 
   return (
     <div className="mx-auto max-w-5xl space-y-6 p-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <Button variant="ghost" size="sm" onClick={() => navigate('/projects')} className="-ml-2">
           <ArrowLeft /> Projects
         </Button>
-        <Button variant="outline" onClick={() => setEditOpen(true)}>
-          <Pencil /> Edit
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={() => void handleCopyPath()}>
+            <Copy /> Copy Path
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => setEditOpen(true)}>
+            <Pencil /> Edit
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="text-destructive hover:text-destructive"
+            onClick={() => {
+              if (confirm(`Remove "${project.name}" from AgentMate? Files on disk are kept.`)) {
+                deleteMutation.mutate();
+              }
+            }}
+          >
+            <Trash2 /> Delete
+          </Button>
+        </div>
       </div>
 
-      <div className="flex flex-wrap gap-1.5">
-        <Badge variant="secondary">{project.agentType}</Badge>
-        {project.tags.map((tag) => (
-          <Badge key={tag} variant="outline">
-            {tag}
-          </Badge>
-        ))}
+      <div className="space-y-2">
+        <div className="flex flex-wrap gap-1.5">
+          <Badge variant="secondary">{project.agentType}</Badge>
+          {project.tags.map((tag) => (
+            <Badge key={tag} variant="outline">
+              {tag}
+            </Badge>
+          ))}
+        </div>
+        {project.description && <p className="text-sm text-muted-foreground">{project.description}</p>}
       </div>
 
       <Tabs defaultValue="overview">
         <TabsList>
-          <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="bootstrap">Bootstrap</TabsTrigger>
-          <TabsTrigger value="skills">Skills</TabsTrigger>
-          <TabsTrigger value="terminal">Terminal</TabsTrigger>
-          <TabsTrigger value="config">Config</TabsTrigger>
+          <TabsTrigger value="overview" className="gap-1.5">
+            <File className="h-3.5 w-3.5" /> Overview
+          </TabsTrigger>
+          <TabsTrigger value="bootstrap" className="gap-1.5">
+            <Wand2 className="h-3.5 w-3.5" /> Bootstrap
+          </TabsTrigger>
+          <TabsTrigger value="skills" className="gap-1.5">
+            <Blocks className="h-3.5 w-3.5" /> Skills
+          </TabsTrigger>
+          <TabsTrigger value="terminal" className="gap-1.5">
+            <TerminalSquare className="h-3.5 w-3.5" /> Terminal
+          </TabsTrigger>
+          <TabsTrigger value="config" className="gap-1.5">
+            <FileCog className="h-3.5 w-3.5" /> Config
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="space-y-3">
-          <p className="text-sm">{project.description || 'No description yet.'}</p>
+          <p className="text-xs font-medium text-muted-foreground">Notes</p>
           <Textarea value={project.notes} readOnly rows={6} placeholder="No notes yet." />
         </TabsContent>
 

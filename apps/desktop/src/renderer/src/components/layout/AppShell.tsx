@@ -1,15 +1,25 @@
 import { AnimatePresence, motion } from 'framer-motion';
+import { useIsFetching, useIsMutating } from '@tanstack/react-query';
 import { AnglesLeft, AnglesRight, Moon, Sun, SunMoon, TerminalSquare } from '@/components/icons';
 import { Outlet, useLocation } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 import { TitleBar } from './TitleBar';
+import { LoadingOverlay } from './LoadingOverlay';
 import { Button } from '@/components/ui/button';
 import { useThemeStore } from '@/stores/themeStore';
 import { useTerminalStore } from '@/stores/terminalStore';
 import { useUiStore } from '@/stores/uiStore';
 import { usePageHeaderStore } from '@/stores/pageHeaderStore';
 import { TerminalDrawer } from '@/components/terminal/TerminalDrawer';
+import { useDelayedLoading } from '@/hooks/useDelayedLoading';
 import { cn } from '@/lib/utils';
+
+const PAGE_TRANSITION = {
+  initial: { opacity: 0, y: 14, scale: 0.985, filter: 'blur(4px)' },
+  animate: { opacity: 1, y: 0, scale: 1, filter: 'blur(0px)' },
+  exit: { opacity: 0, y: -10, scale: 0.985, filter: 'blur(4px)' },
+  transition: { duration: 0.32, ease: [0.22, 1, 0.36, 1] as const },
+};
 
 const THEME_CYCLE = ['light', 'dark', 'system'] as const;
 const THEME_ICON = { light: Sun, dark: Moon, system: SunMoon };
@@ -83,6 +93,9 @@ function TopBar(): React.JSX.Element {
 
 export function AppShell(): React.JSX.Element {
   const location = useLocation();
+  const isFetching = useIsFetching();
+  const isMutating = useIsMutating();
+  const showLoading = useDelayedLoading(isFetching + isMutating > 0);
 
   return (
     <div className="relative flex h-full w-full flex-col overflow-hidden bg-background text-foreground">
@@ -95,15 +108,16 @@ export function AppShell(): React.JSX.Element {
             <AnimatePresence mode="wait">
               <motion.div
                 key={location.pathname}
-                initial={{ opacity: 0, y: 6 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -6 }}
-                transition={{ duration: 0.15, ease: 'easeOut' }}
+                initial={PAGE_TRANSITION.initial}
+                animate={PAGE_TRANSITION.animate}
+                exit={PAGE_TRANSITION.exit}
+                transition={PAGE_TRANSITION.transition}
                 className="flex min-h-full flex-1 flex-col"
               >
                 <Outlet />
               </motion.div>
             </AnimatePresence>
+            <LoadingOverlay show={showLoading} />
           </div>
           <TerminalDrawer />
         </div>

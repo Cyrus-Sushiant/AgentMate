@@ -8,6 +8,7 @@ import { registerPromptHistoryHandlers } from './ipc/promptHistory';
 import { registerSettingsHandlers } from './ipc/settings';
 import { registerShellHandlers } from './ipc/shell';
 import { registerSkillHandlers } from './ipc/skills';
+import { registerSystemStatsHandlers } from './ipc/systemStats';
 import { registerTemplateHandlers } from './ipc/templates';
 import { killAllTerminalSessions, registerTerminalHandlers } from './ipc/terminal';
 import { registerTranslateHandlers } from './ipc/translate';
@@ -79,6 +80,7 @@ function registerAllIpcHandlers(): void {
   registerShellHandlers();
   registerPromptHistoryHandlers();
   registerTranslateHandlers();
+  registerSystemStatsHandlers();
 }
 
 app.whenReady().then(() => {

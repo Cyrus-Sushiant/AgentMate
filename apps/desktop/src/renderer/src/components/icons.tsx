@@ -10,6 +10,7 @@ import {
   faCheck,
   faCircleHalfStroke,
   faClockRotateLeft,
+  faCloudArrowDown,
   faCopy,
   faDisplay,
   faDownload,
@@ -23,9 +24,14 @@ import {
   faGear,
   faLanguage,
   faMagnifyingGlass,
+  faMemory,
+  faMicrochip,
   faMoon,
+  faNetworkWired,
   faPen,
   faPlus,
+  faRobot,
+  faSatelliteDish,
   faSort,
   faSun,
   faTableColumns,
@@ -94,3 +100,13 @@ export const History = makeIcon(faClockRotateLeft);
 export const WindowMinimize = makeIcon(faWindowMinimize);
 export const WindowMaximize = makeIcon(faWindowMaximize);
 export const WindowRestore = makeIcon(faWindowRestore);
+
+// System monitor icons.
+export const Cpu = makeIcon(faMicrochip);
+export const MemoryStick = makeIcon(faMemory);
+export const NetworkIcon = makeIcon(faNetworkWired);
+export const SatelliteDish = makeIcon(faSatelliteDish);
+
+// CLI manager icons.
+export const Bot = makeIcon(faRobot);
+export const CloudDownload = makeIcon(faCloudArrowDown);

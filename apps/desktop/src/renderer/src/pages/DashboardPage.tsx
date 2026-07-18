@@ -3,8 +3,12 @@ import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import {
   Blocks,
+  Cpu,
   FolderKanban,
+  MemoryStick,
+  NetworkIcon,
   RefreshCw,
+  SatelliteDish,
   Sparkles,
   TerminalSquare,
   FolderPlus,
@@ -13,17 +17,34 @@ import { CLI_REGISTRY } from '@agentmat/core';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { SparklineChart } from '@/components/dashboard/SparklineChart';
+import { useSystemStatsHistory } from '@/hooks/useSystemStatsHistory';
+import { useChartColors } from '@/lib/chartColors';
 import { queryKeys } from '@/lib/queryKeys';
+import { timeAgo } from '@/lib/time';
 import { usePageHeader } from '@/stores/pageHeaderStore';
 
-function timeAgo(iso: string): string {
-  const diffMs = Date.now() - new Date(iso).getTime();
-  const minutes = Math.floor(diffMs / 60_000);
-  if (minutes < 1) return 'just now';
-  if (minutes < 60) return `${minutes}m ago`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
-  return `${Math.floor(hours / 24)}d ago`;
+function formatPercent(value: number): string {
+  return `${value.toFixed(0)}%`;
+}
+
+function formatBytesPerSec(value: number): string {
+  if (value < 1024) return `${value.toFixed(0)} B/s`;
+  if (value < 1024 * 1024) return `${(value / 1024).toFixed(1)} KB/s`;
+  return `${(value / (1024 * 1024)).toFixed(1)} MB/s`;
+}
+
+function formatMs(value: number): string {
+  return `${value.toFixed(0)} ms`;
+}
+
+function formatClockTime(timestamp: number): string {
+  return new Date(timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024 ** 3) return `${(bytes / 1024 ** 2).toFixed(0)} MB`;
+  return `${(bytes / 1024 ** 3).toFixed(1)} GB`;
 }
 
 export default function DashboardPage(): React.JSX.Element {
@@ -49,10 +70,15 @@ export default function DashboardPage(): React.JSX.Element {
 
   const installedCount = cliQuery.data?.filter((c) => c.installed).length ?? 0;
 
+  const statsHistory = useSystemStatsHistory();
+  const chartColors = useChartColors();
+  const timestamps = statsHistory.map((s) => s.timestamp);
+  const latest = statsHistory.at(-1);
+
   usePageHeader('Dashboard', 'Your AI CLIs, projects, and activity at a glance.');
 
   return (
-    <div className="mx-auto max-w-6xl space-y-6 p-6">
+    <div className="space-y-6 p-6">
       <div className="flex flex-wrap gap-2">
         <Button onClick={() => navigate('/projects?new=1')}>
           <FolderPlus /> New Project
@@ -171,7 +197,158 @@ export default function DashboardPage(): React.JSX.Element {
         </Card>
       </div>
 
-      <div className="rounded-2xl border border-border bg-card p-5 text-card-foreground transition-colors" />
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center gap-2 text-xs text-muted-foreground">
+              <Cpu className="h-3.5 w-3.5" /> CPU Usage
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="mb-2 text-2xl font-semibold">
+              {latest ? formatPercent(latest.cpuPercent) : '—'}
+            </div>
+            <SparklineChart
+              timestamps={timestamps}
+              domainMin={0}
+              domainMax={100}
+              formatValue={formatPercent}
+              formatTime={formatClockTime}
+              series={[
+                {
+                  key: 'cpu',
+                  label: 'CPU',
+                  color: 'hsl(var(--primary))',
+                  values: statsHistory.map((s) => s.cpuPercent),
+                },
+              ]}
+            />
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center gap-2 text-xs text-muted-foreground">
+              <MemoryStick className="h-3.5 w-3.5" /> Memory Usage
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="mb-2 flex items-baseline gap-2">
+              <span className="text-2xl font-semibold">
+                {latest ? formatPercent(latest.memPercent) : '—'}
+              </span>
+              {latest && (
+                <span className="text-xs text-muted-foreground">
+                  {formatBytes(latest.memUsedBytes)} / {formatBytes(latest.memTotalBytes)}
+                </span>
+              )}
+            </div>
+            <SparklineChart
+              timestamps={timestamps}
+              domainMin={0}
+              domainMax={100}
+              formatValue={formatPercent}
+              formatTime={formatClockTime}
+              series={[
+                {
+                  key: 'mem',
+                  label: 'Memory',
+                  color: 'hsl(var(--primary))',
+                  values: statsHistory.map((s) => s.memPercent),
+                },
+              ]}
+            />
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center gap-2 text-xs text-muted-foreground">
+              <NetworkIcon className="h-3.5 w-3.5" /> Network Throughput
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="mb-2 flex items-center justify-between">
+              <div className="flex items-baseline gap-2">
+                <span className="text-2xl font-semibold">
+                  {latest ? formatBytesPerSec(latest.netRxBytesPerSec) : '—'}
+                </span>
+                <span className="text-xs text-muted-foreground">down</span>
+              </div>
+              <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                <span className="flex items-center gap-1">
+                  <span
+                    className="inline-block h-0.5 w-3 rounded-full"
+                    style={{ backgroundColor: chartColors.green }}
+                  />
+                  Download
+                </span>
+                <span className="flex items-center gap-1">
+                  <span
+                    className="inline-block h-0.5 w-3 rounded-full"
+                    style={{ backgroundColor: chartColors.blue }}
+                  />
+                  Upload
+                </span>
+              </div>
+            </div>
+            <SparklineChart
+              timestamps={timestamps}
+              domainMin={0}
+              formatValue={formatBytesPerSec}
+              formatTime={formatClockTime}
+              series={[
+                {
+                  key: 'rx',
+                  label: 'Download',
+                  color: chartColors.green,
+                  values: statsHistory.map((s) => s.netRxBytesPerSec),
+                },
+                {
+                  key: 'tx',
+                  label: 'Upload',
+                  color: chartColors.blue,
+                  values: statsHistory.map((s) => s.netTxBytesPerSec),
+                },
+              ]}
+            />
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center gap-2 text-xs text-muted-foreground">
+              <SatelliteDish className="h-3.5 w-3.5" /> Network Status (ping 1.1.1.1)
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="mb-2 flex items-center gap-2">
+              <span className="text-2xl font-semibold">
+                {latest?.pingMs != null ? formatMs(latest.pingMs) : '—'}
+              </span>
+              {latest && (
+                <Badge variant={latest.pingAlive ? 'success' : 'destructive'}>
+                  {latest.pingAlive ? 'Online' : 'Offline'}
+                </Badge>
+              )}
+            </div>
+            <SparklineChart
+              timestamps={timestamps}
+              domainMin={0}
+              formatValue={formatMs}
+              formatTime={formatClockTime}
+              series={[
+                {
+                  key: 'ping',
+                  label: 'Latency',
+                  color: 'hsl(var(--primary))',
+                  values: statsHistory.map((s) => s.pingMs ?? 0),
+                },
+              ]}
+            />
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }

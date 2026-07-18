@@ -2,6 +2,8 @@ export const IPC = {
   cli: {
     detectAll: 'cli:detectAll',
     getInstallCommand: 'cli:getInstallCommand',
+    checkForUpdate: 'cli:checkForUpdate',
+    getUpdateCommand: 'cli:getUpdateCommand',
   },
   terminal: {
     create: 'terminal:create',
@@ -48,6 +50,9 @@ export const IPC = {
   },
   activity: {
     list: 'activity:list',
+  },
+  system: {
+    sample: 'system:sample',
   },
   shell: {
     openExternal: 'shell:openExternal',

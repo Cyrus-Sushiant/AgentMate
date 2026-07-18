@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron';
 import type {
   AppSettings,
+  CliUpdateCheckResult,
   InstalledCli,
   Project,
   PromptTemplate,
@@ -19,6 +20,7 @@ import type {
   AddPromptHistoryInput,
   PromptHistoryEntry,
   TranslateTextInput,
+  SystemStatsSample,
 } from '../shared/apiTypes';
 
 interface TerminalDataPayload {
@@ -34,6 +36,10 @@ const cli = {
   detectAll: (): Promise<InstalledCli[]> => ipcRenderer.invoke(IPC.cli.detectAll),
   getInstallCommand: (cliId: string): Promise<string | null> =>
     ipcRenderer.invoke(IPC.cli.getInstallCommand, cliId),
+  checkForUpdate: (cliId: string, currentVersion: string | null): Promise<CliUpdateCheckResult> =>
+    ipcRenderer.invoke(IPC.cli.checkForUpdate, cliId, currentVersion),
+  getUpdateCommand: (cliId: string): Promise<string | null> =>
+    ipcRenderer.invoke(IPC.cli.getUpdateCommand, cliId),
 };
 
 const terminal = {
@@ -141,6 +147,10 @@ const translate = {
   text: (input: TranslateTextInput): Promise<string> => ipcRenderer.invoke(IPC.translate.text, input),
 };
 
+const system = {
+  sample: (): Promise<SystemStatsSample> => ipcRenderer.invoke(IPC.system.sample),
+};
+
 const windowControls = {
   minimize: (): Promise<void> => ipcRenderer.invoke(IPC.window.minimize),
   maximizeToggle: (): Promise<void> => ipcRenderer.invoke(IPC.window.maximizeToggle),
@@ -168,6 +178,7 @@ const agentmatApi = {
   window: windowControls,
   promptHistory,
   translate,
+  system,
 };
 
 export type AgentmatApi = typeof agentmatApi;
