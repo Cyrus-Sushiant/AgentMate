@@ -221,8 +221,8 @@ export default function ProjectDetailPage(): React.JSX.Element {
               <TabsTrigger value="schedule" className="gap-1.5">
                 <CalendarDays className="h-3.5 w-3.5" /> Schedule
               </TabsTrigger>
-              <TabsTrigger value="notifications" className="gap-1.5">
-                <Bell className="h-3.5 w-3.5" /> Notification
+              <TabsTrigger value="hooks" className="gap-1.5">
+                <Bell className="h-3.5 w-3.5" /> Hooks
               </TabsTrigger>
               <TabsTrigger value="terminal" className="gap-1.5">
                 <TerminalSquare className="h-3.5 w-3.5" /> Terminal
@@ -281,8 +281,8 @@ export default function ProjectDetailPage(): React.JSX.Element {
               <ScheduleTab projectId={project.id} />
             </TabsContent>
 
-            <TabsContent value="notifications" className="space-y-4">
-              <NotificationsTab project={project} />
+            <TabsContent value="hooks" className="space-y-4">
+              <HooksTab project={project} />
             </TabsContent>
 
             <TabsContent value="terminal" className="space-y-3">
@@ -324,8 +324,6 @@ export default function ProjectDetailPage(): React.JSX.Element {
               </div>
             </dl>
           </div>
-
-          <ProjectHooksCard project={project} />
         </div>
       </div>
 
@@ -389,106 +387,16 @@ function ProjectConfigEditor({ projectFolderPath }: { projectFolderPath: string 
   );
 }
 
-const HOOK_LABELS: Record<NotificationHookKind, string> = {
-  completion: 'Completion',
-  confirmation: 'Confirmation',
-};
+/** `${sourceFile}:${event}:${groupIndex}:${hookIndex}` → the settings file this hook lives in. */
+function sourceFileLabel(hookId: string): string {
+  return hookId.split(':')[0] ?? 'settings.json';
+}
 
-function ProjectHooksCard({ project }: { project: Project }): React.JSX.Element {
-  const queryClient = useQueryClient();
-  const kinds: NotificationHookKind[] = ['completion', 'confirmation'];
-  const [editingHook, setEditingHook] = useState<DetectedClaudeHook | null>(null);
-
-  const claudeHooksQuery = useQuery({
-    queryKey: queryKeys.claudeHooks(project.id),
-    queryFn: () => window.agentmat.projects.listClaudeHooks(project.id),
-  });
-  const otherHooks = (claudeHooksQuery.data ?? []).filter((h) => !h.managedByAgentMate);
-
-  const deleteMutation = useMutation({
-    mutationFn: (hookId: string) => window.agentmat.projects.deleteClaudeHook(project.id, hookId),
-    onSuccess: () => {
-      toast.success('Hook removed.');
-      void queryClient.invalidateQueries({ queryKey: queryKeys.claudeHooks(project.id) });
-    },
-  });
-
-  return (
-    <div className="rounded-2xl border border-border bg-card p-5">
-      <p className="mb-3 text-xs font-medium text-muted-foreground">Hooks</p>
-      <div className="space-y-3 text-sm">
-        {kinds.map((kind) => {
-          const hook = project.notifications[kind];
-          const installed = hook.enabled && !!hook.cliId;
-          const cli = CLI_REGISTRY.find((c) => c.id === hook.cliId);
-
-          return (
-            <div key={kind} className="flex items-center justify-between gap-2">
-              <div className="flex items-center gap-1.5 text-muted-foreground">
-                <Bell className="h-3.5 w-3.5" />
-                {HOOK_LABELS[kind]}
-              </div>
-              {installed ? (
-                <Badge variant="success" className="gap-1">
-                  <CliLogo cliId={hook.cliId ?? ''} className="h-3 w-3" />
-                  {cli?.name ?? hook.cliId}
-                </Badge>
-              ) : (
-                <Badge variant="outline">Not installed</Badge>
-              )}
-            </div>
-          );
-        })}
-
-        {otherHooks.length > 0 && (
-          <>
-            <Separator />
-            {otherHooks.map((hook) => (
-              <div key={hook.id} className="flex items-start justify-between gap-2">
-                <div className="min-w-0 space-y-0.5">
-                  <div className="flex items-center gap-1.5 text-muted-foreground">
-                    <Bell className="h-3.5 w-3.5 shrink-0" />
-                    <span className="truncate">
-                      {hook.event}
-                      {hook.matcher ? ` · ${hook.matcher}` : ''}
-                    </span>
-                  </div>
-                  <p className="truncate font-mono text-xs text-muted-foreground/80" title={hook.command}>
-                    {hook.command}
-                  </p>
-                </div>
-                <div className="flex shrink-0 items-center gap-1">
-                  <Button variant="ghost" size="icon" title="Edit hook" onClick={() => setEditingHook(hook)}>
-                    <Pencil className="h-3.5 w-3.5" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    title="Delete hook"
-                    onClick={() => {
-                      if (confirm(`Remove this ${hook.event} hook from .claude/settings.json?`)) {
-                        deleteMutation.mutate(hook.id);
-                      }
-                    }}
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </Button>
-                </div>
-              </div>
-            ))}
-          </>
-        )}
-      </div>
-
-      <EditClaudeHookDialog
-        projectId={project.id}
-        hook={editingHook}
-        onOpenChange={(open) => {
-          if (!open) setEditingHook(null);
-        }}
-      />
-    </div>
-  );
+/** Best-effort one-line summary of a raw hook body for the list view (command + args, if present). */
+function summarizeHook(hook: Record<string, unknown>): string {
+  const command = typeof hook.command === 'string' ? hook.command : '';
+  const args = Array.isArray(hook.args) ? hook.args.filter((a): a is string => typeof a === 'string') : [];
+  return [command, ...args].filter(Boolean).join(' ') || '(empty command)';
 }
 
 function EditClaudeHookDialog({
@@ -501,12 +409,12 @@ function EditClaudeHookDialog({
   onOpenChange: (open: boolean) => void;
 }): React.JSX.Element {
   const queryClient = useQueryClient();
-  const [command, setCommand] = useState('');
+  const [hookJson, setHookJson] = useState('');
   const [matcher, setMatcher] = useState('');
 
   useEffect(() => {
     if (hook) {
-      setCommand(hook.command);
+      setHookJson(JSON.stringify(hook.hook, null, 2));
       setMatcher(hook.matcher ?? '');
     }
   }, [hook]);
@@ -514,8 +422,17 @@ function EditClaudeHookDialog({
   const updateMutation = useMutation({
     mutationFn: () => {
       if (!hook) return Promise.resolve();
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(hookJson);
+      } catch {
+        throw new Error('Hook body must be valid JSON.');
+      }
+      if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+        throw new Error('Hook body must be a JSON object.');
+      }
       return window.agentmat.projects.updateClaudeHook(projectId, hook.id, {
-        command,
+        hook: parsed as Record<string, unknown>,
         matcher: matcher || undefined,
       });
     },
@@ -524,6 +441,9 @@ function EditClaudeHookDialog({
       void queryClient.invalidateQueries({ queryKey: queryKeys.claudeHooks(projectId) });
       onOpenChange(false);
     },
+    onError: (error) => {
+      toast.error(error instanceof Error ? error.message : 'Failed to update hook.');
+    },
   });
 
   return (
@@ -531,7 +451,9 @@ function EditClaudeHookDialog({
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Edit hook</DialogTitle>
-          <DialogDescription>{hook?.event} hook in .claude/settings.json</DialogDescription>
+          <DialogDescription>
+            {hook?.event} hook in .claude/{hook ? sourceFileLabel(hook.id) : 'settings.json'}
+          </DialogDescription>
         </DialogHeader>
         <div className="space-y-3">
           <div className="space-y-1.5">
@@ -543,13 +465,18 @@ function EditClaudeHookDialog({
             />
           </div>
           <div className="space-y-1.5">
-            <Label>Command</Label>
-            <Textarea value={command} onChange={(e) => setCommand(e.target.value)} rows={3} />
+            <Label>Hook body (JSON)</Label>
+            <Textarea
+              value={hookJson}
+              onChange={(e) => setHookJson(e.target.value)}
+              rows={8}
+              className="font-mono text-xs"
+            />
           </div>
         </div>
         <DialogFooter>
           <Button
-            disabled={updateMutation.isPending || !command.trim()}
+            disabled={updateMutation.isPending || !hookJson.trim()}
             onClick={() => updateMutation.mutate()}
           >
             <Save className="h-4 w-4" /> Save
@@ -683,9 +610,10 @@ function ScheduleTab({ projectId }: { projectId: string }): React.JSX.Element {
   );
 }
 
-function NotificationsTab({ project }: { project: Project }): React.JSX.Element {
+function HooksTab({ project }: { project: Project }): React.JSX.Element {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const [editingHook, setEditingHook] = useState<DetectedClaudeHook | null>(null);
 
   const cliQuery = useQuery({
     queryKey: queryKeys.cliStatus,
@@ -695,6 +623,11 @@ function NotificationsTab({ project }: { project: Project }): React.JSX.Element 
     queryKey: queryKeys.settings,
     queryFn: () => window.agentmat.settings.get(),
   });
+  const claudeHooksQuery = useQuery({
+    queryKey: queryKeys.claudeHooks(project.id),
+    queryFn: () => window.agentmat.projects.listClaudeHooks(project.id),
+  });
+  const otherHooks = (claudeHooksQuery.data ?? []).filter((h) => !h.managedByAgentMate);
 
   const installedAgents = CLI_REGISTRY.filter(
     (cli) => cliQuery.data?.find((c) => c.id === cli.id)?.installed,
@@ -709,6 +642,14 @@ function NotificationsTab({ project }: { project: Project }): React.JSX.Element 
     onSuccess: () => {
       toast.success('Notification hook saved.');
       void queryClient.invalidateQueries({ queryKey: queryKeys.projects });
+    },
+  });
+
+  const deleteHookMutation = useMutation({
+    mutationFn: (hookId: string) => window.agentmat.projects.deleteClaudeHook(project.id, hookId),
+    onSuccess: () => {
+      toast.success('Hook removed.');
+      void queryClient.invalidateQueries({ queryKey: queryKeys.claudeHooks(project.id) });
     },
   });
 
@@ -750,6 +691,71 @@ function NotificationsTab({ project }: { project: Project }): React.JSX.Element 
         installedAgents={installedAgents}
         onSave={(hook) => saveMutation.mutate({ ...project.notifications, confirmation: hook })}
         saving={saveMutation.isPending}
+      />
+
+      <Separator />
+
+      <div className="space-y-1">
+        <p className="text-sm font-medium">Other hooks</p>
+        <p className="text-xs text-muted-foreground">
+          Hooks found in this project's <code className="rounded bg-muted px-1">.claude/settings.json</code>{' '}
+          and <code className="rounded bg-muted px-1">settings.local.json</code> that AgentMate didn't create.
+        </p>
+      </div>
+
+      {otherHooks.length === 0 ? (
+        <p className="text-sm text-muted-foreground">No other hooks found.</p>
+      ) : (
+        <div className="space-y-2">
+          {otherHooks.map((hook) => (
+            <div
+              key={hook.id}
+              className="flex items-start justify-between gap-3 rounded-lg border border-border bg-card px-3 py-2 text-sm"
+            >
+              <div className="min-w-0 space-y-0.5">
+                <div className="flex flex-wrap items-center gap-1.5 text-muted-foreground">
+                  <Bell className="h-3.5 w-3.5 shrink-0" />
+                  <span className="font-medium text-foreground">{hook.event}</span>
+                  {hook.matcher && <span>· {hook.matcher}</span>}
+                  <Badge variant="outline" className="text-[10px]">
+                    {sourceFileLabel(hook.id)}
+                  </Badge>
+                </div>
+                <p
+                  className="truncate font-mono text-xs text-muted-foreground/80"
+                  title={summarizeHook(hook.hook)}
+                >
+                  {summarizeHook(hook.hook)}
+                </p>
+              </div>
+              <div className="flex shrink-0 items-center gap-1">
+                <Button variant="ghost" size="icon" title="Edit hook" onClick={() => setEditingHook(hook)}>
+                  <Pencil className="h-3.5 w-3.5" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  title="Delete hook"
+                  onClick={() => {
+                    if (confirm(`Remove this ${hook.event} hook from ${sourceFileLabel(hook.id)}?`)) {
+                      deleteHookMutation.mutate(hook.id);
+                    }
+                  }}
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <EditClaudeHookDialog
+        projectId={project.id}
+        hook={editingHook}
+        onOpenChange={(open) => {
+          if (!open) setEditingHook(null);
+        }}
       />
     </div>
   );

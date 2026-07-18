@@ -10,6 +10,7 @@ import react from '@vitejs/plugin-react';
 const forcedExternals = [
   'electron',
   'node-pty',
+  'better-sqlite3',
   /^node:/,
 ];
 

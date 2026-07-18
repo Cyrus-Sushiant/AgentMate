@@ -69,9 +69,11 @@ setTimeout(() => process.exit(0), 3500).unref();
 `;
 }
 
+/** A single `{ type, command, ... }` hook entry. May carry extra fields (args, timeout, env, …) we pass through untouched. */
 interface ClaudeHookEntry {
-  type: 'command';
-  command: string;
+  type?: string;
+  command?: string;
+  [key: string]: unknown;
 }
 interface ClaudeHookGroup {
   matcher?: string;
@@ -80,6 +82,14 @@ interface ClaudeHookGroup {
 interface ClaudeSettings {
   hooks?: Record<string, ClaudeHookGroup[]>;
   [key: string]: unknown;
+}
+
+/** Claude Code reads hooks from both of these project-level files and merges them. */
+const CLAUDE_SETTINGS_FILES = ['settings.json', 'settings.local.json'] as const;
+type ClaudeSettingsFile = (typeof CLAUDE_SETTINGS_FILES)[number];
+
+function settingsPathFor(projectFolderPath: string, file: ClaudeSettingsFile = 'settings.json'): string {
+  return join(projectFolderPath, '.claude', file);
 }
 
 async function readClaudeSettings(path: string): Promise<ClaudeSettings> {
@@ -91,7 +101,7 @@ async function readClaudeSettings(path: string): Promise<ClaudeSettings> {
 }
 
 function isOurGroup(group: ClaudeHookGroup, marker: string): boolean {
-  return group.hooks.length > 0 && group.hooks.every((h) => h.command.includes(marker));
+  return group.hooks.length > 0 && group.hooks.every((h) => (h.command ?? '').includes(marker));
 }
 
 /**
@@ -104,7 +114,7 @@ async function setClaudeCodeHook(
   kind: NotificationHookKind,
   scriptPath: string | null,
 ): Promise<void> {
-  const settingsPath = join(projectFolderPath, '.claude', 'settings.json');
+  const settingsPath = settingsPathFor(projectFolderPath);
   const settings = await readClaudeSettings(settingsPath);
   const event = CLAUDE_EVENT_BY_KIND[kind];
   const marker = HOOK_FILE_NAME[kind];
@@ -166,65 +176,73 @@ export async function installProjectNotificationHooks(
   return result;
 }
 
-function settingsPathFor(projectFolderPath: string): string {
-  return join(projectFolderPath, '.claude', 'settings.json');
-}
-
 function isAgentMateCommand(command: string): boolean {
   return Object.values(HOOK_FILE_NAME).some((marker) => command.includes(marker));
 }
 
 /**
- * Lists every hook command found in this project's `.claude/settings.json`, including ones
- * AgentMate didn't create. Each entry's `id` encodes its position (`event:groupIndex:hookIndex`)
- * so it can be targeted by {@link updateClaudeHook} / {@link deleteClaudeHook} on the same read.
+ * Lists every hook command found in this project's `.claude/settings.json` and
+ * `.claude/settings.local.json` (Claude Code reads and merges both), including ones AgentMate
+ * didn't create. Each entry's `id` encodes where it lives (`file:event:groupIndex:hookIndex`)
+ * so it can be targeted by {@link updateClaudeHook} / {@link deleteClaudeHook} on a later read.
  */
 export async function listClaudeHooks(projectFolderPath: string): Promise<DetectedClaudeHook[]> {
-  const settings = await readClaudeSettings(settingsPathFor(projectFolderPath));
   const entries: DetectedClaudeHook[] = [];
 
-  for (const [event, groups] of Object.entries(settings.hooks ?? {})) {
-    groups.forEach((group, groupIndex) => {
-      group.hooks.forEach((hook, hookIndex) => {
-        entries.push({
-          id: `${event}:${groupIndex}:${hookIndex}`,
-          event,
-          matcher: group.matcher,
-          command: hook.command,
-          managedByAgentMate: isAgentMateCommand(hook.command),
+  for (const file of CLAUDE_SETTINGS_FILES) {
+    const settings = await readClaudeSettings(settingsPathFor(projectFolderPath, file));
+    for (const [event, groups] of Object.entries(settings.hooks ?? {})) {
+      groups.forEach((group, groupIndex) => {
+        group.hooks.forEach((hook, hookIndex) => {
+          entries.push({
+            id: `${file}:${event}:${groupIndex}:${hookIndex}`,
+            event,
+            matcher: group.matcher,
+            hook,
+            managedByAgentMate: isAgentMateCommand(hook.command ?? ''),
+          });
         });
       });
-    });
+    }
   }
 
   return entries;
 }
 
-function parseHookId(id: string): { event: string; groupIndex: number; hookIndex: number } {
-  const [event, groupIndexStr, hookIndexStr] = id.split(':');
+function parseHookId(id: string): {
+  file: ClaudeSettingsFile;
+  event: string;
+  groupIndex: number;
+  hookIndex: number;
+} {
+  const [file, event, groupIndexStr, hookIndexStr] = id.split(':');
   const groupIndex = Number(groupIndexStr);
   const hookIndex = Number(hookIndexStr);
-  if (!event || Number.isNaN(groupIndex) || Number.isNaN(hookIndex)) {
+  if (
+    !CLAUDE_SETTINGS_FILES.includes(file as ClaudeSettingsFile) ||
+    !event ||
+    Number.isNaN(groupIndex) ||
+    Number.isNaN(hookIndex)
+  ) {
     throw new Error(`Invalid hook id: ${id}`);
   }
-  return { event, groupIndex, hookIndex };
+  return { file: file as ClaudeSettingsFile, event, groupIndex, hookIndex };
 }
 
-/** Edits the matcher and/or command of a single hook entry previously returned by {@link listClaudeHooks}. */
+/** Replaces the matcher and/or raw hook body of a single entry previously returned by {@link listClaudeHooks}. */
 export async function updateClaudeHook(
   projectFolderPath: string,
   id: string,
-  updates: { matcher?: string; command: string },
+  updates: { matcher?: string; hook: Record<string, unknown> },
 ): Promise<void> {
-  const settingsPath = settingsPathFor(projectFolderPath);
+  const { file, event, groupIndex, hookIndex } = parseHookId(id);
+  const settingsPath = settingsPathFor(projectFolderPath, file);
   const settings = await readClaudeSettings(settingsPath);
-  const { event, groupIndex, hookIndex } = parseHookId(id);
 
   const group = settings.hooks?.[event]?.[groupIndex];
-  const hook = group?.hooks[hookIndex];
-  if (!group || !hook) throw new Error(`Hook ${id} not found`);
+  if (!group || !group.hooks[hookIndex]) throw new Error(`Hook ${id} not found`);
 
-  hook.command = updates.command;
+  group.hooks[hookIndex] = updates.hook;
   if (updates.matcher) {
     group.matcher = updates.matcher;
   } else {
@@ -236,9 +254,9 @@ export async function updateClaudeHook(
 
 /** Removes a single hook entry previously returned by {@link listClaudeHooks}, cleaning up empty groups/events. */
 export async function deleteClaudeHook(projectFolderPath: string, id: string): Promise<void> {
-  const settingsPath = settingsPathFor(projectFolderPath);
+  const { file, event, groupIndex, hookIndex } = parseHookId(id);
+  const settingsPath = settingsPathFor(projectFolderPath, file);
   const settings = await readClaudeSettings(settingsPath);
-  const { event, groupIndex, hookIndex } = parseHookId(id);
 
   const groups = settings.hooks?.[event];
   const group = groups?.[groupIndex];

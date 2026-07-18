@@ -91,7 +91,7 @@ const projects = {
   updateClaudeHook: (
     projectId: string,
     hookId: string,
-    updates: { matcher?: string; command: string },
+    updates: { matcher?: string; hook: Record<string, unknown> },
   ): Promise<void> => ipcRenderer.invoke(IPC.projects.updateClaudeHook, projectId, hookId, updates),
   deleteClaudeHook: (projectId: string, hookId: string): Promise<void> =>
     ipcRenderer.invoke(IPC.projects.deleteClaudeHook, projectId, hookId),

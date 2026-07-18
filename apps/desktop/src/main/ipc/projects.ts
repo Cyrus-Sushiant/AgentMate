@@ -129,7 +129,7 @@ export function registerProjectHandlers(): void {
       _event,
       projectId: string,
       hookId: string,
-      updates: { matcher?: string; command: string },
+      updates: { matcher?: string; hook: Record<string, unknown> },
     ): Promise<void> => {
       const projects = await store.getProjects();
       const project = projects.find((p) => p.id === projectId);
