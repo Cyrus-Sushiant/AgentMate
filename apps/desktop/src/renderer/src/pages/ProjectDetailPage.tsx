@@ -169,10 +169,10 @@ export default function ProjectDetailPage(): React.JSX.Element {
         <ArrowLeft /> Projects
       </Button>
 
-      <div className="rounded-2xl border border-border bg-card p-5">
+      <div className="rounded-lg border border-border bg-card p-5">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="flex min-w-0 items-start gap-4">
-            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
               <Folder className="h-5 w-5" />
             </div>
             <div className="min-w-0 space-y-2">
@@ -351,7 +351,7 @@ export default function ProjectDetailPage(): React.JSX.Element {
         </div>
 
         <div className="space-y-4 xl:col-span-1">
-          <div className="rounded-2xl border border-border bg-card p-5">
+          <div className="rounded-lg border border-border bg-card p-5">
             <p className="mb-3 text-xs font-medium text-muted-foreground">Details</p>
             <dl className="space-y-3 text-sm">
               <div className="flex items-center justify-between gap-2">
@@ -886,7 +886,7 @@ function NotificationHookCard({
   }
 
   return (
-    <div className="rounded-2xl border border-border bg-card p-5">
+    <div className="rounded-lg border border-border bg-card p-5">
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2 text-sm font-semibold">
           <Icon className="h-4 w-4" /> {title}

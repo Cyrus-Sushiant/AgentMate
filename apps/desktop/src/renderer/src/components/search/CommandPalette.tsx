@@ -78,8 +78,8 @@ export function CommandPalette(): React.JSX.Element {
         <DialogPrimitive.Content
           onOpenAutoFocus={(e) => e.preventDefault()}
           className={cn(
-            'fixed left-1/2 top-[14%] z-50 w-full max-w-xl -translate-x-1/2 overflow-hidden rounded-2xl',
-            'border border-border bg-popover/90 text-popover-foreground shadow-2xl backdrop-blur-2xl',
+            'fixed left-1/2 top-[14%] z-50 w-full max-w-xl -translate-x-1/2 overflow-hidden rounded-lg',
+            'border border-border/60 bg-popover/60 text-popover-foreground shadow-2xl backdrop-blur-2xl backdrop-saturate-150',
             'data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0',
             'data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95',
           )}
@@ -89,7 +89,7 @@ export function CommandPalette(): React.JSX.Element {
             Search projects, prompt history, and skills.
           </DialogPrimitive.Description>
           <CommandPrimitive className="flex flex-col" loop>
-            <div className="flex items-center gap-2 border-b border-border px-4">
+            <div className="flex items-center gap-2 border-b border-border/60 px-4">
               <Search className="h-4 w-4 shrink-0 text-muted-foreground" />
               <CommandPrimitive.Input
                 autoFocus

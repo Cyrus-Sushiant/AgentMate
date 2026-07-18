@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
-import { Sparkles, WindowMaximize, WindowMinimize, X } from '@/components/icons';
+import { Search, Sparkles, WindowMaximize, WindowMinimize, X } from '@/components/icons';
 import { SimpleTooltip } from '@/components/ui/tooltip';
+import { useSearchStore } from '@/stores/searchStore';
 import { cn } from '@/lib/utils';
 
 function TrafficLight({
@@ -97,6 +98,25 @@ function NativeCaptionButtons({
   );
 }
 
+function SearchTrigger(): React.JSX.Element {
+  const openSearch = useSearchStore((s) => s.setOpen);
+  const isMac = window.agentmat.platform === 'darwin';
+
+  return (
+    <button
+      type="button"
+      onClick={() => openSearch(true)}
+      className="flex h-7 w-full items-center gap-2 rounded-lg border border-input bg-background/60 px-3 text-sm text-muted-foreground transition-colors hover:border-primary/40 hover:bg-background"
+    >
+      <Search className="h-3.5 w-3.5 shrink-0" />
+      <span className="flex-1 truncate text-left">Search projects, history, skills…</span>
+      <kbd className="hidden shrink-0 items-center gap-0.5 rounded border border-border px-1.5 py-0.5 text-[10px] sm:flex">
+        {isMac ? '⌘' : 'Ctrl'} K
+      </kbd>
+    </button>
+  );
+}
+
 export function TitleBar(): React.JSX.Element {
   const [isMaximized, setIsMaximized] = useState(false);
   const isMac = window.agentmat.platform === 'darwin';
@@ -126,6 +146,10 @@ export function TitleBar(): React.JSX.Element {
           </div>
           <span className="text-sm font-semibold tracking-tight text-foreground">AgentMate</span>
         </div>
+      </div>
+
+      <div className="absolute left-1/2 top-1/2 w-full max-w-md -translate-x-1/2 -translate-y-1/2 px-4 [-webkit-app-region:no-drag]">
+        <SearchTrigger />
       </div>
 
       {!isMac && <NativeCaptionButtons {...controlProps} />}

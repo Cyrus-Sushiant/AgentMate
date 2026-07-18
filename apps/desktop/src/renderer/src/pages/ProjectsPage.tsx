@@ -84,7 +84,7 @@ export default function ProjectsPage(): React.JSX.Element {
       {projectsQuery.isLoading ? (
         <p className="text-sm text-muted-foreground">Loading projects…</p>
       ) : projects.length === 0 ? (
-        <div className="flex flex-col items-center gap-3 rounded-2xl border border-dashed border-border py-16 text-center">
+        <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed border-border py-16 text-center">
           <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary">
             <FolderPlus className="h-5 w-5" />
           </div>

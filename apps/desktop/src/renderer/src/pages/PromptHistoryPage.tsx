@@ -140,7 +140,7 @@ export default function PromptHistoryPage(): React.JSX.Element {
       {historyQuery.isLoading ? (
         <p className="text-sm text-muted-foreground">Loading prompt history…</p>
       ) : historyQuery.isError ? (
-        <div className="flex flex-col items-center gap-3 rounded-2xl border border-dashed border-destructive/40 py-16 text-center">
+        <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed border-destructive/40 py-16 text-center">
           <p className="text-sm font-medium">Couldn't load prompt history.</p>
           <p className="max-w-sm text-sm text-muted-foreground">
             {historyQuery.error instanceof Error ? historyQuery.error.message : 'An unexpected error occurred.'}
@@ -150,7 +150,7 @@ export default function PromptHistoryPage(): React.JSX.Element {
           </Button>
         </div>
       ) : entries.length === 0 ? (
-        <div className="flex flex-col items-center gap-3 rounded-2xl border border-dashed border-border py-16 text-center">
+        <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed border-border py-16 text-center">
           <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary">
             <History className="h-5 w-5" />
           </div>

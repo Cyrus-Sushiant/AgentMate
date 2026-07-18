@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useIsFetching, useIsMutating } from '@tanstack/react-query';
-import { AnglesLeft, AnglesRight, Moon, Search, Sun, SunMoon, TerminalSquare } from '@/components/icons';
+import { AnglesLeft, AnglesRight, Moon, Sun, SunMoon, TerminalSquare } from '@/components/icons';
 import { Outlet, useLocation } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 import { TitleBar } from './TitleBar';
@@ -49,25 +49,6 @@ function ThemeToggle(): React.JSX.Element {
   );
 }
 
-function SearchTrigger(): React.JSX.Element {
-  const openSearch = useSearchStore((s) => s.setOpen);
-  const isMac = window.agentmat.platform === 'darwin';
-
-  return (
-    <button
-      type="button"
-      onClick={() => openSearch(true)}
-      className="flex h-9 w-full max-w-md items-center gap-2 rounded-lg border border-input bg-background/60 px-3 text-sm text-muted-foreground transition-colors hover:border-primary/40 hover:bg-background"
-    >
-      <Search className="h-3.5 w-3.5 shrink-0" />
-      <span className="flex-1 truncate text-left">Search projects, history, skills…</span>
-      <kbd className="hidden shrink-0 items-center gap-0.5 rounded border border-border px-1.5 py-0.5 text-[10px] sm:flex">
-        {isMac ? '⌘' : 'Ctrl'} K
-      </kbd>
-    </button>
-  );
-}
-
 function TopBar(): React.JSX.Element {
   const isTerminalOpen = useTerminalStore((s) => s.isOpen);
   const toggleDrawer = useTerminalStore((s) => s.toggleDrawer);
@@ -80,7 +61,7 @@ function TopBar(): React.JSX.Element {
   const pageSubtitle = usePageHeaderStore((s) => s.subtitle);
 
   return (
-    <div className="grid h-16 shrink-0 grid-cols-[1fr_auto_1fr] items-center gap-3 border-b border-border px-3">
+    <div className="flex h-16 shrink-0 items-center justify-between gap-3 border-b border-border px-3">
       <div className="flex min-w-0 items-center gap-3">
         <SimpleTooltip label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}>
           <Button variant="ghost" size="icon" onClick={toggleSidebar}>
@@ -93,10 +74,6 @@ function TopBar(): React.JSX.Element {
             <span className="truncate text-xs text-muted-foreground">{pageSubtitle}</span>
           )}
         </div>
-      </div>
-
-      <div className="flex justify-center">
-        <SearchTrigger />
       </div>
 
       <div className="flex shrink-0 items-center justify-end gap-2">
@@ -130,7 +107,9 @@ export function AppShell(): React.JSX.Element {
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent): void {
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+      // e.code matches the physical key regardless of keyboard layout (e.g. Persian),
+      // while e.key keeps non-QWERTY layouts like Dvorak working.
+      if ((e.metaKey || e.ctrlKey) && (e.code === 'KeyK' || e.key.toLowerCase() === 'k')) {
         e.preventDefault();
         toggleSearch();
       }

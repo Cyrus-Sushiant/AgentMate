@@ -41,7 +41,7 @@ export function LoadingOverlay({ show, label }: LoadingOverlayProps): React.JSX.
               animate={{ rotate: 360 }}
               transition={{ duration: 1.1, ease: 'linear', repeat: Infinity }}
             />
-            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-400 to-emerald-600 shadow-[0_0_18px_rgba(16,185,129,0.55)]">
+            <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-gradient-to-br from-emerald-400 to-emerald-600 shadow-[0_0_18px_rgba(16,185,129,0.55)]">
               <Sparkles className="h-6 w-6 text-black/80" />
             </div>
           </motion.div>
