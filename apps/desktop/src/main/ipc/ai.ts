@@ -1,6 +1,6 @@
 import { ipcMain } from 'electron';
 import { IPC } from '../../shared/ipcChannels';
-import type { AskAiInput, AskAiResult } from '../../shared/apiTypes';
+import type { AiProvider, AskAiInput, AskAiResult } from '../../shared/apiTypes';
 import { store } from '../store';
 
 async function askOpenAi(model: string, prompt: string): Promise<string> {
@@ -116,15 +116,17 @@ async function listOllamaModels(): Promise<string[]> {
   return (data.models ?? []).map((m) => m.name);
 }
 
+/** Shared by the Ask AI IPC handler and other features (e.g. git branch/commit suggestions). */
+export async function runAiPrompt(provider: AiProvider, model: string, prompt: string): Promise<string> {
+  if (provider === 'openai') return askOpenAi(model, prompt);
+  if (provider === 'gemini') return askGemini(model, prompt);
+  return askOllama(model, prompt);
+}
+
 export function registerAiHandlers(): void {
   ipcMain.handle(IPC.ai.ask, async (_event, input: AskAiInput): Promise<AskAiResult> => {
     try {
-      const text =
-        input.provider === 'openai'
-          ? await askOpenAi(input.model, input.prompt)
-          : input.provider === 'gemini'
-            ? await askGemini(input.model, input.prompt)
-            : await askOllama(input.model, input.prompt);
+      const text = await runAiPrompt(input.provider, input.model, input.prompt);
       return { ok: true, text };
     } catch (error) {
       return { ok: false, text: '', error: (error as Error).message };

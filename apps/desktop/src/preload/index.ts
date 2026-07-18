@@ -37,6 +37,10 @@ import type {
   NotificationSendResult,
   SendTestNotificationInput,
   ConfirmationForwardedPayload,
+  GitStatus,
+  GitOpResult,
+  CreatePullRequestInput,
+  CreatePullRequestResult,
 } from '../shared/apiTypes';
 
 interface TerminalDataPayload {
@@ -240,6 +244,22 @@ const notifications = {
   },
 };
 
+const git = {
+  status: (projectId: string): Promise<GitStatus> => ipcRenderer.invoke(IPC.git.status, projectId),
+  changeSummary: (projectId: string): Promise<string> =>
+    ipcRenderer.invoke(IPC.git.changeSummary, projectId),
+  fetch: (projectId: string): Promise<GitOpResult> => ipcRenderer.invoke(IPC.git.fetch, projectId),
+  pull: (projectId: string): Promise<GitOpResult> => ipcRenderer.invoke(IPC.git.pull, projectId),
+  push: (projectId: string): Promise<GitOpResult> => ipcRenderer.invoke(IPC.git.push, projectId),
+  sync: (projectId: string): Promise<GitOpResult> => ipcRenderer.invoke(IPC.git.sync, projectId),
+  createBranch: (projectId: string, branchName: string): Promise<GitOpResult> =>
+    ipcRenderer.invoke(IPC.git.createBranch, projectId, branchName),
+  commit: (projectId: string, message: string): Promise<GitOpResult> =>
+    ipcRenderer.invoke(IPC.git.commit, projectId, message),
+  createPullRequest: (input: CreatePullRequestInput): Promise<CreatePullRequestResult> =>
+    ipcRenderer.invoke(IPC.git.createPullRequest, input),
+};
+
 const windowControls = {
   minimize: (): Promise<void> => ipcRenderer.invoke(IPC.window.minimize),
   maximizeToggle: (): Promise<void> => ipcRenderer.invoke(IPC.window.maximizeToggle),
@@ -273,6 +293,7 @@ const agentmatApi = {
   ipGeo,
   scheduledTasks,
   notifications,
+  git,
 };
 
 export type AgentmatApi = typeof agentmatApi;

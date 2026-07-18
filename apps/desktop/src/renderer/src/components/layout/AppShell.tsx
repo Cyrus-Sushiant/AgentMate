@@ -1,22 +1,13 @@
 import { useEffect, useRef } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useIsFetching, useIsMutating } from '@tanstack/react-query';
-import {
-  AnglesLeft,
-  AnglesRight,
-  MessageSquare,
-  Moon,
-  Sun,
-  SunMoon,
-  TerminalSquare,
-} from '@/components/icons';
+import { AnglesLeft, AnglesRight, MessageSquare, TerminalSquare } from '@/components/icons';
 import { Outlet, useLocation } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 import { TitleBar } from './TitleBar';
 import { LoadingOverlay } from './LoadingOverlay';
 import { Button } from '@/components/ui/button';
 import { SimpleTooltip } from '@/components/ui/tooltip';
-import { useThemeStore } from '@/stores/themeStore';
 import { useTerminalStore } from '@/stores/terminalStore';
 import { useUiStore } from '@/stores/uiStore';
 import { usePageHeaderStore } from '@/stores/pageHeaderStore';
@@ -34,30 +25,6 @@ const PAGE_TRANSITION = {
   exit: { opacity: 0, y: -10, scale: 0.985, filter: 'blur(4px)' },
   transition: { duration: 0.32, ease: [0.22, 1, 0.36, 1] as const },
 };
-
-const THEME_CYCLE = ['light', 'dark', 'system'] as const;
-const THEME_ICON = { light: Sun, dark: Moon, system: SunMoon };
-
-function ThemeToggle(): React.JSX.Element {
-  const theme = useThemeStore((s) => s.theme);
-  const setTheme = useThemeStore((s) => s.setTheme);
-  const Icon = THEME_ICON[theme];
-
-  return (
-    <SimpleTooltip label={`Theme: ${theme}`}>
-      <Button
-        variant="ghost"
-        size="icon"
-        onClick={() => {
-          const next = THEME_CYCLE[(THEME_CYCLE.indexOf(theme) + 1) % THEME_CYCLE.length];
-          setTheme(next);
-        }}
-      >
-        <Icon className="h-4 w-4" />
-      </Button>
-    </SimpleTooltip>
-  );
-}
 
 function TopBar(): React.JSX.Element {
   const isTerminalOpen = useTerminalStore((s) => s.isOpen);
@@ -103,7 +70,6 @@ function TopBar(): React.JSX.Element {
             <MessageSquare className="h-4 w-4" />
           </Button>
         </SimpleTooltip>
-        <ThemeToggle />
       </div>
     </div>
   );

@@ -10,17 +10,24 @@ import {
   Check,
   CircleCheck,
   CircleQuestion,
+  CloudUpload,
   Copy,
+  Download,
   File,
   FileCog,
   Folder,
   FolderOpen,
   FolderTree,
+  GitBranch,
+  GitCommit,
+  GitPullRequest,
   Pencil,
   Play,
   Plug,
+  RefreshCw,
   Save,
   Send,
+  Sparkles,
   TerminalSquare,
   Trash2,
   TriangleAlert,
@@ -63,7 +70,9 @@ import { timeAgo } from '@/lib/time';
 import { usePageHeader } from '@/stores/pageHeaderStore';
 import { useCliStore } from '@/stores/cliStore';
 import { useTerminalStore } from '@/stores/terminalStore';
+import { useAskAiStore } from '@/stores/askAiStore';
 import { confirmDialog } from '@/stores/confirmStore';
+import type { AiProvider } from '../../../shared/apiTypes';
 
 const TARGET_AI_TO_CLI_ID: Record<string, string> = {
   Claude: 'claude-code',
@@ -274,6 +283,9 @@ export default function ProjectDetailPage(): React.JSX.Element {
               <TabsTrigger value="mcp" className="gap-1.5">
                 <Plug className="h-3.5 w-3.5" /> MCP
               </TabsTrigger>
+              <TabsTrigger value="git" className="gap-1.5">
+                <GitBranch className="h-3.5 w-3.5" /> Git
+              </TabsTrigger>
               <TabsTrigger value="schedule" className="gap-1.5">
                 <CalendarDays className="h-3.5 w-3.5" /> Schedule
               </TabsTrigger>
@@ -356,6 +368,10 @@ export default function ProjectDetailPage(): React.JSX.Element {
                   ))}
                 </div>
               )}
+            </TabsContent>
+
+            <TabsContent value="git" className="space-y-4">
+              <GitTab projectId={project.id} />
             </TabsContent>
 
             <TabsContent value="schedule" className="space-y-3">
@@ -697,6 +713,396 @@ function ScheduleTab({ projectId }: { projectId: string }): React.JSX.Element {
         </div>
       ))}
     </div>
+  );
+}
+
+/** Strips markdown fences/quotes and collapses to a single line — for AI-suggested branch names. */
+function sanitizeBranchName(text: string): string {
+  return text
+    .replace(/```[a-z]*\n?/gi, '')
+    .replace(/`/g, '')
+    .split('\n')[0]
+    .trim()
+    .replace(/^["']|["']$/g, '')
+    .trim()
+    .replace(/\s+/g, '-');
+}
+
+/** Strips markdown fences/quotes but keeps line breaks — for AI-suggested commit messages. */
+function sanitizeCommitMessage(text: string): string {
+  return text
+    .replace(/```[a-z]*\n?/gi, '')
+    .replace(/```/g, '')
+    .trim()
+    .replace(/^["']|["']$/g, '')
+    .trim();
+}
+
+function GitStatusBadge({ x, y }: { x: string; y: string }): React.JSX.Element {
+  const code = `${x}${y}`.trim();
+  const label =
+    code === '??'
+      ? 'untracked'
+      : code.includes('D')
+        ? 'deleted'
+        : code.includes('A')
+          ? 'added'
+          : code.includes('R')
+            ? 'renamed'
+            : 'modified';
+  const variant = label === 'deleted' ? 'destructive' : label === 'added' ? 'success' : 'outline';
+  return (
+    <Badge variant={variant} className="shrink-0 font-mono text-[10px] uppercase">
+      {label}
+    </Badge>
+  );
+}
+
+function GitTab({ projectId }: { projectId: string }): React.JSX.Element {
+  const queryClient = useQueryClient();
+  const provider = useAskAiStore((s) => s.provider);
+  const openaiModel = useAskAiStore((s) => s.openaiModel);
+  const ollamaModel = useAskAiStore((s) => s.ollamaModel);
+  const geminiModel = useAskAiStore((s) => s.geminiModel);
+  const model = provider === 'openai' ? openaiModel : provider === 'gemini' ? geminiModel : ollamaModel;
+
+  const [branchName, setBranchName] = useState('');
+  const [commitMessage, setCommitMessage] = useState('');
+  const [suggestingBranch, setSuggestingBranch] = useState(false);
+  const [suggestingCommit, setSuggestingCommit] = useState(false);
+  const [prOpen, setPrOpen] = useState(false);
+
+  const statusQuery = useQuery({
+    queryKey: queryKeys.gitStatus(projectId),
+    queryFn: () => window.agentmat.git.status(projectId),
+  });
+
+  function invalidateStatus(): void {
+    void queryClient.invalidateQueries({ queryKey: queryKeys.gitStatus(projectId) });
+  }
+
+  function reportOpResult(result: { ok: boolean; message: string }): void {
+    if (result.ok) {
+      toast.success(result.message);
+    } else {
+      toast.error(result.message);
+    }
+    invalidateStatus();
+  }
+
+  const fetchMutation = useMutation({
+    mutationFn: () => window.agentmat.git.fetch(projectId),
+    onSuccess: reportOpResult,
+  });
+  const pullMutation = useMutation({
+    mutationFn: () => window.agentmat.git.pull(projectId),
+    onSuccess: reportOpResult,
+  });
+  const pushMutation = useMutation({
+    mutationFn: () => window.agentmat.git.push(projectId),
+    onSuccess: reportOpResult,
+  });
+  const syncMutation = useMutation({
+    mutationFn: () => window.agentmat.git.sync(projectId),
+    onSuccess: reportOpResult,
+  });
+  const createBranchMutation = useMutation({
+    mutationFn: (name: string) => window.agentmat.git.createBranch(projectId, name),
+    onSuccess: (result) => {
+      reportOpResult(result);
+      if (result.ok) setBranchName('');
+    },
+  });
+  const commitMutation = useMutation({
+    mutationFn: (message: string) => window.agentmat.git.commit(projectId, message),
+    onSuccess: (result) => {
+      reportOpResult(result);
+      if (result.ok) setCommitMessage('');
+    },
+  });
+
+  async function requireAiModel(): Promise<boolean> {
+    if (!model.trim()) {
+      toast.error(`Choose a ${provider} model in Ask AI first.`);
+      return false;
+    }
+    return true;
+  }
+
+  async function handleSuggestBranchName(): Promise<void> {
+    if (!(await requireAiModel())) return;
+    setSuggestingBranch(true);
+    try {
+      const summary = await window.agentmat.git.changeSummary(projectId);
+      const prompt =
+        'Generate a single short git branch name (kebab-case, e.g. "feat/add-login" or ' +
+        '"fix/null-check", max 60 characters, no spaces, no quotes, no markdown) describing these ' +
+        `uncommitted changes. Reply with ONLY the branch name and nothing else.\n\n${summary}`;
+      const result = await window.agentmat.ai.ask({ provider: provider as AiProvider, model, prompt });
+      if (result.ok && result.text.trim()) {
+        setBranchName(sanitizeBranchName(result.text));
+      } else {
+        toast.error(result.error || 'AI did not return a branch name.');
+      }
+    } finally {
+      setSuggestingBranch(false);
+    }
+  }
+
+  async function handleSuggestCommitMessage(): Promise<void> {
+    if (!(await requireAiModel())) return;
+    setSuggestingCommit(true);
+    try {
+      const summary = await window.agentmat.git.changeSummary(projectId);
+      const prompt =
+        'Write a concise, conventional-commit style git commit message (a short summary line, ' +
+        'optionally followed by a brief body) describing these changes. Reply with ONLY the commit ' +
+        `message, no code fences, no extra commentary.\n\n${summary}`;
+      const result = await window.agentmat.ai.ask({ provider: provider as AiProvider, model, prompt });
+      if (result.ok && result.text.trim()) {
+        setCommitMessage(sanitizeCommitMessage(result.text));
+      } else {
+        toast.error(result.error || 'AI did not return a commit message.');
+      }
+    } finally {
+      setSuggestingCommit(false);
+    }
+  }
+
+  if (statusQuery.isLoading) {
+    return <p className="text-sm text-muted-foreground">Checking for a git repository…</p>;
+  }
+
+  if (!statusQuery.data?.isRepo) {
+    return <p className="text-sm text-muted-foreground">This folder isn't a git repository.</p>;
+  }
+
+  const status = statusQuery.data;
+  const anyOpPending =
+    fetchMutation.isPending || pullMutation.isPending || pushMutation.isPending || syncMutation.isPending;
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-card p-4">
+        <div className="flex flex-wrap items-center gap-2 text-sm">
+          <Badge variant="secondary" className="gap-1.5">
+            <GitBranch className="h-3 w-3" /> {status.branch ?? 'detached HEAD'}
+          </Badge>
+          {status.hasRemote && status.ahead > 0 && <Badge variant="warning">{status.ahead} ahead</Badge>}
+          {status.hasRemote && status.behind > 0 && <Badge variant="warning">{status.behind} behind</Badge>}
+          {!status.hasRemote && <Badge variant="outline">No remote configured</Badge>}
+          {status.files.length > 0 ? (
+            <Badge variant="outline">{status.files.length} changed file{status.files.length === 1 ? '' : 's'}</Badge>
+          ) : (
+            <Badge variant="success">Working tree clean</Badge>
+          )}
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={anyOpPending}
+            onClick={() => fetchMutation.mutate()}
+          >
+            <Download className="h-3.5 w-3.5" /> Fetch
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={anyOpPending || !status.hasRemote}
+            onClick={() => pullMutation.mutate()}
+          >
+            <Download className="h-3.5 w-3.5" /> Pull
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={anyOpPending}
+            onClick={() => pushMutation.mutate()}
+          >
+            <CloudUpload className="h-3.5 w-3.5" /> Push
+          </Button>
+          <Button disabled={anyOpPending || !status.hasRemote} onClick={() => syncMutation.mutate()}>
+            <RefreshCw className="h-3.5 w-3.5" /> Sync
+          </Button>
+        </div>
+      </div>
+
+      {status.files.length > 0 && (
+        <div className="space-y-1.5 rounded-lg border border-border bg-card p-4">
+          <p className="text-xs font-medium text-muted-foreground">Changed files</p>
+          <div className="max-h-48 space-y-1 overflow-y-auto">
+            {status.files.map((file) => (
+              <div key={file.path} className="flex items-center justify-between gap-2 text-sm">
+                <span className="truncate font-mono text-xs">{file.path}</span>
+                <GitStatusBadge x={file.x} y={file.y} />
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <div className="space-y-2 rounded-lg border border-border bg-card p-4">
+          <p className="flex items-center gap-1.5 text-sm font-medium">
+            <GitBranch className="h-3.5 w-3.5" /> Create branch
+          </p>
+          <Input
+            value={branchName}
+            onChange={(e) => setBranchName(e.target.value)}
+            placeholder="feat/my-change"
+          />
+          <div className="flex items-center gap-2 pt-1">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={suggestingBranch || status.files.length === 0}
+              onClick={() => void handleSuggestBranchName()}
+            >
+              <Sparkles className="h-3.5 w-3.5" /> {suggestingBranch ? 'Thinking…' : 'Suggest with AI'}
+            </Button>
+            <Button
+              size="sm"
+              disabled={createBranchMutation.isPending || !branchName.trim()}
+              onClick={() => createBranchMutation.mutate(branchName)}
+            >
+              Create
+            </Button>
+          </div>
+        </div>
+
+        <div className="space-y-2 rounded-lg border border-border bg-card p-4">
+          <p className="flex items-center gap-1.5 text-sm font-medium">
+            <GitCommit className="h-3.5 w-3.5" /> Commit changes
+          </p>
+          <Textarea
+            value={commitMessage}
+            onChange={(e) => setCommitMessage(e.target.value)}
+            placeholder="Describe what changed…"
+            rows={3}
+          />
+          <div className="flex items-center gap-2 pt-1">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={suggestingCommit || status.files.length === 0}
+              onClick={() => void handleSuggestCommitMessage()}
+            >
+              <Sparkles className="h-3.5 w-3.5" /> {suggestingCommit ? 'Thinking…' : 'Suggest with AI'}
+            </Button>
+            <Button
+              size="sm"
+              disabled={commitMutation.isPending || !commitMessage.trim() || status.files.length === 0}
+              onClick={() => commitMutation.mutate(commitMessage)}
+            >
+              Commit all changes
+            </Button>
+          </div>
+        </div>
+      </div>
+
+      <div className="flex items-center justify-between rounded-lg border border-border bg-card p-4">
+        <div>
+          <p className="flex items-center gap-1.5 text-sm font-medium">
+            <GitPullRequest className="h-3.5 w-3.5" /> Pull request
+          </p>
+          <p className="text-xs text-muted-foreground">
+            Pushes the current branch and opens a pull request via the GitHub CLI (or the compare page
+            in your browser if it isn't installed).
+          </p>
+        </div>
+        <Button variant="outline" onClick={() => setPrOpen(true)} disabled={!status.hasRemote}>
+          <GitPullRequest className="h-3.5 w-3.5" /> Create Pull Request
+        </Button>
+      </div>
+
+      <CreatePrDialog
+        projectId={projectId}
+        branch={status.branch}
+        open={prOpen}
+        onOpenChange={setPrOpen}
+        suggestedTitle={commitMessage.split('\n')[0]}
+      />
+    </div>
+  );
+}
+
+function CreatePrDialog({
+  projectId,
+  branch,
+  open,
+  onOpenChange,
+  suggestedTitle,
+}: {
+  projectId: string;
+  branch: string | null;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  suggestedTitle: string;
+}): React.JSX.Element {
+  const [title, setTitle] = useState('');
+  const [body, setBody] = useState('');
+  const [base, setBase] = useState('main');
+
+  useEffect(() => {
+    if (open) setTitle((current) => current || suggestedTitle);
+    // Only seed the title once, when the dialog opens — don't fight the user's edits.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
+  const createPrMutation = useMutation({
+    mutationFn: () => window.agentmat.git.createPullRequest({ projectId, title, body, base }),
+    onSuccess: (result) => {
+      if (result.ok) {
+        toast.success(result.usedFallback ? 'Opened compare page in your browser.' : 'Pull request created.');
+        if (result.url) void window.agentmat.shell.openExternal(result.url);
+        onOpenChange(false);
+        setTitle('');
+        setBody('');
+      } else {
+        toast.error(result.error ?? 'Failed to create pull request.');
+      }
+    },
+  });
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Create pull request</DialogTitle>
+          <DialogDescription>
+            From <span className="font-mono">{branch ?? 'current branch'}</span> into base branch below.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3">
+          <div className="space-y-1.5">
+            <Label>Title</Label>
+            <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="PR title" />
+          </div>
+          <div className="space-y-1.5">
+            <Label>Base branch</Label>
+            <Input value={base} onChange={(e) => setBase(e.target.value)} placeholder="main" />
+          </div>
+          <div className="space-y-1.5">
+            <Label>Description</Label>
+            <Textarea
+              value={body}
+              onChange={(e) => setBody(e.target.value)}
+              rows={5}
+              placeholder="What changed and why…"
+            />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button
+            disabled={createPrMutation.isPending || !title.trim()}
+            onClick={() => createPrMutation.mutate()}
+          >
+            <GitPullRequest className="h-4 w-4" /> Create Pull Request
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 

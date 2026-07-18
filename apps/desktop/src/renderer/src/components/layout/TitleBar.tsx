@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
-import { Search, Sparkles, WindowMaximize, WindowMinimize, X } from '@/components/icons';
+import { Search, WindowMaximize, WindowMinimize, X } from '@/components/icons';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { useSearchStore } from '@/stores/searchStore';
 import { cn } from '@/lib/utils';
+import appIcon from '@/assets/app-icon.png';
 
 function TrafficLight({
   color,
@@ -141,9 +142,7 @@ export function TitleBar(): React.JSX.Element {
       <div className="flex items-center gap-3">
         {isMac && <MacTrafficLights {...controlProps} />}
         <div className="flex items-center gap-2">
-          <div className="flex h-6 w-6 items-center justify-center rounded-md bg-gradient-to-br from-emerald-400 to-emerald-600 shadow-[0_0_12px_rgba(16,185,129,0.5)]">
-            <Sparkles className="h-3.5 w-3.5 text-black/80" />
-          </div>
+          <img src={appIcon} alt="" className="h-6 w-6 rounded-md shadow-[0_0_12px_rgba(16,185,129,0.5)]" />
           <span className="text-sm font-semibold tracking-tight text-foreground">AgentMate</span>
         </div>
       </div>

@@ -2,7 +2,16 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { MessageSquare, RefreshCw, Robot, Send, SettingsIcon } from '@/components/icons';
+import {
+  History,
+  MessageSquare,
+  RefreshCw,
+  Robot,
+  Send,
+  SettingsIcon,
+  Trash2,
+  TriangleAlert,
+} from '@/components/icons';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Combobox } from '@/components/ui/combobox';
@@ -36,6 +45,12 @@ const PROVIDER_LABEL: Record<AiProvider, string> = {
   ollama: 'Ollama',
 };
 
+const SUGGESTIONS = [
+  'Summarize what this project does',
+  'Help me write a commit message',
+  'Explain an error I ran into',
+];
+
 export interface AskAiChatProps {
   className?: string;
   /** 'modal' trims the message list to a fixed height for use inside a popover/dialog. */
@@ -59,10 +74,12 @@ export function AskAiChat({
   const setGeminiModel = useAskAiStore((s) => s.setGeminiModel);
   const messages = useAskAiStore((s) => s.messages);
   const addMessage = useAskAiStore((s) => s.addMessage);
+  const clearMessages = useAskAiStore((s) => s.clearMessages);
 
   const [prompt, setPrompt] = useState('');
   const [sending, setSending] = useState(false);
   const scrollEndRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const settingsQuery = useQuery({
     queryKey: queryKeys.settings,
@@ -131,6 +148,11 @@ export function AskAiChat({
     }
   }
 
+  function handleSuggestionClick(suggestion: string): void {
+    setPrompt(suggestion);
+    textareaRef.current?.focus();
+  }
+
   const configured =
     provider === 'openai'
       ? !!settingsQuery.data?.openaiApiKey
@@ -140,19 +162,34 @@ export function AskAiChat({
 
   return (
     <div className={cn('flex flex-1 flex-col gap-3 overflow-hidden', className)}>
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-background/40 p-2">
         <Tabs value={provider} onValueChange={(v) => setProvider(v as AiProvider)}>
-          <TabsList className="w-auto">
-            <TabsTrigger value="openai">OpenAI</TabsTrigger>
-            <TabsTrigger value="gemini">Gemini</TabsTrigger>
-            <TabsTrigger value="ollama">Ollama</TabsTrigger>
+          <TabsList className="h-8 w-auto border-none bg-foreground/[0.06] p-1 rounded-lg">
+            <TabsTrigger
+              value="openai"
+              className="h-6 rounded-md border-none px-2.5 text-xs data-[state=active]:bg-background data-[state=active]:shadow-sm"
+            >
+              OpenAI
+            </TabsTrigger>
+            <TabsTrigger
+              value="gemini"
+              className="h-6 rounded-md border-none px-2.5 text-xs data-[state=active]:bg-background data-[state=active]:shadow-sm"
+            >
+              Gemini
+            </TabsTrigger>
+            <TabsTrigger
+              value="ollama"
+              className="h-6 rounded-md border-none px-2.5 text-xs data-[state=active]:bg-background data-[state=active]:shadow-sm"
+            >
+              Ollama
+            </TabsTrigger>
           </TabsList>
         </Tabs>
 
         <div className="flex items-center gap-2">
           {provider === 'openai' && (
             <Combobox
-              className="w-48"
+              className="w-44"
               value={openaiModel}
               onChange={setOpenaiModel}
               options={OPENAI_MODEL_OPTIONS}
@@ -161,7 +198,7 @@ export function AskAiChat({
           )}
           {provider === 'gemini' && (
             <Combobox
-              className="w-48"
+              className="w-44"
               value={geminiModel}
               onChange={setGeminiModel}
               options={GEMINI_MODEL_OPTIONS}
@@ -171,7 +208,7 @@ export function AskAiChat({
           {provider === 'ollama' && (
             <>
               <Combobox
-                className="w-48"
+                className="w-44"
                 value={ollamaModel}
                 onChange={setOllamaModel}
                 options={(ollamaModelsQuery.data ?? []).map((name) => ({ value: name, label: name }))}
@@ -198,64 +235,129 @@ export function AskAiChat({
 
       <ScrollArea
         className={cn(
-          'flex-1 rounded-lg border border-border bg-background/40',
-          variant === 'modal' && 'h-[360px] flex-none',
+          'flex-1 rounded-xl border border-border bg-background/40',
+          variant === 'modal' && 'h-[420px] flex-none',
         )}
       >
-        <div className="flex flex-col gap-3 p-4">
+        <div className="flex flex-col gap-4 p-4">
           {messages.length === 0 ? (
-            <div className="flex flex-1 flex-col items-center justify-center gap-2 py-16 text-center text-sm text-muted-foreground">
-              <MessageSquare className="h-6 w-6 opacity-50" />
-              Ask anything — responses come straight from {PROVIDER_LABEL[provider]}.
+            <div className="flex flex-1 flex-col items-center justify-center gap-4 py-14 text-center">
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-foreground/[0.06] text-muted-foreground">
+                <MessageSquare className="h-5 w-5 opacity-70" />
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Ask anything — responses come straight from {PROVIDER_LABEL[provider]}.
+              </p>
+              <div className="flex flex-wrap justify-center gap-2 px-4">
+                {SUGGESTIONS.map((s) => (
+                  <button
+                    key={s}
+                    type="button"
+                    onClick={() => handleSuggestionClick(s)}
+                    className="rounded-full border border-border bg-background/60 px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground"
+                  >
+                    {s}
+                  </button>
+                ))}
+              </div>
             </div>
           ) : (
-            messages.map((m) => (
-              <div key={m.id} className={m.role === 'user' ? 'ml-auto max-w-[80%]' : 'mr-auto max-w-[80%]'}>
-                <div
-                  className={cn(
-                    'whitespace-pre-wrap rounded-lg px-3 py-2 text-sm',
-                    m.role === 'user'
-                      ? 'bg-primary text-primary-foreground'
-                      : m.role === 'error'
-                        ? 'border border-destructive/40 bg-destructive/10 text-destructive'
-                        : 'bg-foreground/[0.06] text-foreground',
-                  )}
-                >
-                  {m.content}
-                </div>
-                {m.role !== 'user' && (
-                  <div className="mt-1 flex items-center gap-1 text-[11px] text-muted-foreground">
-                    <Robot className="h-3 w-3" /> {PROVIDER_LABEL[m.provider]} · {m.model}
+            messages.map((m) =>
+              m.role === 'user' ? (
+                <div key={m.id} className="ml-auto max-w-[85%]">
+                  <div className="whitespace-pre-wrap rounded-2xl rounded-br-sm bg-primary px-3.5 py-2 text-sm text-primary-foreground">
+                    {m.content}
                   </div>
-                )}
+                </div>
+              ) : (
+                <div key={m.id} className="mr-auto flex max-w-[85%] items-start gap-2">
+                  <div
+                    className={cn(
+                      'mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full',
+                      m.role === 'error'
+                        ? 'bg-destructive/10 text-destructive'
+                        : 'bg-foreground/[0.08] text-foreground',
+                    )}
+                  >
+                    {m.role === 'error' ? (
+                      <TriangleAlert className="h-3 w-3" />
+                    ) : (
+                      <Robot className="h-3 w-3" />
+                    )}
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <div
+                      className={cn(
+                        'whitespace-pre-wrap rounded-2xl rounded-tl-sm px-3.5 py-2 text-sm',
+                        m.role === 'error'
+                          ? 'border border-destructive/40 bg-destructive/10 text-destructive'
+                          : 'bg-foreground/[0.06] text-foreground',
+                      )}
+                    >
+                      {m.content}
+                    </div>
+                    <span className="pl-1 text-[11px] text-muted-foreground">
+                      {PROVIDER_LABEL[m.provider]} · {m.model}
+                    </span>
+                  </div>
+                </div>
+              ),
+            )
+          )}
+          {sending && (
+            <div className="mr-auto flex items-center gap-2">
+              <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-foreground/[0.08] text-foreground">
+                <Robot className="h-3 w-3" />
               </div>
-            ))
+              <div className="flex items-center gap-1 rounded-2xl rounded-tl-sm bg-foreground/[0.06] px-3.5 py-2.5">
+                <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-muted-foreground [animation-delay:-0.3s]" />
+                <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-muted-foreground [animation-delay:-0.15s]" />
+                <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-muted-foreground" />
+              </div>
+            </div>
           )}
           <div ref={scrollEndRef} />
         </div>
       </ScrollArea>
 
-      <div className="flex items-end gap-2">
+      <div className="flex items-end gap-2 rounded-2xl border border-input bg-background p-1.5 pl-3 transition-colors focus-within:border-primary/50 focus-within:ring-2 focus-within:ring-ring/50">
         <Textarea
-          className="min-h-[52px] flex-1 resize-none"
+          ref={textareaRef}
+          className="min-h-[40px] flex-1 resize-none border-none bg-transparent p-1.5 shadow-none focus-visible:ring-0"
           placeholder="Type your question… (Enter to send, Shift+Enter for a new line)"
           value={prompt}
           onChange={(e) => setPrompt(e.target.value)}
           onKeyDown={handleKeyDown}
         />
-        <Button disabled={sending || !prompt.trim()} onClick={() => void handleSend()}>
-          <Send className="h-4 w-4" /> {sending ? 'Sending…' : 'Send'}
+        <Button
+          size="icon"
+          className="mb-0.5 h-9 w-9 shrink-0 rounded-full"
+          disabled={sending || !prompt.trim()}
+          onClick={() => void handleSend()}
+        >
+          <Send className="h-4 w-4" />
         </Button>
       </div>
 
-      {variant === 'modal' && onRequestViewHistory && messages.length > 0 && (
-        <button
-          type="button"
-          className="self-center text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
-          onClick={onRequestViewHistory}
-        >
-          View full history
-        </button>
+      {variant === 'modal' && messages.length > 0 && (
+        <div className="flex items-center justify-center gap-4">
+          <button
+            type="button"
+            className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+            onClick={clearMessages}
+          >
+            <Trash2 className="h-3 w-3" /> Clear
+          </button>
+          {onRequestViewHistory && (
+            <button
+              type="button"
+              className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+              onClick={onRequestViewHistory}
+            >
+              <History className="h-3 w-3" /> View full history
+            </button>
+          )}
+        </div>
       )}
     </div>
   );

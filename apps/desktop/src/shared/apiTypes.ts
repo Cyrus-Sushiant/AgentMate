@@ -138,6 +138,43 @@ export interface ConfirmationForwardedPayload {
   text: string;
 }
 
+export interface GitFileChange {
+  path: string;
+  /** Index (staged) status character from `git status --porcelain`. */
+  x: string;
+  /** Worktree (unstaged) status character from `git status --porcelain`. */
+  y: string;
+}
+
+export interface GitStatus {
+  isRepo: boolean;
+  branch: string | null;
+  ahead: number;
+  behind: number;
+  hasRemote: boolean;
+  files: GitFileChange[];
+}
+
+export interface GitOpResult {
+  ok: boolean;
+  message: string;
+}
+
+export interface CreatePullRequestInput {
+  projectId: string;
+  title: string;
+  body: string;
+  base?: string;
+}
+
+export interface CreatePullRequestResult {
+  ok: boolean;
+  url?: string;
+  error?: string;
+  /** True when the GitHub CLI wasn't available and we opened a compare page in the browser instead. */
+  usedFallback?: boolean;
+}
+
 export interface DiskUsage {
   /** Drive letter (Windows) or device name (macOS/Linux) — stable across samples. */
   id: string;

@@ -15,8 +15,12 @@ import {
   faCircleQuestion,
   faClock,
   faClockRotateLeft,
+  faCodeBranch,
+  faCodeCommit,
+  faCodePullRequest,
   faComments,
   faCloudArrowDown,
+  faCloudArrowUp,
   faCopy,
   faDisplay,
   faDownload,
@@ -149,3 +153,9 @@ export const Plug = makeIcon(faPlug);
 
 // Ask AI icons.
 export const MessageSquare = makeIcon(faComments);
+
+// Git tab icons.
+export const GitBranch = makeIcon(faCodeBranch);
+export const GitCommit = makeIcon(faCodeCommit);
+export const GitPullRequest = makeIcon(faCodePullRequest);
+export const CloudUpload = makeIcon(faCloudArrowUp);

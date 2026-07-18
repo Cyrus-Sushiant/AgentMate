@@ -5,6 +5,7 @@ import { registerActivityHandlers } from './ipc/activity';
 import { registerAiHandlers } from './ipc/ai';
 import { registerCliDetectionHandlers } from './ipc/cliDetection';
 import { registerFileSystemHandlers } from './ipc/fileSystem';
+import { registerGitHandlers } from './ipc/git';
 import { registerIpGeoHandlers } from './ipc/ipGeo';
 import { registerMcpHandlers } from './ipc/mcp';
 import { registerNotificationHandlers } from './ipc/notifications';
@@ -32,7 +33,7 @@ if (!isSingleInstance) {
 
 function createMainWindow(): void {
   const win = new BrowserWindow({
-    width: 1360,
+    width: 1440,
     height: 860,
     minWidth: 960,
     minHeight: 600,
@@ -94,6 +95,7 @@ function registerAllIpcHandlers(): void {
   registerScheduledTaskHandlers();
   registerNotificationHandlers();
   registerAiHandlers();
+  registerGitHandlers();
 }
 
 app.whenReady().then(() => {

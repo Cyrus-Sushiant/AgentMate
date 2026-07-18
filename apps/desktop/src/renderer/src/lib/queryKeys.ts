@@ -18,4 +18,5 @@ export const queryKeys = {
     ['cli-update-check', cliId, version] as const,
   scheduledTasks: (projectId: string) => ['scheduled-tasks', projectId] as const,
   claudeHooks: (projectId: string) => ['claude-hooks', projectId] as const,
+  gitStatus: (projectId: string) => ['git-status', projectId] as const,
 };

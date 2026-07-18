@@ -109,4 +109,15 @@ export const IPC = {
     isMaximized: 'window:isMaximized',
     onMaximizedChange: 'window:onMaximizedChange',
   },
+  git: {
+    status: 'git:status',
+    changeSummary: 'git:changeSummary',
+    fetch: 'git:fetch',
+    pull: 'git:pull',
+    push: 'git:push',
+    sync: 'git:sync',
+    createBranch: 'git:createBranch',
+    commit: 'git:commit',
+    createPullRequest: 'git:createPullRequest',
+  },
 } as const;
