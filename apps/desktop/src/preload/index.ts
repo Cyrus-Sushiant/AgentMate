@@ -29,6 +29,7 @@ import type {
   InstalledMcpServerRecord,
   SkillsShDetail,
   SkillsShSearchResult,
+  InstallFromSkillsShInput,
   AddPromptHistoryInput,
   PromptHistoryEntry,
   TranslateTextInput,
@@ -161,6 +162,8 @@ const skills = {
     ipcRenderer.invoke(IPC.skills.searchSkillsSh, query),
   getSkillsShDetail: (skillPath: string): Promise<SkillsShDetail> =>
     ipcRenderer.invoke(IPC.skills.getSkillsShDetail, skillPath),
+  installFromSkillsSh: (input: InstallFromSkillsShInput): Promise<void> =>
+    ipcRenderer.invoke(IPC.skills.installFromSkillsSh, input),
 };
 
 const mcp = {
@@ -194,8 +197,14 @@ const tools = {
   detectAll: (): Promise<InstalledAgentTool[]> => ipcRenderer.invoke(IPC.tools.detectAll),
   getInstallCommand: (toolId: string): Promise<string | null> =>
     ipcRenderer.invoke(IPC.tools.getInstallCommand, toolId),
-  getDockerCommand: (toolId: string, action: 'start' | 'stop' | 'reset'): Promise<string | null> =>
-    ipcRenderer.invoke(IPC.tools.getDockerCommand, toolId, action),
+  getUninstallCommand: (toolId: string): Promise<string | null> =>
+    ipcRenderer.invoke(IPC.tools.getUninstallCommand, toolId),
+  getInteractiveLaunchCommand: (toolId: string): Promise<string | null> =>
+    ipcRenderer.invoke(IPC.tools.getInteractiveLaunchCommand, toolId),
+  getDockerCommand: (
+    toolId: string,
+    action: 'run' | 'start' | 'stop' | 'reset' | 'remove',
+  ): Promise<string | null> => ipcRenderer.invoke(IPC.tools.getDockerCommand, toolId, action),
 };
 
 const fs = {

@@ -196,6 +196,7 @@ export default function McpPage(): React.JSX.Element {
             placeholder="Choose a project"
             searchPlaceholder="Search projects…"
             options={projectsQuery.data?.map((p) => ({ value: p.id, label: p.name })) ?? []}
+            clearable
           />
         </div>
 

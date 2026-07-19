@@ -9,6 +9,7 @@ export interface AskAiMessage {
   provider: AiProvider;
   model: string;
   createdAt: string;
+  bookmarked?: boolean;
 }
 
 interface AskAiState {
@@ -26,6 +27,8 @@ interface AskAiState {
   setGeminiModel: (model: string) => void;
   addMessage: (message: AskAiMessage) => void;
   clearMessages: () => void;
+  toggleBookmark: (id: string) => void;
+  replaceMessage: (id: string, message: AskAiMessage) => void;
 }
 
 export const useAskAiStore = create<AskAiState>()(
@@ -45,6 +48,12 @@ export const useAskAiStore = create<AskAiState>()(
       setGeminiModel: (geminiModel) => set({ geminiModel }),
       addMessage: (message) => set((s) => ({ messages: [...s.messages, message] })),
       clearMessages: () => set({ messages: [] }),
+      toggleBookmark: (id) =>
+        set((s) => ({
+          messages: s.messages.map((m) => (m.id === id ? { ...m, bookmarked: !m.bookmarked } : m)),
+        })),
+      replaceMessage: (id, message) =>
+        set((s) => ({ messages: s.messages.map((m) => (m.id === id ? message : m)) })),
     }),
     {
       name: 'agentmate-ask-ai',

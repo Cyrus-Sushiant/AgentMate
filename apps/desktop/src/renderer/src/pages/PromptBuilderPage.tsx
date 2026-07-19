@@ -14,7 +14,13 @@ import {
   TerminalSquare,
   Trash2,
 } from '@/components/icons';
-import { CLI_REGISTRY, PROMPT_TYPES, TARGET_AIS, generatePrompt } from '@agentmat/core';
+import {
+  CLI_REGISTRY,
+  PROMPT_TYPES,
+  TARGET_AIS,
+  buildPromptGenerationRequest,
+  generatePrompt,
+} from '@agentmat/core';
 import type { PromptType, TargetAI } from '@agentmat/core';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -116,6 +122,7 @@ export default function PromptBuilderPage(): React.JSX.Element {
   const [saveDialogOpen, setSaveDialogOpen] = useState(false);
   const [templateName, setTemplateName] = useState('');
   const [isTranslating, setIsTranslating] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
   const [scheduleQueue, setScheduleQueue] = useState<ScheduleQueueItem[]>([]);
 
   const queryClient = useQueryClient();
@@ -127,6 +134,11 @@ export default function PromptBuilderPage(): React.JSX.Element {
     queryFn: () => window.agentmat.projects.list(),
   });
   const projects = projectsQuery.data ?? [];
+
+  const settingsQuery = useQuery({
+    queryKey: queryKeys.settings,
+    queryFn: () => window.agentmat.settings.get(),
+  });
 
   const saveTemplateMutation = useMutation({
     mutationFn: () =>
@@ -201,15 +213,52 @@ export default function PromptBuilderPage(): React.JSX.Element {
     }
   }
 
-  function handleGenerate(): void {
+  async function handleGenerate(): Promise<void> {
     if (!rawInput.trim()) {
       toast.error('Describe what you want before generating a prompt.');
       return;
     }
+
+    const settings = settingsQuery.data ?? (await window.agentmat.settings.get());
+    const provider = settings.promptBuilderProvider;
+    const model =
+      provider === 'openai'
+        ? settings.openaiModel
+        : provider === 'gemini'
+          ? settings.geminiModel
+          : settings.ollamaModel;
+    if (!model.trim()) {
+      toast.error(`Set a ${provider} model in Settings first.`);
+      return;
+    }
+
     setGenerated('');
-    const content = generatePrompt({ rawInput, promptType, targetAI });
-    setGenerated(content);
-    void logHistory('generate', content);
+    setIsGenerating(true);
+    try {
+      // Normalize the description to English before it's inserted into the AI request,
+      // regardless of what language the user typed it in.
+      const englishInput = await window.agentmat.translate.text({
+        text: rawInput,
+        targetLang: 'en',
+      });
+      const request = buildPromptGenerationRequest({
+        rawInput: englishInput || rawInput,
+        promptType,
+        targetAI,
+      });
+      const result = await window.agentmat.ai.ask({ provider, model, prompt: request });
+      if (!result.ok) {
+        toast.error(result.error || 'Prompt generation failed.');
+        return;
+      }
+      const content = result.text.trim();
+      setGenerated(content);
+      void logHistory('generate', content);
+    } catch (error) {
+      toast.error((error as Error).message || 'Prompt generation failed.');
+    } finally {
+      setIsGenerating(false);
+    }
   }
 
   async function handleTranslate(): Promise<void> {
@@ -303,6 +352,7 @@ export default function PromptBuilderPage(): React.JSX.Element {
                   placeholder="No project"
                   emptyText="No projects yet."
                   options={projects.map((p) => ({ value: p.id, label: p.name }))}
+                  clearable
                 />
               </div>
               <div className="space-y-2">
@@ -387,8 +437,8 @@ export default function PromptBuilderPage(): React.JSX.Element {
               </div>
             )}
 
-            <Button onClick={handleGenerate} className="w-full">
-              <Sparkles /> Generate Prompt
+            <Button onClick={() => void handleGenerate()} disabled={isGenerating} className="w-full">
+              <Sparkles /> {isGenerating ? 'Generating…' : 'Generate Prompt'}
             </Button>
 
             <div className="flex items-center gap-2">

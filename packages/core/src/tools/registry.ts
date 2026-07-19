@@ -24,6 +24,11 @@ export const AGENT_TOOL_REGISTRY: AgentToolDefinition[] = [
       darwin: 'npm install -g 9router',
       linux: 'npm install -g 9router',
     },
+    uninstallCommand: {
+      win32: 'npm uninstall -g 9router',
+      darwin: 'npm uninstall -g 9router',
+      linux: 'npm uninstall -g 9router',
+    },
     detectCommand: { command: '9router', args: ['--version'] },
     docker: {
       image: 'decolua/9router:latest',
@@ -60,9 +65,13 @@ export const AGENT_TOOL_REGISTRY: AgentToolDefinition[] = [
     author: 'DietrichGebert',
     official: false,
     repositoryUrl: 'https://github.com/DietrichGebert/ponytail',
-    installKind: 'manual',
-    manualInstallInstructions:
-      '/plugin marketplace add DietrichGebert/ponytail\n/plugin install ponytail@ponytail',
+    installKind: 'interactive',
+    interactiveInstall: {
+      launchCommand: { win32: 'claude', darwin: 'claude', linux: 'claude' },
+      pasteCommands:
+        '/plugin marketplace add DietrichGebert/ponytail\n/plugin install ponytail@ponytail',
+    },
+    manualUninstallInstructions: '/plugin uninstall ponytail@ponytail',
     settingsFields: [
       {
         key: 'mode',
@@ -100,6 +109,14 @@ export const AGENT_TOOL_REGISTRY: AgentToolDefinition[] = [
       darwin: 'brew install rtk',
       linux: 'curl -fsSL https://raw.githubusercontent.com/rtk-ai/rtk/refs/heads/master/install.sh | sh',
       win32: 'cargo install --git https://github.com/rtk-ai/rtk',
+    },
+    // `rtk init -g --uninstall` removes the agent hook — the part that actually affects agent
+    // behavior — on every OS; also uninstalling the binary itself is OS-specific (brew/cargo)
+    // and left to the user, since we don't know which install method they used.
+    uninstallCommand: {
+      win32: 'rtk init -g --uninstall',
+      darwin: 'rtk init -g --uninstall',
+      linux: 'rtk init -g --uninstall',
     },
     detectCommand: { command: 'rtk', args: ['--version'] },
     settingsFields: [
@@ -179,6 +196,11 @@ export const AGENT_TOOL_REGISTRY: AgentToolDefinition[] = [
       darwin: 'npm i -g @colbymchenry/codegraph && codegraph install',
       linux: 'npm i -g @colbymchenry/codegraph && codegraph install',
     },
+    uninstallCommand: {
+      win32: 'codegraph uninstall',
+      darwin: 'codegraph uninstall',
+      linux: 'codegraph uninstall',
+    },
     detectCommand: { command: 'codegraph', args: ['--version'] },
     quickActions: [
       {
@@ -230,6 +252,20 @@ export function getToolInstallCommandForCurrentOS(
   return tool.installCommand?.[platform] ?? null;
 }
 
+export function getToolUninstallCommandForCurrentOS(
+  tool: AgentToolDefinition,
+  platform: SupportedOS,
+): string | null {
+  return tool.uninstallCommand?.[platform] ?? null;
+}
+
+export function getInteractiveLaunchCommandForCurrentOS(
+  tool: AgentToolDefinition,
+  platform: SupportedOS,
+): string | null {
+  return tool.interactiveInstall?.launchCommand[platform] ?? null;
+}
+
 export function getDockerRunCommand(tool: AgentToolDefinition): string | null {
   if (!tool.docker) return null;
   return `docker run -d --name ${tool.docker.containerName} ${tool.docker.runArgs.join(' ')} ${tool.docker.image}`;
@@ -250,4 +286,10 @@ export function getDockerResetCommand(tool: AgentToolDefinition): string | null 
   const runCommand = getDockerRunCommand(tool);
   if (!runCommand) return null;
   return `docker rm -f ${tool.docker.containerName} && ${runCommand}`;
+}
+
+/** Deletes the container outright — unlike reset, doesn't recreate it. */
+export function getDockerRemoveCommand(tool: AgentToolDefinition): string | null {
+  if (!tool.docker) return null;
+  return `docker rm -f ${tool.docker.containerName}`;
 }

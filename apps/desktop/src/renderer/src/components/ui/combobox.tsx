@@ -1,7 +1,7 @@
 import * as React from 'react';
 import * as PopoverPrimitive from '@radix-ui/react-popover';
 import { Command as CommandPrimitive } from 'cmdk';
-import { Check, ChevronsUpDown, Search } from '@/components/icons';
+import { Check, ChevronsUpDown, Search, X } from '@/components/icons';
 import { cn } from '@/lib/utils';
 
 export interface ComboboxOption {
@@ -19,6 +19,8 @@ export interface ComboboxProps {
   emptyText?: string;
   className?: string;
   disabled?: boolean;
+  /** Shows an "x" in place of the chevron once a value is selected, so it can be reset to empty. */
+  clearable?: boolean;
 }
 
 export function Combobox({
@@ -30,6 +32,7 @@ export function Combobox({
   emptyText = 'No results found.',
   className,
   disabled,
+  clearable,
 }: ComboboxProps): React.JSX.Element {
   const [open, setOpen] = React.useState(false);
   const selected = options.find((o) => o.value === value);
@@ -50,7 +53,22 @@ export function Combobox({
           <span className={cn('truncate', !selected && 'text-muted-foreground')}>
             {selected ? selected.label : placeholder}
           </span>
-          <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-50" />
+          {clearable && selected && !disabled ? (
+            <span
+              role="button"
+              aria-label="Clear selection"
+              tabIndex={-1}
+              onClick={(e) => {
+                e.stopPropagation();
+                onChange('');
+              }}
+              className="shrink-0 rounded p-0.5 opacity-50 hover:bg-foreground/10 hover:opacity-100"
+            >
+              <X className="h-3.5 w-3.5" />
+            </span>
+          ) : (
+            <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-50" />
+          )}
         </button>
       </PopoverPrimitive.Trigger>
       <PopoverPrimitive.Portal>

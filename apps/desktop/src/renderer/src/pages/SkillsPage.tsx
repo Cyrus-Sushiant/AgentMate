@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useLocation, useSearchParams } from 'react-router-dom';
+import { useLocation } from 'react-router-dom';
 import { toast } from 'sonner';
 import {
+  Check,
   CircleCheck,
   Copy,
   ExternalLink,
@@ -33,6 +34,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { queryKeys } from '@/lib/queryKeys';
+import { cn } from '@/lib/utils';
 import { usePageHeader } from '@/stores/pageHeaderStore';
 
 const SOURCE_TYPES: { value: SkillRepositorySourceType; label: string }[] = [
@@ -56,6 +58,11 @@ interface SkillsShDisplayEntry {
   description?: string;
 }
 
+/** What the install picker modal is currently installing, and where it came from. */
+type InstallTarget =
+  | { kind: 'repo'; skillId: string; skillName: string }
+  | { kind: 'skillsSh'; skill: SkillsShDisplayEntry };
+
 const installsFormatter = new Intl.NumberFormat('en', {
   notation: 'compact',
   maximumFractionDigits: 1,
@@ -75,12 +82,10 @@ function liveResultToDisplayEntry(r: SkillsShSearchResult): SkillsShDisplayEntry
 }
 
 export default function SkillsPage(): React.JSX.Element {
-  const [searchParams] = useSearchParams();
   const location = useLocation();
   const navState = location.state as { repositoryId?: string; query?: string } | null;
   const queryClient = useQueryClient();
 
-  const [selectedProjectId, setSelectedProjectId] = useState(searchParams.get('projectId') ?? '');
   const [selectedRepoId, setSelectedRepoId] = useState<string>(navState?.repositoryId ?? '');
   const [search, setSearch] = useState(navState?.query ?? '');
   const [addRepoOpen, setAddRepoOpen] = useState(false);
@@ -93,6 +98,10 @@ export default function SkillsPage(): React.JSX.Element {
   const [shOfficialOnly, setShOfficialOnly] = useState(false);
   const [shSelected, setShSelected] = useState<SkillsShDisplayEntry | null>(null);
 
+  const [installTarget, setInstallTarget] = useState<InstallTarget | null>(null);
+  const [installPickerProjectIds, setInstallPickerProjectIds] = useState<Set<string>>(new Set());
+  const [installPickerSearch, setInstallPickerSearch] = useState('');
+
   useEffect(() => {
     const timer = setTimeout(() => setShDebouncedSearch(shSearch), 350);
     return () => clearTimeout(timer);
@@ -102,6 +111,16 @@ export default function SkillsPage(): React.JSX.Element {
     queryKey: queryKeys.projects,
     queryFn: () => window.agentmat.projects.list(),
   });
+
+  const filteredProjectsForPicker = useMemo(() => {
+    const projects = projectsQuery.data ?? [];
+    const q = installPickerSearch.trim().toLowerCase();
+    if (!q) return projects;
+    return projects.filter(
+      (p) => p.name.toLowerCase().includes(q) || p.folderPath.toLowerCase().includes(q),
+    );
+  }, [projectsQuery.data, installPickerSearch]);
+
   const reposQuery = useQuery({
     queryKey: queryKeys.repositories,
     queryFn: () => window.agentmat.skills.listRepositories(),
@@ -117,12 +136,6 @@ export default function SkillsPage(): React.JSX.Element {
     queryKey: queryKeys.repositoryIndex(selectedRepoId),
     queryFn: () => window.agentmat.skills.getRepositoryIndex(selectedRepoId),
     enabled: !!selectedRepoId,
-  });
-
-  const installedSkillsQuery = useQuery({
-    queryKey: queryKeys.installedSkills(selectedProjectId),
-    queryFn: () => window.agentmat.skills.listInstalled(selectedProjectId),
-    enabled: !!selectedProjectId,
   });
 
   const addRepoMutation = useMutation({
@@ -159,36 +172,51 @@ export default function SkillsPage(): React.JSX.Element {
     onError: (error: Error) => toast.error(error.message),
   });
 
-  const installMutation = useMutation({
-    mutationFn: (skillId: string) =>
-      window.agentmat.skills.install({
-        projectId: selectedProjectId,
-        repositoryId: selectedRepoId,
-        skillId,
-      }),
-    onSuccess: () => {
-      toast.success('Skill installed.');
-      void queryClient.invalidateQueries({
-        queryKey: queryKeys.installedSkills(selectedProjectId),
-      });
+  const installBatchMutation = useMutation({
+    mutationFn: async (projectIds: string[]) => {
+      if (!installTarget) return { succeeded: [] as string[], failed: [] as string[] };
+      const results = await Promise.allSettled(
+        projectIds.map((projectId) =>
+          installTarget.kind === 'repo'
+            ? window.agentmat.skills.install({
+                projectId,
+                repositoryId: selectedRepoId,
+                skillId: installTarget.skillId,
+              })
+            : window.agentmat.skills.installFromSkillsSh({
+                projectId,
+                owner: installTarget.skill.owner,
+                repo: installTarget.skill.repo,
+                skillName: installTarget.skill.name,
+              }),
+        ),
+      );
+      const succeeded = projectIds.filter((_, i) => results[i].status === 'fulfilled');
+      const failed = projectIds.filter((_, i) => results[i].status === 'rejected');
+      return { succeeded, failed };
+    },
+    onSuccess: ({ succeeded, failed }) => {
+      for (const projectId of succeeded) {
+        void queryClient.invalidateQueries({ queryKey: queryKeys.installedSkills(projectId) });
+      }
+      if (succeeded.length > 0) {
+        toast.success(
+          `Installed into ${succeeded.length} project${succeeded.length === 1 ? '' : 's'}.`,
+        );
+      }
+      if (failed.length > 0) {
+        toast.error(
+          `Failed to install into ${failed.length} project${failed.length === 1 ? '' : 's'}.`,
+        );
+      }
+      if (failed.length === 0) {
+        setInstallTarget(null);
+        setInstallPickerProjectIds(new Set());
+        setInstallPickerSearch('');
+      }
     },
     onError: (error: Error) => toast.error(error.message),
   });
-
-  const removeSkillMutation = useMutation({
-    mutationFn: (skillId: string) =>
-      window.agentmat.skills.remove({ projectId: selectedProjectId, skillId }),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({
-        queryKey: queryKeys.installedSkills(selectedProjectId),
-      });
-    },
-  });
-
-  const installedIds = useMemo(
-    () => new Set(installedSkillsQuery.data?.map((s) => s.skillId) ?? []),
-    [installedSkillsQuery.data],
-  );
 
   const filteredSkills = useMemo(() => {
     const skills = repoIndexQuery.data?.skills ?? [];
@@ -250,10 +278,28 @@ export default function SkillsPage(): React.JSX.Element {
     toast.success('Install command copied to clipboard.');
   }
 
-  usePageHeader(
-    'Skill Marketplace',
-    'Install skills into a project from configurable repositories.',
-  );
+  function openInstallPicker(target: InstallTarget): void {
+    setInstallTarget(target);
+    setInstallPickerProjectIds(new Set());
+    setInstallPickerSearch('');
+  }
+
+  function toggleInstallPickerProject(projectId: string): void {
+    setInstallPickerProjectIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(projectId)) next.delete(projectId);
+      else next.add(projectId);
+      return next;
+    });
+  }
+
+  const installTargetName = installTarget
+    ? installTarget.kind === 'repo'
+      ? installTarget.skillName
+      : installTarget.skill.name
+    : '';
+
+  usePageHeader('Skill Marketplace', 'Install skills from configurable repositories or skills.sh.');
 
   return (
     <div className="space-y-6 p-6">
@@ -271,18 +317,6 @@ export default function SkillsPage(): React.JSX.Element {
           </div>
 
           <div className="flex flex-wrap items-end gap-3">
-            <div className="space-y-1.5">
-              <Label>Target project</Label>
-              <Combobox
-                className="w-56"
-                value={selectedProjectId}
-                onChange={setSelectedProjectId}
-                placeholder="Choose a project"
-                searchPlaceholder="Search projects…"
-                options={projectsQuery.data?.map((p) => ({ value: p.id, label: p.name })) ?? []}
-              />
-            </div>
-
             <div className="space-y-1.5">
               <Label>Repository</Label>
               <div className="flex items-center gap-2">
@@ -333,69 +367,55 @@ export default function SkillsPage(): React.JSX.Element {
             </div>
           </div>
 
-          {!selectedProjectId && (
-            <p className="text-sm text-amber-500">
-              Choose a target project to enable installing skills.
-            </p>
-          )}
-
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {filteredSkills.map((skill) => {
-              const isInstalled = installedIds.has(skill.id);
-              return (
-                <Card key={skill.id} className="flex flex-col">
-                  <CardHeader>
-                    <div className="flex items-start justify-between gap-2">
-                      <CardTitle>{skill.name}</CardTitle>
-                      <Badge variant="outline">{skill.category}</Badge>
-                    </div>
-                    <CardDescription>{skill.description}</CardDescription>
-                  </CardHeader>
-                  <CardContent className="mt-auto space-y-3">
-                    <div className="flex flex-wrap gap-1.5">
-                      {skill.tags.map((tag) => (
-                        <Badge key={tag} variant="secondary">
-                          {tag}
-                        </Badge>
-                      ))}
-                    </div>
-                    <div className="text-xs text-muted-foreground">
-                      {skill.author} · v{skill.version}
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {isInstalled ? (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => removeSkillMutation.mutate(skill.id)}
-                        >
-                          <Trash2 /> Remove
-                        </Button>
-                      ) : (
-                        <Button
-                          size="sm"
-                          disabled={!selectedProjectId || installMutation.isPending}
-                          onClick={() => installMutation.mutate(skill.id)}
-                        >
-                          Install
-                        </Button>
-                      )}
-                      {skill.documentationUrl && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() =>
-                            void window.agentmat.shell.openExternal(skill.documentationUrl!)
-                          }
-                        >
-                          Docs
-                        </Button>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })}
+            {filteredSkills.map((skill) => (
+              <Card key={skill.id} className="flex flex-col">
+                <CardHeader>
+                  <div className="flex items-start justify-between gap-2">
+                    <CardTitle>{skill.name}</CardTitle>
+                    <Badge variant="outline">{skill.category}</Badge>
+                  </div>
+                  <CardDescription>{skill.description}</CardDescription>
+                </CardHeader>
+                <CardContent className="mt-auto space-y-3">
+                  <div className="flex flex-wrap gap-1.5">
+                    {skill.tags.map((tag) => (
+                      <Badge key={tag} variant="secondary">
+                        {tag}
+                      </Badge>
+                    ))}
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    {skill.author} · v{skill.version}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      size="sm"
+                      onClick={() =>
+                        openInstallPicker({
+                          kind: 'repo',
+                          skillId: skill.id,
+                          skillName: skill.name,
+                        })
+                      }
+                    >
+                      Install
+                    </Button>
+                    {skill.documentationUrl && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() =>
+                          void window.agentmat.shell.openExternal(skill.documentationUrl!)
+                        }
+                      >
+                        Docs
+                      </Button>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
           </div>
         </TabsContent>
 
@@ -506,6 +526,12 @@ export default function SkillsPage(): React.JSX.Element {
                   </div>
                   <div className="text-xs text-muted-foreground">{skill.repo}</div>
                   <div className="flex items-center gap-2">
+                    <Button
+                      size="sm"
+                      onClick={() => openInstallPicker({ kind: 'skillsSh', skill })}
+                    >
+                      Install
+                    </Button>
                     <Button size="sm" variant="outline" onClick={() => setShSelected(skill)}>
                       <Eye /> View
                     </Button>
@@ -607,7 +633,7 @@ export default function SkillsPage(): React.JSX.Element {
               {shSelected?.repo} · {shModalInstallsLabel} installs
             </DialogDescription>
           </DialogHeader>
-          <div className="-mx-1 min-h-0 flex-1 space-y-3 overflow-y-auto px-1">
+          <div className="-mx-1 -my-1 min-h-0 flex-1 space-y-3 overflow-y-auto px-1 py-1">
             <Badge variant={shSelected?.official ? 'default' : 'secondary'}>
               {shSelected?.official ? 'Official' : 'Community'}
             </Badge>
@@ -646,10 +672,95 @@ export default function SkillsPage(): React.JSX.Element {
           <DialogFooter>
             <Button
               type="button"
+              disabled={!shSelected}
+              onClick={() =>
+                shSelected && openInstallPicker({ kind: 'skillsSh', skill: shSelected })
+              }
+            >
+              Install to project…
+            </Button>
+            <Button
+              type="button"
               variant="outline"
               onClick={() => shSelected && void window.agentmat.shell.openExternal(shSelected.url)}
             >
               <ExternalLink /> Open on skills.sh
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={!!installTarget}
+        onOpenChange={(open) => {
+          if (!open) {
+            setInstallTarget(null);
+            setInstallPickerProjectIds(new Set());
+            setInstallPickerSearch('');
+          }
+        }}
+      >
+        <DialogContent className="flex max-h-[70vh] flex-col overflow-hidden">
+          <DialogHeader>
+            <DialogTitle>Install {installTargetName}</DialogTitle>
+            <DialogDescription>
+              Select one or more projects to install this skill into.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-2.5 top-2.5 z-10 h-4 w-4 text-muted-foreground" />
+            <Input
+              autoFocus
+              className="pl-8"
+              placeholder="Search projects…"
+              value={installPickerSearch}
+              onChange={(e) => setInstallPickerSearch(e.target.value)}
+            />
+          </div>
+          <div className="-mx-1 min-h-0 flex-1 space-y-1 overflow-y-auto px-1">
+            {filteredProjectsForPicker.map((p) => {
+              const checked = installPickerProjectIds.has(p.id);
+              return (
+                <button
+                  key={p.id}
+                  type="button"
+                  className={cn(
+                    'flex w-full items-center gap-2.5 rounded-md border border-transparent px-3 py-2 text-left transition-colors hover:bg-muted',
+                    checked && 'border-primary bg-muted',
+                  )}
+                  onClick={() => toggleInstallPickerProject(p.id)}
+                >
+                  <span
+                    className={cn(
+                      'flex h-4 w-4 shrink-0 items-center justify-center rounded-sm border border-border',
+                      checked && 'border-primary bg-primary text-primary-foreground',
+                    )}
+                  >
+                    {checked && <Check className="h-3 w-3" />}
+                  </span>
+                  <span className="flex min-w-0 flex-col">
+                    <span className="truncate text-sm font-medium text-foreground">{p.name}</span>
+                    <span className="truncate text-xs text-muted-foreground">{p.folderPath}</span>
+                  </span>
+                </button>
+              );
+            })}
+            {filteredProjectsForPicker.length === 0 && (
+              <p className="px-3 py-6 text-center text-sm text-muted-foreground">
+                {projectsQuery.data?.length === 0
+                  ? 'No projects yet — create one first.'
+                  : 'No projects match your search.'}
+              </p>
+            )}
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              disabled={installPickerProjectIds.size === 0 || installBatchMutation.isPending}
+              onClick={() => installBatchMutation.mutate([...installPickerProjectIds])}
+            >
+              Install
+              {installPickerProjectIds.size > 0 ? ` (${installPickerProjectIds.size})` : ''}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -1,9 +1,9 @@
 import { ipcMain } from 'electron';
 import { IPC } from '../../shared/ipcChannels';
-import type { AiProvider, AskAiInput, AskAiResult } from '../../shared/apiTypes';
+import type { AiProvider, AskAiHistoryMessage, AskAiInput, AskAiResult } from '../../shared/apiTypes';
 import { store } from '../store';
 
-async function askOpenAi(model: string, prompt: string): Promise<string> {
+async function askOpenAi(model: string, prompt: string, history: AskAiHistoryMessage[]): Promise<string> {
   const settings = await store.getSettings();
   const apiKey = settings.openaiApiKey?.trim();
   if (!apiKey) throw new Error('Set an OpenAI API key in Settings first.');
@@ -16,7 +16,10 @@ async function askOpenAi(model: string, prompt: string): Promise<string> {
     },
     body: JSON.stringify({
       model,
-      messages: [{ role: 'user', content: prompt }],
+      messages: [
+        ...history.map((h) => ({ role: h.role, content: h.content })),
+        { role: 'user', content: prompt },
+      ],
     }),
   });
 
@@ -38,17 +41,24 @@ async function askOpenAi(model: string, prompt: string): Promise<string> {
   return data.choices?.[0]?.message?.content ?? '';
 }
 
-async function askOllama(model: string, prompt: string): Promise<string> {
+async function askOllama(model: string, prompt: string, history: AskAiHistoryMessage[]): Promise<string> {
   const settings = await store.getSettings();
   const baseUrl = (settings.ollamaBaseUrl || 'http://localhost:11434').replace(/\/+$/, '');
   if (!model) throw new Error('Choose an Ollama model first.');
 
   let response: Response;
   try {
-    response = await fetch(`${baseUrl}/api/generate`, {
+    response = await fetch(`${baseUrl}/api/chat`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model, prompt, stream: false }),
+      body: JSON.stringify({
+        model,
+        messages: [
+          ...history.map((h) => ({ role: h.role, content: h.content })),
+          { role: 'user', content: prompt },
+        ],
+        stream: false,
+      }),
     });
   } catch {
     throw new Error(`Could not reach Ollama at ${baseUrl}. Is it running?`);
@@ -59,11 +69,11 @@ async function askOllama(model: string, prompt: string): Promise<string> {
     throw new Error(body || `Ollama request failed with status ${response.status}.`);
   }
 
-  const data = (await response.json()) as { response?: string };
-  return data.response ?? '';
+  const data = (await response.json()) as { message?: { content?: string } };
+  return data.message?.content ?? '';
 }
 
-async function askGemini(model: string, prompt: string): Promise<string> {
+async function askGemini(model: string, prompt: string, history: AskAiHistoryMessage[]): Promise<string> {
   const settings = await store.getSettings();
   const apiKey = settings.geminiApiKey?.trim();
   if (!apiKey) throw new Error('Set a Gemini API key in Settings first.');
@@ -76,7 +86,13 @@ async function askGemini(model: string, prompt: string): Promise<string> {
       'x-goog-api-key': apiKey,
     },
     body: JSON.stringify({
-      contents: [{ role: 'user', parts: [{ text: prompt }] }],
+      contents: [
+        ...history.map((h) => ({
+          role: h.role === 'assistant' ? 'model' : 'user',
+          parts: [{ text: h.content }],
+        })),
+        { role: 'user', parts: [{ text: prompt }] },
+      ],
     }),
   });
 
@@ -146,16 +162,21 @@ async function listOllamaModels(): Promise<string[]> {
 }
 
 /** Shared by the Ask AI IPC handler and other features (e.g. git branch/commit suggestions). */
-export async function runAiPrompt(provider: AiProvider, model: string, prompt: string): Promise<string> {
-  if (provider === 'openai') return askOpenAi(model, prompt);
-  if (provider === 'gemini') return askGemini(model, prompt);
-  return askOllama(model, prompt);
+export async function runAiPrompt(
+  provider: AiProvider,
+  model: string,
+  prompt: string,
+  history: AskAiHistoryMessage[] = [],
+): Promise<string> {
+  if (provider === 'openai') return askOpenAi(model, prompt, history);
+  if (provider === 'gemini') return askGemini(model, prompt, history);
+  return askOllama(model, prompt, history);
 }
 
 export function registerAiHandlers(): void {
   ipcMain.handle(IPC.ai.ask, async (_event, input: AskAiInput): Promise<AskAiResult> => {
     try {
-      const text = await runAiPrompt(input.provider, input.model, input.prompt);
+      const text = await runAiPrompt(input.provider, input.model, input.prompt, input.history ?? []);
       return { ok: true, text };
     } catch (error) {
       return { ok: false, text: '', error: (error as Error).message };

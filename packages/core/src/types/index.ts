@@ -1,5 +1,7 @@
 export type ThemeMode = 'light' | 'dark' | 'system';
 
+export type AiProvider = 'openai' | 'ollama' | 'gemini';
+
 export interface AppSettings {
   defaultCliId: string | null;
   theme: ThemeMode;
@@ -24,8 +26,12 @@ export interface AppSettings {
   geminiApiKey: string | null;
   /** Model id sent with Gemini requests, e.g. "gemini-2.0-flash". */
   geminiModel: string;
+  /** AI provider used to generate prompts in Prompt Builder; model comes from that provider's configured model above. */
+  promptBuilderProvider: AiProvider;
   /** User-defined display order for the dashboard's stat chart cards (ids from DASHBOARD_CHART_IDS). */
   dashboardChartOrder: string[];
+  /** How many extra attempts Prompt Builder's translate action makes after an initial failure. */
+  translateMaxRetries: number;
 }
 
 export type AgentType = 'claude-code' | 'gemini' | 'opencode' | 'codex' | 'generic';

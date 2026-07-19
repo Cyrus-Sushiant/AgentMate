@@ -9,6 +9,7 @@ import {
   RefreshCw,
   StopCircle,
   TerminalSquare,
+  Trash2,
   Wrench,
 } from '@/components/icons';
 import {
@@ -37,7 +38,7 @@ import { queryKeys } from '@/lib/queryKeys';
 import { usePageHeader } from '@/stores/pageHeaderStore';
 import { useTerminalStore } from '@/stores/terminalStore';
 
-type DockerAction = 'start' | 'stop' | 'reset';
+type DockerAction = 'run' | 'start' | 'stop' | 'reset' | 'remove';
 
 export default function ToolsPage(): React.JSX.Element {
   const queryClient = useQueryClient();
@@ -99,9 +100,46 @@ export default function ToolsPage(): React.JSX.Element {
     toast.info(`Press Enter in the terminal to install ${tool.name}.`);
   }
 
+  async function handleUninstall(tool: AgentToolDefinition): Promise<void> {
+    const command = await window.agentmat.tools.getUninstallCommand(tool.id);
+    if (!command) {
+      toast.error(`No uninstall command available for ${tool.name} on this OS.`);
+      return;
+    }
+    openSession({ title: `Uninstall ${tool.name}`, initialInput: command });
+    toast.info(`Press Enter in the terminal to uninstall ${tool.name}.`);
+  }
+
   function handleCopyManualInstructions(tool: AgentToolDefinition): void {
     void navigator.clipboard.writeText(tool.manualInstallInstructions ?? '');
     toast.success(`Setup commands copied — run them inside ${tool.name}'s target agent.`);
+  }
+
+  async function handleInteractiveInstall(tool: AgentToolDefinition): Promise<void> {
+    if (!tool.interactiveInstall) return;
+    const launchCommand = await window.agentmat.tools.getInteractiveLaunchCommand(tool.id);
+    if (!launchCommand) {
+      toast.error(`No launch command available for ${tool.name} on this OS.`);
+      return;
+    }
+    // Open the terminal first — if the clipboard write below fails (e.g. no OS focus yet),
+    // the user still gets a working terminal instead of the click silently doing nothing.
+    openSession({ title: `Install ${tool.name}`, initialInput: launchCommand });
+    try {
+      await navigator.clipboard.writeText(tool.interactiveInstall.pasteCommands);
+      toast.info(
+        `Press Enter to launch ${launchCommand}, then paste (Ctrl+V) and press Enter again to install ${tool.name} — the commands are on your clipboard.`,
+      );
+    } catch {
+      toast.info(
+        `Press Enter to launch ${launchCommand}, then type: ${tool.interactiveInstall.pasteCommands.replace('\n', ', then ')}`,
+      );
+    }
+  }
+
+  function handleCopyManualUninstall(tool: AgentToolDefinition): void {
+    void navigator.clipboard.writeText(tool.manualUninstallInstructions ?? '');
+    toast.success(`Uninstall commands copied — run them inside ${tool.name}'s target agent.`);
   }
 
   async function handleDockerAction(tool: AgentToolDefinition, action: DockerAction): Promise<void> {
@@ -110,8 +148,9 @@ export default function ToolsPage(): React.JSX.Element {
       toast.error('Docker command unavailable for this tool.');
       return;
     }
+    const verb = action === 'run' ? 'install' : action === 'remove' ? 'delete' : action;
     openSession({ title: `${action} ${tool.name} container`, initialInput: command });
-    toast.info(`Press Enter in the terminal to ${action} the container.`);
+    toast.info(`Press Enter in the terminal to ${verb} the container.`);
   }
 
   function openSettings(tool: AgentToolDefinition): void {
@@ -152,6 +191,7 @@ export default function ToolsPage(): React.JSX.Element {
             placeholder="Choose a project"
             searchPlaceholder="Search projects…"
             options={projectsQuery.data?.map((p) => ({ value: p.id, label: p.name })) ?? []}
+            clearable
           />
         </div>
         <Button
@@ -210,57 +250,102 @@ export default function ToolsPage(): React.JSX.Element {
 
                 <div className="flex flex-wrap items-center gap-2">
                   {tool.installKind === 'shell' ? (
-                    <Button size="sm" onClick={() => void handleInstall(tool)}>
-                      <TerminalSquare /> Install
-                    </Button>
+                    status?.installed ? (
+                      <Button size="sm" variant="outline" onClick={() => void handleUninstall(tool)}>
+                        <Trash2 /> Uninstall
+                      </Button>
+                    ) : (
+                      <Button size="sm" onClick={() => void handleInstall(tool)}>
+                        <TerminalSquare /> {tool.docker ? 'Install (npm)' : 'Install'}
+                      </Button>
+                    )
+                  ) : tool.installKind === 'interactive' ? (
+                    <SimpleTooltip label={`Opens a terminal running ${tool.name}'s target agent and copies the setup commands to paste in`}>
+                      <Button size="sm" onClick={() => void handleInteractiveInstall(tool)}>
+                        <TerminalSquare /> Install
+                      </Button>
+                    </SimpleTooltip>
                   ) : (
                     <Button size="sm" variant="outline" onClick={() => handleCopyManualInstructions(tool)}>
                       <TerminalSquare /> Copy setup commands
                     </Button>
                   )}
+                  {tool.manualUninstallInstructions && (
+                    <SimpleTooltip label="Copy uninstall commands">
+                      <Button variant="outline" size="icon" onClick={() => handleCopyManualUninstall(tool)}>
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </SimpleTooltip>
+                  )}
 
-                  {tool.docker && (
-                    <>
-                      <SimpleTooltip label="Start container">
-                        <Button
-                          variant="outline"
-                          size="icon"
-                          onClick={() => void handleDockerAction(tool, 'start')}
-                        >
-                          <Play className="h-4 w-4" />
+                  {tool.docker &&
+                    (status?.dockerStatus === 'unavailable' ? (
+                      <SimpleTooltip label="Docker isn't installed on this machine">
+                        <Button variant="outline" size="sm" disabled>
+                          Install with Docker
                         </Button>
                       </SimpleTooltip>
-                      <SimpleTooltip label="Stop container">
-                        <Button
-                          variant="outline"
-                          size="icon"
-                          onClick={() => void handleDockerAction(tool, 'stop')}
-                        >
-                          <StopCircle className="h-4 w-4" />
-                        </Button>
-                      </SimpleTooltip>
-                      <SimpleTooltip label="Reset container (recreate from image)">
-                        <Button
-                          variant="outline"
-                          size="icon"
-                          onClick={() => void handleDockerAction(tool, 'reset')}
-                        >
-                          <RefreshCw className="h-4 w-4" />
-                        </Button>
-                      </SimpleTooltip>
-                      {tool.docker.dashboardUrl && status?.dockerStatus === 'running' && (
-                        <SimpleTooltip label="Open dashboard">
+                    ) : status?.dockerStatus === 'not-created' ? (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => void handleDockerAction(tool, 'run')}
+                      >
+                        <Play /> Install with Docker
+                      </Button>
+                    ) : (
+                      <>
+                        <SimpleTooltip label="Start container">
                           <Button
                             variant="outline"
                             size="icon"
-                            onClick={() => void window.agentmat.shell.openExternal(tool.docker!.dashboardUrl!)}
+                            disabled={status?.dockerStatus === 'running'}
+                            onClick={() => void handleDockerAction(tool, 'start')}
                           >
-                            <Globe className="h-4 w-4" />
+                            <Play className="h-4 w-4" />
                           </Button>
                         </SimpleTooltip>
-                      )}
-                    </>
-                  )}
+                        <SimpleTooltip label="Stop container">
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            disabled={status?.dockerStatus === 'stopped'}
+                            onClick={() => void handleDockerAction(tool, 'stop')}
+                          >
+                            <StopCircle className="h-4 w-4" />
+                          </Button>
+                        </SimpleTooltip>
+                        <SimpleTooltip label="Reset container (recreate from image)">
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            onClick={() => void handleDockerAction(tool, 'reset')}
+                          >
+                            <RefreshCw className="h-4 w-4" />
+                          </Button>
+                        </SimpleTooltip>
+                        <SimpleTooltip label="Delete container">
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            onClick={() => void handleDockerAction(tool, 'remove')}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </SimpleTooltip>
+                        {tool.docker.dashboardUrl && status?.dockerStatus === 'running' && (
+                          <SimpleTooltip label="Open dashboard">
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              onClick={() => void window.agentmat.shell.openExternal(tool.docker!.dashboardUrl!)}
+                            >
+                              <Globe className="h-4 w-4" />
+                            </Button>
+                          </SimpleTooltip>
+                        )}
+                      </>
+                    ))}
 
                   {tool.settingsFields && tool.settingsFields.length > 0 && (
                     <SimpleTooltip label="Configure">
@@ -310,7 +395,7 @@ export default function ToolsPage(): React.JSX.Element {
                 : 'This applies to the target project selected above.'}
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-3">
+          <div className="min-h-0 space-y-3 overflow-y-auto">
             {settingsTool?.settingsFields?.map((field) => (
               <div key={field.key} className="space-y-1.5">
                 <Label>{field.label}</Label>

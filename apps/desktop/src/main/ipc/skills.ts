@@ -4,7 +4,11 @@ import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { promisify } from 'node:util';
 import { app, dialog, ipcMain } from 'electron';
-import { parseRepositoryIndex, SKILLS_SH_VERIFIED_OWNERS } from '@agentmat/core';
+import {
+  parseRepositoryIndex,
+  SKILLS_SH_PSEUDO_REPOSITORY_ID,
+  SKILLS_SH_VERIFIED_OWNERS,
+} from '@agentmat/core';
 import type {
   Skill,
   SkillRepository,
@@ -13,6 +17,7 @@ import type {
 } from '@agentmat/core';
 import { IPC } from '../../shared/ipcChannels';
 import type {
+  InstallFromSkillsShInput,
   InstalledSkillRecord,
   SkillsShDetail,
   SkillsShSearchResult,
@@ -96,6 +101,36 @@ async function readSkillFileContent(
   const response = await fetch(absoluteUrl);
   if (!response.ok) throw new Error(`Failed to fetch skill file: HTTP ${response.status}`);
   return response.text();
+}
+
+const GITHUB_API_HEADERS = {
+  'User-Agent': 'AgentMate',
+  Accept: 'application/vnd.github+json',
+};
+
+/** Lists every file under `{skillName}/` in a skill's GitHub repo, via the repo's file tree. */
+async function listSkillsShFiles(
+  repo: string,
+  skillName: string,
+): Promise<{ branch: string; paths: string[] }> {
+  const repoRes = await fetch(`https://api.github.com/repos/${repo}`, {
+    headers: GITHUB_API_HEADERS,
+  });
+  if (!repoRes.ok) throw new Error(`GitHub repo lookup failed for ${repo}: HTTP ${repoRes.status}`);
+  const { default_branch: branch } = (await repoRes.json()) as { default_branch: string };
+
+  const treeRes = await fetch(
+    `https://api.github.com/repos/${repo}/git/trees/${branch}?recursive=1`,
+    { headers: GITHUB_API_HEADERS },
+  );
+  if (!treeRes.ok) throw new Error(`GitHub tree lookup failed for ${repo}: HTTP ${treeRes.status}`);
+  const { tree } = (await treeRes.json()) as { tree: { path: string; type: string }[] };
+
+  const prefix = `${skillName}/`;
+  const paths = tree
+    .filter((e) => e.type === 'blob' && e.path.startsWith(prefix))
+    .map((e) => e.path);
+  return { branch, paths };
 }
 
 export function registerSkillHandlers(): void {
@@ -285,6 +320,45 @@ export function registerSkillHandlers(): void {
         /<span>Installs<\/span><\/div><div class="text-3xl[^"]*">([^<]+)<\/div>/,
       );
       return { description, installsLabel: installsMatch?.[1] ?? null };
+    },
+  );
+
+  ipcMain.handle(
+    IPC.skills.installFromSkillsSh,
+    async (_event, params: InstallFromSkillsShInput): Promise<void> => {
+      const projects = await store.getProjects();
+      const project = projects.find((p) => p.id === params.projectId);
+      if (!project) throw new Error(`Project ${params.projectId} not found`);
+
+      const { branch, paths } = await listSkillsShFiles(params.repo, params.skillName);
+      if (paths.length === 0) {
+        throw new Error(
+          `No files found for ${params.repo}/${params.skillName} on GitHub — the skill may have moved or been renamed.`,
+        );
+      }
+
+      const skillId = `${params.repo}/${params.skillName}`;
+      const skillDir = join(project.folderPath, 'skills', skillId);
+      const prefix = `${params.skillName}/`;
+      for (const path of paths) {
+        const rawUrl = `https://raw.githubusercontent.com/${params.repo}/${branch}/${path}`;
+        const fileRes = await fetch(rawUrl);
+        if (!fileRes.ok) throw new Error(`Failed to fetch ${path}: HTTP ${fileRes.status}`);
+        const content = Buffer.from(await fileRes.arrayBuffer());
+        const targetPath = join(skillDir, path.slice(prefix.length));
+        await mkdir(dirname(targetPath), { recursive: true });
+        await writeFile(targetPath, content);
+      }
+
+      const installed = await readInstalledSkills(project.folderPath);
+      const withoutExisting = installed.filter((s) => s.skillId !== skillId);
+      withoutExisting.push({
+        skillId,
+        repositoryId: SKILLS_SH_PSEUDO_REPOSITORY_ID,
+        version: branch,
+        installedAt: new Date().toISOString(),
+      });
+      await writeInstalledSkills(project.folderPath, withoutExisting);
     },
   );
 }

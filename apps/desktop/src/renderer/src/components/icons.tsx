@@ -8,6 +8,7 @@ import {
   faArrowsRotate,
   faArrowUpRightFromSquare,
   faBell,
+  faBookmark,
   faCalendarDays,
   faCheck,
   faCircleCheck,
@@ -92,6 +93,7 @@ function makeIcon(icon: IconDefinition): React.ForwardRefExoticComponent<IconPro
 // to change, only their import path.
 export const ArrowLeft = makeIcon(faArrowLeft);
 export const Blocks = makeIcon(faCubes);
+export const Bookmark = makeIcon(faBookmark);
 export const Check = makeIcon(faCheck);
 export const ChevronsUpDown = makeIcon(faSort);
 export const Copy = makeIcon(faCopy);

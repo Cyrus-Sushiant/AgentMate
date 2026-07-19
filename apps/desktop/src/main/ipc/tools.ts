@@ -4,10 +4,14 @@ import { ipcMain } from 'electron';
 import {
   AGENT_TOOL_REGISTRY,
   getAgentToolDefinition,
+  getDockerRemoveCommand,
   getDockerResetCommand,
+  getDockerRunCommand,
   getDockerStartCommand,
   getDockerStopCommand,
+  getInteractiveLaunchCommandForCurrentOS,
   getToolInstallCommandForCurrentOS,
+  getToolUninstallCommandForCurrentOS,
 } from '@agentmat/core';
 import type { AgentToolDefinition, InstalledAgentTool, SupportedOS } from '@agentmat/core';
 import { IPC } from '../../shared/ipcChannels';
@@ -43,7 +47,11 @@ async function detectDockerStatus(
       { timeout: DETECT_TIMEOUT_MS, windowsHide: true },
     );
     return stdout.trim() === 'true' ? 'running' : 'stopped';
-  } catch {
+  } catch (err) {
+    // ENOENT means the `docker` binary itself isn't on PATH — distinct from "docker is
+    // installed but this tool's container hasn't been created yet" (any other failure,
+    // e.g. `docker inspect`'s "no such container").
+    if (err && typeof err === 'object' && 'code' in err && err.code === 'ENOENT') return 'unavailable';
     return 'not-created';
   }
 }
@@ -74,13 +82,27 @@ export function registerToolHandlers(): void {
     return getToolInstallCommandForCurrentOS(tool, process.platform as SupportedOS);
   });
 
+  ipcMain.handle(IPC.tools.getUninstallCommand, (_event, toolId: string): string | null => {
+    const tool = getAgentToolDefinition(toolId);
+    if (!tool) return null;
+    return getToolUninstallCommandForCurrentOS(tool, process.platform as SupportedOS);
+  });
+
+  ipcMain.handle(IPC.tools.getInteractiveLaunchCommand, (_event, toolId: string): string | null => {
+    const tool = getAgentToolDefinition(toolId);
+    if (!tool) return null;
+    return getInteractiveLaunchCommandForCurrentOS(tool, process.platform as SupportedOS);
+  });
+
   ipcMain.handle(
     IPC.tools.getDockerCommand,
-    (_event, toolId: string, action: 'start' | 'stop' | 'reset'): string | null => {
+    (_event, toolId: string, action: 'run' | 'start' | 'stop' | 'reset' | 'remove'): string | null => {
       const tool = getAgentToolDefinition(toolId);
       if (!tool) return null;
+      if (action === 'run') return getDockerRunCommand(tool);
       if (action === 'start') return getDockerStartCommand(tool);
       if (action === 'stop') return getDockerStopCommand(tool);
+      if (action === 'remove') return getDockerRemoveCommand(tool);
       return getDockerResetCommand(tool);
     },
   );

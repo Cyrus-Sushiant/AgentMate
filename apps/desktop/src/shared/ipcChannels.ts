@@ -49,6 +49,7 @@ export const IPC = {
     listInstalled: 'skills:listInstalled',
     searchSkillsSh: 'skills:searchSkillsSh',
     getSkillsShDetail: 'skills:getSkillsShDetail',
+    installFromSkillsSh: 'skills:installFromSkillsSh',
   },
   mcp: {
     listRepositories: 'mcp:listRepositories',
@@ -144,6 +145,8 @@ export const IPC = {
   tools: {
     detectAll: 'tools:detectAll',
     getInstallCommand: 'tools:getInstallCommand',
+    getUninstallCommand: 'tools:getUninstallCommand',
+    getInteractiveLaunchCommand: 'tools:getInteractiveLaunchCommand',
     getDockerCommand: 'tools:getDockerCommand',
   },
   git: {

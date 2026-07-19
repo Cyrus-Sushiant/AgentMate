@@ -56,11 +56,28 @@ export interface AgentToolDefinition {
   official: boolean;
   websiteUrl?: string;
   repositoryUrl: string;
-  installKind: 'shell' | 'manual';
+  installKind: 'shell' | 'manual' | 'interactive';
   /** Per-OS global install command, opened in a terminal for the user to confirm. */
   installCommand?: Partial<Record<SupportedOS, string>>;
   /** Shown with a copy button when the tool can't be installed with a single shell command. */
   manualInstallInstructions?: string;
+  /**
+   * For tools installed by pasting commands into an already-running interactive program — e.g. a
+   * Claude Code plugin installed via its own `/plugin` slash commands, which only work inside a
+   * live session (Claude Code has no non-interactive `/plugin` flag as of 2026-07). "Install"
+   * launches the target program in a terminal and copies the paste commands to the clipboard, so
+   * the user never has to go find and copy an install command themselves.
+   */
+  interactiveInstall?: {
+    /** Per-OS command that launches the target program in the terminal, e.g. `claude`. */
+    launchCommand: Partial<Record<SupportedOS, string>>;
+    /** Commands to run once the program is up — auto-copied to the clipboard for pasting. */
+    pasteCommands: string;
+  };
+  /** Per-OS global uninstall command, opened in a terminal for the user to confirm. */
+  uninstallCommand?: Partial<Record<SupportedOS, string>>;
+  /** Shown with a copy button when the tool can't be uninstalled with a single shell command. */
+  manualUninstallInstructions?: string;
   /** Probe used to detect whether the tool is already on PATH, e.g. `rtk --version`. */
   detectCommand?: ShellCommand;
   docker?: AgentToolDockerConfig;

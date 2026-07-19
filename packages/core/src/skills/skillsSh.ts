@@ -34,6 +34,13 @@ export interface SkillsShEntry {
 export const SKILLS_SH_SNAPSHOT_DATE = '2026-07-19';
 
 /**
+ * `repositoryId` stamped on InstalledSkillRecord entries installed from skills.sh (bundled or
+ * live), so they can be told apart from skills installed via a user-added repository — there is
+ * no matching entry in the SkillRepository store, since these are fetched straight from GitHub.
+ */
+export const SKILLS_SH_PSEUDO_REPOSITORY_ID = 'skills-sh-directory';
+
+/**
  * Owners skills.sh marks as verified publishers (from https://www.skills.sh/official). Used to
  * derive `official` both for bundled entries and for live search results, which come back from
  * the API without a verified flag of their own.

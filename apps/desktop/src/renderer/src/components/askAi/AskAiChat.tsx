@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import {
+  Bookmark,
+  Copy,
   History,
   MessageSquare,
   RefreshCw,
@@ -18,9 +20,10 @@ import { Combobox } from '@/components/ui/combobox';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { queryKeys } from '@/lib/queryKeys';
-import { useAskAiStore } from '@/stores/askAiStore';
+import { useAskAiStore, type AskAiMessage } from '@/stores/askAiStore';
 import { cn } from '@/lib/utils';
 import type { AiProvider } from '../../../../shared/apiTypes';
+import { MarkdownMessage } from './MarkdownMessage';
 
 const OPENAI_MODEL_OPTIONS = [
   { value: 'gpt-4o-mini', label: 'gpt-4o-mini' },
@@ -75,6 +78,8 @@ export function AskAiChat({
   const messages = useAskAiStore((s) => s.messages);
   const addMessage = useAskAiStore((s) => s.addMessage);
   const clearMessages = useAskAiStore((s) => s.clearMessages);
+  const toggleBookmark = useAskAiStore((s) => s.toggleBookmark);
+  const replaceMessage = useAskAiStore((s) => s.replaceMessage);
 
   const [prompt, setPrompt] = useState('');
   const [sending, setSending] = useState(false);
@@ -137,6 +142,11 @@ export function AskAiChat({
       return;
     }
 
+    // Conversation so far, oldest first — sent along so the provider has context from prior turns.
+    const history = messages
+      .filter((m): m is typeof m & { role: 'user' | 'assistant' } => m.role === 'user' || m.role === 'assistant')
+      .map((m) => ({ role: m.role, content: m.content }));
+
     addMessage({
       id: crypto.randomUUID(),
       role: 'user',
@@ -148,13 +158,44 @@ export function AskAiChat({
     setPrompt('');
     setSending(true);
     try {
-      const result = await window.agentmat.ai.ask({ provider, model, prompt: trimmed });
+      const result = await window.agentmat.ai.ask({ provider, model, prompt: trimmed, history });
       addMessage({
         id: crypto.randomUUID(),
         role: result.ok ? 'assistant' : 'error',
         content: result.ok ? result.text : (result.error ?? 'Something went wrong.'),
         provider,
         model,
+        createdAt: new Date().toISOString(),
+      });
+    } finally {
+      setSending(false);
+    }
+  }
+
+  async function handleRetry(errorMessage: AskAiMessage): Promise<void> {
+    const idx = messages.findIndex((m) => m.id === errorMessage.id);
+    const userMessage = idx > 0 ? messages[idx - 1] : undefined;
+    if (!userMessage || userMessage.role !== 'user') return;
+
+    const history = messages
+      .slice(0, idx - 1)
+      .filter((m): m is typeof m & { role: 'user' | 'assistant' } => m.role === 'user' || m.role === 'assistant')
+      .map((m) => ({ role: m.role, content: m.content }));
+
+    setSending(true);
+    try {
+      const result = await window.agentmat.ai.ask({
+        provider: errorMessage.provider,
+        model: errorMessage.model,
+        prompt: userMessage.content,
+        history,
+      });
+      replaceMessage(errorMessage.id, {
+        id: crypto.randomUUID(),
+        role: result.ok ? 'assistant' : 'error',
+        content: result.ok ? result.text : (result.error ?? 'Something went wrong.'),
+        provider: errorMessage.provider,
+        model: errorMessage.model,
         createdAt: new Date().toISOString(),
       });
     } finally {
@@ -172,6 +213,15 @@ export function AskAiChat({
   function handleSuggestionClick(suggestion: string): void {
     setPrompt(suggestion);
     textareaRef.current?.focus();
+  }
+
+  async function handleCopy(content: string): Promise<void> {
+    try {
+      await navigator.clipboard.writeText(content);
+      toast.success('Copied to clipboard.');
+    } catch {
+      toast.error('Could not copy to clipboard.');
+    }
   }
 
   const configured =
@@ -302,10 +352,11 @@ export function AskAiChat({
           ) : (
             messages.map((m) =>
               m.role === 'user' ? (
-                <div key={m.id} className="ml-auto max-w-[85%]">
+                <div key={m.id} className="ml-auto flex max-w-[85%] flex-col items-end gap-1">
                   <div className="whitespace-pre-wrap rounded-2xl rounded-br-sm bg-primary px-3.5 py-2 text-sm text-primary-foreground">
                     {m.content}
                   </div>
+                  <MessageActions message={m} onCopy={handleCopy} onToggleBookmark={toggleBookmark} />
                 </div>
               ) : (
                 <div key={m.id} className="mr-auto flex max-w-[85%] items-start gap-2">
@@ -326,17 +377,34 @@ export function AskAiChat({
                   <div className="flex flex-col gap-1">
                     <div
                       className={cn(
-                        'whitespace-pre-wrap rounded-2xl rounded-tl-sm px-3.5 py-2 text-sm',
+                        'rounded-2xl rounded-tl-sm px-3.5 py-2',
                         m.role === 'error'
-                          ? 'border border-destructive/40 bg-destructive/10 text-destructive'
+                          ? 'border border-destructive/40 bg-destructive/10 text-sm text-destructive'
                           : 'bg-foreground/[0.06] text-foreground',
                       )}
                     >
-                      {m.content}
+                      {m.role === 'error' ? (
+                        <span className="whitespace-pre-wrap">{m.content}</span>
+                      ) : (
+                        <MarkdownMessage content={m.content} />
+                      )}
                     </div>
-                    <span className="pl-1 text-[11px] text-muted-foreground">
-                      {PROVIDER_LABEL[m.provider]} · {m.model}
-                    </span>
+                    <div className="flex items-center gap-2 pl-1">
+                      <span className="text-[11px] text-muted-foreground">
+                        {PROVIDER_LABEL[m.provider]} · {m.model}
+                      </span>
+                      {m.role === 'error' && (
+                        <button
+                          type="button"
+                          disabled={sending}
+                          onClick={() => void handleRetry(m)}
+                          className="flex items-center gap-1 text-[11px] font-medium text-destructive transition-colors hover:text-destructive/80 disabled:opacity-50"
+                        >
+                          <RefreshCw className="h-2.5 w-2.5" /> Retry
+                        </button>
+                      )}
+                      <MessageActions message={m} onCopy={handleCopy} onToggleBookmark={toggleBookmark} />
+                    </div>
                   </div>
                 </div>
               ),
@@ -397,6 +465,38 @@ export function AskAiChat({
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+interface MessageActionsProps {
+  message: AskAiMessage;
+  onCopy: (content: string) => void;
+  onToggleBookmark: (id: string) => void;
+}
+
+function MessageActions({ message, onCopy, onToggleBookmark }: MessageActionsProps): React.JSX.Element {
+  return (
+    <div className="flex items-center gap-1">
+      <button
+        type="button"
+        title="Copy message"
+        onClick={() => onCopy(message.content)}
+        className="rounded p-0.5 text-muted-foreground transition-colors hover:text-foreground"
+      >
+        <Copy className="h-3 w-3" />
+      </button>
+      <button
+        type="button"
+        title={message.bookmarked ? 'Remove bookmark' : 'Bookmark message'}
+        onClick={() => onToggleBookmark(message.id)}
+        className={cn(
+          'rounded p-0.5 transition-colors hover:text-foreground',
+          message.bookmarked ? 'text-primary' : 'text-muted-foreground',
+        )}
+      >
+        <Bookmark className="h-3 w-3" />
+      </button>
     </div>
   );
 }

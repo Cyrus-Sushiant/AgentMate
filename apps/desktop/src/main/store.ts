@@ -50,7 +50,9 @@ const DEFAULT_SETTINGS: AppSettings = {
   ollamaModel: '',
   geminiApiKey: null,
   geminiModel: 'gemini-2.0-flash',
+  promptBuilderProvider: 'openai',
   dashboardChartOrder: [],
+  translateMaxRetries: 3,
 };
 
 /** Older projects.json entries predate the notifications field. */

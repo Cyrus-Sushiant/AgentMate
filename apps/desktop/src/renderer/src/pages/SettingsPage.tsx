@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import {
   Blocks,
+  Languages,
   MessageSquare,
   Monitor,
   Moon,
@@ -25,8 +26,14 @@ import { useCliStore } from '@/stores/cliStore';
 import { useThemeStore } from '@/stores/themeStore';
 import { usePingTargetsStore } from '@/stores/pingTargetsStore';
 import { useUpdateStore } from '@/stores/updateStore';
-import type { ThemeMode } from '@agentmat/core';
+import type { AiProvider, ThemeMode } from '@agentmat/core';
 import { cn } from '@/lib/utils';
+
+const PROMPT_BUILDER_PROVIDER_OPTIONS: { value: AiProvider; label: string }[] = [
+  { value: 'openai', label: 'OpenAI' },
+  { value: 'gemini', label: 'Gemini' },
+  { value: 'ollama', label: 'Ollama' },
+];
 
 const THEME_OPTIONS: { value: ThemeMode; label: string; icon: typeof Sun }[] = [
   { value: 'light', label: 'Light', icon: Sun },
@@ -132,6 +139,7 @@ export default function SettingsPage(): React.JSX.Element {
   const [ollamaBaseUrl, setOllamaBaseUrl] = useState('');
   const [geminiApiKey, setGeminiApiKey] = useState('');
   const [geminiModel, setGeminiModel] = useState('');
+  const [promptBuilderProvider, setPromptBuilderProvider] = useState<AiProvider>('openai');
   const [aiDirty, setAiDirty] = useState(false);
 
   useEffect(() => {
@@ -141,6 +149,7 @@ export default function SettingsPage(): React.JSX.Element {
       setOllamaBaseUrl(settingsQuery.data.ollamaBaseUrl);
       setGeminiApiKey(settingsQuery.data.geminiApiKey ?? '');
       setGeminiModel(settingsQuery.data.geminiModel);
+      setPromptBuilderProvider(settingsQuery.data.promptBuilderProvider);
     }
   }, [settingsQuery.data, aiDirty]);
 
@@ -152,6 +161,7 @@ export default function SettingsPage(): React.JSX.Element {
         ollamaBaseUrl: ollamaBaseUrl.trim() || 'http://localhost:11434',
         geminiApiKey: geminiApiKey.trim() || null,
         geminiModel: geminiModel.trim() || 'gemini-2.0-flash',
+        promptBuilderProvider,
       }),
     onSuccess: () => {
       toast.success('AI provider settings saved.');
@@ -180,6 +190,28 @@ export default function SettingsPage(): React.JSX.Element {
     setPingTargetsDirty(false);
     toast.success('Ping targets updated.');
   }
+
+  const [translateMaxRetriesText, setTranslateMaxRetriesText] = useState('3');
+  const [translateRetriesDirty, setTranslateRetriesDirty] = useState(false);
+
+  useEffect(() => {
+    if (!translateRetriesDirty && settingsQuery.data) {
+      setTranslateMaxRetriesText(String(settingsQuery.data.translateMaxRetries));
+    }
+  }, [settingsQuery.data, translateRetriesDirty]);
+
+  const saveTranslateRetriesMutation = useMutation({
+    mutationFn: () => {
+      const parsed = Math.max(0, Math.trunc(Number(translateMaxRetriesText)) || 0);
+      return window.agentmat.settings.update({ translateMaxRetries: parsed });
+    },
+    onSuccess: (settings) => {
+      setTranslateMaxRetriesText(String(settings.translateMaxRetries));
+      toast.success('Translation retry setting saved.');
+      setTranslateRetriesDirty(false);
+      void queryClient.invalidateQueries({ queryKey: queryKeys.settings });
+    },
+  });
 
   const updateStatus = useUpdateStore((s) => s.status);
   const checkingForUpdates = updateStatus.state === 'checking';
@@ -229,6 +261,7 @@ export default function SettingsPage(): React.JSX.Element {
             placeholder="No default set"
             searchPlaceholder="Search CLIs…"
             options={CLI_REGISTRY.map((cli) => ({ value: cli.id, label: cli.name }))}
+            clearable
           />
         </CardContent>
       </Card>
@@ -290,6 +323,38 @@ export default function SettingsPage(): React.JSX.Element {
             variant="outline"
             disabled={!pingTargetsDirty}
             onClick={handleSavePingTargets}
+          >
+            Save
+          </Button>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Languages className="h-4 w-4" /> Translation
+          </CardTitle>
+          <CardDescription>
+            How many extra attempts Prompt Builder's Translate action makes if a translation
+            request fails, e.g. due to a flaky connection.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="flex items-center gap-2">
+          <Input
+            type="number"
+            min={0}
+            max={10}
+            value={translateMaxRetriesText}
+            onChange={(e) => {
+              setTranslateMaxRetriesText(e.target.value);
+              setTranslateRetriesDirty(true);
+            }}
+            className="w-24"
+          />
+          <Button
+            variant="outline"
+            disabled={!translateRetriesDirty || saveTranslateRetriesMutation.isPending}
+            onClick={() => saveTranslateRetriesMutation.mutate()}
           >
             Save
           </Button>
@@ -412,6 +477,22 @@ export default function SettingsPage(): React.JSX.Element {
               placeholder="gemini-2.0-flash"
               className="max-w-xs font-mono"
             />
+          </div>
+          <div className="space-y-1.5">
+            <Label>Prompt Builder AI</Label>
+            <Combobox
+              className="w-40"
+              value={promptBuilderProvider}
+              onChange={(v) => {
+                setPromptBuilderProvider(v as AiProvider);
+                setAiDirty(true);
+              }}
+              options={PROMPT_BUILDER_PROVIDER_OPTIONS}
+            />
+            <p className="text-xs text-muted-foreground">
+              Provider used by Prompt Builder's Generate Prompt button — uses the API key/model
+              configured above for that provider.
+            </p>
           </div>
           <Button
             disabled={!aiDirty || saveAiMutation.isPending}

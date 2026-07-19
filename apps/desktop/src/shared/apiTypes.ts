@@ -1,4 +1,6 @@
-import type { AgentType, ProjectNotificationSettings } from '@agentmat/core';
+import type { AgentType, AiProvider, ProjectNotificationSettings } from '@agentmat/core';
+
+export type { AiProvider };
 
 export interface UpdateInfo {
   version: string;
@@ -89,6 +91,13 @@ export interface SkillsShDetail {
   installsLabel: string | null;
 }
 
+export interface InstallFromSkillsShInput {
+  projectId: string;
+  owner: string;
+  repo: string;
+  skillName: string;
+}
+
 export type PromptHistorySource = 'generate' | 'translate';
 
 export interface PromptHistoryEntry {
@@ -115,13 +124,18 @@ export interface TranslateTextInput {
   targetLang: string;
 }
 
-export type AiProvider = 'openai' | 'ollama' | 'gemini';
+export interface AskAiHistoryMessage {
+  role: 'user' | 'assistant';
+  content: string;
+}
 
 export interface AskAiInput {
   provider: AiProvider;
   /** Model id — an OpenAI/Gemini model name, or an Ollama model tag from listOllamaModels(). */
   model: string;
   prompt: string;
+  /** Prior turns in the conversation, oldest first. Omitted for one-off (non-chat) prompts. */
+  history?: AskAiHistoryMessage[];
 }
 
 export interface AskAiResult {
