@@ -125,10 +125,14 @@ export default function ToolsPage(): React.JSX.Element {
     // Open the terminal first — if the clipboard write below fails (e.g. no OS focus yet),
     // the user still gets a working terminal instead of the click silently doing nothing.
     openSession({ title: `Install ${tool.name}`, initialInput: launchCommand });
+    // xterm.js reserves plain Ctrl+V for the shell's own control-character convention (^V) and
+    // doesn't paste with it — its actual paste shortcut is Ctrl+Shift+V (Cmd+V on macOS, which
+    // isn't used for anything else there so it works as a normal paste).
+    const pasteShortcut = window.agentmat.platform === 'darwin' ? 'Cmd+V' : 'Ctrl+Shift+V';
     try {
       await navigator.clipboard.writeText(tool.interactiveInstall.pasteCommands);
       toast.info(
-        `Press Enter to launch ${launchCommand}, then paste (Ctrl+V) and press Enter again to install ${tool.name} — the commands are on your clipboard.`,
+        `Press Enter to launch ${launchCommand}, then paste (${pasteShortcut} — not Ctrl+V) and press Enter again to install ${tool.name}.`,
       );
     } catch {
       toast.info(

@@ -21,6 +21,7 @@ export interface TerminalPaneProps {
 
 export function TerminalPane({ meta, active, onExit }: TerminalPaneProps): React.JSX.Element {
   const containerRef = useRef<HTMLDivElement>(null);
+  const termRef = useRef<Terminal | null>(null);
   const onExitRef = useRef(onExit);
   onExitRef.current = onExit;
 
@@ -39,6 +40,7 @@ export function TerminalPane({ meta, active, onExit }: TerminalPaneProps): React
     const fitAddon = new FitAddon();
     term.loadAddon(fitAddon);
     term.open(container);
+    termRef.current = term;
 
     let ptySessionId: string | null = null;
     let disposed = false;
@@ -94,9 +96,17 @@ export function TerminalPane({ meta, active, onExit }: TerminalPaneProps): React
       unsubscribeExit?.();
       if (ptySessionId) void window.agentmat.terminal.kill(ptySessionId);
       term.dispose();
+      termRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Newly opened sessions and tab switches both need to move DOM focus into xterm's hidden
+  // textarea — without it, keystrokes (e.g. Enter to launch, Ctrl+V to paste an install command)
+  // go wherever focus already was (often the button that opened this session) instead of the pty.
+  useEffect(() => {
+    if (active) termRef.current?.focus();
+  }, [active]);
 
   return <div ref={containerRef} className={active ? 'h-full w-full p-2' : 'hidden'} />;
 }
