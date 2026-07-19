@@ -569,7 +569,9 @@ class RemoteManager {
   }
 
   private send(channel: string, payload?: unknown): void {
-    this.mainWindow?.webContents.send(channel, payload);
+    const win = this.mainWindow;
+    if (!win || win.isDestroyed() || win.webContents.isDestroyed()) return;
+    win.webContents.send(channel, payload);
   }
 
   private emitState(): void {
