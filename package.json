@@ -7,9 +7,10 @@
     "node": ">=20"
   },
   "scripts": {
-    "dev": "pnpm --filter @agentmat/core build && pnpm --filter @agentmat/desktop dev",
-    "build": "pnpm --filter @agentmat/core build && pnpm --filter @agentmat/desktop build",
+    "dev": "pnpm --filter @agentmat/core --filter @agentmat/protocol build && pnpm --filter @agentmat/desktop dev",
+    "build": "pnpm --filter @agentmat/core --filter @agentmat/protocol build && pnpm --filter @agentmat/desktop build",
     "package": "pnpm --filter @agentmat/desktop package",
+    "mobile": "pnpm --filter @agentmat/protocol build && pnpm --filter @agentmat/mobile start",
     "typecheck": "pnpm -r typecheck",
     "lint": "pnpm -r lint"
   },

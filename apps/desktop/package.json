@@ -35,6 +35,7 @@
   },
   "dependencies": {
     "@agentmat/core": "workspace:*",
+    "@agentmat/protocol": "workspace:*",
     "@fontsource-variable/inter": "^5.2.8",
     "@fontsource-variable/vazirmatn": "^5.2.8",
     "@fortawesome/fontawesome-svg-core": "^7.3.1",
