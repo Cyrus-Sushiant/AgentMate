@@ -106,19 +106,25 @@ export function SparklineChart({
             vectorEffect="non-scaling-stroke"
           />
         )}
-        {hovered &&
-          series.map((s) => (
-            <circle
-              key={`dot-${s.key}`}
-              cx={xAt(hoverIndex)}
-              cy={yAt(s.values[hoverIndex] ?? domainMin)}
-              r={4}
-              fill={s.color}
-              stroke="hsl(var(--card))"
-              strokeWidth={2}
-            />
-          ))}
       </svg>
+      {hovered &&
+        series.map((s) => {
+          const leftPct = (xAt(hoverIndex) / VIEW_WIDTH) * 100;
+          const topPct = (yAt(s.values[hoverIndex] ?? domainMin) / height) * 100;
+          return (
+            <div
+              key={`dot-${s.key}`}
+              className="pointer-events-none absolute h-2 w-2 rounded-full border-2"
+              style={{
+                left: `${leftPct}%`,
+                top: `${topPct}%`,
+                transform: 'translate(-50%, -50%)',
+                backgroundColor: s.color,
+                borderColor: 'hsl(var(--card))',
+              }}
+            />
+          );
+        })}
       {hovered && (
         <div
           className="pointer-events-none absolute top-0 z-10 min-w-max rounded-md border border-border bg-popover px-2 py-1.5 text-xs shadow-md"
