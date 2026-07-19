@@ -400,9 +400,9 @@ export default function DashboardPage(): React.JSX.Element {
               <span className="text-xs text-muted-foreground">avg across {gpus.length} GPUs</span>
             )}
           </div>
-          <div className="mb-2 flex h-6 items-center gap-4 overflow-x-auto overflow-y-hidden whitespace-nowrap">
+          <div className="mb-2 flex flex-wrap items-center gap-x-4 gap-y-1">
             {gpus.map((g, i) => (
-              <div key={g.id} className="flex shrink-0 items-center gap-1.5 text-sm">
+              <div key={g.id} className="flex items-center gap-1.5 text-sm">
                 <span
                   className="inline-block h-2 w-2 shrink-0 rounded-full"
                   style={{

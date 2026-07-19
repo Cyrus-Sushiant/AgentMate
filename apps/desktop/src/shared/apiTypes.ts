@@ -256,7 +256,12 @@ export interface SystemStatsSample {
   memTotalBytes: number;
   /** Empty when no fixed disk could be queried. */
   disks: DiskUsage[];
-  /** Empty when no supported GPU (currently NVIDIA via `nvidia-smi`) could be queried. */
+  /**
+   * Empty when no GPU could be queried. NVIDIA GPUs (via `nvidia-smi`) get
+   * precise usage; on Windows, one additional non-NVIDIA GPU (e.g. an
+   * integrated Intel/AMD chip) is included with best-effort usage — see
+   * sampleOtherGpu in systemStats.ts for the accuracy caveat.
+   */
   gpus: GpuUsage[];
   netRxBytesPerSec: number;
   netTxBytesPerSec: number;
