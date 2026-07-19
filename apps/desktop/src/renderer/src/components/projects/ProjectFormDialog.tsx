@@ -95,7 +95,7 @@ export function ProjectFormDialog({
           <DialogTitle>{initial ? 'Edit project' : 'New project'}</DialogTitle>
         </DialogHeader>
 
-        <div className="-mx-1 space-y-3 overflow-y-auto px-1">
+        <div className="-mx-1 -my-1 min-h-0 flex-1 space-y-3 overflow-y-auto px-1 py-1">
           <div className="space-y-1.5">
             <Label>Name</Label>
             <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="My App" />
