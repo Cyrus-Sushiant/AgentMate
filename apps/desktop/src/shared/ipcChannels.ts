@@ -94,6 +94,7 @@ export const IPC = {
   ai: {
     ask: 'ai:ask',
     listOllamaModels: 'ai:listOllamaModels',
+    listGeminiModels: 'ai:listGeminiModels',
   },
   scheduledTasks: {
     list: 'scheduledTasks:list',

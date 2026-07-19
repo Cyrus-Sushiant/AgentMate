@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
-import { FolderOpen, Plug, Plus, RefreshCw, Search, Trash2 } from '@/components/icons';
+import { CircleCheck, FolderOpen, Plug, Plus, RefreshCw, Search, Trash2 } from '@/components/icons';
+import { BOWORA_MCP_REPOSITORY_ID } from '@agentmat/core';
 import type { McpRepositorySourceType, McpServer } from '@agentmat/core';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -92,6 +93,7 @@ export default function McpPage(): React.JSX.Element {
       void queryClient.invalidateQueries({ queryKey: queryKeys.mcpRepositories });
       setSelectedRepoId('');
     },
+    onError: (error: Error) => toast.error(error.message),
   });
 
   const refreshRepoMutation = useMutation({
@@ -198,7 +200,7 @@ export default function McpPage(): React.JSX.Element {
               searchPlaceholder="Search repositories…"
               options={reposQuery.data?.map((r) => ({ value: r.id, label: r.name })) ?? []}
             />
-            {selectedRepoId && (
+            {selectedRepoId && selectedRepoId !== BOWORA_MCP_REPOSITORY_ID && (
               <>
                 <SimpleTooltip label="Refresh">
                   <Button
@@ -219,6 +221,11 @@ export default function McpPage(): React.JSX.Element {
                   </Button>
                 </SimpleTooltip>
               </>
+            )}
+            {selectedRepoId === BOWORA_MCP_REPOSITORY_ID && (
+              <SimpleTooltip label="Bundled with AgentMate — always available, no network fetch needed">
+                <Badge variant="secondary">Built-in</Badge>
+              </SimpleTooltip>
             )}
           </div>
         </div>
@@ -244,18 +251,31 @@ export default function McpPage(): React.JSX.Element {
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
         {filteredServers.map((server) => {
           const isInstalled = installedIds.has(server.id);
+          const canAutoInstall =
+            server.config.transport === 'stdio' ? !!server.config.command : !!server.config.url;
           return (
             <Card key={server.id} className="flex flex-col">
               <CardHeader>
                 <div className="flex items-start justify-between gap-2">
-                  <CardTitle>{server.name}</CardTitle>
+                  <CardTitle className="flex items-center gap-1.5">
+                    {server.name}
+                    {server.official && (
+                      <SimpleTooltip label="Official — maintained by the vendor or organization behind this integration">
+                        <CircleCheck className="h-4 w-4 shrink-0 text-blue-500" />
+                      </SimpleTooltip>
+                    )}
+                  </CardTitle>
                   <Badge variant="outline">{server.category}</Badge>
                 </div>
                 <CardDescription>{server.description}</CardDescription>
               </CardHeader>
               <CardContent className="mt-auto space-y-3">
                 <div className="flex flex-wrap gap-1.5">
+                  <Badge variant={server.official ? 'default' : 'secondary'}>
+                    {server.official ? 'Official' : 'Community'}
+                  </Badge>
                   <Badge variant="secondary">{server.config.transport}</Badge>
+                  {!canAutoInstall && <Badge variant="outline">Manual setup</Badge>}
                   {server.tags.map((tag) => (
                     <Badge key={tag} variant="secondary">
                       {tag}
@@ -274,7 +294,7 @@ export default function McpPage(): React.JSX.Element {
                     >
                       <Trash2 /> Remove
                     </Button>
-                  ) : (
+                  ) : canAutoInstall ? (
                     <Button
                       size="sm"
                       disabled={!selectedProjectId || installMutation.isPending}
@@ -282,6 +302,12 @@ export default function McpPage(): React.JSX.Element {
                     >
                       <Plug /> Install
                     </Button>
+                  ) : (
+                    <SimpleTooltip label="No install command available yet — see the server's docs to set it up manually.">
+                      <Button size="sm" disabled>
+                        <Plug /> Install
+                      </Button>
+                    </SimpleTooltip>
                   )}
                   {server.documentationUrl && (
                     <Button

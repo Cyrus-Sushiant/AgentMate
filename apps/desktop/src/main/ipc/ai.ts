@@ -98,6 +98,35 @@ async function askGemini(model: string, prompt: string): Promise<string> {
   return (data.candidates?.[0]?.content?.parts ?? []).map((p) => p.text ?? '').join('');
 }
 
+async function listGeminiModels(): Promise<string[]> {
+  const settings = await store.getSettings();
+  const apiKey = settings.geminiApiKey?.trim();
+  if (!apiKey) throw new Error('Set a Gemini API key in Settings first.');
+
+  const url = `https://generativelanguage.googleapis.com/v1beta/models?pageSize=1000&key=${encodeURIComponent(apiKey)}`;
+  const response = await fetch(url);
+
+  if (!response.ok) {
+    const body = await response.text().catch(() => '');
+    let message = `Gemini request failed with status ${response.status}.`;
+    try {
+      const parsed = JSON.parse(body) as { error?: { message?: string } };
+      if (parsed.error?.message) message = parsed.error.message;
+    } catch {
+      // Response body wasn't JSON — fall back to the generic status message.
+    }
+    throw new Error(message);
+  }
+
+  const data = (await response.json()) as {
+    models?: { name?: string; supportedGenerationMethods?: string[] }[];
+  };
+  return (data.models ?? [])
+    .filter((m) => m.name && (m.supportedGenerationMethods ?? []).includes('generateContent'))
+    .map((m) => (m.name as string).replace(/^models\//, ''))
+    .sort();
+}
+
 async function listOllamaModels(): Promise<string[]> {
   const settings = await store.getSettings();
   const baseUrl = (settings.ollamaBaseUrl || 'http://localhost:11434').replace(/\/+$/, '');
@@ -134,4 +163,5 @@ export function registerAiHandlers(): void {
   });
 
   ipcMain.handle(IPC.ai.listOllamaModels, (): Promise<string[]> => listOllamaModels());
+  ipcMain.handle(IPC.ai.listGeminiModels, (): Promise<string[]> => listGeminiModels());
 }

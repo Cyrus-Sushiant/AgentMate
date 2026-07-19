@@ -246,7 +246,7 @@ export default function DashboardPage(): React.JSX.Element {
     onDrop: () => void;
   } {
     return {
-      className: cn(dragChartId === id && 'opacity-50'),
+      className: cn('h-full', dragChartId === id && 'opacity-50'),
       onDragOver: (e) => e.preventDefault(),
       onDrop: () => handleChartDrop(id),
     };
@@ -658,7 +658,12 @@ export default function DashboardPage(): React.JSX.Element {
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         {chartOrder.map((id) => (
-          <motion.div key={id} layout transition={{ type: 'spring', stiffness: 400, damping: 35 }}>
+          <motion.div
+            key={id}
+            layout
+            className="h-full"
+            transition={{ type: 'spring', stiffness: 400, damping: 35 }}
+          >
             {chartCards[id]}
           </motion.div>
         ))}

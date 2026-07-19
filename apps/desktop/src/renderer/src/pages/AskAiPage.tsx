@@ -12,8 +12,8 @@ export default function AskAiPage(): React.JSX.Element {
   usePageHeader('Ask AI', 'Full conversation history — the same thread the Ask AI popup uses.');
 
   return (
-    <div className="mx-auto flex w-full max-w-4xl flex-1 flex-col p-6">
-      <Card className="flex flex-1 flex-col overflow-hidden">
+    <div className="mx-auto flex min-h-0 w-full max-w-4xl flex-1 flex-col p-6">
+      <Card className="flex min-h-0 flex-1 flex-col overflow-hidden">
         <CardContent className="flex flex-1 flex-col gap-4 overflow-hidden p-5">
           <div className="flex justify-end">
             <Button variant="outline" size="sm" disabled={!hasMessages} onClick={clearMessages}>

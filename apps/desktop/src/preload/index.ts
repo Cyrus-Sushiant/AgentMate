@@ -219,6 +219,7 @@ const translate = {
 const ai = {
   ask: (input: AskAiInput): Promise<AskAiResult> => ipcRenderer.invoke(IPC.ai.ask, input),
   listOllamaModels: (): Promise<string[]> => ipcRenderer.invoke(IPC.ai.listOllamaModels),
+  listGeminiModels: (): Promise<string[]> => ipcRenderer.invoke(IPC.ai.listGeminiModels),
 };
 
 const system = {

@@ -66,6 +66,8 @@ export interface Project {
   tags: string[];
   agentType: AgentType;
   notes: string;
+  /** Shell command that starts this project (e.g. "npm run dev"). Empty when not configured. */
+  runCommand: string;
   notifications: ProjectNotificationSettings;
   createdAt: string;
   updatedAt: string;

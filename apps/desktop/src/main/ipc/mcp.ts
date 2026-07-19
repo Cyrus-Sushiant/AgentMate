@@ -4,7 +4,7 @@ import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { promisify } from 'node:util';
 import { app, dialog, ipcMain } from 'electron';
-import { parseMcpRepositoryIndex } from '@agentmat/core';
+import { bundledMcpDirectory, bundledMcpRepository, parseMcpRepositoryIndex } from '@agentmat/core';
 import type { McpRepository, McpRepositoryIndex, McpRepositorySourceType, McpServer } from '@agentmat/core';
 import { IPC } from '../../shared/ipcChannels';
 import type { InstalledMcpServerRecord } from '../../shared/apiTypes';
@@ -77,6 +77,10 @@ function buildServerEntry(server: McpServer, envOverrides: Record<string, string
 async function loadRepositoryIndex(
   repo: McpRepository,
 ): Promise<{ index: McpRepositoryIndex }> {
+  if (repo.sourceType === 'bundled') {
+    return { index: bundledMcpDirectory };
+  }
+
   if (repo.sourceType === 'local-folder') {
     const raw = await readFile(join(repo.source, 'repository.json'), 'utf-8');
     return { index: parseMcpRepositoryIndex(JSON.parse(raw)) };
@@ -104,8 +108,17 @@ async function loadRepositoryIndex(
   return { index: parseMcpRepositoryIndex(json) };
 }
 
+/** The bundled repo is shipped with the app, not persisted in `mcp-repositories.json`. */
+function findRepository(repositoryId: string, repos: McpRepository[]): McpRepository | undefined {
+  if (repositoryId === bundledMcpRepository.id) return bundledMcpRepository;
+  return repos.find((r) => r.id === repositoryId);
+}
+
 export function registerMcpHandlers(): void {
-  ipcMain.handle(IPC.mcp.listRepositories, (): Promise<McpRepository[]> => store.getMcpRepositories());
+  ipcMain.handle(IPC.mcp.listRepositories, async (): Promise<McpRepository[]> => [
+    bundledMcpRepository,
+    ...(await store.getMcpRepositories()),
+  ]);
 
   ipcMain.handle(
     IPC.mcp.addRepository,
@@ -130,6 +143,9 @@ export function registerMcpHandlers(): void {
   );
 
   ipcMain.handle(IPC.mcp.removeRepository, async (_event, repositoryId: string): Promise<void> => {
+    if (repositoryId === bundledMcpRepository.id) {
+      throw new Error("The built-in Bowora MCP directory can't be removed.");
+    }
     const repos = await store.getMcpRepositories();
     await store.setMcpRepositories(repos.filter((r) => r.id !== repositoryId));
     await rm(repoCacheDir(repositoryId), { recursive: true, force: true });
@@ -138,6 +154,7 @@ export function registerMcpHandlers(): void {
   ipcMain.handle(
     IPC.mcp.refreshRepository,
     async (_event, repositoryId: string): Promise<McpRepositoryIndex> => {
+      if (repositoryId === bundledMcpRepository.id) return bundledMcpDirectory;
       const repos = await store.getMcpRepositories();
       const repo = repos.find((r) => r.id === repositoryId);
       if (!repo) throw new Error(`Repository ${repositoryId} not found`);
@@ -155,7 +172,7 @@ export function registerMcpHandlers(): void {
     IPC.mcp.getRepositoryIndex,
     async (_event, repositoryId: string): Promise<McpRepositoryIndex> => {
       const repos = await store.getMcpRepositories();
-      const repo = repos.find((r) => r.id === repositoryId);
+      const repo = findRepository(repositoryId, repos);
       if (!repo) throw new Error(`Repository ${repositoryId} not found`);
       const { index } = await loadRepositoryIndex(repo);
       return index;
@@ -182,7 +199,7 @@ export function registerMcpHandlers(): void {
       const [projects, repos] = await Promise.all([store.getProjects(), store.getMcpRepositories()]);
       const project = projects.find((p) => p.id === params.projectId);
       if (!project) throw new Error(`Project ${params.projectId} not found`);
-      const repo = repos.find((r) => r.id === params.repositoryId);
+      const repo = findRepository(params.repositoryId, repos);
       if (!repo) throw new Error(`Repository ${params.repositoryId} not found`);
 
       const { index } = await loadRepositoryIndex(repo);

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
-import { Folder, FolderPlus, Plus, Search, Trash2 } from '@/components/icons';
+import { Folder, FolderPlus, Play, Plus, Search, Trash2 } from '@/components/icons';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -11,6 +11,7 @@ import { queryKeys } from '@/lib/queryKeys';
 import { timeAgo } from '@/lib/time';
 import { usePageHeader } from '@/stores/pageHeaderStore';
 import { confirmDialog } from '@/stores/confirmStore';
+import { useTerminalStore } from '@/stores/terminalStore';
 import { ProjectFormDialog, type ProjectFormValues } from '@/components/projects/ProjectFormDialog';
 
 export default function ProjectsPage(): React.JSX.Element {
@@ -19,6 +20,7 @@ export default function ProjectsPage(): React.JSX.Element {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [search, setSearch] = useState('');
   const queryClient = useQueryClient();
+  const openSession = useTerminalStore((s) => s.openSession);
 
   const projectsQuery = useQuery({
     queryKey: queryKeys.projects,
@@ -51,6 +53,16 @@ export default function ProjectsPage(): React.JSX.Element {
   });
 
   usePageHeader('Projects', 'Manage the projects AgentMate bootstraps and works with.');
+
+  function handleRun(project: { id: string; name: string; folderPath: string; runCommand: string }): void {
+    openSession({
+      title: project.name,
+      cwd: project.folderPath,
+      projectId: project.id,
+      initialInput: project.runCommand,
+    });
+    toast.info(`Press Enter in the terminal to run "${project.runCommand}".`);
+  }
 
   const projects = projectsQuery.data ?? [];
   const query = search.trim().toLowerCase();
@@ -122,24 +134,38 @@ export default function ProjectsPage(): React.JSX.Element {
                       </p>
                     </div>
                   </div>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="shrink-0 opacity-0 transition-opacity group-hover:opacity-100"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      void confirmDialog({
-                        title: `Remove "${project.name}"?`,
-                        description: 'This removes it from AgentMate. Files on disk are kept.',
-                        confirmLabel: 'Remove',
-                        variant: 'destructive',
-                      }).then((confirmed) => {
-                        if (confirmed) deleteMutation.mutate(project.id);
-                      });
-                    }}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
+                  <div className="flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+                    {project.runCommand && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        title={`Run "${project.runCommand}"`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleRun(project);
+                        }}
+                      >
+                        <Play className="h-4 w-4" />
+                      </Button>
+                    )}
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        void confirmDialog({
+                          title: `Remove "${project.name}"?`,
+                          description: 'This removes it from AgentMate. Files on disk are kept.',
+                          confirmLabel: 'Remove',
+                          variant: 'destructive',
+                        }).then((confirmed) => {
+                          if (confirmed) deleteMutation.mutate(project.id);
+                        });
+                      }}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </div>
                 <CardDescription className="line-clamp-2">
                   {project.description || 'No description yet.'}
@@ -150,6 +176,12 @@ export default function ProjectsPage(): React.JSX.Element {
                   <Folder className="h-3 w-3 shrink-0" />
                   <span className="truncate">{project.folderPath}</span>
                 </div>
+                {project.runCommand && (
+                  <div className="flex items-center gap-1.5 truncate text-xs text-muted-foreground">
+                    <Play className="h-3 w-3 shrink-0" />
+                    <span className="truncate font-mono">{project.runCommand}</span>
+                  </div>
+                )}
                 <div className="flex flex-wrap gap-1.5">
                   <Badge variant="secondary">{project.agentType}</Badge>
                   {project.tags.map((tag) => (

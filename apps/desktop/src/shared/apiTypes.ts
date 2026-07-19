@@ -18,6 +18,7 @@ export interface CreateProjectInput {
   tags: string[];
   agentType: AgentType;
   notes: string;
+  runCommand: string;
 }
 
 export interface SaveTemplateInput {

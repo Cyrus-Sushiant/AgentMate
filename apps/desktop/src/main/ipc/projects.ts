@@ -29,6 +29,7 @@ export function registerProjectHandlers(): void {
         tags: input.tags,
         agentType: input.agentType,
         notes: input.notes,
+        runCommand: input.runCommand,
         notifications: defaultProjectNotifications(),
         createdAt: now,
         updatedAt: now,

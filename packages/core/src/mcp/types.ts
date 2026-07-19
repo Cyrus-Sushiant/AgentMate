@@ -24,6 +24,8 @@ export const McpServerSchema = z.object({
   tags: z.array(z.string()).default([]),
   author: z.string(),
   version: z.string(),
+  /** Whether this server is maintained by the vendor/organization it integrates with, vs. a community project. */
+  official: z.boolean().default(false),
   popularity: z.number().default(0),
   documentationUrl: z.string().optional(),
   /** Env var names the user must supply a value for at install time (e.g. API keys). */
@@ -39,7 +41,7 @@ export const McpRepositoryIndexSchema = z.object({
 });
 export type McpRepositoryIndex = z.infer<typeof McpRepositoryIndexSchema>;
 
-export type McpRepositorySourceType = 'url' | 'git' | 'local-folder';
+export type McpRepositorySourceType = 'url' | 'git' | 'local-folder' | 'bundled';
 
 export interface McpRepository {
   id: string;

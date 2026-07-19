@@ -29,6 +29,7 @@ export interface ProjectFormValues {
   tags: string[];
   agentType: AgentType;
   notes: string;
+  runCommand: string;
 }
 
 export interface ProjectFormDialogProps {
@@ -52,6 +53,7 @@ export function ProjectFormDialog({
   const [tagsText, setTagsText] = useState('');
   const [agentType, setAgentType] = useState<AgentType>('claude-code');
   const [notes, setNotes] = useState('');
+  const [runCommand, setRunCommand] = useState('');
 
   useEffect(() => {
     if (!open) return;
@@ -61,6 +63,7 @@ export function ProjectFormDialog({
     setTagsText(initial?.tags.join(', ') ?? '');
     setAgentType(initial?.agentType ?? 'claude-code');
     setNotes(initial?.notes ?? '');
+    setRunCommand(initial?.runCommand ?? '');
   }, [open, initial]);
 
   async function handlePickFolder(): Promise<void> {
@@ -79,6 +82,7 @@ export function ProjectFormDialog({
         .filter(Boolean),
       agentType,
       notes,
+      runCommand: runCommand.trim(),
     });
   }
 
@@ -86,12 +90,12 @@ export function ProjectFormDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="flex max-h-[85vh] max-w-lg flex-col overflow-hidden">
         <DialogHeader>
           <DialogTitle>{initial ? 'Edit project' : 'New project'}</DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-3">
+        <div className="-mx-1 space-y-3 overflow-y-auto px-1">
           <div className="space-y-1.5">
             <Label>Name</Label>
             <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="My App" />
@@ -129,6 +133,16 @@ export function ProjectFormDialog({
           <div className="space-y-1.5">
             <Label>Notes</Label>
             <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label>Run command</Label>
+            <Input
+              value={runCommand}
+              onChange={(e) => setRunCommand(e.target.value)}
+              placeholder="npm run dev"
+              className="font-mono text-sm"
+            />
           </div>
         </div>
 

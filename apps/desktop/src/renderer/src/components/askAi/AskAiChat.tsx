@@ -102,6 +102,27 @@ export function AskAiChat({
     retry: false,
   });
 
+  const geminiModelsQuery = useQuery({
+    queryKey: ['gemini-models'],
+    queryFn: () => window.agentmat.ai.listGeminiModels(),
+    enabled: provider === 'gemini' && !!settingsQuery.data?.geminiApiKey,
+    retry: false,
+  });
+
+  useEffect(() => {
+    if (geminiModelsQuery.error) {
+      toast.error((geminiModelsQuery.error as Error).message || 'Failed to load Gemini models.');
+    }
+    // Only fire when a fetch attempt actually resolves to an error, not on every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [geminiModelsQuery.error]);
+
+  const geminiModelOptions = geminiModelsQuery.data?.length
+    ? geminiModelsQuery.data.map((name) => ({ value: name, label: name }))
+    : geminiModelsQuery.isError
+      ? []
+      : GEMINI_MODEL_OPTIONS;
+
   useEffect(() => {
     scrollEndRef.current?.scrollIntoView({ behavior: variant === 'modal' ? 'auto' : 'smooth' });
   }, [messages, variant]);
@@ -197,13 +218,30 @@ export function AskAiChat({
             />
           )}
           {provider === 'gemini' && (
-            <Combobox
-              className="w-44"
-              value={geminiModel}
-              onChange={setGeminiModel}
-              options={GEMINI_MODEL_OPTIONS}
-              placeholder="Model"
-            />
+            <>
+              <Combobox
+                className="w-44"
+                value={geminiModel}
+                onChange={setGeminiModel}
+                options={geminiModelOptions}
+                placeholder={geminiModelsQuery.isFetching ? 'Loading models…' : 'Model'}
+                emptyText={
+                  geminiModelsQuery.isError
+                    ? 'Could not load models — check your API key.'
+                    : 'No models found.'
+                }
+              />
+              {!!settingsQuery.data?.geminiApiKey && (
+                <Button
+                  variant="outline"
+                  size="icon"
+                  disabled={geminiModelsQuery.isFetching}
+                  onClick={() => void geminiModelsQuery.refetch()}
+                >
+                  <RefreshCw className="h-3.5 w-3.5" />
+                </Button>
+              )}
+            </>
           )}
           {provider === 'ollama' && (
             <>
@@ -320,7 +358,7 @@ export function AskAiChat({
         </div>
       </ScrollArea>
 
-      <div className="flex items-end gap-2 rounded-2xl border border-input bg-background p-1.5 pl-3 transition-colors focus-within:border-primary/50 focus-within:ring-2 focus-within:ring-ring/50">
+      <div className="flex items-end gap-2 rounded-2xl border border-input bg-background p-1.5 pl-3 transition-colors focus-within:border-primary/50 focus-within:ring-2 focus-within:ring-inset focus-within:ring-ring/50">
         <Textarea
           ref={textareaRef}
           className="min-h-[40px] flex-1 resize-none border-none bg-transparent p-1.5 shadow-none focus-visible:ring-0"

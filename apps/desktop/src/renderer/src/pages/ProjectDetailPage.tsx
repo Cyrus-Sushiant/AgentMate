@@ -172,6 +172,17 @@ export default function ProjectDetailPage(): React.JSX.Element {
     openSession({ title: project.name, cwd: project.folderPath, projectId: project.id });
   }
 
+  function handleRun(): void {
+    if (!project || !project.runCommand) return;
+    openSession({
+      title: project.name,
+      cwd: project.folderPath,
+      projectId: project.id,
+      initialInput: project.runCommand,
+    });
+    toast.info(`Press Enter in the terminal to run "${project.runCommand}".`);
+  }
+
   if (projectsQuery.isLoading) {
     return <p className="p-6 text-sm text-muted-foreground">Loading project…</p>;
   }
@@ -243,6 +254,11 @@ export default function ProjectDetailPage(): React.JSX.Element {
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-2">
+            {project.runCommand && (
+              <Button size="sm" onClick={handleRun}>
+                <Play /> Run
+              </Button>
+            )}
             <Button variant="outline" size="sm" onClick={() => setEditOpen(true)}>
               <Pencil /> Edit
             </Button>
@@ -386,11 +402,23 @@ export default function ProjectDetailPage(): React.JSX.Element {
               <p className="text-sm text-muted-foreground">
                 Open a terminal in this project's folder.
               </p>
-              <Button
-                onClick={() => openSession({ title: project.name, cwd: project.folderPath, projectId: project.id })}
-              >
-                <TerminalSquare /> Open Terminal Here
-              </Button>
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  onClick={() => openSession({ title: project.name, cwd: project.folderPath, projectId: project.id })}
+                >
+                  <TerminalSquare /> Open Terminal Here
+                </Button>
+                {project.runCommand && (
+                  <Button variant="outline" onClick={handleRun}>
+                    <Play /> Run "{project.runCommand}"
+                  </Button>
+                )}
+              </div>
+              {!project.runCommand && (
+                <p className="text-xs text-muted-foreground">
+                  Set a run command from Edit to add a one-click Run action here and on the Projects page.
+                </p>
+              )}
             </TabsContent>
 
             <TabsContent value="config">
@@ -406,6 +434,12 @@ export default function ProjectDetailPage(): React.JSX.Element {
               <div className="flex items-center justify-between gap-2">
                 <dt className="text-muted-foreground">Agent</dt>
                 <dd className="font-medium">{project.agentType}</dd>
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <dt className="shrink-0 text-muted-foreground">Run command</dt>
+                <dd className="min-w-0 truncate text-right font-mono text-xs" title={project.runCommand}>
+                  {project.runCommand || '—'}
+                </dd>
               </div>
               <div className="flex items-center justify-between gap-2">
                 <dt className="text-muted-foreground">Created</dt>
