@@ -27,7 +27,10 @@ export const McpServerSchema = z.object({
   /** Whether this server is maintained by the vendor/organization it integrates with, vs. a community project. */
   official: z.boolean().default(false),
   popularity: z.number().default(0),
-  documentationUrl: z.string().optional(),
+  /** The server's own homepage/docs site, when distinct from its source repository. */
+  websiteUrl: z.string().optional(),
+  /** Source repository (e.g. GitHub) the server is published from. */
+  repositoryUrl: z.string().optional(),
   /** Env var names the user must supply a value for at install time (e.g. API keys). */
   requiredEnv: z.array(z.string()).default([]),
   config: McpServerConfigSchema,

@@ -2,10 +2,11 @@ import type { McpRepository } from './types.js';
 import { McpRepositoryIndexSchema, type McpRepositoryIndex } from './types.js';
 
 /**
- * Servers bundled from the Bowora MCP directory (https://bowora.com/mcp) as of 2026-07-17.
- * Shipped with the app so the default marketplace listing works offline and never needs a
- * network fetch. Entries without a parsed `command`/`url` had no machine-readable install
- * instructions on the source page — they're still listed for discovery, but need manual setup.
+ * Servers bundled from the Bowora MCP directory (https://bowora.com/mcp) as of 2026-07-19,
+ * fetched per-server from each server's own /mcp/{slug} detail page. Shipped with the app so
+ * the default marketplace listing works offline and never needs a network fetch. Entries
+ * without a parsed `command`/`url` had no machine-readable install instructions on the
+ * source page — they're still listed for discovery, but need manual setup.
  */
 export const BOWORA_MCP_REPOSITORY_ID = 'bowora-directory';
 
@@ -25,7 +26,8 @@ export const bundledMcpDirectory: McpRepositoryIndex = McpRepositoryIndexSchema.
       version: 'latest',
       official: false,
       popularity: 5886,
-      documentationUrl: 'https://jscpd.dev/',
+      websiteUrl: 'https://jscpd.dev/',
+      repositoryUrl: 'https://github.com/kucherenko/jscpd',
       requiredEnv: [],
       config: {
         transport: 'stdio',
@@ -41,7 +43,8 @@ export const bundledMcpDirectory: McpRepositoryIndex = McpRepositoryIndexSchema.
       version: 'latest',
       official: false,
       popularity: 5573,
-      documentationUrl: 'https://mcp-atlassian.soomiles.com',
+      websiteUrl: 'https://mcp-atlassian.soomiles.com',
+      repositoryUrl: 'https://github.com/sooperset/mcp-atlassian',
       requiredEnv: [],
       config: {
         transport: 'stdio',
@@ -58,7 +61,8 @@ export const bundledMcpDirectory: McpRepositoryIndex = McpRepositoryIndexSchema.
       version: 'latest',
       official: false,
       popularity: 5468,
-      documentationUrl: 'https://mobilenext.ai',
+      websiteUrl: 'https://mobilenext.ai',
+      repositoryUrl: 'https://github.com/mobile-next/mobile-mcp',
       requiredEnv: [],
       config: {
         transport: 'stdio',
@@ -75,7 +79,8 @@ export const bundledMcpDirectory: McpRepositoryIndex = McpRepositoryIndexSchema.
       version: 'latest',
       official: false,
       popularity: 5425,
-      documentationUrl: 'https://sandbox.agent-infra.com',
+      websiteUrl: 'https://sandbox.agent-infra.com',
+      repositoryUrl: 'https://github.com/agent-infra/sandbox',
       requiredEnv: [],
       config: {
         transport: 'stdio',
@@ -92,7 +97,8 @@ export const bundledMcpDirectory: McpRepositoryIndex = McpRepositoryIndexSchema.
       version: 'latest',
       official: false,
       popularity: 5277,
-      documentationUrl: 'https://5ire.app',
+      websiteUrl: 'https://5ire.app',
+      repositoryUrl: 'https://github.com/nanbingxyz/5ire',
       requiredEnv: [],
       config: {
         transport: 'stdio',
@@ -109,7 +115,7 @@ export const bundledMcpDirectory: McpRepositoryIndex = McpRepositoryIndexSchema.
       version: 'latest',
       official: false,
       popularity: 5209,
-      documentationUrl: 'https://github.com/rocketride-org/rocketride-server',
+      repositoryUrl: 'https://github.com/rocketride-org/rocketride-server',
       requiredEnv: [],
       config: {
         transport: 'stdio',
@@ -126,7 +132,8 @@ export const bundledMcpDirectory: McpRepositoryIndex = McpRepositoryIndexSchema.
       version: 'latest',
       official: false,
       popularity: 5000,
-      documentationUrl: 'https://linear.app',
+      websiteUrl: 'https://linear.app',
+      repositoryUrl: 'https://github.com/linear/linear-mcp',
       requiredEnv: [],
       config: {
         transport: 'stdio',
@@ -142,7 +149,7 @@ export const bundledMcpDirectory: McpRepositoryIndex = McpRepositoryIndexSchema.
       version: 'latest',
       official: false,
       popularity: 7438,
-      documentationUrl: 'https://github.com/yzfly/Awesome-MCP-ZH',
+      repositoryUrl: 'https://github.com/yzfly/Awesome-MCP-ZH',
       requiredEnv: [],
       config: {
         transport: 'stdio',
@@ -159,7 +166,8 @@ export const bundledMcpDirectory: McpRepositoryIndex = McpRepositoryIndexSchema.
       version: 'latest',
       official: false,
       popularity: 7000,
-      documentationUrl: 'https://sentry.io',
+      websiteUrl: 'https://sentry.io',
+      repositoryUrl: 'https://github.com/getsentry/sentry-mcp',
       requiredEnv: [],
       config: {
         transport: 'stdio',
@@ -176,7 +184,8 @@ export const bundledMcpDirectory: McpRepositoryIndex = McpRepositoryIndexSchema.
       version: 'latest',
       official: false,
       popularity: 6960,
-      documentationUrl: 'https://firecrawl.dev',
+      websiteUrl: 'https://firecrawl.dev',
+      repositoryUrl: 'https://github.com/firecrawl/firecrawl-mcp-server',
       requiredEnv: [],
       config: {
         transport: 'stdio',
@@ -193,7 +202,8 @@ export const bundledMcpDirectory: McpRepositoryIndex = McpRepositoryIndexSchema.
       version: 'latest',
       official: false,
       popularity: 6831,
-      documentationUrl: 'https://browsermcp.io',
+      websiteUrl: 'https://browsermcp.io',
+      repositoryUrl: 'https://github.com/BrowserMCP/mcp',
       requiredEnv: [],
       config: {
         transport: 'stdio',
@@ -210,7 +220,8 @@ export const bundledMcpDirectory: McpRepositoryIndex = McpRepositoryIndexSchema.
       version: 'latest',
       official: false,
       popularity: 6500,
-      documentationUrl: 'https://www.notion.com',
+      websiteUrl: 'https://www.notion.com',
+      repositoryUrl: 'https://github.com/makenotion/notion-mcp-server',
       requiredEnv: [],
       config: {
         transport: 'stdio',
@@ -226,7 +237,7 @@ export const bundledMcpDirectory: McpRepositoryIndex = McpRepositoryIndexSchema.
       version: 'latest',
       official: false,
       popularity: 6434,
-      documentationUrl: 'https://github.com/CursorTouch/Windows-MCP',
+      repositoryUrl: 'https://github.com/CursorTouch/Windows-MCP',
       requiredEnv: [],
       config: {
         transport: 'stdio',
@@ -243,7 +254,8 @@ export const bundledMcpDirectory: McpRepositoryIndex = McpRepositoryIndexSchema.
       version: 'latest',
       official: false,
       popularity: 6076,
-      documentationUrl: 'https://www.xcodebuildmcp.com',
+      websiteUrl: 'https://www.xcodebuildmcp.com',
+      repositoryUrl: 'https://github.com/getsentry/XcodeBuildMCP',
       requiredEnv: [],
       config: {
         transport: 'stdio',
@@ -259,7 +271,8 @@ export const bundledMcpDirectory: McpRepositoryIndex = McpRepositoryIndexSchema.
       version: 'latest',
       official: false,
       popularity: 5903,
-      documentationUrl: 'https://x.com/LukeHarries_/status/1905986562388635913',
+      websiteUrl: 'https://x.com/LukeHarries_/status/1905986562388635913',
+      repositoryUrl: 'https://github.com/lharries/whatsapp-mcp',
       requiredEnv: [],
       config: {
         transport: 'stdio',
@@ -276,7 +289,8 @@ export const bundledMcpDirectory: McpRepositoryIndex = McpRepositoryIndexSchema.
       version: 'latest',
       official: false,
       popularity: 23273,
-      documentationUrl: 'https://www.activepieces.com',
+      websiteUrl: 'https://www.activepieces.com',
+      repositoryUrl: 'https://github.com/activepieces/activepieces',
       requiredEnv: [],
       config: {
         transport: 'stdio',
@@ -292,7 +306,8 @@ export const bundledMcpDirectory: McpRepositoryIndex = McpRepositoryIndexSchema.
       version: 'latest',
       official: false,
       popularity: 15956,
-      documentationUrl: 'https://mcp-toolbox.dev/documentation/introduction/',
+      websiteUrl: 'https://mcp-toolbox.dev/documentation/introduction/',
+      repositoryUrl: 'https://github.com/googleapis/mcp-toolbox',
       requiredEnv: [],
       config: {
         transport: 'stdio',
@@ -308,7 +323,8 @@ export const bundledMcpDirectory: McpRepositoryIndex = McpRepositoryIndexSchema.
       version: 'latest',
       official: false,
       popularity: 15402,
-      documentationUrl: 'https://www.framelink.ai/',
+      websiteUrl: 'https://www.framelink.ai/',
+      repositoryUrl: 'https://github.com/GLips/Figma-Context-MCP',
       requiredEnv: [],
       config: {
         transport: 'stdio',
@@ -325,7 +341,8 @@ export const bundledMcpDirectory: McpRepositoryIndex = McpRepositoryIndexSchema.
       version: 'latest',
       official: false,
       popularity: 13946,
-      documentationUrl: 'https://casdoor.ai',
+      websiteUrl: 'https://casdoor.ai',
+      repositoryUrl: 'https://github.com/casdoor/casdoor',
       requiredEnv: [],
       config: {
         transport: 'stdio',
@@ -342,7 +359,7 @@ export const bundledMcpDirectory: McpRepositoryIndex = McpRepositoryIndexSchema.
       version: 'latest',
       official: false,
       popularity: 12000,
-      documentationUrl:
+      repositoryUrl:
         'https://github.com/modelcontextprotocol/servers-archived/tree/main/src/postgres',
       requiredEnv: [],
       config: {
@@ -360,7 +377,8 @@ export const bundledMcpDirectory: McpRepositoryIndex = McpRepositoryIndexSchema.
       version: 'latest',
       official: false,
       popularity: 10321,
-      documentationUrl: 'https://www.hexstrike.com/',
+      websiteUrl: 'https://www.hexstrike.com/',
+      repositoryUrl: 'https://github.com/0x4m4/hexstrike-ai',
       requiredEnv: [],
       config: {
         transport: 'stdio',
@@ -377,7 +395,8 @@ export const bundledMcpDirectory: McpRepositoryIndex = McpRepositoryIndexSchema.
       version: 'latest',
       official: false,
       popularity: 10306,
-      documentationUrl: 'https://manufact.com',
+      websiteUrl: 'https://manufact.com',
+      repositoryUrl: 'https://github.com/mcp-use/mcp-use',
       requiredEnv: [],
       config: {
         transport: 'stdio',
@@ -394,7 +413,8 @@ export const bundledMcpDirectory: McpRepositoryIndex = McpRepositoryIndexSchema.
       version: 'latest',
       official: false,
       popularity: 8500,
-      documentationUrl: 'https://supabase.com',
+      websiteUrl: 'https://supabase.com',
+      repositoryUrl: 'https://github.com/supabase-community/supabase-mcp',
       requiredEnv: [],
       config: {
         transport: 'stdio',
@@ -411,7 +431,8 @@ export const bundledMcpDirectory: McpRepositoryIndex = McpRepositoryIndexSchema.
       version: 'latest',
       official: false,
       popularity: 8297,
-      documentationUrl: 'https://desktopcommander.app/',
+      websiteUrl: 'https://desktopcommander.app/',
+      repositoryUrl: 'https://github.com/wonderwhy-er/DesktopCommanderMCP',
       requiredEnv: [],
       config: {
         transport: 'stdio',
@@ -428,7 +449,8 @@ export const bundledMcpDirectory: McpRepositoryIndex = McpRepositoryIndexSchema.
       version: 'latest',
       official: false,
       popularity: 8014,
-      documentationUrl: 'https://www.webiny.com',
+      websiteUrl: 'https://www.webiny.com',
+      repositoryUrl: 'https://github.com/webiny/webiny-js',
       requiredEnv: [],
       config: {
         transport: 'stdio',
@@ -445,7 +467,7 @@ export const bundledMcpDirectory: McpRepositoryIndex = McpRepositoryIndexSchema.
       version: 'latest',
       official: true,
       popularity: 10000,
-      documentationUrl:
+      repositoryUrl:
         'https://github.com/modelcontextprotocol/servers-archived/tree/main/src/puppeteer',
       requiredEnv: [],
       config: {
@@ -463,8 +485,7 @@ export const bundledMcpDirectory: McpRepositoryIndex = McpRepositoryIndexSchema.
       version: 'latest',
       official: true,
       popularity: 9000,
-      documentationUrl:
-        'https://github.com/modelcontextprotocol/servers/tree/main/src/brave-search',
+      repositoryUrl: 'https://github.com/modelcontextprotocol/servers/tree/main/src/brave-search',
       requiredEnv: [],
       config: {
         transport: 'stdio',
@@ -481,7 +502,7 @@ export const bundledMcpDirectory: McpRepositoryIndex = McpRepositoryIndexSchema.
       version: 'latest',
       official: true,
       popularity: 8000,
-      documentationUrl:
+      repositoryUrl:
         'https://github.com/modelcontextprotocol/servers/tree/main/src/sequentialthinking',
       requiredEnv: [],
       config: {
@@ -499,7 +520,7 @@ export const bundledMcpDirectory: McpRepositoryIndex = McpRepositoryIndexSchema.
       version: 'latest',
       official: true,
       popularity: 7500,
-      documentationUrl:
+      repositoryUrl:
         'https://github.com/modelcontextprotocol/servers-archived/tree/main/src/sqlite',
       requiredEnv: [],
       config: {
@@ -516,7 +537,8 @@ export const bundledMcpDirectory: McpRepositoryIndex = McpRepositoryIndexSchema.
       version: 'latest',
       official: true,
       popularity: 7019,
-      documentationUrl: 'https://github.com/modelcontextprotocol/registry/tree/main/docs',
+      websiteUrl: 'https://github.com/modelcontextprotocol/registry/tree/main/docs',
+      repositoryUrl: 'https://github.com/modelcontextprotocol/registry',
       requiredEnv: [],
       config: {
         transport: 'stdio',
@@ -533,8 +555,7 @@ export const bundledMcpDirectory: McpRepositoryIndex = McpRepositoryIndexSchema.
       version: 'latest',
       official: true,
       popularity: 6800,
-      documentationUrl:
-        'https://github.com/modelcontextprotocol/servers-archived/tree/main/src/git',
+      repositoryUrl: 'https://github.com/modelcontextprotocol/servers-archived/tree/main/src/git',
       requiredEnv: [],
       config: {
         transport: 'stdio',
@@ -550,7 +571,8 @@ export const bundledMcpDirectory: McpRepositoryIndex = McpRepositoryIndexSchema.
       version: 'latest',
       official: false,
       popularity: 90809,
-      documentationUrl: 'https://glama.ai/mcp/servers',
+      websiteUrl: 'https://glama.ai/mcp/servers',
+      repositoryUrl: 'https://github.com/punkpeye/awesome-mcp-servers',
       requiredEnv: [],
       config: {
         transport: 'stdio',
@@ -567,7 +589,8 @@ export const bundledMcpDirectory: McpRepositoryIndex = McpRepositoryIndexSchema.
       version: 'latest',
       official: false,
       popularity: 59284,
-      documentationUrl: 'https://headroom-docs.vercel.app/docs',
+      websiteUrl: 'https://headroom-docs.vercel.app/docs',
+      repositoryUrl: 'https://github.com/headroomlabs-ai/headroom',
       requiredEnv: [],
       config: {
         transport: 'stdio',
@@ -584,7 +607,8 @@ export const bundledMcpDirectory: McpRepositoryIndex = McpRepositoryIndexSchema.
       version: 'latest',
       official: false,
       popularity: 31724,
-      documentationUrl: 'https://deusdata.github.io/codebase-memory-mcp/',
+      websiteUrl: 'https://deusdata.github.io/codebase-memory-mcp/',
+      repositoryUrl: 'https://github.com/DeusData/codebase-memory-mcp',
       requiredEnv: [],
       config: {
         transport: 'stdio',
@@ -600,7 +624,8 @@ export const bundledMcpDirectory: McpRepositoryIndex = McpRepositoryIndexSchema.
       version: 'latest',
       official: false,
       popularity: 26217,
-      documentationUrl: 'https://gofastmcp.com',
+      websiteUrl: 'https://gofastmcp.com',
+      repositoryUrl: 'https://github.com/PrefectHQ/fastmcp',
       requiredEnv: [],
       config: {
         transport: 'stdio',
@@ -617,7 +642,7 @@ export const bundledMcpDirectory: McpRepositoryIndex = McpRepositoryIndexSchema.
       version: 'latest',
       official: true,
       popularity: 15000,
-      documentationUrl: 'https://github.com/modelcontextprotocol/servers/tree/main/src/memory',
+      repositoryUrl: 'https://github.com/modelcontextprotocol/servers/tree/main/src/memory',
       requiredEnv: [],
       config: {
         transport: 'stdio',
@@ -634,7 +659,7 @@ export const bundledMcpDirectory: McpRepositoryIndex = McpRepositoryIndexSchema.
       version: 'latest',
       official: true,
       popularity: 11000,
-      documentationUrl: 'https://github.com/modelcontextprotocol/servers/tree/main/src/fetch',
+      repositoryUrl: 'https://github.com/modelcontextprotocol/servers/tree/main/src/fetch',
       requiredEnv: [],
       config: {
         transport: 'stdio',
@@ -651,7 +676,8 @@ export const bundledMcpDirectory: McpRepositoryIndex = McpRepositoryIndexSchema.
       version: 'latest',
       official: true,
       popularity: 45130,
-      documentationUrl: 'https://developer.chrome.com/docs/devtools',
+      websiteUrl: 'https://developer.chrome.com/docs/devtools',
+      repositoryUrl: 'https://github.com/ChromeDevTools/chrome-devtools-mcp',
       requiredEnv: [],
       config: {
         transport: 'stdio',
@@ -670,7 +696,8 @@ export const bundledMcpDirectory: McpRepositoryIndex = McpRepositoryIndexSchema.
       version: 'latest',
       official: false,
       popularity: 79480,
-      documentationUrl: 'https://www.netdata.cloud',
+      websiteUrl: 'https://www.netdata.cloud',
+      repositoryUrl: 'https://github.com/netdata/netdata',
       requiredEnv: [],
       config: {
         transport: 'http',
@@ -688,7 +715,8 @@ export const bundledMcpDirectory: McpRepositoryIndex = McpRepositoryIndexSchema.
       version: 'latest',
       official: true,
       popularity: 39600,
-      documentationUrl: 'https://github.com',
+      websiteUrl: 'https://github.com',
+      repositoryUrl: 'https://github.com/github/github-mcp-server',
       requiredEnv: ['GITHUB_PERSONAL_ACCESS_TOKEN'],
       config: {
         transport: 'stdio',
@@ -714,7 +742,8 @@ export const bundledMcpDirectory: McpRepositoryIndex = McpRepositoryIndexSchema.
       version: 'latest',
       official: true,
       popularity: 19700,
-      documentationUrl: 'https://aws.amazon.com',
+      websiteUrl: 'https://aws.amazon.com',
+      repositoryUrl: 'https://github.com/awslabs/mcp',
       requiredEnv: [],
       config: {
         transport: 'stdio',
@@ -733,7 +762,8 @@ export const bundledMcpDirectory: McpRepositoryIndex = McpRepositoryIndexSchema.
       version: 'latest',
       official: true,
       popularity: 45130,
-      documentationUrl: 'https://playwright.dev',
+      websiteUrl: 'https://playwright.dev',
+      repositoryUrl: 'https://github.com/microsoft/playwright-mcp',
       requiredEnv: [],
       config: {
         transport: 'stdio',
@@ -752,7 +782,8 @@ export const bundledMcpDirectory: McpRepositoryIndex = McpRepositoryIndexSchema.
       version: 'latest',
       official: false,
       popularity: 58496,
-      documentationUrl: 'https://context7.com',
+      websiteUrl: 'https://context7.com',
+      repositoryUrl: 'https://github.com/upstash/context7',
       requiredEnv: [],
       config: {
         transport: 'stdio',
@@ -771,7 +802,8 @@ export const bundledMcpDirectory: McpRepositoryIndex = McpRepositoryIndexSchema.
       version: 'latest',
       official: true,
       popularity: 22600,
-      documentationUrl: 'https://www.cloudflare.com',
+      websiteUrl: 'https://www.cloudflare.com',
+      repositoryUrl: 'https://github.com/cloudflare/mcp-server-cloudflare',
       requiredEnv: [],
       config: {
         transport: 'stdio',
@@ -790,7 +822,8 @@ export const bundledMcpDirectory: McpRepositoryIndex = McpRepositoryIndexSchema.
       version: 'latest',
       official: false,
       popularity: 162491,
-      documentationUrl: 'https://github.com/microsoft/markitdown',
+      websiteUrl: 'https://github.com/microsoft/markitdown',
+      repositoryUrl: 'https://github.com/microsoft/markitdown',
       requiredEnv: [],
       config: {
         transport: 'stdio',
@@ -807,7 +840,8 @@ export const bundledMcpDirectory: McpRepositoryIndex = McpRepositoryIndexSchema.
       version: 'latest',
       official: true,
       popularity: 78400,
-      documentationUrl: 'https://modelcontextprotocol.io',
+      websiteUrl: 'https://modelcontextprotocol.io',
+      repositoryUrl: 'https://github.com/modelcontextprotocol/servers/tree/main/src/filesystem',
       requiredEnv: [],
       config: {
         transport: 'stdio',
@@ -826,7 +860,8 @@ export const bundledMcpDirectory: McpRepositoryIndex = McpRepositoryIndexSchema.
       version: 'latest',
       official: true,
       popularity: 11800,
-      documentationUrl: 'https://stripe.com',
+      websiteUrl: 'https://stripe.com',
+      repositoryUrl: 'https://github.com/stripe/agent-toolkit',
       requiredEnv: ['STRIPE_SECRET_KEY'],
       config: {
         transport: 'stdio',
@@ -842,6 +877,6 @@ export const bundledMcpRepository: McpRepository = {
   name: bundledMcpDirectory.name,
   sourceType: 'bundled',
   source: 'https://bowora.com/mcp',
-  addedAt: '2026-07-17T00:00:00.000Z',
-  lastRefreshedAt: '2026-07-17T00:00:00.000Z',
+  addedAt: '2026-07-19T00:00:00.000Z',
+  lastRefreshedAt: '2026-07-19T00:00:00.000Z',
 };

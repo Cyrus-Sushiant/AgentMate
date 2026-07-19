@@ -2,7 +2,17 @@ import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
-import { CircleCheck, FolderOpen, Plug, Plus, RefreshCw, Search, Trash2 } from '@/components/icons';
+import {
+  CircleCheck,
+  FolderOpen,
+  GitBranch,
+  Globe,
+  Plug,
+  Plus,
+  RefreshCw,
+  Search,
+  Trash2,
+} from '@/components/icons';
 import { BOWORA_MCP_REPOSITORY_ID } from '@agentmat/core';
 import type { McpRepositorySourceType, McpServer } from '@agentmat/core';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -309,14 +319,27 @@ export default function McpPage(): React.JSX.Element {
                       </Button>
                     </SimpleTooltip>
                   )}
-                  {server.documentationUrl && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => void window.agentmat.shell.openExternal(server.documentationUrl!)}
-                    >
-                      Docs
-                    </Button>
+                  {server.websiteUrl && (
+                    <SimpleTooltip label="Website">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => void window.agentmat.shell.openExternal(server.websiteUrl!)}
+                      >
+                        <Globe className="h-4 w-4" />
+                      </Button>
+                    </SimpleTooltip>
+                  )}
+                  {server.repositoryUrl && (
+                    <SimpleTooltip label="GitHub">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => void window.agentmat.shell.openExternal(server.repositoryUrl!)}
+                      >
+                        <GitBranch className="h-4 w-4" />
+                      </Button>
+                    </SimpleTooltip>
                   )}
                 </div>
               </CardContent>

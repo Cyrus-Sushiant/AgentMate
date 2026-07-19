@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react';
 import { Search, WindowMaximize, WindowMinimize, X } from '@/components/icons';
 import { SimpleTooltip } from '@/components/ui/tooltip';
+import { useIsDarkMode } from '@/lib/chartColors';
 import { useSearchStore } from '@/stores/searchStore';
 import { cn } from '@/lib/utils';
-import appIcon from '@/assets/app-icon.png';
+import appIconDark from '@/assets/app-icon.png';
+import appIconLight from '@/assets/app-icon-light.png';
 
 function TrafficLight({
   color,
@@ -121,6 +123,7 @@ function SearchTrigger(): React.JSX.Element {
 export function TitleBar(): React.JSX.Element {
   const [isMaximized, setIsMaximized] = useState(false);
   const isMac = window.agentmat.platform === 'darwin';
+  const isDark = useIsDarkMode();
 
   useEffect(() => {
     window.agentmat.window.isMaximized().then(setIsMaximized);
@@ -142,7 +145,7 @@ export function TitleBar(): React.JSX.Element {
       <div className="flex items-center gap-3">
         {isMac && <MacTrafficLights {...controlProps} />}
         <div className="flex items-center gap-2">
-          <img src={appIcon} alt="" className="h-6 w-6" />
+          <img src={isDark ? appIconDark : appIconLight} alt="" className="h-6 w-6" />
           <span className="text-sm font-semibold tracking-tight text-foreground">AgentMate</span>
         </div>
       </div>

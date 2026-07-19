@@ -1,5 +1,7 @@
 import { AnimatePresence, motion } from 'framer-motion';
-import appIcon from '@/assets/app-icon.png';
+import { useIsDarkMode } from '@/lib/chartColors';
+import appIconDark from '@/assets/app-icon.png';
+import appIconLight from '@/assets/app-icon-light.png';
 
 interface LoadingOverlayProps {
   show: boolean;
@@ -12,6 +14,8 @@ interface LoadingOverlayProps {
  * reads as a slider orbiting the logo rather than a plain spinner.
  */
 export function LoadingOverlay({ show, label }: LoadingOverlayProps): React.JSX.Element {
+  const isDark = useIsDarkMode();
+
   return (
     <AnimatePresence>
       {show && (
@@ -41,7 +45,7 @@ export function LoadingOverlay({ show, label }: LoadingOverlayProps): React.JSX.
               animate={{ rotate: 360 }}
               transition={{ duration: 1.1, ease: 'linear', repeat: Infinity }}
             />
-            <img src={appIcon} alt="" className="h-11 w-11" />
+            <img src={isDark ? appIconDark : appIconLight} alt="" className="h-11 w-11" />
           </motion.div>
           {label && <p className="text-sm text-muted-foreground">{label}</p>}
         </motion.div>
