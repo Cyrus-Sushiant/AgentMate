@@ -4,12 +4,14 @@ import { HashRouter, Route, Routes } from 'react-router-dom';
 import { Toaster } from 'sonner';
 import { TooltipProvider } from './components/ui/tooltip';
 import { ConfirmDialogHost } from './components/ConfirmDialog';
+import { UpdateManager } from './components/UpdateManager';
 import { queryClient } from './queryClient';
 import { initTheme } from './stores/themeStore';
 import { initDefaultCli } from './stores/cliStore';
 import { initPingTargets } from './stores/pingTargetsStore';
 import { initDashboardOrder } from './stores/dashboardOrderStore';
 import { initRemote } from './stores/remoteStore';
+import { initUpdateStatusListener } from './stores/updateStore';
 import { AppShell } from './components/layout/AppShell';
 import DashboardPage from './pages/DashboardPage';
 import CliManagerPage from './pages/CliManagerPage';
@@ -19,6 +21,7 @@ import ProjectsPage from './pages/ProjectsPage';
 import ProjectDetailPage from './pages/ProjectDetailPage';
 import SkillsPage from './pages/SkillsPage';
 import McpPage from './pages/McpPage';
+import ToolsPage from './pages/ToolsPage';
 import AskAiPage from './pages/AskAiPage';
 import RemotePage from './pages/RemotePage';
 import SettingsPage from './pages/SettingsPage';
@@ -30,6 +33,7 @@ export default function App(): React.JSX.Element {
     void initPingTargets();
     void initDashboardOrder();
     initRemote();
+    return initUpdateStatusListener();
   }, []);
 
   return (
@@ -46,6 +50,7 @@ export default function App(): React.JSX.Element {
               <Route path="projects/:projectId" element={<ProjectDetailPage />} />
               <Route path="skills" element={<SkillsPage />} />
               <Route path="mcp" element={<McpPage />} />
+              <Route path="tools" element={<ToolsPage />} />
               <Route path="ask-ai" element={<AskAiPage />} />
               <Route path="remote" element={<RemotePage />} />
               <Route path="settings" element={<SettingsPage />} />
@@ -54,6 +59,7 @@ export default function App(): React.JSX.Element {
         </HashRouter>
         <Toaster theme="system" position="bottom-right" richColors closeButton />
         <ConfirmDialogHost />
+        <UpdateManager />
       </TooltipProvider>
     </QueryClientProvider>
   );

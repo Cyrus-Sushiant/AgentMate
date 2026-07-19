@@ -16,6 +16,7 @@ import type {
   McpRepository,
   McpRepositoryIndex,
   McpRepositorySourceType,
+  InstalledAgentTool,
 } from '@agentmat/core';
 import { IPC } from '../shared/ipcChannels';
 import type {
@@ -26,6 +27,8 @@ import type {
   DirectoryEntry,
   InstalledSkillRecord,
   InstalledMcpServerRecord,
+  SkillsShDetail,
+  SkillsShSearchResult,
   AddPromptHistoryInput,
   PromptHistoryEntry,
   TranslateTextInput,
@@ -48,6 +51,7 @@ import type {
   RemoteFileProgress,
   RemoteLogEvent,
   StartHostInput,
+  UpdateStatus,
 } from '../shared/apiTypes';
 import type { RemoteInputEvent } from '../shared/remoteProtocol';
 
@@ -59,6 +63,19 @@ interface TerminalExitPayload {
   sessionId: string;
   exitCode: number;
 }
+
+const appInfo = {
+  getVersion: (): Promise<string> => ipcRenderer.invoke(IPC.app.getVersion),
+  checkForUpdates: (): Promise<UpdateStatus> => ipcRenderer.invoke(IPC.app.checkForUpdates),
+  downloadUpdate: (): Promise<void> => ipcRenderer.invoke(IPC.app.downloadUpdate),
+  quitAndInstall: (): Promise<void> => ipcRenderer.invoke(IPC.app.quitAndInstall),
+  onUpdateStatus: (callback: (status: UpdateStatus) => void): (() => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, status: UpdateStatus): void =>
+      callback(status);
+    ipcRenderer.on(IPC.app.onUpdateStatus, listener);
+    return () => ipcRenderer.removeListener(IPC.app.onUpdateStatus, listener);
+  },
+};
 
 const cli = {
   detectAll: (): Promise<InstalledCli[]> => ipcRenderer.invoke(IPC.cli.detectAll),
@@ -102,7 +119,10 @@ const projects = {
   bootstrap: (projectId: string): Promise<{ createdFiles: string[] }> =>
     ipcRenderer.invoke(IPC.projects.bootstrap, projectId),
   pickFolder: (): Promise<string | null> => ipcRenderer.invoke(IPC.projects.pickFolder),
-  updateNotifications: (projectId: string, notifications: ProjectNotificationSettings): Promise<Project> =>
+  updateNotifications: (
+    projectId: string,
+    notifications: ProjectNotificationSettings,
+  ): Promise<Project> =>
     ipcRenderer.invoke(IPC.projects.updateNotifications, projectId, notifications),
   listClaudeHooks: (projectId: string): Promise<DetectedClaudeHook[]> =>
     ipcRenderer.invoke(IPC.projects.listClaudeHooks, projectId),
@@ -137,6 +157,10 @@ const skills = {
     ipcRenderer.invoke(IPC.skills.remove, params),
   listInstalled: (projectId: string): Promise<InstalledSkillRecord[]> =>
     ipcRenderer.invoke(IPC.skills.listInstalled, projectId),
+  searchSkillsSh: (query: string): Promise<SkillsShSearchResult[]> =>
+    ipcRenderer.invoke(IPC.skills.searchSkillsSh, query),
+  getSkillsShDetail: (skillPath: string): Promise<SkillsShDetail> =>
+    ipcRenderer.invoke(IPC.skills.getSkillsShDetail, skillPath),
 };
 
 const mcp = {
@@ -164,6 +188,14 @@ const mcp = {
     ipcRenderer.invoke(IPC.mcp.remove, params),
   listInstalled: (projectId: string): Promise<InstalledMcpServerRecord[]> =>
     ipcRenderer.invoke(IPC.mcp.listInstalled, projectId),
+};
+
+const tools = {
+  detectAll: (): Promise<InstalledAgentTool[]> => ipcRenderer.invoke(IPC.tools.detectAll),
+  getInstallCommand: (toolId: string): Promise<string | null> =>
+    ipcRenderer.invoke(IPC.tools.getInstallCommand, toolId),
+  getDockerCommand: (toolId: string, action: 'start' | 'stop' | 'reset'): Promise<string | null> =>
+    ipcRenderer.invoke(IPC.tools.getDockerCommand, toolId, action),
 };
 
 const fs = {
@@ -213,7 +245,8 @@ const promptHistory = {
 };
 
 const translate = {
-  text: (input: TranslateTextInput): Promise<string> => ipcRenderer.invoke(IPC.translate.text, input),
+  text: (input: TranslateTextInput): Promise<string> =>
+    ipcRenderer.invoke(IPC.translate.text, input),
 };
 
 const ai = {
@@ -244,10 +277,15 @@ const scheduledTasks = {
 const notifications = {
   sendTest: (input: SendTestNotificationInput): Promise<NotificationSendResult> =>
     ipcRenderer.invoke(IPC.notifications.sendTest, input),
-  detectChatId: (): Promise<DetectChatIdResult> => ipcRenderer.invoke(IPC.notifications.detectChatId),
-  onConfirmationForwarded: (callback: (payload: ConfirmationForwardedPayload) => void): (() => void) => {
-    const listener = (_event: Electron.IpcRendererEvent, payload: ConfirmationForwardedPayload): void =>
-      callback(payload);
+  detectChatId: (): Promise<DetectChatIdResult> =>
+    ipcRenderer.invoke(IPC.notifications.detectChatId),
+  onConfirmationForwarded: (
+    callback: (payload: ConfirmationForwardedPayload) => void,
+  ): (() => void) => {
+    const listener = (
+      _event: Electron.IpcRendererEvent,
+      payload: ConfirmationForwardedPayload,
+    ): void => callback(payload);
     ipcRenderer.on(IPC.notifications.onConfirmationForwarded, listener);
     return () => ipcRenderer.removeListener(IPC.notifications.onConfirmationForwarded, listener);
   },
@@ -292,8 +330,7 @@ const remote = {
 
   // Fire-and-forget, high-frequency channels.
   sendInput: (event: RemoteInputEvent): void => ipcRenderer.send(IPC.remote.sendInput, event),
-  setScreenInfo: (size: RemoteScreenSize): void =>
-    ipcRenderer.send(IPC.remote.setScreenInfo, size),
+  setScreenInfo: (size: RemoteScreenSize): void => ipcRenderer.send(IPC.remote.setScreenInfo, size),
   hostTile: (tile: ArrayBuffer): void => ipcRenderer.send(IPC.remote.hostTile, tile),
 
   onState: (cb: (state: RemoteState) => void): (() => void) => subscribe(IPC.remote.onState, cb),
@@ -323,11 +360,13 @@ const windowControls = {
 
 const agentmatApi = {
   platform: process.platform,
+  app: appInfo,
   cli,
   terminal,
   projects,
   skills,
   mcp,
+  tools,
   fs,
   settings,
   templates,

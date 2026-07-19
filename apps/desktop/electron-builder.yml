@@ -40,6 +40,10 @@ mac:
   target:
     - target: dmg
       arch: [x64, arm64]
+    # electron-updater's macOS auto-update path (Squirrel.Mac) downloads the
+    # zip, not the dmg — the dmg is only for first-time manual installs.
+    - target: zip
+      arch: [x64, arm64]
   category: public.app-category.developer-tools
 
 linux:
@@ -51,10 +55,12 @@ linux:
       arch: [x64]
   category: Development
 
-# No real update server exists yet — this is a placeholder so electron-updater
-# has a valid config shape to read. Point `url` at real infra before wiring up
-# actual auto-update checks in the main process.
+# electron-updater reads this to know where to look for new releases. The CD
+# workflow builds with `--publish never` and uploads artifacts to the GitHub
+# Release itself (see .github/workflows/cd.yml), so this only needs to name
+# the repo — electron-updater talks to the GitHub Releases API directly.
 publish:
-  provider: generic
-  url: https://updates.agentmate.example.com
-  channel: latest
+  provider: github
+  owner: Cyrus-Sushiant
+  repo: AgentMate
+  releaseType: release

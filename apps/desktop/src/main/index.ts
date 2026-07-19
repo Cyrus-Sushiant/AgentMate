@@ -3,6 +3,7 @@ import { app, BrowserWindow, desktopCapturer, session, shell } from 'electron';
 import icon from '../../resources/icon.ico?asset';
 import { registerActivityHandlers } from './ipc/activity';
 import { registerAiHandlers } from './ipc/ai';
+import { registerAppHandlers } from './ipc/app';
 import { registerCliDetectionHandlers } from './ipc/cliDetection';
 import { registerFileSystemHandlers } from './ipc/fileSystem';
 import { registerGitHandlers } from './ipc/git';
@@ -19,12 +20,13 @@ import { registerSkillHandlers } from './ipc/skills';
 import { registerSystemStatsHandlers } from './ipc/systemStats';
 import { registerTemplateHandlers } from './ipc/templates';
 import { killAllTerminalSessions, registerTerminalHandlers } from './ipc/terminal';
+import { registerToolHandlers } from './ipc/tools';
 import { registerTranslateHandlers } from './ipc/translate';
 import { registerWindowHandlers } from './ipc/window';
 import { seedExampleRepositoryIfEmpty } from './exampleSkillRepo';
 import { startHookServer, stopHookServer } from './notifications/hookServer';
 import { remoteManager } from './remote/manager';
-import { checkForUpdatesQuietly } from './updater';
+import { startHourlyUpdateChecks } from './updater';
 
 app.setName('AgentMate');
 
@@ -81,11 +83,13 @@ function createMainWindow(): void {
 }
 
 function registerAllIpcHandlers(): void {
+  registerAppHandlers();
   registerCliDetectionHandlers();
   registerTerminalHandlers();
   registerProjectHandlers();
   registerSkillHandlers();
   registerMcpHandlers();
+  registerToolHandlers();
   registerFileSystemHandlers();
   registerSettingsHandlers();
   registerTemplateHandlers();
@@ -137,7 +141,7 @@ app.whenReady().then(() => {
   void seedExampleRepositoryIfEmpty();
   void startHookServer();
   createMainWindow();
-  checkForUpdatesQuietly();
+  startHourlyUpdateChecks();
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createMainWindow();

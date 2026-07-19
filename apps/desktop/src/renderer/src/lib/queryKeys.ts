@@ -9,8 +9,10 @@ export const queryKeys = {
   mcpRepositories: ['mcp-repositories'] as const,
   mcpRepositoryIndex: (id: string) => ['mcp-repository-index', id] as const,
   installedMcpServers: (projectId: string) => ['installed-mcp-servers', projectId] as const,
+  toolsStatus: ['tools-status'] as const,
   templates: ['prompt-templates'] as const,
   settings: ['settings'] as const,
+  appVersion: ['app-version'] as const,
   promptHistory: ['prompt-history'] as const,
   promptHistorySearch: (query: string) => ['prompt-history', query] as const,
   ipGeo: ['ip-geo'] as const,
@@ -19,4 +21,6 @@ export const queryKeys = {
   scheduledTasks: (projectId: string) => ['scheduled-tasks', projectId] as const,
   claudeHooks: (projectId: string) => ['claude-hooks', projectId] as const,
   gitStatus: (projectId: string) => ['git-status', projectId] as const,
+  skillsShSearch: (query: string) => ['skills-sh-search', query] as const,
+  skillsShDetail: (id: string) => ['skills-sh-detail', id] as const,
 };

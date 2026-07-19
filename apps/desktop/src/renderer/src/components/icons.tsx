@@ -55,6 +55,7 @@ import {
   faRobot,
   faSatelliteDish,
   faSort,
+  faStop,
   faTowerBroadcast,
   faUpload,
   faWifi,
@@ -70,6 +71,7 @@ import {
   faWindowMaximize,
   faWindowMinimize,
   faWindowRestore,
+  faWrench,
   faXmark,
 } from '@fortawesome/free-solid-svg-icons';
 
@@ -177,3 +179,7 @@ export const GitBranch = makeIcon(faCodeBranch);
 export const GitCommit = makeIcon(faCodeCommit);
 export const GitPullRequest = makeIcon(faCodePullRequest);
 export const CloudUpload = makeIcon(faCloudArrowUp);
+
+// Agent tools icons.
+export const Wrench = makeIcon(faWrench);
+export const StopCircle = makeIcon(faStop);

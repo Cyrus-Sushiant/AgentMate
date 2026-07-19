@@ -2,7 +2,17 @@ import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
-import { Blocks, MessageSquare, Monitor, Moon, Robot, SatelliteDish, Send, Sun } from '@/components/icons';
+import {
+  Blocks,
+  MessageSquare,
+  Monitor,
+  Moon,
+  RefreshCw,
+  Robot,
+  SatelliteDish,
+  Send,
+  Sun,
+} from '@/components/icons';
 import { CLI_REGISTRY } from '@agentmat/core';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -14,6 +24,7 @@ import { usePageHeader } from '@/stores/pageHeaderStore';
 import { useCliStore } from '@/stores/cliStore';
 import { useThemeStore } from '@/stores/themeStore';
 import { usePingTargetsStore } from '@/stores/pingTargetsStore';
+import { useUpdateStore } from '@/stores/updateStore';
 import type { ThemeMode } from '@agentmat/core';
 import { cn } from '@/lib/utils';
 
@@ -42,6 +53,11 @@ export default function SettingsPage(): React.JSX.Element {
   const settingsQuery = useQuery({
     queryKey: queryKeys.settings,
     queryFn: () => window.agentmat.settings.get(),
+  });
+
+  const appVersionQuery = useQuery({
+    queryKey: queryKeys.appVersion,
+    queryFn: () => window.agentmat.app.getVersion(),
   });
 
   const [botToken, setBotToken] = useState('');
@@ -163,6 +179,35 @@ export default function SettingsPage(): React.JSX.Element {
     setPingTargets(parsed);
     setPingTargetsDirty(false);
     toast.success('Ping targets updated.');
+  }
+
+  const updateStatus = useUpdateStore((s) => s.status);
+  const checkingForUpdates = updateStatus.state === 'checking';
+
+  async function handleCheckForUpdates(): Promise<void> {
+    const result = await window.agentmat.app.checkForUpdates();
+    if (result.state === 'not-available') toast.success("You're on the latest version.");
+    else if (result.state === 'error') toast.error(result.message);
+    // 'available' is surfaced globally as a confirm dialog once the check resolves.
+  }
+
+  function updateStatusLabel(): string {
+    switch (updateStatus.state) {
+      case 'checking':
+        return 'Checking for updates…';
+      case 'not-available':
+        return "You're on the latest version.";
+      case 'available':
+        return `Update available: v${updateStatus.info.version}.`;
+      case 'downloading':
+        return `Downloading v${updateStatus.info.version} — ${updateStatus.progress.percent.toFixed(0)}%.`;
+      case 'downloaded':
+        return `v${updateStatus.info.version} downloaded — restart to install.`;
+      case 'error':
+        return updateStatus.message;
+      default:
+        return 'Checks run automatically every hour.';
+    }
   }
 
   usePageHeader('Settings', 'Configure defaults for AgentMate.');
@@ -476,8 +521,26 @@ export default function SettingsPage(): React.JSX.Element {
       <Card>
         <CardHeader>
           <CardTitle>About</CardTitle>
+          <CardDescription>
+            AgentMate{' '}
+            {appVersionQuery.data == null
+              ? '…'
+              : appVersionQuery.data === 'dev'
+                ? '(dev build)'
+                : `v${appVersionQuery.data}`}
+          </CardDescription>
         </CardHeader>
-        <CardContent className="text-sm text-muted-foreground">AgentMate v0.1.0</CardContent>
+        <CardContent className="space-y-3">
+          <p className="text-sm text-muted-foreground">{updateStatusLabel()}</p>
+          <Button
+            variant="outline"
+            disabled={checkingForUpdates}
+            onClick={() => void handleCheckForUpdates()}
+          >
+            <RefreshCw className={cn('h-4 w-4', checkingForUpdates && 'animate-spin')} />
+            {checkingForUpdates ? 'Checking…' : 'Check for updates'}
+          </Button>
+        </CardContent>
       </Card>
     </div>
   );

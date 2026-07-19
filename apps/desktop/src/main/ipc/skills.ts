@@ -4,11 +4,22 @@ import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { promisify } from 'node:util';
 import { app, dialog, ipcMain } from 'electron';
-import { parseRepositoryIndex } from '@agentmat/core';
-import type { Skill, SkillRepository, SkillRepositoryIndex, SkillRepositorySourceType } from '@agentmat/core';
+import { parseRepositoryIndex, SKILLS_SH_VERIFIED_OWNERS } from '@agentmat/core';
+import type {
+  Skill,
+  SkillRepository,
+  SkillRepositoryIndex,
+  SkillRepositorySourceType,
+} from '@agentmat/core';
 import { IPC } from '../../shared/ipcChannels';
-import type { InstalledSkillRecord } from '../../shared/apiTypes';
+import type {
+  InstalledSkillRecord,
+  SkillsShDetail,
+  SkillsShSearchResult,
+} from '../../shared/apiTypes';
 import { store } from '../store';
+
+const SKILLS_SH_VERIFIED_OWNER_SET = new Set(SKILLS_SH_VERIFIED_OWNERS);
 
 const execFileAsync = promisify(execFile);
 
@@ -114,11 +125,14 @@ export function registerSkillHandlers(): void {
     },
   );
 
-  ipcMain.handle(IPC.skills.removeRepository, async (_event, repositoryId: string): Promise<void> => {
-    const repos = await store.getRepositories();
-    await store.setRepositories(repos.filter((r) => r.id !== repositoryId));
-    await rm(repoCacheDir(repositoryId), { recursive: true, force: true });
-  });
+  ipcMain.handle(
+    IPC.skills.removeRepository,
+    async (_event, repositoryId: string): Promise<void> => {
+      const repos = await store.getRepositories();
+      await store.setRepositories(repos.filter((r) => r.id !== repositoryId));
+      await rm(repoCacheDir(repositoryId), { recursive: true, force: true });
+    },
+  );
 
   ipcMain.handle(
     IPC.skills.refreshRepository,
@@ -216,6 +230,61 @@ export function registerSkillHandlers(): void {
       const project = projects.find((p) => p.id === projectId);
       if (!project) throw new Error(`Project ${projectId} not found`);
       return readInstalledSkills(project.folderPath);
+    },
+  );
+
+  ipcMain.handle(
+    IPC.skills.searchSkillsSh,
+    async (_event, query: string): Promise<SkillsShSearchResult[]> => {
+      const trimmed = query.trim();
+      if (trimmed.length < 2) return [];
+      const response = await fetch(
+        `https://www.skills.sh/api/search?q=${encodeURIComponent(trimmed)}`,
+        { headers: { 'User-Agent': 'AgentMate' } },
+      );
+      if (!response.ok) throw new Error(`skills.sh search failed: HTTP ${response.status}`);
+      const json = (await response.json()) as {
+        skills?: { id: string; skillId: string; source: string; installs: number }[];
+      };
+      return (json.skills ?? []).map((s) => {
+        const owner = s.source.split('/')[0];
+        return {
+          id: s.id,
+          name: s.skillId,
+          owner,
+          repo: s.source,
+          installs: s.installs,
+          official: SKILLS_SH_VERIFIED_OWNER_SET.has(owner),
+          url: `https://www.skills.sh/${s.id}`,
+          installCommand: `npx skills add https://github.com/${s.source} --skill ${s.skillId}`,
+        };
+      });
+    },
+  );
+
+  ipcMain.handle(
+    IPC.skills.getSkillsShDetail,
+    async (_event, skillPath: string): Promise<SkillsShDetail> => {
+      const response = await fetch(`https://www.skills.sh/${skillPath}`, {
+        headers: { 'User-Agent': 'AgentMate' },
+      });
+      if (!response.ok) throw new Error(`skills.sh fetch failed: HTTP ${response.status}`);
+      const html = await response.text();
+      const ldMatch = html.match(
+        /<script type="application\/ld\+json">(\{"@context":"https:\/\/schema\.org","@type":"SoftwareApplication".*?\})<\/script>/,
+      );
+      let description: string | null = null;
+      if (ldMatch) {
+        try {
+          description = (JSON.parse(ldMatch[1]) as { description?: string }).description ?? null;
+        } catch {
+          description = null;
+        }
+      }
+      const installsMatch = html.match(
+        /<span>Installs<\/span><\/div><div class="text-3xl[^"]*">([^<]+)<\/div>/,
+      );
+      return { description, installsLabel: installsMatch?.[1] ?? null };
     },
   );
 }

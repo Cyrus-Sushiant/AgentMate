@@ -1,5 +1,28 @@
 import type { AgentType, ProjectNotificationSettings } from '@agentmat/core';
 
+export interface UpdateInfo {
+  version: string;
+  releaseDate: string | null;
+  releaseNotes: string | null;
+}
+
+export interface UpdateDownloadProgress {
+  percent: number;
+  transferredBytes: number;
+  totalBytes: number;
+  bytesPerSecond: number;
+}
+
+/** Pushed to the renderer over IPC.app.onUpdateStatus as the main-process auto-updater progresses. */
+export type UpdateStatus =
+  | { state: 'idle' }
+  | { state: 'checking' }
+  | { state: 'available'; info: UpdateInfo }
+  | { state: 'not-available' }
+  | { state: 'downloading'; info: UpdateInfo; progress: UpdateDownloadProgress }
+  | { state: 'downloaded'; info: UpdateInfo }
+  | { state: 'error'; message: string };
+
 export interface CreateTerminalOptions {
   cwd?: string;
   shell?: string;
@@ -46,6 +69,24 @@ export interface InstalledMcpServerRecord {
   repositoryId: string;
   version: string;
   installedAt: string;
+}
+
+/** A single hit from a live skills.sh search, before its description has been fetched. */
+export interface SkillsShSearchResult {
+  id: string;
+  name: string;
+  owner: string;
+  repo: string;
+  installs: number;
+  official: boolean;
+  url: string;
+  installCommand: string;
+}
+
+/** Detail fetched on demand for a single skills.sh skill (description isn't in search results). */
+export interface SkillsShDetail {
+  description: string | null;
+  installsLabel: string | null;
 }
 
 export type PromptHistorySource = 'generate' | 'translate';

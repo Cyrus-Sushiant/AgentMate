@@ -1,4 +1,11 @@
 export const IPC = {
+  app: {
+    getVersion: 'app:getVersion',
+    checkForUpdates: 'app:checkForUpdates',
+    downloadUpdate: 'app:downloadUpdate',
+    quitAndInstall: 'app:quitAndInstall',
+    onUpdateStatus: 'app:onUpdateStatus',
+  },
   cli: {
     detectAll: 'cli:detectAll',
     getInstallCommand: 'cli:getInstallCommand',
@@ -40,6 +47,8 @@ export const IPC = {
     install: 'skills:install',
     remove: 'skills:remove',
     listInstalled: 'skills:listInstalled',
+    searchSkillsSh: 'skills:searchSkillsSh',
+    getSkillsShDetail: 'skills:getSkillsShDetail',
   },
   mcp: {
     listRepositories: 'mcp:listRepositories',
@@ -131,6 +140,11 @@ export const IPC = {
     onScreenInfo: 'remote:onScreenInfo',
     onFileProgress: 'remote:onFileProgress',
     onLog: 'remote:onLog',
+  },
+  tools: {
+    detectAll: 'tools:detectAll',
+    getInstallCommand: 'tools:getInstallCommand',
+    getDockerCommand: 'tools:getDockerCommand',
   },
   git: {
     status: 'git:status',

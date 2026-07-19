@@ -10,6 +10,7 @@ import {
   SettingsIcon,
   Sparkles,
   TerminalSquare,
+  Wrench,
 } from '@/components/icons';
 import { cn } from '@/lib/utils';
 import { useUiStore } from '@/stores/uiStore';
@@ -22,6 +23,7 @@ export const NAV_ITEMS = [
   { to: '/projects', label: 'Projects', icon: FolderKanban },
   { to: '/skills', label: 'Skills', icon: Blocks },
   { to: '/mcp', label: 'MCP Servers', icon: Plug },
+  { to: '/tools', label: 'Agent Tools', icon: Wrench },
   { to: '/cli-manager', label: 'AI CLI Manager', icon: TerminalSquare },
   { to: '/ask-ai', label: 'Ask AI', icon: MessageSquare },
   { to: '/remote', label: 'Remote', icon: Broadcast },

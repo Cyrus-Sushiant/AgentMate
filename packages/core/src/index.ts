@@ -6,5 +6,8 @@ export * from './promptBuilder/targetAiNotes.js';
 export * from './promptBuilder/templateEngine.js';
 export * from './projectBootstrap/templates.js';
 export * from './skills/types.js';
+export * from './skills/skillsSh.js';
 export * from './mcp/types.js';
 export * from './mcp/bundledDirectory.js';
+export * from './tools/types.js';
+export * from './tools/registry.js';

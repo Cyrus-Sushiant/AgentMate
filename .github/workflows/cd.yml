@@ -67,6 +67,23 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Set app version from release tag
+        shell: bash
+        run: |
+          if [ "${{ github.ref_type }}" = "tag" ]; then
+            TAG="${{ github.ref_name }}"
+          else
+            TAG="${{ inputs.tag }}"
+          fi
+          export APP_VERSION="${TAG#v}"
+          node -e "
+            const fs = require('fs');
+            const path = 'apps/desktop/package.json';
+            const pkg = JSON.parse(fs.readFileSync(path, 'utf8'));
+            pkg.version = process.env.APP_VERSION;
+            fs.writeFileSync(path, JSON.stringify(pkg, null, 2) + '\n');
+          "
+
       - name: Build core package
         run: pnpm --filter @agentmat/core build
 
@@ -78,6 +95,22 @@ jobs:
 
       - name: Package installer
         run: pnpm --filter @agentmat/desktop exec electron-builder --publish never ${{ matrix.build_args }}
+
+      # electron-builder writes one `latest-mac.yml` per invocation. The two
+      # macOS runners each package a single arch, so both would produce a
+      # same-named file that clobbers the other once artifacts are merged in
+      # the release job below — rename each to keep them apart. The release
+      # job then picks one as the canonical `latest-mac.yml` for
+      # electron-updater; see the comment there for the tradeoff.
+      - name: Disambiguate macOS update manifest by arch
+        if: startsWith(matrix.os, 'macos')
+        shell: bash
+        run: |
+          if [ "${{ matrix.build_args }}" = "--arm64" ]; then
+            mv apps/desktop/release/latest-mac.yml apps/desktop/release/latest-mac-arm64.yml
+          else
+            mv apps/desktop/release/latest-mac.yml apps/desktop/release/latest-mac-x64.yml
+          fi
 
       - name: Upload installer artifacts
         uses: actions/upload-artifact@v4
@@ -92,6 +125,9 @@ jobs:
             apps/desktop/release/*.AppImage
             apps/desktop/release/*.deb
             apps/desktop/release/*.zip
+            apps/desktop/release/latest.yml
+            apps/desktop/release/latest-mac-*.yml
+            apps/desktop/release/latest-linux.yml
 
   release:
     name: Publish GitHub Release
@@ -113,6 +149,23 @@ jobs:
           pattern: desktop-installer-*
           path: dist-release
           merge-multiple: true
+
+      # electron-updater's macOS auto-updater needs a single `latest-mac.yml`,
+      # but the two mac runners each produced an arch-specific one (see the
+      # "Disambiguate" step in the build job). Apple Silicon is what new Macs
+      # ship with, so it wins when both are present; Intel Mac users can still
+      # grab the x64 dmg/zip from the release page manually, they just won't
+      # get an in-app update prompt. A real fix would merge the `files:`
+      # entries of both manifests into one instead of picking a winner.
+      - name: Resolve macOS update manifest
+        shell: bash
+        run: |
+          if [ -f dist-release/latest-mac-arm64.yml ]; then
+            cp dist-release/latest-mac-arm64.yml dist-release/latest-mac.yml
+          elif [ -f dist-release/latest-mac-x64.yml ]; then
+            cp dist-release/latest-mac-x64.yml dist-release/latest-mac.yml
+          fi
+          rm -f dist-release/latest-mac-arm64.yml dist-release/latest-mac-x64.yml
 
       - name: Create/update GitHub Release
         uses: softprops/action-gh-release@v2
