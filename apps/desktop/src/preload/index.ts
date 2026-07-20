@@ -343,6 +343,8 @@ const remote = {
   hostTile: (tile: ArrayBuffer): void => ipcRenderer.send(IPC.remote.hostTile, tile),
   rtcSignal: (peerId: string, message: RemoteRtcMessage): void =>
     ipcRenderer.send(IPC.remote.rtcSignal, { peerId, message }),
+  rtcPeerState: (peerId: string, connected: boolean): void =>
+    ipcRenderer.send(IPC.remote.rtcPeerState, { peerId, connected }),
 
   onState: (cb: (state: RemoteState) => void): (() => void) => subscribe(IPC.remote.onState, cb),
   onRtcSignal: (cb: (payload: { peerId: string; message: RemoteRtcMessage }) => void): (() => void) =>

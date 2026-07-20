@@ -73,6 +73,8 @@ export function closeRtcPeer(peerId: string): void {
   } catch {
     // already closed
   }
+  // Tiles resume for this peer (no-op in main if the peer already left).
+  window.agentmat.remote.rtcPeerState(peerId, false);
 }
 
 /** Called when screen capture stops entirely: drop every video connection. */
@@ -174,7 +176,14 @@ async function startPeer(peerId: string): Promise<void> {
     });
   };
   pc.onconnectionstatechange = () => {
-    if (pc.connectionState === 'failed' || pc.connectionState === 'closed') {
+    // A replaced/stale connection must not act on the current one.
+    if (peers.get(peerId) !== pc) return;
+    if (pc.connectionState === 'connected') {
+      // Video is flowing; main stops JPEG tiles for this peer. 'disconnected'
+      // is deliberately ignored — it is usually a transient blip that returns
+      // to 'connected' on its own, and tearing down would flap transports.
+      window.agentmat.remote.rtcPeerState(peerId, true);
+    } else if (pc.connectionState === 'failed' || pc.connectionState === 'closed') {
       closeRtcPeer(peerId);
     }
   };

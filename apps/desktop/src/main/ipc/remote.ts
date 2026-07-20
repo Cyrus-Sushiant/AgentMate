@@ -62,4 +62,11 @@ export function registerRemoteHandlers(): void {
       remoteManager.rtcSignalToPeer(payload.peerId, payload.message);
     },
   );
+
+  ipcMain.on(
+    IPC.remote.rtcPeerState,
+    (_e, payload: { peerId: string; connected: boolean }) => {
+      remoteManager.setRtcPeerConnected(payload.peerId, payload.connected);
+    },
+  );
 }

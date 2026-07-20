@@ -34,6 +34,10 @@ import { TokenStore } from './tokens';
 
 const FILE_CHUNK_BYTES = 64 * 1024;
 const MAX_BUFFERED_BYTES = 4 * 1024 * 1024;
+/** Sockets are considered drained (safe to resend a full frame) below this. */
+const TILE_HEAL_LOW_WATER = 256 * 1024;
+/** Minimum spacing between drop-healing full refreshes. */
+const TILE_HEAL_MIN_INTERVAL_MS = 2000;
 
 interface HostPeer {
   id: string;
@@ -43,8 +47,11 @@ interface HostPeer {
   connectedAt: number;
   authed: boolean;
   /**
-   * False while the peer streams video over WebRTC; JPEG tiles are suppressed
-   * for it so the two transports don't compete for bandwidth.
+   * False while the peer receives video over a *connected* WebRTC session, so
+   * the two transports don't compete for bandwidth. Deliberately stays true
+   * through WebRTC negotiation — the renderer flips it via setRtcPeerConnected
+   * once video truly flows, which keeps the controller's screen painted with
+   * tiles instead of going black while ICE completes.
    */
   wantsTiles: boolean;
 }
@@ -81,6 +88,9 @@ class RemoteManager {
   private hostScreen: { width: number; height: number } | null = null;
   private capturing = false;
   private tileDemand = true;
+  /** A backpressured peer had tiles dropped; a healing refresh is owed. */
+  private tileRefreshPending = false;
+  private lastTileHealAt = 0;
   private pairing: RemotePairingInfo | null = null;
 
   private client: WebSocket | null = null;
@@ -169,6 +179,7 @@ class RemoteManager {
       this.send(IPC.remote.onCaptureStop);
     }
     this.tileDemand = true; // matches the renderer's default for the next session
+    this.tileRefreshPending = false;
     // Only tear the injector down if we aren't also acting as a controller elsewhere.
     this.injector.stop();
     this.emitState();
@@ -203,11 +214,51 @@ class RemoteManager {
 
   /** Host renderer produced an encoded screen tile; fan it out to controllers. */
   hostTile(buffer: Uint8Array): void {
+    let dropped = false;
+    let consumers = 0;
+    let maxBuffered = 0;
     for (const peer of this.peers.values()) {
-      if (peer.authed && peer.wantsTiles && peer.ws.bufferedAmount < MAX_BUFFERED_BYTES) {
+      if (!peer.authed || !peer.wantsTiles) continue;
+      consumers++;
+      if (peer.ws.bufferedAmount < MAX_BUFFERED_BYTES) {
         peer.ws.send(buffer, { binary: true });
+        if (peer.ws.bufferedAmount > maxBuffered) maxBuffered = peer.ws.bufferedAmount;
+      } else {
+        // Dropping beats queueing (a controller lagging seconds behind is
+        // worse than a briefly stale region), but the peer now shows stale
+        // pixels for every tile skipped here.
+        dropped = true;
       }
     }
+    if (dropped) {
+      this.tileRefreshPending = true;
+      return;
+    }
+    // Heal those stale regions as soon as every consumer's socket has drained,
+    // instead of leaving them wrong until the renderer's slow safety refresh.
+    if (this.tileRefreshPending && consumers > 0 && maxBuffered < TILE_HEAL_LOW_WATER) {
+      const now = Date.now();
+      if (now - this.lastTileHealAt >= TILE_HEAL_MIN_INTERVAL_MS) {
+        this.tileRefreshPending = false;
+        this.lastTileHealAt = now;
+        this.send(IPC.remote.onCaptureRefresh);
+      }
+    }
+  }
+
+  /**
+   * Renderer reports whether a peer's WebRTC video session is delivering.
+   * Only then do tiles stop for that peer; when video drops, tiles resume and
+   * a full refresh repaints everything the peer missed while on video.
+   */
+  setRtcPeerConnected(peerId: string, connected: boolean): void {
+    const peer = this.peers.get(peerId);
+    if (!peer?.authed) return;
+    const wantsTiles = !connected;
+    if (peer.wantsTiles === wantsTiles) return;
+    peer.wantsTiles = wantsTiles;
+    this.updateTileDemand();
+    if (wantsTiles && this.capturing) this.send(IPC.remote.onCaptureRefresh);
   }
 
   /** Renderer produced a WebRTC signaling message for one specific peer. */
@@ -292,12 +343,17 @@ class RemoteManager {
       case 'rtc-ice':
         // WebRTC signaling is handled by the renderer (it owns the capture
         // MediaStream); the main process only relays, tagged with the peer id.
+        // Tiles keep flowing throughout negotiation — they stop only when the
+        // renderer confirms video is delivering (setRtcPeerConnected).
         if (peer.authed) {
-          peer.wantsTiles = msg.t === 'rtc-cancel';
           this.send(IPC.remote.onRtcSignal, { peerId: peer.id, message: msg });
-          this.updateTileDemand();
-          // A peer falling back to tiles missed everything sent as video.
-          if (msg.t === 'rtc-cancel') this.send(IPC.remote.onCaptureRefresh);
+          if (msg.t === 'rtc-cancel' && !peer.wantsTiles) {
+            // Falling back from live video: resume tiles and repaint what the
+            // peer missed while it was on the video track.
+            peer.wantsTiles = true;
+            this.updateTileDemand();
+            this.send(IPC.remote.onCaptureRefresh);
+          }
         }
         break;
       case 'bye':

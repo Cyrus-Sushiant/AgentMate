@@ -18,24 +18,35 @@ import { encodeScreenTile } from '@shared/remoteProtocol';
 const TILE = 128;
 const MAX_EDGE = 1600;
 /** Rate the tile encoder ticks at (WebSocket fallback path). */
-const TARGET_FPS = 12;
+const TARGET_FPS = 15;
 /** Rate requested from the OS capturer — WebRTC consumers get the full rate. */
 const CAPTURE_FPS = 30;
-const JPEG_QUALITY = 0.55;
+const JPEG_QUALITY = 0.6;
 /**
- * Tile path safety net: resend the whole frame periodically so a viewer that
- * missed tiles (send-buffer backpressure drops them) never shows a stale
- * region for more than a few seconds.
+ * Tile path last-resort safety net: resend the whole frame periodically.
+ * Dropped-tile healing normally happens much sooner (the main process
+ * requests a refresh as soon as a backpressured socket drains), and viewers
+ * skip tiles whose bytes didn't change, so this resend is invisible to them.
  */
-const FULL_REFRESH_MS = 10_000;
+const FULL_REFRESH_MS = 30_000;
+/**
+ * Tiles encoded concurrently per tick. convertToBlob() runs on Chromium's
+ * background thread pool, so overlapping encodes cuts a motion-heavy tick
+ * (dozens of changed tiles) to a fraction of the serial time.
+ */
+const ENCODE_CONCURRENCY = 4;
+
+interface TileEncoder {
+  canvas: OffscreenCanvas;
+  ctx: OffscreenCanvasRenderingContext2D;
+}
 
 interface CaptureState {
   stream: MediaStream;
   video: HTMLVideoElement;
   canvas: OffscreenCanvas;
   ctx: OffscreenCanvasRenderingContext2D;
-  tileCanvas: OffscreenCanvas;
-  tileCtx: OffscreenCanvasRenderingContext2D;
+  encoders: TileEncoder[];
   width: number;
   height: number;
   prev: Uint8ClampedArray | null;
@@ -111,9 +122,13 @@ export async function startScreenCapture(): Promise<void> {
 
   const canvas = new OffscreenCanvas(width, height);
   const ctx = canvas.getContext('2d', { willReadFrequently: true });
-  const tileCanvas = new OffscreenCanvas(TILE, TILE);
-  const tileCtx = tileCanvas.getContext('2d');
-  if (!ctx || !tileCtx) {
+  const encoders: TileEncoder[] = [];
+  for (let i = 0; i < ENCODE_CONCURRENCY; i++) {
+    const tileCanvas = new OffscreenCanvas(TILE, TILE);
+    const tileCtx = tileCanvas.getContext('2d');
+    if (tileCtx) encoders.push({ canvas: tileCanvas, ctx: tileCtx });
+  }
+  if (!ctx || encoders.length === 0) {
     stream.getTracks().forEach((t) => t.stop());
     throw new Error('Could not create a capture canvas.');
   }
@@ -123,8 +138,7 @@ export async function startScreenCapture(): Promise<void> {
     video,
     canvas,
     ctx,
-    tileCanvas,
-    tileCtx,
+    encoders,
     width,
     height,
     prev: null,
@@ -169,17 +183,29 @@ async function tick(): Promise<void> {
     const frameId = s.frameId++;
     const prev = s.prev;
 
-    // Tiles are encoded sequentially: they share one tile canvas, and the async
-    // convertToBlob() would otherwise let a later tile overwrite the canvas
-    // before an earlier tile's blob has been read.
-    for (let ty = 0; ty < s.height && !s.stopping; ty += TILE) {
+    const dirty: Array<{ tx: number; ty: number; tw: number; th: number }> = [];
+    for (let ty = 0; ty < s.height; ty += TILE) {
       const th = Math.min(TILE, s.height - ty);
-      for (let tx = 0; tx < s.width && !s.stopping; tx += TILE) {
+      for (let tx = 0; tx < s.width; tx += TILE) {
         const tw = Math.min(TILE, s.width - tx);
         if (prev && !tileChanged(frame, prev, s.width, tx, ty, tw, th)) continue;
-        await encodeAndSend(s, frame, frameId, tx, ty, tw, th);
+        dirty.push({ tx, ty, tw, th });
       }
     }
+
+    // Encode with a small pool, one canvas per in-flight tile: a shared canvas
+    // would be overwritten before the async convertToBlob() reads it, and
+    // strictly serial encoding wastes the whole wait on each encoder call.
+    let next = 0;
+    await Promise.all(
+      s.encoders.slice(0, Math.min(ENCODE_CONCURRENCY, dirty.length)).map(async (encoder) => {
+        while (!s.stopping) {
+          const job = dirty[next++];
+          if (!job) break;
+          await encodeAndSend(s, encoder, frame, frameId, job.tx, job.ty, job.tw, job.th);
+        }
+      }),
+    );
     // Keep the frame as the new baseline (copy, since getImageData reuses buffers).
     s.prev = new Uint8ClampedArray(frame);
   } catch {
@@ -214,6 +240,7 @@ function tileChanged(
 
 async function encodeAndSend(
   s: CaptureState,
+  encoder: TileEncoder,
   frame: Uint8ClampedArray,
   frameId: number,
   tx: number,
@@ -221,7 +248,7 @@ async function encodeAndSend(
   tw: number,
   th: number,
 ): Promise<void> {
-  // Copy this tile's pixels into the small tile canvas and JPEG-encode them.
+  // Copy this tile's pixels into the encoder's canvas and JPEG-encode them.
   // Resize the canvas to the exact tile size first so edge tiles (smaller than
   // TILE) don't encode stale margin pixels.
   const img = new ImageData(tw, th);
@@ -230,10 +257,10 @@ async function encodeAndSend(
     const dst = y * tw * 4;
     img.data.set(frame.subarray(src, src + tw * 4), dst);
   }
-  s.tileCanvas.width = tw;
-  s.tileCanvas.height = th;
-  s.tileCtx.putImageData(img, 0, 0);
-  const blob = await s.tileCanvas.convertToBlob({ type: 'image/jpeg', quality: JPEG_QUALITY });
+  encoder.canvas.width = tw;
+  encoder.canvas.height = th;
+  encoder.ctx.putImageData(img, 0, 0);
+  const blob = await encoder.canvas.convertToBlob({ type: 'image/jpeg', quality: JPEG_QUALITY });
   if (s.stopping) return;
   const jpeg = new Uint8Array(await blob.arrayBuffer());
   const encoded = encodeScreenTile({ frameId, x: tx, y: ty, w: tw, h: th, jpeg });

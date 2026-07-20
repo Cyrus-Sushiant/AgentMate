@@ -134,6 +134,7 @@ export const IPC = {
     sendClipboard: 'remote:sendClipboard',
     sendFile: 'remote:sendFile',
     rtcSignal: 'remote:rtcSignal',
+    rtcPeerState: 'remote:rtcPeerState',
     // main -> renderer events
     onState: 'remote:onState',
     onRtcSignal: 'remote:onRtcSignal',
