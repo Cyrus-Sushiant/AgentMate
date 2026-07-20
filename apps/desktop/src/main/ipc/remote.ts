@@ -1,7 +1,11 @@
 import { ipcMain } from 'electron';
 import type { RemoteState } from '../../shared/apiTypes';
 import { IPC } from '../../shared/ipcChannels';
-import { decodePairingCode, type RemoteInputEvent } from '../../shared/remoteProtocol';
+import {
+  decodePairingCode,
+  type RemoteInputEvent,
+  type RemoteRtcMessage,
+} from '../../shared/remoteProtocol';
 import { listNetworkInterfaces } from '../remote/networkInterfaces';
 import { remoteManager } from '../remote/manager';
 
@@ -51,4 +55,11 @@ export function registerRemoteHandlers(): void {
     const bytes = tile instanceof Uint8Array ? tile : new Uint8Array(tile);
     remoteManager.hostTile(bytes);
   });
+
+  ipcMain.on(
+    IPC.remote.rtcSignal,
+    (_e, payload: { peerId: string; message: RemoteRtcMessage }) => {
+      remoteManager.rtcSignalToPeer(payload.peerId, payload.message);
+    },
+  );
 }

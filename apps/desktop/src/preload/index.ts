@@ -54,7 +54,7 @@ import type {
   StartHostInput,
   UpdateStatus,
 } from '../shared/apiTypes';
-import type { RemoteInputEvent } from '../shared/remoteProtocol';
+import type { RemoteInputEvent, RemoteRtcMessage } from '../shared/remoteProtocol';
 
 interface TerminalDataPayload {
   sessionId: string;
@@ -341,8 +341,14 @@ const remote = {
   sendInput: (event: RemoteInputEvent): void => ipcRenderer.send(IPC.remote.sendInput, event),
   setScreenInfo: (size: RemoteScreenSize): void => ipcRenderer.send(IPC.remote.setScreenInfo, size),
   hostTile: (tile: ArrayBuffer): void => ipcRenderer.send(IPC.remote.hostTile, tile),
+  rtcSignal: (peerId: string, message: RemoteRtcMessage): void =>
+    ipcRenderer.send(IPC.remote.rtcSignal, { peerId, message }),
 
   onState: (cb: (state: RemoteState) => void): (() => void) => subscribe(IPC.remote.onState, cb),
+  onRtcSignal: (cb: (payload: { peerId: string; message: RemoteRtcMessage }) => void): (() => void) =>
+    subscribe(IPC.remote.onRtcSignal, cb),
+  onRtcPeerGone: (cb: (peerId: string) => void): (() => void) =>
+    subscribe(IPC.remote.onRtcPeerGone, cb),
   onCaptureStart: (cb: () => void): (() => void) => subscribe(IPC.remote.onCaptureStart, cb),
   onCaptureStop: (cb: () => void): (() => void) => subscribe(IPC.remote.onCaptureStop, cb),
   onFrameTile: (cb: (tile: Uint8Array) => void): (() => void) =>

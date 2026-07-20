@@ -56,6 +56,15 @@ if errorlevel 1 (
 
 echo Building and installing the AgentMate Mobile debug APK on your device...
 cd apps\mobile
+if exist "android" (
+    echo Refreshing the generated Android project so config plugins are applied...
+    call npx expo prebuild --platform android --clean
+    if errorlevel 1 (
+        echo Failed to sync the native Android project.
+        pause
+        exit /b 1
+    )
+)
 call npx expo run:android --device
 if errorlevel 1 (
     echo Failed to build/run the Android app. See the error above.

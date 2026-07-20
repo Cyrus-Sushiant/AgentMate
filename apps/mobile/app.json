@@ -45,7 +45,8 @@
         {
           "cameraPermission": "AgentMate uses the camera to scan a pairing QR code shown on the AgentMate desktop app."
         }
-      ]
+      ],
+      "@config-plugins/react-native-webrtc"
     ]
   }
 }

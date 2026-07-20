@@ -1,32 +1,82 @@
+import { useState } from 'react';
 import { Pressable, StatusBar, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { TileCanvas } from '../components/TileCanvas';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { RemoteViewport } from '../components/RemoteViewport';
 import { Toolbar } from '../components/Toolbar';
 import type { useRemoteClient } from '../remote/useRemoteClient';
 import { colors, radius, spacing } from '../theme';
 
 type RemoteClient = ReturnType<typeof useRemoteClient>;
 
+/**
+ * The active-session screen. The host's display gets the entire phone screen;
+ * the header is a translucent overlay toggled by the ⋯ button so it never
+ * steals space from the remote desktop, and the key toolbar sits inside the
+ * bottom safe-area inset so Android's navigation bar can't cover it.
+ */
 export function RemoteScreen({ client }: { client: RemoteClient }): React.JSX.Element {
-  const { status, remoteDeviceName, remoteScreen, tiles, sendInput, sendClipboardToHost, disconnect } = client;
+  const {
+    status,
+    remoteDeviceName,
+    remoteScreen,
+    tiles,
+    videoMode,
+    remoteStream,
+    sendInput,
+    sendClipboardToHost,
+    disconnect,
+  } = client;
   const connected = status === 'connected';
+  const insets = useSafeAreaInsets();
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  const waitingForVideo =
+    connected && videoMode === 'negotiating' && !remoteStream && tiles.size === 0;
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top', 'left', 'right']}>
-      <StatusBar barStyle="light-content" backgroundColor={colors.background} />
-      <View style={styles.header}>
-        <View style={styles.headerLeft}>
-          <View style={[styles.dot, { backgroundColor: connected ? colors.success : colors.warning }]} />
-          <Text style={styles.deviceName} numberOfLines={1}>
-            {remoteDeviceName ?? 'Remote device'}
+    <View style={styles.root}>
+      <StatusBar hidden />
+
+      <RemoteViewport
+        screen={remoteScreen}
+        stream={remoteStream}
+        tiles={tiles}
+        videoMode={videoMode}
+        live={connected}
+        onInput={sendInput}
+      />
+
+      {(!connected || waitingForVideo) && (
+        <View style={styles.centerOverlay} pointerEvents="none">
+          <Text style={styles.centerOverlayText}>
+            {connected ? 'Starting video…' : 'Connecting…'}
           </Text>
-          {remoteScreen && (
-            <Text style={styles.resolution}>
-              {remoteScreen.width}×{remoteScreen.height}
-            </Text>
-          )}
         </View>
-        <View style={styles.headerRight}>
+      )}
+
+      {/* Floating menu toggle — the only permanent chrome over the screen. */}
+      <Pressable
+        style={[styles.menuButton, { top: insets.top + spacing(2), right: insets.right + spacing(2) }]}
+        onPress={() => setMenuOpen((open) => !open)}
+        hitSlop={8}
+      >
+        <Text style={styles.menuButtonText}>⋯</Text>
+      </Pressable>
+
+      {menuOpen && (
+        <View style={[styles.header, { top: insets.top + spacing(2), right: insets.right + spacing(12) }]}>
+          <View style={styles.headerLeft}>
+            <View style={[styles.dot, { backgroundColor: connected ? colors.success : colors.warning }]} />
+            <Text style={styles.deviceName} numberOfLines={1}>
+              {remoteDeviceName ?? 'Remote device'}
+            </Text>
+            {remoteScreen && (
+              <Text style={styles.resolution}>
+                {remoteScreen.width}×{remoteScreen.height}
+                {videoMode === 'tiles' ? ' · compat' : ''}
+              </Text>
+            )}
+          </View>
           <Pressable style={styles.headerButton} onPress={() => void sendClipboardToHost()} disabled={!connected}>
             <Text style={styles.headerButtonText}>Clipboard</Text>
           </Pressable>
@@ -37,35 +87,61 @@ export function RemoteScreen({ client }: { client: RemoteClient }): React.JSX.El
             <Text style={styles.disconnectButtonText}>Disconnect</Text>
           </Pressable>
         </View>
-      </View>
-
-      <TileCanvas screen={remoteScreen} tiles={tiles} live={connected} onInput={sendInput} />
-
-      {!connected && (
-        <View style={styles.connectingOverlay} pointerEvents="none">
-          <Text style={styles.connectingText}>Connecting…</Text>
-        </View>
       )}
 
       <Toolbar live={connected} onInput={sendInput} />
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: {
+  root: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: '#000000',
+  },
+  centerOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  centerOverlayText: {
+    color: colors.mutedForeground,
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  menuButton: {
+    position: 'absolute',
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(20, 20, 20, 0.75)',
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  menuButtonText: {
+    color: colors.foreground,
+    fontSize: 18,
+    fontWeight: '700',
+    lineHeight: 20,
   },
   header: {
+    position: 'absolute',
+    left: spacing(2),
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: spacing(3),
     paddingVertical: spacing(2),
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-    backgroundColor: colors.card,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: 'rgba(20, 20, 20, 0.92)',
     gap: spacing(2),
   },
   headerLeft: {
@@ -89,10 +165,6 @@ const styles = StyleSheet.create({
     color: colors.mutedForeground,
     fontSize: 12,
   },
-  headerRight: {
-    flexDirection: 'row',
-    gap: spacing(2),
-  },
   headerButton: {
     paddingHorizontal: spacing(3),
     paddingVertical: spacing(1.5),
@@ -110,20 +182,6 @@ const styles = StyleSheet.create({
   disconnectButtonText: {
     color: colors.destructiveForeground,
     fontSize: 12,
-    fontWeight: '600',
-  },
-  connectingOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  connectingText: {
-    color: colors.mutedForeground,
-    fontSize: 14,
     fontWeight: '600',
   },
 });

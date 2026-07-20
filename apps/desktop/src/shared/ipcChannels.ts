@@ -133,8 +133,11 @@ export const IPC = {
     setScreenInfo: 'remote:setScreenInfo',
     sendClipboard: 'remote:sendClipboard',
     sendFile: 'remote:sendFile',
+    rtcSignal: 'remote:rtcSignal',
     // main -> renderer events
     onState: 'remote:onState',
+    onRtcSignal: 'remote:onRtcSignal',
+    onRtcPeerGone: 'remote:onRtcPeerGone',
     onCaptureStart: 'remote:onCaptureStart',
     onCaptureStop: 'remote:onCaptureStop',
     onFrameTile: 'remote:onFrameTile',

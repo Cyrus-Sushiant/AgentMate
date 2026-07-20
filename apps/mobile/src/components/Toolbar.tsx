@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { RemoteInputEvent } from '@agentmat/protocol';
 import { colors, radius, spacing } from '../theme';
 
@@ -35,6 +36,8 @@ export function Toolbar({ live, onInput }: ToolbarProps): React.JSX.Element {
   const inputRef = useRef<TextInput>(null);
   const [buffer, setBuffer] = useState('');
   const [keyboardOpen, setKeyboardOpen] = useState(false);
+  // Keep the key row above the Android navigation bar / iOS home indicator.
+  const insets = useSafeAreaInsets();
 
   const tapKey = (code: string) => {
     if (!live) return;
@@ -54,7 +57,7 @@ export function Toolbar({ live, onInput }: ToolbarProps): React.JSX.Element {
   };
 
   return (
-    <View style={styles.wrap}>
+    <View style={[styles.wrap, { paddingBottom: insets.bottom }]}>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.row}>
         <Pressable
           style={[styles.key, keyboardOpen && styles.keyActive]}

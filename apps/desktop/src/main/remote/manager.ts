@@ -26,6 +26,7 @@ import {
   transferKeyFromId,
   type RemoteControlMessage,
   type RemoteInputEvent,
+  type RemoteRtcMessage,
 } from '../../shared/remoteProtocol';
 import { InputInjector } from './inputInjector';
 import { listNetworkInterfaces } from './networkInterfaces';
@@ -41,6 +42,11 @@ interface HostPeer {
   address: string;
   connectedAt: number;
   authed: boolean;
+  /**
+   * False while the peer streams video over WebRTC; JPEG tiles are suppressed
+   * for it so the two transports don't compete for bandwidth.
+   */
+  wantsTiles: boolean;
 }
 
 interface IncomingTransfer {
@@ -130,6 +136,7 @@ class RemoteManager {
         address,
         connectedAt: Date.now(),
         authed: false,
+        wantsTiles: true,
       };
       this.peers.set(peer.id, peer);
       ws.on('message', (data, isBinary) => this.onHostMessage(peer, data as Buffer, isBinary));
@@ -195,10 +202,16 @@ class RemoteManager {
   /** Host renderer produced an encoded screen tile; fan it out to controllers. */
   hostTile(buffer: Uint8Array): void {
     for (const peer of this.peers.values()) {
-      if (peer.authed && peer.ws.bufferedAmount < MAX_BUFFERED_BYTES) {
+      if (peer.authed && peer.wantsTiles && peer.ws.bufferedAmount < MAX_BUFFERED_BYTES) {
         peer.ws.send(buffer, { binary: true });
       }
     }
+  }
+
+  /** Renderer produced a WebRTC signaling message for one specific peer. */
+  rtcSignalToPeer(peerId: string, message: RemoteRtcMessage): void {
+    const peer = this.peers.get(peerId);
+    if (peer?.authed) this.sendControl(peer.ws, message);
   }
 
   private onHostMessage(peer: HostPeer, data: Buffer, isBinary: boolean): void {
@@ -213,16 +226,27 @@ class RemoteManager {
         peer.deviceName = msg.deviceName || peer.address;
         break;
       case 'auth': {
-        if (this.tokens.consume(msg.token)) {
+        // A fresh pairing code pairs the device and mints a durable token for
+        // it; a durable token from an earlier pairing reconnects directly.
+        const paired = this.tokens.consume(msg.token);
+        const known = paired ? null : this.tokens.validateDeviceToken(msg.token, peer.deviceName);
+        if (paired || known) {
           peer.authed = true;
-          this.pairing = null; // code was single-use
+          const deviceToken = paired ? this.tokens.issueDeviceToken(peer.deviceName) : undefined;
+          if (paired) this.pairing = null; // code was single-use
           this.startCapture();
           this.sendControl(peer.ws, {
             t: 'auth-ok',
             deviceName: this.deviceName(),
             screen: this.hostScreen ?? { width: 0, height: 0 },
+            ...(deviceToken ? { deviceToken } : {}),
           });
-          this.log('success', `${peer.deviceName} connected and is now controlling this machine.`);
+          this.log(
+            'success',
+            paired
+              ? `${peer.deviceName} paired and is now controlling this machine.`
+              : `${peer.deviceName} reconnected and is now controlling this machine.`,
+          );
           this.emitState();
         } else {
           this.sendControl(peer.ws, { t: 'auth-fail', reason: 'Invalid or expired code' });
@@ -254,6 +278,17 @@ class RemoteManager {
       case 'ping':
         this.sendControl(peer.ws, { t: 'pong' });
         break;
+      case 'rtc-request':
+      case 'rtc-cancel':
+      case 'rtc-answer':
+      case 'rtc-ice':
+        // WebRTC signaling is handled by the renderer (it owns the capture
+        // MediaStream); the main process only relays, tagged with the peer id.
+        if (peer.authed) {
+          peer.wantsTiles = msg.t === 'rtc-cancel';
+          this.send(IPC.remote.onRtcSignal, { peerId: peer.id, message: msg });
+        }
+        break;
       case 'bye':
         this.safeClose(peer.ws, 'peer said bye');
         break;
@@ -269,7 +304,10 @@ class RemoteManager {
   private onPeerGone(peer: HostPeer): void {
     if (!this.peers.has(peer.id)) return;
     this.peers.delete(peer.id);
-    if (peer.authed) this.log('info', `${peer.deviceName} disconnected.`);
+    if (peer.authed) {
+      this.send(IPC.remote.onRtcPeerGone, peer.id);
+      this.log('info', `${peer.deviceName} disconnected.`);
+    }
     const stillControlled = [...this.peers.values()].some((p) => p.authed);
     if (!stillControlled && this.capturing) {
       this.capturing = false;

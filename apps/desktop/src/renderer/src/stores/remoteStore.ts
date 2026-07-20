@@ -5,6 +5,7 @@ import type {
   RemoteLogEvent,
   RemoteState,
 } from '@shared/apiTypes';
+import { closeAllRtcPeers, initRtcHost } from '@/lib/rtcHost';
 import { startScreenCapture, stopScreenCapture } from '@/lib/screenCapture';
 
 const MAX_LOGS = 100;
@@ -62,7 +63,13 @@ export function initRemote(): void {
       toast.error(`Screen capture failed: ${(err as Error).message}`);
     });
   });
-  api.onCaptureStop(() => stopScreenCapture());
+  api.onCaptureStop(() => {
+    closeAllRtcPeers();
+    stopScreenCapture();
+  });
+
+  // Host side: WebRTC signaling relay for controllers streaming video.
+  initRtcHost();
 
   void useRemoteStore.getState().refresh();
 }

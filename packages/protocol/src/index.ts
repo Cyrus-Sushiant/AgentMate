@@ -15,7 +15,7 @@
  *     overhead and travel as compact length-prefixed buffers.
  */
 
-export const REMOTE_PROTOCOL_VERSION = 1;
+export const REMOTE_PROTOCOL_VERSION = 2;
 
 export type RemoteRole = 'host' | 'controller';
 
@@ -39,9 +39,17 @@ export type RemoteInputEvent =
 export type RemoteControlMessage =
   /** First frame each side sends after the socket opens. */
   | { t: 'hello'; role: RemoteRole; deviceName: string; protocolVersion: number }
-  /** Controller proves it holds a valid one-time pairing token. */
+  /**
+   * Controller proves it holds either a one-time pairing token (first pair) or
+   * a durable device token issued by a previous successful pairing.
+   */
   | { t: 'auth'; token: string }
-  | { t: 'auth-ok'; deviceName: string; screen: { width: number; height: number } }
+  /**
+   * `deviceToken` is present only when the controller authenticated with a
+   * one-time pairing code: it is a durable credential the controller should
+   * store and use for all future reconnects to this host.
+   */
+  | { t: 'auth-ok'; deviceName: string; screen: { width: number; height: number }; deviceToken?: string }
   | { t: 'auth-fail'; reason: string }
   /** Host announces its capture surface size (physical pixels); re-sent if it changes. */
   | { t: 'screen-info'; width: number; height: number }
@@ -58,7 +66,26 @@ export type RemoteControlMessage =
   | { t: 'file-error'; transferId: string; message: string }
   | { t: 'ping' }
   | { t: 'pong' }
-  | { t: 'bye'; reason: string };
+  | { t: 'bye'; reason: string }
+  /**
+   * WebRTC signaling, relayed verbatim over the control socket. The controller
+   * asks for a video stream with `rtc-request`; the host answers with an SDP
+   * offer (it owns the media, so it makes the offer) or `rtc-unavailable`.
+   * While a WebRTC stream is active the host stops sending JPEG tiles to that
+   * controller; `rtc-cancel` reverts to tile streaming (fallback path).
+   */
+  | { t: 'rtc-request' }
+  | { t: 'rtc-cancel' }
+  | { t: 'rtc-unavailable'; reason: string }
+  | { t: 'rtc-offer'; sdp: string }
+  | { t: 'rtc-answer'; sdp: string }
+  | { t: 'rtc-ice'; candidate: string; sdpMid: string | null; sdpMLineIndex: number | null };
+
+/** The subset of control messages that carry WebRTC signaling. */
+export type RemoteRtcMessage = Extract<
+  RemoteControlMessage,
+  { t: 'rtc-request' | 'rtc-cancel' | 'rtc-unavailable' | 'rtc-offer' | 'rtc-answer' | 'rtc-ice' }
+>;
 
 // --- Binary data-plane framing -------------------------------------------------
 

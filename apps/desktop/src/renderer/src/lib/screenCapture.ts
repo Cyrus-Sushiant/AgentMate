@@ -17,7 +17,10 @@ import { encodeScreenTile } from '@shared/remoteProtocol';
 
 const TILE = 128;
 const MAX_EDGE = 1600;
+/** Rate the tile encoder ticks at (WebSocket fallback path). */
 const TARGET_FPS = 12;
+/** Rate requested from the OS capturer — WebRTC consumers get the full rate. */
+const CAPTURE_FPS = 30;
 const JPEG_QUALITY = 0.55;
 
 interface CaptureState {
@@ -41,10 +44,15 @@ export function isCapturing(): boolean {
   return state !== null;
 }
 
+/** The live capture stream, shared with WebRTC peer connections (rtcHost.ts). */
+export function getCaptureStream(): MediaStream | null {
+  return state?.stream ?? null;
+}
+
 export async function startScreenCapture(): Promise<void> {
   if (state) return;
   const stream = await navigator.mediaDevices.getDisplayMedia({
-    video: { frameRate: TARGET_FPS },
+    video: { frameRate: CAPTURE_FPS },
     audio: false,
   });
   const video = document.createElement('video');
