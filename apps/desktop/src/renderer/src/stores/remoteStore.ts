@@ -6,7 +6,12 @@ import type {
   RemoteState,
 } from '@shared/apiTypes';
 import { closeAllRtcPeers, initRtcHost } from '@/lib/rtcHost';
-import { startScreenCapture, stopScreenCapture } from '@/lib/screenCapture';
+import {
+  forceFullFrame,
+  setTilesEnabled,
+  startScreenCapture,
+  stopScreenCapture,
+} from '@/lib/screenCapture';
 
 const MAX_LOGS = 100;
 
@@ -67,6 +72,8 @@ export function initRemote(): void {
     closeAllRtcPeers();
     stopScreenCapture();
   });
+  api.onCaptureRefresh(() => forceFullFrame());
+  api.onTileDemand((demand) => setTilesEnabled(demand));
 
   // Host side: WebRTC signaling relay for controllers streaming video.
   initRtcHost();

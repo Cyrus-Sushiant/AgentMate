@@ -80,6 +80,7 @@ class RemoteManager {
   private readonly peers = new Map<string, HostPeer>();
   private hostScreen: { width: number; height: number } | null = null;
   private capturing = false;
+  private tileDemand = true;
   private pairing: RemotePairingInfo | null = null;
 
   private client: WebSocket | null = null;
@@ -167,6 +168,7 @@ class RemoteManager {
       this.capturing = false;
       this.send(IPC.remote.onCaptureStop);
     }
+    this.tileDemand = true; // matches the renderer's default for the next session
     // Only tear the injector down if we aren't also acting as a controller elsewhere.
     this.injector.stop();
     this.emitState();
@@ -234,7 +236,13 @@ class RemoteManager {
           peer.authed = true;
           const deviceToken = paired ? this.tokens.issueDeviceToken(peer.deviceName) : undefined;
           if (paired) this.pairing = null; // code was single-use
+          if (this.capturing) {
+            // Capture is already streaming deltas; this newcomer needs every
+            // tile once or it stares at a mostly-black screen.
+            this.send(IPC.remote.onCaptureRefresh);
+          }
           this.startCapture();
+          this.updateTileDemand();
           this.sendControl(peer.ws, {
             t: 'auth-ok',
             deviceName: this.deviceName(),
@@ -287,6 +295,9 @@ class RemoteManager {
         if (peer.authed) {
           peer.wantsTiles = msg.t === 'rtc-cancel';
           this.send(IPC.remote.onRtcSignal, { peerId: peer.id, message: msg });
+          this.updateTileDemand();
+          // A peer falling back to tiles missed everything sent as video.
+          if (msg.t === 'rtc-cancel') this.send(IPC.remote.onCaptureRefresh);
         }
         break;
       case 'bye':
@@ -301,6 +312,19 @@ class RemoteManager {
     this.send(IPC.remote.onCaptureStart);
   }
 
+  /**
+   * Tell the renderer whether anyone still consumes JPEG tiles. When every
+   * connected controller streams WebRTC video, the per-frame diff + JPEG
+   * encode loop is pure wasted CPU that competes with the video encoder.
+   */
+  private updateTileDemand(): void {
+    const demand = [...this.peers.values()].some((p) => p.authed && p.wantsTiles);
+    if (demand !== this.tileDemand) {
+      this.tileDemand = demand;
+      this.send(IPC.remote.onTileDemand, demand);
+    }
+  }
+
   private onPeerGone(peer: HostPeer): void {
     if (!this.peers.has(peer.id)) return;
     this.peers.delete(peer.id);
@@ -313,6 +337,7 @@ class RemoteManager {
       this.capturing = false;
       this.send(IPC.remote.onCaptureStop);
     }
+    this.updateTileDemand();
     this.emitState();
   }
 

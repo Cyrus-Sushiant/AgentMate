@@ -138,6 +138,8 @@ export const IPC = {
     onState: 'remote:onState',
     onRtcSignal: 'remote:onRtcSignal',
     onRtcPeerGone: 'remote:onRtcPeerGone',
+    onCaptureRefresh: 'remote:onCaptureRefresh',
+    onTileDemand: 'remote:onTileDemand',
     onCaptureStart: 'remote:onCaptureStart',
     onCaptureStop: 'remote:onCaptureStop',
     onFrameTile: 'remote:onFrameTile',

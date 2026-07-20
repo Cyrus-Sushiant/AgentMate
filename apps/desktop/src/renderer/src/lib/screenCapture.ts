@@ -22,6 +22,12 @@ const TARGET_FPS = 12;
 /** Rate requested from the OS capturer — WebRTC consumers get the full rate. */
 const CAPTURE_FPS = 30;
 const JPEG_QUALITY = 0.55;
+/**
+ * Tile path safety net: resend the whole frame periodically so a viewer that
+ * missed tiles (send-buffer backpressure drops them) never shows a stale
+ * region for more than a few seconds.
+ */
+const FULL_REFRESH_MS = 10_000;
 
 interface CaptureState {
   stream: MediaStream;
@@ -36,6 +42,26 @@ interface CaptureState {
   frameId: number;
   timer: number | null;
   stopping: boolean;
+  lastFullFrameAt: number;
+}
+
+/**
+ * When no connected controller consumes JPEG tiles (they all stream WebRTC),
+ * the per-tick diff + JPEG encode work is skipped entirely so it doesn't
+ * compete with the video encoder for CPU.
+ */
+let tilesEnabled = true;
+
+export function setTilesEnabled(enabled: boolean): void {
+  if (tilesEnabled === enabled) return;
+  tilesEnabled = enabled;
+  // A viewer may have missed everything while tiles were off; start fresh.
+  if (enabled && state) state.prev = null;
+}
+
+/** Resend every tile on the next tick (e.g. a controller joined mid-stream). */
+export function forceFullFrame(): void {
+  if (state) state.prev = null;
 }
 
 let state: CaptureState | null = null;
@@ -55,6 +81,19 @@ export async function startScreenCapture(): Promise<void> {
     video: { frameRate: CAPTURE_FPS },
     audio: false,
   });
+  // Downscale at the source: a phone never benefits from a 1440p+ stream, and
+  // the WebRTC encoder's bitrate requirement scales with input pixels. This is
+  // "resize for the destination screen" done once, before any encoding.
+  try {
+    await stream.getVideoTracks()[0]?.applyConstraints({
+      width: { max: MAX_EDGE },
+      height: { max: MAX_EDGE },
+      frameRate: CAPTURE_FPS,
+    });
+  } catch {
+    // Some platforms reject downscale constraints; the encoder still adapts.
+  }
+
   const video = document.createElement('video');
   video.srcObject = stream;
   video.muted = true;
@@ -92,7 +131,9 @@ export async function startScreenCapture(): Promise<void> {
     frameId: 0,
     timer: null,
     stopping: false,
+    lastFullFrameAt: Date.now(),
   };
+  tilesEnabled = true;
 
   window.agentmat.remote.setScreenInfo({ width, height });
 
@@ -116,9 +157,13 @@ let ticking = false;
 
 async function tick(): Promise<void> {
   const s = state;
-  if (!s || ticking) return;
+  if (!s || ticking || !tilesEnabled) return;
   ticking = true;
   try {
+    // Periodic keyframe for the tile path: heal any viewer that missed tiles.
+    if (Date.now() - s.lastFullFrameAt > FULL_REFRESH_MS) s.prev = null;
+    if (s.prev === null) s.lastFullFrameAt = Date.now();
+
     s.ctx.drawImage(s.video, 0, 0, s.width, s.height);
     const frame = s.ctx.getImageData(0, 0, s.width, s.height).data;
     const frameId = s.frameId++;

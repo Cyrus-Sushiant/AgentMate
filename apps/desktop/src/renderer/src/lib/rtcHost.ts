@@ -13,11 +13,41 @@ import { getCaptureStream } from './screenCapture';
  * controller) keep receiving JPEG tiles as before.
  */
 
-const STUN_SERVERS = [{ urls: 'stun:stun.l.google.com:19302' }];
+const STUN_SERVERS = [
+  { urls: 'stun:stun.l.google.com:19302' },
+  { urls: 'stun:stun.cloudflare.com:3478' },
+];
 /** How long to wait for capture to come up before telling the peer to fall back. */
 const CAPTURE_WAIT_MS = 8000;
 const CAPTURE_POLL_MS = 250;
-const MAX_VIDEO_BITRATE = 4_000_000;
+/**
+ * Upper bound only — WebRTC's congestion control ramps far below this on weak
+ * links. With the capture downscaled to phone-appropriate resolution (see
+ * screenCapture.ts), 3.5 Mbps is plenty for crisp screen content; a higher cap
+ * just invites queuing latency and packet loss on marginal WiFi.
+ */
+const MAX_VIDEO_BITRATE = 3_500_000;
+
+/**
+ * Put hardware-friendly codecs first in the SDP offer. Chromium tends to lead
+ * with VP8 (software) otherwise; H.264 gets hardware encode on the host GPU
+ * and hardware decode on virtually every phone, which cuts both latency and
+ * the quality pulsing a starved software encoder produces. AV1/VP9 follow as
+ * better-compression options where both ends support them in hardware.
+ */
+type VideoCodecCapability = RTCRtpCapabilities['codecs'][number];
+
+function preferredCodecOrder(codecs: VideoCodecCapability[]): VideoCodecCapability[] {
+  const rank = (c: VideoCodecCapability): number => {
+    const mime = c.mimeType.toLowerCase();
+    if (mime === 'video/h264') return 0;
+    if (mime === 'video/av1') return 1;
+    if (mime === 'video/vp9') return 2;
+    if (mime === 'video/vp8') return 3;
+    return 4;
+  };
+  return [...codecs].sort((a, b) => rank(a) - rank(b));
+}
 
 const peers = new Map<string, RTCPeerConnection>();
 let initialized = false;
@@ -110,9 +140,25 @@ async function startPeer(peerId: string): Promise<void> {
   track.contentHint = 'detail';
   const sender = pc.addTrack(track, stream);
   try {
+    const transceiver = pc.getTransceivers().find((t) => t.sender === sender);
+    const capabilities = RTCRtpSender.getCapabilities('video');
+    if (transceiver && capabilities) {
+      transceiver.setCodecPreferences(preferredCodecOrder(capabilities.codecs));
+    }
+  } catch {
+    // Codec preference is best-effort; negotiation still finds a common codec.
+  }
+  try {
     const params = sender.getParameters();
+    // 'balanced' lets the encoder shed both resolution and framerate under
+    // congestion. 'maintain-resolution' was tried and collapses to a ~1 fps
+    // slideshow on weak WiFi — for remote control, staying fluid wins.
     params.degradationPreference = 'balanced';
-    params.encodings = [{ maxBitrate: MAX_VIDEO_BITRATE }];
+    for (const encoding of params.encodings) {
+      encoding.maxBitrate = MAX_VIDEO_BITRATE;
+      encoding.priority = 'high';
+      encoding.networkPriority = 'high';
+    }
     await sender.setParameters(params);
   } catch {
     // Bitrate capping is a nice-to-have; defaults still adapt.

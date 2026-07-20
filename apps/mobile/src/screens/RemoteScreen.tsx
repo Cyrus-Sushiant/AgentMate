@@ -8,6 +8,18 @@ import { colors, radius, spacing } from '../theme';
 
 type RemoteClient = ReturnType<typeof useRemoteClient>;
 
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  const units = ['KB', 'MB', 'GB'];
+  let value = bytes / 1024;
+  let i = 0;
+  while (value >= 1024 && i < units.length - 1) {
+    value /= 1024;
+    i++;
+  }
+  return `${value.toFixed(1)} ${units[i]}`;
+}
+
 /**
  * The active-session screen. The host's display gets the entire phone screen;
  * the header is a translucent overlay toggled by the ⋯ button so it never
@@ -22,6 +34,7 @@ export function RemoteScreen({ client }: { client: RemoteClient }): React.JSX.El
     tiles,
     videoMode,
     remoteStream,
+    stats,
     sendInput,
     sendClipboardToHost,
     disconnect,
@@ -29,6 +42,7 @@ export function RemoteScreen({ client }: { client: RemoteClient }): React.JSX.El
   const connected = status === 'connected';
   const insets = useSafeAreaInsets();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [showStats, setShowStats] = useState(false);
 
   const waitingForVideo =
     connected && videoMode === 'negotiating' && !remoteStream && tiles.size === 0;
@@ -77,6 +91,12 @@ export function RemoteScreen({ client }: { client: RemoteClient }): React.JSX.El
               </Text>
             )}
           </View>
+          <Pressable
+            style={[styles.headerButton, showStats && styles.headerButtonActive]}
+            onPress={() => setShowStats((s) => !s)}
+          >
+            <Text style={styles.headerButtonText}>Stats</Text>
+          </Pressable>
           <Pressable style={styles.headerButton} onPress={() => void sendClipboardToHost()} disabled={!connected}>
             <Text style={styles.headerButtonText}>Clipboard</Text>
           </Pressable>
@@ -86,6 +106,29 @@ export function RemoteScreen({ client }: { client: RemoteClient }): React.JSX.El
           >
             <Text style={styles.disconnectButtonText}>Disconnect</Text>
           </Pressable>
+        </View>
+      )}
+
+      {showStats && stats && (
+        <View
+          style={[styles.statsOverlay, { top: insets.top + spacing(2), left: insets.left + spacing(2) }]}
+          pointerEvents="none"
+        >
+          <Text style={styles.statsText}>
+            {stats.transport === 'webrtc'
+              ? `video · ${stats.codec ?? '…'}`
+              : 'compat · JPEG tiles'}
+          </Text>
+          {stats.width > 0 && (
+            <Text style={styles.statsText}>
+              {stats.width}×{stats.height} @ {stats.fps} fps
+            </Text>
+          )}
+          <Text style={styles.statsText}>
+            {stats.kbps >= 1000 ? `${(stats.kbps / 1000).toFixed(1)} Mbps` : `${stats.kbps} kbps`}
+          </Text>
+          <Text style={styles.statsText}>{formatBytes(stats.totalBytes)} received</Text>
+          {stats.rttMs !== null && <Text style={styles.statsText}>ping {stats.rttMs} ms</Text>}
         </View>
       )}
 
@@ -175,6 +218,24 @@ const styles = StyleSheet.create({
     color: colors.foreground,
     fontSize: 12,
     fontWeight: '600',
+  },
+  headerButtonActive: {
+    backgroundColor: colors.accent,
+  },
+  statsOverlay: {
+    position: 'absolute',
+    backgroundColor: 'rgba(10, 10, 10, 0.7)',
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: spacing(2.5),
+    paddingVertical: spacing(1.5),
+    gap: 2,
+  },
+  statsText: {
+    color: colors.foreground,
+    fontSize: 11,
+    fontVariant: ['tabular-nums'],
   },
   disconnectButton: {
     backgroundColor: colors.destructive,

@@ -349,6 +349,9 @@ const remote = {
     subscribe(IPC.remote.onRtcSignal, cb),
   onRtcPeerGone: (cb: (peerId: string) => void): (() => void) =>
     subscribe(IPC.remote.onRtcPeerGone, cb),
+  onCaptureRefresh: (cb: () => void): (() => void) => subscribe(IPC.remote.onCaptureRefresh, cb),
+  onTileDemand: (cb: (demand: boolean) => void): (() => void) =>
+    subscribe(IPC.remote.onTileDemand, cb),
   onCaptureStart: (cb: () => void): (() => void) => subscribe(IPC.remote.onCaptureStart, cb),
   onCaptureStop: (cb: () => void): (() => void) => subscribe(IPC.remote.onCaptureStop, cb),
   onFrameTile: (cb: (tile: Uint8Array) => void): (() => void) =>

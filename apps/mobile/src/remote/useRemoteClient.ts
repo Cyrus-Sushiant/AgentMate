@@ -46,6 +46,22 @@ export interface RemoteLogEntry {
   at: number;
 }
 
+/** Live transport metrics, refreshed once per second while connected. */
+export interface StreamStats {
+  transport: 'webrtc' | 'tiles';
+  /** e.g. "H264", "VP8" — null until the first stats sample (or in tile mode). */
+  codec: string | null;
+  width: number;
+  height: number;
+  fps: number;
+  /** Current receive rate in kilobits per second. */
+  kbps: number;
+  /** Total bytes received for screen content this session. */
+  totalBytes: number;
+  /** Network round-trip time in ms (WebRTC only). */
+  rttMs: number | null;
+}
+
 interface RemoteScreenSize {
   width: number;
   height: number;
@@ -55,7 +71,10 @@ const MAX_LOG = 50;
 const TILE_FLUSH_MS = 33;
 /** If no video track arrives within this window, fall back to JPEG tiles. */
 const RTC_FALLBACK_MS = 10_000;
-const STUN_SERVERS = [{ urls: 'stun:stun.l.google.com:19302' }];
+const STUN_SERVERS = [
+  { urls: 'stun:stun.l.google.com:19302' },
+  { urls: 'stun:stun.cloudflare.com:3478' },
+];
 
 function deviceName(): string {
   return Platform.OS === 'ios' ? 'AgentMate Mobile (iOS)' : 'AgentMate Mobile (Android)';
@@ -81,6 +100,7 @@ export function useRemoteClient() {
   const [videoMode, setVideoMode] = useState<VideoMode>('negotiating');
   const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
   const [savedDevices, setSavedDevices] = useState<SavedDevice[]>([]);
+  const [stats, setStats] = useState<StreamStats | null>(null);
 
   const wsRef = useRef<WebSocket | null>(null);
   const pcRef = useRef<RTCPeerConnection | null>(null);
@@ -92,6 +112,17 @@ export function useRemoteClient() {
   const statusRef = useRef<ConnectionStatus>('idle');
   /** Connection details of the session being opened (for saving after pairing). */
   const dialing = useRef<{ ip: string; port: number; savedId: string | null } | null>(null);
+
+  const videoModeRef = useRef<VideoMode>('negotiating');
+  const statsTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+  /** Bytes received as JPEG tiles (fallback transport) this session. */
+  const tileBytes = useRef(0);
+  /** Previous sample for computing the receive bitrate delta. */
+  const lastSample = useRef<{ bytes: number; at: number } | null>(null);
+
+  useEffect(() => {
+    videoModeRef.current = videoMode;
+  }, [videoMode]);
 
   const appendLog = useCallback((level: RemoteLogEntry['level'], message: string) => {
     setLog((prev) => [{ level, message, at: Date.now() }, ...prev].slice(0, MAX_LOG));
@@ -138,6 +169,89 @@ export function useRemoteClient() {
     setRemoteStream(null);
   }, []);
 
+  const stopStats = useCallback(() => {
+    if (statsTimer.current != null) {
+      clearInterval(statsTimer.current);
+      statsTimer.current = null;
+    }
+    lastSample.current = null;
+    setStats(null);
+  }, []);
+
+  /** One sample per second: WebRTC getStats() or the tile byte counter. */
+  const sampleStats = useCallback(async () => {
+    const now = Date.now();
+    const pc = pcRef.current;
+
+    if (videoModeRef.current === 'webrtc' && pc) {
+      let entries: Record<string, unknown>[];
+      try {
+        const report = (await pc.getStats()) as { forEach: (cb: (entry: unknown) => void) => void };
+        entries = [];
+        report.forEach((entry) => {
+          if (typeof entry === 'object' && entry !== null) {
+            entries.push(entry as Record<string, unknown>);
+          }
+        });
+      } catch {
+        return;
+      }
+      const inbound = entries.find(
+        (e) => e.type === 'inbound-rtp' && (e.kind === 'video' || e.mediaType === 'video'),
+      );
+      if (!inbound) return;
+      const codecEntry = entries.find((e) => e.type === 'codec' && e.id === inbound.codecId);
+      const pair = entries.find(
+        (e) => e.type === 'candidate-pair' && e.state === 'succeeded' && typeof e.currentRoundTripTime === 'number',
+      );
+      const bytes = typeof inbound.bytesReceived === 'number' ? inbound.bytesReceived : 0;
+      const prev = lastSample.current;
+      lastSample.current = { bytes, at: now };
+      const mime = typeof codecEntry?.mimeType === 'string' ? codecEntry.mimeType : null;
+      setStats({
+        transport: 'webrtc',
+        codec: mime ? mime.replace(/^video\//i, '') : null,
+        width: typeof inbound.frameWidth === 'number' ? inbound.frameWidth : 0,
+        height: typeof inbound.frameHeight === 'number' ? inbound.frameHeight : 0,
+        fps:
+          typeof inbound.framesPerSecond === 'number' ? Math.round(inbound.framesPerSecond) : 0,
+        kbps:
+          prev && now > prev.at
+            ? Math.max(0, Math.round(((bytes - prev.bytes) * 8) / (now - prev.at)))
+            : 0,
+        totalBytes: bytes + tileBytes.current,
+        rttMs: pair ? Math.round((pair.currentRoundTripTime as number) * 1000) : null,
+      });
+      return;
+    }
+
+    // Tile fallback: no RTP stats, but we count every binary frame ourselves.
+    const bytes = tileBytes.current;
+    const prev = lastSample.current;
+    lastSample.current = { bytes, at: now };
+    setStats({
+      transport: 'tiles',
+      codec: 'JPEG',
+      width: 0,
+      height: 0,
+      fps: 0,
+      kbps:
+        prev && now > prev.at
+          ? Math.max(0, Math.round(((bytes - prev.bytes) * 8) / (now - prev.at)))
+          : 0,
+      totalBytes: bytes,
+      rttMs: null,
+    });
+  }, []);
+
+  const startStats = useCallback(() => {
+    stopStats();
+    tileBytes.current = 0;
+    statsTimer.current = setInterval(() => {
+      void sampleStats();
+    }, 1000);
+  }, [sampleStats, stopStats]);
+
   const fallbackToTiles = useCallback(
     (reason: string) => {
       closePeerConnection();
@@ -150,6 +264,7 @@ export function useRemoteClient() {
 
   const disconnect = useCallback(
     (reason = 'controller disconnected') => {
+      stopStats();
       closePeerConnection();
       const ws = wsRef.current;
       if (ws) {
@@ -169,7 +284,7 @@ export function useRemoteClient() {
       setVideoMode('negotiating');
       resetTiles();
     },
-    [closePeerConnection, resetTiles],
+    [closePeerConnection, resetTiles, stopStats],
   );
 
   /** Host sent an SDP offer: answer it and start receiving the video track. */
@@ -265,6 +380,7 @@ export function useRemoteClient() {
               if (msg.screen.width) setRemoteScreen(msg.screen);
               send({ t: 'control-start' });
               appendLog('success', `Connected to ${msg.deviceName}.`);
+              startStats();
 
               // Remember this computer for one-tap reconnects.
               const dial = dialing.current;
@@ -347,6 +463,7 @@ export function useRemoteClient() {
 
         const bytes = new Uint8Array(event.data as ArrayBuffer);
         if (binaryKind(bytes) === BIN_SCREEN_TILE) {
+          tileBytes.current += bytes.byteLength;
           const tile = decodeScreenTile(bytes);
           pendingTiles.current.set(`${tile.x},${tile.y}`, {
             x: tile.x,
@@ -370,6 +487,7 @@ export function useRemoteClient() {
       ws.onclose = () => {
         if (wsRef.current !== ws) return;
         wsRef.current = null;
+        stopStats();
         closePeerConnection();
         if (statusRef.current !== 'error') {
           statusRef.current = 'idle';
@@ -389,6 +507,8 @@ export function useRemoteClient() {
       resetTiles,
       scheduleFlush,
       send,
+      startStats,
+      stopStats,
     ],
   );
 
@@ -435,6 +555,7 @@ export function useRemoteClient() {
     return () => {
       if (flushHandle.current != null) clearTimeout(flushHandle.current);
       if (rtcTimer.current != null) clearTimeout(rtcTimer.current);
+      if (statsTimer.current != null) clearInterval(statsTimer.current);
       pcRef.current?.close();
       wsRef.current?.close();
     };
@@ -450,6 +571,7 @@ export function useRemoteClient() {
     videoMode,
     remoteStream,
     savedDevices,
+    stats,
     connect,
     connectToSaved,
     renameDevice,

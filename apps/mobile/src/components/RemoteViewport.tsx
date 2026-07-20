@@ -345,6 +345,9 @@ export function RemoteViewport({
               <Image
                 key={`${tile.x},${tile.y}`}
                 source={{ uri: tile.uri }}
+                // Android <Image> cross-fades new sources over 300ms by
+                // default — on a tile mosaic that reads as constant flicker.
+                fadeDuration={0}
                 style={{
                   position: 'absolute',
                   left: tile.x * scale,
