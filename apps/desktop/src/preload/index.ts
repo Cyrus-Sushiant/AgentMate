@@ -345,12 +345,25 @@ const remote = {
     ipcRenderer.send(IPC.remote.rtcSignal, { peerId, message }),
   rtcPeerState: (peerId: string, connected: boolean): void =>
     ipcRenderer.send(IPC.remote.rtcPeerState, { peerId, connected }),
+  clientRtcSignal: (message: RemoteRtcMessage): void =>
+    ipcRenderer.send(IPC.remote.clientRtcSignal, message),
+  rtcInput: (peerId: string, event: RemoteInputEvent): void =>
+    ipcRenderer.send(IPC.remote.rtcInput, { peerId, event }),
+  setCursorTracking: (enabled: boolean): void =>
+    ipcRenderer.send(IPC.remote.setCursorTracking, enabled),
+  benchSample: (): Promise<{ cpu: number; memory: number; at: number }> =>
+    ipcRenderer.invoke(IPC.remote.benchSample),
 
   onState: (cb: (state: RemoteState) => void): (() => void) => subscribe(IPC.remote.onState, cb),
   onRtcSignal: (cb: (payload: { peerId: string; message: RemoteRtcMessage }) => void): (() => void) =>
     subscribe(IPC.remote.onRtcSignal, cb),
   onRtcPeerGone: (cb: (peerId: string) => void): (() => void) =>
     subscribe(IPC.remote.onRtcPeerGone, cb),
+  onClientRtcSignal: (cb: (message: RemoteRtcMessage) => void): (() => void) =>
+    subscribe(IPC.remote.onClientRtcSignal, cb),
+  onHostCursor: (
+    cb: (point: { x: number; y: number; visible: boolean }) => void,
+  ): (() => void) => subscribe(IPC.remote.onHostCursor, cb),
   onCaptureRefresh: (cb: () => void): (() => void) => subscribe(IPC.remote.onCaptureRefresh, cb),
   onTileDemand: (cb: (demand: boolean) => void): (() => void) =>
     subscribe(IPC.remote.onTileDemand, cb),

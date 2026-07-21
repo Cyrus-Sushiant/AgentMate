@@ -1,16 +1,31 @@
-import type { RemoteRtcMessage } from '@shared/remoteProtocol';
-import { getCaptureStream } from './screenCapture';
+import {
+  DC_CURSOR,
+  DC_INPUT,
+  DC_UNRELIABLE,
+  encodeCursorState,
+  type RemoteInputEvent,
+  type RemoteRtcMessage,
+} from '@shared/remoteProtocol';
+import { getCaptureStream, getCaptureSurface, isCursorBaked } from './screenCapture';
+import { preferredCodecOrder } from './rtcCodecs';
+import { QualityGovernor, type QualitySample } from './qualityGovernor';
+import { recordHostSample } from './remoteBench';
 
 /**
  * Host-side WebRTC streaming: one RTCPeerConnection per connected controller,
  * all sharing the single screen-capture MediaStream.
  *
- * This is the primary transport for mobile controllers — hardware H.264 with
- * WebRTC's built-in congestion control beats the JPEG-tile path on every axis
- * (startup latency, bandwidth, weak networks). Signaling travels over the
- * peer's existing WebSocket, relayed through the main process tagged with the
- * peer id. Controllers that never send `rtc-request` (e.g. the desktop
- * controller) keep receiving JPEG tiles as before.
+ * This is the primary transport for *every* controller — desktop and mobile
+ * alike. The capture track goes straight to the encoder, so screen pixels never
+ * enter JavaScript on this path: no canvas, no readback, no JPEG.
+ *
+ * Each connection carries three planes:
+ *   - the video track (congestion-controlled by WebRTC itself)
+ *   - an unreliable `input` channel, so a keystroke never queues behind a frame
+ *   - an unreliable `cursor` channel, so pointer motion beats the frame rate
+ *
+ * Signaling travels over the peer's existing WebSocket, relayed through the main
+ * process tagged with the peer id.
  */
 
 const STUN_SERVERS = [
@@ -20,37 +35,17 @@ const STUN_SERVERS = [
 /** How long to wait for capture to come up before telling the peer to fall back. */
 const CAPTURE_WAIT_MS = 8000;
 const CAPTURE_POLL_MS = 250;
-/**
- * Upper bound only — WebRTC's congestion control ramps far below this on weak
- * links. With the capture downscaled to phone-appropriate resolution (see
- * screenCapture.ts), 3.5 Mbps is plenty for crisp screen content; a higher cap
- * just invites queuing latency and packet loss on marginal WiFi.
- */
-const MAX_VIDEO_BITRATE = 3_500_000;
 
-/**
- * Put hardware-friendly codecs first in the SDP offer. Chromium tends to lead
- * with VP8 (software) otherwise; H.264 gets hardware encode on the host GPU
- * and hardware decode on virtually every phone, which cuts both latency and
- * the quality pulsing a starved software encoder produces. AV1/VP9 follow as
- * better-compression options where both ends support them in hardware.
- */
-type VideoCodecCapability = RTCRtpCapabilities['codecs'][number];
-
-function preferredCodecOrder(codecs: VideoCodecCapability[]): VideoCodecCapability[] {
-  const rank = (c: VideoCodecCapability): number => {
-    const mime = c.mimeType.toLowerCase();
-    if (mime === 'video/h264') return 0;
-    if (mime === 'video/av1') return 1;
-    if (mime === 'video/vp9') return 2;
-    if (mime === 'video/vp8') return 3;
-    return 4;
-  };
-  return [...codecs].sort((a, b) => rank(a) - rank(b));
+interface HostPeerSession {
+  pc: RTCPeerConnection;
+  governor: QualityGovernor | null;
+  input: RTCDataChannel | null;
+  cursor: RTCDataChannel | null;
 }
 
-const peers = new Map<string, RTCPeerConnection>();
+const peers = new Map<string, HostPeerSession>();
 let initialized = false;
+let cursorTracking = false;
 
 export function initRtcHost(): void {
   if (initialized) return;
@@ -62,17 +57,22 @@ export function initRtcHost(): void {
     });
   });
   window.agentmat.remote.onRtcPeerGone((peerId) => closeRtcPeer(peerId));
+  window.agentmat.remote.onHostCursor((point) => broadcastCursor(point));
 }
 
 export function closeRtcPeer(peerId: string): void {
-  const pc = peers.get(peerId);
-  if (!pc) return;
+  const session = peers.get(peerId);
+  if (!session) return;
   peers.delete(peerId);
+  session.governor?.stop();
   try {
-    pc.close();
+    session.input?.close();
+    session.cursor?.close();
+    session.pc.close();
   } catch {
     // already closed
   }
+  updateCursorTracking();
   // Tiles resume for this peer (no-op in main if the peer already left).
   window.agentmat.remote.rtcPeerState(peerId, false);
 }
@@ -95,14 +95,14 @@ async function handleSignal(peerId: string, message: RemoteRtcMessage): Promise<
       closeRtcPeer(peerId);
       break;
     case 'rtc-answer': {
-      const pc = peers.get(peerId);
-      if (pc) await pc.setRemoteDescription({ type: 'answer', sdp: message.sdp });
+      const session = peers.get(peerId);
+      if (session) await session.pc.setRemoteDescription({ type: 'answer', sdp: message.sdp });
       break;
     }
     case 'rtc-ice': {
-      const pc = peers.get(peerId);
-      if (pc && message.candidate) {
-        await pc.addIceCandidate({
+      const session = peers.get(peerId);
+      if (session && message.candidate) {
+        await session.pc.addIceCandidate({
           candidate: message.candidate,
           sdpMid: message.sdpMid,
           sdpMLineIndex: message.sdpMLineIndex,
@@ -136,35 +136,39 @@ async function startPeer(peerId: string): Promise<void> {
   }
 
   const pc = new RTCPeerConnection({ iceServers: STUN_SERVERS });
-  peers.set(peerId, pc);
+  const session: HostPeerSession = { pc, governor: null, input: null, cursor: null };
+  peers.set(peerId, session);
 
   // Screen content: favor legible text over silky motion when bandwidth dips.
   track.contentHint = 'detail';
   const sender = pc.addTrack(track, stream);
+
+  // The offerer creates the data channels; the controller picks them up via
+  // ondatachannel. Both are unreliable — a lost mouse-move is superseded by the
+  // next one, so retransmitting it would only deliver a stale position late.
+  session.input = pc.createDataChannel(DC_INPUT, DC_UNRELIABLE);
+  session.input.binaryType = 'arraybuffer';
+  session.input.onmessage = (event) => onInputMessage(peerId, event);
+
+  session.cursor = pc.createDataChannel(DC_CURSOR, DC_UNRELIABLE);
+  session.cursor.binaryType = 'arraybuffer';
+  session.cursor.onopen = () => updateCursorTracking();
+  session.cursor.onclose = () => updateCursorTracking();
+
   try {
     const transceiver = pc.getTransceivers().find((t) => t.sender === sender);
     const capabilities = RTCRtpSender.getCapabilities('video');
     if (transceiver && capabilities) {
-      transceiver.setCodecPreferences(preferredCodecOrder(capabilities.codecs));
+      // Ordered by *measured* hardware support, not a hardcoded list.
+      transceiver.setCodecPreferences(await preferredCodecOrder(capabilities.codecs));
     }
   } catch {
     // Codec preference is best-effort; negotiation still finds a common codec.
   }
-  try {
-    const params = sender.getParameters();
-    // 'balanced' lets the encoder shed both resolution and framerate under
-    // congestion. 'maintain-resolution' was tried and collapses to a ~1 fps
-    // slideshow on weak WiFi — for remote control, staying fluid wins.
-    params.degradationPreference = 'balanced';
-    for (const encoding of params.encodings) {
-      encoding.maxBitrate = MAX_VIDEO_BITRATE;
-      encoding.priority = 'high';
-      encoding.networkPriority = 'high';
-    }
-    await sender.setParameters(params);
-  } catch {
-    // Bitrate capping is a nice-to-have; defaults still adapt.
-  }
+
+  session.governor = new QualityGovernor(pc, sender, () => getCaptureSurface());
+  session.governor.onSample((sample: QualitySample) => recordHostSample(peerId, sample));
+  session.governor.start();
 
   pc.onicecandidate = (event) => {
     if (!event.candidate || !peers.has(peerId)) return;
@@ -177,7 +181,7 @@ async function startPeer(peerId: string): Promise<void> {
   };
   pc.onconnectionstatechange = () => {
     // A replaced/stale connection must not act on the current one.
-    if (peers.get(peerId) !== pc) return;
+    if (peers.get(peerId)?.pc !== pc) return;
     if (pc.connectionState === 'connected') {
       // Video is flowing; main stops JPEG tiles for this peer. 'disconnected'
       // is deliberately ignored — it is usually a transient blip that returns
@@ -191,4 +195,55 @@ async function startPeer(peerId: string): Promise<void> {
   const offer = await pc.createOffer();
   await pc.setLocalDescription(offer);
   signal(peerId, { t: 'rtc-offer', sdp: offer.sdp ?? '' });
+}
+
+function onInputMessage(peerId: string, event: MessageEvent<unknown>): void {
+  if (typeof event.data !== 'string') return;
+  let parsed: RemoteInputEvent;
+  try {
+    parsed = JSON.parse(event.data) as RemoteInputEvent;
+  } catch {
+    return;
+  }
+  // Main re-checks that the peer is authorized before injecting; the renderer
+  // owns no authorization state.
+  window.agentmat.remote.rtcInput(peerId, parsed);
+}
+
+// --- Cursor plane --------------------------------------------------------------
+
+/**
+ * Cursor sampling in main costs a timer, so it only runs while at least one
+ * peer has an open cursor channel.
+ */
+function updateCursorTracking(): void {
+  const wanted = [...peers.values()].some((s) => s.cursor?.readyState === 'open');
+  if (wanted === cursorTracking) return;
+  cursorTracking = wanted;
+  window.agentmat.remote.setCursorTracking(wanted);
+}
+
+function broadcastCursor(point: { x: number; y: number; visible: boolean }): void {
+  const baked = isCursorBaked();
+  const frame = encodeCursorState({
+    x: point.x,
+    y: point.y,
+    visible: point.visible,
+    baked,
+    // Electron exposes no cursor-shape API; a native provider will fill this in.
+    shape: 'default',
+  });
+  for (const session of peers.values()) {
+    const channel = session.cursor;
+    if (channel?.readyState !== 'open') continue;
+    // Never queue cursor updates: a backlog would deliver stale positions.
+    if (channel.bufferedAmount > 0) continue;
+    try {
+      // encodeCursorState returns a tightly-packed 7-byte array, so its backing
+      // buffer is exactly the frame.
+      channel.send(frame.buffer as ArrayBuffer);
+    } catch {
+      // Channel closing mid-send; the next sample skips it.
+    }
+  }
 }

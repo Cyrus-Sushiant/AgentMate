@@ -15,7 +15,7 @@
  *     overhead and travel as compact length-prefixed buffers.
  */
 
-export const REMOTE_PROTOCOL_VERSION = 2;
+export const REMOTE_PROTOCOL_VERSION = 3;
 
 export type RemoteRole = 'host' | 'controller';
 
@@ -86,6 +86,102 @@ export type RemoteRtcMessage = Extract<
   RemoteControlMessage,
   { t: 'rtc-request' | 'rtc-cancel' | 'rtc-unavailable' | 'rtc-offer' | 'rtc-answer' | 'rtc-ice' }
 >;
+
+// --- WebRTC data channels ------------------------------------------------------
+
+/**
+ * Input and cursor travel on their own `RTCDataChannel`s rather than sharing the
+ * control WebSocket with bulk data.
+ *
+ * The control socket carries file chunks and (on the fallback path) JPEG tiles,
+ * which can queue megabytes deep — a keystroke behind that queue arrives when
+ * the queue drains, not when it was pressed. Both channels are therefore
+ * configured unreliable + unordered (`{ ordered: false, maxRetransmits: 0 }`):
+ * a lost mouse-move is instantly obsoleted by the next one, so retransmitting it
+ * would add latency to deliver a stale position.
+ */
+export const DC_INPUT = 'agentmat-input';
+export const DC_CURSOR = 'agentmat-cursor';
+
+export const DC_UNRELIABLE: { ordered: false; maxRetransmits: 0 } = {
+  ordered: false,
+  maxRetransmits: 0,
+};
+
+/**
+ * Named cursor shapes, mapped to CSS cursor keywords by the controller.
+ *
+ * Electron exposes no cross-platform cursor-shape API, so the current
+ * `ElectronCaptureProvider` always reports `default`. The field exists so a
+ * future native capture provider (DXGI / ScreenCaptureKit / PipeWire — all of
+ * which do expose the cursor shape) can populate it without a protocol change.
+ */
+export const CURSOR_SHAPES = [
+  'default',
+  'pointer',
+  'text',
+  'crosshair',
+  'move',
+  'ns-resize',
+  'ew-resize',
+  'nwse-resize',
+  'nesw-resize',
+  'wait',
+  'progress',
+  'not-allowed',
+  'grab',
+  'grabbing',
+] as const;
+
+export type RemoteCursorShape = (typeof CURSOR_SHAPES)[number];
+
+export interface RemoteCursorState {
+  /** Position normalized to `0..1` against the host's captured surface. */
+  x: number;
+  y: number;
+  visible: boolean;
+  /**
+   * True when the host's video frames already contain a drawn cursor, so the
+   * controller must NOT also draw an overlay (that would show two cursors).
+   * See `ElectronCaptureProvider` — whether the cursor can be excluded from
+   * capture is platform-dependent and detected at runtime.
+   */
+  baked: boolean;
+  shape: RemoteCursorShape;
+}
+
+/** Wire layout: kind(1) x(2) y(2) flags(1) shape(1) = 7 bytes. */
+const CURSOR_FRAME_BYTES = 7;
+export const BIN_CURSOR = 0x03;
+
+export function encodeCursorState(state: RemoteCursorState): Uint8Array {
+  const out = new Uint8Array(CURSOR_FRAME_BYTES);
+  const view = new DataView(out.buffer);
+  view.setUint8(0, BIN_CURSOR);
+  view.setUint16(1, Math.round(clamp01(state.x) * 0xffff));
+  view.setUint16(3, Math.round(clamp01(state.y) * 0xffff));
+  view.setUint8(5, (state.visible ? 1 : 0) | (state.baked ? 2 : 0));
+  const shapeIndex = CURSOR_SHAPES.indexOf(state.shape);
+  view.setUint8(6, shapeIndex < 0 ? 0 : shapeIndex);
+  return out;
+}
+
+export function decodeCursorState(buf: Uint8Array): RemoteCursorState | null {
+  if (buf.byteLength < CURSOR_FRAME_BYTES || buf[0] !== BIN_CURSOR) return null;
+  const view = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
+  const flags = view.getUint8(5);
+  return {
+    x: view.getUint16(1) / 0xffff,
+    y: view.getUint16(3) / 0xffff,
+    visible: (flags & 1) !== 0,
+    baked: (flags & 2) !== 0,
+    shape: CURSOR_SHAPES[view.getUint8(6)] ?? 'default',
+  };
+}
+
+function clamp01(value: number): number {
+  return value < 0 ? 0 : value > 1 ? 1 : value;
+}
 
 // --- Binary data-plane framing -------------------------------------------------
 

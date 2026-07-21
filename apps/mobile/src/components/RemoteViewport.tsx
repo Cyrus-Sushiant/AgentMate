@@ -10,7 +10,8 @@ import {
 } from 'react-native';
 import type { MediaStream } from 'react-native-webrtc';
 import type { RemoteInputEvent, RemoteMouseButton } from '@agentmat/protocol';
-import type { RemoteTile, VideoMode } from '../remote/useRemoteClient';
+import type { RemoteTile } from '../remote/useRemoteClient';
+import { RemoteTransportMode } from '../remote/transport';
 import { WebRtc } from '../remote/webrtc';
 
 // Absent in builds without the native module; the tile fallback renders instead.
@@ -25,7 +26,7 @@ interface RemoteViewportProps {
   screen: RemoteScreenSize | null;
   stream: MediaStream | null;
   tiles: Map<string, RemoteTile>;
-  videoMode: VideoMode;
+  transport: RemoteTransportMode;
   live: boolean;
   onInput: (event: RemoteInputEvent) => void;
 }
@@ -62,7 +63,7 @@ export function RemoteViewport({
   screen,
   stream,
   tiles,
-  videoMode,
+  transport,
   live,
   onInput,
 }: RemoteViewportProps): React.JSX.Element {
@@ -322,7 +323,11 @@ export function RemoteViewport({
   }
 
   const scale = screen && fitWidth > 0 ? fitWidth / screen.width : 0;
-  const showTiles = videoMode !== 'webrtc' || !stream;
+  // Video is the primary renderer; tiles draw only when it isn't up. The two
+  // are mutually exclusive so a stale mosaic can never sit on top of live video.
+  const showVideo =
+    RTCView !== null && stream !== null && transport === RemoteTransportMode.WEBRTC_VIDEO;
+  const showTiles = !showVideo;
 
   return (
     <View ref={wrapRef} style={styles.wrap} onLayout={onLayoutHandler} {...panResponder.panHandlers}>
@@ -337,7 +342,7 @@ export function RemoteViewport({
           },
         ]}
       >
-        {RTCView && stream && videoMode === 'webrtc' ? (
+        {showVideo && RTCView && stream ? (
           <RTCView streamURL={stream.toURL()} style={styles.video} objectFit="contain" />
         ) : null}
         {showTiles && screen

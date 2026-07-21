@@ -2,10 +2,23 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { RemoteMouseButton } from '@shared/remoteProtocol';
 import type { RemoteScreenSize } from '@shared/apiTypes';
 import { drawTile } from '@/lib/frameCompositor';
+import {
+  isInputChannelOpen,
+  sendControllerInput,
+  subscribeControllerRtc,
+  type ControllerRtcState,
+} from '@/lib/rtcController';
 import { cn } from '@/lib/utils';
 
 const BUTTON_MAP: Record<number, RemoteMouseButton> = { 0: 'left', 1: 'middle', 2: 'right' };
-const MOVE_THROTTLE_MS = 16;
+/**
+ * Pointer moves are cheap on the dedicated input channel, so it gets a higher
+ * sampling rate. The WebSocket fallback keeps the old, gentler rate: that
+ * socket also carries JPEG tiles, and doubling the move rate on it would add to
+ * the very congestion the input channel exists to escape.
+ */
+const MOVE_THROTTLE_CHANNEL_MS = 8;
+const MOVE_THROTTLE_SOCKET_MS = 16;
 
 interface RemoteScreenProps {
   screen: RemoteScreenSize | null;
@@ -14,38 +27,69 @@ interface RemoteScreenProps {
 }
 
 /**
- * The controller's live view of the remote desktop. Incoming JPEG tiles are
- * painted onto a canvas sized to the host's capture surface; pointer, wheel and
- * keyboard events over the canvas are normalized and forwarded to the host.
+ * The controller's live view of the remote desktop.
+ *
+ * The primary path renders a WebRTC video track in an `HTMLVideoElement`: the
+ * GPU decodes and composites it, so no frame data passes through JavaScript.
+ * The JPEG tile canvas remains only as the fallback for hosts that can't
+ * negotiate WebRTC, and is not even mounted while video is running.
+ *
+ * Pointer/keyboard events go out over the input DataChannel when it's up (see
+ * rtcController) so they can't queue behind video or file bytes.
  */
 export function RemoteScreen({ screen, live }: RemoteScreenProps): React.JSX.Element {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const mediaRef = useRef<HTMLElement | null>(null);
   const ctxRef = useRef<CanvasRenderingContext2D | null>(null);
   const lastMove = useRef(0);
   const [focused, setFocused] = useState(false);
+  const [rtc, setRtc] = useState<ControllerRtcState>({
+    mode: 'idle',
+    stream: null,
+    cursor: null,
+  });
 
-  // (Re)size the drawing buffer whenever the host's screen dimensions change.
+  useEffect(() => subscribeControllerRtc(setRtc), []);
+
+  const usingVideo = rtc.mode === 'webrtc' && rtc.stream !== null;
+
+  // Attach the live track to the video element (never via a src attribute).
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video || !rtc.stream) return;
+    video.srcObject = rtc.stream;
+    void video.play().catch(() => {
+      // Autoplay of a muted stream is permitted; a rejection here is benign.
+    });
+    return () => {
+      video.srcObject = null;
+    };
+  }, [rtc.stream]);
+
+  // (Re)size the tile canvas whenever the host's screen dimensions change.
   useEffect(() => {
     const canvas = canvasRef.current;
-    if (!canvas || !screen) return;
+    if (!canvas || !screen || usingVideo) return;
     canvas.width = screen.width;
     canvas.height = screen.height;
     ctxRef.current = canvas.getContext('2d');
-  }, [screen]);
+  }, [screen, usingVideo]);
 
-  // Paint incoming tiles.
+  // Paint incoming tiles (fallback path only).
   useEffect(() => {
+    if (usingVideo) return;
     const unsub = window.agentmat.remote.onFrameTile((tile) => {
       const ctx = ctxRef.current;
       if (ctx) void drawTile(ctx, tile);
     });
     return unsub;
-  }, []);
+  }, [usingVideo]);
 
   const normalized = useCallback((e: { clientX: number; clientY: number }) => {
-    const canvas = canvasRef.current;
-    if (!canvas) return { x: 0, y: 0 };
-    const rect = canvas.getBoundingClientRect();
+    const media = mediaRef.current;
+    if (!media) return { x: 0, y: 0 };
+    const rect = media.getBoundingClientRect();
     const x = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width));
     const y = Math.min(1, Math.max(0, (e.clientY - rect.top) / rect.height));
     return { x, y };
@@ -55,10 +99,13 @@ export function RemoteScreen({ screen, live }: RemoteScreenProps): React.JSX.Ele
     (e: React.PointerEvent) => {
       if (!live) return;
       const now = performance.now();
-      if (now - lastMove.current < MOVE_THROTTLE_MS) return;
+      const throttle = isInputChannelOpen()
+        ? MOVE_THROTTLE_CHANNEL_MS
+        : MOVE_THROTTLE_SOCKET_MS;
+      if (now - lastMove.current < throttle) return;
       lastMove.current = now;
       const { x, y } = normalized(e);
-      window.agentmat.remote.sendInput({ k: 'move', x, y });
+      sendControllerInput({ k: 'move', x, y });
     },
     [live, normalized],
   );
@@ -66,11 +113,11 @@ export function RemoteScreen({ screen, live }: RemoteScreenProps): React.JSX.Ele
   const onPointerDown = useCallback(
     (e: React.PointerEvent) => {
       if (!live) return;
-      canvasRef.current?.focus();
+      (e.currentTarget as HTMLElement).focus();
       const button = BUTTON_MAP[e.button];
       if (!button) return;
       const { x, y } = normalized(e);
-      window.agentmat.remote.sendInput({ k: 'down', x, y, button });
+      sendControllerInput({ k: 'down', x, y, button });
     },
     [live, normalized],
   );
@@ -81,7 +128,7 @@ export function RemoteScreen({ screen, live }: RemoteScreenProps): React.JSX.Ele
       const button = BUTTON_MAP[e.button];
       if (!button) return;
       const { x, y } = normalized(e);
-      window.agentmat.remote.sendInput({ k: 'up', x, y, button });
+      sendControllerInput({ k: 'up', x, y, button });
     },
     [live, normalized],
   );
@@ -92,13 +139,7 @@ export function RemoteScreen({ screen, live }: RemoteScreenProps): React.JSX.Ele
       const { x, y } = normalized(e);
       // Normalize to "notches": pixel deltas (deltaMode 0) are divided down.
       const factor = e.deltaMode === 0 ? 100 : 1;
-      window.agentmat.remote.sendInput({
-        k: 'wheel',
-        x,
-        y,
-        dx: e.deltaX / factor,
-        dy: e.deltaY / factor,
-      });
+      sendControllerInput({ k: 'wheel', x, y, dx: e.deltaX / factor, dy: e.deltaY / factor });
     },
     [live, normalized],
   );
@@ -108,11 +149,8 @@ export function RemoteScreen({ screen, live }: RemoteScreenProps): React.JSX.Ele
       if (!live) return;
       e.preventDefault();
       const plainChar = e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey;
-      if (plainChar) {
-        window.agentmat.remote.sendInput({ k: 'text', text: e.key });
-      } else {
-        window.agentmat.remote.sendInput({ k: 'key', code: e.code, down: true });
-      }
+      if (plainChar) sendControllerInput({ k: 'text', text: e.key });
+      else sendControllerInput({ k: 'key', code: e.code, down: true });
     },
     [live],
   );
@@ -123,34 +161,73 @@ export function RemoteScreen({ screen, live }: RemoteScreenProps): React.JSX.Ele
       const plainChar = e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey;
       if (plainChar) return; // already handled as a one-shot text event
       e.preventDefault();
-      window.agentmat.remote.sendInput({ k: 'key', code: e.code, down: false });
+      sendControllerInput({ k: 'key', code: e.code, down: false });
     },
     [live],
   );
 
   const aspect = screen ? screen.width / screen.height : 16 / 9;
 
+  // The overlay cursor is only correct when the host excluded the OS cursor
+  // from its capture. If frames already contain it, drawing here would show two.
+  const overlayCursor = rtc.cursor && !rtc.cursor.baked && rtc.cursor.visible ? rtc.cursor : null;
+
+  const interaction = {
+    tabIndex: 0,
+    onPointerMove,
+    onPointerDown,
+    onPointerUp,
+    onWheel,
+    onKeyDown,
+    onKeyUp,
+    onContextMenu: (e: React.MouseEvent) => e.preventDefault(),
+    onFocus: () => setFocused(true),
+    onBlur: () => setFocused(false),
+    style: { aspectRatio: String(aspect) },
+    className: cn(
+      'max-h-full max-w-full object-contain outline-none',
+      live ? 'cursor-none' : 'cursor-default',
+      focused ? 'ring-2 ring-primary' : 'ring-1 ring-border',
+    ),
+  };
+
   return (
     <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden bg-black/60 p-2">
-      <canvas
-        ref={canvasRef}
-        tabIndex={0}
-        onPointerMove={onPointerMove}
-        onPointerDown={onPointerDown}
-        onPointerUp={onPointerUp}
-        onWheel={onWheel}
-        onKeyDown={onKeyDown}
-        onKeyUp={onKeyUp}
-        onContextMenu={(e) => e.preventDefault()}
-        onFocus={() => setFocused(true)}
-        onBlur={() => setFocused(false)}
-        style={{ aspectRatio: String(aspect) }}
-        className={cn(
-          'max-h-full max-w-full object-contain outline-none',
-          live ? 'cursor-none' : 'cursor-default',
-          focused ? 'ring-2 ring-primary' : 'ring-1 ring-border',
+      <div className="relative inline-flex max-h-full max-w-full">
+        {usingVideo ? (
+          <video
+            {...interaction}
+            ref={(node) => {
+              videoRef.current = node;
+              mediaRef.current = node;
+            }}
+            autoPlay
+            muted
+            playsInline
+          />
+        ) : (
+          <canvas
+            {...interaction}
+            ref={(node) => {
+              canvasRef.current = node;
+              mediaRef.current = node;
+            }}
+          />
         )}
-      />
+        {overlayCursor && (
+          <svg
+            aria-hidden
+            viewBox="0 0 12 18"
+            className="pointer-events-none absolute h-[18px] w-[12px] drop-shadow"
+            style={{
+              left: `${overlayCursor.x * 100}%`,
+              top: `${overlayCursor.y * 100}%`,
+            }}
+          >
+            <path d="M0 0 L0 15 L3.6 11.4 L6 17 L8.4 16 L6 10.5 L11 10.5 Z" fill="white" stroke="black" strokeWidth="1" />
+          </svg>
+        )}
+      </div>
     </div>
   );
 }

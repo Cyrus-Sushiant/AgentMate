@@ -135,10 +135,22 @@ export const IPC = {
     sendFile: 'remote:sendFile',
     rtcSignal: 'remote:rtcSignal',
     rtcPeerState: 'remote:rtcPeerState',
+    /** Controller role: renderer -> main -> host, WebRTC signaling. */
+    clientRtcSignal: 'remote:clientRtcSignal',
+    /** Host role: an input event that arrived over the input DataChannel. */
+    rtcInput: 'remote:rtcInput',
+    /** Host role: renderer asks main to start/stop sampling the OS cursor. */
+    setCursorTracking: 'remote:setCursorTracking',
+    /** Benchmarking: main-process CPU/memory sample. */
+    benchSample: 'remote:benchSample',
     // main -> renderer events
     onState: 'remote:onState',
     onRtcSignal: 'remote:onRtcSignal',
     onRtcPeerGone: 'remote:onRtcPeerGone',
+    /** Controller role: WebRTC signaling arriving from the host. */
+    onClientRtcSignal: 'remote:onClientRtcSignal',
+    /** Host role: sampled OS cursor position, for the cursor DataChannel. */
+    onHostCursor: 'remote:onHostCursor',
     onCaptureRefresh: 'remote:onCaptureRefresh',
     onTileDemand: 'remote:onTileDemand',
     onCaptureStart: 'remote:onCaptureStart',

@@ -69,4 +69,27 @@ export function registerRemoteHandlers(): void {
       remoteManager.setRtcPeerConnected(payload.peerId, payload.connected);
     },
   );
+
+  ipcMain.on(IPC.remote.clientRtcSignal, (_e, message: RemoteRtcMessage) => {
+    remoteManager.sendClientRtcSignal(message);
+  });
+
+  ipcMain.on(
+    IPC.remote.rtcInput,
+    (_e, payload: { peerId: string; event: RemoteInputEvent }) => {
+      remoteManager.applyRtcInput(payload.peerId, payload.event);
+    },
+  );
+
+  ipcMain.on(IPC.remote.setCursorTracking, (_e, enabled: boolean) => {
+    remoteManager.setCursorTracking(enabled);
+  });
+
+  // Benchmarking: the renderer can sample its own CPU/memory, but the main
+  // process owns the sockets, so a full picture needs both halves.
+  ipcMain.handle(IPC.remote.benchSample, () => ({
+    cpu: process.getCPUUsage().percentCPUUsage,
+    memory: process.memoryUsage().rss,
+    at: Date.now(),
+  }));
 }

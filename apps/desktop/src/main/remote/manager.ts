@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { createReadStream, createWriteStream, existsSync, type WriteStream } from 'node:fs';
 import { stat } from 'node:fs/promises';
 import { basename, join } from 'node:path';
-import { app, BrowserWindow, clipboard, dialog } from 'electron';
+import { app, BrowserWindow, clipboard, dialog, screen } from 'electron';
 import QRCode from 'qrcode';
 import { WebSocket, WebSocketServer } from 'ws';
 import type {
@@ -34,6 +34,12 @@ import { TokenStore } from './tokens';
 
 const FILE_CHUNK_BYTES = 64 * 1024;
 const MAX_BUFFERED_BYTES = 4 * 1024 * 1024;
+/**
+ * OS cursor sampling rate for the cursor DataChannel (~60 Hz). Deliberately
+ * faster than the video framerate: the whole point of a separate cursor plane
+ * is that pointer motion doesn't wait for the next encoded frame.
+ */
+const CURSOR_SAMPLE_MS = 16;
 /** Sockets are considered drained (safe to resend a full frame) below this. */
 const TILE_HEAL_LOW_WATER = 256 * 1024;
 /** Minimum spacing between drop-healing full refreshes. */
@@ -101,6 +107,9 @@ class RemoteManager {
   };
 
   private readonly transfers = new Map<number, IncomingTransfer>();
+
+  private cursorTimer: NodeJS.Timeout | null = null;
+  private lastCursor: { x: number; y: number } | null = null;
 
   init(window: BrowserWindow): void {
     this.mainWindow = window;
@@ -180,6 +189,7 @@ class RemoteManager {
     }
     this.tileDemand = true; // matches the renderer's default for the next session
     this.tileRefreshPending = false;
+    this.setCursorTracking(false);
     // Only tear the injector down if we aren't also acting as a controller elsewhere.
     this.injector.stop();
     this.emitState();
@@ -265,6 +275,56 @@ class RemoteManager {
   rtcSignalToPeer(peerId: string, message: RemoteRtcMessage): void {
     const peer = this.peers.get(peerId);
     if (peer?.authed) this.sendControl(peer.ws, message);
+  }
+
+  /**
+   * An input event that arrived over a peer's input DataChannel rather than the
+   * control socket. Same authorization rule as the WebSocket path — the peer
+   * must be authed — it just skips the head-of-line blocking that bulk data on
+   * the control socket would impose.
+   */
+  applyRtcInput(peerId: string, event: RemoteInputEvent): void {
+    const peer = this.peers.get(peerId);
+    if (peer?.authed) this.injector.apply(event);
+  }
+
+  /**
+   * Host renderer asks for OS cursor samples while it has a cursor DataChannel
+   * open. Sampled here because cursor position is a main-process concern
+   * (`screen`), then pushed to the renderer which owns the peer connections.
+   */
+  setCursorTracking(enabled: boolean): void {
+    if (enabled === (this.cursorTimer !== null)) return;
+    if (enabled) {
+      this.cursorTimer = setInterval(() => this.sampleCursor(), CURSOR_SAMPLE_MS);
+    } else {
+      if (this.cursorTimer) clearInterval(this.cursorTimer);
+      this.cursorTimer = null;
+      this.lastCursor = null;
+    }
+  }
+
+  private sampleCursor(): void {
+    let x: number;
+    let y: number;
+    try {
+      const point = screen.getCursorScreenPoint();
+      // Normalized against the primary display, matching the surface the
+      // capturer picks and the mapping InputInjector uses in reverse.
+      const bounds = screen.getPrimaryDisplay().bounds;
+      x = (point.x - bounds.x) / Math.max(1, bounds.width);
+      y = (point.y - bounds.y) / Math.max(1, bounds.height);
+    } catch {
+      return; // display topology changing mid-sample; the next tick recovers
+    }
+    // A stationary cursor sends nothing — idle costs zero bandwidth.
+    if (this.lastCursor && this.lastCursor.x === x && this.lastCursor.y === y) return;
+    this.lastCursor = { x, y };
+    this.send(IPC.remote.onHostCursor, {
+      x,
+      y,
+      visible: x >= 0 && x <= 1 && y >= 0 && y <= 1,
+    });
   }
 
   private onHostMessage(peer: HostPeer, data: Buffer, isBinary: boolean): void {
@@ -461,6 +521,17 @@ class RemoteManager {
     }
   }
 
+  /**
+   * Controller role: the renderer owns the RTCPeerConnection (it must, to
+   * render the video track), so main relays its signaling to the host over the
+   * control socket — mirroring what `rtcSignalToPeer` does on the host side.
+   */
+  sendClientRtcSignal(message: RemoteRtcMessage): void {
+    if (this.client && this.connection.status === 'connected') {
+      this.sendControl(this.client, message);
+    }
+  }
+
   private onClientMessage(data: Buffer, isBinary: boolean): void {
     if (isBinary) {
       this.onBinary(new Uint8Array(data.buffer, data.byteOffset, data.byteLength));
@@ -506,6 +577,13 @@ class RemoteManager {
         if (this.client) this.finishReceive(this.client, msg.transferId);
         break;
       case 'pong':
+        break;
+      case 'rtc-offer':
+      case 'rtc-ice':
+      case 'rtc-unavailable':
+        // Relayed to the renderer, which owns the peer connection and paints
+        // the resulting video track (see lib/rtcController.ts).
+        this.send(IPC.remote.onClientRtcSignal, msg);
         break;
       case 'bye':
         this.disconnect();

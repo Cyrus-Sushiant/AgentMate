@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { RemoteViewport } from '../components/RemoteViewport';
 import { Toolbar } from '../components/Toolbar';
 import type { useRemoteClient } from '../remote/useRemoteClient';
+import { PHASE_LABELS, RemoteTransportMode } from '../remote/transport';
 import { colors, radius, spacing } from '../theme';
 
 type RemoteClient = ReturnType<typeof useRemoteClient>;
@@ -32,20 +33,23 @@ export function RemoteScreen({ client }: { client: RemoteClient }): React.JSX.El
     remoteDeviceName,
     remoteScreen,
     tiles,
-    videoMode,
+    transport,
+    phase,
     remoteStream,
     stats,
     sendInput,
     sendClipboardToHost,
     disconnect,
+    retryVideo,
   } = client;
   const connected = status === 'connected';
   const insets = useSafeAreaInsets();
   const [menuOpen, setMenuOpen] = useState(false);
   const [showStats, setShowStats] = useState(false);
 
+  const onFallback = transport === RemoteTransportMode.JPEG_TILE_FALLBACK;
   const waitingForVideo =
-    connected && videoMode === 'negotiating' && !remoteStream && tiles.size === 0;
+    connected && !onFallback && !remoteStream && tiles.size === 0;
 
   return (
     <View style={styles.root}>
@@ -55,7 +59,7 @@ export function RemoteScreen({ client }: { client: RemoteClient }): React.JSX.El
         screen={remoteScreen}
         stream={remoteStream}
         tiles={tiles}
-        videoMode={videoMode}
+        transport={transport}
         live={connected}
         onInput={sendInput}
       />
@@ -63,7 +67,7 @@ export function RemoteScreen({ client }: { client: RemoteClient }): React.JSX.El
       {(!connected || waitingForVideo) && (
         <View style={styles.centerOverlay} pointerEvents="none">
           <Text style={styles.centerOverlayText}>
-            {connected ? 'Starting video…' : 'Connecting…'}
+            {connected ? `Starting video — ${PHASE_LABELS[phase]}` : 'Connecting…'}
           </Text>
         </View>
       )}
@@ -87,7 +91,7 @@ export function RemoteScreen({ client }: { client: RemoteClient }): React.JSX.El
             {remoteScreen && (
               <Text style={styles.resolution}>
                 {remoteScreen.width}×{remoteScreen.height}
-                {videoMode === 'tiles' ? ' · compat' : ''}
+                {onFallback ? ' · compat' : ''}
               </Text>
             )}
           </View>
@@ -112,13 +116,18 @@ export function RemoteScreen({ client }: { client: RemoteClient }): React.JSX.El
       {showStats && stats && (
         <View
           style={[styles.statsOverlay, { top: insets.top + spacing(2), left: insets.left + spacing(2) }]}
-          pointerEvents="none"
         >
-          <Text style={styles.statsText}>
-            {stats.transport === 'webrtc'
-              ? `video · ${stats.codec ?? '…'}`
-              : 'compat · JPEG tiles'}
+          <Text style={[styles.statsText, styles.statsHeading]}>
+            {stats.transport === RemoteTransportMode.WEBRTC_VIDEO
+              ? `WEBRTC_VIDEO · ${stats.codec ?? '…'}`
+              : 'JPEG_TILE_FALLBACK'}
           </Text>
+          <Text style={styles.statsText}>phase: {PHASE_LABELS[stats.phase]}</Text>
+          {stats.connectionState && (
+            <Text style={styles.statsText}>
+              pc: {stats.connectionState} · ice: {stats.iceConnectionState ?? '—'}
+            </Text>
+          )}
           {stats.width > 0 && (
             <Text style={styles.statsText}>
               {stats.width}×{stats.height} @ {stats.fps} fps
@@ -129,6 +138,17 @@ export function RemoteScreen({ client }: { client: RemoteClient }): React.JSX.El
           </Text>
           <Text style={styles.statsText}>{formatBytes(stats.totalBytes)} received</Text>
           {stats.rttMs !== null && <Text style={styles.statsText}>ping {stats.rttMs} ms</Text>}
+          {stats.transport === RemoteTransportMode.WEBRTC_VIDEO && (
+            <Text style={styles.statsText}>
+              lost {stats.packetsLost} · dropped {stats.framesDropped}
+              {stats.jitterMs !== null ? ` · jitter ${stats.jitterMs} ms` : ''}
+            </Text>
+          )}
+          {onFallback && (
+            <Pressable style={styles.retryButton} onPress={retryVideo}>
+              <Text style={styles.retryButtonText}>Retry video</Text>
+            </Pressable>
+          )}
         </View>
       )}
 
@@ -236,6 +256,22 @@ const styles = StyleSheet.create({
     color: colors.foreground,
     fontSize: 11,
     fontVariant: ['tabular-nums'],
+  },
+  statsHeading: {
+    fontWeight: '700',
+  },
+  retryButton: {
+    marginTop: spacing(1),
+    paddingHorizontal: spacing(2),
+    paddingVertical: spacing(1),
+    borderRadius: radius.md,
+    backgroundColor: colors.secondary,
+    alignSelf: 'flex-start',
+  },
+  retryButtonText: {
+    color: colors.foreground,
+    fontSize: 11,
+    fontWeight: '600',
   },
   disconnectButton: {
     backgroundColor: colors.destructive,

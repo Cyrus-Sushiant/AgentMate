@@ -14,6 +14,11 @@ import {
   type RemoteInputEvent,
 } from '@agentmat/protocol';
 import {
+  DEFAULT_TRANSPORT_MODE,
+  RemoteTransportMode,
+  type NegotiationPhase,
+} from './transport';
+import {
   loadSavedDevices,
   removeSavedDevice,
   renameSavedDevice,
@@ -23,14 +28,6 @@ import {
 } from './savedDevices';
 
 export type ConnectionStatus = 'idle' | 'connecting' | 'connected' | 'error';
-
-/**
- * How the host's screen reaches us:
- * - 'webrtc'     — H.264 video track (primary; fast, adaptive, full frames)
- * - 'tiles'      — JPEG tiles over the WebSocket (fallback)
- * - 'negotiating'— waiting for the WebRTC handshake right after connect
- */
-export type VideoMode = 'negotiating' | 'webrtc' | 'tiles';
 
 export interface RemoteTile {
   x: number;
@@ -46,10 +43,14 @@ export interface RemoteLogEntry {
   at: number;
 }
 
-/** Live transport metrics, refreshed once per second while connected. */
+/** Live transport diagnostics, refreshed once per second while connected. */
 export interface StreamStats {
-  transport: 'webrtc' | 'tiles';
-  /** e.g. "H264", "VP8" — null until the first stats sample (or in tile mode). */
+  transport: RemoteTransportMode;
+  phase: NegotiationPhase;
+  /** RTCPeerConnection.connectionState — null in tile mode. */
+  connectionState: string | null;
+  iceConnectionState: string | null;
+  /** e.g. "H264", "VP8" — null until the first stats sample. */
   codec: string | null;
   width: number;
   height: number;
@@ -60,6 +61,9 @@ export interface StreamStats {
   totalBytes: number;
   /** Network round-trip time in ms (WebRTC only). */
   rttMs: number | null;
+  packetsLost: number;
+  framesDropped: number;
+  jitterMs: number | null;
 }
 
 interface RemoteScreenSize {
@@ -69,7 +73,11 @@ interface RemoteScreenSize {
 
 const MAX_LOG = 50;
 const TILE_FLUSH_MS = 33;
-/** If no video track arrives within this window, fall back to JPEG tiles. */
+/**
+ * If no video *track* arrives within this window we give up and fall back.
+ * Armed when we ask for video and cleared only by a track actually arriving —
+ * see the note on `negotiationWatchdog`.
+ */
 const RTC_FALLBACK_MS = 10_000;
 const STUN_SERVERS = [
   { urls: 'stun:stun.l.google.com:19302' },
@@ -85,10 +93,9 @@ function deviceName(): string {
  * (see @agentmat/protocol and apps/desktop/src/main/remote/manager.ts).
  *
  * The control plane (auth, input, clipboard) is a plain WebSocket. The screen
- * itself streams over WebRTC: right after auth we send `rtc-request`, the host
- * offers an H.264 video track, and RTCView renders it. If negotiation fails
- * (old host version, exotic network), we cancel and the host resumes the
- * legacy JPEG-tile stream over the same socket.
+ * streams over WebRTC as a hardware-decoded video track rendered by RTCView —
+ * frames never enter JavaScript. JPEG tiles remain only as an emergency
+ * fallback and to bridge the gap while the handshake completes.
  */
 export function useRemoteClient() {
   const [status, setStatus] = useState<ConnectionStatus>('idle');
@@ -97,7 +104,8 @@ export function useRemoteClient() {
   const [error, setError] = useState<string | null>(null);
   const [log, setLog] = useState<RemoteLogEntry[]>([]);
   const [tiles, setTiles] = useState<Map<string, RemoteTile>>(new Map());
-  const [videoMode, setVideoMode] = useState<VideoMode>('negotiating');
+  const [transport, setTransport] = useState<RemoteTransportMode>(DEFAULT_TRANSPORT_MODE);
+  const [phase, setPhase] = useState<NegotiationPhase>('idle');
   const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
   const [savedDevices, setSavedDevices] = useState<SavedDevice[]>([]);
   const [stats, setStats] = useState<StreamStats | null>(null);
@@ -106,26 +114,46 @@ export function useRemoteClient() {
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const pendingIce = useRef<RTCIceCandidate[]>([]);
   const remoteDescSet = useRef(false);
-  const rtcTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingTiles = useRef<Map<string, RemoteTile>>(new Map());
   const flushHandle = useRef<ReturnType<typeof setTimeout> | null>(null);
   const statusRef = useRef<ConnectionStatus>('idle');
   /** Connection details of the session being opened (for saving after pairing). */
   const dialing = useRef<{ ip: string; port: number; savedId: string | null } | null>(null);
 
-  const videoModeRef = useRef<VideoMode>('negotiating');
+  /**
+   * Watchdog for the whole "asked for video → video is rendering" round trip.
+   *
+   * This used to be cleared by closePeerConnection(), which acceptOffer() calls
+   * as its first statement — so the arrival of the host's offer disarmed the
+   * very timer meant to catch a negotiation that then stalls. The result was a
+   * session stuck in 'negotiating' forever, silently rendering JPEG tiles with
+   * no error and no recovery. It is now owned solely by the request/track path
+   * and is never touched by peer-connection teardown.
+   */
+  const negotiationWatchdog = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** Mirrors of state the watchdog and socket callbacks must read without staleness. */
+  const videoFlowing = useRef(false);
+  const transportRef = useRef<RemoteTransportMode>(DEFAULT_TRANSPORT_MODE);
+  const phaseRef = useRef<NegotiationPhase>('idle');
+
   const statsTimer = useRef<ReturnType<typeof setInterval> | null>(null);
   /** Bytes received as JPEG tiles (fallback transport) this session. */
   const tileBytes = useRef(0);
   /** Previous sample for computing the receive bitrate delta. */
   const lastSample = useRef<{ bytes: number; at: number } | null>(null);
 
-  useEffect(() => {
-    videoModeRef.current = videoMode;
-  }, [videoMode]);
-
   const appendLog = useCallback((level: RemoteLogEntry['level'], message: string) => {
     setLog((prev) => [{ level, message, at: Date.now() }, ...prev].slice(0, MAX_LOG));
+  }, []);
+
+  const setPhaseTracked = useCallback((next: NegotiationPhase) => {
+    phaseRef.current = next;
+    setPhase(next);
+  }, []);
+
+  const setTransportTracked = useCallback((next: RemoteTransportMode) => {
+    transportRef.current = next;
+    setTransport(next);
   }, []);
 
   useEffect(() => {
@@ -150,13 +178,18 @@ export function useRemoteClient() {
     if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(msg));
   }, []);
 
-  const closePeerConnection = useCallback(() => {
-    if (rtcTimer.current != null) {
-      clearTimeout(rtcTimer.current);
-      rtcTimer.current = null;
+  const clearWatchdog = useCallback(() => {
+    if (negotiationWatchdog.current != null) {
+      clearTimeout(negotiationWatchdog.current);
+      negotiationWatchdog.current = null;
     }
+  }, []);
+
+  /** Tears down the peer connection *without* touching the watchdog. */
+  const closePeerConnection = useCallback(() => {
     pendingIce.current = [];
     remoteDescSet.current = false;
+    videoFlowing.current = false;
     const pc = pcRef.current;
     if (pc) {
       pcRef.current = null;
@@ -183,7 +216,7 @@ export function useRemoteClient() {
     const now = Date.now();
     const pc = pcRef.current;
 
-    if (videoModeRef.current === 'webrtc' && pc) {
+    if (transportRef.current === RemoteTransportMode.WEBRTC_VIDEO && pc) {
       let entries: Record<string, unknown>[];
       try {
         const report = (await pc.getStats()) as { forEach: (cb: (entry: unknown) => void) => void };
@@ -199,28 +232,35 @@ export function useRemoteClient() {
       const inbound = entries.find(
         (e) => e.type === 'inbound-rtp' && (e.kind === 'video' || e.mediaType === 'video'),
       );
-      if (!inbound) return;
-      const codecEntry = entries.find((e) => e.type === 'codec' && e.id === inbound.codecId);
+      const codecEntry = inbound
+        ? entries.find((e) => e.type === 'codec' && e.id === inbound.codecId)
+        : undefined;
       const pair = entries.find(
         (e) => e.type === 'candidate-pair' && e.state === 'succeeded' && typeof e.currentRoundTripTime === 'number',
       );
-      const bytes = typeof inbound.bytesReceived === 'number' ? inbound.bytesReceived : 0;
+      const bytes = num(inbound?.bytesReceived) ?? 0;
       const prev = lastSample.current;
       lastSample.current = { bytes, at: now };
       const mime = typeof codecEntry?.mimeType === 'string' ? codecEntry.mimeType : null;
+      const jitter = num(inbound?.jitter);
       setStats({
-        transport: 'webrtc',
+        transport: RemoteTransportMode.WEBRTC_VIDEO,
+        phase: phaseRef.current,
+        connectionState: pc.connectionState ?? null,
+        iceConnectionState: pc.iceConnectionState ?? null,
         codec: mime ? mime.replace(/^video\//i, '') : null,
-        width: typeof inbound.frameWidth === 'number' ? inbound.frameWidth : 0,
-        height: typeof inbound.frameHeight === 'number' ? inbound.frameHeight : 0,
-        fps:
-          typeof inbound.framesPerSecond === 'number' ? Math.round(inbound.framesPerSecond) : 0,
+        width: num(inbound?.frameWidth) ?? 0,
+        height: num(inbound?.frameHeight) ?? 0,
+        fps: Math.round(num(inbound?.framesPerSecond) ?? 0),
         kbps:
           prev && now > prev.at
             ? Math.max(0, Math.round(((bytes - prev.bytes) * 8) / (now - prev.at)))
             : 0,
         totalBytes: bytes + tileBytes.current,
         rttMs: pair ? Math.round((pair.currentRoundTripTime as number) * 1000) : null,
+        packetsLost: num(inbound?.packetsLost) ?? 0,
+        framesDropped: num(inbound?.framesDropped) ?? 0,
+        jitterMs: jitter !== null ? Math.round(jitter * 1000) : null,
       });
       return;
     }
@@ -230,7 +270,10 @@ export function useRemoteClient() {
     const prev = lastSample.current;
     lastSample.current = { bytes, at: now };
     setStats({
-      transport: 'tiles',
+      transport: RemoteTransportMode.JPEG_TILE_FALLBACK,
+      phase: phaseRef.current,
+      connectionState: pc?.connectionState ?? null,
+      iceConnectionState: pc?.iceConnectionState ?? null,
       codec: 'JPEG',
       width: 0,
       height: 0,
@@ -241,6 +284,9 @@ export function useRemoteClient() {
           : 0,
       totalBytes: bytes,
       rttMs: null,
+      packetsLost: 0,
+      framesDropped: 0,
+      jitterMs: null,
     });
   }, []);
 
@@ -254,17 +300,20 @@ export function useRemoteClient() {
 
   const fallbackToTiles = useCallback(
     (reason: string) => {
+      clearWatchdog();
       closePeerConnection();
-      setVideoMode('tiles');
+      setTransportTracked(RemoteTransportMode.JPEG_TILE_FALLBACK);
+      setPhaseTracked('failed');
       send({ t: 'rtc-cancel' });
-      appendLog('warning', `Video stream unavailable (${reason}); using compatibility mode.`);
+      appendLog('warning', `Video unavailable (${reason}); falling back to JPEG tiles.`);
     },
-    [appendLog, closePeerConnection, send],
+    [appendLog, clearWatchdog, closePeerConnection, send, setPhaseTracked, setTransportTracked],
   );
 
   const disconnect = useCallback(
     (reason = 'controller disconnected') => {
       stopStats();
+      clearWatchdog();
       closePeerConnection();
       const ws = wsRef.current;
       if (ws) {
@@ -281,10 +330,18 @@ export function useRemoteClient() {
       setStatus('idle');
       setRemoteDeviceName(null);
       setRemoteScreen(null);
-      setVideoMode('negotiating');
+      setTransportTracked(DEFAULT_TRANSPORT_MODE);
+      setPhaseTracked('idle');
       resetTiles();
     },
-    [closePeerConnection, resetTiles, stopStats],
+    [
+      clearWatchdog,
+      closePeerConnection,
+      resetTiles,
+      setPhaseTracked,
+      setTransportTracked,
+      stopStats,
+    ],
   );
 
   /** Host sent an SDP offer: answer it and start receiving the video track. */
@@ -294,21 +351,24 @@ export function useRemoteClient() {
         fallbackToTiles('WebRTC module missing');
         return;
       }
+      // NOTE: deliberately does not clear the negotiation watchdog — the offer
+      // arriving is not evidence that video will actually flow.
       closePeerConnection();
+      setPhaseTracked('offer-received');
       const pc = new WebRtc.RTCPeerConnection({ iceServers: STUN_SERVERS });
       pcRef.current = pc;
 
       pc.addEventListener('track', (event) => {
         const stream = event.streams[0];
         if (!stream || pcRef.current !== pc) return;
-        if (rtcTimer.current != null) {
-          clearTimeout(rtcTimer.current);
-          rtcTimer.current = null;
-        }
+        // The one event that proves the pipeline works end to end.
+        clearWatchdog();
+        videoFlowing.current = true;
         setRemoteStream(stream);
-        setVideoMode('webrtc');
+        setTransportTracked(RemoteTransportMode.WEBRTC_VIDEO);
+        setPhaseTracked('connected');
         resetTiles();
-        appendLog('success', 'Video stream started.');
+        appendLog('success', 'Hardware video stream started.');
       });
       pc.addEventListener('icecandidate', (event) => {
         const candidate = event.candidate;
@@ -322,7 +382,13 @@ export function useRemoteClient() {
       });
       pc.addEventListener('connectionstatechange', () => {
         if (pcRef.current !== pc) return;
+        // Surfaced in the debug overlay; a stalled handshake now names its state.
+        appendLog('info', `WebRTC connection state: ${pc.connectionState}`);
         if (pc.connectionState === 'failed') fallbackToTiles('connection failed');
+      });
+      pc.addEventListener('iceconnectionstatechange', () => {
+        if (pcRef.current !== pc) return;
+        if (pc.iceConnectionState === 'failed') fallbackToTiles('ICE failed');
       });
 
       await pc.setRemoteDescription(new WebRtc.RTCSessionDescription({ type: 'offer', sdp }));
@@ -338,9 +404,46 @@ export function useRemoteClient() {
       const answer = await pc.createAnswer();
       await pc.setLocalDescription(answer);
       send({ t: 'rtc-answer', sdp: answer.sdp ?? '' });
+      setPhaseTracked('answered');
     },
-    [appendLog, closePeerConnection, fallbackToTiles, resetTiles, send],
+    [
+      appendLog,
+      clearWatchdog,
+      closePeerConnection,
+      fallbackToTiles,
+      resetTiles,
+      send,
+      setPhaseTracked,
+      setTransportTracked,
+    ],
   );
+
+  const requestVideo = useCallback(() => {
+    if (!WebRtc) {
+      setTransportTracked(RemoteTransportMode.JPEG_TILE_FALLBACK);
+      setPhaseTracked('unsupported');
+      appendLog('warning', 'This build has no WebRTC module; using JPEG tile fallback.');
+      return;
+    }
+    setTransportTracked(RemoteTransportMode.WEBRTC_VIDEO);
+    setPhaseTracked('requesting');
+    send({ t: 'rtc-request' });
+    clearWatchdog();
+    negotiationWatchdog.current = setTimeout(() => {
+      negotiationWatchdog.current = null;
+      if (statusRef.current === 'connected' && !videoFlowing.current) {
+        // The phase names which step it died on instead of a bare "timed out".
+        fallbackToTiles(`no video track after 10s at phase "${phaseRef.current}"`);
+      }
+    }, RTC_FALLBACK_MS);
+  }, [
+    appendLog,
+    clearWatchdog,
+    fallbackToTiles,
+    send,
+    setPhaseTracked,
+    setTransportTracked,
+  ]);
 
   const open = useCallback(
     (payload: { ip: string; port: number; token: string; deviceName: string }, savedId: string | null) => {
@@ -352,7 +455,8 @@ export function useRemoteClient() {
       setError(null);
       setRemoteDeviceName(payload.deviceName);
       setRemoteScreen(null);
-      setVideoMode('negotiating');
+      setTransportTracked(DEFAULT_TRANSPORT_MODE);
+      setPhaseTracked('idle');
       resetTiles();
 
       const ws = new WebSocket(`ws://${payload.ip}:${payload.port}`);
@@ -395,21 +499,7 @@ export function useRemoteClient() {
                 void touchSavedDevice(dial.savedId).then(setSavedDevices);
               }
 
-              // Ask for the WebRTC video stream; fall back to tiles on timeout.
-              // Without the native module (Expo Go / pre-WebRTC APK) skip the
-              // request entirely so the host keeps sending tiles.
-              if (WebRtc) {
-                send({ t: 'rtc-request' });
-                rtcTimer.current = setTimeout(() => {
-                  rtcTimer.current = null;
-                  if (statusRef.current === 'connected' && !pcRef.current) {
-                    fallbackToTiles('timed out');
-                  }
-                }, RTC_FALLBACK_MS);
-              } else {
-                setVideoMode('tiles');
-                appendLog('warning', 'This build has no WebRTC module; using compatibility mode.');
-              }
+              requestVideo();
               break;
             }
             case 'auth-fail':
@@ -427,7 +517,9 @@ export function useRemoteClient() {
               resetTiles(); // tile coordinates from the old resolution are stale
               break;
             case 'rtc-offer':
-              void acceptOffer(msg.sdp).catch(() => fallbackToTiles('negotiation error'));
+              void acceptOffer(msg.sdp).catch((err: unknown) =>
+                fallbackToTiles(`negotiation error: ${(err as Error).message}`),
+              );
               break;
             case 'rtc-ice': {
               if (!msg.candidate || !WebRtc) break;
@@ -462,18 +554,26 @@ export function useRemoteClient() {
         }
 
         const bytes = new Uint8Array(event.data as ArrayBuffer);
-        if (binaryKind(bytes) === BIN_SCREEN_TILE) {
-          tileBytes.current += bytes.byteLength;
-          const tile = decodeScreenTile(bytes);
-          pendingTiles.current.set(`${tile.x},${tile.y}`, {
-            x: tile.x,
-            y: tile.y,
-            w: tile.w,
-            h: tile.h,
-            uri: jpegToDataUri(tile.jpeg),
-          });
-          scheduleFlush();
-        }
+        if (binaryKind(bytes) !== BIN_SCREEN_TILE) return;
+
+        // JPEG decoding is off the primary path. Tiles are only turned into
+        // base64 data URIs when they are actually what's being rendered:
+        // the fallback transport, or the brief window before the video track
+        // arrives (which they bridge so the screen isn't black during ICE).
+        // Once video flows the host stops sending them and these bytes — if any
+        // still arrive — are counted and dropped without touching base64.
+        tileBytes.current += bytes.byteLength;
+        if (videoFlowing.current) return;
+
+        const tile = decodeScreenTile(bytes);
+        pendingTiles.current.set(`${tile.x},${tile.y}`, {
+          x: tile.x,
+          y: tile.y,
+          w: tile.w,
+          h: tile.h,
+          uri: jpegToDataUri(tile.jpeg),
+        });
+        scheduleFlush();
       };
 
       ws.onerror = () => {
@@ -488,12 +588,15 @@ export function useRemoteClient() {
         if (wsRef.current !== ws) return;
         wsRef.current = null;
         stopStats();
+        clearWatchdog();
         closePeerConnection();
         if (statusRef.current !== 'error') {
           statusRef.current = 'idle';
           setStatus('idle');
           setRemoteDeviceName(null);
           setRemoteScreen(null);
+          setTransportTracked(DEFAULT_TRANSPORT_MODE);
+          setPhaseTracked('idle');
           resetTiles();
         }
       };
@@ -501,12 +604,16 @@ export function useRemoteClient() {
     [
       acceptOffer,
       appendLog,
+      clearWatchdog,
       closePeerConnection,
       disconnect,
       fallbackToTiles,
+      requestVideo,
       resetTiles,
       scheduleFlush,
       send,
+      setPhaseTracked,
+      setTransportTracked,
       startStats,
       stopStats,
     ],
@@ -551,10 +658,18 @@ export function useRemoteClient() {
     appendLog('info', 'Clipboard sent.');
   }, [appendLog, send]);
 
+  /** Manual retry from the debug overlay after a fallback. */
+  const retryVideo = useCallback(() => {
+    if (statusRef.current !== 'connected') return;
+    closePeerConnection();
+    resetTiles();
+    requestVideo();
+  }, [closePeerConnection, requestVideo, resetTiles]);
+
   useEffect(() => {
     return () => {
       if (flushHandle.current != null) clearTimeout(flushHandle.current);
-      if (rtcTimer.current != null) clearTimeout(rtcTimer.current);
+      if (negotiationWatchdog.current != null) clearTimeout(negotiationWatchdog.current);
       if (statsTimer.current != null) clearInterval(statsTimer.current);
       pcRef.current?.close();
       wsRef.current?.close();
@@ -568,7 +683,8 @@ export function useRemoteClient() {
     error,
     log,
     tiles,
-    videoMode,
+    transport,
+    phase,
     remoteStream,
     savedDevices,
     stats,
@@ -579,5 +695,10 @@ export function useRemoteClient() {
     disconnect,
     sendInput,
     sendClipboardToHost,
+    retryVideo,
   };
+}
+
+function num(value: unknown): number | null {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null;
 }

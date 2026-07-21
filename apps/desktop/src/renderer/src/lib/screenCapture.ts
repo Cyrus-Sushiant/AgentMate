@@ -1,34 +1,48 @@
 import { encodeScreenTile } from '@shared/remoteProtocol';
+import { getCaptureProvider } from './capture';
+import type { CaptureSurface } from './capture';
 
 /**
- * Host-side screen streaming with tile-based delta encoding.
+ * Host-side screen capture.
  *
- * Each tick the primary screen is drawn to an offscreen canvas and split into a
- * grid of fixed tiles. A tile is only (re-)sent when its pixels differ from the
- * previous frame, so a mostly-static desktop transmits almost nothing and only
- * the regions that actually changed (a moving window, a typing caret, a video)
- * cost bandwidth. Changed tiles are JPEG-encoded individually and pushed to the
- * main process, which fans them out to connected controllers.
+ * The **primary** path is now a plain `MediaStreamTrack` handed straight to
+ * WebRTC (see rtcHost.ts): capture → encoder → network, with frames never
+ * entering JavaScript. Nothing in this module touches those frames.
  *
- * This module is a singleton, deliberately decoupled from any React component:
- * capture must keep running even when the operator navigates away from the
- * Remote page while still hosting.
+ * The JPEG tile pipeline below is a **fallback only**, for controllers that
+ * cannot negotiate WebRTC. It is created lazily the first time a peer actually
+ * needs tiles and torn down completely when none do — so a session where every
+ * controller runs WebRTC allocates no canvas, no video element, and performs no
+ * GPU→CPU readback at all.
  */
 
 const TILE = 128;
 const MAX_EDGE = 1600;
-/** Rate the tile encoder ticks at (WebSocket fallback path). */
-const TARGET_FPS = 15;
-/** Rate requested from the OS capturer — WebRTC consumers get the full rate. */
-const CAPTURE_FPS = 30;
+/** Rate the fallback tile encoder ticks at. */
+const TILE_FPS = 15;
+/** Rate requested from the OS capturer; WebRTC consumers get the full rate. */
+const CAPTURE_FPS = 60;
 const JPEG_QUALITY = 0.6;
 /**
  * Tile path last-resort safety net: resend the whole frame periodically.
- * Dropped-tile healing normally happens much sooner (the main process
- * requests a refresh as soon as a backpressured socket drains), and viewers
- * skip tiles whose bytes didn't change, so this resend is invisible to them.
+ * Dropped-tile healing normally happens much sooner (the main process requests
+ * a refresh as soon as a backpressured socket drains), and viewers skip tiles
+ * whose bytes didn't change, so this resend is invisible to them.
  */
 const FULL_REFRESH_MS = 30_000;
+/**
+ * Whether to ask the platform to exclude the OS cursor from capture so the
+ * controller draws it from the cursor DataChannel instead.
+ *
+ * Off deliberately. The cursor plane is fully wired and carries real positions,
+ * but those positions are normalized against the *primary* display, while
+ * getDisplayMedia may be capturing a different display or a single window. With
+ * the cursor still drawn into the frames, a mismatch is invisible; with it
+ * excluded, a multi-monitor host would show its cursor in the wrong place and
+ * have nothing to fall back on. Flip this on once capture and cursor agree on
+ * which surface they describe (native providers report both).
+ */
+const EXCLUDE_CURSOR_FROM_CAPTURE = false;
 /**
  * Tiles encoded concurrently per tick. convertToBlob() runs on Chromium's
  * background thread pool, so overlapping encodes cuts a motion-heavy tick
@@ -39,10 +53,12 @@ const ENCODE_CONCURRENCY = 4;
 interface TileEncoder {
   canvas: OffscreenCanvas;
   ctx: OffscreenCanvasRenderingContext2D;
+  /** Reused across tiles; rows are written at TILE stride and clipped on put. */
+  scratch: ImageData;
 }
 
-interface CaptureState {
-  stream: MediaStream;
+/** The fallback-only pixel pipeline. Absent whenever no peer needs tiles. */
+interface TilePipeline {
   video: HTMLVideoElement;
   canvas: OffscreenCanvas;
   ctx: OffscreenCanvasRenderingContext2D;
@@ -56,64 +72,125 @@ interface CaptureState {
   lastFullFrameAt: number;
 }
 
+const provider = getCaptureProvider();
+
+let capturing = false;
+let surface: CaptureSurface | null = null;
 /**
- * When no connected controller consumes JPEG tiles (they all stream WebRTC),
- * the per-tick diff + JPEG encode work is skipped entirely so it doesn't
- * compete with the video encoder for CPU.
+ * Starts true to match the main process's `tileDemand` default. Main only
+ * emits `onTileDemand` on a *change*, so a mismatched default here would leave
+ * a joining controller with a black screen until something else flipped it.
+ * Tiles therefore paint the screen during WebRTC negotiation and stop once
+ * video is confirmed flowing.
  */
 let tilesEnabled = true;
+let pipeline: TilePipeline | null = null;
+let ticking = false;
 
-export function setTilesEnabled(enabled: boolean): void {
-  if (tilesEnabled === enabled) return;
-  tilesEnabled = enabled;
-  // A viewer may have missed everything while tiles were off; start fresh.
-  if (enabled && state) state.prev = null;
-}
-
-/** Resend every tile on the next tick (e.g. a controller joined mid-stream). */
-export function forceFullFrame(): void {
-  if (state) state.prev = null;
-}
-
-let state: CaptureState | null = null;
+// Registered once, not per start(), so repeated host sessions don't stack
+// listeners on the provider.
+provider.onEnded(() => void stopScreenCapture());
 
 export function isCapturing(): boolean {
-  return state !== null;
+  return capturing;
 }
 
 /** The live capture stream, shared with WebRTC peer connections (rtcHost.ts). */
 export function getCaptureStream(): MediaStream | null {
-  return state?.stream ?? null;
+  return provider.getStream();
+}
+
+export function getCaptureSurface(): CaptureSurface | null {
+  return surface;
+}
+
+/** True when the OS cursor is drawn into captured frames (see cursor channel). */
+export function isCursorBaked(): boolean {
+  return provider.isCursorBaked();
 }
 
 export async function startScreenCapture(): Promise<void> {
-  if (state) return;
-  const stream = await navigator.mediaDevices.getDisplayMedia({
-    video: { frameRate: CAPTURE_FPS },
-    audio: false,
-  });
-  // Downscale at the source: a phone never benefits from a 1440p+ stream, and
-  // the WebRTC encoder's bitrate requirement scales with input pixels. This is
-  // "resize for the destination screen" done once, before any encoding.
-  try {
-    await stream.getVideoTracks()[0]?.applyConstraints({
-      width: { max: MAX_EDGE },
-      height: { max: MAX_EDGE },
-      frameRate: CAPTURE_FPS,
-    });
-  } catch {
-    // Some platforms reject downscale constraints; the encoder still adapts.
-  }
+  if (capturing) return;
 
+  await provider.start({
+    maxEdge: MAX_EDGE,
+    frameRate: CAPTURE_FPS,
+    excludeCursor: EXCLUDE_CURSOR_FROM_CAPTURE,
+  });
+
+  capturing = true;
+  surface = provider.getSurface();
+  if (surface?.width) {
+    window.agentmat.remote.setScreenInfo({ width: surface.width, height: surface.height });
+  }
+  if (tilesEnabled) await ensureTilePipeline();
+}
+
+export async function stopScreenCapture(): Promise<void> {
+  if (!capturing) return;
+  capturing = false;
+  destroyTilePipeline();
+  // Back to the default main also resets to, so the next session agrees.
+  tilesEnabled = true;
+  surface = null;
+  await provider.stop();
+}
+
+/** Suspend frame production without dropping WebRTC negotiation. */
+export function pauseCapture(): void {
+  provider.pause();
+}
+
+export function resumeCapture(): void {
+  provider.resume();
+}
+
+export function isCapturePaused(): boolean {
+  return provider.isPaused();
+}
+
+/**
+ * Main tells us whether any connected controller still consumes JPEG tiles.
+ * Enabling builds the pixel pipeline; disabling destroys it outright rather
+ * than leaving it idling, so the fallback costs nothing when unused.
+ */
+export function setTilesEnabled(enabled: boolean): void {
+  if (tilesEnabled === enabled) return;
+  tilesEnabled = enabled;
+  if (!enabled) {
+    destroyTilePipeline();
+    return;
+  }
+  if (capturing) void ensureTilePipeline();
+}
+
+/** Resend every tile on the next tick (e.g. a controller joined mid-stream). */
+export function forceFullFrame(): void {
+  if (pipeline) pipeline.prev = null;
+}
+
+// --- Fallback tile pipeline ----------------------------------------------------
+
+async function ensureTilePipeline(): Promise<void> {
+  if (pipeline) return;
+  const stream = provider.getStream();
+  if (!stream) return;
+
+  // The tile path is the one consumer that needs pixels in JavaScript, so it —
+  // and only it — pays for a video element and a readback canvas.
   const video = document.createElement('video');
   video.srcObject = stream;
   video.muted = true;
   await video.play();
-  // Wait until the real frame dimensions are known.
   if (!video.videoWidth) {
     await new Promise<void>((resolve) => {
       video.addEventListener('loadedmetadata', () => resolve(), { once: true });
     });
+  }
+  // Another consumer may have torn things down while we awaited.
+  if (!tilesEnabled || !capturing) {
+    video.srcObject = null;
+    return;
   }
 
   const scale = Math.min(1, MAX_EDGE / Math.max(video.videoWidth, video.videoHeight));
@@ -126,15 +203,16 @@ export async function startScreenCapture(): Promise<void> {
   for (let i = 0; i < ENCODE_CONCURRENCY; i++) {
     const tileCanvas = new OffscreenCanvas(TILE, TILE);
     const tileCtx = tileCanvas.getContext('2d');
-    if (tileCtx) encoders.push({ canvas: tileCanvas, ctx: tileCtx });
+    if (tileCtx) {
+      encoders.push({ canvas: tileCanvas, ctx: tileCtx, scratch: new ImageData(TILE, TILE) });
+    }
   }
   if (!ctx || encoders.length === 0) {
-    stream.getTracks().forEach((t) => t.stop());
-    throw new Error('Could not create a capture canvas.');
+    video.srcObject = null;
+    return;
   }
 
-  state = {
-    stream,
+  pipeline = {
     video,
     canvas,
     ctx,
@@ -147,30 +225,30 @@ export async function startScreenCapture(): Promise<void> {
     stopping: false,
     lastFullFrameAt: Date.now(),
   };
-  tilesEnabled = true;
-
-  window.agentmat.remote.setScreenInfo({ width, height });
-
-  // If the user (or OS) stops the share from the system UI, tear down cleanly.
-  stream.getVideoTracks()[0]?.addEventListener('ended', () => stopScreenCapture());
-
-  const interval = Math.round(1000 / TARGET_FPS);
-  state.timer = window.setInterval(() => void tick(), interval);
+  pipeline.timer = window.setInterval(() => void tick(), Math.round(1000 / TILE_FPS));
 }
 
-export function stopScreenCapture(): void {
-  if (!state) return;
-  state.stopping = true;
-  if (state.timer !== null) window.clearInterval(state.timer);
-  state.stream.getTracks().forEach((t) => t.stop());
-  state.video.srcObject = null;
-  state = null;
+function destroyTilePipeline(): void {
+  const p = pipeline;
+  if (!p) return;
+  pipeline = null;
+  p.stopping = true;
+  if (p.timer !== null) window.clearInterval(p.timer);
+  p.video.pause();
+  p.video.srcObject = null;
+  // Drop the large buffers eagerly rather than waiting for GC.
+  p.prev = null;
+  p.canvas.width = 0;
+  p.canvas.height = 0;
+  for (const encoder of p.encoders) {
+    encoder.canvas.width = 0;
+    encoder.canvas.height = 0;
+  }
+  p.encoders.length = 0;
 }
-
-let ticking = false;
 
 async function tick(): Promise<void> {
-  const s = state;
+  const s = pipeline;
   if (!s || ticking || !tilesEnabled) return;
   ticking = true;
   try {
@@ -206,8 +284,9 @@ async function tick(): Promise<void> {
         }
       }),
     );
-    // Keep the frame as the new baseline (copy, since getImageData reuses buffers).
-    s.prev = new Uint8ClampedArray(frame);
+    // getImageData hands back a fresh buffer every call, so the new frame can
+    // become the baseline by reference — no defensive copy needed.
+    s.prev = frame;
   } catch {
     // A dropped frame is harmless; the next tick recovers.
   } finally {
@@ -239,7 +318,7 @@ function tileChanged(
 }
 
 async function encodeAndSend(
-  s: CaptureState,
+  s: TilePipeline,
   encoder: TileEncoder,
   frame: Uint8ClampedArray,
   frameId: number,
@@ -248,18 +327,19 @@ async function encodeAndSend(
   tw: number,
   th: number,
 ): Promise<void> {
-  // Copy this tile's pixels into the encoder's canvas and JPEG-encode them.
-  // Resize the canvas to the exact tile size first so edge tiles (smaller than
-  // TILE) don't encode stale margin pixels.
-  const img = new ImageData(tw, th);
+  // Copy this tile's pixels into the encoder's reusable scratch buffer. Rows are
+  // written at the scratch's full TILE stride and the canvas is sized to the
+  // exact tile, so putImageData clips the unused right/bottom margin away —
+  // which lets one allocation serve both full and edge tiles.
+  const scratch = encoder.scratch;
+  const stride = scratch.width * 4;
   for (let y = 0; y < th; y++) {
     const src = ((ty + y) * s.width + tx) * 4;
-    const dst = y * tw * 4;
-    img.data.set(frame.subarray(src, src + tw * 4), dst);
+    scratch.data.set(frame.subarray(src, src + tw * 4), y * stride);
   }
   encoder.canvas.width = tw;
   encoder.canvas.height = th;
-  encoder.ctx.putImageData(img, 0, 0);
+  encoder.ctx.putImageData(scratch, 0, 0);
   const blob = await encoder.canvas.convertToBlob({ type: 'image/jpeg', quality: JPEG_QUALITY });
   if (s.stopping) return;
   const jpeg = new Uint8Array(await blob.arrayBuffer());

@@ -7,6 +7,11 @@ import type {
 } from '@shared/apiTypes';
 import { closeAllRtcPeers, initRtcHost } from '@/lib/rtcHost';
 import {
+  initRtcController,
+  requestRemoteVideo,
+  teardownRemoteVideo,
+} from '@/lib/rtcController';
+import {
   forceFullFrame,
   setTilesEnabled,
   startScreenCapture,
@@ -45,7 +50,15 @@ export function initRemote(): void {
 
   const api = window.agentmat.remote;
 
-  api.onState((state) => useRemoteStore.setState({ state }));
+  api.onState((state) => {
+    const previous = useRemoteStore.getState().state?.connection.status;
+    useRemoteStore.setState({ state });
+    // Controller role: ask for the video track as soon as the control channel
+    // is up, and drop the peer connection when it goes away.
+    const status = state.connection.status;
+    if (status === 'connected' && previous !== 'connected') requestRemoteVideo();
+    else if (status !== 'connected' && previous === 'connected') teardownRemoteVideo();
+  });
 
   api.onLog((event) => {
     useRemoteStore.setState((s) => ({ logs: [event, ...s.logs].slice(0, MAX_LOGS) }));
@@ -70,13 +83,15 @@ export function initRemote(): void {
   });
   api.onCaptureStop(() => {
     closeAllRtcPeers();
-    stopScreenCapture();
+    void stopScreenCapture();
   });
   api.onCaptureRefresh(() => forceFullFrame());
   api.onTileDemand((demand) => setTilesEnabled(demand));
 
   // Host side: WebRTC signaling relay for controllers streaming video.
   initRtcHost();
+  // Controller side: receives the host's video track (desktop-to-desktop).
+  initRtcController();
 
   void useRemoteStore.getState().refresh();
 }
