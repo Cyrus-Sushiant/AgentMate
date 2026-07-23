@@ -49,6 +49,17 @@ export function TerminalDrawer(): React.JSX.Element | null {
             <SimpleTooltip key={session.id} label={session.title}>
               <button
                 onClick={() => setActiveSession(session.id)}
+                onMouseDown={(e) => {
+                  // Prevent the middle-click autoscroll cursor from appearing.
+                  if (e.button === 1) e.preventDefault();
+                }}
+                onAuxClick={(e) => {
+                  // Middle-click (mouse wheel button) closes the tab, like browsers.
+                  if (e.button === 1) {
+                    e.preventDefault();
+                    closeSession(session.id);
+                  }
+                }}
                 className={cn(
                   'group flex items-center gap-2 rounded-t-md px-3 py-1.5 text-xs',
                   session.id === activeSessionId
