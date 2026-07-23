@@ -207,6 +207,7 @@ export default function DashboardPage(): React.JSX.Element {
     staleTime: Infinity,
     retry: false,
     enabled: ipGeoDeferReady,
+    meta: { silentLoading: true },
   });
 
   const installedCount = cliQuery.data?.filter((c) => c.installed).length ?? 0;

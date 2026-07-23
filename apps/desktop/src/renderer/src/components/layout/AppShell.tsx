@@ -77,7 +77,12 @@ function TopBar(): React.JSX.Element {
 
 export function AppShell(): React.JSX.Element {
   const location = useLocation();
-  const isFetching = useIsFetching();
+  // Queries flagged with `meta.silentLoading` (e.g. the dashboard location
+  // card's manual refetch) refresh in place and must not trigger the full-page
+  // overlay.
+  const isFetching = useIsFetching({
+    predicate: (query) => !query.meta?.silentLoading,
+  });
   const isMutating = useIsMutating();
   const showLoading = useDelayedLoading(isFetching + isMutating > 0);
   const scrollRef = useRef<HTMLDivElement>(null);
