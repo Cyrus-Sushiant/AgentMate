@@ -37,6 +37,8 @@ export interface AgentToolDockerConfig {
   containerName: string;
   /** Args inserted between `docker run -d --name <containerName>` and the image. */
   runArgs: string[];
+  /** Args appended after the image, for images whose entrypoint needs a subcommand. */
+  imageArgs?: string[];
   dashboardUrl?: string;
 }
 
