@@ -33,6 +33,10 @@ import type {
   AddPromptHistoryInput,
   PromptHistoryEntry,
   TranslateTextInput,
+  TranscribeAudioInput,
+  TranscribeAudioResult,
+  SpeechModelProgress,
+  SpeechModelState,
   AskAiInput,
   AskAiResult,
   SystemStatsSample,
@@ -264,6 +268,14 @@ const ai = {
   listGeminiModels: (): Promise<string[]> => ipcRenderer.invoke(IPC.ai.listGeminiModels),
 };
 
+const speech = {
+  transcribe: (input: TranscribeAudioInput): Promise<TranscribeAudioResult> =>
+    ipcRenderer.invoke(IPC.speech.transcribe, input),
+  getModelState: (): Promise<SpeechModelState> => ipcRenderer.invoke(IPC.speech.getModelState),
+  onModelProgress: (callback: (progress: SpeechModelProgress) => void): (() => void) =>
+    subscribe(IPC.speech.onModelProgress, callback),
+};
+
 const system = {
   sample: (): Promise<SystemStatsSample> => ipcRenderer.invoke(IPC.system.sample),
 };
@@ -409,6 +421,7 @@ const agentmatApi = {
   promptHistory,
   translate,
   ai,
+  speech,
   system,
   ipGeo,
   scheduledTasks,

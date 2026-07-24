@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -8,9 +8,12 @@ import {
   Copy,
   Download,
   Languages,
+  Microphone,
   Plus,
   Save,
   Sparkles,
+  Spinner,
+  StopCircle,
   TerminalSquare,
   Trash2,
 } from '@/components/icons';
@@ -41,6 +44,7 @@ import { usePageHeader } from '@/stores/pageHeaderStore';
 import { useCliStore } from '@/stores/cliStore';
 import { useTerminalStore } from '@/stores/terminalStore';
 import { usePromptBuilderStore, type PromptBuilderStatus } from '@/stores/promptBuilderStore';
+import { useVoiceInput } from '@/hooks/useVoiceInput';
 
 interface ScheduleQueueItem {
   id: string;
@@ -139,6 +143,38 @@ export default function PromptBuilderPage(): React.JSX.Element {
     queryKey: queryKeys.settings,
     queryFn: () => window.agentmat.settings.get(),
   });
+
+  // Voice input appends onto whatever's already in the box, so read the latest
+  // value through a ref — the transcription callback outlives the render that
+  // created it and would otherwise close over a stale rawInput.
+  const rawInputRef = useRef(rawInput);
+  useEffect(() => {
+    rawInputRef.current = rawInput;
+  }, [rawInput]);
+
+  const voice = useVoiceInput({
+    language: settingsQuery.data?.speechLanguage ?? 'auto',
+    onText: (text) => {
+      const existing = rawInputRef.current.trim();
+      setRawInput(existing ? `${existing} ${text}` : text);
+    },
+  });
+
+  const voiceBusy = voice.status === 'requesting' || voice.status === 'transcribing';
+  const voiceLabel =
+    voice.status === 'recording'
+      ? 'Stop recording'
+      : voice.status === 'transcribing'
+        ? voice.downloadPercent !== null
+          ? `Downloading model… ${voice.downloadPercent}%`
+          : 'Transcribing…'
+        : voice.status === 'requesting'
+          ? 'Starting microphone…'
+          : 'Record voice input';
+
+  useEffect(() => {
+    if (voice.error) toast.error(voice.error);
+  }, [voice.error]);
 
   const saveTemplateMutation = useMutation({
     mutationFn: () =>
@@ -314,7 +350,30 @@ export default function PromptBuilderPage(): React.JSX.Element {
         <CardContent className="grid flex-1 grid-cols-1 gap-6 p-5 lg:grid-cols-2">
           <div className="flex flex-1 flex-col space-y-4">
             <div className="flex flex-1 flex-col space-y-2">
-              <Label htmlFor="raw-input">Your request</Label>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="raw-input">Your request</Label>
+                {voice.supported && (
+                  <Button
+                    type="button"
+                    variant={voice.status === 'recording' ? 'destructive' : 'ghost'}
+                    size="sm"
+                    className="h-7 gap-1.5 px-2 text-xs"
+                    onClick={voice.toggle}
+                    disabled={voiceBusy}
+                    title={voiceLabel}
+                    aria-label={voiceLabel}
+                  >
+                    {voiceBusy ? (
+                      <Spinner className="animate-spin" />
+                    ) : voice.status === 'recording' ? (
+                      <StopCircle />
+                    ) : (
+                      <Microphone />
+                    )}
+                    <span>{voiceLabel}</span>
+                  </Button>
+                )}
+              </div>
               <Textarea
                 id="raw-input"
                 className="min-h-[280px] flex-1 resize-none"

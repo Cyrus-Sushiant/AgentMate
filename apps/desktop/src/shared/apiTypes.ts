@@ -124,6 +124,39 @@ export interface TranslateTextInput {
   targetLang: string;
 }
 
+export interface TranscribeAudioInput {
+  /**
+   * Mono 32-bit float PCM samples at 16 kHz — the only shape Whisper accepts.
+   * The renderer resamples the microphone capture before sending, so the main
+   * process never needs ffmpeg or any other audio tool.
+   */
+  samples: Float32Array;
+  /** BCP-47-ish Whisper language code, or 'auto' to let the model detect it. */
+  language: string;
+}
+
+export interface TranscribeAudioResult {
+  ok: boolean;
+  text: string;
+  error?: string;
+}
+
+/**
+ * First-run model download progress. Whisper weights are fetched once and
+ * cached under userData, so this only reports during the initial download.
+ */
+export interface SpeechModelProgress {
+  /** 0–100, or null while the total size is still unknown. */
+  percent: number | null;
+  file: string;
+}
+
+export interface SpeechModelState {
+  /** True once the weights are on disk, so transcription can run offline. */
+  ready: boolean;
+  modelId: string;
+}
+
 export interface AskAiHistoryMessage {
   role: 'user' | 'assistant';
   content: string;

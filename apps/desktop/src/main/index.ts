@@ -16,6 +16,7 @@ import { registerRemoteHandlers } from './ipc/remote';
 import { registerScheduledTaskHandlers } from './ipc/scheduledTasks';
 import { registerSettingsHandlers } from './ipc/settings';
 import { registerShellHandlers } from './ipc/shell';
+import { registerSpeechHandlers } from './ipc/speech';
 import { registerSkillHandlers } from './ipc/skills';
 import { registerSystemStatsHandlers } from './ipc/systemStats';
 import { registerTemplateHandlers } from './ipc/templates';
@@ -102,6 +103,7 @@ function registerAllIpcHandlers(): void {
   registerScheduledTaskHandlers();
   registerNotificationHandlers();
   registerAiHandlers();
+  registerSpeechHandlers();
   registerGitHandlers();
   registerRemoteHandlers();
 }
@@ -123,6 +125,14 @@ app.whenReady().then(() => {
       },
     });
   });
+
+  // Prompt Builder's voice input calls getUserMedia for the microphone. Electron
+  // grants permission requests by default (the same default that lets every
+  // "Copy" button use navigator.clipboard), so no permission handler is needed
+  // here — adding a restrictive one would break clipboard writes and the Remote
+  // feature. On macOS the OS still gates the mic behind its own TCC prompt,
+  // which needs NSMicrophoneUsageDescription in the packaged Info.plist (see
+  // electron-builder.yml).
 
   // When the Remote page (host side) calls getDisplayMedia, capture the primary
   // screen directly instead of popping the OS source picker — the operator has

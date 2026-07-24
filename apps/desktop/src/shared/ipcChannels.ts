@@ -101,6 +101,12 @@ export const IPC = {
   translate: {
     text: 'translate:text',
   },
+  speech: {
+    transcribe: 'speech:transcribe',
+    getModelState: 'speech:getModelState',
+    // main -> renderer: first-run model download progress
+    onModelProgress: 'speech:onModelProgress',
+  },
   ai: {
     ask: 'ai:ask',
     listOllamaModels: 'ai:listOllamaModels',

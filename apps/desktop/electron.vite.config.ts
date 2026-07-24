@@ -11,6 +11,11 @@ const forcedExternals = [
   'electron',
   'node-pty',
   'better-sqlite3',
+  // Local speech-to-text. transformers.js pulls in onnxruntime-node, which
+  // dlopen's prebuilt native binaries — it must stay external so Rollup never
+  // tries to bundle the .node/.dll files.
+  '@huggingface/transformers',
+  'onnxruntime-node',
   /^node:/,
 ];
 

@@ -6,6 +6,7 @@ import {
   Blocks,
   Languages,
   MessageSquare,
+  Microphone,
   Monitor,
   Moon,
   RefreshCw,
@@ -33,6 +34,22 @@ const PROMPT_BUILDER_PROVIDER_OPTIONS: { value: AiProvider; label: string }[] = 
   { value: 'openai', label: 'OpenAI' },
   { value: 'gemini', label: 'Gemini' },
   { value: 'ollama', label: 'Ollama' },
+];
+
+// Whisper's most common languages for voice input; "auto" lets the model
+// detect the spoken language. Codes match Prompt Builder's translate list.
+const SPEECH_LANGUAGES: { value: string; label: string }[] = [
+  { value: 'auto', label: 'Auto-detect' },
+  { value: 'en', label: 'English' },
+  { value: 'fa', label: 'Persian (فارسی)' },
+  { value: 'es', label: 'Spanish' },
+  { value: 'fr', label: 'French' },
+  { value: 'de', label: 'German' },
+  { value: 'ar', label: 'Arabic' },
+  { value: 'zh', label: 'Chinese' },
+  { value: 'ru', label: 'Russian' },
+  { value: 'hi', label: 'Hindi' },
+  { value: 'tr', label: 'Turkish' },
 ];
 
 const THEME_OPTIONS: { value: ThemeMode; label: string; icon: typeof Sun }[] = [
@@ -213,6 +230,26 @@ export default function SettingsPage(): React.JSX.Element {
     },
   });
 
+  const [speechModel, setSpeechModel] = useState('base');
+  const [speechLanguage, setSpeechLanguage] = useState('auto');
+  const [speechDirty, setSpeechDirty] = useState(false);
+
+  useEffect(() => {
+    if (!speechDirty && settingsQuery.data) {
+      setSpeechModel(settingsQuery.data.speechModel);
+      setSpeechLanguage(settingsQuery.data.speechLanguage);
+    }
+  }, [settingsQuery.data, speechDirty]);
+
+  const saveSpeechMutation = useMutation({
+    mutationFn: () => window.agentmat.settings.update({ speechModel, speechLanguage }),
+    onSuccess: () => {
+      toast.success('Voice input settings saved.');
+      setSpeechDirty(false);
+      void queryClient.invalidateQueries({ queryKey: queryKeys.settings });
+    },
+  });
+
   const updateStatus = useUpdateStore((s) => s.status);
   const checkingForUpdates = updateStatus.state === 'checking';
 
@@ -355,6 +392,55 @@ export default function SettingsPage(): React.JSX.Element {
             variant="outline"
             disabled={!translateRetriesDirty || saveTranslateRetriesMutation.isPending}
             onClick={() => saveTranslateRetriesMutation.mutate()}
+          >
+            Save
+          </Button>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Microphone className="h-4 w-4" /> Voice Input
+          </CardTitle>
+          <CardDescription>
+            Prompt Builder can transcribe your voice into the request box using a local Whisper
+            model that runs entirely offline. The model downloads once on first use and is cached.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid max-w-md grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label>Model</Label>
+              <Combobox
+                value={speechModel}
+                onChange={(v) => {
+                  setSpeechModel(v);
+                  setSpeechDirty(true);
+                }}
+                options={[
+                  { value: 'tiny', label: 'Tiny — fastest, ~75 MB' },
+                  { value: 'base', label: 'Base — balanced, ~145 MB' },
+                  { value: 'small', label: 'Small — most accurate, ~490 MB' },
+                ]}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Spoken language</Label>
+              <Combobox
+                value={speechLanguage}
+                onChange={(v) => {
+                  setSpeechLanguage(v);
+                  setSpeechDirty(true);
+                }}
+                options={SPEECH_LANGUAGES}
+              />
+            </div>
+          </div>
+          <Button
+            variant="outline"
+            disabled={!speechDirty || saveSpeechMutation.isPending}
+            onClick={() => saveSpeechMutation.mutate()}
           >
             Save
           </Button>

@@ -53,6 +53,8 @@ const DEFAULT_SETTINGS: AppSettings = {
   promptBuilderProvider: 'openai',
   dashboardChartOrder: [],
   translateMaxRetries: 3,
+  speechModel: 'base',
+  speechLanguage: 'auto',
 };
 
 /** Older projects.json entries predate the notifications field. */

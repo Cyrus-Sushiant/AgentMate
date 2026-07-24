@@ -44,6 +44,9 @@ import {
   faMagnifyingGlass,
   faMemory,
   faMicrochip,
+  faMicrophone,
+  faMicrophoneSlash,
+  faSpinner,
   faMoon,
   faNetworkWired,
   faPaperPlane,
@@ -185,3 +188,8 @@ export const CloudUpload = makeIcon(faCloudArrowUp);
 // Agent tools icons.
 export const Wrench = makeIcon(faWrench);
 export const StopCircle = makeIcon(faStop);
+
+// Voice input icons.
+export const Microphone = makeIcon(faMicrophone);
+export const MicrophoneSlash = makeIcon(faMicrophoneSlash);
+export const Spinner = makeIcon(faSpinner);

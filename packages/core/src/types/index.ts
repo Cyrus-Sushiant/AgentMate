@@ -32,6 +32,10 @@ export interface AppSettings {
   dashboardChartOrder: string[];
   /** How many extra attempts Prompt Builder's translate action makes after an initial failure. */
   translateMaxRetries: number;
+  /** Local Whisper model used for Prompt Builder voice input: 'tiny' | 'base' | 'small'. Larger is more accurate but slower and bigger to download. */
+  speechModel: string;
+  /** Spoken language for voice input as a Whisper code (e.g. "en", "fa"), or "auto" to detect it. */
+  speechLanguage: string;
 }
 
 export type AgentType = 'claude-code' | 'gemini' | 'opencode' | 'codex' | 'generic';

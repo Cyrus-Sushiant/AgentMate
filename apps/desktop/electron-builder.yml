@@ -21,8 +21,13 @@ extraResources:
 # node-pty ships native .node/.dll/.exe files that must exist as real files on
 # disk (it also spawns conpty/winpty helper executables at runtime) — they
 # can't be loaded from inside the asar archive.
+#
+# onnxruntime-node (pulled in by @huggingface/transformers for local Whisper
+# speech-to-text) is the same story: it dlopen's prebuilt .node/.dll/.so files
+# that have to live on the real filesystem, not inside the archive.
 asarUnpack:
   - '**/node_modules/node-pty/**'
+  - '**/node_modules/onnxruntime-node/**'
 
 win:
   icon: build/icon.png
@@ -37,6 +42,10 @@ nsis:
 
 mac:
   icon: build/icon.png
+  # Required for Prompt Builder's voice input: macOS crashes the app on mic
+  # access unless this usage string is present in Info.plist.
+  extendInfo:
+    NSMicrophoneUsageDescription: AgentMate uses the microphone to transcribe your voice into the Prompt Builder.
   target:
     - target: dmg
       arch: [x64, arm64]
