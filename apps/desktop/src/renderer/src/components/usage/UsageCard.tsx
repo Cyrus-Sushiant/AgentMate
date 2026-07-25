@@ -10,6 +10,8 @@ export interface UsageCardBodyProps {
   style?: WidgetStyle;
   /** Compact drops the sparkline + secondary stats (small widget). */
   compact?: boolean;
+  /** Hide the logo + name row when the host already renders the title (Usage page). */
+  hideHeader?: boolean;
 }
 
 /**
@@ -22,10 +24,11 @@ export function UsageCardBody({
   def,
   style = 'colorful',
   compact = false,
+  hideHeader = false,
 }: UsageCardBodyProps): React.JSX.Element {
   const accent = style === 'colorful' ? def.accentColor : 'hsl(var(--foreground))';
 
-  const header = (
+  const header = hideHeader ? null : (
     <div className="flex items-center gap-2">
       <ProviderLogo providerId={def.id} className="h-5 w-5" />
       <span className="truncate text-sm font-semibold">{def.name}</span>

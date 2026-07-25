@@ -5,6 +5,7 @@ import {
   faAnglesLeft,
   faAnglesRight,
   faArrowLeft,
+  faArrowRight,
   faArrowsRotate,
   faArrowUpRightFromSquare,
   faBell,
@@ -98,6 +99,7 @@ function makeIcon(icon: IconDefinition): React.ForwardRefExoticComponent<IconPro
 // Names mirror the lucide-react icons they replace so call sites didn't need
 // to change, only their import path.
 export const ArrowLeft = makeIcon(faArrowLeft);
+export const ArrowRight = makeIcon(faArrowRight);
 export const Blocks = makeIcon(faCubes);
 export const Bookmark = makeIcon(faBookmark);
 export const Check = makeIcon(faCheck);

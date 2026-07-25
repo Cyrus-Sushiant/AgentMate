@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useShallow } from 'zustand/react/shallow';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -7,10 +8,13 @@ import {
   Clock,
   Copy,
   Download,
+  ExternalLink,
+  History,
   Languages,
   Microphone,
   Plus,
   Save,
+  Search,
   Sparkles,
   Spinner,
   StopCircle,
@@ -27,12 +31,14 @@ import {
 import type { PromptType, TargetAI } from '@agentmat/core';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Combobox } from '@/components/ui/combobox';
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -45,6 +51,7 @@ import { useCliStore } from '@/stores/cliStore';
 import { useTerminalStore } from '@/stores/terminalStore';
 import { usePromptBuilderStore, type PromptBuilderStatus } from '@/stores/promptBuilderStore';
 import { useVoiceInput } from '@/hooks/useVoiceInput';
+import type { PromptHistoryEntry } from '../../../shared/apiTypes';
 
 interface ScheduleQueueItem {
   id: string;
@@ -128,7 +135,10 @@ export default function PromptBuilderPage(): React.JSX.Element {
   const [isTranslating, setIsTranslating] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [scheduleQueue, setScheduleQueue] = useState<ScheduleQueueItem[]>([]);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [historySearch, setHistorySearch] = useState('');
 
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const defaultCliId = useCliStore((s) => s.defaultCliId);
   const openSession = useTerminalStore((s) => s.openSession);
@@ -143,6 +153,19 @@ export default function PromptBuilderPage(): React.JSX.Element {
     queryKey: queryKeys.settings,
     queryFn: () => window.agentmat.settings.get(),
   });
+
+  const trimmedHistorySearch = historySearch.trim();
+  const historyQuery = useQuery({
+    queryKey: trimmedHistorySearch
+      ? queryKeys.promptHistorySearch(trimmedHistorySearch)
+      : queryKeys.promptHistory,
+    queryFn: () =>
+      trimmedHistorySearch
+        ? window.agentmat.promptHistory.search(trimmedHistorySearch)
+        : window.agentmat.promptHistory.list(),
+    enabled: historyOpen,
+  });
+  const historyEntries = historyQuery.data ?? [];
 
   // Voice input appends onto whatever's already in the box, so read the latest
   // value through a ref — the transcription callback outlives the render that
@@ -244,9 +267,25 @@ export default function PromptBuilderPage(): React.JSX.Element {
   async function logHistory(source: 'generate' | 'translate', content: string): Promise<void> {
     try {
       await window.agentmat.promptHistory.add({ rawInput, promptType, targetAI, content, source });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.promptHistory });
     } catch {
       // History logging is best-effort — a failure here shouldn't interrupt the user's flow.
     }
+  }
+
+  /** Pull a past prompt back into the builder so it can be tweaked and re-run. */
+  function restoreFromHistory(entry: PromptHistoryEntry): void {
+    setRawInput(entry.rawInput);
+    // Stored as plain strings, so only adopt values the pickers still know about.
+    if ((PROMPT_TYPES as readonly string[]).includes(entry.promptType)) {
+      setPromptType(entry.promptType as PromptType);
+    }
+    if ((TARGET_AIS as readonly string[]).includes(entry.targetAI)) {
+      setTargetAI(entry.targetAI as TargetAI);
+    }
+    setGenerated(entry.content);
+    setHistoryOpen(false);
+    toast.success('Loaded from history.');
   }
 
   async function handleGenerate(): Promise<void> {
@@ -520,7 +559,20 @@ export default function PromptBuilderPage(): React.JSX.Element {
           </div>
 
           <div className="flex flex-col space-y-3">
-            <Label>Generated prompt</Label>
+            <div className="flex items-center justify-between">
+              <Label>Generated prompt</Label>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-7 gap-1.5 px-2 text-xs"
+                onClick={() => setHistoryOpen(true)}
+                title="Browse previously generated prompts"
+              >
+                <History />
+                <span>History</span>
+              </Button>
+            </div>
             <MonacoEditor value={generated} onChange={setGenerated} className="min-h-[420px] flex-1" />
             <div className="flex flex-wrap gap-2">
               <Button variant="outline" size="sm" disabled={!generated} onClick={() => void handleCopy()}>
@@ -554,6 +606,92 @@ export default function PromptBuilderPage(): React.JSX.Element {
           </div>
         </CardContent>
       </Card>
+
+      <Dialog open={historyOpen} onOpenChange={setHistoryOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Prompt history</DialogTitle>
+            <DialogDescription>
+              Pick a past prompt to load it back into the builder.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-2.5 top-2.5 z-10 h-4 w-4 text-muted-foreground" />
+            <Input
+              className="pl-8"
+              placeholder="Search prompt history…"
+              value={historySearch}
+              onChange={(e) => setHistorySearch(e.target.value)}
+            />
+          </div>
+
+          <div className="max-h-[50vh] space-y-2 overflow-y-auto">
+            {historyQuery.isLoading ? (
+              <p className="py-6 text-center text-sm text-muted-foreground">Loading history…</p>
+            ) : historyQuery.isError ? (
+              <div className="flex flex-col items-center gap-2 py-6 text-center">
+                <p className="text-sm text-muted-foreground">Couldn’t load prompt history.</p>
+                <Button variant="outline" size="sm" onClick={() => void historyQuery.refetch()}>
+                  Try again
+                </Button>
+              </div>
+            ) : historyEntries.length === 0 ? (
+              <p className="py-6 text-center text-sm text-muted-foreground">
+                {trimmedHistorySearch
+                  ? `No prompts match “${trimmedHistorySearch}”.`
+                  : 'Nothing here yet — generate or translate a prompt and it will show up.'}
+              </p>
+            ) : (
+              historyEntries.map((entry) => (
+                <button
+                  key={entry.id}
+                  type="button"
+                  className="w-full space-y-1.5 rounded-lg border border-border p-3 text-left transition-colors hover:bg-accent"
+                  onClick={() => restoreFromHistory(entry)}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <span className="text-sm font-medium">{entry.promptType}</span>
+                      <Badge variant="outline">{entry.targetAI}</Badge>
+                      <Badge variant="secondary">
+                        {entry.source === 'translate' ? (
+                          <>
+                            <Languages className="h-3 w-3" /> Translated
+                          </>
+                        ) : (
+                          <>
+                            <Sparkles className="h-3 w-3" /> Generated
+                          </>
+                        )}
+                      </Badge>
+                    </div>
+                    <span className="shrink-0 text-xs text-muted-foreground">
+                      {new Date(entry.createdAt).toLocaleString()}
+                    </span>
+                  </div>
+                  <p className="line-clamp-2 whitespace-pre-wrap text-xs text-muted-foreground">
+                    {entry.content}
+                  </p>
+                </button>
+              ))
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setHistoryOpen(false);
+                navigate('/prompt-history');
+              }}
+            >
+              <ExternalLink /> Open full history
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={saveDialogOpen} onOpenChange={setSaveDialogOpen}>
         <DialogContent>

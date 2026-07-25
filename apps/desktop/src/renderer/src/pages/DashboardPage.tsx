@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { motion } from 'framer-motion';
 import * as CountryFlags from 'country-flag-icons/react/3x2';
 import {
+  ArrowRight,
   Blocks,
   CloudDownload,
   Cpu,
@@ -33,7 +34,6 @@ import { useSystemStatsHistory } from '@/hooks/useSystemStatsHistory';
 import { useChartColors } from '@/lib/chartColors';
 import { cn } from '@/lib/utils';
 import { queryKeys } from '@/lib/queryKeys';
-import { timeAgo } from '@/lib/time';
 import { usePageHeader } from '@/stores/pageHeaderStore';
 import { useTerminalStore } from '@/stores/terminalStore';
 import {
@@ -127,15 +127,16 @@ function useIdleAfterMount(): boolean {
   return ready;
 }
 
-function CliUpdateRow({ cli, status }: { cli: CliDefinition; status: InstalledCli }): React.JSX.Element {
+function CliUpdateRow({
+  cli,
+  status,
+  latestVersion,
+}: {
+  cli: CliDefinition;
+  status: InstalledCli;
+  latestVersion: string;
+}): React.JSX.Element {
   const openSession = useTerminalStore((s) => s.openSession);
-  const deferReady = useIdleAfterMount();
-  const updateQuery = useQuery({
-    queryKey: queryKeys.cliUpdateCheck(cli.id, status.version),
-    queryFn: () => window.agentmat.cli.checkForUpdate(cli.id, status.version),
-    staleTime: 10 * 60_000,
-    enabled: deferReady,
-  });
 
   async function handleUpdate(): Promise<void> {
     const command = await window.agentmat.cli.getUpdateCommand(cli.id);
@@ -147,36 +148,115 @@ function CliUpdateRow({ cli, status }: { cli: CliDefinition; status: InstalledCl
     toast.info(`Press Enter in the terminal to update ${cli.name}.`);
   }
 
-  const result = updateQuery.data;
-
   return (
     <div className="flex items-center justify-between gap-2 rounded-lg border border-border bg-card px-3 py-2">
       <div className="flex min-w-0 items-center gap-2">
         <CliLogo cliId={cli.id} className="h-4 w-4 shrink-0" />
         <div className="min-w-0">
           <div className="truncate text-sm font-medium">{cli.name}</div>
-          <div className="text-xs text-muted-foreground">{status.version ?? 'unknown version'}</div>
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <span>{status.version ?? 'unknown version'}</span>
+            <ArrowRight className="h-3 w-3" />
+            <span className="font-medium text-foreground">v{latestVersion}</span>
+          </div>
         </div>
       </div>
-      <div className="flex shrink-0 items-center gap-2">
-        {updateQuery.isPending ? (
-          <Badge variant="outline">Checking…</Badge>
-        ) : !result?.supported ? (
-          <Badge variant="outline">No update check</Badge>
-        ) : !result.latestVersion ? (
-          <Badge variant="outline">Check failed</Badge>
-        ) : result.updateAvailable ? (
-          <>
-            <Badge variant="warning">v{result.latestVersion} available</Badge>
-            <Button size="sm" variant="outline" onClick={() => void handleUpdate()}>
-              <CloudDownload className="h-3.5 w-3.5" /> Update
-            </Button>
-          </>
-        ) : (
-          <Badge variant="success">Up to date</Badge>
-        )}
-      </div>
+      <Button size="sm" variant="outline" className="shrink-0" onClick={() => void handleUpdate()}>
+        <CloudDownload className="h-3.5 w-3.5" /> Update
+      </Button>
     </div>
+  );
+}
+
+// Only lists CLIs with a newer version available. The update checks are hoisted
+// here (rather than living per-row) because the card can't know which rows to
+// render until every check has come back.
+function CliUpdatesCard({
+  installed,
+}: {
+  installed: { cli: CliDefinition; status: InstalledCli }[];
+}): React.JSX.Element {
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const deferReady = useIdleAfterMount();
+
+  const updateChecks = useQueries({
+    queries: installed.map(({ cli, status }) => ({
+      queryKey: queryKeys.cliUpdateCheck(cli.id, status.version),
+      queryFn: () => window.agentmat.cli.checkForUpdate(cli.id, status.version),
+      staleTime: 10 * 60_000,
+      enabled: deferReady,
+    })),
+  });
+
+  const checking = updateChecks.some((q) => q.isPending || q.isFetching);
+  const outdated = installed
+    .map((entry, i) => {
+      const result = updateChecks[i]?.data;
+      return { ...entry, latestVersion: result?.updateAvailable ? result.latestVersion : null };
+    })
+    .filter((entry): entry is typeof entry & { latestVersion: string } => entry.latestVersion != null);
+  const uncheckable = updateChecks.filter(
+    (q) => q.isError || (q.data != null && (!q.data.supported || !q.data.latestVersion)),
+  ).length;
+
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between space-y-0">
+        <div className="flex items-center gap-2">
+          <CardTitle>Update AI CLIs</CardTitle>
+          {outdated.length > 0 && (
+            <Badge variant="warning">
+              {outdated.length} update{outdated.length > 1 ? 's' : ''}
+            </Badge>
+          )}
+        </div>
+        <Button
+          variant="ghost"
+          size="icon"
+          title="Re-check for updates"
+          disabled={checking || installed.length === 0}
+          onClick={() => {
+            void queryClient.invalidateQueries({ queryKey: ['cli-update-check'] });
+            toast.info('Checking installed CLIs for updates…');
+          }}
+        >
+          <RefreshCw className={cn('h-3.5 w-3.5', checking && 'animate-spin')} />
+        </Button>
+      </CardHeader>
+      <CardContent className="space-y-2">
+        {installed.length === 0 ? (
+          <p className="text-sm text-muted-foreground">
+            No AI CLIs detected yet. Visit the{' '}
+            <button className="underline underline-offset-2" onClick={() => navigate('/cli-manager')}>
+              CLI Manager
+            </button>{' '}
+            to install one.
+          </p>
+        ) : (
+          <>
+            {outdated.map(({ cli, status, latestVersion }) => (
+              <CliUpdateRow key={cli.id} cli={cli} status={status} latestVersion={latestVersion} />
+            ))}
+            {checking && outdated.length === 0 && (
+              <p className="text-sm text-muted-foreground">
+                Checking {installed.length} installed CLI{installed.length > 1 ? 's' : ''} for updates…
+              </p>
+            )}
+            {!checking && outdated.length === 0 && (
+              <p className="text-sm text-muted-foreground">
+                All {installed.length} installed CLI{installed.length > 1 ? 's are' : ' is'} up to date.
+              </p>
+            )}
+            {!checking && uncheckable > 0 && (
+              <p className="text-xs text-muted-foreground">
+                {uncheckable} CLI{uncheckable > 1 ? 's' : ''} couldn't be checked automatically.
+              </p>
+            )}
+          </>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 
@@ -192,10 +272,6 @@ export default function DashboardPage(): React.JSX.Element {
     queryKey: queryKeys.projects,
     queryFn: () => window.agentmat.projects.list(),
   });
-  const activityQuery = useQuery({
-    queryKey: queryKeys.activity,
-    queryFn: () => window.agentmat.activity.list(),
-  });
   const reposQuery = useQuery({
     queryKey: queryKeys.repositories,
     queryFn: () => window.agentmat.skills.listRepositories(),
@@ -210,7 +286,11 @@ export default function DashboardPage(): React.JSX.Element {
     meta: { silentLoading: true },
   });
 
-  const installedCount = cliQuery.data?.filter((c) => c.installed).length ?? 0;
+  const installedClis = CLI_REGISTRY.flatMap((cli) => {
+    const status = cliQuery.data?.find((c) => c.id === cli.id);
+    return status?.installed ? [{ cli, status }] : [];
+  });
+  const installedCount = installedClis.length;
 
   const statsHistory = useSystemStatsHistory();
   const chartColors = useChartColors();
@@ -253,7 +333,7 @@ export default function DashboardPage(): React.JSX.Element {
     };
   }
 
-  usePageHeader('Dashboard', 'Your AI CLIs, projects, and activity at a glance.');
+  usePageHeader('Dashboard', 'Your AI CLIs, projects, and system health at a glance.');
 
   const chartCards: Record<DashboardChartId, React.ReactNode> = {
     cpu: (
@@ -670,53 +750,7 @@ export default function DashboardPage(): React.JSX.Element {
         ))}
       </div>
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle>Installed AI CLIs</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            {CLI_REGISTRY.filter((cli) => cliQuery.data?.find((c) => c.id === cli.id)?.installed).map(
-              (cli) => {
-                const status = cliQuery.data?.find((c) => c.id === cli.id);
-                if (!status) return null;
-                return <CliUpdateRow key={cli.id} cli={cli} status={status} />;
-              },
-            )}
-            {installedCount === 0 && (
-              <p className="text-sm text-muted-foreground">
-                No AI CLIs detected yet. Visit the{' '}
-                <button className="underline underline-offset-2" onClick={() => navigate('/cli-manager')}>
-                  CLI Manager
-                </button>{' '}
-                to install one.
-              </p>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Recent Activity</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            {!activityQuery.data || activityQuery.data.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                Nothing yet — install a CLI or create a project to get started.
-              </p>
-            ) : (
-              activityQuery.data.slice(0, 8).map((event) => (
-                <div key={event.id} className="flex items-center justify-between text-sm">
-                  <span className="truncate">{event.message}</span>
-                  <span className="shrink-0 text-xs text-muted-foreground">
-                    {timeAgo(event.createdAt)}
-                  </span>
-                </div>
-              ))
-            )}
-          </CardContent>
-        </Card>
-      </div>
+      <CliUpdatesCard installed={installedClis} />
     </div>
   );
 }

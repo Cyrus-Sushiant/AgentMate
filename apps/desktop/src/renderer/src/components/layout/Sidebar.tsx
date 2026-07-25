@@ -19,6 +19,7 @@ import { SimpleTooltip } from '@/components/ui/tooltip';
 
 export const NAV_ITEMS = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard, end: true },
+  { to: '/usage', label: 'Token Usage', icon: ChartColumn },
   { to: '/prompt-builder', label: 'Prompt Builder', icon: Sparkles },
   { to: '/prompt-history', label: 'Prompt History', icon: History },
   { to: '/projects', label: 'Projects', icon: FolderKanban },
@@ -26,7 +27,6 @@ export const NAV_ITEMS = [
   { to: '/mcp', label: 'MCP Servers', icon: Plug },
   { to: '/tools', label: 'Agent Tools', icon: Wrench },
   { to: '/cli-manager', label: 'AI CLI Manager', icon: TerminalSquare },
-  { to: '/usage', label: 'Token Usage', icon: ChartColumn },
   { to: '/ask-ai', label: 'Ask AI', icon: MessageSquare },
   { to: '/remote', label: 'Remote', icon: Broadcast },
   { to: '/settings', label: 'Settings', icon: SettingsIcon },

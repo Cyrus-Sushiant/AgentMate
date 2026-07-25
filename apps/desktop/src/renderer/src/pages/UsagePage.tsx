@@ -163,14 +163,18 @@ export default function UsagePage(): React.JSX.Element {
                 onDrop={() => handleDrop(id)}
               >
                 <CardContent className="flex h-full flex-col p-4">
-                  <div className="mb-2 flex items-center justify-end gap-1">
+                  <div className="mb-2 flex items-center gap-1">
+                    <div className="mr-auto flex min-w-0 items-center gap-2">
+                      <ProviderLogo providerId={id} className="h-5 w-5 shrink-0" />
+                      <span className="truncate text-sm font-semibold">{def.name}</span>
+                    </div>
                     <span
                       draggable
                       onDragStart={(e) => {
                         e.dataTransfer.effectAllowed = 'move';
                         setDragId(id);
                       }}
-                      className="mr-auto cursor-grab text-muted-foreground/50 hover:text-foreground active:cursor-grabbing"
+                      className="cursor-grab text-muted-foreground/50 hover:text-foreground active:cursor-grabbing"
                       title="Drag to reorder"
                     >
                       <GripVertical className="h-3.5 w-3.5" />
@@ -193,12 +197,10 @@ export default function UsagePage(): React.JSX.Element {
                     )}
                   </div>
                   {usage ? (
-                    <UsageCardBody usage={usage} def={def} />
+                    <UsageCardBody usage={usage} def={def} hideHeader />
                   ) : (
                     <div className="flex flex-1 items-center gap-2 text-sm text-muted-foreground">
-                      <ProviderLogo providerId={id} className="h-5 w-5" />
                       <span className={usageQuery.isError ? 'text-destructive' : undefined}>
-                        {def.name} —{' '}
                         {usageQuery.isError
                           ? (usageQuery.error as Error).message
                           : def.dataSource === 'local-log'

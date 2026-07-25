@@ -113,13 +113,18 @@ export default function ProjectDetailPage(): React.JSX.Element {
     enabled: !!projectId,
   });
 
+  // The preload bridge is only attached when the window is created, so a
+  // hot-reloaded renderer can outrun it. Feature-detect instead of calling
+  // blind, which would throw a bare TypeError.
+  const planBridgeReady = typeof window.agentmat?.projects?.bootstrapPlan === 'function';
+
   // Fetched from the main process rather than computed here, so the preview is
   // literally the plan that gets written. Keyed on the fields the plan derives
   // from, so editing the project's agent refreshes it.
   const bootstrapPlanQuery = useQuery({
     queryKey: ['bootstrap-plan', projectId, project?.agentType, project?.name, project?.description],
     queryFn: () => window.agentmat.projects.bootstrapPlan(projectId!),
-    enabled: !!projectId && !!project,
+    enabled: !!projectId && !!project && planBridgeReady,
   });
 
   const updateMutation = useMutation({
@@ -387,7 +392,9 @@ export default function ProjectDetailPage(): React.JSX.Element {
                 <Button
                   className="shrink-0"
                   onClick={() => bootstrapMutation.mutate()}
-                  disabled={bootstrapMutation.isPending || !bootstrapPlanQuery.data}
+                  disabled={
+                    bootstrapMutation.isPending || (planBridgeReady && !bootstrapPlanQuery.data)
+                  }
                 >
                   <Wand2 />
                   {bootstrapMutation.isPending ? 'Bootstrapping…' : 'Bootstrap Project'}
@@ -420,6 +427,12 @@ export default function ProjectDetailPage(): React.JSX.Element {
                       ))}
                     </ul>
                   </>
+                ) : !planBridgeReady ? (
+                  <p className="text-xs text-muted-foreground">
+                    Preview unavailable — this window is running an older preload script. Fully quit
+                    the app and start it again (<code className="font-mono">pnpm dev</code>) to see it.
+                    Bootstrapping still works.
+                  </p>
                 ) : bootstrapPlanQuery.isError ? (
                   <p className="text-xs text-destructive">
                     Could not load the plan: {(bootstrapPlanQuery.error as Error).message}

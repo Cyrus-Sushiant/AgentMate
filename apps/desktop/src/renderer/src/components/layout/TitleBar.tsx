@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Search, WindowMaximize, WindowMinimize, X } from '@/components/icons';
 import { SimpleTooltip } from '@/components/ui/tooltip';
+import { HistoryNav } from './HistoryNav';
 import { useIsDarkMode } from '@/lib/chartColors';
 import { useSearchStore } from '@/stores/searchStore';
 import { cn } from '@/lib/utils';
@@ -150,8 +151,13 @@ export function TitleBar(): React.JSX.Element {
         </div>
       </div>
 
-      <div className="absolute left-1/2 top-1/2 w-full max-w-md -translate-x-1/2 -translate-y-1/2 px-4 [-webkit-app-region:no-drag]">
-        <SearchTrigger />
+      {/* VS Code style command center: history arrows sit just left of the
+          centered search box. */}
+      <div className="absolute left-1/2 top-1/2 flex w-full max-w-xl -translate-x-1/2 -translate-y-1/2 items-center gap-1 px-4">
+        <HistoryNav />
+        <div className="min-w-0 flex-1 [-webkit-app-region:no-drag]">
+          <SearchTrigger />
+        </div>
       </div>
 
       {!isMac && <NativeCaptionButtons {...controlProps} />}
