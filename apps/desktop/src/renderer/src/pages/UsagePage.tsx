@@ -7,8 +7,9 @@ import {
   getUsageProvider,
   type ProviderUsage,
   type UsageProviderConfig,
+  type WidgetMode,
 } from '@agentmat/core';
-import { Bolt, ChartColumn, GripVertical, Pin, Plus, RefreshCw, X } from '@/components/icons';
+import { Bolt, ChartColumn, Clock, GripVertical, Pin, Plus, RefreshCw, X } from '@/components/icons';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -22,7 +23,7 @@ import {
 } from '@/components/ui/dialog';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { ProviderLogo } from '@/components/providerLogos';
-import { UsageCardBody } from '@/components/usage/UsageCard';
+import { UsageCardBody, hasSubscriptionView } from '@/components/usage/UsageCard';
 import { cn } from '@/lib/utils';
 import { queryKeys } from '@/lib/queryKeys';
 import { formatCost, formatTokens } from '@/lib/usageFormat';
@@ -67,6 +68,7 @@ export default function UsagePage(): React.JSX.Element {
 
   const settings = settingsQuery.data;
   const configs = settings?.usageProviderConfigs ?? {};
+  const cardModes = settings?.usageCardModes ?? {};
   const displayedIds = useMemo(
     () => orderedProviderIds(settings?.usageCardOrder ?? [], settings?.usageProviderConfigs ?? {}),
     [settings],
@@ -114,13 +116,26 @@ export default function UsagePage(): React.JSX.Element {
     await queryClient.invalidateQueries({ queryKey: USAGE_LIST_KEY });
   }
 
+  /** Pins whichever view the card is currently showing. */
   async function popOut(providerId: string): Promise<void> {
+    const name = getUsageProvider(providerId)?.name;
+    const mode = cardModes[providerId] ?? 'tokens';
+    const label = mode === 'subscription' ? `${name} plan limits` : name;
     try {
-      await window.agentmat.usage.openWidget(providerId);
-      toast.success(`${getUsageProvider(providerId)?.name} widget added to your desktop.`);
+      await window.agentmat.usage.openWidget(providerId, undefined, mode);
+      toast.success(`${label} widget added to your desktop.`);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Could not add the widget to your desktop.');
     }
+  }
+
+  /** Flip one card between the tokens view and the plan-limits view. */
+  async function toggleCardMode(providerId: string): Promise<void> {
+    const next: WidgetMode = cardModes[providerId] === 'subscription' ? 'tokens' : 'subscription';
+    await window.agentmat.settings.update({
+      usageCardModes: { ...cardModes, [providerId]: next },
+    });
+    await queryClient.invalidateQueries({ queryKey: queryKeys.settings });
   }
 
   async function refreshAll(): Promise<void> {
@@ -155,6 +170,7 @@ export default function UsagePage(): React.JSX.Element {
           if (!def) return null;
           const usage = usageById.get(id);
           const removable = def.dataSource !== 'local-log';
+          const cardMode = cardModes[id] ?? 'tokens';
           return (
             <motion.div key={id} layout transition={{ type: 'spring', stiffness: 400, damping: 35 }}>
               <Card
@@ -167,9 +183,9 @@ export default function UsagePage(): React.JSX.Element {
                     <div className="mr-auto flex min-w-0 items-center gap-2">
                       <ProviderLogo providerId={id} className="h-5 w-5 shrink-0" />
                       <span className="truncate text-sm font-semibold">{def.name}</span>
-                      {/* The card body hides its own header here, so the plan
-                          badge has to ride along with the title. */}
-                      {usage?.subscription?.plan && (
+                      {/* The body hides its own header here, so the plan badge
+                          rides along with the title — plan-limits view only. */}
+                      {cardMode === 'subscription' && usage?.subscription?.plan && (
                         <Badge variant="outline" className="shrink-0">
                           {usage.subscription.plan.label}
                         </Badge>
@@ -187,6 +203,27 @@ export default function UsagePage(): React.JSX.Element {
                         <GripVertical className="h-3.5 w-3.5" />
                       </span>
                     </SimpleTooltip>
+                    {/* Switches this card between tokens and plan limits in place;
+                        the pin below then pins whichever view is showing. */}
+                    {usage && hasSubscriptionView(usage) && (
+                      <SimpleTooltip
+                        label={
+                          cardMode === 'subscription' ? 'Show tokens and cost' : 'Show plan limits'
+                        }
+                      >
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => void toggleCardMode(id)}
+                        >
+                          {cardMode === 'subscription' ? (
+                            <ChartColumn className="h-3.5 w-3.5" />
+                          ) : (
+                            <Clock className="h-3.5 w-3.5" />
+                          )}
+                        </Button>
+                      </SimpleTooltip>
+                    )}
                     <SimpleTooltip label="Add to desktop">
                       <Button variant="ghost" size="icon" onClick={() => void popOut(id)}>
                         <Pin className="h-3.5 w-3.5" />
@@ -205,7 +242,7 @@ export default function UsagePage(): React.JSX.Element {
                     )}
                   </div>
                   {usage ? (
-                    <UsageCardBody usage={usage} def={def} hideHeader />
+                    <UsageCardBody usage={usage} def={def} hideHeader mode={cardMode} />
                   ) : (
                     <div className="flex flex-1 items-center gap-2 text-sm text-muted-foreground">
                       <span className={usageQuery.isError ? 'text-destructive' : undefined}>

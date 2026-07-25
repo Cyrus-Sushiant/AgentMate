@@ -59,6 +59,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   usageProviderConfigs: {},
   usageWidgets: [],
   usageCardOrder: [],
+  usageCardModes: {},
 };
 
 /** Older projects.json entries predate the notifications and prompt fields. */

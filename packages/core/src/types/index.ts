@@ -1,4 +1,4 @@
-import type { DesktopWidgetInstance, UsageProviderConfig } from '../usage/types.js';
+import type { DesktopWidgetInstance, UsageProviderConfig, WidgetMode } from '../usage/types.js';
 
 export type ThemeMode = 'light' | 'dark' | 'system';
 
@@ -44,6 +44,11 @@ export interface AppSettings {
   usageWidgets: DesktopWidgetInstance[];
   /** User-defined display order for the Usage page's provider cards (provider ids). */
   usageCardOrder: string[];
+  /**
+   * Which view each Usage page card shows, keyed by provider id. Only providers
+   * the user switched to plan limits appear here; anything absent shows tokens.
+   */
+  usageCardModes: Record<string, WidgetMode>;
 }
 
 export type AgentType = 'claude-code' | 'gemini' | 'opencode' | 'codex' | 'cursor' | 'generic';

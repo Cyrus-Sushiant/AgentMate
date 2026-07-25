@@ -49,8 +49,8 @@ export function registerUsageHandlers(): void {
   );
   ipcMain.handle(
     IPC.usage.openWidget,
-    (_e, providerId: string, size?: WidgetSize): Promise<DesktopWidgetInstance> =>
-      widgetManager.open(providerId, size),
+    (_e, providerId: string, size?: WidgetSize, mode?: WidgetMode): Promise<DesktopWidgetInstance> =>
+      widgetManager.open(providerId, size, mode),
   );
   ipcMain.handle(IPC.usage.closeWidget, (_e, id: string): Promise<void> =>
     widgetManager.close(id),

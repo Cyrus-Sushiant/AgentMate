@@ -425,8 +425,12 @@ const usage = {
   listWidgets: (): Promise<DesktopWidgetInstance[]> => ipcRenderer.invoke(IPC.usage.listWidgets),
   getWidget: (id: string): Promise<DesktopWidgetInstance | null> =>
     ipcRenderer.invoke(IPC.usage.getWidget, id),
-  openWidget: (providerId: string, size?: WidgetSize): Promise<DesktopWidgetInstance> =>
-    ipcRenderer.invoke(IPC.usage.openWidget, providerId, size),
+  openWidget: (
+    providerId: string,
+    size?: WidgetSize,
+    mode?: WidgetMode,
+  ): Promise<DesktopWidgetInstance> =>
+    ipcRenderer.invoke(IPC.usage.openWidget, providerId, size, mode),
   closeWidget: (id: string): Promise<void> => ipcRenderer.invoke(IPC.usage.closeWidget, id),
   setWidgetStyle: (id: string, style: WidgetStyle): Promise<void> =>
     ipcRenderer.invoke(IPC.usage.setWidgetStyle, id, style),

@@ -25,7 +25,13 @@ const windows = new Map<string, BrowserWindow>();
 
 async function readWidgets(): Promise<DesktopWidgetInstance[]> {
   const settings = await store.getSettings();
-  return settings.usageWidgets ?? [];
+  // Anything that isn't the subscription widget is a token widget — this also
+  // folds in widgets persisted before modes existed, and the short-lived 'auto'
+  // value an earlier build wrote.
+  return (settings.usageWidgets ?? []).map((w) => ({
+    ...w,
+    mode: w.mode === 'subscription' ? 'subscription' : 'tokens',
+  }));
 }
 
 async function writeWidgets(widgets: DesktopWidgetInstance[]): Promise<void> {
@@ -111,16 +117,22 @@ export const widgetManager = {
     return widgets.find((w) => w.id === id) ?? null;
   },
 
-  async open(providerId: string, size: WidgetSize = 'medium'): Promise<DesktopWidgetInstance> {
+  async open(
+    providerId: string,
+    size: WidgetSize = 'medium',
+    mode: WidgetMode = 'tokens',
+  ): Promise<DesktopWidgetInstance> {
     const instance: DesktopWidgetInstance = {
       id: randomUUID(),
       providerId,
-      // Cascade new widgets slightly so they don't stack exactly.
+      // Cascade new widgets slightly so they don't stack exactly. A provider can
+      // have several widgets pinned at once (tokens and subscription side by
+      // side), so this keeps the newest from landing on top of the last.
       x: 80 + windows.size * 24,
       y: 80 + windows.size * 24,
       size,
       style: 'colorful',
-      mode: 'auto',
+      mode,
     };
     await upsertWidget(instance);
     createWidgetWindow(instance);

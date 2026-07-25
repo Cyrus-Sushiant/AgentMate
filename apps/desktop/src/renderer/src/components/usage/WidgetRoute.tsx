@@ -44,11 +44,11 @@ export default function WidgetRoute(): React.JSX.Element {
 
   const def = providerId ? getUsageProvider(providerId) : undefined;
   const usage = usageQuery.data;
-  const mode = instance?.mode ?? 'auto';
+  // Widgets pinned before modes existed have no `mode` — they are token
+  // widgets and must stay that way.
+  const mode = instance?.mode ?? 'tokens';
 
-  // 'auto' resolves to the subscription view when the account has limits, so
-  // the toggle's job is to pin the *other* view explicitly.
-  const showingLimits = mode !== 'tokens' && !!usage && hasSubscriptionView(usage);
+  const showingLimits = mode === 'subscription' && !!usage && hasSubscriptionView(usage);
   const canToggle = !!usage && hasSubscriptionView(usage);
 
   async function toggleMode(): Promise<void> {

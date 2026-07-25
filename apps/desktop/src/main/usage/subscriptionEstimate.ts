@@ -106,27 +106,41 @@ function activeBlock(blocks: SessionBlock[], now: number): SessionBlock | null {
 }
 
 /**
- * Sum activity inside the current 7-day window. `anchor` phases the window, so
- * the boundary lands on the same weekday/time the account first used Claude
- * Code — matching how the real weekly limit is anchored to account history
- * rather than to a calendar week.
+ * Bucket activity into 7-day windows phased off `anchor`, so a boundary lands on
+ * the same weekday/time the account first used Claude Code — matching how the
+ * real weekly limit tracks account history rather than a calendar week.
+ *
+ * Returns the window in progress plus the priciest *completed* one, which is
+ * what calibrates the weekly budget. Without that calibration a heavy user sits
+ * pinned at 100% forever, which reads as "quota exhausted" when it only means
+ * the constant below is too small for this account.
  */
-function currentWeek(
+function weekBuckets(
   entries: UsageEntry[],
   anchor: number,
   now: number,
-): { start: number; end: number; tokens: number; costUsd: number } {
-  const elapsed = now - anchor;
-  const start = anchor + Math.floor(elapsed / WEEK_MS) * WEEK_MS;
-  let tokens = 0;
-  let costUsd = 0;
+): { current: { start: number; end: number; tokens: number; costUsd: number }; completedMax: number } {
+  const currentIndex = Math.floor((now - anchor) / WEEK_MS);
+  const start = anchor + currentIndex * WEEK_MS;
+  const current = { start, end: start + WEEK_MS, tokens: 0, costUsd: 0 };
+  const completed = new Map<number, number>();
+
   for (const entry of entries) {
     const at = entry.at.getTime();
-    if (at < start || at > now) continue;
-    tokens += entry.tokens.total;
-    costUsd += estimateCost(entry.model, entry.tokens) ?? 0;
+    if (at < anchor || at > now) continue;
+    const cost = estimateCost(entry.model, entry.tokens) ?? 0;
+    const index = Math.floor((at - anchor) / WEEK_MS);
+    if (index === currentIndex) {
+      current.tokens += entry.tokens.total;
+      current.costUsd += cost;
+    } else {
+      completed.set(index, (completed.get(index) ?? 0) + cost);
+    }
   }
-  return { start, end: start + WEEK_MS, tokens, costUsd };
+
+  let completedMax = 0;
+  for (const cost of completed.values()) completedMax = Math.max(completedMax, cost);
+  return { current, completedMax };
 }
 
 /**
@@ -167,11 +181,12 @@ export function estimateSubscriptionWindows(
 
   const anchor = weeklyAnchor ?? (entries.length > 0 ? oldestEntryMs(entries) : null);
   if (anchor !== null) {
-    const week = currentWeek(entries, anchor, now);
+    const { current: week, completedMax } = weekBuckets(entries, anchor, now);
+    const weekBudget = calibrate(budgets.week, completedMax);
     windows.push({
       key: 'week',
       label: 'Weekly',
-      percent: toPercent(week.costUsd, budgets.week),
+      percent: toPercent(week.costUsd, weekBudget),
       resetAt: new Date(week.end).toISOString(),
       usedTokens: week.tokens,
       usedUsd: week.costUsd,

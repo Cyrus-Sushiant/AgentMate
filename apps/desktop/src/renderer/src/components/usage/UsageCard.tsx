@@ -37,10 +37,12 @@ export function hasSubscriptionView(usage: ProviderUsage): boolean {
 }
 
 /**
- * The inner content of a Token Usage card. Renders one of two views: the token
- * view (tokens + cost + burn-rate sparkline), or — for accounts billed by
- * subscription rather than by API key — the plan's rolling limits with their
- * reset countdowns, which is what actually constrains those users.
+ * The inner content of a Token Usage card. Renders whichever of the two widgets
+ * `mode` asks for: the original token view (tokens + cost + burn-rate
+ * sparkline), or the subscription view (the plan's rolling limits and their
+ * reset countdowns). The token view is the default and is deliberately
+ * untouched by the subscription feature — right down to the header, which only
+ * grows a plan badge in subscription mode.
  */
 export function UsageCardBody({
   usage,
@@ -48,11 +50,13 @@ export function UsageCardBody({
   style = 'colorful',
   compact = false,
   hideHeader = false,
-  mode = 'auto',
+  mode = 'tokens',
 }: UsageCardBodyProps): React.JSX.Element {
   const accent = style === 'colorful' ? def.accentColor : 'hsl(var(--foreground))';
   const subscription = usage.subscription;
-  const plan = subscription?.plan;
+  // Only the subscription widget shows the plan; the token widget looks exactly
+  // as it did before subscriptions existed.
+  const plan = mode === 'subscription' ? subscription?.plan : null;
 
   const header = hideHeader ? null : (
     <div className="flex items-center gap-2">
@@ -97,7 +101,7 @@ export function UsageCardBody({
 
   // 'subscription' is a request, not a guarantee — an API-billed account has no
   // limits to draw, so it falls back to tokens rather than rendering an empty card.
-  if (mode !== 'tokens' && hasSubscriptionView(usage) && subscription) {
+  if (mode === 'subscription' && hasSubscriptionView(usage) && subscription) {
     return (
       <SubscriptionBody
         subscription={subscription}
