@@ -35,7 +35,7 @@ export default function RemotePage(): React.JSX.Element {
   return (
     <div className="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-4 p-6">
       <Tabs defaultValue="host" className="flex flex-col gap-4">
-        <TabsList className="self-start">
+        <TabsList containerClassName="self-start">
           <TabsTrigger value="host" className="gap-1.5">
             <Broadcast className="h-3.5 w-3.5" /> Host
           </TabsTrigger>

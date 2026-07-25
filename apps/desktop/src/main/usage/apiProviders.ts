@@ -5,6 +5,7 @@ import {
   type UsageWindow,
 } from '@agentmat/core';
 import { connectUsage, errorUsage } from './shared';
+import { fetchCursorUsage } from './cursor';
 
 // Live usage for API-key providers. Each fetcher runs in the main (Node)
 // process, so the renderer CSP never applies. These endpoints mostly expose
@@ -155,6 +156,9 @@ const FETCHERS: Record<string, (cfg: UsageProviderConfig) => Promise<ProviderUsa
   deepseek: fetchDeepSeek,
   moonshot: fetchMoonshot,
   zai: fetchZai,
+  // Cursor reports per-call token counts, so it fills in real periods and an
+  // Auto/API breakdown rather than the cost-only shape above.
+  cursor: fetchCursorUsage,
 };
 
 /** Fetch usage for an api-key provider, or a connect/error snapshot. */

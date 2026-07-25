@@ -236,7 +236,10 @@ export function AskAiChat({
     <div className={cn('flex flex-1 flex-col gap-3 overflow-hidden', className)}>
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-background/40 p-2">
         <Tabs value={provider} onValueChange={(v) => setProvider(v as AiProvider)}>
-          <TabsList className="h-8 w-auto border-none bg-foreground/[0.06] p-1 rounded-lg">
+          <TabsList
+            containerClassName="border-b-0"
+            className="mb-0 h-8 w-auto border-none bg-foreground/[0.06] p-1 rounded-lg"
+          >
             <TabsTrigger
               value="openai"
               className="h-6 rounded-md border-none px-2.5 text-xs data-[state=active]:bg-background data-[state=active]:shadow-sm"

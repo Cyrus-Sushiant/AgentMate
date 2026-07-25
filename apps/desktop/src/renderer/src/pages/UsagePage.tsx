@@ -348,7 +348,7 @@ function AddProviderDialog({
                     {def.dataSource === 'local-log'
                       ? 'Local logs · automatic'
                       : isApi
-                        ? 'API key'
+                        ? (def.keyHint ?? 'API key')
                         : 'Coming soon'}
                   </div>
                 </div>
@@ -359,7 +359,7 @@ function AddProviderDialog({
                     <div className="flex items-center gap-2">
                       <Input
                         type="password"
-                        placeholder="API key"
+                        placeholder={def.keyHint ?? 'API key'}
                         value={keys[def.id] ?? ''}
                         onChange={(e) => setKeys((k) => ({ ...k, [def.id]: e.target.value }))}
                         className="h-8 w-40"

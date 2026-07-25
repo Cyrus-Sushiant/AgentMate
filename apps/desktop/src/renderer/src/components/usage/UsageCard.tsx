@@ -3,6 +3,7 @@ import type {
   SubscriptionUsage,
   SubscriptionWindow,
   UsageProviderDefinition,
+  UsageSegment,
   WidgetMode,
   WidgetStyle,
 } from '@agentmat/core';
@@ -79,7 +80,7 @@ export function UsageCardBody({
         {header}
         <p className="text-xs text-muted-foreground">
           {def.dataSource === 'api-key'
-            ? 'Add an API key to track usage.'
+            ? `${def.keyHint ?? 'API key'} required to track usage.`
             : 'Integration coming soon.'}
         </p>
       </div>
@@ -114,9 +115,15 @@ export function UsageCardBody({
   }
 
   const todayTokens = usage.today.tokens.total;
-  const primaryTokens = todayTokens > 0 ? todayTokens : usage.last30d.tokens.total;
+  const period = todayTokens > 0 ? usage.today : usage.last30d;
+  const primaryTokens = period.tokens.total;
   const primaryLabel = todayTokens > 0 ? 'today' : 'last 30d';
   const cost = formatCost(usage.today.costUsd ?? usage.last30d.costUsd);
+  // Segments partition the period the headline number came from, so the rows
+  // below always add up to it. Empty slices are dropped rather than shown as 0.
+  const segments = (period.segments ?? []).filter(
+    (s) => s.tokens.total > 0 || (s.requests ?? 0) > 0,
+  );
   const series = usage.series ?? [];
   const window = usage.window;
   const reset = formatReset(window?.resetAt);
@@ -152,6 +159,10 @@ export function UsageCardBody({
         </div>
       )}
 
+      {segments.length > 0 && (
+        <SegmentBreakdown segments={segments} total={primaryTokens} accent={accent} />
+      )}
+
       {!compact && series.length > 1 && (
         <div className="mt-auto">
           <SparklineChart
@@ -167,6 +178,72 @@ export function UsageCardBody({
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+/** Shades of the one accent, so a split reads as one provider's usage. */
+function segmentOpacity(index: number): number {
+  return [1, 0.55, 0.3, 0.18][index] ?? 0.18;
+}
+
+/**
+ * How one period splits across named slices — Cursor's Auto mode versus what it
+ * billed at API rates. A stacked share bar carries the ratio at a glance (the
+ * part that still works at widget size), and a row per slice gives the tokens,
+ * cost and request count behind it.
+ */
+function SegmentBreakdown({
+  segments,
+  total,
+  accent,
+}: {
+  segments: UsageSegment[];
+  total: number;
+  accent: string;
+}): React.JSX.Element {
+  // The bar is a ratio of the slices themselves — falling back to the period
+  // total would leave a phantom gap when a slice has requests but no tokens.
+  const barTotal = segments.reduce((sum, s) => sum + s.tokens.total, 0) || total;
+
+  return (
+    <div className="space-y-1">
+      {barTotal > 0 && (
+        <div className="flex h-1.5 w-full gap-px overflow-hidden rounded-full bg-foreground/10">
+          {segments.map((segment, i) => (
+            <div
+              key={segment.key}
+              style={{
+                width: `${(segment.tokens.total / barTotal) * 100}%`,
+                backgroundColor: accent,
+                opacity: segmentOpacity(i),
+              }}
+            />
+          ))}
+        </div>
+      )}
+      {segments.map((segment, i) => {
+        const segmentCost = formatCost(segment.costUsd);
+        return (
+          <div key={segment.key} className="flex items-baseline gap-2 text-[11px]">
+            <span className="flex min-w-0 items-center gap-1.5 text-muted-foreground">
+              <span
+                className="h-1.5 w-1.5 shrink-0 rounded-full"
+                style={{ backgroundColor: accent, opacity: segmentOpacity(i) }}
+              />
+              <span className="truncate">{segment.label}</span>
+            </span>
+            <span className="ml-auto shrink-0 tabular-nums">
+              {formatTokens(segment.tokens.total)}
+            </span>
+            {segmentCost && (
+              <span className="w-12 shrink-0 text-right tabular-nums text-muted-foreground">
+                {segmentCost}
+              </span>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }

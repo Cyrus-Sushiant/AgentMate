@@ -28,6 +28,8 @@ export interface UsageProviderDefinition {
   supportsCost: boolean;
   /** Marketing/site link, shown on the "Connect" state. */
   homepageUrl?: string;
+  /** What kind of key the provider wants, when "API key" is too vague. */
+  keyHint?: string;
   /** Brand accent used by the monogram logo fallback and the Colorful widget style. */
   accentColor: string;
 }
@@ -56,11 +58,30 @@ export interface UsageWindow {
   resetAt: string | null;
 }
 
+/**
+ * A named slice of one period's consumption — Cursor's Auto-mode vs API usage,
+ * for example. Segments are a partition: they sum to the period they hang off,
+ * so a card can show the split without a second fetch or a second period.
+ */
+export interface UsageSegment {
+  /** Stable id within the provider ('auto', 'api'). */
+  key: string;
+  /** Display label — 'Auto', 'API'. */
+  label: string;
+  tokens: UsageTokens;
+  /** Cost attributed to this slice, or null when the source can't price it. */
+  costUsd: number | null;
+  /** Request count, for sources that bill per request rather than per token. */
+  requests?: number;
+}
+
 /** Per-period tokens + cost, keyed today / last 7d / last 30d. */
 export interface UsagePeriod {
   tokens: UsageTokens;
   /** Estimated cost in `currency`, or null when it can't be priced. */
   costUsd: number | null;
+  /** Optional breakdown of this period; omitted when the provider has no split. */
+  segments?: UsageSegment[];
 }
 
 // --- Subscription (non-API) accounts --------------------------------------
