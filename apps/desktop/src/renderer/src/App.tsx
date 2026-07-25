@@ -6,7 +6,7 @@ import { TooltipProvider } from './components/ui/tooltip';
 import { ConfirmDialogHost } from './components/ConfirmDialog';
 import { UpdateManager } from './components/UpdateManager';
 import { queryClient } from './queryClient';
-import { initTheme } from './stores/themeStore';
+import { initTheme, useThemeStore } from './stores/themeStore';
 import { initDefaultCli } from './stores/cliStore';
 import { initPingTargets } from './stores/pingTargetsStore';
 import { initDashboardOrder } from './stores/dashboardOrderStore';
@@ -27,6 +27,22 @@ import RemotePage from './pages/RemotePage';
 import SettingsPage from './pages/SettingsPage';
 import UsagePage from './pages/UsagePage';
 import WidgetRoute from './components/usage/WidgetRoute';
+
+/* Glass toasts: richColors is off on purpose — it paints an opaque per-type
+   background that would defeat the frosted surface. The type accents live in
+   index.css under .toaster-glass instead. */
+function AppToaster(): React.JSX.Element {
+  const theme = useThemeStore((s) => s.theme);
+  return (
+    <Toaster
+      theme={theme}
+      className="toaster-glass"
+      position="bottom-right"
+      gap={12}
+      closeButton
+    />
+  );
+}
 
 export default function App(): React.JSX.Element {
   useEffect(() => {
@@ -62,7 +78,7 @@ export default function App(): React.JSX.Element {
             </Route>
           </Routes>
         </HashRouter>
-        <Toaster theme="system" position="bottom-right" richColors closeButton />
+        <AppToaster />
         <ConfirmDialogHost />
         <UpdateManager />
       </TooltipProvider>

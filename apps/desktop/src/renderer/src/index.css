@@ -173,6 +173,163 @@ body {
   border-color: hsl(var(--foreground) / 0.1);
 }
 
+/* Frosted-glass re-skin of sonner's toasts so they match .glass and the rest
+   of the surfaces. Every selector is prefixed with .toaster-glass (the class
+   we put on <Toaster>) purely to outrank sonner's own injected stylesheet,
+   which uses [data-sonner-toast][data-styled='true'] throughout.
+   Note: ::before and ::after on the toast element are reserved by sonner for
+   its swipe and expand hit areas, so the accent edge is an inset box-shadow. */
+.toaster-glass [data-sonner-toast][data-styled='true'] {
+  --toast-accent: hsl(var(--foreground) / 0.4);
+  --toast-tint: hsl(var(--foreground) / 0.05);
+  padding: 14px 16px;
+  gap: 12px;
+  align-items: flex-start;
+  border-radius: 14px;
+  border: 1px solid hsl(var(--foreground) / 0.1);
+  color: hsl(var(--card-foreground));
+  background:
+    radial-gradient(120% 120% at 0% 0%, var(--toast-tint), transparent 65%),
+    hsl(var(--card) / 0.66);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  box-shadow:
+    inset 3px 0 0 0 var(--toast-accent),
+    inset 0 1px 0 0 hsl(0 0% 100% / 0.4),
+    0 12px 32px -12px hsl(0 0% 0% / 0.4),
+    0 2px 8px -4px hsl(0 0% 0% / 0.25);
+}
+
+.dark .toaster-glass [data-sonner-toast][data-styled='true'] {
+  --toast-tint: hsl(var(--foreground) / 0.07);
+  background:
+    radial-gradient(120% 120% at 0% 0%, var(--toast-tint), transparent 65%),
+    hsl(var(--card) / 0.58);
+  border-color: hsl(var(--foreground) / 0.12);
+  box-shadow:
+    inset 3px 0 0 0 var(--toast-accent),
+    inset 0 1px 0 0 hsl(0 0% 100% / 0.07),
+    0 16px 40px -12px hsl(0 0% 0% / 0.7),
+    0 2px 8px -4px hsl(0 0% 0% / 0.5);
+}
+
+/* Per-type accent: drives the left edge, the tint wash and the icon. */
+.toaster-glass [data-sonner-toast][data-type='success'] {
+  --toast-accent: hsl(var(--success));
+  --toast-tint: hsl(var(--success) / 0.16);
+}
+.toaster-glass [data-sonner-toast][data-type='error'] {
+  --toast-accent: hsl(var(--destructive));
+  --toast-tint: hsl(var(--destructive) / 0.16);
+}
+.toaster-glass [data-sonner-toast][data-type='warning'] {
+  --toast-accent: hsl(var(--warning));
+  --toast-tint: hsl(var(--warning) / 0.16);
+}
+.toaster-glass [data-sonner-toast][data-type='info'] {
+  --toast-accent: hsl(205 85% 45%);
+  --toast-tint: hsl(205 85% 45% / 0.16);
+}
+.dark .toaster-glass [data-sonner-toast][data-type='info'] {
+  --toast-accent: hsl(205 90% 58%);
+  --toast-tint: hsl(205 90% 58% / 0.18);
+}
+.toaster-glass [data-sonner-toast][data-type='loading'] {
+  --toast-accent: hsl(var(--primary));
+  --toast-tint: hsl(var(--primary) / 0.12);
+}
+
+/* The type icon sits in a soft tinted disc instead of floating bare. */
+.toaster-glass [data-sonner-toast][data-styled='true'] [data-icon] {
+  width: 24px;
+  height: 24px;
+  margin: -1px 0 0 0;
+  border-radius: 999px;
+  align-items: center;
+  justify-content: center;
+  color: var(--toast-accent);
+  background: color-mix(in srgb, var(--toast-accent) 16%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--toast-accent) 28%, transparent);
+}
+
+.toaster-glass [data-sonner-toast][data-styled='true'] [data-icon] svg {
+  width: 15px;
+  height: 15px;
+  margin: 0;
+}
+
+.toaster-glass [data-sonner-toast][data-styled='true'] [data-content] {
+  gap: 3px;
+  padding-top: 2px;
+}
+
+.toaster-glass [data-sonner-toast][data-styled='true'] [data-title] {
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.35;
+  letter-spacing: -0.005em;
+}
+
+.toaster-glass [data-sonner-toast][data-styled='true'] [data-description] {
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: hsl(var(--muted-foreground));
+}
+
+/* Action / cancel buttons pick up the toast's accent as a translucent pill. */
+.toaster-glass [data-sonner-toast][data-styled='true'] [data-button] {
+  height: 26px;
+  border-radius: 8px;
+  font-size: 12px;
+  color: hsl(var(--card-foreground));
+  background: color-mix(in srgb, var(--toast-accent) 20%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--toast-accent) 35%, transparent);
+  transition: background 150ms ease;
+}
+
+.toaster-glass [data-sonner-toast][data-styled='true'] [data-button]:hover {
+  background: color-mix(in srgb, var(--toast-accent) 32%, transparent);
+}
+
+.toaster-glass [data-sonner-toast][data-styled='true'] [data-cancel] {
+  color: hsl(var(--muted-foreground));
+  background: hsl(var(--foreground) / 0.08);
+  box-shadow: inset 0 0 0 1px hsl(var(--foreground) / 0.12);
+}
+
+/* Close button: a small glass disc that lifts on hover. */
+.toaster-glass [data-sonner-toast][data-styled='true'] [data-close-button],
+.toaster-glass[data-sonner-theme='dark'] [data-sonner-toast] [data-close-button] {
+  height: 22px;
+  width: 22px;
+  color: hsl(var(--muted-foreground));
+  border: 1px solid hsl(var(--foreground) / 0.12);
+  background: hsl(var(--card) / 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-shadow: 0 2px 6px -2px hsl(0 0% 0% / 0.35);
+  transition:
+    color 150ms ease,
+    background 150ms ease,
+    border-color 150ms ease;
+}
+
+.toaster-glass [data-sonner-toast][data-styled='true']:hover [data-close-button]:hover,
+.toaster-glass[data-sonner-theme='dark'] [data-sonner-toast] [data-close-button]:hover {
+  color: hsl(var(--foreground));
+  background: hsl(var(--accent) / 0.95);
+  border-color: hsl(var(--foreground) / 0.22);
+}
+
+/* Our base rule outranks sonner's focus ring, so restate it on top of the
+   accent edge rather than letting it be swallowed. */
+.toaster-glass [data-sonner-toast][data-styled='true']:focus-visible {
+  box-shadow:
+    inset 3px 0 0 0 var(--toast-accent),
+    0 0 0 2px hsl(var(--ring) / 0.6),
+    0 12px 32px -12px hsl(0 0% 0% / 0.45);
+}
+
 /* When the renderer is loaded as a floating desktop widget (#/widget/:id sets
    data-widget on <html>), the page itself must be see-through so the frosted
    glass card blurs the actual desktop behind it. */

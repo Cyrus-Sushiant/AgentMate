@@ -136,11 +136,12 @@ export type WidgetSize = 'small' | 'medium' | 'large';
 export type WidgetStyle = 'mono' | 'colorful';
 
 /**
- * What a widget shows. 'auto' prefers the subscription view whenever the
- * provider reports one and falls back to tokens, which is what a subscription
- * user wants without configuring anything.
+ * What a widget shows. These are two separate widgets a user can pin side by
+ * side, not two states of one: 'tokens' is the original tokens/cost card, and
+ * 'subscription' is the plan's rolling limits. Never infer one from the other —
+ * a pinned widget keeps showing what it was pinned to show.
  */
-export type WidgetMode = 'auto' | 'tokens' | 'subscription';
+export type WidgetMode = 'tokens' | 'subscription';
 
 /** A floating desktop widget the user has pinned; persisted in AppSettings. */
 export interface DesktopWidgetInstance {
@@ -150,7 +151,7 @@ export interface DesktopWidgetInstance {
   y: number;
   size: WidgetSize;
   style: WidgetStyle;
-  /** Absent on widgets pinned before modes existed — treat as 'auto'. */
+  /** Absent on widgets pinned before modes existed — those are token widgets. */
   mode?: WidgetMode;
 }
 

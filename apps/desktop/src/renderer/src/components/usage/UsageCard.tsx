@@ -26,7 +26,7 @@ export interface UsageCardBodyProps {
   compact?: boolean;
   /** Hide the logo + name row when the host already renders the title (Usage page). */
   hideHeader?: boolean;
-  /** Which view to render; 'auto' prefers subscription limits when available. */
+  /** Which of the two widgets this is. Defaults to the original tokens view. */
   mode?: WidgetMode;
 }
 
