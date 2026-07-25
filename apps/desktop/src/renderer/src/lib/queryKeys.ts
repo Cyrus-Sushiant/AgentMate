@@ -15,9 +15,12 @@ export const queryKeys = {
   appVersion: ['app-version'] as const,
   promptHistory: ['prompt-history'] as const,
   promptHistorySearch: (query: string) => ['prompt-history', query] as const,
+  // Nested under the same root so invalidating `promptHistory` refreshes it too.
+  projectPromptHistory: (projectId: string) => ['prompt-history', 'project', projectId] as const,
   ipGeo: ['ip-geo'] as const,
   cliUpdateCheck: (cliId: string, version: string | null) =>
     ['cli-update-check', cliId, version] as const,
+  projectDrafts: (projectId: string) => ['project-drafts', projectId] as const,
   scheduledTasks: (projectId: string) => ['scheduled-tasks', projectId] as const,
   claudeHooks: (projectId: string) => ['claude-hooks', projectId] as const,
   gitStatus: (projectId: string) => ['git-status', projectId] as const,

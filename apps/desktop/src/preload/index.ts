@@ -6,6 +6,8 @@ import type {
   DetectedClaudeHook,
   InstalledCli,
   Project,
+  ProjectDraft,
+  ProjectDraftStatus,
   ProjectNotificationSettings,
   PromptTemplate,
   ActivityEvent,
@@ -21,6 +23,7 @@ import type {
   ProviderUsage,
   UsageProviderConfig,
   DesktopWidgetInstance,
+  WidgetMode,
   WidgetSize,
   WidgetStyle,
 } from '@agentmat/core';
@@ -29,6 +32,7 @@ import type {
   BootstrapResult,
   CreateTerminalOptions,
   CreateProjectInput,
+  CreateProjectDraftInput,
   CreateScheduledTasksInput,
   SaveTemplateInput,
   DirectoryEntry,
@@ -256,9 +260,11 @@ const shellApi = {
 };
 
 const promptHistory = {
-  list: (): Promise<PromptHistoryEntry[]> => ipcRenderer.invoke(IPC.promptHistory.list),
-  search: (query: string): Promise<PromptHistoryEntry[]> =>
-    ipcRenderer.invoke(IPC.promptHistory.search, query),
+  /** Pass a projectId to get only that project's entries. */
+  list: (projectId?: string | null): Promise<PromptHistoryEntry[]> =>
+    ipcRenderer.invoke(IPC.promptHistory.list, projectId),
+  search: (query: string, projectId?: string | null): Promise<PromptHistoryEntry[]> =>
+    ipcRenderer.invoke(IPC.promptHistory.search, query, projectId),
   add: (input: AddPromptHistoryInput): Promise<PromptHistoryEntry> =>
     ipcRenderer.invoke(IPC.promptHistory.add, input),
   remove: (id: string): Promise<void> => ipcRenderer.invoke(IPC.promptHistory.remove, id),
@@ -291,6 +297,17 @@ const system = {
 
 const ipGeo = {
   lookup: (): Promise<IpGeoInfo> => ipcRenderer.invoke(IPC.ipGeo.lookup),
+};
+
+const projectDrafts = {
+  listByProject: (projectId: string): Promise<ProjectDraft[]> =>
+    ipcRenderer.invoke(IPC.projectDrafts.listByProject, projectId),
+  create: (input: CreateProjectDraftInput): Promise<ProjectDraft> =>
+    ipcRenderer.invoke(IPC.projectDrafts.create, input),
+  updateStatus: (draftId: string, status: ProjectDraftStatus): Promise<void> =>
+    ipcRenderer.invoke(IPC.projectDrafts.updateStatus, draftId, status),
+  remove: (draftId: string): Promise<void> =>
+    ipcRenderer.invoke(IPC.projectDrafts.remove, draftId),
 };
 
 const scheduledTasks = {
@@ -415,6 +432,8 @@ const usage = {
     ipcRenderer.invoke(IPC.usage.setWidgetStyle, id, style),
   setWidgetSize: (id: string, size: WidgetSize): Promise<void> =>
     ipcRenderer.invoke(IPC.usage.setWidgetSize, id, size),
+  setWidgetMode: (id: string, mode: WidgetMode): Promise<void> =>
+    ipcRenderer.invoke(IPC.usage.setWidgetMode, id, mode),
   onWidgetUpdated: (callback: (payload: { id: string }) => void): (() => void) =>
     subscribe(IPC.usage.onWidgetUpdated, callback),
 };
@@ -453,6 +472,7 @@ const agentmatApi = {
   speech,
   system,
   ipGeo,
+  projectDrafts,
   scheduledTasks,
   notifications,
   git,

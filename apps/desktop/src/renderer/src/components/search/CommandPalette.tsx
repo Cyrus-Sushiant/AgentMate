@@ -154,14 +154,20 @@ export function CommandPalette(): React.JSX.Element {
                   {historyQuery.data!.map((entry) => (
                     <CommandPrimitive.Item
                       key={entry.id}
-                      value={`history ${entry.promptType} ${entry.targetAI} ${entry.content} ${entry.tags.join(' ')}`}
+                      value={
+                        entry.source === 'translate'
+                          ? `history translation ${entry.content} ${entry.tags.join(' ')}`
+                          : `history ${entry.promptType} ${entry.targetAI} ${entry.content} ${entry.tags.join(' ')}`
+                      }
                       onSelect={() => selectHistoryEntry(entry.id)}
                       className="flex cursor-default select-none items-center gap-2.5 rounded-md px-2 py-2 text-sm outline-none aria-selected:bg-accent aria-selected:text-accent-foreground"
                     >
                       <History className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                       <div className="min-w-0">
                         <div className="truncate">
-                          {entry.promptType} · {entry.targetAI}
+                          {entry.source === 'translate'
+                            ? 'Translation'
+                            : `${entry.promptType} · ${entry.targetAI}`}
                         </div>
                         <div className="truncate text-xs text-muted-foreground">{entry.content}</div>
                       </div>

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useLocation } from 'react-router-dom';
 import { toast } from 'sonner';
-import { Copy, Eye, History, Languages, Search, Sparkles, Tag, Trash2, X } from '@/components/icons';
+import { Copy, Eye, Folder, History, Languages, Search, Sparkles, Tag, Trash2, X } from '@/components/icons';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -95,6 +95,18 @@ export default function PromptHistoryPage(): React.JSX.Element {
   const [selectedEntry, setSelectedEntry] = useState<PromptHistoryEntry | null>(null);
   const queryClient = useQueryClient();
 
+  // Only used to turn an entry's projectId into a name — entries outlive the
+  // projects they came from, so a missing project just means no badge.
+  const projectsQuery = useQuery({
+    queryKey: queryKeys.projects,
+    queryFn: () => window.agentmat.projects.list(),
+  });
+
+  function projectName(projectId: string | null): string | null {
+    if (!projectId) return null;
+    return projectsQuery.data?.find((p) => p.id === projectId)?.name ?? null;
+  }
+
   const historyQuery = useQuery({
     queryKey: search.trim() ? queryKeys.promptHistorySearch(search.trim()) : queryKeys.promptHistory,
     queryFn: () =>
@@ -172,19 +184,27 @@ export default function PromptHistoryPage(): React.JSX.Element {
               <CardHeader>
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex flex-wrap items-center gap-1.5">
-                    <CardTitle className="text-sm">{entry.promptType}</CardTitle>
-                    <Badge variant="outline">{entry.targetAI}</Badge>
-                    <Badge variant="secondary">
-                      {entry.source === 'translate' ? (
-                        <>
+                    {entry.source === 'translate' ? (
+                      <>
+                        <CardTitle className="text-sm">Translation</CardTitle>
+                        <Badge variant="secondary">
                           <Languages className="h-3 w-3" /> Translated
-                        </>
-                      ) : (
-                        <>
+                        </Badge>
+                      </>
+                    ) : (
+                      <>
+                        <CardTitle className="text-sm">{entry.promptType}</CardTitle>
+                        <Badge variant="outline">{entry.targetAI}</Badge>
+                        <Badge variant="secondary">
                           <Sparkles className="h-3 w-3" /> Generated
-                        </>
-                      )}
-                    </Badge>
+                        </Badge>
+                      </>
+                    )}
+                    {projectName(entry.projectId) ? (
+                      <Badge variant="outline">
+                        <Folder className="h-3 w-3" /> {projectName(entry.projectId)}
+                      </Badge>
+                    ) : null}
                   </div>
                   <span className="shrink-0 text-xs text-muted-foreground">
                     {new Date(entry.createdAt).toLocaleString()}
@@ -233,19 +253,27 @@ export default function PromptHistoryPage(): React.JSX.Element {
             <>
               <DialogHeader>
                 <div className="flex flex-wrap items-center gap-1.5">
-                  <DialogTitle>{selectedEntry.promptType}</DialogTitle>
-                  <Badge variant="outline">{selectedEntry.targetAI}</Badge>
-                  <Badge variant="secondary">
-                    {selectedEntry.source === 'translate' ? (
-                      <>
+                  {selectedEntry.source === 'translate' ? (
+                    <>
+                      <DialogTitle>Translation</DialogTitle>
+                      <Badge variant="secondary">
                         <Languages className="h-3 w-3" /> Translated
-                      </>
-                    ) : (
-                      <>
+                      </Badge>
+                    </>
+                  ) : (
+                    <>
+                      <DialogTitle>{selectedEntry.promptType}</DialogTitle>
+                      <Badge variant="outline">{selectedEntry.targetAI}</Badge>
+                      <Badge variant="secondary">
                         <Sparkles className="h-3 w-3" /> Generated
-                      </>
-                    )}
-                  </Badge>
+                      </Badge>
+                    </>
+                  )}
+                  {projectName(selectedEntry.projectId) ? (
+                    <Badge variant="outline">
+                      <Folder className="h-3 w-3" /> {projectName(selectedEntry.projectId)}
+                    </Badge>
+                  ) : null}
                 </div>
                 <DialogDescription>{new Date(selectedEntry.createdAt).toLocaleString()}</DialogDescription>
               </DialogHeader>

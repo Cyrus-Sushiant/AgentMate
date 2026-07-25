@@ -3,7 +3,9 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, join, sep } from 'node:path';
 import { Worker } from 'node:worker_threads';
 import { app } from 'electron';
-import type { ProviderUsage, UsageWindow } from '@agentmat/core';
+import type { ProviderUsage, SubscriptionUsage, UsageWindow } from '@agentmat/core';
+import { getLiveWindows, readClaudeAccount } from './claudeAccount';
+import { estimateSubscriptionWindows } from './subscriptionEstimate';
 import {
   retentionSinceMs,
   scanProviderLogs,
@@ -108,8 +110,8 @@ function toUsageWindow(window: ScanResult['window']): UsageWindow | undefined {
   };
 }
 
-/** Fold raw worker output into the normalized snapshot the UI renders. */
-function toProviderUsage(providerId: string, result: ScanResult): ProviderUsage {
+/** Flatten worker output into priced entries, dropping duplicates. */
+function toEntries(result: ScanResult): UsageEntry[] {
   // Dedupe by message id: the same assistant message can appear in both the
   // main transcript and a summary/compact file.
   const seen = new Set<string>();
@@ -125,7 +127,39 @@ function toProviderUsage(providerId: string, result: ScanResult): ProviderUsage 
       tokens: makeTokens(raw.input, raw.output, raw.cacheRead, raw.cacheWrite),
     });
   }
-  return buildUsageFromEntries(providerId, entries, toUsageWindow(result.window));
+  return entries;
+}
+
+/**
+ * Plan + rolling-limit state for Claude Code. Prefers the account's own numbers
+ * and falls back to reconstructing the windows from the transcripts we just
+ * scanned, so a signed-in user offline still sees where they stand.
+ */
+async function claudeSubscription(entries: UsageEntry[]): Promise<SubscriptionUsage> {
+  const account = await readClaudeAccount();
+
+  if (account.mode === 'api') {
+    return { mode: 'api', plan: null, windows: [], source: 'account' };
+  }
+
+  if (account.accessToken) {
+    const live = await getLiveWindows(account.accessToken);
+    if (live) {
+      return { mode: 'subscription', plan: account.plan, windows: live, source: 'account' };
+    }
+  }
+
+  return {
+    mode: 'subscription',
+    plan: account.plan,
+    windows: estimateSubscriptionWindows(entries, account.plan, account.weeklyAnchor),
+    source: 'estimate',
+    estimateReason: account.tokenExpired
+      ? 'signed out of the CLI'
+      : account.accessToken
+        ? 'account unreachable'
+        : 'no CLI login found',
+  };
 }
 
 /**
@@ -152,5 +186,11 @@ export async function scanLocalProvider(provider: LocalLogProvider): Promise<Pro
   }
 
   await saveCache(provider, result.cache);
-  return toProviderUsage(provider, result);
+
+  const entries = toEntries(result);
+  const usage = buildUsageFromEntries(provider, entries, toUsageWindow(result.window));
+  if (provider === 'claude-code') {
+    usage.subscription = await claudeSubscription(entries);
+  }
+  return usage;
 }

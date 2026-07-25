@@ -1,7 +1,21 @@
-import type { ProviderUsage, UsageProviderDefinition, WidgetStyle } from '@agentmat/core';
+import type {
+  ProviderUsage,
+  SubscriptionUsage,
+  SubscriptionWindow,
+  UsageProviderDefinition,
+  WidgetMode,
+  WidgetStyle,
+} from '@agentmat/core';
 import { ProviderLogo } from '@/components/providerLogos';
+import { SimpleTooltip } from '@/components/ui/tooltip';
 import { SparklineChart } from '@/components/dashboard/SparklineChart';
-import { formatCost, formatPercent, formatReset, formatTokens } from '@/lib/usageFormat';
+import {
+  formatCost,
+  formatCountdown,
+  formatPercent,
+  formatReset,
+  formatTokens,
+} from '@/lib/usageFormat';
 
 export interface UsageCardBodyProps {
   usage: ProviderUsage;
@@ -12,12 +26,21 @@ export interface UsageCardBodyProps {
   compact?: boolean;
   /** Hide the logo + name row when the host already renders the title (Usage page). */
   hideHeader?: boolean;
+  /** Which view to render; 'auto' prefers subscription limits when available. */
+  mode?: WidgetMode;
+}
+
+/** Subscription limits are only worth showing when the account actually has them. */
+export function hasSubscriptionView(usage: ProviderUsage): boolean {
+  const sub = usage.subscription;
+  return !!sub && sub.mode === 'subscription' && sub.windows.length > 0;
 }
 
 /**
- * The inner content of a Token Usage card — logo, headline tokens + cost, quota
- * bar with reset countdown, and a burn-rate sparkline. Shared by the in-app
- * Usage page and the floating desktop widget so both look identical.
+ * The inner content of a Token Usage card. Renders one of two views: the token
+ * view (tokens + cost + burn-rate sparkline), or — for accounts billed by
+ * subscription rather than by API key — the plan's rolling limits with their
+ * reset countdowns, which is what actually constrains those users.
  */
 export function UsageCardBody({
   usage,
@@ -25,13 +48,24 @@ export function UsageCardBody({
   style = 'colorful',
   compact = false,
   hideHeader = false,
+  mode = 'auto',
 }: UsageCardBodyProps): React.JSX.Element {
   const accent = style === 'colorful' ? def.accentColor : 'hsl(var(--foreground))';
+  const subscription = usage.subscription;
+  const plan = subscription?.plan;
 
   const header = hideHeader ? null : (
     <div className="flex items-center gap-2">
       <ProviderLogo providerId={def.id} className="h-5 w-5" />
       <span className="truncate text-sm font-semibold">{def.name}</span>
+      {plan && (
+        <span
+          className="ml-auto shrink-0 rounded-full border px-1.5 py-px text-[10px] font-medium leading-4"
+          style={{ borderColor: `${accent}66`, color: accent }}
+        >
+          {plan.label}
+        </span>
+      )}
     </div>
   );
 
@@ -52,10 +86,26 @@ export function UsageCardBody({
     return (
       <div className="flex h-full flex-col gap-2">
         {header}
-        <p className="truncate text-xs text-destructive" title={usage.error}>
-          {usage.error ?? 'Failed to load usage.'}
-        </p>
+        <SimpleTooltip label={usage.error}>
+          <p className="truncate text-xs text-destructive">
+            {usage.error ?? 'Failed to load usage.'}
+          </p>
+        </SimpleTooltip>
       </div>
+    );
+  }
+
+  // 'subscription' is a request, not a guarantee — an API-billed account has no
+  // limits to draw, so it falls back to tokens rather than rendering an empty card.
+  if (mode !== 'tokens' && hasSubscriptionView(usage) && subscription) {
+    return (
+      <SubscriptionBody
+        subscription={subscription}
+        usage={usage}
+        accent={accent}
+        compact={compact}
+        header={header}
+      />
     );
   }
 
@@ -113,6 +163,88 @@ export function UsageCardBody({
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+/** Plan name, one bar per rolling limit, and what it cost so far today. */
+function SubscriptionBody({
+  subscription,
+  usage,
+  accent,
+  compact,
+  header,
+}: {
+  subscription: SubscriptionUsage;
+  usage: ProviderUsage;
+  accent: string;
+  compact: boolean;
+  header: React.ReactNode;
+}): React.JSX.Element {
+  const estimated = subscription.source === 'estimate';
+  const cost = formatCost(usage.today.costUsd);
+
+  return (
+    <div className="flex h-full flex-col gap-2">
+      {header}
+
+      <div className="flex flex-col gap-2">
+        {subscription.windows.map((window) => (
+          <LimitBar key={window.key} window={window} accent={accent} estimated={estimated} />
+        ))}
+      </div>
+
+      {!compact && (
+        <div className="mt-auto flex items-baseline gap-2 pt-1 text-[11px] text-muted-foreground">
+          <span className="tabular-nums">{formatTokens(usage.today.tokens.total)} tokens today</span>
+          {cost && <span className="tabular-nums">· {cost} equivalent</span>}
+          {estimated && (
+            <SimpleTooltip
+              label={`Estimated from local logs — ${subscription.estimateReason ?? 'account unreachable'}.`}
+            >
+              <span className="ml-auto shrink-0">estimated</span>
+            </SimpleTooltip>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** One rolling limit: name, share consumed, countdown, and a fill bar. */
+function LimitBar({
+  window,
+  accent,
+  estimated,
+}: {
+  window: SubscriptionWindow;
+  accent: string;
+  estimated: boolean;
+}): React.JSX.Element {
+  const countdown = formatCountdown(window.resetAt);
+  // Near the cap the brand accent stops being the useful signal.
+  const color = window.percent >= 90 ? 'hsl(var(--destructive))' : accent;
+
+  return (
+    <div className="space-y-1">
+      <div className="flex items-baseline gap-2 text-[11px]">
+        <span className="truncate text-muted-foreground">{window.label}</span>
+        <span className="font-medium tabular-nums" style={{ color }}>
+          {estimated ? '~' : ''}
+          {formatPercent(window.percent)}
+        </span>
+        {countdown && (
+          <span className="ml-auto shrink-0 tabular-nums text-muted-foreground">
+            resets in {countdown}
+          </span>
+        )}
+      </div>
+      <div className="h-1.5 w-full overflow-hidden rounded-full bg-foreground/10">
+        <div
+          className="h-full rounded-full transition-[width]"
+          style={{ width: `${window.percent}%`, backgroundColor: color }}
+        />
+      </div>
     </div>
   );
 }

@@ -7,6 +7,7 @@ import type {
   ActivityEventType,
   AppSettings,
   Project,
+  ProjectDraft,
   PromptTemplate,
   ScheduledTask,
 } from '@agentmat/core';
@@ -60,11 +61,12 @@ const DEFAULT_SETTINGS: AppSettings = {
   usageCardOrder: [],
 };
 
-/** Older projects.json entries predate the notifications field. */
+/** Older projects.json entries predate the notifications and prompt fields. */
 function withProjectDefaults(project: Project): Project {
   return {
     ...project,
     notifications: project.notifications ?? defaultProjectNotifications(),
+    prompt: project.prompt ?? '',
   };
 }
 
@@ -96,6 +98,10 @@ export const store = {
   getMcpRepositories: (): Promise<McpRepository[]> => readJsonFile('mcp-repositories.json', []),
   setMcpRepositories: (repos: McpRepository[]): Promise<void> =>
     writeJsonFile('mcp-repositories.json', repos),
+
+  getProjectDrafts: (): Promise<ProjectDraft[]> => readJsonFile('project-drafts.json', []),
+  setProjectDrafts: (drafts: ProjectDraft[]): Promise<void> =>
+    writeJsonFile('project-drafts.json', drafts),
 
   getScheduledTasks: (): Promise<ScheduledTask[]> => readJsonFile('scheduled-tasks.json', []),
   setScheduledTasks: (tasks: ScheduledTask[]): Promise<void> =>

@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
+import { SimpleTooltip } from '@/components/ui/tooltip';
 import { queryKeys } from '@/lib/queryKeys';
 import { timeAgo } from '@/lib/time';
 import { usePageHeader } from '@/stores/pageHeaderStore';
@@ -136,17 +137,18 @@ export default function ProjectsPage(): React.JSX.Element {
                   </div>
                   <div className="flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
                     {project.runCommand && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        title={`Run "${project.runCommand}"`}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleRun(project);
-                        }}
-                      >
-                        <Play className="h-4 w-4" />
-                      </Button>
+                      <SimpleTooltip label={`Run "${project.runCommand}"`}>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleRun(project);
+                          }}
+                        >
+                          <Play className="h-4 w-4" />
+                        </Button>
+                      </SimpleTooltip>
                     )}
                     <Button
                       variant="ghost"

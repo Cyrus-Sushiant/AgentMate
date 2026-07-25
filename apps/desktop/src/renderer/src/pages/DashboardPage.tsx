@@ -85,17 +85,18 @@ function EmptyChartState({ message }: { message: React.ReactNode }): React.JSX.E
 // settings shortcut) never gets mistaken for a drag gesture.
 function ChartDragHandle({ onDragStart }: { onDragStart: () => void }): React.JSX.Element {
   return (
-    <span
-      draggable
-      onDragStart={(e) => {
-        e.dataTransfer.effectAllowed = 'move';
-        onDragStart();
-      }}
-      className="cursor-grab text-muted-foreground/50 hover:text-foreground active:cursor-grabbing"
-      title="Drag to reorder"
-    >
-      <GripVertical className="h-3.5 w-3.5" />
-    </span>
+    <SimpleTooltip label="Drag to reorder">
+      <span
+        draggable
+        onDragStart={(e) => {
+          e.dataTransfer.effectAllowed = 'move';
+          onDragStart();
+        }}
+        className="cursor-grab text-muted-foreground/50 hover:text-foreground active:cursor-grabbing"
+      >
+        <GripVertical className="h-3.5 w-3.5" />
+      </span>
+    </SimpleTooltip>
   );
 }
 
@@ -211,18 +212,19 @@ function CliUpdatesCard({
             </Badge>
           )}
         </div>
-        <Button
-          variant="ghost"
-          size="icon"
-          title="Re-check for updates"
-          disabled={checking || installed.length === 0}
-          onClick={() => {
-            void queryClient.invalidateQueries({ queryKey: ['cli-update-check'] });
-            toast.info('Checking installed CLIs for updates…');
-          }}
-        >
-          <RefreshCw className={cn('h-3.5 w-3.5', checking && 'animate-spin')} />
-        </Button>
+        <SimpleTooltip label="Re-check for updates" wrapTrigger={checking || installed.length === 0}>
+          <Button
+            variant="ghost"
+            size="icon"
+            disabled={checking || installed.length === 0}
+            onClick={() => {
+              void queryClient.invalidateQueries({ queryKey: ['cli-update-check'] });
+              toast.info('Checking installed CLIs for updates…');
+            }}
+          >
+            <RefreshCw className={cn('h-3.5 w-3.5', checking && 'animate-spin')} />
+          </Button>
+        </SimpleTooltip>
       </CardHeader>
       <CardContent className="space-y-2">
         {installed.length === 0 ? (
@@ -583,9 +585,11 @@ export default function DashboardPage(): React.JSX.Element {
           </CardTitle>
           <div className="flex items-center gap-2">
             <ChartDragHandle onDragStart={() => setDragChartId('pings')} />
-            <Button variant="ghost" size="icon" title="Manage ping targets" onClick={() => navigate('/settings')}>
-              <SettingsIcon className="h-3.5 w-3.5" />
-            </Button>
+            <SimpleTooltip label="Manage ping targets">
+              <Button variant="ghost" size="icon" onClick={() => navigate('/settings')}>
+                <SettingsIcon className="h-3.5 w-3.5" />
+              </Button>
+            </SimpleTooltip>
           </div>
         </CardHeader>
         <CardContent>

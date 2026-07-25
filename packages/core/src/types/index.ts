@@ -86,6 +86,12 @@ export interface Project {
   notes: string;
   /** Shell command that starts this project (e.g. "npm run dev"). Empty when not configured. */
   runCommand: string;
+  /**
+   * The project's standing prompt — the context handed to an agent every time it
+   * works on this project. Defined from the Prompt dialog on the project detail
+   * page. Empty when not configured.
+   */
+  prompt: string;
   notifications: ProjectNotificationSettings;
   createdAt: string;
   updatedAt: string;
@@ -149,6 +155,26 @@ export interface PromptTemplate {
   targetAI: string;
   content: string;
   createdAt: string;
+}
+
+export type ProjectDraftStatus = 'draft' | 'implemented';
+
+/**
+ * A Prompt Builder draft parked against a project. Keeps the parameters the prompt was
+ * built with so the project's Overview can show what was planned and whether it shipped.
+ */
+export interface ProjectDraft {
+  id: string;
+  projectId: string;
+  rawInput: string;
+  promptType: string;
+  targetAI: string;
+  /** The generated prompt as it stood when the draft was saved. */
+  content: string;
+  status: ProjectDraftStatus;
+  createdAt: string;
+  /** ISO datetime the draft was marked implemented; null while it's still open. */
+  implementedAt: string | null;
 }
 
 export type ScheduledTaskStatus = 'pending' | 'completed' | 'cancelled';

@@ -10,6 +10,7 @@ import { registerGitHandlers } from './ipc/git';
 import { registerIpGeoHandlers } from './ipc/ipGeo';
 import { registerMcpHandlers } from './ipc/mcp';
 import { registerNotificationHandlers } from './ipc/notifications';
+import { registerProjectDraftHandlers } from './ipc/projectDrafts';
 import { registerProjectHandlers } from './ipc/projects';
 import { registerPromptHistoryHandlers } from './ipc/promptHistory';
 import { registerRemoteHandlers } from './ipc/remote';
@@ -109,6 +110,7 @@ function registerAllIpcHandlers(): void {
   registerTranslateHandlers();
   registerSystemStatsHandlers();
   registerIpGeoHandlers();
+  registerProjectDraftHandlers();
   registerScheduledTaskHandlers();
   registerNotificationHandlers();
   registerAiHandlers();

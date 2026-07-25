@@ -167,18 +167,26 @@ export default function UsagePage(): React.JSX.Element {
                     <div className="mr-auto flex min-w-0 items-center gap-2">
                       <ProviderLogo providerId={id} className="h-5 w-5 shrink-0" />
                       <span className="truncate text-sm font-semibold">{def.name}</span>
+                      {/* The card body hides its own header here, so the plan
+                          badge has to ride along with the title. */}
+                      {usage?.subscription?.plan && (
+                        <Badge variant="outline" className="shrink-0">
+                          {usage.subscription.plan.label}
+                        </Badge>
+                      )}
                     </div>
-                    <span
-                      draggable
-                      onDragStart={(e) => {
-                        e.dataTransfer.effectAllowed = 'move';
-                        setDragId(id);
-                      }}
-                      className="cursor-grab text-muted-foreground/50 hover:text-foreground active:cursor-grabbing"
-                      title="Drag to reorder"
-                    >
-                      <GripVertical className="h-3.5 w-3.5" />
-                    </span>
+                    <SimpleTooltip label="Drag to reorder">
+                      <span
+                        draggable
+                        onDragStart={(e) => {
+                          e.dataTransfer.effectAllowed = 'move';
+                          setDragId(id);
+                        }}
+                        className="cursor-grab text-muted-foreground/50 hover:text-foreground active:cursor-grabbing"
+                      >
+                        <GripVertical className="h-3.5 w-3.5" />
+                      </span>
+                    </SimpleTooltip>
                     <SimpleTooltip label="Add to desktop">
                       <Button variant="ghost" size="icon" onClick={() => void popOut(id)}>
                         <Pin className="h-3.5 w-3.5" />

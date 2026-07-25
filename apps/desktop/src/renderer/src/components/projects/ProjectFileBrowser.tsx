@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { File, Folder, RefreshCw } from '@/components/icons';
+import { Code, File, FileText, Folder, RefreshCw } from '@/components/icons';
 import { Button } from '@/components/ui/button';
+import { SimpleTooltip } from '@/components/ui/tooltip';
+import { MarkdownEditor } from '@/components/editor/MarkdownEditor';
 import { MonacoEditor } from '@/components/editor/MonacoEditor';
 import { cn } from '@/lib/utils';
 
@@ -10,6 +12,10 @@ function parentOf(path: string): string {
   const normalized = path.replace(/\\/g, '/');
   const idx = normalized.lastIndexOf('/');
   return idx === -1 ? normalized : path.slice(0, idx);
+}
+
+function isMarkdown(path: string): boolean {
+  return /\.(md|markdown|mdx)$/i.test(path);
 }
 
 function languageFor(path: string): string {
@@ -50,7 +56,12 @@ export function ProjectFileBrowser({
   const [currentPath, setCurrentPath] = useState(rootPath);
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const [fileContent, setFileContent] = useState('');
-  const [dirty, setDirty] = useState(false);
+  const [savedContent, setSavedContent] = useState('');
+  const [markdownMode, setMarkdownMode] = useState(true);
+
+  // Derived rather than a flag: Monaco echoes its own `setValue` back through
+  // `onChange`, which would light up a flag on open without a real edit.
+  const dirty = fileContent !== savedContent;
 
   // `currentPath` seeds from a prop, so it has to resync when the project
   // changes or when new files land underneath us.
@@ -67,11 +78,20 @@ export function ProjectFileBrowser({
   const relativePath = currentPath.slice(rootPath.length).replace(/^[\\/]/, '');
 
   async function openFile(path: string): Promise<void> {
+    if (path === selectedFile) return;
+    // Leaving an edited file behind silently would lose the edits, so make
+    // walking away a deliberate choice.
+    if (
+      dirty &&
+      !window.confirm('This file has unsaved changes. Discard them and open the other file?')
+    ) {
+      return;
+    }
     try {
       const content = await window.agentmat.fs.readFile(path);
       setSelectedFile(path);
       setFileContent(content);
-      setDirty(false);
+      setSavedContent(content);
     } catch (error) {
       toast.error(`Could not open file: ${(error as Error).message}`);
     }
@@ -81,7 +101,7 @@ export function ProjectFileBrowser({
     if (!selectedFile) return;
     try {
       await window.agentmat.fs.writeFile(selectedFile, fileContent);
-      setDirty(false);
+      setSavedContent(fileContent);
       toast.success('File saved.');
     } catch (error) {
       toast.error(`Could not save file: ${(error as Error).message}`);
@@ -92,16 +112,17 @@ export function ProjectFileBrowser({
     <div className="flex gap-4">
       <div className="w-56 shrink-0 space-y-0.5">
         <div className="mb-1 flex items-center justify-between gap-1">
-          <span className="truncate text-xs font-medium" title={currentPath}>
-            {relativePath || '/'}
-          </span>
-          <button
-            className="shrink-0 rounded p-1 text-muted-foreground hover:bg-accent"
-            title="Refresh"
-            onClick={() => void dirQuery.refetch()}
-          >
-            <RefreshCw className={cn('h-3 w-3', dirQuery.isFetching && 'animate-spin')} />
-          </button>
+          <SimpleTooltip label={currentPath}>
+            <span className="truncate text-xs font-medium">{relativePath || '/'}</span>
+          </SimpleTooltip>
+          <SimpleTooltip label="Refresh">
+            <button
+              className="shrink-0 rounded p-1 text-muted-foreground hover:bg-accent"
+              onClick={() => void dirQuery.refetch()}
+            >
+              <RefreshCw className={cn('h-3 w-3', dirQuery.isFetching && 'animate-spin')} />
+            </button>
+          </SimpleTooltip>
         </div>
         {currentPath !== rootPath && (
           <button
@@ -146,24 +167,81 @@ export function ProjectFileBrowser({
           </button>
         ))}
       </div>
-      <div className="min-w-0 flex-1">
+      <div
+        className="min-w-0 flex-1"
+        onKeyDown={(event) => {
+          if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') {
+            event.preventDefault();
+            void saveFile();
+          }
+        }}
+      >
         {selectedFile ? (
           <>
-            <div className="mb-2 flex items-center justify-between">
-              <span className="truncate text-xs text-muted-foreground">{selectedFile}</span>
-              <Button size="sm" disabled={!dirty} onClick={() => void saveFile()}>
+            <div className="mb-2 flex items-center gap-2">
+              <SimpleTooltip label={dirty ? `${selectedFile} — unsaved changes` : selectedFile}>
+                <span className="truncate text-xs text-muted-foreground">
+                  {selectedFile}
+                  {dirty && <span className="ml-1 text-foreground">•</span>}
+                </span>
+              </SimpleTooltip>
+              {isMarkdown(selectedFile) && (
+                <div className="ml-auto flex items-center gap-0.5 rounded-md border border-border p-0.5">
+                  <SimpleTooltip label="Rich markdown editor">
+                    <button
+                      type="button"
+                      onClick={() => setMarkdownMode(true)}
+                      className={cn(
+                        'flex h-6 items-center gap-1 rounded px-2 text-xs text-muted-foreground hover:bg-accent',
+                        markdownMode && 'bg-accent text-foreground',
+                      )}
+                    >
+                      <FileText className="h-3 w-3" /> Markdown
+                    </button>
+                  </SimpleTooltip>
+                  <SimpleTooltip label="Plain text editor">
+                    <button
+                      type="button"
+                      onClick={() => setMarkdownMode(false)}
+                      className={cn(
+                        'flex h-6 items-center gap-1 rounded px-2 text-xs text-muted-foreground hover:bg-accent',
+                        !markdownMode && 'bg-accent text-foreground',
+                      )}
+                    >
+                      <Code className="h-3 w-3" /> Text
+                    </button>
+                  </SimpleTooltip>
+                </div>
+              )}
+              <Button
+                size="sm"
+                className={cn(!isMarkdown(selectedFile) && 'ml-auto')}
+                disabled={!dirty}
+                onClick={() => void saveFile()}
+              >
                 Save
               </Button>
             </div>
-            <MonacoEditor
-              value={fileContent}
-              language={languageFor(selectedFile)}
-              onChange={(value) => {
-                setFileContent(value);
-                setDirty(true);
-              }}
-              className="min-h-[360px]"
-            />
+            {isMarkdown(selectedFile) && markdownMode ? (
+              <MarkdownEditor
+                // Remount per file so the editor never carries one file's
+                // scroll position or caret into the next.
+                key={selectedFile}
+                value={fileContent}
+                onChange={setFileContent}
+                onSave={() => void saveFile()}
+              />
+            ) : (
+              <MonacoEditor
+                // Monaco takes its language at creation time, so a new file
+                // needs a new instance to be highlighted as itself.
+                key={selectedFile}
+                value={fileContent}
+                language={languageFor(selectedFile)}
+                onChange={setFileContent}
+                className="min-h-[420px]"
+              />
+            )}
           </>
         ) : (
           <p className="text-sm text-muted-foreground">Select a file to edit.</p>

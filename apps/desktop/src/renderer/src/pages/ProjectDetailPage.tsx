@@ -15,12 +15,15 @@ import {
   Download,
   File,
   FileCog,
+  FileText,
   Folder,
   FolderOpen,
   FolderTree,
   GitBranch,
   GitCommit,
   GitPullRequest,
+  History,
+  MessageSquare,
   Pencil,
   Play,
   Plug,
@@ -42,6 +45,7 @@ import type {
   DetectedClaudeHook,
   NotificationHookKind,
   Project,
+  ProjectDraftStatus,
   ProjectNotificationHook,
   ProjectNotificationSettings,
   ScheduledTask,
@@ -63,9 +67,16 @@ import { Separator } from '@/components/ui/separator';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
+import { SimpleTooltip } from '@/components/ui/tooltip';
 import { MonacoEditor } from '@/components/editor/MonacoEditor';
 import { ProjectFileBrowser } from '@/components/projects/ProjectFileBrowser';
 import { ProjectFormDialog, type ProjectFormValues } from '@/components/projects/ProjectFormDialog';
+import { ProjectPromptDialog } from '@/components/projects/ProjectPromptDialog';
+import {
+  BootstrapDescriptionDialog,
+  type BootstrapDescription,
+} from '@/components/projects/BootstrapDescriptionDialog';
+import { ProjectPromptHistory } from '@/components/projects/ProjectPromptHistory';
 import { queryKeys } from '@/lib/queryKeys';
 import { timeAgo } from '@/lib/time';
 import { usePageHeader } from '@/stores/pageHeaderStore';
@@ -92,6 +103,7 @@ export default function ProjectDetailPage(): React.JSX.Element {
   const queryClient = useQueryClient();
   const openSession = useTerminalStore((s) => s.openSession);
   const [editOpen, setEditOpen] = useState(false);
+  const [promptOpen, setPromptOpen] = useState(false);
 
   const projectsQuery = useQuery({
     queryKey: queryKeys.projects,
@@ -106,6 +118,15 @@ export default function ProjectDetailPage(): React.JSX.Element {
     queryFn: () => window.agentmat.skills.listInstalled(projectId!),
     enabled: !!projectId,
   });
+
+  // Shares its key with the Overview tab's drafts list, so both read one fetch.
+  const draftsQuery = useQuery({
+    queryKey: queryKeys.projectDrafts(projectId ?? ''),
+    queryFn: () => window.agentmat.projectDrafts.listByProject(projectId!),
+    enabled: !!projectId,
+  });
+  const drafts = draftsQuery.data ?? [];
+  const openDraftCount = drafts.filter((draft) => draft.status === 'draft').length;
 
   const installedMcpServersQuery = useQuery({
     queryKey: queryKeys.installedMcpServers(projectId ?? ''),
@@ -137,12 +158,38 @@ export default function ProjectDetailPage(): React.JSX.Element {
   });
 
   const [bootstrapResult, setBootstrapResult] = useState<BootstrapResult | null>(null);
+  const [describeOpen, setDescribeOpen] = useState(false);
   // Bumped on success so the file browser jumps back to the root and refetches.
   const [fileBrowserRevision, setFileBrowserRevision] = useState(0);
 
   const bootstrapMutation = useMutation({
-    mutationFn: () => window.agentmat.projects.bootstrap(projectId!),
+    // The description is persisted on the project before scaffolding, because
+    // the main process builds the file plan from the stored project — that way
+    // the preview, the written files and the saved description can't disagree.
+    mutationFn: async ({ description, translatedFrom }: BootstrapDescription) => {
+      if (description !== project?.description) {
+        await window.agentmat.projects.update(projectId!, { description });
+      }
+      if (translatedFrom) {
+        try {
+          await window.agentmat.promptHistory.add({
+            rawInput: translatedFrom,
+            promptType: 'Project description',
+            targetAI: '',
+            content: description,
+            source: 'translate',
+            projectId,
+          });
+          void queryClient.invalidateQueries({ queryKey: queryKeys.promptHistory });
+        } catch {
+          // Best-effort: losing the history entry shouldn't abort the bootstrap.
+        }
+      }
+      return window.agentmat.projects.bootstrap(projectId!);
+    },
     onSuccess: (raw) => {
+      setDescribeOpen(false);
+      void queryClient.invalidateQueries({ queryKey: queryKeys.projects });
       // The main process is bundled separately from this renderer, so a stale
       // Electron build can answer with an older shape. Normalize rather than
       // crash, and say so plainly — the fix is restarting `pnpm dev`.
@@ -270,32 +317,35 @@ export default function ProjectDetailPage(): React.JSX.Element {
                 ))}
               </div>
               <div className="flex max-w-full items-center gap-1">
-                <button
-                  type="button"
-                  onClick={() => void handleCopyPath()}
-                  className="flex min-w-0 items-center gap-1.5 truncate text-xs text-muted-foreground hover:text-foreground"
-                  title="Copy path"
-                >
-                  <Folder className="h-3 w-3 shrink-0" />
-                  <span className="truncate">{project.folderPath}</span>
-                  <Copy className="h-3 w-3 shrink-0" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void handleOpenInFileExplorer()}
-                  className="shrink-0 text-muted-foreground hover:text-foreground"
-                  title="Open in File Explorer"
-                >
-                  <FolderOpen className="h-3 w-3" />
-                </button>
-                <button
-                  type="button"
-                  onClick={handleOpenTerminalHere}
-                  className="shrink-0 text-muted-foreground hover:text-foreground"
-                  title="Open terminal here"
-                >
-                  <TerminalSquare className="h-3 w-3" />
-                </button>
+                <SimpleTooltip label={`Copy path — ${project.folderPath}`}>
+                  <button
+                    type="button"
+                    onClick={() => void handleCopyPath()}
+                    className="flex min-w-0 items-center gap-1.5 truncate text-xs text-muted-foreground hover:text-foreground"
+                  >
+                    <Folder className="h-3 w-3 shrink-0" />
+                    <span className="truncate">{project.folderPath}</span>
+                    <Copy className="h-3 w-3 shrink-0" />
+                  </button>
+                </SimpleTooltip>
+                <SimpleTooltip label="Open in File Explorer">
+                  <button
+                    type="button"
+                    onClick={() => void handleOpenInFileExplorer()}
+                    className="shrink-0 text-muted-foreground hover:text-foreground"
+                  >
+                    <FolderOpen className="h-3 w-3" />
+                  </button>
+                </SimpleTooltip>
+                <SimpleTooltip label="Open terminal here">
+                  <button
+                    type="button"
+                    onClick={handleOpenTerminalHere}
+                    className="shrink-0 text-muted-foreground hover:text-foreground"
+                  >
+                    <TerminalSquare className="h-3 w-3" />
+                  </button>
+                </SimpleTooltip>
               </div>
             </div>
           </div>
@@ -305,6 +355,9 @@ export default function ProjectDetailPage(): React.JSX.Element {
                 <Play /> Run
               </Button>
             )}
+            <Button variant="outline" size="sm" onClick={() => setPromptOpen(true)}>
+              <MessageSquare /> Prompt
+            </Button>
             <Button variant="outline" size="sm" onClick={() => setEditOpen(true)}>
               <Pencil /> Edit
             </Button>
@@ -339,6 +392,9 @@ export default function ProjectDetailPage(): React.JSX.Element {
               <TabsTrigger value="bootstrap" className="gap-1.5">
                 <Wand2 className="h-3.5 w-3.5" /> Bootstrap
               </TabsTrigger>
+              <TabsTrigger value="prompts" className="gap-1.5">
+                <History className="h-3.5 w-3.5" /> Prompt History
+              </TabsTrigger>
               <TabsTrigger value="skills" className="gap-1.5">
                 <Blocks className="h-3.5 w-3.5" /> Skills
               </TabsTrigger>
@@ -363,8 +419,29 @@ export default function ProjectDetailPage(): React.JSX.Element {
             </TabsList>
 
             <TabsContent value="overview" className="space-y-3">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-xs font-medium text-muted-foreground">Project prompt</p>
+                <Button variant="ghost" size="sm" onClick={() => setPromptOpen(true)}>
+                  <MessageSquare /> {project.prompt ? 'Edit prompt' : 'Define prompt'}
+                </Button>
+              </div>
+              {project.prompt ? (
+                <p className="whitespace-pre-wrap rounded-lg border border-border bg-card p-3 text-sm">
+                  {project.prompt}
+                </p>
+              ) : (
+                <p className="rounded-lg border border-dashed border-border p-3 text-sm text-muted-foreground">
+                  No prompt defined yet — set the standing context agents should start from on this
+                  project.
+                </p>
+              )}
+
               <p className="text-xs font-medium text-muted-foreground">Notes</p>
               <Textarea value={project.notes} readOnly rows={6} placeholder="No notes yet." />
+
+              <Separator />
+
+              <DraftsSection projectId={project.id} />
             </TabsContent>
 
             <TabsContent value="bootstrap" className="space-y-4">
@@ -391,7 +468,7 @@ export default function ProjectDetailPage(): React.JSX.Element {
                 </p>
                 <Button
                   className="shrink-0"
-                  onClick={() => bootstrapMutation.mutate()}
+                  onClick={() => setDescribeOpen(true)}
                   disabled={
                     bootstrapMutation.isPending || (planBridgeReady && !bootstrapPlanQuery.data)
                   }
@@ -465,6 +542,10 @@ export default function ProjectDetailPage(): React.JSX.Element {
                 <FolderTree className="h-3.5 w-3.5" /> Browse and edit project files
               </div>
               <ProjectFileBrowser rootPath={project.folderPath} revision={fileBrowserRevision} />
+            </TabsContent>
+
+            <TabsContent value="prompts">
+              <ProjectPromptHistory projectId={project.id} />
             </TabsContent>
 
             <TabsContent value="skills" className="space-y-3">
@@ -568,9 +649,11 @@ export default function ProjectDetailPage(): React.JSX.Element {
               </div>
               <div className="flex items-center justify-between gap-2">
                 <dt className="shrink-0 text-muted-foreground">Run command</dt>
-                <dd className="min-w-0 truncate text-right font-mono text-xs" title={project.runCommand}>
-                  {project.runCommand || '—'}
-                </dd>
+                <SimpleTooltip label={project.runCommand}>
+                  <dd className="min-w-0 truncate text-right font-mono text-xs">
+                    {project.runCommand || '—'}
+                  </dd>
+                </SimpleTooltip>
               </div>
               <div className="flex items-center justify-between gap-2">
                 <dt className="text-muted-foreground">Created</dt>
@@ -584,10 +667,28 @@ export default function ProjectDetailPage(): React.JSX.Element {
                 <dt className="text-muted-foreground">Tags</dt>
                 <dd className="text-right">{project.tags.length > 0 ? project.tags.length : '—'}</dd>
               </div>
+              <div className="flex items-center justify-between gap-2">
+                <dt className="text-muted-foreground">Drafts</dt>
+                <dd className="text-right">
+                  {drafts.length === 0
+                    ? '—'
+                    : `${openDraftCount} open · ${drafts.length - openDraftCount} implemented`}
+                </dd>
+              </div>
             </dl>
           </div>
         </div>
       </div>
+
+      <ProjectPromptDialog project={project} open={promptOpen} onOpenChange={setPromptOpen} />
+
+      <BootstrapDescriptionDialog
+        project={project}
+        open={describeOpen}
+        onOpenChange={setDescribeOpen}
+        onConfirm={(result) => bootstrapMutation.mutate(result)}
+        pending={bootstrapMutation.isPending}
+      />
 
       <ProjectFormDialog
         open={editOpen}
@@ -758,6 +859,161 @@ function EditClaudeHookDialog({
   );
 }
 
+/**
+ * Prompt Builder drafts parked on this project, shown with the parameters each was built with
+ * so the project's Overview says what was planned — and lets you flip one to implemented.
+ */
+function DraftsSection({ projectId }: { projectId: string }): React.JSX.Element {
+  const queryClient = useQueryClient();
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+
+  const draftsQuery = useQuery({
+    queryKey: queryKeys.projectDrafts(projectId),
+    queryFn: () => window.agentmat.projectDrafts.listByProject(projectId),
+  });
+
+  // Newest first — the draft just saved from Prompt Builder is the one you came here for.
+  const drafts = [...(draftsQuery.data ?? [])].sort((a, b) =>
+    b.createdAt.localeCompare(a.createdAt),
+  );
+
+  function invalidate(): void {
+    void queryClient.invalidateQueries({ queryKey: queryKeys.projectDrafts(projectId) });
+  }
+
+  const updateStatusMutation = useMutation({
+    mutationFn: (params: { draftId: string; status: ProjectDraftStatus }) =>
+      window.agentmat.projectDrafts.updateStatus(params.draftId, params.status),
+    onSuccess: (_result, params) => {
+      toast.success(params.status === 'implemented' ? 'Marked as implemented.' : 'Draft reopened.');
+      invalidate();
+    },
+    onError: () => toast.error('Could not update the draft.'),
+  });
+
+  const removeMutation = useMutation({
+    mutationFn: (draftId: string) => window.agentmat.projectDrafts.remove(draftId),
+    onSuccess: invalidate,
+  });
+
+  return (
+    <div className="space-y-3">
+      <div className="space-y-1">
+        <p className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+          <FileText className="h-3.5 w-3.5" /> Drafts
+        </p>
+        <p className="text-xs text-muted-foreground">
+          Requests parked on this project from Prompt Builder, with the parameters they were built
+          with. Mark one implemented once it has shipped.
+        </p>
+      </div>
+
+      {draftsQuery.isLoading ? (
+        <p className="text-sm text-muted-foreground">Loading drafts…</p>
+      ) : drafts.length === 0 ? (
+        <p className="text-sm text-muted-foreground">
+          No drafts yet. In Prompt Builder, set Status to "Draft", pick this project, and save.
+        </p>
+      ) : (
+        <div className="space-y-2">
+          {drafts.map((draft) => {
+            const implemented = draft.status === 'implemented';
+            const expanded = expandedId === draft.id;
+            return (
+              <div
+                key={draft.id}
+                className="space-y-2 rounded-lg border border-border bg-card px-3 py-2 text-sm"
+              >
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <Badge variant={implemented ? 'success' : 'warning'} className="capitalize">
+                      {draft.status}
+                    </Badge>
+                    {draft.promptType && <Badge variant="secondary">{draft.promptType}</Badge>}
+                    {draft.targetAI && <Badge variant="outline">{draft.targetAI}</Badge>}
+                    <span className="text-xs text-muted-foreground">
+                      {implemented && draft.implementedAt
+                        ? `Implemented ${timeAgo(draft.implementedAt)}`
+                        : `Added ${timeAgo(draft.createdAt)}`}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <SimpleTooltip
+                      label={implemented ? 'Reopen draft' : 'Mark implemented'}
+                      wrapTrigger={updateStatusMutation.isPending}
+                    >
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        disabled={updateStatusMutation.isPending}
+                        onClick={() =>
+                          updateStatusMutation.mutate({
+                            draftId: draft.id,
+                            status: implemented ? 'draft' : 'implemented',
+                          })
+                        }
+                      >
+                        {implemented ? (
+                          <RefreshCw className="h-4 w-4" />
+                        ) : (
+                          <Check className="h-4 w-4" />
+                        )}
+                      </Button>
+                    </SimpleTooltip>
+                    <SimpleTooltip label="Delete draft">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => {
+                          void confirmDialog({
+                            title: 'Delete this draft?',
+                            description: 'It will be removed from this project.',
+                            confirmLabel: 'Delete',
+                            variant: 'destructive',
+                          }).then((confirmed) => {
+                            if (confirmed) removeMutation.mutate(draft.id);
+                          });
+                        }}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </SimpleTooltip>
+                  </div>
+                </div>
+
+                <p
+                  className={`whitespace-pre-wrap text-xs ${
+                    implemented ? 'text-muted-foreground' : ''
+                  }`}
+                >
+                  {draft.rawInput || '(no description)'}
+                </p>
+
+                {draft.content && (
+                  <>
+                    <button
+                      type="button"
+                      className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
+                      onClick={() => setExpandedId(expanded ? null : draft.id)}
+                    >
+                      {expanded ? 'Hide generated prompt' : 'Show generated prompt'}
+                    </button>
+                    {expanded && (
+                      <pre className="max-h-64 overflow-auto whitespace-pre-wrap rounded-md border border-border bg-muted/30 p-2 font-mono text-xs">
+                        {draft.content}
+                      </pre>
+                    )}
+                  </>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function statusBadgeVariant(status: ScheduledTask['status']): 'warning' | 'success' | 'destructive' {
   if (status === 'completed') return 'success';
   if (status === 'cancelled') return 'destructive';
@@ -843,35 +1099,36 @@ function ScheduleTab({ projectId }: { projectId: string }): React.JSX.Element {
             <div className="flex items-center gap-1">
               {task.status === 'pending' && (
                 <>
-                  <Button variant="ghost" size="icon" title="Run now" onClick={() => void handleRun(task)}>
-                    <Play className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    title="Mark completed"
-                    onClick={() => updateStatusMutation.mutate({ taskId: task.id, status: 'completed' })}
-                  >
-                    <Check className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    title="Cancel"
-                    onClick={() => updateStatusMutation.mutate({ taskId: task.id, status: 'cancelled' })}
-                  >
-                    <X className="h-4 w-4" />
-                  </Button>
+                  <SimpleTooltip label="Run now">
+                    <Button variant="ghost" size="icon" onClick={() => void handleRun(task)}>
+                      <Play className="h-4 w-4" />
+                    </Button>
+                  </SimpleTooltip>
+                  <SimpleTooltip label="Mark completed">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => updateStatusMutation.mutate({ taskId: task.id, status: 'completed' })}
+                    >
+                      <Check className="h-4 w-4" />
+                    </Button>
+                  </SimpleTooltip>
+                  <SimpleTooltip label="Cancel">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => updateStatusMutation.mutate({ taskId: task.id, status: 'cancelled' })}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </SimpleTooltip>
                 </>
               )}
-              <Button
-                variant="ghost"
-                size="icon"
-                title="Delete"
-                onClick={() => removeMutation.mutate(task.id)}
-              >
-                <Trash2 className="h-4 w-4" />
-              </Button>
+              <SimpleTooltip label="Delete">
+                <Button variant="ghost" size="icon" onClick={() => removeMutation.mutate(task.id)}>
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </SimpleTooltip>
             </div>
           </div>
           <p className="whitespace-pre-wrap text-xs text-muted-foreground">{task.rawInput}</p>
@@ -1382,34 +1639,38 @@ function HooksTab({ project }: { project: Project }): React.JSX.Element {
                     {sourceFileLabel(hook.id)}
                   </Badge>
                 </div>
-                <p
-                  className="truncate font-mono text-xs text-muted-foreground/80"
-                  title={summarizeHook(hook.hook)}
-                >
-                  {summarizeHook(hook.hook)}
-                </p>
+                {/* The command is often far wider than the row, so the tooltip
+                    is where you actually read it — let it wrap generously. */}
+                <SimpleTooltip label={summarizeHook(hook.hook)} align="start" className="font-mono">
+                  <p className="truncate font-mono text-xs text-muted-foreground/80">
+                    {summarizeHook(hook.hook)}
+                  </p>
+                </SimpleTooltip>
               </div>
               <div className="flex shrink-0 items-center gap-1">
-                <Button variant="ghost" size="icon" title="Edit hook" onClick={() => setEditingHook(hook)}>
-                  <Pencil className="h-3.5 w-3.5" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  title="Delete hook"
-                  onClick={() => {
-                    void confirmDialog({
-                      title: `Remove ${hook.event} hook?`,
-                      description: `This removes it from ${sourceFileLabel(hook.id)}.`,
-                      confirmLabel: 'Remove',
-                      variant: 'destructive',
-                    }).then((confirmed) => {
-                      if (confirmed) deleteHookMutation.mutate(hook.id);
-                    });
-                  }}
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </Button>
+                <SimpleTooltip label="Edit hook">
+                  <Button variant="ghost" size="icon" onClick={() => setEditingHook(hook)}>
+                    <Pencil className="h-3.5 w-3.5" />
+                  </Button>
+                </SimpleTooltip>
+                <SimpleTooltip label="Delete hook">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => {
+                      void confirmDialog({
+                        title: `Remove ${hook.event} hook?`,
+                        description: `This removes it from ${sourceFileLabel(hook.id)}.`,
+                        confirmLabel: 'Remove',
+                        variant: 'destructive',
+                      }).then((confirmed) => {
+                        if (confirmed) deleteHookMutation.mutate(hook.id);
+                      });
+                    }}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
+                </SimpleTooltip>
               </div>
             </div>
           ))}

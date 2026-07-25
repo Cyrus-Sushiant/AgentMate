@@ -43,6 +43,7 @@ export function registerProjectHandlers(): void {
         agentType: input.agentType,
         notes: input.notes,
         runCommand: input.runCommand,
+        prompt: input.prompt ?? '',
         notifications: defaultProjectNotifications(),
         createdAt: now,
         updatedAt: now,

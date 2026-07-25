@@ -16,7 +16,17 @@ export interface ModelPrice {
 // Keys are matched by longest-prefix against the model id, so "claude-sonnet-5"
 // matches the "claude-sonnet-5" entry and dated variants fall through to it.
 const MODEL_PRICING: Record<string, ModelPrice> = {
-  // Anthropic (Claude) — per 1M tokens.
+  // Anthropic (Claude) — per 1M tokens. Cache read is a tenth of the input rate;
+  // cache write carries a 1.25× premium (the 5-minute TTL, which is what the
+  // CLIs use). Opus dropped from $15/$75 to $5/$25 at 4.5, so the newer Opus
+  // ids need their own entries — longest-prefix keeps 4.0/4.1 on the old rate.
+  'claude-fable-5': { input: 10, output: 50, cacheRead: 1, cacheWrite: 12.5 },
+  'claude-mythos-5': { input: 10, output: 50, cacheRead: 1, cacheWrite: 12.5 },
+  'claude-opus-5': { input: 5, output: 25, cacheRead: 0.5, cacheWrite: 6.25 },
+  'claude-opus-4-8': { input: 5, output: 25, cacheRead: 0.5, cacheWrite: 6.25 },
+  'claude-opus-4-7': { input: 5, output: 25, cacheRead: 0.5, cacheWrite: 6.25 },
+  'claude-opus-4-6': { input: 5, output: 25, cacheRead: 0.5, cacheWrite: 6.25 },
+  'claude-opus-4-5': { input: 5, output: 25, cacheRead: 0.5, cacheWrite: 6.25 },
   'claude-opus-4': { input: 15, output: 75, cacheRead: 1.5, cacheWrite: 18.75 },
   'claude-sonnet-4': { input: 3, output: 15, cacheRead: 0.3, cacheWrite: 3.75 },
   'claude-sonnet-5': { input: 3, output: 15, cacheRead: 0.3, cacheWrite: 3.75 },

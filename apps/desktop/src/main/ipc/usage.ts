@@ -2,6 +2,7 @@ import { ipcMain } from 'electron';
 import type {
   DesktopWidgetInstance,
   ProviderUsage,
+  WidgetMode,
   WidgetSize,
   WidgetStyle,
 } from '@agentmat/core';
@@ -59,5 +60,8 @@ export function registerUsageHandlers(): void {
   );
   ipcMain.handle(IPC.usage.setWidgetSize, (_e, id: string, size: WidgetSize): Promise<void> =>
     widgetManager.setSize(id, size),
+  );
+  ipcMain.handle(IPC.usage.setWidgetMode, (_e, id: string, mode: WidgetMode): Promise<void> =>
+    widgetManager.setMode(id, mode),
   );
 }

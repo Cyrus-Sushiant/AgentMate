@@ -113,6 +113,12 @@ export const IPC = {
     listOllamaModels: 'ai:listOllamaModels',
     listGeminiModels: 'ai:listGeminiModels',
   },
+  projectDrafts: {
+    listByProject: 'projectDrafts:listByProject',
+    create: 'projectDrafts:create',
+    updateStatus: 'projectDrafts:updateStatus',
+    remove: 'projectDrafts:remove',
+  },
   scheduledTasks: {
     list: 'scheduledTasks:list',
     listByProject: 'scheduledTasks:listByProject',
@@ -185,6 +191,7 @@ export const IPC = {
     closeWidget: 'usage:closeWidget',
     setWidgetStyle: 'usage:setWidgetStyle',
     setWidgetSize: 'usage:setWidgetSize',
+    setWidgetMode: 'usage:setWidgetMode',
     // main -> widget window: instance changed, re-read it
     onWidgetUpdated: 'usage:widgetUpdated',
   },

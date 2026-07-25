@@ -1,10 +1,9 @@
-import { NavLink } from 'react-router-dom';
+import { NavLink, useLocation } from 'react-router-dom';
 import {
   Blocks,
   Broadcast,
   ChartColumn,
   FolderKanban,
-  History,
   LayoutDashboard,
   MessageSquare,
   Plug,
@@ -13,15 +12,25 @@ import {
   TerminalSquare,
   Wrench,
 } from '@/components/icons';
+import type { IconProps } from '@/components/icons';
 import { cn } from '@/lib/utils';
 import { useUiStore } from '@/stores/uiStore';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 
-export const NAV_ITEMS = [
+interface NavItem {
+  to: string;
+  label: string;
+  icon: React.ForwardRefExoticComponent<IconProps>;
+  end?: boolean;
+  /** Extra routes that keep this item highlighted (they have no nav entry of their own). */
+  alsoActiveOn?: string[];
+}
+
+export const NAV_ITEMS: NavItem[] = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard, end: true },
   { to: '/usage', label: 'Token Usage', icon: ChartColumn },
-  { to: '/prompt-builder', label: 'Prompt Builder', icon: Sparkles },
-  { to: '/prompt-history', label: 'Prompt History', icon: History },
+  // Prompt History has no nav entry of its own; it stays under Prompt Builder.
+  { to: '/prompt-builder', label: 'Prompt Builder', icon: Sparkles, alsoActiveOn: ['/prompt-history'] },
   { to: '/projects', label: 'Projects', icon: FolderKanban },
   { to: '/skills', label: 'Skills', icon: Blocks },
   { to: '/mcp', label: 'MCP Servers', icon: Plug },
@@ -34,6 +43,7 @@ export const NAV_ITEMS = [
 
 export function Sidebar(): React.JSX.Element {
   const collapsed = useUiStore((s) => s.sidebarCollapsed);
+  const { pathname } = useLocation();
 
   return (
     <aside
@@ -44,6 +54,9 @@ export function Sidebar(): React.JSX.Element {
     >
       <nav className="flex flex-1 flex-col gap-1">
         {NAV_ITEMS.map((item) => {
+          const activeByAlias =
+            item.alsoActiveOn?.some((p) => pathname === p || pathname.startsWith(`${p}/`)) ?? false;
+
           const link = (
             <NavLink
               key={item.to}
@@ -53,7 +66,7 @@ export function Sidebar(): React.JSX.Element {
                 cn(
                   'group relative flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
                   collapsed && 'justify-center px-0',
-                  isActive
+                  isActive || activeByAlias
                     ? 'bg-primary/15 font-semibold text-primary'
                     : 'text-muted-foreground hover:bg-foreground/[0.06] hover:text-foreground',
                 )
@@ -61,7 +74,9 @@ export function Sidebar(): React.JSX.Element {
             >
               {({ isActive }) => (
                 <>
-                  <item.icon className={cn('h-4 w-4 shrink-0', isActive && 'text-primary')} />
+                  <item.icon
+                    className={cn('h-4 w-4 shrink-0', (isActive || activeByAlias) && 'text-primary')}
+                  />
                   {!collapsed && <span>{item.label}</span>}
                 </>
               )}

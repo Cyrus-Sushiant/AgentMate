@@ -63,6 +63,52 @@ export interface UsagePeriod {
   costUsd: number | null;
 }
 
+// --- Subscription (non-API) accounts --------------------------------------
+
+/** How the account pays for inference. Drives which widget mode makes sense. */
+export type UsageAccountMode = 'subscription' | 'api';
+
+/** The plan a subscription account is on. */
+export interface SubscriptionPlan {
+  /** Raw id as the CLI records it ('pro', 'max', 'team'…). */
+  id: string;
+  /** Display label — 'Pro', 'Max 5×', 'Team'. */
+  label: string;
+}
+
+/** Which rate-limit window a `SubscriptionWindow` describes. */
+export type SubscriptionWindowKey = 'session' | 'week' | 'week-opus';
+
+/** One rolling rate-limit window on a subscription plan. */
+export interface SubscriptionWindow {
+  key: SubscriptionWindowKey;
+  /** Display label — 'Session (5h)', 'Weekly', 'Weekly (Opus)'. */
+  label: string;
+  /** 0–100 consumed. */
+  percent: number;
+  /** ISO datetime the window resets, when known. */
+  resetAt: string | null;
+  /** Tokens spent in the window — only set when derived from local logs. */
+  usedTokens?: number;
+  /** API-equivalent value of those tokens, which is what the percent is based on. */
+  usedUsd?: number;
+}
+
+/**
+ * Subscription state for a provider: which plan, and how much of each rolling
+ * limit is spent. `source` says whether the numbers are authoritative
+ * (fetched from the account) or reconstructed from local logs.
+ */
+export interface SubscriptionUsage {
+  mode: UsageAccountMode;
+  /** Null when the plan can't be determined (API mode, or not signed in). */
+  plan: SubscriptionPlan | null;
+  windows: SubscriptionWindow[];
+  source: 'account' | 'estimate';
+  /** Why the authoritative fetch was skipped/failed, for the estimate footnote. */
+  estimateReason?: string;
+}
+
 export type ProviderUsageStatus = 'ok' | 'connect' | 'error';
 
 /** Normalized snapshot returned by every data source, rendered by one card. */
@@ -76,6 +122,8 @@ export interface ProviderUsage {
   last30d: UsagePeriod;
   /** Optional quota window (limit bar + reset countdown). */
   window?: UsageWindow;
+  /** Plan + rolling-limit state, when the provider is on a subscription. */
+  subscription?: SubscriptionUsage;
   /** Recent per-hour (or per-day) token totals for the burn-rate sparkline. */
   series?: number[];
   /** Currency code for the cost figures (only 'USD' for now). */
@@ -87,6 +135,13 @@ export interface ProviderUsage {
 export type WidgetSize = 'small' | 'medium' | 'large';
 export type WidgetStyle = 'mono' | 'colorful';
 
+/**
+ * What a widget shows. 'auto' prefers the subscription view whenever the
+ * provider reports one and falls back to tokens, which is what a subscription
+ * user wants without configuring anything.
+ */
+export type WidgetMode = 'auto' | 'tokens' | 'subscription';
+
 /** A floating desktop widget the user has pinned; persisted in AppSettings. */
 export interface DesktopWidgetInstance {
   id: string;
@@ -95,6 +150,8 @@ export interface DesktopWidgetInstance {
   y: number;
   size: WidgetSize;
   style: WidgetStyle;
+  /** Absent on widgets pinned before modes existed — treat as 'auto'. */
+  mode?: WidgetMode;
 }
 
 /** Per-provider user configuration (enabled + optional API key). */

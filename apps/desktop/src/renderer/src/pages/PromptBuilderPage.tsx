@@ -9,6 +9,7 @@ import {
   Copy,
   Download,
   ExternalLink,
+  FileText,
   History,
   Languages,
   Microphone,
@@ -35,6 +36,7 @@ import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Combobox } from '@/components/ui/combobox';
+import { SimpleTooltip } from '@/components/ui/tooltip';
 import {
   Dialog,
   DialogContent,
@@ -215,6 +217,24 @@ export default function PromptBuilderPage(): React.JSX.Element {
     },
   });
 
+  const saveDraftMutation = useMutation({
+    mutationFn: () => {
+      if (!projectId) throw new Error('No project selected');
+      return window.agentmat.projectDrafts.create({
+        projectId,
+        rawInput,
+        promptType,
+        targetAI,
+        content: generated,
+      });
+    },
+    onSuccess: () => {
+      toast.success('Draft saved — find it on the project’s Overview tab.');
+      void queryClient.invalidateQueries({ queryKey: queryKeys.projectDrafts(projectId!) });
+    },
+    onError: () => toast.error('Could not save the draft.'),
+  });
+
   const saveScheduleMutation = useMutation({
     mutationFn: () => {
       if (!projectId) throw new Error('No project selected');
@@ -266,7 +286,16 @@ export default function PromptBuilderPage(): React.JSX.Element {
 
   async function logHistory(source: 'generate' | 'translate', content: string): Promise<void> {
     try {
-      await window.agentmat.promptHistory.add({ rawInput, promptType, targetAI, content, source });
+      // A plain translation isn't shaped by a prompt type or aimed at a particular AI,
+      // so neither field applies — record them empty rather than whatever the pickers hold.
+      const isTranslation = source === 'translate';
+      await window.agentmat.promptHistory.add({
+        rawInput,
+        promptType: isTranslation ? '' : promptType,
+        targetAI: isTranslation ? '' : targetAI,
+        content,
+        source,
+      });
       void queryClient.invalidateQueries({ queryKey: queryKeys.promptHistory });
     } catch {
       // History logging is best-effort — a failure here shouldn't interrupt the user's flow.
@@ -276,12 +305,15 @@ export default function PromptBuilderPage(): React.JSX.Element {
   /** Pull a past prompt back into the builder so it can be tweaked and re-run. */
   function restoreFromHistory(entry: PromptHistoryEntry): void {
     setRawInput(entry.rawInput);
-    // Stored as plain strings, so only adopt values the pickers still know about.
-    if ((PROMPT_TYPES as readonly string[]).includes(entry.promptType)) {
-      setPromptType(entry.promptType as PromptType);
-    }
-    if ((TARGET_AIS as readonly string[]).includes(entry.targetAI)) {
-      setTargetAI(entry.targetAI as TargetAI);
+    // Translations carry no prompt type or target AI, so leave the pickers as they are.
+    // Otherwise they're stored as plain strings — only adopt values the pickers still know about.
+    if (entry.source !== 'translate') {
+      if ((PROMPT_TYPES as readonly string[]).includes(entry.promptType)) {
+        setPromptType(entry.promptType as PromptType);
+      }
+      if ((TARGET_AIS as readonly string[]).includes(entry.targetAI)) {
+        setTargetAI(entry.targetAI as TargetAI);
+      }
     }
     setGenerated(entry.content);
     setHistoryOpen(false);
@@ -392,25 +424,26 @@ export default function PromptBuilderPage(): React.JSX.Element {
               <div className="flex items-center justify-between">
                 <Label htmlFor="raw-input">Your request</Label>
                 {voice.supported && (
-                  <Button
-                    type="button"
-                    variant={voice.status === 'recording' ? 'destructive' : 'ghost'}
-                    size="sm"
-                    className="h-7 gap-1.5 px-2 text-xs"
-                    onClick={voice.toggle}
-                    disabled={voiceBusy}
-                    title={voiceLabel}
-                    aria-label={voiceLabel}
-                  >
-                    {voiceBusy ? (
-                      <Spinner className="animate-spin" />
-                    ) : voice.status === 'recording' ? (
-                      <StopCircle />
-                    ) : (
-                      <Microphone />
-                    )}
-                    <span>{voiceLabel}</span>
-                  </Button>
+                  <SimpleTooltip label={voiceLabel} wrapTrigger={voiceBusy}>
+                    <Button
+                      type="button"
+                      variant={voice.status === 'recording' ? 'destructive' : 'ghost'}
+                      size="sm"
+                      className="h-7 gap-1.5 px-2 text-xs"
+                      onClick={voice.toggle}
+                      disabled={voiceBusy}
+                      aria-label={voiceLabel}
+                    >
+                      {voiceBusy ? (
+                        <Spinner className="animate-spin" />
+                      ) : voice.status === 'recording' ? (
+                        <StopCircle />
+                      ) : (
+                        <Microphone />
+                      )}
+                      <span>{voiceLabel}</span>
+                    </Button>
+                  </SimpleTooltip>
                 )}
               </div>
               <Textarea
@@ -462,6 +495,28 @@ export default function PromptBuilderPage(): React.JSX.Element {
                 />
               </div>
             </div>
+
+            {status === 'draft' && (
+              <div className="space-y-3 rounded-lg border border-border p-3">
+                <div className="flex items-center gap-1.5 text-sm font-medium">
+                  <FileText className="h-4 w-4" /> Draft
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {projectId
+                    ? 'Parks this request — with the prompt type, target AI and generated prompt it was built with — on the project’s Overview tab, where you can mark it implemented later.'
+                    : 'Choose a project above to park this request on it as a draft.'}
+                </p>
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  disabled={!projectId || !rawInput.trim() || saveDraftMutation.isPending}
+                  onClick={() => saveDraftMutation.mutate()}
+                >
+                  <Save />{' '}
+                  {saveDraftMutation.isPending ? 'Saving…' : 'Save draft to project'}
+                </Button>
+              </div>
+            )}
 
             {status === 'scheduled' && (
               <div className="space-y-3 rounded-lg border border-border p-3">
@@ -561,17 +616,18 @@ export default function PromptBuilderPage(): React.JSX.Element {
           <div className="flex flex-col space-y-3">
             <div className="flex items-center justify-between">
               <Label>Generated prompt</Label>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="h-7 gap-1.5 px-2 text-xs"
-                onClick={() => setHistoryOpen(true)}
-                title="Browse previously generated prompts"
-              >
-                <History />
-                <span>History</span>
-              </Button>
+              <SimpleTooltip label="Browse previously generated prompts">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 gap-1.5 px-2 text-xs"
+                  onClick={() => setHistoryOpen(true)}
+                >
+                  <History />
+                  <span>History</span>
+                </Button>
+              </SimpleTooltip>
             </div>
             <MonacoEditor value={generated} onChange={setGenerated} className="min-h-[420px] flex-1" />
             <div className="flex flex-wrap gap-2">
@@ -652,19 +708,22 @@ export default function PromptBuilderPage(): React.JSX.Element {
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex flex-wrap items-center gap-1.5">
-                      <span className="text-sm font-medium">{entry.promptType}</span>
-                      <Badge variant="outline">{entry.targetAI}</Badge>
-                      <Badge variant="secondary">
-                        {entry.source === 'translate' ? (
-                          <>
+                      {entry.source === 'translate' ? (
+                        <>
+                          <span className="text-sm font-medium">Translation</span>
+                          <Badge variant="secondary">
                             <Languages className="h-3 w-3" /> Translated
-                          </>
-                        ) : (
-                          <>
+                          </Badge>
+                        </>
+                      ) : (
+                        <>
+                          <span className="text-sm font-medium">{entry.promptType}</span>
+                          <Badge variant="outline">{entry.targetAI}</Badge>
+                          <Badge variant="secondary">
                             <Sparkles className="h-3 w-3" /> Generated
-                          </>
-                        )}
-                      </Badge>
+                          </Badge>
+                        </>
+                      )}
                     </div>
                     <span className="shrink-0 text-xs text-muted-foreground">
                       {new Date(entry.createdAt).toLocaleString()}

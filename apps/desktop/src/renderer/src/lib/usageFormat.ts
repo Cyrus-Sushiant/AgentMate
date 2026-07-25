@@ -18,6 +18,13 @@ export function formatPercent(p: number): string {
   return `${Math.round(p)}%`;
 }
 
+/** Bare "2d 4h" / "38m" countdown for tight layouts, or null when unknown. */
+export function formatCountdown(resetAt: string | null | undefined): string | null {
+  const full = formatReset(resetAt);
+  if (full === null) return null;
+  return full.startsWith('resets in ') ? full.slice('resets in '.length) : full;
+}
+
 /** "resets in 2d 4h" / "resets in 38m" style countdown, or null when unknown. */
 export function formatReset(resetAt: string | null | undefined): string | null {
   if (!resetAt) return null;

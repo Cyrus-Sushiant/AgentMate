@@ -4,6 +4,7 @@ import {
   type ProviderUsage,
   type UsageProviderConfig,
 } from '@agentmat/core';
+import { clearLiveWindowCache } from './claudeAccount';
 import { scanLocalProvider } from './localScanner';
 import type { LocalLogProvider } from './logParsers';
 import { fetchApiProviderUsage } from './apiProviders';
@@ -97,4 +98,5 @@ export async function getAllUsage(
 
 export function clearUsageCache(): void {
   cache.clear();
+  clearLiveWindowCache();
 }

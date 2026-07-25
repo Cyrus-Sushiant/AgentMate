@@ -9,6 +9,7 @@ import {
   faArrowsRotate,
   faArrowUpRightFromSquare,
   faBell,
+  faBold,
   faBookmark,
   faBolt,
   faCalendarDays,
@@ -19,6 +20,7 @@ import {
   faCircleQuestion,
   faClock,
   faClockRotateLeft,
+  faCode,
   faCodeBranch,
   faCodeCommit,
   faCodePullRequest,
@@ -30,6 +32,7 @@ import {
   faDownload,
   faEye,
   faFile,
+  faFileLines,
   faFloppyDisk,
   faFolder,
   faFolderOpen,
@@ -40,15 +43,20 @@ import {
   faGlobe,
   faGripVertical,
   faHardDrive,
+  faHeading,
+  faItalic,
   faKeyboard,
   faLanguage,
   faLink,
   faLinkSlash,
+  faListOl,
+  faListUl,
   faMagnifyingGlass,
   faMemory,
   faMicrochip,
   faMicrophone,
   faMicrophoneSlash,
+  faMinus,
   faSpinner,
   faMoon,
   faNetworkWired,
@@ -59,15 +67,19 @@ import {
   faPlus,
   faPowerOff,
   faQrcode,
+  faQuoteLeft,
   faRobot,
   faSatelliteDish,
   faSort,
+  faSquareCheck,
   faStop,
+  faStrikethrough,
   faThumbtack,
   faTowerBroadcast,
   faUpload,
   faWifi,
   faSun,
+  faTable,
   faTableColumns,
   faTag,
   faTerminal,
@@ -197,6 +209,21 @@ export const StopCircle = makeIcon(faStop);
 // Token usage icons.
 export const ChartColumn = makeIcon(faChartColumn);
 export const Bolt = makeIcon(faBolt);
+
+// Markdown editor icons.
+export const Bold = makeIcon(faBold);
+export const Italic = makeIcon(faItalic);
+export const Strikethrough = makeIcon(faStrikethrough);
+export const Heading = makeIcon(faHeading);
+export const ListUnordered = makeIcon(faListUl);
+export const ListOrdered = makeIcon(faListOl);
+export const ListTodo = makeIcon(faSquareCheck);
+export const Quote = makeIcon(faQuoteLeft);
+export const Code = makeIcon(faCode);
+export const Table = makeIcon(faTable);
+export const HorizontalRule = makeIcon(faMinus);
+export const FileText = makeIcon(faFileLines);
+export const SplitView = makeIcon(faTableColumns);
 export const Pin = makeIcon(faThumbtack);
 
 // Voice input icons.

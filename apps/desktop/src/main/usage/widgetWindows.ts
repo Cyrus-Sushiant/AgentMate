@@ -2,7 +2,12 @@ import { randomUUID } from 'node:crypto';
 import { join } from 'node:path';
 import { BrowserWindow } from 'electron';
 import icon from '../../../resources/icon.ico?asset';
-import type { DesktopWidgetInstance, WidgetSize, WidgetStyle } from '@agentmat/core';
+import type {
+  DesktopWidgetInstance,
+  WidgetMode,
+  WidgetSize,
+  WidgetStyle,
+} from '@agentmat/core';
 import { store } from '../store';
 
 // One frameless, transparent, always-on-top BrowserWindow per pinned widget.
@@ -115,6 +120,7 @@ export const widgetManager = {
       y: 80 + windows.size * 24,
       size,
       style: 'colorful',
+      mode: 'auto',
     };
     await upsertWidget(instance);
     createWidgetWindow(instance);
@@ -132,6 +138,13 @@ export const widgetManager = {
     const current = await this.get(id);
     if (!current) return;
     await upsertWidget({ ...current, style });
+    windows.get(id)?.webContents.send('usage:widgetUpdated', { id });
+  },
+
+  async setMode(id: string, mode: WidgetMode): Promise<void> {
+    const current = await this.get(id);
+    if (!current) return;
+    await upsertWidget({ ...current, mode });
     windows.get(id)?.webContents.send('usage:widgetUpdated', { id });
   },
 

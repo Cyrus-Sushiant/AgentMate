@@ -60,6 +60,8 @@ export interface CreateProjectInput {
   agentType: AgentType;
   notes: string;
   runCommand: string;
+  /** Optional: the create/edit form doesn't collect it — the Prompt dialog defines it later. */
+  prompt?: string;
 }
 
 export interface BootstrapResult {
@@ -132,6 +134,8 @@ export interface PromptHistoryEntry {
   content: string;
   source: PromptHistorySource;
   tags: string[];
+  /** Set when the entry came from a project-scoped flow (e.g. a bootstrap description). */
+  projectId: string | null;
   createdAt: string;
 }
 
@@ -141,6 +145,8 @@ export interface AddPromptHistoryInput {
   targetAI: string;
   content: string;
   source: PromptHistorySource;
+  /** Links this entry to a project, so it shows up in that project's history. */
+  projectId?: string | null;
 }
 
 export interface TranslateTextInput {
@@ -199,6 +205,14 @@ export interface AskAiResult {
   ok: boolean;
   text: string;
   error?: string;
+}
+
+export interface CreateProjectDraftInput {
+  projectId: string;
+  rawInput: string;
+  promptType: string;
+  targetAI: string;
+  content: string;
 }
 
 export interface ScheduledTaskInput {

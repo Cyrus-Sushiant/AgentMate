@@ -1,9 +1,10 @@
 import { useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { getUsageProvider } from '@agentmat/core';
-import { X } from '@/components/icons';
-import { UsageCardBody } from './UsageCard';
+import { getUsageProvider, type WidgetMode } from '@agentmat/core';
+import { ChartColumn, Clock, X } from '@/components/icons';
+import { SimpleTooltip } from '@/components/ui/tooltip';
+import { UsageCardBody, hasSubscriptionView } from './UsageCard';
 
 /**
  * Standalone render target for a floating desktop widget window
@@ -42,25 +43,53 @@ export default function WidgetRoute(): React.JSX.Element {
   });
 
   const def = providerId ? getUsageProvider(providerId) : undefined;
+  const usage = usageQuery.data;
+  const mode = instance?.mode ?? 'auto';
+
+  // 'auto' resolves to the subscription view when the account has limits, so
+  // the toggle's job is to pin the *other* view explicitly.
+  const showingLimits = mode !== 'tokens' && !!usage && hasSubscriptionView(usage);
+  const canToggle = !!usage && hasSubscriptionView(usage);
+
+  async function toggleMode(): Promise<void> {
+    const next: WidgetMode = showingLimits ? 'tokens' : 'subscription';
+    await window.agentmat.usage.setWidgetMode(id, next);
+    await instanceQuery.refetch();
+  }
 
   return (
     <div className="glass flex h-screen w-screen flex-col overflow-hidden rounded-2xl">
       <div className="widget-drag flex h-6 shrink-0 items-center justify-end px-2">
-        <button
-          className="widget-no-drag flex h-5 w-5 items-center justify-center rounded text-muted-foreground/70 hover:bg-foreground/10 hover:text-foreground"
-          title="Close widget"
-          onClick={() => void window.agentmat.usage.closeWidget(id)}
-        >
-          <X className="h-3 w-3" />
-        </button>
+        {canToggle && (
+          <SimpleTooltip
+            label={showingLimits ? 'Show tokens and cost' : 'Show plan limits'}
+            side="bottom"
+          >
+            <button
+              className="widget-no-drag flex h-5 w-5 items-center justify-center rounded text-muted-foreground/70 hover:bg-foreground/10 hover:text-foreground"
+              onClick={() => void toggleMode()}
+            >
+              {showingLimits ? <ChartColumn className="h-3 w-3" /> : <Clock className="h-3 w-3" />}
+            </button>
+          </SimpleTooltip>
+        )}
+        <SimpleTooltip label="Close widget" side="bottom">
+          <button
+            className="widget-no-drag flex h-5 w-5 items-center justify-center rounded text-muted-foreground/70 hover:bg-foreground/10 hover:text-foreground"
+            onClick={() => void window.agentmat.usage.closeWidget(id)}
+          >
+            <X className="h-3 w-3" />
+          </button>
+        </SimpleTooltip>
       </div>
       <div className="min-h-0 flex-1 px-3 pb-3">
-        {def && usageQuery.data ? (
+        {def && usage ? (
           <UsageCardBody
-            usage={usageQuery.data}
+            usage={usage}
             def={def}
             style={instance?.style ?? 'colorful'}
             compact={instance?.size === 'small'}
+            mode={mode}
           />
         ) : (
           <div className="flex h-full items-center justify-center text-xs text-muted-foreground">

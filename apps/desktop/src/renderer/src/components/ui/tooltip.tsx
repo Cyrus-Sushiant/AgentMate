@@ -9,13 +9,16 @@ const TooltipTrigger = TooltipPrimitive.Trigger;
 const TooltipContent = React.forwardRef<
   React.ElementRef<typeof TooltipPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof TooltipPrimitive.Content>
->(({ className, sideOffset = 8, ...props }, ref) => (
+>(({ className, sideOffset = 8, collisionPadding = 8, ...props }, ref) => (
   <TooltipPrimitive.Portal>
     <TooltipPrimitive.Content
       ref={ref}
       sideOffset={sideOffset}
+      collisionPadding={collisionPadding}
       className={cn(
-        'z-50 overflow-hidden rounded-lg border border-white/15 bg-popover/70 px-2.5 py-1.5 text-xs font-medium text-popover-foreground shadow-2xl backdrop-blur-xl data-[state=delayed-open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=delayed-open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=delayed-open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-1 data-[side=left]:slide-in-from-right-1 data-[side=right]:slide-in-from-left-1 data-[side=top]:slide-in-from-bottom-1',
+        // `max-w` + wrapping keeps long labels (file paths, run commands, error
+        // text) from stretching into one unreadable line off the window edge.
+        'z-50 max-w-[min(22rem,calc(100vw-2rem))] overflow-hidden whitespace-pre-line break-words rounded-lg border border-white/15 bg-popover/70 px-2.5 py-1.5 text-xs font-medium leading-relaxed text-popover-foreground shadow-2xl backdrop-blur-xl data-[state=delayed-open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=delayed-open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=delayed-open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-1 data-[side=left]:slide-in-from-right-1 data-[side=right]:slide-in-from-left-1 data-[side=top]:slide-in-from-bottom-1',
         className,
       )}
       {...props}
@@ -27,19 +30,48 @@ const TooltipContent = React.forwardRef<
 ));
 TooltipContent.displayName = TooltipPrimitive.Content.displayName;
 
+interface SimpleTooltipProps {
+  label: React.ReactNode;
+  children: React.ReactElement;
+  side?: 'top' | 'bottom' | 'left' | 'right';
+  align?: 'start' | 'center' | 'end';
+  /** Extra classes for the bubble — e.g. a wider `max-w` for prose. */
+  className?: string;
+  /**
+   * Wrap the child in an inline span that becomes the hover target. Needed for
+   * disabled controls, which never emit the pointer events Radix listens for.
+   */
+  wrapTrigger?: boolean;
+  delayDuration?: number;
+}
+
+/**
+ * The app-wide replacement for the native `title` attribute: same one-prop
+ * ergonomics, but styled, positioned, and animated like the rest of the UI.
+ */
 function SimpleTooltip({
   label,
   children,
   side,
-}: {
-  label: React.ReactNode;
-  children: React.ReactElement;
-  side?: 'top' | 'bottom' | 'left' | 'right';
-}): React.JSX.Element {
+  align,
+  className,
+  wrapTrigger = false,
+  delayDuration = 300,
+}: SimpleTooltipProps): React.JSX.Element {
+  // Nothing to show — hand the child back untouched so callers can pass
+  // optional values (an absent run command, a missing error) straight through.
+  if (label === null || label === undefined || label === false || label === '') {
+    return children;
+  }
+
   return (
-    <Tooltip delayDuration={300}>
-      <TooltipTrigger asChild>{children}</TooltipTrigger>
-      <TooltipContent side={side}>{label}</TooltipContent>
+    <Tooltip delayDuration={delayDuration}>
+      <TooltipTrigger asChild>
+        {wrapTrigger ? <span className="inline-flex">{children}</span> : children}
+      </TooltipTrigger>
+      <TooltipContent side={side} align={align} className={className}>
+        {label}
+      </TooltipContent>
     </Tooltip>
   );
 }

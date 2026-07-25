@@ -19,6 +19,7 @@ interface PromptHistoryRow {
   content: string;
   source: PromptHistorySource;
   tags: string;
+  project_id: string | null;
   created_at: string;
 }
 
@@ -31,6 +32,7 @@ function rowToEntry(row: PromptHistoryRow): PromptHistoryEntry {
     content: row.content,
     source: row.source,
     tags: row.tags ? (JSON.parse(row.tags) as string[]) : [],
+    projectId: row.project_id ?? null,
     createdAt: row.created_at,
   };
 }
@@ -57,6 +59,14 @@ function getDb(): Database.Database {
   if (!columns.some((c) => c.name === 'tags')) {
     db.exec(`ALTER TABLE prompt_history ADD COLUMN tags TEXT NOT NULL DEFAULT '[]'`);
   }
+  // Nullable on purpose: most entries come from Prompt Builder and belong to no
+  // project, and rows written before this column existed can't be attributed.
+  if (!columns.some((c) => c.name === 'project_id')) {
+    db.exec(`ALTER TABLE prompt_history ADD COLUMN project_id TEXT`);
+  }
+  db.exec(
+    'CREATE INDEX IF NOT EXISTS idx_prompt_history_project_id ON prompt_history(project_id, created_at DESC)',
+  );
   return db;
 }
 
@@ -67,32 +77,42 @@ export const promptHistoryDb = {
       createdAt: new Date().toISOString(),
       tags: [],
       ...input,
+      // Normalized after the spread: the input field is optional, the column isn't.
+      projectId: input.projectId ?? null,
     };
     getDb()
       .prepare(
-        `INSERT INTO prompt_history (id, raw_input, prompt_type, target_ai, content, source, created_at)
-         VALUES (@id, @rawInput, @promptType, @targetAI, @content, @source, @createdAt)`,
+        `INSERT INTO prompt_history (id, raw_input, prompt_type, target_ai, content, source, project_id, created_at)
+         VALUES (@id, @rawInput, @promptType, @targetAI, @content, @source, @projectId, @createdAt)`,
       )
       .run(entry);
     return entry;
   },
 
-  list(limit = 200): PromptHistoryEntry[] {
-    const rows = getDb()
-      .prepare('SELECT * FROM prompt_history ORDER BY created_at DESC LIMIT ?')
-      .all(limit) as PromptHistoryRow[];
+  list(projectId?: string | null, limit = 200): PromptHistoryEntry[] {
+    const rows = projectId
+      ? (getDb()
+          .prepare(
+            'SELECT * FROM prompt_history WHERE project_id = ? ORDER BY created_at DESC LIMIT ?',
+          )
+          .all(projectId, limit) as PromptHistoryRow[])
+      : (getDb()
+          .prepare('SELECT * FROM prompt_history ORDER BY created_at DESC LIMIT ?')
+          .all(limit) as PromptHistoryRow[]);
     return rows.map(rowToEntry);
   },
 
-  search(query: string, limit = 200): PromptHistoryEntry[] {
+  search(query: string, projectId?: string | null, limit = 200): PromptHistoryEntry[] {
     const like = `%${query}%`;
+    const matches =
+      '(raw_input LIKE @like OR content LIKE @like OR prompt_type LIKE @like OR target_ai LIKE @like)';
     const rows = getDb()
       .prepare(
         `SELECT * FROM prompt_history
-         WHERE raw_input LIKE @like OR content LIKE @like OR prompt_type LIKE @like OR target_ai LIKE @like
+         WHERE ${matches}${projectId ? ' AND project_id = @projectId' : ''}
          ORDER BY created_at DESC LIMIT @limit`,
       )
-      .all({ like, limit }) as PromptHistoryRow[];
+      .all({ like, limit, ...(projectId ? { projectId } : {}) }) as PromptHistoryRow[];
     return rows.map(rowToEntry);
   },
 

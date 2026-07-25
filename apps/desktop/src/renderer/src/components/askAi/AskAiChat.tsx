@@ -19,6 +19,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Combobox } from '@/components/ui/combobox';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { SimpleTooltip } from '@/components/ui/tooltip';
 import { queryKeys } from '@/lib/queryKeys';
 import { useAskAiStore, type AskAiMessage } from '@/stores/askAiStore';
 import { cn } from '@/lib/utils';
@@ -478,25 +479,27 @@ interface MessageActionsProps {
 function MessageActions({ message, onCopy, onToggleBookmark }: MessageActionsProps): React.JSX.Element {
   return (
     <div className="flex items-center gap-1">
-      <button
-        type="button"
-        title="Copy message"
-        onClick={() => onCopy(message.content)}
-        className="rounded p-0.5 text-muted-foreground transition-colors hover:text-foreground"
-      >
-        <Copy className="h-3 w-3" />
-      </button>
-      <button
-        type="button"
-        title={message.bookmarked ? 'Remove bookmark' : 'Bookmark message'}
-        onClick={() => onToggleBookmark(message.id)}
-        className={cn(
-          'rounded p-0.5 transition-colors hover:text-foreground',
-          message.bookmarked ? 'text-primary' : 'text-muted-foreground',
-        )}
-      >
-        <Bookmark className="h-3 w-3" />
-      </button>
+      <SimpleTooltip label="Copy message">
+        <button
+          type="button"
+          onClick={() => onCopy(message.content)}
+          className="rounded p-0.5 text-muted-foreground transition-colors hover:text-foreground"
+        >
+          <Copy className="h-3 w-3" />
+        </button>
+      </SimpleTooltip>
+      <SimpleTooltip label={message.bookmarked ? 'Remove bookmark' : 'Bookmark message'}>
+        <button
+          type="button"
+          onClick={() => onToggleBookmark(message.id)}
+          className={cn(
+            'rounded p-0.5 transition-colors hover:text-foreground',
+            message.bookmarked ? 'text-primary' : 'text-muted-foreground',
+          )}
+        >
+          <Bookmark className="h-3 w-3" />
+        </button>
+      </SimpleTooltip>
     </div>
   );
 }
