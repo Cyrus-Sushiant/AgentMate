@@ -19,6 +19,7 @@ const AGENT_TYPES: { value: AgentType; label: string }[] = [
   { value: 'gemini', label: 'Gemini' },
   { value: 'opencode', label: 'OpenCode' },
   { value: 'codex', label: 'Codex' },
+  { value: 'cursor', label: 'Cursor' },
   { value: 'generic', label: 'Generic' },
 ];
 

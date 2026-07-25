@@ -26,6 +26,7 @@ export const IPC = {
     update: 'projects:update',
     delete: 'projects:delete',
     bootstrap: 'projects:bootstrap',
+    bootstrapPlan: 'projects:bootstrapPlan',
     pickFolder: 'projects:pickFolder',
     updateNotifications: 'projects:updateNotifications',
     listClaudeHooks: 'projects:listClaudeHooks',
@@ -172,6 +173,20 @@ export const IPC = {
     getUninstallCommand: 'tools:getUninstallCommand',
     getInteractiveLaunchCommand: 'tools:getInteractiveLaunchCommand',
     getDockerCommand: 'tools:getDockerCommand',
+  },
+  usage: {
+    list: 'usage:list',
+    get: 'usage:get',
+    refresh: 'usage:refresh',
+    setProviderConfig: 'usage:setProviderConfig',
+    listWidgets: 'usage:listWidgets',
+    getWidget: 'usage:getWidget',
+    openWidget: 'usage:openWidget',
+    closeWidget: 'usage:closeWidget',
+    setWidgetStyle: 'usage:setWidgetStyle',
+    setWidgetSize: 'usage:setWidgetSize',
+    // main -> widget window: instance changed, re-read it
+    onWidgetUpdated: 'usage:widgetUpdated',
   },
   git: {
     status: 'git:status',

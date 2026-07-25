@@ -36,6 +36,7 @@ import {
 } from '@/components/icons';
 import { CliLogo } from '@/components/cliLogos';
 import { CLI_REGISTRY } from '@agentmat/core';
+import type { BootstrapResult } from '@shared/apiTypes';
 import type {
   CliDefinition,
   DetectedClaudeHook,
@@ -112,6 +113,15 @@ export default function ProjectDetailPage(): React.JSX.Element {
     enabled: !!projectId,
   });
 
+  // Fetched from the main process rather than computed here, so the preview is
+  // literally the plan that gets written. Keyed on the fields the plan derives
+  // from, so editing the project's agent refreshes it.
+  const bootstrapPlanQuery = useQuery({
+    queryKey: ['bootstrap-plan', projectId, project?.agentType, project?.name, project?.description],
+    queryFn: () => window.agentmat.projects.bootstrapPlan(projectId!),
+    enabled: !!projectId && !!project,
+  });
+
   const updateMutation = useMutation({
     mutationFn: (values: ProjectFormValues) => window.agentmat.projects.update(projectId!, values),
     onSuccess: () => {
@@ -121,11 +131,42 @@ export default function ProjectDetailPage(): React.JSX.Element {
     },
   });
 
+  const [bootstrapResult, setBootstrapResult] = useState<BootstrapResult | null>(null);
+  // Bumped on success so the file browser jumps back to the root and refetches.
+  const [fileBrowserRevision, setFileBrowserRevision] = useState(0);
+
   const bootstrapMutation = useMutation({
     mutationFn: () => window.agentmat.projects.bootstrap(projectId!),
-    onSuccess: (result) => {
-      toast.success(`Bootstrapped ${result.createdFiles.length} file(s).`);
+    onSuccess: (raw) => {
+      // The main process is bundled separately from this renderer, so a stale
+      // Electron build can answer with an older shape. Normalize rather than
+      // crash, and say so plainly — the fix is restarting `pnpm dev`.
+      const stale = !raw?.agentLabel || !raw?.skippedFiles;
+      const result: BootstrapResult = {
+        agentLabel: raw?.agentLabel ?? 'the selected agent',
+        createdFiles: raw?.createdFiles ?? [],
+        skippedFiles: raw?.skippedFiles ?? [],
+      };
+      setBootstrapResult(result);
+
+      if (stale) {
+        toast.warning(
+          'Bootstrapped with an outdated main process — files may have gone to the old locations. Restart the app (pnpm dev) and run it again.',
+        );
+      } else {
+        const skipped = result.skippedFiles.length
+          ? ` ${result.skippedFiles.length} already existed.`
+          : '';
+        toast.success(
+          `Created ${result.createdFiles.length} file(s) for ${result.agentLabel}.${skipped}`,
+        );
+      }
       void queryClient.invalidateQueries({ queryKey: ['project-dir'] });
+      setFileBrowserRevision((n) => n + 1);
+    },
+    onError: (error: Error) => {
+      setBootstrapResult(null);
+      toast.error(`Bootstrap failed: ${error.message}`);
     },
   });
 
@@ -322,18 +363,95 @@ export default function ProjectDetailPage(): React.JSX.Element {
             </TabsContent>
 
             <TabsContent value="bootstrap" className="space-y-4">
-              <div className="flex items-center justify-between">
+              <div className="flex items-start justify-between gap-4">
                 <p className="text-sm text-muted-foreground">
-                  Creates the standard AgentMate folder structure and starter docs for this project.
+                  {bootstrapPlanQuery.data ? (
+                    <>
+                      Scaffolds this project the way{' '}
+                      <span className="font-medium">{bootstrapPlanQuery.data.agentLabel}</span> expects
+                      it, following{' '}
+                      <a
+                        href={bootstrapPlanQuery.data.docsUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="underline underline-offset-2"
+                      >
+                        its own documented layout
+                      </a>
+                      . Existing files are never overwritten.
+                    </>
+                  ) : (
+                    'Scaffolds this project the way its agent expects it. Existing files are never overwritten.'
+                  )}
                 </p>
-                <Button onClick={() => bootstrapMutation.mutate()} disabled={bootstrapMutation.isPending}>
-                  <Wand2 /> Bootstrap Project
+                <Button
+                  className="shrink-0"
+                  onClick={() => bootstrapMutation.mutate()}
+                  disabled={bootstrapMutation.isPending || !bootstrapPlanQuery.data}
+                >
+                  <Wand2 />
+                  {bootstrapMutation.isPending ? 'Bootstrapping…' : 'Bootstrap Project'}
                 </Button>
               </div>
+
+              {bootstrapMutation.isError && (
+                <p className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-xs text-destructive">
+                  Bootstrap failed: {(bootstrapMutation.error as Error).message}
+                </p>
+              )}
+
+              <div className="rounded-md border bg-muted/30 p-3">
+                {bootstrapResult ? (
+                  <>
+                    <p className="mb-2 text-xs font-medium text-muted-foreground">Result</p>
+                    <ul className="space-y-0.5 font-mono text-xs">
+                      {[
+                        ...bootstrapResult.createdFiles.map((f) => ({ path: f, created: true })),
+                        ...bootstrapResult.skippedFiles.map((f) => ({ path: f, created: false })),
+                      ].map((file) => (
+                        <li
+                          key={file.path}
+                          className={file.created ? 'text-foreground' : 'text-muted-foreground'}
+                        >
+                          {file.created ? '+ ' : '· '}
+                          {file.path}
+                          {file.created ? '' : ' (already existed)'}
+                        </li>
+                      ))}
+                    </ul>
+                  </>
+                ) : bootstrapPlanQuery.isError ? (
+                  <p className="text-xs text-destructive">
+                    Could not load the plan: {(bootstrapPlanQuery.error as Error).message}
+                  </p>
+                ) : bootstrapPlanQuery.isPending ? (
+                  <p className="text-xs text-muted-foreground">Loading plan…</p>
+                ) : (
+                  <>
+                    <p className="mb-2 text-xs font-medium text-muted-foreground">
+                      Files it will create
+                    </p>
+                    <ul className="space-y-0.5 font-mono text-xs text-muted-foreground">
+                      {bootstrapPlanQuery.data?.files.map((file) => (
+                        <li key={file.relativePath}>{file.relativePath}</li>
+                      ))}
+                    </ul>
+                    <p className="mb-1 mt-3 text-xs font-medium text-muted-foreground">
+                      Folders it will create
+                    </p>
+                    <ul className="space-y-0.5 font-mono text-xs text-muted-foreground">
+                      {bootstrapPlanQuery.data?.folders.map((folder) => (
+                        <li key={folder}>{folder}/</li>
+                      ))}
+                    </ul>
+                  </>
+                )}
+              </div>
+
               <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                 <FolderTree className="h-3.5 w-3.5" /> Browse and edit project files
               </div>
-              <ProjectFileBrowser rootPath={project.folderPath} />
+              <ProjectFileBrowser rootPath={project.folderPath} revision={fileBrowserRevision} />
             </TabsContent>
 
             <TabsContent value="skills" className="space-y-3">

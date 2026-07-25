@@ -9,7 +9,9 @@ import {
   faArrowUpRightFromSquare,
   faBell,
   faBookmark,
+  faBolt,
   faCalendarDays,
+  faChartColumn,
   faCheck,
   faCircleCheck,
   faCircleHalfStroke,
@@ -60,6 +62,7 @@ import {
   faSatelliteDish,
   faSort,
   faStop,
+  faThumbtack,
   faTowerBroadcast,
   faUpload,
   faWifi,
@@ -188,6 +191,11 @@ export const CloudUpload = makeIcon(faCloudArrowUp);
 // Agent tools icons.
 export const Wrench = makeIcon(faWrench);
 export const StopCircle = makeIcon(faStop);
+
+// Token usage icons.
+export const ChartColumn = makeIcon(faChartColumn);
+export const Bolt = makeIcon(faBolt);
+export const Pin = makeIcon(faThumbtack);
 
 // Voice input icons.
 export const Microphone = makeIcon(faMicrophone);

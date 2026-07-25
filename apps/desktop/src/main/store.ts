@@ -55,6 +55,9 @@ const DEFAULT_SETTINGS: AppSettings = {
   translateMaxRetries: 3,
   speechModel: 'base',
   speechLanguage: 'auto',
+  usageProviderConfigs: {},
+  usageWidgets: [],
+  usageCardOrder: [],
 };
 
 /** Older projects.json entries predate the notifications field. */

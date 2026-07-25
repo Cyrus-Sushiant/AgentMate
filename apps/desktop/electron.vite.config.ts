@@ -27,6 +27,10 @@ export default defineConfig({
         external: forcedExternals,
         input: {
           index: resolve(__dirname, 'src/main/index.ts'),
+          // Separate entry: local-log usage scanning runs in a worker thread so
+          // parsing hundreds of MB of CLI transcripts can't block main-process
+          // IPC. Loaded by path from main, so it needs its own bundle.
+          usageScanWorker: resolve(__dirname, 'src/main/usage/usageScanWorker.ts'),
         },
       },
     },

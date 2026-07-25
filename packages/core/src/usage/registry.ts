@@ -1,0 +1,150 @@
+import type { UsageProviderDefinition } from './types.js';
+
+// The full catalog of 63 providers mirrors steipete/CodexBar's registry so the
+// Usage page reads as complete. Only the cross-platform starter set has a live
+// `dataSource` today (local-log for the coding CLIs, api-key for a handful of
+// key-based APIs); everything else is `unsupported` and renders a "Connect"
+// state until its integration is wired. `supportsCost` marks the providers whose
+// data source can attribute a dollar cost.
+export const USAGE_PROVIDER_REGISTRY: UsageProviderDefinition[] = [
+  // --- Live: local-log coding agents (no credentials) -----------------------
+  {
+    id: 'claude-code',
+    name: 'Claude Code',
+    category: 'coding-agent',
+    dataSource: 'local-log',
+    supportsCost: true,
+    homepageUrl: 'https://claude.com/claude-code',
+    accentColor: '#D97757',
+  },
+  {
+    id: 'codex',
+    name: 'Codex',
+    category: 'coding-agent',
+    dataSource: 'local-log',
+    supportsCost: true,
+    homepageUrl: 'https://github.com/openai/codex',
+    accentColor: '#000000',
+  },
+
+  // --- Live: API-key providers ---------------------------------------------
+  {
+    id: 'openai',
+    name: 'OpenAI',
+    category: 'api-provider',
+    dataSource: 'api-key',
+    supportsCost: true,
+    homepageUrl: 'https://platform.openai.com',
+    accentColor: '#10A37F',
+  },
+  {
+    id: 'openrouter',
+    name: 'OpenRouter',
+    category: 'router',
+    dataSource: 'api-key',
+    supportsCost: true,
+    homepageUrl: 'https://openrouter.ai',
+    accentColor: '#6467F2',
+  },
+  {
+    id: 'zai',
+    name: 'z.ai',
+    category: 'api-provider',
+    dataSource: 'api-key',
+    supportsCost: false,
+    homepageUrl: 'https://z.ai',
+    accentColor: '#2E6BFF',
+  },
+  {
+    id: 'litellm',
+    name: 'LiteLLM',
+    category: 'router',
+    dataSource: 'api-key',
+    supportsCost: true,
+    homepageUrl: 'https://litellm.ai',
+    accentColor: '#22C55E',
+  },
+  {
+    id: 'deepseek',
+    name: 'DeepSeek',
+    category: 'api-provider',
+    dataSource: 'api-key',
+    supportsCost: false,
+    homepageUrl: 'https://deepseek.com',
+    accentColor: '#4D6BFE',
+  },
+  {
+    id: 'moonshot',
+    name: 'Moonshot',
+    category: 'api-provider',
+    dataSource: 'api-key',
+    supportsCost: false,
+    homepageUrl: 'https://moonshot.ai',
+    accentColor: '#16C4A3',
+  },
+  // --- Registered (Connect placeholder until wired) ------------------------
+  { id: 'azure-openai', name: 'Azure OpenAI', category: 'cloud', dataSource: 'unsupported', supportsCost: false, homepageUrl: 'https://azure.microsoft.com/products/ai-services/openai-service', accentColor: '#0078D4' },
+  { id: 'gemini', name: 'Gemini', category: 'api-provider', dataSource: 'unsupported', supportsCost: false, homepageUrl: 'https://ai.google.dev', accentColor: '#1C69FF' },
+  { id: 'antigravity', name: 'Antigravity', category: 'ide', dataSource: 'unsupported', supportsCost: false, homepageUrl: 'https://antigravity.google', accentColor: '#4285F4' },
+  { id: 'cursor', name: 'Cursor', category: 'ide', dataSource: 'unsupported', supportsCost: false, homepageUrl: 'https://cursor.com', accentColor: '#111111' },
+  { id: 'opencode', name: 'OpenCode', category: 'coding-agent', dataSource: 'unsupported', supportsCost: false, homepageUrl: 'https://opencode.ai', accentColor: '#111111' },
+  { id: 'opencode-go', name: 'OpenCode Go', category: 'coding-agent', dataSource: 'unsupported', supportsCost: false, homepageUrl: 'https://opencode.ai', accentColor: '#00ADD8' },
+  { id: 'alibaba-coding-plan', name: 'Alibaba Coding Plan', category: 'api-provider', dataSource: 'unsupported', supportsCost: false, homepageUrl: 'https://www.aliyun.com', accentColor: '#FF6A00' },
+  { id: 'alibaba-token-plan', name: 'Alibaba Token Plan', category: 'api-provider', dataSource: 'unsupported', supportsCost: false, homepageUrl: 'https://bailian.console.aliyun.com', accentColor: '#FF6A00' },
+  { id: 'factory', name: 'Droid (Factory)', category: 'coding-agent', dataSource: 'unsupported', supportsCost: false, homepageUrl: 'https://factory.ai', accentColor: '#7C3AED' },
+  { id: 'devin', name: 'Devin', category: 'coding-agent', dataSource: 'unsupported', supportsCost: false, homepageUrl: 'https://devin.ai', accentColor: '#111827' },
+  { id: 'manus', name: 'Manus', category: 'coding-agent', dataSource: 'unsupported', supportsCost: false, homepageUrl: 'https://manus.im', accentColor: '#5B4BFF' },
+  { id: 'minimax', name: 'MiniMax', category: 'api-provider', dataSource: 'unsupported', supportsCost: false, homepageUrl: 'https://minimax.io', accentColor: '#F23F5D' },
+  { id: 'kimi', name: 'Kimi', category: 'api-provider', dataSource: 'unsupported', supportsCost: false, homepageUrl: 'https://kimi.moonshot.cn', accentColor: '#111111' },
+  { id: 'kilo', name: 'Kilo', category: 'coding-agent', dataSource: 'unsupported', supportsCost: false, homepageUrl: 'https://kilocode.ai', accentColor: '#6D28D9' },
+  { id: 'copilot', name: 'GitHub Copilot', category: 'ide', dataSource: 'unsupported', supportsCost: false, homepageUrl: 'https://github.com/features/copilot', accentColor: '#000000' },
+  { id: 'kiro', name: 'Kiro', category: 'ide', dataSource: 'unsupported', supportsCost: false, homepageUrl: 'https://kiro.dev', accentColor: '#7C3AED' },
+  { id: 'vertex-ai', name: 'Vertex AI', category: 'cloud', dataSource: 'unsupported', supportsCost: true, homepageUrl: 'https://cloud.google.com/vertex-ai', accentColor: '#4285F4' },
+  { id: 'augment', name: 'Augment', category: 'ide', dataSource: 'unsupported', supportsCost: false, homepageUrl: 'https://augmentcode.com', accentColor: '#111111' },
+  { id: 'jetbrains-ai', name: 'JetBrains AI', category: 'ide', dataSource: 'unsupported', supportsCost: false, homepageUrl: 'https://jetbrains.com/ai', accentColor: '#FF318C' },
+  { id: 'amp', name: 'Amp', category: 'coding-agent', dataSource: 'unsupported', supportsCost: false, homepageUrl: 'https://ampcode.com', accentColor: '#F97316' },
+  { id: 't3-chat', name: 'T3 Chat', category: 'other', dataSource: 'unsupported', supportsCost: false, homepageUrl: 'https://t3.chat', accentColor: '#E11D8F' },
+  { id: 'warp', name: 'Warp', category: 'ide', dataSource: 'unsupported', supportsCost: false, homepageUrl: 'https://warp.dev', accentColor: '#01A4FF' },
+  { id: 'elevenlabs', name: 'ElevenLabs', category: 'audio', dataSource: 'unsupported', supportsCost: false, homepageUrl: 'https://elevenlabs.io', accentColor: '#111111' },
+  { id: 'windsurf', name: 'Windsurf', category: 'ide', dataSource: 'unsupported', supportsCost: false, homepageUrl: 'https://windsurf.com', accentColor: '#09B6A2' },
+  { id: 'ollama', name: 'Ollama', category: 'api-provider', dataSource: 'unsupported', supportsCost: false, homepageUrl: 'https://ollama.com', accentColor: '#111111' },
+  { id: 'synthetic', name: 'Synthetic', category: 'api-provider', dataSource: 'unsupported', supportsCost: false, homepageUrl: 'https://synthetic.new', accentColor: '#6366F1' },
+  { id: 'perplexity', name: 'Perplexity', category: 'api-provider', dataSource: 'unsupported', supportsCost: false, homepageUrl: 'https://perplexity.ai', accentColor: '#20808D' },
+  { id: 'mimo', name: 'Xiaomi MiMo', category: 'api-provider', dataSource: 'unsupported', supportsCost: false, homepageUrl: 'https://xiaomi.com', accentColor: '#FF6900' },
+  { id: 'doubao', name: 'Doubao', category: 'api-provider', dataSource: 'unsupported', supportsCost: false, homepageUrl: 'https://www.volcengine.com/product/doubao', accentColor: '#3B5BFF' },
+  { id: 'sakana', name: 'Sakana AI', category: 'api-provider', dataSource: 'unsupported', supportsCost: false, homepageUrl: 'https://sakana.ai', accentColor: '#E11D48' },
+  { id: 'abacus', name: 'Abacus AI', category: 'api-provider', dataSource: 'unsupported', supportsCost: false, homepageUrl: 'https://abacus.ai', accentColor: '#2563EB' },
+  { id: 'mistral', name: 'Mistral', category: 'api-provider', dataSource: 'unsupported', supportsCost: true, homepageUrl: 'https://mistral.ai', accentColor: '#FF7000' },
+  { id: 'deepinfra', name: 'DeepInfra', category: 'api-provider', dataSource: 'unsupported', supportsCost: false, homepageUrl: 'https://deepinfra.com', accentColor: '#4F46E5' },
+  { id: 'codebuff', name: 'Codebuff', category: 'coding-agent', dataSource: 'unsupported', supportsCost: false, homepageUrl: 'https://codebuff.com', accentColor: '#111111' },
+  { id: 'crof', name: 'Crof', category: 'api-provider', dataSource: 'unsupported', supportsCost: false, homepageUrl: 'https://crof.ai', accentColor: '#0EA5E9' },
+  { id: 'venice', name: 'Venice', category: 'api-provider', dataSource: 'unsupported', supportsCost: false, homepageUrl: 'https://venice.ai', accentColor: '#E11D48' },
+  { id: 'command-code', name: 'Command Code', category: 'coding-agent', dataSource: 'unsupported', supportsCost: false, homepageUrl: 'https://commandcode.ai', accentColor: '#111111' },
+  { id: 'clinepass', name: 'ClinePass', category: 'coding-agent', dataSource: 'unsupported', supportsCost: false, homepageUrl: 'https://cline.bot', accentColor: '#7C3AED' },
+  { id: 'stepfun', name: 'StepFun', category: 'api-provider', dataSource: 'unsupported', supportsCost: false, homepageUrl: 'https://stepfun.com', accentColor: '#2563EB' },
+  { id: 'bedrock', name: 'AWS Bedrock', category: 'cloud', dataSource: 'unsupported', supportsCost: true, homepageUrl: 'https://aws.amazon.com/bedrock', accentColor: '#FF9900' },
+  { id: 'grok', name: 'Grok', category: 'api-provider', dataSource: 'unsupported', supportsCost: false, homepageUrl: 'https://x.ai', accentColor: '#000000' },
+  { id: 'groq', name: 'GroqCloud', category: 'api-provider', dataSource: 'unsupported', supportsCost: false, homepageUrl: 'https://groq.com', accentColor: '#F55036' },
+  { id: 'llm-proxy', name: 'LLM Proxy', category: 'router', dataSource: 'unsupported', supportsCost: false, accentColor: '#64748B' },
+  { id: 'clawrouter', name: 'ClawRouter', category: 'router', dataSource: 'unsupported', supportsCost: false, homepageUrl: 'https://clawrouter.com', accentColor: '#F59E0B' },
+  { id: 'wayfinder', name: 'Wayfinder', category: 'router', dataSource: 'unsupported', supportsCost: false, accentColor: '#0EA5E9' },
+  { id: 'deepgram', name: 'Deepgram', category: 'audio', dataSource: 'unsupported', supportsCost: false, homepageUrl: 'https://deepgram.com', accentColor: '#13EF93' },
+  { id: 'chutes', name: 'Chutes', category: 'api-provider', dataSource: 'unsupported', supportsCost: false, homepageUrl: 'https://chutes.ai', accentColor: '#F97316' },
+  { id: 'neuralwatt', name: 'Neuralwatt', category: 'api-provider', dataSource: 'unsupported', supportsCost: false, homepageUrl: 'https://neuralwatt.com', accentColor: '#22C55E' },
+  { id: 'zenmux', name: 'ZenMux', category: 'router', dataSource: 'unsupported', supportsCost: false, accentColor: '#8B5CF6' },
+  { id: 'ai-and', name: 'ai&', category: 'api-provider', dataSource: 'unsupported', supportsCost: false, accentColor: '#111111' },
+  { id: 'zed', name: 'Zed', category: 'ide', dataSource: 'unsupported', supportsCost: false, homepageUrl: 'https://zed.dev', accentColor: '#084CCF' },
+  { id: 'longcat', name: 'LongCat', category: 'api-provider', dataSource: 'unsupported', supportsCost: false, homepageUrl: 'https://longcat.ai', accentColor: '#F97316' },
+  { id: 'poe', name: 'Poe', category: 'other', dataSource: 'unsupported', supportsCost: false, homepageUrl: 'https://poe.com', accentColor: '#5D2DE6' },
+  { id: 'qoder', name: 'Qoder', category: 'ide', dataSource: 'unsupported', supportsCost: false, homepageUrl: 'https://qoder.com', accentColor: '#6D28D9' },
+  { id: 'sub2api', name: 'Sub2API', category: 'router', dataSource: 'unsupported', supportsCost: false, accentColor: '#0EA5E9' },
+];
+
+export function getUsageProvider(id: string): UsageProviderDefinition | undefined {
+  return USAGE_PROVIDER_REGISTRY.find((p) => p.id === id);
+}
+
+/** Providers whose usage AgentMate can fetch live today. */
+export function isLiveProvider(def: UsageProviderDefinition): boolean {
+  return def.dataSource !== 'unsupported';
+}

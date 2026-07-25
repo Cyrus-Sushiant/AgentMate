@@ -1,11 +1,16 @@
 import { randomUUID } from 'node:crypto';
 import { mkdir, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { dialog, ipcMain } from 'electron';
-import { BOOTSTRAP_FOLDERS, defaultProjectNotifications, getBootstrapFiles } from '@agentmat/core';
-import type { DetectedClaudeHook, Project, ProjectNotificationSettings } from '@agentmat/core';
+import { defaultProjectNotifications, getBootstrapPlan } from '@agentmat/core';
+import type {
+  BootstrapPlan,
+  DetectedClaudeHook,
+  Project,
+  ProjectNotificationSettings,
+} from '@agentmat/core';
 import { IPC } from '../../shared/ipcChannels';
-import type { CreateProjectInput } from '../../shared/apiTypes';
+import type { BootstrapResult, CreateProjectInput } from '../../shared/apiTypes';
 import { store, logActivity } from '../store';
 import {
   deleteClaudeHook,
@@ -13,6 +18,14 @@ import {
   listClaudeHooks,
   updateClaudeHook,
 } from '../notifications/hookInstaller';
+
+function planFor(project: Project): BootstrapPlan {
+  return getBootstrapPlan({
+    name: project.name,
+    description: project.description,
+    agentType: project.agentType,
+  });
+}
 
 export function registerProjectHandlers(): void {
   ipcMain.handle(IPC.projects.list, (): Promise<Project[]> => store.getProjects());
@@ -80,37 +93,57 @@ export function registerProjectHandlers(): void {
     await store.setProjects(projects.filter((p) => p.id !== projectId));
   });
 
+  /**
+   * The plan the Bootstrap tab previews. Served from here — rather than
+   * recomputed in the renderer — so the preview and the write can never
+   * disagree: both come from this process, off the same build.
+   */
+  ipcMain.handle(
+    IPC.projects.bootstrapPlan,
+    async (_event, projectId: string): Promise<BootstrapPlan> => {
+      const projects = await store.getProjects();
+      const project = projects.find((p) => p.id === projectId);
+      if (!project) throw new Error(`Project ${projectId} not found`);
+      return planFor(project);
+    },
+  );
+
   ipcMain.handle(
     IPC.projects.bootstrap,
-    async (_event, projectId: string): Promise<{ createdFiles: string[] }> => {
+    async (_event, projectId: string): Promise<BootstrapResult> => {
       const projects = await store.getProjects();
       const project = projects.find((p) => p.id === projectId);
       if (!project) throw new Error(`Project ${projectId} not found`);
 
-      for (const folder of BOOTSTRAP_FOLDERS) {
+      const plan = planFor(project);
+
+      for (const folder of plan.folders) {
         await mkdir(join(project.folderPath, folder), { recursive: true });
       }
 
-      const files = getBootstrapFiles({
-        name: project.name,
-        description: project.description,
-        agentType: project.agentType,
-      });
-
+      // Never clobber an agent's existing config: `wx` fails on EEXIST, which we
+      // report back as "skipped" rather than counting as created.
       const createdFiles: string[] = [];
-      for (const file of files) {
+      const skippedFiles: string[] = [];
+      for (const file of plan.files) {
         const targetPath = join(project.folderPath, file.relativePath);
-        await writeFile(targetPath, file.content, { flag: 'wx' }).catch((error) => {
+        await mkdir(dirname(targetPath), { recursive: true });
+        try {
+          await writeFile(targetPath, file.content, { flag: 'wx' });
+          createdFiles.push(file.relativePath);
+        } catch (error) {
           if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;
-        });
-        createdFiles.push(file.relativePath);
+          skippedFiles.push(file.relativePath);
+        }
       }
 
-      await logActivity('project-bootstrapped', `Bootstrapped project "${project.name}"`, {
-        projectId,
-      });
+      await logActivity(
+        'project-bootstrapped',
+        `Bootstrapped project "${project.name}" for ${plan.agentLabel}`,
+        { projectId },
+      );
 
-      return { createdFiles };
+      return { agentLabel: plan.agentLabel, createdFiles, skippedFiles };
     },
   );
 

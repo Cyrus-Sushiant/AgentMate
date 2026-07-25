@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron';
 import type {
   AppSettings,
+  BootstrapPlan,
   CliUpdateCheckResult,
   DetectedClaudeHook,
   InstalledCli,
@@ -17,9 +18,15 @@ import type {
   McpRepositoryIndex,
   McpRepositorySourceType,
   InstalledAgentTool,
+  ProviderUsage,
+  UsageProviderConfig,
+  DesktopWidgetInstance,
+  WidgetSize,
+  WidgetStyle,
 } from '@agentmat/core';
 import { IPC } from '../shared/ipcChannels';
 import type {
+  BootstrapResult,
   CreateTerminalOptions,
   CreateProjectInput,
   CreateScheduledTasksInput,
@@ -121,8 +128,10 @@ const projects = {
   update: (projectId: string, updates: Partial<CreateProjectInput>): Promise<Project> =>
     ipcRenderer.invoke(IPC.projects.update, projectId, updates),
   delete: (projectId: string): Promise<void> => ipcRenderer.invoke(IPC.projects.delete, projectId),
-  bootstrap: (projectId: string): Promise<{ createdFiles: string[] }> =>
+  bootstrap: (projectId: string): Promise<BootstrapResult> =>
     ipcRenderer.invoke(IPC.projects.bootstrap, projectId),
+  bootstrapPlan: (projectId: string): Promise<BootstrapPlan> =>
+    ipcRenderer.invoke(IPC.projects.bootstrapPlan, projectId),
   pickFolder: (): Promise<string | null> => ipcRenderer.invoke(IPC.projects.pickFolder),
   updateNotifications: (
     projectId: string,
@@ -390,6 +399,26 @@ const remote = {
   onLog: (cb: (event: RemoteLogEvent) => void): (() => void) => subscribe(IPC.remote.onLog, cb),
 };
 
+const usage = {
+  list: (): Promise<ProviderUsage[]> => ipcRenderer.invoke(IPC.usage.list),
+  get: (providerId: string): Promise<ProviderUsage> => ipcRenderer.invoke(IPC.usage.get, providerId),
+  refresh: (): Promise<ProviderUsage[]> => ipcRenderer.invoke(IPC.usage.refresh),
+  setProviderConfig: (providerId: string, config: UsageProviderConfig): Promise<void> =>
+    ipcRenderer.invoke(IPC.usage.setProviderConfig, { providerId, config }),
+  listWidgets: (): Promise<DesktopWidgetInstance[]> => ipcRenderer.invoke(IPC.usage.listWidgets),
+  getWidget: (id: string): Promise<DesktopWidgetInstance | null> =>
+    ipcRenderer.invoke(IPC.usage.getWidget, id),
+  openWidget: (providerId: string, size?: WidgetSize): Promise<DesktopWidgetInstance> =>
+    ipcRenderer.invoke(IPC.usage.openWidget, providerId, size),
+  closeWidget: (id: string): Promise<void> => ipcRenderer.invoke(IPC.usage.closeWidget, id),
+  setWidgetStyle: (id: string, style: WidgetStyle): Promise<void> =>
+    ipcRenderer.invoke(IPC.usage.setWidgetStyle, id, style),
+  setWidgetSize: (id: string, size: WidgetSize): Promise<void> =>
+    ipcRenderer.invoke(IPC.usage.setWidgetSize, id, size),
+  onWidgetUpdated: (callback: (payload: { id: string }) => void): (() => void) =>
+    subscribe(IPC.usage.onWidgetUpdated, callback),
+};
+
 const windowControls = {
   minimize: (): Promise<void> => ipcRenderer.invoke(IPC.window.minimize),
   maximizeToggle: (): Promise<void> => ipcRenderer.invoke(IPC.window.maximizeToggle),
@@ -428,6 +457,7 @@ const agentmatApi = {
   notifications,
   git,
   remote,
+  usage,
 };
 
 export type AgentmatApi = typeof agentmatApi;

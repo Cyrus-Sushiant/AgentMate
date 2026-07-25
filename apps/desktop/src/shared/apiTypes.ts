@@ -1,6 +1,22 @@
-import type { AgentType, AiProvider, ProjectNotificationSettings } from '@agentmat/core';
+import type {
+  AgentType,
+  AiProvider,
+  ProjectNotificationSettings,
+  UsageProviderConfig,
+} from '@agentmat/core';
 
 export type { AiProvider };
+
+/** Payload for enabling/configuring a Usage provider (settings key + API key). */
+export interface SetUsageProviderConfigInput {
+  providerId: string;
+  config: UsageProviderConfig;
+}
+
+/** main -> widget window: which widget instance changed. */
+export interface WidgetUpdatedPayload {
+  id: string;
+}
 
 export interface UpdateInfo {
   version: string;
@@ -44,6 +60,14 @@ export interface CreateProjectInput {
   agentType: AgentType;
   notes: string;
   runCommand: string;
+}
+
+export interface BootstrapResult {
+  /** Agent the scaffold was written for, e.g. "Claude Code". */
+  agentLabel: string;
+  createdFiles: string[];
+  /** Files left untouched because they already existed. */
+  skippedFiles: string[];
 }
 
 export interface SaveTemplateInput {

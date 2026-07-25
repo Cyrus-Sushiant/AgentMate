@@ -1,0 +1,156 @@
+import { existsSync } from 'node:fs';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { dirname, join, sep } from 'node:path';
+import { Worker } from 'node:worker_threads';
+import { app } from 'electron';
+import type { ProviderUsage, UsageWindow } from '@agentmat/core';
+import {
+  retentionSinceMs,
+  scanProviderLogs,
+  type LocalLogProvider,
+  type ScanCache,
+  type ScanResult,
+} from './logParsers';
+import type { ScanWorkerInput, ScanWorkerMessage } from './usageScanWorker';
+import { buildUsageFromEntries, makeTokens, type UsageEntry } from './shared';
+
+// Main-process driver for the local-log providers. Two things keep this cheap:
+// the actual parsing runs in a worker thread (see usageScanWorker.ts), and the
+// per-file byte offsets + extracted events are cached on disk so a restart
+// doesn't re-read hundreds of MB of transcripts.
+
+const CACHE_VERSION = 1;
+const WORKER_TIMEOUT_MS = 120_000;
+
+interface CacheFile {
+  version: number;
+  providers: Partial<Record<LocalLogProvider, ScanCache>>;
+}
+
+function cachePath(): string {
+  return join(app.getPath('userData'), 'usage-scan-cache.json');
+}
+
+let cachesPromise: Promise<CacheFile> | null = null;
+
+function loadCaches(): Promise<CacheFile> {
+  cachesPromise ??= readFile(cachePath(), 'utf-8')
+    .then((raw) => {
+      const parsed = JSON.parse(raw) as CacheFile;
+      if (parsed.version !== CACHE_VERSION) throw new Error('stale cache');
+      return { version: CACHE_VERSION, providers: parsed.providers ?? {} };
+    })
+    .catch(() => ({ version: CACHE_VERSION, providers: {} }));
+  return cachesPromise;
+}
+
+async function saveCache(provider: LocalLogProvider, cache: ScanCache): Promise<void> {
+  const caches = await loadCaches();
+  caches.providers[provider] = cache;
+  try {
+    await mkdir(dirname(cachePath()), { recursive: true });
+    await writeFile(cachePath(), JSON.stringify(caches), 'utf-8');
+  } catch {
+    /* cache is an optimization — a failed write just means a slower next scan */
+  }
+}
+
+/**
+ * Resolve the bundled worker script. Packaged builds unpack it from the asar
+ * archive (see `asarUnpack` in electron-builder.yml) because the Node worker
+ * loader reads it straight off disk.
+ */
+function workerScriptPath(): string | null {
+  const bundled = join(__dirname, 'usageScanWorker.mjs');
+  const unpacked = bundled.replace(`app.asar${sep}`, `app.asar.unpacked${sep}`);
+  if (unpacked !== bundled && existsSync(unpacked)) return unpacked;
+  return existsSync(bundled) ? bundled : null;
+}
+
+function runInWorker(input: ScanWorkerInput): Promise<ScanResult> {
+  const script = workerScriptPath();
+  if (!script) return Promise.reject(new Error('scan worker not found'));
+
+  return new Promise<ScanResult>((resolve, reject) => {
+    const worker = new Worker(script, { workerData: input });
+    let settled = false;
+    const settle = (fn: () => void): void => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      void worker.terminate();
+      fn();
+    };
+    const timer = setTimeout(
+      () => settle(() => reject(new Error('usage scan timed out'))),
+      WORKER_TIMEOUT_MS,
+    );
+
+    worker.on('message', (msg: ScanWorkerMessage) => {
+      settle(() => (msg.ok ? resolve(msg.result) : reject(new Error(msg.error))));
+    });
+    worker.on('error', (err) => settle(() => reject(err)));
+    worker.on('exit', (code) => {
+      settle(() => reject(new Error(`scan worker exited before reporting (code ${code})`)));
+    });
+  });
+}
+
+function toUsageWindow(window: ScanResult['window']): UsageWindow | undefined {
+  if (!window) return undefined;
+  // Drop `at`, which only exists so the freshest snapshot wins during the scan.
+  return {
+    label: window.label,
+    used: window.used,
+    total: window.total,
+    percent: window.percent,
+    resetAt: window.resetAt,
+  };
+}
+
+/** Fold raw worker output into the normalized snapshot the UI renders. */
+function toProviderUsage(providerId: string, result: ScanResult): ProviderUsage {
+  // Dedupe by message id: the same assistant message can appear in both the
+  // main transcript and a summary/compact file.
+  const seen = new Set<string>();
+  const entries: UsageEntry[] = [];
+  for (const raw of result.entries) {
+    if (raw.id) {
+      if (seen.has(raw.id)) continue;
+      seen.add(raw.id);
+    }
+    entries.push({
+      at: new Date(raw.at),
+      model: raw.model,
+      tokens: makeTokens(raw.input, raw.output, raw.cacheRead, raw.cacheWrite),
+    });
+  }
+  return buildUsageFromEntries(providerId, entries, toUsageWindow(result.window));
+}
+
+/**
+ * Usage for a local-log provider. Runs the scan off-thread; if the worker can't
+ * start (unexpected packaging layout, for instance) it falls back to scanning
+ * in-process, which is still incremental and streamed rather than slurping every
+ * file into memory.
+ */
+export async function scanLocalProvider(provider: LocalLogProvider): Promise<ProviderUsage> {
+  const caches = await loadCaches();
+  const input: ScanWorkerInput = {
+    provider,
+    cache: caches.providers[provider] ?? {},
+    sinceMs: retentionSinceMs(),
+  };
+
+  let result: ScanResult;
+  try {
+    result = await runInWorker(input);
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.warn(`[usage] worker scan failed for ${provider}, falling back in-process:`, err);
+    result = await scanProviderLogs(input.provider, input.cache, input.sinceMs);
+  }
+
+  await saveCache(provider, result.cache);
+  return toProviderUsage(provider, result);
+}

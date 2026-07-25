@@ -25,6 +25,8 @@ import ToolsPage from './pages/ToolsPage';
 import AskAiPage from './pages/AskAiPage';
 import RemotePage from './pages/RemotePage';
 import SettingsPage from './pages/SettingsPage';
+import UsagePage from './pages/UsagePage';
+import WidgetRoute from './components/usage/WidgetRoute';
 
 export default function App(): React.JSX.Element {
   useEffect(() => {
@@ -41,6 +43,8 @@ export default function App(): React.JSX.Element {
       <TooltipProvider delayDuration={300} skipDelayDuration={100}>
         <HashRouter>
           <Routes>
+            {/* Floating desktop widget windows render standalone, outside the app shell. */}
+            <Route path="widget/:id" element={<WidgetRoute />} />
             <Route element={<AppShell />}>
               <Route index element={<DashboardPage />} />
               <Route path="cli-manager" element={<CliManagerPage />} />
@@ -51,6 +55,7 @@ export default function App(): React.JSX.Element {
               <Route path="skills" element={<SkillsPage />} />
               <Route path="mcp" element={<McpPage />} />
               <Route path="tools" element={<ToolsPage />} />
+              <Route path="usage" element={<UsagePage />} />
               <Route path="ask-ai" element={<AskAiPage />} />
               <Route path="remote" element={<RemotePage />} />
               <Route path="settings" element={<SettingsPage />} />

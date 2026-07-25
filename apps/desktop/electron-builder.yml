@@ -25,9 +25,16 @@ extraResources:
 # onnxruntime-node (pulled in by @huggingface/transformers for local Whisper
 # speech-to-text) is the same story: it dlopen's prebuilt .node/.dll/.so files
 # that have to live on the real filesystem, not inside the archive.
+#
+# The usage scan worker is started via `new Worker(<path>)`; the module loader
+# inside a worker thread reads off the real filesystem rather than through
+# Electron's asar shim, so the worker entry AND the chunk it shares with the
+# main bundle both have to exist unpacked.
 asarUnpack:
   - '**/node_modules/node-pty/**'
   - '**/node_modules/onnxruntime-node/**'
+  - 'out/main/usageScanWorker.mjs'
+  - 'out/main/chunks/**'
 
 win:
   icon: build/icon.png

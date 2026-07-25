@@ -23,6 +23,8 @@ import { registerTemplateHandlers } from './ipc/templates';
 import { killAllTerminalSessions, registerTerminalHandlers } from './ipc/terminal';
 import { registerToolHandlers } from './ipc/tools';
 import { registerTranslateHandlers } from './ipc/translate';
+import { registerUsageHandlers } from './ipc/usage';
+import { widgetManager } from './usage/widgetWindows';
 import { registerWindowHandlers } from './ipc/window';
 import { seedExampleRepositoryIfEmpty } from './exampleSkillRepo';
 import { startHookServer, stopHookServer } from './notifications/hookServer';
@@ -59,6 +61,13 @@ function createMainWindow(): void {
   win.once('ready-to-show', () => win.show());
   registerWindowHandlers(win);
   remoteManager.init(win);
+
+  // Closing the main window tears down the floating usage widgets too, so the
+  // app can fully quit on Windows/Linux instead of lingering with only
+  // taskbar-less widget windows (they're persisted and restored next launch).
+  win.on('closed', () => {
+    if (process.platform !== 'darwin') widgetManager.closeAll();
+  });
 
   if (process.env.ELECTRON_RENDERER_URL) {
     win.webContents.on('console-message', (_event, _level, message, line, sourceId) => {
@@ -106,6 +115,7 @@ function registerAllIpcHandlers(): void {
   registerSpeechHandlers();
   registerGitHandlers();
   registerRemoteHandlers();
+  registerUsageHandlers();
 }
 
 app.whenReady().then(() => {
@@ -151,6 +161,7 @@ app.whenReady().then(() => {
   void seedExampleRepositoryIfEmpty();
   void startHookServer();
   createMainWindow();
+  void widgetManager.restoreAll();
   startHourlyUpdateChecks();
 
   app.on('activate', () => {

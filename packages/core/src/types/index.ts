@@ -1,3 +1,5 @@
+import type { DesktopWidgetInstance, UsageProviderConfig } from '../usage/types.js';
+
 export type ThemeMode = 'light' | 'dark' | 'system';
 
 export type AiProvider = 'openai' | 'ollama' | 'gemini';
@@ -36,9 +38,15 @@ export interface AppSettings {
   speechModel: string;
   /** Spoken language for voice input as a Whisper code (e.g. "en", "fa"), or "auto" to detect it. */
   speechLanguage: string;
+  /** Per-provider config for the Token Usage page (enabled flag + optional API key), keyed by provider id. */
+  usageProviderConfigs: Record<string, UsageProviderConfig>;
+  /** Floating desktop usage widgets the user has pinned; recreated on app launch. */
+  usageWidgets: DesktopWidgetInstance[];
+  /** User-defined display order for the Usage page's provider cards (provider ids). */
+  usageCardOrder: string[];
 }
 
-export type AgentType = 'claude-code' | 'gemini' | 'opencode' | 'codex' | 'generic';
+export type AgentType = 'claude-code' | 'gemini' | 'opencode' | 'codex' | 'cursor' | 'generic';
 
 export type NotificationHookKind = 'completion' | 'confirmation';
 

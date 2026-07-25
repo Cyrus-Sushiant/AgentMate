@@ -157,6 +157,43 @@ body {
   );
 }
 
+/* Frosted-glass surface for the Token Usage widgets — a translucent card with
+   a heavy backdrop blur so it reads as glass both inside the app and floating
+   over the desktop. */
+.glass {
+  background: hsl(var(--card) / 0.55);
+  backdrop-filter: blur(20px) saturate(140%);
+  -webkit-backdrop-filter: blur(20px) saturate(140%);
+  border: 1px solid hsl(var(--foreground) / 0.08);
+  box-shadow: 0 8px 32px -8px hsl(0 0% 0% / 0.35);
+}
+
+.dark .glass {
+  background: hsl(var(--card) / 0.5);
+  border-color: hsl(var(--foreground) / 0.1);
+}
+
+/* When the renderer is loaded as a floating desktop widget (#/widget/:id sets
+   data-widget on <html>), the page itself must be see-through so the frosted
+   glass card blurs the actual desktop behind it. */
+:root[data-widget] body {
+  background: transparent;
+  overflow: hidden;
+}
+:root[data-widget],
+:root[data-widget] #root {
+  background: transparent;
+}
+
+/* The strip at the top of a floating widget the user grabs to drag it; uses the
+   OS-level drag region so the frameless window moves natively. */
+.widget-drag {
+  -webkit-app-region: drag;
+}
+.widget-no-drag {
+  -webkit-app-region: no-drag;
+}
+
 /* Windows 11 caption glyphs (minimize / maximize / restore / close) use the
    system's Segoe icon fonts so the buttons look native. */
 .caption-glyph {
