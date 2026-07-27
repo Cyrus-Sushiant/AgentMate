@@ -15,12 +15,11 @@ export interface DashboardUsageCardProps {
   /** Which view the Usage page card is showing; the dashboard mirrors it. */
   mode: WidgetMode;
   loading: boolean;
-  onRemove: () => void;
+  /** Omitted outside the dashboard's edit mode, which hides the remove button. */
+  onRemove?: () => void;
   /** The shared drag handle, so these cards reorder alongside the stat charts. */
-  dragHandle: React.ReactNode;
+  dragHandle?: React.ReactNode;
   className?: string;
-  onDragOver: (e: React.DragEvent) => void;
-  onDrop: () => void;
 }
 
 /**
@@ -36,15 +35,13 @@ export function DashboardUsageCard({
   onRemove,
   dragHandle,
   className,
-  onDragOver,
-  onDrop,
 }: DashboardUsageCardProps): React.JSX.Element | null {
   const navigate = useNavigate();
   const def = getUsageProvider(providerId);
   if (!def) return null;
 
   return (
-    <Card className={className} onDragOver={onDragOver} onDrop={onDrop}>
+    <Card className={className}>
       <CardContent className="flex h-full flex-col p-4">
         <div className="mb-2 flex items-center gap-1">
           <div className="mr-auto flex min-w-0 items-center gap-2">
@@ -62,11 +59,13 @@ export function DashboardUsageCard({
               <ExternalLink className="h-3.5 w-3.5" />
             </Button>
           </SimpleTooltip>
-          <SimpleTooltip label="Remove from dashboard">
-            <Button variant="ghost" size="icon" onClick={onRemove}>
-              <X className="h-3.5 w-3.5" />
-            </Button>
-          </SimpleTooltip>
+          {onRemove && (
+            <SimpleTooltip label="Remove from dashboard">
+              <Button variant="ghost" size="icon" onClick={onRemove}>
+                <X className="h-3.5 w-3.5" />
+              </Button>
+            </SimpleTooltip>
+          )}
         </div>
         {usage ? (
           <UsageCardBody usage={usage} def={def} hideHeader mode={mode} />

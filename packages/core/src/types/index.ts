@@ -9,6 +9,22 @@ export type ThemeMode = 'light' | 'dark' | 'system';
 
 export type AiProvider = 'openai' | 'ollama' | 'gemini';
 
+/** Column counts a single dashboard row can be switched between. */
+export const DASHBOARD_COLUMN_OPTIONS = [1, 2, 3, 4] as const;
+export type DashboardColumns = (typeof DASHBOARD_COLUMN_OPTIONS)[number];
+
+/**
+ * One horizontal band of the dashboard. Each row carries its own column count,
+ * so a 4-across row of small cards can sit above a 2-across row of charts.
+ */
+export interface DashboardRow {
+  /** Stable across reorders so React keys and drop targets survive edits. */
+  id: string;
+  columns: DashboardColumns;
+  /** Card ids in display order: chart ids plus `usage:<providerId>` entries. */
+  items: string[];
+}
+
 export interface AppSettings {
   defaultCliId: string | null;
   theme: ThemeMode;
@@ -36,13 +52,14 @@ export interface AppSettings {
   /** AI provider used to generate prompts in Prompt Builder; model comes from that provider's configured model above. */
   promptBuilderProvider: AiProvider;
   /**
-   * User-defined display order for the dashboard's cards: ids from
-   * DASHBOARD_CHART_IDS plus `usage:<providerId>` entries for any Token Usage
-   * cards added to the dashboard.
+   * Legacy flat display order for the dashboard's cards. Superseded by
+   * `dashboardLayout`, and only read once to build rows for users upgrading.
    */
   dashboardChartOrder: string[];
   /** Provider ids whose Token Usage card is shown on the dashboard. */
   dashboardUsageCards: string[];
+  /** The dashboard's rows, each with its own column count and cards. */
+  dashboardLayout: DashboardRow[];
   /** How many extra attempts Prompt Builder's translate action makes after an initial failure. */
   translateMaxRetries: number;
   /** Local Whisper model used for Prompt Builder voice input: 'tiny' | 'base' | 'small'. Larger is more accurate but slower and bigger to download. */
@@ -161,7 +178,8 @@ export function defaultProjectNotifications(): ProjectNotificationSettings {
     confirmation: {
       enabled: false,
       cliId: null,
-      message: '⏸️ {{project}} needs your confirmation to continue. Reply to this message to continue.',
+      message:
+        '⏸️ {{project}} needs your confirmation to continue. Reply to this message to continue.',
     },
   };
 }

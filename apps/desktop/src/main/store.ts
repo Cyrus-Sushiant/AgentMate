@@ -54,6 +54,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   promptBuilderProvider: 'openai',
   dashboardChartOrder: [],
   dashboardUsageCards: [],
+  dashboardLayout: [],
   translateMaxRetries: 3,
   speechModel: 'base',
   speechLanguage: 'auto',
@@ -63,6 +64,20 @@ const DEFAULT_SETTINGS: AppSettings = {
   usageCardModes: {},
   usageResetAlerts: defaultUsageResetAlerts(),
 };
+
+/**
+ * The weekly bucket above Pro was keyed 'week-opus' before Fable took that slot.
+ * A saved alert still naming it would match no window and quietly never fire.
+ */
+function withSettingsMigrations(settings: AppSettings): AppSettings {
+  const alerts = settings.usageResetAlerts;
+  const stale = alerts?.windows.some((key) => String(key) === 'week-opus');
+  if (!alerts || !stale) return settings;
+  const windows = alerts.windows.map((key) =>
+    String(key) === 'week-opus' ? ('week-fable' as const) : key,
+  );
+  return { ...settings, usageResetAlerts: { ...alerts, windows: [...new Set(windows)] } };
+}
 
 /** Older projects.json entries predate the notifications and prompt fields. */
 function withProjectDefaults(project: Project): Project {
@@ -80,10 +95,11 @@ export const store = {
   },
   setProjects: (projects: Project[]): Promise<void> => writeJsonFile('projects.json', projects),
 
-  getSettings: async (): Promise<AppSettings> => ({
-    ...DEFAULT_SETTINGS,
-    ...(await readJsonFile<Partial<AppSettings>>('settings.json', DEFAULT_SETTINGS)),
-  }),
+  getSettings: async (): Promise<AppSettings> =>
+    withSettingsMigrations({
+      ...DEFAULT_SETTINGS,
+      ...(await readJsonFile<Partial<AppSettings>>('settings.json', DEFAULT_SETTINGS)),
+    }),
   setSettings: (settings: AppSettings): Promise<void> => writeJsonFile('settings.json', settings),
 
   getActivity: (): Promise<ActivityEvent[]> => readJsonFile('activity-log.json', []),

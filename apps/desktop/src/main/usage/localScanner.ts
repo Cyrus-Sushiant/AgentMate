@@ -143,7 +143,7 @@ async function claudeSubscription(entries: UsageEntry[]): Promise<SubscriptionUs
   }
 
   if (account.accessToken) {
-    const live = await getLiveWindows(account.accessToken);
+    const live = await getLiveWindows(account.accessToken, account.plan);
     if (live) {
       return { mode: 'subscription', plan: account.plan, windows: live, source: 'account' };
     }

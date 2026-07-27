@@ -99,12 +99,29 @@ export interface SubscriptionPlan {
 }
 
 /** Which rate-limit window a `SubscriptionWindow` describes. */
-export type SubscriptionWindowKey = 'session' | 'week' | 'week-opus' | 'month';
+export type SubscriptionWindowKey = 'session' | 'week' | 'week-fable' | 'month';
+
+/** Label for the weekly bucket that meters Fable on top of the shared one. */
+export const FABLE_WEEK_LABEL = 'Weekly (Fable)';
+
+/**
+ * True when the plan meters Fable in its own weekly window, on top of the
+ * weekly limit every subscription has. Only plans above Pro do — Pro gets a
+ * single weekly limit, so the second bar would be an empty row.
+ *
+ * Matched by id rather than an exhaustive list so a new Max tier (or a seat
+ * tier we haven't seen) still gets the window instead of silently losing it.
+ */
+export function metersFableWeekly(plan: SubscriptionPlan | null | undefined): boolean {
+  const id = plan?.id.trim().toLowerCase();
+  if (!id) return false;
+  return id.startsWith('max') || id === 'team' || id === 'enterprise';
+}
 
 /** One rolling rate-limit window on a subscription plan. */
 export interface SubscriptionWindow {
   key: SubscriptionWindowKey;
-  /** Display label — 'Session (5h)', 'Weekly', 'Weekly (Opus)'. */
+  /** Display label — 'Session (5h)', 'Weekly', 'Weekly (Fable)'. */
   label: string;
   /** 0–100 consumed. */
   percent: number;

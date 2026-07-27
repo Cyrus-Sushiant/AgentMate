@@ -1,12 +1,18 @@
-import { estimateCost, type SubscriptionPlan, type SubscriptionWindow } from '@agentmat/core';
+import {
+  FABLE_WEEK_LABEL,
+  estimateCost,
+  metersFableWeekly,
+  type SubscriptionPlan,
+  type SubscriptionWindow,
+} from '@agentmat/core';
 import type { UsageEntry } from './shared';
 
-// Local reconstruction of the two rolling limits a Claude Code subscription is
+// Local reconstruction of the rolling limits a Claude Code subscription is
 // metered against. This is the fallback for when the account can't be reached;
 // everything it produces is explicitly an estimate, and the card labels it as
 // such, because none of the numbers below are published figures.
 //
-// Two things are reconstructed:
+// Three things are reconstructed:
 //
 //   Session (5h). Usage is metered in 5-hour blocks that start with your first
 //   message after an idle gap, not on a wall-clock schedule — so the block
@@ -14,6 +20,10 @@ import type { UsageEntry } from './shared';
 //
 //   Weekly. A 7-day window phased off the account's first-ever token date, the
 //   one anchor available locally that doesn't move as old transcripts age out.
+//
+//   Weekly (Fable). Above Pro, Fable is charged against its own weekly bucket
+//   as well as the shared one. Same phase as the weekly window, counting only
+//   Fable activity; Pro has no such bucket, so the window is left out entirely.
 //
 // Consumption is measured in API-equivalent dollars rather than raw tokens.
 // A cache read costs a tenth of a fresh input token and Opus several times a
@@ -33,25 +43,40 @@ interface SessionBlock {
   costUsd: number;
 }
 
+interface PlanBudget {
+  session: number;
+  week: number;
+  /** Fable's own weekly bucket. Absent on plans that don't have one (Pro). */
+  fableWeek?: number;
+}
+
 /**
  * Per-plan budgets in API-equivalent dollars. These are calibration constants,
  * not quoted limits — Anthropic doesn't publish the numbers, so they're sized
  * from the plans' relative multipliers and then corrected per-account by
  * `calibrate()` below.
  */
-const PLAN_BUDGETS: Record<string, { session: number; week: number }> = {
+const PLAN_BUDGETS: Record<string, PlanBudget> = {
   pro: { session: 18, week: 90 },
-  max: { session: 35, week: 350 },
-  max5x: { session: 35, week: 350 },
-  max20x: { session: 140, week: 1400 },
-  team: { session: 25, week: 125 },
-  enterprise: { session: 35, week: 350 },
+  max: { session: 35, week: 350, fableWeek: 120 },
+  max5x: { session: 35, week: 350, fableWeek: 120 },
+  max20x: { session: 140, week: 1400, fableWeek: 480 },
+  team: { session: 25, week: 125, fableWeek: 45 },
+  enterprise: { session: 35, week: 350, fableWeek: 120 },
 };
 
 const FALLBACK_BUDGET = PLAN_BUDGETS.pro;
 
-function budgetsFor(plan: SubscriptionPlan | null): { session: number; week: number } {
+/** Roughly a third of the weekly allowance, for a Max tier we don't have figures for. */
+const FABLE_WEEK_SHARE = 1 / 3;
+
+function budgetsFor(plan: SubscriptionPlan | null): PlanBudget {
   return (plan && PLAN_BUDGETS[plan.id]) || FALLBACK_BUDGET;
+}
+
+/** Entries billed against the Fable bucket, matched the way pricing matches ids. */
+function isFableModel(model: string): boolean {
+  return model.toLowerCase().includes('fable');
 }
 
 function floorToHour(ms: number): number {
@@ -191,6 +216,24 @@ export function estimateSubscriptionWindows(
       usedTokens: week.tokens,
       usedUsd: week.costUsd,
     });
+
+    // The extra bucket only exists above Pro. It shares the weekly phase, so
+    // the same anchor applies — only the entries counted differ.
+    if (metersFableWeekly(plan)) {
+      const fable = weekBuckets(entries.filter((e) => isFableModel(e.model)), anchor, now);
+      const fableBudget = calibrate(
+        budgets.fableWeek ?? budgets.week * FABLE_WEEK_SHARE,
+        fable.completedMax,
+      );
+      windows.push({
+        key: 'week-fable',
+        label: FABLE_WEEK_LABEL,
+        percent: toPercent(fable.current.costUsd, fableBudget),
+        resetAt: new Date(fable.current.end).toISOString(),
+        usedTokens: fable.current.tokens,
+        usedUsd: fable.current.costUsd,
+      });
+    }
   }
 
   return windows;

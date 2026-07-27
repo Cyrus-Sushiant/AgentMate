@@ -9,7 +9,7 @@ import { queryClient } from './queryClient';
 import { initTheme, useThemeStore } from './stores/themeStore';
 import { initDefaultCli } from './stores/cliStore';
 import { initPingTargets } from './stores/pingTargetsStore';
-import { initDashboardOrder } from './stores/dashboardOrderStore';
+import { initDashboardLayout } from './stores/dashboardLayoutStore';
 import { initRemote } from './stores/remoteStore';
 import { initUpdateStatusListener } from './stores/updateStore';
 import { AppShell } from './components/layout/AppShell';
@@ -49,7 +49,7 @@ export default function App(): React.JSX.Element {
     void initTheme();
     void initDefaultCli();
     void initPingTargets();
-    void initDashboardOrder();
+    void initDashboardLayout();
     initRemote();
     return initUpdateStatusListener();
   }, []);

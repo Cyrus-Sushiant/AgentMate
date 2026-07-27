@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import { toast } from 'sonner';
 import {
+  FABLE_WEEK_LABEL,
   USAGE_PROVIDER_REGISTRY,
   defaultUsageResetAlerts,
   getUsageProvider,
@@ -24,7 +25,6 @@ import {
   Plus,
   RefreshCw,
   Send,
-  SettingsIcon,
   X,
 } from '@/components/icons';
 import { Card, CardContent } from '@/components/ui/card';
@@ -47,7 +47,7 @@ import { cn } from '@/lib/utils';
 import { queryKeys } from '@/lib/queryKeys';
 import { formatCost, formatReset, formatTokens } from '@/lib/usageFormat';
 import { usePageHeader } from '@/stores/pageHeaderStore';
-import { useDashboardOrderStore } from '@/stores/dashboardOrderStore';
+import { useDashboardLayoutStore } from '@/stores/dashboardLayoutStore';
 
 function isDisplayed(id: string, configs: Record<string, UsageProviderConfig>): boolean {
   const def = getUsageProvider(id);
@@ -85,8 +85,8 @@ export default function UsagePage(): React.JSX.Element {
     refetchInterval: 45_000,
   });
 
-  const dashboardCards = useDashboardOrderStore((s) => s.usageCards);
-  const toggleDashboardCard = useDashboardOrderStore((s) => s.toggleUsageCard);
+  const dashboardCards = useDashboardLayoutStore((s) => s.usageCards);
+  const toggleDashboardCard = useDashboardLayoutStore((s) => s.toggleUsageCard);
 
   const settings = settingsQuery.data;
   const configs = settings?.usageProviderConfigs ?? {};
@@ -190,7 +190,7 @@ export default function UsagePage(): React.JSX.Element {
     await queryClient.invalidateQueries({ queryKey: queryKeys.settings });
   }
 
-  /** The switch itself — the rest of the config lives behind the gear. */
+  /** The switch inside the reset-alert dialog, opened from the provider's card. */
   async function toggleResetAlerts(enabled: boolean): Promise<void> {
     await saveResetAlerts({ ...resetAlerts, enabled });
     if (!enabled) {
@@ -215,39 +215,6 @@ export default function UsagePage(): React.JSX.Element {
         <Button variant="outline" onClick={() => void refreshAll()}>
           <RefreshCw className={usageQuery.isFetching ? 'animate-spin' : undefined} /> Refresh
         </Button>
-
-        {/* Telegram announcement when a rate-limit window rolls over. There is no
-            schedule to author — the reset moment comes from the provider — so the
-            switch is the whole feature and the gear only narrows it. */}
-        <div className="ml-auto flex items-center gap-2 rounded-lg border border-border bg-card/60 py-1.5 pl-3 pr-1.5">
-          <Bell className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-          <Label htmlFor="usage-reset-alerts" className="cursor-pointer text-sm font-medium">
-            Telegram reset alert
-          </Label>
-          {/* Until settings land, `resetAlerts` is only the default — saving off
-              that would quietly wipe whatever the user had configured. */}
-          <Switch
-            id="usage-reset-alerts"
-            disabled={!settings}
-            checked={resetAlerts.enabled}
-            onCheckedChange={(checked) => void toggleResetAlerts(checked)}
-          />
-          {resetAlerts.enabled && (
-            <span className="text-xs tabular-nums text-muted-foreground">
-              {nextReset ? (formatReset(nextReset.resetAt) ?? 'idle') : 'idle'}
-            </span>
-          )}
-          <SimpleTooltip label="Reset alert options">
-            <Button
-              variant="ghost"
-              size="icon"
-              disabled={!settings}
-              onClick={() => setAlertsOpen(true)}
-            >
-              <SettingsIcon className="h-3.5 w-3.5" />
-            </Button>
-          </SimpleTooltip>
-        </div>
       </div>
 
       {/* Summary tiles */}
@@ -267,6 +234,9 @@ export default function UsagePage(): React.JSX.Element {
           const removable = !isAutoConnected(def);
           const cardMode = cardModes[id] ?? 'tokens';
           const onDashboard = dashboardCards.includes(id);
+          // Reset alerts watch one provider's rolling windows, so the control
+          // belongs on that provider's card rather than in the page toolbar.
+          const ownsResetAlerts = id === resetAlerts.providerId;
           return (
             <motion.div key={id} layout transition={{ type: 'spring', stiffness: 400, damping: 35 }}>
               <Card
@@ -299,6 +269,27 @@ export default function UsagePage(): React.JSX.Element {
                         <GripVertical className="h-3.5 w-3.5" />
                       </span>
                     </SimpleTooltip>
+                    {ownsResetAlerts && (
+                      <SimpleTooltip
+                        label={
+                          resetAlerts.enabled
+                            ? `Telegram reset alert · on${
+                                nextReset ? ` · ${formatReset(nextReset.resetAt) ?? 'idle'}` : ''
+                              }`
+                            : 'Telegram reset alert · off'
+                        }
+                      >
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          disabled={!settings}
+                          className={resetAlerts.enabled ? 'text-primary' : undefined}
+                          onClick={() => setAlertsOpen(true)}
+                        >
+                          <Bell className="h-3.5 w-3.5" />
+                        </Button>
+                      </SimpleTooltip>
+                    )}
                     {/* Switches this card between tokens and plan limits in place;
                         the pin below then pins whichever view is showing. */}
                     {usage && hasSubscriptionView(usage) && (
@@ -386,7 +377,9 @@ export default function UsagePage(): React.JSX.Element {
         alerts={resetAlerts}
         usage={usageById.get(resetAlerts.providerId)}
         fallbackChatId={settings?.telegramChatId ?? null}
+        nextResetAt={nextReset?.resetAt}
         onSave={saveResetAlerts}
+        onToggle={toggleResetAlerts}
       />
     </div>
   );
@@ -417,7 +410,11 @@ function StatTile({
 const RESET_WINDOW_OPTIONS: { key: SubscriptionWindowKey; label: string; hint: string }[] = [
   { key: 'session', label: 'Session (5h)', hint: 'The 5-hour block, the one most people wait on' },
   { key: 'week', label: 'Weekly', hint: 'The rolling 7-day limit' },
-  { key: 'week-opus', label: 'Weekly (Opus)', hint: 'Only on plans that meter Opus separately' },
+  {
+    key: 'week-fable',
+    label: FABLE_WEEK_LABEL,
+    hint: 'Only above Pro, where Fable has its own weekly bucket',
+  },
 ];
 
 function ResetAlertDialog({
@@ -426,14 +423,19 @@ function ResetAlertDialog({
   alerts,
   usage,
   fallbackChatId,
+  nextResetAt,
   onSave,
+  onToggle,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   alerts: UsageResetAlertSettings;
   usage: ProviderUsage | undefined;
   fallbackChatId: string | null;
+  /** Soonest watched rollover, so the switch says what it is counting down to. */
+  nextResetAt: string | null | undefined;
   onSave: (next: UsageResetAlertSettings) => Promise<void>;
+  onToggle: (enabled: boolean) => Promise<void>;
 }): React.JSX.Element {
   const [chatId, setChatId] = useState(alerts.chatId ?? '');
   const [testing, setTesting] = useState(false);
@@ -471,7 +473,30 @@ function ResetAlertDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-2">
+        {/* The on/off switch lives here now, next to what it turns on, instead of
+            sitting in the page toolbar away from the provider it watches. */}
+        <div className="flex items-center gap-3 rounded-lg border border-border bg-card/60 px-3 py-2">
+          <Bell className="h-4 w-4 shrink-0 text-muted-foreground" />
+          <div className="min-w-0 flex-1">
+            <Label htmlFor="usage-reset-alerts" className="cursor-pointer text-sm font-medium">
+              Telegram reset alert
+            </Label>
+            <div className="text-xs text-muted-foreground">
+              {alerts.enabled
+                ? nextResetAt
+                  ? `Next message in ${formatReset(nextResetAt) ?? 'a while'}`
+                  : 'Idle — no window is counting down right now'
+                : 'Off — no message is sent when a window rolls over'}
+            </div>
+          </div>
+          <Switch
+            id="usage-reset-alerts"
+            checked={alerts.enabled}
+            onCheckedChange={(checked) => void onToggle(checked)}
+          />
+        </div>
+
+        <div className={cn('space-y-2', !alerts.enabled && 'opacity-60')}>
           {RESET_WINDOW_OPTIONS.map((option) => {
             const unavailable = usage != null && !reported.has(option.key);
             return (

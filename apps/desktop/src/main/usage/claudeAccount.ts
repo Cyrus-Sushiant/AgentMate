@@ -1,7 +1,13 @@
 import { readFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import type { SubscriptionPlan, SubscriptionWindow, UsageAccountMode } from '@agentmat/core';
+import {
+  FABLE_WEEK_LABEL,
+  metersFableWeekly,
+  type SubscriptionPlan,
+  type SubscriptionWindow,
+  type UsageAccountMode,
+} from '@agentmat/core';
 
 // Claude Code account detection. Two questions to answer before the Usage card
 // can show anything subscription-shaped:
@@ -158,8 +164,8 @@ export async function readClaudeAccount(): Promise<ClaudeAccount> {
 // --- live quota fetch -----------------------------------------------------
 
 // The CLI's own `/usage` reads the account's unified rate limits, keyed by
-// window: a 5-hour session bucket, a rolling 7-day bucket, and a separate 7-day
-// bucket for Opus on plans that meter it. The response shape isn't a published
+// window: a 5-hour session bucket, a rolling 7-day bucket, and — above Pro — a
+// separate 7-day bucket for the top model. The response shape isn't a published
 // contract, so parsing is deliberately loose: we look for the known window keys
 // anywhere in the payload and accept any of the spellings seen in the wild
 // rather than binding to one exact schema.
@@ -174,9 +180,14 @@ const WINDOW_LABELS: Record<string, { key: SubscriptionWindow['key']; label: str
   seven_day: { key: 'week', label: 'Weekly' },
   sevenday: { key: 'week', label: 'Weekly' },
   week: { key: 'week', label: 'Weekly' },
-  seven_day_opus: { key: 'week-opus', label: 'Weekly (Opus)' },
-  sevendayopus: { key: 'week-opus', label: 'Weekly (Opus)' },
-  week_opus: { key: 'week-opus', label: 'Weekly (Opus)' },
+  seven_day_fable: { key: 'week-fable', label: FABLE_WEEK_LABEL },
+  sevendayfable: { key: 'week-fable', label: FABLE_WEEK_LABEL },
+  week_fable: { key: 'week-fable', label: FABLE_WEEK_LABEL },
+  // Same bucket, older spelling: it was the Opus-only weekly limit before Fable
+  // took the top slot, and payloads in the wild still name it that way.
+  seven_day_opus: { key: 'week-fable', label: FABLE_WEEK_LABEL },
+  sevendayopus: { key: 'week-fable', label: FABLE_WEEK_LABEL },
+  week_opus: { key: 'week-fable', label: FABLE_WEEK_LABEL },
 };
 
 function normalizeKey(raw: string): string {
@@ -217,8 +228,12 @@ function readResetAt(node: Record<string, unknown>): string | null {
  * Walk the payload for objects sitting under a known window key that carry a
  * utilization number. Depth-limited so a surprising response can't send us
  * spelunking through a huge object graph.
+ *
+ * `fableWeek` gates the Fable bucket: on Pro the endpoint has been seen echoing
+ * a zeroed one, and showing a bar for a limit the plan doesn't have reads as
+ * headroom that isn't there.
  */
-function collectWindows(payload: unknown): SubscriptionWindow[] {
+function collectWindows(payload: unknown, fableWeek: boolean): SubscriptionWindow[] {
   const found = new Map<string, SubscriptionWindow>();
 
   function visit(node: unknown, depth: number): void {
@@ -242,8 +257,9 @@ function collectWindows(payload: unknown): SubscriptionWindow[] {
   visit(payload, 0);
 
   // Stable display order regardless of the order the payload listed them in.
-  const order: SubscriptionWindow['key'][] = ['session', 'week', 'week-opus'];
+  const order: SubscriptionWindow['key'][] = ['session', 'week', 'week-fable'];
   return order.flatMap((key) => {
+    if (key === 'week-fable' && !fableWeek) return [];
     const window = found.get(key);
     return window ? [window] : [];
   });
@@ -255,7 +271,10 @@ function collectWindows(payload: unknown): SubscriptionWindow[] {
  * falls back to the local estimate, and a quota widget that silently degrades
  * beats one that shows an error.
  */
-async function fetchLiveWindows(accessToken: string): Promise<SubscriptionWindow[] | null> {
+async function fetchLiveWindows(
+  accessToken: string,
+  plan: SubscriptionPlan | null,
+): Promise<SubscriptionWindow[] | null> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
   try {
@@ -268,7 +287,7 @@ async function fetchLiveWindows(accessToken: string): Promise<SubscriptionWindow
       signal: controller.signal,
     });
     if (!res.ok) return null;
-    const windows = collectWindows(await res.json());
+    const windows = collectWindows(await res.json(), metersFableWeekly(plan));
     return windows.length > 0 ? windows : null;
   } catch {
     return null;
@@ -286,10 +305,13 @@ const LIVE_TTL_FAIL_MS = 300_000;
 let liveCache: { at: number; windows: SubscriptionWindow[] | null } | null = null;
 
 /** Cached wrapper around {@link fetchLiveWindows}. */
-export async function getLiveWindows(accessToken: string): Promise<SubscriptionWindow[] | null> {
+export async function getLiveWindows(
+  accessToken: string,
+  plan: SubscriptionPlan | null,
+): Promise<SubscriptionWindow[] | null> {
   const ttl = liveCache?.windows ? LIVE_TTL_OK_MS : LIVE_TTL_FAIL_MS;
   if (liveCache && Date.now() - liveCache.at < ttl) return liveCache.windows;
-  const windows = await fetchLiveWindows(accessToken);
+  const windows = await fetchLiveWindows(accessToken, plan);
   liveCache = { at: Date.now(), windows };
   return windows;
 }
