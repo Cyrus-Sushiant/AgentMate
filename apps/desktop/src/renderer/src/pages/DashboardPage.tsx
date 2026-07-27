@@ -196,6 +196,9 @@ function CliUpdatesCard({
       queryFn: () => window.agentmat.cli.checkForUpdate(cli.id, status.version),
       staleTime: 10 * 60_000,
       enabled: deferReady,
+      // Re-checks refresh in place behind the header's spinning icon, so they
+      // must not raise the full-page overlay.
+      meta: { silentLoading: true },
     })),
   });
 
