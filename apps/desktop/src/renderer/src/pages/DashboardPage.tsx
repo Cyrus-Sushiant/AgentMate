@@ -330,7 +330,6 @@ function CliUpdatesCard({
 
 export default function DashboardPage(): React.JSX.Element {
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
 
   const cliQuery = useQuery({
     queryKey: queryKeys.cliStatus,
@@ -819,16 +818,6 @@ export default function DashboardPage(): React.JSX.Element {
         <Button variant="secondary" onClick={() => navigate('/prompt-builder')}>
           <Sparkles /> Open Prompt Builder
         </Button>
-        <Button
-          variant="outline"
-          onClick={() => {
-            void queryClient.invalidateQueries({ queryKey: queryKeys.cliStatus });
-            toast.info('Re-scanning installed CLIs…');
-          }}
-        >
-          <RefreshCw /> Scan CLIs
-        </Button>
-
         <SimpleTooltip label={editing ? 'Done editing' : 'Edit layout'}>
           <Button
             variant={editing ? 'default' : 'outline'}
