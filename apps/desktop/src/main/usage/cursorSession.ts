@@ -53,6 +53,11 @@ async function request(path: string, cookie: string, body?: unknown): Promise<un
       headers: {
         Cookie: cookie,
         Accept: 'application/json',
+        // Cursor CSRF-checks state-changing requests and answers a bare POST
+        // with 403 "Invalid origin for state-changing request". Presenting the
+        // dashboard's own origin is what makes the event feed readable at all.
+        Origin: BASE_URL,
+        Referer: `${BASE_URL}/dashboard`,
         ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
       },
       body: body === undefined ? undefined : JSON.stringify(body),
@@ -90,19 +95,27 @@ async function fetchEvents(cookie: string): Promise<CursorEntry[]> {
       page,
       pageSize: PAGE_SIZE,
     })) as {
+      /** The dashboard feed's name for the rows; the Admin API says `usageEvents`. */
+      usageEventsDisplay?: CursorUsageEvent[];
       usageEvents?: CursorUsageEvent[];
-      pagination?: { numPages?: number; hasNextPage?: boolean };
+      totalUsageEventsCount?: number;
     };
 
-    const events = Array.isArray(data?.usageEvents) ? data.usageEvents : [];
+    const events = Array.isArray(data?.usageEventsDisplay)
+      ? data.usageEventsDisplay
+      : Array.isArray(data?.usageEvents)
+        ? data.usageEvents
+        : [];
     for (const event of events) {
       const entry = toEntry(event);
       if (entry) entries.push(entry);
     }
-    const numPages = data?.pagination?.numPages;
-    const hasNext =
-      data?.pagination?.hasNextPage ?? (typeof numPages === 'number' ? page < numPages : false);
-    if (!hasNext || events.length === 0) break;
+
+    // This feed reports a grand total instead of a pagination block, so paging
+    // is driven by how many rows we've actually taken.
+    const total = data?.totalUsageEventsCount;
+    const more = typeof total === 'number' ? page * PAGE_SIZE < total : false;
+    if (!more || events.length === 0) break;
   }
   return entries;
 }

@@ -177,6 +177,31 @@ export interface DesktopWidgetInstance {
   mode?: WidgetMode;
 }
 
+// --- Rate-limit reset alerts ----------------------------------------------
+
+/**
+ * Telegram announcements fired when a subscription window rolls over. The
+ * schedule isn't user-authored: a window's reset moment is already known from
+ * `SubscriptionWindow.resetAt`, so all the user picks is which of those moments
+ * are worth a message.
+ */
+export interface UsageResetAlertSettings {
+  enabled: boolean;
+  /** Provider whose windows are watched. Only Claude Code reports them today. */
+  providerId: string;
+  /** Windows to announce; a window missing from the account's plan is skipped. */
+  windows: SubscriptionWindowKey[];
+  /**
+   * Chat/group the reset message goes to. Null reuses the notification chat
+   * configured in Settings, which is what most users want.
+   */
+  chatId: string | null;
+}
+
+export function defaultUsageResetAlerts(): UsageResetAlertSettings {
+  return { enabled: false, providerId: 'claude-code', windows: ['session'], chatId: null };
+}
+
 /** Per-provider user configuration (enabled + optional API key). */
 export interface UsageProviderConfig {
   enabled: boolean;

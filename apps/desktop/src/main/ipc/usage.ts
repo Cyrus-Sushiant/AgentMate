@@ -2,6 +2,7 @@ import { ipcMain } from 'electron';
 import type {
   DesktopWidgetInstance,
   ProviderUsage,
+  UsageResetAlertSettings,
   WidgetMode,
   WidgetSize,
   WidgetStyle,
@@ -11,6 +12,7 @@ import type { SetUsageProviderConfigInput } from '../../shared/apiTypes';
 import { store } from '../store';
 import { clearUsageCache, getAllUsage, getProviderUsage } from '../usage';
 import { widgetManager } from '../usage/widgetWindows';
+import { refreshResetAlerts, sendResetAlertTest } from '../usage/resetAlerts';
 
 export function registerUsageHandlers(): void {
   ipcMain.handle(IPC.usage.list, async (): Promise<ProviderUsage[]> => {
@@ -38,6 +40,23 @@ export function registerUsageHandlers(): void {
       await store.setSettings({ ...settings, usageProviderConfigs: configs });
       clearUsageCache();
     },
+  );
+
+  // --- Rate-limit reset alerts ---
+  // Saved through here rather than settings.update so the watcher picks up the
+  // new schedule immediately instead of on its next slow refresh.
+  ipcMain.handle(
+    IPC.usage.setResetAlerts,
+    async (_e, alerts: UsageResetAlertSettings): Promise<void> => {
+      const settings = await store.getSettings();
+      await store.setSettings({ ...settings, usageResetAlerts: alerts });
+      await refreshResetAlerts();
+    },
+  );
+
+  ipcMain.handle(
+    IPC.usage.testResetAlert,
+    (): Promise<{ ok: boolean; error?: string }> => sendResetAlertTest(),
   );
 
   // --- Desktop widget windows ---

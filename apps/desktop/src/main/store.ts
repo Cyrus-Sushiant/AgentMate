@@ -11,7 +11,7 @@ import type {
   PromptTemplate,
   ScheduledTask,
 } from '@agentmat/core';
-import { defaultProjectNotifications } from '@agentmat/core';
+import { defaultProjectNotifications, defaultUsageResetAlerts } from '@agentmat/core';
 import type { SkillRepository } from '@agentmat/core';
 import type { McpRepository } from '@agentmat/core';
 
@@ -53,6 +53,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   geminiModel: 'gemini-2.0-flash',
   promptBuilderProvider: 'openai',
   dashboardChartOrder: [],
+  dashboardUsageCards: [],
   translateMaxRetries: 3,
   speechModel: 'base',
   speechLanguage: 'auto',
@@ -60,6 +61,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   usageWidgets: [],
   usageCardOrder: [],
   usageCardModes: {},
+  usageResetAlerts: defaultUsageResetAlerts(),
 };
 
 /** Older projects.json entries predate the notifications and prompt fields. */

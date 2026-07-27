@@ -22,6 +22,7 @@ import type {
   InstalledAgentTool,
   ProviderUsage,
   UsageProviderConfig,
+  UsageResetAlertSettings,
   DesktopWidgetInstance,
   WidgetMode,
   WidgetSize,
@@ -422,6 +423,10 @@ const usage = {
   refresh: (): Promise<ProviderUsage[]> => ipcRenderer.invoke(IPC.usage.refresh),
   setProviderConfig: (providerId: string, config: UsageProviderConfig): Promise<void> =>
     ipcRenderer.invoke(IPC.usage.setProviderConfig, { providerId, config }),
+  setResetAlerts: (alerts: UsageResetAlertSettings): Promise<void> =>
+    ipcRenderer.invoke(IPC.usage.setResetAlerts, alerts),
+  testResetAlert: (): Promise<{ ok: boolean; error?: string }> =>
+    ipcRenderer.invoke(IPC.usage.testResetAlert),
   listWidgets: (): Promise<DesktopWidgetInstance[]> => ipcRenderer.invoke(IPC.usage.listWidgets),
   getWidget: (id: string): Promise<DesktopWidgetInstance | null> =>
     ipcRenderer.invoke(IPC.usage.getWidget, id),

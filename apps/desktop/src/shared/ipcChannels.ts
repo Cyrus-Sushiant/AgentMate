@@ -192,6 +192,8 @@ export const IPC = {
     setWidgetStyle: 'usage:setWidgetStyle',
     setWidgetSize: 'usage:setWidgetSize',
     setWidgetMode: 'usage:setWidgetMode',
+    setResetAlerts: 'usage:setResetAlerts',
+    testResetAlert: 'usage:testResetAlert',
     // main -> widget window: instance changed, re-read it
     onWidgetUpdated: 'usage:widgetUpdated',
   },

@@ -29,6 +29,7 @@ import { widgetManager } from './usage/widgetWindows';
 import { registerWindowHandlers } from './ipc/window';
 import { seedExampleRepositoryIfEmpty } from './exampleSkillRepo';
 import { startHookServer, stopHookServer } from './notifications/hookServer';
+import { startResetAlertWatcher, stopResetAlertWatcher } from './usage/resetAlerts';
 import { remoteManager } from './remote/manager';
 import { startHourlyUpdateChecks } from './updater';
 
@@ -164,6 +165,7 @@ app.whenReady().then(() => {
   void startHookServer();
   createMainWindow();
   void widgetManager.restoreAll();
+  startResetAlertWatcher();
   startHourlyUpdateChecks();
 
   app.on('activate', () => {
@@ -187,5 +189,6 @@ app.on('window-all-closed', () => {
 app.on('before-quit', () => {
   killAllTerminalSessions();
   stopHookServer();
+  stopResetAlertWatcher();
   remoteManager.shutdown();
 });

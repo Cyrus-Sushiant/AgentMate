@@ -1,4 +1,9 @@
-import type { DesktopWidgetInstance, UsageProviderConfig, WidgetMode } from '../usage/types.js';
+import type {
+  DesktopWidgetInstance,
+  UsageProviderConfig,
+  UsageResetAlertSettings,
+  WidgetMode,
+} from '../usage/types.js';
 
 export type ThemeMode = 'light' | 'dark' | 'system';
 
@@ -30,8 +35,14 @@ export interface AppSettings {
   geminiModel: string;
   /** AI provider used to generate prompts in Prompt Builder; model comes from that provider's configured model above. */
   promptBuilderProvider: AiProvider;
-  /** User-defined display order for the dashboard's stat chart cards (ids from DASHBOARD_CHART_IDS). */
+  /**
+   * User-defined display order for the dashboard's cards: ids from
+   * DASHBOARD_CHART_IDS plus `usage:<providerId>` entries for any Token Usage
+   * cards added to the dashboard.
+   */
   dashboardChartOrder: string[];
+  /** Provider ids whose Token Usage card is shown on the dashboard. */
+  dashboardUsageCards: string[];
   /** How many extra attempts Prompt Builder's translate action makes after an initial failure. */
   translateMaxRetries: number;
   /** Local Whisper model used for Prompt Builder voice input: 'tiny' | 'base' | 'small'. Larger is more accurate but slower and bigger to download. */
@@ -49,6 +60,8 @@ export interface AppSettings {
    * the user switched to plan limits appear here; anything absent shows tokens.
    */
   usageCardModes: Record<string, WidgetMode>;
+  /** Telegram announcement when a Claude Code rate-limit window resets; toggled on the Token Usage page. */
+  usageResetAlerts: UsageResetAlertSettings;
 }
 
 export type AgentType = 'claude-code' | 'gemini' | 'opencode' | 'codex' | 'cursor' | 'generic';

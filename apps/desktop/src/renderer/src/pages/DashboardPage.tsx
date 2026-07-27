@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -23,7 +23,13 @@ import {
   TerminalSquare,
   FolderPlus,
 } from '@/components/icons';
-import { CLI_REGISTRY, type CliDefinition, type InstalledCli } from '@agentmat/core';
+import {
+  CLI_REGISTRY,
+  getUsageProvider,
+  type CliDefinition,
+  type InstalledCli,
+  type ProviderUsage,
+} from '@agentmat/core';
 import { CliLogo } from '@/components/cliLogos';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -36,9 +42,12 @@ import { cn } from '@/lib/utils';
 import { queryKeys } from '@/lib/queryKeys';
 import { usePageHeader } from '@/stores/pageHeaderStore';
 import { useTerminalStore } from '@/stores/terminalStore';
+import { DashboardUsageCard } from '@/components/usage/DashboardUsageCard';
 import {
   useDashboardOrderStore,
+  usageProviderIdOf,
   type DashboardChartId,
+  type DashboardItemId,
 } from '@/stores/dashboardOrderStore';
 
 function formatPercent(value: number): string {
@@ -310,9 +319,31 @@ export default function DashboardPage(): React.JSX.Element {
 
   const chartOrder = useDashboardOrderStore((s) => s.order);
   const setChartOrder = useDashboardOrderStore((s) => s.setOrder);
-  const [dragChartId, setDragChartId] = useState<DashboardChartId | null>(null);
+  const usageCards = useDashboardOrderStore((s) => s.usageCards);
+  const toggleUsageCard = useDashboardOrderStore((s) => s.toggleUsageCard);
+  const [dragChartId, setDragChartId] = useState<DashboardItemId | null>(null);
 
-  function handleChartDrop(targetId: DashboardChartId): void {
+  // Token Usage cards the user added to the dashboard read the same list (and
+  // the same tokens/plan-limits choice) the Usage page does.
+  const usageQuery = useQuery({
+    queryKey: queryKeys.usageList,
+    queryFn: () => window.agentmat.usage.list(),
+    refetchInterval: 45_000,
+    enabled: usageCards.length > 0,
+  });
+  const settingsQuery = useQuery({
+    queryKey: queryKeys.settings,
+    queryFn: () => window.agentmat.settings.get(),
+    enabled: usageCards.length > 0,
+  });
+  const usageById = useMemo(() => {
+    const map = new Map<string, ProviderUsage>();
+    for (const u of usageQuery.data ?? []) map.set(u.providerId, u);
+    return map;
+  }, [usageQuery.data]);
+  const usageCardModes = settingsQuery.data?.usageCardModes ?? {};
+
+  function handleChartDrop(targetId: DashboardItemId): void {
     if (!dragChartId || dragChartId === targetId) {
       setDragChartId(null);
       return;
@@ -323,7 +354,7 @@ export default function DashboardPage(): React.JSX.Element {
     setDragChartId(null);
   }
 
-  function chartDragProps(id: DashboardChartId): {
+  function chartDragProps(id: DashboardItemId): {
     className: string;
     onDragOver: (e: React.DragEvent) => void;
     onDrop: () => void;
@@ -742,16 +773,36 @@ export default function DashboardPage(): React.JSX.Element {
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        {chartOrder.map((id) => (
-          <motion.div
-            key={id}
-            layout
-            className="h-full"
-            transition={{ type: 'spring', stiffness: 400, damping: 35 }}
-          >
-            {chartCards[id]}
-          </motion.div>
-        ))}
+        {chartOrder.map((id) => {
+          const providerId = usageProviderIdOf(id);
+          return (
+            <motion.div
+              key={id}
+              layout
+              className="h-full"
+              transition={{ type: 'spring', stiffness: 400, damping: 35 }}
+            >
+              {providerId ? (
+                <DashboardUsageCard
+                  providerId={providerId}
+                  usage={usageById.get(providerId)}
+                  mode={usageCardModes[providerId] ?? 'tokens'}
+                  loading={usageQuery.isPending}
+                  onRemove={() => {
+                    toggleUsageCard(providerId);
+                    toast.info(
+                      `${getUsageProvider(providerId)?.name ?? 'Card'} removed from the dashboard.`,
+                    );
+                  }}
+                  dragHandle={<ChartDragHandle onDragStart={() => setDragChartId(id)} />}
+                  {...chartDragProps(id)}
+                />
+              ) : (
+                chartCards[id as DashboardChartId]
+              )}
+            </motion.div>
+          );
+        })}
       </div>
 
       <CliUpdatesCard installed={installedClis} />

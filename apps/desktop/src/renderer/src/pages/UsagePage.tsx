@@ -4,17 +4,35 @@ import { motion } from 'framer-motion';
 import { toast } from 'sonner';
 import {
   USAGE_PROVIDER_REGISTRY,
+  defaultUsageResetAlerts,
   getUsageProvider,
   isAutoConnected,
   type ProviderUsage,
+  type SubscriptionWindowKey,
   type UsageProviderConfig,
+  type UsageResetAlertSettings,
   type WidgetMode,
 } from '@agentmat/core';
-import { Bolt, ChartColumn, Clock, GripVertical, Pin, Plus, RefreshCw, X } from '@/components/icons';
+import {
+  Bell,
+  Bolt,
+  ChartColumn,
+  Clock,
+  GripVertical,
+  LayoutDashboard,
+  Pin,
+  Plus,
+  RefreshCw,
+  Send,
+  SettingsIcon,
+  X,
+} from '@/components/icons';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
 import {
   Dialog,
   DialogContent,
@@ -27,10 +45,9 @@ import { ProviderLogo } from '@/components/providerLogos';
 import { UsageCardBody, hasSubscriptionView } from '@/components/usage/UsageCard';
 import { cn } from '@/lib/utils';
 import { queryKeys } from '@/lib/queryKeys';
-import { formatCost, formatTokens } from '@/lib/usageFormat';
+import { formatCost, formatReset, formatTokens } from '@/lib/usageFormat';
 import { usePageHeader } from '@/stores/pageHeaderStore';
-
-const USAGE_LIST_KEY = ['usage-list'] as const;
+import { useDashboardOrderStore } from '@/stores/dashboardOrderStore';
 
 function isDisplayed(id: string, configs: Record<string, UsageProviderConfig>): boolean {
   const def = getUsageProvider(id);
@@ -55,6 +72,7 @@ export default function UsagePage(): React.JSX.Element {
   usePageHeader('Token Usage', 'Track tokens, cost, and limits across your AI providers.');
   const queryClient = useQueryClient();
   const [addOpen, setAddOpen] = useState(false);
+  const [alertsOpen, setAlertsOpen] = useState(false);
   const [dragId, setDragId] = useState<string | null>(null);
 
   const settingsQuery = useQuery({
@@ -62,14 +80,18 @@ export default function UsagePage(): React.JSX.Element {
     queryFn: () => window.agentmat.settings.get(),
   });
   const usageQuery = useQuery({
-    queryKey: USAGE_LIST_KEY,
+    queryKey: queryKeys.usageList,
     queryFn: () => window.agentmat.usage.list(),
     refetchInterval: 45_000,
   });
 
+  const dashboardCards = useDashboardOrderStore((s) => s.usageCards);
+  const toggleDashboardCard = useDashboardOrderStore((s) => s.toggleUsageCard);
+
   const settings = settingsQuery.data;
   const configs = settings?.usageProviderConfigs ?? {};
   const cardModes = settings?.usageCardModes ?? {};
+  const resetAlerts = settings?.usageResetAlerts ?? defaultUsageResetAlerts();
   const displayedIds = useMemo(
     () => orderedProviderIds(settings?.usageCardOrder ?? [], settings?.usageProviderConfigs ?? {}),
     [settings],
@@ -95,6 +117,14 @@ export default function UsagePage(): React.JSX.Element {
     return { todayTokens, weekTokens, cost };
   }, [displayedIds, usageById]);
 
+  /** Soonest rollover among the watched windows — what the switch counts down to. */
+  const nextReset = useMemo(() => {
+    const windows = usageById.get(resetAlerts.providerId)?.subscription?.windows ?? [];
+    return windows
+      .filter((w) => resetAlerts.windows.includes(w.key) && w.resetAt)
+      .sort((a, b) => Date.parse(a.resetAt!) - Date.parse(b.resetAt!))[0];
+  }, [usageById, resetAlerts.providerId, resetAlerts.windows]);
+
   async function persistOrder(next: string[]): Promise<void> {
     await window.agentmat.settings.update({ usageCardOrder: next });
     await queryClient.invalidateQueries({ queryKey: queryKeys.settings });
@@ -112,9 +142,19 @@ export default function UsagePage(): React.JSX.Element {
   }
 
   async function setConfig(providerId: string, config: UsageProviderConfig): Promise<void> {
+    // A provider that's no longer tracked can't feed a dashboard card either.
+    if (!config.enabled && dashboardCards.includes(providerId)) toggleDashboardCard(providerId);
     await window.agentmat.usage.setProviderConfig(providerId, config);
     await queryClient.invalidateQueries({ queryKey: queryKeys.settings });
-    await queryClient.invalidateQueries({ queryKey: USAGE_LIST_KEY });
+    await queryClient.invalidateQueries({ queryKey: queryKeys.usageList });
+  }
+
+  /** Adds/removes this provider's card on the Dashboard page. */
+  function toggleDashboard(providerId: string): void {
+    const name = getUsageProvider(providerId)?.name ?? 'Card';
+    const added = toggleDashboardCard(providerId);
+    if (added) toast.success(`${name} added to your dashboard.`);
+    else toast.info(`${name} removed from your dashboard.`);
   }
 
   /** Pins whichever view the card is currently showing. */
@@ -141,8 +181,29 @@ export default function UsagePage(): React.JSX.Element {
 
   async function refreshAll(): Promise<void> {
     await window.agentmat.usage.refresh();
-    await queryClient.invalidateQueries({ queryKey: USAGE_LIST_KEY });
+    await queryClient.invalidateQueries({ queryKey: queryKeys.usageList });
     toast.info('Refreshing usage…');
+  }
+
+  async function saveResetAlerts(next: UsageResetAlertSettings): Promise<void> {
+    await window.agentmat.usage.setResetAlerts(next);
+    await queryClient.invalidateQueries({ queryKey: queryKeys.settings });
+  }
+
+  /** The switch itself — the rest of the config lives behind the gear. */
+  async function toggleResetAlerts(enabled: boolean): Promise<void> {
+    await saveResetAlerts({ ...resetAlerts, enabled });
+    if (!enabled) {
+      toast.info('Reset alerts turned off.');
+      return;
+    }
+    // Nothing can be delivered without a bot, so say so at the moment it matters
+    // rather than letting the switch sit on and silently do nothing.
+    if (!settings?.telegramBotToken || !(resetAlerts.chatId ?? settings?.telegramChatId)) {
+      toast.warning('Add your Telegram bot token and chat ID in Settings to receive these.');
+      return;
+    }
+    toast.success('You will get a Telegram message when the window resets.');
   }
 
   return (
@@ -154,6 +215,39 @@ export default function UsagePage(): React.JSX.Element {
         <Button variant="outline" onClick={() => void refreshAll()}>
           <RefreshCw className={usageQuery.isFetching ? 'animate-spin' : undefined} /> Refresh
         </Button>
+
+        {/* Telegram announcement when a rate-limit window rolls over. There is no
+            schedule to author — the reset moment comes from the provider — so the
+            switch is the whole feature and the gear only narrows it. */}
+        <div className="ml-auto flex items-center gap-2 rounded-lg border border-border bg-card/60 py-1.5 pl-3 pr-1.5">
+          <Bell className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+          <Label htmlFor="usage-reset-alerts" className="cursor-pointer text-sm font-medium">
+            Telegram reset alert
+          </Label>
+          {/* Until settings land, `resetAlerts` is only the default — saving off
+              that would quietly wipe whatever the user had configured. */}
+          <Switch
+            id="usage-reset-alerts"
+            disabled={!settings}
+            checked={resetAlerts.enabled}
+            onCheckedChange={(checked) => void toggleResetAlerts(checked)}
+          />
+          {resetAlerts.enabled && (
+            <span className="text-xs tabular-nums text-muted-foreground">
+              {nextReset ? (formatReset(nextReset.resetAt) ?? 'idle') : 'idle'}
+            </span>
+          )}
+          <SimpleTooltip label="Reset alert options">
+            <Button
+              variant="ghost"
+              size="icon"
+              disabled={!settings}
+              onClick={() => setAlertsOpen(true)}
+            >
+              <SettingsIcon className="h-3.5 w-3.5" />
+            </Button>
+          </SimpleTooltip>
+        </div>
       </div>
 
       {/* Summary tiles */}
@@ -172,6 +266,7 @@ export default function UsagePage(): React.JSX.Element {
           const usage = usageById.get(id);
           const removable = !isAutoConnected(def);
           const cardMode = cardModes[id] ?? 'tokens';
+          const onDashboard = dashboardCards.includes(id);
           return (
             <motion.div key={id} layout transition={{ type: 'spring', stiffness: 400, damping: 35 }}>
               <Card
@@ -225,6 +320,22 @@ export default function UsagePage(): React.JSX.Element {
                         </Button>
                       </SimpleTooltip>
                     )}
+                    {/* Same card, shown on the Dashboard page alongside the
+                        system charts — it follows this card's tokens/limits view. */}
+                    <SimpleTooltip
+                      label={
+                        onDashboard ? 'Remove from dashboard' : 'Add to dashboard'
+                      }
+                    >
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className={onDashboard ? 'text-primary' : undefined}
+                        onClick={() => toggleDashboard(id)}
+                      >
+                        <LayoutDashboard className="h-3.5 w-3.5" />
+                      </Button>
+                    </SimpleTooltip>
                     <SimpleTooltip label="Add to desktop">
                       <Button variant="ghost" size="icon" onClick={() => void popOut(id)}>
                         <Pin className="h-3.5 w-3.5" />
@@ -268,6 +379,15 @@ export default function UsagePage(): React.JSX.Element {
         configs={configs}
         onSave={setConfig}
       />
+
+      <ResetAlertDialog
+        open={alertsOpen}
+        onOpenChange={setAlertsOpen}
+        alerts={resetAlerts}
+        usage={usageById.get(resetAlerts.providerId)}
+        fallbackChatId={settings?.telegramChatId ?? null}
+        onSave={saveResetAlerts}
+      />
     </div>
   );
 }
@@ -290,6 +410,116 @@ function StatTile({
         <div className="mt-1 text-2xl font-semibold tabular-nums">{value}</div>
       </CardContent>
     </Card>
+  );
+}
+
+/** Windows that can be announced, in the order the card shows them. */
+const RESET_WINDOW_OPTIONS: { key: SubscriptionWindowKey; label: string; hint: string }[] = [
+  { key: 'session', label: 'Session (5h)', hint: 'The 5-hour block, the one most people wait on' },
+  { key: 'week', label: 'Weekly', hint: 'The rolling 7-day limit' },
+  { key: 'week-opus', label: 'Weekly (Opus)', hint: 'Only on plans that meter Opus separately' },
+];
+
+function ResetAlertDialog({
+  open,
+  onOpenChange,
+  alerts,
+  usage,
+  fallbackChatId,
+  onSave,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  alerts: UsageResetAlertSettings;
+  usage: ProviderUsage | undefined;
+  fallbackChatId: string | null;
+  onSave: (next: UsageResetAlertSettings) => Promise<void>;
+}): React.JSX.Element {
+  const [chatId, setChatId] = useState(alerts.chatId ?? '');
+  const [testing, setTesting] = useState(false);
+  const providerName = getUsageProvider(alerts.providerId)?.name ?? alerts.providerId;
+  const reported = new Set(usage?.subscription?.windows.map((w) => w.key));
+
+  function toggleWindow(key: SubscriptionWindowKey): void {
+    const next = alerts.windows.includes(key)
+      ? alerts.windows.filter((k) => k !== key)
+      : [...alerts.windows, key];
+    void onSave({ ...alerts, windows: next });
+  }
+
+  async function sendTest(): Promise<void> {
+    setTesting(true);
+    try {
+      // Save first so the test uses the chat ID that's on screen, not the saved one.
+      await onSave({ ...alerts, chatId: chatId.trim() || null });
+      const result = await window.agentmat.usage.testResetAlert();
+      if (result.ok) toast.success('Test alert sent — check Telegram.');
+      else toast.error(result.error ?? 'Could not send the test alert.');
+    } finally {
+      setTesting(false);
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Reset alerts</DialogTitle>
+          <DialogDescription>
+            {providerName} meters you in rolling windows. When one rolls over, your Telegram bot
+            gets a message — no schedule to set, the reset time comes from the plan itself.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-2">
+          {RESET_WINDOW_OPTIONS.map((option) => {
+            const unavailable = usage != null && !reported.has(option.key);
+            return (
+              <div
+                key={option.key}
+                className="flex items-center gap-3 rounded-lg border border-border bg-card/60 px-3 py-2"
+              >
+                <div className="min-w-0 flex-1">
+                  <Label
+                    htmlFor={`reset-window-${option.key}`}
+                    className="cursor-pointer text-sm font-medium"
+                  >
+                    {option.label}
+                  </Label>
+                  <div className="text-xs text-muted-foreground">
+                    {unavailable ? 'Your plan does not report this window' : option.hint}
+                  </div>
+                </div>
+                <Switch
+                  id={`reset-window-${option.key}`}
+                  checked={alerts.windows.includes(option.key)}
+                  onCheckedChange={() => toggleWindow(option.key)}
+                />
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="space-y-1.5">
+          <Label htmlFor="reset-alert-chat-id">Chat/group ID</Label>
+          <Input
+            id="reset-alert-chat-id"
+            placeholder={fallbackChatId ?? 'Uses the chat ID from Settings'}
+            value={chatId}
+            onChange={(e) => setChatId(e.target.value)}
+            onBlur={() => void onSave({ ...alerts, chatId: chatId.trim() || null })}
+          />
+          <p className="text-xs text-muted-foreground">
+            Leave empty to reuse the notification chat from Settings. The bot token always comes
+            from there.
+          </p>
+        </div>
+
+        <Button variant="outline" disabled={testing} onClick={() => void sendTest()}>
+          <Send className="h-3.5 w-3.5" /> {testing ? 'Sending…' : 'Send a test alert'}
+        </Button>
+      </DialogContent>
+    </Dialog>
   );
 }
 

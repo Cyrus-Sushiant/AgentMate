@@ -40,9 +40,15 @@ export interface CursorUsageEvent {
   /** Epoch ms, as a string in Cursor's responses. */
   timestamp?: string | number;
   model?: string;
-  /** 'Included in Pro', 'Usage-based', 'Errored, Not Charged', … */
+  /**
+   * The billing verdict. The Admin API spells it out ('Included in Pro',
+   * 'Usage-based', 'Errored, Not Charged'); the dashboard feed sends the enum
+   * ('USAGE_EVENT_KIND_INCLUDED_IN_PRO'). {@link normalizeKind} flattens both.
+   */
   kindLabel?: string;
   kind?: string;
+  /** What Cursor actually billed, in cents — present on the dashboard feed. */
+  chargedCents?: number;
   maxMode?: boolean;
   /** Request units consumed, for calls billed per request rather than per token. */
   requestsCosts?: number;
@@ -66,9 +72,8 @@ export interface CursorEntry {
 
 type SegmentKey = 'auto' | 'api';
 
-// 'Auto + Composer' rather than just 'Auto': the plan-included bucket covers
-// Composer/agent calls too, and naming only Auto made the row read as if the
-// rest of the included work were missing.
+// 'Auto + Composer' rather than just 'Auto': the bucket covers Composer/agent
+// calls too, and naming only Auto made the row read as if the rest were missing.
 const SEGMENT_LABELS: Record<SegmentKey, string> = { auto: 'Auto + Composer', api: 'API' };
 
 function num(v: unknown): number {
@@ -106,20 +111,36 @@ async function postJson(
 }
 
 /**
- * Split a call into plan-included work versus what was billed at API rates.
+ * Flatten either spelling of the billing verdict into lowercase words:
+ * 'Errored, Not Charged' and 'USAGE_EVENT_KIND_ERRORED_NOT_CHARGED' both become
+ * 'errored not charged'. The enum's shared `usage event kind` prefix is dropped
+ * first — otherwise every event would look like it said "usage".
+ */
+function normalizeKind(event: CursorUsageEvent): string {
+  return `${event.kindLabel ?? event.kind ?? ''}`
+    .toLowerCase()
+    .replace(/[_,-]+/g, ' ')
+    .replace(/^\s*usage event kind\s*/, '')
+    .trim();
+}
+
+/**
+ * Split a call by which model the user actually invoked: Cursor's own pickers
+ * (Auto, `default`, the Composer/agent models) versus an explicitly chosen
+ * frontier model.
  *
- * The kind label ("Included in Pro" / "Usage-based") is Cursor's own billing
- * verdict, so it decides whenever it's present. Only when it's missing do we
- * infer from the model name — Auto, `default`, and the Composer/agent models
- * are the ones the plan covers.
+ * Deliberately *not* split on Cursor's billing verdict. On a plan that includes
+ * everything, every event comes back `INCLUDED_IN_PRO`, which collapses the
+ * card to a single full-width bar and answers a question nobody asked. Grouping
+ * by model keeps both buckets meaningful and matches what the labels claim.
+ *
+ * The corollary: this is a split of *what you ran*, not of what you were
+ * charged for. Both buckets may well be plan-covered.
  */
 export function classify(event: CursorUsageEvent): SegmentKey {
-  const kind = `${event.kindLabel ?? event.kind ?? ''}`.toLowerCase();
-  if (kind.includes('included')) return 'auto';
-  if (kind.includes('usage-based') || kind.includes('usage based')) return 'api';
-
   const model = (event.model ?? '').trim().toLowerCase();
   if (
+    model === '' ||
     model === 'auto' ||
     model === 'default' ||
     model.startsWith('auto-') ||
@@ -137,7 +158,7 @@ export function toEntry(event: CursorUsageEvent): CursorEntry | null {
 
   // Failed calls are shown but never billed, and counting them would overstate
   // consumption against what the Cursor dashboard reports.
-  const kind = `${event.kindLabel ?? event.kind ?? ''}`.toLowerCase();
+  const kind = normalizeKind(event);
   if (kind.includes('errored') || kind.includes('not charged')) return null;
 
   const usage = event.tokenUsage ?? {};
@@ -145,7 +166,10 @@ export function toEntry(event: CursorUsageEvent): CursorEntry | null {
   const output = num(usage.outputTokens);
   const cacheRead = num(usage.cacheReadTokens);
   const cacheWrite = num(usage.cacheWriteTokens);
-  const cents = usage.totalCents;
+  // `chargedCents` is the money that actually hit the bill; `totalCents` is the
+  // call's API-rate value, which on an included call is what the plan absorbed.
+  // Prefer the former so the card's cost matches the invoice.
+  const cents = typeof event.chargedCents === 'number' ? event.chargedCents : usage.totalCents;
 
   return {
     at,

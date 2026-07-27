@@ -12,6 +12,7 @@ export const queryKeys = {
   toolsStatus: ['tools-status'] as const,
   templates: ['prompt-templates'] as const,
   settings: ['settings'] as const,
+  usageList: ['usage-list'] as const,
   appVersion: ['app-version'] as const,
   promptHistory: ['prompt-history'] as const,
   promptHistorySearch: (query: string) => ['prompt-history', query] as const,
