@@ -7,7 +7,18 @@ import type { UsageProviderDefinition } from './types.js';
 // state until its integration is wired. `supportsCost` marks the providers whose
 // data source can attribute a dollar cost.
 export const USAGE_PROVIDER_REGISTRY: UsageProviderDefinition[] = [
-  // --- Live: local-log coding agents (no credentials) -----------------------
+  // --- Live: credential-free (no key to paste) ------------------------------
+  // These connect themselves: the coding agents from their local logs, Cursor
+  // from the session its desktop app already stores.
+  {
+    id: 'cursor',
+    name: 'Cursor',
+    category: 'ide',
+    dataSource: 'local-session',
+    supportsCost: true,
+    homepageUrl: 'https://cursor.com/dashboard',
+    accentColor: '#111111',
+  },
   {
     id: 'claude-code',
     name: 'Claude Code',
@@ -72,16 +83,6 @@ export const USAGE_PROVIDER_REGISTRY: UsageProviderDefinition[] = [
     supportsCost: false,
     homepageUrl: 'https://deepseek.com',
     accentColor: '#4D6BFE',
-  },
-  {
-    id: 'cursor',
-    name: 'Cursor',
-    category: 'ide',
-    dataSource: 'api-key',
-    supportsCost: true,
-    homepageUrl: 'https://cursor.com/dashboard',
-    keyHint: 'Admin API key',
-    accentColor: '#111111',
   },
   {
     id: 'moonshot',
@@ -156,4 +157,13 @@ export function getUsageProvider(id: string): UsageProviderDefinition | undefine
 /** Providers whose usage AgentMate can fetch live today. */
 export function isLiveProvider(def: UsageProviderDefinition): boolean {
   return def.dataSource !== 'unsupported';
+}
+
+/**
+ * Providers that need no setup from the user — they read what the vendor's own
+ * tooling already left on this machine. These cards are always shown and can't
+ * be removed, because there's nothing to connect or disconnect.
+ */
+export function isAutoConnected(def: UsageProviderDefinition): boolean {
+  return def.dataSource === 'local-log' || def.dataSource === 'local-session';
 }

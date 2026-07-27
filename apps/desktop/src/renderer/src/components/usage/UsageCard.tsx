@@ -55,9 +55,10 @@ export function UsageCardBody({
 }: UsageCardBodyProps): React.JSX.Element {
   const accent = style === 'colorful' ? def.accentColor : 'hsl(var(--foreground))';
   const subscription = usage.subscription;
-  // Only the subscription widget shows the plan; the token widget looks exactly
-  // as it did before subscriptions existed.
-  const plan = mode === 'subscription' ? subscription?.plan : null;
+  // The plan badge is account identity, not a limits readout, so it shows in
+  // both widgets whenever the account is known — the token view of a Pro
+  // account should still say Pro.
+  const plan = subscription?.plan ?? null;
 
   const header = hideHeader ? null : (
     <div className="flex items-center gap-2">
@@ -81,7 +82,9 @@ export function UsageCardBody({
         <p className="text-xs text-muted-foreground">
           {def.dataSource === 'api-key'
             ? `${def.keyHint ?? 'API key'} required to track usage.`
-            : 'Integration coming soon.'}
+            : def.dataSource === 'local-session'
+              ? `Sign in to the ${def.name} app to track usage.`
+              : 'Integration coming soon.'}
         </p>
       </div>
     );

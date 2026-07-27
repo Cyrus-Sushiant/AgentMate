@@ -36,7 +36,7 @@ interface CursorTokenUsage {
   totalCents?: number;
 }
 
-interface CursorUsageEvent {
+export interface CursorUsageEvent {
   /** Epoch ms, as a string in Cursor's responses. */
   timestamp?: string | number;
   model?: string;
@@ -56,7 +56,7 @@ interface CursorUsageResponse {
 }
 
 /** One normalized call: when it happened, which bucket it belongs in, what it cost. */
-interface CursorEntry {
+export interface CursorEntry {
   at: number;
   segment: SegmentKey;
   tokens: UsageTokens;
@@ -66,7 +66,10 @@ interface CursorEntry {
 
 type SegmentKey = 'auto' | 'api';
 
-const SEGMENT_LABELS: Record<SegmentKey, string> = { auto: 'Auto', api: 'API' };
+// 'Auto + Composer' rather than just 'Auto': the plan-included bucket covers
+// Composer/agent calls too, and naming only Auto made the row read as if the
+// rest of the included work were missing.
+const SEGMENT_LABELS: Record<SegmentKey, string> = { auto: 'Auto + Composer', api: 'API' };
 
 function num(v: unknown): number {
   return typeof v === 'number' && Number.isFinite(v) ? v : 0;
@@ -103,21 +106,32 @@ async function postJson(
 }
 
 /**
- * Auto mode is Cursor's included-in-the-plan model picker; everything else is
- * billed at API rates. Cursor reports the first as an `auto` model name and/or
- * an "Included in <plan>" kind, so either signal puts a call in the Auto bucket.
+ * Split a call into plan-included work versus what was billed at API rates.
+ *
+ * The kind label ("Included in Pro" / "Usage-based") is Cursor's own billing
+ * verdict, so it decides whenever it's present. Only when it's missing do we
+ * infer from the model name — Auto, `default`, and the Composer/agent models
+ * are the ones the plan covers.
  */
-function classify(event: CursorUsageEvent): SegmentKey {
-  const model = (event.model ?? '').trim().toLowerCase();
-  if (model === 'auto' || model === 'default' || model.startsWith('auto-') || model.startsWith('auto ')) {
-    return 'auto';
-  }
+export function classify(event: CursorUsageEvent): SegmentKey {
   const kind = `${event.kindLabel ?? event.kind ?? ''}`.toLowerCase();
   if (kind.includes('included')) return 'auto';
+  if (kind.includes('usage-based') || kind.includes('usage based')) return 'api';
+
+  const model = (event.model ?? '').trim().toLowerCase();
+  if (
+    model === 'auto' ||
+    model === 'default' ||
+    model.startsWith('auto-') ||
+    model.startsWith('auto ') ||
+    model.startsWith('composer')
+  ) {
+    return 'auto';
+  }
   return 'api';
 }
 
-function toEntry(event: CursorUsageEvent): CursorEntry | null {
+export function toEntry(event: CursorUsageEvent): CursorEntry | null {
   const at = Number(event.timestamp);
   if (!Number.isFinite(at) || at <= 0) return null;
 
@@ -184,7 +198,7 @@ function addInto(target: UsageTokens, src: UsageTokens): void {
   target.total += src.total;
 }
 
-function startOfLocalDay(ts: number): number {
+export function startOfLocalDay(ts: number): number {
   const d = new Date(ts);
   d.setHours(0, 0, 0, 0);
   return d.getTime();
@@ -195,7 +209,7 @@ function startOfLocalDay(ts: number): number {
  * segments are always present so the card renders a stable two-row layout even
  * on a day where only one of them was used.
  */
-function accumulate(entries: CursorEntry[], sinceMs: number): UsagePeriod {
+export function accumulate(entries: CursorEntry[], sinceMs: number): UsagePeriod {
   const segments: Record<SegmentKey, UsageSegment> = {
     auto: { key: 'auto', label: SEGMENT_LABELS.auto, tokens: emptyUsageTokens(), costUsd: 0, requests: 0 },
     api: { key: 'api', label: SEGMENT_LABELS.api, tokens: emptyUsageTokens(), costUsd: 0, requests: 0 },
@@ -231,7 +245,7 @@ function accumulate(entries: CursorEntry[], sinceMs: number): UsagePeriod {
 }
 
 /** Daily token totals for the last 14 days (oldest first) for the sparkline. */
-function buildSeries(entries: CursorEntry[]): number[] {
+export function buildSeries(entries: CursorEntry[]): number[] {
   const startToday = startOfLocalDay(Date.now());
   const buckets = new Array<number>(SERIES_DAYS).fill(0);
   for (const entry of entries) {

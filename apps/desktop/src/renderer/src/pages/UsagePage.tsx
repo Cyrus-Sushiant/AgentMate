@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 import {
   USAGE_PROVIDER_REGISTRY,
   getUsageProvider,
+  isAutoConnected,
   type ProviderUsage,
   type UsageProviderConfig,
   type WidgetMode,
@@ -34,7 +35,7 @@ const USAGE_LIST_KEY = ['usage-list'] as const;
 function isDisplayed(id: string, configs: Record<string, UsageProviderConfig>): boolean {
   const def = getUsageProvider(id);
   if (!def) return false;
-  if (def.dataSource === 'local-log') return true;
+  if (isAutoConnected(def)) return true;
   return !!configs[id]?.enabled;
 }
 
@@ -169,7 +170,7 @@ export default function UsagePage(): React.JSX.Element {
           const def = getUsageProvider(id);
           if (!def) return null;
           const usage = usageById.get(id);
-          const removable = def.dataSource !== 'local-log';
+          const removable = !isAutoConnected(def);
           const cardMode = cardModes[id] ?? 'tokens';
           return (
             <motion.div key={id} layout transition={{ type: 'spring', stiffness: 400, damping: 35 }}>
@@ -328,7 +329,7 @@ function AddProviderDialog({
         />
         <div className="max-h-[50vh] space-y-1.5 overflow-y-auto pr-1">
           {filtered.map((def) => {
-            const enabled = def.dataSource === 'local-log' || configs[def.id]?.enabled;
+            const enabled = isAutoConnected(def) || configs[def.id]?.enabled;
             const isApi = def.dataSource === 'api-key';
             const unsupported = def.dataSource === 'unsupported';
             return (
@@ -347,9 +348,11 @@ function AddProviderDialog({
                   <div className="text-xs text-muted-foreground">
                     {def.dataSource === 'local-log'
                       ? 'Local logs · automatic'
-                      : isApi
-                        ? (def.keyHint ?? 'API key')
-                        : 'Coming soon'}
+                      : def.dataSource === 'local-session'
+                        ? 'Signed-in app · automatic'
+                        : isApi
+                          ? (def.keyHint ?? 'API key')
+                          : 'Coming soon'}
                   </div>
                 </div>
                 {isApi &&
@@ -375,7 +378,7 @@ function AddProviderDialog({
                       </Button>
                     </div>
                   ))}
-                {def.dataSource === 'local-log' && <Badge variant="success">Auto</Badge>}
+                {isAutoConnected(def) && <Badge variant="success">Auto</Badge>}
                 {unsupported && <Badge variant="outline">Soon</Badge>}
               </div>
             );

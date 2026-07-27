@@ -5,6 +5,8 @@ import {
   type UsageProviderConfig,
 } from '@agentmat/core';
 import { clearLiveWindowCache } from './claudeAccount';
+import { clearCursorAccountCache } from './cursorAccount';
+import { fetchCursorSessionUsage } from './cursorSession';
 import { scanLocalProvider } from './localScanner';
 import type { LocalLogProvider } from './logParsers';
 import { fetchApiProviderUsage } from './apiProviders';
@@ -31,6 +33,12 @@ async function computeUsage(
     case 'local-log':
       if (!LOCAL_LOG_PROVIDERS.has(providerId)) return connectUsage(providerId);
       return scanLocalProvider(providerId as LocalLogProvider);
+    case 'local-session':
+      if (providerId !== 'cursor') return connectUsage(providerId);
+      // A team Admin key still wins when the user has entered one: it reports
+      // the per-call Auto/API split, which the dashboard session cannot.
+      if (config?.apiKey) return fetchApiProviderUsage(providerId, config);
+      return fetchCursorSessionUsage();
     case 'api-key':
       return fetchApiProviderUsage(providerId, config);
     default:
@@ -77,7 +85,9 @@ export async function getAllUsage(
   force = false,
 ): Promise<ProviderUsage[]> {
   const targets = USAGE_PROVIDER_REGISTRY.filter((def) => {
-    if (def.dataSource === 'local-log') return true;
+    // Credential-free sources need no setup, so they're always on — that's what
+    // makes these cards appear by themselves.
+    if (def.dataSource === 'local-log' || def.dataSource === 'local-session') return true;
     return configs[def.id]?.enabled;
   });
 
@@ -99,4 +109,5 @@ export async function getAllUsage(
 export function clearUsageCache(): void {
   cache.clear();
   clearLiveWindowCache();
+  clearCursorAccountCache();
 }

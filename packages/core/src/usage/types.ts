@@ -5,6 +5,7 @@
 /** How AgentMate obtains usage data for a provider. */
 export type UsageDataSource =
   | 'local-log' // parse local CLI logs on disk (no credentials) — Claude Code, Codex
+  | 'local-session' // reuse the vendor app's own signed-in session on disk — Cursor
   | 'api-key' // call the provider's usage/billing API with a stored key
   | 'unsupported'; // registered for completeness; live wiring not implemented yet
 
@@ -98,7 +99,7 @@ export interface SubscriptionPlan {
 }
 
 /** Which rate-limit window a `SubscriptionWindow` describes. */
-export type SubscriptionWindowKey = 'session' | 'week' | 'week-opus';
+export type SubscriptionWindowKey = 'session' | 'week' | 'week-opus' | 'month';
 
 /** One rolling rate-limit window on a subscription plan. */
 export interface SubscriptionWindow {
