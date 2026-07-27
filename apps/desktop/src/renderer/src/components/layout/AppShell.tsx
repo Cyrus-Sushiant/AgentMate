@@ -1,5 +1,4 @@
 import { useEffect, useRef } from 'react';
-import { AnimatePresence, motion } from 'framer-motion';
 import { AnglesLeft, AnglesRight, MessageSquare, TerminalSquare } from '@/components/icons';
 import { Outlet, useLocation } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
@@ -18,13 +17,6 @@ import { CommandPalette } from '@/components/search/CommandPalette';
 import { AskAiModal } from '@/components/askAi/AskAiModal';
 import { useAppLoadingOverlay } from '@/hooks/useAppLoadingOverlay';
 import { cn } from '@/lib/utils';
-
-const PAGE_TRANSITION = {
-  initial: { opacity: 0, y: 14, scale: 0.985, filter: 'blur(4px)' },
-  animate: { opacity: 1, y: 0, scale: 1, filter: 'blur(0px)' },
-  exit: { opacity: 0, y: -10, scale: 0.985, filter: 'blur(4px)' },
-  transition: { duration: 0.32, ease: [0.22, 1, 0.36, 1] as const },
-};
 
 function TopBar(): React.JSX.Element {
   const isTerminalOpen = useTerminalStore((s) => s.isOpen);
@@ -111,22 +103,21 @@ export function AppShell(): React.JSX.Element {
           <TopBar />
           <div className="relative flex min-h-0 flex-1 flex-col">
             <div ref={scrollRef} className={cn('flex min-h-0 flex-1 flex-col overflow-y-auto')}>
-              <AnimatePresence mode="wait">
-                <motion.div
-                  key={location.pathname}
-                  initial={PAGE_TRANSITION.initial}
-                  animate={PAGE_TRANSITION.animate}
-                  exit={PAGE_TRANSITION.exit}
-                  transition={PAGE_TRANSITION.transition}
-                  className="flex min-h-full flex-1 flex-col"
-                >
-                  {/* A page that throws must not take the shell down with it —
-                      the sidebar stays usable and the error is readable. */}
-                  <ErrorBoundary resetKey={location.pathname}>
-                    <Outlet />
-                  </ErrorBoundary>
-                </motion.div>
-              </AnimatePresence>
+              {/* Keyed on the path so React remounts the wrapper per route and
+                  the CSS enter animation replays. No exit animation and no
+                  AnimatePresence gate: the incoming page renders immediately
+                  instead of waiting on the outgoing one's animation to report
+                  back, which is what used to strand the content area empty. */}
+              <div
+                key={location.pathname}
+                className="page-enter flex min-h-full flex-1 flex-col"
+              >
+                {/* A page that throws must not take the shell down with it —
+                    the sidebar stays usable and the error is readable. */}
+                <ErrorBoundary resetKey={location.pathname}>
+                  <Outlet />
+                </ErrorBoundary>
+              </div>
             </div>
             <LoadingOverlay show={showLoading} />
           </div>

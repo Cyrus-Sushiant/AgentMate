@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
-import { Folder, FolderPlus, Play, Plus, Search, Trash2 } from '@/components/icons';
+import { Folder, FolderPlus, Play, Plus, Search, Sparkles } from '@/components/icons';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -12,14 +12,18 @@ import { SimpleTooltip } from '@/components/ui/tooltip';
 import { queryKeys } from '@/lib/queryKeys';
 import { timeAgo } from '@/lib/time';
 import { usePageHeader } from '@/stores/pageHeaderStore';
-import { confirmDialog } from '@/stores/confirmStore';
 import { useTerminalStore } from '@/stores/terminalStore';
 import { ProjectFormDialog, type ProjectFormValues } from '@/components/projects/ProjectFormDialog';
+import { ProjectPromptBuildDialog } from '@/components/projects/ProjectPromptBuildDialog';
 
 export default function ProjectsPage(): React.JSX.Element {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [promptBuildOpen, setPromptBuildOpen] = useState(false);
+  const [promptBuildProject, setPromptBuildProject] = useState<{ id: string; name: string } | null>(
+    null,
+  );
   const [search, setSearch] = useState('');
   const queryClient = useQueryClient();
   const openSession = useTerminalStore((s) => s.openSession);
@@ -42,14 +46,6 @@ export default function ProjectsPage(): React.JSX.Element {
     onSuccess: () => {
       toast.success('Project created.');
       setDialogOpen(false);
-      void queryClient.invalidateQueries({ queryKey: queryKeys.projects });
-    },
-  });
-
-  const deleteMutation = useMutation({
-    mutationFn: (projectId: string) => window.agentmat.projects.delete(projectId),
-    onSuccess: () => {
-      toast.success('Project removed.');
       void queryClient.invalidateQueries({ queryKey: queryKeys.projects });
     },
   });
@@ -155,7 +151,7 @@ export default function ProjectsPage(): React.JSX.Element {
                       </p>
                     </div>
                   </div>
-                  <div className="flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+                  <div className="flex shrink-0 items-center gap-1">
                     {project.runCommand && (
                       <SimpleTooltip label={`Run "${project.runCommand}"`}>
                         <Button
@@ -170,23 +166,19 @@ export default function ProjectsPage(): React.JSX.Element {
                         </Button>
                       </SimpleTooltip>
                     )}
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        void confirmDialog({
-                          title: `Remove "${project.name}"?`,
-                          description: 'This removes it from AgentMate. Files on disk are kept.',
-                          confirmLabel: 'Remove',
-                          variant: 'destructive',
-                        }).then((confirmed) => {
-                          if (confirmed) deleteMutation.mutate(project.id);
-                        });
-                      }}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                    <SimpleTooltip label="Build a prompt for this project">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setPromptBuildProject({ id: project.id, name: project.name });
+                          setPromptBuildOpen(true);
+                        }}
+                      >
+                        <Sparkles className="h-4 w-4" />
+                      </Button>
+                    </SimpleTooltip>
                   </div>
                 </div>
                 <CardDescription className="line-clamp-2">
@@ -224,6 +216,15 @@ export default function ProjectsPage(): React.JSX.Element {
         onSubmit={(values) => createMutation.mutate(values)}
         isSubmitting={createMutation.isPending}
       />
+
+      {promptBuildProject && (
+        <ProjectPromptBuildDialog
+          open={promptBuildOpen}
+          onOpenChange={setPromptBuildOpen}
+          projectId={promptBuildProject.id}
+          projectName={promptBuildProject.name}
+        />
+      )}
     </div>
   );
 }
