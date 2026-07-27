@@ -8,6 +8,7 @@ import type {
   WidgetStyle,
 } from '@agentmat/core';
 import { ProviderLogo } from '@/components/providerLogos';
+import { Skeleton } from '@/components/ui/skeleton';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { SparklineChart } from '@/components/dashboard/SparklineChart';
 import {
@@ -29,6 +30,33 @@ export interface UsageCardBodyProps {
   hideHeader?: boolean;
   /** Which of the two widgets this is. Defaults to the original tokens view. */
   mode?: WidgetMode;
+}
+
+/**
+ * The card body's shape while the scan is still running: the headline number,
+ * a limit bar and the sparkline's row, all in their final positions so the card
+ * doesn't jump when the real figures arrive. Each card shows this on its own —
+ * providers land one at a time, and the ones already in never go blank.
+ */
+export function UsageCardBodySkeleton({
+  compact = false,
+}: {
+  compact?: boolean;
+}): React.JSX.Element {
+  return (
+    <div className="flex h-full flex-col gap-2">
+      <div className="flex items-center gap-2">
+        <Skeleton className="h-7 w-20" />
+        <Skeleton className="h-3 w-16" />
+        <Skeleton className="ml-auto h-4 w-12" />
+      </div>
+      <div className="space-y-1">
+        <Skeleton className="h-3 w-28" />
+        <Skeleton className="h-1.5 w-full rounded-full" />
+      </div>
+      {!compact && <Skeleton className="mt-auto h-11 w-full" />}
+    </div>
+  );
 }
 
 /** Subscription limits are only worth showing when the account actually has them. */

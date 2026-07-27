@@ -40,6 +40,7 @@ import { CliLogo } from '@/components/cliLogos';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/skeleton';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { SparklineChart } from '@/components/dashboard/SparklineChart';
 import { useSystemStatsHistory } from '@/hooks/useSystemStatsHistory';
@@ -107,6 +108,20 @@ function EmptyChartState({ message }: { message: React.ReactNode }): React.JSX.E
       {message}
     </div>
   );
+}
+
+// Stands in for the plot until the first sample lands, filling the exact chart
+// slot so the card doesn't resize once the line appears. Each card carries its
+// own — the page never waits on all of them together.
+function ChartSkeleton(): React.JSX.Element {
+  return <Skeleton className="w-full" style={{ height: CHART_HEIGHT }} />;
+}
+
+// The headline number's slot while it has nothing to show. `self-center`
+// because the stat rows align on the text baseline, which a blank block has no
+// sensible answer for.
+function StatSkeleton({ className }: { className?: string }): React.JSX.Element {
+  return <Skeleton className={cn('h-8 w-20 self-center', className)} />;
 }
 
 // Only the handle itself is draggable — the card underneath just listens for
@@ -426,27 +441,33 @@ export default function DashboardPage(): React.JSX.Element {
         </CardHeader>
         <CardContent>
           <div className="mb-2 flex h-8 items-baseline gap-2">
-            <span className="text-2xl font-semibold">
-              {latest ? formatPercent(latest.cpuPercent) : '—'}
-            </span>
+            {latest ? (
+              <span className="text-2xl font-semibold">{formatPercent(latest.cpuPercent)}</span>
+            ) : (
+              <StatSkeleton className="w-16" />
+            )}
           </div>
           <div className="mb-2 h-6" />
-          <SparklineChart
-            height={CHART_HEIGHT}
-            timestamps={timestamps}
-            domainMin={0}
-            domainMax={100}
-            formatValue={formatPercent}
-            formatTime={formatClockTime}
-            series={[
-              {
-                key: 'cpu',
-                label: 'CPU',
-                color: 'hsl(var(--primary))',
-                values: statsHistory.map((s) => s.cpuPercent),
-              },
-            ]}
-          />
+          {latest ? (
+            <SparklineChart
+              height={CHART_HEIGHT}
+              timestamps={timestamps}
+              domainMin={0}
+              domainMax={100}
+              formatValue={formatPercent}
+              formatTime={formatClockTime}
+              series={[
+                {
+                  key: 'cpu',
+                  label: 'CPU',
+                  color: 'hsl(var(--primary))',
+                  values: statsHistory.map((s) => s.cpuPercent),
+                },
+              ]}
+            />
+          ) : (
+            <ChartSkeleton />
+          )}
         </CardContent>
       </Card>
     ),
@@ -461,32 +482,41 @@ export default function DashboardPage(): React.JSX.Element {
         </CardHeader>
         <CardContent>
           <div className="mb-2 flex h-8 items-baseline gap-2">
-            <span className="text-2xl font-semibold">
-              {latest ? formatPercent(latest.memPercent) : '—'}
-            </span>
-            {latest && (
-              <span className="text-xs text-muted-foreground">
-                {formatBytes(latest.memUsedBytes)} / {formatBytes(latest.memTotalBytes)}
-              </span>
+            {latest ? (
+              <>
+                <span className="text-2xl font-semibold">{formatPercent(latest.memPercent)}</span>
+                <span className="text-xs text-muted-foreground">
+                  {formatBytes(latest.memUsedBytes)} / {formatBytes(latest.memTotalBytes)}
+                </span>
+              </>
+            ) : (
+              <>
+                <StatSkeleton className="w-16" />
+                <Skeleton className="h-3 w-24 self-center" />
+              </>
             )}
           </div>
           <div className="mb-2 h-6" />
-          <SparklineChart
-            height={CHART_HEIGHT}
-            timestamps={timestamps}
-            domainMin={0}
-            domainMax={100}
-            formatValue={formatPercent}
-            formatTime={formatClockTime}
-            series={[
-              {
-                key: 'mem',
-                label: 'Memory',
-                color: 'hsl(var(--primary))',
-                values: statsHistory.map((s) => s.memPercent),
-              },
-            ]}
-          />
+          {latest ? (
+            <SparklineChart
+              height={CHART_HEIGHT}
+              timestamps={timestamps}
+              domainMin={0}
+              domainMax={100}
+              formatValue={formatPercent}
+              formatTime={formatClockTime}
+              series={[
+                {
+                  key: 'mem',
+                  label: 'Memory',
+                  color: 'hsl(var(--primary))',
+                  values: statsHistory.map((s) => s.memPercent),
+                },
+              ]}
+            />
+          ) : (
+            <ChartSkeleton />
+          )}
         </CardContent>
       </Card>
     ),
@@ -501,12 +531,22 @@ export default function DashboardPage(): React.JSX.Element {
         </CardHeader>
         <CardContent>
           <div className="mb-2 flex h-8 items-baseline gap-2">
-            <span className="text-2xl font-semibold">
-              {formatBytesPerSec(totalDiskBytesPerSec)}
-            </span>
-            <span className="text-xs text-muted-foreground">combined read + write</span>
+            {latest ? (
+              <>
+                <span className="text-2xl font-semibold">
+                  {formatBytesPerSec(totalDiskBytesPerSec)}
+                </span>
+                <span className="text-xs text-muted-foreground">combined read + write</span>
+              </>
+            ) : (
+              <>
+                <StatSkeleton className="w-24" />
+                <Skeleton className="h-3 w-28 self-center" />
+              </>
+            )}
           </div>
           <div className="mb-2 flex h-6 items-center gap-4 overflow-x-auto overflow-y-hidden whitespace-nowrap">
+            {!latest && <Skeleton className="h-3 w-32" />}
             {disks.map((d, i) => (
               <div key={d.id} className="flex shrink-0 items-center gap-1.5 text-sm">
                 <span
@@ -522,7 +562,9 @@ export default function DashboardPage(): React.JSX.Element {
               </div>
             ))}
           </div>
-          {disks.length === 0 ? (
+          {!latest ? (
+            <ChartSkeleton />
+          ) : disks.length === 0 ? (
             <EmptyChartState message="No disk activity detected." />
           ) : (
             <SparklineChart
@@ -556,14 +598,23 @@ export default function DashboardPage(): React.JSX.Element {
         </CardHeader>
         <CardContent>
           <div className="mb-2 flex h-8 items-baseline gap-2">
-            <span className="text-2xl font-semibold">
-              {gpus.length > 0 ? formatPercent(avgGpuPercent) : '—'}
-            </span>
-            {gpus.length > 1 && (
-              <span className="text-xs text-muted-foreground">avg across {gpus.length} GPUs</span>
+            {!latest ? (
+              <StatSkeleton className="w-16" />
+            ) : (
+              <>
+                <span className="text-2xl font-semibold">
+                  {gpus.length > 0 ? formatPercent(avgGpuPercent) : '—'}
+                </span>
+                {gpus.length > 1 && (
+                  <span className="text-xs text-muted-foreground">
+                    avg across {gpus.length} GPUs
+                  </span>
+                )}
+              </>
             )}
           </div>
           <div className="mb-2 flex flex-wrap items-center gap-x-4 gap-y-1">
+            {!latest && <Skeleton className="h-4 w-40" />}
             {gpus.map((g, i) => (
               <div key={g.id} className="flex items-center gap-1.5 text-sm">
                 <span
@@ -580,7 +631,9 @@ export default function DashboardPage(): React.JSX.Element {
               </div>
             ))}
           </div>
-          {gpus.length === 0 ? (
+          {!latest ? (
+            <ChartSkeleton />
+          ) : gpus.length === 0 ? (
             <EmptyChartState message="No supported GPU detected." />
           ) : (
             <SparklineChart
@@ -612,10 +665,16 @@ export default function DashboardPage(): React.JSX.Element {
         </CardHeader>
         <CardContent>
           <div className="mb-2 flex h-8 items-baseline gap-2">
-            <span className="text-2xl font-semibold">
-              {latest ? formatBytesPerSec(latest.netRxBytesPerSec) : '—'}
-            </span>
-            <span className="text-xs text-muted-foreground">down</span>
+            {latest ? (
+              <>
+                <span className="text-2xl font-semibold">
+                  {formatBytesPerSec(latest.netRxBytesPerSec)}
+                </span>
+                <span className="text-xs text-muted-foreground">down</span>
+              </>
+            ) : (
+              <StatSkeleton className="w-24" />
+            )}
           </div>
           <div className="mb-2 flex h-6 items-center gap-4 overflow-x-auto overflow-y-hidden whitespace-nowrap text-xs text-muted-foreground">
             <span className="flex shrink-0 items-center gap-1">
@@ -633,27 +692,31 @@ export default function DashboardPage(): React.JSX.Element {
               Upload
             </span>
           </div>
-          <SparklineChart
-            height={CHART_HEIGHT}
-            timestamps={timestamps}
-            domainMin={0}
-            formatValue={formatBytesPerSec}
-            formatTime={formatClockTime}
-            series={[
-              {
-                key: 'rx',
-                label: 'Download',
-                color: chartColors.green,
-                values: statsHistory.map((s) => s.netRxBytesPerSec),
-              },
-              {
-                key: 'tx',
-                label: 'Upload',
-                color: chartColors.blue,
-                values: statsHistory.map((s) => s.netTxBytesPerSec),
-              },
-            ]}
-          />
+          {latest ? (
+            <SparklineChart
+              height={CHART_HEIGHT}
+              timestamps={timestamps}
+              domainMin={0}
+              formatValue={formatBytesPerSec}
+              formatTime={formatClockTime}
+              series={[
+                {
+                  key: 'rx',
+                  label: 'Download',
+                  color: chartColors.green,
+                  values: statsHistory.map((s) => s.netRxBytesPerSec),
+                },
+                {
+                  key: 'tx',
+                  label: 'Upload',
+                  color: chartColors.blue,
+                  values: statsHistory.map((s) => s.netTxBytesPerSec),
+                },
+              ]}
+            />
+          ) : (
+            <ChartSkeleton />
+          )}
         </CardContent>
       </Card>
     ),
@@ -675,14 +738,21 @@ export default function DashboardPage(): React.JSX.Element {
         </CardHeader>
         <CardContent>
           <div className="mb-2 flex h-8 items-baseline gap-2">
-            <span className="text-2xl font-semibold">
-              {pings.length > 0 ? `${aliveTargetCount}/${pings.length}` : '—'}
-            </span>
-            {pings.length > 0 && (
-              <span className="text-xs text-muted-foreground">targets online</span>
+            {!latest ? (
+              <StatSkeleton className="w-16" />
+            ) : (
+              <>
+                <span className="text-2xl font-semibold">
+                  {pings.length > 0 ? `${aliveTargetCount}/${pings.length}` : '—'}
+                </span>
+                {pings.length > 0 && (
+                  <span className="text-xs text-muted-foreground">targets online</span>
+                )}
+              </>
             )}
           </div>
           <div className="mb-2 flex h-6 items-center gap-4 overflow-x-auto overflow-y-hidden whitespace-nowrap">
+            {!latest && <Skeleton className="h-3 w-36" />}
             {pings.map((p, i) => (
               <div key={p.host} className="flex shrink-0 items-center gap-1.5 text-sm">
                 <span
@@ -701,7 +771,9 @@ export default function DashboardPage(): React.JSX.Element {
               </div>
             ))}
           </div>
-          {pings.length === 0 ? (
+          {!latest ? (
+            <ChartSkeleton />
+          ) : pings.length === 0 ? (
             <EmptyChartState
               message={
                 <>
@@ -785,9 +857,13 @@ export default function DashboardPage(): React.JSX.Element {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-semibold">
-              {installedCount}/{CLI_REGISTRY.length}
-            </div>
+            {cliQuery.isPending ? (
+              <StatSkeleton className="w-16" />
+            ) : (
+              <div className="text-2xl font-semibold">
+                {installedCount}/{CLI_REGISTRY.length}
+              </div>
+            )}
           </CardContent>
         </Card>
         <Card>
@@ -797,7 +873,11 @@ export default function DashboardPage(): React.JSX.Element {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-semibold">{projectsQuery.data?.length ?? 0}</div>
+            {projectsQuery.isPending ? (
+              <StatSkeleton className="w-10" />
+            ) : (
+              <div className="text-2xl font-semibold">{projectsQuery.data?.length ?? 0}</div>
+            )}
           </CardContent>
         </Card>
         <Card>
@@ -807,7 +887,11 @@ export default function DashboardPage(): React.JSX.Element {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-semibold">{reposQuery.data?.length ?? 0}</div>
+            {reposQuery.isPending ? (
+              <StatSkeleton className="w-10" />
+            ) : (
+              <div className="text-2xl font-semibold">{reposQuery.data?.length ?? 0}</div>
+            )}
           </CardContent>
         </Card>
         <Card>
@@ -828,7 +912,10 @@ export default function DashboardPage(): React.JSX.Element {
           </CardHeader>
           <CardContent>
             {ipGeoQuery.isPending ? (
-              <div className="text-sm text-muted-foreground">Looking up…</div>
+              <div className="flex items-center gap-2">
+                <Skeleton className="h-4 w-6" />
+                <Skeleton className="h-6 w-32" />
+              </div>
             ) : ipGeoQuery.isError || !ipGeoQuery.data ? (
               <div className="text-sm text-destructive">Unavailable</div>
             ) : (

@@ -1,6 +1,5 @@
 import { useEffect, useRef } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { useIsFetching, useIsMutating } from '@tanstack/react-query';
 import { AnglesLeft, AnglesRight, MessageSquare, TerminalSquare } from '@/components/icons';
 import { Outlet, useLocation } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
@@ -16,7 +15,7 @@ import { useAskAiStore } from '@/stores/askAiStore';
 import { TerminalDrawer } from '@/components/terminal/TerminalDrawer';
 import { CommandPalette } from '@/components/search/CommandPalette';
 import { AskAiModal } from '@/components/askAi/AskAiModal';
-import { useDelayedLoading } from '@/hooks/useDelayedLoading';
+import { useAppLoadingOverlay } from '@/hooks/useAppLoadingOverlay';
 import { cn } from '@/lib/utils';
 
 const PAGE_TRANSITION = {
@@ -77,14 +76,9 @@ function TopBar(): React.JSX.Element {
 
 export function AppShell(): React.JSX.Element {
   const location = useLocation();
-  // Queries flagged with `meta.silentLoading` (e.g. the dashboard location
-  // card's manual refetch) refresh in place and must not trigger the full-page
-  // overlay.
-  const isFetching = useIsFetching({
-    predicate: (query) => !query.meta?.silentLoading,
-  });
-  const isMutating = useIsMutating();
-  const showLoading = useDelayedLoading(isFetching + isMutating > 0);
+  // Only the cold start gets the full-page overlay — every later load shimmers
+  // in place on the card that's waiting. See the hook for why.
+  const showLoading = useAppLoadingOverlay();
   const scrollRef = useRef<HTMLDivElement>(null);
   const toggleSearch = useSearchStore((s) => s.toggle);
 

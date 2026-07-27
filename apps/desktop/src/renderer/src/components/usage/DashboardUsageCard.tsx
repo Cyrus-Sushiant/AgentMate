@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { ProviderLogo } from '@/components/providerLogos';
-import { UsageCardBody } from '@/components/usage/UsageCard';
+import { UsageCardBody, UsageCardBodySkeleton } from '@/components/usage/UsageCard';
 
 export interface DashboardUsageCardProps {
   providerId: string;
@@ -69,13 +69,11 @@ export function DashboardUsageCard({
         </div>
         {usage ? (
           <UsageCardBody usage={usage} def={def} hideHeader mode={mode} />
+        ) : loading ? (
+          <UsageCardBodySkeleton />
         ) : (
           <div className="flex flex-1 items-center text-sm text-muted-foreground">
-            {loading
-              ? def.dataSource === 'local-log'
-                ? 'scanning local logs…'
-                : 'loading…'
-              : 'No longer tracked on the Token Usage page.'}
+            No longer tracked on the Token Usage page.
           </div>
         )}
       </CardContent>

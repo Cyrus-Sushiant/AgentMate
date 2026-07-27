@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
+import { Skeleton } from '@/components/ui/skeleton';
 import {
   Dialog,
   DialogContent,
@@ -150,7 +151,20 @@ export default function PromptHistoryPage(): React.JSX.Element {
       </div>
 
       {historyQuery.isLoading ? (
-        <p className="text-sm text-muted-foreground">Loading prompt history…</p>
+        <div className="space-y-3">
+          {Array.from({ length: 4 }, (_, i) => (
+            <Card key={i}>
+              <CardHeader className="space-y-2">
+                <Skeleton className="h-4 w-48" />
+                <Skeleton className="h-3 w-28" />
+              </CardHeader>
+              <CardContent className="space-y-2">
+                <Skeleton className="h-3 w-full" />
+                <Skeleton className="h-3 w-4/5" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
       ) : historyQuery.isError ? (
         <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed border-destructive/40 py-16 text-center">
           <p className="text-sm font-medium">Couldn't load prompt history.</p>

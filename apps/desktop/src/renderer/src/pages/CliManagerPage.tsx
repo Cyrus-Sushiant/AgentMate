@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { CloudDownload, ExternalLink, RefreshCw, TerminalSquare } from '@/components/icons';
 import { CliLogo } from '@/components/cliLogos';
+import { CatalogCardSkeleton } from '@/components/CatalogCardSkeleton';
 import { CLI_REGISTRY, type CliDefinition } from '@agentmat/core';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -174,13 +175,17 @@ export default function CliManagerPage(): React.JSX.Element {
         </div>
       </div>
 
-      {visibleClis.length === 0 && (
+      {/* Until the scan lands nothing is known to be installed, which is not
+          the same as nothing being installed. */}
+      {!cliQuery.isPending && visibleClis.length === 0 && (
         <p className="text-sm text-muted-foreground">
           No AI CLIs installed yet. Click "Show all CLIs" above to discover and install one.
         </p>
       )}
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+        {cliQuery.isPending &&
+          Array.from({ length: 6 }, (_, i) => <CatalogCardSkeleton key={i} />)}
         {visibleClis.map((cli) => {
           const status = cliQuery.data?.find((c) => c.id === cli.id);
           const isDefault = defaultCliId === cli.id;

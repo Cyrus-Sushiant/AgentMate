@@ -33,6 +33,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { CatalogCardSkeleton } from '@/components/CatalogCardSkeleton';
 import { queryKeys } from '@/lib/queryKeys';
 import { cn } from '@/lib/utils';
 import { usePageHeader } from '@/stores/pageHeaderStore';
@@ -368,6 +369,10 @@ export default function SkillsPage(): React.JSX.Element {
           </div>
 
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+            {/* The repository index is fetched per repo, so the grid shimmers
+                while it lands instead of sitting empty. */}
+            {(reposQuery.isPending || (!!selectedRepoId && repoIndexQuery.isPending)) &&
+              Array.from({ length: 6 }, (_, i) => <CatalogCardSkeleton key={i} />)}
             {filteredSkills.map((skill) => (
               <Card key={skill.id} className="flex flex-col">
                 <CardHeader>

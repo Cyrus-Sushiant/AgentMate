@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
+import { Skeleton } from '@/components/ui/skeleton';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { queryKeys } from '@/lib/queryKeys';
 import { timeAgo } from '@/lib/time';
@@ -95,7 +96,26 @@ export default function ProjectsPage(): React.JSX.Element {
       </div>
 
       {projectsQuery.isLoading ? (
-        <p className="text-sm text-muted-foreground">Loading projects…</p>
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {Array.from({ length: 6 }, (_, i) => (
+            <Card key={i} className="flex flex-col">
+              <CardHeader className="pb-3">
+                <div className="flex items-center gap-3">
+                  <Skeleton className="h-9 w-9 shrink-0 rounded-lg" />
+                  <div className="min-w-0 flex-1 space-y-1.5">
+                    <Skeleton className="h-4 w-32" />
+                    <Skeleton className="h-3 w-20" />
+                  </div>
+                </div>
+                <Skeleton className="mt-3 h-3 w-full" />
+              </CardHeader>
+              <CardContent className="mt-auto space-y-3">
+                <Skeleton className="h-3 w-2/3" />
+                <Skeleton className="h-5 w-24 rounded-full" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
       ) : projects.length === 0 ? (
         <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed border-border py-16 text-center">
           <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary">

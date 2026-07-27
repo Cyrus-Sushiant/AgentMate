@@ -5,8 +5,13 @@ export type SystemStatsSample = Awaited<ReturnType<typeof window.agentmat.system
 const SAMPLE_INTERVAL_MS = 2000;
 const MAX_SAMPLES = 60;
 
+/** Survives unmounts so leaving and reopening the dashboard doesn't wipe the charts. */
+let cachedHistory: SystemStatsSample[] = [];
+
 export function useSystemStatsHistory(): SystemStatsSample[] {
-  const [history, setHistory] = useState<SystemStatsSample[]>([]);
+  // Seeded from the cache so a revisit redraws the last samples immediately
+  // instead of shimmering from scratch while the first new one arrives.
+  const [history, setHistory] = useState<SystemStatsSample[]>(cachedHistory);
 
   useEffect(() => {
     let cancelled = false;
@@ -15,7 +20,11 @@ export function useSystemStatsHistory(): SystemStatsSample[] {
       try {
         const sample = await window.agentmat.system.sample();
         if (cancelled) return;
-        setHistory((prev) => [...prev.slice(-(MAX_SAMPLES - 1)), sample]);
+        setHistory((prev) => {
+          const next = [...prev.slice(-(MAX_SAMPLES - 1)), sample];
+          cachedHistory = next;
+          return next;
+        });
       } catch {
         // Transient IPC/ping failures just skip a tick — the chart keeps its history.
       }

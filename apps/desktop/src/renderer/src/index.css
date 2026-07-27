@@ -157,6 +157,41 @@ body {
   );
 }
 
+/* Placeholder surface for content that is still loading (see ui/skeleton.tsx):
+   a muted block with a light sweep travelling across it, so a card that hasn't
+   got its data yet reads as pending without covering the page. */
+@keyframes shimmer-sweep {
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+.shimmer {
+  position: relative;
+  overflow: hidden;
+  background: hsl(var(--foreground) / 0.07);
+}
+
+.shimmer::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(
+    90deg,
+    transparent,
+    hsl(var(--foreground) / 0.09),
+    transparent
+  );
+  animation: shimmer-sweep 1.6s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .shimmer::after {
+    animation: none;
+  }
+}
+
 /* Frosted-glass surface for the Token Usage widgets — a translucent card with
    a heavy backdrop blur so it reads as glass both inside the app and floating
    over the desktop. */

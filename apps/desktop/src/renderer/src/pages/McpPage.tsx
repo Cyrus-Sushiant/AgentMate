@@ -30,6 +30,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { CatalogCardSkeleton } from '@/components/CatalogCardSkeleton';
 import { queryKeys } from '@/lib/queryKeys';
 import { usePageHeader } from '@/stores/pageHeaderStore';
 
@@ -260,6 +261,10 @@ export default function McpPage(): React.JSX.Element {
       )}
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+        {/* The server index is fetched per repository, so the grid shimmers
+            while it lands instead of sitting empty. */}
+        {(reposQuery.isPending || (!!selectedRepoId && repoIndexQuery.isPending)) &&
+          Array.from({ length: 6 }, (_, i) => <CatalogCardSkeleton key={i} />)}
         {filteredServers.map((server) => {
           const isInstalled = installedIds.has(server.id);
           const canAutoInstall =

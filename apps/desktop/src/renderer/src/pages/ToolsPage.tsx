@@ -23,6 +23,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Switch } from '@/components/ui/switch';
 import { Combobox } from '@/components/ui/combobox';
 import { SimpleTooltip } from '@/components/ui/tooltip';
@@ -228,10 +229,19 @@ export default function ToolsPage(): React.JSX.Element {
               </CardHeader>
               <CardContent className="mt-auto space-y-3">
                 <div className="flex flex-wrap gap-1.5">
-                  <Badge variant={status?.installed ? 'success' : 'secondary'}>
-                    {status?.installed ? (status.version ?? 'Installed') : 'Not detected'}
-                  </Badge>
-                  {tool.docker && (
+                  {/* "Not detected" is a result, not a starting state — shimmer
+                      the badge until the scan actually says so. */}
+                  {statusQuery.isPending ? (
+                    <Skeleton className="h-5 w-24 rounded-full" />
+                  ) : (
+                    <Badge variant={status?.installed ? 'success' : 'secondary'}>
+                      {status?.installed ? (status.version ?? 'Installed') : 'Not detected'}
+                    </Badge>
+                  )}
+                  {tool.docker && statusQuery.isPending && (
+                    <Skeleton className="h-5 w-28 rounded-full" />
+                  )}
+                  {tool.docker && !statusQuery.isPending && (
                     <Badge
                       variant={
                         status?.dockerStatus === 'running'

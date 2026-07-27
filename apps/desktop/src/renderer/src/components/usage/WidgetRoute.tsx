@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { getUsageProvider, type WidgetMode } from '@agentmat/core';
 import { ChartColumn, Clock, X } from '@/components/icons';
 import { SimpleTooltip } from '@/components/ui/tooltip';
-import { UsageCardBody, hasSubscriptionView } from './UsageCard';
+import { UsageCardBody, UsageCardBodySkeleton, hasSubscriptionView } from './UsageCard';
 
 /**
  * Standalone render target for a floating desktop widget window
@@ -92,9 +92,7 @@ export default function WidgetRoute(): React.JSX.Element {
             mode={mode}
           />
         ) : (
-          <div className="flex h-full items-center justify-center text-xs text-muted-foreground">
-            Loading…
-          </div>
+          <UsageCardBodySkeleton compact={instance?.size === 'small'} />
         )}
       </div>
     </div>

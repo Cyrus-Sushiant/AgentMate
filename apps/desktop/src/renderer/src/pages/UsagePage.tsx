@@ -42,7 +42,12 @@ import {
 } from '@/components/ui/dialog';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { ProviderLogo } from '@/components/providerLogos';
-import { UsageCardBody, hasSubscriptionView } from '@/components/usage/UsageCard';
+import { Skeleton } from '@/components/ui/skeleton';
+import {
+  UsageCardBody,
+  UsageCardBodySkeleton,
+  hasSubscriptionView,
+} from '@/components/usage/UsageCard';
 import { cn } from '@/lib/utils';
 import { queryKeys } from '@/lib/queryKeys';
 import { formatCost, formatReset, formatTokens } from '@/lib/usageFormat';
@@ -217,16 +222,70 @@ export default function UsagePage(): React.JSX.Element {
         </Button>
       </div>
 
-      {/* Summary tiles */}
+      {/* Summary tiles — each waits on its own query rather than the page. */}
       <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-        <StatTile icon={<ChartColumn className="h-3.5 w-3.5" />} label="Tokens today" value={formatTokens(totals.todayTokens)} />
-        <StatTile icon={<Bolt className="h-3.5 w-3.5" />} label="Tokens (7 days)" value={formatTokens(totals.weekTokens)} />
-        <StatTile icon={<ChartColumn className="h-3.5 w-3.5" />} label="Cost today" value={formatCost(totals.cost) ?? '$0.00'} />
-        <StatTile icon={<Pin className="h-3.5 w-3.5" />} label="Providers tracked" value={`${displayedIds.length}/${USAGE_PROVIDER_REGISTRY.length}`} />
+        <StatTile
+          icon={<ChartColumn className="h-3.5 w-3.5" />}
+          label="Tokens today"
+          value={
+            usageQuery.isPending ? (
+              <Skeleton className="h-8 w-20" />
+            ) : (
+              formatTokens(totals.todayTokens)
+            )
+          }
+        />
+        <StatTile
+          icon={<Bolt className="h-3.5 w-3.5" />}
+          label="Tokens (7 days)"
+          value={
+            usageQuery.isPending ? (
+              <Skeleton className="h-8 w-20" />
+            ) : (
+              formatTokens(totals.weekTokens)
+            )
+          }
+        />
+        <StatTile
+          icon={<ChartColumn className="h-3.5 w-3.5" />}
+          label="Cost today"
+          value={
+            usageQuery.isPending ? (
+              <Skeleton className="h-8 w-20" />
+            ) : (
+              (formatCost(totals.cost) ?? '$0.00')
+            )
+          }
+        />
+        <StatTile
+          icon={<Pin className="h-3.5 w-3.5" />}
+          label="Providers tracked"
+          value={
+            settingsQuery.isPending ? (
+              <Skeleton className="h-8 w-16" />
+            ) : (
+              `${displayedIds.length}/${USAGE_PROVIDER_REGISTRY.length}`
+            )
+          }
+        />
       </div>
 
       {/* Provider cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        {/* Which providers are tracked comes from settings, so until those land
+            there are no cards to shimmer individually — stand in for a few. */}
+        {settingsQuery.isPending &&
+          Array.from({ length: 3 }, (_, i) => (
+            <Card key={`placeholder-${i}`} className="glass h-full">
+              <CardContent className="flex h-full flex-col p-4">
+                <div className="mb-2 flex items-center gap-2">
+                  <Skeleton className="h-5 w-5 rounded-full" />
+                  <Skeleton className="h-4 w-24" />
+                </div>
+                <UsageCardBodySkeleton />
+              </CardContent>
+            </Card>
+          ))}
         {displayedIds.map((id) => {
           const def = getUsageProvider(id);
           if (!def) return null;
@@ -346,16 +405,12 @@ export default function UsagePage(): React.JSX.Element {
                   </div>
                   {usage ? (
                     <UsageCardBody usage={usage} def={def} hideHeader mode={cardMode} />
-                  ) : (
-                    <div className="flex flex-1 items-center gap-2 text-sm text-muted-foreground">
-                      <span className={usageQuery.isError ? 'text-destructive' : undefined}>
-                        {usageQuery.isError
-                          ? (usageQuery.error as Error).message
-                          : def.dataSource === 'local-log'
-                            ? 'scanning local logs…'
-                            : 'loading…'}
-                      </span>
+                  ) : usageQuery.isError ? (
+                    <div className="flex flex-1 items-center gap-2 text-sm text-destructive">
+                      {(usageQuery.error as Error).message}
                     </div>
+                  ) : (
+                    <UsageCardBodySkeleton />
                   )}
                 </CardContent>
               </Card>
@@ -392,7 +447,8 @@ function StatTile({
 }: {
   icon: React.ReactNode;
   label: string;
-  value: string;
+  /** A skeleton stands in here until the scan lands. */
+  value: React.ReactNode;
 }): React.JSX.Element {
   return (
     <Card className="glass">
