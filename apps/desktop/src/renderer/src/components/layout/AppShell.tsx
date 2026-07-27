@@ -5,6 +5,7 @@ import { Outlet, useLocation } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 import { TitleBar } from './TitleBar';
 import { LoadingOverlay } from './LoadingOverlay';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { Button } from '@/components/ui/button';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { useTerminalStore } from '@/stores/terminalStore';
@@ -119,7 +120,11 @@ export function AppShell(): React.JSX.Element {
                   transition={PAGE_TRANSITION.transition}
                   className="flex min-h-full flex-1 flex-col"
                 >
-                  <Outlet />
+                  {/* A page that throws must not take the shell down with it —
+                      the sidebar stays usable and the error is readable. */}
+                  <ErrorBoundary resetKey={location.pathname}>
+                    <Outlet />
+                  </ErrorBoundary>
                 </motion.div>
               </AnimatePresence>
             </div>

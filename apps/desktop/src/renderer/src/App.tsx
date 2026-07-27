@@ -3,6 +3,7 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import { HashRouter, Route, Routes } from 'react-router-dom';
 import { Toaster } from 'sonner';
 import { TooltipProvider } from './components/ui/tooltip';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { ConfirmDialogHost } from './components/ConfirmDialog';
 import { UpdateManager } from './components/UpdateManager';
 import { queryClient } from './queryClient';
@@ -57,27 +58,31 @@ export default function App(): React.JSX.Element {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider delayDuration={300} skipDelayDuration={100}>
-        <HashRouter>
-          <Routes>
-            {/* Floating desktop widget windows render standalone, outside the app shell. */}
-            <Route path="widget/:id" element={<WidgetRoute />} />
-            <Route element={<AppShell />}>
-              <Route index element={<DashboardPage />} />
-              <Route path="cli-manager" element={<CliManagerPage />} />
-              <Route path="prompt-builder" element={<PromptBuilderPage />} />
-              <Route path="prompt-history" element={<PromptHistoryPage />} />
-              <Route path="projects" element={<ProjectsPage />} />
-              <Route path="projects/:projectId" element={<ProjectDetailPage />} />
-              <Route path="skills" element={<SkillsPage />} />
-              <Route path="mcp" element={<McpPage />} />
-              <Route path="tools" element={<ToolsPage />} />
-              <Route path="usage" element={<UsagePage />} />
-              <Route path="ask-ai" element={<AskAiPage />} />
-              <Route path="remote" element={<RemotePage />} />
-              <Route path="settings" element={<SettingsPage />} />
-            </Route>
-          </Routes>
-        </HashRouter>
+        {/* Outermost net: covers the shell itself and the standalone widget
+            windows, so no failure can leave the window blank. */}
+        <ErrorBoundary>
+          <HashRouter>
+            <Routes>
+              {/* Floating desktop widget windows render standalone, outside the app shell. */}
+              <Route path="widget/:id" element={<WidgetRoute />} />
+              <Route element={<AppShell />}>
+                <Route index element={<DashboardPage />} />
+                <Route path="cli-manager" element={<CliManagerPage />} />
+                <Route path="prompt-builder" element={<PromptBuilderPage />} />
+                <Route path="prompt-history" element={<PromptHistoryPage />} />
+                <Route path="projects" element={<ProjectsPage />} />
+                <Route path="projects/:projectId" element={<ProjectDetailPage />} />
+                <Route path="skills" element={<SkillsPage />} />
+                <Route path="mcp" element={<McpPage />} />
+                <Route path="tools" element={<ToolsPage />} />
+                <Route path="usage" element={<UsagePage />} />
+                <Route path="ask-ai" element={<AskAiPage />} />
+                <Route path="remote" element={<RemotePage />} />
+                <Route path="settings" element={<SettingsPage />} />
+              </Route>
+            </Routes>
+          </HashRouter>
+        </ErrorBoundary>
         <AppToaster />
         <ConfirmDialogHost />
         <UpdateManager />

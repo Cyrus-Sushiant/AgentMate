@@ -5,9 +5,9 @@ import { toast } from 'sonner';
 import {
   FABLE_WEEK_LABEL,
   USAGE_PROVIDER_REGISTRY,
-  defaultUsageResetAlerts,
   getUsageProvider,
   isAutoConnected,
+  normalizeUsageResetAlerts,
   type ProviderUsage,
   type SubscriptionWindowKey,
   type UsageProviderConfig,
@@ -68,7 +68,10 @@ function orderedProviderIds(
 ): string[] {
   const all = USAGE_PROVIDER_REGISTRY.filter((d) => isDisplayed(d.id, configs)).map((d) => d.id);
   const known = new Set(all);
-  const kept = savedOrder.filter((id) => known.has(id));
+  // A saved order repeating an id (an interrupted write, an older build) would
+  // render two cards under the same React key — deduped here so the list stays
+  // a set of provider ids whatever is on disk.
+  const kept = [...new Set(savedOrder.filter((id) => known.has(id)))];
   const missing = all.filter((id) => !kept.includes(id));
   return [...kept, ...missing];
 }
@@ -96,7 +99,7 @@ export default function UsagePage(): React.JSX.Element {
   const settings = settingsQuery.data;
   const configs = settings?.usageProviderConfigs ?? {};
   const cardModes = settings?.usageCardModes ?? {};
-  const resetAlerts = settings?.usageResetAlerts ?? defaultUsageResetAlerts();
+  const resetAlerts = normalizeUsageResetAlerts(settings?.usageResetAlerts);
   const displayedIds = useMemo(
     () => orderedProviderIds(settings?.usageCardOrder ?? [], settings?.usageProviderConfigs ?? {}),
     [settings],
@@ -496,7 +499,7 @@ function ResetAlertDialog({
   const [chatId, setChatId] = useState(alerts.chatId ?? '');
   const [testing, setTesting] = useState(false);
   const providerName = getUsageProvider(alerts.providerId)?.name ?? alerts.providerId;
-  const reported = new Set(usage?.subscription?.windows.map((w) => w.key));
+  const reported = new Set(usage?.subscription?.windows?.map((w) => w.key));
 
   function toggleWindow(key: SubscriptionWindowKey): void {
     const next = alerts.windows.includes(key)

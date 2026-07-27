@@ -11,7 +11,11 @@ import type {
   PromptTemplate,
   ScheduledTask,
 } from '@agentmat/core';
-import { defaultProjectNotifications, defaultUsageResetAlerts } from '@agentmat/core';
+import {
+  defaultProjectNotifications,
+  defaultUsageResetAlerts,
+  normalizeUsageResetAlerts,
+} from '@agentmat/core';
 import type { SkillRepository } from '@agentmat/core';
 import type { McpRepository } from '@agentmat/core';
 
@@ -68,11 +72,12 @@ const DEFAULT_SETTINGS: AppSettings = {
 /**
  * The weekly bucket above Pro was keyed 'week-opus' before Fable took that slot.
  * A saved alert still naming it would match no window and quietly never fire.
+ *
+ * Normalizing first is what keeps a half-written block (no `windows` array, say)
+ * from reaching either process as something that throws on first access.
  */
 function withSettingsMigrations(settings: AppSettings): AppSettings {
-  const alerts = settings.usageResetAlerts;
-  const stale = alerts?.windows.some((key) => String(key) === 'week-opus');
-  if (!alerts || !stale) return settings;
+  const alerts = normalizeUsageResetAlerts(settings.usageResetAlerts);
   const windows = alerts.windows.map((key) =>
     String(key) === 'week-opus' ? ('week-fable' as const) : key,
   );

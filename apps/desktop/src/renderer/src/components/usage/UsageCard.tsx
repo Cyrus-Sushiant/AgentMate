@@ -62,7 +62,7 @@ export function UsageCardBodySkeleton({
 /** Subscription limits are only worth showing when the account actually has them. */
 export function hasSubscriptionView(usage: ProviderUsage): boolean {
   const sub = usage.subscription;
-  return !!sub && sub.mode === 'subscription' && sub.windows.length > 0;
+  return !!sub && sub.mode === 'subscription' && Array.isArray(sub.windows) && sub.windows.length > 0;
 }
 
 /**

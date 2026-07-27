@@ -219,6 +219,26 @@ export function defaultUsageResetAlerts(): UsageResetAlertSettings {
   return { enabled: false, providerId: 'claude-code', windows: ['session'], chatId: null };
 }
 
+/**
+ * A reset-alert block that is safe to read fields off. settings.json is written
+ * by whichever build ran last (and can be hand-edited), so a saved block may be
+ * missing pieces this one dereferences without asking — `windows` above all,
+ * which is filtered and mapped on sight. Anything unusable falls back to the
+ * default rather than reaching the UI as `undefined`.
+ */
+export function normalizeUsageResetAlerts(
+  alerts: Partial<UsageResetAlertSettings> | null | undefined,
+): UsageResetAlertSettings {
+  const defaults = defaultUsageResetAlerts();
+  if (!alerts || typeof alerts !== 'object') return defaults;
+  return {
+    enabled: alerts.enabled === true,
+    providerId: alerts.providerId || defaults.providerId,
+    windows: Array.isArray(alerts.windows) ? alerts.windows : defaults.windows,
+    chatId: alerts.chatId ?? null,
+  };
+}
+
 /** Per-provider user configuration (enabled + optional API key). */
 export interface UsageProviderConfig {
   enabled: boolean;
