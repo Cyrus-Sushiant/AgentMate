@@ -105,6 +105,8 @@ export default function UsagePage(): React.JSX.Element {
 
   const dashboardCards = useDashboardLayoutStore((s) => s.usageCards);
   const toggleDashboardCard = useDashboardLayoutStore((s) => s.toggleUsageCard);
+  const dashboardSummaryCards = useDashboardLayoutStore((s) => s.summaryCards);
+  const toggleDashboardSummaryCard = useDashboardLayoutStore((s) => s.toggleSummaryCard);
 
   const settings = settingsQuery.data;
   const configs = settings?.usageProviderConfigs ?? {};
@@ -174,6 +176,33 @@ export default function UsagePage(): React.JSX.Element {
     const added = toggleDashboardCard(providerId);
     if (added) toast.success(`${name} added to your dashboard.`);
     else toast.info(`${name} removed from your dashboard.`);
+  }
+
+  /** Adds/removes one of the summary tiles above on the Dashboard page. */
+  function toggleSummaryDashboard(id: 'tokens-today' | 'tokens-week' | 'cost-today' | 'providers-tracked', label: string): void {
+    const added = toggleDashboardSummaryCard(id);
+    if (added) toast.success(`${label} added to your dashboard.`);
+    else toast.info(`${label} removed from your dashboard.`);
+  }
+
+  /** The pin button each summary tile shows, mirroring the provider cards' dashboard toggle. */
+  function summaryPinAction(
+    id: 'tokens-today' | 'tokens-week' | 'cost-today' | 'providers-tracked',
+    label: string,
+  ): React.ReactNode {
+    const pinned = dashboardSummaryCards.includes(id);
+    return (
+      <SimpleTooltip label={pinned ? 'Remove from dashboard' : 'Add to dashboard'}>
+        <Button
+          variant="ghost"
+          size="icon"
+          className={cn('h-5 w-5', pinned && 'text-primary')}
+          onClick={() => toggleSummaryDashboard(id, label)}
+        >
+          <LayoutDashboard className="h-3 w-3" />
+        </Button>
+      </SimpleTooltip>
+    );
   }
 
   /** Pins whichever view the card is currently showing. */
@@ -269,6 +298,7 @@ export default function UsagePage(): React.JSX.Element {
         <StatTile
           icon={<ChartColumn className="h-3.5 w-3.5" />}
           label="Tokens today"
+          action={summaryPinAction('tokens-today', 'Tokens today')}
           value={
             usageQuery.isPending ? (
               <Skeleton className="h-8 w-20" />
@@ -280,6 +310,7 @@ export default function UsagePage(): React.JSX.Element {
         <StatTile
           icon={<Bolt className="h-3.5 w-3.5" />}
           label="Tokens (7 days)"
+          action={summaryPinAction('tokens-week', 'Tokens (7 days)')}
           value={
             usageQuery.isPending ? (
               <Skeleton className="h-8 w-20" />
@@ -291,6 +322,7 @@ export default function UsagePage(): React.JSX.Element {
         <StatTile
           icon={<ChartColumn className="h-3.5 w-3.5" />}
           label="Cost today"
+          action={summaryPinAction('cost-today', 'Cost today')}
           value={
             usageQuery.isPending ? (
               <Skeleton className="h-8 w-20" />
@@ -302,6 +334,7 @@ export default function UsagePage(): React.JSX.Element {
         <StatTile
           icon={<Pin className="h-3.5 w-3.5" />}
           label="Providers tracked"
+          action={summaryPinAction('providers-tracked', 'Providers tracked')}
           value={
             settingsQuery.isPending ? (
               <Skeleton className="h-8 w-16" />

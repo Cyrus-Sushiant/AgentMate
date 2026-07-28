@@ -23,9 +23,30 @@ export interface DashboardRow {
   /** Stable across reorders so React keys and drop targets survive edits. */
   id: string;
   columns: DashboardColumns;
-  /** Card ids in display order: chart ids plus `usage:<providerId>` entries. */
+  /**
+   * Card ids in display order: chart ids, `stat:<id>` built-in stat tiles,
+   * `usage:<providerId>` Token Usage cards, and `summary:<id>` usage-summary tiles.
+   */
   items: string[];
 }
+
+/** Built-in Dashboard stat tiles — movable and hideable like any other dashboard card. */
+export const DASHBOARD_STAT_IDS = [
+  'installed-clis',
+  'active-projects',
+  'skill-repos',
+  'location',
+] as const;
+export type DashboardStatId = (typeof DASHBOARD_STAT_IDS)[number];
+
+/** Token Usage's aggregate summary tiles, pinnable to the dashboard from that page. */
+export const DASHBOARD_USAGE_SUMMARY_IDS = [
+  'tokens-today',
+  'tokens-week',
+  'cost-today',
+  'providers-tracked',
+] as const;
+export type DashboardUsageSummaryId = (typeof DASHBOARD_USAGE_SUMMARY_IDS)[number];
 
 export interface AppSettings {
   defaultCliId: string | null;
@@ -60,6 +81,10 @@ export interface AppSettings {
   dashboardChartOrder: string[];
   /** Provider ids whose Token Usage card is shown on the dashboard. */
   dashboardUsageCards: string[];
+  /** Which built-in Dashboard stat tiles (see `DASHBOARD_STAT_IDS`) are shown; hidden ones can be brought back from the Dashboard's edit mode. */
+  dashboardStatCards: string[];
+  /** Which Token Usage summary tiles (see `DASHBOARD_USAGE_SUMMARY_IDS`) are pinned to the dashboard; toggled from the Token Usage page. */
+  dashboardUsageSummaryCards: string[];
   /** The dashboard's rows, each with its own column count and cards. */
   dashboardLayout: DashboardRow[];
   /** How many extra attempts Prompt Builder's translate action makes after an initial failure. */

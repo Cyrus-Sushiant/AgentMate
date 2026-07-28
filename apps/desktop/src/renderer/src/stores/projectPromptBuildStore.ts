@@ -22,6 +22,8 @@ interface ProjectPromptBuildState {
   clear: (projectId: string) => void;
 }
 
+const STORE_NAME = 'agentmate-project-prompt-build';
+
 export const useProjectPromptBuildStore = create<ProjectPromptBuildState>()(
   persist(
     (set) => ({
@@ -38,9 +40,23 @@ export const useProjectPromptBuildStore = create<ProjectPromptBuildState>()(
           entries: { ...state.entries, [projectId]: { ...EMPTY_ENTRY } },
         })),
     }),
-    { name: 'agentmate-project-prompt-build' },
+    { name: STORE_NAME },
   ),
 );
+
+// The dialog and the pinned desktop widget run in separate Electron
+// BrowserWindows, each with its own in-memory copy of this store. Without
+// this, edits made in one window (e.g. the widget) never reach the other's
+// memory until the app restarts, even though both persist to the same
+// localStorage — so reopening the dialog after using the widget shows stale
+// data. Re-hydrate from storage whenever another window writes to it.
+if (typeof window !== 'undefined') {
+  window.addEventListener('storage', (event) => {
+    if (event.key === STORE_NAME) {
+      void useProjectPromptBuildStore.persist.rehydrate();
+    }
+  });
+}
 
 export function getProjectPromptBuildEntry(
   projectId: string,

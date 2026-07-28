@@ -12,6 +12,7 @@ import type {
   ScheduledTask,
 } from '@agentmat/core';
 import {
+  DASHBOARD_STAT_IDS,
   defaultProjectNotifications,
   defaultUsageResetAlerts,
   defaultUsageThresholdAlerts,
@@ -60,6 +61,10 @@ const DEFAULT_SETTINGS: AppSettings = {
   promptBuilderProvider: 'openai',
   dashboardChartOrder: [],
   dashboardUsageCards: [],
+  // Preserves today's always-shown behavior for existing installs; users can
+  // hide any of these from the Dashboard's edit mode once they upgrade.
+  dashboardStatCards: [...DASHBOARD_STAT_IDS],
+  dashboardUsageSummaryCards: [],
   dashboardLayout: [],
   translateMaxRetries: 3,
   speechModel: 'base',

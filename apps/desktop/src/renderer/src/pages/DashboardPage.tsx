@@ -7,6 +7,8 @@ import * as CountryFlags from 'country-flag-icons/react/3x2';
 import {
   ArrowRight,
   Blocks,
+  Bolt,
+  ChartColumn,
   Check,
   CloudDownload,
   Cpu,
@@ -18,6 +20,7 @@ import {
   MemoryStick,
   NetworkIcon,
   Pencil,
+  Pin,
   Plus,
   RefreshCw,
   SatelliteDish,
@@ -30,9 +33,13 @@ import {
 import {
   CLI_REGISTRY,
   DASHBOARD_COLUMN_OPTIONS,
+  DASHBOARD_STAT_IDS,
+  DASHBOARD_USAGE_SUMMARY_IDS,
   getUsageProvider,
   type CliDefinition,
   type DashboardColumns,
+  type DashboardStatId,
+  type DashboardUsageSummaryId,
   type InstalledCli,
   type ProviderUsage,
 } from '@agentmat/core';
@@ -43,17 +50,29 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { SimpleTooltip } from '@/components/ui/tooltip';
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { SparklineChart } from '@/components/dashboard/SparklineChart';
 import { useSystemStatsHistory } from '@/hooks/useSystemStatsHistory';
+import { useUsageSummary } from '@/hooks/useUsageSummary';
 import { useChartColors } from '@/lib/chartColors';
 import { cn } from '@/lib/utils';
 import { queryKeys } from '@/lib/queryKeys';
+import { formatCost, formatTokens } from '@/lib/usageFormat';
 import { usePageHeader } from '@/stores/pageHeaderStore';
 import { useTerminalStore } from '@/stores/terminalStore';
 import { DashboardUsageCard } from '@/components/usage/DashboardUsageCard';
 import {
   useDashboardLayoutStore,
   usageProviderIdOf,
+  statIdOf,
+  summaryIdOf,
   type DashboardChartId,
   type DashboardItemId,
 } from '@/stores/dashboardLayoutStore';
@@ -378,6 +397,10 @@ export default function DashboardPage(): React.JSX.Element {
   const rows = useDashboardLayoutStore((s) => s.rows);
   const usageCards = useDashboardLayoutStore((s) => s.usageCards);
   const toggleUsageCard = useDashboardLayoutStore((s) => s.toggleUsageCard);
+  const statCards = useDashboardLayoutStore((s) => s.statCards);
+  const toggleStatCard = useDashboardLayoutStore((s) => s.toggleStatCard);
+  const summaryCards = useDashboardLayoutStore((s) => s.summaryCards);
+  const toggleSummaryCard = useDashboardLayoutStore((s) => s.toggleSummaryCard);
   const editing = useDashboardLayoutStore((s) => s.editing);
   const setEditing = useDashboardLayoutStore((s) => s.setEditing);
   const setRowColumns = useDashboardLayoutStore((s) => s.setRowColumns);
@@ -405,6 +428,10 @@ export default function DashboardPage(): React.JSX.Element {
     return map;
   }, [usageQuery.data]);
   const usageCardModes = settingsQuery.data?.usageCardModes ?? {};
+
+  // The Token Usage summary tiles pinned here read the same aggregate totals
+  // the Usage page itself shows, independent of whether that page is mounted.
+  const usageSummary = useUsageSummary(summaryCards.length > 0);
 
   /** `beforeId` is the card the drop landed on, or null to append to the row. */
   function handleChartDrop(rowId: string, beforeId: DashboardItemId | null): void {
