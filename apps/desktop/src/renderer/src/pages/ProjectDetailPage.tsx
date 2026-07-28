@@ -4,6 +4,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import {
   ArrowLeft,
+  ArrowRight,
   Bell,
   Blocks,
   CalendarDays,
@@ -1652,17 +1653,29 @@ function PackagesTab({ projectId }: { projectId: string }): React.JSX.Element {
         return (
           <div
             key={`${section.ecosystem}-${section.manager}`}
-            className="space-y-3 rounded-lg border border-border bg-card p-4"
+            className="space-y-3 rounded-xl border border-border bg-card p-4"
           >
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="flex items-center gap-2 text-sm font-medium">
-                <Package className="h-3.5 w-3.5" /> {ecosystemLabel(section)}
-                {outdatedPackages.length > 0 && (
-                  <Badge variant="warning">{outdatedPackages.length} outdated</Badge>
-                )}
-                {section.status === 'ok' && outdatedPackages.length === 0 && section.packages.length > 0 && (
-                  <Badge variant="success">Up to date</Badge>
-                )}
+              <div className="flex items-center gap-2">
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                  <Package className="h-4 w-4" />
+                </div>
+                <div className="flex flex-col">
+                  <span className="flex items-center gap-1.5 text-sm font-semibold">
+                    {ecosystemLabel(section)}
+                    {outdatedPackages.length > 0 && (
+                      <Badge variant="warning">{outdatedPackages.length} outdated</Badge>
+                    )}
+                    {section.status === 'ok' &&
+                      outdatedPackages.length === 0 &&
+                      section.packages.length > 0 && <Badge variant="success">Up to date</Badge>}
+                  </span>
+                  {section.status === 'ok' && section.packages.length > 0 && (
+                    <span className="text-xs text-muted-foreground">
+                      {section.packages.length} package{section.packages.length === 1 ? '' : 's'}
+                    </span>
+                  )}
+                </div>
               </div>
               {section.status === 'ok' && section.packages.length > 0 && (
                 <Button
@@ -1684,47 +1697,76 @@ function PackagesTab({ projectId }: { projectId: string }): React.JSX.Element {
               <p className="text-sm text-muted-foreground">{section.message}</p>
             )}
 
-            {section.status === 'error' && (
-              <p className="text-sm text-destructive">{section.message}</p>
-            )}
+            {section.status === 'error' && <p className="text-sm text-destructive">{section.message}</p>}
 
             {section.status === 'ok' && section.packages.length === 0 && (
               <p className="text-sm text-muted-foreground">No dependencies declared.</p>
             )}
 
             {section.status === 'ok' && section.packages.length > 0 && (
-              <div className="space-y-1.5">
-                <div className="flex items-center gap-2 border-b border-border pb-1.5 text-xs text-muted-foreground">
-                  <Checkbox
-                    checked={allOutdatedSelected}
-                    disabled={outdatedPackages.length === 0}
-                    onCheckedChange={(checked) => toggleAllOutdated(section, checked === true)}
-                  />
-                  <span>Select all outdated</span>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between rounded-md bg-card/60 px-3 py-1.5">
+                  <label className="flex cursor-pointer items-center gap-2 text-xs text-muted-foreground">
+                    <Checkbox
+                      checked={allOutdatedSelected}
+                      disabled={outdatedPackages.length === 0}
+                      onCheckedChange={(checked) => toggleAllOutdated(section, checked === true)}
+                    />
+                    Select all outdated
+                  </label>
+                  {sectionSelectedCount > 0 && (
+                    <span className="text-xs text-muted-foreground">{sectionSelectedCount} selected</span>
+                  )}
                 </div>
-                <div className="max-h-72 space-y-1 overflow-y-auto">
+                <div className="max-h-80 space-y-1.5 overflow-y-auto pr-1">
                   {section.packages.map((pkg) => {
                     const key = packageKey(pkg);
                     const tick = progress.get(pkg.name);
                     return (
-                      <div key={key} className="flex items-center gap-2 text-sm">
+                      <label
+                        key={key}
+                        className="flex cursor-pointer items-center gap-3 rounded-lg border border-border bg-card/60 px-3 py-2 transition-colors hover:bg-card"
+                      >
                         <Checkbox checked={selected.has(key)} onCheckedChange={() => toggle(key)} />
-                        <span className="min-w-0 flex-1 truncate font-mono text-xs">{pkg.name}</span>
-                        <span className="w-24 shrink-0 text-right text-xs text-muted-foreground">
-                          {pkg.currentVersion}
-                        </span>
-                        <span className="w-24 shrink-0 text-right text-xs">{pkg.latestVersion ?? '—'}</span>
-                        {pkg.isOutdated && <Badge variant="warning">Outdated</Badge>}
-                        {tick?.status === 'running' && (
-                          <Spinner className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
-                        )}
-                        {tick?.status === 'done' && <Check className="h-3.5 w-3.5 text-success" />}
-                        {tick?.status === 'error' && (
-                          <SimpleTooltip label={tick.message ?? 'Update failed'} wrapTrigger>
-                            <TriangleAlert className="h-3.5 w-3.5 text-destructive" />
-                          </SimpleTooltip>
-                        )}
-                      </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2">
+                            <span className="truncate text-sm font-medium">{pkg.name}</span>
+                            {pkg.isDev && (
+                              <Badge variant="outline" className="px-1.5 py-0 text-[10px] leading-4">
+                                dev
+                              </Badge>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-1.5 font-mono text-xs text-muted-foreground">
+                            <span>{pkg.currentVersion}</span>
+                            {pkg.isOutdated && pkg.latestVersion && (
+                              <>
+                                <ArrowRight className="h-2.5 w-2.5" />
+                                <span className="text-foreground">{pkg.latestVersion}</span>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex w-28 shrink-0 items-center justify-end gap-2">
+                          {tick?.status === 'running' && (
+                            <Spinner className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
+                          )}
+                          {tick?.status === 'done' && <Check className="h-3.5 w-3.5 text-success" />}
+                          {tick?.status === 'error' && (
+                            <SimpleTooltip label={tick.message ?? 'Update failed'} wrapTrigger>
+                              <TriangleAlert className="h-3.5 w-3.5 text-destructive" />
+                            </SimpleTooltip>
+                          )}
+                          {!tick &&
+                            (pkg.isOutdated ? (
+                              <Badge variant="warning">Outdated</Badge>
+                            ) : (
+                              <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                                <Check className="h-3 w-3 text-success" /> Up to date
+                              </span>
+                            ))}
+                        </div>
+                      </label>
                     );
                   })}
                 </div>
