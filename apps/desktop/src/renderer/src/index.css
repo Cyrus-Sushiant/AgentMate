@@ -232,6 +232,21 @@ body {
   border-color: hsl(var(--foreground) / 0.1);
 }
 
+/* Heavier, near-opaque frosted surface for widgets whose content (e.g. Build
+   Prompt's draft text) shouldn't be legible through to the desktop behind it. */
+.glass-opaque {
+  background: hsl(var(--card) / 0.96);
+  backdrop-filter: blur(24px) saturate(140%);
+  -webkit-backdrop-filter: blur(24px) saturate(140%);
+  border: 1px solid hsl(var(--foreground) / 0.08);
+  box-shadow: 0 8px 32px -8px hsl(0 0% 0% / 0.35);
+}
+
+.dark .glass-opaque {
+  background: hsl(var(--card) / 0.95);
+  border-color: hsl(var(--foreground) / 0.1);
+}
+
 /* Frosted-glass re-skin of sonner's toasts so they match .glass and the rest
    of the surfaces. Every selector is prefixed with .toaster-glass (the class
    we put on <Toaster>) purely to outrank sonner's own injected stylesheet,

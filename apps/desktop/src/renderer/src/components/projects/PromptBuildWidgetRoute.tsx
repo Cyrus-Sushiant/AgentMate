@@ -51,7 +51,7 @@ export default function PromptBuildWidgetRoute(): React.JSX.Element {
   } = useProjectPromptBuilder(projectId, { enabled: !!projectId });
 
   return (
-    <div className="glass flex h-screen w-screen flex-col overflow-hidden rounded-2xl">
+    <div className="glass-opaque flex h-screen w-screen flex-col overflow-hidden rounded-2xl">
       <div className="widget-drag flex h-6 shrink-0 items-center justify-between px-2">
         <span className="truncate pl-1 text-xs font-medium text-muted-foreground/80">
           {instance ? `Build Prompt — ${instance.projectName}` : 'Build Prompt'}
@@ -67,18 +67,18 @@ export default function PromptBuildWidgetRoute(): React.JSX.Element {
       </div>
 
       {instance ? (
-        <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-3 pb-3">
-          <div className="space-y-1.5">
+        <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden px-3 pb-3">
+          <div className="flex min-h-0 flex-1 flex-col gap-1">
             <Label>Your request</Label>
             <Textarea
-              className="min-h-[110px] resize-none text-sm"
+              className="min-h-0 flex-1 resize-none text-sm"
               placeholder="e.g. Add a login form with email/password validation…"
               value={rawInput}
               onChange={(e) => setRawInput(e.target.value)}
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid shrink-0 grid-cols-2 gap-2">
             <div className="space-y-1.5">
               <Label>Prompt Type</Label>
               <Combobox
@@ -97,11 +97,15 @@ export default function PromptBuildWidgetRoute(): React.JSX.Element {
             </div>
           </div>
 
-          <Button onClick={() => void handleGenerate()} disabled={isGenerating} className="w-full">
+          <Button
+            onClick={() => void handleGenerate()}
+            disabled={isGenerating}
+            className="w-full shrink-0"
+          >
             <Sparkles /> {isGenerating ? 'Generating…' : 'Generate Prompt'}
           </Button>
 
-          <div className="flex items-center gap-2">
+          <div className="flex shrink-0 items-center gap-2">
             <div className="h-px flex-1 bg-border" />
             <span className="text-[11px] text-muted-foreground">or translate to English</span>
             <div className="h-px flex-1 bg-border" />
@@ -109,24 +113,24 @@ export default function PromptBuildWidgetRoute(): React.JSX.Element {
 
           <Button
             variant="secondary"
-            className="w-full"
+            className="w-full shrink-0"
             onClick={() => void handleTranslate()}
             disabled={isTranslating}
           >
             <Languages /> {isTranslating ? 'Translating…' : 'Translate to English'}
           </Button>
 
-          <div className="space-y-1.5">
+          <div className="flex min-h-0 flex-1 flex-col gap-1">
             <Label>Generated prompt</Label>
             <Textarea
               value={generated}
               onChange={(e) => setGenerated(e.target.value)}
               placeholder="Generated or translated text appears here."
-              className="min-h-[100px] resize-none font-mono text-xs"
+              className="min-h-0 flex-1 resize-none font-mono text-xs"
             />
           </div>
 
-          <div className="flex gap-2 pb-1">
+          <div className="flex shrink-0 gap-2">
             <Button
               variant="outline"
               className="flex-1"

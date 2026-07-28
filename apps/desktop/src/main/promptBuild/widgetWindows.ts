@@ -12,8 +12,8 @@ import { store } from '../store';
 // mirrors the dialog's small (non-maximized) layout and can only be closed,
 // not enlarged, so a single fixed size is enough.
 
-const WIDGET_WIDTH = 340;
-const WIDGET_HEIGHT = 520;
+const WIDGET_WIDTH = 380;
+const WIDGET_HEIGHT = 660;
 
 const windows = new Map<string, BrowserWindow>();
 
