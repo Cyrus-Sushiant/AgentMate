@@ -38,6 +38,7 @@ import {
 } from '@agentmat/core';
 import { CliLogo } from '@/components/cliLogos';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { StatTile } from '@/components/ui/stat-tile';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -839,74 +840,63 @@ export default function DashboardPage(): React.JSX.Element {
       )}
 
       <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="flex items-center gap-2 text-xs text-muted-foreground">
-              <TerminalSquare className="h-3.5 w-3.5" /> Installed CLIs
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {cliQuery.isPending ? (
+        <StatTile
+          icon={<TerminalSquare className="h-3.5 w-3.5" />}
+          label="Installed CLIs"
+          value={
+            cliQuery.isPending ? (
               <StatSkeleton className="w-16" />
             ) : (
-              <div className="text-2xl font-semibold">
-                {installedCount}/{CLI_REGISTRY.length}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="flex items-center gap-2 text-xs text-muted-foreground">
-              <FolderKanban className="h-3.5 w-3.5" /> Active Projects
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {projectsQuery.isPending ? (
+              `${installedCount}/${CLI_REGISTRY.length}`
+            )
+          }
+        />
+        <StatTile
+          icon={<FolderKanban className="h-3.5 w-3.5" />}
+          label="Active Projects"
+          value={
+            projectsQuery.isPending ? (
               <StatSkeleton className="w-10" />
             ) : (
-              <div className="text-2xl font-semibold">{projectsQuery.data?.length ?? 0}</div>
-            )}
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="flex items-center gap-2 text-xs text-muted-foreground">
-              <Blocks className="h-3.5 w-3.5" /> Skill Repositories
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {reposQuery.isPending ? (
+              (projectsQuery.data?.length ?? 0)
+            )
+          }
+        />
+        <StatTile
+          icon={<Blocks className="h-3.5 w-3.5" />}
+          label="Skill Repositories"
+          value={
+            reposQuery.isPending ? (
               <StatSkeleton className="w-10" />
             ) : (
-              <div className="text-2xl font-semibold">{reposQuery.data?.length ?? 0}</div>
-            )}
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="flex items-center gap-2 text-xs text-muted-foreground">
-              <Globe className="h-3.5 w-3.5" /> Your Location
-            </CardTitle>
+              (reposQuery.data?.length ?? 0)
+            )
+          }
+        />
+        <StatTile
+          icon={<Globe className="h-3.5 w-3.5" />}
+          label="Your Location"
+          action={
             <Button
               variant="ghost"
               size="icon"
+              className="h-5 w-5"
               onClick={() => void ipGeoQuery.refetch()}
               disabled={ipGeoQuery.isFetching}
             >
               <RefreshCw
-                className={ipGeoQuery.isFetching ? 'h-3.5 w-3.5 animate-spin' : 'h-3.5 w-3.5'}
+                className={ipGeoQuery.isFetching ? 'h-3 w-3 animate-spin' : 'h-3 w-3'}
               />
             </Button>
-          </CardHeader>
-          <CardContent>
-            {ipGeoQuery.isPending ? (
+          }
+          value={
+            ipGeoQuery.isPending ? (
               <div className="flex items-center gap-2">
                 <Skeleton className="h-4 w-6" />
                 <Skeleton className="h-6 w-32" />
               </div>
             ) : ipGeoQuery.isError || !ipGeoQuery.data ? (
-              <div className="text-sm text-destructive">Unavailable</div>
+              <span className="text-sm text-destructive">Unavailable</span>
             ) : (
               <div className="flex min-w-0 items-center gap-2">
                 <SimpleTooltip label={ipGeoQuery.data.country}>
@@ -921,9 +911,9 @@ export default function DashboardPage(): React.JSX.Element {
                   {ipGeoQuery.data.ip || '—'}
                 </span>
               </div>
-            )}
-          </CardContent>
-        </Card>
+            )
+          }
+        />
       </div>
 
       <div className="space-y-4">

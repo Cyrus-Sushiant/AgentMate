@@ -33,6 +33,7 @@ import {
   X,
 } from '@/components/icons';
 import { Card, CardContent } from '@/components/ui/card';
+import { StatTile } from '@/components/ui/stat-tile';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -509,28 +510,6 @@ export default function UsagePage(): React.JSX.Element {
         onToggle={toggleThresholdAlerts}
       />
     </div>
-  );
-}
-
-function StatTile({
-  icon,
-  label,
-  value,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  /** A skeleton stands in here until the scan lands. */
-  value: React.ReactNode;
-}): React.JSX.Element {
-  return (
-    <Card className="glass">
-      <CardContent className="p-4">
-        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          {icon} {label}
-        </div>
-        <div className="mt-1 text-2xl font-semibold tabular-nums">{value}</div>
-      </CardContent>
-    </Card>
   );
 }
 
