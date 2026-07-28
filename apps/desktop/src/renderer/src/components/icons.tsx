@@ -12,6 +12,7 @@ import {
   faBold,
   faBookmark,
   faBolt,
+  faBox,
   faCalendarDays,
   faChartColumn,
   faCheck,
@@ -195,6 +196,9 @@ export const Power = makeIcon(faPowerOff);
 export const Wifi = makeIcon(faWifi);
 export const Keyboard = makeIcon(faKeyboard);
 export const Upload = makeIcon(faUpload);
+
+// Package manager tab icons.
+export const Package = makeIcon(faBox);
 
 // Git tab icons.
 export const GitBranch = makeIcon(faCodeBranch);

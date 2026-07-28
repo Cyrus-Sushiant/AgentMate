@@ -72,7 +72,9 @@ import {
   useDashboardLayoutStore,
   usageProviderIdOf,
   statIdOf,
+  statItemId,
   summaryIdOf,
+  summaryItemId,
   type DashboardChartId,
   type DashboardItemId,
 } from '@/stores/dashboardLayoutStore';
@@ -119,6 +121,22 @@ const GRID_COLUMN_CLASS: Record<DashboardColumns, string> = {
   4: 'grid-cols-1 lg:grid-cols-2 xl:grid-cols-4',
 };
 
+/** Labels for the "Add card" menu, which re-shows hidden built-in stat tiles. */
+const STAT_LABELS: Record<DashboardStatId, string> = {
+  'installed-clis': 'Installed CLIs',
+  'active-projects': 'Active Projects',
+  'skill-repos': 'Skill Repositories',
+  location: 'Your Location',
+};
+
+/** Labels for the "Add card" menu, which re-pins hidden Token Usage summary tiles. */
+const SUMMARY_LABELS: Record<DashboardUsageSummaryId, string> = {
+  'tokens-today': 'Tokens today',
+  'tokens-week': 'Tokens (7 days)',
+  'cost-today': 'Cost today',
+  'providers-tracked': 'Providers tracked',
+};
+
 function EmptyChartState({ message }: { message: React.ReactNode }): React.JSX.Element {
   return (
     <div
@@ -150,12 +168,14 @@ function StatSkeleton({ className }: { className?: string }): React.JSX.Element 
 function ChartDragHandle({
   onDragStart,
   onDragEnd,
+  label = 'Drag to move between rows',
 }: {
   onDragStart: () => void;
   onDragEnd: () => void;
+  label?: string;
 }): React.JSX.Element {
   return (
-    <SimpleTooltip label="Drag to move between rows">
+    <SimpleTooltip label={label}>
       <span
         draggable
         onDragStart={(e) => {
@@ -407,7 +427,9 @@ export default function DashboardPage(): React.JSX.Element {
   const addRow = useDashboardLayoutStore((s) => s.addRow);
   const removeRow = useDashboardLayoutStore((s) => s.removeRow);
   const moveItem = useDashboardLayoutStore((s) => s.moveItem);
+  const moveRow = useDashboardLayoutStore((s) => s.moveRow);
   const [dragChartId, setDragChartId] = useState<DashboardItemId | null>(null);
+  const [dragRowId, setDragRowId] = useState<string | null>(null);
 
   // Token Usage cards the user added to the dashboard read the same list (and
   // the same tokens/plan-limits choice) the Usage page does.
@@ -439,6 +461,12 @@ export default function DashboardPage(): React.JSX.Element {
     setDragChartId(null);
   }
 
+  /** `beforeRowId` is the row the drop landed on, or null to move to the end. */
+  function handleRowDrop(beforeRowId: string | null): void {
+    if (dragRowId) moveRow(dragRowId, beforeRowId);
+    setDragRowId(null);
+  }
+
   function cardClass(id: DashboardItemId): string {
     return cn('h-full', dragChartId === id && 'opacity-50');
   }
@@ -453,6 +481,18 @@ export default function DashboardPage(): React.JSX.Element {
         onDragEnd={() => setDragChartId(null)}
       />
     );
+  }
+
+  /** Hides a built-in stat tile; brought back from the "Add card" menu below. */
+  function removeStatCard(id: DashboardStatId, label: string): void {
+    toggleStatCard(id);
+    toast.info(`${label} removed from the dashboard.`);
+  }
+
+  /** Unpins a Token Usage summary tile; re-pin here or from the Token Usage page. */
+  function removeSummaryCard(id: DashboardUsageSummaryId, label: string): void {
+    toggleSummaryCard(id);
+    toast.info(`${label} removed from the dashboard.`);
   }
 
   usePageHeader('Dashboard', 'Your AI CLIs, projects, and system health at a glance.');
@@ -837,6 +877,168 @@ export default function DashboardPage(): React.JSX.Element {
     ),
   };
 
+  const statTiles: Record<DashboardStatId, React.ReactNode> = {
+    'installed-clis': (
+      <StatTile
+        className={cardClass(statItemId('installed-clis'))}
+        icon={<TerminalSquare className="h-3.5 w-3.5" />}
+        label="Installed CLIs"
+        dragHandle={dragHandle(statItemId('installed-clis'))}
+        onRemove={editing ? () => removeStatCard('installed-clis', 'Installed CLIs') : undefined}
+        value={
+          cliQuery.isPending ? (
+            <StatSkeleton className="w-16" />
+          ) : (
+            `${installedCount}/${CLI_REGISTRY.length}`
+          )
+        }
+      />
+    ),
+    'active-projects': (
+      <StatTile
+        className={cardClass(statItemId('active-projects'))}
+        icon={<FolderKanban className="h-3.5 w-3.5" />}
+        label="Active Projects"
+        dragHandle={dragHandle(statItemId('active-projects'))}
+        onRemove={editing ? () => removeStatCard('active-projects', 'Active Projects') : undefined}
+        value={
+          projectsQuery.isPending ? (
+            <StatSkeleton className="w-10" />
+          ) : (
+            (projectsQuery.data?.length ?? 0)
+          )
+        }
+      />
+    ),
+    'skill-repos': (
+      <StatTile
+        className={cardClass(statItemId('skill-repos'))}
+        icon={<Blocks className="h-3.5 w-3.5" />}
+        label="Skill Repositories"
+        dragHandle={dragHandle(statItemId('skill-repos'))}
+        onRemove={editing ? () => removeStatCard('skill-repos', 'Skill Repositories') : undefined}
+        value={
+          reposQuery.isPending ? <StatSkeleton className="w-10" /> : (reposQuery.data?.length ?? 0)
+        }
+      />
+    ),
+    location: (
+      <StatTile
+        className={cardClass(statItemId('location'))}
+        icon={<Globe className="h-3.5 w-3.5" />}
+        label="Your Location"
+        dragHandle={dragHandle(statItemId('location'))}
+        onRemove={editing ? () => removeStatCard('location', 'Your Location') : undefined}
+        action={
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-5 w-5"
+            onClick={() => void ipGeoQuery.refetch()}
+            disabled={ipGeoQuery.isFetching}
+          >
+            <RefreshCw className={ipGeoQuery.isFetching ? 'h-3 w-3 animate-spin' : 'h-3 w-3'} />
+          </Button>
+        }
+        value={
+          ipGeoQuery.isPending ? (
+            <div className="flex items-center gap-2">
+              <Skeleton className="h-4 w-6" />
+              <Skeleton className="h-6 w-32" />
+            </div>
+          ) : ipGeoQuery.isError || !ipGeoQuery.data ? (
+            <span className="text-sm text-destructive">Unavailable</span>
+          ) : (
+            <div className="flex min-w-0 items-center gap-2">
+              <SimpleTooltip label={ipGeoQuery.data.country}>
+                <span className="shrink-0">
+                  <CountryFlag
+                    countryCode={ipGeoQuery.data.countryCode}
+                    className="h-4 w-6 rounded-[2px]"
+                  />
+                </span>
+              </SimpleTooltip>
+              <span className="truncate font-mono text-lg font-semibold">
+                {ipGeoQuery.data.ip || '—'}
+              </span>
+            </div>
+          )
+        }
+      />
+    ),
+  };
+
+  const summaryTiles: Record<DashboardUsageSummaryId, React.ReactNode> = {
+    'tokens-today': (
+      <StatTile
+        className={cardClass(summaryItemId('tokens-today'))}
+        icon={<ChartColumn className="h-3.5 w-3.5" />}
+        label="Tokens today"
+        dragHandle={dragHandle(summaryItemId('tokens-today'))}
+        onRemove={editing ? () => removeSummaryCard('tokens-today', 'Tokens today') : undefined}
+        value={
+          usageSummary.isPending ? (
+            <Skeleton className="h-8 w-20" />
+          ) : (
+            formatTokens(usageSummary.todayTokens)
+          )
+        }
+      />
+    ),
+    'tokens-week': (
+      <StatTile
+        className={cardClass(summaryItemId('tokens-week'))}
+        icon={<Bolt className="h-3.5 w-3.5" />}
+        label="Tokens (7 days)"
+        dragHandle={dragHandle(summaryItemId('tokens-week'))}
+        onRemove={
+          editing ? () => removeSummaryCard('tokens-week', 'Tokens (7 days)') : undefined
+        }
+        value={
+          usageSummary.isPending ? (
+            <Skeleton className="h-8 w-20" />
+          ) : (
+            formatTokens(usageSummary.weekTokens)
+          )
+        }
+      />
+    ),
+    'cost-today': (
+      <StatTile
+        className={cardClass(summaryItemId('cost-today'))}
+        icon={<ChartColumn className="h-3.5 w-3.5" />}
+        label="Cost today"
+        dragHandle={dragHandle(summaryItemId('cost-today'))}
+        onRemove={editing ? () => removeSummaryCard('cost-today', 'Cost today') : undefined}
+        value={
+          usageSummary.isPending ? (
+            <Skeleton className="h-8 w-20" />
+          ) : (
+            (formatCost(usageSummary.cost) ?? '$0.00')
+          )
+        }
+      />
+    ),
+    'providers-tracked': (
+      <StatTile
+        className={cardClass(summaryItemId('providers-tracked'))}
+        icon={<Pin className="h-3.5 w-3.5" />}
+        label="Providers tracked"
+        dragHandle={dragHandle(summaryItemId('providers-tracked'))}
+        onRemove={
+          editing ? () => removeSummaryCard('providers-tracked', 'Providers tracked') : undefined
+        }
+        value={
+          usageSummary.isPending ? (
+            <Skeleton className="h-8 w-16" />
+          ) : (
+            `${usageSummary.trackedCount}/${usageSummary.totalCount}`
+          )
+        }
+      />
+    ),
+  };
+
   return (
     <div className="space-y-6 p-6">
       <div className="flex flex-wrap gap-2">
@@ -846,11 +1048,43 @@ export default function DashboardPage(): React.JSX.Element {
         <Button variant="secondary" onClick={() => navigate('/prompt-builder')}>
           <Sparkles /> Open Prompt Builder
         </Button>
+        {editing && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" className="ml-auto">
+                <Plus /> Add card
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuLabel>Dashboard stats</DropdownMenuLabel>
+              {DASHBOARD_STAT_IDS.map((id) => (
+                <DropdownMenuCheckboxItem
+                  key={id}
+                  checked={statCards.includes(id)}
+                  onCheckedChange={() => toggleStatCard(id)}
+                >
+                  {STAT_LABELS[id]}
+                </DropdownMenuCheckboxItem>
+              ))}
+              <DropdownMenuSeparator />
+              <DropdownMenuLabel>Token Usage</DropdownMenuLabel>
+              {DASHBOARD_USAGE_SUMMARY_IDS.map((id) => (
+                <DropdownMenuCheckboxItem
+                  key={id}
+                  checked={summaryCards.includes(id)}
+                  onCheckedChange={() => toggleSummaryCard(id)}
+                >
+                  {SUMMARY_LABELS[id]}
+                </DropdownMenuCheckboxItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
         <SimpleTooltip label={editing ? 'Done editing' : 'Edit layout'}>
           <Button
             variant={editing ? 'default' : 'outline'}
             size="icon"
-            className="ml-auto"
+            className={editing ? undefined : 'ml-auto'}
             aria-label={editing ? 'Done editing' : 'Edit layout'}
             onClick={() => setEditing(!editing)}
           >
@@ -861,87 +1095,11 @@ export default function DashboardPage(): React.JSX.Element {
 
       {editing && (
         <p className="text-sm text-muted-foreground">
-          Drag a card by its handle to move it within a row or into another one, choose how many
-          columns each row uses, and remove Token Usage cards you no longer want.
+          Drag a card by its handle to move it within a row or into another one, drag a row by its
+          handle to reorder rows, choose how many columns each row uses, hide cards you don't
+          want, and bring them back from "Add card".
         </p>
       )}
-
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-        <StatTile
-          icon={<TerminalSquare className="h-3.5 w-3.5" />}
-          label="Installed CLIs"
-          value={
-            cliQuery.isPending ? (
-              <StatSkeleton className="w-16" />
-            ) : (
-              `${installedCount}/${CLI_REGISTRY.length}`
-            )
-          }
-        />
-        <StatTile
-          icon={<FolderKanban className="h-3.5 w-3.5" />}
-          label="Active Projects"
-          value={
-            projectsQuery.isPending ? (
-              <StatSkeleton className="w-10" />
-            ) : (
-              (projectsQuery.data?.length ?? 0)
-            )
-          }
-        />
-        <StatTile
-          icon={<Blocks className="h-3.5 w-3.5" />}
-          label="Skill Repositories"
-          value={
-            reposQuery.isPending ? (
-              <StatSkeleton className="w-10" />
-            ) : (
-              (reposQuery.data?.length ?? 0)
-            )
-          }
-        />
-        <StatTile
-          icon={<Globe className="h-3.5 w-3.5" />}
-          label="Your Location"
-          action={
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-5 w-5"
-              onClick={() => void ipGeoQuery.refetch()}
-              disabled={ipGeoQuery.isFetching}
-            >
-              <RefreshCw
-                className={ipGeoQuery.isFetching ? 'h-3 w-3 animate-spin' : 'h-3 w-3'}
-              />
-            </Button>
-          }
-          value={
-            ipGeoQuery.isPending ? (
-              <div className="flex items-center gap-2">
-                <Skeleton className="h-4 w-6" />
-                <Skeleton className="h-6 w-32" />
-              </div>
-            ) : ipGeoQuery.isError || !ipGeoQuery.data ? (
-              <span className="text-sm text-destructive">Unavailable</span>
-            ) : (
-              <div className="flex min-w-0 items-center gap-2">
-                <SimpleTooltip label={ipGeoQuery.data.country}>
-                  <span className="shrink-0">
-                    <CountryFlag
-                      countryCode={ipGeoQuery.data.countryCode}
-                      className="h-4 w-6 rounded-[2px]"
-                    />
-                  </span>
-                </SimpleTooltip>
-                <span className="truncate font-mono text-lg font-semibold">
-                  {ipGeoQuery.data.ip || '—'}
-                </span>
-              </div>
-            )
-          }
-        />
-      </div>
 
       <div className="space-y-4">
         {rows.map((row) => {
@@ -951,10 +1109,24 @@ export default function DashboardPage(): React.JSX.Element {
           return (
             <div
               key={row.id}
-              className={cn(editing && 'rounded-xl border border-dashed border-border p-3')}
+              className={cn(
+                editing && 'rounded-xl border border-dashed border-border p-3',
+                dragRowId === row.id && 'opacity-50',
+              )}
+              onDragOver={(e) => {
+                if (dragRowId) e.preventDefault();
+              }}
+              onDrop={() => {
+                if (dragRowId) handleRowDrop(row.id);
+              }}
             >
               {editing && (
                 <div className="mb-3 flex flex-wrap items-center gap-1">
+                  <ChartDragHandle
+                    label="Drag to reorder rows"
+                    onDragStart={() => setDragRowId(row.id)}
+                    onDragEnd={() => setDragRowId(null)}
+                  />
                   <span className="mr-auto text-xs text-muted-foreground">
                     {row.items.length === 0
                       ? 'Empty row'
@@ -1000,6 +1172,8 @@ export default function DashboardPage(): React.JSX.Element {
                 {row.items.map((rawId) => {
                   const id = rawId as DashboardItemId;
                   const providerId = usageProviderIdOf(id);
+                  const statId = statIdOf(id);
+                  const summaryId = summaryIdOf(id);
                   return (
                     <motion.div
                       key={id}
@@ -1028,6 +1202,10 @@ export default function DashboardPage(): React.JSX.Element {
                           }
                           dragHandle={dragHandle(id)}
                         />
+                      ) : statId ? (
+                        statTiles[statId]
+                      ) : summaryId ? (
+                        summaryTiles[summaryId]
                       ) : (
                         chartCards[id as DashboardChartId]
                       )}
@@ -1053,6 +1231,18 @@ export default function DashboardPage(): React.JSX.Element {
             </div>
           );
         })}
+
+        {/* Only shown mid-drag — dropping on a row always moves it before that
+            row, so moving one to the very end needs a target past the last row. */}
+        {editing && dragRowId && (
+          <div
+            onDragOver={(e) => e.preventDefault()}
+            onDrop={() => handleRowDrop(null)}
+            className="flex min-h-10 items-center justify-center rounded-xl border border-dashed border-border px-3 text-center text-xs text-muted-foreground"
+          >
+            Drop here to move row to the end
+          </div>
+        )}
 
         {editing && (
           <Button variant="outline" onClick={addRow}>

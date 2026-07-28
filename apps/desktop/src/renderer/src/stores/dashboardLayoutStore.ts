@@ -92,6 +92,8 @@ interface DashboardLayoutState {
     targetRowId: string,
     beforeItemId: DashboardItemId | null,
   ) => void;
+  /** Moves a row before `beforeRowId`, or to the end when null. */
+  moveRow: (rowId: string, beforeRowId: string | null) => void;
   /** Adds or removes a Token Usage card; returns true when it's now shown. */
   toggleUsageCard: (providerId: string) => boolean;
   /** Shows or hides a built-in stat tile; returns true when it's now shown. */
@@ -241,6 +243,18 @@ export const useDashboardLayoutStore = create<DashboardLayoutState>((set, get) =
       at === -1
         ? [...target.items, itemId]
         : [...target.items.slice(0, at), itemId, ...target.items.slice(at)];
+    set({ rows });
+    persist(rows);
+  },
+
+  moveRow: (rowId, beforeRowId) => {
+    if (rowId === beforeRowId) return;
+    const current = get().rows;
+    const row = current.find((r) => r.id === rowId);
+    if (!row) return;
+    const rest = current.filter((r) => r.id !== rowId);
+    const at = beforeRowId ? rest.findIndex((r) => r.id === beforeRowId) : -1;
+    const rows = at === -1 ? [...rest, row] : [...rest.slice(0, at), row, ...rest.slice(at)];
     set({ rows });
     persist(rows);
   },

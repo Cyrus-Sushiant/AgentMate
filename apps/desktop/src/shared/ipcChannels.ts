@@ -224,4 +224,10 @@ export const IPC = {
     commit: 'git:commit',
     createPullRequest: 'git:createPullRequest',
   },
+  packages: {
+    list: 'packages:list',
+    update: 'packages:update',
+    // main -> renderer: per-package progress while an update batch runs
+    onUpdateProgress: 'packages:onUpdateProgress',
+  },
 } as const;

@@ -65,6 +65,10 @@ import type {
   GitOpResult,
   CreatePullRequestInput,
   CreatePullRequestResult,
+  PackageScanResult,
+  PackageUpdateProgress,
+  PackageUpdateRequest,
+  PackageUpdateResult,
   RemoteState,
   RemoteNetworkInterface,
   RemotePairingInfo,
@@ -386,6 +390,14 @@ function subscribe<T>(channel: string, callback: (payload: T) => void): () => vo
   return () => ipcRenderer.removeListener(channel, listener);
 }
 
+const packages = {
+  list: (projectId: string): Promise<PackageScanResult> => ipcRenderer.invoke(IPC.packages.list, projectId),
+  update: (projectId: string, updates: PackageUpdateRequest[]): Promise<PackageUpdateResult> =>
+    ipcRenderer.invoke(IPC.packages.update, projectId, updates),
+  onUpdateProgress: (cb: (progress: PackageUpdateProgress) => void): (() => void) =>
+    subscribe(IPC.packages.onUpdateProgress, cb),
+};
+
 const remote = {
   getState: (): Promise<RemoteState> => ipcRenderer.invoke(IPC.remote.getState),
   listInterfaces: (): Promise<RemoteNetworkInterface[]> =>
@@ -517,6 +529,7 @@ const agentmatApi = {
   scheduledTasks,
   notifications,
   git,
+  packages,
   remote,
   usage,
   backup,

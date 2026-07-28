@@ -11,6 +11,7 @@ import { registerGitHandlers } from './ipc/git';
 import { registerIpGeoHandlers } from './ipc/ipGeo';
 import { registerMcpHandlers } from './ipc/mcp';
 import { registerNotificationHandlers } from './ipc/notifications';
+import { registerPackageManagerHandlers } from './ipc/packageManagers';
 import { registerProjectDraftHandlers } from './ipc/projectDrafts';
 import { registerProjectHandlers } from './ipc/projects';
 import { registerPromptBuildWidgetHandlers } from './ipc/promptBuildWidget';
@@ -129,6 +130,7 @@ function registerAllIpcHandlers(): void {
   registerAiHandlers();
   registerSpeechHandlers();
   registerGitHandlers();
+  registerPackageManagerHandlers();
   registerRemoteHandlers();
   registerUsageHandlers();
   registerBackupHandlers();

@@ -24,6 +24,7 @@ import {
   GitPullRequest,
   History,
   MessageSquare,
+  Package,
   Pencil,
   Play,
   Plug,
@@ -31,6 +32,7 @@ import {
   Save,
   Send,
   Sparkles,
+  Spinner,
   TerminalSquare,
   Trash2,
   TriangleAlert,
@@ -39,7 +41,12 @@ import {
 } from '@/components/icons';
 import { CliLogo } from '@/components/cliLogos';
 import { CLI_REGISTRY } from '@agentmat/core';
-import type { BootstrapResult } from '@shared/apiTypes';
+import type {
+  BootstrapResult,
+  PackageInfo,
+  PackageManagerSection,
+  PackageUpdateRequest,
+} from '@shared/apiTypes';
 import type {
   CliDefinition,
   DetectedClaudeHook,
@@ -52,6 +59,7 @@ import type {
 } from '@agentmat/core';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Combobox } from '@/components/ui/combobox';
 import {
   Dialog,
@@ -401,6 +409,9 @@ export default function ProjectDetailPage(): React.JSX.Element {
               <TabsTrigger value="mcp" className="gap-1.5">
                 <Plug className="h-3.5 w-3.5" /> MCP
               </TabsTrigger>
+              <TabsTrigger value="packages" className="gap-1.5">
+                <Package className="h-3.5 w-3.5" /> Packages
+              </TabsTrigger>
               <TabsTrigger value="git" className="gap-1.5">
                 <GitBranch className="h-3.5 w-3.5" /> Git
               </TabsTrigger>
@@ -596,6 +607,10 @@ export default function ProjectDetailPage(): React.JSX.Element {
                   ))}
                 </div>
               )}
+            </TabsContent>
+
+            <TabsContent value="packages" className="space-y-4">
+              <PackagesTab projectId={project.id} />
             </TabsContent>
 
             <TabsContent value="git" className="space-y-4">
@@ -1525,6 +1540,200 @@ function CreatePrDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function packageKey(pkg: PackageInfo): string {
+  return `${pkg.manifestPath}::${pkg.name}`;
+}
+
+function ecosystemLabel(section: PackageManagerSection): string {
+  if (section.ecosystem === 'dotnet') return 'NuGet (.NET)';
+  if (section.manager === 'yarn') return 'Yarn';
+  if (section.manager === 'pnpm') return 'pnpm';
+  return 'npm';
+}
+
+function PackagesTab({ projectId }: { projectId: string }): React.JSX.Element {
+  const queryClient = useQueryClient();
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [progress, setProgress] = useState<
+    Map<string, { status: 'running' | 'done' | 'error'; message?: string }>
+  >(new Map());
+
+  const scanQuery = useQuery({
+    queryKey: queryKeys.packages(projectId),
+    queryFn: () => window.agentmat.packages.list(projectId),
+  });
+
+  useEffect(() => {
+    return window.agentmat.packages.onUpdateProgress((p) => {
+      if (p.projectId !== projectId) return;
+      setProgress((prev) => {
+        const next = new Map(prev);
+        next.set(p.packageName, { status: p.status, message: p.message });
+        return next;
+      });
+    });
+  }, [projectId]);
+
+  const updateMutation = useMutation({
+    mutationFn: (updates: PackageUpdateRequest[]) => window.agentmat.packages.update(projectId, updates),
+    onSuccess: (result) => {
+      const failed = result.results.filter((r) => !r.ok);
+      const count = result.results.length;
+      if (result.ok) {
+        toast.success(`Updated ${count} package${count === 1 ? '' : 's'}.`);
+      } else {
+        toast.error(`${failed.length} of ${count} package${count === 1 ? '' : 's'} failed to update.`);
+      }
+      setSelected(new Set());
+      void queryClient.invalidateQueries({ queryKey: queryKeys.packages(projectId) });
+    },
+  });
+
+  function toggle(key: string): void {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }
+
+  function toggleAllOutdated(section: PackageManagerSection, checked: boolean): void {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      for (const pkg of section.packages) {
+        if (!pkg.isOutdated) continue;
+        if (checked) next.add(packageKey(pkg));
+        else next.delete(packageKey(pkg));
+      }
+      return next;
+    });
+  }
+
+  function updateSection(section: PackageManagerSection): void {
+    const updates: PackageUpdateRequest[] = section.packages
+      .filter((pkg) => selected.has(packageKey(pkg)))
+      .map((pkg) => ({
+        ecosystem: section.ecosystem,
+        name: pkg.name,
+        targetVersion: pkg.latestVersion ?? pkg.currentVersion,
+        manifestPath: pkg.manifestPath,
+      }));
+    if (updates.length === 0) return;
+    setProgress(new Map());
+    updateMutation.mutate(updates);
+  }
+
+  if (scanQuery.isLoading) {
+    return <p className="text-sm text-muted-foreground">Scanning for packages…</p>;
+  }
+
+  const sections = scanQuery.data?.sections ?? [];
+
+  if (sections.length === 0) {
+    return (
+      <p className="text-sm text-muted-foreground">
+        No npm/yarn/pnpm or .NET project files were found in this project's folder.
+      </p>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {sections.map((section) => {
+        const outdatedPackages = section.packages.filter((p) => p.isOutdated);
+        const sectionSelectedCount = section.packages.filter((p) => selected.has(packageKey(p))).length;
+        const allOutdatedSelected =
+          outdatedPackages.length > 0 && outdatedPackages.every((p) => selected.has(packageKey(p)));
+
+        return (
+          <div
+            key={`${section.ecosystem}-${section.manager}`}
+            className="space-y-3 rounded-lg border border-border bg-card p-4"
+          >
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-2 text-sm font-medium">
+                <Package className="h-3.5 w-3.5" /> {ecosystemLabel(section)}
+                {outdatedPackages.length > 0 && (
+                  <Badge variant="warning">{outdatedPackages.length} outdated</Badge>
+                )}
+                {section.status === 'ok' && outdatedPackages.length === 0 && section.packages.length > 0 && (
+                  <Badge variant="success">Up to date</Badge>
+                )}
+              </div>
+              {section.status === 'ok' && section.packages.length > 0 && (
+                <Button
+                  size="sm"
+                  disabled={sectionSelectedCount === 0 || updateMutation.isPending}
+                  onClick={() => updateSection(section)}
+                >
+                  {updateMutation.isPending ? (
+                    <Spinner className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <RefreshCw className="h-3.5 w-3.5" />
+                  )}
+                  Update Selected ({sectionSelectedCount})
+                </Button>
+              )}
+            </div>
+
+            {section.status === 'cli-missing' && (
+              <p className="text-sm text-muted-foreground">{section.message}</p>
+            )}
+
+            {section.status === 'error' && (
+              <p className="text-sm text-destructive">{section.message}</p>
+            )}
+
+            {section.status === 'ok' && section.packages.length === 0 && (
+              <p className="text-sm text-muted-foreground">No dependencies declared.</p>
+            )}
+
+            {section.status === 'ok' && section.packages.length > 0 && (
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-2 border-b border-border pb-1.5 text-xs text-muted-foreground">
+                  <Checkbox
+                    checked={allOutdatedSelected}
+                    disabled={outdatedPackages.length === 0}
+                    onCheckedChange={(checked) => toggleAllOutdated(section, checked === true)}
+                  />
+                  <span>Select all outdated</span>
+                </div>
+                <div className="max-h-72 space-y-1 overflow-y-auto">
+                  {section.packages.map((pkg) => {
+                    const key = packageKey(pkg);
+                    const tick = progress.get(pkg.name);
+                    return (
+                      <div key={key} className="flex items-center gap-2 text-sm">
+                        <Checkbox checked={selected.has(key)} onCheckedChange={() => toggle(key)} />
+                        <span className="min-w-0 flex-1 truncate font-mono text-xs">{pkg.name}</span>
+                        <span className="w-24 shrink-0 text-right text-xs text-muted-foreground">
+                          {pkg.currentVersion}
+                        </span>
+                        <span className="w-24 shrink-0 text-right text-xs">{pkg.latestVersion ?? '—'}</span>
+                        {pkg.isOutdated && <Badge variant="warning">Outdated</Badge>}
+                        {tick?.status === 'running' && (
+                          <Spinner className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
+                        )}
+                        {tick?.status === 'done' && <Check className="h-3.5 w-3.5 text-success" />}
+                        {tick?.status === 'error' && (
+                          <SimpleTooltip label={tick.message ?? 'Update failed'} wrapTrigger>
+                            <TriangleAlert className="h-3.5 w-3.5 text-destructive" />
+                          </SimpleTooltip>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
   );
 }
 

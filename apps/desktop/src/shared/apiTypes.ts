@@ -313,6 +313,63 @@ export interface CreatePullRequestResult {
   usedFallback?: boolean;
 }
 
+export type PackageManagerEcosystem = 'node' | 'dotnet';
+export type PackageManagerKind = 'npm' | 'yarn' | 'pnpm' | 'nuget';
+
+export interface PackageInfo {
+  name: string;
+  currentVersion: string;
+  /** Null when the latest-version lookup failed — distinct from "up to date". */
+  latestVersion: string | null;
+  isOutdated: boolean;
+  isDev: boolean;
+  /** False when only a declared range was found (e.g. node_modules missing). */
+  isInstalled: boolean;
+  /** Absolute path to the manifest this package was read from (package.json or a specific .csproj). */
+  manifestPath: string;
+}
+
+export interface PackageManagerSection {
+  ecosystem: PackageManagerEcosystem;
+  manager: PackageManagerKind;
+  status: 'ok' | 'cli-missing' | 'error';
+  message: string | null;
+  packages: PackageInfo[];
+}
+
+export interface PackageScanResult {
+  projectId: string;
+  sections: PackageManagerSection[];
+}
+
+export interface PackageUpdateRequest {
+  ecosystem: PackageManagerEcosystem;
+  name: string;
+  targetVersion: string;
+  manifestPath: string;
+}
+
+export interface PackageUpdateProgress {
+  projectId: string;
+  ecosystem: PackageManagerEcosystem;
+  packageName: string;
+  status: 'running' | 'done' | 'error';
+  message?: string;
+  completed: number;
+  total: number;
+}
+
+export interface PackageUpdateItemResult {
+  name: string;
+  ok: boolean;
+  message: string;
+}
+
+export interface PackageUpdateResult {
+  ok: boolean;
+  results: PackageUpdateItemResult[];
+}
+
 export interface DiskUsage {
   /** Drive letter (Windows) or device name (macOS/Linux) — stable across samples. */
   id: string;
