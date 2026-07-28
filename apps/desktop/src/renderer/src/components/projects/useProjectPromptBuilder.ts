@@ -33,6 +33,8 @@ export function useProjectPromptBuilder(
   const setPromptType = (v: PromptType) => updateEntry(projectId, { promptType: v });
   const setTargetAI = (v: TargetAI) => updateEntry(projectId, { targetAI: v });
   const setGenerated = (v: string) => updateEntry(projectId, { generated: v });
+  const clearEntry = useProjectPromptBuildStore((s) => s.clear);
+  const handleClear = () => clearEntry(projectId);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isTranslating, setIsTranslating] = useState(false);
 
@@ -152,6 +154,7 @@ export function useProjectPromptBuilder(
     handleGenerate,
     handleTranslate,
     handleCopy,
+    handleClear,
     saveDraftMutation,
   };
 }

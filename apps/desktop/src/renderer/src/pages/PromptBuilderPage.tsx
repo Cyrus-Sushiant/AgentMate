@@ -416,11 +416,11 @@ export default function PromptBuilderPage(): React.JSX.Element {
   usePageHeader('Prompt Builder', 'Describe what you want; AgentMate structures it into a professional prompt.');
 
   return (
-    <div className="mx-auto flex w-full max-w-6xl flex-1 flex-col p-6">
-      <Card className="flex flex-1 flex-col">
-        <CardContent className="grid flex-1 grid-cols-1 gap-6 p-5 lg:grid-cols-2">
-          <div className="flex flex-1 flex-col space-y-4">
-            <div className="flex flex-1 flex-col space-y-2">
+    <div className="mx-auto flex h-full min-h-0 w-full max-w-6xl flex-1 flex-col p-6">
+      <Card className="flex h-full min-h-0 flex-1 flex-col overflow-hidden">
+        <CardContent className="grid h-full min-h-0 flex-1 grid-cols-1 gap-6 overflow-hidden p-5 lg:grid-cols-2">
+          <div className="flex h-full min-h-0 flex-1 flex-col space-y-3 overflow-y-auto">
+            <div className="flex min-h-0 flex-1 flex-col space-y-2">
               <div className="flex items-center justify-between">
                 <Label htmlFor="raw-input">Your request</Label>
                 {voice.supported && (
@@ -448,7 +448,7 @@ export default function PromptBuilderPage(): React.JSX.Element {
               </div>
               <Textarea
                 id="raw-input"
-                className="min-h-[280px] flex-1 resize-none"
+                className="min-h-[120px] flex-1 resize-none"
                 placeholder="e.g. Add a login form with email/password validation…"
                 value={rawInput}
                 onChange={(e) => setRawInput(e.target.value)}
@@ -613,7 +613,7 @@ export default function PromptBuilderPage(): React.JSX.Element {
             </div>
           </div>
 
-          <div className="flex flex-col space-y-3">
+          <div className="flex h-full min-h-0 flex-1 flex-col space-y-3">
             <div className="flex items-center justify-between">
               <Label>Generated prompt</Label>
               <SimpleTooltip label="Browse previously generated prompts">
@@ -629,7 +629,11 @@ export default function PromptBuilderPage(): React.JSX.Element {
                 </Button>
               </SimpleTooltip>
             </div>
-            <MonacoEditor value={generated} onChange={setGenerated} className="min-h-[420px] flex-1" />
+            <MonacoEditor
+              value={generated}
+              onChange={setGenerated}
+              className="min-h-0 flex-1"
+            />
             <div className="flex flex-wrap gap-2">
               <Button variant="outline" size="sm" disabled={!generated} onClick={() => void handleCopy()}>
                 <Copy /> Copy

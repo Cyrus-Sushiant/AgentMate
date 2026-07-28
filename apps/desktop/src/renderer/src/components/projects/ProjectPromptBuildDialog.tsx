@@ -1,6 +1,15 @@
 import { useState } from 'react';
 import { toast } from 'sonner';
-import { Copy, Languages, Pin, Save, Sparkles, WindowMaximize, WindowRestore } from '@/components/icons';
+import {
+  Copy,
+  Languages,
+  Pin,
+  Save,
+  Sparkles,
+  Trash2,
+  WindowMaximize,
+  WindowRestore,
+} from '@/components/icons';
 import { cn } from '@/lib/utils';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import {
@@ -47,6 +56,7 @@ export function ProjectPromptBuildDialog({
     handleGenerate,
     handleTranslate,
     handleCopy,
+    handleClear,
     saveDraftMutation,
   } = useProjectPromptBuilder(projectId, {
     enabled: open,
@@ -177,6 +187,14 @@ export function ProjectPromptBuildDialog({
         </div>
 
         <DialogFooter>
+          <Button
+            variant="outline"
+            disabled={!rawInput && !generated}
+            onClick={handleClear}
+            className="mr-auto"
+          >
+            <Trash2 /> Clear
+          </Button>
           <Button variant="outline" disabled={!generated} onClick={() => void handleCopy()}>
             <Copy /> Copy
           </Button>

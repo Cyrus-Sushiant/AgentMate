@@ -19,6 +19,7 @@ const EMPTY_ENTRY: ProjectPromptBuildEntry = {
 interface ProjectPromptBuildState {
   entries: Record<string, ProjectPromptBuildEntry>;
   update: (projectId: string, patch: Partial<ProjectPromptBuildEntry>) => void;
+  clear: (projectId: string) => void;
 }
 
 export const useProjectPromptBuildStore = create<ProjectPromptBuildState>()(
@@ -31,6 +32,10 @@ export const useProjectPromptBuildStore = create<ProjectPromptBuildState>()(
             ...state.entries,
             [projectId]: { ...EMPTY_ENTRY, ...state.entries[projectId], ...patch },
           },
+        })),
+      clear: (projectId) =>
+        set((state) => ({
+          entries: { ...state.entries, [projectId]: { ...EMPTY_ENTRY } },
         })),
     }),
     { name: 'agentmate-project-prompt-build' },
