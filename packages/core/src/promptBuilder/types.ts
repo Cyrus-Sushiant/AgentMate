@@ -47,3 +47,12 @@ export interface GeneratePromptInput {
   promptType: PromptType;
   targetAI: TargetAI;
 }
+
+/** A Build Prompt dialog pinned to the desktop as a floating widget window. */
+export interface DesktopPromptBuildWidgetInstance {
+  id: string;
+  projectId: string;
+  projectName: string;
+  x: number;
+  y: number;
+}

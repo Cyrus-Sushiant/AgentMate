@@ -25,6 +25,7 @@ import type {
   UsageResetAlertSettings,
   UsageThresholdAlertSettings,
   DesktopWidgetInstance,
+  DesktopPromptBuildWidgetInstance,
   WidgetMode,
   WidgetSize,
   WidgetStyle,
@@ -99,7 +100,8 @@ const appInfo = {
 };
 
 const backup = {
-  export: (): Promise<BackupExportResult> => ipcRenderer.invoke(IPC.backup.export),
+  export: (compress: boolean): Promise<BackupExportResult> =>
+    ipcRenderer.invoke(IPC.backup.export, compress),
   import: (): Promise<BackupImportResult> => ipcRenderer.invoke(IPC.backup.import),
 };
 
@@ -320,6 +322,20 @@ const projectDrafts = {
     ipcRenderer.invoke(IPC.projectDrafts.remove, draftId),
 };
 
+const promptBuildWidget = {
+  listWidgets: (): Promise<DesktopPromptBuildWidgetInstance[]> =>
+    ipcRenderer.invoke(IPC.promptBuildWidget.listWidgets),
+  getWidget: (id: string): Promise<DesktopPromptBuildWidgetInstance | null> =>
+    ipcRenderer.invoke(IPC.promptBuildWidget.getWidget, id),
+  openWidget: (
+    projectId: string,
+    projectName: string,
+  ): Promise<DesktopPromptBuildWidgetInstance> =>
+    ipcRenderer.invoke(IPC.promptBuildWidget.openWidget, projectId, projectName),
+  closeWidget: (id: string): Promise<void> =>
+    ipcRenderer.invoke(IPC.promptBuildWidget.closeWidget, id),
+};
+
 const scheduledTasks = {
   list: (): Promise<ScheduledTask[]> => ipcRenderer.invoke(IPC.scheduledTasks.list),
   listByProject: (projectId: string): Promise<ScheduledTask[]> =>
@@ -497,6 +513,7 @@ const agentmatApi = {
   system,
   ipGeo,
   projectDrafts,
+  promptBuildWidget,
   scheduledTasks,
   notifications,
   git,

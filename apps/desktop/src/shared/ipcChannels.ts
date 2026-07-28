@@ -124,6 +124,12 @@ export const IPC = {
     updateStatus: 'projectDrafts:updateStatus',
     remove: 'projectDrafts:remove',
   },
+  promptBuildWidget: {
+    listWidgets: 'promptBuildWidget:listWidgets',
+    getWidget: 'promptBuildWidget:getWidget',
+    openWidget: 'promptBuildWidget:openWidget',
+    closeWidget: 'promptBuildWidget:closeWidget',
+  },
   scheduledTasks: {
     list: 'scheduledTasks:list',
     listByProject: 'scheduledTasks:listByProject',

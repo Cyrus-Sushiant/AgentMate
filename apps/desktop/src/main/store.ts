@@ -66,6 +66,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   speechLanguage: 'auto',
   usageProviderConfigs: {},
   usageWidgets: [],
+  promptBuildWidgets: [],
   usageCardOrder: [],
   usageCardModes: {},
   usageResetAlerts: defaultUsageResetAlerts(),

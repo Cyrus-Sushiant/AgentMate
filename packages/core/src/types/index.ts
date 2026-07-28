@@ -5,6 +5,7 @@ import type {
   UsageThresholdAlertSettings,
   WidgetMode,
 } from '../usage/types.js';
+import type { DesktopPromptBuildWidgetInstance } from '../promptBuilder/types.js';
 
 export type ThemeMode = 'light' | 'dark' | 'system';
 
@@ -71,6 +72,8 @@ export interface AppSettings {
   usageProviderConfigs: Record<string, UsageProviderConfig>;
   /** Floating desktop usage widgets the user has pinned; recreated on app launch. */
   usageWidgets: DesktopWidgetInstance[];
+  /** Floating desktop Build Prompt widgets the user has pinned; recreated on app launch. */
+  promptBuildWidgets: DesktopPromptBuildWidgetInstance[];
   /** User-defined display order for the Usage page's provider cards (provider ids). */
   usageCardOrder: string[];
   /**

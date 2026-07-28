@@ -1,5 +1,6 @@
 import { BrowserWindow, Notification } from 'electron';
 import { getUsageProvider, type SubscriptionWindowKey } from '@agentmat/core';
+import icon from '../../../resources/icon.ico?asset';
 import { IPC } from '../../shared/ipcChannels';
 import { store } from '../store';
 import { getProviderUsage } from './index';
@@ -33,7 +34,9 @@ function broadcast(channel: string, payload: unknown): void {
 /** OS notification when the platform supports one; an in-app toast otherwise. */
 function notify(title: string, body: string): void {
   if (Notification.isSupported()) {
-    new Notification({ title, body }).show();
+    // Without an explicit icon, Windows/Linux fall back to the launching
+    // executable's own icon — Electron's, in a dev run.
+    new Notification({ title, body, icon }).show();
     return;
   }
   broadcast(IPC.usage.onThresholdAlert, { title, body });

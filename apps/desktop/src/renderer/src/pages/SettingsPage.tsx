@@ -24,6 +24,7 @@ import { Button } from '@/components/ui/button';
 import { Combobox } from '@/components/ui/combobox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
 import { queryKeys } from '@/lib/queryKeys';
 import { usePageHeader } from '@/stores/pageHeaderStore';
 import { useCliStore } from '@/stores/cliStore';
@@ -256,11 +257,12 @@ export default function SettingsPage(): React.JSX.Element {
 
   const [exportingBackup, setExportingBackup] = useState(false);
   const [importingBackup, setImportingBackup] = useState(false);
+  const [compressBackup, setCompressBackup] = useState(false);
 
   async function handleExportBackup(): Promise<void> {
     setExportingBackup(true);
     try {
-      const result = await window.agentmat.backup.export();
+      const result = await window.agentmat.backup.export(compressBackup);
       if (result.ok && result.path) toast.success(`Backup saved to ${result.path}`);
     } finally {
       setExportingBackup(false);
@@ -742,13 +744,29 @@ export default function SettingsPage(): React.JSX.Element {
             replaces everything currently on this machine.
           </CardDescription>
         </CardHeader>
-        <CardContent className="flex gap-2">
-          <Button variant="outline" disabled={exportingBackup} onClick={() => void handleExportBackup()}>
-            <Download className="h-4 w-4" /> {exportingBackup ? 'Exporting…' : 'Export backup'}
-          </Button>
-          <Button variant="outline" disabled={importingBackup} onClick={() => void handleImportBackup()}>
-            <Upload className="h-4 w-4" /> {importingBackup ? 'Restoring…' : 'Restore from backup…'}
-          </Button>
+        <CardContent className="space-y-4">
+          <div className="flex items-center gap-2">
+            <Switch id="compress-backup" checked={compressBackup} onCheckedChange={setCompressBackup} />
+            <Label htmlFor="compress-backup" className="font-normal text-muted-foreground">
+              Compress export as a .zip file
+            </Label>
+          </div>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              disabled={exportingBackup}
+              onClick={() => void handleExportBackup()}
+            >
+              <Download className="h-4 w-4" /> {exportingBackup ? 'Exporting…' : 'Export backup'}
+            </Button>
+            <Button
+              variant="outline"
+              disabled={importingBackup}
+              onClick={() => void handleImportBackup()}
+            >
+              <Upload className="h-4 w-4" /> {importingBackup ? 'Restoring…' : 'Restore from backup…'}
+            </Button>
+          </div>
         </CardContent>
       </Card>
 

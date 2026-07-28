@@ -13,6 +13,7 @@ import { registerMcpHandlers } from './ipc/mcp';
 import { registerNotificationHandlers } from './ipc/notifications';
 import { registerProjectDraftHandlers } from './ipc/projectDrafts';
 import { registerProjectHandlers } from './ipc/projects';
+import { registerPromptBuildWidgetHandlers } from './ipc/promptBuildWidget';
 import { registerPromptHistoryHandlers } from './ipc/promptHistory';
 import { registerRemoteHandlers } from './ipc/remote';
 import { registerScheduledTaskHandlers } from './ipc/scheduledTasks';
@@ -27,6 +28,7 @@ import { registerToolHandlers } from './ipc/tools';
 import { registerTranslateHandlers } from './ipc/translate';
 import { registerUsageHandlers } from './ipc/usage';
 import { widgetManager } from './usage/widgetWindows';
+import { promptBuildWidgetManager } from './promptBuild/widgetWindows';
 import { registerWindowHandlers } from './ipc/window';
 import { seedExampleRepositoryIfEmpty } from './exampleSkillRepo';
 import { startHookServer, stopHookServer } from './notifications/hookServer';
@@ -36,6 +38,11 @@ import { remoteManager } from './remote/manager';
 import { startHourlyUpdateChecks } from './updater';
 
 app.setName('AgentMate');
+// Windows groups notifications/taskbar entries by this id rather than the exe
+// name, so without it toasts show up as "Electron" with the Electron icon.
+// Must match electron-builder.yml's `appId` so the packaged install (which
+// registers that id via its shortcut) and dev runs agree on identity.
+if (process.platform === 'win32') app.setAppUserModelId('com.agentmate.app');
 
 const isSingleInstance = app.requestSingleInstanceLock();
 if (!isSingleInstance) {
@@ -70,7 +77,10 @@ function createMainWindow(): void {
   // app can fully quit on Windows/Linux instead of lingering with only
   // taskbar-less widget windows (they're persisted and restored next launch).
   win.on('closed', () => {
-    if (process.platform !== 'darwin') widgetManager.closeAll();
+    if (process.platform !== 'darwin') {
+      widgetManager.closeAll();
+      promptBuildWidgetManager.closeAll();
+    }
   });
 
   if (process.env.ELECTRON_RENDERER_URL) {
@@ -122,6 +132,7 @@ function registerAllIpcHandlers(): void {
   registerRemoteHandlers();
   registerUsageHandlers();
   registerBackupHandlers();
+  registerPromptBuildWidgetHandlers();
 }
 
 app.whenReady().then(() => {
@@ -168,6 +179,7 @@ app.whenReady().then(() => {
   void startHookServer();
   createMainWindow();
   void widgetManager.restoreAll();
+  void promptBuildWidgetManager.restoreAll();
   startResetAlertWatcher();
   startThresholdAlertWatcher();
   startHourlyUpdateChecks();

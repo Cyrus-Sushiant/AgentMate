@@ -1,5 +1,7 @@
 import { readFile, writeFile } from 'node:fs/promises';
+import { extname } from 'node:path';
 import { app, dialog, ipcMain } from 'electron';
+import AdmZip from 'adm-zip';
 import type {
   ActivityEvent,
   AppSettings,
@@ -20,6 +22,7 @@ import { store } from '../store';
 import { promptHistoryDb } from '../promptHistoryDb';
 
 const BACKUP_VERSION = 1;
+const ZIP_ENTRY_NAME = 'backup.json';
 
 interface BackupEnvelope {
   version: number;
@@ -45,10 +48,15 @@ function isBackupEnvelope(value: unknown): value is BackupEnvelope {
 }
 
 export function registerBackupHandlers(): void {
-  ipcMain.handle(IPC.backup.export, async (): Promise<BackupExportResult> => {
+  ipcMain.handle(IPC.backup.export, async (_event, compress: boolean): Promise<BackupExportResult> => {
+    const dateStamp = new Date().toISOString().slice(0, 10);
     const result = await dialog.showSaveDialog({
-      defaultPath: `agentmate-backup-${new Date().toISOString().slice(0, 10)}.json`,
-      filters: [{ name: 'AgentMate Backup', extensions: ['json'] }],
+      defaultPath: compress
+        ? `agentmate-backup-${dateStamp}.zip`
+        : `agentmate-backup-${dateStamp}.json`,
+      filters: compress
+        ? [{ name: 'AgentMate Backup (zip)', extensions: ['zip'] }]
+        : [{ name: 'AgentMate Backup', extensions: ['json'] }],
     });
     if (result.canceled || !result.filePath) return { ok: false };
 
@@ -68,21 +76,33 @@ export function registerBackupHandlers(): void {
         promptHistory: promptHistoryDb.exportAll(),
       },
     };
+    const json = JSON.stringify(envelope, null, 2);
 
-    await writeFile(result.filePath, JSON.stringify(envelope, null, 2), 'utf-8');
+    if (compress) {
+      const zip = new AdmZip();
+      zip.addFile(ZIP_ENTRY_NAME, Buffer.from(json, 'utf-8'));
+      zip.writeZip(result.filePath);
+    } else {
+      await writeFile(result.filePath, json, 'utf-8');
+    }
     return { ok: true, path: result.filePath };
   });
 
   ipcMain.handle(IPC.backup.import, async (): Promise<BackupImportResult> => {
     const result = await dialog.showOpenDialog({
       properties: ['openFile'],
-      filters: [{ name: 'AgentMate Backup', extensions: ['json'] }],
+      filters: [{ name: 'AgentMate Backup', extensions: ['json', 'zip'] }],
     });
     if (result.canceled || result.filePaths.length === 0) return { ok: false };
 
     let parsed: unknown;
     try {
-      parsed = JSON.parse(await readFile(result.filePaths[0], 'utf-8'));
+      const filePath = result.filePaths[0];
+      const raw =
+        extname(filePath).toLowerCase() === '.zip'
+          ? new AdmZip(filePath).readAsText(ZIP_ENTRY_NAME)
+          : await readFile(filePath, 'utf-8');
+      parsed = JSON.parse(raw);
     } catch {
       return { ok: false, error: 'Could not read that file.' };
     }
