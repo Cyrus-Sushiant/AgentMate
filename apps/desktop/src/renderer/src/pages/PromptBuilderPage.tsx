@@ -295,8 +295,12 @@ export default function PromptBuilderPage(): React.JSX.Element {
         targetAI: isTranslation ? '' : targetAI,
         content,
         source,
+        projectId,
       });
       void queryClient.invalidateQueries({ queryKey: queryKeys.promptHistory });
+      if (projectId) {
+        void queryClient.invalidateQueries({ queryKey: queryKeys.projectPromptHistory(projectId) });
+      }
     } catch {
       // History logging is best-effort — a failure here shouldn't interrupt the user's flow.
     }
@@ -418,9 +422,9 @@ export default function PromptBuilderPage(): React.JSX.Element {
   return (
     <div className="mx-auto flex h-full min-h-0 w-full max-w-6xl flex-1 flex-col p-6">
       <Card className="flex h-full min-h-0 flex-1 flex-col overflow-hidden">
-        <CardContent className="grid h-full min-h-0 flex-1 grid-cols-1 gap-6 overflow-hidden p-5 lg:grid-cols-2">
+        <CardContent className="flex h-full min-h-0 flex-1 flex-col gap-6 overflow-hidden p-5 lg:flex-row">
           <div className="flex h-full min-h-0 flex-1 flex-col space-y-3 overflow-y-auto">
-            <div className="flex min-h-0 flex-1 flex-col space-y-2">
+            <div className="flex flex-1 flex-col space-y-2">
               <div className="flex items-center justify-between">
                 <Label htmlFor="raw-input">Your request</Label>
                 {voice.supported && (
