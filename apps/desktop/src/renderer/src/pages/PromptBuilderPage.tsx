@@ -395,6 +395,11 @@ export default function PromptBuilderPage(): React.JSX.Element {
     toast.success('Copied to clipboard.');
   }
 
+  function handleClear(): void {
+    setRawInput('');
+    setGenerated('');
+  }
+
   async function handleExportMarkdown(): Promise<void> {
     const savedPath = await window.agentmat.fs.saveFileAs('prompt.md', generated);
     if (savedPath) toast.success(`Saved to ${savedPath}`);
@@ -638,10 +643,17 @@ export default function PromptBuilderPage(): React.JSX.Element {
               onChange={setGenerated}
               className="min-h-0 flex-1"
             />
-            <div className="flex flex-wrap gap-2">
-              <Button variant="outline" size="sm" disabled={!generated} onClick={() => void handleCopy()}>
-                <Copy /> Copy
-              </Button>
+            <div className="flex flex-wrap items-center gap-2">
+              <SimpleTooltip label="Copy">
+                <Button
+                  variant="outline"
+                  size="icon"
+                  disabled={!generated}
+                  onClick={() => void handleCopy()}
+                >
+                  <Copy />
+                </Button>
+              </SimpleTooltip>
               <Button
                 variant="outline"
                 size="sm"
@@ -666,6 +678,17 @@ export default function PromptBuilderPage(): React.JSX.Element {
               >
                 <Download /> Export Markdown
               </Button>
+              <SimpleTooltip label="Clear">
+                <Button
+                  variant="outline"
+                  size="icon"
+                  disabled={!rawInput && !generated}
+                  onClick={handleClear}
+                  className="ml-auto"
+                >
+                  <Trash2 />
+                </Button>
+              </SimpleTooltip>
             </div>
           </div>
         </CardContent>
