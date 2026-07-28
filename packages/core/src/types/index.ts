@@ -2,6 +2,7 @@ import type {
   DesktopWidgetInstance,
   UsageProviderConfig,
   UsageResetAlertSettings,
+  UsageThresholdAlertSettings,
   WidgetMode,
 } from '../usage/types.js';
 
@@ -79,6 +80,8 @@ export interface AppSettings {
   usageCardModes: Record<string, WidgetMode>;
   /** Telegram announcement when a Claude Code rate-limit window resets; toggled on the Token Usage page. */
   usageResetAlerts: UsageResetAlertSettings;
+  /** OS notification (in-app toast fallback) when a rate-limit window crosses a percent threshold. */
+  usageThresholdAlerts: UsageThresholdAlertSettings;
 }
 
 export type AgentType = 'claude-code' | 'gemini' | 'opencode' | 'codex' | 'cursor' | 'generic';

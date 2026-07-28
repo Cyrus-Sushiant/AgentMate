@@ -111,3 +111,10 @@ export function clearUsageCache(): void {
   clearLiveWindowCache();
   clearCursorAccountCache();
 }
+
+/** Same as {@link clearUsageCache}, scoped to one provider — used by per-card refresh. */
+export function clearProviderUsageCache(providerId: string): void {
+  cache.delete(providerId);
+  if (providerId === 'claude-code') clearLiveWindowCache();
+  if (providerId === 'cursor') clearCursorAccountCache();
+}

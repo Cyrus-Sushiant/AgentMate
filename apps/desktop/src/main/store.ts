@@ -14,7 +14,9 @@ import type {
 import {
   defaultProjectNotifications,
   defaultUsageResetAlerts,
+  defaultUsageThresholdAlerts,
   normalizeUsageResetAlerts,
+  normalizeUsageThresholdAlerts,
 } from '@agentmat/core';
 import type { SkillRepository } from '@agentmat/core';
 import type { McpRepository } from '@agentmat/core';
@@ -67,6 +69,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   usageCardOrder: [],
   usageCardModes: {},
   usageResetAlerts: defaultUsageResetAlerts(),
+  usageThresholdAlerts: defaultUsageThresholdAlerts(),
 };
 
 /**
@@ -81,7 +84,11 @@ function withSettingsMigrations(settings: AppSettings): AppSettings {
   const windows = alerts.windows.map((key) =>
     String(key) === 'week-opus' ? ('week-fable' as const) : key,
   );
-  return { ...settings, usageResetAlerts: { ...alerts, windows: [...new Set(windows)] } };
+  return {
+    ...settings,
+    usageResetAlerts: { ...alerts, windows: [...new Set(windows)] },
+    usageThresholdAlerts: normalizeUsageThresholdAlerts(settings.usageThresholdAlerts),
+  };
 }
 
 /** Older projects.json entries predate the notifications and prompt fields. */

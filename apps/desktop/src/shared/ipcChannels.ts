@@ -5,6 +5,11 @@ export const IPC = {
     downloadUpdate: 'app:downloadUpdate',
     quitAndInstall: 'app:quitAndInstall',
     onUpdateStatus: 'app:onUpdateStatus',
+    relaunch: 'app:relaunch',
+  },
+  backup: {
+    export: 'backup:export',
+    import: 'backup:import',
   },
   cli: {
     detectAll: 'cli:detectAll',
@@ -194,6 +199,11 @@ export const IPC = {
     setWidgetMode: 'usage:setWidgetMode',
     setResetAlerts: 'usage:setResetAlerts',
     testResetAlert: 'usage:testResetAlert',
+    setThresholdAlerts: 'usage:setThresholdAlerts',
+    testThresholdAlert: 'usage:testThresholdAlert',
+    // main -> renderer: threshold alert fired but the OS has no notification
+    // centre to show it, so the renderer shows a toast instead.
+    onThresholdAlert: 'usage:onThresholdAlert',
     // main -> widget window: instance changed, re-read it
     onWidgetUpdated: 'usage:widgetUpdated',
   },

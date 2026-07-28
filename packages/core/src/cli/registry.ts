@@ -132,6 +132,13 @@ export const CLI_REGISTRY: CliDefinition[] = [
       darwin: 'curl https://cursor.com/install -fsS | bash',
       linux: 'curl https://cursor.com/install -fsS | bash',
     },
+    // The CLI ships its own self-updater; re-running the install script would work too, but
+    // this is the documented path and avoids re-downloading the whole installer.
+    updateCommand: {
+      win32: 'cursor-agent update',
+      darwin: 'cursor-agent update',
+      linux: 'cursor-agent update',
+    },
     supportedOS: ['win32', 'darwin', 'linux'],
   },
   {
@@ -199,6 +206,12 @@ export const CLI_REGISTRY: CliDefinition[] = [
     installCommand: {
       darwin: 'curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh | bash',
       linux: 'curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh | bash',
+    },
+    // `goose update` is the built-in self-updater — faster and more reliable than re-running
+    // the install script.
+    updateCommand: {
+      darwin: 'goose update',
+      linux: 'goose update',
     },
     updateCheck: { type: 'github-release', package: 'block/goose' },
     supportedOS: ['darwin', 'linux'],

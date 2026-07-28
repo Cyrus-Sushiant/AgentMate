@@ -4,6 +4,8 @@ import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import {
   Blocks,
+  Download,
+  HardDrive,
   Languages,
   MessageSquare,
   Microphone,
@@ -14,6 +16,7 @@ import {
   SatelliteDish,
   Send,
   Sun,
+  Upload,
 } from '@/components/icons';
 import { CLI_REGISTRY } from '@agentmat/core';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -27,6 +30,7 @@ import { useCliStore } from '@/stores/cliStore';
 import { useThemeStore } from '@/stores/themeStore';
 import { usePingTargetsStore } from '@/stores/pingTargetsStore';
 import { useUpdateStore } from '@/stores/updateStore';
+import { confirmDialog } from '@/stores/confirmStore';
 import type { AiProvider, ThemeMode } from '@agentmat/core';
 import { cn } from '@/lib/utils';
 
@@ -249,6 +253,48 @@ export default function SettingsPage(): React.JSX.Element {
       void queryClient.invalidateQueries({ queryKey: queryKeys.settings });
     },
   });
+
+  const [exportingBackup, setExportingBackup] = useState(false);
+  const [importingBackup, setImportingBackup] = useState(false);
+
+  async function handleExportBackup(): Promise<void> {
+    setExportingBackup(true);
+    try {
+      const result = await window.agentmat.backup.export();
+      if (result.ok && result.path) toast.success(`Backup saved to ${result.path}`);
+    } finally {
+      setExportingBackup(false);
+    }
+  }
+
+  async function handleImportBackup(): Promise<void> {
+    const confirmed = await confirmDialog({
+      title: 'Restore from backup?',
+      description:
+        "This replaces your current projects, settings, templates, and other AgentMate data with a backup file's contents. This cannot be undone.",
+      confirmLabel: 'Choose backup file…',
+      variant: 'destructive',
+    });
+    if (!confirmed) return;
+
+    setImportingBackup(true);
+    try {
+      const result = await window.agentmat.backup.import();
+      if (!result.ok) {
+        if (result.error) toast.error(result.error);
+        return;
+      }
+      const restart = await confirmDialog({
+        title: 'Backup restored',
+        description: 'AgentMate needs to restart to load the restored data.',
+        confirmLabel: 'Restart now',
+        cancelLabel: 'Later',
+      });
+      if (restart) void window.agentmat.app.relaunch();
+    } finally {
+      setImportingBackup(false);
+    }
+  }
 
   const updateStatus = useUpdateStore((s) => s.status);
   const checkingForUpdates = updateStatus.state === 'checking';
@@ -682,6 +728,27 @@ export default function SettingsPage(): React.JSX.Element {
               <Send className="h-4 w-4" /> {sendingTest ? 'Sending…' : 'Send test message'}
             </Button>
           </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <HardDrive className="h-4 w-4" /> Backup &amp; Restore
+          </CardTitle>
+          <CardDescription>
+            Export a single file with your projects, settings, templates, and other AgentMate data
+            — including any saved API keys and bot tokens, so keep it somewhere private. Restoring
+            replaces everything currently on this machine.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="flex gap-2">
+          <Button variant="outline" disabled={exportingBackup} onClick={() => void handleExportBackup()}>
+            <Download className="h-4 w-4" /> {exportingBackup ? 'Exporting…' : 'Export backup'}
+          </Button>
+          <Button variant="outline" disabled={importingBackup} onClick={() => void handleImportBackup()}>
+            <Upload className="h-4 w-4" /> {importingBackup ? 'Restoring…' : 'Restore from backup…'}
+          </Button>
         </CardContent>
       </Card>
 

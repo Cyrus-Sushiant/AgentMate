@@ -4,6 +4,7 @@ import icon from '../../resources/icon.ico?asset';
 import { registerActivityHandlers } from './ipc/activity';
 import { registerAiHandlers } from './ipc/ai';
 import { registerAppHandlers } from './ipc/app';
+import { registerBackupHandlers } from './ipc/backup';
 import { registerCliDetectionHandlers } from './ipc/cliDetection';
 import { registerFileSystemHandlers } from './ipc/fileSystem';
 import { registerGitHandlers } from './ipc/git';
@@ -30,6 +31,7 @@ import { registerWindowHandlers } from './ipc/window';
 import { seedExampleRepositoryIfEmpty } from './exampleSkillRepo';
 import { startHookServer, stopHookServer } from './notifications/hookServer';
 import { startResetAlertWatcher, stopResetAlertWatcher } from './usage/resetAlerts';
+import { startThresholdAlertWatcher, stopThresholdAlertWatcher } from './usage/thresholdAlerts';
 import { remoteManager } from './remote/manager';
 import { startHourlyUpdateChecks } from './updater';
 
@@ -119,6 +121,7 @@ function registerAllIpcHandlers(): void {
   registerGitHandlers();
   registerRemoteHandlers();
   registerUsageHandlers();
+  registerBackupHandlers();
 }
 
 app.whenReady().then(() => {
@@ -166,6 +169,7 @@ app.whenReady().then(() => {
   createMainWindow();
   void widgetManager.restoreAll();
   startResetAlertWatcher();
+  startThresholdAlertWatcher();
   startHourlyUpdateChecks();
 
   app.on('activate', () => {
@@ -190,5 +194,6 @@ app.on('before-quit', () => {
   killAllTerminalSessions();
   stopHookServer();
   stopResetAlertWatcher();
+  stopThresholdAlertWatcher();
   remoteManager.shutdown();
 });

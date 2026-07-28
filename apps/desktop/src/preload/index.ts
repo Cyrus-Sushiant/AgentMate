@@ -23,6 +23,7 @@ import type {
   ProviderUsage,
   UsageProviderConfig,
   UsageResetAlertSettings,
+  UsageThresholdAlertSettings,
   DesktopWidgetInstance,
   WidgetMode,
   WidgetSize,
@@ -44,6 +45,8 @@ import type {
   InstallFromSkillsShInput,
   AddPromptHistoryInput,
   PromptHistoryEntry,
+  BackupExportResult,
+  BackupImportResult,
   TranslateTextInput,
   TranscribeAudioInput,
   TranscribeAudioResult,
@@ -92,6 +95,12 @@ const appInfo = {
     ipcRenderer.on(IPC.app.onUpdateStatus, listener);
     return () => ipcRenderer.removeListener(IPC.app.onUpdateStatus, listener);
   },
+  relaunch: (): Promise<void> => ipcRenderer.invoke(IPC.app.relaunch),
+};
+
+const backup = {
+  export: (): Promise<BackupExportResult> => ipcRenderer.invoke(IPC.backup.export),
+  import: (): Promise<BackupImportResult> => ipcRenderer.invoke(IPC.backup.import),
 };
 
 const cli = {
@@ -427,6 +436,12 @@ const usage = {
     ipcRenderer.invoke(IPC.usage.setResetAlerts, alerts),
   testResetAlert: (): Promise<{ ok: boolean; error?: string }> =>
     ipcRenderer.invoke(IPC.usage.testResetAlert),
+  setThresholdAlerts: (alerts: UsageThresholdAlertSettings): Promise<void> =>
+    ipcRenderer.invoke(IPC.usage.setThresholdAlerts, alerts),
+  testThresholdAlert: (): Promise<{ ok: boolean; error?: string }> =>
+    ipcRenderer.invoke(IPC.usage.testThresholdAlert),
+  onThresholdAlert: (callback: (payload: { title: string; body: string }) => void): (() => void) =>
+    subscribe(IPC.usage.onThresholdAlert, callback),
   listWidgets: (): Promise<DesktopWidgetInstance[]> => ipcRenderer.invoke(IPC.usage.listWidgets),
   getWidget: (id: string): Promise<DesktopWidgetInstance | null> =>
     ipcRenderer.invoke(IPC.usage.getWidget, id),
@@ -487,6 +502,7 @@ const agentmatApi = {
   git,
   remote,
   usage,
+  backup,
 };
 
 export type AgentmatApi = typeof agentmatApi;

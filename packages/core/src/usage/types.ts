@@ -239,6 +239,48 @@ export function normalizeUsageResetAlerts(
   };
 }
 
+// --- Usage threshold alerts ------------------------------------------------
+
+/**
+ * OS notification fired the moment a subscription window's consumption
+ * crosses a percentage the user picked (e.g. 90%). Unlike reset alerts there
+ * is no schedule to reconstruct — each poll just compares the window's
+ * current `percent` against `threshold`.
+ */
+export interface UsageThresholdAlertSettings {
+  enabled: boolean;
+  /** Provider whose windows are watched. Only Claude Code reports them today. */
+  providerId: string;
+  /** Windows to watch; a window missing from the account's plan is skipped. */
+  windows: SubscriptionWindowKey[];
+  /** 0–100. Fires once a watched window's percent reaches this value. */
+  threshold: number;
+}
+
+export function defaultUsageThresholdAlerts(): UsageThresholdAlertSettings {
+  return { enabled: false, providerId: 'claude-code', windows: ['session'], threshold: 90 };
+}
+
+/**
+ * A threshold-alert block that is safe to read fields off, for the same
+ * reason `normalizeUsageResetAlerts` exists: settings.json can be hand-edited
+ * or written by an older build, so anything unusable falls back to the
+ * default rather than reaching the UI or the watcher as `undefined`.
+ */
+export function normalizeUsageThresholdAlerts(
+  alerts: Partial<UsageThresholdAlertSettings> | null | undefined,
+): UsageThresholdAlertSettings {
+  const defaults = defaultUsageThresholdAlerts();
+  if (!alerts || typeof alerts !== 'object') return defaults;
+  const threshold = Number(alerts.threshold);
+  return {
+    enabled: alerts.enabled === true,
+    providerId: alerts.providerId || defaults.providerId,
+    windows: Array.isArray(alerts.windows) ? alerts.windows : defaults.windows,
+    threshold: Number.isFinite(threshold) ? Math.min(100, Math.max(1, threshold)) : defaults.threshold,
+  };
+}
+
 /** Per-provider user configuration (enabled + optional API key). */
 export interface UsageProviderConfig {
   enabled: boolean;

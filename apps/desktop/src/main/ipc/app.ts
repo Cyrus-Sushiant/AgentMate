@@ -15,4 +15,8 @@ export function registerAppHandlers(): void {
   ipcMain.handle(IPC.app.checkForUpdates, (): Promise<UpdateStatus> => checkForUpdates(true));
   ipcMain.handle(IPC.app.downloadUpdate, (): Promise<void> => downloadUpdate());
   ipcMain.handle(IPC.app.quitAndInstall, (): void => quitAndInstall());
+  ipcMain.handle(IPC.app.relaunch, (): void => {
+    app.relaunch();
+    app.exit(0);
+  });
 }

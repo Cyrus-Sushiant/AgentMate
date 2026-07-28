@@ -125,4 +125,37 @@ export const promptHistoryDb = {
       .prepare('UPDATE prompt_history SET tags = @tags WHERE id = @id')
       .run({ id, tags: JSON.stringify(tags) });
   },
+
+  /** Full table, unlike `list()` which caps at 200 — used for backup export. */
+  exportAll(): PromptHistoryEntry[] {
+    const rows = getDb()
+      .prepare('SELECT * FROM prompt_history ORDER BY created_at DESC')
+      .all() as PromptHistoryRow[];
+    return rows.map(rowToEntry);
+  },
+
+  /** Replaces the entire table with `entries` — used for backup restore. */
+  importAll(entries: PromptHistoryEntry[]): void {
+    const database = getDb();
+    const insert = database.prepare(
+      `INSERT INTO prompt_history (id, raw_input, prompt_type, target_ai, content, source, tags, project_id, created_at)
+       VALUES (@id, @rawInput, @promptType, @targetAI, @content, @source, @tags, @projectId, @createdAt)`,
+    );
+    database.transaction((rows: PromptHistoryEntry[]) => {
+      database.prepare('DELETE FROM prompt_history').run();
+      for (const entry of rows) {
+        insert.run({
+          id: entry.id,
+          rawInput: entry.rawInput,
+          promptType: entry.promptType,
+          targetAI: entry.targetAI,
+          content: entry.content,
+          source: entry.source,
+          tags: JSON.stringify(entry.tags ?? []),
+          projectId: entry.projectId ?? null,
+          createdAt: entry.createdAt,
+        });
+      }
+    })(entries);
+  },
 };

@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { HashRouter, Route, Routes } from 'react-router-dom';
-import { Toaster } from 'sonner';
+import { Toaster, toast } from 'sonner';
 import { TooltipProvider } from './components/ui/tooltip';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { ConfirmDialogHost } from './components/ConfirmDialog';
@@ -52,7 +52,16 @@ export default function App(): React.JSX.Element {
     void initPingTargets();
     void initDashboardLayout();
     initRemote();
-    return initUpdateStatusListener();
+    // Usage threshold alerts prefer an OS notification; main only falls back
+    // to this event when the platform has none to show.
+    const unsubscribeThresholdAlert = window.agentmat.usage.onThresholdAlert(({ title, body }) => {
+      toast.warning(title, { description: body });
+    });
+    const unsubscribeUpdateStatus = initUpdateStatusListener();
+    return () => {
+      unsubscribeThresholdAlert();
+      unsubscribeUpdateStatus();
+    };
   }, []);
 
   return (

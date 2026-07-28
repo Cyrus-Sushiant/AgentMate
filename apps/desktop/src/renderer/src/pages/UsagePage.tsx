@@ -8,23 +8,28 @@ import {
   getUsageProvider,
   isAutoConnected,
   normalizeUsageResetAlerts,
+  normalizeUsageThresholdAlerts,
   type ProviderUsage,
   type SubscriptionWindowKey,
   type UsageProviderConfig,
   type UsageResetAlertSettings,
+  type UsageThresholdAlertSettings,
   type WidgetMode,
 } from '@agentmat/core';
 import {
   Bell,
   Bolt,
   ChartColumn,
+  Check,
   Clock,
   GripVertical,
   LayoutDashboard,
+  Pencil,
   Pin,
   Plus,
   RefreshCw,
   Send,
+  TriangleAlert,
   X,
 } from '@/components/icons';
 import { Card, CardContent } from '@/components/ui/card';
@@ -81,7 +86,11 @@ export default function UsagePage(): React.JSX.Element {
   const queryClient = useQueryClient();
   const [addOpen, setAddOpen] = useState(false);
   const [alertsOpen, setAlertsOpen] = useState(false);
+  const [thresholdAlertsOpen, setThresholdAlertsOpen] = useState(false);
   const [dragId, setDragId] = useState<string | null>(null);
+  // Off by default so the drag handle doesn't clutter the everyday view — same
+  // pattern as the Dashboard's layout-edit mode.
+  const [editing, setEditing] = useState(false);
 
   const settingsQuery = useQuery({
     queryKey: queryKeys.settings,
@@ -100,6 +109,7 @@ export default function UsagePage(): React.JSX.Element {
   const configs = settings?.usageProviderConfigs ?? {};
   const cardModes = settings?.usageCardModes ?? {};
   const resetAlerts = normalizeUsageResetAlerts(settings?.usageResetAlerts);
+  const thresholdAlerts = normalizeUsageThresholdAlerts(settings?.usageThresholdAlerts);
   const displayedIds = useMemo(
     () => orderedProviderIds(settings?.usageCardOrder ?? [], settings?.usageProviderConfigs ?? {}),
     [settings],
@@ -214,6 +224,23 @@ export default function UsagePage(): React.JSX.Element {
     toast.success('You will get a Telegram message when the window resets.');
   }
 
+  async function saveThresholdAlerts(next: UsageThresholdAlertSettings): Promise<void> {
+    await window.agentmat.usage.setThresholdAlerts(next);
+    await queryClient.invalidateQueries({ queryKey: queryKeys.settings });
+  }
+
+  /** The switch inside the threshold-alert dialog, opened from the provider's card. */
+  async function toggleThresholdAlerts(enabled: boolean): Promise<void> {
+    await saveThresholdAlerts({ ...thresholdAlerts, enabled });
+    if (!enabled) {
+      toast.info('Threshold alerts turned off.');
+      return;
+    }
+    toast.success(
+      `You'll get a notification at ${thresholdAlerts.threshold}% usage.`,
+    );
+  }
+
   return (
     <div className="space-y-6 p-6">
       <div className="flex flex-wrap items-center gap-2">
@@ -223,6 +250,17 @@ export default function UsagePage(): React.JSX.Element {
         <Button variant="outline" onClick={() => void refreshAll()}>
           <RefreshCw className={usageQuery.isFetching ? 'animate-spin' : undefined} /> Refresh
         </Button>
+        <SimpleTooltip label={editing ? 'Done editing' : 'Edit card order'}>
+          <Button
+            variant={editing ? 'default' : 'outline'}
+            size="icon"
+            className="ml-auto"
+            aria-label={editing ? 'Done editing' : 'Edit card order'}
+            onClick={() => setEditing(!editing)}
+          >
+            {editing ? <Check className="h-4 w-4" /> : <Pencil className="h-4 w-4" />}
+          </Button>
+        </SimpleTooltip>
       </div>
 
       {/* Summary tiles — each waits on its own query rather than the page. */}
@@ -299,6 +337,7 @@ export default function UsagePage(): React.JSX.Element {
           // Reset alerts watch one provider's rolling windows, so the control
           // belongs on that provider's card rather than in the page toolbar.
           const ownsResetAlerts = id === resetAlerts.providerId;
+          const ownsThresholdAlerts = id === thresholdAlerts.providerId;
           return (
             <motion.div key={id} layout transition={{ type: 'spring', stiffness: 400, damping: 35 }}>
               <Card
@@ -319,18 +358,20 @@ export default function UsagePage(): React.JSX.Element {
                         </Badge>
                       )}
                     </div>
-                    <SimpleTooltip label="Drag to reorder">
-                      <span
-                        draggable
-                        onDragStart={(e) => {
-                          e.dataTransfer.effectAllowed = 'move';
-                          setDragId(id);
-                        }}
-                        className="cursor-grab text-muted-foreground/50 hover:text-foreground active:cursor-grabbing"
-                      >
-                        <GripVertical className="h-3.5 w-3.5" />
-                      </span>
-                    </SimpleTooltip>
+                    {editing && (
+                      <SimpleTooltip label="Drag to reorder">
+                        <span
+                          draggable
+                          onDragStart={(e) => {
+                            e.dataTransfer.effectAllowed = 'move';
+                            setDragId(id);
+                          }}
+                          className="cursor-grab text-muted-foreground/50 hover:text-foreground active:cursor-grabbing"
+                        >
+                          <GripVertical className="h-3.5 w-3.5" />
+                        </span>
+                      </SimpleTooltip>
+                    )}
                     {ownsResetAlerts && (
                       <SimpleTooltip
                         label={
@@ -349,6 +390,25 @@ export default function UsagePage(): React.JSX.Element {
                           onClick={() => setAlertsOpen(true)}
                         >
                           <Bell className="h-3.5 w-3.5" />
+                        </Button>
+                      </SimpleTooltip>
+                    )}
+                    {ownsThresholdAlerts && (
+                      <SimpleTooltip
+                        label={
+                          thresholdAlerts.enabled
+                            ? `Usage threshold alert · on · ${thresholdAlerts.threshold}%`
+                            : 'Usage threshold alert · off'
+                        }
+                      >
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          disabled={!settings}
+                          className={thresholdAlerts.enabled ? 'text-primary' : undefined}
+                          onClick={() => setThresholdAlertsOpen(true)}
+                        >
+                          <TriangleAlert className="h-3.5 w-3.5" />
                         </Button>
                       </SimpleTooltip>
                     )}
@@ -438,6 +498,15 @@ export default function UsagePage(): React.JSX.Element {
         nextResetAt={nextReset?.resetAt}
         onSave={saveResetAlerts}
         onToggle={toggleResetAlerts}
+      />
+
+      <ThresholdAlertDialog
+        open={thresholdAlertsOpen}
+        onOpenChange={setThresholdAlertsOpen}
+        alerts={thresholdAlerts}
+        usage={usageById.get(thresholdAlerts.providerId)}
+        onSave={saveThresholdAlerts}
+        onToggle={toggleThresholdAlerts}
       />
     </div>
   );
@@ -597,6 +666,132 @@ function ResetAlertDialog({
             Leave empty to reuse the notification chat from Settings. The bot token always comes
             from there.
           </p>
+        </div>
+
+        <Button variant="outline" disabled={testing} onClick={() => void sendTest()}>
+          <Send className="h-3.5 w-3.5" /> {testing ? 'Sending…' : 'Send a test alert'}
+        </Button>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function ThresholdAlertDialog({
+  open,
+  onOpenChange,
+  alerts,
+  usage,
+  onSave,
+  onToggle,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  alerts: UsageThresholdAlertSettings;
+  usage: ProviderUsage | undefined;
+  onSave: (next: UsageThresholdAlertSettings) => Promise<void>;
+  onToggle: (enabled: boolean) => Promise<void>;
+}): React.JSX.Element {
+  const [threshold, setThreshold] = useState(String(alerts.threshold));
+  const [testing, setTesting] = useState(false);
+  const providerName = getUsageProvider(alerts.providerId)?.name ?? alerts.providerId;
+  const reported = new Set(usage?.subscription?.windows?.map((w) => w.key));
+
+  function toggleWindow(key: SubscriptionWindowKey): void {
+    const next = alerts.windows.includes(key)
+      ? alerts.windows.filter((k) => k !== key)
+      : [...alerts.windows, key];
+    void onSave({ ...alerts, windows: next });
+  }
+
+  function commitThreshold(): void {
+    const parsed = Number(threshold);
+    const clamped = Number.isFinite(parsed) ? Math.min(100, Math.max(1, Math.round(parsed))) : alerts.threshold;
+    setThreshold(String(clamped));
+    if (clamped !== alerts.threshold) void onSave({ ...alerts, threshold: clamped });
+  }
+
+  async function sendTest(): Promise<void> {
+    setTesting(true);
+    try {
+      const result = await window.agentmat.usage.testThresholdAlert();
+      if (result.ok) toast.success('Test alert sent — check for an OS notification.');
+      else toast.error(result.error ?? 'Could not send the test alert.');
+    } finally {
+      setTesting(false);
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Usage threshold alert</DialogTitle>
+          <DialogDescription>
+            Get notified the moment {providerName} crosses a usage percentage you pick — an OS
+            notification where supported, or an in-app alert otherwise.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="flex items-center gap-3 rounded-lg border border-border bg-card/60 px-3 py-2">
+          <TriangleAlert className="h-4 w-4 shrink-0 text-muted-foreground" />
+          <div className="min-w-0 flex-1">
+            <Label htmlFor="usage-threshold-alerts" className="cursor-pointer text-sm font-medium">
+              Notify at threshold
+            </Label>
+            <div className="text-xs text-muted-foreground">
+              {alerts.enabled
+                ? `Fires once when a watched window reaches ${alerts.threshold}%`
+                : 'Off — no notification is sent as usage climbs'}
+            </div>
+          </div>
+          <Switch
+            id="usage-threshold-alerts"
+            checked={alerts.enabled}
+            onCheckedChange={(checked) => void onToggle(checked)}
+          />
+        </div>
+
+        <div className={cn('space-y-1.5', !alerts.enabled && 'opacity-60')}>
+          <Label htmlFor="usage-threshold-value">Threshold (%)</Label>
+          <Input
+            id="usage-threshold-value"
+            type="number"
+            min={1}
+            max={100}
+            value={threshold}
+            onChange={(e) => setThreshold(e.target.value)}
+            onBlur={commitThreshold}
+            className="w-24"
+          />
+        </div>
+
+        <div className={cn('space-y-2', !alerts.enabled && 'opacity-60')}>
+          {RESET_WINDOW_OPTIONS.map((option) => {
+            const unavailable = usage != null && !reported.has(option.key);
+            return (
+              <div
+                key={option.key}
+                className="flex items-center gap-3 rounded-lg border border-border bg-card/60 px-3 py-2"
+              >
+                <div className="min-w-0 flex-1">
+                  <Label
+                    htmlFor={`threshold-window-${option.key}`}
+                    className="cursor-pointer text-sm font-medium"
+                  >
+                    {option.label}
+                  </Label>
+                  <div className="text-xs text-muted-foreground">
+                    {unavailable ? 'Your plan does not report this window' : option.hint}
+                  </div>
+                </div>
+                <Switch
+                  id={`threshold-window-${option.key}`}
+                  checked={alerts.windows.includes(option.key)}
+                  onCheckedChange={() => toggleWindow(option.key)}
+                />
+              </div>
+            );
+          })}
         </div>
 
         <Button variant="outline" disabled={testing} onClick={() => void sendTest()}>

@@ -149,6 +149,17 @@ export interface AddPromptHistoryInput {
   projectId?: string | null;
 }
 
+export interface BackupExportResult {
+  ok: boolean;
+  /** Absolute path the backup was written to; unset when the save dialog was canceled. */
+  path?: string;
+}
+
+export interface BackupImportResult {
+  ok: boolean;
+  error?: string;
+}
+
 export interface TranslateTextInput {
   text: string;
   targetLang: string;

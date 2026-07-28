@@ -3,6 +3,7 @@ import type {
   DesktopWidgetInstance,
   ProviderUsage,
   UsageResetAlertSettings,
+  UsageThresholdAlertSettings,
   WidgetMode,
   WidgetSize,
   WidgetStyle,
@@ -10,9 +11,10 @@ import type {
 import { IPC } from '../../shared/ipcChannels';
 import type { SetUsageProviderConfigInput } from '../../shared/apiTypes';
 import { store } from '../store';
-import { clearUsageCache, getAllUsage, getProviderUsage } from '../usage';
+import { clearProviderUsageCache, clearUsageCache, getAllUsage, getProviderUsage } from '../usage';
 import { widgetManager } from '../usage/widgetWindows';
 import { refreshResetAlerts, sendResetAlertTest } from '../usage/resetAlerts';
+import { sendThresholdAlertTest } from '../usage/thresholdAlerts';
 
 export function registerUsageHandlers(): void {
   ipcMain.handle(IPC.usage.list, async (): Promise<ProviderUsage[]> => {
@@ -57,6 +59,20 @@ export function registerUsageHandlers(): void {
   ipcMain.handle(
     IPC.usage.testResetAlert,
     (): Promise<{ ok: boolean; error?: string }> => sendResetAlertTest(),
+  );
+
+  // --- Threshold alerts (OS notification, in-app toast fallback) ---
+  ipcMain.handle(
+    IPC.usage.setThresholdAlerts,
+    async (_e, alerts: UsageThresholdAlertSettings): Promise<void> => {
+      const settings = await store.getSettings();
+      await store.setSettings({ ...settings, usageThresholdAlerts: alerts });
+    },
+  );
+
+  ipcMain.handle(
+    IPC.usage.testThresholdAlert,
+    (): Promise<{ ok: boolean; error?: string }> => sendThresholdAlertTest(),
   );
 
   // --- Desktop widget windows ---
