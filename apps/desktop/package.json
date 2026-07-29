@@ -2,11 +2,11 @@
   "name": "@agentmat/desktop",
   "private": true,
   "version": "1.0.0",
-  "description": "AgentMate desktop application (Electron)",
+  "description": "AgentMate desktop application",
   "homepage": "https://github.com/Cyrus-Sushiant/AgentMate",
   "author": {
-    "name": "Mohammad Aminsafaei",
-    "email": "m.aminsafaei@outlook.com"
+    "name": "SmartClouds",
+    "email": "info@smartclouds.co"
   },
   "main": "./out/main/index.mjs",
   "scripts": {
