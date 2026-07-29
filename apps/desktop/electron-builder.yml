@@ -1,5 +1,6 @@
 appId: com.agentmate.app
 productName: AgentMate
+executableName: AgentMate
 directories:
   output: release
 
