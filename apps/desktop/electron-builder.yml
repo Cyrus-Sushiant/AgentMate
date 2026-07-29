@@ -47,6 +47,12 @@ nsis:
   oneClick: false
   allowToChangeInstallationDirectory: true
   createDesktopShortcut: true
+  # Default artifactName has spaces ("AgentMate Setup 1.1.0.exe"). GitHub
+  # renames uploaded assets with spaces to dots on download, but the
+  # latest.yml electron-builder writes for electron-updater sanitizes spaces
+  # to dashes instead - the two disagree and auto-update downloads 404. Keep
+  # this dash-only, matching the other platforms' artifact names.
+  artifactName: ${productName}-Setup-${version}.${ext}
 
 mac:
   icon: build/icon.png

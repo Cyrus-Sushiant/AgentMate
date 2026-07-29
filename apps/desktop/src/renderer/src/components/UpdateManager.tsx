@@ -33,6 +33,8 @@ export function UpdateManager(): React.JSX.Element {
         try {
           await window.agentmat.app.downloadUpdate();
         } catch {
+          // Let a re-check prompt again instead of silently going stale.
+          downloadPrompted.current.delete(status.info.version);
           toast.error('Failed to download the update.');
         }
       })();
