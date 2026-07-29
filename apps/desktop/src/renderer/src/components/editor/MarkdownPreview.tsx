@@ -8,7 +8,7 @@ export interface MarkdownPreviewProps {
 }
 
 /**
- * Renders markdown at document scale — real heading sizes, spacing between
+ * Renders markdown at document scale: real heading sizes, spacing between
  * blocks. `MarkdownMessage` is the same idea shrunk to fit a chat bubble, so
  * the two deliberately stay separate rather than sharing a scale that suits
  * neither.

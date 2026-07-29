@@ -3,7 +3,7 @@ import type { AgentToolDefinition } from './types.js';
 
 /**
  * Curated agent-improvement tools (proxies, plugins, and indexers that reduce token spend or
- * make agents write better code) — distinct from the MCP/skills marketplaces, since none of
+ * make agents write better code), distinct from the MCP/skills marketplaces, since none of
  * these are MCP servers or skill packages. Researched from each project's own README/docs as of
  * 2026-07-19 (OpenClaw and Hermes: 2026-07-24); re-check upstream before relying on exact flags,
  * they may have changed since.
@@ -44,7 +44,7 @@ export const AGENT_TOOL_REGISTRY: AgentToolDefinition[] = [
         label: 'Initial dashboard password',
         type: 'text',
         defaultValue: '123456',
-        description: 'Change this after first login — 123456 is the published default.',
+        description: 'Change this after first login; 123456 is the published default.',
       },
     ],
     settingsScope: 'global',
@@ -111,8 +111,8 @@ export const AGENT_TOOL_REGISTRY: AgentToolDefinition[] = [
       linux: 'curl -fsSL https://raw.githubusercontent.com/rtk-ai/rtk/refs/heads/master/install.sh | sh',
       win32: 'cargo install --git https://github.com/rtk-ai/rtk',
     },
-    // `rtk init -g --uninstall` removes the agent hook — the part that actually affects agent
-    // behavior — on every OS; also uninstalling the binary itself is OS-specific (brew/cargo)
+    // `rtk init -g --uninstall` removes the agent hook (the part that actually affects agent
+    // behavior) on every OS; also uninstalling the binary itself is OS-specific (brew/cargo)
     // and left to the user, since we don't know which install method they used.
     uninstallCommand: {
       win32: 'rtk init -g --uninstall',
@@ -185,7 +185,7 @@ export const AGENT_TOOL_REGISTRY: AgentToolDefinition[] = [
     id: 'codegraph',
     name: 'CodeGraph',
     description:
-      'Pre-indexed local code knowledge graph (tree-sitter + SQLite) that answers agent architecture questions — symbol search, call-path tracing, blast-radius impact — in one query instead of repeated grep/read calls, auto-syncing on every file change.',
+      'Pre-indexes your codebase into a local knowledge graph (tree-sitter + SQLite), so symbol search, call-path tracing, and blast-radius checks are one query instead of a pile of grep/read calls. Re-syncs automatically on every file change.',
     category: 'Code Intelligence',
     tags: ['mcp', 'code-indexing', 'context-efficiency'],
     author: 'colbymchenry',
@@ -443,7 +443,7 @@ export function getDockerResetCommand(tool: AgentToolDefinition): string | null 
   return `docker rm -f ${tool.docker.containerName} && ${runCommand}`;
 }
 
-/** Deletes the container outright — unlike reset, doesn't recreate it. */
+/** Deletes the container outright; unlike reset, doesn't recreate it. */
 export function getDockerRemoveCommand(tool: AgentToolDefinition): string | null {
   if (!tool.docker) return null;
   return `docker rm -f ${tool.docker.containerName}`;

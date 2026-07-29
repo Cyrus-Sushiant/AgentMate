@@ -15,7 +15,7 @@ import type { RemoteInputEvent } from '../../shared/remoteProtocol';
  * avoids the per-event cost of spawning PowerShell, which is what makes
  * real-time control feel responsive. No native npm module is required.
  *
- * On other platforms it is a no-op and reports itself unsupported — OS-level
+ * On other platforms it is a no-op and reports itself unsupported. OS-level
  * input injection there needs a platform-specific tool we don't ship yet.
  */
 
@@ -172,7 +172,7 @@ export class InputInjector {
     try {
       this.proc.stdin.write(cmds.map((c) => c + '\n').join(''));
     } catch {
-      // dropped keystroke on a dying helper — the next start() re-establishes it
+      // dropped keystroke on a dying helper, the next start() re-establishes it
     }
   }
 

@@ -30,7 +30,7 @@ export interface DashboardRow {
   items: string[];
 }
 
-/** Built-in Dashboard stat tiles — movable and hideable like any other dashboard card. */
+/** Built-in Dashboard stat tiles, movable and hideable like any other dashboard card. */
 export const DASHBOARD_STAT_IDS = [
   'installed-clis',
   'active-projects',
@@ -153,7 +153,7 @@ export interface Project {
   /** Shell command that starts this project (e.g. "npm run dev"). Empty when not configured. */
   runCommand: string;
   /**
-   * The project's standing prompt — the context handed to an agent every time it
+   * The project's standing prompt: the context handed to an agent every time it
    * works on this project. Defined from the Prompt dialog on the project detail
    * page. Empty when not configured.
    */

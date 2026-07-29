@@ -88,7 +88,7 @@ export default function ToolsPage(): React.JSX.Element {
       return;
     }
     await navigator.clipboard.writeText(action.content);
-    toast.success('Copied to clipboard — ' + action.instructions);
+    toast.success('Copied to clipboard. ' + action.instructions);
   }
 
   async function handleInstall(tool: AgentToolDefinition): Promise<void> {
@@ -113,7 +113,7 @@ export default function ToolsPage(): React.JSX.Element {
 
   function handleCopyManualInstructions(tool: AgentToolDefinition): void {
     void navigator.clipboard.writeText(tool.manualInstallInstructions ?? '');
-    toast.success(`Setup commands copied — run them inside ${tool.name}'s target agent.`);
+    toast.success(`Setup commands copied. Run them inside ${tool.name}'s target agent.`);
   }
 
   async function handleInteractiveInstall(tool: AgentToolDefinition): Promise<void> {
@@ -123,17 +123,17 @@ export default function ToolsPage(): React.JSX.Element {
       toast.error(`No launch command available for ${tool.name} on this OS.`);
       return;
     }
-    // Open the terminal first — if the clipboard write below fails (e.g. no OS focus yet),
+    // Open the terminal first; if the clipboard write below fails (e.g. no OS focus yet),
     // the user still gets a working terminal instead of the click silently doing nothing.
     openSession({ title: `Install ${tool.name}`, initialInput: launchCommand });
     // xterm.js reserves plain Ctrl+V for the shell's own control-character convention (^V) and
-    // doesn't paste with it — its actual paste shortcut is Ctrl+Shift+V (Cmd+V on macOS, which
+    // doesn't paste with it. Its actual paste shortcut is Ctrl+Shift+V (Cmd+V on macOS, which
     // isn't used for anything else there so it works as a normal paste).
     const pasteShortcut = window.agentmat.platform === 'darwin' ? 'Cmd+V' : 'Ctrl+Shift+V';
     try {
       await navigator.clipboard.writeText(tool.interactiveInstall.pasteCommands);
       toast.info(
-        `Press Enter to launch ${launchCommand}, then paste (${pasteShortcut} — not Ctrl+V) and press Enter again to install ${tool.name}.`,
+        `Press Enter to launch ${launchCommand}, then paste (${pasteShortcut}, not Ctrl+V) and press Enter again to install ${tool.name}.`,
       );
     } catch {
       toast.info(
@@ -144,7 +144,7 @@ export default function ToolsPage(): React.JSX.Element {
 
   function handleCopyManualUninstall(tool: AgentToolDefinition): void {
     void navigator.clipboard.writeText(tool.manualUninstallInstructions ?? '');
-    toast.success(`Uninstall commands copied — run them inside ${tool.name}'s target agent.`);
+    toast.success(`Uninstall commands copied. Run them inside ${tool.name}'s target agent.`);
   }
 
   async function handleDockerAction(tool: AgentToolDefinition, action: DockerAction): Promise<void> {
@@ -181,7 +181,7 @@ export default function ToolsPage(): React.JSX.Element {
 
   usePageHeader(
     'Agent Tools',
-    'Curated third-party tools that cut agent token spend or improve code quality — install, configure, and run them from here.',
+    'Curated third-party tools that cut agent token spend or improve code quality. Install, configure, and run them from here.',
   );
 
   return (
@@ -229,7 +229,7 @@ export default function ToolsPage(): React.JSX.Element {
               </CardHeader>
               <CardContent className="mt-auto space-y-3">
                 <div className="flex flex-wrap gap-1.5">
-                  {/* "Not detected" is a result, not a starting state — shimmer
+                  {/* "Not detected" is a result, not a starting state, so shimmer
                       the badge until the scan actually says so. */}
                   {statusQuery.isPending ? (
                     <Skeleton className="h-5 w-24 rounded-full" />

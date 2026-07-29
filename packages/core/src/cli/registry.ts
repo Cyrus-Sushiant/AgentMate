@@ -207,7 +207,7 @@ export const CLI_REGISTRY: CliDefinition[] = [
       darwin: 'curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh | bash',
       linux: 'curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh | bash',
     },
-    // `goose update` is the built-in self-updater — faster and more reliable than re-running
+    // `goose update` is the built-in self-updater, faster and more reliable than re-running
     // the install script.
     updateCommand: {
       darwin: 'goose update',

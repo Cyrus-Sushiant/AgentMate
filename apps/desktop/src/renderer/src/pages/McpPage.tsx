@@ -235,7 +235,7 @@ export default function McpPage(): React.JSX.Element {
               </>
             )}
             {selectedRepoId === BOWORA_MCP_REPOSITORY_ID && (
-              <SimpleTooltip label="Bundled with AgentMate — always available, no network fetch needed">
+              <SimpleTooltip label="Bundled with AgentMate, always available with no network fetch needed">
                 <Badge variant="secondary">Built-in</Badge>
               </SimpleTooltip>
             )}
@@ -276,7 +276,7 @@ export default function McpPage(): React.JSX.Element {
                   <CardTitle className="flex items-center gap-1.5">
                     {server.name}
                     {server.official && (
-                      <SimpleTooltip label="Official — maintained by the vendor or organization behind this integration">
+                      <SimpleTooltip label="Official, maintained by the vendor or organization behind this integration">
                         <CircleCheck className="h-4 w-4 shrink-0 text-blue-500" />
                       </SimpleTooltip>
                     )}
@@ -319,7 +319,7 @@ export default function McpPage(): React.JSX.Element {
                       <Plug /> Install
                     </Button>
                   ) : (
-                    <SimpleTooltip label="No install command available yet — see the server's docs to set it up manually.">
+                    <SimpleTooltip label="No install command available yet. See the server's docs to set it up manually.">
                       <Button size="sm" disabled>
                         <Plug /> Install
                       </Button>

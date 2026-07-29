@@ -1,7 +1,7 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
-// Imported as JS modules, not CSS @import in index.css — Vite/Tailwind v4's
+// Imported as JS modules, not CSS @import in index.css, because Vite/Tailwind v4's
 // CSS-import asset resolution doesn't rebase these packages' internal woff2
 // url()s, so the font files silently fail to end up in the build output.
 import '@fontsource-variable/inter';

@@ -14,7 +14,7 @@ import { useProjectPromptBuilder } from './useProjectPromptBuilder';
 /**
  * Standalone render target for a pinned Build Prompt desktop widget (loaded
  * at #/widget/prompt-build/:id). No AppShell/sidebar; a transparent page with
- * a frosted-glass card, an OS-drag strip, and a close button — the widget's
+ * a frosted-glass card, an OS-drag strip, and a close button. This is the widget's
  * small (non-maximized) layout only, it can't be enlarged back into a dialog.
  */
 export default function PromptBuildWidgetRoute(): React.JSX.Element {
@@ -54,7 +54,7 @@ export default function PromptBuildWidgetRoute(): React.JSX.Element {
     <div className="glass-opaque flex h-screen w-screen flex-col overflow-hidden rounded-2xl">
       <div className="widget-drag flex h-6 shrink-0 items-center justify-between px-2">
         <span className="truncate pl-1 text-xs font-medium text-muted-foreground/80">
-          {instance ? `Build Prompt — ${instance.projectName}` : 'Build Prompt'}
+          {instance ? `Build Prompt: ${instance.projectName}` : 'Build Prompt'}
         </span>
         <SimpleTooltip label="Close widget" side="bottom">
           <button

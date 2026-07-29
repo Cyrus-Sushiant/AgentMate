@@ -6,7 +6,7 @@ import { Card, CardContent } from '@/components/ui/card';
 interface ErrorBoundaryProps {
   children: React.ReactNode;
   /**
-   * Clears the caught error whenever this value changes — the route path, so
+   * Clears the caught error whenever this value changes (the route path), so
    * navigating away from a page that threw brings it back on the next visit
    * instead of leaving the error card up for the rest of the session.
    */
@@ -24,7 +24,7 @@ interface ErrorBoundaryState {
  * Catches render/commit errors below it and shows them.
  *
  * Without a boundary anywhere in the tree, React unmounts the whole root on the
- * first uncaught render error — which in this app means the window is left
+ * first uncaught render error, which in this app means the window is left
  * showing nothing but the BrowserWindow's own background color, i.e. a black
  * screen with no hint of what went wrong. One of these around each page (and
  * one around the app) turns that into a readable card the user can act on and
@@ -69,7 +69,7 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
               </span>
             </div>
             <p className="text-sm text-muted-foreground">
-              The page hit an unexpected error and stopped rendering. Nothing was lost — try again,
+              The page hit an unexpected error and stopped rendering. Nothing was lost, try again,
               or reload the window.
             </p>
             <pre className="max-h-48 overflow-auto rounded-md bg-foreground/5 p-3 text-[11px] leading-relaxed text-muted-foreground">

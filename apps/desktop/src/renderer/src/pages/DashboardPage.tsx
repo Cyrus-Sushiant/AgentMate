@@ -146,7 +146,7 @@ function EmptyChartState({ message }: { message: React.ReactNode }): React.JSX.E
 
 // Stands in for the plot until the first sample lands, filling the exact chart
 // slot so the card doesn't resize once the line appears. Each card carries its
-// own — the page never waits on all of them together.
+// own; the page never waits on all of them together.
 function ChartSkeleton(): React.JSX.Element {
   return <Skeleton className="w-full" style={{ height: CHART_HEIGHT }} />;
 }
@@ -158,8 +158,8 @@ function StatSkeleton({ className }: { className?: string }): React.JSX.Element 
   return <Skeleton className={cn('h-8 w-20 self-center', className)} />;
 }
 
-// Only the handle itself is draggable — the card underneath just listens for
-// dragover/drop — so clicking buttons elsewhere in the card (e.g. the ping
+// Only the handle itself is draggable. The card underneath just listens for
+// dragover/drop, so clicking buttons elsewhere in the card (e.g. the ping
 // settings shortcut) never gets mistaken for a drag gesture.
 function ChartDragHandle({
   onDragStart,
@@ -666,7 +666,7 @@ export default function DashboardPage(): React.JSX.Element {
             ) : (
               <>
                 <span className="text-2xl font-semibold">
-                  {gpus.length > 0 ? formatPercent(avgGpuPercent) : '—'}
+                  {gpus.length > 0 ? formatPercent(avgGpuPercent) : 'N/A'}
                 </span>
                 {gpus.length > 1 && (
                   <span className="text-xs text-muted-foreground">
@@ -806,7 +806,7 @@ export default function DashboardPage(): React.JSX.Element {
             ) : (
               <>
                 <span className="text-2xl font-semibold">
-                  {pings.length > 0 ? `${aliveTargetCount}/${pings.length}` : '—'}
+                  {pings.length > 0 ? `${aliveTargetCount}/${pings.length}` : 'N/A'}
                 </span>
                 {pings.length > 0 && (
                   <span className="text-xs text-muted-foreground">targets online</span>
@@ -826,7 +826,7 @@ export default function DashboardPage(): React.JSX.Element {
                 />
                 <span className="font-medium">{p.host}</span>
                 <span className="text-xs text-muted-foreground">
-                  {p.latencyMs != null ? formatMs(p.latencyMs) : '—'}
+                  {p.latencyMs != null ? formatMs(p.latencyMs) : 'N/A'}
                 </span>
                 <Badge variant={p.alive ? 'success' : 'destructive'}>
                   {p.alive ? 'Online' : 'Offline'}
@@ -955,7 +955,7 @@ export default function DashboardPage(): React.JSX.Element {
                 </span>
               </SimpleTooltip>
               <span className="truncate font-mono text-lg font-semibold">
-                {ipGeoQuery.data.ip || '—'}
+                {ipGeoQuery.data.ip || 'N/A'}
               </span>
             </div>
           )
@@ -1147,7 +1147,7 @@ export default function DashboardPage(): React.JSX.Element {
                   <SimpleTooltip
                     label={
                       rows.length > 1
-                        ? 'Remove row — its cards move to the row above'
+                        ? 'Remove row; its cards move to the row above'
                         : 'The last row stays, so there is always somewhere to drop a card'
                     }
                     wrapTrigger={rows.length === 1}
@@ -1209,7 +1209,7 @@ export default function DashboardPage(): React.JSX.Element {
                   );
                 })}
 
-                {/* Appending to a row needs a target of its own — dropping on a
+                {/* Appending to a row needs a target of its own; dropping on a
                     card always inserts before it. */}
                 {editing && (
                   <div
@@ -1228,7 +1228,7 @@ export default function DashboardPage(): React.JSX.Element {
           );
         })}
 
-        {/* Only shown mid-drag — dropping on a row always moves it before that
+        {/* Only shown mid-drag: dropping on a row always moves it before that
             row, so moving one to the very end needs a target past the last row. */}
         {editing && dragRowId && (
           <div

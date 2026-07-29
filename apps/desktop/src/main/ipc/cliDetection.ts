@@ -66,7 +66,7 @@ async function detectCli(cli: CliDefinition): Promise<InstalledCli> {
     // npm-installed global CLIs are typically .cmd shims on Windows, which
     // Node refuses to spawn directly (security fix in Node >=18.20/20.11/21.6).
     // Route through cmd.exe explicitly (argv array, not `shell: true`) so
-    // Node doesn't naively string-concatenate args — command/args here are
+    // Node doesn't naively string-concatenate args. command/args here are
     // always static, developer-authored registry entries, never renderer input.
     const { stdout } =
       process.platform === 'win32'

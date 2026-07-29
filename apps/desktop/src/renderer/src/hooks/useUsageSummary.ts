@@ -26,7 +26,7 @@ export interface UsageSummary {
 }
 
 /**
- * Aggregate Token Usage totals across every tracked provider — the same
+ * Aggregate Token Usage totals across every tracked provider, using the same
  * numbers the Usage page's summary tiles show, computed independently so the
  * dashboard's pinned copies of those tiles don't depend on that page being
  * mounted.

@@ -3,8 +3,8 @@ import type { RemoteNetworkInterface } from '../../shared/apiTypes';
 
 /**
  * Lists the machine's usable IPv4 addresses so the operator can pick which one
- * to bind the remote server to. Loopback and internal addresses are excluded —
- * a peer on another machine can never reach 127.0.0.1.
+ * to bind the remote server to. Loopback and internal addresses are excluded,
+ * since a peer on another machine can never reach 127.0.0.1.
  */
 export function listNetworkInterfaces(): RemoteNetworkInterface[] {
   const result: RemoteNetworkInterface[] = [];
@@ -15,7 +15,7 @@ export function listNetworkInterfaces(): RemoteNetworkInterface[] {
       result.push({ name, address: addr.address });
     }
   }
-  // Private LAN ranges first — those are the addresses another AgentMate on the
+  // Private LAN ranges first, those are the addresses another AgentMate on the
   // same network will actually be able to dial.
   result.sort((a, b) => Number(isPrivate(b.address)) - Number(isPrivate(a.address)));
   return result;

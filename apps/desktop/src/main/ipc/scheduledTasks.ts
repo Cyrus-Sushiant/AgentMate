@@ -14,7 +14,7 @@ const STATUS_LABEL: Record<ScheduledTaskStatus, string> = {
 
 function renderTaskMessage(task: ScheduledTask, projectName: string): string {
   return [
-    `📅 Scheduled task — ${projectName}`,
+    `📅 Scheduled task: ${projectName}`,
     `Target: ${task.targetAI}`,
     `Run at: ${new Date(task.runAt).toLocaleString()}`,
     `Status: ${STATUS_LABEL[task.status]}`,

@@ -24,7 +24,7 @@ export interface DashboardUsageCardProps {
 
 /**
  * A Token Usage provider card living on the dashboard. It's the same body the
- * Usage page and the desktop widgets render — only the surrounding chrome
+ * Usage page and the desktop widgets render, only the surrounding chrome
  * differs (remove instead of pin, plus a shortcut back to the Usage page).
  */
 export function DashboardUsageCard({

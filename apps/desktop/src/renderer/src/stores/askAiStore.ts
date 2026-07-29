@@ -57,7 +57,7 @@ export const useAskAiStore = create<AskAiState>()(
     }),
     {
       name: 'agentmate-ask-ai',
-      // The modal's open/closed state shouldn't survive a restart — only the conversation should.
+      // The modal's open/closed state shouldn't survive a restart; only the conversation should.
       partialize: (s) => ({
         provider: s.provider,
         openaiModel: s.openaiModel,

@@ -23,7 +23,7 @@ import { connectUsage } from './shared';
 // individual Pro subscriber cannot issue at all. The dashboard endpoints below
 // are what Cursor's own web UI calls, so they work for exactly the accounts the
 // Admin API locks out. They are not a published contract, so every field is
-// parsed defensively — same posture as the Claude quota fetch.
+// parsed defensively, same posture as the Claude quota fetch.
 //
 // Two endpoints, deliberately weighted differently:
 //   /api/dashboard/get-filtered-usage-events  the per-call feed. Carries the
@@ -63,7 +63,7 @@ async function request(path: string, cookie: string, body?: unknown): Promise<un
       body: body === undefined ? undefined : JSON.stringify(body),
     });
     if (res.status === 401 || res.status === 403) {
-      throw new Error('Cursor session rejected — sign in to the Cursor app again.');
+      throw new Error('Cursor session rejected. Sign in to the Cursor app again.');
     }
     if (!res.ok) throw new Error(`Cursor returned HTTP ${res.status}`);
     return await res.json();
@@ -75,7 +75,7 @@ async function request(path: string, cookie: string, body?: unknown): Promise<un
 const DAY_MS = 86_400_000;
 const WINDOW_DAYS = 30;
 const PAGE_SIZE = 1000;
-/** Cap the paging loop — 30 days of heavy use, not an unbounded crawl. */
+/** Cap the paging loop. 30 days of heavy use, not an unbounded crawl. */
 const MAX_PAGES = 20;
 
 /**
@@ -146,7 +146,7 @@ interface ModelBucket {
  * `/api/usage` answers with one object per model bucket plus a `startOfMonth`
  * marker, e.g. `{ "gpt-4": { numRequests, maxRequestUsage, numTokens }, … }`.
  * Rather than binding to today's bucket names, take any child object that
- * carries a request count — new model buckets then count automatically.
+ * carries a request count, so new model buckets then count automatically.
  */
 function collectBuckets(payload: unknown): { buckets: ModelBucket[]; startOfMonth: string | null } {
   const buckets: ModelBucket[] = [];
@@ -186,8 +186,8 @@ function monthResetAt(startOfMonth: string | null): string | null {
 }
 
 /**
- * Live Cursor usage for the signed-in desktop app. Returns a `connect` snapshot
- * — not an error — when Cursor isn't installed or nobody is signed in, because
+ * Live Cursor usage for the signed-in desktop app. Returns a `connect` snapshot,
+ * not an error, when Cursor isn't installed or nobody is signed in, because
  * those are setup states the card already renders an action for.
  */
 export async function fetchCursorSessionUsage(): Promise<ProviderUsage> {
@@ -196,7 +196,7 @@ export async function fetchCursorSessionUsage(): Promise<ProviderUsage> {
 
   const cookie = sessionCookie(account.userId, account.accessToken);
 
-  // The event feed is the substance of the card — tokens, cost, the
+  // The event feed is the substance of the card: tokens, cost, the
   // Auto+Composer/API split and the sparkline all come from it, so a failure
   // here is a real error rather than something to paper over.
   const entries = await fetchEvents(cookie);

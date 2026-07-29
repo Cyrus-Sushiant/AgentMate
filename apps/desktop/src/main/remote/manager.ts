@@ -56,7 +56,7 @@ interface HostPeer {
   /**
    * False while the peer receives video over a *connected* WebRTC session, so
    * the two transports don't compete for bandwidth. Deliberately stays true
-   * through WebRTC negotiation — the renderer flips it via setRtcPeerConnected
+   * through WebRTC negotiation. The renderer flips it via setRtcPeerConnected
    * once video truly flows, which keeps the controller's screen painted with
    * tiles instead of going black while ICE completes.
    */
@@ -78,7 +78,7 @@ interface IncomingTransfer {
  *
  * A single machine can simultaneously *host* (let others control it) and act as
  * a *controller* (drive another machine). Both roles ride WebSockets that live
- * here in the main process — the renderer never opens a socket, so the app's
+ * here in the main process. The renderer never opens a socket, so the app's
  * strict Content-Security-Policy is untouched. The renderer only captures the
  * screen (host) / paints frames and reads input (controller) and exchanges
  * everything with this manager over IPC.
@@ -280,8 +280,8 @@ class RemoteManager {
 
   /**
    * An input event that arrived over a peer's input DataChannel rather than the
-   * control socket. Same authorization rule as the WebSocket path — the peer
-   * must be authed — it just skips the head-of-line blocking that bulk data on
+   * control socket. Same authorization rule as the WebSocket path: the peer
+   * must be authed, it just skips the head-of-line blocking that bulk data on
    * the control socket would impose.
    */
   applyRtcInput(peerId: string, event: RemoteInputEvent): void {
@@ -318,7 +318,7 @@ class RemoteManager {
     } catch {
       return; // display topology changing mid-sample; the next tick recovers
     }
-    // A stationary cursor sends nothing — idle costs zero bandwidth.
+    // A stationary cursor sends nothing, idle costs zero bandwidth.
     if (this.lastCursor && this.lastCursor.x === x && this.lastCursor.y === y) return;
     this.lastCursor = { x, y };
     this.send(IPC.remote.onHostCursor, {
@@ -404,7 +404,7 @@ class RemoteManager {
       case 'rtc-ice':
         // WebRTC signaling is handled by the renderer (it owns the capture
         // MediaStream); the main process only relays, tagged with the peer id.
-        // Tiles keep flowing throughout negotiation — they stop only when the
+        // Tiles keep flowing throughout negotiation. They stop only when the
         // renderer confirms video is delivering (setRtcPeerConnected).
         if (peer.authed) {
           this.send(IPC.remote.onRtcSignal, { peerId: peer.id, message: msg });
@@ -525,7 +525,7 @@ class RemoteManager {
   /**
    * Controller role: the renderer owns the RTCPeerConnection (it must, to
    * render the video track), so main relays its signaling to the host over the
-   * control socket — mirroring what `rtcSignalToPeer` does on the host side.
+   * control socket, mirroring what `rtcSignalToPeer` does on the host side.
    */
   sendClientRtcSignal(message: RemoteRtcMessage): void {
     if (this.client && this.connection.status === 'connected') {

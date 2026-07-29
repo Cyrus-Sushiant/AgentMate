@@ -6,7 +6,7 @@ import { checkForUpdates, downloadUpdate, quitAndInstall } from '../updater';
 /**
  * Unpackaged runs (electron-vite dev, or `electron .` against the built
  * output without an installer) always carry whatever version happens to be
- * sitting in package.json, which is meaningless outside a real release — the
+ * sitting in package.json, which is meaningless outside a real release. The
  * CD pipeline is the only thing that writes a real version there, and only
  * for packaged builds. So dev/local runs report a fixed 'dev' string instead.
  */

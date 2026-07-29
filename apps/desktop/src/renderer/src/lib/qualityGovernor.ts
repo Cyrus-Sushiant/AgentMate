@@ -2,14 +2,14 @@
  * Closed-loop quality control for one outbound screen-share connection.
  *
  * Nothing here is a fixed target. Each sample reads what the transport actually
- * achieved — RTT, loss, the encoder's own limitation reason, and Chromium's
- * bandwidth estimate — and moves along a quality ladder. Bitrate is then derived
+ * achieved (RTT, loss, the encoder's own limitation reason, and Chromium's
+ * bandwidth estimate) and moves along a quality ladder. Bitrate is then derived
  * from the resolution and framerate that survived, so it always matches the
  * pixels being sent instead of a number picked in advance.
  *
  * The ladder (rather than continuous control) is deliberate: screen content is
  * bursty, and a proportional controller oscillates visibly on it. Discrete steps
- * plus asymmetric hysteresis — drop fast, recover slowly — keeps quality stable
+ * plus asymmetric hysteresis, drop fast and recover slowly, keeps quality stable
  * through a scroll burst instead of pulsing.
  */
 
@@ -33,7 +33,7 @@ const LADDER: QualityLevel[] = [
 /**
  * Bits per pixel per frame for screen content. Text and UI compress far better
  * than camera video, so this is well below the ~0.1 rule of thumb for natural
- * video. Only sets the *ceiling* — the bandwidth estimate usually binds first.
+ * video. Only sets the *ceiling*, the bandwidth estimate usually binds first.
  */
 const BITS_PER_PIXEL = 0.06;
 /** Never starve the encoder completely, even on a terrible link. */
@@ -130,7 +130,7 @@ export class QualityGovernor {
       if (!params.encodings || params.encodings.length === 0) return;
       // 'balanced' lets the encoder shed both resolution and framerate under
       // congestion. 'maintain-resolution' collapses to a ~1 fps slideshow on
-      // weak WiFi — for remote control, staying fluid wins.
+      // weak WiFi. For remote control, staying fluid wins.
       params.degradationPreference = 'balanced';
       const { scale, fps } = this.level;
       for (const encoding of params.encodings) {

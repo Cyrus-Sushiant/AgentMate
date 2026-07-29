@@ -53,7 +53,7 @@ async function saveCache(provider: LocalLogProvider, cache: ScanCache): Promise<
     await mkdir(dirname(cachePath()), { recursive: true });
     await writeFile(cachePath(), JSON.stringify(caches), 'utf-8');
   } catch {
-    /* cache is an optimization — a failed write just means a slower next scan */
+    /* cache is an optimization, a failed write just means a slower next scan */
   }
 }
 

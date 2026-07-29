@@ -45,7 +45,7 @@ export async function editTelegramMessage(
     });
     const data = (await response.json()) as { ok: boolean; description?: string };
     if (!response.ok || !data.ok) {
-      // Telegram errors here if the new text is identical to the old — harmless, treat as success.
+      // Telegram errors here if the new text is identical to the old. Harmless, treat as success.
       if (data.description?.includes('message is not modified')) return { ok: true };
       return { ok: false, error: data.description ?? `Telegram API returned ${response.status}` };
     }

@@ -120,7 +120,7 @@ export function ConnectScreen({ client }: { client: RemoteClient }): React.JSX.E
 
           <Text style={styles.hint}>
             On the computer you want to control, open AgentMate → Remote → Host tab, then start hosting
-            and share its pairing code or QR here. You only pair once — the computer is saved above for
+            and share its pairing code or QR here. You only pair once; the computer is saved above for
             future connections.
           </Text>
         </ScrollView>

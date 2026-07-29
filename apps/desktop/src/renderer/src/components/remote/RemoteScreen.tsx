@@ -22,7 +22,7 @@ const MOVE_THROTTLE_SOCKET_MS = 16;
 
 interface RemoteScreenProps {
   screen: RemoteScreenSize | null;
-  /** True once fully connected — input is only forwarded then. */
+  /** True once fully connected, input is only forwarded then. */
   live: boolean;
 }
 

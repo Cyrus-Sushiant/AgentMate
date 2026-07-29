@@ -10,7 +10,7 @@ import { queryKeys } from '@/lib/queryKeys';
 import { confirmDialog } from '@/stores/confirmStore';
 
 /**
- * The prompt history scoped to one project — currently the translated bootstrap
+ * The prompt history scoped to one project, currently the translated bootstrap
  * descriptions. The global Prompt History page stays the place for everything
  * else; this is the per-project slice of the same store.
  */
@@ -59,7 +59,7 @@ export function ProjectPromptHistory({ projectId }: { projectId: string }): Reac
         <div className="space-y-1">
           <p className="text-sm font-medium">Nothing here yet</p>
           <p className="max-w-sm text-sm text-muted-foreground">
-            Prompts and translations tied to this project show up here — including the Persian
+            Prompts and translations tied to this project show up here, including the Persian
             description you translate when bootstrapping.
           </p>
         </div>

@@ -49,13 +49,13 @@ function renderResetMessage(
   nextResetAt: number | null,
 ): string {
   const lines = [
-    `🔄 ${providerName} — ${window.label} limit reset`,
+    `🔄 ${providerName}: ${window.label} limit reset`,
     window.planLabel ? `Plan: ${window.planLabel}` : null,
     `Reset at: ${formatTime(window.resetAt)}`,
     '',
     key === 'session'
-      ? 'Your 5-hour session window has rolled over — full quota is available again.'
-      : 'This window has rolled over — full quota is available again.',
+      ? 'Your 5-hour session window has rolled over. Full quota is available again.'
+      : 'This window has rolled over. Full quota is available again.',
   ];
   if (nextResetAt !== null) lines.push(`Next reset: ${formatTime(nextResetAt)}`);
   return lines.filter((line) => line !== null).join('\n');
@@ -79,7 +79,7 @@ async function readSubscription(providerId: string, force: boolean): Promise<Sub
     const usage = await getProviderUsage(providerId, config, force);
     return usage.subscription ?? null;
   } catch {
-    // Offline, an expired grant, or a log scan that threw — the next tick
+    // Offline, an expired grant, or a log scan that threw. The next tick
     // retries, and a missed schedule refresh is not worth surfacing.
     return null;
   }
@@ -157,7 +157,7 @@ async function tick(): Promise<void> {
     }
   }
 
-  // Refresh before announcing so the message can name the next reset — `due` is
+  // Refresh before announcing so the message can name the next reset. `due` is
   // already captured, so the rebuilt schedule can't swallow the rollover.
   // A rollover invalidates the cached scan, so force past it; otherwise only
   // refresh on the slow cadence.
@@ -223,7 +223,7 @@ export async function sendResetAlertTest(): Promise<{ ok: boolean; error?: strin
   const result = await sendTelegramMessage(
     target.botToken,
     target.chatId,
-    `🧪 Test — this is what a reset alert looks like.\n\n${renderResetMessage(providerName, preview, key, null)}`,
+    `🧪 Test: this is what a reset alert looks like.\n\n${renderResetMessage(providerName, preview, key, null)}`,
   );
   return { ok: result.ok, error: result.error };
 }

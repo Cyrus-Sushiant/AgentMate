@@ -160,7 +160,7 @@ export function isLiveProvider(def: UsageProviderDefinition): boolean {
 }
 
 /**
- * Providers that need no setup from the user — they read what the vendor's own
+ * Providers that need no setup from the user; they read what the vendor's own
  * tooling already left on this machine. These cards are always shown and can't
  * be removed, because there's nothing to connect or disconnect.
  */

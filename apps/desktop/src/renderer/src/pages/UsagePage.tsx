@@ -75,7 +75,7 @@ function orderedProviderIds(
   const all = USAGE_PROVIDER_REGISTRY.filter((d) => isDisplayed(d.id, configs)).map((d) => d.id);
   const known = new Set(all);
   // A saved order repeating an id (an interrupted write, an older build) would
-  // render two cards under the same React key — deduped here so the list stays
+  // render two cards under the same React key. Deduped here so the list stays
   // a set of provider ids whatever is on disk.
   const kept = [...new Set(savedOrder.filter((id) => known.has(id)))];
   const missing = all.filter((id) => !kept.includes(id));
@@ -89,7 +89,7 @@ export default function UsagePage(): React.JSX.Element {
   const [alertsOpen, setAlertsOpen] = useState(false);
   const [thresholdAlertsOpen, setThresholdAlertsOpen] = useState(false);
   const [dragId, setDragId] = useState<string | null>(null);
-  // Off by default so the drag handle doesn't clutter the everyday view — same
+  // Off by default so the drag handle doesn't clutter the everyday view, same
   // pattern as the Dashboard's layout-edit mode.
   const [editing, setEditing] = useState(false);
 
@@ -138,7 +138,7 @@ export default function UsagePage(): React.JSX.Element {
     return { todayTokens, weekTokens, cost };
   }, [displayedIds, usageById]);
 
-  /** Soonest rollover among the watched windows — what the switch counts down to. */
+  /** Soonest rollover among the watched windows; what the switch counts down to. */
   const nextReset = useMemo(() => {
     const windows = usageById.get(resetAlerts.providerId)?.subscription?.windows ?? [];
     return windows
@@ -293,7 +293,7 @@ export default function UsagePage(): React.JSX.Element {
         </SimpleTooltip>
       </div>
 
-      {/* Summary tiles — each waits on its own query rather than the page. */}
+      {/* Summary tiles: each waits on its own query rather than the page. */}
       <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
         <StatTile
           icon={<ChartColumn className="h-3.5 w-3.5" />}
@@ -348,7 +348,7 @@ export default function UsagePage(): React.JSX.Element {
       {/* Provider cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
         {/* Which providers are tracked comes from settings, so until those land
-            there are no cards to shimmer individually — stand in for a few. */}
+            there are no cards to shimmer individually, so stand in for a few. */}
         {settingsQuery.isPending &&
           Array.from({ length: 3 }, (_, i) => (
             <Card key={`placeholder-${i}`} className="glass h-full">
@@ -385,7 +385,7 @@ export default function UsagePage(): React.JSX.Element {
                       <ProviderLogo providerId={id} className="h-5 w-5 shrink-0" />
                       <span className="truncate text-sm font-semibold">{def.name}</span>
                       {/* The body hides its own header here, so the plan badge
-                          rides along with the title — plan-limits view only. */}
+                          rides along with the title, plan-limits view only. */}
                       {cardMode === 'subscription' && usage?.subscription?.plan && (
                         <Badge variant="outline" className="shrink-0">
                           {usage.subscription.plan.label}
@@ -468,7 +468,7 @@ export default function UsagePage(): React.JSX.Element {
                       </SimpleTooltip>
                     )}
                     {/* Same card, shown on the Dashboard page alongside the
-                        system charts — it follows this card's tokens/limits view. */}
+                        system charts. It follows this card's tokens/limits view. */}
                     <SimpleTooltip
                       label={
                         onDashboard ? 'Remove from dashboard' : 'Add to dashboard'
@@ -595,7 +595,7 @@ function ResetAlertDialog({
       // Save first so the test uses the chat ID that's on screen, not the saved one.
       await onSave({ ...alerts, chatId: chatId.trim() || null });
       const result = await window.agentmat.usage.testResetAlert();
-      if (result.ok) toast.success('Test alert sent — check Telegram.');
+      if (result.ok) toast.success('Test alert sent. Check Telegram.');
       else toast.error(result.error ?? 'Could not send the test alert.');
     } finally {
       setTesting(false);
@@ -609,7 +609,7 @@ function ResetAlertDialog({
           <DialogTitle>Reset alerts</DialogTitle>
           <DialogDescription>
             {providerName} meters you in rolling windows. When one rolls over, your Telegram bot
-            gets a message — no schedule to set, the reset time comes from the plan itself.
+            gets a message. No schedule to set, the reset time comes from the plan itself.
           </DialogDescription>
         </DialogHeader>
 
@@ -625,8 +625,8 @@ function ResetAlertDialog({
               {alerts.enabled
                 ? nextResetAt
                   ? `Next message in ${formatReset(nextResetAt) ?? 'a while'}`
-                  : 'Idle — no window is counting down right now'
-                : 'Off — no message is sent when a window rolls over'}
+                  : 'Idle: no window is counting down right now'
+                : 'Off: no message is sent when a window rolls over'}
             </div>
           </div>
           <Switch
@@ -726,7 +726,7 @@ function ThresholdAlertDialog({
     setTesting(true);
     try {
       const result = await window.agentmat.usage.testThresholdAlert();
-      if (result.ok) toast.success('Test alert sent — check for an OS notification.');
+      if (result.ok) toast.success('Test alert sent. Check for an OS notification.');
       else toast.error(result.error ?? 'Could not send the test alert.');
     } finally {
       setTesting(false);
@@ -739,7 +739,7 @@ function ThresholdAlertDialog({
         <DialogHeader>
           <DialogTitle>Usage threshold alert</DialogTitle>
           <DialogDescription>
-            Get notified the moment {providerName} crosses a usage percentage you pick — an OS
+            Get notified the moment {providerName} crosses a usage percentage you pick: an OS
             notification where supported, or an in-app alert otherwise.
           </DialogDescription>
         </DialogHeader>
@@ -753,7 +753,7 @@ function ThresholdAlertDialog({
             <div className="text-xs text-muted-foreground">
               {alerts.enabled
                 ? `Fires once when a watched window reaches ${alerts.threshold}%`
-                : 'Off — no notification is sent as usage climbs'}
+                : 'Off: no notification is sent as usage climbs'}
             </div>
           </div>
           <Switch

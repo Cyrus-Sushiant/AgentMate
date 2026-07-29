@@ -35,8 +35,8 @@ export interface UsageCardBodyProps {
 /**
  * The card body's shape while the scan is still running: the headline number,
  * a limit bar and the sparkline's row, all in their final positions so the card
- * doesn't jump when the real figures arrive. Each card shows this on its own —
- * providers land one at a time, and the ones already in never go blank.
+ * doesn't jump when the real figures arrive. Each card shows this on its own,
+ * since providers land one at a time, and the ones already in never go blank.
  */
 export function UsageCardBodySkeleton({
   compact = false,
@@ -70,7 +70,7 @@ export function hasSubscriptionView(usage: ProviderUsage): boolean {
  * `mode` asks for: the original token view (tokens + cost + burn-rate
  * sparkline), or the subscription view (the plan's rolling limits and their
  * reset countdowns). The token view is the default and is deliberately
- * untouched by the subscription feature — right down to the header, which only
+ * untouched by the subscription feature, right down to the header, which only
  * grows a plan badge in subscription mode.
  */
 export function UsageCardBody({
@@ -84,7 +84,7 @@ export function UsageCardBody({
   const accent = style === 'colorful' ? def.accentColor : 'hsl(var(--foreground))';
   const subscription = usage.subscription;
   // The plan badge is account identity, not a limits readout, so it shows in
-  // both widgets whenever the account is known — the token view of a Pro
+  // both widgets whenever the account is known: the token view of a Pro
   // account should still say Pro.
   const plan = subscription?.plan ?? null;
 
@@ -131,7 +131,7 @@ export function UsageCardBody({
     );
   }
 
-  // 'subscription' is a request, not a guarantee — an API-billed account has no
+  // 'subscription' is a request, not a guarantee. An API-billed account has no
   // limits to draw, so it falls back to tokens rather than rendering an empty card.
   if (mode === 'subscription' && hasSubscriptionView(usage) && subscription) {
     return (
@@ -219,7 +219,7 @@ function segmentOpacity(index: number): number {
 }
 
 /**
- * How one period splits across named slices — Cursor's Auto mode versus what it
+ * How one period splits across named slices: Cursor's Auto mode versus what it
  * billed at API rates. A stacked share bar carries the ratio at a glance (the
  * part that still works at widget size), and a row per slice gives the tokens,
  * cost and request count behind it.
@@ -233,7 +233,7 @@ function SegmentBreakdown({
   total: number;
   accent: string;
 }): React.JSX.Element {
-  // The bar is a ratio of the slices themselves — falling back to the period
+  // The bar is a ratio of the slices themselves. Falling back to the period
   // total would leave a phantom gap when a slice has requests but no tokens.
   const barTotal = segments.reduce((sum, s) => sum + s.tokens.total, 0) || total;
 
@@ -312,7 +312,7 @@ function SubscriptionBody({
           {cost && <span className="tabular-nums">· {cost} equivalent</span>}
           {estimated && (
             <SimpleTooltip
-              label={`Estimated from local logs — ${subscription.estimateReason ?? 'account unreachable'}.`}
+              label={`Estimated from local logs: ${subscription.estimateReason ?? 'account unreachable'}.`}
             >
               <span className="ml-auto shrink-0">estimated</span>
             </SimpleTooltip>

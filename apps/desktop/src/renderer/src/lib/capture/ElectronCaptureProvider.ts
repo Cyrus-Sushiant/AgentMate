@@ -11,7 +11,7 @@ import type {
  * every platform Electron runs on.
  *
  * It produces a `MediaStreamTrack` that feeds WebRTC's encoder directly, so the
- * *primary* path through this provider is already zero-copy — frames never
+ * *primary* path through this provider is already zero-copy: frames never
  * reach JavaScript. The `zeroCopy: false` capability below refers to what the
  * provider can offer callers that want raw frames (the JPEG tile fallback still
  * has to read pixels back); native providers will flip it to true by handing
@@ -94,7 +94,7 @@ export class ElectronCaptureProvider implements ICaptureProvider {
 
   /**
    * Disabling the track keeps the transceiver and all negotiation intact while
-   * the encoder stops doing real work — resuming needs no renegotiation and no
+   * the encoder stops doing real work. Resuming needs no renegotiation and no
    * new permission prompt, which stopping the track would both require.
    */
   pause(): void {

@@ -59,7 +59,7 @@ export function HistoryNav(): React.JSX.Element {
       else goForward();
     }
 
-    // Mouse thumb buttons (3 = back, 4 = forward) — standard on desktop mice.
+    // Mouse thumb buttons (3 = back, 4 = forward), standard on desktop mice.
     function onMouseUp(e: MouseEvent): void {
       if (e.button !== 3 && e.button !== 4) return;
       e.preventDefault();

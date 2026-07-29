@@ -1,5 +1,5 @@
 @import 'tailwindcss';
-/* Inter and Vazirmatn are imported as JS modules in main.tsx — see the note
+/* Inter and Vazirmatn are imported as JS modules in main.tsx, see the note
    there about Vite/Tailwind v4 not rebasing these packages' font url()s. */
 @plugin 'tailwindcss-animate';
 
@@ -130,7 +130,7 @@ body {
 }
 
 /* Applied automatically to text inputs/textareas whose current value
-   contains Persian/Arabic script — see lib/rtl.ts. */
+   contains Persian/Arabic script, see lib/rtl.ts. */
 .font-vazirmatn {
   font-family: 'Vazirmatn Variable', 'Inter Variable', -apple-system, BlinkMacSystemFont,
     'Segoe UI', sans-serif;
@@ -194,8 +194,8 @@ body {
 
 /* Route transition (see layout/AppShell.tsx). Deliberately a plain CSS keyframe
    rather than a JS-driven one: the resting style is the visible state and no
-   fill mode holds the start frame, so a transition that is interrupted — or
-   never runs at all — still leaves the page on screen. A JS enter animation
+   fill mode holds the start frame, so a transition that is interrupted, or
+   never runs at all, still leaves the page on screen. A JS enter animation
    that stalls mid-flight leaves the whole page stuck at opacity 0 with only the
    header showing, which is exactly the blank-page bug this replaces. */
 @keyframes page-enter {
@@ -216,7 +216,7 @@ body {
   }
 }
 
-/* Frosted-glass surface for the Token Usage widgets — a translucent card with
+/* Frosted-glass surface for the Token Usage widgets: a translucent card with
    a heavy backdrop blur so it reads as glass both inside the app and floating
    over the desktop. */
 .glass {

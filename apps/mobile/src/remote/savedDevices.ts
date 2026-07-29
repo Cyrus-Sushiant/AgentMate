@@ -3,7 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 /**
  * Computers this phone has paired with. Pairing once (via QR / code) yields a
  * durable device token from the host, so the connection details are saved here
- * and the user can reconnect with one tap — no new code needed. The list
+ * and the user can reconnect with one tap, no new code needed. The list
  * survives app restarts (AsyncStorage) just like the token survives host
  * restarts (persisted on the desktop side).
  */

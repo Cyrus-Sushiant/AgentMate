@@ -60,7 +60,7 @@ export interface CreateProjectInput {
   agentType: AgentType;
   notes: string;
   runCommand: string;
-  /** Optional: the create/edit form doesn't collect it — the Prompt dialog defines it later. */
+  /** Optional: the create/edit form doesn't collect it; the Prompt dialog defines it later. */
   prompt?: string;
 }
 
@@ -167,7 +167,7 @@ export interface TranslateTextInput {
 
 export interface TranscribeAudioInput {
   /**
-   * Mono 32-bit float PCM samples at 16 kHz — the only shape Whisper accepts.
+   * Mono 32-bit float PCM samples at 16 kHz, the only shape Whisper accepts.
    * The renderer resamples the microphone capture before sending, so the main
    * process never needs ffmpeg or any other audio tool.
    */
@@ -205,7 +205,7 @@ export interface AskAiHistoryMessage {
 
 export interface AskAiInput {
   provider: AiProvider;
-  /** Model id — an OpenAI/Gemini model name, or an Ollama model tag from listOllamaModels(). */
+  /** Model id: an OpenAI/Gemini model name, or an Ollama model tag from listOllamaModels(). */
   model: string;
   prompt: string;
   /** Prior turns in the conversation, oldest first. Omitted for one-off (non-chat) prompts. */
@@ -319,7 +319,7 @@ export type PackageManagerKind = 'npm' | 'yarn' | 'pnpm' | 'nuget';
 export interface PackageInfo {
   name: string;
   currentVersion: string;
-  /** Null when the latest-version lookup failed — distinct from "up to date". */
+  /** Null when the latest-version lookup failed, distinct from "up to date". */
   latestVersion: string | null;
   isOutdated: boolean;
   isDev: boolean;
@@ -373,7 +373,7 @@ export interface PackageUpdateResult {
 }
 
 export interface DiskUsage {
-  /** Drive letter (Windows) or device name (macOS/Linux) — stable across samples. */
+  /** Drive letter (Windows) or device name (macOS/Linux), stable across samples. */
   id: string;
   label: string;
   readBytesPerSec: number;
@@ -381,7 +381,7 @@ export interface DiskUsage {
 }
 
 export interface GpuUsage {
-  /** GPU index reported by `nvidia-smi` — stable across samples. */
+  /** GPU index reported by `nvidia-smi`, stable across samples. */
   id: string;
   label: string;
   percent: number;
@@ -400,7 +400,7 @@ export interface SystemStatsSample {
   /**
    * Empty when no GPU could be queried. NVIDIA GPUs (via `nvidia-smi`) get
    * precise usage; on Windows, one additional non-NVIDIA GPU (e.g. an
-   * integrated Intel/AMD chip) is included with best-effort usage — see
+   * integrated Intel/AMD chip) is included with best-effort usage; see
    * sampleOtherGpu in systemStats.ts for the accuracy caveat.
    */
   gpus: GpuUsage[];

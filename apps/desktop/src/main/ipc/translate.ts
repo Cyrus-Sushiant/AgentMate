@@ -8,7 +8,7 @@ function delay(ms: number): Promise<void> {
 }
 
 // Uses Google Translate's free "gtx" web-client endpoint (no API key, no
-// billing) rather than the paid Cloud Translation API — this is what lets
+// billing) rather than the paid Cloud Translation API. That's what lets
 // Prompt Builder offer direct translation with zero setup. It's an
 // undocumented, unofficial endpoint that Google could change or block without
 // notice; callers should treat failures as recoverable.

@@ -95,8 +95,8 @@ export function registerProjectHandlers(): void {
   });
 
   /**
-   * The plan the Bootstrap tab previews. Served from here — rather than
-   * recomputed in the renderer — so the preview and the write can never
+   * The plan the Bootstrap tab previews. Served from here instead of
+   * recomputed in the renderer, so the preview and the write can never
    * disagree: both come from this process, off the same build.
    */
   ipcMain.handle(

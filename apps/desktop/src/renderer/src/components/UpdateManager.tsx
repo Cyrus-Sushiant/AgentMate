@@ -11,8 +11,8 @@ function formatMb(bytes: number): string {
 
 /**
  * Drives the update confirm/progress/restart flow off useUpdateStore.
- * Downloads and restarts never happen without an explicit user confirmation
- * — mount once near the app root, alongside ConfirmDialogHost.
+ * Downloads and restarts never happen without an explicit user confirmation.
+ * Mount once near the app root, alongside ConfirmDialogHost.
  */
 export function UpdateManager(): React.JSX.Element {
   const status = useUpdateStore((s) => s.status);
@@ -68,7 +68,7 @@ export function UpdateManager(): React.JSX.Element {
           </DialogTitle>
           {isDownloading && (
             <DialogDescription>
-              AgentMate v{status.info.version} — {percent.toFixed(0)}%
+              AgentMate v{status.info.version} ({percent.toFixed(0)}%)
             </DialogDescription>
           )}
         </DialogHeader>

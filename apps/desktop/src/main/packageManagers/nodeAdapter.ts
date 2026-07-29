@@ -112,7 +112,7 @@ async function runOutdated(
       }
       return map;
     }
-    return null; // yarn berry or unrecognized output — trigger registry fallback
+    return null; // yarn berry or unrecognized output, trigger registry fallback
   } catch (err) {
     if (err instanceof CliNotFoundError) throw err;
     return null;

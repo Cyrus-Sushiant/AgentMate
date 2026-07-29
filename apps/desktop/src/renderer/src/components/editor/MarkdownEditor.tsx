@@ -114,7 +114,7 @@ const VIEW_MODES: { key: MarkdownViewMode; label: string; icon: React.ComponentT
 
 /**
  * A markdown-aware editor: formatting toolbar, list continuation, and a live
- * preview. The plain-text alternative is the Monaco editor — this one is for
+ * preview. The plain-text alternative is the Monaco editor; this one is for
  * writing prose rather than reading source.
  *
  * The box is drag-resizable from its bottom edge and can be maximized over the
@@ -148,8 +148,8 @@ export function MarkdownEditor({
     textarea.setSelectionRange(pending.start, pending.end);
   }, [value]);
 
-  // Escape is the way out of a full-screen panel, but only while it is one —
-  // otherwise the key belongs to whatever dialog the editor is sitting in.
+  // Escape is the way out of a full-screen panel, but only while it is one.
+  // Otherwise the key belongs to whatever dialog the editor is sitting in.
   useEffect(() => {
     if (!isMaximized) return;
     function handleEscape(event: KeyboardEvent): void {
@@ -231,7 +231,7 @@ export function MarkdownEditor({
     }
     if (event.key === 'Enter' && !event.shiftKey && !mod) {
       // `continueList` returns null off a list line, which leaves the browser's
-      // own newline handling — and its undo stack — untouched.
+      // own newline handling (and its undo stack) untouched.
       if (apply(continueList)) event.preventDefault();
     }
   }

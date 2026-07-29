@@ -3,7 +3,7 @@ import { useThemeStore } from '@/stores/themeStore';
 
 // Fixed hex steps (not the `--primary`/`--card` CSS vars) because these
 // colors must hold a validated CVD-safe categorical order when several show
-// up together on one chart — the live `--primary` dark value is a hue step
+// up together on one chart. The live `--primary` dark value is a hue step
 // brighter than the chart lightness band allows. Slots 1-2 (green/blue) match
 // the app's brand hue; slots 3-8 are the dataviz skill's reference
 // categorical order. Re-validated as a full 8-slot set via validate_palette.js.

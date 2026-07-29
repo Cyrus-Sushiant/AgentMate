@@ -21,11 +21,11 @@ export type ToolSettingsValues = Record<string, string | boolean>;
 /**
  * What happens when the user submits a tool's settings wizard.
  * - `command`: opens a terminal (optionally at the target project's folder) with the built command,
- *   for the user to confirm — never executed silently.
+ *   for the user to confirm; never executed silently.
  * - `write-project-file`: writes a config file inside the selected project via the sandboxed fs IPC
  *   (which only allows writes under a project folder or app userData, never arbitrary host paths).
  * - `copy-text`: for settings that live outside any project (e.g. a file under the user's home
- *   directory), so we never bypass the fs write sandbox — shown as copyable text with instructions.
+ *   directory), so we never bypass the fs write sandbox. Shown as copyable text with instructions.
  */
 export type ToolSettingsAction =
   | { kind: 'command'; command: string; cwd: 'project' | 'none' }
@@ -64,7 +64,7 @@ export interface AgentToolDefinition {
   /** Shown with a copy button when the tool can't be installed with a single shell command. */
   manualInstallInstructions?: string;
   /**
-   * For tools installed by pasting commands into an already-running interactive program — e.g. a
+   * For tools installed by pasting commands into an already-running interactive program, e.g. a
    * Claude Code plugin installed via its own `/plugin` slash commands, which only work inside a
    * live session (Claude Code has no non-interactive `/plugin` flag as of 2026-07). "Install"
    * launches the target program in a terminal and copies the paste commands to the clipboard, so
@@ -73,7 +73,7 @@ export interface AgentToolDefinition {
   interactiveInstall?: {
     /** Per-OS command that launches the target program in the terminal, e.g. `claude`. */
     launchCommand: Partial<Record<SupportedOS, string>>;
-    /** Commands to run once the program is up — auto-copied to the clipboard for pasting. */
+    /** Commands to run once the program is up, auto-copied to the clipboard for pasting. */
     pasteCommands: string;
   };
   /** Per-OS global uninstall command, opened in a terminal for the user to confirm. */
@@ -86,7 +86,7 @@ export interface AgentToolDefinition {
   /** Extra one-off commands beyond install/docker, e.g. "Initialize in project". */
   quickActions?: AgentToolQuickAction[];
   settingsFields?: ToolSettingField[];
-  /** Whether the settings wizard's result targets one project or the whole machine — changes wizard copy. */
+  /** Whether the settings wizard's result targets one project or the whole machine; changes wizard copy. */
   settingsScope?: 'project' | 'global';
   buildSettingsAction?: (values: ToolSettingsValues) => ToolSettingsAction;
 }

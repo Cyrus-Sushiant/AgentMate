@@ -24,7 +24,7 @@ export interface BootstrapPlan {
   files: BootstrapFile[];
 }
 
-/** AgentMate's own project folder — created for every agent type. */
+/** AgentMate's own project folder, created for every agent type. */
 export const AGENTMATE_DIR = '.agentmate';
 
 const AGENT_LABELS: Record<AgentType, string> = {
@@ -80,7 +80,7 @@ function agentmateDocs(meta: ProjectMeta): BootstrapFile[] {
   return [
     {
       relativePath: `${AGENTMATE_DIR}/PROJECT_CONTEXT.md`,
-      content: `# ${meta.name} — Project Context
+      content: `# ${meta.name}: Project Context
 
 Background an agent can't infer from the code. Managed in AgentMate.
 
@@ -197,11 +197,11 @@ so keep this under ~200 lines.
 ${instructionsBody(meta)}
 ## Layout of this folder
 
-- \`.claude/rules/\` — topic files loaded every session; add \`paths:\` frontmatter to scope a rule to matching files.
-- \`.claude/agents/\` — subagent definitions (\`<name>.md\` with \`name\`/\`description\` frontmatter).
-- \`.claude/skills/\` — skills (\`<name>/SKILL.md\`), loaded on demand.
-- \`.claude/commands/\` — slash commands (\`<name>.md\` → \`/<name>\`).
-- \`.claude/settings.json\` — shared permissions and hooks; \`settings.local.json\` for personal overrides.
+- \`.claude/rules/\`: topic files loaded every session; add \`paths:\` frontmatter to scope a rule to matching files.
+- \`.claude/agents/\`: subagent definitions (\`<name>.md\` with \`name\`/\`description\` frontmatter).
+- \`.claude/skills/\`: skills (\`<name>/SKILL.md\`), loaded on demand.
+- \`.claude/commands/\`: slash commands (\`<name>.md\` → \`/<name>\`).
+- \`.claude/settings.json\`: shared permissions and hooks; \`settings.local.json\` for personal overrides.
 
 Docs: https://code.claude.com/docs/en/memory
 `,
@@ -273,8 +273,8 @@ Context file for Gemini CLI. Loaded at the start of every session.
 ${instructionsBody(meta)}
 ## Layout
 
-- \`.gemini/settings.json\` — workspace settings (overrides \`~/.gemini/settings.json\`).
-- \`.gemini/commands/\` — custom slash commands as TOML; \`git/commit.toml\` becomes \`/git:commit\`.
+- \`.gemini/settings.json\`: workspace settings (overrides \`~/.gemini/settings.json\`).
+- \`.gemini/commands/\`: custom slash commands as TOML; \`git/commit.toml\` becomes \`/git:commit\`.
 
 Docs: https://google-gemini.github.io/gemini-cli/docs/get-started/configuration.html
 `,
@@ -321,8 +321,8 @@ function codexPlan(meta: ProjectMeta): BootstrapPlan {
         AGENT_LABELS.codex,
         `## Layout
 
-- \`.codex/config.toml\` — project-scoped overrides, merged with \`~/.codex/config.toml\` (nearest file wins).
-- \`.codex/skills/<name>/SKILL.md\` — skills, loaded on demand.
+- \`.codex/config.toml\`: project-scoped overrides, merged with \`~/.codex/config.toml\` (nearest file wins).
+- \`.codex/skills/<name>/SKILL.md\`: skills, loaded on demand.
 
 Codex only reads \`.codex/\` once you trust this project.
 
@@ -364,9 +364,9 @@ function opencodePlan(meta: ProjectMeta): BootstrapPlan {
         AGENT_LABELS.opencode,
         `## Layout
 
-- \`opencode.json\` — project config; overrides global and remote settings.
-- \`.opencode/agents/<name>.md\` — custom agents (YAML frontmatter + system prompt).
-- \`.opencode/commands/<name>.md\` — custom command templates.
+- \`opencode.json\`: project config; overrides global and remote settings.
+- \`.opencode/agents/<name>.md\`: custom agents (YAML frontmatter + system prompt).
+- \`.opencode/commands/<name>.md\`: custom command templates.
 
 Docs: https://opencode.ai/docs/config/
 `,
@@ -406,8 +406,8 @@ function cursorPlan(meta: ProjectMeta): BootstrapPlan {
         AGENT_LABELS.cursor,
         `## Layout
 
-- \`.cursor/rules/<name>.mdc\` — rules with \`description\`/\`globs\`/\`alwaysApply\` frontmatter.
-- \`.cursor/commands/<name>.md\` — reusable prompts invoked as \`/<name>\`.
+- \`.cursor/rules/<name>.mdc\`: rules with \`description\`/\`globs\`/\`alwaysApply\` frontmatter.
+- \`.cursor/commands/<name>.md\`: reusable prompts invoked as \`/<name>\`.
 
 Docs: https://cursor.com/docs/context/rules
 `,
@@ -437,7 +437,7 @@ matching files instead of every session.
   };
 }
 
-/** No dedicated agent folder — just the `AGENTS.md` open standard. */
+/** No dedicated agent folder, just the `AGENTS.md` open standard. */
 function genericPlan(meta: ProjectMeta): BootstrapPlan {
   return {
     agentLabel: AGENT_LABELS.generic,

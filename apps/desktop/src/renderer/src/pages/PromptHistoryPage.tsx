@@ -96,7 +96,7 @@ export default function PromptHistoryPage(): React.JSX.Element {
   const [selectedEntry, setSelectedEntry] = useState<PromptHistoryEntry | null>(null);
   const queryClient = useQueryClient();
 
-  // Only used to turn an entry's projectId into a name — entries outlive the
+  // Only used to turn an entry's projectId into a name; entries outlive the
   // projects they came from, so a missing project just means no badge.
   const projectsQuery = useQuery({
     queryKey: queryKeys.projects,

@@ -4,9 +4,9 @@ import { describeEncoderSupport } from './rtcCodecs';
 /**
  * Benchmark instrumentation for the remote-desktop pipeline.
  *
- * The transports report their own truth — WebRTC's `getStats()` is the
+ * The transports report their own truth. WebRTC's `getStats()` is the
  * authoritative source for bitrate, framerate and drops, and the main process
- * reports its own CPU/RSS — so a run needs no external profiler. Samples are
+ * reports its own CPU/RSS, so a run needs no external profiler. Samples are
  * buffered in a ring and exported as NDJSON.
  *
  * Deliberately inert until `startBenchmark()` is called: an always-on sampler
@@ -60,7 +60,7 @@ export interface ProcessBenchSample {
   mainCpu: number;
   /** Main-process resident set size, bytes. */
   mainMemory: number;
-  /** Renderer JS heap, bytes — Chromium-only, absent elsewhere. */
+  /** Renderer JS heap, bytes. Chromium-only, absent elsewhere. */
   rendererHeap: number | null;
 }
 

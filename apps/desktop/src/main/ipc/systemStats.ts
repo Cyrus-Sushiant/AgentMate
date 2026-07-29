@@ -27,8 +27,8 @@ function readCpuSnapshot(): CpuSnapshot {
 
 let lastCpuSnapshot: CpuSnapshot | null = null;
 
-// Instantaneous CPU load isn't exposed by Node — only cumulative per-core
-// tick counters — so usage is derived from the delta between consecutive
+// Instantaneous CPU load isn't exposed by Node, only cumulative per-core
+// tick counters, so usage is derived from the delta between consecutive
 // samples (same technique top/htop use).
 function sampleCpuPercent(): number {
   const snapshot = readCpuSnapshot();
@@ -65,7 +65,7 @@ let lastDiskIoSnapshots = new Map<string, DiskIoSnapshot>();
 async function sampleDisks(): Promise<DiskUsage[]> {
   try {
     if (process.platform === 'win32') {
-      // PhysicalDisk (not LogicalDisk) — a single physical disk can host
+      // PhysicalDisk (not LogicalDisk): a single physical disk can host
       // several drive letters, and I/O activity happens on the physical
       // spindle/SSD, not the logical volume. This WMI class already reports
       // a rolling per-second rate, no manual delta needed.
@@ -79,10 +79,10 @@ async function sampleDisks(): Promise<DiskUsage[]> {
         | { Name: string; DiskReadBytesPersec: number | null; DiskWriteBytesPersec: number | null }[];
       const rows = Array.isArray(parsed) ? parsed : [parsed];
       return rows
-        // "_Total" is the aggregate row across all disks — each disk is already listed on its own.
+        // "_Total" is the aggregate row across all disks; each disk is already listed on its own.
         .filter((r) => r.Name !== '_Total')
         .map((r) => {
-          // Instance names look like "0 C:" or "1 D: E:" — index followed by
+          // Instance names look like "0 C:" or "1 D: E:": index followed by
           // the drive letter(s) that live on that physical disk.
           const index = r.Name.match(/^\d+/)?.[0];
           return {
@@ -104,7 +104,7 @@ async function sampleDisks(): Promise<DiskUsage[]> {
         const cols = line.trim().split(/\s+/);
         if (cols.length < 14) continue;
         const name = cols[2];
-        // Whole disks only (sda, nvme0n1, vda…) — skips partitions, loop and ram devices.
+        // Whole disks only (sda, nvme0n1, vda, etc), skips partitions, loop and ram devices.
         if (!/^(sd[a-z]+|nvme\d+n\d+|vd[a-z]+|xvd[a-z]+|hd[a-z]+)$/.test(name)) continue;
         const readBytes = Number(cols[5]) * 512;
         const writeBytes = Number(cols[9]) * 512;

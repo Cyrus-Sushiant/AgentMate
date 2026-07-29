@@ -8,7 +8,7 @@ import { store } from '../store';
 // One frameless, transparent, always-on-top BrowserWindow per pinned Build
 // Prompt widget. Each loads the existing renderer bundle at the
 // `#/widget/prompt-build/<id>` hash route, so no extra Vite entry is needed.
-// Unlike Token Usage widgets there is no size/style/mode to vary — the widget
+// Unlike Token Usage widgets there is no size/style/mode to vary. The widget
 // mirrors the dialog's small (non-maximized) layout and can only be closed,
 // not enlarged, so a single fixed size is enough.
 

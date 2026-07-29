@@ -226,7 +226,7 @@ export function registerGitHandlers(): void {
         }
       }
 
-      // No GitHub CLI — fall back to opening a pre-filled compare page in the browser.
+      // No GitHub CLI, fall back to opening a pre-filled compare page in the browser.
       const remoteUrl = (await git(cwd, ['remote', 'get-url', 'origin']).catch(() => '')).trim();
       const parsed = parseGithubRemote(remoteUrl);
       if (!parsed) {

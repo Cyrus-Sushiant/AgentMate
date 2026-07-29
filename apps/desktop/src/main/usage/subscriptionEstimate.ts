@@ -15,7 +15,7 @@ import type { UsageEntry } from './shared';
 // Three things are reconstructed:
 //
 //   Session (5h). Usage is metered in 5-hour blocks that start with your first
-//   message after an idle gap, not on a wall-clock schedule — so the block
+//   message after an idle gap, not on a wall-clock schedule. So the block
 //   boundaries are derived from the transcript timestamps themselves.
 //
 //   Weekly. A 7-day window phased off the account's first-ever token date, the
@@ -52,7 +52,7 @@ interface PlanBudget {
 
 /**
  * Per-plan budgets in API-equivalent dollars. These are calibration constants,
- * not quoted limits — Anthropic doesn't publish the numbers, so they're sized
+ * not quoted limits. Anthropic doesn't publish the numbers, so they're sized
  * from the plans' relative multipliers and then corrected per-account by
  * `calibrate()` below.
  */
@@ -86,7 +86,7 @@ function floorToHour(ms: number): number {
 /**
  * Group entries into 5-hour blocks. A block opens on the hour containing its
  * first message and closes 5 hours later, or as soon as the gap since the last
- * message reaches 5 hours — at which point the next message opens a fresh one.
+ * message reaches 5 hours, at which point the next message opens a fresh one.
  */
 export function buildSessionBlocks(entries: UsageEntry[]): SessionBlock[] {
   const sorted = [...entries].sort((a, b) => a.at.getTime() - b.at.getTime());
@@ -132,7 +132,7 @@ function activeBlock(blocks: SessionBlock[], now: number): SessionBlock | null {
 
 /**
  * Bucket activity into 7-day windows phased off `anchor`, so a boundary lands on
- * the same weekday/time the account first used Claude Code — matching how the
+ * the same weekday/time the account first used Claude Code, matching how the
  * real weekly limit tracks account history rather than a calendar week.
  *
  * Returns the window in progress plus the priciest *completed* one, which is
@@ -184,7 +184,7 @@ export function estimateSubscriptionWindows(
   const blocks = buildSessionBlocks(entries);
   const windows: SubscriptionWindow[] = [];
 
-  // Only completed blocks calibrate the budget — the one in progress hasn't
+  // Only completed blocks calibrate the budget. The one in progress hasn't
   // had its full 5 hours to accumulate yet.
   const completed = blocks.filter((b) => b.end <= now);
   const sessionBudget = calibrate(
@@ -218,7 +218,7 @@ export function estimateSubscriptionWindows(
     });
 
     // The extra bucket only exists above Pro. It shares the weekly phase, so
-    // the same anchor applies — only the entries counted differ.
+    // the same anchor applies, only the entries counted differ.
     if (metersFableWeekly(plan)) {
       const fable = weekBuckets(entries.filter((e) => isFableModel(e.model)), anchor, now);
       const fableBudget = calibrate(

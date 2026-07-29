@@ -102,7 +102,7 @@ export function TerminalPane({ meta, active, onExit }: TerminalPaneProps): React
   }, []);
 
   // Newly opened sessions and tab switches both need to move DOM focus into xterm's hidden
-  // textarea — without it, keystrokes (e.g. Enter to launch, Ctrl+V to paste an install command)
+  // textarea. Without it, keystrokes (e.g. Enter to launch, Ctrl+V to paste an install command)
   // go wherever focus already was (often the button that opened this session) instead of the pty.
   useEffect(() => {
     if (active) termRef.current?.focus();

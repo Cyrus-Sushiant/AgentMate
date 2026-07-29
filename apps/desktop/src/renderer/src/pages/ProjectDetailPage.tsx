@@ -173,8 +173,8 @@ export default function ProjectDetailPage(): React.JSX.Element {
 
   const bootstrapMutation = useMutation({
     // The description is persisted on the project before scaffolding, because
-    // the main process builds the file plan from the stored project — that way
-    // the preview, the written files and the saved description can't disagree.
+    // the main process builds the file plan from the stored project, so
+    // the preview, the written files, and the saved description can't disagree.
     mutationFn: async ({ description, translatedFrom }: BootstrapDescription) => {
       if (description !== project?.description) {
         await window.agentmat.projects.update(projectId!, { description });
@@ -201,7 +201,7 @@ export default function ProjectDetailPage(): React.JSX.Element {
       void queryClient.invalidateQueries({ queryKey: queryKeys.projects });
       // The main process is bundled separately from this renderer, so a stale
       // Electron build can answer with an older shape. Normalize rather than
-      // crash, and say so plainly — the fix is restarting `pnpm dev`.
+      // crash, and say so plainly; the fix is restarting `pnpm dev`.
       const stale = !raw?.agentLabel || !raw?.skippedFiles;
       const result: BootstrapResult = {
         agentLabel: raw?.agentLabel ?? 'the selected agent',
@@ -212,7 +212,7 @@ export default function ProjectDetailPage(): React.JSX.Element {
 
       if (stale) {
         toast.warning(
-          'Bootstrapped with an outdated main process — files may have gone to the old locations. Restart the app (pnpm dev) and run it again.',
+          'Bootstrapped with an outdated main process. Files may have gone to the old locations. Restart the app (pnpm dev) and run it again.',
         );
       } else {
         const skipped = result.skippedFiles.length
@@ -326,7 +326,7 @@ export default function ProjectDetailPage(): React.JSX.Element {
                 ))}
               </div>
               <div className="flex max-w-full items-center gap-1">
-                <SimpleTooltip label={`Copy path — ${project.folderPath}`}>
+                <SimpleTooltip label={`Copy path: ${project.folderPath}`}>
                   <button
                     type="button"
                     onClick={() => void handleCopyPath()}
@@ -443,7 +443,7 @@ export default function ProjectDetailPage(): React.JSX.Element {
                 </p>
               ) : (
                 <p className="rounded-lg border border-dashed border-border p-3 text-sm text-muted-foreground">
-                  No prompt defined yet — set the standing context agents should start from on this
+                  No prompt defined yet. Set the standing context agents should start from on this
                   project.
                 </p>
               )}
@@ -518,7 +518,7 @@ export default function ProjectDetailPage(): React.JSX.Element {
                   </>
                 ) : !planBridgeReady ? (
                   <p className="text-xs text-muted-foreground">
-                    Preview unavailable — this window is running an older preload script. Fully quit
+                    Preview unavailable. This window is running an older preload script. Fully quit
                     the app and start it again (<code className="font-mono">pnpm dev</code>) to see it.
                     Bootstrapping still works.
                   </p>
@@ -667,7 +667,7 @@ export default function ProjectDetailPage(): React.JSX.Element {
                 <dt className="shrink-0 text-muted-foreground">Run command</dt>
                 <SimpleTooltip label={project.runCommand}>
                   <dd className="min-w-0 truncate text-right font-mono text-xs">
-                    {project.runCommand || '—'}
+                    {project.runCommand || 'N/A'}
                   </dd>
                 </SimpleTooltip>
               </div>
@@ -681,13 +681,13 @@ export default function ProjectDetailPage(): React.JSX.Element {
               </div>
               <div className="flex items-center justify-between gap-2">
                 <dt className="text-muted-foreground">Tags</dt>
-                <dd className="text-right">{project.tags.length > 0 ? project.tags.length : '—'}</dd>
+                <dd className="text-right">{project.tags.length > 0 ? project.tags.length : 'N/A'}</dd>
               </div>
               <div className="flex items-center justify-between gap-2">
                 <dt className="text-muted-foreground">Drafts</dt>
                 <dd className="text-right">
                   {drafts.length === 0
-                    ? '—'
+                    ? 'N/A'
                     : `${openDraftCount} open · ${drafts.length - openDraftCount} implemented`}
                 </dd>
               </div>
@@ -877,7 +877,7 @@ function EditClaudeHookDialog({
 
 /**
  * Prompt Builder drafts parked on this project, shown with the parameters each was built with
- * so the project's Overview says what was planned — and lets you flip one to implemented.
+ * so the project's Overview says what was planned, and lets you flip one to implemented.
  */
 function DraftsSection({ projectId }: { projectId: string }): React.JSX.Element {
   const queryClient = useQueryClient();
@@ -888,7 +888,7 @@ function DraftsSection({ projectId }: { projectId: string }): React.JSX.Element 
     queryFn: () => window.agentmat.projectDrafts.listByProject(projectId),
   });
 
-  // Newest first — the draft just saved from Prompt Builder is the one you came here for.
+  // Newest first, since the draft just saved from Prompt Builder is the one you came here for.
   const drafts = [...(draftsQuery.data ?? [])].sort((a, b) =>
     b.createdAt.localeCompare(a.createdAt),
   );
@@ -1154,7 +1154,7 @@ function ScheduleTab({ projectId }: { projectId: string }): React.JSX.Element {
   );
 }
 
-/** Strips markdown fences/quotes and collapses to a single line — for AI-suggested branch names. */
+/** Strips markdown fences/quotes and collapses to a single line, for AI-suggested branch names. */
 function sanitizeBranchName(text: string): string {
   return text
     .replace(/```[a-z]*\n?/gi, '')
@@ -1166,7 +1166,7 @@ function sanitizeBranchName(text: string): string {
     .replace(/\s+/g, '-');
 }
 
-/** Strips markdown fences/quotes but keeps line breaks — for AI-suggested commit messages. */
+/** Strips markdown fences/quotes but keeps line breaks, for AI-suggested commit messages. */
 function sanitizeCommitMessage(text: string): string {
   return text
     .replace(/```[a-z]*\n?/gi, '')
@@ -1484,7 +1484,7 @@ function CreatePrDialog({
 
   useEffect(() => {
     if (open) setTitle((current) => current || suggestedTitle);
-    // Only seed the title once, when the dialog opens — don't fight the user's edits.
+    // Only seed the title once, when the dialog opens; don't fight the user's edits.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
@@ -1935,7 +1935,7 @@ function HooksTab({ project }: { project: Project }): React.JSX.Element {
                   </Badge>
                 </div>
                 {/* The command is often far wider than the row, so the tooltip
-                    is where you actually read it — let it wrap generously. */}
+                    is where you actually read it, so let it wrap generously. */}
                 <SimpleTooltip label={summarizeHook(hook.hook)} align="start" className="font-mono">
                   <p className="truncate font-mono text-xs text-muted-foreground/80">
                     {summarizeHook(hook.hook)}
@@ -2036,7 +2036,7 @@ function NotificationHookCard({
       const rendered = message.replaceAll('{{project}}', project.name);
       const result = await window.agentmat.notifications.sendTest({ message: rendered });
       if (result.ok) {
-        toast.success('Sent — check Telegram.');
+        toast.success('Sent. Check Telegram.');
       } else {
         toast.error(result.error ?? 'Failed to send test message.');
       }

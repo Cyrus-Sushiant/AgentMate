@@ -2,7 +2,7 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 
 /**
- * Placeholder for one marketplace entry — the Skill and MCP catalogs render the
+ * Placeholder for one marketplace entry. The Skill and MCP catalogs render the
  * same card shape (title, description, badge row, actions), so both grids fill
  * with these while their repository index loads instead of sitting empty.
  */

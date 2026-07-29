@@ -51,8 +51,8 @@ function replaceRange(
 
 /**
  * Toggle an inline marker (`**`, `*`, `~~`, `` ` ``) around the selection.
- * Unwraps when the marker is already there — either inside the selection or
- * hugging it — so clicking Bold twice leaves the text as it started.
+ * Unwraps when the marker is already there, either inside the selection or
+ * hugging it, so clicking Bold twice leaves the text as it started.
  */
 export function toggleInlineWrap(state: EditState, marker: string): EditState {
   const { value, selectionStart, selectionEnd } = state;
@@ -113,7 +113,7 @@ function markerFor(kind: BlockKind, indent: string, ordinal: number): string {
 
 /**
  * Toggle a block marker across every line the selection touches. Adds the
- * marker unless all non-empty lines already carry it, in which case it strips —
+ * marker unless all non-empty lines already carry it, in which case it strips,
  * matching how editors people already know behave.
  */
 export function toggleBlockPrefix(state: EditState, kind: BlockKind): EditState {
@@ -163,7 +163,7 @@ export function toggleHeading(state: EditState, level: number): EditState {
 
 /**
  * Insert a link. Selected text becomes the label with the URL placeholder
- * selected; with no selection, the label placeholder is selected instead — so
+ * selected; with no selection, the label placeholder is selected instead, so
  * either way the next keystroke types into the right slot.
  */
 export function insertLink(state: EditState): EditState {
@@ -224,7 +224,7 @@ export function continueList(state: EditState): EditState | null {
 
   const [marker, indent, bullet, task, numberText, delimiter] = match;
 
-  // Empty item — clear the marker rather than adding another one.
+  // Empty item, clear the marker rather than adding another one.
   if (line.length === marker.length) {
     return replaceRange(state, from, selectionStart, indent, from + indent.length, from + indent.length);
   }

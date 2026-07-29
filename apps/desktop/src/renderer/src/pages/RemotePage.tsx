@@ -19,7 +19,7 @@ export default function RemotePage(): React.JSX.Element {
   const logs = useRemoteStore((s) => s.logs);
   const transfers = useRemoteStore((s) => s.transfers);
 
-  usePageHeader('Remote', 'Control another AgentMate over your local network — AnyDesk-style, on WebSockets.');
+  usePageHeader('Remote', 'Control another AgentMate over your local network, AnyDesk-style, over WebSockets.');
 
   return (
     <div className="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-4 p-6">

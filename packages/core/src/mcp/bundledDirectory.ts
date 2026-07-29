@@ -6,7 +6,7 @@ import { McpRepositoryIndexSchema, type McpRepositoryIndex } from './types.js';
  * fetched per-server from each server's own /mcp/{slug} detail page. Shipped with the app so
  * the default marketplace listing works offline and never needs a network fetch. Entries
  * without a parsed `command`/`url` had no machine-readable install instructions on the
- * source page — they're still listed for discovery, but need manual setup.
+ * source page; they're still listed for discovery, but need manual setup.
  */
 export const BOWORA_MCP_REPOSITORY_ID = 'bowora-directory';
 
@@ -600,7 +600,7 @@ export const bundledMcpDirectory: McpRepositoryIndex = McpRepositoryIndexSchema.
       id: 'codebase-memory-mcp',
       name: 'Codebase Memory MCP',
       description:
-        'High-performance code intelligence MCP server. Indexes codebases into a persistent knowledge graph — average repo in milliseconds. 158 languages, sub-ms queries, 99% fewer tokens. Single static binary, zero dependencies.',
+        'High-performance code intelligence MCP server. Indexes codebases into a persistent knowledge graph, with query times in milliseconds for the average repo. 158 languages, sub-ms queries, 99% fewer tokens. Single static binary, zero dependencies.',
       category: 'Developer Tools',
       tags: ['Developer Tools', 'AI & Automation'],
       author: 'DeusData',

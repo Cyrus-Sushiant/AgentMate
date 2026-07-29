@@ -1,6 +1,6 @@
 /**
  * Colors mirror the desktop app's dark theme (see apps/desktop/src/renderer/src/index.css
- * `.dark` block) converted from HSL to hex — same near-black canvas and spring-green accent.
+ * `.dark` block) converted from HSL to hex: same near-black canvas and spring-green accent.
  */
 export const colors = {
   background: '#0a0a0a',

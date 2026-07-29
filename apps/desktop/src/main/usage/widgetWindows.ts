@@ -25,7 +25,7 @@ const windows = new Map<string, BrowserWindow>();
 
 async function readWidgets(): Promise<DesktopWidgetInstance[]> {
   const settings = await store.getSettings();
-  // Anything that isn't the subscription widget is a token widget — this also
+  // Anything that isn't the subscription widget is a token widget. This also
   // folds in widgets persisted before modes existed, and the short-lived 'auto'
   // value an earlier build wrote.
   return (settings.usageWidgets ?? []).map((w) => ({

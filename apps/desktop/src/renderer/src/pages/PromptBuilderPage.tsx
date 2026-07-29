@@ -170,7 +170,7 @@ export default function PromptBuilderPage(): React.JSX.Element {
   const historyEntries = historyQuery.data ?? [];
 
   // Voice input appends onto whatever's already in the box, so read the latest
-  // value through a ref — the transcription callback outlives the render that
+  // value through a ref; the transcription callback outlives the render that
   // created it and would otherwise close over a stale rawInput.
   const rawInputRef = useRef(rawInput);
   useEffect(() => {
@@ -229,7 +229,7 @@ export default function PromptBuilderPage(): React.JSX.Element {
       });
     },
     onSuccess: () => {
-      toast.success('Draft saved — find it on the project’s Overview tab.');
+      toast.success('Draft saved. Find it on the project’s Overview tab.');
       void queryClient.invalidateQueries({ queryKey: queryKeys.projectDrafts(projectId!) });
     },
     onError: () => toast.error('Could not save the draft.'),
@@ -250,7 +250,7 @@ export default function PromptBuilderPage(): React.JSX.Element {
       });
     },
     onSuccess: () => {
-      toast.success('Scheduled series saved — view it on the project’s Schedule tab.');
+      toast.success('Scheduled series saved. View it on the project’s Schedule tab.');
       setScheduleQueue([]);
       void queryClient.invalidateQueries({ queryKey: queryKeys.scheduledTasks(projectId!) });
     },
@@ -287,7 +287,7 @@ export default function PromptBuilderPage(): React.JSX.Element {
   async function logHistory(source: 'generate' | 'translate', content: string): Promise<void> {
     try {
       // A plain translation isn't shaped by a prompt type or aimed at a particular AI,
-      // so neither field applies — record them empty rather than whatever the pickers hold.
+      // so neither field applies; record them empty rather than whatever the pickers hold.
       const isTranslation = source === 'translate';
       await window.agentmat.promptHistory.add({
         rawInput,
@@ -302,7 +302,7 @@ export default function PromptBuilderPage(): React.JSX.Element {
         void queryClient.invalidateQueries({ queryKey: queryKeys.projectPromptHistory(projectId) });
       }
     } catch {
-      // History logging is best-effort — a failure here shouldn't interrupt the user's flow.
+      // History logging is best-effort; a failure here shouldn't interrupt the user's flow.
     }
   }
 
@@ -310,7 +310,7 @@ export default function PromptBuilderPage(): React.JSX.Element {
   function restoreFromHistory(entry: PromptHistoryEntry): void {
     setRawInput(entry.rawInput);
     // Translations carry no prompt type or target AI, so leave the pickers as they are.
-    // Otherwise they're stored as plain strings — only adopt values the pickers still know about.
+    // Otherwise they're stored as plain strings, so only adopt values the pickers still know about.
     if (entry.source !== 'translate') {
       if ((PROMPT_TYPES as readonly string[]).includes(entry.promptType)) {
         setPromptType(entry.promptType as PromptType);
@@ -384,7 +384,7 @@ export default function PromptBuilderPage(): React.JSX.Element {
       setGenerated(translated);
       void logHistory('translate', translated);
     } catch {
-      toast.error('Translation failed — check your internet connection and try again.');
+      toast.error('Translation failed. Check your internet connection and try again.');
     } finally {
       setIsTranslating(false);
     }
@@ -512,7 +512,7 @@ export default function PromptBuilderPage(): React.JSX.Element {
                 </div>
                 <p className="text-xs text-muted-foreground">
                   {projectId
-                    ? 'Parks this request — with the prompt type, target AI and generated prompt it was built with — on the project’s Overview tab, where you can mark it implemented later.'
+                    ? 'Parks this request (with the prompt type, target AI, and generated prompt it was built with) on the project’s Overview tab, where you can mark it implemented later.'
                     : 'Choose a project above to park this request on it as a draft.'}
                 </p>
                 <Button
@@ -727,7 +727,7 @@ export default function PromptBuilderPage(): React.JSX.Element {
               <p className="py-6 text-center text-sm text-muted-foreground">
                 {trimmedHistorySearch
                   ? `No prompts match “${trimmedHistorySearch}”.`
-                  : 'Nothing here yet — generate or translate a prompt and it will show up.'}
+                  : 'Nothing here yet. Generate or translate a prompt and it will show up.'}
               </p>
             ) : (
               historyEntries.map((entry) => (

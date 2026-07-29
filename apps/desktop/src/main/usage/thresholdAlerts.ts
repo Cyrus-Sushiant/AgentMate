@@ -6,7 +6,7 @@ import { store } from '../store';
 import { getProviderUsage } from './index';
 
 // OS-level "you're near your limit" alerts. Unlike reset alerts, there is no
-// moment to count down to — each tick just compares the window's current
+// moment to count down to. Each tick just compares the window's current
 // `percent` against the threshold. What needs remembering is which window
 // already fired, keyed by that window's `resetAt`: a window sitting above the
 // threshold must not re-announce itself every tick, but once it rolls over
@@ -35,7 +35,7 @@ function broadcast(channel: string, payload: unknown): void {
 function notify(title: string, body: string): void {
   if (Notification.isSupported()) {
     // Without an explicit icon, Windows/Linux fall back to the launching
-    // executable's own icon — Electron's, in a dev run.
+    // executable's own icon (Electron's, in a dev run).
     new Notification({ title, body, icon }).show();
     return;
   }
@@ -56,7 +56,7 @@ async function tick(): Promise<void> {
     const usage = await getProviderUsage(alerts.providerId, config);
     windows = usage.subscription?.windows ?? [];
   } catch {
-    // Offline, an expired grant, or a log scan that threw — the next tick retries.
+    // Offline, an expired grant, or a log scan that threw. The next tick retries.
     return;
   }
 
@@ -72,7 +72,7 @@ async function tick(): Promise<void> {
     fired.set(key, window.resetAt);
     const pct = Math.round(window.percent);
     notify(
-      `${providerName} — ${window.label} at ${pct}%`,
+      `${providerName}: ${window.label} at ${pct}%`,
       `You've used ${pct}% of your ${window.label.toLowerCase()} limit.`,
     );
   }
@@ -104,7 +104,7 @@ export async function sendThresholdAlertTest(): Promise<{ ok: boolean; error?: s
   const key = alerts.windows[0] ?? 'session';
   const label = WINDOW_LABELS[key] ?? 'Session (5h)';
   notify(
-    `🧪 Test — ${providerName} · ${label}`,
+    `🧪 Test: ${providerName} · ${label}`,
     `This is what an alert looks like at ${alerts.threshold}% usage.`,
   );
   return { ok: true };

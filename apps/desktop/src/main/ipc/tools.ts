@@ -48,7 +48,7 @@ async function detectDockerStatus(
     );
     return stdout.trim() === 'true' ? 'running' : 'stopped';
   } catch (err) {
-    // ENOENT means the `docker` binary itself isn't on PATH — distinct from "docker is
+    // ENOENT means the `docker` binary itself isn't on PATH, distinct from "docker is
     // installed but this tool's container hasn't been created yet" (any other failure,
     // e.g. `docker inspect`'s "no such container").
     if (err && typeof err === 'object' && 'code' in err && err.code === 'ENOENT') return 'unavailable';

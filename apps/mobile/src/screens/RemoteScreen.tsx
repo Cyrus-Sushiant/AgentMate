@@ -56,12 +56,12 @@ export function RemoteScreen({ client }: { client: RemoteClient }): React.JSX.El
       {(!connected || waitingForVideo) && (
         <View style={styles.centerOverlay} pointerEvents="none">
           <Text style={styles.centerOverlayText}>
-            {connected ? `Starting video — ${PHASE_LABELS[phase]}` : 'Connecting…'}
+            {connected ? `Starting video: ${PHASE_LABELS[phase]}` : 'Connecting…'}
           </Text>
         </View>
       )}
 
-      {/* Floating menu toggle — the only permanent chrome over the screen. */}
+      {/* Floating menu toggle, the only permanent chrome over the screen. */}
       <Pressable
         style={[styles.menuButton, { top: insets.top + spacing(2), right: insets.right + spacing(2) }]}
         onPress={() => setMenuOpen((open) => !open)}
@@ -114,7 +114,7 @@ export function RemoteScreen({ client }: { client: RemoteClient }): React.JSX.El
           <Text style={styles.statsText}>phase: {PHASE_LABELS[stats.phase]}</Text>
           {stats.connectionState && (
             <Text style={styles.statsText}>
-              pc: {stats.connectionState} · ice: {stats.iceConnectionState ?? '—'}
+              pc: {stats.connectionState} · ice: {stats.iceConnectionState ?? 'n/a'}
             </Text>
           )}
           {stats.width > 0 && (

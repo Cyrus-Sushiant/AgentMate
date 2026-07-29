@@ -60,7 +60,7 @@ export function buildPromptGenerationRequest({
   return `You are an expert prompt engineer. Write a single, complete, ready-to-use prompt that a developer can paste directly into ${targetAI} to accomplish the task described below.
 
 Task category: ${promptType} (frame the request as if commissioning a ${profile.roleLabel}).
-Category guidance — focus areas: ${profile.focusAreas.join(', ')}. Requirements to satisfy: ${profile.requirements.join(', ')}. Best practices to apply: ${profile.bestPractices.join(', ')}.
+Category guidance. Focus areas: ${profile.focusAreas.join(', ')}. Requirements to satisfy: ${profile.requirements.join(', ')}. Best practices to apply: ${profile.bestPractices.join(', ')}.
 Notes specific to ${targetAI}: ${aiNote}
 
 Task description:
@@ -68,5 +68,5 @@ Task description:
 ${trimmedInput}
 """
 
-Write the final prompt now, in clear English, structured for ${targetAI} (e.g. role, objective, requirements, constraints, output format as appropriate). Base it only on the task description above — do not invent unrelated requirements. Output ONLY the prompt text itself, with no preamble, explanation, or surrounding commentary.`;
+Write the final prompt now, in clear English, structured for ${targetAI} (e.g. role, objective, requirements, constraints, output format as appropriate). Base it only on the task description above; do not invent unrelated requirements. Output ONLY the prompt text itself, with no preamble, explanation, or surrounding commentary.`;
 }

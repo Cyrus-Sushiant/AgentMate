@@ -69,7 +69,7 @@ function TopBar(): React.JSX.Element {
 
 export function AppShell(): React.JSX.Element {
   const location = useLocation();
-  // Only the cold start gets the full-page overlay — every later load shimmers
+  // Only the cold start gets the full-page overlay. Every later load shimmers
   // in place on the card that's waiting. See the hook for why.
   const showLoading = useAppLoadingOverlay();
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -112,7 +112,7 @@ export function AppShell(): React.JSX.Element {
                 key={location.pathname}
                 className="page-enter flex min-h-full flex-1 flex-col"
               >
-                {/* A page that throws must not take the shell down with it —
+                {/* A page that throws must not take the shell down with it,
                     the sidebar stays usable and the error is readable. */}
                 <ErrorBoundary resetKey={location.pathname}>
                   <Outlet />

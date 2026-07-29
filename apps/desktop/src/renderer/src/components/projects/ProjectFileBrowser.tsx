@@ -45,7 +45,7 @@ function languageFor(path: string): string {
 
 export interface ProjectFileBrowserProps {
   rootPath: string;
-  /** Bump to jump back to the root and refetch — e.g. after bootstrapping. */
+  /** Bump to jump back to the root and refetch, e.g. after bootstrapping. */
   revision?: number;
 }
 
@@ -179,7 +179,7 @@ export function ProjectFileBrowser({
         {selectedFile ? (
           <>
             <div className="mb-2 flex items-center gap-2">
-              <SimpleTooltip label={dirty ? `${selectedFile} — unsaved changes` : selectedFile}>
+              <SimpleTooltip label={dirty ? `${selectedFile} (unsaved changes)` : selectedFile}>
                 <span className="truncate text-xs text-muted-foreground">
                   {selectedFile}
                   {dirty && <span className="ml-1 text-foreground">•</span>}

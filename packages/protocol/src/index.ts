@@ -4,7 +4,7 @@
  * This package is platform-agnostic on purpose: it is consumed by the desktop
  * app (Node/Electron, re-exported from `@shared/remoteProtocol`) and by the
  * mobile controller app (Hermes/React Native), so it must not rely on
- * `Buffer`, `btoa`/`atob`, or any other environment-specific global — only
+ * `Buffer`, `btoa`/`atob`, or any other environment-specific global, only
  * `ArrayBuffer`/`DataView`/`Uint8Array`, which are standard everywhere.
  *
  * Two planes travel over the same socket:
@@ -94,7 +94,7 @@ export type RemoteRtcMessage = Extract<
  * control WebSocket with bulk data.
  *
  * The control socket carries file chunks and (on the fallback path) JPEG tiles,
- * which can queue megabytes deep — a keystroke behind that queue arrives when
+ * which can queue megabytes deep, so a keystroke behind that queue arrives when
  * the queue drains, not when it was pressed. Both channels are therefore
  * configured unreliable + unordered (`{ ordered: false, maxRetransmits: 0 }`):
  * a lost mouse-move is instantly obsoleted by the next one, so retransmitting it
@@ -113,7 +113,7 @@ export const DC_UNRELIABLE: { ordered: false; maxRetransmits: 0 } = {
  *
  * Electron exposes no cross-platform cursor-shape API, so the current
  * `ElectronCaptureProvider` always reports `default`. The field exists so a
- * future native capture provider (DXGI / ScreenCaptureKit / PipeWire — all of
+ * future native capture provider (DXGI / ScreenCaptureKit / PipeWire, all of
  * which do expose the cursor shape) can populate it without a protocol change.
  */
 export const CURSOR_SHAPES = [
@@ -143,7 +143,7 @@ export interface RemoteCursorState {
   /**
    * True when the host's video frames already contain a drawn cursor, so the
    * controller must NOT also draw an overlay (that would show two cursors).
-   * See `ElectronCaptureProvider` — whether the cursor can be excluded from
+   * See `ElectronCaptureProvider`: whether the cursor can be excluded from
    * capture is platform-dependent and detected at runtime.
    */
   baked: boolean;
@@ -269,7 +269,7 @@ export function transferKeyFromId(id: string): number {
   return hash >>> 0;
 }
 
-// --- Portable base64 (no Buffer/btoa — safe on Node, browsers, and Hermes) ----
+// --- Portable base64 (no Buffer/btoa; safe on Node, browsers, and Hermes) ----
 
 const B64_CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
 const B64_LOOKUP = new Map<string, number>(Array.from(B64_CHARS).map((c, i) => [c, i]));

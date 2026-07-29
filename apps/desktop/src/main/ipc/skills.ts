@@ -333,7 +333,7 @@ export function registerSkillHandlers(): void {
       const { branch, paths } = await listSkillsShFiles(params.repo, params.skillName);
       if (paths.length === 0) {
         throw new Error(
-          `No files found for ${params.repo}/${params.skillName} on GitHub — the skill may have moved or been renamed.`,
+          `No files found for ${params.repo}/${params.skillName} on GitHub. The skill may have moved or been renamed.`,
         );
       }
 

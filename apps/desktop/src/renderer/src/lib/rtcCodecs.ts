@@ -2,7 +2,7 @@
  * Runtime codec selection for the screen-share sender.
  *
  * Codec *availability* (`RTCRtpSender.getCapabilities`) says nothing about
- * whether encoding is hardware-backed — and a software AV1 encoder on a busy
+ * whether encoding is hardware-backed, and a software AV1 encoder on a busy
  * host is far worse than hardware H.264, both for latency and for the quality
  * pulsing a starved encoder produces. `navigator.mediaCapabilities.encodingInfo`
  * is the API that answers the question that actually matters, via its
@@ -21,7 +21,7 @@ interface EncodeSupport {
   powerEfficient: boolean;
 }
 
-/** Probe resolution — representative of a downscaled desktop share. */
+/** Probe resolution, representative of a downscaled desktop share. */
 const PROBE = { width: 1280, height: 720, bitrate: 2_500_000, framerate: 30 };
 
 let cachedSupport: Map<string, EncodeSupport> | null = null;
@@ -51,7 +51,7 @@ async function probeCodec(mimeType: string): Promise<EncodeSupport> {
     );
     return { supported: info.supported, powerEfficient: info.powerEfficient };
   } catch {
-    // Unknown content type or unimplemented probe — assume usable software.
+    // Unknown content type or unimplemented probe, assume usable software.
     return { supported: true, powerEfficient: false };
   }
 }

@@ -7,7 +7,7 @@ import { join } from 'node:path';
 // free of any `electron` / `@agentmat/core` import so this module can be loaded
 // both by the main process and by the scan worker thread.
 //
-// Session logs are append-only JSONL and get big — a few hundred MB of Claude
+// Session logs are append-only JSONL and get big, a few hundred MB of Claude
 // transcripts is normal. So we never re-read a file we've already seen: each
 // file's byte offset and the token events extracted from it are cached, and a
 // rescan only streams the bytes appended since last time.
@@ -76,7 +76,7 @@ interface LogFile {
 
 /**
  * Recursively collect `*.jsonl` files under `root`, skipping any whose mtime is
- * older than `sinceMs` — a file untouched for over a month cannot hold an event
+ * older than `sinceMs`. A file untouched for over a month cannot hold an event
  * inside our retention horizon. A missing root resolves to an empty list.
  */
 async function collectLogFiles(root: string, sinceMs: number): Promise<LogFile[]> {
@@ -167,7 +167,7 @@ interface ClaudeLine {
 }
 
 function parseClaudeLine(line: string, state: FileScanState): void {
-  // Cheap substring reject before paying for JSON.parse — most transcript lines
+  // Cheap substring reject before paying for JSON.parse. Most transcript lines
   // are user/tool records with no usage block at all.
   if (!line.includes('"usage"')) return;
   let parsed: ClaudeLine;
@@ -320,7 +320,7 @@ export async function scanProviderLogs(
       let state: FileScanState;
 
       if (prev && prev.mtimeMs === file.mtimeMs && prev.size === file.size) {
-        // Untouched since the last scan — reuse what we already extracted.
+        // Untouched since the last scan, reuse what we already extracted.
         state = prev;
       } else {
         // Appended to: stream only the new tail. New file, or one that was

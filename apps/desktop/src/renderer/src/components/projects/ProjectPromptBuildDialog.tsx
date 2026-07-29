@@ -116,7 +116,7 @@ export function ProjectPromptBuildDialog({
         </SimpleTooltip>
 
         <DialogHeader>
-          <DialogTitle>Build Prompt — {projectName}</DialogTitle>
+          <DialogTitle>Build Prompt: {projectName}</DialogTitle>
         </DialogHeader>
 
         <div

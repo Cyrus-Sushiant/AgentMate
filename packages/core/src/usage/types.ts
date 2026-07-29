@@ -4,8 +4,8 @@
 
 /** How AgentMate obtains usage data for a provider. */
 export type UsageDataSource =
-  | 'local-log' // parse local CLI logs on disk (no credentials) — Claude Code, Codex
-  | 'local-session' // reuse the vendor app's own signed-in session on disk — Cursor
+  | 'local-log' // parse local CLI logs on disk (no credentials): Claude Code, Codex
+  | 'local-session' // reuse the vendor app's own signed-in session on disk: Cursor
   | 'api-key' // call the provider's usage/billing API with a stored key
   | 'unsupported'; // registered for completeness; live wiring not implemented yet
 
@@ -60,14 +60,14 @@ export interface UsageWindow {
 }
 
 /**
- * A named slice of one period's consumption — Cursor's Auto-mode vs API usage,
+ * A named slice of one period's consumption, e.g. Cursor's Auto-mode vs API usage,
  * for example. Segments are a partition: they sum to the period they hang off,
  * so a card can show the split without a second fetch or a second period.
  */
 export interface UsageSegment {
   /** Stable id within the provider ('auto', 'api'). */
   key: string;
-  /** Display label — 'Auto', 'API'. */
+  /** Display label: 'Auto', 'API'. */
   label: string;
   tokens: UsageTokens;
   /** Cost attributed to this slice, or null when the source can't price it. */
@@ -94,7 +94,7 @@ export type UsageAccountMode = 'subscription' | 'api';
 export interface SubscriptionPlan {
   /** Raw id as the CLI records it ('pro', 'max', 'team'…). */
   id: string;
-  /** Display label — 'Pro', 'Max 5×', 'Team'. */
+  /** Display label: 'Pro', 'Max 5×', 'Team'. */
   label: string;
 }
 
@@ -106,7 +106,7 @@ export const FABLE_WEEK_LABEL = 'Weekly (Fable)';
 
 /**
  * True when the plan meters Fable in its own weekly window, on top of the
- * weekly limit every subscription has. Only plans above Pro do — Pro gets a
+ * weekly limit every subscription has. Only plans above Pro do; Pro gets a
  * single weekly limit, so the second bar would be an empty row.
  *
  * Matched by id rather than an exhaustive list so a new Max tier (or a seat
@@ -121,13 +121,13 @@ export function metersFableWeekly(plan: SubscriptionPlan | null | undefined): bo
 /** One rolling rate-limit window on a subscription plan. */
 export interface SubscriptionWindow {
   key: SubscriptionWindowKey;
-  /** Display label — 'Session (5h)', 'Weekly', 'Weekly (Fable)'. */
+  /** Display label: 'Session (5h)', 'Weekly', 'Weekly (Fable)'. */
   label: string;
   /** 0–100 consumed. */
   percent: number;
   /** ISO datetime the window resets, when known. */
   resetAt: string | null;
-  /** Tokens spent in the window — only set when derived from local logs. */
+  /** Tokens spent in the window; only set when derived from local logs. */
   usedTokens?: number;
   /** API-equivalent value of those tokens, which is what the percent is based on. */
   usedUsd?: number;
@@ -177,7 +177,7 @@ export type WidgetStyle = 'mono' | 'colorful';
 /**
  * What a widget shows. These are two separate widgets a user can pin side by
  * side, not two states of one: 'tokens' is the original tokens/cost card, and
- * 'subscription' is the plan's rolling limits. Never infer one from the other —
+ * 'subscription' is the plan's rolling limits. Never infer one from the other;
  * a pinned widget keeps showing what it was pinned to show.
  */
 export type WidgetMode = 'tokens' | 'subscription';
@@ -190,7 +190,7 @@ export interface DesktopWidgetInstance {
   y: number;
   size: WidgetSize;
   style: WidgetStyle;
-  /** Absent on widgets pinned before modes existed — those are token widgets. */
+  /** Absent on widgets pinned before modes existed; those are token widgets. */
   mode?: WidgetMode;
 }
 
@@ -222,7 +222,7 @@ export function defaultUsageResetAlerts(): UsageResetAlertSettings {
 /**
  * A reset-alert block that is safe to read fields off. settings.json is written
  * by whichever build ran last (and can be hand-edited), so a saved block may be
- * missing pieces this one dereferences without asking — `windows` above all,
+ * missing pieces this one dereferences without asking: `windows` above all,
  * which is filtered and mapped on sight. Anything unusable falls back to the
  * default rather than reaching the UI as `undefined`.
  */
@@ -244,7 +244,7 @@ export function normalizeUsageResetAlerts(
 /**
  * OS notification fired the moment a subscription window's consumption
  * crosses a percentage the user picked (e.g. 90%). Unlike reset alerts there
- * is no schedule to reconstruct — each poll just compares the window's
+ * is no schedule to reconstruct; each poll just compares the window's
  * current `percent` against `threshold`.
  */
 export interface UsageThresholdAlertSettings {

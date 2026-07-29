@@ -28,8 +28,8 @@ const KEYS: KeyDef[] = [
 /**
  * Bottom input bar: a hidden TextInput brings up the system keyboard and its
  * `onChangeText` diff is forwarded as 'text' events, plus a row of keys the
- * soft keyboard can't produce (Esc, arrows, ...) sent as 'key' events —
- * together they cover what apps/desktop's RemoteScreen.tsx gets for free
+ * soft keyboard can't produce (Esc, arrows, ...) sent as 'key' events.
+ * Together they cover what apps/desktop's RemoteScreen.tsx gets for free
  * from real onKeyDown/onKeyUp DOM events.
  */
 export function Toolbar({ live, onInput }: ToolbarProps): React.JSX.Element {

@@ -48,7 +48,7 @@ export const useProjectPromptBuildStore = create<ProjectPromptBuildState>()(
 // BrowserWindows, each with its own in-memory copy of this store. Without
 // this, edits made in one window (e.g. the widget) never reach the other's
 // memory until the app restarts, even though both persist to the same
-// localStorage — so reopening the dialog after using the widget shows stale
+// localStorage, so reopening the dialog after using the widget shows stale
 // data. Re-hydrate from storage whenever another window writes to it.
 if (typeof window !== 'undefined') {
   window.addEventListener('storage', (event) => {

@@ -2,8 +2,8 @@
 
 A React Native (Expo) controller app for AgentMate's Remote feature. It connects
 directly to an AgentMate desktop instance that is hosting (Remote → Host tab)
-over your local network — same AnyDesk-style WebSocket protocol the desktop
-app uses to control itself, defined once in
+over your local network, using the same AnyDesk-style WebSocket protocol the
+desktop app uses to control itself. It's defined once in
 [`@agentmat/protocol`](../../packages/protocol) and shared by both apps.
 
 ## Running it
@@ -15,7 +15,7 @@ pnpm mobile
 ```
 
 This builds `@agentmat/protocol` and starts the Expo dev server. Scan the
-printed QR code with **Expo Go** (iOS/Android) to run the app on your phone —
+printed QR code with **Expo Go** (iOS/Android) to run the app on your phone,
 no Xcode/Android Studio setup required. Your phone and the computer running
 AgentMate must be on the same Wi-Fi network.
 
@@ -27,7 +27,7 @@ if you have the native toolchains installed).
 1. On the desktop, open **Remote → Host**, start hosting, and generate a
    pairing code.
 2. On the phone, tap **Scan QR** and point the camera at the desktop's QR
-   code — or paste the `AGENTMATE1:…` code by hand.
+   code, or paste the `AGENTMATE1:…` code by hand.
 3. Once connected, the host's screen streams in as tiles you can tap/drag to
    click and move the cursor, two-finger drag to scroll, and long-press for a
    right click. The bottom bar opens the system keyboard for typing and has
@@ -38,20 +38,20 @@ if you have the native toolchains installed).
 ## What's not implemented yet
 
 File transfer (the desktop's "Send file" in the Connect tab) isn't
-implemented on mobile — chunks for an incoming file are silently ignored.
+implemented on mobile, so chunks for an incoming file are silently ignored.
 Hosting from the phone (letting a desktop control the phone) is also out of
 scope; this app is controller-only.
 
 ## Code layout
 
-- `src/remote/useRemoteClient.ts` — the WebSocket state machine (hello/auth,
+- `src/remote/useRemoteClient.ts`: the WebSocket state machine (hello/auth,
   screen-info, binary tile frames, input, clipboard). Mirrors the controller
   role in `apps/desktop/src/main/remote/manager.ts`, but the socket is opened
   directly here since there's no separate main/renderer process to protect.
-- `src/components/TileCanvas.tsx` — renders incoming JPEG tiles as an
+- `src/components/TileCanvas.tsx`: renders incoming JPEG tiles as an
   absolutely-positioned mosaic (no `<canvas>` in React Native) and turns
   touch gestures into the same normalized `RemoteInputEvent`s the desktop's
   `RemoteScreen.tsx` sends from mouse events.
-- `src/components/Toolbar.tsx` — soft-keyboard capture + special keys.
-- `src/screens/ConnectScreen.tsx` / `src/screens/RemoteScreen.tsx` — the two
+- `src/components/Toolbar.tsx`: soft-keyboard capture + special keys.
+- `src/screens/ConnectScreen.tsx` / `src/screens/RemoteScreen.tsx`: the two
   screens; `App.tsx` switches between them based on connection status.

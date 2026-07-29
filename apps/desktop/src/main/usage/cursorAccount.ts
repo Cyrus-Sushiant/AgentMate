@@ -18,12 +18,12 @@ import type { SubscriptionPlan } from '@agentmat/core';
 //   ItemTable[...applicationUser]         a settings blob carrying membershipType
 //
 // The id the dashboard wants is the JWT's own `sub` claim, so that is read
-// first and the stored key is only a fallback — the two can't drift that way.
+// first and the stored key is only a fallback: the two can't drift that way.
 // Note it is NOT `applicationUser.dashboardUserId`, which is a different,
 // numeric id that the dashboard endpoints reject.
 //
-// Cursor genuinely has no local usage ledger — its chat records carry a
-// `tokenCount` field that is always {0,0} — so unlike Claude Code there is no
+// Cursor genuinely has no local usage ledger. Its chat records carry a
+// `tokenCount` field that is always {0,0}, so unlike Claude Code there is no
 // offline fallback to estimate from. Signed out or offline means no card data.
 
 const APP_USER_KEY =
@@ -54,7 +54,7 @@ function statePaths(): string[] {
  * Cursor is normally running while we do this, holding the DB in WAL mode. A
  * read-only open usually succeeds anyway, but it can lose a race against a
  * checkpoint, so a failure retries against a private copy (WAL sidecars
- * included — without them the copy reads as an older snapshot).
+ * included, without them the copy reads as an older snapshot).
  */
 function readKeys(file: string, keys: string[]): Map<string, string> {
   const out = new Map<string, string>();
@@ -89,7 +89,7 @@ function readKeys(file: string, keys: string[]): Map<string, string> {
     }
     query(copy);
   } catch {
-    // unreadable — caller treats this as "not signed in"
+    // unreadable, caller treats this as "not signed in"
   } finally {
     if (dir) {
       try {
@@ -114,7 +114,7 @@ function unquote(raw: string | undefined): string | null {
 
 /**
  * Read the `sub` and `exp` claims out of the session JWT. The signature is not
- * checked — this is our own stored credential and only the server's opinion of
+ * checked: this is our own stored credential and only the server's opinion of
  * it matters; we just need to address the right account and skip a stale token.
  */
 function decodeClaims(token: string): { sub: string | null; expiresAt: number | null } {
@@ -149,7 +149,7 @@ function resolvePlan(membershipType: string | null): SubscriptionPlan | null {
 export interface CursorAccount {
   /** Session JWT for the dashboard fetch. Never leaves the main process. */
   accessToken: string | null;
-  /** Account id ('auth0|user_01…') — the cookie pairs it with the token. */
+  /** Account id ('auth0|user_01…'). The cookie pairs it with the token. */
   userId: string | null;
   email: string | null;
   plan: SubscriptionPlan | null;
@@ -194,7 +194,7 @@ export function readCursorAccount(): CursorAccount {
       const parsed = JSON.parse(rawAppUser) as Record<string, unknown>;
       if (typeof parsed.membershipType === 'string') membership = parsed.membershipType;
     } catch {
-      /* blob shape changed — the auth key above still carries the plan */
+      /* blob shape changed, the auth key above still carries the plan */
     }
   }
 

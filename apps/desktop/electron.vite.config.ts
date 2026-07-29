@@ -12,8 +12,8 @@ const forcedExternals = [
   'node-pty',
   'better-sqlite3',
   // Local speech-to-text. transformers.js pulls in onnxruntime-node, which
-  // dlopen's prebuilt native binaries — it must stay external so Rollup never
-  // tries to bundle the .node/.dll files.
+  // dlopen's prebuilt native binaries, so it must stay external. Otherwise
+  // Rollup tries to bundle the .node/.dll files.
   '@huggingface/transformers',
   'onnxruntime-node',
   /^node:/,
@@ -45,7 +45,7 @@ export default defineConfig({
         },
         output: {
           // Electron's sandboxed preload loader (sandbox: true) cannot load
-          // ESM — it needs CommonJS, unlike the main process which supports ESM.
+          // ESM. It needs CommonJS, unlike the main process which supports ESM.
           format: 'cjs',
           entryFileNames: '[name].js',
         },

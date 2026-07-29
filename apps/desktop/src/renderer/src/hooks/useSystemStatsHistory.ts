@@ -26,7 +26,7 @@ export function useSystemStatsHistory(): SystemStatsSample[] {
           return next;
         });
       } catch {
-        // Transient IPC/ping failures just skip a tick — the chart keeps its history.
+        // Transient IPC/ping failures just skip a tick, the chart keeps its history.
       }
     }
 

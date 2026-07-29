@@ -78,7 +78,7 @@ interface DashboardLayoutState {
   /**
    * Edit mode. Drag handles, per-row controls and the usage cards' remove
    * buttons only exist while this is on, so the normal dashboard stays clean.
-   * Deliberately not persisted — it's a mode, not a preference.
+   * Deliberately not persisted since it's a mode, not a preference.
    */
   editing: boolean;
   setEditing: (editing: boolean) => void;
@@ -132,7 +132,7 @@ function appendItem(rows: DashboardRow[], id: DashboardItemId): DashboardRow[] {
 /**
  * Keeps only cards that still exist (charts that were removed, or usage/stat/
  * summary cards taken off the dashboard), drops duplicates left by an
- * interrupted write, and appends anything new — so an upgrade never silently
+ * interrupted write, and appends anything new so an upgrade never silently
  * hides a card.
  */
 function sanitizeLayout(

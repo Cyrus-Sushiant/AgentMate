@@ -57,7 +57,7 @@ interface Point {
  *
  * Every mutable value lives in a ref: PanResponder callbacks are created once
  * and must never read stale state (the old TileCanvas captured `live: false`
- * from the first render forever — the "touches do nothing" bug).
+ * from the first render forever (the "touches do nothing" bug).
  */
 export function RemoteViewport({
   screen,
@@ -351,7 +351,7 @@ export function RemoteViewport({
                 key={`${tile.x},${tile.y}`}
                 source={{ uri: tile.uri }}
                 // Android <Image> cross-fades new sources over 300ms by
-                // default — on a tile mosaic that reads as constant flicker.
+                // default, which on a tile mosaic reads as constant flicker.
                 fadeDuration={0}
                 style={{
                   position: 'absolute',

@@ -8,7 +8,7 @@ import { useProjectPromptBuildStore } from '@/stores/projectPromptBuildStore';
 
 /**
  * Shared Build Prompt state/handlers behind the dialog and its pinned desktop
- * widget — both render the same generate/translate/copy/save-draft flow over
+ * widget. Both render the same generate/translate/copy/save-draft flow over
  * the same per-project entry, just in different chrome.
  */
 export interface UseProjectPromptBuilderOptions {
@@ -54,7 +54,7 @@ export function useProjectPromptBuilder(
         content: generated,
       }),
     onSuccess: () => {
-      toast.success('Draft saved — find it on the project’s Overview tab.');
+      toast.success('Draft saved. Find it on the project’s Overview tab.');
       void queryClient.invalidateQueries({ queryKey: queryKeys.projectDrafts(projectId) });
       onDraftSaved?.();
     },
@@ -75,7 +75,7 @@ export function useProjectPromptBuilder(
       void queryClient.invalidateQueries({ queryKey: queryKeys.promptHistory });
       void queryClient.invalidateQueries({ queryKey: queryKeys.projectPromptHistory(projectId) });
     } catch {
-      // History logging is best-effort — a failure here shouldn't interrupt the user's flow.
+      // History logging is best-effort, a failure here shouldn't interrupt the user's flow.
     }
   }
 
@@ -129,7 +129,7 @@ export function useProjectPromptBuilder(
       setGenerated(translated);
       void logHistory('translate', translated);
     } catch {
-      toast.error('Translation failed — check your internet connection and try again.');
+      toast.error('Translation failed. Check your internet connection and try again.');
     } finally {
       setIsTranslating(false);
     }

@@ -142,7 +142,7 @@ export function AskAiChat({
       return;
     }
 
-    // Conversation so far, oldest first — sent along so the provider has context from prior turns.
+    // Conversation so far, oldest first, so the provider has context from prior turns.
     const history = messages
       .filter((m): m is typeof m & { role: 'user' | 'assistant' } => m.role === 'user' || m.role === 'assistant')
       .map((m) => ({ role: m.role, content: m.content }));
@@ -280,7 +280,7 @@ export function AskAiChat({
                 placeholder={geminiModelsQuery.isFetching ? 'Loading models…' : 'Model'}
                 emptyText={
                   geminiModelsQuery.isError
-                    ? 'Could not load models — check your API key.'
+                    ? 'Could not load models, check your API key.'
                     : 'No models found.'
                 }
               />
@@ -337,7 +337,7 @@ export function AskAiChat({
                 <MessageSquare className="h-5 w-5 opacity-70" />
               </div>
               <p className="text-sm text-muted-foreground">
-                Ask anything — responses come straight from {PROVIDER_LABEL[provider]}.
+                Ask anything, responses come straight from {PROVIDER_LABEL[provider]}.
               </p>
               <div className="flex flex-wrap justify-center gap-2 px-4">
                 {SUGGESTIONS.map((s) => (

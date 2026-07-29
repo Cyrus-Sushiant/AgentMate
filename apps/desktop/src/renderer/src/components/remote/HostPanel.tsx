@@ -113,7 +113,7 @@ export function HostPanel(): React.JSX.Element {
             <div className="flex items-start gap-2 rounded-md border border-warning/30 bg-warning/10 p-2.5 text-xs text-warning">
               <TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" />
               <span>
-                Keyboard/mouse control isn&apos;t available on this platform yet — connected
+                Keyboard/mouse control isn&apos;t available on this platform yet. Connected
                 controllers will see the screen but can&apos;t drive it. Screen viewing, clipboard
                 and file transfer still work.
               </span>

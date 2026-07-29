@@ -8,8 +8,8 @@ import {
 } from '@agentmat/core';
 
 // Cursor usage, read from the Cursor Admin API. Cursor keeps nothing usable on
-// disk — `~/.cursor` holds settings, extensions and an AI-edit-tracking DB, but
-// no token ledger — so unlike Claude Code and Codex this provider has to go to
+// disk: `~/.cursor` holds settings, extensions and an AI-edit-tracking DB, but
+// no token ledger. So unlike Claude Code and Codex, this provider has to go to
 // the network.
 //
 // The endpoint is POST /teams/filtered-usage-events, authenticated with the
@@ -24,7 +24,7 @@ const DAY_MS = 86_400_000;
 const WINDOW_DAYS = 30;
 const SERIES_DAYS = 14;
 const PAGE_SIZE = 1000;
-/** Cap the paging loop — 30 days of a busy team, not an unbounded crawl. */
+/** Cap the paging loop. 30 days of a busy team, not an unbounded crawl. */
 const MAX_PAGES = 20;
 
 interface CursorTokenUsage {
@@ -47,7 +47,7 @@ export interface CursorUsageEvent {
    */
   kindLabel?: string;
   kind?: string;
-  /** What Cursor actually billed, in cents — present on the dashboard feed. */
+  /** What Cursor actually billed, in cents. Present on the dashboard feed. */
   chargedCents?: number;
   maxMode?: boolean;
   /** Request units consumed, for calls billed per request rather than per token. */
@@ -99,7 +99,7 @@ async function postJson(
       body: JSON.stringify(body),
     });
     if (res.status === 401 || res.status === 403) {
-      throw new Error('Cursor rejected the key — an Admin API key is required.');
+      throw new Error('Cursor rejected the key. An Admin API key is required.');
     }
     if (!res.ok) throw new Error(`Cursor API returned HTTP ${res.status}`);
     const data: unknown = await res.json();
@@ -114,7 +114,7 @@ async function postJson(
  * Flatten either spelling of the billing verdict into lowercase words:
  * 'Errored, Not Charged' and 'USAGE_EVENT_KIND_ERRORED_NOT_CHARGED' both become
  * 'errored not charged'. The enum's shared `usage event kind` prefix is dropped
- * first — otherwise every event would look like it said "usage".
+ * first, otherwise every event would look like it said "usage".
  */
 function normalizeKind(event: CursorUsageEvent): string {
   return `${event.kindLabel ?? event.kind ?? ''}`
@@ -255,7 +255,7 @@ export function accumulate(entries: CursorEntry[], sinceMs: number): UsagePeriod
     }
   }
 
-  // A slice Cursor never priced reads as unknown, not as a free $0.00 — only
+  // A slice Cursor never priced reads as unknown, not as a free $0.00. Only
   // Auto genuinely costing nothing should render as zero.
   for (const key of ['auto', 'api'] as const) {
     if (!priced[key]) segments[key].costUsd = null;

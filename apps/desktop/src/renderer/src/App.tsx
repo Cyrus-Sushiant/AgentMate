@@ -30,7 +30,7 @@ import UsagePage from './pages/UsagePage';
 import WidgetRoute from './components/usage/WidgetRoute';
 import PromptBuildWidgetRoute from './components/projects/PromptBuildWidgetRoute';
 
-/* Glass toasts: richColors is off on purpose — it paints an opaque per-type
+/* Glass toasts: richColors is off on purpose. It paints an opaque per-type
    background that would defeat the frosted surface. The type accents live in
    index.css under .toaster-glass instead. */
 function AppToaster(): React.JSX.Element {

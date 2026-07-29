@@ -99,7 +99,7 @@ jobs:
       # electron-builder writes one `latest-mac.yml` per invocation. The two
       # macOS runners each package a single arch, so both would produce a
       # same-named file that clobbers the other once artifacts are merged in
-      # the release job below — rename each to keep them apart. The release
+      # the release job below, so rename each to keep them apart. The release
       # job then picks one as the canonical `latest-mac.yml` for
       # electron-updater; see the comment there for the tradeoff.
       - name: Disambiguate macOS update manifest by arch

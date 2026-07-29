@@ -25,7 +25,7 @@ export interface ProjectPromptDialogProps {
 }
 
 /**
- * Defines the project's standing prompt — the context an agent should start
+ * Defines the project's standing prompt, the context an agent should start
  * from on every run. Stored on the project itself, so it survives independently
  * of whatever is in the Prompt Builder at the time.
  */

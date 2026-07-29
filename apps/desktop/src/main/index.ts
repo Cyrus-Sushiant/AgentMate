@@ -158,13 +158,13 @@ app.whenReady().then(() => {
   // Prompt Builder's voice input calls getUserMedia for the microphone. Electron
   // grants permission requests by default (the same default that lets every
   // "Copy" button use navigator.clipboard), so no permission handler is needed
-  // here — adding a restrictive one would break clipboard writes and the Remote
+  // here. Adding a restrictive one would break clipboard writes and the Remote
   // feature. On macOS the OS still gates the mic behind its own TCC prompt,
   // which needs NSMicrophoneUsageDescription in the packaged Info.plist (see
   // electron-builder.yml).
 
   // When the Remote page (host side) calls getDisplayMedia, capture the primary
-  // screen directly instead of popping the OS source picker — the operator has
+  // screen directly instead of popping the OS source picker. The operator has
   // already opted in by starting a host session.
   session.defaultSession.setDisplayMediaRequestHandler(
     (_request, callback) => {

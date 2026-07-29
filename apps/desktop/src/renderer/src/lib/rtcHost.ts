@@ -15,7 +15,7 @@ import { recordHostSample } from './remoteBench';
  * Host-side WebRTC streaming: one RTCPeerConnection per connected controller,
  * all sharing the single screen-capture MediaStream.
  *
- * This is the primary transport for *every* controller — desktop and mobile
+ * This is the primary transport for *every* controller, desktop and mobile
  * alike. The capture track goes straight to the encoder, so screen pixels never
  * enter JavaScript on this path: no canvas, no readback, no JPEG.
  *
@@ -144,7 +144,7 @@ async function startPeer(peerId: string): Promise<void> {
   const sender = pc.addTrack(track, stream);
 
   // The offerer creates the data channels; the controller picks them up via
-  // ondatachannel. Both are unreliable — a lost mouse-move is superseded by the
+  // ondatachannel. Both are unreliable, a lost mouse-move is superseded by the
   // next one, so retransmitting it would only deliver a stale position late.
   session.input = pc.createDataChannel(DC_INPUT, DC_UNRELIABLE);
   session.input.binaryType = 'arraybuffer';
@@ -184,7 +184,7 @@ async function startPeer(peerId: string): Promise<void> {
     if (peers.get(peerId)?.pc !== pc) return;
     if (pc.connectionState === 'connected') {
       // Video is flowing; main stops JPEG tiles for this peer. 'disconnected'
-      // is deliberately ignored — it is usually a transient blip that returns
+      // is deliberately ignored, it is usually a transient blip that returns
       // to 'connected' on its own, and tearing down would flap transports.
       window.agentmat.remote.rtcPeerState(peerId, true);
     } else if (pc.connectionState === 'failed' || pc.connectionState === 'closed') {

@@ -26,11 +26,11 @@ function resolveModelId(modelKey: string | undefined): string {
 
 // transformers.js is ESM-only for its Node build and pulls in the native
 // onnxruntime-node addon, so it's loaded lazily on first use rather than at
-// startup — that keeps app launch fast and avoids paying the cost for users
+// startup. That keeps app launch fast and avoids paying the cost for users
 // who never touch voice input.
 type TransformersModule = typeof import('@huggingface/transformers');
 // pipeline() is typed to return a union of every pipeline class, which isn't
-// callable. Narrow to the ASR pipeline instance — that's what
+// callable. Narrow to the ASR pipeline instance, which is what
 // 'automatic-speech-recognition' actually produces.
 type AsrPipeline = InstanceType<TransformersModule['AutomaticSpeechRecognitionPipeline']>;
 
@@ -51,7 +51,7 @@ async function loadTransformers(): Promise<TransformersModule> {
 }
 
 // One pipeline instance is kept alive per model id. Building it loads the
-// weights into memory, which is expensive — reusing it makes every
+// weights into memory, which is expensive, so reusing it makes every
 // transcription after the first one fast.
 let pipelinePromise: Promise<AsrPipeline> | null = null;
 let loadedModelId: string | null = null;

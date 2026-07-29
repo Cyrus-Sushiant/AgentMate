@@ -15,7 +15,7 @@ export interface UpdateProgressTick {
 
 export interface PackageManagerAdapter {
   ecosystem: PackageManagerEcosystem;
-  /** Filesystem-only check — must not spawn a CLI. */
+  /** Filesystem-only check, must not spawn a CLI. */
   detect(folderPath: string): Promise<boolean>;
   listPackages(folderPath: string): Promise<PackageManagerSection>;
   updatePackages(

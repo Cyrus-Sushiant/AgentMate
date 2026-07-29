@@ -35,8 +35,8 @@ export interface BootstrapDescriptionDialogProps {
  * Collects the project description right before scaffolding, because that
  * description is what fills the Overview sections of the generated md files.
  *
- * Persian input is translated to English first — agents read these files on
- * every session, and they're written in English. The translation is shown for
+ * Persian input is translated to English first, since agents read these files
+ * on every session and they're written in English. The translation is shown for
  * review rather than applied silently, so a bad machine translation never ends
  * up baked into the repo.
  */
@@ -123,14 +123,14 @@ export function BootstrapDescriptionDialog({
             />
             {needsTranslation ? (
               <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                <Languages className="h-3.5 w-3.5" /> Persian detected — this will be translated to
+                <Languages className="h-3.5 w-3.5" /> Persian detected, this will be translated to
                 English and saved to the project's prompt history.
               </p>
             ) : (
               <p className="text-xs text-muted-foreground">
                 {trimmed
                   ? 'Saved on the project and written into the generated files.'
-                  : 'No description — the default template files will be created.'}
+                  : 'No description, the default template files will be created.'}
               </p>
             )}
             <p className="text-xs text-muted-foreground">

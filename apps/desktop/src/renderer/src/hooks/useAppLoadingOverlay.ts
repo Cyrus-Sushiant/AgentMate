@@ -10,8 +10,8 @@ const BOOT_GRACE_MS = 1500;
  *
  * It belongs to the app's cold start only: on the very first paint there is no
  * content on screen to shimmer, so the logo covers the wait. Once that first
- * batch of queries settles the overlay is retired for the rest of the session —
- * opening another page, a background refetch or a poll is shown inline by
+ * batch of queries settles the overlay is retired for the rest of the session.
+ * Opening another page, a background refetch or a poll is shown inline by
  * whichever card is still waiting (see `ui/skeleton.tsx`) instead of blanking
  * out the page the user is reading. Mutations keep the overlay: they block on a
  * write the user just asked for.
@@ -38,7 +38,7 @@ export function useAppLoadingOverlay(): boolean {
       setBooted(true);
       return undefined;
     }
-    // Nothing has started yet — the landing page may have no queries at all, so
+    // Nothing has started yet. The landing page may have no queries at all, so
     // don't leave the session waiting on a boot that never happens.
     const timer = setTimeout(() => setBooted(true), BOOT_GRACE_MS);
     return () => clearTimeout(timer);

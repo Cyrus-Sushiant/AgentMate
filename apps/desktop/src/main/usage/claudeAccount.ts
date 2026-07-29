@@ -47,7 +47,7 @@ async function readJson<T>(paths: string[]): Promise<T | null> {
     try {
       return JSON.parse(await readFile(path, 'utf-8')) as T;
     } catch {
-      continue; // missing, unreadable, or malformed — try the next location
+      continue; // missing, unreadable, or malformed, try the next location
     }
   }
   return null;
@@ -82,8 +82,8 @@ export interface ClaudeAccount {
   tokenExpired: boolean;
   /**
    * Epoch ms of first-ever usage. The weekly estimate phases its window off
-   * this, so the boundary has to be a date that never moves — unlike the oldest
-   * surviving log entry, which walks forward as transcripts age out.
+   * this, so the boundary has to be a date that never moves. Unlike the oldest
+   * surviving log entry, that one walks forward as transcripts age out.
    */
   weeklyAnchor: number | null;
 }
@@ -124,7 +124,7 @@ function hasApiKeyBilling(): boolean {
 
 /**
  * Read the local Claude Code account state. An OAuth grant wins over an API key
- * because the CLI itself prefers it when both are present — so the card matches
+ * because the CLI itself prefers it when both are present, so the card matches
  * what the user is actually being billed under.
  */
 export async function readClaudeAccount(): Promise<ClaudeAccount> {
@@ -164,7 +164,7 @@ export async function readClaudeAccount(): Promise<ClaudeAccount> {
 // --- live quota fetch -----------------------------------------------------
 
 // The CLI's own `/usage` reads the account's unified rate limits, keyed by
-// window: a 5-hour session bucket, a rolling 7-day bucket, and — above Pro — a
+// window: a 5-hour session bucket, a rolling 7-day bucket, and (above Pro) a
 // separate 7-day bucket for the top model. The response shape isn't a published
 // contract, so parsing is deliberately loose: we look for the known window keys
 // anywhere in the payload and accept any of the spellings seen in the wild
@@ -297,7 +297,7 @@ async function fetchLiveWindows(
 }
 
 // Several widgets plus the Usage page all refresh independently, and a failing
-// endpoint shouldn't be retried on every one of those ticks — so successes are
+// endpoint shouldn't be retried on every one of those ticks, so successes are
 // held briefly and failures are backed off much harder.
 const LIVE_TTL_OK_MS = 60_000;
 const LIVE_TTL_FAIL_MS = 300_000;

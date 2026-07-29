@@ -58,7 +58,7 @@ export function getProviderUsage(
   }
   const promise = computeUsage(providerId, config).then(
     (usage) => {
-      // Start the TTL when the scan finishes, not when it started — otherwise a
+      // Start the TTL when the scan finishes, not when it started. Otherwise a
       // scan slower than the TTL is stale the moment it lands and we rescan
       // on every single poll.
       const entry = cache.get(providerId);
@@ -85,7 +85,7 @@ export async function getAllUsage(
   force = false,
 ): Promise<ProviderUsage[]> {
   const targets = USAGE_PROVIDER_REGISTRY.filter((def) => {
-    // Credential-free sources need no setup, so they're always on — that's what
+    // Credential-free sources need no setup, so they're always on. That's what
     // makes these cards appear by themselves.
     if (def.dataSource === 'local-log' || def.dataSource === 'local-session') return true;
     return configs[def.id]?.enabled;
@@ -112,7 +112,7 @@ export function clearUsageCache(): void {
   clearCursorAccountCache();
 }
 
-/** Same as {@link clearUsageCache}, scoped to one provider — used by per-card refresh. */
+/** Same as {@link clearUsageCache}, scoped to one provider. Used by per-card refresh. */
 export function clearProviderUsageCache(providerId: string): void {
   cache.delete(providerId);
   if (providerId === 'claude-code') clearLiveWindowCache();

@@ -434,14 +434,14 @@ export default function SkillsPage(): React.JSX.Element {
             >
               skills.sh
             </button>{' '}
-            as of {SKILLS_SH_SNAPSHOT_DATE} for offline browsing — switch to{' '}
+            as of {SKILLS_SH_SNAPSHOT_DATE} for offline browsing, switch to{' '}
             <span className="font-medium text-foreground">Live</span> to search skills.sh's full
             catalog directly. The{' '}
             <Badge variant="default" className="align-middle">
               Official
             </Badge>{' '}
             badge mirrors skills.sh's own verified-publisher mark (Anthropic, Vercel, Microsoft,
-            Firebase, Supabase, and other verified owners) — everything else is community-published.
+            Firebase, Supabase, and other verified owners); everything else is community-published.
           </p>
 
           <div className="flex flex-wrap items-end gap-3">
@@ -512,7 +512,7 @@ export default function SkillsPage(): React.JSX.Element {
                     <CardTitle className="flex items-center gap-1.5">
                       {skill.name}
                       {skill.official && (
-                        <SimpleTooltip label="Official — skills.sh has verified this publisher">
+                        <SimpleTooltip label="Official: skills.sh has verified this publisher">
                           <CircleCheck className="h-4 w-4 shrink-0 text-blue-500" />
                         </SimpleTooltip>
                       )}
@@ -629,7 +629,7 @@ export default function SkillsPage(): React.JSX.Element {
             <DialogTitle className="flex items-center gap-1.5 pr-6">
               {shSelected?.name}
               {shSelected?.official && (
-                <SimpleTooltip label="Official — skills.sh has verified this publisher">
+                <SimpleTooltip label="Official: skills.sh has verified this publisher">
                   <CircleCheck className="h-4 w-4 shrink-0 text-blue-500" />
                 </SimpleTooltip>
               )}
@@ -753,7 +753,7 @@ export default function SkillsPage(): React.JSX.Element {
             {filteredProjectsForPicker.length === 0 && (
               <p className="px-3 py-6 text-center text-sm text-muted-foreground">
                 {projectsQuery.data?.length === 0
-                  ? 'No projects yet — create one first.'
+                  ? 'No projects yet. Create one first.'
                   : 'No projects match your search.'}
               </p>
             )}

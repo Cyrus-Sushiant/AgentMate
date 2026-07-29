@@ -29,7 +29,7 @@ export class CliNotFoundError extends Error {}
  * Node >=18.20/20.11/21.6). Command/args are always static, code-authored
  * strings assembled from parsed manifest data, never raw renderer input.
  *
- * Non-zero exits are returned rather than thrown — outdated-package commands
+ * Non-zero exits are returned rather than thrown. Outdated-package commands
  * commonly exit 1 when they find results, which is expected, not a failure.
  * A genuinely missing CLI (ENOENT, or cmd.exe's "not recognized") throws
  * CliNotFoundError so callers can render a cli-missing state.

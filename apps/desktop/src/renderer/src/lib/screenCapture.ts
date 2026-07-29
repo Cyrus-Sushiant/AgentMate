@@ -11,7 +11,7 @@ import type { CaptureSurface } from './capture';
  *
  * The JPEG tile pipeline below is a **fallback only**, for controllers that
  * cannot negotiate WebRTC. It is created lazily the first time a peer actually
- * needs tiles and torn down completely when none do — so a session where every
+ * needs tiles and torn down completely when none do, so a session where every
  * controller runs WebRTC allocates no canvas, no video element, and performs no
  * GPU→CPU readback at all.
  */
@@ -176,8 +176,8 @@ async function ensureTilePipeline(): Promise<void> {
   const stream = provider.getStream();
   if (!stream) return;
 
-  // The tile path is the one consumer that needs pixels in JavaScript, so it —
-  // and only it — pays for a video element and a readback canvas.
+  // The tile path is the one consumer that needs pixels in JavaScript, so it
+  // (and only it) pays for a video element and a readback canvas.
   const video = document.createElement('video');
   video.srcObject = stream;
   video.muted = true;
@@ -285,7 +285,7 @@ async function tick(): Promise<void> {
       }),
     );
     // getImageData hands back a fresh buffer every call, so the new frame can
-    // become the baseline by reference — no defensive copy needed.
+    // become the baseline by reference, no defensive copy needed.
     s.prev = frame;
   } catch {
     // A dropped frame is harmless; the next tick recovers.
@@ -329,7 +329,7 @@ async function encodeAndSend(
 ): Promise<void> {
   // Copy this tile's pixels into the encoder's reusable scratch buffer. Rows are
   // written at the scratch's full TILE stride and the canvas is sized to the
-  // exact tile, so putImageData clips the unused right/bottom margin away —
+  // exact tile, so putImageData clips the unused right/bottom margin away,
   // which lets one allocation serve both full and edge tiles.
   const scratch = encoder.scratch;
   const stride = scratch.width * 4;

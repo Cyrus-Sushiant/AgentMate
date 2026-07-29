@@ -15,7 +15,7 @@ import { recordControllerSample } from './remoteBench';
  *
  * This is what brings the desktop controller to parity with mobile. Previously
  * only mobile sent `rtc-request`, so desktop→desktop was permanently stuck on
- * the JPEG tile fallback — the blocky, flickering path this replaces.
+ * the JPEG tile fallback, the blocky, flickering path this replaces.
  *
  * The peer connection lives here (not in a component) because it must survive
  * re-renders and page navigation, exactly like the host-side capture singleton.

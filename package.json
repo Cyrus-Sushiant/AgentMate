@@ -2,7 +2,7 @@
   "name": "agentmat",
   "private": true,
   "version": "0.1.0",
-  "description": "AgentMate — AI Agent Management Platform",
+  "description": "AgentMate: AI Agent Management Platform",
   "engines": {
     "node": ">=20"
   },

@@ -6,7 +6,7 @@ import Database from 'better-sqlite3';
 import type { AddPromptHistoryInput, PromptHistoryEntry, PromptHistorySource } from '../shared/apiTypes';
 
 // Unlike node-pty, better-sqlite3 is not N-API based, so its native binding is
-// tied to the exact Electron ABI it runs under — see the `rebuild:native`
+// tied to the exact Electron ABI it runs under. See the `rebuild:native`
 // script in package.json (run before `dev`/`package`) which rebuilds it for
 // Electron via @electron/rebuild.
 let db: Database.Database | null = null;
@@ -126,7 +126,7 @@ export const promptHistoryDb = {
       .run({ id, tags: JSON.stringify(tags) });
   },
 
-  /** Full table, unlike `list()` which caps at 200 — used for backup export. */
+  /** Full table, unlike `list()` which caps at 200. Used for backup export. */
   exportAll(): PromptHistoryEntry[] {
     const rows = getDb()
       .prepare('SELECT * FROM prompt_history ORDER BY created_at DESC')
@@ -134,7 +134,7 @@ export const promptHistoryDb = {
     return rows.map(rowToEntry);
   },
 
-  /** Replaces the entire table with `entries` — used for backup restore. */
+  /** Replaces the entire table with `entries`. Used for backup restore. */
   importAll(entries: PromptHistoryEntry[]): void {
     const database = getDb();
     const insert = database.prepare(

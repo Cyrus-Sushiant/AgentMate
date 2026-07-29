@@ -35,7 +35,7 @@ interface SimpleTooltipProps {
   children: React.ReactElement;
   side?: 'top' | 'bottom' | 'left' | 'right';
   align?: 'start' | 'center' | 'end';
-  /** Extra classes for the bubble — e.g. a wider `max-w` for prose. */
+  /** Extra classes for the bubble, e.g. a wider `max-w` for prose. */
   className?: string;
   /**
    * Wrap the child in an inline span that becomes the hover target. Needed for
@@ -58,7 +58,7 @@ function SimpleTooltip({
   wrapTrigger = false,
   delayDuration = 300,
 }: SimpleTooltipProps): React.JSX.Element {
-  // Nothing to show — hand the child back untouched so callers can pass
+  // Nothing to show, hand the child back untouched so callers can pass
   // optional values (an absent run command, a missing error) straight through.
   if (label === null || label === undefined || label === false || label === '') {
     return children;

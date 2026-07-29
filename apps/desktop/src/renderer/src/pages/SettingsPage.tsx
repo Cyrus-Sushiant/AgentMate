@@ -147,7 +147,7 @@ export default function SettingsPage(): React.JSX.Element {
         message: '👋 This is a test notification from AgentMate.',
       });
       if (result.ok) {
-        toast.success('Test message sent — check Telegram.');
+        toast.success('Test message sent. Check Telegram.');
       } else {
         toast.error(result.error ?? 'Failed to send test message.');
       }
@@ -317,9 +317,9 @@ export default function SettingsPage(): React.JSX.Element {
       case 'available':
         return `Update available: v${updateStatus.info.version}.`;
       case 'downloading':
-        return `Downloading v${updateStatus.info.version} — ${updateStatus.progress.percent.toFixed(0)}%.`;
+        return `Downloading v${updateStatus.info.version} (${updateStatus.progress.percent.toFixed(0)}%).`;
       case 'downloaded':
-        return `v${updateStatus.info.version} downloaded — restart to install.`;
+        return `v${updateStatus.info.version} downloaded. Restart to install.`;
       case 'error':
         return updateStatus.message;
       default:
@@ -467,9 +467,9 @@ export default function SettingsPage(): React.JSX.Element {
                   setSpeechDirty(true);
                 }}
                 options={[
-                  { value: 'tiny', label: 'Tiny — fastest, ~75 MB' },
-                  { value: 'base', label: 'Base — balanced, ~145 MB' },
-                  { value: 'small', label: 'Small — most accurate, ~490 MB' },
+                  { value: 'tiny', label: 'Tiny (fastest, ~75 MB)' },
+                  { value: 'base', label: 'Base (balanced, ~145 MB)' },
+                  { value: 'small', label: 'Small (most accurate, ~490 MB)' },
                 ]}
               />
             </div>
@@ -501,7 +501,7 @@ export default function SettingsPage(): React.JSX.Element {
             <MessageSquare className="h-4 w-4" /> Ask AI Providers
           </CardTitle>
           <CardDescription>
-            Configure the providers used by Ask AI — an OpenAI API key for GPT models, a Gemini API
+            Configure the providers used by Ask AI: an OpenAI API key for GPT models, a Gemini API
             key for Google's models, and/or the address of a local Ollama server.
           </CardDescription>
         </CardHeader>
@@ -624,7 +624,7 @@ export default function SettingsPage(): React.JSX.Element {
               options={PROMPT_BUILDER_PROVIDER_OPTIONS}
             />
             <p className="text-xs text-muted-foreground">
-              Provider used by Prompt Builder's Generate Prompt button — uses the API key/model
+              Provider used by Prompt Builder's Generate Prompt button. Uses the API key/model
               configured above for that provider.
             </p>
           </div>
@@ -694,7 +694,7 @@ export default function SettingsPage(): React.JSX.Element {
               </Button>
             </div>
             <p className="text-xs text-muted-foreground">
-              Message your bot on Telegram once, then click detect — no need to hunt for your chat ID
+              Message your bot on Telegram once, then click detect. No need to hunt for your chat ID
               manually.
             </p>
           </div>
@@ -739,8 +739,8 @@ export default function SettingsPage(): React.JSX.Element {
             <HardDrive className="h-4 w-4" /> Backup &amp; Restore
           </CardTitle>
           <CardDescription>
-            Export a single file with your projects, settings, templates, and other AgentMate data
-            — including any saved API keys and bot tokens, so keep it somewhere private. Restoring
+            Export a single file with your projects, settings, templates, and other AgentMate data,
+            including any saved API keys and bot tokens, so keep it somewhere private. Restoring
             replaces everything currently on this machine.
           </CardDescription>
         </CardHeader>

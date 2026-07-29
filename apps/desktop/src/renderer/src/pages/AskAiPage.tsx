@@ -9,7 +9,7 @@ export default function AskAiPage(): React.JSX.Element {
   const hasMessages = useAskAiStore((s) => s.messages.length > 0);
   const clearMessages = useAskAiStore((s) => s.clearMessages);
 
-  usePageHeader('Ask AI', 'Full conversation history — the same thread the Ask AI popup uses.');
+  usePageHeader('Ask AI', 'Full conversation history, the same thread the Ask AI popup uses.');
 
   return (
     <div className="mx-auto flex min-h-0 w-full max-w-4xl flex-1 flex-col p-6">

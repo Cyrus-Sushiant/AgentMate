@@ -47,10 +47,10 @@ export interface RemoteLogEntry {
 export interface StreamStats {
   transport: RemoteTransportMode;
   phase: NegotiationPhase;
-  /** RTCPeerConnection.connectionState — null in tile mode. */
+  /** RTCPeerConnection.connectionState, null in tile mode. */
   connectionState: string | null;
   iceConnectionState: string | null;
-  /** e.g. "H264", "VP8" — null until the first stats sample. */
+  /** e.g. "H264", "VP8"; null until the first stats sample. */
   codec: string | null;
   width: number;
   height: number;
@@ -75,8 +75,8 @@ const MAX_LOG = 50;
 const TILE_FLUSH_MS = 33;
 /**
  * If no video *track* arrives within this window we give up and fall back.
- * Armed when we ask for video and cleared only by a track actually arriving —
- * see the note on `negotiationWatchdog`.
+ * Armed when we ask for video and cleared only by a track actually arriving.
+ * See the note on `negotiationWatchdog`.
  */
 const RTC_FALLBACK_MS = 10_000;
 const STUN_SERVERS = [
@@ -93,8 +93,8 @@ function deviceName(): string {
  * (see @agentmat/protocol and apps/desktop/src/main/remote/manager.ts).
  *
  * The control plane (auth, input, clipboard) is a plain WebSocket. The screen
- * streams over WebRTC as a hardware-decoded video track rendered by RTCView —
- * frames never enter JavaScript. JPEG tiles remain only as an emergency
+ * streams over WebRTC as a hardware-decoded video track rendered by RTCView,
+ * so frames never enter JavaScript. JPEG tiles remain only as an emergency
  * fallback and to bridge the gap while the handshake completes.
  */
 export function useRemoteClient() {
@@ -124,7 +124,7 @@ export function useRemoteClient() {
    * Watchdog for the whole "asked for video → video is rendering" round trip.
    *
    * This used to be cleared by closePeerConnection(), which acceptOffer() calls
-   * as its first statement — so the arrival of the host's offer disarmed the
+   * as its first statement, so the arrival of the host's offer disarmed the
    * very timer meant to catch a negotiation that then stalls. The result was a
    * session stuck in 'negotiating' forever, silently rendering JPEG tiles with
    * no error and no recovery. It is now owned solely by the request/track path
@@ -351,7 +351,7 @@ export function useRemoteClient() {
         fallbackToTiles('WebRTC module missing');
         return;
       }
-      // NOTE: deliberately does not clear the negotiation watchdog — the offer
+      // NOTE: deliberately does not clear the negotiation watchdog; the offer
       // arriving is not evidence that video will actually flow.
       closePeerConnection();
       setPhaseTracked('offer-received');
@@ -507,7 +507,7 @@ export function useRemoteClient() {
               setStatus('error');
               setError(
                 dialing.current?.savedId
-                  ? `${msg.reason}. The saved pairing may have been removed on the computer — pair again with a new code.`
+                  ? `${msg.reason}. The saved pairing may have been removed on the computer, pair again with a new code.`
                   : msg.reason,
               );
               appendLog('error', `Pairing rejected: ${msg.reason}`);
@@ -560,8 +560,8 @@ export function useRemoteClient() {
         // base64 data URIs when they are actually what's being rendered:
         // the fallback transport, or the brief window before the video track
         // arrives (which they bridge so the screen isn't black during ICE).
-        // Once video flows the host stops sending them and these bytes — if any
-        // still arrive — are counted and dropped without touching base64.
+        // Once video flows the host stops sending them; any that still arrive
+        // are counted and dropped without touching base64.
         tileBytes.current += bytes.byteLength;
         if (videoFlowing.current) return;
 

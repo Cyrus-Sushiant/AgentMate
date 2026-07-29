@@ -4,7 +4,7 @@ directories:
   output: release
 
 # node-pty is N-API based and ships working prebuilt binaries for every
-# platform we target — electron-builder's default native-rebuild step tries
+# platform we target. electron-builder's default native-rebuild step tries
 # to compile it from source instead, which fails because the npm-published
 # tarball is missing the winpty git submodule's build scripts. Skip it.
 npmRebuild: false
@@ -19,7 +19,7 @@ extraResources:
     to: example-skill-repo
 
 # node-pty ships native .node/.dll/.exe files that must exist as real files on
-# disk (it also spawns conpty/winpty helper executables at runtime) — they
+# disk (it also spawns conpty/winpty helper executables at runtime); they
 # can't be loaded from inside the asar archive.
 #
 # onnxruntime-node (pulled in by @huggingface/transformers for local Whisper
@@ -57,7 +57,7 @@ mac:
     - target: dmg
       arch: [x64, arm64]
     # electron-updater's macOS auto-update path (Squirrel.Mac) downloads the
-    # zip, not the dmg — the dmg is only for first-time manual installs.
+    # zip, not the dmg; the dmg is only for first-time manual installs.
     - target: zip
       arch: [x64, arm64]
   category: public.app-category.developer-tools
@@ -74,7 +74,7 @@ linux:
 # electron-updater reads this to know where to look for new releases. The CD
 # workflow builds with `--publish never` and uploads artifacts to the GitHub
 # Release itself (see .github/workflows/cd.yml), so this only needs to name
-# the repo — electron-updater talks to the GitHub Releases API directly.
+# the repo; electron-updater talks to the GitHub Releases API directly.
 publish:
   provider: github
   owner: Cyrus-Sushiant

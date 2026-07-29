@@ -44,7 +44,7 @@ export default function WidgetRoute(): React.JSX.Element {
 
   const def = providerId ? getUsageProvider(providerId) : undefined;
   const usage = usageQuery.data;
-  // Widgets pinned before modes existed have no `mode` — they are token
+  // Widgets pinned before modes existed have no `mode`, so they are token
   // widgets and must stay that way.
   const mode = instance?.mode ?? 'tokens';
 

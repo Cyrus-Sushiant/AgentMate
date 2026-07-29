@@ -33,7 +33,7 @@ export default tseslint.config(
       'react-hooks/exhaustive-deps': 'warn',
       // The browser's native `title` tooltip can't be styled and ignores the
       // app's theme, so hover hints go through <SimpleTooltip> instead. Only
-      // lowercase (real DOM) elements are flagged — `title` stays fair game as
+      // lowercase (real DOM) elements are flagged; `title` stays fair game as
       // a prop on our own components.
       'no-restricted-syntax': [
         'error',

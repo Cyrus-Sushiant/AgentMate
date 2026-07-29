@@ -3,7 +3,7 @@ import { IPC } from '../../shared/ipcChannels';
 import type { IpGeoInfo } from '../../shared/apiTypes';
 
 // Uses geojs.io's free JSON endpoint (no API key, no rate-limit signup) to
-// resolve the machine's public IP and country — same "no setup required"
+// resolve the machine's public IP and country. Same "no setup required"
 // tradeoff as the translate handler; treat failures as recoverable.
 async function lookupIpGeo(): Promise<IpGeoInfo> {
   const response = await fetch('https://get.geojs.io/v1/ip/geo.json');

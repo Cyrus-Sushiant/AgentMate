@@ -7,7 +7,7 @@ import type { UpdateInfo, UpdateStatus } from '../shared/apiTypes';
 /**
  * electron-builder.yml publishes releases via GitHub (see the `publish` block
  * there), so this reads update metadata straight off the project's GitHub
- * Releases. Downloads never start on their own — `autoDownload` is off, and
+ * Releases. Downloads never start on their own: `autoDownload` is off, and
  * every state transition is broadcast to the renderer, which is responsible
  * for asking the user to confirm before a download begins and again before
  * restarting to install.
@@ -56,7 +56,7 @@ function wireEvents(): void {
   autoUpdater.autoDownload = false;
   autoUpdater.autoInstallOnAppQuit = true;
   autoUpdater.logger = null;
-  // An unhandled 'error' event on an EventEmitter throws — always keep a listener.
+  // An unhandled 'error' event on an EventEmitter throws, so always keep a listener.
   autoUpdater.on('error', (error) => {
     const status: UpdateStatus = {
       state: 'error',
@@ -105,7 +105,7 @@ function wireEvents(): void {
 /**
  * Unpackaged runs (electron-vite dev, or a build run without an installer)
  * never have real release metadata to check against, so update checks are a
- * no-op there — this feature only applies to installed, released builds.
+ * no-op there. This feature only applies to installed, released builds.
  */
 export async function checkForUpdates(manual: boolean): Promise<UpdateStatus> {
   if (!app.isPackaged) {

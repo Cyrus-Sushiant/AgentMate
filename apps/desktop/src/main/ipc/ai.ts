@@ -30,7 +30,7 @@ async function askOpenAi(model: string, prompt: string, history: AskAiHistoryMes
       const parsed = JSON.parse(body) as { error?: { message?: string } };
       if (parsed.error?.message) message = parsed.error.message;
     } catch {
-      // Response body wasn't JSON — fall back to the generic status message.
+      // Response body wasn't JSON, fall back to the generic status message.
     }
     throw new Error(message);
   }
@@ -103,7 +103,7 @@ async function askGemini(model: string, prompt: string, history: AskAiHistoryMes
       const parsed = JSON.parse(body) as { error?: { message?: string } };
       if (parsed.error?.message) message = parsed.error.message;
     } catch {
-      // Response body wasn't JSON — fall back to the generic status message.
+      // Response body wasn't JSON, fall back to the generic status message.
     }
     throw new Error(message);
   }
@@ -129,7 +129,7 @@ async function listGeminiModels(): Promise<string[]> {
       const parsed = JSON.parse(body) as { error?: { message?: string } };
       if (parsed.error?.message) message = parsed.error.message;
     } catch {
-      // Response body wasn't JSON — fall back to the generic status message.
+      // Response body wasn't JSON, fall back to the generic status message.
     }
     throw new Error(message);
   }
