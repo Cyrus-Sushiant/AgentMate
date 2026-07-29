@@ -4,6 +4,7 @@ dist-electron/
 out/
 release/
 build/
+!apps/desktop/build/
 *.log
 .DS_Store
 .env
