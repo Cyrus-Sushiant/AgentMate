@@ -1558,6 +1558,7 @@ function ecosystemLabel(section: PackageManagerSection): string {
 function PackagesTab({ projectId }: { projectId: string }): React.JSX.Element {
   const queryClient = useQueryClient();
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [showOutdatedOnly, setShowOutdatedOnly] = useState(false);
   const [progress, setProgress] = useState<
     Map<string, { status: 'running' | 'done' | 'error'; message?: string }>
   >(new Map());
@@ -1636,20 +1637,49 @@ function PackagesTab({ projectId }: { projectId: string }): React.JSX.Element {
 
   if (sections.length === 0) {
     return (
-      <p className="text-sm text-muted-foreground">
-        No npm/yarn/pnpm or .NET project files were found in this project's folder.
-      </p>
+      <div className="space-y-3">
+        <div className="flex justify-end">
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={scanQuery.isFetching}
+            onClick={() => void scanQuery.refetch()}
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${scanQuery.isFetching ? 'animate-spin' : ''}`} />
+            Refresh
+          </Button>
+        </div>
+        <p className="text-sm text-muted-foreground">
+          No npm/yarn/pnpm or .NET project files were found in this project's folder.
+        </p>
+      </div>
     );
   }
 
   return (
     <div className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <label className="flex cursor-pointer items-center gap-2 text-sm">
+          <Switch checked={showOutdatedOnly} onCheckedChange={setShowOutdatedOnly} />
+          Show outdated only
+        </label>
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={scanQuery.isFetching}
+          onClick={() => void scanQuery.refetch()}
+        >
+          <RefreshCw className={`h-3.5 w-3.5 ${scanQuery.isFetching ? 'animate-spin' : ''}`} />
+          Refresh
+        </Button>
+      </div>
       {sections.map((section) => {
         const outdatedPackages = section.packages.filter((p) => p.isOutdated);
         const sectionSelectedCount = section.packages.filter((p) => selected.has(packageKey(p))).length;
         const allOutdatedSelected =
           outdatedPackages.length > 0 && outdatedPackages.every((p) => selected.has(packageKey(p)));
         const showProjectLabel = new Set(section.packages.map((p) => p.projectLabel)).size > 1;
+        const visiblePackages = showOutdatedOnly ? outdatedPackages : section.packages;
 
         return (
           <div
@@ -1708,7 +1738,11 @@ function PackagesTab({ projectId }: { projectId: string }): React.JSX.Element {
               <p className="text-sm text-muted-foreground">No dependencies declared.</p>
             )}
 
-            {section.status === 'ok' && section.packages.length > 0 && (
+            {section.status === 'ok' && section.packages.length > 0 && visiblePackages.length === 0 && (
+              <p className="text-sm text-muted-foreground">All packages are up to date.</p>
+            )}
+
+            {section.status === 'ok' && visiblePackages.length > 0 && (
               <div className="space-y-2">
                 <div className="flex items-center justify-between rounded-md bg-card/60 px-3 py-1.5">
                   <label className="flex cursor-pointer items-center gap-2 text-xs text-muted-foreground">
@@ -1724,7 +1758,7 @@ function PackagesTab({ projectId }: { projectId: string }): React.JSX.Element {
                   )}
                 </div>
                 <div className="max-h-80 space-y-1.5 overflow-y-auto pr-1">
-                  {section.packages.map((pkg) => {
+                  {visiblePackages.map((pkg) => {
                     const key = packageKey(pkg);
                     const tick = progress.get(pkg.name);
                     return (
