@@ -73,6 +73,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
@@ -1555,6 +1556,69 @@ function ecosystemLabel(section: PackageManagerSection): string {
   return 'npm';
 }
 
+/** Staggered widths so placeholder rows read as a list of names, not a stack of identical bars. */
+const PACKAGE_SKELETON_WIDTHS = ['w-40', 'w-56', 'w-32', 'w-48', 'w-36', 'w-52'];
+
+function PackageRowSkeleton({ nameWidth }: { nameWidth: string }): React.JSX.Element {
+  return (
+    <div className="flex items-center gap-3 rounded-lg border border-border bg-card/60 px-3 py-2">
+      <Skeleton className="h-4 w-4 shrink-0 rounded-[4px]" />
+      <div className="min-w-0 flex-1 space-y-1.5">
+        <Skeleton className={`h-3.5 ${nameWidth}`} />
+        <Skeleton className="h-2.5 w-20" />
+      </div>
+      <Skeleton className="h-5 w-16 shrink-0 rounded-full" />
+    </div>
+  );
+}
+
+/**
+ * Stand-in for one ecosystem card while the scan runs. It mirrors the real
+ * card's shape (header, select-all bar, package rows) so the tab doesn't jump
+ * when the data lands. A .NET scan shells out to `dotnet list package` for every
+ * project in the solution and can take the better part of a minute, which is far
+ * too long to leave the tab empty.
+ */
+function PackagesSectionSkeleton({ rows }: { rows: number }): React.JSX.Element {
+  return (
+    <div className="glass space-y-3 rounded-xl p-4">
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <Skeleton className="h-8 w-8 shrink-0 rounded-lg" />
+          <div className="space-y-1.5">
+            <Skeleton className="h-4 w-28" />
+            <Skeleton className="h-2.5 w-16" />
+          </div>
+        </div>
+        <Skeleton className="h-8 w-40 rounded-md" />
+      </div>
+      <div className="space-y-2">
+        <div className="flex items-center rounded-md bg-card/60 px-3 py-1.5">
+          <Skeleton className="h-3 w-28" />
+        </div>
+        <div className="space-y-1.5">
+          {Array.from({ length: rows }, (_, i) => (
+            <PackageRowSkeleton key={i} nameWidth={PACKAGE_SKELETON_WIDTHS[i % PACKAGE_SKELETON_WIDTHS.length]} />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PackagesTabSkeleton(): React.JSX.Element {
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between gap-3">
+        <Skeleton className="h-5 w-40 rounded-full" />
+        <Skeleton className="h-8 w-24 rounded-md" />
+      </div>
+      <PackagesSectionSkeleton rows={5} />
+      <PackagesSectionSkeleton rows={3} />
+    </div>
+  );
+}
+
 function PackagesTab({ projectId }: { projectId: string }): React.JSX.Element {
   const queryClient = useQueryClient();
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -1630,10 +1694,14 @@ function PackagesTab({ projectId }: { projectId: string }): React.JSX.Element {
   }
 
   if (scanQuery.isLoading) {
-    return <p className="text-sm text-muted-foreground">Scanning for packages…</p>;
+    return <PackagesTabSkeleton />;
   }
 
   const sections = scanQuery.data?.sections ?? [];
+  // A refresh keeps the current list on screen rather than collapsing back to
+  // skeletons: the versions shown are still the last known good ones, and a
+  // .NET rescan is slow enough that blanking them out would be a regression.
+  const isRefreshing = scanQuery.isFetching;
 
   if (sections.length === 0) {
     return (
@@ -1684,8 +1752,9 @@ function PackagesTab({ projectId }: { projectId: string }): React.JSX.Element {
         return (
           <div
             key={`${section.ecosystem}-${section.manager}`}
-            className="glass space-y-3 rounded-xl p-4"
+            className="glass relative space-y-3 overflow-hidden rounded-xl p-4"
           >
+            {isRefreshing && <Skeleton className="absolute inset-x-0 top-0 h-0.5 rounded-none" />}
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="flex items-center gap-2">
                 <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
