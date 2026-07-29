@@ -219,7 +219,7 @@ export default function ToolsPage(): React.JSX.Element {
         {AGENT_TOOL_REGISTRY.map((tool) => {
           const status = statusFor(tool.id);
           return (
-            <Card key={tool.id} className="flex flex-col">
+            <Card key={tool.id} className="glass flex flex-col">
               <CardHeader>
                 <div className="flex items-start justify-between gap-2">
                   <CardTitle>{tool.name}</CardTitle>

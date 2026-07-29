@@ -153,7 +153,7 @@ export default function PromptHistoryPage(): React.JSX.Element {
       {historyQuery.isLoading ? (
         <div className="space-y-3">
           {Array.from({ length: 4 }, (_, i) => (
-            <Card key={i}>
+            <Card key={i} className="glass">
               <CardHeader className="space-y-2">
                 <Skeleton className="h-4 w-48" />
                 <Skeleton className="h-3 w-28" />
@@ -194,7 +194,7 @@ export default function PromptHistoryPage(): React.JSX.Element {
       ) : (
         <div className="space-y-3">
           {entries.map((entry) => (
-            <Card key={entry.id}>
+            <Card key={entry.id} className="glass">
               <CardHeader>
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex flex-wrap items-center gap-1.5">

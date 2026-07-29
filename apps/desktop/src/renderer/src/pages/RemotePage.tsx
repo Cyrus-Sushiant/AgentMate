@@ -41,7 +41,7 @@ export default function RemotePage(): React.JSX.Element {
       </Tabs>
 
       {transfers.length > 0 && (
-        <Card>
+        <Card className="glass">
           <CardHeader>
             <CardTitle>File transfers</CardTitle>
           </CardHeader>
@@ -71,7 +71,7 @@ export default function RemotePage(): React.JSX.Element {
         </Card>
       )}
 
-      <Card>
+      <Card className="glass">
         <CardHeader>
           <CardTitle>Activity</CardTitle>
         </CardHeader>

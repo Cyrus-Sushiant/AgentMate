@@ -94,7 +94,7 @@ export default function ProjectsPage(): React.JSX.Element {
       {projectsQuery.isLoading ? (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
           {Array.from({ length: 6 }, (_, i) => (
-            <Card key={i} className="flex flex-col">
+            <Card key={i} className="glass flex flex-col">
               <CardHeader className="pb-3">
                 <div className="flex items-center gap-3">
                   <Skeleton className="h-9 w-9 shrink-0 rounded-lg" />
@@ -135,7 +135,7 @@ export default function ProjectsPage(): React.JSX.Element {
           {filtered.map((project) => (
             <Card
               key={project.id}
-              className="group flex cursor-pointer flex-col transition-all duration-150 hover:-translate-y-0.5 hover:border-primary/50 hover:shadow-lg"
+              className="glass group flex cursor-pointer flex-col transition-all duration-150 hover:-translate-y-0.5 hover:border-primary/50 hover:shadow-lg"
               onClick={() => navigate(`/projects/${project.id}`)}
             >
               <CardHeader className="pb-3">

@@ -306,7 +306,7 @@ export default function ProjectDetailPage(): React.JSX.Element {
         <ArrowLeft /> Projects
       </Button>
 
-      <div className="rounded-lg border border-border bg-card p-5">
+      <div className="glass rounded-lg p-5">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="flex min-w-0 items-start gap-4">
             <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
@@ -656,7 +656,7 @@ export default function ProjectDetailPage(): React.JSX.Element {
         </div>
 
         <div className="space-y-4 xl:col-span-1">
-          <div className="rounded-lg border border-border bg-card p-5">
+          <div className="glass rounded-lg p-5">
             <p className="mb-3 text-xs font-medium text-muted-foreground">Details</p>
             <dl className="space-y-3 text-sm">
               <div className="flex items-center justify-between gap-2">
@@ -1321,7 +1321,7 @@ function GitTab({ projectId }: { projectId: string }): React.JSX.Element {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-card p-4">
+      <div className="glass flex flex-wrap items-center justify-between gap-3 rounded-lg p-4">
         <div className="flex flex-wrap items-center gap-2 text-sm">
           <Badge variant="secondary" className="gap-1.5">
             <GitBranch className="h-3 w-3" /> {status.branch ?? 'detached HEAD'}
@@ -1367,7 +1367,7 @@ function GitTab({ projectId }: { projectId: string }): React.JSX.Element {
       </div>
 
       {status.files.length > 0 && (
-        <div className="space-y-1.5 rounded-lg border border-border bg-card p-4">
+        <div className="glass space-y-1.5 rounded-lg p-4">
           <p className="text-xs font-medium text-muted-foreground">Changed files</p>
           <div className="max-h-48 space-y-1 overflow-y-auto">
             {status.files.map((file) => (
@@ -1381,7 +1381,7 @@ function GitTab({ projectId }: { projectId: string }): React.JSX.Element {
       )}
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-        <div className="space-y-2 rounded-lg border border-border bg-card p-4">
+        <div className="glass space-y-2 rounded-lg p-4">
           <p className="flex items-center gap-1.5 text-sm font-medium">
             <GitBranch className="h-3.5 w-3.5" /> Create branch
           </p>
@@ -1409,7 +1409,7 @@ function GitTab({ projectId }: { projectId: string }): React.JSX.Element {
           </div>
         </div>
 
-        <div className="space-y-2 rounded-lg border border-border bg-card p-4">
+        <div className="glass space-y-2 rounded-lg p-4">
           <p className="flex items-center gap-1.5 text-sm font-medium">
             <GitCommit className="h-3.5 w-3.5" /> Commit changes
           </p>
@@ -1439,7 +1439,7 @@ function GitTab({ projectId }: { projectId: string }): React.JSX.Element {
         </div>
       </div>
 
-      <div className="flex items-center justify-between rounded-lg border border-border bg-card p-4">
+      <div className="glass flex items-center justify-between rounded-lg p-4">
         <div>
           <p className="flex items-center gap-1.5 text-sm font-medium">
             <GitPullRequest className="h-3.5 w-3.5" /> Pull request
@@ -1684,7 +1684,7 @@ function PackagesTab({ projectId }: { projectId: string }): React.JSX.Element {
         return (
           <div
             key={`${section.ecosystem}-${section.manager}`}
-            className="space-y-3 rounded-xl border border-border bg-card p-4"
+            className="glass space-y-3 rounded-xl p-4"
           >
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="flex items-center gap-2">
@@ -2046,7 +2046,7 @@ function NotificationHookCard({
   }
 
   return (
-    <div className="rounded-lg border border-border bg-card p-5">
+    <div className="glass rounded-lg p-5">
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2 text-sm font-semibold">
           <Icon className="h-4 w-4" /> {title}

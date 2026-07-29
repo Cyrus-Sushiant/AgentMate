@@ -331,7 +331,7 @@ export default function SettingsPage(): React.JSX.Element {
 
   return (
     <div className="mx-auto max-w-3xl space-y-6 p-6">
-      <Card>
+      <Card className="glass">
         <CardHeader>
           <CardTitle>Default CLI</CardTitle>
           <CardDescription>
@@ -351,7 +351,7 @@ export default function SettingsPage(): React.JSX.Element {
         </CardContent>
       </Card>
 
-      <Card>
+      <Card className="glass">
         <CardHeader>
           <CardTitle>Appearance</CardTitle>
           <CardDescription>Choose how AgentMate looks.</CardDescription>
@@ -370,7 +370,7 @@ export default function SettingsPage(): React.JSX.Element {
         </CardContent>
       </Card>
 
-      <Card>
+      <Card className="glass">
         <CardHeader>
           <CardTitle>Skill Repositories</CardTitle>
           <CardDescription>
@@ -384,7 +384,7 @@ export default function SettingsPage(): React.JSX.Element {
         </CardContent>
       </Card>
 
-      <Card>
+      <Card className="glass">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <SatelliteDish className="h-4 w-4" /> Network Ping Targets
@@ -414,7 +414,7 @@ export default function SettingsPage(): React.JSX.Element {
         </CardContent>
       </Card>
 
-      <Card>
+      <Card className="glass">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Languages className="h-4 w-4" /> Translation
@@ -446,7 +446,7 @@ export default function SettingsPage(): React.JSX.Element {
         </CardContent>
       </Card>
 
-      <Card>
+      <Card className="glass">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Microphone className="h-4 w-4" /> Voice Input
@@ -495,7 +495,7 @@ export default function SettingsPage(): React.JSX.Element {
         </CardContent>
       </Card>
 
-      <Card>
+      <Card className="glass">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <MessageSquare className="h-4 w-4" /> Ask AI Providers
@@ -637,7 +637,7 @@ export default function SettingsPage(): React.JSX.Element {
         </CardContent>
       </Card>
 
-      <Card>
+      <Card className="glass">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Robot className="h-4 w-4" /> Telegram Bot
@@ -733,7 +733,7 @@ export default function SettingsPage(): React.JSX.Element {
         </CardContent>
       </Card>
 
-      <Card>
+      <Card className="glass">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <HardDrive className="h-4 w-4" /> Backup &amp; Restore
@@ -770,7 +770,7 @@ export default function SettingsPage(): React.JSX.Element {
         </CardContent>
       </Card>
 
-      <Card>
+      <Card className="glass">
         <CardHeader>
           <CardTitle>About</CardTitle>
           <CardDescription>

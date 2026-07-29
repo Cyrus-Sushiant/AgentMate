@@ -72,7 +72,7 @@ export function HostPanel(): React.JSX.Element {
 
   return (
     <div className="flex flex-col gap-4">
-      <Card>
+      <Card className="glass">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Broadcast className="h-4 w-4 text-primary" /> Allow this machine to be controlled
@@ -140,7 +140,7 @@ export function HostPanel(): React.JSX.Element {
       </Card>
 
       {hosting && (
-        <Card>
+        <Card className="glass">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <QrCode className="h-4 w-4 text-primary" /> Pairing code
@@ -190,7 +190,7 @@ export function HostPanel(): React.JSX.Element {
       )}
 
       {hosting && (
-        <Card>
+        <Card className="glass">
           <CardHeader>
             <CardTitle>Connected controllers ({peers.length})</CardTitle>
           </CardHeader>

@@ -270,7 +270,7 @@ export default function McpPage(): React.JSX.Element {
           const canAutoInstall =
             server.config.transport === 'stdio' ? !!server.config.command : !!server.config.url;
           return (
-            <Card key={server.id} className="flex flex-col">
+            <Card key={server.id} className="glass flex flex-col">
               <CardHeader>
                 <div className="flex items-start justify-between gap-2">
                   <CardTitle className="flex items-center gap-1.5">

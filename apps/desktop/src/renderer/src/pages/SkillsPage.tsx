@@ -374,7 +374,7 @@ export default function SkillsPage(): React.JSX.Element {
             {(reposQuery.isPending || (!!selectedRepoId && repoIndexQuery.isPending)) &&
               Array.from({ length: 6 }, (_, i) => <CatalogCardSkeleton key={i} />)}
             {filteredSkills.map((skill) => (
-              <Card key={skill.id} className="flex flex-col">
+              <Card key={skill.id} className="glass flex flex-col">
                 <CardHeader>
                   <div className="flex items-start justify-between gap-2">
                     <CardTitle>{skill.name}</CardTitle>
@@ -506,7 +506,7 @@ export default function SkillsPage(): React.JSX.Element {
 
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
             {filteredShSkills.map((skill) => (
-              <Card key={skill.id} className="flex flex-col">
+              <Card key={skill.id} className="glass flex flex-col">
                 <CardHeader>
                   <div className="flex items-start justify-between gap-2">
                     <CardTitle className="flex items-center gap-1.5">

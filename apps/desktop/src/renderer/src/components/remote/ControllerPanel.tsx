@@ -33,7 +33,7 @@ export function ControllerPanel(): React.JSX.Element {
 
   if (active) {
     return (
-      <Card className="flex min-h-[70vh] flex-col overflow-hidden">
+      <Card className="glass flex min-h-[70vh] flex-col overflow-hidden">
         <CardHeader className="flex flex-row items-center justify-between gap-3 space-y-0 border-b border-border py-3">
           <div className="flex items-center gap-2">
             <Badge variant={connected ? 'success' : 'warning'} className="gap-1.5">
@@ -77,7 +77,7 @@ export function ControllerPanel(): React.JSX.Element {
   }
 
   return (
-    <Card>
+    <Card className="glass">
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Link className="h-4 w-4 text-primary" /> Connect to a remote machine

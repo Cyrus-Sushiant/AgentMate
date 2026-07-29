@@ -72,7 +72,7 @@ export function ProjectPromptHistory({ projectId }: { projectId: string }): Reac
       {entries.map((entry: PromptHistoryEntry) => {
         const expanded = expandedId === entry.id;
         return (
-          <Card key={entry.id}>
+          <Card key={entry.id} className="glass">
             <CardHeader>
               <div className="flex items-start justify-between gap-2">
                 <div className="flex flex-wrap items-center gap-1.5">
