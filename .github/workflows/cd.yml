@@ -87,6 +87,9 @@ jobs:
       - name: Build core package
         run: pnpm --filter @agentmat/core build
 
+      - name: Build protocol package
+        run: pnpm --filter @agentmat/protocol build
+
       - name: Rebuild native modules for Electron
         run: pnpm --filter @agentmat/desktop rebuild:native
 
