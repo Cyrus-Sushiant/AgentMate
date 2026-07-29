@@ -61,6 +61,40 @@ export function TerminalPane({ meta, active, onExit }: TerminalPaneProps): React
       if (ptySessionId) void window.agentmat.terminal.write(ptySessionId, data);
     });
 
+    // Ctrl/Cmd+C copies the selection instead of sending SIGINT, matching Windows
+    // Terminal/VS Code conventions. With no selection it falls through to xterm's
+    // default handling so ^C still interrupts the running process.
+    term.attachCustomKeyEventHandler((event) => {
+      if (
+        event.type === 'keydown' &&
+        (event.ctrlKey || event.metaKey) &&
+        !event.shiftKey &&
+        !event.altKey &&
+        event.key.toLowerCase() === 'c' &&
+        term.hasSelection()
+      ) {
+        void navigator.clipboard.writeText(term.getSelection());
+        return false;
+      }
+      return true;
+    });
+
+    // Right-click copies the selection if there is one, otherwise pastes clipboard
+    // contents into the shell — the standard behavior for Windows/Linux terminals.
+    const handleContextMenu = (event: MouseEvent): void => {
+      event.preventDefault();
+      const selection = term.getSelection();
+      if (selection) {
+        void navigator.clipboard.writeText(selection);
+        term.clearSelection();
+      } else {
+        void navigator.clipboard.readText().then((text) => {
+          if (text && ptySessionId) void window.agentmat.terminal.write(ptySessionId, text);
+        });
+      }
+    };
+    container.addEventListener('contextmenu', handleContextMenu);
+
     let unsubscribeData: (() => void) | undefined;
     let unsubscribeExit: (() => void) | undefined;
 
@@ -91,6 +125,7 @@ export function TerminalPane({ meta, active, onExit }: TerminalPaneProps): React
     return () => {
       disposed = true;
       resizeObserver.disconnect();
+      container.removeEventListener('contextmenu', handleContextMenu);
       dataDisposable.dispose();
       unsubscribeData?.();
       unsubscribeExit?.();
