@@ -1,7 +1,8 @@
 name: CD
 
 # Builds the AgentMate desktop app for Windows, macOS, and Linux plus the
-# Android mobile app, and publishes the installers/APK to a GitHub Release.
+# Android mobile app (a universal APK and one per CPU architecture), and
+# publishes the installers/APKs to a GitHub Release.
 #
 # Triggers:
 #   - Pushing a tag like "v1.2.3" builds and releases automatically.
@@ -186,15 +187,33 @@ jobs:
       - name: Generate native Android project
         run: pnpm --filter @agentmat/mobile exec expo prebuild -p android --no-install
 
+      # Splits the release APK by CPU architecture (in addition to the
+      # existing universal APK) so most users can grab a smaller,
+      # device-specific download. android/app/build.gradle is regenerated
+      # by expo prebuild on every run, so this config can't be committed
+      # there directly — it's injected right after prebuild instead.
+      - name: Enable per-ABI APK splits
+        shell: bash
+        run: |
+          sed -i 's/^android {/android {\n    splits {\n        abi {\n            reset()\n            enable true\n            universalApk true\n            include "armeabi-v7a", "arm64-v8a", "x86", "x86_64"\n        }\n    }/' apps/mobile/android/app/build.gradle
+
       - name: Build release APK
         working-directory: apps/mobile/android
         run: ./gradlew assembleRelease
 
-      - name: Rename APK with version
+      - name: Rename APKs with version
         shell: bash
         run: |
           cd apps/mobile/android/app/build/outputs/apk/release
-          mv app-release.apk "AgentMate-${APP_VERSION}.apk"
+          for f in app-*-release.apk; do
+            abi="${f#app-}"
+            abi="${abi%-release.apk}"
+            if [ "$abi" = "universal" ]; then
+              mv "$f" "AgentMate-${APP_VERSION}.apk"
+            else
+              mv "$f" "AgentMate-${APP_VERSION}-${abi}.apk"
+            fi
+          done
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v7
