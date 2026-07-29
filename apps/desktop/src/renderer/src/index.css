@@ -224,12 +224,13 @@ body {
   backdrop-filter: blur(20px) saturate(140%);
   -webkit-backdrop-filter: blur(20px) saturate(140%);
   border: 1px solid hsl(var(--foreground) / 0.08);
-  box-shadow: 0 8px 32px -8px hsl(0 0% 0% / 0.35);
+  box-shadow: 0 4px 16px -6px hsl(0 0% 0% / 0.12);
 }
 
 .dark .glass {
   background: hsl(var(--card) / 0.5);
   border-color: hsl(var(--foreground) / 0.1);
+  box-shadow: 0 8px 32px -8px hsl(0 0% 0% / 0.35);
 }
 
 /* Heavier, near-opaque frosted surface for widgets whose content (e.g. Build
