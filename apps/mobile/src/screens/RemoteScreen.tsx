@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Pressable, StatusBar, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { formatBytes } from '@agentmat/protocol';
 import { RemoteViewport } from '../components/RemoteViewport';
 import { Toolbar } from '../components/Toolbar';
 import type { useRemoteClient } from '../remote/useRemoteClient';
@@ -8,18 +9,6 @@ import { PHASE_LABELS, RemoteTransportMode } from '../remote/transport';
 import { colors, radius, spacing } from '../theme';
 
 type RemoteClient = ReturnType<typeof useRemoteClient>;
-
-function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  const units = ['KB', 'MB', 'GB'];
-  let value = bytes / 1024;
-  let i = 0;
-  while (value >= 1024 && i < units.length - 1) {
-    value /= 1024;
-    i++;
-  }
-  return `${value.toFixed(1)} ${units[i]}`;
-}
 
 /**
  * The active-session screen. The host's display gets the entire phone screen;

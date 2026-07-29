@@ -20,6 +20,14 @@ if not exist "node_modules" (
     )
 )
 
+echo Verifying Electron binary...
+call pnpm --filter @agentmat/desktop exec install-electron
+if errorlevel 1 (
+    echo Failed to download the Electron binary. Check your network connection and try again.
+    pause
+    exit /b 1
+)
+
 echo Starting AgentMate...
 call pnpm dev
 

@@ -62,7 +62,7 @@ export default function ProjectsPage(): React.JSX.Element {
     toast.info(`Press Enter in the terminal to run "${project.runCommand}".`);
   }
 
-  const projects = projectsQuery.data ?? [];
+  const projects = useMemo(() => projectsQuery.data ?? [], [projectsQuery.data]);
   const query = search.trim().toLowerCase();
   const filtered = useMemo(() => {
     if (!query) return projects;

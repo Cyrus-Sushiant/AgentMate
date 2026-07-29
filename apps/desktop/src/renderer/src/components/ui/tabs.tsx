@@ -1,11 +1,14 @@
 import * as React from 'react';
 import * as TabsPrimitive from '@radix-ui/react-tabs';
 import { cn } from '@/lib/utils';
+import { ArrowLeft, ArrowRight } from '@/components/icons';
 
 const Tabs = TabsPrimitive.Root;
 
 /** Width of the fade drawn over an end of the strip that has more tabs past it. */
 const EDGE_FADE = '20px';
+/** How far a click on an edge arrow scrolls the strip. */
+const EDGE_SCROLL = 120;
 
 type TabsListProps = React.ComponentPropsWithoutRef<typeof TabsPrimitive.List> & {
   /** Classes for the wrapper that draws the underline behind the strip. */
@@ -58,6 +61,27 @@ const TabsList = React.forwardRef<React.ElementRef<typeof TabsPrimitive.List>, T
       return () => observer.disconnect();
     }, [syncOverflow]);
 
+    React.useEffect(() => {
+      const el = listRef.current;
+      if (!el) return;
+      // A plain mouse wheel only sends vertical delta, and the strip's own
+      // scrollbar is hidden, so without this a mouse-only user has no way to
+      // reach tabs past the fade. Trackpad horizontal scroll (deltaX) already
+      // works natively and is left alone.
+      const onWheel = (event: WheelEvent) => {
+        if (el.scrollWidth <= el.clientWidth) return;
+        if (Math.abs(event.deltaY) <= Math.abs(event.deltaX)) return;
+        el.scrollLeft += event.deltaY;
+        event.preventDefault();
+      };
+      el.addEventListener('wheel', onWheel, { passive: false });
+      return () => el.removeEventListener('wheel', onWheel);
+    }, []);
+
+    const scrollBy = React.useCallback((delta: number) => {
+      listRef.current?.scrollBy({ left: delta, behavior: 'smooth' });
+    }, []);
+
     const mask =
       overflow.start || overflow.end
         ? `linear-gradient(to right, ${[
@@ -81,6 +105,28 @@ const TabsList = React.forwardRef<React.ElementRef<typeof TabsPrimitive.List>, T
           )}
           {...props}
         />
+        {overflow.start && (
+          <button
+            type="button"
+            tabIndex={-1}
+            aria-label="Scroll tabs left"
+            onClick={() => scrollBy(-EDGE_SCROLL)}
+            className="absolute inset-y-0 left-0 flex w-5 items-center justify-start text-muted-foreground hover:text-foreground"
+          >
+            <ArrowLeft className="size-3" />
+          </button>
+        )}
+        {overflow.end && (
+          <button
+            type="button"
+            tabIndex={-1}
+            aria-label="Scroll tabs right"
+            onClick={() => scrollBy(EDGE_SCROLL)}
+            className="absolute inset-y-0 right-0 flex w-5 items-center justify-end text-muted-foreground hover:text-foreground"
+          >
+            <ArrowRight className="size-3" />
+          </button>
+        )}
       </div>
     );
   },

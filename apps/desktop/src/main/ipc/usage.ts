@@ -11,7 +11,7 @@ import type {
 import { IPC } from '../../shared/ipcChannels';
 import type { SetUsageProviderConfigInput } from '../../shared/apiTypes';
 import { store } from '../store';
-import { clearProviderUsageCache, clearUsageCache, getAllUsage, getProviderUsage } from '../usage';
+import { clearUsageCache, getAllUsage, getProviderUsage } from '../usage';
 import { widgetManager } from '../usage/widgetWindows';
 import { refreshResetAlerts, sendResetAlertTest } from '../usage/resetAlerts';
 import { sendThresholdAlertTest } from '../usage/thresholdAlerts';

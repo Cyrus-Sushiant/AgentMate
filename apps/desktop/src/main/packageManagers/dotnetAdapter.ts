@@ -1,5 +1,5 @@
 import { readdir } from 'node:fs/promises';
-import { dirname, join } from 'node:path';
+import { basename, dirname, join } from 'node:path';
 import type {
   PackageInfo,
   PackageManagerSection,
@@ -66,6 +66,7 @@ async function detect(folderPath: string): Promise<boolean> {
 
 async function listPackagesForProject(csprojPath: string): Promise<PackageInfo[]> {
   const cwd = dirname(csprojPath);
+  const projectLabel = basename(csprojPath, '.csproj');
   const [installedRes, outdatedRes] = await Promise.all([
     runCli('dotnet', ['list', csprojPath, 'package', '--format', 'json'], cwd),
     runCli('dotnet', ['list', csprojPath, 'package', '--outdated', '--format', 'json'], cwd),
@@ -86,6 +87,7 @@ async function listPackagesForProject(csprojPath: string): Promise<PackageInfo[]
       isDev: false,
       isInstalled: true,
       manifestPath: csprojPath,
+      projectLabel,
     });
   }
   return packages;

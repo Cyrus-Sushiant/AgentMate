@@ -120,7 +120,6 @@ export function AskAiChat({
       toast.error((geminiModelsQuery.error as Error).message || 'Failed to load Gemini models.');
     }
     // Only fire when a fetch attempt actually resolves to an error, not on every render.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [geminiModelsQuery.error]);
 
   const geminiModelOptions = geminiModelsQuery.data?.length

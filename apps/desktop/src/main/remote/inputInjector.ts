@@ -124,7 +124,9 @@ while (($line = [Console]::In.ReadLine()) -ne $null) {
       'T' { [AmInput]::TypeChar([uint16][int]$p[1]) }
       'Q' { break }
     }
-  } catch { }
+  } catch {
+    # Malformed command from a version-skewed parent process; drop and keep reading.
+  }
 }
 `;
 

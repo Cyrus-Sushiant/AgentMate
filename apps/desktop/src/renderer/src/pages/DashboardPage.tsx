@@ -64,7 +64,7 @@ import { useUsageSummary } from '@/hooks/useUsageSummary';
 import { useChartColors } from '@/lib/chartColors';
 import { cn } from '@/lib/utils';
 import { queryKeys } from '@/lib/queryKeys';
-import { formatCost, formatTokens } from '@/lib/usageFormat';
+import { formatCost, formatPercent, formatTokens } from '@/lib/usageFormat';
 import { usePageHeader } from '@/stores/pageHeaderStore';
 import { useTerminalStore } from '@/stores/terminalStore';
 import { DashboardUsageCard } from '@/components/usage/DashboardUsageCard';
@@ -78,10 +78,6 @@ import {
   type DashboardChartId,
   type DashboardItemId,
 } from '@/stores/dashboardLayoutStore';
-
-function formatPercent(value: number): string {
-  return `${value.toFixed(0)}%`;
-}
 
 function formatBytesPerSec(value: number): string {
   if (value < 1024) return `${value.toFixed(0)} B/s`;

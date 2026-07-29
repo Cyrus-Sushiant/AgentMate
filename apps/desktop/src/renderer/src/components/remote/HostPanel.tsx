@@ -24,7 +24,7 @@ export function HostPanel(): React.JSX.Element {
   const [port, setPort] = useState(7900);
   const [generating, setGenerating] = useState(false);
 
-  const interfaces = state?.interfaces ?? [];
+  const interfaces = useMemo(() => state?.interfaces ?? [], [state?.interfaces]);
   const hosting = state?.hosting ?? false;
   const inputSupported = state?.inputSupported ?? false;
   const peers = state?.peers ?? [];

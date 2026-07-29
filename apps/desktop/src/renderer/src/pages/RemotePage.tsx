@@ -1,3 +1,4 @@
+import { formatBytes } from '@shared/remoteProtocol';
 import { Broadcast, Link } from '@/components/icons';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -13,18 +14,6 @@ const LOG_COLOR = {
   warning: 'text-warning',
   error: 'text-destructive',
 } as const;
-
-function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  const units = ['KB', 'MB', 'GB'];
-  let value = bytes / 1024;
-  let i = 0;
-  while (value >= 1024 && i < units.length - 1) {
-    value /= 1024;
-    i++;
-  }
-  return `${value.toFixed(1)} ${units[i]}`;
-}
 
 export default function RemotePage(): React.JSX.Element {
   const logs = useRemoteStore((s) => s.logs);

@@ -13,3 +13,7 @@ minimumReleaseAgeExclude:
   - autoprefixer@10.5.4
   - caniuse-lite@1.0.30001806
   - vite@8.1.5
+patchedDependencies:
+  react-native-webrtc: patches/react-native-webrtc.patch
+overrides:
+  dompurify: ">=3.4.12"

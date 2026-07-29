@@ -1649,6 +1649,7 @@ function PackagesTab({ projectId }: { projectId: string }): React.JSX.Element {
         const sectionSelectedCount = section.packages.filter((p) => selected.has(packageKey(p))).length;
         const allOutdatedSelected =
           outdatedPackages.length > 0 && outdatedPackages.every((p) => selected.has(packageKey(p)));
+        const showProjectLabel = new Set(section.packages.map((p) => p.projectLabel)).size > 1;
 
         return (
           <div
@@ -1699,6 +1700,10 @@ function PackagesTab({ projectId }: { projectId: string }): React.JSX.Element {
 
             {section.status === 'error' && <p className="text-sm text-destructive">{section.message}</p>}
 
+            {section.status === 'ok' && section.message && (
+              <p className="text-sm text-muted-foreground">{section.message}</p>
+            )}
+
             {section.status === 'ok' && section.packages.length === 0 && (
               <p className="text-sm text-muted-foreground">No dependencies declared.</p>
             )}
@@ -1734,6 +1739,11 @@ function PackagesTab({ projectId }: { projectId: string }): React.JSX.Element {
                             {pkg.isDev && (
                               <Badge variant="outline" className="px-1.5 py-0 text-[10px] leading-4">
                                 dev
+                              </Badge>
+                            )}
+                            {showProjectLabel && (
+                              <Badge variant="outline" className="px-1.5 py-0 text-[10px] leading-4">
+                                {pkg.projectLabel}
                               </Badge>
                             )}
                           </div>

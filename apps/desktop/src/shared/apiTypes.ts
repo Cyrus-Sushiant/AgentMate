@@ -327,6 +327,8 @@ export interface PackageInfo {
   isInstalled: boolean;
   /** Absolute path to the manifest this package was read from (package.json or a specific .csproj). */
   manifestPath: string;
+  /** Human-readable name of the sub-project this package belongs to (e.g. its package.json "name", or a relative folder path). */
+  projectLabel: string;
 }
 
 export interface PackageManagerSection {
