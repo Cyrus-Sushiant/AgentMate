@@ -72,6 +72,13 @@ linux:
       arch: [x64]
   category: Development
 
+# The deb target's default artifact name embeds the raw package.json "name"
+# ("@agentmat/desktop"), which contains a slash and would build to a nested
+# path (release/@agentmat/desktop_1.0.0_amd64.deb) that the CD workflow's
+# `apps/desktop/release/*.deb` upload glob can't see. Use productName instead.
+deb:
+  artifactName: ${productName}-${version}-${arch}.${ext}
+
 # electron-updater reads this to know where to look for new releases. The CD
 # workflow builds with `--publish never` and uploads artifacts to the GitHub
 # Release itself (see .github/workflows/cd.yml), so this only needs to name

@@ -3,6 +3,11 @@
   "private": true,
   "version": "1.0.0",
   "description": "AgentMate desktop application (Electron)",
+  "homepage": "https://github.com/Cyrus-Sushiant/AgentMate",
+  "author": {
+    "name": "Mohammad Aminsafaei",
+    "email": "m.aminsafaei@outlook.com"
+  },
   "main": "./out/main/index.mjs",
   "scripts": {
     "dev": "pnpm rebuild:native && electron-vite dev",
