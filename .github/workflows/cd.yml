@@ -36,15 +36,17 @@ jobs:
             build_args: ""
           - os: ubuntu-latest
             build_args: ""
-          # macos-latest runners are Apple Silicon (arm64) and macos-13 runners
-          # are Intel (x64). electron-builder.yml targets both mac arches, but
-          # native modules (better-sqlite3) only get rebuilt for the host's
-          # own architecture, so each arch is built on its matching runner and
-          # pinned with an explicit --arm64/--x64 flag rather than letting
-          # electron-builder attempt both from a single host.
+          # macos-latest runners are Apple Silicon (arm64) and macos-26-intel
+          # runners are Intel (x64) — macos-13, the previous Intel label, was
+          # retired by GitHub in December 2025. electron-builder.yml targets
+          # both mac arches, but native modules (better-sqlite3) only get
+          # rebuilt for the host's own architecture, so each arch is built on
+          # its matching runner and pinned with an explicit --arm64/--x64
+          # flag rather than letting electron-builder attempt both from a
+          # single host.
           - os: macos-latest
             build_args: "--arm64"
-          - os: macos-13
+          - os: macos-26-intel
             build_args: "--x64"
 
     steps:
