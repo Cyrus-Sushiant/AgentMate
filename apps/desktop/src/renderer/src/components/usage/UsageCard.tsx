@@ -11,6 +11,7 @@ import { ProviderLogo } from '@/components/providerLogos';
 import { Skeleton } from '@/components/ui/skeleton';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { SparklineChart } from '@/components/dashboard/SparklineChart';
+import { useReadableAccent } from '@/lib/chartColors';
 import {
   formatCost,
   formatCountdown,
@@ -81,7 +82,11 @@ export function UsageCardBody({
   hideHeader = false,
   mode = 'tokens',
 }: UsageCardBodyProps): React.JSX.Element {
-  const accent = style === 'colorful' ? def.accentColor : 'hsl(var(--foreground))';
+  // Brand hex as the registry states it, nudged only when that exact color
+  // would be unreadable on the current theme's card (the many near-black
+  // vendor accents against the dark surface).
+  const brandAccent = useReadableAccent(def.accentColor);
+  const accent = style === 'colorful' ? brandAccent : 'hsl(var(--foreground))';
   const subscription = usage.subscription;
   // The plan badge is account identity, not a limits readout, so it shows in
   // both widgets whenever the account is known: the token view of a Pro
