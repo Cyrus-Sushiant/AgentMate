@@ -10,6 +10,7 @@
   ![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-informational)
   ![Built with Electron](https://img.shields.io/badge/built%20with-Electron-47848F)
   ![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178C6)
+  [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 </div>
 
 ---
@@ -100,4 +101,4 @@ On Windows you can also just run `run.bat`, which installs dependencies, verifie
 
 ## License
 
-No license has been declared for this project yet.
+[MIT](LICENSE) © SmartClouds
