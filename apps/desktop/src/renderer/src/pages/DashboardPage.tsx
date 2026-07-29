@@ -296,7 +296,7 @@ function CliUpdatesCard({
   ).length;
 
   return (
-    <Card>
+    <Card className="glass">
       <CardHeader className="flex flex-row items-center justify-between space-y-0">
         <div className="flex items-center gap-2">
           <CardTitle>Update AI CLIs</CardTitle>
@@ -464,7 +464,7 @@ export default function DashboardPage(): React.JSX.Element {
   }
 
   function cardClass(id: DashboardItemId): string {
-    return cn('h-full', dragChartId === id && 'opacity-50');
+    return cn('glass h-full', dragChartId === id && 'opacity-50');
   }
 
   // Handles only exist in edit mode, so the everyday dashboard has no chrome
