@@ -1,7 +1,7 @@
 name: CD
 
-# Builds the AgentMate desktop app for Windows, macOS, and Linux and
-# publishes the installers to a GitHub Release.
+# Builds the AgentMate desktop app for Windows, macOS, and Linux plus the
+# Android mobile app, and publishes the installers/APK to a GitHub Release.
 #
 # Triggers:
 #   - Pushing a tag like "v1.2.3" builds and releases automatically.
@@ -129,9 +129,78 @@ jobs:
             apps/desktop/release/latest-mac-*.yml
             apps/desktop/release/latest-linux.yml
 
+  build-android:
+    name: Build Android APK
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: pnpm
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Set app version from release tag
+        shell: bash
+        run: |
+          if [ "${{ github.ref_type }}" = "tag" ]; then
+            TAG="${{ github.ref_name }}"
+          else
+            TAG="${{ inputs.tag }}"
+          fi
+          APP_VERSION="${TAG#v}"
+          echo "APP_VERSION=$APP_VERSION" >> "$GITHUB_ENV"
+          node -e "
+            const fs = require('fs');
+            const path = 'apps/mobile/app.json';
+            const config = JSON.parse(fs.readFileSync(path, 'utf8'));
+            config.expo.version = '$APP_VERSION';
+            fs.writeFileSync(path, JSON.stringify(config, null, 2) + '\n');
+          "
+
+      - name: Build protocol package
+        run: pnpm --filter @agentmat/protocol build
+
+      # apps/mobile/android is generated (gitignored) rather than committed,
+      # so it's regenerated from app.json on every build via Expo's
+      # Continuous Native Generation instead of being checked into git.
+      - name: Generate native Android project
+        run: pnpm --filter @agentmat/mobile exec expo prebuild -p android --no-install
+
+      - name: Build release APK
+        working-directory: apps/mobile/android
+        run: ./gradlew assembleRelease
+
+      - name: Rename APK with version
+        shell: bash
+        run: |
+          cd apps/mobile/android/app/build/outputs/apk/release
+          mv app-release.apk "AgentMate-${APP_VERSION}.apk"
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-apk
+          if-no-files-found: error
+          path: apps/mobile/android/app/build/outputs/apk/release/AgentMate-*.apk
+
   release:
     name: Publish GitHub Release
-    needs: build
+    needs: [build, build-android]
     runs-on: ubuntu-latest
     steps:
       - name: Determine release tag
@@ -149,6 +218,12 @@ jobs:
           pattern: desktop-installer-*
           path: dist-release
           merge-multiple: true
+
+      - name: Download Android APK artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: android-apk
+          path: dist-release
 
       # electron-updater's macOS auto-updater needs a single `latest-mac.yml`,
       # but the two mac runners each produced an arch-specific one (see the
