@@ -23,6 +23,7 @@ import {
   Pin,
   Plus,
   RefreshCw,
+  Route,
   SatelliteDish,
   SettingsIcon,
   Sparkles,
@@ -58,7 +59,16 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { SparklineChart } from '@/components/dashboard/SparklineChart';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useSystemStatsHistory } from '@/hooks/useSystemStatsHistory';
 import { useUsageSummary } from '@/hooks/useUsageSummary';
 import { useChartColors } from '@/lib/chartColors';
@@ -366,6 +376,8 @@ function CliUpdatesCard({
 
 export default function DashboardPage(): React.JSX.Element {
   const navigate = useNavigate();
+  const openSession = useTerminalStore((s) => s.openSession);
+  const [diagnoseHost, setDiagnoseHost] = useState<string | null>(null);
 
   const cliQuery = useQuery({
     queryKey: queryKeys.cliStatus,
@@ -426,6 +438,7 @@ export default function DashboardPage(): React.JSX.Element {
   const moveRow = useDashboardLayoutStore((s) => s.moveRow);
   const [dragChartId, setDragChartId] = useState<DashboardItemId | null>(null);
   const [dragRowId, setDragRowId] = useState<string | null>(null);
+  const [cpuView, setCpuView] = useState<'total' | 'cores'>('total');
 
   // Token Usage cards the user added to the dashboard read the same list (and
   // the same tokens/plan-limits choice) the Usage page does.
@@ -450,6 +463,18 @@ export default function DashboardPage(): React.JSX.Element {
   // The Token Usage summary tiles pinned here read the same aggregate totals
   // the Usage page itself shows, independent of whether that page is mounted.
   const usageSummary = useUsageSummary(summaryCards.length > 0);
+
+  function handlePingHost(host: string): void {
+    openSession({ title: `Ping ${host}`, initialInput: `ping -t ${host}` });
+    toast.info(`Press Enter in the terminal to start pinging ${host}.`);
+    setDiagnoseHost(null);
+  }
+
+  function handleTracerouteHost(host: string): void {
+    openSession({ title: `Traceroute ${host}`, initialInput: `tracert -d ${host}` });
+    toast.info(`Press Enter in the terminal to trace the route to ${host}.`);
+    setDiagnoseHost(null);
+  }
 
   /** `beforeId` is the card the drop landed on, or null to append to the row. */
   function handleChartDrop(rowId: string, beforeId: DashboardItemId | null): void {
@@ -500,17 +525,65 @@ export default function DashboardPage(): React.JSX.Element {
           <CardTitle className="flex items-center gap-2 text-xs text-muted-foreground">
             <Cpu className="h-3.5 w-3.5" /> CPU Usage
           </CardTitle>
-          {dragHandle('cpu')}
+          <div className="flex items-center gap-2">
+            {latest && latest.cpuCoreCount > 1 && (
+              <Tabs value={cpuView} onValueChange={(v) => setCpuView(v as 'total' | 'cores')}>
+                <TabsList
+                  containerClassName="border-b-0"
+                  className="mb-0 h-6 w-auto border-none bg-foreground/[0.06] p-0.5 rounded-md"
+                >
+                  <TabsTrigger
+                    value="total"
+                    className="h-5 rounded-sm border-none px-2 text-[10px] data-[state=active]:bg-background data-[state=active]:shadow-sm"
+                  >
+                    Total
+                  </TabsTrigger>
+                  <TabsTrigger
+                    value="cores"
+                    className="h-5 rounded-sm border-none px-2 text-[10px] data-[state=active]:bg-background data-[state=active]:shadow-sm"
+                  >
+                    Per core
+                  </TabsTrigger>
+                </TabsList>
+              </Tabs>
+            )}
+            {dragHandle('cpu')}
+          </div>
         </CardHeader>
         <CardContent>
           <div className="mb-2 flex h-8 items-baseline gap-2">
             {latest ? (
-              <span className="text-2xl font-semibold">{formatPercent(latest.cpuPercent)}</span>
+              <>
+                <span className="text-2xl font-semibold">{formatPercent(latest.cpuPercent)}</span>
+                <span className="truncate text-xs text-muted-foreground">
+                  {latest.cpuModel} · {latest.cpuCoreCount} cores
+                </span>
+              </>
             ) : (
-              <StatSkeleton className="w-16" />
+              <>
+                <StatSkeleton className="w-16" />
+                <Skeleton className="h-3 w-40 self-center" />
+              </>
             )}
           </div>
-          <div className="mb-2 h-6" />
+          {latest && cpuView === 'cores' ? (
+            <div className="mb-2 flex h-6 items-center gap-3 overflow-x-auto overflow-y-hidden whitespace-nowrap">
+              {latest.cpuCorePercents.map((p, i) => (
+                <div key={i} className="flex shrink-0 items-center gap-1.5 text-sm">
+                  <span
+                    className="inline-block h-2 w-2 shrink-0 rounded-full"
+                    style={{
+                      backgroundColor: chartColors.categorical[i % chartColors.categorical.length],
+                    }}
+                  />
+                  <span className="font-medium">Core {i}</span>
+                  <span className="text-xs text-muted-foreground">{formatPercent(p)}</span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="mb-2 h-6" />
+          )}
           {latest ? (
             <SparklineChart
               height={CHART_HEIGHT}
@@ -519,14 +592,23 @@ export default function DashboardPage(): React.JSX.Element {
               domainMax={100}
               formatValue={formatPercent}
               formatTime={formatClockTime}
-              series={[
-                {
-                  key: 'cpu',
-                  label: 'CPU',
-                  color: 'hsl(var(--primary))',
-                  values: statsHistory.map((s) => s.cpuPercent),
-                },
-              ]}
+              series={
+                cpuView === 'cores'
+                  ? latest.cpuCorePercents.map((_, i) => ({
+                      key: `core-${i}`,
+                      label: `Core ${i}`,
+                      color: chartColors.categorical[i % chartColors.categorical.length],
+                      values: statsHistory.map((s) => s.cpuCorePercents[i] ?? 0),
+                    }))
+                  : [
+                      {
+                        key: 'cpu',
+                        label: 'CPU',
+                        color: 'hsl(var(--primary))',
+                        values: statsHistory.map((s) => s.cpuPercent),
+                      },
+                    ]
+              }
             />
           ) : (
             <ChartSkeleton />
@@ -824,7 +906,13 @@ export default function DashboardPage(): React.JSX.Element {
                     backgroundColor: chartColors.categorical[i % chartColors.categorical.length],
                   }}
                 />
-                <span className="font-medium">{p.host}</span>
+                <button
+                  type="button"
+                  className="font-medium underline-offset-2 hover:underline"
+                  onClick={() => setDiagnoseHost(p.host)}
+                >
+                  {p.host}
+                </button>
                 <span className="text-xs text-muted-foreground">
                   {p.latencyMs != null ? formatMs(p.latencyMs) : 'N/A'}
                 </span>
@@ -1248,6 +1336,26 @@ export default function DashboardPage(): React.JSX.Element {
       </div>
 
       <CliUpdatesCard installed={installedClis} />
+
+      <Dialog open={diagnoseHost !== null} onOpenChange={(open) => !open && setDiagnoseHost(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Diagnose {diagnoseHost}</DialogTitle>
+            <DialogDescription>Open a terminal session to investigate this host.</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => diagnoseHost && handlePingHost(diagnoseHost)}
+            >
+              <SatelliteDish className="h-3.5 w-3.5" /> Ping (ping -t)
+            </Button>
+            <Button onClick={() => diagnoseHost && handleTracerouteHost(diagnoseHost)}>
+              <Route className="h-3.5 w-3.5" /> Traceroute (tracert -d)
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

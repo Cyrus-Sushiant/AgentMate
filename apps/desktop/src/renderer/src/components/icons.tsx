@@ -70,6 +70,7 @@ import {
   faQrcode,
   faQuoteLeft,
   faRobot,
+  faRoute,
   faSatelliteDish,
   faSort,
   faSquareCheck,
@@ -161,6 +162,7 @@ export const Cpu = makeIcon(faMicrochip);
 export const MemoryStick = makeIcon(faMemory);
 export const NetworkIcon = makeIcon(faNetworkWired);
 export const SatelliteDish = makeIcon(faSatelliteDish);
+export const Route = makeIcon(faRoute);
 export const HardDrive = makeIcon(faHardDrive);
 export const Gpu = makeIcon(faDisplay);
 export const GripVertical = makeIcon(faGripVertical);

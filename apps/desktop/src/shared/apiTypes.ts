@@ -391,7 +391,13 @@ export interface GpuUsage {
 
 export interface SystemStatsSample {
   timestamp: number;
+  /** e.g. "Intel(R) Core(TM) i7-9700K CPU @ 3.60GHz". */
+  cpuModel: string;
+  cpuCoreCount: number;
+  /** Aggregate usage across all cores (average of cpuCorePercents). */
   cpuPercent: number;
+  /** Per-logical-core usage, same order as reported by the OS. */
+  cpuCorePercents: number[];
   memPercent: number;
   memUsedBytes: number;
   memTotalBytes: number;

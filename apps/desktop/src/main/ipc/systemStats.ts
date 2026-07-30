@@ -14,32 +14,38 @@ interface CpuSnapshot {
   total: number;
 }
 
-function readCpuSnapshot(): CpuSnapshot {
-  let idle = 0;
-  let total = 0;
-  for (const cpu of os.cpus()) {
-    const t = cpu.times;
-    idle += t.idle;
-    total += t.user + t.nice + t.sys + t.idle + t.irq;
-  }
-  return { idle, total };
+// os.cpus()[n].model is padded/repeats vendor boilerplate on some platforms
+// (e.g. trailing whitespace on Windows), so it's normalized once here.
+function readCpuModel(): string {
+  return os.cpus()[0]?.model.trim().replace(/\s+/g, ' ') ?? 'Unknown CPU';
 }
 
-let lastCpuSnapshot: CpuSnapshot | null = null;
+function readCpuSnapshots(): CpuSnapshot[] {
+  return os.cpus().map((cpu) => {
+    const t = cpu.times;
+    return { idle: t.idle, total: t.user + t.nice + t.sys + t.idle + t.irq };
+  });
+}
 
-// Instantaneous CPU load isn't exposed by Node, only cumulative per-core
-// tick counters, so usage is derived from the delta between consecutive
-// samples (same technique top/htop use).
-function sampleCpuPercent(): number {
-  const snapshot = readCpuSnapshot();
-  const previous = lastCpuSnapshot;
-  lastCpuSnapshot = snapshot;
-  if (!previous) return 0;
+let lastCpuSnapshots: CpuSnapshot[] | null = null;
 
+function percentFromDelta(previous: CpuSnapshot, snapshot: CpuSnapshot): number {
   const idleDelta = snapshot.idle - previous.idle;
   const totalDelta = snapshot.total - previous.total;
   if (totalDelta <= 0) return 0;
   return Math.max(0, Math.min(100, 100 * (1 - idleDelta / totalDelta)));
+}
+
+// Instantaneous CPU load isn't exposed by Node, only cumulative per-core
+// tick counters, so usage is derived from the delta between consecutive
+// samples (same technique top/htop use). Returns per-core percentages; the
+// aggregate total is the average of all cores.
+function sampleCpuCorePercents(): number[] {
+  const snapshots = readCpuSnapshots();
+  const previous = lastCpuSnapshots;
+  lastCpuSnapshots = snapshots;
+  if (!previous || previous.length !== snapshots.length) return snapshots.map(() => 0);
+  return snapshots.map((snapshot, i) => percentFromDelta(previous[i], snapshot));
 }
 
 function sampleMemory(): Pick<SystemStatsSample, 'memPercent' | 'memUsedBytes' | 'memTotalBytes'> {
@@ -323,6 +329,8 @@ async function pingHost(host: string): Promise<PingResult> {
   }
 }
 
+const cpuModel = readCpuModel();
+
 export function registerSystemStatsHandlers(): void {
   ipcMain.handle(IPC.system.sample, async (): Promise<SystemStatsSample> => {
     const settings = await store.getSettings();
@@ -335,9 +343,15 @@ export function registerSystemStatsHandlers(): void {
       sampleDisks(),
       sampleGpus(),
     ]);
+    const cpuCorePercents = sampleCpuCorePercents();
+    const cpuPercent =
+      cpuCorePercents.reduce((sum, p) => sum + p, 0) / (cpuCorePercents.length || 1);
     return {
       timestamp: Date.now(),
-      cpuPercent: sampleCpuPercent(),
+      cpuModel,
+      cpuCoreCount: cpuCorePercents.length,
+      cpuPercent,
+      cpuCorePercents,
       ...sampleMemory(),
       disks,
       gpus,
