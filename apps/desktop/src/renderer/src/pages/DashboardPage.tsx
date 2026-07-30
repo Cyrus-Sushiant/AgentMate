@@ -12,6 +12,7 @@ import {
   Check,
   CloudDownload,
   Cpu,
+  ExternalLink,
   FolderKanban,
   Globe,
   Gpu,
@@ -396,6 +397,7 @@ export default function DashboardPage(): React.JSX.Element {
   const navigate = useNavigate();
   const openSession = useTerminalStore((s) => s.openSession);
   const [diagnoseHost, setDiagnoseHost] = useState<string | null>(null);
+  const [speedTestOpen, setSpeedTestOpen] = useState(false);
 
   const cliQuery = useQuery({
     queryKey: queryKeys.cliStatus,
@@ -834,7 +836,14 @@ export default function DashboardPage(): React.JSX.Element {
           <CardTitle className="flex items-center gap-2 text-xs text-muted-foreground">
             <NetworkIcon className="h-3.5 w-3.5" /> Network Throughput
           </CardTitle>
-          {dragHandle('network')}
+          <div className="flex items-center gap-2">
+            {dragHandle('network')}
+            <SimpleTooltip label="Test network speed">
+              <Button variant="ghost" size="icon" onClick={() => setSpeedTestOpen(true)}>
+                <Bolt className="h-3.5 w-3.5" />
+              </Button>
+            </SimpleTooltip>
+          </div>
         </CardHeader>
         <CardContent>
           <div className="mb-2 flex h-8 items-baseline gap-2">
@@ -1387,6 +1396,33 @@ export default function DashboardPage(): React.JSX.Element {
             </Button>
             <Button onClick={() => diagnoseHost && handleTracerouteHost(diagnoseHost)}>
               <Route className="h-3.5 w-3.5" /> Traceroute (tracert -d)
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={speedTestOpen} onOpenChange={setSpeedTestOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Network Speed Test</DialogTitle>
+            <DialogDescription>
+              Measure ping, download, and upload speed on Cloudflare&apos;s speed test site.
+            </DialogDescription>
+          </DialogHeader>
+
+          <p className="py-2 text-sm text-muted-foreground">
+            This opens speed.cloudflare.com in your browser, which measures your connection far
+            more accurately than a test run from inside the app.
+          </p>
+
+          <DialogFooter>
+            <Button
+              onClick={() => {
+                void window.agentmat.shell.openExternal('https://speed.cloudflare.com/');
+                setSpeedTestOpen(false);
+              }}
+            >
+              <ExternalLink className="h-3.5 w-3.5" /> Open speed.cloudflare.com
             </Button>
           </DialogFooter>
         </DialogContent>

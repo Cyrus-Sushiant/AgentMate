@@ -15,6 +15,14 @@ export interface SparklineChartProps {
   height?: number;
   domainMin?: number;
   domainMax?: number;
+  /**
+   * When set, points are positioned by their actual `timestamps` value
+   * against a fixed [0, xDomainMax] axis instead of by array index. Use this
+   * for a chart that grows live (each new sample lands at its true elapsed
+   * time and earlier points never move); omit it for a fixed-length rolling
+   * window, where index spacing is already stable.
+   */
+  xDomainMax?: number;
   formatValue: (value: number) => string;
   formatTime?: (timestamp: number) => string;
   className?: string;
@@ -29,6 +37,7 @@ export function SparklineChart({
   height = 88,
   domainMin = 0,
   domainMax,
+  xDomainMax,
   formatValue,
   formatTime,
   className,
@@ -42,7 +51,10 @@ export function SparklineChart({
   const allValues = series.flatMap((s) => s.values);
   const maxVal = domainMax ?? Math.max(domainMin + 1, ...(allValues.length ? allValues : [1]));
 
-  const xAt = (i: number): number => (n <= 1 ? VIEW_WIDTH : (i / (n - 1)) * VIEW_WIDTH);
+  const xAt = (i: number): number => {
+    if (xDomainMax != null) return Math.min(1, timestamps[i] / xDomainMax) * VIEW_WIDTH;
+    return n <= 1 ? VIEW_WIDTH : (i / (n - 1)) * VIEW_WIDTH;
+  };
   const yAt = (v: number): number => {
     const t = (v - domainMin) / (maxVal - domainMin || 1);
     return height - PAD_Y - t * (height - PAD_Y * 2);

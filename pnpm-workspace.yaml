@@ -13,6 +13,17 @@ minimumReleaseAgeExclude:
   - autoprefixer@10.5.4
   - caniuse-lite@1.0.30001806
   - vite@8.1.5
+  - '@expo/cli@57.0.11'
+  - '@expo/inline-modules@0.1.4'
+  - '@expo/local-build-cache-provider@57.0.5'
+  - '@expo/log-box@57.0.2'
+  - '@expo/prebuild-config@57.0.10'
+  - babel-preset-expo@57.0.5
+  - expo-asset@57.0.8
+  - expo-constants@57.0.8
+  - expo-modules-core@57.0.8
+  - expo@57.0.9
+  - postcss@8.5.25
 patchedDependencies:
   react-native-webrtc: patches/react-native-webrtc.patch
 overrides:
