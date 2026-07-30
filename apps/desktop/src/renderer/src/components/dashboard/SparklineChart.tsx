@@ -1,4 +1,5 @@
 import * as React from 'react';
+import { createPortal } from 'react-dom';
 import { cn } from '@/lib/utils';
 
 export interface SparklineSeries {
@@ -33,7 +34,9 @@ export function SparklineChart({
   className,
 }: SparklineChartProps): React.JSX.Element {
   const svgRef = React.useRef<SVGSVGElement>(null);
+  const tooltipRef = React.useRef<HTMLDivElement>(null);
   const [hoverIndex, setHoverIndex] = React.useState<number | null>(null);
+  const [tooltipPos, setTooltipPos] = React.useState<{ left: number; top: number } | null>(null);
 
   const n = timestamps.length;
   const allValues = series.flatMap((s) => s.values);
@@ -64,8 +67,36 @@ export function SparklineChart({
   }
 
   const hovered = hoverIndex !== null && n > 0;
-  const tooltipLeftPct = hovered ? (xAt(hoverIndex) / VIEW_WIDTH) * 100 : 0;
-  const tooltipFlip = hovered && hoverIndex > (n - 1) / 2;
+
+  // The card grid reorders via a framer-motion `layout` transform, which
+  // creates a stacking context on each card — a plain z-index on the tooltip
+  // can't escape it, so a tall tooltip (e.g. many per-core series) would
+  // render underneath the card in the row below instead of on top of it.
+  // Portaling to <body> and positioning in viewport coordinates sidesteps
+  // that entirely, and lets the tooltip clamp itself inside the viewport.
+  React.useLayoutEffect(() => {
+    if (!hovered || !svgRef.current) {
+      setTooltipPos(null);
+      return;
+    }
+    const svgRect = svgRef.current.getBoundingClientRect();
+    const anchorX = svgRect.left + (xAt(hoverIndex) / VIEW_WIDTH) * svgRect.width;
+    const anchorY = svgRect.top;
+    const margin = 8;
+    const tw = tooltipRef.current?.offsetWidth ?? 0;
+    const th = tooltipRef.current?.offsetHeight ?? 0;
+
+    let left = anchorX + margin;
+    if (left + tw > window.innerWidth - margin) left = anchorX - tw - margin;
+    left = Math.max(margin, Math.min(left, window.innerWidth - tw - margin));
+
+    let top = anchorY;
+    if (top + th > window.innerHeight - margin) top = window.innerHeight - th - margin;
+    top = Math.max(margin, top);
+
+    setTooltipPos({ left, top });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hovered, hoverIndex, series]);
 
   return (
     <div className={cn('relative', className)}>
@@ -125,32 +156,36 @@ export function SparklineChart({
             />
           );
         })}
-      {hovered && (
-        <div
-          className="pointer-events-none absolute top-0 z-10 min-w-max rounded-md border border-border bg-popover px-2 py-1.5 text-xs shadow-md"
-          style={{
-            left: `${tooltipLeftPct}%`,
-            transform: tooltipFlip ? 'translateX(calc(-100% - 6px))' : 'translateX(6px)',
-          }}
-        >
-          {formatTime && (
-            <div className="mb-1 text-[10px] text-muted-foreground">
-              {formatTime(timestamps[hoverIndex])}
-            </div>
-          )}
-          <div className="space-y-0.5">
-            {series.map((s) => (
-              <div key={s.key} className="flex items-center gap-1.5">
-                <span className="inline-block h-0.5 w-3 shrink-0 rounded-full" style={{ backgroundColor: s.color }} />
-                <span className="text-muted-foreground">{s.label}</span>
-                <span className="font-medium text-popover-foreground">
-                  {formatValue(s.values[hoverIndex] ?? domainMin)}
-                </span>
+      {hovered &&
+        createPortal(
+          <div
+            ref={tooltipRef}
+            className="pointer-events-none fixed z-50 min-w-max max-w-[240px] rounded-md border border-border bg-popover px-2 py-1.5 text-xs shadow-md"
+            style={{
+              left: tooltipPos?.left ?? 0,
+              top: tooltipPos?.top ?? 0,
+              visibility: tooltipPos ? 'visible' : 'hidden',
+            }}
+          >
+            {formatTime && (
+              <div className="mb-1 text-[10px] text-muted-foreground">
+                {formatTime(timestamps[hoverIndex])}
               </div>
-            ))}
-          </div>
-        </div>
-      )}
+            )}
+            <div className={cn(series.length > 4 ? 'grid grid-cols-2 gap-x-2 gap-y-0.5' : 'space-y-0.5')}>
+              {series.map((s) => (
+                <div key={s.key} className="flex items-center gap-1.5">
+                  <span className="inline-block h-0.5 w-3 shrink-0 rounded-full" style={{ backgroundColor: s.color }} />
+                  <span className="truncate text-muted-foreground">{s.label}</span>
+                  <span className="ml-auto font-medium text-popover-foreground">
+                    {formatValue(s.values[hoverIndex] ?? domainMin)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>,
+          document.body,
+        )}
     </div>
   );
 }

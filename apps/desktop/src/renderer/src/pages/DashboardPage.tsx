@@ -567,17 +567,18 @@ export default function DashboardPage(): React.JSX.Element {
             )}
           </div>
           {latest && cpuView === 'cores' ? (
-            <div className="mb-2 flex h-6 items-center gap-3 overflow-x-auto overflow-y-hidden whitespace-nowrap">
+            <div className="mb-2 grid grid-cols-4 gap-x-2 gap-y-1 sm:grid-cols-6">
               {latest.cpuCorePercents.map((p, i) => (
-                <div key={i} className="flex shrink-0 items-center gap-1.5 text-sm">
+                <div key={i} className="flex items-center gap-1 text-xs">
                   <span
-                    className="inline-block h-2 w-2 shrink-0 rounded-full"
+                    className="inline-block h-1.5 w-1.5 shrink-0 rounded-full"
                     style={{
                       backgroundColor: chartColors.categorical[i % chartColors.categorical.length],
                     }}
                   />
-                  <span className="font-medium">Core {i}</span>
-                  <span className="text-xs text-muted-foreground">{formatPercent(p)}</span>
+                  <span className="truncate text-muted-foreground">
+                    C{i} <span className="font-medium text-foreground">{formatPercent(p)}</span>
+                  </span>
                 </div>
               ))}
             </div>
