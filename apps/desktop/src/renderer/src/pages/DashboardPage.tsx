@@ -107,6 +107,24 @@ function formatClockTime(timestamp: number): string {
   });
 }
 
+function formatDurationShort(ms: number): string {
+  const totalSeconds = Math.round(ms / 1000);
+  if (totalSeconds < 60) return `${totalSeconds}s`;
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return seconds > 0 ? `${minutes}m ${seconds}s` : `${minutes}m`;
+}
+
+function getNetworkQualityInfo(percent: number): {
+  label: string;
+  variant: 'success' | 'warning' | 'destructive';
+} {
+  if (percent >= 99) return { label: 'Excellent', variant: 'success' };
+  if (percent >= 90) return { label: 'Good', variant: 'success' };
+  if (percent >= 75) return { label: 'Fair', variant: 'warning' };
+  return { label: 'Poor', variant: 'destructive' };
+}
+
 function formatBytes(bytes: number): string {
   if (bytes < 1024 ** 3) return `${(bytes / 1024 ** 2).toFixed(0)} MB`;
   return `${(bytes / 1024 ** 3).toFixed(1)} GB`;
@@ -421,6 +439,15 @@ export default function DashboardPage(): React.JSX.Element {
   const avgGpuPercent =
     gpus.length > 0 ? gpus.reduce((sum, g) => sum + g.percent, 0) / gpus.length : 0;
   const aliveTargetCount = pings.filter((p) => p.alive).length;
+  const historyPingSamples = statsHistory.flatMap((s) => s.pings);
+  const pingQualityPercent =
+    historyPingSamples.length > 0
+      ? (historyPingSamples.filter((p) => p.alive).length / historyPingSamples.length) * 100
+      : null;
+  const historyDurationMs =
+    timestamps.length > 1 ? timestamps[timestamps.length - 1] - timestamps[0] : 0;
+  const networkQualityInfo =
+    pingQualityPercent != null ? getNetworkQualityInfo(pingQualityPercent) : null;
 
   const rows = useDashboardLayoutStore((s) => s.rows);
   const usageCards = useDashboardLayoutStore((s) => s.usageCards);
@@ -893,6 +920,13 @@ export default function DashboardPage(): React.JSX.Element {
                 </span>
                 {pings.length > 0 && (
                   <span className="text-xs text-muted-foreground">targets online</span>
+                )}
+                {pings.length > 0 && pingQualityPercent != null && networkQualityInfo && (
+                  <SimpleTooltip
+                    label={`${formatPercent(pingQualityPercent)} quality over last ${formatDurationShort(historyDurationMs)}`}
+                  >
+                    <Badge variant={networkQualityInfo.variant}>{networkQualityInfo.label}</Badge>
+                  </SimpleTooltip>
                 )}
               </>
             )}
