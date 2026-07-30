@@ -38,7 +38,12 @@ import { startThresholdAlertWatcher, stopThresholdAlertWatcher } from './usage/t
 import { remoteManager } from './remote/manager';
 import { startHourlyUpdateChecks } from './updater';
 
-app.setName('AgentMate');
+// Distinct name in dev so `electron-vite dev` gets its own userData dir and
+// single-instance lock instead of colliding with an installed release build
+// (same name -> same lock -> dev process loses the race and quits, while the
+// already-running release instance gets focused, looking like "dev opened
+// release").
+app.setName(app.isPackaged ? 'AgentMate' : 'AgentMate Dev');
 // Windows groups notifications/taskbar entries by this id rather than the exe
 // name, so without it toasts show up as "Electron" with the Electron icon.
 // Must match electron-builder.yml's `appId` so the packaged install (which
