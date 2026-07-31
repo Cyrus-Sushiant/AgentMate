@@ -54,13 +54,23 @@ export default function RemotePage(): React.JSX.Element {
                     <span className="truncate font-medium">
                       {t.direction === 'incoming' ? '↓' : '↑'} {t.name}
                     </span>
-                    <span className="text-muted-foreground">
-                      {t.error ? t.error : `${formatBytes(t.transferred)} / ${formatBytes(t.total)}`}
+                    <span className="flex shrink-0 items-center gap-1.5 text-muted-foreground">
+                      {t.resuming && <span className="text-warning">Reconnecting…</span>}
+                      {t.error
+                        ? t.error
+                        : t.done
+                          ? (t.verified ?? true)
+                            ? 'Verified ✓'
+                            : 'Hash mismatch ✗'
+                          : `${formatBytes(t.transferred)} / ${formatBytes(t.total)}`}
                     </span>
                   </div>
                   <div className="h-1.5 overflow-hidden rounded-full bg-secondary">
                     <div
-                      className={cn('h-full rounded-full', t.error ? 'bg-destructive' : 'bg-primary')}
+                      className={cn(
+                        'h-full rounded-full',
+                        t.error || t.verified === false ? 'bg-destructive' : 'bg-primary',
+                      )}
                       style={{ width: `${pct}%` }}
                     />
                   </div>

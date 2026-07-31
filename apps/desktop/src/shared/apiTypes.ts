@@ -438,11 +438,15 @@ export interface RemotePeerInfo {
 
 export type RemoteConnectionStatus = 'idle' | 'connecting' | 'connected' | 'error';
 
+/** What an outbound connection is for: a full control session, or file transfer/browsing only (no screen capture/WebRTC). */
+export type RemoteConnectIntent = 'control' | 'files';
+
 /** This machine's outbound connection to a remote host (controller side). */
 export interface RemoteConnectionInfo {
   status: RemoteConnectionStatus;
   remoteDeviceName: string | null;
   remoteScreen: RemoteScreenSize | null;
+  intent: RemoteConnectIntent | null;
   error?: string;
 }
 
@@ -507,6 +511,25 @@ export interface RemoteFileProgress {
   error?: string;
   /** Absolute path where an incoming file was saved (set when done). */
   savedPath?: string;
+  /** Total resumable parts (10MB each) this transfer is split into. */
+  partsTotal?: number;
+  /** Parts that have been hashed and acked so far. */
+  partsCompleted?: number;
+  /** Whole-file SHA-256 matched between sender and receiver (set when done). */
+  verified?: boolean;
+  /** True while auto-reconnecting after a dropped connection mid-transfer. */
+  resuming?: boolean;
+  /** Retry count for the part currently in flight (part-hash mismatch or timeout). */
+  currentPartRetry?: number;
+}
+
+/** One entry in a remote-file-manager directory listing (mirrors `RemoteFileEntry` from the wire protocol). */
+export interface RemoteFileManagerEntry {
+  name: string;
+  path: string;
+  isDirectory: boolean;
+  size: number;
+  mtimeMs: number;
 }
 
 export type RemoteLogLevel = 'info' | 'success' | 'warning' | 'error';

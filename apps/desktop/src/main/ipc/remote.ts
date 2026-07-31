@@ -31,6 +31,13 @@ export function registerRemoteHandlers(): void {
     return { ok: true };
   });
 
+  ipcMain.handle(IPC.remote.connectFiles, (_e, code: string): { ok: boolean; error?: string } => {
+    const payload = decodePairingCode(code);
+    if (!payload) return { ok: false, error: 'That pairing code is not valid.' };
+    remoteManager.connect(payload, 'files');
+    return { ok: true };
+  });
+
   ipcMain.handle(IPC.remote.disconnect, () => {
     remoteManager.closeSessionAndDisconnect();
   });
@@ -38,6 +45,10 @@ export function registerRemoteHandlers(): void {
   ipcMain.handle(IPC.remote.listSavedServers, () => remoteManager.listSavedServers());
 
   ipcMain.handle(IPC.remote.connectSaved, (_e, id: string) => remoteManager.connectSaved(id));
+
+  ipcMain.handle(IPC.remote.connectSavedFiles, (_e, id: string) =>
+    remoteManager.connectSaved(id, 'files'),
+  );
 
   ipcMain.handle(IPC.remote.renameSavedServer, (_e, id: string, nickname: string) =>
     remoteManager.renameSavedServer(id, nickname),
@@ -56,6 +67,26 @@ export function registerRemoteHandlers(): void {
   });
 
   ipcMain.handle(IPC.remote.sendFile, () => remoteManager.sendFile());
+
+  ipcMain.handle(IPC.remote.getFileProgress, () => remoteManager.getFileProgress());
+
+  ipcMain.handle(IPC.remote.fmRoots, () => remoteManager.fmRoots());
+
+  ipcMain.handle(IPC.remote.fmList, (_e, path: string | null) => remoteManager.fmList(path));
+
+  ipcMain.handle(IPC.remote.fmMkdir, (_e, parentPath: string, name: string) =>
+    remoteManager.fmMkdir(parentPath, name),
+  );
+
+  ipcMain.handle(IPC.remote.fmDelete, (_e, path: string) => remoteManager.fmDelete(path));
+
+  ipcMain.handle(IPC.remote.fmRename, (_e, path: string, newName: string) =>
+    remoteManager.fmRename(path, newName),
+  );
+
+  ipcMain.handle(IPC.remote.fmUploadTo, (_e, destDir: string) => remoteManager.uploadFileTo(destDir));
+
+  ipcMain.handle(IPC.remote.fmDownload, (_e, path: string) => remoteManager.downloadFile(path));
 
   // High-frequency, fire-and-forget channels use send/on rather than invoke so
   // they don't pay for a round-trip acknowledgement per event/tile.

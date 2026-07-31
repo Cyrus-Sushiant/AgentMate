@@ -15,9 +15,17 @@
  *     overhead and travel as compact length-prefixed buffers.
  */
 
-export const REMOTE_PROTOCOL_VERSION = 3;
+export const REMOTE_PROTOCOL_VERSION = 4;
 
 export type RemoteRole = 'host' | 'controller';
+
+/**
+ * What a connection is for. `'files'` connects, authenticates, and enables
+ * file-transfer/file-manager messages, but skips screen capture and WebRTC
+ * negotiation entirely — the host never starts capturing for a `'files'` peer.
+ * Absent on `hello` (older/default behavior) means `'control'`.
+ */
+export type RemoteConnectIntent = 'control' | 'files';
 
 export type RemoteMouseButton = 'left' | 'right' | 'middle';
 
@@ -38,7 +46,7 @@ export type RemoteInputEvent =
 
 export type RemoteControlMessage =
   /** First frame each side sends after the socket opens. */
-  | { t: 'hello'; role: RemoteRole; deviceName: string; protocolVersion: number }
+  | { t: 'hello'; role: RemoteRole; deviceName: string; protocolVersion: number; intent?: RemoteConnectIntent }
   /**
    * Controller proves it holds either a one-time pairing token (first pair) or
    * a durable device token issued by a previous successful pairing.
@@ -58,12 +66,47 @@ export type RemoteControlMessage =
   | { t: 'control-stop' }
   | { t: 'input'; event: RemoteInputEvent }
   | { t: 'clipboard'; text: string }
-  /** Sender proposes a file; receiver replies with accept (or ignores). */
-  | { t: 'file-offer'; transferId: string; name: string; size: number }
-  | { t: 'file-accept'; transferId: string }
-  | { t: 'file-complete'; transferId: string }
-  | { t: 'file-done'; transferId: string; savedPath: string }
+  /**
+   * Resumable file transfer. A file is split into fixed-size "parts" (see
+   * `PART_BYTES`), each independently hashed, acked, and — on failure or a
+   * mid-transfer reconnect — independently resent, so a large transfer never
+   * has to restart from byte zero.
+   *
+   * Flow: sender sends `file-offer` → receiver replies `file-resume` with the
+   * list of part indexes it still needs (all of them, on a fresh transfer) →
+   * for each missing part, sender streams `BIN_FILE_CHUNK` frames tagged with
+   * that `partIndex`, then sends `file-part-done` with the part's SHA-256 →
+   * receiver verifies and replies `file-part-ack` (retry the same part on
+   * `ok: false`) → once every part is acked, sender sends `file-complete`
+   * with the whole-file SHA-256 → receiver verifies, renames the temp file
+   * into place, and replies `file-done`.
+   */
+  | { t: 'file-offer'; transferId: string; name: string; size: number; partSize: number; partCount: number; destDir?: string }
+  | { t: 'file-resume'; transferId: string; missingParts: number[] }
+  | { t: 'file-part-done'; transferId: string; partIndex: number; hash: string; size: number }
+  | { t: 'file-part-ack'; transferId: string; partIndex: number; ok: boolean }
+  | { t: 'file-complete'; transferId: string; hash: string }
+  | { t: 'file-done'; transferId: string; savedPath: string; verified: boolean }
   | { t: 'file-error'; transferId: string; message: string }
+  | { t: 'file-cancel'; transferId: string }
+  /**
+   * Download half of the remote file manager: the browsing side has no file
+   * to push, so it asks the peer to become the sender for a path on the
+   * peer's own filesystem. On accept, the peer starts the normal
+   * `file-offer`/... flow above (minting its own `transferId`); the requester
+   * just handles that `file-offer` like any other incoming transfer.
+   */
+  | { t: 'file-request'; reqId: string; path: string }
+  | { t: 'file-request-ack'; reqId: string; ok: boolean; error?: string }
+  /** Remote file manager: browse/mkdir/delete/rename on the peer's filesystem. */
+  | { t: 'fm-roots'; reqId: string }
+  | { t: 'fm-roots-reply'; reqId: string; roots: RemoteFileEntry[] }
+  | { t: 'fm-list'; reqId: string; path: string | null }
+  | { t: 'fm-list-reply'; reqId: string; path: string; entries: RemoteFileEntry[]; error?: string }
+  | { t: 'fm-mkdir'; reqId: string; parentPath: string; name: string }
+  | { t: 'fm-delete'; reqId: string; path: string }
+  | { t: 'fm-rename'; reqId: string; path: string; newName: string }
+  | { t: 'fm-ack'; reqId: string; ok: boolean; error?: string }
   | { t: 'ping' }
   | { t: 'pong' }
   | { t: 'bye'; reason: string }
@@ -80,6 +123,17 @@ export type RemoteControlMessage =
   | { t: 'rtc-offer'; sdp: string }
   | { t: 'rtc-answer'; sdp: string }
   | { t: 'rtc-ice'; candidate: string; sdpMid: string | null; sdpMLineIndex: number | null };
+
+/** One entry in a remote-file-manager directory listing. */
+export interface RemoteFileEntry {
+  name: string;
+  /** Absolute path on the remote peer's filesystem. */
+  path: string;
+  isDirectory: boolean;
+  /** 0 for directories. */
+  size: number;
+  mtimeMs: number;
+}
 
 /** The subset of control messages that carry WebRTC signaling. */
 export type RemoteRtcMessage = Extract<
@@ -226,12 +280,23 @@ export function decodeScreenTile(buf: Uint8Array): ScreenTile {
   };
 }
 
-/** Header layout for a file chunk: kind(1) transferId(4) seq(4) = 9 bytes, then raw bytes. */
-const FILE_HEADER_BYTES = 9;
+/**
+ * Header layout for a file chunk: kind(1) transferKey(4) partIndex(4) seq(4)
+ * = 13 bytes, then raw bytes. `seq` restarts at 0 for every part, so a
+ * resumed part is indistinguishable on the wire from one sent the first time.
+ */
+const FILE_HEADER_BYTES = 13;
+
+/** Size of one resumable transfer "part" — the coarse unit that gets its own hash and can be resent independently. */
+export const PART_BYTES = 10 * 1024 * 1024;
+
+/** Size of one binary frame streamed within a part (does not affect resumability, only wire granularity). */
+export const FILE_CHUNK_BYTES = 64 * 1024;
 
 export interface FileChunk {
   /** Numeric handle for the transfer (low 32 bits of the transfer id hash). */
   transferKey: number;
+  partIndex: number;
   seq: number;
   bytes: Uint8Array;
 }
@@ -241,7 +306,8 @@ export function encodeFileChunk(chunk: FileChunk): Uint8Array {
   const view = new DataView(out.buffer);
   view.setUint8(0, BIN_FILE_CHUNK);
   view.setUint32(1, chunk.transferKey >>> 0);
-  view.setUint32(5, chunk.seq >>> 0);
+  view.setUint32(5, chunk.partIndex >>> 0);
+  view.setUint32(9, chunk.seq >>> 0);
   out.set(chunk.bytes, FILE_HEADER_BYTES);
   return out;
 }
@@ -250,7 +316,8 @@ export function decodeFileChunk(buf: Uint8Array): FileChunk {
   const view = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
   return {
     transferKey: view.getUint32(1),
-    seq: view.getUint32(5),
+    partIndex: view.getUint32(5),
+    seq: view.getUint32(9),
     bytes: buf.subarray(FILE_HEADER_BYTES),
   };
 }

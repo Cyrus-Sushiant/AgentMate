@@ -75,6 +75,7 @@ import type {
   RemoteSavedServer,
   RemoteScreenSize,
   RemoteFileProgress,
+  RemoteFileManagerEntry,
   RemoteLogEvent,
   StartHostInput,
   UpdateStatus,
@@ -414,11 +415,15 @@ const remote = {
     ipcRenderer.invoke(IPC.remote.generatePairingCode),
   connect: (code: string): Promise<{ ok: boolean; error?: string }> =>
     ipcRenderer.invoke(IPC.remote.connect, code),
+  connectFiles: (code: string): Promise<{ ok: boolean; error?: string }> =>
+    ipcRenderer.invoke(IPC.remote.connectFiles, code),
   disconnect: (): Promise<void> => ipcRenderer.invoke(IPC.remote.disconnect),
   listSavedServers: (): Promise<RemoteSavedServer[]> =>
     ipcRenderer.invoke(IPC.remote.listSavedServers),
   connectSaved: (id: string): Promise<{ ok: boolean; error?: string }> =>
     ipcRenderer.invoke(IPC.remote.connectSaved, id),
+  connectSavedFiles: (id: string): Promise<{ ok: boolean; error?: string }> =>
+    ipcRenderer.invoke(IPC.remote.connectSavedFiles, id),
   renameSavedServer: (id: string, nickname: string): Promise<void> =>
     ipcRenderer.invoke(IPC.remote.renameSavedServer, id, nickname),
   removeSavedServer: (id: string): Promise<void> =>
@@ -426,6 +431,20 @@ const remote = {
   openSessionWindow: (): Promise<void> => ipcRenderer.invoke(IPC.remote.openSessionWindow),
   sendClipboard: (): Promise<void> => ipcRenderer.invoke(IPC.remote.sendClipboard),
   sendFile: (): Promise<void> => ipcRenderer.invoke(IPC.remote.sendFile),
+  getFileProgress: (): Promise<RemoteFileProgress[]> =>
+    ipcRenderer.invoke(IPC.remote.getFileProgress),
+
+  // Remote file manager: browse/mkdir/delete/rename/upload/download on the peer's filesystem.
+  fmRoots: (): Promise<RemoteFileManagerEntry[]> => ipcRenderer.invoke(IPC.remote.fmRoots),
+  fmList: (path: string | null): Promise<{ path: string; entries: RemoteFileManagerEntry[] }> =>
+    ipcRenderer.invoke(IPC.remote.fmList, path),
+  fmMkdir: (parentPath: string, name: string): Promise<void> =>
+    ipcRenderer.invoke(IPC.remote.fmMkdir, parentPath, name),
+  fmDelete: (path: string): Promise<void> => ipcRenderer.invoke(IPC.remote.fmDelete, path),
+  fmRename: (path: string, newName: string): Promise<void> =>
+    ipcRenderer.invoke(IPC.remote.fmRename, path, newName),
+  fmUploadTo: (destDir: string): Promise<void> => ipcRenderer.invoke(IPC.remote.fmUploadTo, destDir),
+  fmDownload: (path: string): Promise<void> => ipcRenderer.invoke(IPC.remote.fmDownload, path),
 
   // Fire-and-forget, high-frequency channels.
   sendInput: (event: RemoteInputEvent): void => ipcRenderer.send(IPC.remote.sendInput, event),

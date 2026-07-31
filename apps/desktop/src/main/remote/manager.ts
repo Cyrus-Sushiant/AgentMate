@@ -1,13 +1,10 @@
 import { randomUUID } from 'node:crypto';
-import { createReadStream, createWriteStream, existsSync, type WriteStream } from 'node:fs';
-import { stat } from 'node:fs/promises';
-import { basename, join } from 'node:path';
 import { app, BrowserWindow, clipboard, dialog, powerSaveBlocker, screen } from 'electron';
 import QRCode from 'qrcode';
 import { WebSocket, WebSocketServer } from 'ws';
 import type {
   RemoteConnectionInfo,
-  RemoteFileDirection,
+  RemoteConnectIntent,
   RemoteFileProgress,
   RemoteLogLevel,
   RemotePairingInfo,
@@ -18,26 +15,26 @@ import type {
 import { IPC } from '../../shared/ipcChannels';
 import {
   binaryKind,
-  BIN_FILE_CHUNK,
   BIN_SCREEN_TILE,
-  decodeFileChunk,
-  encodeFileChunk,
   encodePairingCode,
-  formatBytes,
   REMOTE_PROTOCOL_VERSION,
-  transferKeyFromId,
   type RemoteControlMessage,
   type RemoteInputEvent,
   type RemoteRtcMessage,
 } from '../../shared/remoteProtocol';
 import { store } from '../store';
+import { FileManagerOps } from './fileManagerOps';
+import { FileTransferManager } from './fileTransfer';
 import { InputInjector } from './inputInjector';
 import { listNetworkInterfaces } from './networkInterfaces';
 import { sessionWindow } from './sessionWindow';
 import { TokenStore } from './tokens';
 
-const FILE_CHUNK_BYTES = 64 * 1024;
 const MAX_BUFFERED_BYTES = 4 * 1024 * 1024;
+/** Backoff schedule for auto-reconnect while a file transfer is in flight. */
+const RECONNECT_DELAYS_MS = [1000, 2000, 4000, 8000, 15000];
+/** Give up auto-reconnecting and fail any in-flight transfers after this long. */
+const RECONNECT_GIVE_UP_MS = 5 * 60 * 1000;
 /**
  * OS cursor sampling rate for the cursor DataChannel (~60 Hz). Deliberately
  * faster than the video framerate: the whole point of a separate cursor plane
@@ -56,24 +53,17 @@ interface HostPeer {
   address: string;
   connectedAt: number;
   authed: boolean;
+  /** What this peer connected for; a `'files'` peer never receives capture/tiles. */
+  intent: RemoteConnectIntent;
   /**
    * False while the peer receives video over a *connected* WebRTC session, so
    * the two transports don't compete for bandwidth. Deliberately stays true
    * through WebRTC negotiation. The renderer flips it via setRtcPeerConnected
    * once video truly flows, which keeps the controller's screen painted with
-   * tiles instead of going black while ICE completes.
+   * tiles instead of going black while ICE completes. Always false for a
+   * `'files'`-intent peer.
    */
   wantsTiles: boolean;
-}
-
-interface IncomingTransfer {
-  id: string;
-  name: string;
-  size: number;
-  received: number;
-  stream: WriteStream;
-  savedPath: string;
-  direction: RemoteFileDirection;
 }
 
 /**
@@ -116,12 +106,25 @@ class RemoteManager {
     status: 'idle',
     remoteDeviceName: null,
     remoteScreen: null,
+    intent: null,
   };
-  /** Credentials behind the in-flight/most recent `connect()` call, used to save/refresh a saved-server entry once `auth-ok` arrives. */
+  /** Credentials behind the in-flight/most recent `connect()` call, used to save/refresh a saved-server entry once `auth-ok` arrives, and to redial on an auto-reconnect. */
   private pendingConnect: { ip: string; port: number; token: string; deviceName: string } | null =
     null;
+  private connectIntent: RemoteConnectIntent = 'control';
+  private reconnectTimer: NodeJS.Timeout | null = null;
+  private reconnectAttempt = 0;
+  private reconnectDeadline = 0;
 
-  private readonly transfers = new Map<number, IncomingTransfer>();
+  private readonly files = new FileTransferManager({
+    sendControl: (ws, msg) => this.sendControl(ws, msg),
+    sendBinary: (ws, data) => this.sendBinary(ws, data),
+    log: (level, message) => this.log(level, message),
+    emitProgress: (progress) => this.emitFileProgress(progress),
+  });
+  private readonly fmOps = new FileManagerOps({
+    sendControl: (ws, msg) => this.sendControl(ws, msg),
+  });
 
   private cursorTimer: NodeJS.Timeout | null = null;
   private lastCursor: { x: number; y: number } | null = null;
@@ -173,6 +176,7 @@ class RemoteManager {
         address,
         connectedAt: Date.now(),
         authed: false,
+        intent: 'control',
         wantsTiles: true,
       };
       this.peers.set(peer.id, peer);
@@ -363,9 +367,14 @@ class RemoteManager {
     }
     const msg = this.parseControl(data);
     if (!msg) return;
+    if (peer.authed && (this.files.handleControl(peer.ws, msg) || this.fmOps.handleControl(peer.ws, msg))) {
+      return;
+    }
     switch (msg.t) {
       case 'hello':
         peer.deviceName = msg.deviceName || peer.address;
+        peer.intent = msg.intent ?? 'control';
+        if (peer.intent === 'files') peer.wantsTiles = false;
         break;
       case 'auth': {
         // A fresh pairing code pairs the device and mints a durable token for
@@ -376,12 +385,14 @@ class RemoteManager {
           peer.authed = true;
           const deviceToken = paired ? this.tokens.issueDeviceToken(peer.deviceName) : undefined;
           if (paired) this.pairing = null; // code was single-use
-          if (this.capturing) {
-            // Capture is already streaming deltas; this newcomer needs every
-            // tile once or it stares at a mostly-black screen.
-            this.send(IPC.remote.onCaptureRefresh);
+          if (peer.intent === 'control') {
+            if (this.capturing) {
+              // Capture is already streaming deltas; this newcomer needs every
+              // tile once or it stares at a mostly-black screen.
+              this.send(IPC.remote.onCaptureRefresh);
+            }
+            this.startCapture();
           }
-          this.startCapture();
           this.updateTileDemand();
           this.syncPowerSaveBlocker();
           this.sendControl(peer.ws, {
@@ -405,7 +416,7 @@ class RemoteManager {
         break;
       }
       case 'control-start':
-        if (peer.authed) this.startCapture();
+        if (peer.authed && peer.intent === 'control') this.startCapture();
         break;
       case 'control-stop':
         break;
@@ -417,12 +428,6 @@ class RemoteManager {
           clipboard.writeText(msg.text);
           this.log('info', 'Clipboard received from controller.');
         }
-        break;
-      case 'file-offer':
-        if (peer.authed) this.beginReceive(peer.ws, msg.transferId, msg.name, msg.size);
-        break;
-      case 'file-complete':
-        this.finishReceive(peer.ws, msg.transferId);
         break;
       case 'ping':
         this.sendControl(peer.ws, { t: 'pong' });
@@ -474,6 +479,10 @@ class RemoteManager {
   private onPeerGone(peer: HostPeer): void {
     if (!this.peers.has(peer.id)) return;
     this.peers.delete(peer.id);
+    // We can't dial out to this peer, but its transfers just wait: if it
+    // reconnects (a new peer, new ws) and re-sends file-offer/file-resume for
+    // the same transferId, the file-transfer handlers rebind and resume.
+    this.files.onConnectionLost(peer.ws);
     if (peer.authed) {
       this.send(IPC.remote.onRtcPeerGone, peer.id);
       this.log('info', `${peer.deviceName} disconnected.`);
@@ -490,13 +499,29 @@ class RemoteManager {
 
   // --- Controller role ---------------------------------------------------------
 
-  connect(payload: { ip: string; port: number; token: string; deviceName: string }): void {
+  connect(
+    payload: { ip: string; port: number; token: string; deviceName: string },
+    intent: RemoteConnectIntent = 'control',
+  ): void {
     this.disconnect();
     this.pendingConnect = payload;
+    this.connectIntent = intent;
+    this.reconnectAttempt = 0;
+    this.dial(payload);
+  }
+
+  /**
+   * Opens the socket and wires its handlers. Split out from `connect()` so
+   * auto-reconnect (see `beginReconnect`) can redial without re-running
+   * `connect()`'s teardown of the previous session — that would cancel the
+   * very transfers reconnect exists to resume.
+   */
+  private dial(payload: { ip: string; port: number; token: string; deviceName: string }): void {
     this.connection = {
       status: 'connecting',
       remoteDeviceName: payload.deviceName,
       remoteScreen: null,
+      intent: this.connectIntent,
     };
     this.emitState();
 
@@ -510,32 +535,80 @@ class RemoteManager {
         role: 'controller',
         deviceName: this.deviceName(),
         protocolVersion: REMOTE_PROTOCOL_VERSION,
+        intent: this.connectIntent,
       });
       this.sendControl(ws, { t: 'auth', token: payload.token });
     });
     ws.on('message', (data, isBinary) => this.onClientMessage(data as Buffer, isBinary));
-    ws.on('close', () => {
-      if (this.client === ws) {
-        this.client = null;
-        if (this.connection.status !== 'error') {
-          this.connection = { status: 'idle', remoteDeviceName: null, remoteScreen: null };
-          this.log('info', 'Disconnected from remote host.');
-          this.emitState();
-        }
-      }
-    });
-    ws.on('error', (err) => {
-      if (this.client === ws) {
-        this.connection = {
-          status: 'error',
-          remoteDeviceName: payload.deviceName,
-          remoteScreen: null,
-          error: err.message,
-        };
-        this.log('error', `Connection failed: ${err.message}`);
-        this.emitState();
-      }
-    });
+    ws.on('close', () => this.onClientGone(ws));
+    ws.on('error', (err) => this.onClientGone(ws, err));
+  }
+
+  /**
+   * The outbound socket closed or errored. If a file transfer is mid-flight,
+   * this machine is the dialer, so it's the one that has to redial — treat
+   * it as recoverable and start the reconnect backoff instead of giving up.
+   */
+  private onClientGone(ws: WebSocket, err?: Error): void {
+    if (this.client !== ws) return; // already superseded by a newer socket
+    this.client = null;
+    if (this.pendingConnect && this.files.hasActiveTransfers()) {
+      this.files.onConnectionLost(ws);
+      this.connection = { ...this.connection, status: 'connecting' };
+      this.log(
+        'warning',
+        err
+          ? `Connection lost mid-transfer (${err.message}) — reconnecting…`
+          : 'Connection lost mid-transfer — reconnecting…',
+      );
+      this.emitState();
+      this.beginReconnect();
+      return;
+    }
+    if (err) {
+      this.connection = {
+        status: 'error',
+        remoteDeviceName: this.connection.remoteDeviceName,
+        remoteScreen: null,
+        intent: this.connection.intent,
+        error: err.message,
+      };
+      this.log('error', `Connection failed: ${err.message}`);
+    } else {
+      this.connection = { status: 'idle', remoteDeviceName: null, remoteScreen: null, intent: null };
+      this.log('info', 'Disconnected from remote host.');
+    }
+    this.emitState();
+  }
+
+  private beginReconnect(): void {
+    if (!this.pendingConnect) return;
+    if (this.reconnectAttempt === 0) this.reconnectDeadline = Date.now() + RECONNECT_GIVE_UP_MS;
+    if (Date.now() > this.reconnectDeadline) {
+      this.giveUpReconnect();
+      return;
+    }
+    const delay = RECONNECT_DELAYS_MS[Math.min(this.reconnectAttempt, RECONNECT_DELAYS_MS.length - 1)];
+    this.reconnectAttempt++;
+    if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
+    this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = null;
+      if (this.pendingConnect) this.dial(this.pendingConnect);
+    }, delay);
+  }
+
+  private giveUpReconnect(): void {
+    this.files.cancelAll('Gave up trying to reconnect.');
+    this.connection = {
+      status: 'error',
+      remoteDeviceName: this.connection.remoteDeviceName,
+      remoteScreen: null,
+      intent: this.connectIntent,
+      error: 'Could not reconnect to the host.',
+    };
+    this.pendingConnect = null;
+    this.log('error', 'Could not reconnect to the host — giving up.');
+    this.emitState();
   }
 
   openSessionWindow(): void {
@@ -550,11 +623,16 @@ class RemoteManager {
    * connection (see `closeSessionAndDisconnect` for the window-closing path).
    */
   disconnect(): void {
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+    this.files.cancelAll('Disconnected.');
     if (this.client) {
       this.safeClose(this.client, 'controller disconnected');
       this.client = null;
     }
-    this.connection = { status: 'idle', remoteDeviceName: null, remoteScreen: null };
+    this.connection = { status: 'idle', remoteDeviceName: null, remoteScreen: null, intent: null };
     this.pendingConnect = null;
     this.emitState();
   }
@@ -572,16 +650,22 @@ class RemoteManager {
     return [...servers].sort((a, b) => b.lastConnectedAt - a.lastConnectedAt);
   }
 
-  async connectSaved(id: string): Promise<{ ok: boolean; error?: string }> {
+  async connectSaved(
+    id: string,
+    intent: RemoteConnectIntent = 'control',
+  ): Promise<{ ok: boolean; error?: string }> {
     const servers = await store.getRemoteServers();
     const server = servers.find((s) => s.id === id);
     if (!server) return { ok: false, error: 'That saved server no longer exists.' };
-    this.connect({
-      ip: server.ip,
-      port: server.port,
-      token: server.deviceToken,
-      deviceName: server.deviceName,
-    });
+    this.connect(
+      {
+        ip: server.ip,
+        port: server.port,
+        token: server.deviceToken,
+        deviceName: server.deviceName,
+      },
+      intent,
+    );
     return { ok: true };
   }
 
@@ -656,25 +740,42 @@ class RemoteManager {
     }
     const msg = this.parseControl(data);
     if (!msg) return;
+    if (this.client && (this.files.handleControl(this.client, msg) || this.fmOps.handleControl(this.client, msg))) {
+      return;
+    }
     switch (msg.t) {
-      case 'auth-ok':
+      case 'auth-ok': {
+        const wasReconnect = this.reconnectAttempt > 0;
+        this.reconnectAttempt = 0;
         this.connection = {
           status: 'connected',
           remoteDeviceName: msg.deviceName,
           remoteScreen: msg.screen.width ? msg.screen : null,
+          intent: this.connectIntent,
         };
-        if (this.client) this.sendControl(this.client, { t: 'control-start' });
+        if (this.client && this.connectIntent === 'control') {
+          this.sendControl(this.client, { t: 'control-start' });
+        }
         if (msg.screen.width) this.send(IPC.remote.onScreenInfo, msg.screen);
-        this.log('success', `Connected to ${msg.deviceName}.`);
+        this.log('success', wasReconnect ? `Reconnected to ${msg.deviceName}.` : `Connected to ${msg.deviceName}.`);
+        // A fresh pairing code is single-use; once the host issues a durable
+        // device token, switch to it so a later auto-reconnect redials with a
+        // credential the host will still accept, instead of the already-spent code.
+        if (msg.deviceToken && this.pendingConnect) {
+          this.pendingConnect = { ...this.pendingConnect, token: msg.deviceToken };
+        }
         void this.rememberServer(msg.deviceToken);
+        if (this.client) this.files.resumeAfterReconnect(this.client);
         sessionWindow.setTitle(`AgentMate Remote — ${msg.deviceName}`);
         this.emitState();
         break;
+      }
       case 'auth-fail':
         this.connection = {
           status: 'error',
           remoteDeviceName: this.connection.remoteDeviceName,
           remoteScreen: null,
+          intent: this.connection.intent,
           error: msg.reason,
         };
         this.log('error', `Pairing rejected: ${msg.reason}`);
@@ -688,12 +789,6 @@ class RemoteManager {
       case 'clipboard':
         clipboard.writeText(msg.text);
         this.log('info', 'Clipboard received from host.');
-        break;
-      case 'file-offer':
-        if (this.client) this.beginReceive(this.client, msg.transferId, msg.name, msg.size);
-        break;
-      case 'file-complete':
-        if (this.client) this.finishReceive(this.client, msg.transferId);
         break;
       case 'pong':
         break;
@@ -725,7 +820,12 @@ class RemoteManager {
     this.log('info', 'Clipboard sent.');
   }
 
-  /** Prompt for a file and stream it to the connected peer. */
+  /** Snapshot of in-flight/recent transfers, for a newly-opened file-manager window to populate its list from. */
+  getFileProgress(): RemoteFileProgress[] {
+    return this.files.listProgress();
+  }
+
+  /** Prompt for a file and send it to the connected peer's default downloads folder. */
   async sendFile(): Promise<void> {
     const target = this.pickTransferTarget();
     if (!target) {
@@ -734,13 +834,39 @@ class RemoteManager {
     }
     const picked = await dialog.showOpenDialog({ properties: ['openFile'] });
     if (picked.canceled || picked.filePaths.length === 0) return;
-    const filePath = picked.filePaths[0];
-    const info = await stat(filePath);
-    const transferId = randomUUID();
-    const name = basename(filePath);
-    this.sendControl(target, { t: 'file-offer', transferId, name, size: info.size });
-    this.log('info', `Sending "${name}" (${formatBytes(info.size)})…`);
-    await this.streamFile(target, transferId, filePath, name, info.size);
+    await this.files.startUpload(target, picked.filePaths[0]);
+  }
+
+  /** Remote file manager: prompt for a local file and upload it into a specific remote folder. */
+  async uploadFileTo(destDir: string): Promise<void> {
+    const picked = await dialog.showOpenDialog({ properties: ['openFile'] });
+    if (picked.canceled || picked.filePaths.length === 0) return;
+    await this.files.startUpload(this.requireTarget(), picked.filePaths[0], destDir);
+  }
+
+  /** Remote file manager: ask the peer to push a file it has at `path`. */
+  async downloadFile(path: string): Promise<void> {
+    await this.fmOps.requestFile(this.requireTarget(), path);
+  }
+
+  fmRoots() {
+    return this.fmOps.roots(this.requireTarget());
+  }
+
+  fmList(path: string | null) {
+    return this.fmOps.list(this.requireTarget(), path);
+  }
+
+  fmMkdir(parentPath: string, name: string): Promise<void> {
+    return this.fmOps.mkdir(this.requireTarget(), parentPath, name);
+  }
+
+  fmDelete(path: string): Promise<void> {
+    return this.fmOps.delete(this.requireTarget(), path);
+  }
+
+  fmRename(path: string, newName: string): Promise<void> {
+    return this.fmOps.rename(this.requireTarget(), path, newName);
   }
 
   private pickTransferTarget(): WebSocket | null {
@@ -749,84 +875,10 @@ class RemoteManager {
     return null;
   }
 
-  private async streamFile(
-    ws: WebSocket,
-    transferId: string,
-    filePath: string,
-    name: string,
-    size: number,
-  ): Promise<void> {
-    const key = transferKeyFromId(transferId);
-    const stream = createReadStream(filePath, { highWaterMark: FILE_CHUNK_BYTES });
-    let seq = 0;
-    let sent = 0;
-    try {
-      for await (const chunk of stream) {
-        const bytes = chunk as Buffer;
-        await this.sendBinary(ws, encodeFileChunk({ transferKey: key, seq: seq++, bytes }));
-        sent += bytes.byteLength;
-        this.emitFileProgress({
-          transferId,
-          name,
-          direction: 'outgoing',
-          transferred: sent,
-          total: size,
-          done: false,
-        });
-      }
-      this.sendControl(ws, { t: 'file-complete', transferId });
-      this.emitFileProgress({ transferId, name, direction: 'outgoing', transferred: sent, total: size, done: true });
-      this.log('success', `Sent "${name}".`);
-    } catch (err) {
-      this.emitFileProgress({
-        transferId,
-        name,
-        direction: 'outgoing',
-        transferred: sent,
-        total: size,
-        done: true,
-        error: (err as Error).message,
-      });
-      this.log('error', `Failed to send "${name}": ${(err as Error).message}`);
-    }
-  }
-
-  private beginReceive(ws: WebSocket, transferId: string, name: string, size: number): void {
-    const key = transferKeyFromId(transferId);
-    const savedPath = uniquePath(join(app.getPath('downloads'), sanitizeName(name)));
-    const stream = createWriteStream(savedPath);
-    this.transfers.set(key, {
-      id: transferId,
-      name,
-      size,
-      received: 0,
-      stream,
-      savedPath,
-      direction: 'incoming',
-    });
-    this.sendControl(ws, { t: 'file-accept', transferId });
-    this.log('info', `Receiving "${name}" (${formatBytes(size)})…`);
-    this.emitFileProgress({ transferId, name, direction: 'incoming', transferred: 0, total: size, done: false });
-  }
-
-  private finishReceive(ws: WebSocket, transferId: string): void {
-    const key = transferKeyFromId(transferId);
-    const transfer = this.transfers.get(key);
-    if (!transfer) return;
-    transfer.stream.end(() => {
-      this.sendControl(ws, { t: 'file-done', transferId, savedPath: transfer.savedPath });
-      this.emitFileProgress({
-        transferId,
-        name: transfer.name,
-        direction: 'incoming',
-        transferred: transfer.received,
-        total: transfer.size,
-        done: true,
-        savedPath: transfer.savedPath,
-      });
-      this.log('success', `Saved "${transfer.name}" to ${transfer.savedPath}.`);
-      this.transfers.delete(key);
-    });
+  private requireTarget(): WebSocket {
+    const target = this.pickTransferTarget();
+    if (!target) throw new Error('No active connection.');
+    return target;
   }
 
   private onBinary(buf: Uint8Array): void {
@@ -834,21 +886,9 @@ class RemoteManager {
     if (kind === BIN_SCREEN_TILE) {
       // Controller side: hand the raw tile to the renderer to paint.
       this.send(IPC.remote.onFrameTile, buf);
-    } else if (kind === BIN_FILE_CHUNK) {
-      const chunk = decodeFileChunk(buf);
-      const transfer = this.transfers.get(chunk.transferKey);
-      if (!transfer) return;
-      transfer.stream.write(Buffer.from(chunk.bytes));
-      transfer.received += chunk.bytes.byteLength;
-      this.emitFileProgress({
-        transferId: transfer.id,
-        name: transfer.name,
-        direction: 'incoming',
-        transferred: transfer.received,
-        total: transfer.size,
-        done: false,
-      });
+      return;
     }
+    this.files.handleBinary(buf);
   }
 
   // --- Plumbing ----------------------------------------------------------------
@@ -912,25 +952,6 @@ class RemoteManager {
     this.disconnect();
     this.stopHost();
   }
-}
-
-function sanitizeName(name: string): string {
-  return name.replace(/[/\\?%*:|"<>]/g, '_') || 'received-file';
-}
-
-function uniquePath(path: string): string {
-  // Downloads-style de-duplication: "file.txt" -> "file (1).txt".
-  const dot = basename(path).lastIndexOf('.');
-  const dir = path.slice(0, path.length - basename(path).length);
-  const stem = dot > 0 ? basename(path).slice(0, dot) : basename(path);
-  const ext = dot > 0 ? basename(path).slice(dot) : '';
-  let candidate = path;
-  let n = 0;
-  while (existsSync(candidate)) {
-    n++;
-    candidate = join(dir, `${stem} (${n})${ext}`);
-  }
-  return candidate;
 }
 
 export const remoteManager = new RemoteManager();

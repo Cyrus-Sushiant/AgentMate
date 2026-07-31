@@ -25,6 +25,7 @@ import McpPage from './pages/McpPage';
 import ToolsPage from './pages/ToolsPage';
 import AskAiPage from './pages/AskAiPage';
 import RemotePage from './pages/RemotePage';
+import RemoteFileManagerPage from './pages/RemoteFileManagerPage';
 import SettingsPage from './pages/SettingsPage';
 import UsagePage from './pages/UsagePage';
 import WidgetRoute from './components/usage/WidgetRoute';
@@ -91,6 +92,7 @@ export default function App(): React.JSX.Element {
                 <Route path="usage" element={<UsagePage />} />
                 <Route path="ask-ai" element={<AskAiPage />} />
                 <Route path="remote" element={<RemotePage />} />
+                <Route path="remote-files" element={<RemoteFileManagerPage />} />
                 <Route path="settings" element={<SettingsPage />} />
               </Route>
             </Routes>

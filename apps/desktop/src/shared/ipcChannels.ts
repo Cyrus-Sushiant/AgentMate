@@ -161,9 +161,12 @@ export const IPC = {
     stopHost: 'remote:stopHost',
     generatePairingCode: 'remote:generatePairingCode',
     connect: 'remote:connect',
+    /** Same as `connect`, but the resulting session skips capture/WebRTC entirely — file transfer and file-manager browsing only. */
+    connectFiles: 'remote:connectFiles',
     disconnect: 'remote:disconnect',
     listSavedServers: 'remote:listSavedServers',
     connectSaved: 'remote:connectSaved',
+    connectSavedFiles: 'remote:connectSavedFiles',
     renameSavedServer: 'remote:renameSavedServer',
     removeSavedServer: 'remote:removeSavedServer',
     /** Opens (or focuses) the standalone, resizable session window. */
@@ -173,6 +176,15 @@ export const IPC = {
     setScreenInfo: 'remote:setScreenInfo',
     sendClipboard: 'remote:sendClipboard',
     sendFile: 'remote:sendFile',
+    getFileProgress: 'remote:getFileProgress',
+    // Remote file manager: browse/mkdir/delete/rename/upload/download on the peer's filesystem.
+    fmRoots: 'remote:fmRoots',
+    fmList: 'remote:fmList',
+    fmMkdir: 'remote:fmMkdir',
+    fmDelete: 'remote:fmDelete',
+    fmRename: 'remote:fmRename',
+    fmUploadTo: 'remote:fmUploadTo',
+    fmDownload: 'remote:fmDownload',
     rtcSignal: 'remote:rtcSignal',
     rtcPeerState: 'remote:rtcPeerState',
     /** Controller role: renderer -> main -> host, WebRTC signaling. */

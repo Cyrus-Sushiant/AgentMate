@@ -1,9 +1,11 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import type { RemoteSavedServer } from '@shared/apiTypes';
 import {
   ExternalLink,
+  Folder,
   Link,
   LinkOff,
   Monitor,
@@ -22,10 +24,12 @@ import { confirmDialog } from '@/stores/confirmStore';
 import { useRemoteStore } from '@/stores/remoteStore';
 
 function SavedServerRow({ server }: { server: RemoteSavedServer }): React.JSX.Element {
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [editing, setEditing] = useState(false);
   const [nickname, setNickname] = useState(server.nickname);
   const [connecting, setConnecting] = useState(false);
+  const [browsing, setBrowsing] = useState(false);
 
   async function refresh(): Promise<void> {
     await queryClient.invalidateQueries({ queryKey: queryKeys.remoteSavedServers });
@@ -68,6 +72,20 @@ function SavedServerRow({ server }: { server: RemoteSavedServer }): React.JSX.El
     }
   }
 
+  async function browseFiles(): Promise<void> {
+    setBrowsing(true);
+    try {
+      const result = await window.agentmat.remote.connectSavedFiles(server.id);
+      if (!result.ok) {
+        toast.error(result.error ?? 'Could not connect.');
+        return;
+      }
+      navigate('/remote-files');
+    } finally {
+      setBrowsing(false);
+    }
+  }
+
   return (
     <li className="flex items-center gap-3 rounded-md border border-border bg-secondary/30 px-3 py-2">
       <Monitor className="h-4 w-4 shrink-0 text-muted-foreground" />
@@ -104,6 +122,11 @@ function SavedServerRow({ server }: { server: RemoteSavedServer }): React.JSX.El
       <Button size="sm" onClick={() => void connect()} disabled={connecting}>
         <Link className="h-3.5 w-3.5" /> {connecting ? 'Connecting…' : 'Connect'}
       </Button>
+      <SimpleTooltip label="Browse this machine's files, without opening a control session">
+        <Button size="sm" variant="secondary" onClick={() => void browseFiles()} disabled={browsing}>
+          <Folder className="h-3.5 w-3.5" /> {browsing ? 'Connecting…' : 'Browse files'}
+        </Button>
+      </SimpleTooltip>
       <SimpleTooltip label="Forget this server">
         <Button size="icon" variant="ghost" onClick={() => void remove()}>
           <Trash2 className="h-3.5 w-3.5" />
@@ -114,9 +137,11 @@ function SavedServerRow({ server }: { server: RemoteSavedServer }): React.JSX.El
 }
 
 export function ControllerPanel(): React.JSX.Element {
+  const navigate = useNavigate();
   const connection = useRemoteStore((s) => s.state?.connection);
   const [code, setCode] = useState('');
   const [connecting, setConnecting] = useState(false);
+  const [connectingFiles, setConnectingFiles] = useState(false);
 
   const savedServersQuery = useQuery({
     queryKey: queryKeys.remoteSavedServers,
@@ -127,6 +152,7 @@ export function ControllerPanel(): React.JSX.Element {
   const status = connection?.status ?? 'idle';
   const connected = status === 'connected';
   const active = status === 'connecting' || status === 'connected';
+  const filesOnly = connection?.intent === 'files';
 
   async function connect(): Promise<void> {
     if (!code.trim()) {
@@ -147,6 +173,25 @@ export function ControllerPanel(): React.JSX.Element {
     }
   }
 
+  async function connectFiles(): Promise<void> {
+    if (!code.trim()) {
+      toast.error('Paste a pairing code first.');
+      return;
+    }
+    setConnectingFiles(true);
+    try {
+      const result = await window.agentmat.remote.connectFiles(code.trim());
+      if (!result.ok) {
+        toast.error(result.error ?? 'Could not connect.');
+        return;
+      }
+      setCode('');
+      navigate('/remote-files');
+    } finally {
+      setConnectingFiles(false);
+    }
+  }
+
   if (active) {
     return (
       <Card className="glass">
@@ -159,12 +204,20 @@ export function ControllerPanel(): React.JSX.Element {
             <span className="text-sm font-medium">
               {connection?.remoteDeviceName ?? 'Remote device'}
             </span>
-            <span className="text-xs text-muted-foreground">— open in its own window</span>
+            <span className="text-xs text-muted-foreground">
+              — {filesOnly ? 'files only, no control session' : 'open in its own window'}
+            </span>
           </div>
           <div className="flex items-center gap-2">
-            <Button size="sm" variant="secondary" onClick={() => void window.agentmat.remote.openSessionWindow()}>
-              <ExternalLink className="h-3.5 w-3.5" /> Show remote window
-            </Button>
+            {filesOnly ? (
+              <Button size="sm" variant="secondary" onClick={() => navigate('/remote-files')}>
+                <Folder className="h-3.5 w-3.5" /> Open file manager
+              </Button>
+            ) : (
+              <Button size="sm" variant="secondary" onClick={() => void window.agentmat.remote.openSessionWindow()}>
+                <ExternalLink className="h-3.5 w-3.5" /> Show remote window
+              </Button>
+            )}
             <Button size="sm" variant="destructive" onClick={() => void window.agentmat.remote.disconnect()}>
               <LinkOff className="h-3.5 w-3.5" /> Disconnect
             </Button>
@@ -218,10 +271,19 @@ export function ControllerPanel(): React.JSX.Element {
           {status === 'error' && connection?.error && (
             <p className="text-xs text-destructive">{connection.error}</p>
           )}
-          <div>
-            <Button onClick={() => void connect()} disabled={connecting}>
+          <div className="flex items-center gap-2">
+            <Button onClick={() => void connect()} disabled={connecting || connectingFiles}>
               <Link className="h-4 w-4" /> {connecting ? 'Connecting…' : 'Connect'}
             </Button>
+            <SimpleTooltip label="Skip the control session — just browse and transfer files">
+              <Button
+                variant="secondary"
+                onClick={() => void connectFiles()}
+                disabled={connecting || connectingFiles}
+              >
+                <Folder className="h-4 w-4" /> {connectingFiles ? 'Connecting…' : 'Connect (files only)'}
+              </Button>
+            </SimpleTooltip>
           </div>
         </CardContent>
       </Card>
