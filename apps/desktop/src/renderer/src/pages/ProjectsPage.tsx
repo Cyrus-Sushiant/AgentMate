@@ -2,7 +2,17 @@ import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
-import { Folder, FolderPlus, Play, Plus, Search, Sparkles } from '@/components/icons';
+import type { Project } from '@agentmat/core';
+import {
+  Folder,
+  FolderPlus,
+  GripVertical,
+  Pin,
+  Play,
+  Plus,
+  Search,
+  Sparkles,
+} from '@/components/icons';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -11,10 +21,23 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { queryKeys } from '@/lib/queryKeys';
 import { timeAgo } from '@/lib/time';
+import { cn } from '@/lib/utils';
 import { usePageHeader } from '@/stores/pageHeaderStore';
 import { useTerminalStore } from '@/stores/terminalStore';
 import { ProjectFormDialog, type ProjectFormValues } from '@/components/projects/ProjectFormDialog';
 import { ProjectPromptBuildDialog } from '@/components/projects/ProjectPromptBuildDialog';
+
+/** Moves `draggedId` to sit just before `targetId` within one pin group. */
+function reorderWithinGroup(list: Project[], draggedId: string, targetId: string): Project[] {
+  if (draggedId === targetId) return list;
+  const next = [...list];
+  const from = next.findIndex((p) => p.id === draggedId);
+  const to = next.findIndex((p) => p.id === targetId);
+  if (from === -1 || to === -1) return next;
+  const [item] = next.splice(from, 1);
+  next.splice(to, 0, item);
+  return next;
+}
 
 export default function ProjectsPage(): React.JSX.Element {
   const navigate = useNavigate();
@@ -25,6 +48,7 @@ export default function ProjectsPage(): React.JSX.Element {
     null,
   );
   const [search, setSearch] = useState('');
+  const [draggedId, setDraggedId] = useState<string | null>(null);
   const queryClient = useQueryClient();
   const openSession = useTerminalStore((s) => s.openSession);
 
@@ -47,6 +71,23 @@ export default function ProjectsPage(): React.JSX.Element {
       toast.success('Project created.');
       setDialogOpen(false);
       void queryClient.invalidateQueries({ queryKey: queryKeys.projects });
+    },
+  });
+
+  const pinMutation = useMutation({
+    mutationFn: ({ projectId, pinned }: { projectId: string; pinned: boolean }) =>
+      window.agentmat.projects.setPinned(projectId, pinned),
+    onSuccess: (updated) => {
+      queryClient.setQueryData<Project[]>(queryKeys.projects, (prev) =>
+        prev?.map((p) => (p.id === updated.id ? updated : p)),
+      );
+    },
+  });
+
+  const reorderMutation = useMutation({
+    mutationFn: (orderedIds: string[]) => window.agentmat.projects.reorder(orderedIds),
+    onSuccess: (updated) => {
+      queryClient.setQueryData(queryKeys.projects, updated);
     },
   });
 
@@ -73,6 +114,25 @@ export default function ProjectsPage(): React.JSX.Element {
         .includes(query),
     );
   }, [projects, query]);
+
+  // Reordering is disabled while searching: the visible list is a subset, so a
+  // drag couldn't express where a card should land among hidden siblings.
+  const dragEnabled = query.length === 0;
+  const pinnedProjects = useMemo(() => filtered.filter((p) => p.pinned), [filtered]);
+  const unpinnedProjects = useMemo(() => filtered.filter((p) => !p.pinned), [filtered]);
+
+  function handleDrop(group: 'pinned' | 'unpinned', targetId: string): void {
+    if (!draggedId || !dragEnabled) return;
+    const isPinnedGroup = group === 'pinned';
+    const sourceList = isPinnedGroup ? pinnedProjects : unpinnedProjects;
+    if (!sourceList.some((p) => p.id === draggedId)) return;
+    const reordered = reorderWithinGroup(sourceList, draggedId, targetId);
+    const fullOrder = isPinnedGroup
+      ? [...reordered, ...unpinnedProjects]
+      : [...pinnedProjects, ...reordered];
+    queryClient.setQueryData(queryKeys.projects, fullOrder);
+    reorderMutation.mutate(fullOrder.map((p) => p.id));
+  }
 
   return (
     <div className="space-y-6 p-6">
@@ -131,82 +191,68 @@ export default function ProjectsPage(): React.JSX.Element {
       ) : filtered.length === 0 ? (
         <p className="text-sm text-muted-foreground">No projects match “{search.trim()}”.</p>
       ) : (
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {filtered.map((project) => (
-            <Card
-              key={project.id}
-              className="glass group flex cursor-pointer flex-col transition-all duration-150 hover:-translate-y-0.5 hover:border-primary/50 hover:shadow-lg"
-              onClick={() => navigate(`/projects/${project.id}`)}
-            >
-              <CardHeader className="pb-3">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex min-w-0 items-center gap-3">
-                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                      <Folder className="h-4 w-4" />
-                    </div>
-                    <div className="min-w-0">
-                      <CardTitle className="truncate">{project.name}</CardTitle>
-                      <p className="mt-0.5 text-xs text-muted-foreground">
-                        Updated {timeAgo(project.updatedAt)}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex shrink-0 items-center gap-1">
-                    {project.runCommand && (
-                      <SimpleTooltip label={`Run "${project.runCommand}"`}>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleRun(project);
-                          }}
-                        >
-                          <Play className="h-4 w-4" />
-                        </Button>
-                      </SimpleTooltip>
-                    )}
-                    <SimpleTooltip label="Build a prompt for this project">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setPromptBuildProject({ id: project.id, name: project.name });
-                          setPromptBuildOpen(true);
-                        }}
-                      >
-                        <Sparkles className="h-4 w-4" />
-                      </Button>
-                    </SimpleTooltip>
-                  </div>
-                </div>
-                <CardDescription className="line-clamp-2">
-                  {project.description || 'No description yet.'}
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="mt-auto space-y-3">
-                <div className="flex items-center gap-1.5 truncate text-xs text-muted-foreground">
-                  <Folder className="h-3 w-3 shrink-0" />
-                  <span className="truncate">{project.folderPath}</span>
-                </div>
-                {project.runCommand && (
-                  <div className="flex items-center gap-1.5 truncate text-xs text-muted-foreground">
-                    <Play className="h-3 w-3 shrink-0" />
-                    <span className="truncate font-mono">{project.runCommand}</span>
-                  </div>
-                )}
-                <div className="flex flex-wrap gap-1.5">
-                  <Badge variant="secondary">{project.agentType}</Badge>
-                  {project.tags.map((tag) => (
-                    <Badge key={tag} variant="outline">
-                      {tag}
-                    </Badge>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+        <div className="space-y-6">
+          {pinnedProjects.length > 0 && (
+            <div className="space-y-2">
+              <p className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                <Pin className="h-3 w-3" /> Pinned
+              </p>
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+                {pinnedProjects.map((project) => (
+                  <ProjectCard
+                    key={project.id}
+                    project={project}
+                    draggable={dragEnabled}
+                    isDragging={draggedId === project.id}
+                    onDragStart={() => setDraggedId(project.id)}
+                    onDragEnd={() => setDraggedId(null)}
+                    onDropOn={(targetId) => handleDrop('pinned', targetId)}
+                    onNavigate={() => navigate(`/projects/${project.id}`)}
+                    onRun={() => handleRun(project)}
+                    onBuildPrompt={() => {
+                      setPromptBuildProject({ id: project.id, name: project.name });
+                      setPromptBuildOpen(true);
+                    }}
+                    onTogglePin={() =>
+                      pinMutation.mutate({ projectId: project.id, pinned: !project.pinned })
+                    }
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {unpinnedProjects.length > 0 && (
+            <div className="space-y-2">
+              {pinnedProjects.length > 0 && (
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  All projects
+                </p>
+              )}
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+                {unpinnedProjects.map((project) => (
+                  <ProjectCard
+                    key={project.id}
+                    project={project}
+                    draggable={dragEnabled}
+                    isDragging={draggedId === project.id}
+                    onDragStart={() => setDraggedId(project.id)}
+                    onDragEnd={() => setDraggedId(null)}
+                    onDropOn={(targetId) => handleDrop('unpinned', targetId)}
+                    onNavigate={() => navigate(`/projects/${project.id}`)}
+                    onRun={() => handleRun(project)}
+                    onBuildPrompt={() => {
+                      setPromptBuildProject({ id: project.id, name: project.name });
+                      setPromptBuildOpen(true);
+                    }}
+                    onTogglePin={() =>
+                      pinMutation.mutate({ projectId: project.id, pinned: !project.pinned })
+                    }
+                  />
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -226,5 +272,145 @@ export default function ProjectsPage(): React.JSX.Element {
         />
       )}
     </div>
+  );
+}
+
+// Only the grip handle is draggable, so clicking anywhere else on the card
+// (the run/prompt buttons, the pin toggle, the card body) never gets mistaken
+// for a drag gesture.
+function ProjectCard({
+  project,
+  draggable,
+  isDragging,
+  onDragStart,
+  onDragEnd,
+  onDropOn,
+  onNavigate,
+  onRun,
+  onBuildPrompt,
+  onTogglePin,
+}: {
+  project: Project;
+  draggable: boolean;
+  isDragging: boolean;
+  onDragStart: () => void;
+  onDragEnd: () => void;
+  onDropOn: (targetId: string) => void;
+  onNavigate: () => void;
+  onRun: () => void;
+  onBuildPrompt: () => void;
+  onTogglePin: () => void;
+}): React.JSX.Element {
+  return (
+    <Card
+      className={cn(
+        'glass group flex cursor-pointer flex-col transition-all duration-150 hover:-translate-y-0.5 hover:border-primary/50 hover:shadow-lg',
+        isDragging && 'opacity-50',
+      )}
+      onClick={onNavigate}
+      onDragOver={(e) => {
+        if (draggable) e.preventDefault();
+      }}
+      onDrop={(e) => {
+        e.preventDefault();
+        onDropOn(project.id);
+      }}
+    >
+      <CardHeader className="pb-3">
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex min-w-0 items-center gap-2">
+            {draggable && (
+              <SimpleTooltip label="Drag to reorder">
+                <span
+                  draggable
+                  onClick={(e) => e.stopPropagation()}
+                  onDragStart={(e) => {
+                    e.dataTransfer.effectAllowed = 'move';
+                    onDragStart();
+                  }}
+                  onDragEnd={onDragEnd}
+                  className="shrink-0 cursor-grab text-muted-foreground/50 opacity-0 transition-opacity group-hover:opacity-100 hover:text-foreground active:cursor-grabbing"
+                >
+                  <GripVertical className="h-4 w-4" />
+                </span>
+              </SimpleTooltip>
+            )}
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <Folder className="h-4 w-4" />
+            </div>
+            <div className="min-w-0">
+              <CardTitle className="truncate">{project.name}</CardTitle>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                Updated {timeAgo(project.updatedAt)}
+              </p>
+            </div>
+          </div>
+          <div className="flex shrink-0 items-center gap-1">
+            <SimpleTooltip label={project.pinned ? 'Unpin project' : 'Pin to top'}>
+              <Button
+                variant="ghost"
+                size="icon"
+                className={project.pinned ? 'text-primary' : undefined}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onTogglePin();
+                }}
+              >
+                <Pin className="h-4 w-4" />
+              </Button>
+            </SimpleTooltip>
+            {project.runCommand && (
+              <SimpleTooltip label={`Run "${project.runCommand}"`}>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onRun();
+                  }}
+                >
+                  <Play className="h-4 w-4" />
+                </Button>
+              </SimpleTooltip>
+            )}
+            <SimpleTooltip label="Build a prompt for this project">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onBuildPrompt();
+                }}
+              >
+                <Sparkles className="h-4 w-4" />
+              </Button>
+            </SimpleTooltip>
+          </div>
+        </div>
+        <CardDescription className="line-clamp-2">
+          {project.description || 'No description yet.'}
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="mt-auto space-y-3">
+        <div className="flex items-center gap-1.5 truncate text-xs text-muted-foreground">
+          <Folder className="h-3 w-3 shrink-0" />
+          <span className="truncate">{project.folderPath}</span>
+        </div>
+        {project.runCommand && (
+          <div className="flex items-center gap-1.5 truncate text-xs text-muted-foreground">
+            <Play className="h-3 w-3 shrink-0" />
+            <span className="truncate font-mono">{project.runCommand}</span>
+          </div>
+        )}
+        <div className="flex flex-wrap gap-1.5">
+          <Badge variant="secondary">{project.agentType}</Badge>
+          {project.tags.map((tag) => (
+            <Badge key={tag} variant="outline">
+              {tag}
+            </Badge>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
   );
 }

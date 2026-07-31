@@ -30,6 +30,8 @@ export const IPC = {
     create: 'projects:create',
     update: 'projects:update',
     delete: 'projects:delete',
+    reorder: 'projects:reorder',
+    setPinned: 'projects:setPinned',
     bootstrap: 'projects:bootstrap',
     bootstrapPlan: 'projects:bootstrapPlan',
     pickFolder: 'projects:pickFolder',

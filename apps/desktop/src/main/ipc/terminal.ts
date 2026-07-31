@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import * as pty from 'node-pty';
-import { ipcMain, type IpcMainInvokeEvent } from 'electron';
+import { ipcMain, powerSaveBlocker, type IpcMainInvokeEvent } from 'electron';
 import { IPC } from '../../shared/ipcChannels';
 import type { CreateTerminalOptions } from '../../shared/apiTypes';
 
@@ -20,6 +20,23 @@ interface TerminalSession {
 
 const sessions = new Map<string, TerminalSession>();
 
+// Windows applies "efficiency mode" power throttling to minimized/backgrounded
+// apps, which can starve a shell running inside a terminal tab (and, if that
+// shell is the dev server the app itself was launched from, take the whole
+// app down with it). A blocker held for as long as any session is open keeps
+// the process out of that throttled state; it's released once the last
+// session closes so the app can still idle normally the rest of the time.
+let powerSaveBlockerId: number | null = null;
+
+function syncPowerSaveBlocker(): void {
+  if (sessions.size > 0 && powerSaveBlockerId == null) {
+    powerSaveBlockerId = powerSaveBlocker.start('prevent-app-suspension');
+  } else if (sessions.size === 0 && powerSaveBlockerId != null) {
+    powerSaveBlocker.stop(powerSaveBlockerId);
+    powerSaveBlockerId = null;
+  }
+}
+
 export function registerTerminalHandlers(): void {
   ipcMain.handle(
     IPC.terminal.create,
@@ -38,6 +55,7 @@ export function registerTerminalHandlers(): void {
 
       const sessionId = randomUUID();
       sessions.set(sessionId, { pty: ptyProcess, projectId: options.projectId, createdAt: Date.now() });
+      syncPowerSaveBlocker();
 
       const sender = event.sender;
       ptyProcess.onData((data) => {
@@ -50,6 +68,7 @@ export function registerTerminalHandlers(): void {
           sender.send(IPC.terminal.onExit, { sessionId, exitCode });
         }
         sessions.delete(sessionId);
+        syncPowerSaveBlocker();
       });
 
       if (options.initialInput) {
@@ -74,6 +93,7 @@ export function registerTerminalHandlers(): void {
   ipcMain.handle(IPC.terminal.kill, (_event, sessionId: string): void => {
     sessions.get(sessionId)?.pty.kill();
     sessions.delete(sessionId);
+    syncPowerSaveBlocker();
   });
 }
 
@@ -82,6 +102,7 @@ export function killAllTerminalSessions(): void {
     session.pty.kill();
   }
   sessions.clear();
+  syncPowerSaveBlocker();
 }
 
 /** Most recently opened terminal session tagged with this project, if any is still open. */

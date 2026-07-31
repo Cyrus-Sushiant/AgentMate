@@ -148,6 +148,10 @@ const projects = {
   update: (projectId: string, updates: Partial<CreateProjectInput>): Promise<Project> =>
     ipcRenderer.invoke(IPC.projects.update, projectId, updates),
   delete: (projectId: string): Promise<void> => ipcRenderer.invoke(IPC.projects.delete, projectId),
+  reorder: (orderedIds: string[]): Promise<Project[]> =>
+    ipcRenderer.invoke(IPC.projects.reorder, orderedIds),
+  setPinned: (projectId: string, pinned: boolean): Promise<Project> =>
+    ipcRenderer.invoke(IPC.projects.setPinned, projectId, pinned),
   bootstrap: (projectId: string): Promise<BootstrapResult> =>
     ipcRenderer.invoke(IPC.projects.bootstrap, projectId),
   bootstrapPlan: (projectId: string): Promise<BootstrapPlan> =>

@@ -159,6 +159,8 @@ export interface Project {
    */
   prompt: string;
   notifications: ProjectNotificationSettings;
+  /** Pinned projects are sorted first on the Projects page, above the drag-ordered rest. */
+  pinned: boolean;
   createdAt: string;
   updatedAt: string;
 }

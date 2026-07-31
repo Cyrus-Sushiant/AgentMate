@@ -38,6 +38,17 @@ import { startThresholdAlertWatcher, stopThresholdAlertWatcher } from './usage/t
 import { remoteManager } from './remote/manager';
 import { startHourlyUpdateChecks } from './updater';
 
+// Chromium normally deprioritizes timers, rendering, and IPC delivery for a
+// minimized/occluded window (and Windows' own efficiency-mode throttling
+// piles on top of that). That combination is what makes the terminal drawer's
+// pty sessions appear to freeze or reset a short while after the window is
+// minimized — and if the app was launched from a shell running inside one of
+// those terminals, drags the whole app down with it. These switches keep the
+// main window's renderer running at full priority regardless of window state.
+app.commandLine.appendSwitch('disable-background-timer-throttling');
+app.commandLine.appendSwitch('disable-backgrounding-occluded-windows');
+app.commandLine.appendSwitch('disable-renderer-backgrounding');
+
 // Distinct name in dev so `electron-vite dev` gets its own userData dir and
 // single-instance lock instead of colliding with an installed release build
 // (same name -> same lock -> dev process loses the race and quits, while the
@@ -72,6 +83,9 @@ function createMainWindow(): void {
       sandbox: true,
       nodeIntegration: false,
       webSecurity: true,
+      // Keep terminal output flowing and the pty session healthy while the
+      // window is minimized — see the command-line switches above.
+      backgroundThrottling: false,
     },
   });
 
