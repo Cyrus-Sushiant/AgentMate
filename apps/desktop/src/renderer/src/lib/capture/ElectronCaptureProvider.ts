@@ -57,13 +57,25 @@ export class ElectronCaptureProvider implements ICaptureProvider {
 
     // Downscale at the source: the encoder's bitrate requirement scales with
     // input pixels, so resizing before encoding is strictly cheaper than
-    // encoding large and letting the network shed quality.
+    // encoding large and letting the network shed quality. `width`/`height`
+    // max constraints are independent axes to the browser, not an
+    // aspect-preserving "fit within a box" — passing `maxEdge` for both would
+    // let it pick e.g. 1600x1600 out of a 3840x2160 (4K) source, squashing a
+    // 16:9 desktop into a square. Pre-scale both dimensions by the same
+    // factor (same approach the tile pipeline uses below) so the constraint
+    // only ever clamps, never distorts.
+    const nativeSettings = track.getSettings();
+    const nativeWidth = nativeSettings.width ?? 0;
+    const nativeHeight = nativeSettings.height ?? 0;
     try {
-      await track.applyConstraints({
-        width: { max: options.maxEdge },
-        height: { max: options.maxEdge },
-        frameRate: options.frameRate,
-      });
+      if (nativeWidth > 0 && nativeHeight > 0) {
+        const scale = Math.min(1, options.maxEdge / Math.max(nativeWidth, nativeHeight));
+        await track.applyConstraints({
+          width: { max: Math.round(nativeWidth * scale) },
+          height: { max: Math.round(nativeHeight * scale) },
+          frameRate: options.frameRate,
+        });
+      }
     } catch {
       // Some platforms reject downscale constraints; the encoder still adapts.
     }

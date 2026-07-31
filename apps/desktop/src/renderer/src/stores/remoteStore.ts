@@ -42,14 +42,32 @@ interface RemoteStore {
   refresh: () => Promise<void>;
 }
 
-export const useRemoteStore = create<RemoteStore>((set) => ({
+/**
+ * Controller role: ask for the video track as soon as the control channel is
+ * up, and drop the peer connection when it goes away. Only the session window
+ * does this (see isRemoteSessionWindow's doc comment above). Must run on
+ * *every* state update the session window sees, not just ones that arrive via
+ * the `onState` push — the window's very first snapshot (fetched by
+ * `refresh()` on mount) can already read 'connected' if the WebSocket beat
+ * the window's own load/mount race, and that transition needs to trigger a
+ * request too or the session is stuck on the JPEG-tile fallback forever.
+ */
+function syncControllerVideo(status: RemoteState['connection']['status'], previous?: RemoteState['connection']['status']): void {
+  if (!isRemoteSessionWindow()) return;
+  if (status === 'connected' && previous !== 'connected') requestRemoteVideo();
+  else if (status !== 'connected' && previous === 'connected') teardownRemoteVideo();
+}
+
+export const useRemoteStore = create<RemoteStore>((set, get) => ({
   state: null,
   logs: [],
   transfers: [],
   initialized: false,
   refresh: async () => {
     const state = await window.agentmat.remote.getState();
+    const previous = get().state?.connection.status;
     set({ state });
+    syncControllerVideo(state.connection.status, previous);
   },
 }));
 
@@ -67,13 +85,7 @@ export function initRemote(): void {
   api.onState((state) => {
     const previous = useRemoteStore.getState().state?.connection.status;
     useRemoteStore.setState({ state });
-    // Controller role: ask for the video track as soon as the control channel
-    // is up, and drop the peer connection when it goes away. Only the session
-    // window does this (see isRemoteSessionWindow's doc comment above).
-    if (!isRemoteSessionWindow()) return;
-    const status = state.connection.status;
-    if (status === 'connected' && previous !== 'connected') requestRemoteVideo();
-    else if (status !== 'connected' && previous === 'connected') teardownRemoteVideo();
+    syncControllerVideo(state.connection.status, previous);
   });
 
   api.onLog((event) => {
