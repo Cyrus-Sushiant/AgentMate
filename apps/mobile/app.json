@@ -12,11 +12,16 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.agentmate.remote",
       "infoPlist": {
-        "NSCameraUsageDescription": "AgentMate uses the camera to scan a pairing QR code shown on the AgentMate desktop app."
+        "NSCameraUsageDescription": "AgentMate uses the camera to scan a pairing QR code shown on the AgentMate desktop app.",
+        "NSLocalNetworkUsageDescription": "AgentMate connects to the AgentMate desktop app over your local Wi-Fi network to stream and control its screen.",
+        "NSAppTransportSecurity": {
+          "NSAllowsLocalNetworking": true
+        }
       }
     },
     "android": {
       "package": "com.agentmate.remote",
+      "usesCleartextTraffic": true,
       "adaptiveIcon": {
         "backgroundColor": "#0a0a0a",
         "foregroundImage": "./assets/android-icon-foreground.png",
