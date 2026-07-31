@@ -94,7 +94,7 @@ export function Sidebar(): React.JSX.Element {
       </nav>
 
       {!collapsed && (
-        <div className="px-2.5 pt-2 text-[11px] text-muted-foreground/60">AgentMate v1.4.0</div>
+        <div className="px-2.5 pt-2 text-[11px] text-muted-foreground/60">AgentMate v1.5.0</div>
       )}
     </aside>
   );
