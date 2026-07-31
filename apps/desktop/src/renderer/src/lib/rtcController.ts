@@ -1,3 +1,4 @@
+import type { RemoteQualitySample } from '@shared/apiTypes';
 import {
   DC_CURSOR,
   DC_INPUT,
@@ -34,9 +35,10 @@ export interface ControllerRtcState {
   mode: ControllerVideoMode;
   stream: MediaStream | null;
   cursor: RemoteCursorState | null;
+  quality: RemoteQualitySample | null;
 }
 
-let state: ControllerRtcState = { mode: 'idle', stream: null, cursor: null };
+let state: ControllerRtcState = { mode: 'idle', stream: null, cursor: null, quality: null };
 const listeners = new Set<(state: ControllerRtcState) => void>();
 
 let pc: RTCPeerConnection | null = null;
@@ -46,6 +48,8 @@ let remoteDescSet = false;
 let fallbackTimer: number | null = null;
 let statsTimer: number | null = null;
 let initialized = false;
+let lastBytesReceived: { bytes: number; at: number } | null = null;
+let lastPacketsLost = 0;
 
 export function subscribeControllerRtc(
   listener: (state: ControllerRtcState) => void,
@@ -86,7 +90,7 @@ export function requestRemoteVideo(): void {
 /** Called when the control connection drops. */
 export function teardownRemoteVideo(): void {
   closePeer();
-  setState({ mode: 'idle', stream: null, cursor: null });
+  setState({ mode: 'idle', stream: null, cursor: null, quality: null });
 }
 
 /**
@@ -122,6 +126,8 @@ function closePeer(): void {
   pendingIce = [];
   remoteDescSet = false;
   inputChannel = null;
+  lastBytesReceived = null;
+  lastPacketsLost = 0;
   const current = pc;
   pc = null;
   if (current) {
@@ -255,17 +261,47 @@ async function sampleInbound(connection: RTCPeerConnection): Promise<void> {
   if (!stat) return;
   const pair = found.pair;
   const codec = typeof stat.codecId === 'string' ? byId.get(stat.codecId) : null;
+  const codecName =
+    typeof codec?.mimeType === 'string' ? codec.mimeType.replace(/^video\//i, '') : null;
+  const bytesReceived = numberOr(stat.bytesReceived, 0);
+  const packetsLostTotal = numberOr(stat.packetsLost, 0);
+  const rttMs = pair ? Math.round(numberOr(pair.currentRoundTripTime, 0) * 1000) : null;
+  const fps = Math.round(numberOr(stat.framesPerSecond, 0));
+
   recordControllerSample({
-    codec:
-      typeof codec?.mimeType === 'string' ? codec.mimeType.replace(/^video\//i, '') : null,
+    codec: codecName,
     width: numberOr(stat.frameWidth, 0),
     height: numberOr(stat.frameHeight, 0),
-    fps: Math.round(numberOr(stat.framesPerSecond, 0)),
-    bytesReceived: numberOr(stat.bytesReceived, 0),
+    fps,
+    bytesReceived,
     framesDropped: numberOr(stat.framesDropped, 0),
-    packetsLost: numberOr(stat.packetsLost, 0),
+    packetsLost: packetsLostTotal,
     jitter: numberOr(stat.jitter, 0),
-    rttMs: pair ? Math.round(numberOr(pair.currentRoundTripTime, 0) * 1000) : null,
+    rttMs,
+  });
+
+  const now = Date.now();
+  const kbps = lastBytesReceived
+    ? Math.max(
+        0,
+        Math.round(((bytesReceived - lastBytesReceived.bytes) * 8) / (now - lastBytesReceived.at)),
+      )
+    : 0;
+  lastBytesReceived = { bytes: bytesReceived, at: now };
+  const packetsLost = Math.max(0, packetsLostTotal - lastPacketsLost);
+  lastPacketsLost = packetsLostTotal;
+
+  setState({
+    quality: {
+      kbps,
+      fps,
+      rttMs,
+      packetsLost,
+      jitter: numberOr(stat.jitter, 0),
+      width: numberOr(stat.frameWidth, 0),
+      height: numberOr(stat.frameHeight, 0),
+      codec: codecName,
+    },
   });
 }
 

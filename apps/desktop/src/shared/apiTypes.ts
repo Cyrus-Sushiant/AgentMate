@@ -466,6 +466,35 @@ export interface RemoteState {
   interfaces: RemoteNetworkInterface[];
 }
 
+/**
+ * A remembered host, keyed by the durable per-device token the host issues on
+ * first pairing (see `auth-ok`'s `deviceToken`). Lets the controller reconnect
+ * with one click, no pairing code required, until the host revokes the token.
+ */
+export interface RemoteSavedServer {
+  id: string;
+  nickname: string;
+  ip: string;
+  port: number;
+  deviceName: string;
+  deviceToken: string;
+  createdAt: number;
+  lastConnectedAt: number;
+}
+
+/** Live transport quality for the controller's inbound video, sampled ~1/sec. */
+export interface RemoteQualitySample {
+  kbps: number;
+  fps: number;
+  rttMs: number | null;
+  /** Packets lost since the previous sample (a delta, not the cumulative WebRTC stat). */
+  packetsLost: number;
+  jitter: number;
+  width: number;
+  height: number;
+  codec: string | null;
+}
+
 export type RemoteFileDirection = 'incoming' | 'outgoing';
 
 export interface RemoteFileProgress {

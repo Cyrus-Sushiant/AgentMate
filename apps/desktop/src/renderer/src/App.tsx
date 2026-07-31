@@ -29,6 +29,7 @@ import SettingsPage from './pages/SettingsPage';
 import UsagePage from './pages/UsagePage';
 import WidgetRoute from './components/usage/WidgetRoute';
 import PromptBuildWidgetRoute from './components/projects/PromptBuildWidgetRoute';
+import RemoteSessionRoute from './components/remote/RemoteSessionRoute';
 
 /* Glass toasts: richColors is off on purpose. It paints an opaque per-type
    background that would defeat the frosted surface. The type accents live in
@@ -76,6 +77,7 @@ export default function App(): React.JSX.Element {
               {/* Floating desktop widget windows render standalone, outside the app shell. */}
               <Route path="widget/:id" element={<WidgetRoute />} />
               <Route path="widget/prompt-build/:id" element={<PromptBuildWidgetRoute />} />
+              <Route path="remote-session" element={<RemoteSessionRoute />} />
               <Route element={<AppShell />}>
                 <Route index element={<DashboardPage />} />
                 <Route path="cli-manager" element={<CliManagerPage />} />

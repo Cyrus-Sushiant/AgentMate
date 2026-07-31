@@ -72,6 +72,7 @@ import type {
   RemoteState,
   RemoteNetworkInterface,
   RemotePairingInfo,
+  RemoteSavedServer,
   RemoteScreenSize,
   RemoteFileProgress,
   RemoteLogEvent,
@@ -414,6 +415,15 @@ const remote = {
   connect: (code: string): Promise<{ ok: boolean; error?: string }> =>
     ipcRenderer.invoke(IPC.remote.connect, code),
   disconnect: (): Promise<void> => ipcRenderer.invoke(IPC.remote.disconnect),
+  listSavedServers: (): Promise<RemoteSavedServer[]> =>
+    ipcRenderer.invoke(IPC.remote.listSavedServers),
+  connectSaved: (id: string): Promise<{ ok: boolean; error?: string }> =>
+    ipcRenderer.invoke(IPC.remote.connectSaved, id),
+  renameSavedServer: (id: string, nickname: string): Promise<void> =>
+    ipcRenderer.invoke(IPC.remote.renameSavedServer, id, nickname),
+  removeSavedServer: (id: string): Promise<void> =>
+    ipcRenderer.invoke(IPC.remote.removeSavedServer, id),
+  openSessionWindow: (): Promise<void> => ipcRenderer.invoke(IPC.remote.openSessionWindow),
   sendClipboard: (): Promise<void> => ipcRenderer.invoke(IPC.remote.sendClipboard),
   sendFile: (): Promise<void> => ipcRenderer.invoke(IPC.remote.sendFile),
 
@@ -507,6 +517,19 @@ const windowControls = {
   },
 };
 
+const remoteSessionWindowControls = {
+  minimize: (): Promise<void> => ipcRenderer.invoke(IPC.remoteSessionWindow.minimize),
+  maximizeToggle: (): Promise<void> => ipcRenderer.invoke(IPC.remoteSessionWindow.maximizeToggle),
+  close: (): Promise<void> => ipcRenderer.invoke(IPC.remoteSessionWindow.close),
+  isMaximized: (): Promise<boolean> => ipcRenderer.invoke(IPC.remoteSessionWindow.isMaximized),
+  onMaximizedChange: (callback: (isMaximized: boolean) => void): (() => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, isMaximized: boolean): void =>
+      callback(isMaximized);
+    ipcRenderer.on(IPC.remoteSessionWindow.onMaximizedChange, listener);
+    return () => ipcRenderer.removeListener(IPC.remoteSessionWindow.onMaximizedChange, listener);
+  },
+};
+
 const agentmatApi = {
   platform: process.platform,
   app: appInfo,
@@ -522,6 +545,7 @@ const agentmatApi = {
   activity,
   shell: shellApi,
   window: windowControls,
+  remoteSessionWindow: remoteSessionWindowControls,
   promptHistory,
   translate,
   ai,

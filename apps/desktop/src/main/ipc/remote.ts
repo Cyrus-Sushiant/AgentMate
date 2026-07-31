@@ -32,7 +32,23 @@ export function registerRemoteHandlers(): void {
   });
 
   ipcMain.handle(IPC.remote.disconnect, () => {
-    remoteManager.disconnect();
+    remoteManager.closeSessionAndDisconnect();
+  });
+
+  ipcMain.handle(IPC.remote.listSavedServers, () => remoteManager.listSavedServers());
+
+  ipcMain.handle(IPC.remote.connectSaved, (_e, id: string) => remoteManager.connectSaved(id));
+
+  ipcMain.handle(IPC.remote.renameSavedServer, (_e, id: string, nickname: string) =>
+    remoteManager.renameSavedServer(id, nickname),
+  );
+
+  ipcMain.handle(IPC.remote.removeSavedServer, (_e, id: string) =>
+    remoteManager.removeSavedServer(id),
+  );
+
+  ipcMain.handle(IPC.remote.openSessionWindow, () => {
+    remoteManager.openSessionWindow();
   });
 
   ipcMain.handle(IPC.remote.sendClipboard, () => {

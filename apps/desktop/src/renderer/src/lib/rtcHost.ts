@@ -47,6 +47,56 @@ const peers = new Map<string, HostPeerSession>();
 let initialized = false;
 let cursorTracking = false;
 
+// --- Aggregate quality (for HostPanel's "how's this session doing" badge) -----
+// Lightweight on purpose: reports whichever peer sampled most recently rather
+// than tracking one badge per peer, since in practice a host is almost always
+// serving a single controller at a time.
+
+/** A trimmed view of QualitySample, plus a derived send rate, for the host UI. */
+export interface HostQualitySnapshot {
+  kbps: number;
+  fps: number;
+  rttMs: number | null;
+  lossRatio: number;
+  limitation: string | null;
+  codec: string | null;
+}
+
+let hostQuality: HostQualitySnapshot | null = null;
+const hostQualityListeners = new Set<(sample: HostQualitySnapshot | null) => void>();
+const lastHostBytesSent = new Map<string, { bytes: number; at: number }>();
+
+export function subscribeHostQuality(
+  listener: (sample: HostQualitySnapshot | null) => void,
+): () => void {
+  hostQualityListeners.add(listener);
+  listener(hostQuality);
+  return () => hostQualityListeners.delete(listener);
+}
+
+function setHostQuality(sample: HostQualitySnapshot | null): void {
+  hostQuality = sample;
+  for (const listener of hostQualityListeners) listener(hostQuality);
+}
+
+function updateHostQuality(peerId: string, sample: QualitySample): void {
+  const now = Date.now();
+  const prev = lastHostBytesSent.get(peerId);
+  lastHostBytesSent.set(peerId, { bytes: sample.bytesSent, at: now });
+  const kbps =
+    prev && now > prev.at
+      ? Math.max(0, Math.round(((sample.bytesSent - prev.bytes) * 8) / (now - prev.at)))
+      : 0;
+  setHostQuality({
+    kbps,
+    fps: Math.round(sample.framesPerSecond),
+    rttMs: sample.rttMs,
+    lossRatio: sample.lossRatio,
+    limitation: sample.limitation,
+    codec: sample.codec,
+  });
+}
+
 export function initRtcHost(): void {
   if (initialized) return;
   initialized = true;
@@ -64,6 +114,7 @@ export function closeRtcPeer(peerId: string): void {
   const session = peers.get(peerId);
   if (!session) return;
   peers.delete(peerId);
+  lastHostBytesSent.delete(peerId);
   session.governor?.stop();
   try {
     session.input?.close();
@@ -73,6 +124,7 @@ export function closeRtcPeer(peerId: string): void {
     // already closed
   }
   updateCursorTracking();
+  if (peers.size === 0) setHostQuality(null);
   // Tiles resume for this peer (no-op in main if the peer already left).
   window.agentmat.remote.rtcPeerState(peerId, false);
 }
@@ -167,7 +219,10 @@ async function startPeer(peerId: string): Promise<void> {
   }
 
   session.governor = new QualityGovernor(pc, sender, () => getCaptureSurface());
-  session.governor.onSample((sample: QualitySample) => recordHostSample(peerId, sample));
+  session.governor.onSample((sample: QualitySample) => {
+    recordHostSample(peerId, sample);
+    updateHostQuality(peerId, sample);
+  });
   session.governor.start();
 
   pc.onicecandidate = (event) => {

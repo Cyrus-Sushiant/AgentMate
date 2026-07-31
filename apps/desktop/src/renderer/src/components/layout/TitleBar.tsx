@@ -35,7 +35,7 @@ function TrafficLight({
   );
 }
 
-function MacTrafficLights({ onMinimize, onMaximizeToggle, onClose }: WindowControlsProps): React.JSX.Element {
+export function MacTrafficLights({ onMinimize, onMaximizeToggle, onClose }: WindowControlsProps): React.JSX.Element {
   return (
     <div className="flex items-center gap-2">
       <TrafficLight color="bg-[#ff5f57]" icon={X} title="Close" onClick={onClose} />
@@ -45,7 +45,7 @@ function MacTrafficLights({ onMinimize, onMaximizeToggle, onClose }: WindowContr
   );
 }
 
-interface WindowControlsProps {
+export interface WindowControlsProps {
   isMaximized: boolean;
   onMinimize: () => void;
   onMaximizeToggle: () => void;
@@ -57,7 +57,7 @@ interface WindowControlsProps {
 // Hover follows the OS: subtle wash for minimize/maximize, red for close.
 const GLYPH = { minimize: '\uE921', maximize: '\uE922', restore: '\uE923', close: '\uE8BB' };
 
-function NativeCaptionButtons({
+export function NativeCaptionButtons({
   isMaximized,
   onMinimize,
   onMaximizeToggle,

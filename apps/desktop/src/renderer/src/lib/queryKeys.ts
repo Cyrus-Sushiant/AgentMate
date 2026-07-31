@@ -28,4 +28,5 @@ export const queryKeys = {
   packages: (projectId: string) => ['packages', projectId] as const,
   skillsShSearch: (query: string) => ['skills-sh-search', query] as const,
   skillsShDetail: (id: string) => ['skills-sh-detail', id] as const,
+  remoteSavedServers: ['remote-saved-servers'] as const,
 };

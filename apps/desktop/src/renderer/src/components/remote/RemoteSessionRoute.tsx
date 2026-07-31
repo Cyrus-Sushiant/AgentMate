@@ -1,0 +1,164 @@
+import { useEffect, useState } from 'react';
+import { LinkOff, Monitor, Send, Upload } from '@/components/icons';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import {
+  MacTrafficLights,
+  NativeCaptionButtons,
+  type WindowControlsProps,
+} from '@/components/layout/TitleBar';
+import { SparklineChart } from '@/components/dashboard/SparklineChart';
+import { useChartColors } from '@/lib/chartColors';
+import { subscribeControllerRtc, type ControllerRtcState } from '@/lib/rtcController';
+import { describeRemoteQuality, formatMbps } from '@/lib/remoteQuality';
+import { useRemoteStore } from '@/stores/remoteStore';
+import { RemoteScreen } from './RemoteScreen';
+
+const HISTORY_LENGTH = 40;
+
+/**
+ * Standalone render target for the remote-control session window (loaded at
+ * `#/remote-session`, see `sessionWindow.ts` in main). No AppShell/sidebar —
+ * a full window dedicated to one connection, independently resizable,
+ * maximizable, and fullscreenable by the OS. Only this window ever mounts
+ * `RemoteScreen` / drives WebRTC as a controller (see the doc comment on
+ * `isRemoteSessionWindow` in stores/remoteStore.ts for why).
+ */
+export default function RemoteSessionRoute(): React.JSX.Element {
+  const connection = useRemoteStore((s) => s.state?.connection);
+  const [rtc, setRtc] = useState<ControllerRtcState>({
+    mode: 'idle',
+    stream: null,
+    cursor: null,
+    quality: null,
+  });
+  const [history, setHistory] = useState<{ t: number; kbps: number }[]>([]);
+  const [isMaximized, setIsMaximized] = useState(false);
+  const chartColors = useChartColors();
+  const isMac = window.agentmat.platform === 'darwin';
+
+  useEffect(() => subscribeControllerRtc(setRtc), []);
+
+  useEffect(() => {
+    if (!rtc.quality) return;
+    setHistory((prev) => [...prev, { t: Date.now(), kbps: rtc.quality!.kbps }].slice(-HISTORY_LENGTH));
+  }, [rtc.quality]);
+
+  useEffect(() => {
+    window.agentmat.remoteSessionWindow.isMaximized().then(setIsMaximized);
+    return window.agentmat.remoteSessionWindow.onMaximizedChange(setIsMaximized);
+  }, []);
+
+  const status = connection?.status ?? 'idle';
+  const connected = status === 'connected';
+  const failed = status === 'error';
+  // 'idle' here means the host went away mid-session (an explicit Disconnect
+  // closes this window instead of leaving it around) — the window stays open
+  // so the operator can see what happened rather than losing the view.
+  const statusBadge =
+    status === 'connected'
+      ? { label: 'Connected', variant: 'success' as const }
+      : status === 'connecting'
+        ? { label: 'Connecting…', variant: 'warning' as const }
+        : status === 'error'
+          ? { label: 'Failed', variant: 'destructive' as const }
+          : { label: 'Disconnected', variant: 'secondary' as const };
+
+  const controlProps: WindowControlsProps = {
+    isMaximized,
+    onMinimize: () => void window.agentmat.remoteSessionWindow.minimize(),
+    onMaximizeToggle: () => void window.agentmat.remoteSessionWindow.maximizeToggle(),
+    onClose: () => void window.agentmat.remoteSessionWindow.close(),
+  };
+
+  const quality = rtc.quality;
+  const qualityInfo = quality ? describeRemoteQuality(quality) : null;
+
+  return (
+    <div className="flex h-screen w-screen flex-col overflow-hidden bg-background">
+      <div
+        className="relative flex h-11 shrink-0 items-center justify-between border-b border-border pl-4 [-webkit-app-region:drag]"
+        onDoubleClick={() => void window.agentmat.remoteSessionWindow.maximizeToggle()}
+      >
+        <div className="flex min-w-0 items-center gap-2">
+          {isMac && <MacTrafficLights {...controlProps} />}
+          <Monitor className="h-4 w-4 shrink-0 text-primary" />
+          <span className="truncate text-sm font-semibold text-foreground">
+            {connection?.remoteDeviceName ?? 'Remote device'}
+          </span>
+          <Badge variant={statusBadge.variant} className="shrink-0 gap-1.5">
+            <span className="h-1.5 w-1.5 rounded-full bg-current" />
+            {statusBadge.label}
+          </Badge>
+        </div>
+
+        {qualityInfo && quality && (
+          <div className="flex items-center gap-2 [-webkit-app-region:no-drag]">
+            <Badge variant={qualityInfo.variant}>{qualityInfo.label}</Badge>
+            <span className="whitespace-nowrap text-xs text-muted-foreground">
+              {formatMbps(quality.kbps)} · {quality.rttMs ?? '–'} ms · {quality.fps} fps
+            </span>
+            {history.length > 1 && (
+              <SparklineChart
+                className="w-24"
+                height={24}
+                timestamps={history.map((h) => h.t)}
+                series={[
+                  {
+                    key: 'kbps',
+                    label: 'Bandwidth',
+                    color: chartColors.blue,
+                    values: history.map((h) => h.kbps),
+                  },
+                ]}
+                formatValue={(v) => formatMbps(v)}
+              />
+            )}
+          </div>
+        )}
+
+        {!isMac && <NativeCaptionButtons {...controlProps} />}
+      </div>
+
+      {failed && connection?.error && (
+        <div className="border-b border-destructive/30 bg-destructive/10 px-4 py-2 text-xs text-destructive">
+          {connection.error}
+        </div>
+      )}
+
+      <div className="flex items-center gap-2 border-b border-border bg-secondary/20 px-3 py-2 [-webkit-app-region:no-drag]">
+        <Button
+          size="sm"
+          variant="secondary"
+          disabled={!connected}
+          onClick={() => void window.agentmat.remote.sendClipboard()}
+        >
+          <Send className="h-3.5 w-3.5" /> Clipboard
+        </Button>
+        <Button
+          size="sm"
+          variant="secondary"
+          disabled={!connected}
+          onClick={() => void window.agentmat.remote.sendFile()}
+        >
+          <Upload className="h-3.5 w-3.5" /> Send file
+        </Button>
+        {connection?.remoteScreen && (
+          <span className="text-xs text-muted-foreground">
+            {connection.remoteScreen.width}×{connection.remoteScreen.height}
+          </span>
+        )}
+        <Button
+          size="sm"
+          variant="destructive"
+          className="ml-auto"
+          onClick={() => void window.agentmat.remote.disconnect()}
+        >
+          <LinkOff className="h-3.5 w-3.5" /> {connected || status === 'connecting' ? 'Disconnect' : 'Close'}
+        </Button>
+      </div>
+
+      <RemoteScreen screen={connection?.remoteScreen ?? null} live={connected} />
+    </div>
+  );
+}

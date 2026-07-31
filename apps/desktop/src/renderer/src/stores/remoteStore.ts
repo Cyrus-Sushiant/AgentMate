@@ -20,6 +20,20 @@ import {
 
 const MAX_LOGS = 100;
 
+/**
+ * The main window and the standalone remote-session window (`#/remote-session`,
+ * see `sessionWindow.ts` in main) each run their own copy of this renderer
+ * bundle, so `initRemote()` runs in both. Controller-role video negotiation
+ * must only ever happen in one of them — both reacting to the same broadcast
+ * `onState`/`onClientRtcSignal` events would open two independent WebRTC
+ * negotiations over the single main-process-owned control socket. The session
+ * window is the only place `RemoteScreen` mounts, so it's the only place that
+ * should drive the controller side.
+ */
+function isRemoteSessionWindow(): boolean {
+  return window.location.hash.startsWith('#/remote-session');
+}
+
 interface RemoteStore {
   state: RemoteState | null;
   logs: RemoteLogEvent[];
@@ -54,7 +68,9 @@ export function initRemote(): void {
     const previous = useRemoteStore.getState().state?.connection.status;
     useRemoteStore.setState({ state });
     // Controller role: ask for the video track as soon as the control channel
-    // is up, and drop the peer connection when it goes away.
+    // is up, and drop the peer connection when it goes away. Only the session
+    // window does this (see isRemoteSessionWindow's doc comment above).
+    if (!isRemoteSessionWindow()) return;
     const status = state.connection.status;
     if (status === 'connected' && previous !== 'connected') requestRemoteVideo();
     else if (status !== 'connected' && previous === 'connected') teardownRemoteVideo();
@@ -88,10 +104,12 @@ export function initRemote(): void {
   api.onCaptureRefresh(() => forceFullFrame());
   api.onTileDemand((demand) => setTilesEnabled(demand));
 
-  // Host side: WebRTC signaling relay for controllers streaming video.
+  // Host side: WebRTC signaling relay for controllers streaming video. Must
+  // keep running in every window (hosting survives navigating off the page).
   initRtcHost();
   // Controller side: receives the host's video track (desktop-to-desktop).
-  initRtcController();
+  // Session-window-only — see isRemoteSessionWindow's doc comment above.
+  if (isRemoteSessionWindow()) initRtcController();
 
   void useRemoteStore.getState().refresh();
 }

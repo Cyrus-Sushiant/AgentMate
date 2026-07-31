@@ -12,6 +12,7 @@ import type {
   RemoteLogLevel,
   RemotePairingInfo,
   RemotePeerInfo,
+  RemoteSavedServer,
   RemoteState,
 } from '../../shared/apiTypes';
 import { IPC } from '../../shared/ipcChannels';
@@ -29,8 +30,10 @@ import {
   type RemoteInputEvent,
   type RemoteRtcMessage,
 } from '../../shared/remoteProtocol';
+import { store } from '../store';
 import { InputInjector } from './inputInjector';
 import { listNetworkInterfaces } from './networkInterfaces';
+import { sessionWindow } from './sessionWindow';
 import { TokenStore } from './tokens';
 
 const FILE_CHUNK_BYTES = 64 * 1024;
@@ -106,6 +109,9 @@ class RemoteManager {
     remoteDeviceName: null,
     remoteScreen: null,
   };
+  /** Credentials behind the in-flight/most recent `connect()` call, used to save/refresh a saved-server entry once `auth-ok` arrives. */
+  private pendingConnect: { ip: string; port: number; token: string; deviceName: string } | null =
+    null;
 
   private readonly transfers = new Map<number, IncomingTransfer>();
 
@@ -114,6 +120,8 @@ class RemoteManager {
 
   init(window: BrowserWindow): void {
     this.mainWindow = window;
+    // Closing the session window ends the session, same as clicking Disconnect.
+    sessionWindow.setOnClose(() => this.disconnect());
   }
 
   private deviceName(): string {
@@ -462,6 +470,7 @@ class RemoteManager {
 
   connect(payload: { ip: string; port: number; token: string; deviceName: string }): void {
     this.disconnect();
+    this.pendingConnect = payload;
     this.connection = {
       status: 'connecting',
       remoteDeviceName: payload.deviceName,
@@ -507,13 +516,98 @@ class RemoteManager {
     });
   }
 
+  openSessionWindow(): void {
+    sessionWindow.open();
+  }
+
+  /**
+   * Tears down the outbound connection only — does NOT touch the session
+   * window. Also called internally at the top of `connect()` to clear a
+   * previous session before dialing a new one; closing the window here too
+   * would race the window's own async 'closed' event against that new
+   * connection (see `closeSessionAndDisconnect` for the window-closing path).
+   */
   disconnect(): void {
     if (this.client) {
       this.safeClose(this.client, 'controller disconnected');
       this.client = null;
     }
     this.connection = { status: 'idle', remoteDeviceName: null, remoteScreen: null };
+    this.pendingConnect = null;
     this.emitState();
+  }
+
+  /** The user-facing "Disconnect": ends the connection and closes its window. */
+  closeSessionAndDisconnect(): void {
+    this.disconnect();
+    sessionWindow.close();
+  }
+
+  // --- Saved servers (controller role) -----------------------------------------
+
+  async listSavedServers(): Promise<RemoteSavedServer[]> {
+    const servers = await store.getRemoteServers();
+    return [...servers].sort((a, b) => b.lastConnectedAt - a.lastConnectedAt);
+  }
+
+  async connectSaved(id: string): Promise<{ ok: boolean; error?: string }> {
+    const servers = await store.getRemoteServers();
+    const server = servers.find((s) => s.id === id);
+    if (!server) return { ok: false, error: 'That saved server no longer exists.' };
+    this.connect({
+      ip: server.ip,
+      port: server.port,
+      token: server.deviceToken,
+      deviceName: server.deviceName,
+    });
+    return { ok: true };
+  }
+
+  async renameSavedServer(id: string, nickname: string): Promise<void> {
+    const servers = await store.getRemoteServers();
+    const idx = servers.findIndex((s) => s.id === id);
+    if (idx < 0) return;
+    servers[idx] = { ...servers[idx], nickname };
+    await store.setRemoteServers(servers);
+  }
+
+  async removeSavedServer(id: string): Promise<void> {
+    const servers = await store.getRemoteServers();
+    await store.setRemoteServers(servers.filter((s) => s.id !== id));
+  }
+
+  /**
+   * Persists (or refreshes) a saved-server entry once a connection succeeds.
+   * A fresh `deviceToken` means we just paired for the first time; a reconnect
+   * via an already-saved token gets none (the host doesn't reissue), so the
+   * existing token is kept and only `lastConnectedAt` moves.
+   */
+  private async rememberServer(freshDeviceToken?: string): Promise<void> {
+    const pending = this.pendingConnect;
+    if (!pending) return;
+    const token = freshDeviceToken ?? pending.token;
+    const servers = await store.getRemoteServers();
+    const idx = servers.findIndex(
+      (s) => s.ip === pending.ip && s.port === pending.port && s.deviceName === pending.deviceName,
+    );
+    const now = Date.now();
+    if (idx >= 0) {
+      servers[idx] = { ...servers[idx], deviceToken: token, lastConnectedAt: now };
+    } else if (freshDeviceToken) {
+      servers.push({
+        id: randomUUID(),
+        nickname: pending.deviceName,
+        ip: pending.ip,
+        port: pending.port,
+        deviceName: pending.deviceName,
+        deviceToken: freshDeviceToken,
+        createdAt: now,
+        lastConnectedAt: now,
+      });
+    } else {
+      return; // no durable token to save and no existing entry to refresh
+    }
+    await store.setRemoteServers(servers);
   }
 
   sendInput(event: RemoteInputEvent): void {
@@ -550,6 +644,8 @@ class RemoteManager {
         if (this.client) this.sendControl(this.client, { t: 'control-start' });
         if (msg.screen.width) this.send(IPC.remote.onScreenInfo, msg.screen);
         this.log('success', `Connected to ${msg.deviceName}.`);
+        void this.rememberServer(msg.deviceToken);
+        sessionWindow.setTitle(`AgentMate Remote — ${msg.deviceName}`);
         this.emitState();
         break;
       case 'auth-fail':
@@ -766,10 +862,16 @@ class RemoteManager {
     }
   }
 
+  /**
+   * Broadcasts to the main window and, when open, the standalone session
+   * window — both run their own copy of the renderer bundle and may each have
+   * listeners for state/log/frame/signaling events.
+   */
   private send(channel: string, payload?: unknown): void {
-    const win = this.mainWindow;
-    if (!win || win.isDestroyed() || win.webContents.isDestroyed()) return;
-    win.webContents.send(channel, payload);
+    for (const target of [this.mainWindow, sessionWindow.get()]) {
+      if (!target || target.isDestroyed() || target.webContents.isDestroyed()) continue;
+      target.webContents.send(channel, payload);
+    }
   }
 
   private emitState(): void {

@@ -11,6 +11,7 @@ import type {
   PromptTemplate,
   ScheduledTask,
 } from '@agentmat/core';
+import type { RemoteSavedServer } from '../shared/apiTypes';
 import {
   DASHBOARD_STAT_IDS,
   defaultProjectNotifications,
@@ -144,6 +145,10 @@ export const store = {
   getScheduledTasks: (): Promise<ScheduledTask[]> => readJsonFile('scheduled-tasks.json', []),
   setScheduledTasks: (tasks: ScheduledTask[]): Promise<void> =>
     writeJsonFile('scheduled-tasks.json', tasks),
+
+  getRemoteServers: (): Promise<RemoteSavedServer[]> => readJsonFile('remote-servers.json', []),
+  setRemoteServers: (servers: RemoteSavedServer[]): Promise<void> =>
+    writeJsonFile('remote-servers.json', servers),
 };
 
 export async function logActivity(

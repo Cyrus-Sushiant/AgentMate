@@ -146,6 +146,14 @@ export const IPC = {
     isMaximized: 'window:isMaximized',
     onMaximizedChange: 'window:onMaximizedChange',
   },
+  /** Same shape as `window`, but scoped to the standalone remote session window. */
+  remoteSessionWindow: {
+    minimize: 'remoteSessionWindow:minimize',
+    maximizeToggle: 'remoteSessionWindow:maximizeToggle',
+    close: 'remoteSessionWindow:close',
+    isMaximized: 'remoteSessionWindow:isMaximized',
+    onMaximizedChange: 'remoteSessionWindow:onMaximizedChange',
+  },
   remote: {
     getState: 'remote:getState',
     listInterfaces: 'remote:listInterfaces',
@@ -154,6 +162,12 @@ export const IPC = {
     generatePairingCode: 'remote:generatePairingCode',
     connect: 'remote:connect',
     disconnect: 'remote:disconnect',
+    listSavedServers: 'remote:listSavedServers',
+    connectSaved: 'remote:connectSaved',
+    renameSavedServer: 'remote:renameSavedServer',
+    removeSavedServer: 'remote:removeSavedServer',
+    /** Opens (or focuses) the standalone, resizable session window. */
+    openSessionWindow: 'remote:openSessionWindow',
     sendInput: 'remote:sendInput',
     hostTile: 'remote:hostTile',
     setScreenInfo: 'remote:setScreenInfo',

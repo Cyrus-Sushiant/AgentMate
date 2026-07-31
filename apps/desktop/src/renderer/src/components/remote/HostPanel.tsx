@@ -17,6 +17,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { useRemoteStore } from '@/stores/remoteStore';
+import { subscribeHostQuality, type HostQualitySnapshot } from '@/lib/rtcHost';
+import { describeHostQuality, formatMbps } from '@/lib/remoteQuality';
 
 export function HostPanel(): React.JSX.Element {
   const state = useRemoteStore((s) => s.state);
@@ -28,6 +30,9 @@ export function HostPanel(): React.JSX.Element {
   const hosting = state?.hosting ?? false;
   const inputSupported = state?.inputSupported ?? false;
   const peers = state?.peers ?? [];
+  const [quality, setQuality] = useState<HostQualitySnapshot | null>(null);
+
+  useEffect(() => subscribeHostQuality(setQuality), []);
 
   // Default the interface selection to the first (LAN-preferred) address.
   useEffect(() => {
@@ -133,6 +138,12 @@ export function HostPanel(): React.JSX.Element {
               <Badge variant="success" className="gap-1.5">
                 <span className="h-1.5 w-1.5 rounded-full bg-current" /> Listening on {state?.hostIp}:
                 {state?.hostPort}
+              </Badge>
+            )}
+            {peers.length > 0 && quality && (
+              <Badge variant={describeHostQuality(quality).variant} className="gap-1.5">
+                {describeHostQuality(quality).label} · {formatMbps(quality.kbps)} ·{' '}
+                {quality.rttMs ?? '–'} ms
               </Badge>
             )}
           </div>

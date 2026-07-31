@@ -48,6 +48,7 @@ export function RemoteScreen({ screen, live }: RemoteScreenProps): React.JSX.Ele
     mode: 'idle',
     stream: null,
     cursor: null,
+    quality: null,
   });
 
   useEffect(() => subscribeControllerRtc(setRtc), []);
