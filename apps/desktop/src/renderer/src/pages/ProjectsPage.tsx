@@ -318,23 +318,7 @@ function ProjectCard({
     >
       <CardHeader className="pb-3">
         <div className="flex items-start justify-between gap-2">
-          <div className="flex min-w-0 items-center gap-2">
-            {draggable && (
-              <SimpleTooltip label="Drag to reorder">
-                <span
-                  draggable
-                  onClick={(e) => e.stopPropagation()}
-                  onDragStart={(e) => {
-                    e.dataTransfer.effectAllowed = 'move';
-                    onDragStart();
-                  }}
-                  onDragEnd={onDragEnd}
-                  className="shrink-0 cursor-grab text-muted-foreground/50 opacity-0 transition-opacity group-hover:opacity-100 hover:text-foreground active:cursor-grabbing"
-                >
-                  <GripVertical className="h-4 w-4" />
-                </span>
-              </SimpleTooltip>
-            )}
+          <div className="flex min-w-0 items-center gap-3">
             <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
               <Folder className="h-4 w-4" />
             </div>
@@ -346,11 +330,30 @@ function ProjectCard({
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-1">
+            {draggable && (
+              <SimpleTooltip label="Drag to reorder">
+                <span
+                  draggable
+                  onClick={(e) => e.stopPropagation()}
+                  onDragStart={(e) => {
+                    e.dataTransfer.effectAllowed = 'move';
+                    onDragStart();
+                  }}
+                  onDragEnd={onDragEnd}
+                  className="flex h-9 w-9 shrink-0 cursor-grab items-center justify-center rounded-md text-muted-foreground/50 opacity-0 transition-opacity group-hover:opacity-100 hover:bg-accent hover:text-accent-foreground active:cursor-grabbing"
+                >
+                  <GripVertical className="h-4 w-4" />
+                </span>
+              </SimpleTooltip>
+            )}
             <SimpleTooltip label={project.pinned ? 'Unpin project' : 'Pin to top'}>
               <Button
                 variant="ghost"
                 size="icon"
-                className={project.pinned ? 'text-primary' : undefined}
+                className={cn(
+                  'opacity-0 transition-opacity group-hover:opacity-100',
+                  project.pinned && 'text-primary opacity-100',
+                )}
                 onClick={(e) => {
                   e.stopPropagation();
                   onTogglePin();
