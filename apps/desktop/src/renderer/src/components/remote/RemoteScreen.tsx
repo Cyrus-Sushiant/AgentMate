@@ -41,6 +41,7 @@ export function RemoteScreen({ screen, live }: RemoteScreenProps): React.JSX.Ele
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const mediaRef = useRef<HTMLElement | null>(null);
+  const wrapperRef = useRef<HTMLDivElement>(null);
   const ctxRef = useRef<CanvasRenderingContext2D | null>(null);
   const lastMove = useRef(0);
   const [focused, setFocused] = useState(false);
@@ -86,6 +87,41 @@ export function RemoteScreen({ screen, live }: RemoteScreenProps): React.JSX.Ele
     });
     return unsub;
   }, [usingVideo]);
+
+  /**
+   * Reports this wrapper's physical-pixel size to the host (see the
+   * `display-size` protocol message and `QualityGovernor.displayScale`) so
+   * the host can send only as much resolution as this box can actually show
+   * — and raise it back up when the box grows (window resized/maximized)
+   * instead of staying capped at whatever a smaller size last requested.
+   * Debounced: a live drag-resize fires many times a second, and only the
+   * settled size is worth renegotiating encoder parameters for.
+   */
+  useEffect(() => {
+    if (!live) return;
+    const wrapper = wrapperRef.current;
+    if (!wrapper) return;
+    let debounceTimer: number | null = null;
+    const report = (): void => {
+      const rect = wrapper.getBoundingClientRect();
+      if (rect.width <= 0 || rect.height <= 0) return;
+      const dpr = window.devicePixelRatio || 1;
+      window.agentmat.remote.setDisplaySize({
+        width: Math.round(rect.width * dpr),
+        height: Math.round(rect.height * dpr),
+      });
+    };
+    const observer = new ResizeObserver(() => {
+      if (debounceTimer !== null) window.clearTimeout(debounceTimer);
+      debounceTimer = window.setTimeout(report, 400);
+    });
+    observer.observe(wrapper);
+    report(); // unthrottled initial report
+    return () => {
+      observer.disconnect();
+      if (debounceTimer !== null) window.clearTimeout(debounceTimer);
+    };
+  }, [live]);
 
   const normalized = useCallback((e: { clientX: number; clientY: number }) => {
     const media = mediaRef.current;
@@ -208,6 +244,7 @@ export function RemoteScreen({ screen, live }: RemoteScreenProps): React.JSX.Ele
        * the cursor overlay below both depend on.
        */}
       <div
+        ref={wrapperRef}
         className="relative max-h-full max-w-full"
         style={{ aspectRatio: String(aspect), height: '100%' }}
       >

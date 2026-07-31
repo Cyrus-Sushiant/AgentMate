@@ -98,6 +98,10 @@ export function registerRemoteHandlers(): void {
     remoteManager.setScreenInfo(size.width, size.height);
   });
 
+  ipcMain.on(IPC.remote.setDisplaySize, (_e, size: { width: number; height: number }) => {
+    remoteManager.setDisplaySize(size.width, size.height);
+  });
+
   ipcMain.on(IPC.remote.hostTile, (_e, tile: ArrayBuffer | Uint8Array) => {
     const bytes = tile instanceof Uint8Array ? tile : new Uint8Array(tile);
     remoteManager.hostTile(bytes);

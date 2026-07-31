@@ -84,6 +84,14 @@ export class QualityGovernor {
     private readonly pc: RTCPeerConnection,
     private readonly sender: RTCRtpSender,
     private readonly surface: () => Surface | null,
+    /**
+     * The controller's actual video display box, in physical pixels (see
+     * `RemoteScreen.tsx`'s ResizeObserver and the `display-size` protocol
+     * message). Optional so callers without a controller-size signal (e.g. a
+     * future non-interactive use) still work — `effectiveScale` just falls
+     * back to the ladder's own scale when absent.
+     */
+    private readonly displaySize: () => Surface | null = () => null,
   ) {}
 
   start(): void {
@@ -108,11 +116,35 @@ export class QualityGovernor {
     return LADDER[this.levelIndex];
   }
 
+  /**
+   * Extra downscale needed so the encoded frame never exceeds the
+   * controller's own display box — sending more pixels than it can show is
+   * pure waste, and conversely a large/maximized controller window can pull
+   * resolution back up toward the ladder rung's own scale instead of staying
+   * capped at whatever a small window last requested. Never goes below 1: a
+   * *small* controller window should never force upscaling past what the
+   * capture surface (and `MAX_EDGE`) already provide.
+   */
+  private displayScale(): number {
+    const surface = this.surface();
+    const display = this.displaySize();
+    if (!surface || !display || display.width <= 0 || display.height <= 0) return 1;
+    const surfaceEdge = Math.max(surface.width, surface.height);
+    const displayEdge = Math.max(display.width, display.height);
+    return Math.max(1, surfaceEdge / displayEdge);
+  }
+
+  /** The ladder rung's own scale, widened if the controller's display needs less than that rung provides. */
+  private effectiveScale(levelIndex: number): number {
+    return Math.max(LADDER[levelIndex].scale, this.displayScale());
+  }
+
   /** Ceiling implied by the pixels we're actually sending at this rung. */
   private ceilingBitrate(): number {
     const surface = this.surface();
     if (!surface) return 2_000_000;
-    const { scale, fps } = this.level;
+    const scale = this.effectiveScale(this.levelIndex);
+    const { fps } = this.level;
     const pixels = (surface.width / scale) * (surface.height / scale);
     return Math.max(MIN_BITRATE, Math.round(pixels * fps * BITS_PER_PIXEL));
   }
@@ -132,7 +164,8 @@ export class QualityGovernor {
       // congestion. 'maintain-resolution' collapses to a ~1 fps slideshow on
       // weak WiFi. For remote control, staying fluid wins.
       params.degradationPreference = 'balanced';
-      const { scale, fps } = this.level;
+      const scale = this.effectiveScale(this.levelIndex);
+      const { fps } = this.level;
       for (const encoding of params.encodings) {
         encoding.maxBitrate = this.targetBitrate(available);
         encoding.maxFramerate = fps;
@@ -244,7 +277,7 @@ export class QualityGovernor {
 
     const sample: QualitySample = {
       level: this.level.label,
-      scale: this.level.scale,
+      scale: this.effectiveScale(this.levelIndex),
       fps: this.level.fps,
       targetBitrate: target,
       availableBitrate: available,
@@ -262,7 +295,8 @@ export class QualityGovernor {
   private ceilingBitrateFor(levelIndex: number): number {
     const surface = this.surface();
     if (!surface) return 2_000_000;
-    const { scale, fps } = LADDER[levelIndex];
+    const scale = this.effectiveScale(levelIndex);
+    const { fps } = LADDER[levelIndex];
     const pixels = (surface.width / scale) * (surface.height / scale);
     return Math.max(MIN_BITRATE, Math.round(pixels * fps * BITS_PER_PIXEL));
   }

@@ -122,7 +122,16 @@ export type RemoteControlMessage =
   | { t: 'rtc-unavailable'; reason: string }
   | { t: 'rtc-offer'; sdp: string }
   | { t: 'rtc-answer'; sdp: string }
-  | { t: 'rtc-ice'; candidate: string; sdpMid: string | null; sdpMLineIndex: number | null };
+  | { t: 'rtc-ice'; candidate: string; sdpMid: string | null; sdpMLineIndex: number | null }
+  /**
+   * Controller reports the physical-pixel size of its actual video display
+   * box (not the whole window — the aspect-locked content area), so the host
+   * can avoid encoding more resolution than the controller can show, and can
+   * raise resolution back up for a large/maximized controller window instead
+   * of leaving it capped at whatever a small window last requested. Re-sent
+   * (debounced) whenever that box resizes.
+   */
+  | { t: 'display-size'; width: number; height: number };
 
 /** One entry in a remote-file-manager directory listing. */
 export interface RemoteFileEntry {

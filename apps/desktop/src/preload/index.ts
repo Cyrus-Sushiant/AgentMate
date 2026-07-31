@@ -449,6 +449,8 @@ const remote = {
   // Fire-and-forget, high-frequency channels.
   sendInput: (event: RemoteInputEvent): void => ipcRenderer.send(IPC.remote.sendInput, event),
   setScreenInfo: (size: RemoteScreenSize): void => ipcRenderer.send(IPC.remote.setScreenInfo, size),
+  setDisplaySize: (size: RemoteScreenSize): void =>
+    ipcRenderer.send(IPC.remote.setDisplaySize, size),
   hostTile: (tile: ArrayBuffer): void => ipcRenderer.send(IPC.remote.hostTile, tile),
   rtcSignal: (peerId: string, message: RemoteRtcMessage): void =>
     ipcRenderer.send(IPC.remote.rtcSignal, { peerId, message }),
@@ -482,6 +484,9 @@ const remote = {
     subscribe(IPC.remote.onFrameTile, cb),
   onScreenInfo: (cb: (size: RemoteScreenSize) => void): (() => void) =>
     subscribe(IPC.remote.onScreenInfo, cb),
+  onPeerDisplaySize: (
+    cb: (payload: { peerId: string; width: number; height: number }) => void,
+  ): (() => void) => subscribe(IPC.remote.onPeerDisplaySize, cb),
   onFileProgress: (cb: (progress: RemoteFileProgress) => void): (() => void) =>
     subscribe(IPC.remote.onFileProgress, cb),
   onLog: (cb: (event: RemoteLogEvent) => void): (() => void) => subscribe(IPC.remote.onLog, cb),

@@ -451,6 +451,17 @@ class RemoteManager {
           }
         }
         break;
+      case 'display-size':
+        // Only meaningful for a peer actually streaming video; harmless no-op
+        // otherwise (e.g. a 'files' peer, which never negotiates WebRTC).
+        if (peer.authed) {
+          this.send(IPC.remote.onPeerDisplaySize, {
+            peerId: peer.id,
+            width: msg.width,
+            height: msg.height,
+          });
+        }
+        break;
       case 'bye':
         this.safeClose(peer.ws, 'peer said bye');
         break;
@@ -719,6 +730,13 @@ class RemoteManager {
   sendInput(event: RemoteInputEvent): void {
     if (this.client && this.connection.status === 'connected') {
       this.sendControl(this.client, { t: 'input', event });
+    }
+  }
+
+  /** Controller role: reports the video display box's physical-pixel size so the host can match encode resolution to it. */
+  setDisplaySize(width: number, height: number): void {
+    if (this.client && this.connection.status === 'connected') {
+      this.sendControl(this.client, { t: 'display-size', width, height });
     }
   }
 

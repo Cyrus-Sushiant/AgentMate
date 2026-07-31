@@ -174,6 +174,8 @@ export const IPC = {
     sendInput: 'remote:sendInput',
     hostTile: 'remote:hostTile',
     setScreenInfo: 'remote:setScreenInfo',
+    /** Controller role: reports the video display box's physical-pixel size, debounced on resize. */
+    setDisplaySize: 'remote:setDisplaySize',
     sendClipboard: 'remote:sendClipboard',
     sendFile: 'remote:sendFile',
     getFileProgress: 'remote:getFileProgress',
@@ -209,6 +211,8 @@ export const IPC = {
     onCaptureStop: 'remote:onCaptureStop',
     onFrameTile: 'remote:onFrameTile',
     onScreenInfo: 'remote:onScreenInfo',
+    /** Host role: a connected peer reported (or updated) its display box size. */
+    onPeerDisplaySize: 'remote:onPeerDisplaySize',
     onFileProgress: 'remote:onFileProgress',
     onLog: 'remote:onLog',
   },

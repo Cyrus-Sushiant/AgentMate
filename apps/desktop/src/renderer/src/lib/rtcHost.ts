@@ -47,6 +47,16 @@ const peers = new Map<string, HostPeerSession>();
 let initialized = false;
 let cursorTracking = false;
 
+/**
+ * Physical-pixel size of each peer's actual video display box, as reported by
+ * `RemoteScreen`'s ResizeObserver (see `RemoteScreen.tsx`). Kept independent
+ * of `HostPeerSession` because a size report can arrive before `startPeer`
+ * creates the session (e.g. right after reconnect, before WebRTC finishes
+ * negotiating) — `QualityGovernor` reads it live via a getter closure instead
+ * of needing it injected at construction time.
+ */
+const peerDisplaySizes = new Map<string, { width: number; height: number }>();
+
 // --- Aggregate quality (for HostPanel's "how's this session doing" badge) -----
 // Lightweight on purpose: reports whichever peer sampled most recently rather
 // than tracking one badge per peer, since in practice a host is almost always
@@ -108,6 +118,9 @@ export function initRtcHost(): void {
   });
   window.agentmat.remote.onRtcPeerGone((peerId) => closeRtcPeer(peerId));
   window.agentmat.remote.onHostCursor((point) => broadcastCursor(point));
+  window.agentmat.remote.onPeerDisplaySize(({ peerId, width, height }) => {
+    peerDisplaySizes.set(peerId, { width, height });
+  });
 }
 
 export function closeRtcPeer(peerId: string): void {
@@ -115,6 +128,7 @@ export function closeRtcPeer(peerId: string): void {
   if (!session) return;
   peers.delete(peerId);
   lastHostBytesSent.delete(peerId);
+  peerDisplaySizes.delete(peerId);
   session.governor?.stop();
   try {
     session.input?.close();
@@ -218,7 +232,12 @@ async function startPeer(peerId: string): Promise<void> {
     // Codec preference is best-effort; negotiation still finds a common codec.
   }
 
-  session.governor = new QualityGovernor(pc, sender, () => getCaptureSurface());
+  session.governor = new QualityGovernor(
+    pc,
+    sender,
+    () => getCaptureSurface(),
+    () => peerDisplaySizes.get(peerId) ?? null,
+  );
   session.governor.onSample((sample: QualitySample) => {
     recordHostSample(peerId, sample);
     updateHostQuality(peerId, sample);
