@@ -184,9 +184,8 @@ export function RemoteScreen({ screen, live }: RemoteScreenProps): React.JSX.Ele
     onContextMenu: (e: React.MouseEvent) => e.preventDefault(),
     onFocus: () => setFocused(true),
     onBlur: () => setFocused(false),
-    style: { aspectRatio: String(aspect) },
     className: cn(
-      'max-h-full max-w-full object-contain outline-none',
+      'h-full w-full object-contain outline-none',
       live ? 'cursor-none' : 'cursor-default',
       focused ? 'ring-2 ring-primary' : 'ring-1 ring-border',
     ),
@@ -194,7 +193,24 @@ export function RemoteScreen({ screen, live }: RemoteScreenProps): React.JSX.Ele
 
   return (
     <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden bg-black/60 p-2">
-      <div className="relative inline-flex max-h-full max-w-full">
+      {/*
+       * This wrapper — not the video/canvas itself — carries the aspect-ratio
+       * lock. `height: 100%` gives it an active size to grow into (rather than
+       * only ever being capped from above), and the browser's aspect-ratio
+       * sizing algorithm shrinks-and-recomputes both axes together when
+       * `max-width` binds instead. Without an active height, the element only
+       * ever sized down to its *current* intrinsic resolution — so as the
+       * WebRTC quality governor stepped resolution down on a poor link, the
+       * displayed box visibly shrank instead of staying pinned to the
+       * available space. Keeping the lock here (not on the media element)
+       * also keeps `getBoundingClientRect()` on the media element exactly
+       * equal to the visible content bounds, which pointer normalization and
+       * the cursor overlay below both depend on.
+       */}
+      <div
+        className="relative max-h-full max-w-full"
+        style={{ aspectRatio: String(aspect), height: '100%' }}
+      >
         {usingVideo ? (
           <video
             {...interaction}

@@ -13,14 +13,21 @@ export interface RemoteQualityInfo {
   variant: 'success' | 'warning' | 'destructive';
 }
 
+/**
+ * fps deliberately isn't a signal here: screen-share encoders correctly send
+ * close to 0 fps for an unchanging desktop (nothing to encode), which isn't a
+ * quality problem — badging that "Poor" would flag the common, efficient case
+ * as broken. RTT and loss are the only reliable network-health signals; they
+ * stay meaningful regardless of how static the screen content is.
+ */
 export function describeRemoteQuality(
-  sample: Pick<RemoteQualitySample, 'rttMs' | 'packetsLost' | 'fps'>,
+  sample: Pick<RemoteQualitySample, 'rttMs' | 'packetsLost'>,
 ): RemoteQualityInfo {
-  const { rttMs, packetsLost, fps } = sample;
-  if ((rttMs !== null && rttMs > RTT_BAD_MS) || packetsLost > 20 || fps < 8) {
+  const { rttMs, packetsLost } = sample;
+  if ((rttMs !== null && rttMs > RTT_BAD_MS) || packetsLost > 20) {
     return { label: 'Poor', variant: 'destructive' };
   }
-  if ((rttMs !== null && rttMs > RTT_GOOD_MS) || packetsLost > 5 || fps < 18) {
+  if ((rttMs !== null && rttMs > RTT_GOOD_MS) || packetsLost > 5) {
     return { label: 'Fair', variant: 'warning' };
   }
   if (rttMs !== null && rttMs > 50) return { label: 'Good', variant: 'success' };

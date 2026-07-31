@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { LinkOff, Monitor, Send, Upload } from '@/components/icons';
+import { Monitor, Send, Upload } from '@/components/icons';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -77,13 +77,13 @@ export default function RemoteSessionRoute(): React.JSX.Element {
   return (
     <div className="flex h-screen w-screen flex-col overflow-hidden bg-background">
       <div
-        className="relative flex h-11 shrink-0 items-center justify-between border-b border-border pl-4 [-webkit-app-region:drag]"
+        className="relative flex h-11 shrink-0 items-center gap-3 border-b border-border pl-4 pr-2 [-webkit-app-region:drag]"
         onDoubleClick={() => void window.agentmat.remoteSessionWindow.maximizeToggle()}
       >
-        <div className="flex min-w-0 items-center gap-2">
+        <div className="flex shrink-0 items-center gap-2">
           {isMac && <MacTrafficLights {...controlProps} />}
           <Monitor className="h-4 w-4 shrink-0 text-primary" />
-          <span className="truncate text-sm font-semibold text-foreground">
+          <span className="max-w-[160px] truncate text-sm font-semibold text-foreground">
             {connection?.remoteDeviceName ?? 'Remote device'}
           </span>
           <Badge variant={statusBadge.variant} className="shrink-0 gap-1.5">
@@ -92,30 +92,61 @@ export default function RemoteSessionRoute(): React.JSX.Element {
           </Badge>
         </div>
 
-        {qualityInfo && quality && (
-          <div className="flex items-center gap-2 [-webkit-app-region:no-drag]">
-            <Badge variant={qualityInfo.variant}>{qualityInfo.label}</Badge>
-            <span className="whitespace-nowrap text-xs text-muted-foreground">
-              {formatMbps(quality.kbps)} · {quality.rttMs ?? '–'} ms · {quality.fps} fps
+        {/* Closing this window (the caption button at the far right) is the
+            only way to end the session — a separate Disconnect button here
+            would be redundant with it. */}
+        <div className="flex shrink-0 items-center gap-1.5 [-webkit-app-region:no-drag]">
+          <Button
+            size="sm"
+            variant="secondary"
+            disabled={!connected}
+            onClick={() => void window.agentmat.remote.sendClipboard()}
+          >
+            <Send className="h-3.5 w-3.5" /> Clipboard
+          </Button>
+          <Button
+            size="sm"
+            variant="secondary"
+            disabled={!connected}
+            onClick={() => void window.agentmat.remote.sendFile()}
+          >
+            <Upload className="h-3.5 w-3.5" /> Send file
+          </Button>
+          {connection?.remoteScreen && (
+            <span className="whitespace-nowrap px-1 text-xs text-muted-foreground">
+              {connection.remoteScreen.width}×{connection.remoteScreen.height}
             </span>
-            {history.length > 1 && (
-              <SparklineChart
-                className="w-24"
-                height={24}
-                timestamps={history.map((h) => h.t)}
-                series={[
-                  {
-                    key: 'kbps',
-                    label: 'Bandwidth',
-                    color: chartColors.blue,
-                    values: history.map((h) => h.kbps),
-                  },
-                ]}
-                formatValue={(v) => formatMbps(v)}
-              />
-            )}
-          </div>
-        )}
+          )}
+        </div>
+
+        <div className="flex min-w-0 flex-1 items-center justify-end gap-2 [-webkit-app-region:no-drag]">
+          {qualityInfo && quality && (
+            <>
+              <Badge variant={qualityInfo.variant} className="shrink-0">
+                {qualityInfo.label}
+              </Badge>
+              <span className="shrink-0 whitespace-nowrap text-xs text-muted-foreground">
+                {formatMbps(quality.kbps)} · {quality.rttMs ?? '–'} ms · {quality.fps} fps
+              </span>
+              {history.length > 1 && (
+                <SparklineChart
+                  className="w-24 shrink-0"
+                  height={24}
+                  timestamps={history.map((h) => h.t)}
+                  series={[
+                    {
+                      key: 'kbps',
+                      label: 'Bandwidth',
+                      color: chartColors.blue,
+                      values: history.map((h) => h.kbps),
+                    },
+                  ]}
+                  formatValue={(v) => formatMbps(v)}
+                />
+              )}
+            </>
+          )}
+        </div>
 
         {!isMac && <NativeCaptionButtons {...controlProps} />}
       </div>
@@ -125,38 +156,6 @@ export default function RemoteSessionRoute(): React.JSX.Element {
           {connection.error}
         </div>
       )}
-
-      <div className="flex items-center gap-2 border-b border-border bg-secondary/20 px-3 py-2 [-webkit-app-region:no-drag]">
-        <Button
-          size="sm"
-          variant="secondary"
-          disabled={!connected}
-          onClick={() => void window.agentmat.remote.sendClipboard()}
-        >
-          <Send className="h-3.5 w-3.5" /> Clipboard
-        </Button>
-        <Button
-          size="sm"
-          variant="secondary"
-          disabled={!connected}
-          onClick={() => void window.agentmat.remote.sendFile()}
-        >
-          <Upload className="h-3.5 w-3.5" /> Send file
-        </Button>
-        {connection?.remoteScreen && (
-          <span className="text-xs text-muted-foreground">
-            {connection.remoteScreen.width}×{connection.remoteScreen.height}
-          </span>
-        )}
-        <Button
-          size="sm"
-          variant="destructive"
-          className="ml-auto"
-          onClick={() => void window.agentmat.remote.disconnect()}
-        >
-          <LinkOff className="h-3.5 w-3.5" /> {connected || status === 'connecting' ? 'Disconnect' : 'Close'}
-        </Button>
-      </div>
 
       <RemoteScreen screen={connection?.remoteScreen ?? null} live={connected} />
     </div>

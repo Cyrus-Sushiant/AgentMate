@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { createReadStream, createWriteStream, existsSync, type WriteStream } from 'node:fs';
 import { stat } from 'node:fs/promises';
 import { basename, join } from 'node:path';
-import { app, BrowserWindow, clipboard, dialog, screen } from 'electron';
+import { app, BrowserWindow, clipboard, dialog, powerSaveBlocker, screen } from 'electron';
 import QRCode from 'qrcode';
 import { WebSocket, WebSocketServer } from 'ws';
 import type {
@@ -95,6 +95,14 @@ class RemoteManager {
   private hostIp: string | null = null;
   private hostPort = 7900;
   private readonly peers = new Map<string, HostPeer>();
+  /**
+   * Windows/macOS blank the display (and screensaver/lock can follow) after
+   * an idle timeout regardless of whether someone is actively watching this
+   * machine's screen remotely — and once the display is off, screen capture
+   * APIs return black frames, so the controller sees nothing. Held for as
+   * long as at least one controller is actually authed against this host.
+   */
+  private powerSaveBlockerId: number | null = null;
   private hostScreen: { width: number; height: number } | null = null;
   private capturing = false;
   private tileDemand = true;
@@ -201,7 +209,19 @@ class RemoteManager {
     this.setCursorTracking(false);
     // Only tear the injector down if we aren't also acting as a controller elsewhere.
     this.injector.stop();
+    this.syncPowerSaveBlocker();
     this.emitState();
+  }
+
+  /** Keeps the display awake for exactly as long as someone is actually watching it. */
+  private syncPowerSaveBlocker(): void {
+    const hasAuthedPeer = [...this.peers.values()].some((p) => p.authed);
+    if (hasAuthedPeer && this.powerSaveBlockerId == null) {
+      this.powerSaveBlockerId = powerSaveBlocker.start('prevent-display-sleep');
+    } else if (!hasAuthedPeer && this.powerSaveBlockerId != null) {
+      powerSaveBlocker.stop(this.powerSaveBlockerId);
+      this.powerSaveBlockerId = null;
+    }
   }
 
   async generatePairingCode(): Promise<RemotePairingInfo> {
@@ -363,6 +383,7 @@ class RemoteManager {
           }
           this.startCapture();
           this.updateTileDemand();
+          this.syncPowerSaveBlocker();
           this.sendControl(peer.ws, {
             t: 'auth-ok',
             deviceName: this.deviceName(),
@@ -463,6 +484,7 @@ class RemoteManager {
       this.send(IPC.remote.onCaptureStop);
     }
     this.updateTileDemand();
+    this.syncPowerSaveBlocker();
     this.emitState();
   }
 
