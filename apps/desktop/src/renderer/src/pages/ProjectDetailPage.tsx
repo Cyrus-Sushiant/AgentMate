@@ -618,7 +618,7 @@ export default function ProjectDetailPage(): React.JSX.Element {
             </TabsContent>
 
             <TabsContent value="git" className="space-y-4">
-              <GitTab projectId={project.id} />
+              <GitTab projectId={project.id} projectPath={project.folderPath} />
             </TabsContent>
 
             <TabsContent value="schedule" className="space-y-3">
@@ -1199,7 +1199,13 @@ function GitStatusBadge({ x, y }: { x: string; y: string }): React.JSX.Element {
   );
 }
 
-function GitTab({ projectId }: { projectId: string }): React.JSX.Element {
+function GitTab({
+  projectId,
+  projectPath,
+}: {
+  projectId: string;
+  projectPath: string;
+}): React.JSX.Element {
   const queryClient = useQueryClient();
   const provider = useAskAiStore((s) => s.provider);
   const openaiModel = useAskAiStore((s) => s.openaiModel);
@@ -1488,6 +1494,7 @@ function GitTab({ projectId }: { projectId: string }): React.JSX.Element {
 
       <TagVersionDialog
         projectId={projectId}
+        projectPath={projectPath}
         tagInfo={tagsQuery.data ?? null}
         open={tagOpen}
         onOpenChange={setTagOpen}
@@ -1504,23 +1511,75 @@ function GitTab({ projectId }: { projectId: string }): React.JSX.Element {
   );
 }
 
+/** Prompt handed to the agent CLI to roll a new version number through the project's files. */
+function buildVersionBumpPrompt(tag: string): string {
+  const version = tag.replace(/^v/, '');
+  return [
+    `Update this project's version to ${version} (git tag ${tag}).`,
+    '',
+    '- Set the version field in every manifest this repo actually uses: package.json (including',
+    '  workspace packages), pyproject.toml, Cargo.toml, *.csproj, app.json, build.gradle,',
+    '  Info.plist, and so on.',
+    '- Update hard-coded version strings the application itself displays (about screens, footers,',
+    '  constants such as APP_VERSION).',
+    '- Leave lockfiles alone. Only touch a CHANGELOG if this project clearly keeps one.',
+    '- Do not commit, tag or push anything. Just make the edits and list the files you changed.',
+  ].join('\n');
+}
+
 function TagVersionDialog({
   projectId,
+  projectPath,
   tagInfo,
   open,
   onOpenChange,
 }: {
   projectId: string;
+  projectPath: string;
   tagInfo: GitTagInfo | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }): React.JSX.Element {
   const queryClient = useQueryClient();
+  const openSession = useTerminalStore((s) => s.openSession);
+  const defaultCliId = useCliStore((s) => s.defaultCliId);
   const [tag, setTag] = useState('');
   const [message, setMessage] = useState('');
   const [reason, setReason] = useState<string | null>(null);
 
   const hasRemote = tagInfo?.hasRemote ?? false;
+
+  /**
+   * Version bumps edit source files, so this runs in a visible terminal session rather than
+   * headlessly: the CLI starts with the prompt typed in, and the user hits Enter and reviews
+   * the edits as the agent makes them.
+   */
+  async function handleApplyVersion(): Promise<void> {
+    const cliDef = CLI_REGISTRY.find((cli) => cli.id === defaultCliId);
+    if (!cliDef) {
+      toast.error('Choose a default CLI in Settings first.');
+      return;
+    }
+
+    const promptFile = await window.agentmat.fs.writeScratchFile(
+      `version-bump-${tag.trim().replace(/[^A-Za-z0-9._-]/g, '-')}.md`,
+      buildVersionBumpPrompt(tag.trim()),
+    );
+    const executable = cliDef.executableNames[0];
+    const command =
+      window.agentmat.platform === 'win32'
+        ? `& ${executable} (Get-Content -Raw -LiteralPath "${promptFile}")`
+        : `${executable} "$(cat '${promptFile}')"`;
+
+    openSession({
+      title: `Bump to ${tag.trim()}`,
+      cwd: projectPath,
+      projectId,
+      initialInput: command,
+    });
+    // Close without clearing the fields: the tag still has to be created once the bump is committed.
+    onOpenChange(false);
+  }
 
   const suggestMutation = useMutation({
     mutationFn: () => window.agentmat.git.suggestTag(projectId),
@@ -1597,6 +1656,24 @@ function TagVersionDialog({
               placeholder="What this release contains…"
             />
           </div>
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-card/60 px-3 py-2">
+            <div className="min-w-0">
+              <p className="text-sm font-medium">Apply this version to the project</p>
+              <p className="text-xs text-muted-foreground">
+                Opens your default CLI in a terminal with a prompt to update package.json, other
+                manifests and any version shown in the app. Commit those edits before tagging.
+              </p>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={!tag.trim()}
+              onClick={() => void handleApplyVersion()}
+            >
+              <FileCog className="h-3.5 w-3.5" /> Update version in files
+            </Button>
+          </div>
+
           {tagInfo && tagInfo.recentTags.length > 0 && (
             <div className="flex flex-wrap items-center gap-1.5">
               <span className="text-xs text-muted-foreground">Existing:</span>
