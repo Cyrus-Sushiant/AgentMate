@@ -1203,14 +1203,50 @@ function GitStatusBadge({ x, y }: { x: string; y: string }): React.JSX.Element {
   );
 }
 
-/** Cancel affordance shown next to an AI button while its request is in flight. */
-function CancelAiButton({ onCancel }: { onCancel: () => void }): React.JSX.Element {
+/**
+ * One button for both halves of an AI call: it asks while idle, and turns into a red
+ * cancel while the request is in flight, so the running request is stopped from the
+ * same spot it was started.
+ */
+function AiSuggestButton({
+  pending,
+  onStart,
+  onCancel,
+  disabled,
+  size,
+  label,
+  pendingTooltip,
+}: {
+  pending: boolean;
+  onStart: () => void;
+  onCancel: () => void;
+  disabled?: boolean;
+  size?: 'sm';
+  label: string;
+  /** Says what is running, since the button itself only reads "Cancel" at that point. */
+  pendingTooltip: string;
+}): React.JSX.Element {
+  const iconSize = size === 'sm' ? 'h-3.5 w-3.5' : 'h-4 w-4';
+
+  if (pending) {
+    return (
+      <SimpleTooltip label={pendingTooltip}>
+        <Button
+          variant="outline"
+          size={size}
+          onClick={onCancel}
+          className="border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
+        >
+          <X className={iconSize} /> Cancel
+        </Button>
+      </SimpleTooltip>
+    );
+  }
+
   return (
-    <SimpleTooltip label="Cancel this AI request">
-      <Button variant="ghost" size="icon" onClick={onCancel} aria-label="Cancel AI request">
-        <X className="h-4 w-4" />
-      </Button>
-    </SimpleTooltip>
+    <Button variant="outline" size={size} disabled={disabled} onClick={onStart}>
+      <Sparkles className={iconSize} /> {label}
+    </Button>
   );
 }
 
@@ -1456,15 +1492,15 @@ function GitTab({
             placeholder="feat/my-change"
           />
           <div className="flex items-center gap-2 pt-1">
-            <Button
-              variant="outline"
+            <AiSuggestButton
               size="sm"
-              disabled={suggestingBranch || status.files.length === 0}
-              onClick={() => void handleSuggestBranchName()}
-            >
-              <Sparkles className="h-3.5 w-3.5" /> {suggestingBranch ? 'Thinking…' : 'Suggest with AI'}
-            </Button>
-            {suggestingBranch && <CancelAiButton onCancel={() => cancelAiRequest(branchRequestRef)} />}
+              label="Suggest with AI"
+              pendingTooltip="Generating a branch name — click to cancel"
+              pending={suggestingBranch}
+              disabled={status.files.length === 0}
+              onStart={() => void handleSuggestBranchName()}
+              onCancel={() => cancelAiRequest(branchRequestRef)}
+            />
             <Button
               size="sm"
               disabled={createBranchMutation.isPending || !branchName.trim()}
@@ -1486,15 +1522,15 @@ function GitTab({
             rows={3}
           />
           <div className="flex items-center gap-2 pt-1">
-            <Button
-              variant="outline"
+            <AiSuggestButton
               size="sm"
-              disabled={suggestingCommit || status.files.length === 0}
-              onClick={() => void handleSuggestCommitMessage()}
-            >
-              <Sparkles className="h-3.5 w-3.5" /> {suggestingCommit ? 'Thinking…' : 'Suggest with AI'}
-            </Button>
-            {suggestingCommit && <CancelAiButton onCancel={() => cancelAiRequest(commitRequestRef)} />}
+              label="Suggest with AI"
+              pendingTooltip="Writing a commit message — click to cancel"
+              pending={suggestingCommit}
+              disabled={status.files.length === 0}
+              onStart={() => void handleSuggestCommitMessage()}
+              onCancel={() => cancelAiRequest(commitRequestRef)}
+            />
             <Button
               size="sm"
               disabled={commitMutation.isPending || !commitMessage.trim() || status.files.length === 0}
@@ -1761,17 +1797,26 @@ function TagVersionDialog({
           </p>
         </div>
         <DialogFooter>
-          <SimpleTooltip label="Reads the commits since the latest tag with your default CLI and proposes the next semantic version">
-            <Button
-              variant="outline"
-              disabled={suggestMutation.isPending || createTagMutation.isPending}
-              onClick={() => suggestMutation.mutate()}
-            >
-              <Sparkles className="h-4 w-4" />
-              {suggestMutation.isPending ? 'Asking your CLI…' : 'Suggest with AI'}
-            </Button>
-          </SimpleTooltip>
-          {suggestMutation.isPending && <CancelAiButton onCancel={handleCancelSuggest} />}
+          {suggestMutation.isPending ? (
+            <AiSuggestButton
+              label="Suggest with AI"
+              pendingTooltip="Asking your CLI for the next version — click to cancel"
+              pending
+              onStart={() => suggestMutation.mutate()}
+              onCancel={handleCancelSuggest}
+            />
+          ) : (
+            <SimpleTooltip label="Reads the commits since the latest tag with your CLI and proposes the next semantic version">
+              <AiSuggestButton
+                label="Suggest with AI"
+                pendingTooltip=""
+                pending={false}
+                disabled={createTagMutation.isPending}
+                onStart={() => suggestMutation.mutate()}
+                onCancel={handleCancelSuggest}
+              />
+            </SimpleTooltip>
+          )}
           <Button
             disabled={createTagMutation.isPending || !tag.trim()}
             onClick={() => createTagMutation.mutate()}
