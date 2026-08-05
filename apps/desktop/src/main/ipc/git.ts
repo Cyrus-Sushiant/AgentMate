@@ -243,6 +243,51 @@ function parseSuggestedTag(text: string, latestTag: string | null): SuggestedTag
   return { tag, reason: reason || undefined, message: notes || undefined };
 }
 
+interface SemverParts {
+  major: number;
+  minor: number;
+  patch: number;
+  /** Set for pre-releases like 1.7.0-rc.1, which sort below the plain 1.7.0. */
+  prerelease: string | null;
+}
+
+function parseSemver(tag: string): SemverParts | null {
+  const match = tag.trim().match(/^v?(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?/);
+  if (!match) return null;
+  return {
+    major: parseInt(match[1], 10),
+    minor: parseInt(match[2], 10),
+    patch: parseInt(match[3], 10),
+    prerelease: match[4] ?? null,
+  };
+}
+
+/** Positive when `a` is newer than `b`. */
+function compareSemver(a: SemverParts, b: SemverParts): number {
+  if (a.major !== b.major) return a.major - b.major;
+  if (a.minor !== b.minor) return a.minor - b.minor;
+  if (a.patch !== b.patch) return a.patch - b.patch;
+  if (a.prerelease === b.prerelease) return 0;
+  if (!a.prerelease) return 1;
+  if (!b.prerelease) return -1;
+  return a.prerelease.localeCompare(b.prerelease);
+}
+
+/**
+ * The next version worked out from the commit subjects alone, using conventional-commit
+ * markers: a `!` or BREAKING CHANGE means major, a `feat` means minor, anything else patch.
+ * This is the safety net for when the CLI answers with a version that isn't actually a bump
+ * of the latest tag, which models do surprisingly often (a stock "1.2.3", say).
+ */
+function deriveNextVersion(latest: SemverParts, subjects: string[]): string {
+  const isBreaking = subjects.some((s) => /^[a-z]+(\([^)]*\))?!:/i.test(s) || /BREAKING[ -]CHANGE/i.test(s));
+  const hasFeature = subjects.some((s) => /^feat(\([^)]*\))?:/i.test(s));
+
+  if (isBreaking) return `${latest.major + 1}.0.0`;
+  if (hasFeature) return `${latest.major}.${latest.minor + 1}.0`;
+  return `${latest.major}.${latest.minor}.${latest.patch + 1}`;
+}
+
 async function runGitOp(fn: () => Promise<string>): Promise<GitOpResult> {
   try {
     const output = await fn();
@@ -394,6 +439,10 @@ export function registerGitHandlers(): void {
       'You are picking the next git tag for a release, following semantic versioning: bump the major ' +
       'version for breaking changes, the minor version for new features, the patch version for fixes ' +
       'and chores only. Do not read or edit any files; judge only from the information below.\n\n' +
+      (latestTag
+        ? `The repository's latest tag is ${latestTag}. Your answer MUST be a bump of exactly that ` +
+          'version and must be greater than it. Never invent an unrelated version number.\n\n'
+        : '') +
       'Answer in exactly this format, with no markdown and nothing else:\n' +
       'TAG: <the new tag>\n' +
       'WHY: <one short sentence explaining the bump>\n' +
@@ -423,12 +472,27 @@ export function registerGitHandlers(): void {
         error: `${result.cliName} did not return a version number.`,
       };
     }
+
+    // Models regularly answer with a stock version ("1.2.3") that has nothing to do with
+    // the repo. Anything that isn't strictly newer than the latest tag is dropped in favour
+    // of a bump derived from the commits themselves.
+    let tag = parsed.tag;
+    let reason = parsed.reason;
+    const latestParts = latestTag ? parseSemver(latestTag) : null;
+    const suggestedParts = parseSemver(tag);
+    if (latestParts && (!suggestedParts || compareSemver(suggestedParts, latestParts) <= 0)) {
+      const derived = deriveNextVersion(latestParts, subjects);
+      const rejected = tag;
+      tag = latestTag?.startsWith('v') ? `v${derived}` : derived;
+      reason = `${result.cliName} suggested ${rejected}, which isn't newer than ${latestTag}; used ${tag} from the commit history instead.`;
+    }
+
     return {
       ok: true,
-      tag: parsed.tag,
-      reason: parsed.reason,
+      tag,
+      reason,
       // A CLI that ignored the NOTES section still gets a usable annotation, straight from the log.
-      message: parsed.message || fallbackTagMessage(parsed.tag, subjects),
+      message: parsed.message || fallbackTagMessage(tag, subjects),
       cliName: result.cliName,
     };
     },
