@@ -73,12 +73,16 @@ interface ExecOutcome {
 /**
  * execFile, but the child handle is kept so the run can be killed mid-flight, which
  * promisify() hides. Non-zero exits resolve rather than reject; the caller decides.
+ * `stdinPayload` is null for CLIs that take the prompt as an argument (stdin is closed
+ * immediately so a CLI that happens to check for EOF never blocks); when set, it's
+ * written to the child's stdin instead of being appended to argv.
  */
 function execPrompt(
   command: string,
   args: string[],
   cwd: string,
   requestId: string | undefined,
+  stdinPayload: string | null,
 ): Promise<ExecOutcome> {
   return new Promise((resolve) => {
     const options = {
@@ -92,13 +96,18 @@ function execPrompt(
       env: { ...process.env, CLINE_NO_AUTO_UPDATE: '1' },
     };
     // npm-installed CLIs are .cmd shims on Windows, which Node refuses to spawn directly;
-    // cmd.exe gets an argv array (not `shell: true`), so the prompt stays a single argument.
+    // cmd.exe gets an argv array (not `shell: true`), so args never get re-parsed as a
+    // single shell line. cmd.exe's own /c buffer still caps out at ~8191 characters
+    // though, so a caller with a long prompt must send it via stdin instead of argv.
     const child =
       process.platform === 'win32'
         ? execFile('cmd.exe', ['/d', '/s', '/c', command, ...args], options, done)
         : execFile(command, args, options, done);
 
     if (requestId) runningPrompts.set(requestId, { child, cancelled: false });
+
+    if (stdinPayload !== null) child.stdin?.end(stdinPayload);
+    else child.stdin?.end();
 
     function done(error: Error | null, stdout: string, stderr: string): void {
       // Read the cancelled flag before dropping the entry: the kill lands here as a plain
@@ -165,6 +174,23 @@ function stripEnvExpansions(prompt: string): string {
   return process.platform === 'win32' ? prompt.replace(/%([A-Za-z0-9_]+)%/g, '$1') : prompt;
 }
 
+/**
+ * cmd.exe caps the /c command line it builds at 8191 characters; go over that and it
+ * fails with "The command line is too long." before the CLI ever runs. A diff-heavy
+ * prompt (git changes, release notes) can easily exceed that on its own, so trim it down
+ * with room for the CLI's own command and args. Only cmd.exe enforces this, so other
+ * platforms pass the prompt through untouched.
+ */
+const WINDOWS_PROMPT_BUDGET_CHARS = 5000;
+
+function truncateForCommandLine(prompt: string, command: string, args: string[]): string {
+  if (process.platform !== 'win32') return prompt;
+  const overhead = command.length + args.join(' ').length + 20;
+  const budget = Math.max(WINDOWS_PROMPT_BUDGET_CHARS - overhead, 500);
+  if (prompt.length <= budget) return prompt;
+  return `${prompt.slice(0, budget)}\n… (truncated: too long for the command line)`;
+}
+
 export interface HeadlessPromptOptions {
   /** Lets cancelHeadlessPrompt(requestId) stop this run. */
   requestId?: string;
@@ -206,12 +232,22 @@ export async function runHeadlessCliPrompt(
     };
   }
 
-  const outcome = await execPrompt(
-    cli.promptCommand.command,
-    [...cli.promptCommand.args, stripEnvExpansions(prompt)],
-    cwd,
-    options.requestId,
-  );
+  // Stdin bypasses cmd.exe's command line entirely, so a CLI confirmed to read the
+  // prompt that way needs neither the %VAR% stripping nor the length truncation below,
+  // both of which only exist because cmd.exe reparses whatever lands in argv.
+  const outcome =
+    cli.promptInputMode === 'stdin'
+      ? await execPrompt(cli.promptCommand.command, cli.promptCommand.args, cwd, options.requestId, prompt)
+      : await execPrompt(
+          cli.promptCommand.command,
+          [
+            ...cli.promptCommand.args,
+            truncateForCommandLine(stripEnvExpansions(prompt), cli.promptCommand.command, cli.promptCommand.args),
+          ],
+          cwd,
+          options.requestId,
+          null,
+        );
 
   // A cancel that lost the race with completion would otherwise sit in the set forever.
   const cancelledLate = options.requestId ? cancelledBeforeStart.delete(options.requestId) : false;

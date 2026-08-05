@@ -11,6 +11,7 @@ import type {
   GitOpResult,
   GitStatus,
   GitTagInfo,
+  SuggestGitTextResult,
   SuggestTagResult,
 } from '../../shared/apiTypes';
 import { cancelHeadlessPrompt, runHeadlessCliPrompt } from '../cli/headlessPrompt';
@@ -434,6 +435,52 @@ export function registerGitHandlers(): void {
   );
 
   ipcMain.handle(IPC.git.cancelSuggestTag, (_event, requestId: string): boolean => {
+    return cancelHeadlessPrompt(requestId);
+  });
+
+  ipcMain.handle(
+    IPC.git.suggestBranchName,
+    async (_event, projectId: string, requestId?: string): Promise<SuggestGitTextResult> => {
+      const project = await getProject(projectId);
+      const summary = await readChangeSummary(project.folderPath);
+      const prompt =
+        'Generate a single short git branch name (kebab-case, e.g. "feat/add-login" or ' +
+        '"fix/null-check", max 60 characters, no spaces, no quotes, no markdown) describing these ' +
+        'uncommitted changes. Do not read or edit any files; judge only from the information below. ' +
+        `Reply with ONLY the branch name and nothing else.\n\n${summary}`;
+
+      const result = await runHeadlessCliPrompt(prompt, project.folderPath, {
+        requestId,
+        preferredCliId: project.cliId,
+      });
+      return { ok: result.ok, text: result.text, cliName: result.cliName, error: result.error, cancelled: result.cancelled };
+    },
+  );
+
+  ipcMain.handle(IPC.git.cancelSuggestBranchName, (_event, requestId: string): boolean => {
+    return cancelHeadlessPrompt(requestId);
+  });
+
+  ipcMain.handle(
+    IPC.git.suggestCommitMessage,
+    async (_event, projectId: string, requestId?: string): Promise<SuggestGitTextResult> => {
+      const project = await getProject(projectId);
+      const summary = await readChangeSummary(project.folderPath);
+      const prompt =
+        'Write a concise, conventional-commit style git commit message (a short summary line, ' +
+        'optionally followed by a brief body) describing these changes. Do not read or edit any ' +
+        'files; judge only from the information below. Reply with ONLY the commit message, no code ' +
+        `fences, no extra commentary.\n\n${summary}`;
+
+      const result = await runHeadlessCliPrompt(prompt, project.folderPath, {
+        requestId,
+        preferredCliId: project.cliId,
+      });
+      return { ok: result.ok, text: result.text, cliName: result.cliName, error: result.error, cancelled: result.cancelled };
+    },
+  );
+
+  ipcMain.handle(IPC.git.cancelSuggestCommitMessage, (_event, requestId: string): boolean => {
     return cancelHeadlessPrompt(requestId);
   });
 

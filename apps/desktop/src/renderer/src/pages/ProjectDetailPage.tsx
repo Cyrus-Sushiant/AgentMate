@@ -94,9 +94,7 @@ import { timeAgo } from '@/lib/time';
 import { usePageHeader } from '@/stores/pageHeaderStore';
 import { useCliStore } from '@/stores/cliStore';
 import { useTerminalStore } from '@/stores/terminalStore';
-import { useAskAiStore } from '@/stores/askAiStore';
 import { confirmDialog } from '@/stores/confirmStore';
-import type { AiProvider } from '../../../shared/apiTypes';
 
 const TARGET_AI_TO_CLI_ID: Record<string, string> = {
   Claude: 'claude-code',
@@ -1265,11 +1263,6 @@ function GitTab({
   projectCliId: string | null;
 }): React.JSX.Element {
   const queryClient = useQueryClient();
-  const provider = useAskAiStore((s) => s.provider);
-  const openaiModel = useAskAiStore((s) => s.openaiModel);
-  const ollamaModel = useAskAiStore((s) => s.ollamaModel);
-  const geminiModel = useAskAiStore((s) => s.geminiModel);
-  const model = provider === 'openai' ? openaiModel : provider === 'gemini' ? geminiModel : ollamaModel;
 
   const [branchName, setBranchName] = useState('');
   const [commitMessage, setCommitMessage] = useState('');
@@ -1335,44 +1328,28 @@ function GitTab({
     },
   });
 
-  async function requireAiModel(): Promise<boolean> {
-    if (!model.trim()) {
-      toast.error(`Choose a ${provider} model in Ask AI first.`);
-      return false;
-    }
-    return true;
-  }
-
-  /** Aborts whichever Ask AI request the given ref is tracking, if one is still running. */
-  function cancelAiRequest(ref: React.MutableRefObject<string | null>): void {
+  /** Kills the CLI process behind an in-flight suggestion, rather than just ignoring its answer. */
+  function cancelSuggestion(
+    ref: React.MutableRefObject<string | null>,
+    cancel: (requestId: string) => Promise<boolean>,
+  ): void {
     const requestId = ref.current;
     if (!requestId) return;
     ref.current = null;
-    void window.agentmat.ai.cancel(requestId);
+    void cancel(requestId);
   }
 
   async function handleSuggestBranchName(): Promise<void> {
-    if (!(await requireAiModel())) return;
     const requestId = crypto.randomUUID();
     branchRequestRef.current = requestId;
     setSuggestingBranch(true);
     try {
-      const summary = await window.agentmat.git.changeSummary(projectId);
-      const prompt =
-        'Generate a single short git branch name (kebab-case, e.g. "feat/add-login" or ' +
-        '"fix/null-check", max 60 characters, no spaces, no quotes, no markdown) describing these ' +
-        `uncommitted changes. Reply with ONLY the branch name and nothing else.\n\n${summary}`;
-      const result = await window.agentmat.ai.ask({
-        provider: provider as AiProvider,
-        model,
-        prompt,
-        requestId,
-      });
+      const result = await window.agentmat.git.suggestBranchName(projectId, requestId);
       if (result.cancelled) return;
-      if (result.ok && result.text.trim()) {
+      if (result.ok && result.text?.trim()) {
         setBranchName(sanitizeBranchName(result.text));
       } else {
-        toast.error(result.error || 'AI did not return a branch name.');
+        toast.error(result.error || 'The CLI did not return a branch name.');
       }
     } finally {
       branchRequestRef.current = null;
@@ -1381,27 +1358,16 @@ function GitTab({
   }
 
   async function handleSuggestCommitMessage(): Promise<void> {
-    if (!(await requireAiModel())) return;
     const requestId = crypto.randomUUID();
     commitRequestRef.current = requestId;
     setSuggestingCommit(true);
     try {
-      const summary = await window.agentmat.git.changeSummary(projectId);
-      const prompt =
-        'Write a concise, conventional-commit style git commit message (a short summary line, ' +
-        'optionally followed by a brief body) describing these changes. Reply with ONLY the commit ' +
-        `message, no code fences, no extra commentary.\n\n${summary}`;
-      const result = await window.agentmat.ai.ask({
-        provider: provider as AiProvider,
-        model,
-        prompt,
-        requestId,
-      });
+      const result = await window.agentmat.git.suggestCommitMessage(projectId, requestId);
       if (result.cancelled) return;
-      if (result.ok && result.text.trim()) {
+      if (result.ok && result.text?.trim()) {
         setCommitMessage(sanitizeCommitMessage(result.text));
       } else {
-        toast.error(result.error || 'AI did not return a commit message.');
+        toast.error(result.error || 'The CLI did not return a commit message.');
       }
     } finally {
       commitRequestRef.current = null;
@@ -1505,7 +1471,7 @@ function GitTab({
               pending={suggestingBranch}
               disabled={status.files.length === 0}
               onStart={() => void handleSuggestBranchName()}
-              onCancel={() => cancelAiRequest(branchRequestRef)}
+              onCancel={() => cancelSuggestion(branchRequestRef, window.agentmat.git.cancelSuggestBranchName)}
             />
             <Button
               size="sm"
@@ -1536,7 +1502,7 @@ function GitTab({
               pending={suggestingCommit}
               disabled={status.files.length === 0}
               onStart={() => void handleSuggestCommitMessage()}
-              onCancel={() => cancelAiRequest(commitRequestRef)}
+              onCancel={() => cancelSuggestion(commitRequestRef, window.agentmat.git.cancelSuggestCommitMessage)}
             />
             <Button
               size="sm"

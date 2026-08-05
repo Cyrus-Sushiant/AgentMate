@@ -65,6 +65,7 @@ import type {
   GitOpResult,
   GitTagInfo,
   CreateTagInput,
+  SuggestGitTextResult,
   SuggestTagResult,
   CreatePullRequestInput,
   CreatePullRequestResult,
@@ -399,6 +400,16 @@ const git = {
   /** Kills the CLI process behind an in-flight suggestTag(requestId). */
   cancelSuggestTag: (requestId: string): Promise<boolean> =>
     ipcRenderer.invoke(IPC.git.cancelSuggestTag, requestId),
+  suggestBranchName: (projectId: string, requestId?: string): Promise<SuggestGitTextResult> =>
+    ipcRenderer.invoke(IPC.git.suggestBranchName, projectId, requestId),
+  /** Kills the CLI process behind an in-flight suggestBranchName(requestId). */
+  cancelSuggestBranchName: (requestId: string): Promise<boolean> =>
+    ipcRenderer.invoke(IPC.git.cancelSuggestBranchName, requestId),
+  suggestCommitMessage: (projectId: string, requestId?: string): Promise<SuggestGitTextResult> =>
+    ipcRenderer.invoke(IPC.git.suggestCommitMessage, projectId, requestId),
+  /** Kills the CLI process behind an in-flight suggestCommitMessage(requestId). */
+  cancelSuggestCommitMessage: (requestId: string): Promise<boolean> =>
+    ipcRenderer.invoke(IPC.git.cancelSuggestCommitMessage, requestId),
   createPullRequest: (input: CreatePullRequestInput): Promise<CreatePullRequestResult> =>
     ipcRenderer.invoke(IPC.git.createPullRequest, input),
 };

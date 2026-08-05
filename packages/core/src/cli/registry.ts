@@ -26,11 +26,18 @@ export const CliDefinitionSchema = z.object({
   detectCommand: ShellCommandSchema,
   versionCommand: ShellCommandSchema,
   /**
-   * One-shot ("headless") prompt invocation: the prompt text is appended as the
-   * final argument, and the agent answers on stdout without opening a TUI.
-   * Absent for CLIs that have no non-interactive mode we can rely on.
+   * One-shot ("headless") prompt invocation: the agent answers on stdout without
+   * opening a TUI. Absent for CLIs that have no non-interactive mode we can rely on.
    */
   promptCommand: ShellCommandSchema.optional(),
+  /**
+   * How the prompt text reaches `promptCommand`: appended as the final argument
+   * (the default), or piped through stdin. Windows routes every npm-installed CLI
+   * through cmd.exe, which caps its own command line at ~8191 characters, so a
+   * diff-heavy prompt needs the stdin path to avoid "The command line is too long."
+   * Only set this for CLIs confirmed to read a piped prompt in headless mode.
+   */
+  promptInputMode: z.enum(['arg', 'stdin']).optional(),
   /** Keyed by SupportedOS; not every OS needs an entry. */
   installCommand: z.record(z.string(), z.string()),
   /** Keyed by SupportedOS; falls back to installCommand when absent. */
@@ -52,6 +59,7 @@ export const CLI_REGISTRY: CliDefinition[] = [
     detectCommand: { command: 'claude', args: ['--version'] },
     versionCommand: { command: 'claude', args: ['--version'] },
     promptCommand: { command: 'claude', args: ['-p'] },
+    promptInputMode: 'stdin',
     installCommand: {
       win32: 'npm install -g @anthropic-ai/claude-code',
       darwin: 'npm install -g @anthropic-ai/claude-code',
@@ -69,6 +77,7 @@ export const CLI_REGISTRY: CliDefinition[] = [
     detectCommand: { command: 'gemini', args: ['--version'] },
     versionCommand: { command: 'gemini', args: ['--version'] },
     promptCommand: { command: 'gemini', args: ['-p'] },
+    promptInputMode: 'stdin',
     installCommand: {
       win32: 'npm install -g @google/gemini-cli',
       darwin: 'npm install -g @google/gemini-cli',
@@ -103,6 +112,7 @@ export const CLI_REGISTRY: CliDefinition[] = [
     detectCommand: { command: 'codex', args: ['--version'] },
     versionCommand: { command: 'codex', args: ['--version'] },
     promptCommand: { command: 'codex', args: ['exec'] },
+    promptInputMode: 'stdin',
     installCommand: {
       win32: 'npm install -g @openai/codex',
       darwin: 'npm install -g @openai/codex',
@@ -179,6 +189,7 @@ export const CLI_REGISTRY: CliDefinition[] = [
     detectCommand: { command: 'qwen', args: ['--version'] },
     versionCommand: { command: 'qwen', args: ['--version'] },
     promptCommand: { command: 'qwen', args: ['-p'] },
+    promptInputMode: 'stdin',
     installCommand: {
       win32: 'npm install -g @qwen-code/qwen-code',
       darwin: 'npm install -g @qwen-code/qwen-code',
