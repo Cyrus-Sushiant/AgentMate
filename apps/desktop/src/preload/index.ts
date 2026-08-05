@@ -67,6 +67,8 @@ import type {
   CreateTagInput,
   SuggestGitTextResult,
   SuggestTagResult,
+  ApplyVersionInput,
+  ApplyVersionResult,
   CreatePullRequestInput,
   CreatePullRequestResult,
   PackageScanResult,
@@ -400,6 +402,11 @@ const git = {
   /** Kills the CLI process behind an in-flight suggestTag(requestId). */
   cancelSuggestTag: (requestId: string): Promise<boolean> =>
     ipcRenderer.invoke(IPC.git.cancelSuggestTag, requestId),
+  /** Runs the CLI over the project's files to bump every version string to `tag`. */
+  applyVersion: (input: ApplyVersionInput): Promise<ApplyVersionResult> =>
+    ipcRenderer.invoke(IPC.git.applyVersion, input),
+  cancelApplyVersion: (requestId: string): Promise<boolean> =>
+    ipcRenderer.invoke(IPC.git.cancelApplyVersion, requestId),
   suggestBranchName: (projectId: string, requestId?: string): Promise<SuggestGitTextResult> =>
     ipcRenderer.invoke(IPC.git.suggestBranchName, projectId, requestId),
   /** Kills the CLI process behind an in-flight suggestBranchName(requestId). */

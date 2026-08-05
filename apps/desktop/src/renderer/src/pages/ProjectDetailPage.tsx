@@ -616,11 +616,7 @@ export default function ProjectDetailPage(): React.JSX.Element {
             </TabsContent>
 
             <TabsContent value="git" className="space-y-4">
-              <GitTab
-                projectId={project.id}
-                projectPath={project.folderPath}
-                projectCliId={project.cliId}
-              />
+              <GitTab projectId={project.id} />
             </TabsContent>
 
             <TabsContent value="schedule" className="space-y-3">
@@ -1255,12 +1251,8 @@ function AiSuggestButton({
 
 function GitTab({
   projectId,
-  projectPath,
-  projectCliId,
 }: {
   projectId: string;
-  projectPath: string;
-  projectCliId: string | null;
 }): React.JSX.Element {
   const queryClient = useQueryClient();
 
@@ -1270,6 +1262,7 @@ function GitTab({
   const [suggestingCommit, setSuggestingCommit] = useState(false);
   const [prOpen, setPrOpen] = useState(false);
   const [tagOpen, setTagOpen] = useState(false);
+  const [applyVersionTag, setApplyVersionTag] = useState<string | null>(null);
   const branchRequestRef = useRef<string | null>(null);
   const commitRequestRef = useRef<string | null>(null);
 
@@ -1550,11 +1543,27 @@ function GitTab({
 
       <TagVersionDialog
         projectId={projectId}
-        projectPath={projectPath}
-        projectCliId={projectCliId}
         tagInfo={tagsQuery.data ?? null}
         open={tagOpen}
         onOpenChange={setTagOpen}
+        onApplyVersion={(nextTag) => {
+          // Swap dialogs rather than stacking them; the tag dialog keeps its fields for after.
+          setTagOpen(false);
+          setApplyVersionTag(nextTag);
+        }}
+      />
+
+      <ApplyVersionDialog
+        projectId={projectId}
+        tag={applyVersionTag}
+        open={applyVersionTag !== null}
+        onOpenChange={(next) => {
+          if (!next) setApplyVersionTag(null);
+        }}
+        onBackToTag={() => {
+          setApplyVersionTag(null);
+          setTagOpen(true);
+        }}
       />
 
       <CreatePrDialog
@@ -1569,80 +1578,178 @@ function GitTab({
   );
 }
 
-/** Prompt handed to the agent CLI to roll a new version number through the project's files. */
-function buildVersionBumpPrompt(tag: string): string {
-  const version = tag.replace(/^v/, '');
-  return [
-    `Update this project's version to ${version} (git tag ${tag}).`,
-    '',
-    '- Set the version field in every manifest this repo actually uses: package.json (including',
-    '  workspace packages), pyproject.toml, Cargo.toml, *.csproj, app.json, build.gradle,',
-    '  Info.plist, and so on.',
-    '- Update hard-coded version strings the application itself displays (about screens, footers,',
-    '  constants such as APP_VERSION).',
-    '- Leave lockfiles alone. Only touch a CHANGELOG if this project clearly keeps one.',
-    '- Do not commit, tag or push anything. Just make the edits and list the files you changed.',
-  ].join('\n');
+/**
+ * Runs the version bump in place and reports back here, rather than handing the user off
+ * to a terminal. The CLI edits files with its write flags enabled, so the "Files changed"
+ * list below comes from git's own before/after view of the working tree, not the CLI's word.
+ */
+function ApplyVersionDialog({
+  projectId,
+  tag,
+  open,
+  onOpenChange,
+  onBackToTag,
+}: {
+  projectId: string;
+  tag: string | null;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onBackToTag: () => void;
+}): React.JSX.Element {
+  const queryClient = useQueryClient();
+  const requestRef = useRef<string | null>(null);
+  const startedForRef = useRef<string | null>(null);
+
+  const applyMutation = useMutation({
+    mutationFn: (versionTag: string) => {
+      const requestId = crypto.randomUUID();
+      requestRef.current = requestId;
+      return window.agentmat.git.applyVersion({ projectId, tag: versionTag, requestId });
+    },
+    onSettled: () => {
+      requestRef.current = null;
+      void queryClient.invalidateQueries({ queryKey: queryKeys.gitStatus(projectId) });
+    },
+  });
+
+  const { reset, mutate } = applyMutation;
+
+  // The run starts as soon as the dialog opens: the user already asked for it by clicking
+  // "Update version in files". The ref guards against a re-run on unrelated re-renders.
+  useEffect(() => {
+    if (!open || !tag) {
+      startedForRef.current = null;
+      return;
+    }
+    if (startedForRef.current === tag) return;
+    startedForRef.current = tag;
+    reset();
+    mutate(tag);
+  }, [open, tag, mutate, reset]);
+
+  function handleCancel(): void {
+    const requestId = requestRef.current;
+    if (!requestId) return;
+    requestRef.current = null;
+    void window.agentmat.git.cancelApplyVersion(requestId);
+  }
+
+  const result = applyMutation.data;
+  const failed = applyMutation.isError || (result && !result.ok && !result.cancelled);
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="flex max-h-[85vh] max-w-2xl flex-col overflow-hidden">
+        <DialogHeader>
+          <DialogTitle>Update version in files</DialogTitle>
+          <DialogDescription>
+            Setting this project's version to <span className="font-mono">{tag}</span>.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="-mx-1 min-h-0 flex-1 space-y-3 overflow-y-auto px-1">
+          {applyMutation.isPending && (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Spinner className="h-4 w-4 animate-spin" />
+              Your CLI is updating version strings. This can take a minute…
+            </div>
+          )}
+
+          {result?.cancelled && (
+            <p className="text-sm text-muted-foreground">
+              Cancelled. Any edits already written are listed below.
+            </p>
+          )}
+
+          {failed && (
+            <div className="space-y-1 rounded-lg border border-destructive/40 bg-destructive/5 p-3">
+              <p className="flex items-center gap-1.5 text-sm font-medium text-destructive">
+                <TriangleAlert className="h-3.5 w-3.5" /> The run failed
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {result?.error ?? (applyMutation.error as Error | null)?.message ?? 'Unknown error.'}
+              </p>
+            </div>
+          )}
+
+          {result && result.changedFiles.length > 0 && (
+            <div className="space-y-1.5">
+              <p className="text-xs font-medium text-muted-foreground">
+                Files changed ({result.changedFiles.length})
+              </p>
+              <div className="space-y-1">
+                {result.changedFiles.map((file) => (
+                  <p key={file} className="truncate font-mono text-xs">
+                    {file}
+                  </p>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {result?.ok && result.changedFiles.length === 0 && (
+            <p className="text-sm text-muted-foreground">
+              The run finished without changing any files. The version may already be set, or the
+              CLI could not find where it lives.
+            </p>
+          )}
+
+          {result?.output && (
+            <div className="space-y-1.5">
+              <p className="text-xs font-medium text-muted-foreground">
+                {result.cliName ?? 'CLI'} output
+              </p>
+              <pre className="max-h-64 overflow-auto rounded-lg border border-border bg-card/60 p-3 text-xs whitespace-pre-wrap">
+                {result.output}
+              </pre>
+            </div>
+          )}
+        </div>
+
+        <DialogFooter>
+          {applyMutation.isPending ? (
+            <Button
+              variant="outline"
+              onClick={handleCancel}
+              className="border-destructive/40 hover:bg-destructive/10"
+            >
+              <X className="h-4 w-4 text-destructive" /> Cancel
+            </Button>
+          ) : (
+            <>
+              <Button variant="outline" onClick={onBackToTag}>
+                <Tag className="h-4 w-4" /> Back to tag
+              </Button>
+              <Button onClick={() => onOpenChange(false)}>Done</Button>
+            </>
+          )}
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
 }
 
 function TagVersionDialog({
   projectId,
-  projectPath,
-  projectCliId,
   tagInfo,
   open,
   onOpenChange,
+  onApplyVersion,
 }: {
   projectId: string;
-  projectPath: string;
-  projectCliId: string | null;
   tagInfo: GitTagInfo | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** Hands the entered tag to the apply-version dialog. */
+  onApplyVersion: (tag: string) => void;
 }): React.JSX.Element {
   const queryClient = useQueryClient();
-  const openSession = useTerminalStore((s) => s.openSession);
-  const appDefaultCliId = useCliStore((s) => s.defaultCliId);
   const [tag, setTag] = useState('');
   const [message, setMessage] = useState('');
   const [reason, setReason] = useState<string | null>(null);
   const suggestRequestRef = useRef<string | null>(null);
 
   const hasRemote = tagInfo?.hasRemote ?? false;
-  // A project can pin its own CLI; otherwise it follows the app-wide default from Settings.
-  const effectiveCliId = projectCliId ?? appDefaultCliId;
-
-  /**
-   * Version bumps edit source files, so this runs in a visible terminal session rather than
-   * headlessly: the CLI starts with the prompt typed in, and the user hits Enter and reviews
-   * the edits as the agent makes them.
-   */
-  async function handleApplyVersion(): Promise<void> {
-    const cliDef = CLI_REGISTRY.find((cli) => cli.id === effectiveCliId);
-    if (!cliDef) {
-      toast.error("Choose a CLI for this project, or a default CLI in Settings.");
-      return;
-    }
-
-    const promptFile = await window.agentmat.fs.writeScratchFile(
-      `version-bump-${tag.trim().replace(/[^A-Za-z0-9._-]/g, '-')}.md`,
-      buildVersionBumpPrompt(tag.trim()),
-    );
-    const executable = cliDef.executableNames[0];
-    const command =
-      window.agentmat.platform === 'win32'
-        ? `& ${executable} (Get-Content -Raw -LiteralPath "${promptFile}")`
-        : `${executable} "$(cat '${promptFile}')"`;
-
-    openSession({
-      title: `Bump to ${tag.trim()}`,
-      cwd: projectPath,
-      projectId,
-      initialInput: command,
-    });
-    // Close without clearing the fields: the tag still has to be created once the bump is committed.
-    onOpenChange(false);
-  }
 
   const suggestMutation = useMutation({
     mutationFn: () => {
@@ -1739,15 +1846,15 @@ function TagVersionDialog({
             <div className="min-w-0">
               <p className="text-sm font-medium">Apply this version to the project</p>
               <p className="text-xs text-muted-foreground">
-                Opens your default CLI in a terminal with a prompt to update package.json, other
-                manifests and any version shown in the app. Commit those edits before tagging.
+                Runs your CLI over package.json, other manifests and any version shown in the app,
+                and reports what it changed. Commit those edits before tagging.
               </p>
             </div>
             <Button
               variant="outline"
               size="sm"
               disabled={!tag.trim()}
-              onClick={() => void handleApplyVersion()}
+              onClick={() => onApplyVersion(tag.trim())}
             >
               <FileCog className="h-3.5 w-3.5" /> Update version in files
             </Button>

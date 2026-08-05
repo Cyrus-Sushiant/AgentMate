@@ -325,6 +325,25 @@ export interface CreateTagInput {
   push: boolean;
 }
 
+export interface ApplyVersionInput {
+  projectId: string;
+  /** Tag being prepared, e.g. "v1.7.0"; the manifests get it without the leading "v". */
+  tag: string;
+  /** Lets git.cancelAiPrompt(requestId) stop the run. */
+  requestId?: string;
+}
+
+export interface ApplyVersionResult {
+  ok: boolean;
+  /** What the CLI reported it did. */
+  output: string;
+  /** Working-tree paths that differ from before the run. */
+  changedFiles: string[];
+  cliName?: string | null;
+  error?: string;
+  cancelled?: boolean;
+}
+
 export interface SuggestTagResult {
   ok: boolean;
   /** Suggested tag name, e.g. "v1.6.2". */

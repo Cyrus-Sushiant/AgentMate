@@ -38,6 +38,13 @@ export const CliDefinitionSchema = z.object({
    * Only set this for CLIs confirmed to read a piped prompt in headless mode.
    */
   promptInputMode: z.enum(['arg', 'stdin']).optional(),
+  /**
+   * Extra args that let a headless run actually edit files. Without them these CLIs
+   * either stop to ask for approval (which nothing can answer with no TTY) or refuse
+   * to write at all. Absent for CLIs that already edit by default in headless mode, and
+   * for read-only ones. Only ever added for prompts the user explicitly asked to apply.
+   */
+  promptWriteArgs: z.array(z.string()).optional(),
   /** Keyed by SupportedOS; not every OS needs an entry. */
   installCommand: z.record(z.string(), z.string()),
   /** Keyed by SupportedOS; falls back to installCommand when absent. */
@@ -60,6 +67,7 @@ export const CLI_REGISTRY: CliDefinition[] = [
     versionCommand: { command: 'claude', args: ['--version'] },
     promptCommand: { command: 'claude', args: ['-p'] },
     promptInputMode: 'stdin',
+    promptWriteArgs: ['--permission-mode', 'acceptEdits'],
     installCommand: {
       win32: 'npm install -g @anthropic-ai/claude-code',
       darwin: 'npm install -g @anthropic-ai/claude-code',
@@ -78,6 +86,7 @@ export const CLI_REGISTRY: CliDefinition[] = [
     versionCommand: { command: 'gemini', args: ['--version'] },
     promptCommand: { command: 'gemini', args: ['-p'] },
     promptInputMode: 'stdin',
+    promptWriteArgs: ['--yolo'],
     installCommand: {
       win32: 'npm install -g @google/gemini-cli',
       darwin: 'npm install -g @google/gemini-cli',
@@ -113,6 +122,7 @@ export const CLI_REGISTRY: CliDefinition[] = [
     versionCommand: { command: 'codex', args: ['--version'] },
     promptCommand: { command: 'codex', args: ['exec'] },
     promptInputMode: 'stdin',
+    promptWriteArgs: ['--full-auto'],
     installCommand: {
       win32: 'npm install -g @openai/codex',
       darwin: 'npm install -g @openai/codex',
@@ -149,6 +159,7 @@ export const CLI_REGISTRY: CliDefinition[] = [
     detectCommand: { command: 'cursor-agent', args: ['--version'] },
     versionCommand: { command: 'cursor-agent', args: ['--version'] },
     promptCommand: { command: 'cursor-agent', args: ['-p'] },
+    promptWriteArgs: ['--force'],
     installCommand: {
       win32: "irm 'https://cursor.com/install?win32=true' | iex",
       darwin: 'curl https://cursor.com/install -fsS | bash',
@@ -190,6 +201,7 @@ export const CLI_REGISTRY: CliDefinition[] = [
     versionCommand: { command: 'qwen', args: ['--version'] },
     promptCommand: { command: 'qwen', args: ['-p'] },
     promptInputMode: 'stdin',
+    promptWriteArgs: ['--yolo'],
     installCommand: {
       win32: 'npm install -g @qwen-code/qwen-code',
       darwin: 'npm install -g @qwen-code/qwen-code',

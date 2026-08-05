@@ -4,6 +4,8 @@ import { ipcMain } from 'electron';
 import type { Project } from '@agentmat/core';
 import { IPC } from '../../shared/ipcChannels';
 import type {
+  ApplyVersionInput,
+  ApplyVersionResult,
   CreatePullRequestInput,
   CreatePullRequestResult,
   CreateTagInput,
@@ -288,6 +290,48 @@ function deriveNextVersion(latest: SemverParts, subjects: string[]): string {
   return `${latest.major}.${latest.minor}.${latest.patch + 1}`;
 }
 
+/**
+ * Per-path edit sizes against HEAD, plus untracked paths. Comparing two of these across a
+ * run is what identifies the files an agent touched. A plain `git status` comparison would
+ * miss any file that was already modified beforehand, since its status letters don't change.
+ */
+async function readWorkingTreeFingerprint(cwd: string): Promise<Map<string, string>> {
+  const fingerprint = new Map<string, string>();
+
+  // Fails on a repo with no commits yet, where there is nothing to diff against.
+  const numstat = await git(cwd, ['diff', 'HEAD', '--numstat']).catch(() => '');
+  for (const line of numstat.split('\n')) {
+    const parts = line.trim().split('\t');
+    if (parts.length >= 3) fingerprint.set(parts.slice(2).join('\t'), `${parts[0]}/${parts[1]}`);
+  }
+
+  const untracked = await git(cwd, ['ls-files', '--others', '--exclude-standard']).catch(() => '');
+  for (const path of untracked.split('\n').map((p) => p.trim()).filter(Boolean)) {
+    fingerprint.set(path, 'untracked');
+  }
+
+  return fingerprint;
+}
+
+/** Prompt handed to the agent CLI to roll a new version number through the project's files. */
+function buildVersionBumpPrompt(tag: string): string {
+  const version = tag.replace(/^v/, '');
+  return [
+    `Update this project's version to ${version} (git tag ${tag}).`,
+    '',
+    '- Set the version field in every manifest this repo actually uses: package.json (including',
+    '  workspace packages), pyproject.toml, Cargo.toml, *.csproj, app.json, build.gradle,',
+    '  Info.plist, and so on.',
+    '- Update hard-coded version strings the application itself displays (about screens, footers,',
+    '  constants such as APP_VERSION).',
+    '- Leave lockfiles alone. Only touch a CHANGELOG if this project clearly keeps one.',
+    '- Do not commit, tag or push anything.',
+    '',
+    'When you are done, reply with a short plain-text summary: one line per file you changed,',
+    'as "path: old version -> new version". No markdown.',
+  ].join('\n');
+}
+
 async function runGitOp(fn: () => Promise<string>): Promise<GitOpResult> {
   try {
     const output = await fn();
@@ -499,6 +543,51 @@ export function registerGitHandlers(): void {
   );
 
   ipcMain.handle(IPC.git.cancelSuggestTag, (_event, requestId: string): boolean => {
+    return cancelHeadlessPrompt(requestId);
+  });
+
+  ipcMain.handle(
+    IPC.git.applyVersion,
+    async (_event, input: ApplyVersionInput): Promise<ApplyVersionResult> => {
+      const project = await getProject(input.projectId);
+      const cwd = project.folderPath;
+      const tag = input.tag.trim();
+      if (!tag) {
+        return { ok: false, output: '', changedFiles: [], error: 'No version to apply.' };
+      }
+
+      // Snapshot first: the CLI's own summary of what it edited can't be trusted, and
+      // diffing the working tree before and after is the only account of it that can.
+      const before = await readWorkingTreeFingerprint(cwd);
+
+      const result = await runHeadlessCliPrompt(buildVersionBumpPrompt(tag), cwd, {
+        requestId: input.requestId,
+        preferredCliId: project.cliId,
+        allowWrites: true,
+      });
+
+      const after = await readWorkingTreeFingerprint(cwd);
+      const changedFiles = [...after.entries()]
+        .filter(([path, edits]) => before.get(path) !== edits)
+        .map(([path]) => path)
+        .sort();
+
+      if (!result.ok) {
+        return {
+          ok: false,
+          output: result.text,
+          changedFiles,
+          cliName: result.cliName,
+          error: result.error,
+          cancelled: result.cancelled,
+        };
+      }
+
+      return { ok: true, output: result.text, changedFiles, cliName: result.cliName };
+    },
+  );
+
+  ipcMain.handle(IPC.git.cancelApplyVersion, (_event, requestId: string): boolean => {
     return cancelHeadlessPrompt(requestId);
   });
 

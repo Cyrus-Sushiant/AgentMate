@@ -259,6 +259,8 @@ export const IPC = {
     createTag: 'git:createTag',
     suggestTag: 'git:suggestTag',
     cancelSuggestTag: 'git:cancelSuggestTag',
+    applyVersion: 'git:applyVersion',
+    cancelApplyVersion: 'git:cancelApplyVersion',
     suggestBranchName: 'git:suggestBranchName',
     cancelSuggestBranchName: 'git:cancelSuggestBranchName',
     suggestCommitMessage: 'git:suggestCommitMessage',

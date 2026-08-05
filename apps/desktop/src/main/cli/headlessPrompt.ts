@@ -196,6 +196,11 @@ export interface HeadlessPromptOptions {
   requestId?: string;
   /** CLI the project asked for; falls back to the app default when unset or unusable. */
   preferredCliId?: string | null;
+  /**
+   * Adds the CLI's write flags so the agent can apply edits without a TTY to approve
+   * them. Only set for prompts the user explicitly asked to run against their files.
+   */
+  allowWrites?: boolean;
 }
 
 /**
@@ -235,14 +240,19 @@ export async function runHeadlessCliPrompt(
   // Stdin bypasses cmd.exe's command line entirely, so a CLI confirmed to read the
   // prompt that way needs neither the %VAR% stripping nor the length truncation below,
   // both of which only exist because cmd.exe reparses whatever lands in argv.
+  // Write flags go before the prompt so they're read as flags, not as part of it.
+  const baseArgs = options.allowWrites
+    ? [...(cli.promptWriteArgs ?? []), ...cli.promptCommand.args]
+    : cli.promptCommand.args;
+
   const outcome =
     cli.promptInputMode === 'stdin'
-      ? await execPrompt(cli.promptCommand.command, cli.promptCommand.args, cwd, options.requestId, prompt)
+      ? await execPrompt(cli.promptCommand.command, baseArgs, cwd, options.requestId, prompt)
       : await execPrompt(
           cli.promptCommand.command,
           [
-            ...cli.promptCommand.args,
-            truncateForCommandLine(stripEnvExpansions(prompt), cli.promptCommand.command, cli.promptCommand.args),
+            ...baseArgs,
+            truncateForCommandLine(stripEnvExpansions(prompt), cli.promptCommand.command, baseArgs),
           ],
           cwd,
           options.requestId,
