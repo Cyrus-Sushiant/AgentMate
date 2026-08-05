@@ -304,6 +304,8 @@ const translate = {
 
 const ai = {
   ask: (input: AskAiInput): Promise<AskAiResult> => ipcRenderer.invoke(IPC.ai.ask, input),
+  /** Aborts an in-flight ask() that was given the same requestId. */
+  cancel: (requestId: string): Promise<boolean> => ipcRenderer.invoke(IPC.ai.cancel, requestId),
   listOllamaModels: (): Promise<string[]> => ipcRenderer.invoke(IPC.ai.listOllamaModels),
   listGeminiModels: (): Promise<string[]> => ipcRenderer.invoke(IPC.ai.listGeminiModels),
 };
@@ -392,8 +394,11 @@ const git = {
   tags: (projectId: string): Promise<GitTagInfo> => ipcRenderer.invoke(IPC.git.tags, projectId),
   createTag: (input: CreateTagInput): Promise<GitOpResult> =>
     ipcRenderer.invoke(IPC.git.createTag, input),
-  suggestTag: (projectId: string): Promise<SuggestTagResult> =>
-    ipcRenderer.invoke(IPC.git.suggestTag, projectId),
+  suggestTag: (projectId: string, requestId?: string): Promise<SuggestTagResult> =>
+    ipcRenderer.invoke(IPC.git.suggestTag, projectId, requestId),
+  /** Kills the CLI process behind an in-flight suggestTag(requestId). */
+  cancelSuggestTag: (requestId: string): Promise<boolean> =>
+    ipcRenderer.invoke(IPC.git.cancelSuggestTag, requestId),
   createPullRequest: (input: CreatePullRequestInput): Promise<CreatePullRequestResult> =>
     ipcRenderer.invoke(IPC.git.createPullRequest, input),
 };

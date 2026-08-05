@@ -3,7 +3,17 @@ import { IPC } from '../../shared/ipcChannels';
 import type { AiProvider, AskAiHistoryMessage, AskAiInput, AskAiResult } from '../../shared/apiTypes';
 import { store } from '../store';
 
-async function askOpenAi(model: string, prompt: string, history: AskAiHistoryMessage[]): Promise<string> {
+/** True for the DOMException fetch throws when its AbortSignal fires. */
+function isAbortError(error: unknown): boolean {
+  return (error as Error | undefined)?.name === 'AbortError';
+}
+
+async function askOpenAi(
+  model: string,
+  prompt: string,
+  history: AskAiHistoryMessage[],
+  signal?: AbortSignal,
+): Promise<string> {
   const settings = await store.getSettings();
   const apiKey = settings.openaiApiKey?.trim();
   if (!apiKey) throw new Error('Set an OpenAI API key in Settings first.');
@@ -21,6 +31,7 @@ async function askOpenAi(model: string, prompt: string, history: AskAiHistoryMes
         { role: 'user', content: prompt },
       ],
     }),
+    signal,
   });
 
   if (!response.ok) {
@@ -41,7 +52,12 @@ async function askOpenAi(model: string, prompt: string, history: AskAiHistoryMes
   return data.choices?.[0]?.message?.content ?? '';
 }
 
-async function askOllama(model: string, prompt: string, history: AskAiHistoryMessage[]): Promise<string> {
+async function askOllama(
+  model: string,
+  prompt: string,
+  history: AskAiHistoryMessage[],
+  signal?: AbortSignal,
+): Promise<string> {
   const settings = await store.getSettings();
   const baseUrl = (settings.ollamaBaseUrl || 'http://localhost:11434').replace(/\/+$/, '');
   if (!model) throw new Error('Choose an Ollama model first.');
@@ -59,9 +75,12 @@ async function askOllama(model: string, prompt: string, history: AskAiHistoryMes
         ],
         stream: false,
       }),
+      signal,
     });
-  } catch {
-    throw new Error(`Could not reach Ollama at ${baseUrl}. Is it running?`);
+  } catch (error) {
+    // A cancelled request must not be reported as an unreachable server.
+    if (isAbortError(error)) throw error;
+    throw new Error(`Could not reach Ollama at ${baseUrl}. Is it running?`, { cause: error });
   }
 
   if (!response.ok) {
@@ -73,7 +92,12 @@ async function askOllama(model: string, prompt: string, history: AskAiHistoryMes
   return data.message?.content ?? '';
 }
 
-async function askGemini(model: string, prompt: string, history: AskAiHistoryMessage[]): Promise<string> {
+async function askGemini(
+  model: string,
+  prompt: string,
+  history: AskAiHistoryMessage[],
+  signal?: AbortSignal,
+): Promise<string> {
   const settings = await store.getSettings();
   const apiKey = settings.geminiApiKey?.trim();
   if (!apiKey) throw new Error('Set a Gemini API key in Settings first.');
@@ -94,6 +118,7 @@ async function askGemini(model: string, prompt: string, history: AskAiHistoryMes
         { role: 'user', parts: [{ text: prompt }] },
       ],
     }),
+    signal,
   });
 
   if (!response.ok) {
@@ -167,20 +192,45 @@ export async function runAiPrompt(
   model: string,
   prompt: string,
   history: AskAiHistoryMessage[] = [],
+  signal?: AbortSignal,
 ): Promise<string> {
-  if (provider === 'openai') return askOpenAi(model, prompt, history);
-  if (provider === 'gemini') return askGemini(model, prompt, history);
-  return askOllama(model, prompt, history);
+  if (provider === 'openai') return askOpenAi(model, prompt, history, signal);
+  if (provider === 'gemini') return askGemini(model, prompt, history, signal);
+  return askOllama(model, prompt, history, signal);
 }
+
+/** In-flight requests that carried a requestId, so the renderer can abort them. */
+const inFlightRequests = new Map<string, AbortController>();
 
 export function registerAiHandlers(): void {
   ipcMain.handle(IPC.ai.ask, async (_event, input: AskAiInput): Promise<AskAiResult> => {
+    const controller = new AbortController();
+    if (input.requestId) inFlightRequests.set(input.requestId, controller);
     try {
-      const text = await runAiPrompt(input.provider, input.model, input.prompt, input.history ?? []);
+      const text = await runAiPrompt(
+        input.provider,
+        input.model,
+        input.prompt,
+        input.history ?? [],
+        controller.signal,
+      );
       return { ok: true, text };
     } catch (error) {
+      if (isAbortError(error) || controller.signal.aborted) {
+        return { ok: false, text: '', cancelled: true, error: 'Request cancelled.' };
+      }
       return { ok: false, text: '', error: (error as Error).message };
+    } finally {
+      if (input.requestId) inFlightRequests.delete(input.requestId);
     }
+  });
+
+  ipcMain.handle(IPC.ai.cancel, (_event, requestId: string): boolean => {
+    const controller = inFlightRequests.get(requestId);
+    if (!controller) return false;
+    controller.abort();
+    inFlightRequests.delete(requestId);
+    return true;
   });
 
   ipcMain.handle(IPC.ai.listOllamaModels, (): Promise<string[]> => listOllamaModels());

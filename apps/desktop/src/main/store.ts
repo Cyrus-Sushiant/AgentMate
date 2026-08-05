@@ -98,13 +98,14 @@ function withSettingsMigrations(settings: AppSettings): AppSettings {
   };
 }
 
-/** Older projects.json entries predate the notifications, prompt, and pinned fields. */
+/** Older projects.json entries predate the notifications, prompt, pinned, and cliId fields. */
 function withProjectDefaults(project: Project): Project {
   return {
     ...project,
     notifications: project.notifications ?? defaultProjectNotifications(),
     prompt: project.prompt ?? '',
     pinned: project.pinned ?? false,
+    cliId: project.cliId ?? null,
   };
 }
 

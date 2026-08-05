@@ -45,6 +45,7 @@ export function registerProjectHandlers(): void {
         runCommand: input.runCommand,
         prompt: input.prompt ?? '',
         notifications: defaultProjectNotifications(),
+        cliId: input.cliId ?? null,
         pinned: false,
         createdAt: now,
         updatedAt: now,

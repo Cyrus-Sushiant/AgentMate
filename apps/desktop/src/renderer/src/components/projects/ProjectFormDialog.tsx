@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { FolderOpen } from '@/components/icons';
+import { CLI_REGISTRY } from '@agentmat/core';
 import type { AgentType, Project } from '@agentmat/core';
 import {
   Dialog,
@@ -23,6 +24,9 @@ const AGENT_TYPES: { value: AgentType; label: string }[] = [
   { value: 'generic', label: 'Generic' },
 ];
 
+/** Combobox needs a non-empty value, so "inherit the app default" travels as this sentinel. */
+const APP_DEFAULT_CLI = '__app-default__';
+
 export interface ProjectFormValues {
   name: string;
   folderPath: string;
@@ -31,6 +35,8 @@ export interface ProjectFormValues {
   agentType: AgentType;
   notes: string;
   runCommand: string;
+  /** null = follow the app-wide default CLI from Settings. */
+  cliId: string | null;
 }
 
 export interface ProjectFormDialogProps {
@@ -55,6 +61,7 @@ export function ProjectFormDialog({
   const [agentType, setAgentType] = useState<AgentType>('claude-code');
   const [notes, setNotes] = useState('');
   const [runCommand, setRunCommand] = useState('');
+  const [cliId, setCliId] = useState<string>(APP_DEFAULT_CLI);
 
   useEffect(() => {
     if (!open) return;
@@ -65,6 +72,7 @@ export function ProjectFormDialog({
     setAgentType(initial?.agentType ?? 'claude-code');
     setNotes(initial?.notes ?? '');
     setRunCommand(initial?.runCommand ?? '');
+    setCliId(initial?.cliId ?? APP_DEFAULT_CLI);
   }, [open, initial]);
 
   async function handlePickFolder(): Promise<void> {
@@ -84,6 +92,7 @@ export function ProjectFormDialog({
       agentType,
       notes,
       runCommand: runCommand.trim(),
+      cliId: cliId === APP_DEFAULT_CLI ? null : cliId,
     });
   }
 
@@ -105,7 +114,11 @@ export function ProjectFormDialog({
           <div className="space-y-1.5">
             <Label>Folder</Label>
             <div className="flex gap-2">
-              <Input value={folderPath} readOnly placeholder="Choose a folder…" />
+              <Input
+                value={folderPath}
+                onChange={(e) => setFolderPath(e.target.value)}
+                placeholder="Paste a path or choose a folder…"
+              />
               <Button type="button" variant="outline" size="icon" onClick={() => void handlePickFolder()}>
                 <FolderOpen className="h-4 w-4" />
               </Button>
@@ -119,6 +132,21 @@ export function ProjectFormDialog({
               onChange={(v) => setAgentType(v as AgentType)}
               options={AGENT_TYPES.map((a) => ({ value: a.value, label: a.label }))}
             />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label>AI CLI</Label>
+            <Combobox
+              value={cliId}
+              onChange={setCliId}
+              options={[
+                { value: APP_DEFAULT_CLI, label: 'App default (from Settings)' },
+                ...CLI_REGISTRY.map((cli) => ({ value: cli.id, label: cli.name })),
+              ]}
+            />
+            <p className="text-xs text-muted-foreground">
+              Which CLI this project's AI actions (tag suggestions, version bumps) run through.
+            </p>
           </div>
 
           <div className="space-y-1.5">

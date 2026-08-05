@@ -1,6 +1,7 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { ipcMain } from 'electron';
+import type { Project } from '@agentmat/core';
 import { IPC } from '../../shared/ipcChannels';
 import type {
   CreatePullRequestInput,
@@ -12,18 +13,22 @@ import type {
   GitTagInfo,
   SuggestTagResult,
 } from '../../shared/apiTypes';
-import { runHeadlessCliPrompt } from '../cli/headlessPrompt';
+import { cancelHeadlessPrompt, runHeadlessCliPrompt } from '../cli/headlessPrompt';
 import { store } from '../store';
 
 const execFileAsync = promisify(execFile);
 const GIT_TIMEOUT_MS = 30000;
 const MAX_DIFF_CHARS = 8000;
 
-async function getProjectPath(projectId: string): Promise<string> {
+async function getProject(projectId: string): Promise<Project> {
   const projects = await store.getProjects();
   const project = projects.find((p) => p.id === projectId);
   if (!project) throw new Error(`Project ${projectId} not found`);
-  return project.folderPath;
+  return project;
+}
+
+async function getProjectPath(projectId: string): Promise<string> {
+  return (await getProject(projectId)).folderPath;
 }
 
 async function git(cwd: string, args: string[]): Promise<string> {
@@ -43,6 +48,22 @@ async function isGitRepo(cwd: string): Promise<boolean> {
   }
 }
 
+/** Best-effort guess at the repo's primary branch, e.g. "main" vs "master". */
+async function detectDefaultBranch(cwd: string): Promise<string | null> {
+  const symbolicRef = (
+    await git(cwd, ['symbolic-ref', '--short', 'refs/remotes/origin/HEAD']).catch(() => '')
+  ).trim();
+  if (symbolicRef) return symbolicRef.replace(/^origin\//, '');
+
+  for (const candidate of ['main', 'master']) {
+    const exists = await git(cwd, ['show-ref', '--verify', '--quiet', `refs/heads/${candidate}`])
+      .then(() => true)
+      .catch(() => false);
+    if (exists) return candidate;
+  }
+  return null;
+}
+
 function parseStatusPorcelain(porcelain: string): GitFileChange[] {
   return porcelain
     .split('\n')
@@ -56,11 +77,20 @@ function parseStatusPorcelain(porcelain: string): GitFileChange[] {
 
 async function readStatus(cwd: string): Promise<GitStatus> {
   if (!(await isGitRepo(cwd))) {
-    return { isRepo: false, branch: null, ahead: 0, behind: 0, hasRemote: false, files: [] };
+    return {
+      isRepo: false,
+      branch: null,
+      defaultBranch: null,
+      ahead: 0,
+      behind: 0,
+      hasRemote: false,
+      files: [],
+    };
   }
 
   const branch = (await git(cwd, ['branch', '--show-current']).catch(() => '')).trim() || null;
   const hasRemote = (await git(cwd, ['remote']).catch(() => '')).trim().length > 0;
+  const defaultBranch = await detectDefaultBranch(cwd);
 
   let ahead = 0;
   let behind = 0;
@@ -75,7 +105,7 @@ async function readStatus(cwd: string): Promise<GitStatus> {
 
   const files = parseStatusPorcelain(await git(cwd, ['status', '--porcelain']));
 
-  return { isRepo: true, branch, ahead, behind, hasRemote, files };
+  return { isRepo: true, branch, defaultBranch, ahead, behind, hasRemote, files };
 }
 
 /** Plain-text summary of the working tree, meant to be dropped into an AI prompt. */
@@ -344,8 +374,11 @@ export function registerGitHandlers(): void {
     });
   });
 
-  ipcMain.handle(IPC.git.suggestTag, async (_event, projectId: string): Promise<SuggestTagResult> => {
-    const cwd = await getProjectPath(projectId);
+  ipcMain.handle(
+    IPC.git.suggestTag,
+    async (_event, projectId: string, requestId?: string): Promise<SuggestTagResult> => {
+    const project = await getProject(projectId);
+    const cwd = project.folderPath;
     const { latestTag, commitsSinceLatestTag } = await readTagInfo(cwd);
     if (latestTag && commitsSinceLatestTag === 0) {
       return { ok: false, error: `No new commits since ${latestTag}, so there is nothing to tag yet.` };
@@ -368,8 +401,18 @@ export function registerGitHandlers(): void {
       'grouping the notable changes. Keep it under 15 lines.>\n\n' +
       summary;
 
-    const result = await runHeadlessCliPrompt(prompt, cwd);
-    if (!result.ok) return { ok: false, cliName: result.cliName, error: result.error };
+    const result = await runHeadlessCliPrompt(prompt, cwd, {
+      requestId,
+      preferredCliId: project.cliId,
+    });
+    if (!result.ok) {
+      return {
+        ok: false,
+        cliName: result.cliName,
+        error: result.error,
+        cancelled: result.cancelled,
+      };
+    }
 
     const parsed = parseSuggestedTag(result.text, latestTag);
     if (!parsed) {
@@ -387,6 +430,11 @@ export function registerGitHandlers(): void {
       message: parsed.message || fallbackTagMessage(parsed.tag, subjects),
       cliName: result.cliName,
     };
+    },
+  );
+
+  ipcMain.handle(IPC.git.cancelSuggestTag, (_event, requestId: string): boolean => {
+    return cancelHeadlessPrompt(requestId);
   });
 
   ipcMain.handle(
@@ -432,7 +480,7 @@ export function registerGitHandlers(): void {
           error: 'GitHub CLI (gh) is not installed and the origin remote is not a GitHub URL.',
         };
       }
-      const base = input.base || 'main';
+      const base = input.base || (await detectDefaultBranch(cwd)) || 'main';
       const params = new URLSearchParams({ expand: '1', title: input.title, body: input.body });
       const url = `https://github.com/${parsed.owner}/${parsed.repo}/compare/${base}...${status.branch}?${params.toString()}`;
       return { ok: true, url, usedFallback: true };

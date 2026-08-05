@@ -1,6 +1,8 @@
+import { execFile } from 'node:child_process';
+import type { ChildProcess } from 'node:child_process';
 import { CLI_REGISTRY, getCliDefinition } from '@agentmat/core';
 import type { CliDefinition, SupportedOS } from '@agentmat/core';
-import { CliNotFoundError, runCli } from '../packageManagers/execUtils';
+import { runCli } from '../packageManagers/execUtils';
 import { store } from '../store';
 
 /** Agent CLIs answer through a model round-trip, so they need far longer than a git call. */
@@ -12,6 +14,102 @@ export interface HeadlessPromptResult {
   /** Display name of the CLI that answered (or that we tried to use). */
   cliName: string | null;
   error?: string;
+  /** True when cancelHeadlessPrompt() stopped this run. */
+  cancelled?: boolean;
+}
+
+interface RunningPrompt {
+  child: ChildProcess;
+  cancelled: boolean;
+}
+
+/** Runs that were started with a requestId, so the renderer can stop them. */
+const runningPrompts = new Map<string, RunningPrompt>();
+
+/**
+ * Ids cancelled before their process existed. Resolving which CLI to use probes each
+ * candidate with `--version`, which takes seconds — long enough for the user to hit
+ * cancel first, and without this the run would start anyway and answer into a UI that
+ * has already moved on.
+ */
+const cancelledBeforeStart = new Set<string>();
+
+/**
+ * Windows spawns the CLI under cmd.exe, so killing the direct child would orphan the
+ * agent itself; taskkill /T takes the whole tree down. Elsewhere the CLI is the direct
+ * child and a signal is enough.
+ */
+function killProcessTree(child: ChildProcess): void {
+  if (process.platform === 'win32' && child.pid) {
+    execFile('taskkill', ['/pid', String(child.pid), '/T', '/F'], { windowsHide: true }, () => {
+      // Best effort: the process may already have exited on its own.
+    });
+    return;
+  }
+  child.kill('SIGTERM');
+}
+
+/** Stops an in-flight headless run, or pre-empts one that hasn't spawned yet. */
+export function cancelHeadlessPrompt(requestId: string): boolean {
+  const entry = runningPrompts.get(requestId);
+  if (entry) {
+    entry.cancelled = true;
+    killProcessTree(entry.child);
+    return true;
+  }
+  cancelledBeforeStart.add(requestId);
+  return true;
+}
+
+interface ExecOutcome {
+  stdout: string;
+  stderr: string;
+  failed: boolean;
+  errorMessage: string;
+  /** Set when the run ended because cancelHeadlessPrompt() killed it. */
+  cancelled: boolean;
+}
+
+/**
+ * execFile, but the child handle is kept so the run can be killed mid-flight — which
+ * promisify() hides. Non-zero exits resolve rather than reject; the caller decides.
+ */
+function execPrompt(
+  command: string,
+  args: string[],
+  cwd: string,
+  requestId: string | undefined,
+): Promise<ExecOutcome> {
+  return new Promise((resolve) => {
+    const options = {
+      cwd,
+      timeout: HEADLESS_TIMEOUT_MS,
+      windowsHide: true,
+      maxBuffer: 10 * 1024 * 1024,
+    };
+    // npm-installed CLIs are .cmd shims on Windows, which Node refuses to spawn directly;
+    // cmd.exe gets an argv array (not `shell: true`), so the prompt stays a single argument.
+    const child =
+      process.platform === 'win32'
+        ? execFile('cmd.exe', ['/d', '/s', '/c', command, ...args], options, done)
+        : execFile(command, args, options, done);
+
+    if (requestId) runningPrompts.set(requestId, { child, cancelled: false });
+
+    function done(error: Error | null, stdout: string, stderr: string): void {
+      // Read the cancelled flag before dropping the entry: the kill lands here as a plain
+      // non-zero exit, indistinguishable from a crash without it.
+      const cancelled = requestId ? (runningPrompts.get(requestId)?.cancelled ?? false) : false;
+      if (requestId) runningPrompts.delete(requestId);
+      resolve({
+        stdout: stdout ?? '',
+        stderr: stderr ?? '',
+        failed: !!error,
+        errorMessage: error?.message ?? '',
+        cancelled,
+      });
+    }
+  });
 }
 
 function supportsHeadlessPrompt(cli: CliDefinition): boolean {
@@ -19,19 +117,26 @@ function supportsHeadlessPrompt(cli: CliDefinition): boolean {
 }
 
 /**
- * Picks the CLI to answer a one-shot prompt: the user's default CLI when it has
- * a headless mode, otherwise the first registry CLI that has one and is on PATH.
- * Returns null when nothing usable is installed.
+ * Picks the CLI to answer a one-shot prompt, in order of preference: the project's
+ * own CLI, then the app-wide default from Settings, then any registry CLI with a
+ * headless mode that is on PATH. Returns null when nothing usable is installed.
  */
-async function resolveHeadlessCli(): Promise<CliDefinition | null> {
+async function resolveHeadlessCli(preferredCliId?: string | null): Promise<CliDefinition | null> {
   const settings = await store.getSettings();
-  const preferred = settings.defaultCliId ? getCliDefinition(settings.defaultCliId) : undefined;
-  if (preferred && supportsHeadlessPrompt(preferred) && (await isOnPath(preferred))) {
-    return preferred;
+  const candidateIds = [preferredCliId, settings.defaultCliId].filter(
+    (id): id is string => !!id,
+  );
+
+  const tried = new Set<string>();
+  for (const id of candidateIds) {
+    if (tried.has(id)) continue;
+    tried.add(id);
+    const cli = getCliDefinition(id);
+    if (cli && supportsHeadlessPrompt(cli) && (await isOnPath(cli))) return cli;
   }
 
   for (const cli of CLI_REGISTRY) {
-    if (cli.id === preferred?.id || !supportsHeadlessPrompt(cli)) continue;
+    if (tried.has(cli.id) || !supportsHeadlessPrompt(cli)) continue;
     if (await isOnPath(cli)) return cli;
   }
   return null;
@@ -56,6 +161,13 @@ function stripEnvExpansions(prompt: string): string {
   return process.platform === 'win32' ? prompt.replace(/%([A-Za-z0-9_]+)%/g, '$1') : prompt;
 }
 
+export interface HeadlessPromptOptions {
+  /** Lets cancelHeadlessPrompt(requestId) stop this run. */
+  requestId?: string;
+  /** CLI the project asked for; falls back to the app default when unset or unusable. */
+  preferredCliId?: string | null;
+}
+
 /**
  * Runs `prompt` through an installed agent CLI in non-interactive mode and returns
  * its stdout. The prompt is passed as a single argv entry (never string-concatenated
@@ -64,8 +176,21 @@ function stripEnvExpansions(prompt: string): string {
 export async function runHeadlessCliPrompt(
   prompt: string,
   cwd: string,
+  options: HeadlessPromptOptions = {},
 ): Promise<HeadlessPromptResult> {
-  const cli = await resolveHeadlessCli();
+  const cancelledResult: HeadlessPromptResult = {
+    ok: false,
+    text: '',
+    cliName: null,
+    cancelled: true,
+    error: 'Request cancelled.',
+  };
+  if (options.requestId && cancelledBeforeStart.delete(options.requestId)) return cancelledResult;
+
+  const cli = await resolveHeadlessCli(options.preferredCliId);
+  // Resolving the CLI can take seconds; the user may have cancelled in the meantime.
+  if (options.requestId && cancelledBeforeStart.delete(options.requestId)) return cancelledResult;
+
   if (!cli?.promptCommand) {
     return {
       ok: false,
@@ -77,31 +202,29 @@ export async function runHeadlessCliPrompt(
     };
   }
 
-  try {
-    const result = await runCli(
-      cli.promptCommand.command,
-      [...cli.promptCommand.args, stripEnvExpansions(prompt)],
-      cwd,
-      HEADLESS_TIMEOUT_MS,
-    );
-    const text = result.stdout.trim();
-    if (result.code !== 0 && !text) {
-      return {
-        ok: false,
-        text: '',
-        cliName: cli.name,
-        error: result.stderr.trim() || `${cli.name} exited with code ${result.code}.`,
-      };
-    }
-    if (!text) {
-      return { ok: false, text: '', cliName: cli.name, error: `${cli.name} returned an empty answer.` };
-    }
-    return { ok: true, text, cliName: cli.name };
-  } catch (error) {
-    const message =
-      error instanceof CliNotFoundError
-        ? `${cli.name} is no longer on PATH.`
-        : (error as Error).message || `${cli.name} failed to run.`;
-    return { ok: false, text: '', cliName: cli.name, error: message };
+  const outcome = await execPrompt(
+    cli.promptCommand.command,
+    [...cli.promptCommand.args, stripEnvExpansions(prompt)],
+    cwd,
+    options.requestId,
+  );
+
+  // A cancel that lost the race with completion would otherwise sit in the set forever.
+  const cancelledLate = options.requestId ? cancelledBeforeStart.delete(options.requestId) : false;
+
+  if (outcome.cancelled || cancelledLate) {
+    return { ok: false, text: '', cliName: cli.name, cancelled: true, error: 'Request cancelled.' };
   }
+
+  const text = outcome.stdout.trim();
+  if (text) return { ok: true, text, cliName: cli.name };
+
+  return {
+    ok: false,
+    text: '',
+    cliName: cli.name,
+    error: outcome.failed
+      ? outcome.stderr.trim() || outcome.errorMessage || `${cli.name} failed to run.`
+      : `${cli.name} returned an empty answer.`,
+  };
 }

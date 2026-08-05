@@ -60,6 +60,8 @@ export interface CreateProjectInput {
   agentType: AgentType;
   notes: string;
   runCommand: string;
+  /** CLI_REGISTRY id for this project's AI actions; null means the app default in Settings. */
+  cliId?: string | null;
   /** Optional: the create/edit form doesn't collect it; the Prompt dialog defines it later. */
   prompt?: string;
 }
@@ -210,12 +212,16 @@ export interface AskAiInput {
   prompt: string;
   /** Prior turns in the conversation, oldest first. Omitted for one-off (non-chat) prompts. */
   history?: AskAiHistoryMessage[];
+  /** Caller-generated id that ai.cancel(requestId) can abort this request with. */
+  requestId?: string;
 }
 
 export interface AskAiResult {
   ok: boolean;
   text: string;
   error?: string;
+  /** True when the caller aborted the request, so the UI can stay quiet about it. */
+  cancelled?: boolean;
 }
 
 export interface CreateProjectDraftInput {
@@ -287,6 +293,8 @@ export interface GitFileChange {
 export interface GitStatus {
   isRepo: boolean;
   branch: string | null;
+  /** Best-effort guess at the repo's primary branch, e.g. "main" vs "master". */
+  defaultBranch: string | null;
   ahead: number;
   behind: number;
   hasRemote: boolean;
@@ -328,6 +336,8 @@ export interface SuggestTagResult {
   /** Display name of the CLI that answered. */
   cliName?: string | null;
   error?: string;
+  /** True when the caller cancelled the run, so the UI can stay quiet about it. */
+  cancelled?: boolean;
 }
 
 export interface CreatePullRequestInput {

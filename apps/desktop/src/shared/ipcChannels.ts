@@ -117,6 +117,7 @@ export const IPC = {
   },
   ai: {
     ask: 'ai:ask',
+    cancel: 'ai:cancel',
     listOllamaModels: 'ai:listOllamaModels',
     listGeminiModels: 'ai:listGeminiModels',
   },
@@ -257,6 +258,7 @@ export const IPC = {
     tags: 'git:tags',
     createTag: 'git:createTag',
     suggestTag: 'git:suggestTag',
+    cancelSuggestTag: 'git:cancelSuggestTag',
     createPullRequest: 'git:createPullRequest',
   },
   packages: {

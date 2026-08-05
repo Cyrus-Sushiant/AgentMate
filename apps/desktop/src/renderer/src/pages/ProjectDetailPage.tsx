@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useParams } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -618,7 +618,11 @@ export default function ProjectDetailPage(): React.JSX.Element {
             </TabsContent>
 
             <TabsContent value="git" className="space-y-4">
-              <GitTab projectId={project.id} projectPath={project.folderPath} />
+              <GitTab
+                projectId={project.id}
+                projectPath={project.folderPath}
+                projectCliId={project.cliId}
+              />
             </TabsContent>
 
             <TabsContent value="schedule" className="space-y-3">
@@ -1199,12 +1203,25 @@ function GitStatusBadge({ x, y }: { x: string; y: string }): React.JSX.Element {
   );
 }
 
+/** Cancel affordance shown next to an AI button while its request is in flight. */
+function CancelAiButton({ onCancel }: { onCancel: () => void }): React.JSX.Element {
+  return (
+    <SimpleTooltip label="Cancel this AI request">
+      <Button variant="ghost" size="icon" onClick={onCancel} aria-label="Cancel AI request">
+        <X className="h-4 w-4" />
+      </Button>
+    </SimpleTooltip>
+  );
+}
+
 function GitTab({
   projectId,
   projectPath,
+  projectCliId,
 }: {
   projectId: string;
   projectPath: string;
+  projectCliId: string | null;
 }): React.JSX.Element {
   const queryClient = useQueryClient();
   const provider = useAskAiStore((s) => s.provider);
@@ -1219,6 +1236,8 @@ function GitTab({
   const [suggestingCommit, setSuggestingCommit] = useState(false);
   const [prOpen, setPrOpen] = useState(false);
   const [tagOpen, setTagOpen] = useState(false);
+  const branchRequestRef = useRef<string | null>(null);
+  const commitRequestRef = useRef<string | null>(null);
 
   const statusQuery = useQuery({
     queryKey: queryKeys.gitStatus(projectId),
@@ -1283,8 +1302,18 @@ function GitTab({
     return true;
   }
 
+  /** Aborts whichever Ask AI request the given ref is tracking, if one is still running. */
+  function cancelAiRequest(ref: React.MutableRefObject<string | null>): void {
+    const requestId = ref.current;
+    if (!requestId) return;
+    ref.current = null;
+    void window.agentmat.ai.cancel(requestId);
+  }
+
   async function handleSuggestBranchName(): Promise<void> {
     if (!(await requireAiModel())) return;
+    const requestId = crypto.randomUUID();
+    branchRequestRef.current = requestId;
     setSuggestingBranch(true);
     try {
       const summary = await window.agentmat.git.changeSummary(projectId);
@@ -1292,19 +1321,28 @@ function GitTab({
         'Generate a single short git branch name (kebab-case, e.g. "feat/add-login" or ' +
         '"fix/null-check", max 60 characters, no spaces, no quotes, no markdown) describing these ' +
         `uncommitted changes. Reply with ONLY the branch name and nothing else.\n\n${summary}`;
-      const result = await window.agentmat.ai.ask({ provider: provider as AiProvider, model, prompt });
+      const result = await window.agentmat.ai.ask({
+        provider: provider as AiProvider,
+        model,
+        prompt,
+        requestId,
+      });
+      if (result.cancelled) return;
       if (result.ok && result.text.trim()) {
         setBranchName(sanitizeBranchName(result.text));
       } else {
         toast.error(result.error || 'AI did not return a branch name.');
       }
     } finally {
+      branchRequestRef.current = null;
       setSuggestingBranch(false);
     }
   }
 
   async function handleSuggestCommitMessage(): Promise<void> {
     if (!(await requireAiModel())) return;
+    const requestId = crypto.randomUUID();
+    commitRequestRef.current = requestId;
     setSuggestingCommit(true);
     try {
       const summary = await window.agentmat.git.changeSummary(projectId);
@@ -1312,13 +1350,20 @@ function GitTab({
         'Write a concise, conventional-commit style git commit message (a short summary line, ' +
         'optionally followed by a brief body) describing these changes. Reply with ONLY the commit ' +
         `message, no code fences, no extra commentary.\n\n${summary}`;
-      const result = await window.agentmat.ai.ask({ provider: provider as AiProvider, model, prompt });
+      const result = await window.agentmat.ai.ask({
+        provider: provider as AiProvider,
+        model,
+        prompt,
+        requestId,
+      });
+      if (result.cancelled) return;
       if (result.ok && result.text.trim()) {
         setCommitMessage(sanitizeCommitMessage(result.text));
       } else {
         toast.error(result.error || 'AI did not return a commit message.');
       }
     } finally {
+      commitRequestRef.current = null;
       setSuggestingCommit(false);
     }
   }
@@ -1419,6 +1464,7 @@ function GitTab({
             >
               <Sparkles className="h-3.5 w-3.5" /> {suggestingBranch ? 'Thinking…' : 'Suggest with AI'}
             </Button>
+            {suggestingBranch && <CancelAiButton onCancel={() => cancelAiRequest(branchRequestRef)} />}
             <Button
               size="sm"
               disabled={createBranchMutation.isPending || !branchName.trim()}
@@ -1448,6 +1494,7 @@ function GitTab({
             >
               <Sparkles className="h-3.5 w-3.5" /> {suggestingCommit ? 'Thinking…' : 'Suggest with AI'}
             </Button>
+            {suggestingCommit && <CancelAiButton onCancel={() => cancelAiRequest(commitRequestRef)} />}
             <Button
               size="sm"
               disabled={commitMutation.isPending || !commitMessage.trim() || status.files.length === 0}
@@ -1495,6 +1542,7 @@ function GitTab({
       <TagVersionDialog
         projectId={projectId}
         projectPath={projectPath}
+        projectCliId={projectCliId}
         tagInfo={tagsQuery.data ?? null}
         open={tagOpen}
         onOpenChange={setTagOpen}
@@ -1503,6 +1551,7 @@ function GitTab({
       <CreatePrDialog
         projectId={projectId}
         branch={status.branch}
+        defaultBranch={status.defaultBranch}
         open={prOpen}
         onOpenChange={setPrOpen}
         suggestedTitle={commitMessage.split('\n')[0]}
@@ -1530,24 +1579,29 @@ function buildVersionBumpPrompt(tag: string): string {
 function TagVersionDialog({
   projectId,
   projectPath,
+  projectCliId,
   tagInfo,
   open,
   onOpenChange,
 }: {
   projectId: string;
   projectPath: string;
+  projectCliId: string | null;
   tagInfo: GitTagInfo | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }): React.JSX.Element {
   const queryClient = useQueryClient();
   const openSession = useTerminalStore((s) => s.openSession);
-  const defaultCliId = useCliStore((s) => s.defaultCliId);
+  const appDefaultCliId = useCliStore((s) => s.defaultCliId);
   const [tag, setTag] = useState('');
   const [message, setMessage] = useState('');
   const [reason, setReason] = useState<string | null>(null);
+  const suggestRequestRef = useRef<string | null>(null);
 
   const hasRemote = tagInfo?.hasRemote ?? false;
+  // A project can pin its own CLI; otherwise it follows the app-wide default from Settings.
+  const effectiveCliId = projectCliId ?? appDefaultCliId;
 
   /**
    * Version bumps edit source files, so this runs in a visible terminal session rather than
@@ -1555,9 +1609,9 @@ function TagVersionDialog({
    * the edits as the agent makes them.
    */
   async function handleApplyVersion(): Promise<void> {
-    const cliDef = CLI_REGISTRY.find((cli) => cli.id === defaultCliId);
+    const cliDef = CLI_REGISTRY.find((cli) => cli.id === effectiveCliId);
     if (!cliDef) {
-      toast.error('Choose a default CLI in Settings first.');
+      toast.error("Choose a CLI for this project, or a default CLI in Settings.");
       return;
     }
 
@@ -1582,8 +1636,16 @@ function TagVersionDialog({
   }
 
   const suggestMutation = useMutation({
-    mutationFn: () => window.agentmat.git.suggestTag(projectId),
+    mutationFn: () => {
+      const requestId = crypto.randomUUID();
+      suggestRequestRef.current = requestId;
+      return window.agentmat.git.suggestTag(projectId, requestId);
+    },
+    onSettled: () => {
+      suggestRequestRef.current = null;
+    },
     onSuccess: (result) => {
+      if (result.cancelled) return;
       if (result.ok && result.tag) {
         setTag(result.tag);
         setReason(result.reason ?? null);
@@ -1594,6 +1656,14 @@ function TagVersionDialog({
       }
     },
   });
+
+  /** Kills the CLI process behind the running suggestion, rather than just ignoring its answer. */
+  function handleCancelSuggest(): void {
+    const requestId = suggestRequestRef.current;
+    if (!requestId) return;
+    suggestRequestRef.current = null;
+    void window.agentmat.git.cancelSuggestTag(requestId);
+  }
 
   const createTagMutation = useMutation({
     mutationFn: () =>
@@ -1701,6 +1771,7 @@ function TagVersionDialog({
               {suggestMutation.isPending ? 'Asking your CLI…' : 'Suggest with AI'}
             </Button>
           </SimpleTooltip>
+          {suggestMutation.isPending && <CancelAiButton onCancel={handleCancelSuggest} />}
           <Button
             disabled={createTagMutation.isPending || !tag.trim()}
             onClick={() => createTagMutation.mutate()}
@@ -1716,23 +1787,28 @@ function TagVersionDialog({
 function CreatePrDialog({
   projectId,
   branch,
+  defaultBranch,
   open,
   onOpenChange,
   suggestedTitle,
 }: {
   projectId: string;
   branch: string | null;
+  defaultBranch: string | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   suggestedTitle: string;
 }): React.JSX.Element {
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
-  const [base, setBase] = useState('main');
+  const [base, setBase] = useState('');
 
   useEffect(() => {
-    if (open) setTitle((current) => current || suggestedTitle);
-    // Only seed the title once, when the dialog opens; don't fight the user's edits.
+    if (open) {
+      setTitle((current) => current || suggestedTitle);
+      setBase((current) => current || defaultBranch || 'main');
+    }
+    // Only seed title/base once, when the dialog opens; don't fight the user's edits.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 

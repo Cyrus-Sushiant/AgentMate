@@ -159,6 +159,12 @@ export interface Project {
    */
   prompt: string;
   notifications: ProjectNotificationSettings;
+  /**
+   * CLI_REGISTRY id this project's AI actions run through. Null (the default) means
+   * "use the app-wide default CLI from Settings"; set it to pin this one project to a
+   * different agent.
+   */
+  cliId: string | null;
   /** Pinned projects are sorted first on the Projects page, above the drag-ordered rest. */
   pinned: boolean;
   createdAt: string;
