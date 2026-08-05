@@ -205,7 +205,7 @@ export function ControllerPanel(): React.JSX.Element {
               {connection?.remoteDeviceName ?? 'Remote device'}
             </span>
             <span className="text-xs text-muted-foreground">
-              — {filesOnly ? 'files only, no control session' : 'open in its own window'}
+              - {filesOnly ? 'files only, no control session' : 'open in its own window'}
             </span>
           </div>
           <div className="flex items-center gap-2">
@@ -235,7 +235,7 @@ export function ControllerPanel(): React.JSX.Element {
             <CardTitle className="flex items-center gap-2">
               <Monitor className="h-4 w-4 text-primary" /> Saved servers
             </CardTitle>
-            <CardDescription>Reconnect with one click — no pairing code needed.</CardDescription>
+            <CardDescription>Reconnect with one click, no pairing code needed.</CardDescription>
           </CardHeader>
           <CardContent>
             <ul className="flex flex-col gap-2">
@@ -275,7 +275,7 @@ export function ControllerPanel(): React.JSX.Element {
             <Button onClick={() => void connect()} disabled={connecting || connectingFiles}>
               <Link className="h-4 w-4" /> {connecting ? 'Connecting…' : 'Connect'}
             </Button>
-            <SimpleTooltip label="Skip the control session — just browse and transfer files">
+            <SimpleTooltip label="Skip the control session, just browse and transfer files">
               <Button
                 variant="secondary"
                 onClick={() => void connectFiles()}

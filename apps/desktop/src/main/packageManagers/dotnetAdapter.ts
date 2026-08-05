@@ -290,7 +290,7 @@ async function listPackages(folderPath: string): Promise<PackageManagerSection> 
   const degraded = outcomes.filter((o) => o.degraded && o.packages.length > 0);
   const message =
     degraded.length > 0
-      ? `Could not restore ${degraded.map((o) => o.projectLabel).join(', ')} — versions for ${degraded.length === 1 ? 'it are' : 'those are'} read from the project file and may not reflect what is resolved at build time.`
+      ? `Could not restore ${degraded.map((o) => o.projectLabel).join(', ')}, so versions for ${degraded.length === 1 ? 'it are' : 'those are'} read from the project file and may not reflect what is resolved at build time.`
       : null;
 
   return { ...base, status: 'ok', message, packages: outcomes.flatMap((o) => o.packages) };

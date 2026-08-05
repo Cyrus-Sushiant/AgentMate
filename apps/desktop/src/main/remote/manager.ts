@@ -88,7 +88,7 @@ class RemoteManager {
   /**
    * Windows/macOS blank the display (and screensaver/lock can follow) after
    * an idle timeout regardless of whether someone is actively watching this
-   * machine's screen remotely — and once the display is off, screen capture
+   * machine's screen remotely, and once the display is off, screen capture
    * APIs return black frames, so the controller sees nothing. Held for as
    * long as at least one controller is actually authed against this host.
    */
@@ -524,7 +524,7 @@ class RemoteManager {
   /**
    * Opens the socket and wires its handlers. Split out from `connect()` so
    * auto-reconnect (see `beginReconnect`) can redial without re-running
-   * `connect()`'s teardown of the previous session — that would cancel the
+   * `connect()`'s teardown of the previous session, which would cancel the
    * very transfers reconnect exists to resume.
    */
   private dial(payload: { ip: string; port: number; token: string; deviceName: string }): void {
@@ -557,7 +557,7 @@ class RemoteManager {
 
   /**
    * The outbound socket closed or errored. If a file transfer is mid-flight,
-   * this machine is the dialer, so it's the one that has to redial — treat
+   * this machine is the dialer, so it's the one that has to redial; treat
    * it as recoverable and start the reconnect backoff instead of giving up.
    */
   private onClientGone(ws: WebSocket, err?: Error): void {
@@ -569,8 +569,8 @@ class RemoteManager {
       this.log(
         'warning',
         err
-          ? `Connection lost mid-transfer (${err.message}) — reconnecting…`
-          : 'Connection lost mid-transfer — reconnecting…',
+          ? `Connection lost mid-transfer (${err.message}), reconnecting…`
+          : 'Connection lost mid-transfer, reconnecting…',
       );
       this.emitState();
       this.beginReconnect();
@@ -618,7 +618,7 @@ class RemoteManager {
       error: 'Could not reconnect to the host.',
     };
     this.pendingConnect = null;
-    this.log('error', 'Could not reconnect to the host — giving up.');
+    this.log('error', 'Could not reconnect to the host, giving up.');
     this.emitState();
   }
 
@@ -627,7 +627,7 @@ class RemoteManager {
   }
 
   /**
-   * Tears down the outbound connection only — does NOT touch the session
+   * Tears down the outbound connection only. Does NOT touch the session
    * window. Also called internally at the top of `connect()` to clear a
    * previous session before dialing a new one; closing the window here too
    * would race the window's own async 'closed' event against that new
@@ -784,7 +784,7 @@ class RemoteManager {
         }
         void this.rememberServer(msg.deviceToken);
         if (this.client) this.files.resumeAfterReconnect(this.client);
-        sessionWindow.setTitle(`AgentMate Remote — ${msg.deviceName}`);
+        sessionWindow.setTitle(`AgentMate Remote - ${msg.deviceName}`);
         this.emitState();
         break;
       }
@@ -944,7 +944,7 @@ class RemoteManager {
 
   /**
    * Broadcasts to the main window and, when open, the standalone session
-   * window — both run their own copy of the renderer bundle and may each have
+   * window. Both run their own copy of the renderer bundle and may each have
    * listeners for state/log/frame/signaling events.
    */
   private send(channel: string, payload?: unknown): void {

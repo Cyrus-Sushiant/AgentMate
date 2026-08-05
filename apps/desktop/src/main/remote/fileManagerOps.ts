@@ -30,7 +30,7 @@ interface PendingRequest {
  * message tagged with a fresh `reqId` and returns a promise that resolves
  * when the matching reply arrives via `handleControl` (or rejects after
  * `REQUEST_TIMEOUT_MS`). The inbound half executes the same messages against
- * *this* machine's filesystem when the peer is the one browsing — there is
+ * *this* machine's filesystem when the peer is the one browsing. There is
  * no path jail: a remote-control session already grants the peer OS-level
  * input on this machine, so filesystem access is not a bigger trust step.
  */

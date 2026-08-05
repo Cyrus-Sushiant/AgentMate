@@ -52,7 +52,7 @@ let cursorTracking = false;
  * `RemoteScreen`'s ResizeObserver (see `RemoteScreen.tsx`). Kept independent
  * of `HostPeerSession` because a size report can arrive before `startPeer`
  * creates the session (e.g. right after reconnect, before WebRTC finishes
- * negotiating) — `QualityGovernor` reads it live via a getter closure instead
+ * negotiating), so `QualityGovernor` reads it live via a getter closure instead
  * of needing it injected at construction time.
  */
 const peerDisplaySizes = new Map<string, { width: number; height: number }>();

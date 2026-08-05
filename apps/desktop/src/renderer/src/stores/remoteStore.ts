@@ -24,7 +24,7 @@ const MAX_LOGS = 100;
  * The main window and the standalone remote-session window (`#/remote-session`,
  * see `sessionWindow.ts` in main) each run their own copy of this renderer
  * bundle, so `initRemote()` runs in both. Controller-role video negotiation
- * must only ever happen in one of them — both reacting to the same broadcast
+ * must only ever happen in one of them, since both reacting to the same broadcast
  * `onState`/`onClientRtcSignal` events would open two independent WebRTC
  * negotiations over the single main-process-owned control socket. The session
  * window is the only place `RemoteScreen` mounts, so it's the only place that
@@ -47,7 +47,7 @@ interface RemoteStore {
  * up, and drop the peer connection when it goes away. Only the session window
  * does this (see isRemoteSessionWindow's doc comment above). Must run on
  * *every* state update the session window sees, not just ones that arrive via
- * the `onState` push — the window's very first snapshot (fetched by
+ * the `onState` push. The window's very first snapshot (fetched by
  * `refresh()` on mount) can already read 'connected' if the WebSocket beat
  * the window's own load/mount race, and that transition needs to trigger a
  * request too or the session is stuck on the JPEG-tile fallback forever.
@@ -120,7 +120,7 @@ export function initRemote(): void {
   // keep running in every window (hosting survives navigating off the page).
   initRtcHost();
   // Controller side: receives the host's video track (desktop-to-desktop).
-  // Session-window-only — see isRemoteSessionWindow's doc comment above.
+  // Session-window-only. See isRemoteSessionWindow's doc comment above.
   if (isRemoteSessionWindow()) initRtcController();
 
   void useRemoteStore.getState().refresh();

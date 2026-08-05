@@ -48,7 +48,7 @@ export function TerminalPane({ meta, active, onExit }: TerminalPaneProps): React
     const resizeObserver = new ResizeObserver(() => {
       // A hidden pane (inactive tab, or the whole drawer closed) measures 0x0.
       // Fitting to that would reflow the running program's output to a garbage
-      // size, so wait until it is on screen again — hiding must not disturb the pty.
+      // size, so wait until it is on screen again. Hiding must not disturb the pty.
       if (container.clientWidth === 0 || container.clientHeight === 0) return;
       try {
         fitAddon.fit();
@@ -84,7 +84,7 @@ export function TerminalPane({ meta, active, onExit }: TerminalPaneProps): React
     });
 
     // Right-click copies the selection if there is one, otherwise pastes clipboard
-    // contents into the shell — the standard behavior for Windows/Linux terminals.
+    // contents into the shell, the standard behavior for Windows/Linux terminals.
     const handleContextMenu = (event: MouseEvent): void => {
       event.preventDefault();
       const selection = term.getSelection();

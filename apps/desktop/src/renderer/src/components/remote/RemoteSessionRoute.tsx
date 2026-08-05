@@ -18,8 +18,8 @@ const HISTORY_LENGTH = 40;
 
 /**
  * Standalone render target for the remote-control session window (loaded at
- * `#/remote-session`, see `sessionWindow.ts` in main). No AppShell/sidebar —
- * a full window dedicated to one connection, independently resizable,
+ * `#/remote-session`, see `sessionWindow.ts` in main). No AppShell/sidebar,
+ * just a full window dedicated to one connection, independently resizable,
  * maximizable, and fullscreenable by the OS. Only this window ever mounts
  * `RemoteScreen` / drives WebRTC as a controller (see the doc comment on
  * `isRemoteSessionWindow` in stores/remoteStore.ts for why).
@@ -53,7 +53,7 @@ export default function RemoteSessionRoute(): React.JSX.Element {
   const connected = status === 'connected';
   const failed = status === 'error';
   // 'idle' here means the host went away mid-session (an explicit Disconnect
-  // closes this window instead of leaving it around) — the window stays open
+  // closes this window instead of leaving it around); the window stays open
   // so the operator can see what happened rather than losing the view.
   const statusBadge =
     status === 'connected'
@@ -93,7 +93,7 @@ export default function RemoteSessionRoute(): React.JSX.Element {
         </div>
 
         {/* Closing this window (the caption button at the far right) is the
-            only way to end the session — a separate Disconnect button here
+            only way to end the session; a separate Disconnect button here
             would be redundant with it. */}
         <div className="flex shrink-0 items-center gap-1.5 [-webkit-app-region:no-drag]">
           <Button

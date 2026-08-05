@@ -88,7 +88,7 @@ export class QualityGovernor {
      * The controller's actual video display box, in physical pixels (see
      * `RemoteScreen.tsx`'s ResizeObserver and the `display-size` protocol
      * message). Optional so callers without a controller-size signal (e.g. a
-     * future non-interactive use) still work — `effectiveScale` just falls
+     * future non-interactive use) still work; `effectiveScale` just falls
      * back to the ladder's own scale when absent.
      */
     private readonly displaySize: () => Surface | null = () => null,
@@ -118,7 +118,7 @@ export class QualityGovernor {
 
   /**
    * Extra downscale needed so the encoded frame never exceeds the
-   * controller's own display box — sending more pixels than it can show is
+   * controller's own display box. Sending more pixels than it can show is
    * pure waste, and conversely a large/maximized controller window can pull
    * resolution back up toward the ladder rung's own scale instead of staying
    * capped at whatever a small window last requested. Never goes below 1: a

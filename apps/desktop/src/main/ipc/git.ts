@@ -171,7 +171,7 @@ function buildReleaseSummary(latestTag: string | null, subjects: string[], diffS
   }
 
   return [
-    `Latest existing tag: ${latestTag ?? '(none — this would be the first tag)'}`,
+    `Latest existing tag: ${latestTag ?? '(none, this would be the first tag)'}`,
     `Commits since then:\n${shown.join('\n') || '(none)'}`,
     diffStat ? `Diff size: ${diffStat}` : '',
   ]
@@ -230,7 +230,7 @@ function parseSuggestedTag(text: string, latestTag: string | null): SuggestedTag
     .slice(0, 240);
 
   // NOTES is the last field, so everything after its header belongs to it. When the CLI
-  // skipped the header, keep any bullet list it wrote instead — but not loose prose, which
+  // skipped the header, keep any bullet list it wrote instead, but not loose prose, which
   // is usually preamble rather than release notes.
   const headed = text.match(/^[ \t]*NOTES:[ \t]*\r?\n?([\s\S]*)$/im)?.[1];
   const bulletsOnly = stripMarkdownFences(text)

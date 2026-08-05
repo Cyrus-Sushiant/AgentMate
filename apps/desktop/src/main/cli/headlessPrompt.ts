@@ -28,7 +28,7 @@ const runningPrompts = new Map<string, RunningPrompt>();
 
 /**
  * Ids cancelled before their process existed. Resolving which CLI to use probes each
- * candidate with `--version`, which takes seconds — long enough for the user to hit
+ * candidate with `--version`, which takes seconds, long enough for the user to hit
  * cancel first, and without this the run would start anyway and answer into a UI that
  * has already moved on.
  */
@@ -71,7 +71,7 @@ interface ExecOutcome {
 }
 
 /**
- * execFile, but the child handle is kept so the run can be killed mid-flight — which
+ * execFile, but the child handle is kept so the run can be killed mid-flight, which
  * promisify() hides. Non-zero exits resolve rather than reject; the caller decides.
  */
 function execPrompt(
@@ -86,6 +86,10 @@ function execPrompt(
       timeout: HEADLESS_TIMEOUT_MS,
       windowsHide: true,
       maxBuffer: 10 * 1024 * 1024,
+      // Cline's CLI self-updates on every invocation by spawning a detached background
+      // installer; on Windows that can flash open a visible console mid-run. This is a
+      // no-op env var for every other CLI we shell out to.
+      env: { ...process.env, CLINE_NO_AUTO_UPDATE: '1' },
     };
     // npm-installed CLIs are .cmd shims on Windows, which Node refuses to spawn directly;
     // cmd.exe gets an argv array (not `shell: true`), so the prompt stays a single argument.
@@ -154,8 +158,8 @@ async function isOnPath(cli: CliDefinition): Promise<boolean> {
 /**
  * Windows routes the prompt through `cmd.exe /c`, which expands `%VAR%` even inside
  * a quoted argument. Dropping the delimiters keeps the text readable while making sure
- * repo content (a commit subject, say) can never paste an environment value — an API
- * key, for instance — into a prompt that goes off to a model.
+ * repo content (a commit subject, say) can never paste an environment value (an API
+ * key, for instance) into a prompt that goes off to a model.
  */
 function stripEnvExpansions(prompt: string): string {
   return process.platform === 'win32' ? prompt.replace(/%([A-Za-z0-9_]+)%/g, '$1') : prompt;

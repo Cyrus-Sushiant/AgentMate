@@ -83,7 +83,7 @@ export interface FileTransferCallbacks {
  *
  * Files are split into fixed-size parts (`PART_BYTES`, 10MB). Each part is
  * streamed as 64KB `BIN_FILE_CHUNK` frames, independently SHA-256 hashed and
- * acked before the next part starts (stop-and-wait — see protocol comment on
+ * acked before the next part starts (stop-and-wait, see protocol comment on
  * `file-offer`), so a dropped connection or a corrupted part only costs a
  * resend of that one part, never the whole file. The whole file is verified
  * again at the end: the receiver re-reads the fully assembled temp file in
@@ -92,12 +92,12 @@ export interface FileTransferCallbacks {
  * that the parts summed to the same bytes the sender started with.
  *
  * State is keyed by `transferId`, not by connection, on purpose: when the
- * dialing side (always the controller — the host never dials) reconnects
+ * dialing side (always the controller, since the host never dials) reconnects
  * after a drop, it re-sends the message that drives its role in the
  * transfer (`file-offer` if it's the sender, `file-resume` if it's the
  * receiver) for the *same* `transferId`. Both handlers below recognize an
  * existing transfer by that id and just rebind `ws`/resume, instead of
- * starting over — that's the entire resume mechanism.
+ * starting over. That's the entire resume mechanism.
  */
 export class FileTransferManager {
   private readonly transfers = new Map<string, TransferState>();
@@ -505,7 +505,7 @@ export class FileTransferManager {
     }
   }
 
-  /** User explicitly disconnected — cancel everything cleanly rather than waiting to see if it reconnects. */
+  /** User explicitly disconnected, so cancel everything cleanly rather than waiting to see if it reconnects. */
   cancelAll(reason: string): void {
     for (const state of [...this.transfers.values()]) this.cancel(state, reason);
   }

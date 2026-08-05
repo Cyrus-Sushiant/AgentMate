@@ -16,7 +16,7 @@ export interface RemoteQualityInfo {
 /**
  * fps deliberately isn't a signal here: screen-share encoders correctly send
  * close to 0 fps for an unchanging desktop (nothing to encode), which isn't a
- * quality problem — badging that "Poor" would flag the common, efficient case
+ * quality problem, so badging that "Poor" would flag the common, efficient case
  * as broken. RTT and loss are the only reliable network-health signals; they
  * stay meaningful regardless of how static the screen content is.
  */

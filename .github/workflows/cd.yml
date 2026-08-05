@@ -38,7 +38,7 @@ jobs:
           - os: ubuntu-latest
             build_args: ""
           # macos-latest runners are Apple Silicon (arm64) and macos-26-intel
-          # runners are Intel (x64) — macos-13, the previous Intel label, was
+          # runners are Intel (x64). macos-13, the previous Intel label, was
           # retired by GitHub in December 2025. electron-builder.yml targets
           # both mac arches, but native modules (better-sqlite3) only get
           # rebuilt for the host's own architecture, so each arch is built on
@@ -191,7 +191,7 @@ jobs:
       # existing universal APK) so most users can grab a smaller,
       # device-specific download. android/app/build.gradle is regenerated
       # by expo prebuild on every run, so this config can't be committed
-      # there directly — it's injected right after prebuild instead.
+      # there directly, so it's injected right after prebuild instead.
       - name: Enable per-ABI APK splits
         shell: bash
         run: |

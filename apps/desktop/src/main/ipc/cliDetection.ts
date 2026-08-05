@@ -68,17 +68,18 @@ async function detectCli(cli: CliDefinition): Promise<InstalledCli> {
     // Route through cmd.exe explicitly (argv array, not `shell: true`) so
     // Node doesn't naively string-concatenate args. command/args here are
     // always static, developer-authored registry entries, never renderer input.
+    // Cline's CLI self-updates on every invocation, including a bare version check, by
+    // spawning a detached background installer; on Windows that can flash open a visible
+    // console. This is a no-op env var for every other CLI we shell out to.
+    const execOptions = { timeout: 8000, windowsHide: true, env: { ...process.env, CLINE_NO_AUTO_UPDATE: '1' } };
     const { stdout } =
       process.platform === 'win32'
         ? await execFileAsync(
             'cmd.exe',
             ['/d', '/s', '/c', cli.versionCommand.command, ...cli.versionCommand.args],
-            { timeout: 8000, windowsHide: true },
+            execOptions,
           )
-        : await execFileAsync(cli.versionCommand.command, cli.versionCommand.args, {
-            timeout: 8000,
-            windowsHide: true,
-          });
+        : await execFileAsync(cli.versionCommand.command, cli.versionCommand.args, execOptions);
     const versionMatch = stdout.match(/\d+\.\d+\.\d+[\w.-]*/);
     return {
       id: cli.id,

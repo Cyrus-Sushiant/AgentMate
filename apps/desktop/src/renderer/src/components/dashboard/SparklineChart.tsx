@@ -81,7 +81,7 @@ export function SparklineChart({
   const hovered = hoverIndex !== null && n > 0;
 
   // The card grid reorders via a framer-motion `layout` transform, which
-  // creates a stacking context on each card — a plain z-index on the tooltip
+  // creates a stacking context on each card, so a plain z-index on the tooltip
   // can't escape it, so a tall tooltip (e.g. many per-core series) would
   // render underneath the card in the row below instead of on top of it.
   // Portaling to <body> and positioning in viewport coordinates sidesteps

@@ -340,6 +340,17 @@ export interface SuggestTagResult {
   cancelled?: boolean;
 }
 
+export interface SuggestGitTextResult {
+  ok: boolean;
+  /** Suggested branch name or commit message, when ok is true. */
+  text?: string;
+  /** Display name of the CLI that answered. */
+  cliName?: string | null;
+  error?: string;
+  /** True when the caller cancelled the run, so the UI can stay quiet about it. */
+  cancelled?: boolean;
+}
+
 export interface CreatePullRequestInput {
   projectId: string;
   title: string;

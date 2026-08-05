@@ -91,8 +91,8 @@ export function RemoteScreen({ screen, live }: RemoteScreenProps): React.JSX.Ele
   /**
    * Reports this wrapper's physical-pixel size to the host (see the
    * `display-size` protocol message and `QualityGovernor.displayScale`) so
-   * the host can send only as much resolution as this box can actually show
-   * — and raise it back up when the box grows (window resized/maximized)
+   * the host can send only as much resolution as this box can actually show,
+   * and raise it back up when the box grows (window resized/maximized)
    * instead of staying capped at whatever a smaller size last requested.
    * Debounced: a live drag-resize fires many times a second, and only the
    * settled size is worth renegotiating encoder parameters for.
@@ -230,12 +230,12 @@ export function RemoteScreen({ screen, live }: RemoteScreenProps): React.JSX.Ele
   return (
     <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden bg-black/60 p-2">
       {/*
-       * This wrapper — not the video/canvas itself — carries the aspect-ratio
+       * This wrapper (not the video/canvas itself) carries the aspect-ratio
        * lock. `height: 100%` gives it an active size to grow into (rather than
        * only ever being capped from above), and the browser's aspect-ratio
        * sizing algorithm shrinks-and-recomputes both axes together when
        * `max-width` binds instead. Without an active height, the element only
-       * ever sized down to its *current* intrinsic resolution — so as the
+       * ever sized down to its *current* intrinsic resolution, so as the
        * WebRTC quality governor stepped resolution down on a poor link, the
        * displayed box visibly shrank instead of staying pinned to the
        * available space. Keeping the lock here (not on the media element)

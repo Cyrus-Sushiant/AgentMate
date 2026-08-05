@@ -21,7 +21,7 @@ const TILE = 128;
  * Ceiling on the *captured* (pre-per-peer-scaling) resolution. This used to
  * sit at 1600, which meant a maximized/large controller window had no real
  * pixels above 1600px on its longest edge to receive no matter how good the
- * network was — CSS had to upscale a sub-1600px stream to fill the window,
+ * network was: CSS had to upscale a sub-1600px stream to fill the window,
  * which reads as blur. `QualityGovernor`'s per-peer `scaleResolutionDownBy`
  * (see qualityGovernor.ts's `displayScale`) already downscales for a small
  * controller window or a poor link, so raising this ceiling only spends more

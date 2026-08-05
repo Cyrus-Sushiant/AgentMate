@@ -22,7 +22,7 @@ export type RemoteRole = 'host' | 'controller';
 /**
  * What a connection is for. `'files'` connects, authenticates, and enables
  * file-transfer/file-manager messages, but skips screen capture and WebRTC
- * negotiation entirely — the host never starts capturing for a `'files'` peer.
+ * negotiation entirely, so the host never starts capturing for a `'files'` peer.
  * Absent on `hello` (older/default behavior) means `'control'`.
  */
 export type RemoteConnectIntent = 'control' | 'files';
@@ -68,8 +68,8 @@ export type RemoteControlMessage =
   | { t: 'clipboard'; text: string }
   /**
    * Resumable file transfer. A file is split into fixed-size "parts" (see
-   * `PART_BYTES`), each independently hashed, acked, and — on failure or a
-   * mid-transfer reconnect — independently resent, so a large transfer never
+   * `PART_BYTES`), each independently hashed, acked, and (on failure or a
+   * mid-transfer reconnect) independently resent, so a large transfer never
    * has to restart from byte zero.
    *
    * Flow: sender sends `file-offer` → receiver replies `file-resume` with the
@@ -125,7 +125,7 @@ export type RemoteControlMessage =
   | { t: 'rtc-ice'; candidate: string; sdpMid: string | null; sdpMLineIndex: number | null }
   /**
    * Controller reports the physical-pixel size of its actual video display
-   * box (not the whole window — the aspect-locked content area), so the host
+   * box (not the whole window, just the aspect-locked content area), so the host
    * can avoid encoding more resolution than the controller can show, and can
    * raise resolution back up for a large/maximized controller window instead
    * of leaving it capped at whatever a small window last requested. Re-sent
@@ -296,7 +296,7 @@ export function decodeScreenTile(buf: Uint8Array): ScreenTile {
  */
 const FILE_HEADER_BYTES = 13;
 
-/** Size of one resumable transfer "part" — the coarse unit that gets its own hash and can be resent independently. */
+/** Size of one resumable transfer "part": the coarse unit that gets its own hash and can be resent independently. */
 export const PART_BYTES = 10 * 1024 * 1024;
 
 /** Size of one binary frame streamed within a part (does not affect resumability, only wire granularity). */

@@ -40,7 +40,16 @@ export async function runCli(
   cwd: string,
   timeoutMs = 30000,
 ): Promise<CliResult> {
-  const options = { cwd, timeout: timeoutMs, windowsHide: true, maxBuffer: 10 * 1024 * 1024 };
+  const options = {
+    cwd,
+    timeout: timeoutMs,
+    windowsHide: true,
+    maxBuffer: 10 * 1024 * 1024,
+    // Cline's CLI self-updates on every invocation, including a bare version check,
+    // by spawning a detached background installer; on Windows that can flash open a
+    // visible console. This is a no-op env var for every other CLI we shell out to.
+    env: { ...process.env, CLINE_NO_AUTO_UPDATE: '1' },
+  };
   try {
     const { stdout, stderr } =
       process.platform === 'win32'

@@ -59,7 +59,7 @@ export class ElectronCaptureProvider implements ICaptureProvider {
     // input pixels, so resizing before encoding is strictly cheaper than
     // encoding large and letting the network shed quality. `width`/`height`
     // max constraints are independent axes to the browser, not an
-    // aspect-preserving "fit within a box" — passing `maxEdge` for both would
+    // aspect-preserving "fit within a box", so passing `maxEdge` for both would
     // let it pick e.g. 1600x1600 out of a 3840x2160 (4K) source, squashing a
     // 16:9 desktop into a square. Pre-scale both dimensions by the same
     // factor (same approach the tile pipeline uses below) so the constraint

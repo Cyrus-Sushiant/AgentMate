@@ -162,7 +162,7 @@ export const IPC = {
     stopHost: 'remote:stopHost',
     generatePairingCode: 'remote:generatePairingCode',
     connect: 'remote:connect',
-    /** Same as `connect`, but the resulting session skips capture/WebRTC entirely — file transfer and file-manager browsing only. */
+    /** Same as `connect`, but the resulting session skips capture/WebRTC entirely: file transfer and file-manager browsing only. */
     connectFiles: 'remote:connectFiles',
     disconnect: 'remote:disconnect',
     listSavedServers: 'remote:listSavedServers',

@@ -1205,7 +1205,7 @@ function GitStatusBadge({ x, y }: { x: string; y: string }): React.JSX.Element {
 
 /**
  * One button for both halves of an AI call. Idle, it asks. While the request runs it
- * keeps reporting progress — spinner plus what it is doing — and carries a red ✕ that
+ * keeps reporting progress (spinner plus what it is doing) and carries a red ✕ that
  * cancels, so the work stays visible and stoppable from the spot it was started.
  */
 function AiSuggestButton({
@@ -1501,7 +1501,7 @@ function GitTab({
               size="sm"
               label="Suggest with AI"
               pendingLabel="Thinking…"
-              pendingTooltip="Generating a branch name — click to cancel"
+              pendingTooltip="Generating a branch name, click to cancel"
               pending={suggestingBranch}
               disabled={status.files.length === 0}
               onStart={() => void handleSuggestBranchName()}
@@ -1532,7 +1532,7 @@ function GitTab({
               size="sm"
               label="Suggest with AI"
               pendingLabel="Thinking…"
-              pendingTooltip="Writing a commit message — click to cancel"
+              pendingTooltip="Writing a commit message, click to cancel"
               pending={suggestingCommit}
               disabled={status.files.length === 0}
               onStart={() => void handleSuggestCommitMessage()}
@@ -1808,7 +1808,7 @@ function TagVersionDialog({
             <AiSuggestButton
               label="Suggest with AI"
               pendingLabel="Asking your CLI…"
-              pendingTooltip="Reading the commits since the latest tag — click to cancel"
+              pendingTooltip="Reading the commits since the latest tag, click to cancel"
               pending
               onStart={() => suggestMutation.mutate()}
               onCancel={handleCancelSuggest}

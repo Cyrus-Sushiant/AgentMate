@@ -42,7 +42,7 @@ import { startHourlyUpdateChecks } from './updater';
 // minimized/occluded window (and Windows' own efficiency-mode throttling
 // piles on top of that). That combination is what makes the terminal drawer's
 // pty sessions appear to freeze or reset a short while after the window is
-// minimized — and if the app was launched from a shell running inside one of
+// minimized, and if the app was launched from a shell running inside one of
 // those terminals, drags the whole app down with it. These switches keep the
 // main window's renderer running at full priority regardless of window state.
 app.commandLine.appendSwitch('disable-background-timer-throttling');
@@ -84,7 +84,7 @@ function createMainWindow(): void {
       nodeIntegration: false,
       webSecurity: true,
       // Keep terminal output flowing and the pty session healthy while the
-      // window is minimized — see the command-line switches above.
+      // window is minimized; see the command-line switches above.
       backgroundThrottling: false,
     },
   });
