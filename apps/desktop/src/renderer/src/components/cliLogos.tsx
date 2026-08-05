@@ -1,4 +1,4 @@
-import { siClaudecode, siCursor, siGooglegemini, siOpencode, siQwen } from 'simple-icons';
+import { siClaudecode, siCline, siCursor, siGooglegemini, siOpencode, siQwen } from 'simple-icons';
 import { cn } from '@/lib/utils';
 
 interface BrandLogo {
@@ -14,6 +14,7 @@ const BRAND_LOGOS: Record<string, BrandLogo> = {
   'qwen-cli': { path: siQwen.path, color: `#${siQwen.hex}` },
   opencode: { path: siOpencode.path, color: `#${siOpencode.hex}`, invertOnDark: true },
   'cursor-cli': { path: siCursor.path, color: `#${siCursor.hex}`, invertOnDark: true },
+  'cline-cli': { path: siCline.path, color: `#${siCline.hex}`, invertOnDark: true },
 };
 
 interface MonogramLogo {
