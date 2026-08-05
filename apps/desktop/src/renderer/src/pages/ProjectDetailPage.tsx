@@ -1204,9 +1204,9 @@ function GitStatusBadge({ x, y }: { x: string; y: string }): React.JSX.Element {
 }
 
 /**
- * One button for both halves of an AI call: it asks while idle, and turns into a red
- * cancel while the request is in flight, so the running request is stopped from the
- * same spot it was started.
+ * One button for both halves of an AI call. Idle, it asks. While the request runs it
+ * keeps reporting progress — spinner plus what it is doing — and carries a red ✕ that
+ * cancels, so the work stays visible and stoppable from the spot it was started.
  */
 function AiSuggestButton({
   pending,
@@ -1215,6 +1215,7 @@ function AiSuggestButton({
   disabled,
   size,
   label,
+  pendingLabel,
   pendingTooltip,
 }: {
   pending: boolean;
@@ -1223,7 +1224,8 @@ function AiSuggestButton({
   disabled?: boolean;
   size?: 'sm';
   label: string;
-  /** Says what is running, since the button itself only reads "Cancel" at that point. */
+  /** What the AI is doing right now, e.g. "Thinking…". */
+  pendingLabel: string;
   pendingTooltip: string;
 }): React.JSX.Element {
   const iconSize = size === 'sm' ? 'h-3.5 w-3.5' : 'h-4 w-4';
@@ -1235,9 +1237,12 @@ function AiSuggestButton({
           variant="outline"
           size={size}
           onClick={onCancel}
-          className="border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
+          aria-label={`${pendingLabel} Click to cancel.`}
+          className="border-destructive/40 hover:bg-destructive/10"
         >
-          <X className={iconSize} /> Cancel
+          <Spinner className={`${iconSize} animate-spin`} />
+          {pendingLabel}
+          <X className={`${iconSize} text-destructive`} />
         </Button>
       </SimpleTooltip>
     );
@@ -1495,6 +1500,7 @@ function GitTab({
             <AiSuggestButton
               size="sm"
               label="Suggest with AI"
+              pendingLabel="Thinking…"
               pendingTooltip="Generating a branch name — click to cancel"
               pending={suggestingBranch}
               disabled={status.files.length === 0}
@@ -1525,6 +1531,7 @@ function GitTab({
             <AiSuggestButton
               size="sm"
               label="Suggest with AI"
+              pendingLabel="Thinking…"
               pendingTooltip="Writing a commit message — click to cancel"
               pending={suggestingCommit}
               disabled={status.files.length === 0}
@@ -1800,7 +1807,8 @@ function TagVersionDialog({
           {suggestMutation.isPending ? (
             <AiSuggestButton
               label="Suggest with AI"
-              pendingTooltip="Asking your CLI for the next version — click to cancel"
+              pendingLabel="Asking your CLI…"
+              pendingTooltip="Reading the commits since the latest tag — click to cancel"
               pending
               onStart={() => suggestMutation.mutate()}
               onCancel={handleCancelSuggest}
@@ -1809,6 +1817,7 @@ function TagVersionDialog({
             <SimpleTooltip label="Reads the commits since the latest tag with your CLI and proposes the next semantic version">
               <AiSuggestButton
                 label="Suggest with AI"
+                pendingLabel="Asking your CLI…"
                 pendingTooltip=""
                 pending={false}
                 disabled={createTagMutation.isPending}
