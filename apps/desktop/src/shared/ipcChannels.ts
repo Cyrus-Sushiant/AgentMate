@@ -254,6 +254,9 @@ export const IPC = {
     sync: 'git:sync',
     createBranch: 'git:createBranch',
     commit: 'git:commit',
+    tags: 'git:tags',
+    createTag: 'git:createTag',
+    suggestTag: 'git:suggestTag',
     createPullRequest: 'git:createPullRequest',
   },
   packages: {

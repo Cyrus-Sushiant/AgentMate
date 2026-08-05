@@ -34,6 +34,7 @@ import {
   Send,
   Sparkles,
   Spinner,
+  Tag,
   TerminalSquare,
   Trash2,
   TriangleAlert,
@@ -44,6 +45,7 @@ import { CliLogo } from '@/components/cliLogos';
 import { CLI_REGISTRY } from '@agentmat/core';
 import type {
   BootstrapResult,
+  GitTagInfo,
   PackageInfo,
   PackageManagerSection,
   PackageUpdateRequest,
@@ -1210,10 +1212,17 @@ function GitTab({ projectId }: { projectId: string }): React.JSX.Element {
   const [suggestingBranch, setSuggestingBranch] = useState(false);
   const [suggestingCommit, setSuggestingCommit] = useState(false);
   const [prOpen, setPrOpen] = useState(false);
+  const [tagOpen, setTagOpen] = useState(false);
 
   const statusQuery = useQuery({
     queryKey: queryKeys.gitStatus(projectId),
     queryFn: () => window.agentmat.git.status(projectId),
+  });
+
+  const tagsQuery = useQuery({
+    queryKey: queryKeys.gitTags(projectId),
+    queryFn: () => window.agentmat.git.tags(projectId),
+    enabled: statusQuery.data?.isRepo === true,
   });
 
   function invalidateStatus(): void {
@@ -1361,7 +1370,11 @@ function GitTab({ projectId }: { projectId: string }): React.JSX.Element {
           >
             <CloudUpload className="h-3.5 w-3.5" /> Push
           </Button>
-          <Button disabled={anyOpPending || !status.hasRemote} onClick={() => syncMutation.mutate()}>
+          <Button
+            size="sm"
+            disabled={anyOpPending || !status.hasRemote}
+            onClick={() => syncMutation.mutate()}
+          >
             <RefreshCw className="h-3.5 w-3.5" /> Sync
           </Button>
         </div>
@@ -1440,6 +1453,24 @@ function GitTab({ projectId }: { projectId: string }): React.JSX.Element {
         </div>
       </div>
 
+      <div className="glass flex flex-wrap items-center justify-between gap-3 rounded-lg p-4">
+        <div>
+          <p className="flex items-center gap-1.5 text-sm font-medium">
+            <Tag className="h-3.5 w-3.5" /> Version tag
+          </p>
+          <p className="text-xs text-muted-foreground">
+            {tagsQuery.data?.latestTag
+              ? `Latest tag ${tagsQuery.data.latestTag} · ${tagsQuery.data.commitsSinceLatestTag} commit${
+                  tagsQuery.data.commitsSinceLatestTag === 1 ? '' : 's'
+                } since then.`
+              : 'No tags in this repository yet.'}
+          </p>
+        </div>
+        <Button variant="outline" onClick={() => setTagOpen(true)}>
+          <Tag className="h-3.5 w-3.5" /> Tag a version
+        </Button>
+      </div>
+
       <div className="glass flex items-center justify-between rounded-lg p-4">
         <div>
           <p className="flex items-center gap-1.5 text-sm font-medium">
@@ -1455,6 +1486,13 @@ function GitTab({ projectId }: { projectId: string }): React.JSX.Element {
         </Button>
       </div>
 
+      <TagVersionDialog
+        projectId={projectId}
+        tagInfo={tagsQuery.data ?? null}
+        open={tagOpen}
+        onOpenChange={setTagOpen}
+      />
+
       <CreatePrDialog
         projectId={projectId}
         branch={status.branch}
@@ -1463,6 +1501,138 @@ function GitTab({ projectId }: { projectId: string }): React.JSX.Element {
         suggestedTitle={commitMessage.split('\n')[0]}
       />
     </div>
+  );
+}
+
+function TagVersionDialog({
+  projectId,
+  tagInfo,
+  open,
+  onOpenChange,
+}: {
+  projectId: string;
+  tagInfo: GitTagInfo | null;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}): React.JSX.Element {
+  const queryClient = useQueryClient();
+  const [tag, setTag] = useState('');
+  const [message, setMessage] = useState('');
+  const [reason, setReason] = useState<string | null>(null);
+
+  const hasRemote = tagInfo?.hasRemote ?? false;
+
+  const suggestMutation = useMutation({
+    mutationFn: () => window.agentmat.git.suggestTag(projectId),
+    onSuccess: (result) => {
+      if (result.ok && result.tag) {
+        setTag(result.tag);
+        setReason(result.reason ?? null);
+        if (result.message) setMessage(result.message);
+        toast.success(`${result.cliName ?? 'Your CLI'} suggested ${result.tag}.`);
+      } else {
+        toast.error(result.error ?? 'The CLI could not work out a version.');
+      }
+    },
+  });
+
+  const createTagMutation = useMutation({
+    mutationFn: () =>
+      window.agentmat.git.createTag({ projectId, tag: tag.trim(), message, push: hasRemote }),
+    onSuccess: (result) => {
+      if (result.ok) {
+        toast.success(result.message);
+        void queryClient.invalidateQueries({ queryKey: queryKeys.gitTags(projectId) });
+        void queryClient.invalidateQueries({ queryKey: queryKeys.gitStatus(projectId) });
+        handleOpenChange(false);
+      } else {
+        toast.error(result.message);
+      }
+    },
+  });
+
+  function handleOpenChange(next: boolean): void {
+    if (!next) {
+      setTag('');
+      setMessage('');
+      setReason(null);
+    }
+    onOpenChange(next);
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Tag a version</DialogTitle>
+          <DialogDescription>
+            {tagInfo?.latestTag ? (
+              <>
+                Latest tag is <span className="font-mono">{tagInfo.latestTag}</span>, with{' '}
+                {tagInfo.commitsSinceLatestTag} commit
+                {tagInfo.commitsSinceLatestTag === 1 ? '' : 's'} on top of it.
+              </>
+            ) : (
+              'This repository has no tags yet.'
+            )}
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3">
+          <div className="space-y-1.5">
+            <Label>Tag name</Label>
+            <Input
+              value={tag}
+              onChange={(e) => setTag(e.target.value)}
+              placeholder="v1.0.1"
+              className="font-mono"
+            />
+            {reason && <p className="text-xs text-muted-foreground">{reason}</p>}
+          </div>
+          <div className="space-y-1.5">
+            <Label>Tag message (optional)</Label>
+            <Textarea
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              rows={6}
+              placeholder="What this release contains…"
+            />
+          </div>
+          {tagInfo && tagInfo.recentTags.length > 0 && (
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="text-xs text-muted-foreground">Existing:</span>
+              {tagInfo.recentTags.map((existing) => (
+                <Badge key={existing} variant="outline" className="font-mono text-[10px]">
+                  {existing}
+                </Badge>
+              ))}
+            </div>
+          )}
+          <p className="text-xs text-muted-foreground">
+            {hasRemote
+              ? 'The tag is created locally and pushed to origin.'
+              : 'No remote is configured, so the tag is only created locally.'}
+          </p>
+        </div>
+        <DialogFooter>
+          <SimpleTooltip label="Reads the commits since the latest tag with your default CLI and proposes the next semantic version">
+            <Button
+              variant="outline"
+              disabled={suggestMutation.isPending || createTagMutation.isPending}
+              onClick={() => suggestMutation.mutate()}
+            >
+              <Sparkles className="h-4 w-4" />
+              {suggestMutation.isPending ? 'Asking your CLI…' : 'Suggest with AI'}
+            </Button>
+          </SimpleTooltip>
+          <Button
+            disabled={createTagMutation.isPending || !tag.trim()}
+            onClick={() => createTagMutation.mutate()}
+          >
+            <Tag className="h-4 w-4" /> {hasRemote ? 'Create & push tag' : 'Create tag'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 

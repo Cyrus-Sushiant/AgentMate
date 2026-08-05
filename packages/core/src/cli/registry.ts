@@ -25,6 +25,12 @@ export const CliDefinitionSchema = z.object({
   executableNames: z.array(z.string()).min(1),
   detectCommand: ShellCommandSchema,
   versionCommand: ShellCommandSchema,
+  /**
+   * One-shot ("headless") prompt invocation: the prompt text is appended as the
+   * final argument, and the agent answers on stdout without opening a TUI.
+   * Absent for CLIs that have no non-interactive mode we can rely on.
+   */
+  promptCommand: ShellCommandSchema.optional(),
   /** Keyed by SupportedOS; not every OS needs an entry. */
   installCommand: z.record(z.string(), z.string()),
   /** Keyed by SupportedOS; falls back to installCommand when absent. */
@@ -45,6 +51,7 @@ export const CLI_REGISTRY: CliDefinition[] = [
     executableNames: ['claude'],
     detectCommand: { command: 'claude', args: ['--version'] },
     versionCommand: { command: 'claude', args: ['--version'] },
+    promptCommand: { command: 'claude', args: ['-p'] },
     installCommand: {
       win32: 'npm install -g @anthropic-ai/claude-code',
       darwin: 'npm install -g @anthropic-ai/claude-code',
@@ -61,6 +68,7 @@ export const CLI_REGISTRY: CliDefinition[] = [
     executableNames: ['gemini'],
     detectCommand: { command: 'gemini', args: ['--version'] },
     versionCommand: { command: 'gemini', args: ['--version'] },
+    promptCommand: { command: 'gemini', args: ['-p'] },
     installCommand: {
       win32: 'npm install -g @google/gemini-cli',
       darwin: 'npm install -g @google/gemini-cli',
@@ -77,6 +85,7 @@ export const CLI_REGISTRY: CliDefinition[] = [
     executableNames: ['opencode'],
     detectCommand: { command: 'opencode', args: ['--version'] },
     versionCommand: { command: 'opencode', args: ['--version'] },
+    promptCommand: { command: 'opencode', args: ['run'] },
     installCommand: {
       win32: 'npm install -g opencode-ai@latest',
       darwin: 'npm install -g opencode-ai@latest',
@@ -93,6 +102,7 @@ export const CLI_REGISTRY: CliDefinition[] = [
     executableNames: ['codex'],
     detectCommand: { command: 'codex', args: ['--version'] },
     versionCommand: { command: 'codex', args: ['--version'] },
+    promptCommand: { command: 'codex', args: ['exec'] },
     installCommand: {
       win32: 'npm install -g @openai/codex',
       darwin: 'npm install -g @openai/codex',
@@ -110,6 +120,7 @@ export const CLI_REGISTRY: CliDefinition[] = [
     executableNames: ['grok'],
     detectCommand: { command: 'grok', args: ['--version'] },
     versionCommand: { command: 'grok', args: ['--version'] },
+    promptCommand: { command: 'grok', args: ['--prompt'] },
     installCommand: {
       win32: 'npm install -g @xai-official/grok',
       darwin: 'npm install -g @xai-official/grok',
@@ -127,6 +138,7 @@ export const CLI_REGISTRY: CliDefinition[] = [
     executableNames: ['cursor-agent'],
     detectCommand: { command: 'cursor-agent', args: ['--version'] },
     versionCommand: { command: 'cursor-agent', args: ['--version'] },
+    promptCommand: { command: 'cursor-agent', args: ['-p'] },
     installCommand: {
       win32: "irm 'https://cursor.com/install?win32=true' | iex",
       darwin: 'curl https://cursor.com/install -fsS | bash',
@@ -166,6 +178,7 @@ export const CLI_REGISTRY: CliDefinition[] = [
     executableNames: ['qwen'],
     detectCommand: { command: 'qwen', args: ['--version'] },
     versionCommand: { command: 'qwen', args: ['--version'] },
+    promptCommand: { command: 'qwen', args: ['-p'] },
     installCommand: {
       win32: 'npm install -g @qwen-code/qwen-code',
       darwin: 'npm install -g @qwen-code/qwen-code',
@@ -203,6 +216,7 @@ export const CLI_REGISTRY: CliDefinition[] = [
     executableNames: ['goose'],
     detectCommand: { command: 'goose', args: ['--version'] },
     versionCommand: { command: 'goose', args: ['--version'] },
+    promptCommand: { command: 'goose', args: ['run', '-t'] },
     installCommand: {
       darwin: 'curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh | bash',
       linux: 'curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh | bash',
@@ -224,6 +238,7 @@ export const CLI_REGISTRY: CliDefinition[] = [
     executableNames: ['cn'],
     detectCommand: { command: 'cn', args: ['--version'] },
     versionCommand: { command: 'cn', args: ['--version'] },
+    promptCommand: { command: 'cn', args: ['-p'] },
     installCommand: {
       win32: 'npm install -g @continuedev/cli',
       darwin: 'npm install -g @continuedev/cli',

@@ -298,6 +298,38 @@ export interface GitOpResult {
   message: string;
 }
 
+export interface GitTagInfo {
+  /** Most recent tag reachable from HEAD, or null when the repo has none yet. */
+  latestTag: string | null;
+  /** Newest tags first, capped to a handful for display. */
+  recentTags: string[];
+  /** Commits made after `latestTag` (all commits when there is no tag yet). */
+  commitsSinceLatestTag: number;
+  hasRemote: boolean;
+}
+
+export interface CreateTagInput {
+  projectId: string;
+  tag: string;
+  /** Annotation message; falls back to the tag name when empty. */
+  message?: string;
+  /** Push the new tag to origin after creating it. */
+  push: boolean;
+}
+
+export interface SuggestTagResult {
+  ok: boolean;
+  /** Suggested tag name, e.g. "v1.6.2". */
+  tag?: string;
+  /** One-line rationale from the CLI, when it gave one. */
+  reason?: string;
+  /** Release notes for the tag annotation. */
+  message?: string;
+  /** Display name of the CLI that answered. */
+  cliName?: string | null;
+  error?: string;
+}
+
 export interface CreatePullRequestInput {
   projectId: string;
   title: string;

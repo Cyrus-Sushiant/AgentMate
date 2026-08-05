@@ -25,6 +25,7 @@ export const queryKeys = {
   scheduledTasks: (projectId: string) => ['scheduled-tasks', projectId] as const,
   claudeHooks: (projectId: string) => ['claude-hooks', projectId] as const,
   gitStatus: (projectId: string) => ['git-status', projectId] as const,
+  gitTags: (projectId: string) => ['git-tags', projectId] as const,
   packages: (projectId: string) => ['packages', projectId] as const,
   skillsShSearch: (query: string) => ['skills-sh-search', query] as const,
   skillsShDetail: (id: string) => ['skills-sh-detail', id] as const,

@@ -63,6 +63,9 @@ import type {
   ConfirmationForwardedPayload,
   GitStatus,
   GitOpResult,
+  GitTagInfo,
+  CreateTagInput,
+  SuggestTagResult,
   CreatePullRequestInput,
   CreatePullRequestResult,
   PackageScanResult,
@@ -386,6 +389,11 @@ const git = {
     ipcRenderer.invoke(IPC.git.createBranch, projectId, branchName),
   commit: (projectId: string, message: string): Promise<GitOpResult> =>
     ipcRenderer.invoke(IPC.git.commit, projectId, message),
+  tags: (projectId: string): Promise<GitTagInfo> => ipcRenderer.invoke(IPC.git.tags, projectId),
+  createTag: (input: CreateTagInput): Promise<GitOpResult> =>
+    ipcRenderer.invoke(IPC.git.createTag, input),
+  suggestTag: (projectId: string): Promise<SuggestTagResult> =>
+    ipcRenderer.invoke(IPC.git.suggestTag, projectId),
   createPullRequest: (input: CreatePullRequestInput): Promise<CreatePullRequestResult> =>
     ipcRenderer.invoke(IPC.git.createPullRequest, input),
 };
