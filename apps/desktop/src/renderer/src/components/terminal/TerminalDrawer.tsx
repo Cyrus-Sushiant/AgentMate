@@ -5,7 +5,7 @@ import { SimpleTooltip } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import { TerminalPane } from './TerminalPane';
 
-export function TerminalDrawer(): React.JSX.Element | null {
+export function TerminalDrawer(): React.JSX.Element {
   const isOpen = useTerminalStore((s) => s.isOpen);
   const sessions = useTerminalStore((s) => s.sessions);
   const activeSessionId = useTerminalStore((s) => s.activeSessionId);
@@ -14,8 +14,6 @@ export function TerminalDrawer(): React.JSX.Element | null {
   const openSession = useTerminalStore((s) => s.openSession);
   const closeDrawer = useTerminalStore((s) => s.closeDrawer);
   const [isMaximized, setIsMaximized] = useState(false);
-
-  if (!isOpen) return null;
 
   function handleCloseDrawer(): void {
     setIsMaximized(false);
@@ -30,6 +28,9 @@ export function TerminalDrawer(): React.JSX.Element | null {
     });
   }
 
+  // Closing the drawer only hides it: the panes stay mounted so their ptys keep
+  // running. Unmounting them here would kill every shell (see TerminalPane's
+  // cleanup), which is what closing an individual tab is for.
   return (
     <div
       className={cn(
@@ -37,6 +38,7 @@ export function TerminalDrawer(): React.JSX.Element | null {
         isMaximized
           ? 'fixed inset-x-0 bottom-0 top-11 z-50 h-auto'
           : 'absolute inset-x-0 bottom-0 z-20 h-72',
+        !isOpen && 'hidden',
       )}
     >
       <div className="flex items-center gap-1 border-b border-white/10 px-2 py-1">
@@ -114,7 +116,7 @@ export function TerminalDrawer(): React.JSX.Element | null {
           <TerminalPane
             key={session.id}
             meta={session}
-            active={session.id === activeSessionId}
+            active={isOpen && session.id === activeSessionId}
             onExit={() => closeSession(session.id)}
           />
         ))}

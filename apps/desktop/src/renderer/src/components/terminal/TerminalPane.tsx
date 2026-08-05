@@ -46,13 +46,17 @@ export function TerminalPane({ meta, active, onExit }: TerminalPaneProps): React
     let disposed = false;
 
     const resizeObserver = new ResizeObserver(() => {
+      // A hidden pane (inactive tab, or the whole drawer closed) measures 0x0.
+      // Fitting to that would reflow the running program's output to a garbage
+      // size, so wait until it is on screen again — hiding must not disturb the pty.
+      if (container.clientWidth === 0 || container.clientHeight === 0) return;
       try {
         fitAddon.fit();
         if (ptySessionId) {
           void window.agentmat.terminal.resize(ptySessionId, term.cols, term.rows);
         }
       } catch {
-        // container may have zero size briefly while hidden; ignore
+        // xterm can still reject a transient measurement mid-layout; ignore
       }
     });
     resizeObserver.observe(container);
@@ -111,8 +115,10 @@ export function TerminalPane({ meta, active, onExit }: TerminalPaneProps): React
           return;
         }
         ptySessionId = id;
-        fitAddon.fit();
-        void window.agentmat.terminal.resize(id, term.cols, term.rows);
+        if (container.clientWidth > 0 && container.clientHeight > 0) {
+          fitAddon.fit();
+          void window.agentmat.terminal.resize(id, term.cols, term.rows);
+        }
 
         unsubscribeData = window.agentmat.terminal.onData((payload) => {
           if (payload.sessionId === id) term.write(payload.data);
