@@ -1,4 +1,6 @@
+import { useQuery } from '@tanstack/react-query';
 import { NavLink, useLocation } from 'react-router-dom';
+import { queryKeys } from '@/lib/queryKeys';
 import {
   Blocks,
   Broadcast,
@@ -44,6 +46,10 @@ export const NAV_ITEMS: NavItem[] = [
 export function Sidebar(): React.JSX.Element {
   const collapsed = useUiStore((s) => s.sidebarCollapsed);
   const { pathname } = useLocation();
+  const appVersionQuery = useQuery({
+    queryKey: queryKeys.appVersion,
+    queryFn: () => window.agentmat.app.getVersion(),
+  });
 
   return (
     <aside
@@ -94,7 +100,9 @@ export function Sidebar(): React.JSX.Element {
       </nav>
 
       {!collapsed && (
-        <div className="px-2.5 pt-2 text-[11px] text-muted-foreground/60">AgentMate v1.6.1</div>
+        <div className="px-2.5 pt-2 text-[11px] text-muted-foreground/60">
+          AgentMate {appVersionQuery.data == null ? '' : appVersionQuery.data === 'dev' ? 'dev' : `v${appVersionQuery.data}`}
+        </div>
       )}
     </aside>
   );
