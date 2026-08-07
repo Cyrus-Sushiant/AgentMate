@@ -339,6 +339,8 @@ export interface ApplyVersionResult {
   output: string;
   /** Working-tree paths that differ from before the run. */
   changedFiles: string[];
+  /** True if HEAD moved during the run, e.g. the CLI ran `npm version` and committed on its own. */
+  committedByCli?: boolean;
   cliName?: string | null;
   error?: string;
   cancelled?: boolean;

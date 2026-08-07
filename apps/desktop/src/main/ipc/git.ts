@@ -317,7 +317,7 @@ async function readWorkingTreeFingerprint(cwd: string): Promise<Map<string, stri
 function buildVersionBumpPrompt(tag: string): string {
   const version = tag.replace(/^v/, '');
   return [
-    `Update this project's version to ${version} (git tag ${tag}).`,
+    `Update this project's version to ${version}.`,
     '',
     '- Set the version field in every manifest this repo actually uses: package.json (including',
     '  workspace packages), pyproject.toml, Cargo.toml, *.csproj, app.json, build.gradle,',
@@ -325,7 +325,9 @@ function buildVersionBumpPrompt(tag: string): string {
     '- Update hard-coded version strings the application itself displays (about screens, footers,',
     '  constants such as APP_VERSION).',
     '- Leave lockfiles alone. Only touch a CHANGELOG if this project clearly keeps one.',
-    '- Do not commit, tag or push anything.',
+    '- Edit the version fields directly. Do not run `npm version`, `yarn version`, `pnpm version`,',
+    '  `cargo release`, or any other command that bumps a version by itself, since those also',
+    "  create a commit and a git tag. Do not commit, tag or push anything; that's handled separately.",
     '',
     'When you are done, reply with a short plain-text summary: one line per file you changed,',
     'as "path: old version -> new version". No markdown.',
@@ -445,10 +447,42 @@ export function registerGitHandlers(): void {
       };
     }
 
-    const exists = await git(cwd, ['rev-parse', '-q', '--verify', `refs/tags/${tag}`])
-      .then(() => true)
-      .catch(() => false);
-    if (exists) return { ok: false, message: `Tag ${tag} already exists in this repository.` };
+    const localSha = await git(cwd, ['rev-parse', '-q', '--verify', `refs/tags/${tag}^{commit}`])
+      .then((out) => out.trim())
+      .catch(() => null);
+
+    if (localSha) {
+      // The tag is already there locally, most often because the version-bump CLI ran a tool
+      // like `npm version` that tags on its own despite being told not to. As long as it still
+      // points at HEAD, treat this as "already made, just needs pushing" instead of a conflict.
+      const headSha = (await git(cwd, ['rev-parse', 'HEAD'])).trim();
+      if (localSha !== headSha) {
+        return {
+          ok: false,
+          message: `Tag ${tag} already exists locally but points at a different commit than HEAD. Delete it (or pick a different name) before retrying.`,
+        };
+      }
+      if (!input.push) return { ok: false, message: `Tag ${tag} already exists locally.` };
+
+      return runGitOp(async () => {
+        // Annotated tags list under their own object sha; the "^{}" peeled ref is what
+        // resolves that back to the commit, which is what `localSha` was compared against above.
+        const remoteRefs = (
+          await git(cwd, ['ls-remote', 'origin', `refs/tags/${tag}`, `refs/tags/${tag}^{}`]).catch(() => '')
+        )
+          .split('\n')
+          .map((line) => line.trim())
+          .filter(Boolean);
+        const peeled = remoteRefs.find((line) => line.endsWith('^{}'));
+        const remoteSha = (peeled ?? remoteRefs[0])?.split(/\s+/)[0];
+        if (remoteSha) {
+          if (remoteSha === localSha) return `Tag ${tag} already exists locally and on origin, nothing to push.`;
+          throw new Error(`Tag ${tag} already exists on origin and points at a different commit.`);
+        }
+        await git(cwd, ['push', 'origin', tag]);
+        return `Tag ${tag} already existed locally, pushed it to origin.`;
+      });
+    }
 
     return runGitOp(async () => {
       await git(cwd, ['tag', '-a', tag, '-m', input.message?.trim() || tag]);
@@ -559,6 +593,7 @@ export function registerGitHandlers(): void {
       // Snapshot first: the CLI's own summary of what it edited can't be trusted, and
       // diffing the working tree before and after is the only account of it that can.
       const before = await readWorkingTreeFingerprint(cwd);
+      const headBefore = await git(cwd, ['rev-parse', 'HEAD']).then((sha) => sha.trim()).catch(() => null);
 
       const result = await runHeadlessCliPrompt(buildVersionBumpPrompt(tag), cwd, {
         requestId: input.requestId,
@@ -572,18 +607,25 @@ export function registerGitHandlers(): void {
         .map(([path]) => path)
         .sort();
 
+      // Despite the prompt telling it not to, a CLI occasionally reaches for a tool like
+      // `npm version` that commits (and tags) by itself; that leaves no working-tree diff to
+      // report, so this is the only way to tell the UI the bump actually landed in a commit.
+      const headAfter = await git(cwd, ['rev-parse', 'HEAD']).then((sha) => sha.trim()).catch(() => null);
+      const committedByCli = headBefore !== null && headAfter !== null && headBefore !== headAfter;
+
       if (!result.ok) {
         return {
           ok: false,
           output: result.text,
           changedFiles,
+          committedByCli,
           cliName: result.cliName,
           error: result.error,
           cancelled: result.cancelled,
         };
       }
 
-      return { ok: true, output: result.text, changedFiles, cliName: result.cliName };
+      return { ok: true, output: result.text, changedFiles, committedByCli, cliName: result.cliName };
     },
   );
 

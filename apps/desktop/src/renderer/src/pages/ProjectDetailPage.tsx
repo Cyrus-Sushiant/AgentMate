@@ -1719,7 +1719,14 @@ function ApplyVersionDialog({
             </div>
           )}
 
-          {result?.ok && result.changedFiles.length === 0 && (
+          {result?.ok && result.changedFiles.length === 0 && result.committedByCli && (
+            <p className="text-sm text-muted-foreground">
+              Your CLI committed the version bump itself (some version tools do this on their own).
+              Tagging is unlocked, use "Back to tag" to continue.
+            </p>
+          )}
+
+          {result?.ok && result.changedFiles.length === 0 && !result.committedByCli && (
             <p className="text-sm text-muted-foreground">
               The run finished without changing any files. The version may already be set, or the
               CLI could not find where it lives.
