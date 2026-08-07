@@ -45,6 +45,7 @@ import { CliLogo } from '@/components/cliLogos';
 import { CLI_REGISTRY } from '@agentmat/core';
 import type {
   BootstrapResult,
+  GitStatus,
   GitTagInfo,
   PackageInfo,
   PackageManagerSection,
@@ -1544,6 +1545,7 @@ function GitTab({
       <TagVersionDialog
         projectId={projectId}
         tagInfo={tagsQuery.data ?? null}
+        status={status}
         open={tagOpen}
         onOpenChange={setTagOpen}
         onApplyVersion={(nextTag) => {
@@ -1608,6 +1610,17 @@ function ApplyVersionDialog({
     },
     onSettled: () => {
       requestRef.current = null;
+      void queryClient.invalidateQueries({ queryKey: queryKeys.gitStatus(projectId) });
+    },
+  });
+
+  // Tagging is gated on a clean working tree (see TagVersionDialog), so the version bump
+  // this dialog just wrote needs to be committed before the user can move on to tagging.
+  const commitMutation = useMutation({
+    mutationFn: (message: string) => window.agentmat.git.commit(projectId, message),
+    onSuccess: (result) => {
+      if (result.ok) toast.success(result.message);
+      else toast.error(result.message);
       void queryClient.invalidateQueries({ queryKey: queryKeys.gitStatus(projectId) });
     },
   });
@@ -1684,6 +1697,25 @@ function ApplyVersionDialog({
                   </p>
                 ))}
               </div>
+              {commitMutation.isSuccess && commitMutation.data.ok ? (
+                <p className="text-xs text-muted-foreground">
+                  Committed. Tagging is unlocked, use "Back to tag" to continue.
+                </p>
+              ) : (
+                <div className="flex items-center gap-2 rounded-lg border border-border bg-card/60 px-3 py-2">
+                  <p className="min-w-0 flex-1 text-xs text-muted-foreground">
+                    Tagging is locked until this version bump is committed.
+                  </p>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={commitMutation.isPending}
+                    onClick={() => tag && commitMutation.mutate(`chore(release): bump version to ${tag.replace(/^v/, '')}`)}
+                  >
+                    <GitCommit className="h-3.5 w-3.5" /> Commit version bump
+                  </Button>
+                </div>
+              )}
             </div>
           )}
 
@@ -1732,12 +1764,14 @@ function ApplyVersionDialog({
 function TagVersionDialog({
   projectId,
   tagInfo,
+  status,
   open,
   onOpenChange,
   onApplyVersion,
 }: {
   projectId: string;
   tagInfo: GitTagInfo | null;
+  status: GitStatus | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   /** Hands the entered tag to the apply-version dialog. */
@@ -1750,6 +1784,10 @@ function TagVersionDialog({
   const suggestRequestRef = useRef<string | null>(null);
 
   const hasRemote = tagInfo?.hasRemote ?? false;
+  // Gate tagging (and the push that follows it) on a clean tree: a version bump's edits must
+  // land in a commit first, otherwise the tag would point at a commit missing those edits.
+  const dirtyFileCount = status?.files.length ?? 0;
+  const isDirty = dirtyFileCount > 0;
 
   const suggestMutation = useMutation({
     mutationFn: () => {
@@ -1875,6 +1913,12 @@ function TagVersionDialog({
               ? 'The tag is created locally and pushed to origin.'
               : 'No remote is configured, so the tag is only created locally.'}
           </p>
+          {isDirty && (
+            <p className="flex items-center gap-1.5 text-xs text-destructive">
+              <TriangleAlert className="h-3.5 w-3.5" />
+              Commit {dirtyFileCount} changed file{dirtyFileCount === 1 ? '' : 's'} before tagging.
+            </p>
+          )}
         </div>
         <DialogFooter>
           {suggestMutation.isPending ? (
@@ -1899,12 +1943,17 @@ function TagVersionDialog({
               />
             </SimpleTooltip>
           )}
-          <Button
-            disabled={createTagMutation.isPending || !tag.trim()}
-            onClick={() => createTagMutation.mutate()}
+          <SimpleTooltip
+            label={isDirty ? 'Commit the changed files above before tagging.' : null}
+            wrapTrigger
           >
-            <Tag className="h-4 w-4" /> {hasRemote ? 'Create & push tag' : 'Create tag'}
-          </Button>
+            <Button
+              disabled={createTagMutation.isPending || !tag.trim() || isDirty}
+              onClick={() => createTagMutation.mutate()}
+            >
+              <Tag className="h-4 w-4" /> {hasRemote ? 'Create & push tag' : 'Create tag'}
+            </Button>
+          </SimpleTooltip>
         </DialogFooter>
       </DialogContent>
     </Dialog>
