@@ -55,6 +55,7 @@ export const IPC = {
     install: 'skills:install',
     remove: 'skills:remove',
     listInstalled: 'skills:listInstalled',
+    checkForUpdates: 'skills:checkForUpdates',
     searchSkillsSh: 'skills:searchSkillsSh',
     getSkillsShDetail: 'skills:getSkillsShDetail',
     installFromSkillsSh: 'skills:installFromSkillsSh',

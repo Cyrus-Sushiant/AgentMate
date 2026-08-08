@@ -50,6 +50,7 @@ import type {
   PackageInfo,
   PackageManagerSection,
   PackageUpdateRequest,
+  SkillUpdateInfo,
 } from '@shared/apiTypes';
 import type {
   CliDefinition,
@@ -129,6 +130,15 @@ export default function ProjectDetailPage(): React.JSX.Element {
     queryFn: () => window.agentmat.skills.listInstalled(projectId!),
     enabled: !!projectId,
   });
+
+  const skillUpdatesQuery = useQuery({
+    queryKey: queryKeys.skillUpdates(projectId ?? ''),
+    queryFn: () => window.agentmat.skills.checkForUpdates(projectId!),
+    enabled: !!projectId && (installedSkillsQuery.data?.length ?? 0) > 0,
+  });
+  const skillUpdateBySkillId = new Map(
+    (skillUpdatesQuery.data ?? []).map((u) => [u.skillId, u]),
+  );
 
   // Shares its key with the Overview tab's drafts list, so both read one fetch.
   const draftsQuery = useQuery({
@@ -245,6 +255,21 @@ export default function ProjectDetailPage(): React.JSX.Element {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.installedSkills(projectId ?? '') });
     },
+  });
+
+  const updateSkillMutation = useMutation({
+    mutationFn: (update: SkillUpdateInfo) =>
+      window.agentmat.skills.install({
+        projectId: projectId!,
+        repositoryId: update.repositoryId,
+        skillId: update.skillId,
+      }),
+    onSuccess: (_data, update) => {
+      toast.success(`Updated ${update.skillId} to v${update.latestVersion}.`);
+      void queryClient.invalidateQueries({ queryKey: queryKeys.installedSkills(projectId ?? '') });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.skillUpdates(projectId ?? '') });
+    },
+    onError: (error: Error) => toast.error(error.message),
   });
 
   const removeMcpServerMutation = useMutation({
@@ -586,24 +611,45 @@ export default function ProjectDetailPage(): React.JSX.Element {
                 <p className="text-sm text-muted-foreground">No skills installed yet.</p>
               ) : (
                 <div className="space-y-2">
-                  {installedSkillsQuery.data?.map((skill) => (
-                    <div
-                      key={skill.skillId}
-                      className="flex items-center justify-between rounded-lg border border-border bg-card px-3 py-2 text-sm"
-                    >
-                      <span>
-                        {skill.skillId}{' '}
-                        <span className="text-muted-foreground">v{skill.version}</span>
-                      </span>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => removeSkillMutation.mutate(skill.skillId)}
+                  {installedSkillsQuery.data?.map((skill) => {
+                    const update = skillUpdateBySkillId.get(skill.skillId);
+                    return (
+                      <div
+                        key={skill.skillId}
+                        className="flex items-center justify-between rounded-lg border border-border bg-card px-3 py-2 text-sm"
                       >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  ))}
+                        <span className="flex items-center gap-2">
+                          {skill.skillId}{' '}
+                          <span className="text-muted-foreground">v{skill.version}</span>
+                          {update?.hasUpdate && (
+                            <Badge variant="secondary">v{update.latestVersion} available</Badge>
+                          )}
+                        </span>
+                        <div className="flex items-center gap-1">
+                          {update?.hasUpdate && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              disabled={
+                                updateSkillMutation.isPending &&
+                                updateSkillMutation.variables?.skillId === skill.skillId
+                              }
+                              onClick={() => updateSkillMutation.mutate(update)}
+                            >
+                              <RefreshCw className="h-3.5 w-3.5" /> Update
+                            </Button>
+                          )}
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => removeSkillMutation.mutate(skill.skillId)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </TabsContent>

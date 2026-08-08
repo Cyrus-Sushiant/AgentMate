@@ -40,6 +40,7 @@ import type {
   SaveTemplateInput,
   DirectoryEntry,
   InstalledSkillRecord,
+  SkillUpdateInfo,
   InstalledMcpServerRecord,
   SkillsShDetail,
   SkillsShSearchResult,
@@ -203,6 +204,8 @@ const skills = {
     ipcRenderer.invoke(IPC.skills.remove, params),
   listInstalled: (projectId: string): Promise<InstalledSkillRecord[]> =>
     ipcRenderer.invoke(IPC.skills.listInstalled, projectId),
+  checkForUpdates: (projectId: string): Promise<SkillUpdateInfo[]> =>
+    ipcRenderer.invoke(IPC.skills.checkForUpdates, projectId),
   searchSkillsSh: (query: string): Promise<SkillsShSearchResult[]> =>
     ipcRenderer.invoke(IPC.skills.searchSkillsSh, query),
   getSkillsShDetail: (skillPath: string): Promise<SkillsShDetail> =>

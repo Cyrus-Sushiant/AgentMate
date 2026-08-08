@@ -21,6 +21,7 @@ import type {
   InstalledSkillRecord,
   SkillsShDetail,
   SkillsShSearchResult,
+  SkillUpdateInfo,
 } from '../../shared/apiTypes';
 import { store } from '../store';
 
@@ -266,6 +267,48 @@ export function registerSkillHandlers(): void {
       const project = projects.find((p) => p.id === projectId);
       if (!project) throw new Error(`Project ${projectId} not found`);
       return readInstalledSkills(project.folderPath);
+    },
+  );
+
+  ipcMain.handle(
+    IPC.skills.checkForUpdates,
+    async (_event, projectId: string): Promise<SkillUpdateInfo[]> => {
+      const projects = await store.getProjects();
+      const project = projects.find((p) => p.id === projectId);
+      if (!project) throw new Error(`Project ${projectId} not found`);
+
+      const installed = await readInstalledSkills(project.folderPath);
+      const repos = await store.getRepositories();
+      const indexCache = new Map<string, SkillRepositoryIndex>();
+      const updates: SkillUpdateInfo[] = [];
+
+      for (const record of installed) {
+        if (record.repositoryId === SKILLS_SH_PSEUDO_REPOSITORY_ID) continue;
+        const repo = repos.find((r) => r.id === record.repositoryId);
+        if (!repo) continue;
+
+        let index = indexCache.get(repo.id);
+        if (!index) {
+          try {
+            index = (await loadRepositoryIndex(repo)).index;
+          } catch {
+            continue;
+          }
+          indexCache.set(repo.id, index);
+        }
+
+        const current = index.skills.find((s) => s.id === record.skillId);
+        if (!current) continue;
+        updates.push({
+          skillId: record.skillId,
+          repositoryId: repo.id,
+          currentVersion: record.version,
+          latestVersion: current.version,
+          hasUpdate: current.version !== record.version,
+        });
+      }
+
+      return updates;
     },
   );
 

@@ -94,6 +94,15 @@ export interface InstalledSkillRecord {
   installedAt: string;
 }
 
+/** Compares an installed repo-based skill's stored version against its repository's current version. */
+export interface SkillUpdateInfo {
+  skillId: string;
+  repositoryId: string;
+  currentVersion: string;
+  latestVersion: string;
+  hasUpdate: boolean;
+}
+
 export interface InstalledMcpServerRecord {
   serverId: string;
   repositoryId: string;

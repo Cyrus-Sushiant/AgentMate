@@ -27,6 +27,20 @@
       "dependencies": [],
       "compatibility": ["claude-code", "gemini-cli", "opencode", "codex-cli", "aider"],
       "files": [{ "path": "SKILL.md", "url": "commit-message-guide/SKILL.md" }]
+    },
+    {
+      "id": "caveman",
+      "name": "Caveman",
+      "description": "Ultra-compressed communication mode that cuts output tokens by about 65% while keeping full technical accuracy.",
+      "category": "Productivity",
+      "tags": ["tokens", "compression", "efficiency"],
+      "author": "Julius Brussee",
+      "version": "1.0.0",
+      "popularity": 90,
+      "dependencies": [],
+      "compatibility": ["claude-code", "gemini-cli", "opencode", "codex-cli"],
+      "documentationUrl": "https://caveman.so/",
+      "files": [{ "path": "SKILL.md", "url": "caveman/SKILL.md" }]
     }
   ]
 }
