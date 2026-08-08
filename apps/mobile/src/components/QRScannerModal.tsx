@@ -9,7 +9,11 @@ interface QRScannerModalProps {
   onScanned: (data: string) => void;
 }
 
-export function QRScannerModal({ visible, onClose, onScanned }: QRScannerModalProps): React.JSX.Element {
+export function QRScannerModal({
+  visible,
+  onClose,
+  onScanned,
+}: QRScannerModalProps): React.JSX.Element {
   const [permission, requestPermission] = useCameraPermissions();
   const handled = useRef(false);
 

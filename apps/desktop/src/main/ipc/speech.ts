@@ -67,19 +67,21 @@ async function getPipeline(modelId: string): Promise<AsrPipeline> {
 
   const { pipeline } = await loadTransformers();
   loadedModelId = modelId;
-  pipelinePromise = (pipeline('automatic-speech-recognition', modelId, {
-    // transformers.js reports download progress per-file; forward it so the UI
-    // can show a "downloading model" state on the very first use.
-    progress_callback: (item: unknown) => {
-      const p = item as { status?: string; file?: string; progress?: number };
-      if (p.status === 'progress' || p.status === 'download') {
-        broadcastProgress({
-          percent: typeof p.progress === 'number' ? Math.round(p.progress) : null,
-          file: p.file ?? '',
-        });
-      }
-    },
-  }) as Promise<AsrPipeline>).catch((error) => {
+  pipelinePromise = (
+    pipeline('automatic-speech-recognition', modelId, {
+      // transformers.js reports download progress per-file; forward it so the UI
+      // can show a "downloading model" state on the very first use.
+      progress_callback: (item: unknown) => {
+        const p = item as { status?: string; file?: string; progress?: number };
+        if (p.status === 'progress' || p.status === 'download') {
+          broadcastProgress({
+            percent: typeof p.progress === 'number' ? Math.round(p.progress) : null,
+            file: p.file ?? '',
+          });
+        }
+      },
+    }) as Promise<AsrPipeline>
+  ).catch((error) => {
     // Reset so a later attempt can retry instead of resolving the cached
     // rejected promise forever.
     pipelinePromise = null;

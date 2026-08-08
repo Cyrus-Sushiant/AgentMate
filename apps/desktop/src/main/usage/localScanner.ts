@@ -180,7 +180,7 @@ export async function scanLocalProvider(provider: LocalLogProvider): Promise<Pro
   try {
     result = await runInWorker(input);
   } catch (err) {
-    // eslint-disable-next-line no-console
+    // biome-ignore lint/suspicious/noConsole: surfaces the fallback so a worker scan failure isn't silent
     console.warn(`[usage] worker scan failed for ${provider}, falling back in-process:`, err);
     result = await scanProviderLogs(input.provider, input.cache, input.sinceMs);
   }

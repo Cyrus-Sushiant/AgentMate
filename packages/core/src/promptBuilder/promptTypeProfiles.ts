@@ -30,55 +30,101 @@ export const PROMPT_TYPE_PROFILES: Record<PromptType, PromptTypeProfile> = {
   'Full Stack': {
     roleLabel: 'senior full-stack engineer',
     focusAreas: ['End-to-end data flow', 'API/UI contract alignment', 'Consistency across layers'],
-    requirements: ['Keep frontend and backend types in sync', 'Cover the full request/response path'],
+    requirements: [
+      'Keep frontend and backend types in sync',
+      'Cover the full request/response path',
+    ],
     bestPractices: ['Share types between client and server where possible'],
   },
   'UI Design': {
     roleLabel: 'senior product/UI designer',
     focusAreas: ['Visual hierarchy', 'Spacing and typography', 'Consistency with design system'],
-    requirements: ['Specify concrete layout, spacing, and color decisions', 'Cover light and dark themes'],
+    requirements: [
+      'Specify concrete layout, spacing, and color decisions',
+      'Cover light and dark themes',
+    ],
     bestPractices: ['Reuse existing design tokens/components before introducing new ones'],
   },
   'UX Review': {
     roleLabel: 'senior UX researcher',
     focusAreas: ['User flow friction', 'Cognitive load', 'Error recovery', 'Onboarding clarity'],
-    requirements: ['Identify concrete friction points, not just impressions', 'Propose specific fixes'],
+    requirements: [
+      'Identify concrete friction points, not just impressions',
+      'Propose specific fixes',
+    ],
     bestPractices: ['Ground feedback in usability heuristics (Nielsen, etc.)'],
   },
   API: {
     roleLabel: 'senior API engineer',
     focusAreas: ['Resource modeling', 'Versioning', 'Error semantics', 'Auth boundaries'],
-    requirements: ['Define request/response schemas explicitly', 'Cover pagination and error cases'],
+    requirements: [
+      'Define request/response schemas explicitly',
+      'Cover pagination and error cases',
+    ],
     bestPractices: ['Follow REST/GraphQL conventions already used in this project'],
   },
   Database: {
     roleLabel: 'senior database engineer',
     focusAreas: ['Schema design', 'Indexing', 'Migration safety', 'Query performance'],
-    requirements: ['Provide a migration path for existing data', 'Avoid destructive schema changes without a plan'],
+    requirements: [
+      'Provide a migration path for existing data',
+      'Avoid destructive schema changes without a plan',
+    ],
     bestPractices: ['Prefer additive migrations', 'Consider lock/downtime impact on large tables'],
   },
   Testing: {
     roleLabel: 'senior test engineer',
     focusAreas: ['Coverage of edge cases', 'Test isolation', 'Determinism'],
-    requirements: ['Cover the happy path plus meaningful edge cases', 'Avoid flaky or order-dependent tests'],
-    bestPractices: ['Test behavior, not implementation details', 'Use realistic fixtures over mocks where practical'],
+    requirements: [
+      'Cover the happy path plus meaningful edge cases',
+      'Avoid flaky or order-dependent tests',
+    ],
+    bestPractices: [
+      'Test behavior, not implementation details',
+      'Use realistic fixtures over mocks where practical',
+    ],
   },
   Security: {
     roleLabel: 'senior application security engineer',
-    focusAreas: ['Input validation', 'AuthN/AuthZ boundaries', 'Secrets handling', 'Common OWASP risks'],
-    requirements: ['Call out any trust boundary the change crosses', 'Do not weaken existing security controls'],
-    bestPractices: ['Validate at the boundary, never trust client input', 'Least privilege by default'],
+    focusAreas: [
+      'Input validation',
+      'AuthN/AuthZ boundaries',
+      'Secrets handling',
+      'Common OWASP risks',
+    ],
+    requirements: [
+      'Call out any trust boundary the change crosses',
+      'Do not weaken existing security controls',
+    ],
+    bestPractices: [
+      'Validate at the boundary, never trust client input',
+      'Least privilege by default',
+    ],
   },
   Performance: {
     roleLabel: 'senior performance engineer',
-    focusAreas: ['Hot paths', 'Algorithmic complexity', 'Memory/CPU footprint', 'I/O and network cost'],
-    requirements: ['Identify the specific bottleneck before optimizing', 'Preserve correctness while optimizing'],
-    bestPractices: ['Measure before and after', 'Prefer algorithmic fixes over micro-optimizations'],
+    focusAreas: [
+      'Hot paths',
+      'Algorithmic complexity',
+      'Memory/CPU footprint',
+      'I/O and network cost',
+    ],
+    requirements: [
+      'Identify the specific bottleneck before optimizing',
+      'Preserve correctness while optimizing',
+    ],
+    bestPractices: [
+      'Measure before and after',
+      'Prefer algorithmic fixes over micro-optimizations',
+    ],
   },
   DevOps: {
     roleLabel: 'senior DevOps engineer',
     focusAreas: ['CI/CD pipeline', 'Infrastructure as code', 'Observability', 'Rollback safety'],
-    requirements: ['Ensure changes are reversible', 'Keep environments (dev/stage/prod) consistent'],
+    requirements: [
+      'Ensure changes are reversible',
+      'Keep environments (dev/stage/prod) consistent',
+    ],
     bestPractices: ['Automate repeatable operational steps', 'Fail fast with clear diagnostics'],
   },
   Documentation: {
@@ -90,48 +136,89 @@ export const PROMPT_TYPE_PROFILES: Record<PromptType, PromptTypeProfile> = {
   Refactoring: {
     roleLabel: 'senior software engineer focused on refactoring',
     focusAreas: ['Behavior preservation', 'Reduced complexity', 'Improved naming/structure'],
-    requirements: ['Do not change external behavior unless explicitly requested', 'Keep the diff reviewable'],
-    bestPractices: ['Refactor in small, verifiable steps', 'Add tests first if coverage is missing'],
+    requirements: [
+      'Do not change external behavior unless explicitly requested',
+      'Keep the diff reviewable',
+    ],
+    bestPractices: [
+      'Refactor in small, verifiable steps',
+      'Add tests first if coverage is missing',
+    ],
   },
   'Bug Fix': {
     roleLabel: 'senior debugging specialist',
     focusAreas: ['Root cause identification', 'Regression risk', 'Minimal blast radius'],
-    requirements: ['Fix the root cause, not just the symptom', 'Add a test that reproduces the bug'],
-    bestPractices: ['Avoid unrelated changes in the same fix', 'Explain the root cause in the summary'],
+    requirements: [
+      'Fix the root cause, not just the symptom',
+      'Add a test that reproduces the bug',
+    ],
+    bestPractices: [
+      'Avoid unrelated changes in the same fix',
+      'Explain the root cause in the summary',
+    ],
   },
   'Code Review': {
     roleLabel: 'senior code reviewer',
     focusAreas: ['Correctness', 'Security', 'Readability', 'Test coverage'],
-    requirements: ['Flag concrete issues with file/line references', 'Distinguish blocking issues from nits'],
+    requirements: [
+      'Flag concrete issues with file/line references',
+      'Distinguish blocking issues from nits',
+    ],
     bestPractices: ['Prioritize correctness and security bugs over style preferences'],
   },
   Architecture: {
     roleLabel: 'senior software architect',
     focusAreas: ['Module boundaries', 'Scalability', 'Extensibility', 'Trade-off analysis'],
-    requirements: ['Present trade-offs, not just a single answer', 'Consider long-term maintenance cost'],
+    requirements: [
+      'Present trade-offs, not just a single answer',
+      'Consider long-term maintenance cost',
+    ],
     bestPractices: ['Favor boring, proven patterns over novel ones unless justified'],
   },
   Mobile: {
     roleLabel: 'senior mobile engineer',
-    focusAreas: ['Platform conventions (iOS/Android)', 'Offline behavior', 'Battery/network efficiency'],
-    requirements: ['Respect platform-specific UI conventions', 'Handle offline and low-connectivity states'],
+    focusAreas: [
+      'Platform conventions (iOS/Android)',
+      'Offline behavior',
+      'Battery/network efficiency',
+    ],
+    requirements: [
+      'Respect platform-specific UI conventions',
+      'Handle offline and low-connectivity states',
+    ],
     bestPractices: ['Test on both small and large screen sizes'],
   },
   Electron: {
     roleLabel: 'senior Electron engineer',
     focusAreas: ['Main/renderer/preload boundaries', 'IPC security', 'Native module compatibility'],
-    requirements: ['Keep contextIsolation and sandboxing intact', 'Never expose raw ipcRenderer.invoke passthrough'],
-    bestPractices: ['Validate all data crossing the IPC boundary', 'Keep Node-only APIs out of the renderer'],
+    requirements: [
+      'Keep contextIsolation and sandboxing intact',
+      'Never expose raw ipcRenderer.invoke passthrough',
+    ],
+    bestPractices: [
+      'Validate all data crossing the IPC boundary',
+      'Keep Node-only APIs out of the renderer',
+    ],
   },
   React: {
     roleLabel: 'senior React engineer',
     focusAreas: ['Component composition', 'Hooks correctness', 'Rendering performance'],
-    requirements: ['Respect the rules of hooks', 'Avoid prop drilling where context/state libraries fit better'],
-    bestPractices: ['Keep components small and focused', 'Memoize only where profiling shows it matters'],
+    requirements: [
+      'Respect the rules of hooks',
+      'Avoid prop drilling where context/state libraries fit better',
+    ],
+    bestPractices: [
+      'Keep components small and focused',
+      'Memoize only where profiling shows it matters',
+    ],
   },
   'Next.js': {
     roleLabel: 'senior Next.js engineer',
-    focusAreas: ['App/Pages router conventions', 'Server vs client components', 'Data fetching strategy'],
+    focusAreas: [
+      'App/Pages router conventions',
+      'Server vs client components',
+      'Data fetching strategy',
+    ],
     requirements: ['Use the correct rendering strategy (SSR/SSG/ISR/client) for the use case'],
     bestPractices: ['Keep server-only code out of client bundles'],
   },
@@ -145,7 +232,10 @@ export const PROMPT_TYPE_PROFILES: Record<PromptType, PromptTypeProfile> = {
     roleLabel: 'senior .NET engineer',
     focusAreas: ['C# idioms', 'Dependency injection', 'Async/await correctness'],
     requirements: ['Follow existing project DI and layering conventions'],
-    bestPractices: ['Use nullable reference types deliberately', 'Dispose IDisposable resources correctly'],
+    bestPractices: [
+      'Use nullable reference types deliberately',
+      'Dispose IDisposable resources correctly',
+    ],
   },
   Flutter: {
     roleLabel: 'senior Flutter engineer',
@@ -161,9 +251,20 @@ export const PROMPT_TYPE_PROFILES: Record<PromptType, PromptTypeProfile> = {
   },
   'AI Agent': {
     roleLabel: 'senior AI agent engineer',
-    focusAreas: ['Tool/function design', 'Prompt structure', 'Failure handling', 'Context management'],
-    requirements: ['Define clear tool boundaries and inputs/outputs', 'Handle model failures/timeouts gracefully'],
-    bestPractices: ['Keep tools narrow and composable', 'Make agent behavior observable/debuggable'],
+    focusAreas: [
+      'Tool/function design',
+      'Prompt structure',
+      'Failure handling',
+      'Context management',
+    ],
+    requirements: [
+      'Define clear tool boundaries and inputs/outputs',
+      'Handle model failures/timeouts gracefully',
+    ],
+    bestPractices: [
+      'Keep tools narrow and composable',
+      'Make agent behavior observable/debuggable',
+    ],
   },
   Custom: DEFAULT_PROFILE,
 };

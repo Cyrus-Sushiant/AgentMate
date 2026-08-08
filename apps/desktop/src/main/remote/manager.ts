@@ -240,7 +240,11 @@ class RemoteManager {
       deviceName: this.deviceName(),
       v: REMOTE_PROTOCOL_VERSION,
     });
-    const qrDataUrl = await QRCode.toDataURL(code, { margin: 1, width: 320, errorCorrectionLevel: 'M' });
+    const qrDataUrl = await QRCode.toDataURL(code, {
+      margin: 1,
+      width: 320,
+      errorCorrectionLevel: 'M',
+    });
     this.pairing = { code, qrDataUrl, expiresAt };
     this.log('info', 'Generated a new one-time pairing code.');
     this.emitState();
@@ -367,7 +371,10 @@ class RemoteManager {
     }
     const msg = this.parseControl(data);
     if (!msg) return;
-    if (peer.authed && (this.files.handleControl(peer.ws, msg) || this.fmOps.handleControl(peer.ws, msg))) {
+    if (
+      peer.authed &&
+      (this.files.handleControl(peer.ws, msg) || this.fmOps.handleControl(peer.ws, msg))
+    ) {
       return;
     }
     switch (msg.t) {
@@ -586,7 +593,12 @@ class RemoteManager {
       };
       this.log('error', `Connection failed: ${err.message}`);
     } else {
-      this.connection = { status: 'idle', remoteDeviceName: null, remoteScreen: null, intent: null };
+      this.connection = {
+        status: 'idle',
+        remoteDeviceName: null,
+        remoteScreen: null,
+        intent: null,
+      };
       this.log('info', 'Disconnected from remote host.');
     }
     this.emitState();
@@ -599,7 +611,8 @@ class RemoteManager {
       this.giveUpReconnect();
       return;
     }
-    const delay = RECONNECT_DELAYS_MS[Math.min(this.reconnectAttempt, RECONNECT_DELAYS_MS.length - 1)];
+    const delay =
+      RECONNECT_DELAYS_MS[Math.min(this.reconnectAttempt, RECONNECT_DELAYS_MS.length - 1)];
     this.reconnectAttempt++;
     if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
     this.reconnectTimer = setTimeout(() => {
@@ -758,7 +771,10 @@ class RemoteManager {
     }
     const msg = this.parseControl(data);
     if (!msg) return;
-    if (this.client && (this.files.handleControl(this.client, msg) || this.fmOps.handleControl(this.client, msg))) {
+    if (
+      this.client &&
+      (this.files.handleControl(this.client, msg) || this.fmOps.handleControl(this.client, msg))
+    ) {
       return;
     }
     switch (msg.t) {
@@ -775,7 +791,10 @@ class RemoteManager {
           this.sendControl(this.client, { t: 'control-start' });
         }
         if (msg.screen.width) this.send(IPC.remote.onScreenInfo, msg.screen);
-        this.log('success', wasReconnect ? `Reconnected to ${msg.deviceName}.` : `Connected to ${msg.deviceName}.`);
+        this.log(
+          'success',
+          wasReconnect ? `Reconnected to ${msg.deviceName}.` : `Connected to ${msg.deviceName}.`,
+        );
         // A fresh pairing code is single-use; once the host issues a durable
         // device token, switch to it so a later auto-reconnect redials with a
         // credential the host will still accept, instead of the already-spent code.
@@ -800,7 +819,10 @@ class RemoteManager {
         this.emitState();
         break;
       case 'screen-info':
-        this.connection = { ...this.connection, remoteScreen: { width: msg.width, height: msg.height } };
+        this.connection = {
+          ...this.connection,
+          remoteScreen: { width: msg.width, height: msg.height },
+        };
         this.send(IPC.remote.onScreenInfo, { width: msg.width, height: msg.height });
         this.emitState();
         break;

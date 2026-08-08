@@ -277,7 +277,9 @@ export function normalizeUsageThresholdAlerts(
     enabled: alerts.enabled === true,
     providerId: alerts.providerId || defaults.providerId,
     windows: Array.isArray(alerts.windows) ? alerts.windows : defaults.windows,
-    threshold: Number.isFinite(threshold) ? Math.min(100, Math.max(1, threshold)) : defaults.threshold,
+    threshold: Number.isFinite(threshold)
+      ? Math.min(100, Math.max(1, threshold))
+      : defaults.threshold,
   };
 }
 

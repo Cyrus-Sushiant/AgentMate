@@ -41,7 +41,9 @@ export default function RemoteSessionRoute(): React.JSX.Element {
 
   useEffect(() => {
     if (!rtc.quality) return;
-    setHistory((prev) => [...prev, { t: Date.now(), kbps: rtc.quality!.kbps }].slice(-HISTORY_LENGTH));
+    setHistory((prev) =>
+      [...prev, { t: Date.now(), kbps: rtc.quality!.kbps }].slice(-HISTORY_LENGTH),
+    );
   }, [rtc.quality]);
 
   useEffect(() => {

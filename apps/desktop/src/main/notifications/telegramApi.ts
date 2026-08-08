@@ -98,14 +98,24 @@ export async function detectLatestChatId(
 ): Promise<{ chatId: string | null; error?: string }> {
   try {
     const response = await fetch(`https://api.telegram.org/bot${botToken}/getUpdates?limit=100`);
-    const data = (await response.json()) as { ok: boolean; result?: TelegramUpdate[]; description?: string };
+    const data = (await response.json()) as {
+      ok: boolean;
+      result?: TelegramUpdate[];
+      description?: string;
+    };
     if (!response.ok || !data.ok) {
-      return { chatId: null, error: data.description ?? `Telegram API returned ${response.status}` };
+      return {
+        chatId: null,
+        error: data.description ?? `Telegram API returned ${response.status}`,
+      };
     }
     const messages = data.result ?? [];
     const last = messages.at(-1);
     if (!last?.message) {
-      return { chatId: null, error: 'No messages found yet. Send your bot any message on Telegram, then try again.' };
+      return {
+        chatId: null,
+        error: 'No messages found yet. Send your bot any message on Telegram, then try again.',
+      };
     }
     return { chatId: String(last.message.chat.id) };
   } catch (error) {

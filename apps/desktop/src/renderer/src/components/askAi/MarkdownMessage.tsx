@@ -10,7 +10,12 @@ export interface MarkdownMessageProps {
 /** Renders chat message content as markdown, scoped to look right inside a small chat bubble. */
 export function MarkdownMessage({ content, className }: MarkdownMessageProps): React.JSX.Element {
   return (
-    <div className={cn('space-y-2 text-sm leading-relaxed [&>*:first-child]:mt-0 [&>*:last-child]:mb-0', className)}>
+    <div
+      className={cn(
+        'space-y-2 text-sm leading-relaxed [&>*:first-child]:mt-0 [&>*:last-child]:mb-0',
+        className,
+      )}
+    >
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={{
@@ -32,14 +37,19 @@ export function MarkdownMessage({ content, className }: MarkdownMessageProps): R
           h2: ({ children }) => <h2 className="text-sm font-semibold">{children}</h2>,
           h3: ({ children }) => <h3 className="text-sm font-semibold">{children}</h3>,
           blockquote: ({ children }) => (
-            <blockquote className="border-l-2 border-border pl-3 text-muted-foreground">{children}</blockquote>
+            <blockquote className="border-l-2 border-border pl-3 text-muted-foreground">
+              {children}
+            </blockquote>
           ),
           code: ({ className: codeClassName, children, ...props }) => {
             const isBlock = /language-/.test(codeClassName ?? '');
             if (isBlock) {
               return (
                 <code
-                  className={cn('block overflow-x-auto rounded-lg bg-foreground/[0.08] p-3 font-mono text-xs', codeClassName)}
+                  className={cn(
+                    'block overflow-x-auto rounded-lg bg-foreground/[0.08] p-3 font-mono text-xs',
+                    codeClassName,
+                  )}
                   {...props}
                 >
                   {children}
@@ -47,7 +57,10 @@ export function MarkdownMessage({ content, className }: MarkdownMessageProps): R
               );
             }
             return (
-              <code className="rounded bg-foreground/[0.08] px-1 py-0.5 font-mono text-[0.85em]" {...props}>
+              <code
+                className="rounded bg-foreground/[0.08] px-1 py-0.5 font-mono text-[0.85em]"
+                {...props}
+              >
                 {children}
               </code>
             );
@@ -58,7 +71,9 @@ export function MarkdownMessage({ content, className }: MarkdownMessageProps): R
               <table className="w-full border-collapse text-xs">{children}</table>
             </div>
           ),
-          th: ({ children }) => <th className="border border-border px-2 py-1 text-left font-medium">{children}</th>,
+          th: ({ children }) => (
+            <th className="border border-border px-2 py-1 text-left font-medium">{children}</th>
+          ),
           td: ({ children }) => <td className="border border-border px-2 py-1">{children}</td>,
         }}
       >

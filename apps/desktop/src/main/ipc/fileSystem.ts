@@ -17,29 +17,25 @@ export function registerFileSystemHandlers(): void {
     return readFile(safePath, 'utf-8');
   });
 
-  ipcMain.handle(
-    IPC.fs.writeFile,
-    async (_event, path: string, content: string): Promise<void> => {
-      const safePath = assertPathWithinRoots(path, await allowedRoots());
-      await mkdir(dirname(safePath), { recursive: true });
-      await writeFile(safePath, content, 'utf-8');
-    },
-  );
+  ipcMain.handle(IPC.fs.writeFile, async (_event, path: string, content: string): Promise<void> => {
+    const safePath = assertPathWithinRoots(path, await allowedRoots());
+    await mkdir(dirname(safePath), { recursive: true });
+    await writeFile(safePath, content, 'utf-8');
+  });
 
-  ipcMain.handle(
-    IPC.fs.listDirectory,
-    async (_event, path: string): Promise<DirectoryEntry[]> => {
-      const safePath = assertPathWithinRoots(path, await allowedRoots());
-      const entries = await readdir(safePath, { withFileTypes: true });
-      return entries
-        .map((entry) => ({
-          name: entry.name,
-          path: join(safePath, entry.name),
-          isDirectory: entry.isDirectory(),
-        }))
-        .sort((a, b) => Number(b.isDirectory) - Number(a.isDirectory) || a.name.localeCompare(b.name));
-    },
-  );
+  ipcMain.handle(IPC.fs.listDirectory, async (_event, path: string): Promise<DirectoryEntry[]> => {
+    const safePath = assertPathWithinRoots(path, await allowedRoots());
+    const entries = await readdir(safePath, { withFileTypes: true });
+    return entries
+      .map((entry) => ({
+        name: entry.name,
+        path: join(safePath, entry.name),
+        isDirectory: entry.isDirectory(),
+      }))
+      .sort(
+        (a, b) => Number(b.isDirectory) - Number(a.isDirectory) || a.name.localeCompare(b.name),
+      );
+  });
 
   ipcMain.handle(
     IPC.fs.writeScratchFile,

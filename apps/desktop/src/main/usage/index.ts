@@ -100,7 +100,7 @@ export async function getAllUsage(
     if (outcome.status === 'fulfilled') return outcome.value;
     const reason = outcome.reason;
     const message = reason instanceof Error ? reason.message : String(reason);
-    // eslint-disable-next-line no-console
+    // biome-ignore lint/suspicious/noConsole: surfaces provider scan failures so they aren't silent
     console.warn(`[usage] ${def.id} failed:`, reason);
     return errorUsage(def.id, message);
   });

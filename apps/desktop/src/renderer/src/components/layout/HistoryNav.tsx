@@ -49,10 +49,8 @@ export function HistoryNav(): React.JSX.Element {
 
     function onKeyDown(e: KeyboardEvent): void {
       // Alt+Arrow everywhere, plus Cmd+[ / Cmd+] to match macOS conventions.
-      const back =
-        (e.altKey && e.key === 'ArrowLeft') || (isMac && e.metaKey && e.key === '[');
-      const forward =
-        (e.altKey && e.key === 'ArrowRight') || (isMac && e.metaKey && e.key === ']');
+      const back = (e.altKey && e.key === 'ArrowLeft') || (isMac && e.metaKey && e.key === '[');
+      const forward = (e.altKey && e.key === 'ArrowRight') || (isMac && e.metaKey && e.key === ']');
       if (!back && !forward) return;
       e.preventDefault();
       if (back) goBack();

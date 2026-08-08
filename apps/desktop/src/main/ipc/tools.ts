@@ -51,14 +51,17 @@ async function detectDockerStatus(
     // ENOENT means the `docker` binary itself isn't on PATH, distinct from "docker is
     // installed but this tool's container hasn't been created yet" (any other failure,
     // e.g. `docker inspect`'s "no such container").
-    if (err && typeof err === 'object' && 'code' in err && err.code === 'ENOENT') return 'unavailable';
+    if (err && typeof err === 'object' && 'code' in err && err.code === 'ENOENT')
+      return 'unavailable';
     return 'not-created';
   }
 }
 
 async function detectTool(tool: AgentToolDefinition): Promise<InstalledAgentTool> {
   const [versionOutput, dockerStatus] = await Promise.all([
-    tool.detectCommand ? runProbe(tool.detectCommand.command, tool.detectCommand.args) : Promise.resolve(null),
+    tool.detectCommand
+      ? runProbe(tool.detectCommand.command, tool.detectCommand.args)
+      : Promise.resolve(null),
     detectDockerStatus(tool),
   ]);
   const versionMatch = versionOutput?.match(/\d+\.\d+\.\d+[\w.-]*/);
@@ -96,7 +99,11 @@ export function registerToolHandlers(): void {
 
   ipcMain.handle(
     IPC.tools.getDockerCommand,
-    (_event, toolId: string, action: 'run' | 'start' | 'stop' | 'reset' | 'remove'): string | null => {
+    (
+      _event,
+      toolId: string,
+      action: 'run' | 'start' | 'stop' | 'reset' | 'remove',
+    ): string | null => {
       const tool = getAgentToolDefinition(toolId);
       if (!tool) return null;
       if (action === 'run') return getDockerRunCommand(tool);

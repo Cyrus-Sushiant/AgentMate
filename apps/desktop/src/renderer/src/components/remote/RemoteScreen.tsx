@@ -136,9 +136,7 @@ export function RemoteScreen({ screen, live }: RemoteScreenProps): React.JSX.Ele
     (e: React.PointerEvent) => {
       if (!live) return;
       const now = performance.now();
-      const throttle = isInputChannelOpen()
-        ? MOVE_THROTTLE_CHANNEL_MS
-        : MOVE_THROTTLE_SOCKET_MS;
+      const throttle = isInputChannelOpen() ? MOVE_THROTTLE_CHANNEL_MS : MOVE_THROTTLE_SOCKET_MS;
       if (now - lastMove.current < throttle) return;
       lastMove.current = now;
       const { x, y } = normalized(e);
@@ -278,7 +276,12 @@ export function RemoteScreen({ screen, live }: RemoteScreenProps): React.JSX.Ele
               top: `${overlayCursor.y * 100}%`,
             }}
           >
-            <path d="M0 0 L0 15 L3.6 11.4 L6 17 L8.4 16 L6 10.5 L11 10.5 Z" fill="white" stroke="black" strokeWidth="1" />
+            <path
+              d="M0 0 L0 15 L3.6 11.4 L6 17 L8.4 16 L6 10.5 L11 10.5 Z"
+              fill="white"
+              stroke="black"
+              strokeWidth="1"
+            />
           </svg>
         )}
       </div>

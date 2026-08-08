@@ -39,7 +39,7 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
 
   componentDidCatch(error: Error, info: React.ErrorInfo): void {
     this.setState({ componentStack: info.componentStack ?? null });
-    // eslint-disable-next-line no-console
+    // biome-ignore lint/suspicious/noConsole: surfaces render errors for debugging
     console.error('[ui] render error:', error, info.componentStack);
   }
 

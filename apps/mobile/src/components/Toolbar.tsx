@@ -58,7 +58,11 @@ export function Toolbar({ live, onInput }: ToolbarProps): React.JSX.Element {
 
   return (
     <View style={[styles.wrap, { paddingBottom: insets.bottom }]}>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.row}>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.row}
+      >
         <Pressable
           style={[styles.key, keyboardOpen && styles.keyActive]}
           onPress={() => {
@@ -72,7 +76,12 @@ export function Toolbar({ live, onInput }: ToolbarProps): React.JSX.Element {
           <Text style={styles.keyText}>⌨</Text>
         </Pressable>
         {KEYS.map((k) => (
-          <Pressable key={k.code} style={styles.key} onPress={() => tapKey(k.code)} disabled={!live}>
+          <Pressable
+            key={k.code}
+            style={styles.key}
+            onPress={() => tapKey(k.code)}
+            disabled={!live}
+          >
             <Text style={styles.keyText}>{k.label}</Text>
           </Pressable>
         ))}

@@ -38,7 +38,7 @@ async function blobToWhisperSamples(blob: Blob): Promise<Float32Array> {
     void decodeCtx.close();
   }
 
-  const frameCount = Math.ceil((decoded.duration * WHISPER_SAMPLE_RATE) || 0);
+  const frameCount = Math.ceil(decoded.duration * WHISPER_SAMPLE_RATE || 0);
   if (frameCount === 0) return new Float32Array(0);
 
   const offline = new OfflineAudioContext(1, frameCount, WHISPER_SAMPLE_RATE);

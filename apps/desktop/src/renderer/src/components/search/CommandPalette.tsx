@@ -139,7 +139,9 @@ export function CommandPalette(): React.JSX.Element {
                       <Folder className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                       <div className="min-w-0">
                         <div className="truncate">{project.name}</div>
-                        <div className="truncate text-xs text-muted-foreground">{project.folderPath}</div>
+                        <div className="truncate text-xs text-muted-foreground">
+                          {project.folderPath}
+                        </div>
                       </div>
                     </CommandPrimitive.Item>
                   ))}
@@ -169,7 +171,9 @@ export function CommandPalette(): React.JSX.Element {
                             ? 'Translation'
                             : `${entry.promptType} · ${entry.targetAI}`}
                         </div>
-                        <div className="truncate text-xs text-muted-foreground">{entry.content}</div>
+                        <div className="truncate text-xs text-muted-foreground">
+                          {entry.content}
+                        </div>
                       </div>
                     </CommandPrimitive.Item>
                   ))}
@@ -191,7 +195,9 @@ export function CommandPalette(): React.JSX.Element {
                       <Blocks className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                       <div className="min-w-0">
                         <div className="truncate">{skill.name}</div>
-                        <div className="truncate text-xs text-muted-foreground">{skill.description}</div>
+                        <div className="truncate text-xs text-muted-foreground">
+                          {skill.description}
+                        </div>
                       </div>
                     </CommandPrimitive.Item>
                   ))}

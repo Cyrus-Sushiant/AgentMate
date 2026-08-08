@@ -53,13 +53,13 @@ export function BootstrapDescriptionDialog({
   const [translating, setTranslating] = useState(false);
 
   // Re-seed on open only, so a background project refetch can't wipe out typing.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: resets dialog state only when `open` changes
   useEffect(() => {
     if (!open) return;
     setDraft(project.description);
     setEnglish('');
     setStep('input');
     setTranslating(false);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
   const trimmed = draft.trim();
@@ -176,7 +176,11 @@ export function BootstrapDescriptionDialog({
               Cancel
             </Button>
             {step === 'input' ? (
-              <Button size="sm" disabled={translating || pending} onClick={() => void handleContinue()}>
+              <Button
+                size="sm"
+                disabled={translating || pending}
+                onClick={() => void handleContinue()}
+              >
                 {needsTranslation ? <Languages /> : <Wand2 />} {continueLabel}
               </Button>
             ) : (

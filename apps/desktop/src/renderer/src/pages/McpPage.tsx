@@ -111,7 +111,9 @@ export default function McpPage(): React.JSX.Element {
     mutationFn: (id: string) => window.agentmat.mcp.refreshRepository(id),
     onSuccess: () => {
       toast.success('Repository refreshed.');
-      void queryClient.invalidateQueries({ queryKey: queryKeys.mcpRepositoryIndex(selectedRepoId) });
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.mcpRepositoryIndex(selectedRepoId),
+      });
     },
     onError: (error: Error) => toast.error(error.message),
   });
@@ -126,7 +128,9 @@ export default function McpPage(): React.JSX.Element {
       }),
     onSuccess: () => {
       toast.success('MCP server installed.');
-      void queryClient.invalidateQueries({ queryKey: queryKeys.installedMcpServers(selectedProjectId) });
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.installedMcpServers(selectedProjectId),
+      });
     },
     onError: (error: Error) => toast.error(error.message),
   });
@@ -135,7 +139,9 @@ export default function McpPage(): React.JSX.Element {
     mutationFn: (serverId: string) =>
       window.agentmat.mcp.remove({ projectId: selectedProjectId, serverId }),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: queryKeys.installedMcpServers(selectedProjectId) });
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.installedMcpServers(selectedProjectId),
+      });
     },
   });
 
@@ -177,7 +183,10 @@ export default function McpPage(): React.JSX.Element {
     setEnvServer(null);
   }
 
-  usePageHeader('MCP Marketplace', 'Install MCP servers into a project from configurable repositories.');
+  usePageHeader(
+    'MCP Marketplace',
+    'Install MCP servers into a project from configurable repositories.',
+  );
 
   return (
     <div className="space-y-6 p-6">
@@ -257,7 +266,9 @@ export default function McpPage(): React.JSX.Element {
       </div>
 
       {!selectedProjectId && (
-        <p className="text-sm text-amber-500">Choose a target project to enable installing MCP servers.</p>
+        <p className="text-sm text-amber-500">
+          Choose a target project to enable installing MCP servers.
+        </p>
       )}
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -341,7 +352,9 @@ export default function McpPage(): React.JSX.Element {
                       <Button
                         variant="ghost"
                         size="icon"
-                        onClick={() => void window.agentmat.shell.openExternal(server.repositoryUrl!)}
+                        onClick={() =>
+                          void window.agentmat.shell.openExternal(server.repositoryUrl!)
+                        }
                       >
                         <GitBranch className="h-4 w-4" />
                       </Button>
@@ -362,7 +375,11 @@ export default function McpPage(): React.JSX.Element {
           <div className="space-y-3">
             <div className="space-y-1.5">
               <Label>Name</Label>
-              <Input value={repoName} onChange={(e) => setRepoName(e.target.value)} placeholder="Community Repository" />
+              <Input
+                value={repoName}
+                onChange={(e) => setRepoName(e.target.value)}
+                placeholder="Community Repository"
+              />
             </div>
             <div className="space-y-1.5">
               <Label>Type</Label>
@@ -377,7 +394,12 @@ export default function McpPage(): React.JSX.Element {
               {repoSourceType === 'local-folder' ? (
                 <div className="flex gap-2">
                   <Input value={repoSource} readOnly placeholder="Choose a folder…" />
-                  <Button type="button" variant="outline" size="icon" onClick={() => void handlePickLocalFolder()}>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    onClick={() => void handlePickLocalFolder()}
+                  >
                     <FolderOpen className="h-4 w-4" />
                   </Button>
                 </div>

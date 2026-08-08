@@ -106,7 +106,11 @@ const HEADING_LABELS: Record<string, string> = { h1: 'H1', h2: 'H2', h3: 'H3' };
 /** Below this the toolbar would crowd out the text itself. */
 const MIN_HEIGHT = 180;
 
-const VIEW_MODES: { key: MarkdownViewMode; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
+const VIEW_MODES: {
+  key: MarkdownViewMode;
+  label: string;
+  icon: React.ComponentType<{ className?: string }>;
+}[] = [
   { key: 'write', label: 'Write', icon: Pencil },
   { key: 'split', label: 'Split', icon: SplitView },
   { key: 'preview', label: 'Preview', icon: Eye },

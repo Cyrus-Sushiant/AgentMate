@@ -62,8 +62,12 @@ function createSessionWindow(): BrowserWindow {
   });
 
   window.once('ready-to-show', () => window.show());
-  window.on('maximize', () => window.webContents.send(IPC.remoteSessionWindow.onMaximizedChange, true));
-  window.on('unmaximize', () => window.webContents.send(IPC.remoteSessionWindow.onMaximizedChange, false));
+  window.on('maximize', () =>
+    window.webContents.send(IPC.remoteSessionWindow.onMaximizedChange, true),
+  );
+  window.on('unmaximize', () =>
+    window.webContents.send(IPC.remoteSessionWindow.onMaximizedChange, false),
+  );
 
   // Closing the session window ends the remote-control session, matching how
   // dedicated remote-desktop apps behave: the window IS the connection.

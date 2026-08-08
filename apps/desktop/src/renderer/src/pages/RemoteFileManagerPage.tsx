@@ -168,11 +168,14 @@ function NewFolderRow(): React.JSX.Element {
 export default function RemoteFileManagerPage(): React.JSX.Element {
   const connection = useRemoteStore((s) => s.state?.connection);
   const transfers = useRemoteStore((s) => s.transfers);
-  const { path, entries, roots, loading, error, loadRoots, navigate, upload } = useRemoteFileManagerStore();
+  const { path, entries, roots, loading, error, loadRoots, navigate, upload } =
+    useRemoteFileManagerStore();
 
   usePageHeader(
     'Remote files',
-    connection?.remoteDeviceName ? `Browsing ${connection.remoteDeviceName}` : 'Browsing a remote machine.',
+    connection?.remoteDeviceName
+      ? `Browsing ${connection.remoteDeviceName}`
+      : 'Browsing a remote machine.',
   );
 
   useEffect(() => {
@@ -183,8 +186,8 @@ export default function RemoteFileManagerPage(): React.JSX.Element {
     return (
       <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col items-center justify-center gap-2 p-6 text-center">
         <p className="text-sm text-muted-foreground">
-          Not connected. Go to Remote → Connect and use “Browse files” on a saved server, or connect with a
-          pairing code first.
+          Not connected. Go to Remote → Connect and use “Browse files” on a saved server, or connect
+          with a pairing code first.
         </p>
       </div>
     );
@@ -198,16 +201,26 @@ export default function RemoteFileManagerPage(): React.JSX.Element {
         <CardHeader className="flex-row items-center justify-between gap-2 space-y-0">
           <CardTitle className="flex min-w-0 items-center gap-2">
             <HardDrive className="h-4 w-4 shrink-0 text-primary" />
-            <span className="truncate font-mono text-sm font-normal">{path ?? 'This computer'}</span>
+            <span className="truncate font-mono text-sm font-normal">
+              {path ?? 'This computer'}
+            </span>
           </CardTitle>
           <div className="flex shrink-0 items-center gap-2">
             {path !== null && (
-              <Button size="icon" variant="ghost" onClick={() => void (up ? navigate(up) : loadRoots())}>
+              <Button
+                size="icon"
+                variant="ghost"
+                onClick={() => void (up ? navigate(up) : loadRoots())}
+              >
                 <ArrowLeft className="h-3.5 w-3.5" />
               </Button>
             )}
             <SimpleTooltip label="Refresh">
-              <Button size="icon" variant="ghost" onClick={() => void (path === null ? loadRoots() : navigate(path))}>
+              <Button
+                size="icon"
+                variant="ghost"
+                onClick={() => void (path === null ? loadRoots() : navigate(path))}
+              >
                 <RefreshCw className={cn('h-3.5 w-3.5', loading && 'animate-spin')} />
               </Button>
             </SimpleTooltip>

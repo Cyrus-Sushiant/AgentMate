@@ -2,12 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { join } from 'node:path';
 import { BrowserWindow } from 'electron';
 import icon from '../../../resources/icon.ico?asset';
-import type {
-  DesktopWidgetInstance,
-  WidgetMode,
-  WidgetSize,
-  WidgetStyle,
-} from '@agentmat/core';
+import type { DesktopWidgetInstance, WidgetMode, WidgetSize, WidgetStyle } from '@agentmat/core';
 import { store } from '../store';
 
 // One frameless, transparent, always-on-top BrowserWindow per pinned widget.

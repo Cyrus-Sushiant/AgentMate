@@ -7,7 +7,9 @@ import { RemoteScreen } from './src/screens/RemoteScreen';
 import { useRemoteClient } from './src/remote/useRemoteClient';
 import { colors } from './src/theme';
 
-void SplashScreen.preventAutoHideAsync().catch(() => {});
+void SplashScreen.preventAutoHideAsync().catch(() => {
+  // splash screen may already be hidden; ignore
+});
 
 export default function App(): React.JSX.Element {
   const client = useRemoteClient();

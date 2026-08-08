@@ -32,7 +32,12 @@ export const NAV_ITEMS: NavItem[] = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard, end: true },
   { to: '/usage', label: 'Token Usage', icon: ChartColumn },
   // Prompt History has no nav entry of its own; it stays under Prompt Builder.
-  { to: '/prompt-builder', label: 'Prompt Builder', icon: Sparkles, alsoActiveOn: ['/prompt-history'] },
+  {
+    to: '/prompt-builder',
+    label: 'Prompt Builder',
+    icon: Sparkles,
+    alsoActiveOn: ['/prompt-history'],
+  },
   { to: '/projects', label: 'Projects', icon: FolderKanban },
   { to: '/skills', label: 'Skills', icon: Blocks },
   { to: '/mcp', label: 'MCP Servers', icon: Plug },
@@ -81,7 +86,10 @@ export function Sidebar(): React.JSX.Element {
               {({ isActive }) => (
                 <>
                   <item.icon
-                    className={cn('h-4 w-4 shrink-0', (isActive || activeByAlias) && 'text-primary')}
+                    className={cn(
+                      'h-4 w-4 shrink-0',
+                      (isActive || activeByAlias) && 'text-primary',
+                    )}
                   />
                   {!collapsed && <span>{item.label}</span>}
                 </>
@@ -101,7 +109,12 @@ export function Sidebar(): React.JSX.Element {
 
       {!collapsed && (
         <div className="px-2.5 pt-2 text-[11px] text-muted-foreground/60">
-          AgentMate {appVersionQuery.data == null ? '' : appVersionQuery.data === 'dev' ? 'dev' : `v${appVersionQuery.data}`}
+          AgentMate{' '}
+          {appVersionQuery.data == null
+            ? ''
+            : appVersionQuery.data === 'dev'
+              ? 'dev'
+              : `v${appVersionQuery.data}`}
         </div>
       )}
     </aside>

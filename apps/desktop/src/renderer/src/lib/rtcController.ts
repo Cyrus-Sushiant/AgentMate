@@ -51,9 +51,7 @@ let initialized = false;
 let lastBytesReceived: { bytes: number; at: number } | null = null;
 let lastPacketsLost = 0;
 
-export function subscribeControllerRtc(
-  listener: (state: ControllerRtcState) => void,
-): () => void {
+export function subscribeControllerRtc(listener: (state: ControllerRtcState) => void): () => void {
   listeners.add(listener);
   listener(state);
   return () => listeners.delete(listener);
@@ -143,7 +141,7 @@ function fallbackToTiles(reason: string): void {
   closePeer();
   setState({ mode: 'tiles', stream: null, cursor: null });
   window.agentmat.remote.clientRtcSignal({ t: 'rtc-cancel' });
-  // eslint-disable-next-line no-console -- transport downgrade is worth surfacing
+  // biome-ignore lint/suspicious/noConsole: transport downgrade is worth surfacing
   console.warn(`[remote] video stream unavailable (${reason}); using tile fallback.`);
 }
 

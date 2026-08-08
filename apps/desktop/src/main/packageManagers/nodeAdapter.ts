@@ -15,7 +15,16 @@ import type { PackageManagerAdapter, UpdateProgressTick } from './types';
 const REGISTRY_TIMEOUT_MS = 8000;
 const REGISTRY_CONCURRENCY = 5;
 const MAX_SCAN_DEPTH = 4;
-const PRUNED_DIRS = new Set(['node_modules', '.git', 'dist', 'build', 'out', '.next', '.turbo', 'coverage']);
+const PRUNED_DIRS = new Set([
+  'node_modules',
+  '.git',
+  'dist',
+  'build',
+  'out',
+  '.next',
+  '.turbo',
+  'coverage',
+]);
 
 interface PackageJsonShape {
   name?: string;
@@ -99,7 +108,9 @@ async function runOutdated(
     const map: Record<string, OutdatedEntry> = {};
     for (const line of stdout.split('\n')) {
       if (!line.trim()) continue;
-      const parsed = tryParseJson<{ type: string; data?: { head?: string[]; body?: string[][] } }>(line);
+      const parsed = tryParseJson<{ type: string; data?: { head?: string[]; body?: string[][] } }>(
+        line,
+      );
       if (parsed?.type !== 'table' || !parsed.data?.body) continue;
       const head = parsed.data.head ?? [];
       const nameIdx = head.indexOf('Package');
@@ -137,7 +148,11 @@ async function detect(folderPath: string): Promise<boolean> {
   return manifests.length > 0;
 }
 
-function labelForManifest(rootFolder: string, manifestPath: string, pkgJson: PackageJsonShape): string {
+function labelForManifest(
+  rootFolder: string,
+  manifestPath: string,
+  pkgJson: PackageJsonShape,
+): string {
   if (pkgJson.name) return pkgJson.name;
   const rel = relative(rootFolder, dirname(manifestPath));
   return rel === '' ? basename(rootFolder) : rel;
@@ -149,7 +164,10 @@ interface ProjectScanOutcome {
   packages: PackageInfo[];
 }
 
-async function listPackagesForManifest(rootFolder: string, manifestPath: string): Promise<ProjectScanOutcome> {
+async function listPackagesForManifest(
+  rootFolder: string,
+  manifestPath: string,
+): Promise<ProjectScanOutcome> {
   const folderPath = dirname(manifestPath);
   const manager = detectManager(folderPath);
   const pkgJson = await readPackageJson(manifestPath);
@@ -178,26 +196,35 @@ async function listPackagesForManifest(rootFolder: string, manifestPath: string)
   }
 
   const needsFallback = outdated === null;
-  const packages: PackageInfo[] = await mapWithConcurrency(declared, REGISTRY_CONCURRENCY, async (dep) => {
-    const installedVersion = await readInstalledVersion(folderPath, dep.name);
-    const entry = outdated?.[dep.name];
-    const currentVersion = entry?.current ?? installedVersion ?? pkgJson.dependencies?.[dep.name] ?? pkgJson.devDependencies?.[dep.name] ?? 'unknown';
-    let latestVersion = entry?.latest ?? null;
-    if (latestVersion === null && needsFallback) {
-      latestVersion = await fetchLatestFromRegistry(dep.name);
-    }
-    const isOutdated = latestVersion !== null && latestVersion !== currentVersion;
-    return {
-      name: dep.name,
-      currentVersion,
-      latestVersion: latestVersion ?? (isOutdated ? null : currentVersion),
-      isOutdated,
-      isDev: dep.isDev,
-      isInstalled: installedVersion !== null,
-      manifestPath,
-      projectLabel,
-    };
-  });
+  const packages: PackageInfo[] = await mapWithConcurrency(
+    declared,
+    REGISTRY_CONCURRENCY,
+    async (dep) => {
+      const installedVersion = await readInstalledVersion(folderPath, dep.name);
+      const entry = outdated?.[dep.name];
+      const currentVersion =
+        entry?.current ??
+        installedVersion ??
+        pkgJson.dependencies?.[dep.name] ??
+        pkgJson.devDependencies?.[dep.name] ??
+        'unknown';
+      let latestVersion = entry?.latest ?? null;
+      if (latestVersion === null && needsFallback) {
+        latestVersion = await fetchLatestFromRegistry(dep.name);
+      }
+      const isOutdated = latestVersion !== null && latestVersion !== currentVersion;
+      return {
+        name: dep.name,
+        currentVersion,
+        latestVersion: latestVersion ?? (isOutdated ? null : currentVersion),
+        isOutdated,
+        isDev: dep.isDev,
+        isInstalled: installedVersion !== null,
+        manifestPath,
+        projectLabel,
+      };
+    },
+  );
 
   return { status: 'ok', message: null, packages };
 }
@@ -205,7 +232,13 @@ async function listPackagesForManifest(rootFolder: string, manifestPath: string)
 async function listPackages(folderPath: string): Promise<PackageManagerSection> {
   const manifests = await findPackageJsonFiles(folderPath);
   if (manifests.length === 0) {
-    return { ecosystem: 'node', manager: detectManager(folderPath), status: 'ok', message: null, packages: [] };
+    return {
+      ecosystem: 'node',
+      manager: detectManager(folderPath),
+      status: 'ok',
+      message: null,
+      packages: [],
+    };
   }
 
   const outcomes = await Promise.all(manifests.map((m) => listPackagesForManifest(folderPath, m)));
@@ -215,7 +248,13 @@ async function listPackages(folderPath: string): Promise<PackageManagerSection> 
   if (packages.length === 0 && errored.length > 0) {
     const cliMissing = errored.find((o) => o.status === 'cli-missing');
     const first = cliMissing ?? errored[0];
-    return { ecosystem: 'node', manager: detectManager(folderPath), status: first.status, message: first.message, packages: [] };
+    return {
+      ecosystem: 'node',
+      manager: detectManager(folderPath),
+      status: first.status,
+      message: first.message,
+      packages: [],
+    };
   }
 
   const message =
@@ -226,7 +265,10 @@ async function listPackages(folderPath: string): Promise<PackageManagerSection> 
   return { ecosystem: 'node', manager: detectManager(folderPath), status: 'ok', message, packages };
 }
 
-function updateArgsFor(manager: PackageManagerKind, updates: PackageUpdateRequest[]): { command: string; args: string[] } {
+function updateArgsFor(
+  manager: PackageManagerKind,
+  updates: PackageUpdateRequest[],
+): { command: string; args: string[] } {
   const targets = updates.map((u) => `${u.name}@${u.targetVersion}`);
   if (manager === 'yarn') return { command: 'yarn', args: ['upgrade', ...targets] };
   if (manager === 'pnpm') return { command: 'pnpm', args: ['update', ...targets] };
@@ -249,7 +291,9 @@ async function updatePackages(
     else groups.set(dir, [update]);
   }
 
-  updates.forEach((u) => onProgress({ packageName: u.name, status: 'running', completed: 0, total }));
+  updates.forEach((u) =>
+    onProgress({ packageName: u.name, status: 'running', completed: 0, total }),
+  );
 
   let completed = 0;
   const results: PackageUpdateItemResult[] = [];
@@ -260,7 +304,9 @@ async function updatePackages(
     const { command, args } = updateArgsFor(manager, groupUpdates);
     const { code, stdout, stderr } = await runCli(command, args, dir, 5 * 60 * 1000);
     const groupOk = code === 0;
-    const message = groupOk ? 'Updated' : (stderr || stdout).slice(-500) || `${command} exited with code ${code}`;
+    const message = groupOk
+      ? 'Updated'
+      : (stderr || stdout).slice(-500) || `${command} exited with code ${code}`;
     ok = ok && groupOk;
     completed += groupUpdates.length;
 

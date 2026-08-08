@@ -25,6 +25,7 @@ export function TerminalPane({ meta, active, onExit }: TerminalPaneProps): React
   const onExitRef = useRef(onExit);
   onExitRef.current = onExit;
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: runs once per mount; the pty session and terminal instance are managed via refs/closures, not props
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
@@ -139,7 +140,6 @@ export function TerminalPane({ meta, active, onExit }: TerminalPaneProps): React
       term.dispose();
       termRef.current = null;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Newly opened sessions and tab switches both need to move DOM focus into xterm's hidden

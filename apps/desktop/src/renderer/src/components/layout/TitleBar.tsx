@@ -35,12 +35,26 @@ function TrafficLight({
   );
 }
 
-export function MacTrafficLights({ onMinimize, onMaximizeToggle, onClose }: WindowControlsProps): React.JSX.Element {
+export function MacTrafficLights({
+  onMinimize,
+  onMaximizeToggle,
+  onClose,
+}: WindowControlsProps): React.JSX.Element {
   return (
     <div className="flex items-center gap-2">
       <TrafficLight color="bg-[#ff5f57]" icon={X} title="Close" onClick={onClose} />
-      <TrafficLight color="bg-[#febc2e]" icon={WindowMinimize} title="Minimize" onClick={onMinimize} />
-      <TrafficLight color="bg-[#28c840]" icon={WindowMaximize} title="Maximize" onClick={onMaximizeToggle} />
+      <TrafficLight
+        color="bg-[#febc2e]"
+        icon={WindowMinimize}
+        title="Minimize"
+        onClick={onMinimize}
+      />
+      <TrafficLight
+        color="bg-[#28c840]"
+        icon={WindowMaximize}
+        title="Maximize"
+        onClick={onMaximizeToggle}
+      />
     </div>
   );
 }

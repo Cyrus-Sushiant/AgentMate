@@ -35,7 +35,11 @@ function TopBar(): React.JSX.Element {
       <div className="flex min-w-0 items-center gap-3">
         <SimpleTooltip label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}>
           <Button variant="ghost" size="icon" onClick={toggleSidebar}>
-            {sidebarCollapsed ? <AnglesRight className="h-4 w-4" /> : <AnglesLeft className="h-4 w-4" />}
+            {sidebarCollapsed ? (
+              <AnglesRight className="h-4 w-4" />
+            ) : (
+              <AnglesLeft className="h-4 w-4" />
+            )}
           </Button>
         </SimpleTooltip>
         <div className="flex min-w-0 flex-col justify-center">
@@ -53,7 +57,11 @@ function TopBar(): React.JSX.Element {
           </span>
         )}
         <SimpleTooltip label="Toggle terminal">
-          <Button variant={isTerminalOpen ? 'secondary' : 'ghost'} size="icon" onClick={toggleDrawer}>
+          <Button
+            variant={isTerminalOpen ? 'secondary' : 'ghost'}
+            size="icon"
+            onClick={toggleDrawer}
+          >
             <TerminalSquare className="h-4 w-4" />
           </Button>
         </SimpleTooltip>
@@ -108,10 +116,7 @@ export function AppShell(): React.JSX.Element {
                   AnimatePresence gate: the incoming page renders immediately
                   instead of waiting on the outgoing one's animation to report
                   back, which is what used to strand the content area empty. */}
-              <div
-                key={location.pathname}
-                className="page-enter flex min-h-full flex-1 flex-col"
-              >
+              <div key={location.pathname} className="page-enter flex min-h-full flex-1 flex-col">
                 {/* A page that throws must not take the shell down with it,
                     the sidebar stays usable and the error is readable. */}
                 <ErrorBoundary resetKey={location.pathname}>

@@ -34,7 +34,10 @@ async function findProjectFiles(root: string, dir = root, depth = 0): Promise<st
     if (entry.isDirectory()) {
       if (PRUNED_DIRS.has(entry.name)) continue;
       found.push(...(await findProjectFiles(root, join(dir, entry.name), depth + 1)));
-    } else if (entry.isFile() && PROJECT_EXTENSIONS.some((ext) => entry.name.toLowerCase().endsWith(ext))) {
+    } else if (
+      entry.isFile() &&
+      PROJECT_EXTENSIONS.some((ext) => entry.name.toLowerCase().endsWith(ext))
+    ) {
       found.push(join(dir, entry.name));
     }
   }
@@ -100,7 +103,10 @@ function parsePackagesConfig(xml: string): DeclaredPackage[] {
  * directory to the scan root, mirroring how MSBuild locates the nearest
  * Directory.Packages.props.
  */
-async function readCentralVersions(rootFolder: string, projectDir: string): Promise<Map<string, string>> {
+async function readCentralVersions(
+  rootFolder: string,
+  projectDir: string,
+): Promise<Map<string, string>> {
   const versions = new Map<string, string>();
   let dir = projectDir;
   for (;;) {
@@ -120,7 +126,10 @@ async function readCentralVersions(rootFolder: string, projectDir: string): Prom
   return versions;
 }
 
-async function readDeclaredPackages(rootFolder: string, projectPath: string): Promise<DeclaredPackage[]> {
+async function readDeclaredPackages(
+  rootFolder: string,
+  projectPath: string,
+): Promise<DeclaredPackage[]> {
   const projectDir = dirname(projectPath);
   const [projectXml, configXml] = await Promise.all([
     readFileSafe(projectPath),
@@ -207,14 +216,22 @@ interface ProjectScanOutcome {
   packages: PackageInfo[];
 }
 
-async function listPackagesForProject(rootFolder: string, projectPath: string): Promise<ProjectScanOutcome> {
+async function listPackagesForProject(
+  rootFolder: string,
+  projectPath: string,
+): Promise<ProjectScanOutcome> {
   const cwd = dirname(projectPath);
   const projectLabel = basename(projectPath).replace(/\.(cs|vb|fs)proj$/i, '');
   const declared = await readDeclaredPackages(rootFolder, projectPath);
 
   const [installedRes, outdatedRes] = await Promise.all([
     runCli('dotnet', ['list', projectPath, 'package', '--format', 'json'], cwd, LIST_TIMEOUT_MS),
-    runCli('dotnet', ['list', projectPath, 'package', '--outdated', '--format', 'json'], cwd, LIST_TIMEOUT_MS),
+    runCli(
+      'dotnet',
+      ['list', projectPath, 'package', '--outdated', '--format', 'json'],
+      cwd,
+      LIST_TIMEOUT_MS,
+    ),
   ]);
 
   const installed = collectTopLevelPackages(tryParseJson<DotnetListJson>(installedRes.stdout));
@@ -229,14 +246,18 @@ async function listPackagesForProject(rootFolder: string, projectPath: string): 
   const packages = await mapWithConcurrency([...names], REGISTRY_CONCURRENCY, async (name) => {
     const resolved = installed.get(name);
     const currentVersion =
-      resolved?.resolvedVersion ?? resolved?.requestedVersion ?? declaredByName.get(name)?.version ?? 'unknown';
+      resolved?.resolvedVersion ??
+      resolved?.requestedVersion ??
+      declaredByName.get(name)?.version ??
+      'unknown';
     let latestVersion = outdated.get(name)?.latestVersion ?? null;
     // The CLI only lists packages it considers outdated, so a miss here is
     // ambiguous: up to date, or never resolved at all. Only ask NuGet directly
     // in the latter case.
     if (latestVersion === null && !resolved) latestVersion = await fetchLatestFromNuget(name);
 
-    const isOutdated = latestVersion !== null && currentVersion !== 'unknown' && latestVersion !== currentVersion;
+    const isOutdated =
+      latestVersion !== null && currentVersion !== 'unknown' && latestVersion !== currentVersion;
     return {
       name,
       currentVersion,
@@ -316,7 +337,9 @@ async function updatePackages(
       2 * 60 * 1000,
     );
     const ok = code === 0;
-    const message = ok ? 'Updated' : (stderr || stdout).slice(-500) || `dotnet exited with code ${code}`;
+    const message = ok
+      ? 'Updated'
+      : (stderr || stdout).slice(-500) || `dotnet exited with code ${code}`;
     completed++;
     results.push({ name: update.name, ok, message });
     onProgress({

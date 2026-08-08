@@ -1,7 +1,7 @@
-@import 'tailwindcss';
+@import "tailwindcss";
 /* Inter and Vazirmatn are imported as JS modules in main.tsx, see the note
    there about Vite/Tailwind v4 not rebasing these packages' font url()s. */
-@plugin 'tailwindcss-animate';
+@plugin "tailwindcss-animate";
 
 @custom-variant dark (&:where(.dark, .dark *));
 
@@ -107,7 +107,7 @@ body {
   background-color: hsl(var(--background));
   color: hsl(var(--foreground));
   font-family:
-    'Inter Variable', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial,
+    "Inter Variable", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial,
     sans-serif;
   transition:
     background-color 200ms ease,
@@ -132,8 +132,9 @@ body {
 /* Applied automatically to text inputs/textareas whose current value
    contains Persian/Arabic script, see lib/rtl.ts. */
 .font-vazirmatn {
-  font-family: 'Vazirmatn Variable', 'Inter Variable', -apple-system, BlinkMacSystemFont,
-    'Segoe UI', sans-serif;
+  font-family:
+    "Vazirmatn Variable", "Inter Variable", -apple-system, BlinkMacSystemFont, "Segoe UI",
+    sans-serif;
 }
 
 /* The only gradient surface in the app: a green wash over the sidebar,
@@ -149,12 +150,7 @@ body {
 }
 
 .dark .sidebar-gradient {
-  background: linear-gradient(
-    180deg,
-    hsl(0 0% 4%) 0%,
-    hsl(160 22% 6%) 50%,
-    hsl(159 45% 12%) 100%
-  );
+  background: linear-gradient(180deg, hsl(0 0% 4%) 0%, hsl(160 22% 6%) 50%, hsl(159 45% 12%) 100%);
 }
 
 /* Placeholder surface for content that is still loading (see ui/skeleton.tsx):
@@ -173,16 +169,11 @@ body {
 }
 
 .shimmer::after {
-  content: '';
+  content: "";
   position: absolute;
   inset: 0;
   transform: translateX(-100%);
-  background: linear-gradient(
-    90deg,
-    transparent,
-    hsl(var(--foreground) / 0.09),
-    transparent
-  );
+  background: linear-gradient(90deg, transparent, hsl(var(--foreground) / 0.09), transparent);
   animation: shimmer-sweep 1.6s ease-in-out infinite;
 }
 
@@ -254,7 +245,7 @@ body {
    which uses [data-sonner-toast][data-styled='true'] throughout.
    Note: ::before and ::after on the toast element are reserved by sonner for
    its swipe and expand hit areas, so the accent edge is an inset box-shadow. */
-.toaster-glass [data-sonner-toast][data-styled='true'] {
+.toaster-glass [data-sonner-toast][data-styled="true"] {
   --toast-accent: hsl(var(--foreground) / 0.4);
   --toast-tint: hsl(var(--foreground) / 0.05);
   padding: 14px 16px;
@@ -264,8 +255,7 @@ body {
   border: 1px solid hsl(var(--foreground) / 0.1);
   color: hsl(var(--card-foreground));
   background:
-    radial-gradient(120% 120% at 0% 0%, var(--toast-tint), transparent 65%),
-    hsl(var(--card) / 0.66);
+    radial-gradient(120% 120% at 0% 0%, var(--toast-tint), transparent 65%), hsl(var(--card) / 0.66);
   backdrop-filter: blur(24px) saturate(180%);
   -webkit-backdrop-filter: blur(24px) saturate(180%);
   box-shadow:
@@ -275,11 +265,10 @@ body {
     0 2px 8px -4px hsl(0 0% 0% / 0.25);
 }
 
-.dark .toaster-glass [data-sonner-toast][data-styled='true'] {
+.dark .toaster-glass [data-sonner-toast][data-styled="true"] {
   --toast-tint: hsl(var(--foreground) / 0.07);
   background:
-    radial-gradient(120% 120% at 0% 0%, var(--toast-tint), transparent 65%),
-    hsl(var(--card) / 0.58);
+    radial-gradient(120% 120% at 0% 0%, var(--toast-tint), transparent 65%), hsl(var(--card) / 0.58);
   border-color: hsl(var(--foreground) / 0.12);
   box-shadow:
     inset 3px 0 0 0 var(--toast-accent),
@@ -289,33 +278,33 @@ body {
 }
 
 /* Per-type accent: drives the left edge, the tint wash and the icon. */
-.toaster-glass [data-sonner-toast][data-type='success'] {
+.toaster-glass [data-sonner-toast][data-type="success"] {
   --toast-accent: hsl(var(--success));
   --toast-tint: hsl(var(--success) / 0.16);
 }
-.toaster-glass [data-sonner-toast][data-type='error'] {
+.toaster-glass [data-sonner-toast][data-type="error"] {
   --toast-accent: hsl(var(--destructive));
   --toast-tint: hsl(var(--destructive) / 0.16);
 }
-.toaster-glass [data-sonner-toast][data-type='warning'] {
+.toaster-glass [data-sonner-toast][data-type="warning"] {
   --toast-accent: hsl(var(--warning));
   --toast-tint: hsl(var(--warning) / 0.16);
 }
-.toaster-glass [data-sonner-toast][data-type='info'] {
+.toaster-glass [data-sonner-toast][data-type="info"] {
   --toast-accent: hsl(205 85% 45%);
   --toast-tint: hsl(205 85% 45% / 0.16);
 }
-.dark .toaster-glass [data-sonner-toast][data-type='info'] {
+.dark .toaster-glass [data-sonner-toast][data-type="info"] {
   --toast-accent: hsl(205 90% 58%);
   --toast-tint: hsl(205 90% 58% / 0.18);
 }
-.toaster-glass [data-sonner-toast][data-type='loading'] {
+.toaster-glass [data-sonner-toast][data-type="loading"] {
   --toast-accent: hsl(var(--primary));
   --toast-tint: hsl(var(--primary) / 0.12);
 }
 
 /* The type icon sits in a soft tinted disc instead of floating bare. */
-.toaster-glass [data-sonner-toast][data-styled='true'] [data-icon] {
+.toaster-glass [data-sonner-toast][data-styled="true"] [data-icon] {
   width: 24px;
   height: 24px;
   margin: -1px 0 0 0;
@@ -327,32 +316,32 @@ body {
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--toast-accent) 28%, transparent);
 }
 
-.toaster-glass [data-sonner-toast][data-styled='true'] [data-icon] svg {
+.toaster-glass [data-sonner-toast][data-styled="true"] [data-icon] svg {
   width: 15px;
   height: 15px;
   margin: 0;
 }
 
-.toaster-glass [data-sonner-toast][data-styled='true'] [data-content] {
+.toaster-glass [data-sonner-toast][data-styled="true"] [data-content] {
   gap: 3px;
   padding-top: 2px;
 }
 
-.toaster-glass [data-sonner-toast][data-styled='true'] [data-title] {
+.toaster-glass [data-sonner-toast][data-styled="true"] [data-title] {
   font-size: 13px;
   font-weight: 600;
   line-height: 1.35;
   letter-spacing: -0.005em;
 }
 
-.toaster-glass [data-sonner-toast][data-styled='true'] [data-description] {
+.toaster-glass [data-sonner-toast][data-styled="true"] [data-description] {
   font-size: 12.5px;
   line-height: 1.45;
   color: hsl(var(--muted-foreground));
 }
 
 /* Action / cancel buttons pick up the toast's accent as a translucent pill. */
-.toaster-glass [data-sonner-toast][data-styled='true'] [data-button] {
+.toaster-glass [data-sonner-toast][data-styled="true"] [data-button] {
   height: 26px;
   border-radius: 8px;
   font-size: 12px;
@@ -362,19 +351,19 @@ body {
   transition: background 150ms ease;
 }
 
-.toaster-glass [data-sonner-toast][data-styled='true'] [data-button]:hover {
+.toaster-glass [data-sonner-toast][data-styled="true"] [data-button]:hover {
   background: color-mix(in srgb, var(--toast-accent) 32%, transparent);
 }
 
-.toaster-glass [data-sonner-toast][data-styled='true'] [data-cancel] {
+.toaster-glass [data-sonner-toast][data-styled="true"] [data-cancel] {
   color: hsl(var(--muted-foreground));
   background: hsl(var(--foreground) / 0.08);
   box-shadow: inset 0 0 0 1px hsl(var(--foreground) / 0.12);
 }
 
 /* Close button: a small glass disc that lifts on hover. */
-.toaster-glass [data-sonner-toast][data-styled='true'] [data-close-button],
-.toaster-glass[data-sonner-theme='dark'] [data-sonner-toast] [data-close-button] {
+.toaster-glass [data-sonner-toast][data-styled="true"] [data-close-button],
+.toaster-glass[data-sonner-theme="dark"] [data-sonner-toast] [data-close-button] {
   height: 22px;
   width: 22px;
   color: hsl(var(--muted-foreground));
@@ -389,8 +378,8 @@ body {
     border-color 150ms ease;
 }
 
-.toaster-glass [data-sonner-toast][data-styled='true']:hover [data-close-button]:hover,
-.toaster-glass[data-sonner-theme='dark'] [data-sonner-toast] [data-close-button]:hover {
+.toaster-glass [data-sonner-toast][data-styled="true"]:hover [data-close-button]:hover,
+.toaster-glass[data-sonner-theme="dark"] [data-sonner-toast] [data-close-button]:hover {
   color: hsl(var(--foreground));
   background: hsl(var(--accent) / 0.95);
   border-color: hsl(var(--foreground) / 0.22);
@@ -398,7 +387,7 @@ body {
 
 /* Our base rule outranks sonner's focus ring, so restate it on top of the
    accent edge rather than letting it be swallowed. */
-.toaster-glass [data-sonner-toast][data-styled='true']:focus-visible {
+.toaster-glass [data-sonner-toast][data-styled="true"]:focus-visible {
   box-shadow:
     inset 3px 0 0 0 var(--toast-accent),
     0 0 0 2px hsl(var(--ring) / 0.6),
@@ -429,7 +418,7 @@ body {
 /* Windows 11 caption glyphs (minimize / maximize / restore / close) use the
    system's Segoe icon fonts so the buttons look native. */
 .caption-glyph {
-  font-family: 'Segoe Fluent Icons', 'Segoe MDL2 Assets', sans-serif;
+  font-family: "Segoe Fluent Icons", "Segoe MDL2 Assets", sans-serif;
   font-size: 10px;
   line-height: 1;
   -webkit-font-smoothing: antialiased;

@@ -76,27 +76,34 @@ export function registerUsageHandlers(): void {
   );
 
   // --- Desktop widget windows ---
-  ipcMain.handle(IPC.usage.listWidgets, (): Promise<DesktopWidgetInstance[]> =>
-    widgetManager.list(),
+  ipcMain.handle(
+    IPC.usage.listWidgets,
+    (): Promise<DesktopWidgetInstance[]> => widgetManager.list(),
   );
-  ipcMain.handle(IPC.usage.getWidget, (_e, id: string): Promise<DesktopWidgetInstance | null> =>
-    widgetManager.get(id),
+  ipcMain.handle(
+    IPC.usage.getWidget,
+    (_e, id: string): Promise<DesktopWidgetInstance | null> => widgetManager.get(id),
   );
   ipcMain.handle(
     IPC.usage.openWidget,
-    (_e, providerId: string, size?: WidgetSize, mode?: WidgetMode): Promise<DesktopWidgetInstance> =>
-      widgetManager.open(providerId, size, mode),
+    (
+      _e,
+      providerId: string,
+      size?: WidgetSize,
+      mode?: WidgetMode,
+    ): Promise<DesktopWidgetInstance> => widgetManager.open(providerId, size, mode),
   );
-  ipcMain.handle(IPC.usage.closeWidget, (_e, id: string): Promise<void> =>
-    widgetManager.close(id),
+  ipcMain.handle(IPC.usage.closeWidget, (_e, id: string): Promise<void> => widgetManager.close(id));
+  ipcMain.handle(
+    IPC.usage.setWidgetStyle,
+    (_e, id: string, style: WidgetStyle): Promise<void> => widgetManager.setStyle(id, style),
   );
-  ipcMain.handle(IPC.usage.setWidgetStyle, (_e, id: string, style: WidgetStyle): Promise<void> =>
-    widgetManager.setStyle(id, style),
+  ipcMain.handle(
+    IPC.usage.setWidgetSize,
+    (_e, id: string, size: WidgetSize): Promise<void> => widgetManager.setSize(id, size),
   );
-  ipcMain.handle(IPC.usage.setWidgetSize, (_e, id: string, size: WidgetSize): Promise<void> =>
-    widgetManager.setSize(id, size),
-  );
-  ipcMain.handle(IPC.usage.setWidgetMode, (_e, id: string, mode: WidgetMode): Promise<void> =>
-    widgetManager.setMode(id, mode),
+  ipcMain.handle(
+    IPC.usage.setWidgetMode,
+    (_e, id: string, mode: WidgetMode): Promise<void> => widgetManager.setMode(id, mode),
   );
 }

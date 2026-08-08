@@ -27,6 +27,7 @@ export function MonacoEditor({
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: mount-only setup; prop changes are applied via refs/other effects, not by recreating the editor
   useEffect(() => {
     if (!containerRef.current) return;
 
@@ -60,7 +61,6 @@ export function MonacoEditor({
       themeObserver.disconnect();
       editor.dispose();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {

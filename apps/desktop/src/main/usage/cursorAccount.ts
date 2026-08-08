@@ -40,7 +40,17 @@ function statePaths(): string[] {
     const appData = process.env.APPDATA ?? join(home, 'AppData', 'Roaming');
     paths.push(join(appData, 'Cursor', 'User', 'globalStorage', 'state.vscdb'));
   } else if (process.platform === 'darwin') {
-    paths.push(join(home, 'Library', 'Application Support', 'Cursor', 'User', 'globalStorage', 'state.vscdb'));
+    paths.push(
+      join(
+        home,
+        'Library',
+        'Application Support',
+        'Cursor',
+        'User',
+        'globalStorage',
+        'state.vscdb',
+      ),
+    );
   } else {
     const configHome = process.env.XDG_CONFIG_HOME ?? join(home, '.config');
     paths.push(join(configHome, 'Cursor', 'User', 'globalStorage', 'state.vscdb'));

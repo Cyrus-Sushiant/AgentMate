@@ -422,7 +422,10 @@ export default function PromptBuilderPage(): React.JSX.Element {
     openSession({ title: cliForSendTo.name, initialInput: command });
   }
 
-  usePageHeader('Prompt Builder', 'Describe what you want; AgentMate structures it into a professional prompt.');
+  usePageHeader(
+    'Prompt Builder',
+    'Describe what you want; AgentMate structures it into a professional prompt.',
+  );
 
   return (
     <div className="mx-auto flex h-full min-h-0 w-full max-w-6xl flex-1 flex-col p-6">
@@ -521,8 +524,7 @@ export default function PromptBuilderPage(): React.JSX.Element {
                   disabled={!projectId || !rawInput.trim() || saveDraftMutation.isPending}
                   onClick={() => saveDraftMutation.mutate()}
                 >
-                  <Save />{' '}
-                  {saveDraftMutation.isPending ? 'Saving…' : 'Save draft to project'}
+                  <Save /> {saveDraftMutation.isPending ? 'Saving…' : 'Save draft to project'}
                 </Button>
               </div>
             )}
@@ -546,8 +548,8 @@ export default function PromptBuilderPage(): React.JSX.Element {
 
                 {scheduleQueue.length === 0 ? (
                   <p className="text-xs text-muted-foreground">
-                    No tasks queued yet. Add one to build a series of prompts to run on this
-                    project later.
+                    No tasks queued yet. Add one to build a series of prompts to run on this project
+                    later.
                   </p>
                 ) : (
                   <div className="space-y-2">
@@ -599,7 +601,11 @@ export default function PromptBuilderPage(): React.JSX.Element {
               </div>
             )}
 
-            <Button onClick={() => void handleGenerate()} disabled={isGenerating} className="w-full">
+            <Button
+              onClick={() => void handleGenerate()}
+              disabled={isGenerating}
+              className="w-full"
+            >
               <Sparkles /> {isGenerating ? 'Generating…' : 'Generate Prompt'}
             </Button>
 
@@ -616,7 +622,11 @@ export default function PromptBuilderPage(): React.JSX.Element {
                 onChange={setTargetLang}
                 options={TRANSLATE_LANGUAGES}
               />
-              <Button variant="secondary" onClick={() => void handleTranslate()} disabled={isTranslating}>
+              <Button
+                variant="secondary"
+                onClick={() => void handleTranslate()}
+                disabled={isTranslating}
+              >
                 <Languages /> {isTranslating ? 'Translating…' : 'Translate'}
               </Button>
             </div>
@@ -638,11 +648,7 @@ export default function PromptBuilderPage(): React.JSX.Element {
                 </Button>
               </SimpleTooltip>
             </div>
-            <MonacoEditor
-              value={generated}
-              onChange={setGenerated}
-              className="min-h-0 flex-1"
-            />
+            <MonacoEditor value={generated} onChange={setGenerated} className="min-h-0 flex-1" />
             <div className="flex flex-wrap items-center gap-2">
               <SimpleTooltip label="Copy">
                 <Button

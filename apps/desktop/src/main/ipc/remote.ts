@@ -84,7 +84,9 @@ export function registerRemoteHandlers(): void {
     remoteManager.fmRename(path, newName),
   );
 
-  ipcMain.handle(IPC.remote.fmUploadTo, (_e, destDir: string) => remoteManager.uploadFileTo(destDir));
+  ipcMain.handle(IPC.remote.fmUploadTo, (_e, destDir: string) =>
+    remoteManager.uploadFileTo(destDir),
+  );
 
   ipcMain.handle(IPC.remote.fmDownload, (_e, path: string) => remoteManager.downloadFile(path));
 
@@ -107,30 +109,21 @@ export function registerRemoteHandlers(): void {
     remoteManager.hostTile(bytes);
   });
 
-  ipcMain.on(
-    IPC.remote.rtcSignal,
-    (_e, payload: { peerId: string; message: RemoteRtcMessage }) => {
-      remoteManager.rtcSignalToPeer(payload.peerId, payload.message);
-    },
-  );
+  ipcMain.on(IPC.remote.rtcSignal, (_e, payload: { peerId: string; message: RemoteRtcMessage }) => {
+    remoteManager.rtcSignalToPeer(payload.peerId, payload.message);
+  });
 
-  ipcMain.on(
-    IPC.remote.rtcPeerState,
-    (_e, payload: { peerId: string; connected: boolean }) => {
-      remoteManager.setRtcPeerConnected(payload.peerId, payload.connected);
-    },
-  );
+  ipcMain.on(IPC.remote.rtcPeerState, (_e, payload: { peerId: string; connected: boolean }) => {
+    remoteManager.setRtcPeerConnected(payload.peerId, payload.connected);
+  });
 
   ipcMain.on(IPC.remote.clientRtcSignal, (_e, message: RemoteRtcMessage) => {
     remoteManager.sendClientRtcSignal(message);
   });
 
-  ipcMain.on(
-    IPC.remote.rtcInput,
-    (_e, payload: { peerId: string; event: RemoteInputEvent }) => {
-      remoteManager.applyRtcInput(payload.peerId, payload.event);
-    },
-  );
+  ipcMain.on(IPC.remote.rtcInput, (_e, payload: { peerId: string; event: RemoteInputEvent }) => {
+    remoteManager.applyRtcInput(payload.peerId, payload.event);
+  });
 
   ipcMain.on(IPC.remote.setCursorTracking, (_e, enabled: boolean) => {
     remoteManager.setCursorTracking(enabled);

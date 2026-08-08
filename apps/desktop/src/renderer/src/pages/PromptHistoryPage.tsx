@@ -2,7 +2,18 @@ import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useLocation } from 'react-router-dom';
 import { toast } from 'sonner';
-import { Copy, Eye, Folder, History, Languages, Search, Sparkles, Tag, Trash2, X } from '@/components/icons';
+import {
+  Copy,
+  Eye,
+  Folder,
+  History,
+  Languages,
+  Search,
+  Sparkles,
+  Tag,
+  Trash2,
+  X,
+} from '@/components/icons';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -109,9 +120,13 @@ export default function PromptHistoryPage(): React.JSX.Element {
   }
 
   const historyQuery = useQuery({
-    queryKey: search.trim() ? queryKeys.promptHistorySearch(search.trim()) : queryKeys.promptHistory,
+    queryKey: search.trim()
+      ? queryKeys.promptHistorySearch(search.trim())
+      : queryKeys.promptHistory,
     queryFn: () =>
-      search.trim() ? window.agentmat.promptHistory.search(search.trim()) : window.agentmat.promptHistory.list(),
+      search.trim()
+        ? window.agentmat.promptHistory.search(search.trim())
+        : window.agentmat.promptHistory.list(),
   });
 
   useEffect(() => {
@@ -169,7 +184,9 @@ export default function PromptHistoryPage(): React.JSX.Element {
         <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed border-destructive/40 py-16 text-center">
           <p className="text-sm font-medium">Couldn't load prompt history.</p>
           <p className="max-w-sm text-sm text-muted-foreground">
-            {historyQuery.error instanceof Error ? historyQuery.error.message : 'An unexpected error occurred.'}
+            {historyQuery.error instanceof Error
+              ? historyQuery.error.message
+              : 'An unexpected error occurred.'}
           </p>
           <Button variant="outline" size="sm" onClick={() => void historyQuery.refetch()}>
             Try again
@@ -234,7 +251,11 @@ export default function PromptHistoryPage(): React.JSX.Element {
                   <Button variant="outline" size="sm" onClick={() => setSelectedEntry(entry)}>
                     <Eye /> View details
                   </Button>
-                  <Button variant="outline" size="sm" onClick={() => void handleCopy(entry.content)}>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => void handleCopy(entry.content)}
+                  >
                     <Copy /> Copy
                   </Button>
                   <Button
@@ -261,7 +282,10 @@ export default function PromptHistoryPage(): React.JSX.Element {
         </div>
       )}
 
-      <Dialog open={selectedEntry !== null} onOpenChange={(open) => !open && setSelectedEntry(null)}>
+      <Dialog
+        open={selectedEntry !== null}
+        onOpenChange={(open) => !open && setSelectedEntry(null)}
+      >
         <DialogContent className="max-w-2xl">
           {selectedEntry ? (
             <>
@@ -289,7 +313,9 @@ export default function PromptHistoryPage(): React.JSX.Element {
                     </Badge>
                   ) : null}
                 </div>
-                <DialogDescription>{new Date(selectedEntry.createdAt).toLocaleString()}</DialogDescription>
+                <DialogDescription>
+                  {new Date(selectedEntry.createdAt).toLocaleString()}
+                </DialogDescription>
               </DialogHeader>
               <div className="max-h-[60vh] space-y-4 overflow-y-auto">
                 {selectedEntry.tags.length > 0 ? (
@@ -309,7 +335,9 @@ export default function PromptHistoryPage(): React.JSX.Element {
                 </div>
                 <div className="space-y-1.5">
                   <p className="text-xs font-medium text-muted-foreground">
-                    {selectedEntry.source === 'translate' ? 'Translated prompt' : 'Generated prompt'}
+                    {selectedEntry.source === 'translate'
+                      ? 'Translated prompt'
+                      : 'Generated prompt'}
                   </p>
                   <p className="whitespace-pre-wrap rounded-lg border border-border bg-muted/40 p-3 text-sm">
                     {selectedEntry.content}
@@ -317,7 +345,11 @@ export default function PromptHistoryPage(): React.JSX.Element {
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                <Button variant="outline" size="sm" onClick={() => void handleCopy(selectedEntry.content)}>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => void handleCopy(selectedEntry.content)}
+                >
                   <Copy /> Copy
                 </Button>
               </div>

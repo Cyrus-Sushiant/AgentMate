@@ -97,7 +97,12 @@ export function buildSessionBlocks(entries: UsageEntry[]): SessionBlock[] {
   for (const entry of sorted) {
     const at = entry.at.getTime();
     if (!current || at >= current.end || at - lastAt >= SESSION_MS) {
-      current = { start: floorToHour(at), end: floorToHour(at) + SESSION_MS, tokens: 0, costUsd: 0 };
+      current = {
+        start: floorToHour(at),
+        end: floorToHour(at) + SESSION_MS,
+        tokens: 0,
+        costUsd: 0,
+      };
       blocks.push(current);
     }
     current.tokens += entry.tokens.total;
@@ -144,7 +149,10 @@ function weekBuckets(
   entries: UsageEntry[],
   anchor: number,
   now: number,
-): { current: { start: number; end: number; tokens: number; costUsd: number }; completedMax: number } {
+): {
+  current: { start: number; end: number; tokens: number; costUsd: number };
+  completedMax: number;
+} {
   const currentIndex = Math.floor((now - anchor) / WEEK_MS);
   const start = anchor + currentIndex * WEEK_MS;
   const current = { start, end: start + WEEK_MS, tokens: 0, costUsd: 0 };
@@ -220,7 +228,11 @@ export function estimateSubscriptionWindows(
     // The extra bucket only exists above Pro. It shares the weekly phase, so
     // the same anchor applies, only the entries counted differ.
     if (metersFableWeekly(plan)) {
-      const fable = weekBuckets(entries.filter((e) => isFableModel(e.model)), anchor, now);
+      const fable = weekBuckets(
+        entries.filter((e) => isFableModel(e.model)),
+        anchor,
+        now,
+      );
       const fableBudget = calibrate(
         budgets.fableWeek ?? budgets.week * FABLE_WEEK_SHARE,
         fable.completedMax,

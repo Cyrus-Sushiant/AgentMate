@@ -22,9 +22,12 @@ const UPDATE_CHECK_TIMEOUT_MS = 8000;
 async function fetchLatestVersion(source: UpdateCheckSource): Promise<string | null> {
   try {
     if (source.type === 'npm') {
-      const res = await fetch(`https://registry.npmjs.org/${encodeURIComponent(source.package)}/latest`, {
-        signal: AbortSignal.timeout(UPDATE_CHECK_TIMEOUT_MS),
-      });
+      const res = await fetch(
+        `https://registry.npmjs.org/${encodeURIComponent(source.package)}/latest`,
+        {
+          signal: AbortSignal.timeout(UPDATE_CHECK_TIMEOUT_MS),
+        },
+      );
       if (!res.ok) return null;
       const data = (await res.json()) as { version?: string };
       return data.version ?? null;
@@ -71,7 +74,11 @@ async function detectCli(cli: CliDefinition): Promise<InstalledCli> {
     // Cline's CLI self-updates on every invocation, including a bare version check, by
     // spawning a detached background installer; on Windows that can flash open a visible
     // console. This is a no-op env var for every other CLI we shell out to.
-    const execOptions = { timeout: 8000, windowsHide: true, env: { ...process.env, CLINE_NO_AUTO_UPDATE: '1' } };
+    const execOptions = {
+      timeout: 8000,
+      windowsHide: true,
+      env: { ...process.env, CLINE_NO_AUTO_UPDATE: '1' },
+    };
     const { stdout } =
       process.platform === 'win32'
         ? await execFileAsync(
@@ -116,7 +123,14 @@ export function registerCliDetectionHandlers(): void {
       const cli = getCliDefinition(cliId);
       const checkedAt = new Date().toISOString();
       if (!cli?.updateCheck) {
-        return { cliId, supported: false, currentVersion, latestVersion: null, updateAvailable: false, checkedAt };
+        return {
+          cliId,
+          supported: false,
+          currentVersion,
+          latestVersion: null,
+          updateAvailable: false,
+          checkedAt,
+        };
       }
       const latestVersion = await fetchLatestVersion(cli.updateCheck);
       const updateAvailable =

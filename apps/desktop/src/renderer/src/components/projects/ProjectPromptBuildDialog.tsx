@@ -81,9 +81,7 @@ export function ProjectPromptBuildDialog({
       <DialogContent
         className={cn(
           'flex flex-col overflow-hidden transition-[width,height,max-width,max-height]',
-          isMaximized
-            ? 'h-[92vh] max-h-[92vh] w-[95vw] max-w-[95vw]'
-            : 'max-h-[85vh] max-w-lg',
+          isMaximized ? 'h-[92vh] max-h-[92vh] w-[95vw] max-w-[95vw]' : 'max-h-[85vh] max-w-lg',
         )}
       >
         {!isMaximized && (
@@ -122,7 +120,9 @@ export function ProjectPromptBuildDialog({
         <div
           className={cn(
             'min-h-0 flex-1 gap-6',
-            isMaximized ? 'grid grid-cols-1 overflow-hidden lg:grid-cols-2' : 'space-y-3 overflow-y-auto',
+            isMaximized
+              ? 'grid grid-cols-1 overflow-hidden lg:grid-cols-2'
+              : 'space-y-3 overflow-y-auto',
           )}
         >
           <div className="flex min-h-0 flex-col space-y-3 overflow-y-auto pr-1">
@@ -155,13 +155,19 @@ export function ProjectPromptBuildDialog({
               </div>
             </div>
 
-            <Button onClick={() => void handleGenerate()} disabled={isGenerating} className="w-full">
+            <Button
+              onClick={() => void handleGenerate()}
+              disabled={isGenerating}
+              className="w-full"
+            >
               <Sparkles /> {isGenerating ? 'Generating…' : 'Generate Prompt'}
             </Button>
 
             <div className="flex items-center gap-2">
               <div className="h-px flex-1 bg-border" />
-              <span className="text-xs text-muted-foreground">or translate directly to English</span>
+              <span className="text-xs text-muted-foreground">
+                or translate directly to English
+              </span>
               <div className="h-px flex-1 bg-border" />
             </div>
 

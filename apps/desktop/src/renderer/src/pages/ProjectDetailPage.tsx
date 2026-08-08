@@ -154,7 +154,13 @@ export default function ProjectDetailPage(): React.JSX.Element {
   // literally the plan that gets written. Keyed on the fields the plan derives
   // from, so editing the project's agent refreshes it.
   const bootstrapPlanQuery = useQuery({
-    queryKey: ['bootstrap-plan', projectId, project?.agentType, project?.name, project?.description],
+    queryKey: [
+      'bootstrap-plan',
+      projectId,
+      project?.agentType,
+      project?.name,
+      project?.description,
+    ],
     queryFn: () => window.agentmat.projects.bootstrapPlan(projectId!),
     enabled: !!projectId && !!project && planBridgeReady,
   });
@@ -234,16 +240,20 @@ export default function ProjectDetailPage(): React.JSX.Element {
   });
 
   const removeSkillMutation = useMutation({
-    mutationFn: (skillId: string) => window.agentmat.skills.remove({ projectId: projectId!, skillId }),
+    mutationFn: (skillId: string) =>
+      window.agentmat.skills.remove({ projectId: projectId!, skillId }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.installedSkills(projectId ?? '') });
     },
   });
 
   const removeMcpServerMutation = useMutation({
-    mutationFn: (serverId: string) => window.agentmat.mcp.remove({ projectId: projectId!, serverId }),
+    mutationFn: (serverId: string) =>
+      window.agentmat.mcp.remove({ projectId: projectId!, serverId }),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: queryKeys.installedMcpServers(projectId ?? '') });
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.installedMcpServers(projectId ?? ''),
+      });
     },
   });
 
@@ -464,8 +474,8 @@ export default function ProjectDetailPage(): React.JSX.Element {
                   {bootstrapPlanQuery.data ? (
                     <>
                       Scaffolds this project the way{' '}
-                      <span className="font-medium">{bootstrapPlanQuery.data.agentLabel}</span> expects
-                      it, following{' '}
+                      <span className="font-medium">{bootstrapPlanQuery.data.agentLabel}</span>{' '}
+                      expects it, following{' '}
                       <a
                         href={bootstrapPlanQuery.data.docsUrl}
                         target="_blank"
@@ -521,8 +531,8 @@ export default function ProjectDetailPage(): React.JSX.Element {
                 ) : !planBridgeReady ? (
                   <p className="text-xs text-muted-foreground">
                     Preview unavailable. This window is running an older preload script. Fully quit
-                    the app and start it again (<code className="font-mono">pnpm dev</code>) to see it.
-                    Bootstrapping still works.
+                    the app and start it again (<code className="font-mono">pnpm dev</code>) to see
+                    it. Bootstrapping still works.
                   </p>
                 ) : bootstrapPlanQuery.isError ? (
                   <p className="text-xs text-destructive">
@@ -565,7 +575,10 @@ export default function ProjectDetailPage(): React.JSX.Element {
             <TabsContent value="skills" className="space-y-3">
               <div className="flex items-center justify-between">
                 <p className="text-sm text-muted-foreground">Skills installed into this project.</p>
-                <Button variant="outline" onClick={() => navigate(`/skills?projectId=${project.id}`)}>
+                <Button
+                  variant="outline"
+                  onClick={() => navigate(`/skills?projectId=${project.id}`)}
+                >
                   <Blocks /> Browse Marketplace
                 </Button>
               </div>
@@ -574,11 +587,19 @@ export default function ProjectDetailPage(): React.JSX.Element {
               ) : (
                 <div className="space-y-2">
                   {installedSkillsQuery.data?.map((skill) => (
-                    <div key={skill.skillId} className="flex items-center justify-between rounded-lg border border-border bg-card px-3 py-2 text-sm">
+                    <div
+                      key={skill.skillId}
+                      className="flex items-center justify-between rounded-lg border border-border bg-card px-3 py-2 text-sm"
+                    >
                       <span>
-                        {skill.skillId} <span className="text-muted-foreground">v{skill.version}</span>
+                        {skill.skillId}{' '}
+                        <span className="text-muted-foreground">v{skill.version}</span>
                       </span>
-                      <Button variant="ghost" size="icon" onClick={() => removeSkillMutation.mutate(skill.skillId)}>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => removeSkillMutation.mutate(skill.skillId)}
+                      >
                         <Trash2 className="h-4 w-4" />
                       </Button>
                     </div>
@@ -589,7 +610,9 @@ export default function ProjectDetailPage(): React.JSX.Element {
 
             <TabsContent value="mcp" className="space-y-3">
               <div className="flex items-center justify-between">
-                <p className="text-sm text-muted-foreground">MCP servers installed into this project.</p>
+                <p className="text-sm text-muted-foreground">
+                  MCP servers installed into this project.
+                </p>
                 <Button variant="outline" onClick={() => navigate(`/mcp?projectId=${project.id}`)}>
                   <Plug /> Browse Marketplace
                 </Button>
@@ -599,11 +622,19 @@ export default function ProjectDetailPage(): React.JSX.Element {
               ) : (
                 <div className="space-y-2">
                   {installedMcpServersQuery.data?.map((server) => (
-                    <div key={server.serverId} className="flex items-center justify-between rounded-lg border border-border bg-card px-3 py-2 text-sm">
+                    <div
+                      key={server.serverId}
+                      className="flex items-center justify-between rounded-lg border border-border bg-card px-3 py-2 text-sm"
+                    >
                       <span>
-                        {server.serverId} <span className="text-muted-foreground">v{server.version}</span>
+                        {server.serverId}{' '}
+                        <span className="text-muted-foreground">v{server.version}</span>
                       </span>
-                      <Button variant="ghost" size="icon" onClick={() => removeMcpServerMutation.mutate(server.serverId)}>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => removeMcpServerMutation.mutate(server.serverId)}
+                      >
                         <Trash2 className="h-4 w-4" />
                       </Button>
                     </div>
@@ -634,7 +665,13 @@ export default function ProjectDetailPage(): React.JSX.Element {
               </p>
               <div className="flex flex-wrap items-center gap-2">
                 <Button
-                  onClick={() => openSession({ title: project.name, cwd: project.folderPath, projectId: project.id })}
+                  onClick={() =>
+                    openSession({
+                      title: project.name,
+                      cwd: project.folderPath,
+                      projectId: project.id,
+                    })
+                  }
                 >
                   <TerminalSquare /> Open Terminal Here
                 </Button>
@@ -646,7 +683,8 @@ export default function ProjectDetailPage(): React.JSX.Element {
               </div>
               {!project.runCommand && (
                 <p className="text-xs text-muted-foreground">
-                  Set a run command from Edit to add a one-click Run action here and on the Projects page.
+                  Set a run command from Edit to add a one-click Run action here and on the Projects
+                  page.
                 </p>
               )}
             </TabsContent>
@@ -683,7 +721,9 @@ export default function ProjectDetailPage(): React.JSX.Element {
               </div>
               <div className="flex items-center justify-between gap-2">
                 <dt className="text-muted-foreground">Tags</dt>
-                <dd className="text-right">{project.tags.length > 0 ? project.tags.length : 'N/A'}</dd>
+                <dd className="text-right">
+                  {project.tags.length > 0 ? project.tags.length : 'N/A'}
+                </dd>
               </div>
               <div className="flex items-center justify-between gap-2">
                 <dt className="text-muted-foreground">Drafts</dt>
@@ -719,7 +759,11 @@ export default function ProjectDetailPage(): React.JSX.Element {
   );
 }
 
-function ProjectConfigEditor({ projectFolderPath }: { projectFolderPath: string }): React.JSX.Element {
+function ProjectConfigEditor({
+  projectFolderPath,
+}: {
+  projectFolderPath: string;
+}): React.JSX.Element {
   const configPath = `${projectFolderPath}/.agentmate/config.json`;
   const [content, setContent] = useState('{}');
   const [loaded, setLoaded] = useState(false);
@@ -763,7 +807,12 @@ function ProjectConfigEditor({ projectFolderPath }: { projectFolderPath: string 
           Save
         </Button>
       </div>
-      <MonacoEditor value={content} onChange={setContent} language="json" className="min-h-[320px]" />
+      <MonacoEditor
+        value={content}
+        onChange={setContent}
+        language="json"
+        className="min-h-[320px]"
+      />
     </div>
   );
 }
@@ -777,7 +826,13 @@ function sourceFileLabel(hookId: string): string {
  * The hook's agent logo. These hooks all live in Claude Code's settings files, so anything
  * unrecognized is attributed to Claude Code rather than shown as a generic bell.
  */
-function HookAgentIcon({ cliId, className }: { cliId?: string; className?: string }): React.JSX.Element {
+function HookAgentIcon({
+  cliId,
+  className,
+}: {
+  cliId?: string;
+  className?: string;
+}): React.JSX.Element {
   const known = cliId != null && CLI_REGISTRY.some((c) => c.id === cliId);
   return <CliLogo cliId={known ? cliId : 'claude-code'} className={className} />;
 }
@@ -785,7 +840,9 @@ function HookAgentIcon({ cliId, className }: { cliId?: string; className?: strin
 /** Best-effort one-line summary of a raw hook body for the list view (command + args, if present). */
 function summarizeHook(hook: Record<string, unknown>): string {
   const command = typeof hook.command === 'string' ? hook.command : '';
-  const args = Array.isArray(hook.args) ? hook.args.filter((a): a is string => typeof a === 'string') : [];
+  const args = Array.isArray(hook.args)
+    ? hook.args.filter((a): a is string => typeof a === 'string')
+    : [];
   return [command, ...args].filter(Boolean).join(' ') || '(empty command)';
 }
 
@@ -1032,7 +1089,9 @@ function DraftsSection({ projectId }: { projectId: string }): React.JSX.Element 
   );
 }
 
-function statusBadgeVariant(status: ScheduledTask['status']): 'warning' | 'success' | 'destructive' {
+function statusBadgeVariant(
+  status: ScheduledTask['status'],
+): 'warning' | 'success' | 'destructive' {
   if (status === 'completed') return 'success';
   if (status === 'cancelled') return 'destructive';
   return 'warning';
@@ -1126,7 +1185,9 @@ function ScheduleTab({ projectId }: { projectId: string }): React.JSX.Element {
                     <Button
                       variant="ghost"
                       size="icon"
-                      onClick={() => updateStatusMutation.mutate({ taskId: task.id, status: 'completed' })}
+                      onClick={() =>
+                        updateStatusMutation.mutate({ taskId: task.id, status: 'completed' })
+                      }
                     >
                       <Check className="h-4 w-4" />
                     </Button>
@@ -1135,7 +1196,9 @@ function ScheduleTab({ projectId }: { projectId: string }): React.JSX.Element {
                     <Button
                       variant="ghost"
                       size="icon"
-                      onClick={() => updateStatusMutation.mutate({ taskId: task.id, status: 'cancelled' })}
+                      onClick={() =>
+                        updateStatusMutation.mutate({ taskId: task.id, status: 'cancelled' })
+                      }
                     >
                       <X className="h-4 w-4" />
                     </Button>
@@ -1250,11 +1313,7 @@ function AiSuggestButton({
   );
 }
 
-function GitTab({
-  projectId,
-}: {
-  projectId: string;
-}): React.JSX.Element {
+function GitTab({ projectId }: { projectId: string }): React.JSX.Element {
   const queryClient = useQueryClient();
 
   const [branchName, setBranchName] = useState('');
@@ -1379,7 +1438,10 @@ function GitTab({
 
   const status = statusQuery.data;
   const anyOpPending =
-    fetchMutation.isPending || pullMutation.isPending || pushMutation.isPending || syncMutation.isPending;
+    fetchMutation.isPending ||
+    pullMutation.isPending ||
+    pushMutation.isPending ||
+    syncMutation.isPending;
 
   return (
     <div className="space-y-4">
@@ -1388,11 +1450,17 @@ function GitTab({
           <Badge variant="secondary" className="gap-1.5">
             <GitBranch className="h-3 w-3" /> {status.branch ?? 'detached HEAD'}
           </Badge>
-          {status.hasRemote && status.ahead > 0 && <Badge variant="warning">{status.ahead} ahead</Badge>}
-          {status.hasRemote && status.behind > 0 && <Badge variant="warning">{status.behind} behind</Badge>}
+          {status.hasRemote && status.ahead > 0 && (
+            <Badge variant="warning">{status.ahead} ahead</Badge>
+          )}
+          {status.hasRemote && status.behind > 0 && (
+            <Badge variant="warning">{status.behind} behind</Badge>
+          )}
           {!status.hasRemote && <Badge variant="outline">No remote configured</Badge>}
           {status.files.length > 0 ? (
-            <Badge variant="outline">{status.files.length} changed file{status.files.length === 1 ? '' : 's'}</Badge>
+            <Badge variant="outline">
+              {status.files.length} changed file{status.files.length === 1 ? '' : 's'}
+            </Badge>
           ) : (
             <Badge variant="success">Working tree clean</Badge>
           )}
@@ -1465,7 +1533,9 @@ function GitTab({
               pending={suggestingBranch}
               disabled={status.files.length === 0}
               onStart={() => void handleSuggestBranchName()}
-              onCancel={() => cancelSuggestion(branchRequestRef, window.agentmat.git.cancelSuggestBranchName)}
+              onCancel={() =>
+                cancelSuggestion(branchRequestRef, window.agentmat.git.cancelSuggestBranchName)
+              }
             />
             <Button
               size="sm"
@@ -1496,11 +1566,15 @@ function GitTab({
               pending={suggestingCommit}
               disabled={status.files.length === 0}
               onStart={() => void handleSuggestCommitMessage()}
-              onCancel={() => cancelSuggestion(commitRequestRef, window.agentmat.git.cancelSuggestCommitMessage)}
+              onCancel={() =>
+                cancelSuggestion(commitRequestRef, window.agentmat.git.cancelSuggestCommitMessage)
+              }
             />
             <Button
               size="sm"
-              disabled={commitMutation.isPending || !commitMessage.trim() || status.files.length === 0}
+              disabled={
+                commitMutation.isPending || !commitMessage.trim() || status.files.length === 0
+              }
               onClick={() => commitMutation.mutate(commitMessage)}
             >
               Commit all changes
@@ -1533,8 +1607,8 @@ function GitTab({
             <GitPullRequest className="h-3.5 w-3.5" /> Pull request
           </p>
           <p className="text-xs text-muted-foreground">
-            Pushes the current branch and opens a pull request via the GitHub CLI (or the compare page
-            in your browser if it isn't installed).
+            Pushes the current branch and opens a pull request via the GitHub CLI (or the compare
+            page in your browser if it isn't installed).
           </p>
         </div>
         <Button variant="outline" onClick={() => setPrOpen(true)} disabled={!status.hasRemote}>
@@ -1680,7 +1754,9 @@ function ApplyVersionDialog({
                 <TriangleAlert className="h-3.5 w-3.5" /> The run failed
               </p>
               <p className="text-xs text-muted-foreground">
-                {result?.error ?? (applyMutation.error as Error | null)?.message ?? 'Unknown error.'}
+                {result?.error ??
+                  (applyMutation.error as Error | null)?.message ??
+                  'Unknown error.'}
               </p>
             </div>
           )}
@@ -1710,7 +1786,12 @@ function ApplyVersionDialog({
                     size="sm"
                     variant="outline"
                     disabled={commitMutation.isPending}
-                    onClick={() => tag && commitMutation.mutate(`chore(release): bump version to ${tag.replace(/^v/, '')}`)}
+                    onClick={() =>
+                      tag &&
+                      commitMutation.mutate(
+                        `chore(release): bump version to ${tag.replace(/^v/, '')}`,
+                      )
+                    }
                   >
                     <GitCommit className="h-3.5 w-3.5" /> Commit version bump
                   </Button>
@@ -1986,20 +2067,21 @@ function CreatePrDialog({
   const [body, setBody] = useState('');
   const [base, setBase] = useState('');
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: only seed title/base once, when the dialog opens; don't fight the user's edits
   useEffect(() => {
     if (open) {
       setTitle((current) => current || suggestedTitle);
       setBase((current) => current || defaultBranch || 'main');
     }
-    // Only seed title/base once, when the dialog opens; don't fight the user's edits.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
   const createPrMutation = useMutation({
     mutationFn: () => window.agentmat.git.createPullRequest({ projectId, title, body, base }),
     onSuccess: (result) => {
       if (result.ok) {
-        toast.success(result.usedFallback ? 'Opened compare page in your browser.' : 'Pull request created.');
+        toast.success(
+          result.usedFallback ? 'Opened compare page in your browser.' : 'Pull request created.',
+        );
         if (result.url) void window.agentmat.shell.openExternal(result.url);
         onOpenChange(false);
         setTitle('');
@@ -2016,13 +2098,18 @@ function CreatePrDialog({
         <DialogHeader>
           <DialogTitle>Create pull request</DialogTitle>
           <DialogDescription>
-            From <span className="font-mono">{branch ?? 'current branch'}</span> into base branch below.
+            From <span className="font-mono">{branch ?? 'current branch'}</span> into base branch
+            below.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-3">
           <div className="space-y-1.5">
             <Label>Title</Label>
-            <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="PR title" />
+            <Input
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="PR title"
+            />
           </div>
           <div className="space-y-1.5">
             <Label>Base branch</Label>
@@ -2104,7 +2191,10 @@ function PackagesSectionSkeleton({ rows }: { rows: number }): React.JSX.Element 
         </div>
         <div className="space-y-1.5">
           {Array.from({ length: rows }, (_, i) => (
-            <PackageRowSkeleton key={i} nameWidth={PACKAGE_SKELETON_WIDTHS[i % PACKAGE_SKELETON_WIDTHS.length]} />
+            <PackageRowSkeleton
+              key={i}
+              nameWidth={PACKAGE_SKELETON_WIDTHS[i % PACKAGE_SKELETON_WIDTHS.length]}
+            />
           ))}
         </div>
       </div>
@@ -2150,14 +2240,17 @@ function PackagesTab({ projectId }: { projectId: string }): React.JSX.Element {
   }, [projectId]);
 
   const updateMutation = useMutation({
-    mutationFn: (updates: PackageUpdateRequest[]) => window.agentmat.packages.update(projectId, updates),
+    mutationFn: (updates: PackageUpdateRequest[]) =>
+      window.agentmat.packages.update(projectId, updates),
     onSuccess: (result) => {
       const failed = result.results.filter((r) => !r.ok);
       const count = result.results.length;
       if (result.ok) {
         toast.success(`Updated ${count} package${count === 1 ? '' : 's'}.`);
       } else {
-        toast.error(`${failed.length} of ${count} package${count === 1 ? '' : 's'} failed to update.`);
+        toast.error(
+          `${failed.length} of ${count} package${count === 1 ? '' : 's'} failed to update.`,
+        );
       }
       setSelected(new Set());
       void queryClient.invalidateQueries({ queryKey: queryKeys.packages(projectId) });
@@ -2249,7 +2342,9 @@ function PackagesTab({ projectId }: { projectId: string }): React.JSX.Element {
       </div>
       {sections.map((section) => {
         const outdatedPackages = section.packages.filter((p) => p.isOutdated);
-        const sectionSelectedCount = section.packages.filter((p) => selected.has(packageKey(p))).length;
+        const sectionSelectedCount = section.packages.filter((p) =>
+          selected.has(packageKey(p)),
+        ).length;
         const allOutdatedSelected =
           outdatedPackages.length > 0 && outdatedPackages.every((p) => selected.has(packageKey(p)));
         const showProjectLabel = new Set(section.packages.map((p) => p.projectLabel)).size > 1;
@@ -2303,7 +2398,9 @@ function PackagesTab({ projectId }: { projectId: string }): React.JSX.Element {
               <p className="text-sm text-muted-foreground">{section.message}</p>
             )}
 
-            {section.status === 'error' && <p className="text-sm text-destructive">{section.message}</p>}
+            {section.status === 'error' && (
+              <p className="text-sm text-destructive">{section.message}</p>
+            )}
 
             {section.status === 'ok' && section.message && (
               <p className="text-sm text-muted-foreground">{section.message}</p>
@@ -2313,9 +2410,11 @@ function PackagesTab({ projectId }: { projectId: string }): React.JSX.Element {
               <p className="text-sm text-muted-foreground">No dependencies declared.</p>
             )}
 
-            {section.status === 'ok' && section.packages.length > 0 && visiblePackages.length === 0 && (
-              <p className="text-sm text-muted-foreground">All packages are up to date.</p>
-            )}
+            {section.status === 'ok' &&
+              section.packages.length > 0 &&
+              visiblePackages.length === 0 && (
+                <p className="text-sm text-muted-foreground">All packages are up to date.</p>
+              )}
 
             {section.status === 'ok' && visiblePackages.length > 0 && (
               <div className="space-y-2">
@@ -2329,7 +2428,9 @@ function PackagesTab({ projectId }: { projectId: string }): React.JSX.Element {
                     Select all outdated
                   </label>
                   {sectionSelectedCount > 0 && (
-                    <span className="text-xs text-muted-foreground">{sectionSelectedCount} selected</span>
+                    <span className="text-xs text-muted-foreground">
+                      {sectionSelectedCount} selected
+                    </span>
                   )}
                 </div>
                 <div className="max-h-80 space-y-1.5 overflow-y-auto pr-1">
@@ -2346,12 +2447,18 @@ function PackagesTab({ projectId }: { projectId: string }): React.JSX.Element {
                           <div className="flex items-center gap-2">
                             <span className="truncate text-sm font-medium">{pkg.name}</span>
                             {pkg.isDev && (
-                              <Badge variant="outline" className="px-1.5 py-0 text-[10px] leading-4">
+                              <Badge
+                                variant="outline"
+                                className="px-1.5 py-0 text-[10px] leading-4"
+                              >
                                 dev
                               </Badge>
                             )}
                             {showProjectLabel && (
-                              <Badge variant="outline" className="px-1.5 py-0 text-[10px] leading-4">
+                              <Badge
+                                variant="outline"
+                                className="px-1.5 py-0 text-[10px] leading-4"
+                              >
                                 {pkg.projectLabel}
                               </Badge>
                             )}
@@ -2370,7 +2477,9 @@ function PackagesTab({ projectId }: { projectId: string }): React.JSX.Element {
                           {tick?.status === 'running' && (
                             <Spinner className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
                           )}
-                          {tick?.status === 'done' && <Check className="h-3.5 w-3.5 text-success" />}
+                          {tick?.status === 'done' && (
+                            <Check className="h-3.5 w-3.5 text-success" />
+                          )}
                           {tick?.status === 'error' && (
                             <SimpleTooltip label={tick.message ?? 'Update failed'} wrapTrigger>
                               <TriangleAlert className="h-3.5 w-3.5 text-destructive" />
@@ -2486,8 +2595,10 @@ function HooksTab({ project }: { project: Project }): React.JSX.Element {
       <div className="space-y-1">
         <p className="text-sm font-medium">Other hooks</p>
         <p className="text-xs text-muted-foreground">
-          Hooks found in this project's <code className="rounded bg-muted px-1">.claude/settings.json</code>{' '}
-          and <code className="rounded bg-muted px-1">settings.local.json</code> that AgentMate didn't create.
+          Hooks found in this project's{' '}
+          <code className="rounded bg-muted px-1">.claude/settings.json</code> and{' '}
+          <code className="rounded bg-muted px-1">settings.local.json</code> that AgentMate didn't
+          create.
         </p>
       </div>
 
@@ -2587,15 +2698,16 @@ function NotificationHookCard({
   const [dirty, setDirty] = useState(false);
   const [testing, setTesting] = useState(false);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: re-syncs from `saved` only; `dirty` is read as a guard, not a re-trigger
   useEffect(() => {
     if (dirty) return;
     setEnabled(saved.enabled);
     setCliId(saved.cliId ?? '');
     setMessage(saved.message);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [saved.enabled, saved.cliId, saved.message]);
 
-  const scriptFileName = kind === 'completion' ? 'notify-completion.cjs' : 'notify-confirmation.cjs';
+  const scriptFileName =
+    kind === 'completion' ? 'notify-completion.cjs' : 'notify-confirmation.cjs';
   const scriptPath = `${project.folderPath}/.agentmate/hooks/${scriptFileName}`;
   const savedCli = CLI_REGISTRY.find((c) => c.id === saved.cliId);
   const wiredAutomatically = saved.cliId === 'claude-code';
@@ -2687,8 +2799,9 @@ function NotificationHookCard({
             <CliLogo cliId={saved.cliId ?? ''} className="mt-0.5 h-3.5 w-3.5 shrink-0" />
             {wiredAutomatically ? (
               <span>
-                Automatically wired into <code className="rounded bg-muted px-1">.claude/settings.json</code>{' '}
-                for {savedCli?.name ?? 'Claude Code'}.
+                Automatically wired into{' '}
+                <code className="rounded bg-muted px-1">.claude/settings.json</code> for{' '}
+                {savedCli?.name ?? 'Claude Code'}.
               </span>
             ) : (
               <span>

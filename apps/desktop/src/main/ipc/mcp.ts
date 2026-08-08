@@ -5,7 +5,12 @@ import { dirname, join } from 'node:path';
 import { promisify } from 'node:util';
 import { app, dialog, ipcMain } from 'electron';
 import { bundledMcpDirectory, bundledMcpRepository, parseMcpRepositoryIndex } from '@agentmat/core';
-import type { McpRepository, McpRepositoryIndex, McpRepositorySourceType, McpServer } from '@agentmat/core';
+import type {
+  McpRepository,
+  McpRepositoryIndex,
+  McpRepositorySourceType,
+  McpServer,
+} from '@agentmat/core';
 import { IPC } from '../../shared/ipcChannels';
 import type { InstalledMcpServerRecord } from '../../shared/apiTypes';
 import { store } from '../store';
@@ -24,7 +29,9 @@ function mcpConfigFilePath(projectFolderPath: string): string {
   return join(projectFolderPath, '.mcp.json');
 }
 
-async function readInstalledServers(projectFolderPath: string): Promise<InstalledMcpServerRecord[]> {
+async function readInstalledServers(
+  projectFolderPath: string,
+): Promise<InstalledMcpServerRecord[]> {
   try {
     const raw = await readFile(installedServersFilePath(projectFolderPath), 'utf-8');
     return JSON.parse(raw) as InstalledMcpServerRecord[];
@@ -50,7 +57,9 @@ interface McpJsonConfig {
 
 async function readMcpConfig(projectFolderPath: string): Promise<McpJsonConfig> {
   try {
-    return JSON.parse(await readFile(mcpConfigFilePath(projectFolderPath), 'utf-8')) as McpJsonConfig;
+    return JSON.parse(
+      await readFile(mcpConfigFilePath(projectFolderPath), 'utf-8'),
+    ) as McpJsonConfig;
   } catch {
     return {};
   }
@@ -61,10 +70,16 @@ async function writeMcpConfig(projectFolderPath: string, config: McpJsonConfig):
 }
 
 /** Builds the `.mcp.json` server entry for a marketplace server, merging in user-supplied env values. */
-function buildServerEntry(server: McpServer, envOverrides: Record<string, string>): Record<string, unknown> {
+function buildServerEntry(
+  server: McpServer,
+  envOverrides: Record<string, string>,
+): Record<string, unknown> {
   const env = { ...server.config.env, ...envOverrides };
   if (server.config.transport === 'stdio') {
-    const entry: Record<string, unknown> = { command: server.config.command, args: server.config.args };
+    const entry: Record<string, unknown> = {
+      command: server.config.command,
+      args: server.config.args,
+    };
     if (Object.keys(env).length > 0) entry.env = env;
     return entry;
   }
@@ -74,9 +89,7 @@ function buildServerEntry(server: McpServer, envOverrides: Record<string, string
 }
 
 /** Resolves a repository's index and the base directory/URL its skill file paths are relative to. */
-async function loadRepositoryIndex(
-  repo: McpRepository,
-): Promise<{ index: McpRepositoryIndex }> {
+async function loadRepositoryIndex(repo: McpRepository): Promise<{ index: McpRepositoryIndex }> {
   if (repo.sourceType === 'bundled') {
     return { index: bundledMcpDirectory };
   }
@@ -115,10 +128,13 @@ function findRepository(repositoryId: string, repos: McpRepository[]): McpReposi
 }
 
 export function registerMcpHandlers(): void {
-  ipcMain.handle(IPC.mcp.listRepositories, async (): Promise<McpRepository[]> => [
-    bundledMcpRepository,
-    ...(await store.getMcpRepositories()),
-  ]);
+  ipcMain.handle(
+    IPC.mcp.listRepositories,
+    async (): Promise<McpRepository[]> => [
+      bundledMcpRepository,
+      ...(await store.getMcpRepositories()),
+    ],
+  );
 
   ipcMain.handle(
     IPC.mcp.addRepository,
@@ -196,7 +212,10 @@ export function registerMcpHandlers(): void {
         env?: Record<string, string>;
       },
     ): Promise<void> => {
-      const [projects, repos] = await Promise.all([store.getProjects(), store.getMcpRepositories()]);
+      const [projects, repos] = await Promise.all([
+        store.getProjects(),
+        store.getMcpRepositories(),
+      ]);
       const project = projects.find((p) => p.id === params.projectId);
       if (!project) throw new Error(`Project ${params.projectId} not found`);
       const repo = findRepository(params.repositoryId, repos);
@@ -204,7 +223,8 @@ export function registerMcpHandlers(): void {
 
       const { index } = await loadRepositoryIndex(repo);
       const server = index.servers.find((s) => s.id === params.serverId);
-      if (!server) throw new Error(`MCP server ${params.serverId} not found in repository ${repo.name}`);
+      if (!server)
+        throw new Error(`MCP server ${params.serverId} not found in repository ${repo.name}`);
 
       const config = await readMcpConfig(project.folderPath);
       config.mcpServers = { ...(config.mcpServers ?? {}) };

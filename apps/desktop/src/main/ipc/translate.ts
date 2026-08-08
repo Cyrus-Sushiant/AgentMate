@@ -34,7 +34,9 @@ async function translateText(text: string, targetLang: string): Promise<string> 
     throw new Error('Unexpected translate response shape.');
   }
 
-  return segments.map((segment) => (Array.isArray(segment) ? String(segment[0] ?? '') : '')).join('');
+  return segments
+    .map((segment) => (Array.isArray(segment) ? String(segment[0] ?? '') : ''))
+    .join('');
 }
 
 async function translateTextWithRetries(text: string, targetLang: string): Promise<string> {
@@ -54,7 +56,9 @@ async function translateTextWithRetries(text: string, targetLang: string): Promi
 }
 
 export function registerTranslateHandlers(): void {
-  ipcMain.handle(IPC.translate.text, (_event, input: TranslateTextInput): Promise<string> =>
-    translateTextWithRetries(input.text, input.targetLang),
+  ipcMain.handle(
+    IPC.translate.text,
+    (_event, input: TranslateTextInput): Promise<string> =>
+      translateTextWithRetries(input.text, input.targetLang),
   );
 }

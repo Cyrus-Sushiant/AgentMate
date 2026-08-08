@@ -38,13 +38,7 @@ import RemoteSessionRoute from './components/remote/RemoteSessionRoute';
 function AppToaster(): React.JSX.Element {
   const theme = useThemeStore((s) => s.theme);
   return (
-    <Toaster
-      theme={theme}
-      className="toaster-glass"
-      position="bottom-right"
-      gap={12}
-      closeButton
-    />
+    <Toaster theme={theme} className="toaster-glass" position="bottom-right" gap={12} closeButton />
   );
 }
 

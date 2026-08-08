@@ -182,7 +182,10 @@ export class InputInjector {
         return [`M ${this.px(event.x, 'w')} ${this.px(event.y, 'h')}`];
       case 'down':
       case 'up': {
-        const flag = MOUSEEVENTF[`${event.button}${event.k === 'down' ? 'down' : 'up'}` as keyof typeof MOUSEEVENTF];
+        const flag =
+          MOUSEEVENTF[
+            `${event.button}${event.k === 'down' ? 'down' : 'up'}` as keyof typeof MOUSEEVENTF
+          ];
         // Move first so the click lands where the controller pointed.
         return [`M ${this.px(event.x, 'w')} ${this.px(event.y, 'h')}`, `E ${flag} 0`];
       }

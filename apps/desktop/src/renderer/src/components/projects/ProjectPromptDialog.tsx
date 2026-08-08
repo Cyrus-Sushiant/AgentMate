@@ -40,9 +40,9 @@ export function ProjectPromptDialog({
 
   // Re-seed on open rather than on every project change, so a background refetch
   // can't wipe out what's being typed.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: re-seeds only on open, see comment above
   useEffect(() => {
     if (open) setPrompt(saved);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
   const saveMutation = useMutation({
@@ -92,7 +92,12 @@ export function ProjectPromptDialog({
 
         <DialogFooter className="sm:justify-between">
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" disabled={!prompt} onClick={() => void handleCopy()}>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={!prompt}
+              onClick={() => void handleCopy()}
+            >
               <Copy /> Copy
             </Button>
             <Button

@@ -28,7 +28,8 @@ function lastConnectedLabel(at: number): string {
 }
 
 export function ConnectScreen({ client }: { client: RemoteClient }): React.JSX.Element {
-  const { status, error, connect, connectToSaved, savedDevices, renameDevice, removeDevice } = client;
+  const { status, error, connect, connectToSaved, savedDevices, renameDevice, removeDevice } =
+    client;
   const [code, setCode] = useState('');
   const [scannerOpen, setScannerOpen] = useState(false);
   const [editing, setEditing] = useState<SavedDevice | null>(null);
@@ -55,8 +56,12 @@ export function ConnectScreen({ client }: { client: RemoteClient }): React.JSX.E
       >
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
           <View style={styles.hero}>
-            {/* eslint-disable-next-line @typescript-eslint/no-require-imports */}
-            <Image source={require('../../assets/splash-icon.png')} style={styles.logo} resizeMode="contain" />
+            <Image
+              // biome-ignore lint/style/noCommonJs: RN's bundler resolves static image assets via require()
+              source={require('../../assets/splash-icon.png')}
+              style={styles.logo}
+              resizeMode="contain"
+            />
             <Text style={styles.title}>AgentMate</Text>
             <Text style={styles.subtitle}>Remote Control</Text>
           </View>
@@ -78,7 +83,11 @@ export function ConnectScreen({ client }: { client: RemoteClient }): React.JSX.E
                       {device.ip}:{device.port} · {lastConnectedLabel(device.lastConnectedAt)}
                     </Text>
                   </Pressable>
-                  <Pressable style={styles.deviceEdit} onPress={() => openEditor(device)} hitSlop={6}>
+                  <Pressable
+                    style={styles.deviceEdit}
+                    onPress={() => openEditor(device)}
+                    hitSlop={6}
+                  >
                     <Text style={styles.deviceEditText}>✎</Text>
                   </Pressable>
                 </View>
@@ -109,26 +118,40 @@ export function ConnectScreen({ client }: { client: RemoteClient }): React.JSX.E
                 <Text style={styles.secondaryButtonText}>Scan QR</Text>
               </Pressable>
               <Pressable
-                style={[styles.primaryButton, (!code.trim() || connecting) && styles.buttonDisabled]}
+                style={[
+                  styles.primaryButton,
+                  (!code.trim() || connecting) && styles.buttonDisabled,
+                ]}
                 disabled={!code.trim() || connecting}
                 onPress={() => connect(code.trim())}
               >
-                <Text style={styles.primaryButtonText}>{connecting ? 'Connecting…' : 'Connect'}</Text>
+                <Text style={styles.primaryButtonText}>
+                  {connecting ? 'Connecting…' : 'Connect'}
+                </Text>
               </Pressable>
             </View>
           </View>
 
           <Text style={styles.hint}>
-            On the computer you want to control, open AgentMate → Remote → Host tab, then start hosting
-            and share its pairing code or QR here. You only pair once; the computer is saved above for
-            future connections.
+            On the computer you want to control, open AgentMate → Remote → Host tab, then start
+            hosting and share its pairing code or QR here. You only pair once; the computer is saved
+            above for future connections.
           </Text>
         </ScrollView>
       </KeyboardAvoidingView>
 
-      <QRScannerModal visible={scannerOpen} onClose={() => setScannerOpen(false)} onScanned={handleScanned} />
+      <QRScannerModal
+        visible={scannerOpen}
+        onClose={() => setScannerOpen(false)}
+        onScanned={handleScanned}
+      />
 
-      <Modal visible={editing !== null} transparent animationType="fade" onRequestClose={() => setEditing(null)}>
+      <Modal
+        visible={editing !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setEditing(null)}
+      >
         <View style={styles.modalBackdrop}>
           <View style={styles.modalCard}>
             <Text style={styles.label}>Computer name</Text>

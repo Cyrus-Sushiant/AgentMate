@@ -61,7 +61,9 @@ export function SparklineChart({
   };
 
   const linePath = (values: number[]): string =>
-    values.map((v, i) => `${i === 0 ? 'M' : 'L'} ${xAt(i).toFixed(2)} ${yAt(v).toFixed(2)}`).join(' ');
+    values
+      .map((v, i) => `${i === 0 ? 'M' : 'L'} ${xAt(i).toFixed(2)} ${yAt(v).toFixed(2)}`)
+      .join(' ');
 
   const areaPath = (values: number[]): string => {
     if (values.length === 0) return '';
@@ -86,6 +88,7 @@ export function SparklineChart({
   // render underneath the card in the row below instead of on top of it.
   // Portaling to <body> and positioning in viewport coordinates sidesteps
   // that entirely, and lets the tooltip clamp itself inside the viewport.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: xAt and the ref values are recomputed from series every render; listing them would retrigger on every render
   React.useLayoutEffect(() => {
     if (!hovered || !svgRef.current) {
       setTooltipPos(null);
@@ -107,7 +110,6 @@ export function SparklineChart({
     top = Math.max(margin, top);
 
     setTooltipPos({ left, top });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hovered, hoverIndex, series]);
 
   return (
@@ -124,7 +126,13 @@ export function SparklineChart({
         onPointerLeave={() => setHoverIndex(null)}
       >
         {series.map((s) => (
-          <path key={`area-${s.key}`} d={areaPath(s.values)} fill={s.color} fillOpacity={0.1} stroke="none" />
+          <path
+            key={`area-${s.key}`}
+            d={areaPath(s.values)}
+            fill={s.color}
+            fillOpacity={0.1}
+            stroke="none"
+          />
         ))}
         {series.map((s) => (
           <path
@@ -184,10 +192,17 @@ export function SparklineChart({
                 {formatTime(timestamps[hoverIndex])}
               </div>
             )}
-            <div className={cn(series.length > 4 ? 'grid grid-cols-2 gap-x-2 gap-y-0.5' : 'space-y-0.5')}>
+            <div
+              className={cn(
+                series.length > 4 ? 'grid grid-cols-2 gap-x-2 gap-y-0.5' : 'space-y-0.5',
+              )}
+            >
               {series.map((s) => (
                 <div key={s.key} className="flex items-center gap-1.5">
-                  <span className="inline-block h-0.5 w-3 shrink-0 rounded-full" style={{ backgroundColor: s.color }} />
+                  <span
+                    className="inline-block h-0.5 w-3 shrink-0 rounded-full"
+                    style={{ backgroundColor: s.color }}
+                  />
                   <span className="truncate text-muted-foreground">{s.label}</span>
                   <span className="ml-auto font-medium text-popover-foreground">
                     {formatValue(s.values[hoverIndex] ?? domainMin)}

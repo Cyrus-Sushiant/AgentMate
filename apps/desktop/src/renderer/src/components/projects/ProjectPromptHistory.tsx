@@ -94,7 +94,9 @@ export function ProjectPromptHistory({ projectId }: { projectId: string }): Reac
                   {new Date(entry.createdAt).toLocaleString()}
                 </span>
               </div>
-              <CardDescription className={expanded ? 'whitespace-pre-wrap' : 'line-clamp-2 whitespace-pre-wrap'}>
+              <CardDescription
+                className={expanded ? 'whitespace-pre-wrap' : 'line-clamp-2 whitespace-pre-wrap'}
+              >
                 {entry.content}
               </CardDescription>
             </CardHeader>

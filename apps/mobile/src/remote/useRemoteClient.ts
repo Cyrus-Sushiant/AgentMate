@@ -13,11 +13,7 @@ import {
   type RemoteControlMessage,
   type RemoteInputEvent,
 } from '@agentmat/protocol';
-import {
-  DEFAULT_TRANSPORT_MODE,
-  RemoteTransportMode,
-  type NegotiationPhase,
-} from './transport';
+import { DEFAULT_TRANSPORT_MODE, RemoteTransportMode, type NegotiationPhase } from './transport';
 import {
   loadSavedDevices,
   removeSavedDevice,
@@ -236,7 +232,10 @@ export function useRemoteClient() {
         ? entries.find((e) => e.type === 'codec' && e.id === inbound.codecId)
         : undefined;
       const pair = entries.find(
-        (e) => e.type === 'candidate-pair' && e.state === 'succeeded' && typeof e.currentRoundTripTime === 'number',
+        (e) =>
+          e.type === 'candidate-pair' &&
+          e.state === 'succeeded' &&
+          typeof e.currentRoundTripTime === 'number',
       );
       const bytes = num(inbound?.bytesReceived) ?? 0;
       const prev = lastSample.current;
@@ -436,17 +435,13 @@ export function useRemoteClient() {
         fallbackToTiles(`no video track after 10s at phase "${phaseRef.current}"`);
       }
     }, RTC_FALLBACK_MS);
-  }, [
-    appendLog,
-    clearWatchdog,
-    fallbackToTiles,
-    send,
-    setPhaseTracked,
-    setTransportTracked,
-  ]);
+  }, [appendLog, clearWatchdog, fallbackToTiles, send, setPhaseTracked, setTransportTracked]);
 
   const open = useCallback(
-    (payload: { ip: string; port: number; token: string; deviceName: string }, savedId: string | null) => {
+    (
+      payload: { ip: string; port: number; token: string; deviceName: string },
+      savedId: string | null,
+    ) => {
       if (wsRef.current) disconnect();
 
       dialing.current = { ip: payload.ip, port: payload.port, savedId };
@@ -464,7 +459,12 @@ export function useRemoteClient() {
       wsRef.current = ws;
 
       ws.onopen = () => {
-        send({ t: 'hello', role: 'controller', deviceName: deviceName(), protocolVersion: REMOTE_PROTOCOL_VERSION });
+        send({
+          t: 'hello',
+          role: 'controller',
+          deviceName: deviceName(),
+          protocolVersion: REMOTE_PROTOCOL_VERSION,
+        });
         send({ t: 'auth', token: payload.token });
       };
 
@@ -530,7 +530,9 @@ export function useRemoteClient() {
               });
               const pc = pcRef.current;
               if (pc && remoteDescSet.current) {
-                void pc.addIceCandidate(candidate).catch(() => {});
+                void pc.addIceCandidate(candidate).catch(() => {
+                  // candidate may arrive after the connection has moved on; ignore
+                });
               } else {
                 pendingIce.current.push(candidate);
               }
@@ -580,7 +582,9 @@ export function useRemoteClient() {
         if (wsRef.current !== ws) return;
         statusRef.current = 'error';
         setStatus('error');
-        setError('Connection failed. Make sure the computer is hosting and reachable from this network.');
+        setError(
+          'Connection failed. Make sure the computer is hosting and reachable from this network.',
+        );
         appendLog('error', 'Connection failed.');
       };
 
@@ -636,7 +640,10 @@ export function useRemoteClient() {
   /** Reconnect to a previously paired computer using its stored token. */
   const connectToSaved = useCallback(
     (device: SavedDevice) => {
-      open({ ip: device.ip, port: device.port, token: device.token, deviceName: device.label }, device.id);
+      open(
+        { ip: device.ip, port: device.port, token: device.token, deviceName: device.label },
+        device.id,
+      );
     },
     [open],
   );

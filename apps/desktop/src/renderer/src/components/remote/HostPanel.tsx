@@ -136,8 +136,8 @@ export function HostPanel(): React.JSX.Element {
             </Button>
             {hosting && (
               <Badge variant="success" className="gap-1.5">
-                <span className="h-1.5 w-1.5 rounded-full bg-current" /> Listening on {state?.hostIp}:
-                {state?.hostPort}
+                <span className="h-1.5 w-1.5 rounded-full bg-current" /> Listening on{' '}
+                {state?.hostIp}:{state?.hostPort}
               </Badge>
             )}
             {peers.length > 0 && quality && (
@@ -185,7 +185,12 @@ export function HostPanel(): React.JSX.Element {
                     <Button size="sm" variant="secondary" onClick={copyCode}>
                       <Copy className="h-3.5 w-3.5" /> Copy code
                     </Button>
-                    <Button size="sm" variant="outline" onClick={() => void generateCode()} disabled={generating}>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => void generateCode()}
+                      disabled={generating}
+                    >
                       <QrCode className="h-3.5 w-3.5" /> New code
                     </Button>
                   </div>
@@ -225,10 +230,18 @@ export function HostPanel(): React.JSX.Element {
             )}
             {peers.length > 0 && (
               <div className="flex gap-2">
-                <Button size="sm" variant="secondary" onClick={() => void window.agentmat.remote.sendClipboard()}>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => void window.agentmat.remote.sendClipboard()}
+                >
                   <Send className="h-3.5 w-3.5" /> Send clipboard
                 </Button>
-                <Button size="sm" variant="secondary" onClick={() => void window.agentmat.remote.sendFile()}>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => void window.agentmat.remote.sendFile()}
+                >
                   <Upload className="h-3.5 w-3.5" /> Send file
                 </Button>
               </div>

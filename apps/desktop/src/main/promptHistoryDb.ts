@@ -3,7 +3,11 @@ import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { app } from 'electron';
 import Database from 'better-sqlite3';
-import type { AddPromptHistoryInput, PromptHistoryEntry, PromptHistorySource } from '../shared/apiTypes';
+import type {
+  AddPromptHistoryInput,
+  PromptHistoryEntry,
+  PromptHistorySource,
+} from '../shared/apiTypes';
 
 // Unlike node-pty, better-sqlite3 is not N-API based, so its native binding is
 // tied to the exact Electron ABI it runs under. See the `rebuild:native`

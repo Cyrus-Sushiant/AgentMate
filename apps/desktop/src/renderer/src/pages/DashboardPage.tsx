@@ -1119,9 +1119,7 @@ export default function DashboardPage(): React.JSX.Element {
         icon={<Bolt className="h-3.5 w-3.5" />}
         label="Tokens (7 days)"
         dragHandle={dragHandle(summaryItemId('tokens-week'))}
-        onRemove={
-          editing ? () => removeSummaryCard('tokens-week', 'Tokens (7 days)') : undefined
-        }
+        onRemove={editing ? () => removeSummaryCard('tokens-week', 'Tokens (7 days)') : undefined}
         value={
           usageSummary.isPending ? (
             <Skeleton className="h-8 w-20" />
@@ -1224,8 +1222,8 @@ export default function DashboardPage(): React.JSX.Element {
       {editing && (
         <p className="text-sm text-muted-foreground">
           Drag a card by its handle to move it within a row or into another one, drag a row by its
-          handle to reorder rows, choose how many columns each row uses, hide cards you don't
-          want, and bring them back from "Add card".
+          handle to reorder rows, choose how many columns each row uses, hide cards you don't want,
+          and bring them back from "Add card".
         </p>
       )}
 
@@ -1388,10 +1386,7 @@ export default function DashboardPage(): React.JSX.Element {
             <DialogDescription>Open a terminal session to investigate this host.</DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => diagnoseHost && handlePingHost(diagnoseHost)}
-            >
+            <Button variant="outline" onClick={() => diagnoseHost && handlePingHost(diagnoseHost)}>
               <SatelliteDish className="h-3.5 w-3.5" /> Ping (ping -t)
             </Button>
             <Button onClick={() => diagnoseHost && handleTracerouteHost(diagnoseHost)}>
@@ -1411,8 +1406,8 @@ export default function DashboardPage(): React.JSX.Element {
           </DialogHeader>
 
           <p className="py-2 text-sm text-muted-foreground">
-            This opens speed.cloudflare.com in your browser, which measures your connection far
-            more accurately than a test run from inside the app.
+            This opens speed.cloudflare.com in your browser, which measures your connection far more
+            accurately than a test run from inside the app.
           </p>
 
           <DialogFooter>

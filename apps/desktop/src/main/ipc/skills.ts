@@ -134,8 +134,9 @@ async function listSkillsShFiles(
 }
 
 export function registerSkillHandlers(): void {
-  ipcMain.handle(IPC.skills.listRepositories, (): Promise<SkillRepository[]> =>
-    store.getRepositories(),
+  ipcMain.handle(
+    IPC.skills.listRepositories,
+    (): Promise<SkillRepository[]> => store.getRepositories(),
   );
 
   ipcMain.handle(

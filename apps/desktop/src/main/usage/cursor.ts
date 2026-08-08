@@ -235,8 +235,20 @@ export function startOfLocalDay(ts: number): number {
  */
 export function accumulate(entries: CursorEntry[], sinceMs: number): UsagePeriod {
   const segments: Record<SegmentKey, UsageSegment> = {
-    auto: { key: 'auto', label: SEGMENT_LABELS.auto, tokens: emptyUsageTokens(), costUsd: 0, requests: 0 },
-    api: { key: 'api', label: SEGMENT_LABELS.api, tokens: emptyUsageTokens(), costUsd: 0, requests: 0 },
+    auto: {
+      key: 'auto',
+      label: SEGMENT_LABELS.auto,
+      tokens: emptyUsageTokens(),
+      costUsd: 0,
+      requests: 0,
+    },
+    api: {
+      key: 'api',
+      label: SEGMENT_LABELS.api,
+      tokens: emptyUsageTokens(),
+      costUsd: 0,
+      requests: 0,
+    },
   };
   const tokens = emptyUsageTokens();
   const priced: Record<SegmentKey, boolean> = { auto: false, api: false };

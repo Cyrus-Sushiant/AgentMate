@@ -15,7 +15,11 @@ import {
   type FileChunk,
   type RemoteControlMessage,
 } from '../../shared/remoteProtocol';
-import type { RemoteFileDirection, RemoteFileProgress, RemoteLogLevel } from '../../shared/apiTypes';
+import type {
+  RemoteFileDirection,
+  RemoteFileProgress,
+  RemoteLogLevel,
+} from '../../shared/apiTypes';
 
 /** A part is retried this many times (hash mismatch or ack timeout) before the whole transfer is failed. */
 const MAX_PART_RETRIES = 5;
@@ -160,7 +164,10 @@ export class FileTransferManager {
   }
 
   /** Peer asked us to push a file from our own filesystem (the download half of the remote file manager). */
-  async handleFileRequest(ws: WebSocket, msg: Extract<RemoteControlMessage, { t: 'file-request' }>): Promise<void> {
+  async handleFileRequest(
+    ws: WebSocket,
+    msg: Extract<RemoteControlMessage, { t: 'file-request' }>,
+  ): Promise<void> {
     try {
       const info = await stat(msg.path);
       if (!info.isFile()) throw new Error('Not a file.');
@@ -184,7 +191,11 @@ export class FileTransferManager {
     const buffered: Buffer[] = [];
     let seq = 0;
     try {
-      const stream = createReadStream(state.filePath, { start, end, highWaterMark: FILE_CHUNK_BYTES });
+      const stream = createReadStream(state.filePath, {
+        start,
+        end,
+        highWaterMark: FILE_CHUNK_BYTES,
+      });
       for await (const chunkUnknown of stream) {
         const bytes = chunkUnknown as Buffer;
         partHash.update(bytes);
@@ -194,7 +205,11 @@ export class FileTransferManager {
           encodeFileChunk({ transferKey: state.transferKey, partIndex, seq: seq++, bytes }),
         );
         state.lastActivityAt = Date.now();
-        this.emit(state, partIndex, buffered.reduce((n, b) => n + b.byteLength, 0));
+        this.emit(
+          state,
+          partIndex,
+          buffered.reduce((n, b) => n + b.byteLength, 0),
+        );
       }
       const hash = partHash.digest('hex');
       state.pendingPart = { partIndex, hash, buffered };
@@ -219,7 +234,10 @@ export class FileTransferManager {
     }, PART_ACK_TIMEOUT_MS);
   }
 
-  private handlePartAck(state: UploadState, msg: Extract<RemoteControlMessage, { t: 'file-part-ack' }>): void {
+  private handlePartAck(
+    state: UploadState,
+    msg: Extract<RemoteControlMessage, { t: 'file-part-ack' }>,
+  ): void {
     if (state.pendingPart?.partIndex !== msg.partIndex) return; // stale ack, ignore
     if (state.ackTimer) clearTimeout(state.ackTimer);
     state.lastActivityAt = Date.now();
@@ -261,17 +279,27 @@ export class FileTransferManager {
     state.error = message;
     if (state.ackTimer) clearTimeout(state.ackTimer);
     this.callbacks.log('error', `Failed to send "${state.name}": ${message}`);
-    if (state.ws) this.callbacks.sendControl(state.ws, { t: 'file-error', transferId: state.transferId, message });
+    if (state.ws)
+      this.callbacks.sendControl(state.ws, {
+        t: 'file-error',
+        transferId: state.transferId,
+        message,
+      });
     this.emit(state);
     this.forget(state);
   }
 
-  private handleFileDone(state: UploadState, msg: Extract<RemoteControlMessage, { t: 'file-done' }>): void {
+  private handleFileDone(
+    state: UploadState,
+    msg: Extract<RemoteControlMessage, { t: 'file-done' }>,
+  ): void {
     state.status = msg.verified ? 'done' : 'error';
     if (!msg.verified) state.error = 'Receiver could not verify the whole-file hash.';
     this.callbacks.log(
       msg.verified ? 'success' : 'error',
-      msg.verified ? `Sent "${state.name}".` : `Sent "${state.name}" but the receiver's hash check failed.`,
+      msg.verified
+        ? `Sent "${state.name}".`
+        : `Sent "${state.name}" but the receiver's hash check failed.`,
     );
     this.emit(state);
     this.forget(state);
@@ -279,7 +307,10 @@ export class FileTransferManager {
 
   // --- Receiving -------------------------------------------------------------
 
-  private async handleFileOffer(ws: WebSocket, msg: Extract<RemoteControlMessage, { t: 'file-offer' }>): Promise<void> {
+  private async handleFileOffer(
+    ws: WebSocket,
+    msg: Extract<RemoteControlMessage, { t: 'file-offer' }>,
+  ): Promise<void> {
     let state = this.transfers.get(msg.transferId) as DownloadState | undefined;
     if (state) {
       // Rebind after a reconnect: keep the temp file and completed parts, just point at the new socket.
@@ -288,7 +319,8 @@ export class FileTransferManager {
       state.lastActivityAt = Date.now();
       this.emit(state);
     } else {
-      const destDir = msg.destDir && existsSync(msg.destDir) ? msg.destDir : app.getPath('downloads');
+      const destDir =
+        msg.destDir && existsSync(msg.destDir) ? msg.destDir : app.getPath('downloads');
       await mkdir(destDir, { recursive: true });
       const tmpDir = join(app.getPath('downloads'), '.agentmate-tmp');
       await mkdir(tmpDir, { recursive: true });
@@ -328,7 +360,11 @@ export class FileTransferManager {
   }
 
   /** We're the sender for this transfer; the peer told us which parts it still needs. */
-  private handleFileResume(state: UploadState, ws: WebSocket, msg: Extract<RemoteControlMessage, { t: 'file-resume' }>): void {
+  private handleFileResume(
+    state: UploadState,
+    ws: WebSocket,
+    msg: Extract<RemoteControlMessage, { t: 'file-resume' }>,
+  ): void {
     state.ws = ws;
     state.status = 'active';
     state.lastActivityAt = Date.now();
@@ -358,8 +394,14 @@ export class FileTransferManager {
     this.emit(state, chunk.partIndex, state.partBytesReceived);
   }
 
-  private handlePartDone(state: DownloadState, msg: Extract<RemoteControlMessage, { t: 'file-part-done' }>): void {
-    const ok = state.currentPartIndex === msg.partIndex && !!state.partHash && state.partHash.digest('hex') === msg.hash;
+  private handlePartDone(
+    state: DownloadState,
+    msg: Extract<RemoteControlMessage, { t: 'file-part-done' }>,
+  ): void {
+    const ok =
+      state.currentPartIndex === msg.partIndex &&
+      !!state.partHash &&
+      state.partHash.digest('hex') === msg.hash;
     if (state.ws) {
       this.callbacks.sendControl(state.ws, {
         t: 'file-part-ack',
@@ -376,10 +418,15 @@ export class FileTransferManager {
     // On failure the sender will resend the same part from seq 0, which naturally resets our accumulator above.
   }
 
-  private async handleFileComplete(state: DownloadState, msg: Extract<RemoteControlMessage, { t: 'file-complete' }>): Promise<void> {
+  private async handleFileComplete(
+    state: DownloadState,
+    msg: Extract<RemoteControlMessage, { t: 'file-complete' }>,
+  ): Promise<void> {
     const actual = await hashFile(state.tmpPath);
     const verified = actual === msg.hash;
-    const savedPath = verified ? uniquePath(join(state.destDir ?? app.getPath('downloads'), sanitizeName(state.name))) : state.tmpPath;
+    const savedPath = verified
+      ? uniquePath(join(state.destDir ?? app.getPath('downloads'), sanitizeName(state.name)))
+      : state.tmpPath;
     try {
       await state.fh.close();
       if (verified) await rename(state.tmpPath, savedPath);
@@ -390,11 +437,18 @@ export class FileTransferManager {
     if (verified) state.savedPath = savedPath;
     else state.error = "Whole-file hash didn't match after reassembly.";
     if (state.ws) {
-      this.callbacks.sendControl(state.ws, { t: 'file-done', transferId: state.transferId, savedPath, verified });
+      this.callbacks.sendControl(state.ws, {
+        t: 'file-done',
+        transferId: state.transferId,
+        savedPath,
+        verified,
+      });
     }
     this.callbacks.log(
       verified ? 'success' : 'error',
-      verified ? `Saved "${state.name}" to ${savedPath}.` : `Saved "${state.name}" but its hash didn't verify.`,
+      verified
+        ? `Saved "${state.name}" to ${savedPath}.`
+        : `Saved "${state.name}" but its hash didn't verify.`,
     );
     this.emit(state);
     this.forget(state);
@@ -527,7 +581,10 @@ export class FileTransferManager {
   private sweepAbandoned(): void {
     const now = Date.now();
     for (const state of [...this.transfers.values()]) {
-      if (state.status === 'awaiting-reconnect' && now - state.lastActivityAt > RECONNECT_ABANDON_MS) {
+      if (
+        state.status === 'awaiting-reconnect' &&
+        now - state.lastActivityAt > RECONNECT_ABANDON_MS
+      ) {
         this.cancel(state, 'Gave up waiting for the connection to resume.');
       }
     }
@@ -567,11 +624,17 @@ export class FileTransferManager {
     }, 5_000); // brief grace period so a last progress event still finds the state if in flight
   }
 
-  private progressFor(state: TransferState, partIndexInFlight?: number, bytesInFlight?: number): RemoteFileProgress {
+  private progressFor(
+    state: TransferState,
+    partIndexInFlight?: number,
+    bytesInFlight?: number,
+  ): RemoteFileProgress {
     const direction: RemoteFileDirection = state.direction === 'upload' ? 'outgoing' : 'incoming';
     const transferred =
       state.completedParts.size * state.partSize +
-      (partIndexInFlight !== undefined && !state.completedParts.has(partIndexInFlight) ? (bytesInFlight ?? 0) : 0);
+      (partIndexInFlight !== undefined && !state.completedParts.has(partIndexInFlight)
+        ? (bytesInFlight ?? 0)
+        : 0);
     return {
       transferId: state.transferId,
       name: state.name,

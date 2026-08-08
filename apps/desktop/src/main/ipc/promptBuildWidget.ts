@@ -18,7 +18,8 @@ export function registerPromptBuildWidgetHandlers(): void {
     (_e, projectId: string, projectName: string): Promise<DesktopPromptBuildWidgetInstance> =>
       promptBuildWidgetManager.open(projectId, projectName),
   );
-  ipcMain.handle(IPC.promptBuildWidget.closeWidget, (_e, id: string): Promise<void> =>
-    promptBuildWidgetManager.close(id),
+  ipcMain.handle(
+    IPC.promptBuildWidget.closeWidget,
+    (_e, id: string): Promise<void> => promptBuildWidgetManager.close(id),
   );
 }

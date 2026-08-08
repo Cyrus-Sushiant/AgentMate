@@ -92,13 +92,12 @@ export function AskAiChat({
     queryFn: () => window.agentmat.settings.get(),
   });
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: only seed each field once, the first time settings arrive with nothing chosen yet
   useEffect(() => {
     if (!settingsQuery.data) return;
     if (!openaiModel) setOpenaiModel(settingsQuery.data.openaiModel);
     if (!ollamaModel) setOllamaModel(settingsQuery.data.ollamaModel);
     if (!geminiModel) setGeminiModel(settingsQuery.data.geminiModel);
-    // Only seed each field once, the first time settings arrive with nothing chosen yet.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [settingsQuery.data]);
 
   const ollamaModelsQuery = useQuery({
@@ -132,7 +131,8 @@ export function AskAiChat({
     scrollEndRef.current?.scrollIntoView({ behavior: variant === 'modal' ? 'auto' : 'smooth' });
   }, [messages, variant]);
 
-  const model = provider === 'openai' ? openaiModel : provider === 'gemini' ? geminiModel : ollamaModel;
+  const model =
+    provider === 'openai' ? openaiModel : provider === 'gemini' ? geminiModel : ollamaModel;
 
   async function handleSend(): Promise<void> {
     const trimmed = prompt.trim();
@@ -144,7 +144,10 @@ export function AskAiChat({
 
     // Conversation so far, oldest first, so the provider has context from prior turns.
     const history = messages
-      .filter((m): m is typeof m & { role: 'user' | 'assistant' } => m.role === 'user' || m.role === 'assistant')
+      .filter(
+        (m): m is typeof m & { role: 'user' | 'assistant' } =>
+          m.role === 'user' || m.role === 'assistant',
+      )
       .map((m) => ({ role: m.role, content: m.content }));
 
     addMessage({
@@ -179,7 +182,10 @@ export function AskAiChat({
 
     const history = messages
       .slice(0, idx - 1)
-      .filter((m): m is typeof m & { role: 'user' | 'assistant' } => m.role === 'user' || m.role === 'assistant')
+      .filter(
+        (m): m is typeof m & { role: 'user' | 'assistant' } =>
+          m.role === 'user' || m.role === 'assistant',
+      )
       .map((m) => ({ role: m.role, content: m.content }));
 
     setSending(true);
@@ -302,7 +308,10 @@ export function AskAiChat({
                 className="w-44"
                 value={ollamaModel}
                 onChange={setOllamaModel}
-                options={(ollamaModelsQuery.data ?? []).map((name) => ({ value: name, label: name }))}
+                options={(ollamaModelsQuery.data ?? []).map((name) => ({
+                  value: name,
+                  label: name,
+                }))}
                 placeholder={ollamaModelsQuery.isFetching ? 'Loading models…' : 'Choose a model'}
                 emptyText="No models found. Is Ollama running?"
               />
@@ -359,7 +368,11 @@ export function AskAiChat({
                   <div className="whitespace-pre-wrap rounded-2xl rounded-br-sm bg-primary px-3.5 py-2 text-sm text-primary-foreground">
                     {m.content}
                   </div>
-                  <MessageActions message={m} onCopy={handleCopy} onToggleBookmark={toggleBookmark} />
+                  <MessageActions
+                    message={m}
+                    onCopy={handleCopy}
+                    onToggleBookmark={toggleBookmark}
+                  />
                 </div>
               ) : (
                 <div key={m.id} className="mr-auto flex max-w-[85%] items-start gap-2">
@@ -406,7 +419,11 @@ export function AskAiChat({
                           <RefreshCw className="h-2.5 w-2.5" /> Retry
                         </button>
                       )}
-                      <MessageActions message={m} onCopy={handleCopy} onToggleBookmark={toggleBookmark} />
+                      <MessageActions
+                        message={m}
+                        onCopy={handleCopy}
+                        onToggleBookmark={toggleBookmark}
+                      />
                     </div>
                   </div>
                 </div>
@@ -478,7 +495,11 @@ interface MessageActionsProps {
   onToggleBookmark: (id: string) => void;
 }
 
-function MessageActions({ message, onCopy, onToggleBookmark }: MessageActionsProps): React.JSX.Element {
+function MessageActions({
+  message,
+  onCopy,
+  onToggleBookmark,
+}: MessageActionsProps): React.JSX.Element {
   return (
     <div className="flex items-center gap-1">
       <SimpleTooltip label="Copy message">

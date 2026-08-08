@@ -37,7 +37,11 @@ async function handleHookRequest(projectId: string, kind: NotificationHookKind):
   if (!hook.enabled) return;
 
   const text = renderMessage(hook.message, project.name);
-  const result = await sendTelegramMessage(settings.telegramBotToken, settings.telegramChatId, text);
+  const result = await sendTelegramMessage(
+    settings.telegramBotToken,
+    settings.telegramChatId,
+    text,
+  );
   if (!result.ok) return;
 
   if (kind === 'confirmation') {
@@ -86,7 +90,11 @@ async function runPollLoop(): Promise<void> {
 
         const sessionId = findSessionIdForProject(oldestProjectId);
         if (sessionId) writeToSession(sessionId, `${message.text}\r`);
-        notifyRenderer({ projectId: oldestProjectId, sessionId: sessionId ?? '', text: message.text });
+        notifyRenderer({
+          projectId: oldestProjectId,
+          sessionId: sessionId ?? '',
+          text: message.text,
+        });
       }
     }
   } finally {

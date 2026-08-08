@@ -46,7 +46,13 @@ export type RemoteInputEvent =
 
 export type RemoteControlMessage =
   /** First frame each side sends after the socket opens. */
-  | { t: 'hello'; role: RemoteRole; deviceName: string; protocolVersion: number; intent?: RemoteConnectIntent }
+  | {
+      t: 'hello';
+      role: RemoteRole;
+      deviceName: string;
+      protocolVersion: number;
+      intent?: RemoteConnectIntent;
+    }
   /**
    * Controller proves it holds either a one-time pairing token (first pair) or
    * a durable device token issued by a previous successful pairing.
@@ -57,7 +63,12 @@ export type RemoteControlMessage =
    * one-time pairing code: it is a durable credential the controller should
    * store and use for all future reconnects to this host.
    */
-  | { t: 'auth-ok'; deviceName: string; screen: { width: number; height: number }; deviceToken?: string }
+  | {
+      t: 'auth-ok';
+      deviceName: string;
+      screen: { width: number; height: number };
+      deviceToken?: string;
+    }
   | { t: 'auth-fail'; reason: string }
   /** Host announces its capture surface size (physical pixels); re-sent if it changes. */
   | { t: 'screen-info'; width: number; height: number }
@@ -81,7 +92,15 @@ export type RemoteControlMessage =
    * with the whole-file SHA-256 → receiver verifies, renames the temp file
    * into place, and replies `file-done`.
    */
-  | { t: 'file-offer'; transferId: string; name: string; size: number; partSize: number; partCount: number; destDir?: string }
+  | {
+      t: 'file-offer';
+      transferId: string;
+      name: string;
+      size: number;
+      partSize: number;
+      partCount: number;
+      destDir?: string;
+    }
   | { t: 'file-resume'; transferId: string; missingParts: number[] }
   | { t: 'file-part-done'; transferId: string; partIndex: number; hash: string; size: number }
   | { t: 'file-part-ack'; transferId: string; partIndex: number; ok: boolean }
@@ -480,7 +499,13 @@ export function decodePairingCode(code: string): PairingPayload | null {
       typeof parsed.token === 'string' &&
       typeof parsed.deviceName === 'string'
     ) {
-      return { ip: parsed.ip, port: parsed.port, token: parsed.token, deviceName: parsed.deviceName, v: parsed.v ?? 1 };
+      return {
+        ip: parsed.ip,
+        port: parsed.port,
+        token: parsed.token,
+        deviceName: parsed.deviceName,
+        v: parsed.v ?? 1,
+      };
     }
   } catch {
     // fall through

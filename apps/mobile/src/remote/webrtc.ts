@@ -9,7 +9,7 @@ import type * as WebRtcModule from 'react-native-webrtc';
  */
 function loadWebRtc(): typeof WebRtcModule | null {
   try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    // biome-ignore lint/style/noCommonJs: loaded via require so a missing native module fails gracefully instead of at import time
     return require('react-native-webrtc') as typeof WebRtcModule;
   } catch {
     return null;

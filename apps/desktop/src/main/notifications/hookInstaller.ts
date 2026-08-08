@@ -89,7 +89,10 @@ interface ClaudeSettings {
 const CLAUDE_SETTINGS_FILES = ['settings.json', 'settings.local.json'] as const;
 type ClaudeSettingsFile = (typeof CLAUDE_SETTINGS_FILES)[number];
 
-function settingsPathFor(projectFolderPath: string, file: ClaudeSettingsFile = 'settings.json'): string {
+function settingsPathFor(
+  projectFolderPath: string,
+  file: ClaudeSettingsFile = 'settings.json',
+): string {
   return join(projectFolderPath, '.claude', file);
 }
 
@@ -124,7 +127,10 @@ async function setClaudeCodeHook(
   const remaining = (hooks[event] ?? []).filter((group) => !isOurGroup(group, marker));
 
   if (scriptPath) {
-    hooks[event] = [...remaining, { hooks: [{ type: 'command', command: `node ${JSON.stringify(scriptPath)}` }] }];
+    hooks[event] = [
+      ...remaining,
+      { hooks: [{ type: 'command', command: `node ${JSON.stringify(scriptPath)}` }] },
+    ];
   } else if (remaining.length > 0) {
     hooks[event] = remaining;
   } else {
@@ -169,7 +175,9 @@ export async function installProjectNotificationHooks(
       await setClaudeCodeHook(project.folderPath, kind, wiredAutomatically ? scriptPath : null);
       result[kind] = { scriptPath, wiredAutomatically };
     } else {
-      await unlink(scriptPath).catch(() => {});
+      await unlink(scriptPath).catch(() => {
+        // script may already be gone; nothing to clean up
+      });
       await setClaudeCodeHook(project.folderPath, kind, null);
     }
   }

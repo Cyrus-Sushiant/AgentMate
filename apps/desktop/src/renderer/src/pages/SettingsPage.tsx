@@ -374,7 +374,8 @@ export default function SettingsPage(): React.JSX.Element {
         <CardHeader>
           <CardTitle>Skill Repositories</CardTitle>
           <CardDescription>
-            {reposQuery.data?.length ?? 0} repositor{reposQuery.data?.length === 1 ? 'y' : 'ies'} configured.
+            {reposQuery.data?.length ?? 0} repositor{reposQuery.data?.length === 1 ? 'y' : 'ies'}{' '}
+            configured.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -404,11 +405,7 @@ export default function SettingsPage(): React.JSX.Element {
             placeholder="1.1.1.1, 8.8.8.8"
             className="max-w-md"
           />
-          <Button
-            variant="outline"
-            disabled={!pingTargetsDirty}
-            onClick={handleSavePingTargets}
-          >
+          <Button variant="outline" disabled={!pingTargetsDirty} onClick={handleSavePingTargets}>
             Save
           </Button>
         </CardContent>
@@ -420,8 +417,8 @@ export default function SettingsPage(): React.JSX.Element {
             <Languages className="h-4 w-4" /> Translation
           </CardTitle>
           <CardDescription>
-            How many extra attempts Prompt Builder's Translate action makes if a translation
-            request fails, e.g. due to a flaky connection.
+            How many extra attempts Prompt Builder's Translate action makes if a translation request
+            fails, e.g. due to a flaky connection.
           </CardDescription>
         </CardHeader>
         <CardContent className="flex items-center gap-2">
@@ -746,7 +743,11 @@ export default function SettingsPage(): React.JSX.Element {
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex items-center gap-2">
-            <Switch id="compress-backup" checked={compressBackup} onCheckedChange={setCompressBackup} />
+            <Switch
+              id="compress-backup"
+              checked={compressBackup}
+              onCheckedChange={setCompressBackup}
+            />
             <Label htmlFor="compress-backup" className="font-normal text-muted-foreground">
               Compress export as a .zip file
             </Label>
@@ -764,7 +765,8 @@ export default function SettingsPage(): React.JSX.Element {
               disabled={importingBackup}
               onClick={() => void handleImportBackup()}
             >
-              <Upload className="h-4 w-4" /> {importingBackup ? 'Restoring…' : 'Restore from backup…'}
+              <Upload className="h-4 w-4" />{' '}
+              {importingBackup ? 'Restoring…' : 'Restore from backup…'}
             </Button>
           </div>
         </CardContent>

@@ -25,7 +25,10 @@ function toUpdateInfo(info: ElectronUpdateInfo): UpdateInfo {
     typeof notes === 'string'
       ? notes
       : Array.isArray(notes)
-        ? notes.map((n) => n.note ?? '').filter(Boolean).join('\n\n') || null
+        ? notes
+            .map((n) => n.note ?? '')
+            .filter(Boolean)
+            .join('\n\n') || null
         : null;
   return {
     version: info.version,

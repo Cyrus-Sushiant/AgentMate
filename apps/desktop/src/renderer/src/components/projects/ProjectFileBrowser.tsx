@@ -152,7 +152,9 @@ export function ProjectFileBrowser({
         {entries.map((entry) => (
           <button
             key={entry.path}
-            onClick={() => (entry.isDirectory ? setCurrentPath(entry.path) : void openFile(entry.path))}
+            onClick={() =>
+              entry.isDirectory ? setCurrentPath(entry.path) : void openFile(entry.path)
+            }
             className={cn(
               'flex w-full items-center gap-1.5 rounded px-2 py-1 text-left text-xs hover:bg-accent',
               selectedFile === entry.path && 'bg-accent',

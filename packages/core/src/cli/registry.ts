@@ -241,8 +241,10 @@ export const CLI_REGISTRY: CliDefinition[] = [
     versionCommand: { command: 'goose', args: ['--version'] },
     promptCommand: { command: 'goose', args: ['run', '-t'] },
     installCommand: {
-      darwin: 'curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh | bash',
-      linux: 'curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh | bash',
+      darwin:
+        'curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh | bash',
+      linux:
+        'curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh | bash',
     },
     // `goose update` is the built-in self-updater, faster and more reliable than re-running
     // the install script.

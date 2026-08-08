@@ -136,9 +136,7 @@ function supportsHeadlessPrompt(cli: CliDefinition): boolean {
  */
 async function resolveHeadlessCli(preferredCliId?: string | null): Promise<CliDefinition | null> {
   const settings = await store.getSettings();
-  const candidateIds = [preferredCliId, settings.defaultCliId].filter(
-    (id): id is string => !!id,
-  );
+  const candidateIds = [preferredCliId, settings.defaultCliId].filter((id): id is string => !!id);
 
   const tried = new Set<string>();
   for (const id of candidateIds) {

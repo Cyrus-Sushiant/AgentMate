@@ -1,5 +1,10 @@
 import { parentPort, workerData } from 'node:worker_threads';
-import { scanProviderLogs, type LocalLogProvider, type ScanCache, type ScanResult } from './logParsers';
+import {
+  scanProviderLogs,
+  type LocalLogProvider,
+  type ScanCache,
+  type ScanResult,
+} from './logParsers';
 
 // Worker-thread entry for local-log usage scans. Parsing a few hundred MB of
 // session transcripts is seconds of solid CPU work; doing it on the main process
@@ -13,9 +18,7 @@ export interface ScanWorkerInput {
   sinceMs: number;
 }
 
-export type ScanWorkerMessage =
-  | { ok: true; result: ScanResult }
-  | { ok: false; error: string };
+export type ScanWorkerMessage = { ok: true; result: ScanResult } | { ok: false; error: string };
 
 const input = workerData as ScanWorkerInput;
 

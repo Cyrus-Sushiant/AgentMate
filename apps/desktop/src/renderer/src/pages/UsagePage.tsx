@@ -179,7 +179,10 @@ export default function UsagePage(): React.JSX.Element {
   }
 
   /** Adds/removes one of the summary tiles above on the Dashboard page. */
-  function toggleSummaryDashboard(id: 'tokens-today' | 'tokens-week' | 'cost-today' | 'providers-tracked', label: string): void {
+  function toggleSummaryDashboard(
+    id: 'tokens-today' | 'tokens-week' | 'cost-today' | 'providers-tracked',
+    label: string,
+  ): void {
     const added = toggleDashboardSummaryCard(id);
     if (added) toast.success(`${label} added to your dashboard.`);
     else toast.info(`${label} removed from your dashboard.`);
@@ -266,9 +269,7 @@ export default function UsagePage(): React.JSX.Element {
       toast.info('Threshold alerts turned off.');
       return;
     }
-    toast.success(
-      `You'll get a notification at ${thresholdAlerts.threshold}% usage.`,
-    );
+    toast.success(`You'll get a notification at ${thresholdAlerts.threshold}% usage.`);
   }
 
   return (
@@ -373,7 +374,11 @@ export default function UsagePage(): React.JSX.Element {
           const ownsResetAlerts = id === resetAlerts.providerId;
           const ownsThresholdAlerts = id === thresholdAlerts.providerId;
           return (
-            <motion.div key={id} layout transition={{ type: 'spring', stiffness: 400, damping: 35 }}>
+            <motion.div
+              key={id}
+              layout
+              transition={{ type: 'spring', stiffness: 400, damping: 35 }}
+            >
               <Card
                 className={cn('glass h-full', dragId === id && 'opacity-50')}
                 onDragOver={(e) => e.preventDefault()}
@@ -454,11 +459,7 @@ export default function UsagePage(): React.JSX.Element {
                           cardMode === 'subscription' ? 'Show tokens and cost' : 'Show plan limits'
                         }
                       >
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => void toggleCardMode(id)}
-                        >
+                        <Button variant="ghost" size="icon" onClick={() => void toggleCardMode(id)}>
                           {cardMode === 'subscription' ? (
                             <ChartColumn className="h-3.5 w-3.5" />
                           ) : (
@@ -470,9 +471,7 @@ export default function UsagePage(): React.JSX.Element {
                     {/* Same card, shown on the Dashboard page alongside the
                         system charts. It follows this card's tokens/limits view. */}
                     <SimpleTooltip
-                      label={
-                        onDashboard ? 'Remove from dashboard' : 'Add to dashboard'
-                      }
+                      label={onDashboard ? 'Remove from dashboard' : 'Add to dashboard'}
                     >
                       <Button
                         variant="ghost"
@@ -717,7 +716,9 @@ function ThresholdAlertDialog({
 
   function commitThreshold(): void {
     const parsed = Number(threshold);
-    const clamped = Number.isFinite(parsed) ? Math.min(100, Math.max(1, Math.round(parsed))) : alerts.threshold;
+    const clamped = Number.isFinite(parsed)
+      ? Math.min(100, Math.max(1, Math.round(parsed)))
+      : alerts.threshold;
     setThreshold(String(clamped));
     if (clamped !== alerts.threshold) void onSave({ ...alerts, threshold: clamped });
   }

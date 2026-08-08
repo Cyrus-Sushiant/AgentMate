@@ -105,7 +105,11 @@ export function MarkdownPreview({ content, className }: MarkdownPreviewProps): R
           ),
           td: ({ children }) => <td className="border border-border px-2 py-1">{children}</td>,
           img: ({ src, alt }) => (
-            <img src={typeof src === 'string' ? src : undefined} alt={alt} className="max-w-full rounded-lg" />
+            <img
+              src={typeof src === 'string' ? src : undefined}
+              alt={alt}
+              className="max-w-full rounded-lg"
+            />
           ),
         }}
       >

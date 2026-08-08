@@ -37,8 +37,7 @@ export function RemoteScreen({ client }: { client: RemoteClient }): React.JSX.El
   const [showStats, setShowStats] = useState(false);
 
   const onFallback = transport === RemoteTransportMode.JPEG_TILE_FALLBACK;
-  const waitingForVideo =
-    connected && !onFallback && !remoteStream && tiles.size === 0;
+  const waitingForVideo = connected && !onFallback && !remoteStream && tiles.size === 0;
 
   return (
     <View style={styles.root}>
@@ -63,7 +62,10 @@ export function RemoteScreen({ client }: { client: RemoteClient }): React.JSX.El
 
       {/* Floating menu toggle, the only permanent chrome over the screen. */}
       <Pressable
-        style={[styles.menuButton, { top: insets.top + spacing(2), right: insets.right + spacing(2) }]}
+        style={[
+          styles.menuButton,
+          { top: insets.top + spacing(2), right: insets.right + spacing(2) },
+        ]}
         onPress={() => setMenuOpen((open) => !open)}
         hitSlop={8}
       >
@@ -71,9 +73,16 @@ export function RemoteScreen({ client }: { client: RemoteClient }): React.JSX.El
       </Pressable>
 
       {menuOpen && (
-        <View style={[styles.header, { top: insets.top + spacing(2), right: insets.right + spacing(12) }]}>
+        <View
+          style={[
+            styles.header,
+            { top: insets.top + spacing(2), right: insets.right + spacing(12) },
+          ]}
+        >
           <View style={styles.headerLeft}>
-            <View style={[styles.dot, { backgroundColor: connected ? colors.success : colors.warning }]} />
+            <View
+              style={[styles.dot, { backgroundColor: connected ? colors.success : colors.warning }]}
+            />
             <Text style={styles.deviceName} numberOfLines={1}>
               {remoteDeviceName ?? 'Remote device'}
             </Text>
@@ -90,7 +99,11 @@ export function RemoteScreen({ client }: { client: RemoteClient }): React.JSX.El
           >
             <Text style={styles.headerButtonText}>Stats</Text>
           </Pressable>
-          <Pressable style={styles.headerButton} onPress={() => void sendClipboardToHost()} disabled={!connected}>
+          <Pressable
+            style={styles.headerButton}
+            onPress={() => void sendClipboardToHost()}
+            disabled={!connected}
+          >
             <Text style={styles.headerButtonText}>Clipboard</Text>
           </Pressable>
           <Pressable
@@ -104,7 +117,10 @@ export function RemoteScreen({ client }: { client: RemoteClient }): React.JSX.El
 
       {showStats && stats && (
         <View
-          style={[styles.statsOverlay, { top: insets.top + spacing(2), left: insets.left + spacing(2) }]}
+          style={[
+            styles.statsOverlay,
+            { top: insets.top + spacing(2), left: insets.left + spacing(2) },
+          ]}
         >
           <Text style={[styles.statsText, styles.statsHeading]}>
             {stats.transport === RemoteTransportMode.WEBRTC_VIDEO

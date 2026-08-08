@@ -164,7 +164,7 @@ export function startBenchmark(runLabel: string): void {
   // Which encoders are hardware-backed decides how to read every other number
   // in the run, so it is recorded alongside them.
   void describeEncoderSupport().then((encoders) => {
-    // eslint-disable-next-line no-console -- the console IS this tool's UI
+    // biome-ignore lint/suspicious/noConsole: the console IS this tool's UI
     console.info(`[bench] started "${runLabel}" · encoders: ${encoders}`);
   });
 }
@@ -194,7 +194,10 @@ export function stopBenchmark(): BenchSummary {
     host: host.length
       ? {
           medianKbps: median(host.map((s) => s.kbps)),
-          p95Kbps: percentile(host.map((s) => s.kbps), 95),
+          p95Kbps: percentile(
+            host.map((s) => s.kbps),
+            95,
+          ),
           medianFps: median(host.map((s) => s.fps)),
           medianRttMs: median(host.map((s) => s.rttMs ?? 0)),
           medianLossPct: round(median(host.map((s) => s.lossRatio)) * 100, 2),
@@ -206,7 +209,10 @@ export function stopBenchmark(): BenchSummary {
     controller: controller.length
       ? {
           medianKbps: median(controller.map((s) => s.kbps)),
-          p95Kbps: percentile(controller.map((s) => s.kbps), 95),
+          p95Kbps: percentile(
+            controller.map((s) => s.kbps),
+            95,
+          ),
           medianFps: median(controller.map((s) => s.fps)),
           medianRttMs: median(controller.map((s) => s.rttMs ?? 0)),
           resolution: `${controller[controller.length - 1]?.width}x${controller[controller.length - 1]?.height}`,
@@ -217,7 +223,13 @@ export function stopBenchmark(): BenchSummary {
     process: process.length
       ? {
           medianMainCpuPct: round(median(process.map((s) => s.mainCpu)), 2),
-          p95MainCpuPct: round(percentile(process.map((s) => s.mainCpu), 95), 2),
+          p95MainCpuPct: round(
+            percentile(
+              process.map((s) => s.mainCpu),
+              95,
+            ),
+            2,
+          ),
           medianMainMemoryMb: round(median(process.map((s) => s.mainMemory)) / 1024 / 1024, 1),
           medianRendererHeapMb: round(
             median(process.map((s) => s.rendererHeap ?? 0)) / 1024 / 1024,
@@ -226,7 +238,7 @@ export function stopBenchmark(): BenchSummary {
         }
       : null,
   };
-  // eslint-disable-next-line no-console -- the console IS this tool's UI
+  // biome-ignore lint/suspicious/noConsole: the console IS this tool's UI
   console.info(`[bench] stopped "${label}"`, summary);
   return summary;
 }

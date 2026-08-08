@@ -105,7 +105,7 @@ function createMainWindow(): void {
 
   if (process.env.ELECTRON_RENDERER_URL) {
     win.webContents.on('console-message', (_event, _level, message, line, sourceId) => {
-      // eslint-disable-next-line no-console
+      // biome-ignore lint/suspicious/noConsole: forwards renderer console output into the main process log
       console.log(`[renderer] ${sourceId}:${line} ${message}`);
     });
   }

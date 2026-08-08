@@ -28,7 +28,8 @@ function selectedLineRange(state: EditState): { from: number; to: number } {
   // A selection ending exactly at a line start hasn't really reached that line,
   // so pull back one character before looking for the end.
   const endProbe =
-    state.selectionEnd > state.selectionStart && lineStartAt(state.value, state.selectionEnd) === state.selectionEnd
+    state.selectionEnd > state.selectionStart &&
+    lineStartAt(state.value, state.selectionEnd) === state.selectionEnd
       ? state.selectionEnd - 1
       : state.selectionEnd;
   return { from, to: lineEndAt(state.value, endProbe) };
@@ -61,7 +62,14 @@ export function toggleInlineWrap(state: EditState, marker: string): EditState {
 
   if (selected.length >= len * 2 && selected.startsWith(marker) && selected.endsWith(marker)) {
     const inner = selected.slice(len, -len);
-    return replaceRange(state, selectionStart, selectionEnd, inner, selectionStart, selectionStart + inner.length);
+    return replaceRange(
+      state,
+      selectionStart,
+      selectionEnd,
+      inner,
+      selectionStart,
+      selectionStart + inner.length,
+    );
   }
 
   const before = value.slice(Math.max(0, selectionStart - len), selectionStart);
@@ -175,7 +183,14 @@ export function insertLink(state: EditState): EditState {
 
   return selected
     ? replaceRange(state, selectionStart, selectionEnd, snippet, urlStart, urlStart + 3)
-    : replaceRange(state, selectionStart, selectionEnd, snippet, selectionStart + 1, selectionStart + 1 + label.length);
+    : replaceRange(
+        state,
+        selectionStart,
+        selectionEnd,
+        snippet,
+        selectionStart + 1,
+        selectionStart + 1 + label.length,
+      );
 }
 
 /** Fence the selection as a code block, on its own lines. */
@@ -226,7 +241,14 @@ export function continueList(state: EditState): EditState | null {
 
   // Empty item, clear the marker rather than adding another one.
   if (line.length === marker.length) {
-    return replaceRange(state, from, selectionStart, indent, from + indent.length, from + indent.length);
+    return replaceRange(
+      state,
+      from,
+      selectionStart,
+      indent,
+      from + indent.length,
+      from + indent.length,
+    );
   }
 
   const nextMarker = bullet

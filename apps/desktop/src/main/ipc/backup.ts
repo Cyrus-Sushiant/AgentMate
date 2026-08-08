@@ -44,49 +44,56 @@ interface BackupEnvelope {
 function isBackupEnvelope(value: unknown): value is BackupEnvelope {
   if (typeof value !== 'object' || value === null) return false;
   const candidate = value as { version?: unknown; data?: unknown };
-  return candidate.version === BACKUP_VERSION && typeof candidate.data === 'object' && candidate.data !== null;
+  return (
+    candidate.version === BACKUP_VERSION &&
+    typeof candidate.data === 'object' &&
+    candidate.data !== null
+  );
 }
 
 export function registerBackupHandlers(): void {
-  ipcMain.handle(IPC.backup.export, async (_event, compress: boolean): Promise<BackupExportResult> => {
-    const dateStamp = new Date().toISOString().slice(0, 10);
-    const result = await dialog.showSaveDialog({
-      defaultPath: compress
-        ? `agentmate-backup-${dateStamp}.zip`
-        : `agentmate-backup-${dateStamp}.json`,
-      filters: compress
-        ? [{ name: 'AgentMate Backup (zip)', extensions: ['zip'] }]
-        : [{ name: 'AgentMate Backup', extensions: ['json'] }],
-    });
-    if (result.canceled || !result.filePath) return { ok: false };
+  ipcMain.handle(
+    IPC.backup.export,
+    async (_event, compress: boolean): Promise<BackupExportResult> => {
+      const dateStamp = new Date().toISOString().slice(0, 10);
+      const result = await dialog.showSaveDialog({
+        defaultPath: compress
+          ? `agentmate-backup-${dateStamp}.zip`
+          : `agentmate-backup-${dateStamp}.json`,
+        filters: compress
+          ? [{ name: 'AgentMate Backup (zip)', extensions: ['zip'] }]
+          : [{ name: 'AgentMate Backup', extensions: ['json'] }],
+      });
+      if (result.canceled || !result.filePath) return { ok: false };
 
-    const envelope: BackupEnvelope = {
-      version: BACKUP_VERSION,
-      exportedAt: new Date().toISOString(),
-      appVersion: app.isPackaged ? app.getVersion() : 'dev',
-      data: {
-        projects: await store.getProjects(),
-        settings: await store.getSettings(),
-        activity: await store.getActivity(),
-        templates: await store.getTemplates(),
-        repositories: await store.getRepositories(),
-        mcpRepositories: await store.getMcpRepositories(),
-        projectDrafts: await store.getProjectDrafts(),
-        scheduledTasks: await store.getScheduledTasks(),
-        promptHistory: promptHistoryDb.exportAll(),
-      },
-    };
-    const json = JSON.stringify(envelope, null, 2);
+      const envelope: BackupEnvelope = {
+        version: BACKUP_VERSION,
+        exportedAt: new Date().toISOString(),
+        appVersion: app.isPackaged ? app.getVersion() : 'dev',
+        data: {
+          projects: await store.getProjects(),
+          settings: await store.getSettings(),
+          activity: await store.getActivity(),
+          templates: await store.getTemplates(),
+          repositories: await store.getRepositories(),
+          mcpRepositories: await store.getMcpRepositories(),
+          projectDrafts: await store.getProjectDrafts(),
+          scheduledTasks: await store.getScheduledTasks(),
+          promptHistory: promptHistoryDb.exportAll(),
+        },
+      };
+      const json = JSON.stringify(envelope, null, 2);
 
-    if (compress) {
-      const zip = new AdmZip();
-      zip.addFile(ZIP_ENTRY_NAME, Buffer.from(json, 'utf-8'));
-      zip.writeZip(result.filePath);
-    } else {
-      await writeFile(result.filePath, json, 'utf-8');
-    }
-    return { ok: true, path: result.filePath };
-  });
+      if (compress) {
+        const zip = new AdmZip();
+        zip.addFile(ZIP_ENTRY_NAME, Buffer.from(json, 'utf-8'));
+        zip.writeZip(result.filePath);
+      } else {
+        await writeFile(result.filePath, json, 'utf-8');
+      }
+      return { ok: true, path: result.filePath };
+    },
+  );
 
   ipcMain.handle(IPC.backup.import, async (): Promise<BackupImportResult> => {
     const result = await dialog.showOpenDialog({

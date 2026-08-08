@@ -34,7 +34,9 @@ export function registerPromptHistoryHandlers(): void {
     },
   );
 
-  ipcMain.handle(IPC.promptHistory.remove, (_event, id: string): void => promptHistoryDb.remove(id));
+  ipcMain.handle(IPC.promptHistory.remove, (_event, id: string): void =>
+    promptHistoryDb.remove(id),
+  );
 
   ipcMain.handle(IPC.promptHistory.setTags, (_event, id: string, tags: string[]): void =>
     promptHistoryDb.setTags(id, tags),

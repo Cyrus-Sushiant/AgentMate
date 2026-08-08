@@ -63,7 +63,9 @@ export function UsageCardBodySkeleton({
 /** Subscription limits are only worth showing when the account actually has them. */
 export function hasSubscriptionView(usage: ProviderUsage): boolean {
   const sub = usage.subscription;
-  return !!sub && sub.mode === 'subscription' && Array.isArray(sub.windows) && sub.windows.length > 0;
+  return (
+    !!sub && sub.mode === 'subscription' && Array.isArray(sub.windows) && sub.windows.length > 0
+  );
 }
 
 /**
@@ -313,7 +315,9 @@ function SubscriptionBody({
 
       {!compact && (
         <div className="mt-auto flex items-baseline gap-2 pt-1 text-[11px] text-muted-foreground">
-          <span className="tabular-nums">{formatTokens(usage.today.tokens.total)} tokens today</span>
+          <span className="tabular-nums">
+            {formatTokens(usage.today.tokens.total)} tokens today
+          </span>
           {cost && <span className="tabular-nums">· {cost} equivalent</span>}
           {estimated && (
             <SimpleTooltip

@@ -108,7 +108,8 @@ export const AGENT_TOOL_REGISTRY: AgentToolDefinition[] = [
     installKind: 'shell',
     installCommand: {
       darwin: 'brew install rtk',
-      linux: 'curl -fsSL https://raw.githubusercontent.com/rtk-ai/rtk/refs/heads/master/install.sh | sh',
+      linux:
+        'curl -fsSL https://raw.githubusercontent.com/rtk-ai/rtk/refs/heads/master/install.sh | sh',
       win32: 'cargo install --git https://github.com/rtk-ai/rtk',
     },
     // `rtk init -g --uninstall` removes the agent hook (the part that actually affects agent
@@ -236,7 +237,11 @@ export const AGENT_TOOL_REGISTRY: AgentToolDefinition[] = [
       return {
         kind: 'write-project-file',
         relativePath: 'codegraph.json',
-        content: JSON.stringify({ ...(exclude.length && { exclude }), ...(include.length && { include }) }, null, 2),
+        content: JSON.stringify(
+          { ...(exclude.length && { exclude }), ...(include.length && { include }) },
+          null,
+          2,
+        ),
       };
     },
   },
@@ -281,7 +286,11 @@ export const AGENT_TOOL_REGISTRY: AgentToolDefinition[] = [
       {
         id: 'gateway',
         label: 'Start gateway (foreground)',
-        action: { kind: 'command', command: 'openclaw gateway --port 18789 --verbose', cwd: 'none' },
+        action: {
+          kind: 'command',
+          command: 'openclaw gateway --port 18789 --verbose',
+          cwd: 'none',
+        },
       },
     ],
     settingsFields: [
@@ -374,7 +383,12 @@ export const AGENT_TOOL_REGISTRY: AgentToolDefinition[] = [
       },
     ],
     settingsFields: [
-      { key: 'gatewayPort', label: 'Gateway port (OpenAI-compatible API)', type: 'text', defaultValue: '8642' },
+      {
+        key: 'gatewayPort',
+        label: 'Gateway port (OpenAI-compatible API)',
+        type: 'text',
+        defaultValue: '8642',
+      },
       { key: 'dashboard', label: 'Enable web dashboard', type: 'boolean', defaultValue: true },
       { key: 'dashboardPort', label: 'Dashboard port', type: 'text', defaultValue: '9119' },
     ],

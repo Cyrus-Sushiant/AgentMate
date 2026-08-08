@@ -1,16 +1,8 @@
 import { create } from 'zustand';
 import { toast } from 'sonner';
-import type {
-  RemoteFileProgress,
-  RemoteLogEvent,
-  RemoteState,
-} from '@shared/apiTypes';
+import type { RemoteFileProgress, RemoteLogEvent, RemoteState } from '@shared/apiTypes';
 import { closeAllRtcPeers, initRtcHost } from '@/lib/rtcHost';
-import {
-  initRtcController,
-  requestRemoteVideo,
-  teardownRemoteVideo,
-} from '@/lib/rtcController';
+import { initRtcController, requestRemoteVideo, teardownRemoteVideo } from '@/lib/rtcController';
 import {
   forceFullFrame,
   setTilesEnabled,
@@ -52,7 +44,10 @@ interface RemoteStore {
  * the window's own load/mount race, and that transition needs to trigger a
  * request too or the session is stuck on the JPEG-tile fallback forever.
  */
-function syncControllerVideo(status: RemoteState['connection']['status'], previous?: RemoteState['connection']['status']): void {
+function syncControllerVideo(
+  status: RemoteState['connection']['status'],
+  previous?: RemoteState['connection']['status'],
+): void {
   if (!isRemoteSessionWindow()) return;
   if (status === 'connected' && previous !== 'connected') requestRemoteVideo();
   else if (status !== 'connected' && previous === 'connected') teardownRemoteVideo();

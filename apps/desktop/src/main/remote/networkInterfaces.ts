@@ -23,8 +23,6 @@ export function listNetworkInterfaces(): RemoteNetworkInterface[] {
 
 function isPrivate(ip: string): boolean {
   return (
-    ip.startsWith('192.168.') ||
-    ip.startsWith('10.') ||
-    /^172\.(1[6-9]|2\d|3[0-1])\./.test(ip)
+    ip.startsWith('192.168.') || ip.startsWith('10.') || /^172\.(1[6-9]|2\d|3[0-1])\./.test(ip)
   );
 }

@@ -72,7 +72,10 @@ async function resolveTarget(
   return { botToken, chatId };
 }
 
-async function readSubscription(providerId: string, force: boolean): Promise<SubscriptionUsage | null> {
+async function readSubscription(
+  providerId: string,
+  force: boolean,
+): Promise<SubscriptionUsage | null> {
   const settings = await store.getSettings();
   const config = settings.usageProviderConfigs?.[providerId];
   try {

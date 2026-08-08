@@ -74,7 +74,11 @@ export default function ToolsPage(): React.JSX.Element {
         toast.error('Choose a target project first.');
         return;
       }
-      openSession({ title, initialInput: action.command, cwd: action.cwd === 'project' ? selectedProject!.folderPath : undefined });
+      openSession({
+        title,
+        initialInput: action.command,
+        cwd: action.cwd === 'project' ? selectedProject!.folderPath : undefined,
+      });
       toast.info(`Press Enter in the terminal to run this for ${tool.name}.`);
       return;
     }
@@ -83,7 +87,10 @@ export default function ToolsPage(): React.JSX.Element {
         toast.error('Choose a target project first.');
         return;
       }
-      await window.agentmat.fs.writeFile(`${selectedProject.folderPath}/${action.relativePath}`, action.content);
+      await window.agentmat.fs.writeFile(
+        `${selectedProject.folderPath}/${action.relativePath}`,
+        action.content,
+      );
       toast.success(`${action.relativePath} written to ${selectedProject.name}.`);
       return;
     }
@@ -147,7 +154,10 @@ export default function ToolsPage(): React.JSX.Element {
     toast.success(`Uninstall commands copied. Run them inside ${tool.name}'s target agent.`);
   }
 
-  async function handleDockerAction(tool: AgentToolDefinition, action: DockerAction): Promise<void> {
+  async function handleDockerAction(
+    tool: AgentToolDefinition,
+    action: DockerAction,
+  ): Promise<void> {
     const command = await window.agentmat.tools.getDockerCommand(tool.id, action);
     if (!command) {
       toast.error('Docker command unavailable for this tool.');
@@ -171,7 +181,8 @@ export default function ToolsPage(): React.JSX.Element {
   }, [settingsTool, settingsValues]);
 
   const requiresProject =
-    preview?.kind === 'write-project-file' || (preview?.kind === 'command' && preview.cwd === 'project');
+    preview?.kind === 'write-project-file' ||
+    (preview?.kind === 'command' && preview.cwd === 'project');
 
   async function handleApplySettings(): Promise<void> {
     if (!settingsTool || !preview) return;
@@ -211,8 +222,8 @@ export default function ToolsPage(): React.JSX.Element {
       </div>
 
       <p className="text-sm text-muted-foreground">
-        Some actions (initializing a tool in a project, writing its config) need a target project above. Docker and
-        global setup actions don't.
+        Some actions (initializing a tool in a project, writing its config) need a target project
+        above. Docker and global setup actions don't.
       </p>
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -265,7 +276,11 @@ export default function ToolsPage(): React.JSX.Element {
                 <div className="flex flex-wrap items-center gap-2">
                   {tool.installKind === 'shell' ? (
                     status?.installed ? (
-                      <Button size="sm" variant="outline" onClick={() => void handleUninstall(tool)}>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => void handleUninstall(tool)}
+                      >
                         <Trash2 /> Uninstall
                       </Button>
                     ) : (
@@ -274,19 +289,29 @@ export default function ToolsPage(): React.JSX.Element {
                       </Button>
                     )
                   ) : tool.installKind === 'interactive' ? (
-                    <SimpleTooltip label={`Opens a terminal running ${tool.name}'s target agent and copies the setup commands to paste in`}>
+                    <SimpleTooltip
+                      label={`Opens a terminal running ${tool.name}'s target agent and copies the setup commands to paste in`}
+                    >
                       <Button size="sm" onClick={() => void handleInteractiveInstall(tool)}>
                         <TerminalSquare /> Install
                       </Button>
                     </SimpleTooltip>
                   ) : (
-                    <Button size="sm" variant="outline" onClick={() => handleCopyManualInstructions(tool)}>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleCopyManualInstructions(tool)}
+                    >
                       <TerminalSquare /> Copy setup commands
                     </Button>
                   )}
                   {tool.manualUninstallInstructions && (
                     <SimpleTooltip label="Copy uninstall commands">
-                      <Button variant="outline" size="icon" onClick={() => handleCopyManualUninstall(tool)}>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        onClick={() => handleCopyManualUninstall(tool)}
+                      >
                         <Trash2 className="h-4 w-4" />
                       </Button>
                     </SimpleTooltip>
@@ -352,7 +377,9 @@ export default function ToolsPage(): React.JSX.Element {
                             <Button
                               variant="outline"
                               size="icon"
-                              onClick={() => void window.agentmat.shell.openExternal(tool.docker!.dashboardUrl!)}
+                              onClick={() =>
+                                void window.agentmat.shell.openExternal(tool.docker!.dashboardUrl!)
+                              }
                             >
                               <Globe className="h-4 w-4" />
                             </Button>
@@ -382,13 +409,21 @@ export default function ToolsPage(): React.JSX.Element {
 
                   {tool.websiteUrl && (
                     <SimpleTooltip label="Website">
-                      <Button variant="ghost" size="icon" onClick={() => void window.agentmat.shell.openExternal(tool.websiteUrl!)}>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => void window.agentmat.shell.openExternal(tool.websiteUrl!)}
+                      >
                         <ExternalLink className="h-4 w-4" />
                       </Button>
                     </SimpleTooltip>
                   )}
                   <SimpleTooltip label="GitHub">
-                    <Button variant="ghost" size="icon" onClick={() => void window.agentmat.shell.openExternal(tool.repositoryUrl)}>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => void window.agentmat.shell.openExternal(tool.repositoryUrl)}
+                    >
                       <GitBranch className="h-4 w-4" />
                     </Button>
                   </SimpleTooltip>
@@ -405,7 +440,7 @@ export default function ToolsPage(): React.JSX.Element {
             <DialogTitle>Configure {settingsTool?.name}</DialogTitle>
             <DialogDescription>
               {settingsTool?.settingsScope === 'global'
-                ? "This applies machine-wide, not to a specific project."
+                ? 'This applies machine-wide, not to a specific project.'
                 : 'This applies to the target project selected above.'}
             </DialogDescription>
           </DialogHeader>
@@ -423,16 +458,22 @@ export default function ToolsPage(): React.JSX.Element {
                 {field.type === 'text' && (
                   <Input
                     value={String(settingsValues[field.key] ?? '')}
-                    onChange={(e) => setSettingsValues((prev) => ({ ...prev, [field.key]: e.target.value }))}
+                    onChange={(e) =>
+                      setSettingsValues((prev) => ({ ...prev, [field.key]: e.target.value }))
+                    }
                   />
                 )}
                 {field.type === 'boolean' && (
                   <Switch
                     checked={!!settingsValues[field.key]}
-                    onCheckedChange={(checked) => setSettingsValues((prev) => ({ ...prev, [field.key]: checked }))}
+                    onCheckedChange={(checked) =>
+                      setSettingsValues((prev) => ({ ...prev, [field.key]: checked }))
+                    }
                   />
                 )}
-                {field.description && <p className="text-xs text-muted-foreground">{field.description}</p>}
+                {field.description && (
+                  <p className="text-xs text-muted-foreground">{field.description}</p>
+                )}
               </div>
             ))}
 
@@ -447,7 +488,9 @@ export default function ToolsPage(): React.JSX.Element {
                   {preview.kind === 'command' ? preview.command : preview.content}
                 </code>
                 {requiresProject && !selectedProject && (
-                  <p className="text-xs text-amber-500">Choose a target project above before applying.</p>
+                  <p className="text-xs text-amber-500">
+                    Choose a target project above before applying.
+                  </p>
                 )}
               </div>
             )}

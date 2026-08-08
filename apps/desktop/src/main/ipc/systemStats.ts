@@ -82,22 +82,28 @@ async function sampleDisks(): Promise<DiskUsage[]> {
       ]);
       const parsed = JSON.parse(stdout) as
         | { Name: string; DiskReadBytesPersec: number | null; DiskWriteBytesPersec: number | null }
-        | { Name: string; DiskReadBytesPersec: number | null; DiskWriteBytesPersec: number | null }[];
+        | {
+            Name: string;
+            DiskReadBytesPersec: number | null;
+            DiskWriteBytesPersec: number | null;
+          }[];
       const rows = Array.isArray(parsed) ? parsed : [parsed];
-      return rows
-        // "_Total" is the aggregate row across all disks; each disk is already listed on its own.
-        .filter((r) => r.Name !== '_Total')
-        .map((r) => {
-          // Instance names look like "0 C:" or "1 D: E:": index followed by
-          // the drive letter(s) that live on that physical disk.
-          const index = r.Name.match(/^\d+/)?.[0];
-          return {
-            id: r.Name,
-            label: index ? `Disk ${index}` : r.Name,
-            readBytesPerSec: r.DiskReadBytesPersec ?? 0,
-            writeBytesPerSec: r.DiskWriteBytesPersec ?? 0,
-          };
-        });
+      return (
+        rows
+          // "_Total" is the aggregate row across all disks; each disk is already listed on its own.
+          .filter((r) => r.Name !== '_Total')
+          .map((r) => {
+            // Instance names look like "0 C:" or "1 D: E:": index followed by
+            // the drive letter(s) that live on that physical disk.
+            const index = r.Name.match(/^\d+/)?.[0];
+            return {
+              id: r.Name,
+              label: index ? `Disk ${index}` : r.Name,
+              readBytesPerSec: r.DiskReadBytesPersec ?? 0,
+              writeBytesPerSec: r.DiskWriteBytesPersec ?? 0,
+            };
+          })
+      );
     }
 
     if (process.platform === 'linux') {
@@ -217,10 +223,19 @@ $c = $others | Select-Object -First 1
 async function sampleOtherGpu(): Promise<GpuUsage[]> {
   if (process.platform !== 'win32') return [];
   try {
-    const { stdout } = await execFileAsync('powershell', ['-NoProfile', '-Command', OTHER_GPU_SCRIPT]);
+    const { stdout } = await execFileAsync('powershell', [
+      '-NoProfile',
+      '-Command',
+      OTHER_GPU_SCRIPT,
+    ]);
     const trimmed = stdout.trim();
     if (!trimmed || trimmed === '[]') return [];
-    const parsed = JSON.parse(trimmed) as { name: string; ram: number; percent: number; memUsed: number };
+    const parsed = JSON.parse(trimmed) as {
+      name: string;
+      ram: number;
+      percent: number;
+      memUsed: number;
+    };
     return [
       {
         id: 'other-gpu',
@@ -319,9 +334,7 @@ async function pingHost(host: string): Promise<PingResult> {
   const args = isWin ? ['-n', '1', '-w', '1500', host] : ['-c', '1', '-W', '2', host];
   try {
     const { stdout } = await execFileAsync('ping', args, { timeout: 3000 });
-    const match = isWin
-      ? stdout.match(/time[=<](\d+)ms/i)
-      : stdout.match(/time=([\d.]+)\s*ms/i);
+    const match = isWin ? stdout.match(/time[=<](\d+)ms/i) : stdout.match(/time=([\d.]+)\s*ms/i);
     if (!match) return { host, latencyMs: null, alive: false };
     return { host, latencyMs: Math.round(Number(match[1])), alive: true };
   } catch {

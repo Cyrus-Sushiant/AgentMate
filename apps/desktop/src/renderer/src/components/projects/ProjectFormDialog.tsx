@@ -119,7 +119,12 @@ export function ProjectFormDialog({
                 onChange={(e) => setFolderPath(e.target.value)}
                 placeholder="Paste a path or choose a folder…"
               />
-              <Button type="button" variant="outline" size="icon" onClick={() => void handlePickFolder()}>
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                onClick={() => void handlePickFolder()}
+              >
                 <FolderOpen className="h-4 w-4" />
               </Button>
             </div>
@@ -151,12 +156,20 @@ export function ProjectFormDialog({
 
           <div className="space-y-1.5">
             <Label>Tags (comma separated)</Label>
-            <Input value={tagsText} onChange={(e) => setTagsText(e.target.value)} placeholder="frontend, web" />
+            <Input
+              value={tagsText}
+              onChange={(e) => setTagsText(e.target.value)}
+              placeholder="frontend, web"
+            />
           </div>
 
           <div className="space-y-1.5">
             <Label>Description</Label>
-            <Textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={2} />
+            <Textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              rows={2}
+            />
           </div>
 
           <div className="space-y-1.5">

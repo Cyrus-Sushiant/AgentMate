@@ -58,8 +58,6 @@ if (typeof window !== 'undefined') {
   });
 }
 
-export function getProjectPromptBuildEntry(
-  projectId: string,
-): ProjectPromptBuildEntry {
+export function getProjectPromptBuildEntry(projectId: string): ProjectPromptBuildEntry {
   return useProjectPromptBuildStore.getState().entries[projectId] ?? EMPTY_ENTRY;
 }

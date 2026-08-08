@@ -54,7 +54,11 @@ export function registerTerminalHandlers(): void {
       });
 
       const sessionId = randomUUID();
-      sessions.set(sessionId, { pty: ptyProcess, projectId: options.projectId, createdAt: Date.now() });
+      sessions.set(sessionId, {
+        pty: ptyProcess,
+        projectId: options.projectId,
+        createdAt: Date.now(),
+      });
       syncPowerSaveBlocker();
 
       const sender = event.sender;

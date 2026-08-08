@@ -17,14 +17,21 @@ async function getProjectPath(projectId: string): Promise<string> {
 }
 
 export function registerPackageManagerHandlers(): void {
-  ipcMain.handle(IPC.packages.list, async (_event, projectId: string): Promise<PackageScanResult> => {
-    const folderPath = await getProjectPath(projectId);
-    return { projectId, sections: await scanProjectPackages(folderPath) };
-  });
+  ipcMain.handle(
+    IPC.packages.list,
+    async (_event, projectId: string): Promise<PackageScanResult> => {
+      const folderPath = await getProjectPath(projectId);
+      return { projectId, sections: await scanProjectPackages(folderPath) };
+    },
+  );
 
   ipcMain.handle(
     IPC.packages.update,
-    async (event, projectId: string, updates: PackageUpdateRequest[]): Promise<PackageUpdateResult> => {
+    async (
+      event,
+      projectId: string,
+      updates: PackageUpdateRequest[],
+    ): Promise<PackageUpdateResult> => {
       const folderPath = await getProjectPath(projectId);
       const results: PackageUpdateResult['results'] = [];
       let ok = true;

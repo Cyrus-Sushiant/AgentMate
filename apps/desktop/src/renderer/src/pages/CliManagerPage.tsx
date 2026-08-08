@@ -48,7 +48,8 @@ export default function CliManagerPage(): React.JSX.Element {
   const visibleClis = showAll
     ? CLI_REGISTRY
     : CLI_REGISTRY.filter((cli) => cliQuery.data?.find((c) => c.id === cli.id)?.installed);
-  const notInstalledCount = CLI_REGISTRY.length - (cliQuery.data?.filter((c) => c.installed).length ?? 0);
+  const notInstalledCount =
+    CLI_REGISTRY.length - (cliQuery.data?.filter((c) => c.installed).length ?? 0);
 
   async function handleInstall(cliId: string, cliName: string): Promise<void> {
     const command = await window.agentmat.cli.getInstallCommand(cliId);
@@ -60,7 +61,10 @@ export default function CliManagerPage(): React.JSX.Element {
     toast.info(`Press Enter in the terminal to install ${cliName}.`);
   }
 
-  async function handleCheckForUpdate(cli: CliDefinition, currentVersion: string | null): Promise<void> {
+  async function handleCheckForUpdate(
+    cli: CliDefinition,
+    currentVersion: string | null,
+  ): Promise<void> {
     setCheckingCliId(cli.id);
     try {
       const result = await window.agentmat.cli.checkForUpdate(cli.id, currentVersion);
@@ -104,7 +108,9 @@ export default function CliManagerPage(): React.JSX.Element {
   }
 
   async function handleCheckAllForUpdates(): Promise<void> {
-    const installedClis = CLI_REGISTRY.filter((cli) => cliQuery.data?.find((c) => c.id === cli.id)?.installed);
+    const installedClis = CLI_REGISTRY.filter(
+      (cli) => cliQuery.data?.find((c) => c.id === cli.id)?.installed,
+    );
     if (installedClis.length === 0) {
       toast.info('No installed CLIs to check.');
       return;
@@ -134,7 +140,7 @@ export default function CliManagerPage(): React.JSX.Element {
         toast.success(
           uncheckable > 0
             ? `All checkable CLIs are up to date (${uncheckable} could not be checked).`
-            : 'All CLIs are up to date.'
+            : 'All CLIs are up to date.',
         );
         return;
       }
@@ -148,7 +154,10 @@ export default function CliManagerPage(): React.JSX.Element {
     }
   }
 
-  usePageHeader('AI CLI Manager', 'Detected AI coding CLIs on this machine. Install missing ones with one click.');
+  usePageHeader(
+    'AI CLI Manager',
+    'Detected AI coding CLIs on this machine. Install missing ones with one click.',
+  );
 
   return (
     <div className="space-y-6 p-6">
@@ -156,10 +165,16 @@ export default function CliManagerPage(): React.JSX.Element {
         <div className="flex gap-2">
           {notInstalledCount > 0 && (
             <Button variant="outline" onClick={() => setShowAll((v) => !v)}>
-              {showAll ? 'Hide not installed' : `Show all CLIs (${notInstalledCount} not installed)`}
+              {showAll
+                ? 'Hide not installed'
+                : `Show all CLIs (${notInstalledCount} not installed)`}
             </Button>
           )}
-          <Button variant="outline" disabled={checkingAll} onClick={() => void handleCheckAllForUpdates()}>
+          <Button
+            variant="outline"
+            disabled={checkingAll}
+            onClick={() => void handleCheckAllForUpdates()}
+          >
             <CloudDownload className={checkingAll ? 'animate-pulse' : undefined} />
             {checkingAll ? 'Checking updates…' : 'Check all for updates'}
           </Button>
@@ -184,8 +199,7 @@ export default function CliManagerPage(): React.JSX.Element {
       )}
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {cliQuery.isPending &&
-          Array.from({ length: 6 }, (_, i) => <CatalogCardSkeleton key={i} />)}
+        {cliQuery.isPending && Array.from({ length: 6 }, (_, i) => <CatalogCardSkeleton key={i} />)}
         {visibleClis.map((cli) => {
           const status = cliQuery.data?.find((c) => c.id === cli.id);
           const isDefault = defaultCliId === cli.id;
@@ -221,7 +235,9 @@ export default function CliManagerPage(): React.JSX.Element {
                         disabled={checkingCliId === cli.id}
                         onClick={() => void handleCheckForUpdate(cli, status.version)}
                       >
-                        <CloudDownload className={checkingCliId === cli.id ? 'h-4 w-4 animate-pulse' : 'h-4 w-4'} />
+                        <CloudDownload
+                          className={checkingCliId === cli.id ? 'h-4 w-4 animate-pulse' : 'h-4 w-4'}
+                        />
                       </Button>
                     </SimpleTooltip>
                   </>
@@ -247,7 +263,10 @@ export default function CliManagerPage(): React.JSX.Element {
         })}
       </div>
 
-      <Dialog open={pendingUpdate !== null} onOpenChange={(open) => !open && dismissPendingUpdate()}>
+      <Dialog
+        open={pendingUpdate !== null}
+        onOpenChange={(open) => !open && dismissPendingUpdate()}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Update {pendingUpdate?.cli.name}?</DialogTitle>
@@ -261,7 +280,8 @@ export default function CliManagerPage(): React.JSX.Element {
               {pendingUpdate?.currentVersion ?? 'unknown'}
             </p>
             <p>
-              <span className="text-muted-foreground">Latest version:</span> {pendingUpdate?.latestVersion}
+              <span className="text-muted-foreground">Latest version:</span>{' '}
+              {pendingUpdate?.latestVersion}
             </p>
             <code className="block overflow-x-auto rounded bg-muted px-3 py-2 font-mono text-xs">
               {pendingUpdate?.command}

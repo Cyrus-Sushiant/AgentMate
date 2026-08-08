@@ -24,7 +24,10 @@ export function ConfirmDialogHost(): React.JSX.Element {
           <Button variant="outline" onClick={() => resolveConfirm(false)}>
             {cancelLabel}
           </Button>
-          <Button variant={variant === 'destructive' ? 'destructive' : 'default'} onClick={() => resolveConfirm(true)}>
+          <Button
+            variant={variant === 'destructive' ? 'destructive' : 'default'}
+            onClick={() => resolveConfirm(true)}
+          >
             {confirmLabel}
           </Button>
         </DialogFooter>

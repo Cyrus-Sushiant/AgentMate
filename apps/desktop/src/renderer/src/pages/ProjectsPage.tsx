@@ -93,7 +93,12 @@ export default function ProjectsPage(): React.JSX.Element {
 
   usePageHeader('Projects', 'Manage the projects AgentMate bootstraps and works with.');
 
-  function handleRun(project: { id: string; name: string; folderPath: string; runCommand: string }): void {
+  function handleRun(project: {
+    id: string;
+    name: string;
+    folderPath: string;
+    runCommand: string;
+  }): void {
     openSession({
       title: project.name,
       cwd: project.folderPath,

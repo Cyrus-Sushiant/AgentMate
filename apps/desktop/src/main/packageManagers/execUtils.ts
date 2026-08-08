@@ -62,7 +62,11 @@ export async function runCli(
       throw new CliNotFoundError(`${command} is not available on PATH`);
     }
     if (typeof e.stdout === 'string' || typeof e.stderr === 'string') {
-      return { stdout: e.stdout ?? '', stderr: e.stderr ?? '', code: typeof e.code === 'number' ? e.code : 1 };
+      return {
+        stdout: e.stdout ?? '',
+        stderr: e.stderr ?? '',
+        code: typeof e.code === 'number' ? e.code : 1,
+      };
     }
     throw err;
   }

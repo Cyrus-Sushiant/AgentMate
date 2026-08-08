@@ -14,7 +14,10 @@ export function registerNotificationHandlers(): void {
     async (_event, input: SendTestNotificationInput): Promise<NotificationSendResult> => {
       const settings = await store.getSettings();
       if (!settings.telegramBotToken || !settings.telegramChatId) {
-        return { ok: false, error: 'Configure your Telegram bot token and chat ID in Settings first.' };
+        return {
+          ok: false,
+          error: 'Configure your Telegram bot token and chat ID in Settings first.',
+        };
       }
       return sendTelegramMessage(settings.telegramBotToken, settings.telegramChatId, input.message);
     },

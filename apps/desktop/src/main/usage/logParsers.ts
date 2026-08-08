@@ -228,11 +228,18 @@ interface CodexLine {
     type?: string;
     model?: string;
     info?: { last_token_usage?: CodexTokenBreakdown; total_token_usage?: CodexTokenBreakdown };
-    rate_limits?: { primary?: CodexRateLimitWindow | null; secondary?: CodexRateLimitWindow | null } | null;
+    rate_limits?: {
+      primary?: CodexRateLimitWindow | null;
+      secondary?: CodexRateLimitWindow | null;
+    } | null;
   };
 }
 
-function windowFromRateLimit(rl: CodexRateLimitWindow, label: string, at: number): RawWindow | null {
+function windowFromRateLimit(
+  rl: CodexRateLimitWindow,
+  label: string,
+  at: number,
+): RawWindow | null {
   if (typeof rl.used_percent !== 'number') return null;
   return {
     label,

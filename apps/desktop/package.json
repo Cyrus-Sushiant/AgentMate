@@ -15,7 +15,7 @@
     "preview": "electron-vite preview",
     "package": "pnpm rebuild:native && electron-vite build && electron-builder",
     "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
-    "lint": "eslint src",
+    "lint": "biome lint ./src",
     "rebuild:native": "electron-rebuild -o better-sqlite3"
   },
   "devDependencies": {

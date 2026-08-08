@@ -41,7 +41,7 @@ const MODEL_PRICING: Record<string, ModelPrice> = {
   'gpt-4o-mini': { input: 0.15, output: 0.6, cacheRead: 0.075, cacheWrite: 0.15 },
   'gpt-4o': { input: 2.5, output: 10, cacheRead: 1.25, cacheWrite: 2.5 },
   'o4-mini': { input: 1.1, output: 4.4, cacheRead: 0.275, cacheWrite: 1.1 },
-  'o3': { input: 2, output: 8, cacheRead: 0.5, cacheWrite: 2 },
+  o3: { input: 2, output: 8, cacheRead: 0.5, cacheWrite: 2 },
   'codex-mini': { input: 1.5, output: 6, cacheRead: 0.375, cacheWrite: 1.5 },
 
   // Google (Gemini), per 1M tokens.

@@ -170,7 +170,9 @@ export class FileManagerOps {
           };
         }),
       );
-      entries.sort((a, b) => Number(b.isDirectory) - Number(a.isDirectory) || a.name.localeCompare(b.name));
+      entries.sort(
+        (a, b) => Number(b.isDirectory) - Number(a.isDirectory) || a.name.localeCompare(b.name),
+      );
       this.callbacks.sendControl(ws, { t: 'fm-list-reply', reqId, path: target, entries });
     } catch (err) {
       this.callbacks.sendControl(ws, {
@@ -183,12 +185,22 @@ export class FileManagerOps {
     }
   }
 
-  private async replyMkdir(ws: WebSocket, reqId: string, parentPath: string, name: string): Promise<void> {
+  private async replyMkdir(
+    ws: WebSocket,
+    reqId: string,
+    parentPath: string,
+    name: string,
+  ): Promise<void> {
     try {
       await mkdir(join(parentPath, name), { recursive: false });
       this.callbacks.sendControl(ws, { t: 'fm-ack', reqId, ok: true });
     } catch (err) {
-      this.callbacks.sendControl(ws, { t: 'fm-ack', reqId, ok: false, error: (err as Error).message });
+      this.callbacks.sendControl(ws, {
+        t: 'fm-ack',
+        reqId,
+        ok: false,
+        error: (err as Error).message,
+      });
     }
   }
 
@@ -197,16 +209,31 @@ export class FileManagerOps {
       await rm(path, { recursive: true, force: false });
       this.callbacks.sendControl(ws, { t: 'fm-ack', reqId, ok: true });
     } catch (err) {
-      this.callbacks.sendControl(ws, { t: 'fm-ack', reqId, ok: false, error: (err as Error).message });
+      this.callbacks.sendControl(ws, {
+        t: 'fm-ack',
+        reqId,
+        ok: false,
+        error: (err as Error).message,
+      });
     }
   }
 
-  private async replyRename(ws: WebSocket, reqId: string, path: string, newName: string): Promise<void> {
+  private async replyRename(
+    ws: WebSocket,
+    reqId: string,
+    path: string,
+    newName: string,
+  ): Promise<void> {
     try {
       await rename(path, join(dirname(path), newName));
       this.callbacks.sendControl(ws, { t: 'fm-ack', reqId, ok: true });
     } catch (err) {
-      this.callbacks.sendControl(ws, { t: 'fm-ack', reqId, ok: false, error: (err as Error).message });
+      this.callbacks.sendControl(ws, {
+        t: 'fm-ack',
+        reqId,
+        ok: false,
+        error: (err as Error).message,
+      });
     }
   }
 }
@@ -222,7 +249,8 @@ async function listRoots(): Promise<RemoteFileEntry[]> {
     const roots: RemoteFileEntry[] = [];
     for (const letter of letters) {
       const path = `${letter}:\\`;
-      if (existsSync(path)) roots.push({ name: path, path, isDirectory: true, size: 0, mtimeMs: 0 });
+      if (existsSync(path))
+        roots.push({ name: path, path, isDirectory: true, size: 0, mtimeMs: 0 });
     }
     return roots;
   }

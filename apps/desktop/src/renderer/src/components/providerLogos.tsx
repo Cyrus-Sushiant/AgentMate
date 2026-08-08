@@ -40,7 +40,11 @@ export function ProviderLogo({ providerId, className }: ProviderLogoProps): Reac
 
   const def = getUsageProvider(providerId);
   const color = def?.accentColor ?? '#888888';
-  const letter = (def?.name ?? '?').replace(/[^A-Za-z0-9]/g, '').charAt(0).toUpperCase() || '?';
+  const letter =
+    (def?.name ?? '?')
+      .replace(/[^A-Za-z0-9]/g, '')
+      .charAt(0)
+      .toUpperCase() || '?';
   return (
     <span
       className={cn(

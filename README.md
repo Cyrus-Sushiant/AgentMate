@@ -60,7 +60,7 @@
 | Shared packages | `@agentmat/core` (business logic), `@agentmat/protocol` (shared types/wire protocol) |
 | Local storage | better-sqlite3 |
 | Terminal | node-pty + xterm.js |
-| Tooling | pnpm workspaces, ESLint, Prettier |
+| Tooling | pnpm workspaces, Biome |
 
 ## Project structure
 

@@ -36,7 +36,11 @@ function num(v: unknown): number | null {
   return typeof v === 'number' && Number.isFinite(v) ? v : null;
 }
 
-function costOnlyUsage(providerId: string, cost30d: number | null, window?: UsageWindow): ProviderUsage {
+function costOnlyUsage(
+  providerId: string,
+  cost30d: number | null,
+  window?: UsageWindow,
+): ProviderUsage {
   const empty = { tokens: emptyUsageTokens(), costUsd: null };
   return {
     providerId,
@@ -96,7 +100,9 @@ async function fetchOpenAI(cfg: UsageProviderConfig): Promise<ProviderUsage> {
   const buckets = Array.isArray(data.data) ? (data.data as Record<string, unknown>[]) : [];
   let total = 0;
   for (const bucket of buckets) {
-    const results = Array.isArray(bucket.results) ? (bucket.results as Record<string, unknown>[]) : [];
+    const results = Array.isArray(bucket.results)
+      ? (bucket.results as Record<string, unknown>[])
+      : [];
     for (const r of results) {
       const amount = (r.amount ?? {}) as Record<string, unknown>;
       total += num(amount.value) ?? 0;
@@ -129,7 +135,9 @@ async function fetchBalanceWindow(
 
 async function fetchDeepSeek(cfg: UsageProviderConfig): Promise<ProviderUsage> {
   return fetchBalanceWindow('deepseek', 'https://api.deepseek.com/user/balance', cfg, (d) => {
-    const infos = Array.isArray(d.balance_infos) ? (d.balance_infos as Record<string, unknown>[]) : [];
+    const infos = Array.isArray(d.balance_infos)
+      ? (d.balance_infos as Record<string, unknown>[])
+      : [];
     const total = infos.reduce((sum, i) => sum + (Number(i.total_balance) || 0), 0);
     return infos.length ? total : null;
   });

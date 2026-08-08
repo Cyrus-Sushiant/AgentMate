@@ -79,11 +79,19 @@ export function registerProjectHandlers(): void {
 
   ipcMain.handle(
     IPC.projects.updateNotifications,
-    async (_event, projectId: string, notifications: ProjectNotificationSettings): Promise<Project> => {
+    async (
+      _event,
+      projectId: string,
+      notifications: ProjectNotificationSettings,
+    ): Promise<Project> => {
       const projects = await store.getProjects();
       const index = projects.findIndex((p) => p.id === projectId);
       if (index === -1) throw new Error(`Project ${projectId} not found`);
-      const updated: Project = { ...projects[index], notifications, updatedAt: new Date().toISOString() };
+      const updated: Project = {
+        ...projects[index],
+        notifications,
+        updatedAt: new Date().toISOString(),
+      };
       projects[index] = updated;
       await store.setProjects(projects);
       await installProjectNotificationHooks(updated);
@@ -101,19 +109,16 @@ export function registerProjectHandlers(): void {
    * page keeps pinned projects first, so this covers both groups at once).
    * Array order doubles as storage order, same as project creation.
    */
-  ipcMain.handle(
-    IPC.projects.reorder,
-    async (_event, orderedIds: string[]): Promise<Project[]> => {
-      const projects = await store.getProjects();
-      const byId = new Map(projects.map((p) => [p.id, p]));
-      const reordered = orderedIds.map((id) => byId.get(id)).filter((p): p is Project => p != null);
-      const reorderedIds = new Set(reordered.map((p) => p.id));
-      const missing = projects.filter((p) => !reorderedIds.has(p.id));
-      const next = [...reordered, ...missing];
-      await store.setProjects(next);
-      return next;
-    },
-  );
+  ipcMain.handle(IPC.projects.reorder, async (_event, orderedIds: string[]): Promise<Project[]> => {
+    const projects = await store.getProjects();
+    const byId = new Map(projects.map((p) => [p.id, p]));
+    const reordered = orderedIds.map((id) => byId.get(id)).filter((p): p is Project => p != null);
+    const reorderedIds = new Set(reordered.map((p) => p.id));
+    const missing = projects.filter((p) => !reorderedIds.has(p.id));
+    const next = [...reordered, ...missing];
+    await store.setProjects(next);
+    return next;
+  });
 
   ipcMain.handle(
     IPC.projects.setPinned,
@@ -218,7 +223,9 @@ export function registerProjectHandlers(): void {
   );
 
   ipcMain.handle(IPC.projects.pickFolder, async (): Promise<string | null> => {
-    const result = await dialog.showOpenDialog({ properties: ['openDirectory', 'createDirectory'] });
+    const result = await dialog.showOpenDialog({
+      properties: ['openDirectory', 'createDirectory'],
+    });
     if (result.canceled || result.filePaths.length === 0) return null;
     return result.filePaths[0];
   });

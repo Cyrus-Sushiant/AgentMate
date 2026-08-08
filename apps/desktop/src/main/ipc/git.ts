@@ -97,9 +97,12 @@ async function readStatus(cwd: string): Promise<GitStatus> {
 
   let ahead = 0;
   let behind = 0;
-  const counts = await git(cwd, ['rev-list', '--left-right', '--count', 'HEAD...@{upstream}']).catch(
-    () => '',
-  );
+  const counts = await git(cwd, [
+    'rev-list',
+    '--left-right',
+    '--count',
+    'HEAD...@{upstream}',
+  ]).catch(() => '');
   if (counts.trim()) {
     const [a, b] = counts.trim().split(/\s+/);
     ahead = parseInt(a, 10) || 0;
@@ -123,7 +126,8 @@ async function readChangeSummary(cwd: string): Promise<string> {
     const unstaged = await git(cwd, ['diff']).catch(() => '');
     diff = [staged, unstaged].filter(Boolean).join('\n');
   }
-  const truncatedDiff = diff.length > MAX_DIFF_CHARS ? `${diff.slice(0, MAX_DIFF_CHARS)}\n… (truncated)` : diff;
+  const truncatedDiff =
+    diff.length > MAX_DIFF_CHARS ? `${diff.slice(0, MAX_DIFF_CHARS)}\n… (truncated)` : diff;
 
   return [
     `Changed files:\n${status.trim() || '(none)'}`,
@@ -143,7 +147,8 @@ async function readTagInfo(cwd: string): Promise<GitTagInfo> {
   }
 
   const hasRemote = (await git(cwd, ['remote']).catch(() => '')).trim().length > 0;
-  const latestTag = (await git(cwd, ['describe', '--tags', '--abbrev=0']).catch(() => '')).trim() || null;
+  const latestTag =
+    (await git(cwd, ['describe', '--tags', '--abbrev=0']).catch(() => '')).trim() || null;
   const recentTags = (await git(cwd, ['tag', '--sort=-creatordate']).catch(() => ''))
     .split('\n')
     .map((tag) => tag.trim())
@@ -167,7 +172,11 @@ async function readCommitSubjects(cwd: string, latestTag: string | null): Promis
 }
 
 /** Commit log (and diff size) since the last tag, meant to be dropped into an AI prompt. */
-function buildReleaseSummary(latestTag: string | null, subjects: string[], diffStat: string): string {
+function buildReleaseSummary(
+  latestTag: string | null,
+  subjects: string[],
+  diffStat: string,
+): string {
   const shown = subjects.slice(0, MAX_RELEASE_LOG_LINES).map((subject) => `- ${subject}`);
   if (subjects.length > shown.length) {
     shown.push(`- … and ${subjects.length - shown.length} more commits`);
@@ -282,7 +291,9 @@ function compareSemver(a: SemverParts, b: SemverParts): number {
  * of the latest tag, which models do surprisingly often (a stock "1.2.3", say).
  */
 function deriveNextVersion(latest: SemverParts, subjects: string[]): string {
-  const isBreaking = subjects.some((s) => /^[a-z]+(\([^)]*\))?!:/i.test(s) || /BREAKING[ -]CHANGE/i.test(s));
+  const isBreaking = subjects.some(
+    (s) => /^[a-z]+(\([^)]*\))?!:/i.test(s) || /BREAKING[ -]CHANGE/i.test(s),
+  );
   const hasFeature = subjects.some((s) => /^feat(\([^)]*\))?:/i.test(s));
 
   if (isBreaking) return `${latest.major + 1}.0.0`;
@@ -306,7 +317,10 @@ async function readWorkingTreeFingerprint(cwd: string): Promise<Map<string, stri
   }
 
   const untracked = await git(cwd, ['ls-files', '--others', '--exclude-standard']).catch(() => '');
-  for (const path of untracked.split('\n').map((p) => p.trim()).filter(Boolean)) {
+  for (const path of untracked
+    .split('\n')
+    .map((p) => p.trim())
+    .filter(Boolean)) {
     fingerprint.set(path, 'untracked');
   }
 
@@ -443,7 +457,8 @@ export function registerGitHandlers(): void {
     if (!TAG_NAME_PATTERN.test(tag) || tag.includes('..')) {
       return {
         ok: false,
-        message: 'Invalid tag name. Use letters, digits, dots, dashes, underscores or slashes (e.g. v1.0.1).',
+        message:
+          'Invalid tag name. Use letters, digits, dots, dashes, underscores or slashes (e.g. v1.0.1).',
       };
     }
 
@@ -468,7 +483,9 @@ export function registerGitHandlers(): void {
         // Annotated tags list under their own object sha; the "^{}" peeled ref is what
         // resolves that back to the commit, which is what `localSha` was compared against above.
         const remoteRefs = (
-          await git(cwd, ['ls-remote', 'origin', `refs/tags/${tag}`, `refs/tags/${tag}^{}`]).catch(() => '')
+          await git(cwd, ['ls-remote', 'origin', `refs/tags/${tag}`, `refs/tags/${tag}^{}`]).catch(
+            () => '',
+          )
         )
           .split('\n')
           .map((line) => line.trim())
@@ -476,7 +493,8 @@ export function registerGitHandlers(): void {
         const peeled = remoteRefs.find((line) => line.endsWith('^{}'));
         const remoteSha = (peeled ?? remoteRefs[0])?.split(/\s+/)[0];
         if (remoteSha) {
-          if (remoteSha === localSha) return `Tag ${tag} already exists locally and on origin, nothing to push.`;
+          if (remoteSha === localSha)
+            return `Tag ${tag} already exists locally and on origin, nothing to push.`;
           throw new Error(`Tag ${tag} already exists on origin and points at a different commit.`);
         }
         await git(cwd, ['push', 'origin', tag]);
@@ -501,78 +519,81 @@ export function registerGitHandlers(): void {
   ipcMain.handle(
     IPC.git.suggestTag,
     async (_event, projectId: string, requestId?: string): Promise<SuggestTagResult> => {
-    const project = await getProject(projectId);
-    const cwd = project.folderPath;
-    const { latestTag, commitsSinceLatestTag } = await readTagInfo(cwd);
-    if (latestTag && commitsSinceLatestTag === 0) {
-      return { ok: false, error: `No new commits since ${latestTag}, so there is nothing to tag yet.` };
-    }
+      const project = await getProject(projectId);
+      const cwd = project.folderPath;
+      const { latestTag, commitsSinceLatestTag } = await readTagInfo(cwd);
+      if (latestTag && commitsSinceLatestTag === 0) {
+        return {
+          ok: false,
+          error: `No new commits since ${latestTag}, so there is nothing to tag yet.`,
+        };
+      }
 
-    const subjects = await readCommitSubjects(cwd, latestTag);
-    const diffStat = latestTag
-      ? (await git(cwd, ['diff', '--shortstat', `${latestTag}..HEAD`]).catch(() => '')).trim()
-      : '';
-    const summary = buildReleaseSummary(latestTag, subjects, diffStat);
-    const prompt =
-      'You are picking the next git tag for a release, following semantic versioning: bump the major ' +
-      'version for breaking changes, the minor version for new features, the patch version for fixes ' +
-      'and chores only. Do not read or edit any files; judge only from the information below.\n\n' +
-      (latestTag
-        ? `The repository's latest tag is ${latestTag}. Your answer MUST be a bump of exactly that ` +
-          'version and must be greater than it. Never invent an unrelated version number.\n\n'
-        : '') +
-      'Answer in exactly this format, with no markdown and nothing else:\n' +
-      'TAG: <the new tag>\n' +
-      'WHY: <one short sentence explaining the bump>\n' +
-      'NOTES:\n' +
-      '<release notes for the tag annotation: a one-line summary, then a few "- " bullets ' +
-      'grouping the notable changes. Keep it under 15 lines.>\n\n' +
-      summary;
+      const subjects = await readCommitSubjects(cwd, latestTag);
+      const diffStat = latestTag
+        ? (await git(cwd, ['diff', '--shortstat', `${latestTag}..HEAD`]).catch(() => '')).trim()
+        : '';
+      const summary = buildReleaseSummary(latestTag, subjects, diffStat);
+      const prompt =
+        'You are picking the next git tag for a release, following semantic versioning: bump the major ' +
+        'version for breaking changes, the minor version for new features, the patch version for fixes ' +
+        'and chores only. Do not read or edit any files; judge only from the information below.\n\n' +
+        (latestTag
+          ? `The repository's latest tag is ${latestTag}. Your answer MUST be a bump of exactly that ` +
+            'version and must be greater than it. Never invent an unrelated version number.\n\n'
+          : '') +
+        'Answer in exactly this format, with no markdown and nothing else:\n' +
+        'TAG: <the new tag>\n' +
+        'WHY: <one short sentence explaining the bump>\n' +
+        'NOTES:\n' +
+        '<release notes for the tag annotation: a one-line summary, then a few "- " bullets ' +
+        'grouping the notable changes. Keep it under 15 lines.>\n\n' +
+        summary;
 
-    const result = await runHeadlessCliPrompt(prompt, cwd, {
-      requestId,
-      preferredCliId: project.cliId,
-    });
-    if (!result.ok) {
+      const result = await runHeadlessCliPrompt(prompt, cwd, {
+        requestId,
+        preferredCliId: project.cliId,
+      });
+      if (!result.ok) {
+        return {
+          ok: false,
+          cliName: result.cliName,
+          error: result.error,
+          cancelled: result.cancelled,
+        };
+      }
+
+      const parsed = parseSuggestedTag(result.text, latestTag);
+      if (!parsed) {
+        return {
+          ok: false,
+          cliName: result.cliName,
+          error: `${result.cliName} did not return a version number.`,
+        };
+      }
+
+      // Models regularly answer with a stock version ("1.2.3") that has nothing to do with
+      // the repo. Anything that isn't strictly newer than the latest tag is dropped in favour
+      // of a bump derived from the commits themselves.
+      let tag = parsed.tag;
+      let reason = parsed.reason;
+      const latestParts = latestTag ? parseSemver(latestTag) : null;
+      const suggestedParts = parseSemver(tag);
+      if (latestParts && (!suggestedParts || compareSemver(suggestedParts, latestParts) <= 0)) {
+        const derived = deriveNextVersion(latestParts, subjects);
+        const rejected = tag;
+        tag = latestTag?.startsWith('v') ? `v${derived}` : derived;
+        reason = `${result.cliName} suggested ${rejected}, which isn't newer than ${latestTag}; used ${tag} from the commit history instead.`;
+      }
+
       return {
-        ok: false,
+        ok: true,
+        tag,
+        reason,
+        // A CLI that ignored the NOTES section still gets a usable annotation, straight from the log.
+        message: parsed.message || fallbackTagMessage(tag, subjects),
         cliName: result.cliName,
-        error: result.error,
-        cancelled: result.cancelled,
       };
-    }
-
-    const parsed = parseSuggestedTag(result.text, latestTag);
-    if (!parsed) {
-      return {
-        ok: false,
-        cliName: result.cliName,
-        error: `${result.cliName} did not return a version number.`,
-      };
-    }
-
-    // Models regularly answer with a stock version ("1.2.3") that has nothing to do with
-    // the repo. Anything that isn't strictly newer than the latest tag is dropped in favour
-    // of a bump derived from the commits themselves.
-    let tag = parsed.tag;
-    let reason = parsed.reason;
-    const latestParts = latestTag ? parseSemver(latestTag) : null;
-    const suggestedParts = parseSemver(tag);
-    if (latestParts && (!suggestedParts || compareSemver(suggestedParts, latestParts) <= 0)) {
-      const derived = deriveNextVersion(latestParts, subjects);
-      const rejected = tag;
-      tag = latestTag?.startsWith('v') ? `v${derived}` : derived;
-      reason = `${result.cliName} suggested ${rejected}, which isn't newer than ${latestTag}; used ${tag} from the commit history instead.`;
-    }
-
-    return {
-      ok: true,
-      tag,
-      reason,
-      // A CLI that ignored the NOTES section still gets a usable annotation, straight from the log.
-      message: parsed.message || fallbackTagMessage(tag, subjects),
-      cliName: result.cliName,
-    };
     },
   );
 
@@ -593,7 +614,9 @@ export function registerGitHandlers(): void {
       // Snapshot first: the CLI's own summary of what it edited can't be trusted, and
       // diffing the working tree before and after is the only account of it that can.
       const before = await readWorkingTreeFingerprint(cwd);
-      const headBefore = await git(cwd, ['rev-parse', 'HEAD']).then((sha) => sha.trim()).catch(() => null);
+      const headBefore = await git(cwd, ['rev-parse', 'HEAD'])
+        .then((sha) => sha.trim())
+        .catch(() => null);
 
       const result = await runHeadlessCliPrompt(buildVersionBumpPrompt(tag), cwd, {
         requestId: input.requestId,
@@ -610,7 +633,9 @@ export function registerGitHandlers(): void {
       // Despite the prompt telling it not to, a CLI occasionally reaches for a tool like
       // `npm version` that commits (and tags) by itself; that leaves no working-tree diff to
       // report, so this is the only way to tell the UI the bump actually landed in a commit.
-      const headAfter = await git(cwd, ['rev-parse', 'HEAD']).then((sha) => sha.trim()).catch(() => null);
+      const headAfter = await git(cwd, ['rev-parse', 'HEAD'])
+        .then((sha) => sha.trim())
+        .catch(() => null);
       const committedByCli = headBefore !== null && headAfter !== null && headBefore !== headAfter;
 
       if (!result.ok) {
@@ -625,7 +650,13 @@ export function registerGitHandlers(): void {
         };
       }
 
-      return { ok: true, output: result.text, changedFiles, committedByCli, cliName: result.cliName };
+      return {
+        ok: true,
+        output: result.text,
+        changedFiles,
+        committedByCli,
+        cliName: result.cliName,
+      };
     },
   );
 
@@ -648,7 +679,13 @@ export function registerGitHandlers(): void {
         requestId,
         preferredCliId: project.cliId,
       });
-      return { ok: result.ok, text: result.text, cliName: result.cliName, error: result.error, cancelled: result.cancelled };
+      return {
+        ok: result.ok,
+        text: result.text,
+        cliName: result.cliName,
+        error: result.error,
+        cancelled: result.cancelled,
+      };
     },
   );
 
@@ -671,7 +708,13 @@ export function registerGitHandlers(): void {
         requestId,
         preferredCliId: project.cliId,
       });
-      return { ok: result.ok, text: result.text, cliName: result.cliName, error: result.error, cancelled: result.cancelled };
+      return {
+        ok: result.ok,
+        text: result.text,
+        cliName: result.cliName,
+        error: result.error,
+        cancelled: result.cancelled,
+      };
     },
   );
 

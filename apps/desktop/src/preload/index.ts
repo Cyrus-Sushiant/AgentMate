@@ -336,8 +336,7 @@ const projectDrafts = {
     ipcRenderer.invoke(IPC.projectDrafts.create, input),
   updateStatus: (draftId: string, status: ProjectDraftStatus): Promise<void> =>
     ipcRenderer.invoke(IPC.projectDrafts.updateStatus, draftId, status),
-  remove: (draftId: string): Promise<void> =>
-    ipcRenderer.invoke(IPC.projectDrafts.remove, draftId),
+  remove: (draftId: string): Promise<void> => ipcRenderer.invoke(IPC.projectDrafts.remove, draftId),
 };
 
 const promptBuildWidget = {
@@ -345,10 +344,7 @@ const promptBuildWidget = {
     ipcRenderer.invoke(IPC.promptBuildWidget.listWidgets),
   getWidget: (id: string): Promise<DesktopPromptBuildWidgetInstance | null> =>
     ipcRenderer.invoke(IPC.promptBuildWidget.getWidget, id),
-  openWidget: (
-    projectId: string,
-    projectName: string,
-  ): Promise<DesktopPromptBuildWidgetInstance> =>
+  openWidget: (projectId: string, projectName: string): Promise<DesktopPromptBuildWidgetInstance> =>
     ipcRenderer.invoke(IPC.promptBuildWidget.openWidget, projectId, projectName),
   closeWidget: (id: string): Promise<void> =>
     ipcRenderer.invoke(IPC.promptBuildWidget.closeWidget, id),
@@ -428,7 +424,8 @@ function subscribe<T>(channel: string, callback: (payload: T) => void): () => vo
 }
 
 const packages = {
-  list: (projectId: string): Promise<PackageScanResult> => ipcRenderer.invoke(IPC.packages.list, projectId),
+  list: (projectId: string): Promise<PackageScanResult> =>
+    ipcRenderer.invoke(IPC.packages.list, projectId),
   update: (projectId: string, updates: PackageUpdateRequest[]): Promise<PackageUpdateResult> =>
     ipcRenderer.invoke(IPC.packages.update, projectId, updates),
   onUpdateProgress: (cb: (progress: PackageUpdateProgress) => void): (() => void) =>
@@ -474,7 +471,8 @@ const remote = {
   fmDelete: (path: string): Promise<void> => ipcRenderer.invoke(IPC.remote.fmDelete, path),
   fmRename: (path: string, newName: string): Promise<void> =>
     ipcRenderer.invoke(IPC.remote.fmRename, path, newName),
-  fmUploadTo: (destDir: string): Promise<void> => ipcRenderer.invoke(IPC.remote.fmUploadTo, destDir),
+  fmUploadTo: (destDir: string): Promise<void> =>
+    ipcRenderer.invoke(IPC.remote.fmUploadTo, destDir),
   fmDownload: (path: string): Promise<void> => ipcRenderer.invoke(IPC.remote.fmDownload, path),
 
   // Fire-and-forget, high-frequency channels.
@@ -497,15 +495,15 @@ const remote = {
     ipcRenderer.invoke(IPC.remote.benchSample),
 
   onState: (cb: (state: RemoteState) => void): (() => void) => subscribe(IPC.remote.onState, cb),
-  onRtcSignal: (cb: (payload: { peerId: string; message: RemoteRtcMessage }) => void): (() => void) =>
-    subscribe(IPC.remote.onRtcSignal, cb),
+  onRtcSignal: (
+    cb: (payload: { peerId: string; message: RemoteRtcMessage }) => void,
+  ): (() => void) => subscribe(IPC.remote.onRtcSignal, cb),
   onRtcPeerGone: (cb: (peerId: string) => void): (() => void) =>
     subscribe(IPC.remote.onRtcPeerGone, cb),
   onClientRtcSignal: (cb: (message: RemoteRtcMessage) => void): (() => void) =>
     subscribe(IPC.remote.onClientRtcSignal, cb),
-  onHostCursor: (
-    cb: (point: { x: number; y: number; visible: boolean }) => void,
-  ): (() => void) => subscribe(IPC.remote.onHostCursor, cb),
+  onHostCursor: (cb: (point: { x: number; y: number; visible: boolean }) => void): (() => void) =>
+    subscribe(IPC.remote.onHostCursor, cb),
   onCaptureRefresh: (cb: () => void): (() => void) => subscribe(IPC.remote.onCaptureRefresh, cb),
   onTileDemand: (cb: (demand: boolean) => void): (() => void) =>
     subscribe(IPC.remote.onTileDemand, cb),
@@ -525,7 +523,8 @@ const remote = {
 
 const usage = {
   list: (): Promise<ProviderUsage[]> => ipcRenderer.invoke(IPC.usage.list),
-  get: (providerId: string): Promise<ProviderUsage> => ipcRenderer.invoke(IPC.usage.get, providerId),
+  get: (providerId: string): Promise<ProviderUsage> =>
+    ipcRenderer.invoke(IPC.usage.get, providerId),
   refresh: (): Promise<ProviderUsage[]> => ipcRenderer.invoke(IPC.usage.refresh),
   setProviderConfig: (providerId: string, config: UsageProviderConfig): Promise<void> =>
     ipcRenderer.invoke(IPC.usage.setProviderConfig, { providerId, config }),

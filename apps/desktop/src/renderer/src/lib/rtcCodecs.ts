@@ -46,9 +46,7 @@ async function probeCodec(mimeType: string): Promise<EncodeSupport> {
       video: { contentType: mimeType, ...PROBE },
     };
     // `type: 'webrtc'` is not in the DOM lib's MediaEncodingType union yet.
-    const info = await capabilities.encodingInfo(
-      config as unknown as MediaEncodingConfiguration,
-    );
+    const info = await capabilities.encodingInfo(config as unknown as MediaEncodingConfiguration);
     return { supported: info.supported, powerEfficient: info.powerEfficient };
   } catch {
     // Unknown content type or unimplemented probe, assume usable software.
@@ -94,6 +92,9 @@ export async function preferredCodecOrder(
 export async function describeEncoderSupport(): Promise<string> {
   const support = await detectEncoderSupport();
   return [...support.entries()]
-    .map(([mime, s]) => `${mime.replace('video/', '')}:${s.supported ? (s.powerEfficient ? 'hw' : 'sw') : 'no'}`)
+    .map(
+      ([mime, s]) =>
+        `${mime.replace('video/', '')}:${s.supported ? (s.powerEfficient ? 'hw' : 'sw') : 'no'}`,
+    )
     .join(' ');
 }

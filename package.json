@@ -12,17 +12,13 @@
     "package": "pnpm --filter @agentmat/desktop package",
     "mobile": "pnpm --filter @agentmat/protocol build && pnpm --filter @agentmat/mobile start",
     "typecheck": "pnpm -r typecheck",
-    "lint": "pnpm -r lint"
+    "lint": "pnpm -r lint",
+    "format": "biome format --write .",
+    "format:check": "biome format ."
   },
   "devDependencies": {
-    "@eslint/js": "^10.0.1",
-    "eslint": "^10.8.0",
-    "eslint-config-prettier": "^10.1.8",
-    "eslint-plugin-react-hooks": "^7.1.1",
-    "globals": "^17.8.0",
-    "prettier": "^3.9.6",
-    "typescript": "^6.0.3",
-    "typescript-eslint": "^8.65.0"
+    "@biomejs/biome": "^2.5.7",
+    "typescript": "^6.0.3"
   },
   "packageManager": "pnpm@11.20.0"
 }

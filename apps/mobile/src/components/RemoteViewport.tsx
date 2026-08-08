@@ -330,7 +330,12 @@ export function RemoteViewport({
   const showTiles = !showVideo;
 
   return (
-    <View ref={wrapRef} style={styles.wrap} onLayout={onLayoutHandler} {...panResponder.panHandlers}>
+    <View
+      ref={wrapRef}
+      style={styles.wrap}
+      onLayout={onLayoutHandler}
+      {...panResponder.panHandlers}
+    >
       <Animated.View
         pointerEvents="none"
         style={[
