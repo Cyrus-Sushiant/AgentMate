@@ -9,6 +9,7 @@ import {
   ExternalLink,
   Eye,
   FolderOpen,
+  Globe,
   Plus,
   RefreshCw,
   Search,
@@ -16,7 +17,7 @@ import {
 } from '@/components/icons';
 import type { SkillRepositorySourceType } from '@agentmat/core';
 import { bundledSkillsShDirectory, SKILLS_SH_SNAPSHOT_DATE } from '@agentmat/core';
-import type { SkillsShSearchResult } from '../../../shared/apiTypes';
+import type { SkillsShSearchResult, SkillUpdateInfo } from '../../../shared/apiTypes';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -36,7 +37,9 @@ import {
 import { CatalogCardSkeleton } from '@/components/CatalogCardSkeleton';
 import { queryKeys } from '@/lib/queryKeys';
 import { cn } from '@/lib/utils';
+import { confirmDialog } from '@/stores/confirmStore';
 import { usePageHeader } from '@/stores/pageHeaderStore';
+import { useTerminalStore } from '@/stores/terminalStore';
 
 const SOURCE_TYPES: { value: SkillRepositorySourceType; label: string }[] = [
   { value: 'url', label: 'URL (JSON index)' },
@@ -69,6 +72,16 @@ const installsFormatter = new Intl.NumberFormat('en', {
   maximumFractionDigits: 1,
 });
 
+/** Agent ids the `skills` CLI recognizes, scoped to the agents AgentMate itself targets. */
+const SKILLS_CLI_AGENT_OPTIONS: { value: string; label: string }[] = [
+  { value: 'claude-code', label: 'Claude Code' },
+  { value: 'codex', label: 'Codex' },
+  { value: 'cursor', label: 'Cursor' },
+  { value: 'opencode', label: 'opencode' },
+  { value: 'gemini-cli', label: 'Gemini CLI' },
+];
+const ALL_SKILLS_CLI_AGENTS = SKILLS_CLI_AGENT_OPTIONS.map((a) => a.value);
+
 function liveResultToDisplayEntry(r: SkillsShSearchResult): SkillsShDisplayEntry {
   return {
     id: r.id,
@@ -82,10 +95,21 @@ function liveResultToDisplayEntry(r: SkillsShSearchResult): SkillsShDisplayEntry
   };
 }
 
+/**
+ * Uses skills.sh's own published install command verbatim (the same one shown on the skill's
+ * page), only appending `-g` for a global install, so what runs matches what the user sees there.
+ * It runs in a terminal the user drives, since the CLI can prompt mid-install (e.g. a
+ * security-risk confirmation).
+ */
+function skillsShInstallCommand(skill: SkillsShDisplayEntry, global: boolean): string {
+  return global ? `${skill.installCommand} -g` : skill.installCommand;
+}
+
 export default function SkillsPage(): React.JSX.Element {
   const location = useLocation();
   const navState = location.state as { repositoryId?: string; query?: string } | null;
   const queryClient = useQueryClient();
+  const openTerminalSession = useTerminalStore((s) => s.openSession);
 
   const [selectedRepoId, setSelectedRepoId] = useState<string>(navState?.repositoryId ?? '');
   const [search, setSearch] = useState(navState?.query ?? '');
@@ -101,7 +125,10 @@ export default function SkillsPage(): React.JSX.Element {
 
   const [installTarget, setInstallTarget] = useState<InstallTarget | null>(null);
   const [installPickerProjectIds, setInstallPickerProjectIds] = useState<Set<string>>(new Set());
+  const [installGlobally, setInstallGlobally] = useState(false);
   const [installPickerSearch, setInstallPickerSearch] = useState('');
+  const [globalSkillsModalOpen, setGlobalSkillsModalOpen] = useState(false);
+  const [globalSkillsAgentFilter, setGlobalSkillsAgentFilter] = useState<string>('all');
 
   useEffect(() => {
     const timer = setTimeout(() => setShDebouncedSearch(shSearch), 350);
@@ -174,45 +201,86 @@ export default function SkillsPage(): React.JSX.Element {
   });
 
   const installBatchMutation = useMutation({
-    mutationFn: async (projectIds: string[]) => {
-      if (!installTarget) return { succeeded: [] as string[], failed: [] as string[] };
+    mutationFn: async ({ projectIds, global }: { projectIds: string[]; global: boolean }) => {
+      if (!installTarget) return { succeeded: [] as (string | null)[], failed: [] as (string | null)[] };
+      const targets: (string | null)[] = global ? [...projectIds, null] : projectIds;
+
+      if (installTarget.kind === 'skillsSh') {
+        const skill = installTarget.skill;
+        const agents = ALL_SKILLS_CLI_AGENTS;
+        const projectById = new Map((projectsQuery.data ?? []).map((p) => [p.id, p]));
+        const succeeded: (string | null)[] = [];
+        const failed: (string | null)[] = [];
+        let firstFailureMessage: string | undefined;
+        for (const target of targets) {
+          const project = target === null ? null : projectById.get(target);
+          try {
+            openTerminalSession({
+              title: `Install ${skill.name}`,
+              initialInput: skillsShInstallCommand(skill, target === null),
+              cwd: project?.folderPath,
+              projectId: project?.id,
+            });
+            await window.agentmat.skills.recordSkillsShInstall({
+              projectId: target,
+              owner: skill.owner,
+              repo: skill.repo,
+              skillName: skill.name,
+              agents,
+            });
+            succeeded.push(target);
+          } catch (error) {
+            failed.push(target);
+            firstFailureMessage ??= error instanceof Error ? error.message : String(error);
+          }
+        }
+        return { succeeded, failed, firstFailureMessage, skillsSh: true };
+      }
+
       const results = await Promise.allSettled(
-        projectIds.map((projectId) =>
-          installTarget.kind === 'repo'
-            ? window.agentmat.skills.install({
-                projectId,
-                repositoryId: selectedRepoId,
-                skillId: installTarget.skillId,
-              })
-            : window.agentmat.skills.installFromSkillsSh({
-                projectId,
-                owner: installTarget.skill.owner,
-                repo: installTarget.skill.repo,
-                skillName: installTarget.skill.name,
-              }),
+        targets.map((projectId) =>
+          window.agentmat.skills.install({
+            projectId,
+            repositoryId: selectedRepoId,
+            skillId: installTarget.skillId,
+          }),
         ),
       );
-      const succeeded = projectIds.filter((_, i) => results[i].status === 'fulfilled');
-      const failed = projectIds.filter((_, i) => results[i].status === 'rejected');
-      return { succeeded, failed };
+      const succeeded = targets.filter((_, i) => results[i].status === 'fulfilled');
+      const failed = targets.filter((_, i) => results[i].status === 'rejected');
+      const firstFailureReason = results.find(
+        (r): r is PromiseRejectedResult => r.status === 'rejected',
+      )?.reason;
+      const firstFailureMessage =
+        firstFailureReason instanceof Error ? firstFailureReason.message : undefined;
+      return { succeeded, failed, firstFailureMessage, skillsSh: false };
     },
-    onSuccess: ({ succeeded, failed }) => {
-      for (const projectId of succeeded) {
-        void queryClient.invalidateQueries({ queryKey: queryKeys.installedSkills(projectId) });
+    onSuccess: ({ succeeded, failed, firstFailureMessage, skillsSh }) => {
+      for (const target of succeeded) {
+        void queryClient.invalidateQueries({ queryKey: queryKeys.installedSkills(target) });
+        if (target === null) void queryClient.invalidateQueries({ queryKey: queryKeys.skillUpdates(null) });
       }
-      if (succeeded.length > 0) {
+      if (succeeded.length > 0 && skillsSh) {
+        toast.info(
+          succeeded.length === 1
+            ? 'Press Enter in the terminal to install the skill.'
+            : `Press Enter in each of the ${succeeded.length} terminals opened to install the skill.`,
+        );
+      } else if (succeeded.length > 0) {
         toast.success(
-          `Installed into ${succeeded.length} project${succeeded.length === 1 ? '' : 's'}.`,
+          `Installed to ${succeeded.length} location${succeeded.length === 1 ? '' : 's'}.`,
         );
       }
       if (failed.length > 0) {
         toast.error(
-          `Failed to install into ${failed.length} project${failed.length === 1 ? '' : 's'}.`,
+          `Failed to install to ${failed.length} location${failed.length === 1 ? '' : 's'}.` +
+            (firstFailureMessage ? ` ${firstFailureMessage}` : ''),
         );
       }
       if (failed.length === 0) {
         setInstallTarget(null);
         setInstallPickerProjectIds(new Set());
+        setInstallGlobally(false);
         setInstallPickerSearch('');
       }
     },
@@ -269,6 +337,52 @@ export default function SkillsPage(): React.JSX.Element {
   const shModalDescription = shSelected?.description ?? shDetailQuery.data?.description ?? null;
   const shModalInstallsLabel = shDetailQuery.data?.installsLabel ?? shSelected?.installsLabel ?? '';
 
+  const globalInstalledQuery = useQuery({
+    queryKey: queryKeys.installedSkills(null),
+    queryFn: () => window.agentmat.skills.listInstalled(null),
+  });
+
+  const globalSkillUpdatesQuery = useQuery({
+    queryKey: queryKeys.skillUpdates(null),
+    queryFn: () => window.agentmat.skills.checkForUpdates(null),
+    enabled: (globalInstalledQuery.data?.length ?? 0) > 0,
+  });
+
+  const globalSkillUpdateBySkillId = useMemo(
+    () => new Map((globalSkillUpdatesQuery.data ?? []).map((u) => [u.skillId, u])),
+    [globalSkillUpdatesQuery.data],
+  );
+
+  const filteredGlobalSkills = useMemo(() => {
+    const skills = globalInstalledQuery.data ?? [];
+    if (globalSkillsAgentFilter === 'all') return skills;
+    return skills.filter((s) => s.agents?.includes(globalSkillsAgentFilter));
+  }, [globalInstalledQuery.data, globalSkillsAgentFilter]);
+
+  const removeGlobalSkillMutation = useMutation({
+    mutationFn: (skillId: string) => window.agentmat.skills.remove({ projectId: null, skillId }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.installedSkills(null) });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.skillUpdates(null) });
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  const updateGlobalSkillMutation = useMutation({
+    mutationFn: (update: SkillUpdateInfo) =>
+      window.agentmat.skills.install({
+        projectId: null,
+        repositoryId: update.repositoryId,
+        skillId: update.skillId,
+      }),
+    onSuccess: (_data, update) => {
+      toast.success(`Updated ${update.skillId} to v${update.latestVersion}.`);
+      void queryClient.invalidateQueries({ queryKey: queryKeys.installedSkills(null) });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.skillUpdates(null) });
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
   async function handlePickLocalFolder(): Promise<void> {
     const picked = await window.agentmat.skills.pickLocalRepository();
     if (picked) setRepoSource(picked);
@@ -282,6 +396,7 @@ export default function SkillsPage(): React.JSX.Element {
   function openInstallPicker(target: InstallTarget): void {
     setInstallTarget(target);
     setInstallPickerProjectIds(new Set());
+    setInstallGlobally(false);
     setInstallPickerSearch('');
   }
 
@@ -305,18 +420,22 @@ export default function SkillsPage(): React.JSX.Element {
   return (
     <div className="space-y-6 p-6">
       <Tabs defaultValue="marketplace">
-        <TabsList>
-          <TabsTrigger value="marketplace">My Repositories</TabsTrigger>
-          <TabsTrigger value="directory">skills.sh Directory</TabsTrigger>
-        </TabsList>
+        <div className="flex items-center justify-between">
+          <TabsList>
+            <TabsTrigger value="marketplace">My Repositories</TabsTrigger>
+            <TabsTrigger value="directory">skills.sh Directory</TabsTrigger>
+          </TabsList>
+          <Button variant="outline" onClick={() => setGlobalSkillsModalOpen(true)}>
+            <Globe className="h-4 w-4" /> Global Skills
+            {(globalInstalledQuery.data?.length ?? 0) > 0 && (
+              <Badge variant="secondary" className="ml-1">
+                {globalInstalledQuery.data?.length}
+              </Badge>
+            )}
+          </Button>
+        </div>
 
         <TabsContent value="marketplace" className="space-y-6">
-          <div className="flex justify-end">
-            <Button onClick={() => setAddRepoOpen(true)}>
-              <Plus /> Add Repository
-            </Button>
-          </div>
-
           <div className="flex flex-wrap items-end gap-3">
             <div className="space-y-1.5">
               <Label>Repository</Label>
@@ -366,6 +485,10 @@ export default function SkillsPage(): React.JSX.Element {
                 />
               </div>
             </div>
+
+            <Button onClick={() => setAddRepoOpen(true)}>
+              <Plus /> Add Repository
+            </Button>
           </div>
 
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -682,7 +805,7 @@ export default function SkillsPage(): React.JSX.Element {
                 shSelected && openInstallPicker({ kind: 'skillsSh', skill: shSelected })
               }
             >
-              Install to project…
+              Install…
             </Button>
             <Button
               type="button"
@@ -701,6 +824,7 @@ export default function SkillsPage(): React.JSX.Element {
           if (!open) {
             setInstallTarget(null);
             setInstallPickerProjectIds(new Set());
+            setInstallGlobally(false);
             setInstallPickerSearch('');
           }
         }}
@@ -709,7 +833,7 @@ export default function SkillsPage(): React.JSX.Element {
           <DialogHeader>
             <DialogTitle>Install {installTargetName}</DialogTitle>
             <DialogDescription>
-              Select one or more projects to install this skill into.
+              Select one or more projects, or install it globally for use in every project.
             </DialogDescription>
           </DialogHeader>
           <div className="relative">
@@ -722,6 +846,32 @@ export default function SkillsPage(): React.JSX.Element {
               onChange={(e) => setInstallPickerSearch(e.target.value)}
             />
           </div>
+          <button
+            type="button"
+            className={cn(
+              'flex w-full items-center gap-2.5 rounded-md border border-transparent px-3 py-2 text-left transition-colors hover:bg-muted',
+              installGlobally && 'border-primary bg-muted',
+            )}
+            onClick={() => setInstallGlobally((v) => !v)}
+          >
+            <span
+              className={cn(
+                'flex h-4 w-4 shrink-0 items-center justify-center rounded-sm border border-border',
+                installGlobally && 'border-primary bg-primary text-primary-foreground',
+              )}
+            >
+              {installGlobally && <Check className="h-3 w-3" />}
+            </span>
+            <span className="flex min-w-0 flex-col">
+              <span className="flex items-center gap-1.5 truncate text-sm font-medium text-foreground">
+                <Globe className="h-3.5 w-3.5" /> Install globally
+              </span>
+              <span className="truncate text-xs text-muted-foreground">
+                Available to every project
+              </span>
+            </span>
+          </button>
+          <div className="border-t border-border" />
           <div className="-mx-1 min-h-0 flex-1 space-y-1 overflow-y-auto px-1">
             {filteredProjectsForPicker.map((p) => {
               const checked = installPickerProjectIds.has(p.id);
@@ -761,13 +911,128 @@ export default function SkillsPage(): React.JSX.Element {
           <DialogFooter>
             <Button
               type="button"
-              disabled={installPickerProjectIds.size === 0 || installBatchMutation.isPending}
-              onClick={() => installBatchMutation.mutate([...installPickerProjectIds])}
+              disabled={
+                (installPickerProjectIds.size === 0 && !installGlobally) ||
+                installBatchMutation.isPending
+              }
+              onClick={() =>
+                installBatchMutation.mutate({
+                  projectIds: [...installPickerProjectIds],
+                  global: installGlobally,
+                })
+              }
             >
               Install
-              {installPickerProjectIds.size > 0 ? ` (${installPickerProjectIds.size})` : ''}
+              {installPickerProjectIds.size + (installGlobally ? 1 : 0) > 0
+                ? ` (${installPickerProjectIds.size + (installGlobally ? 1 : 0)})`
+                : ''}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={globalSkillsModalOpen}
+        onOpenChange={(open) => {
+          setGlobalSkillsModalOpen(open);
+          if (!open) setGlobalSkillsAgentFilter('all');
+        }}
+      >
+        <DialogContent className="flex max-h-[70vh] flex-col overflow-hidden">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Globe className="h-4 w-4" /> Global Skills
+            </DialogTitle>
+            <DialogDescription>Available to every project.</DialogDescription>
+          </DialogHeader>
+          {(globalInstalledQuery.data?.length ?? 0) > 0 && (
+            <div className="flex flex-wrap gap-1.5">
+              <Button
+                type="button"
+                size="sm"
+                variant={globalSkillsAgentFilter === 'all' ? 'default' : 'outline'}
+                onClick={() => setGlobalSkillsAgentFilter('all')}
+              >
+                All
+              </Button>
+              {SKILLS_CLI_AGENT_OPTIONS.map((agent) => (
+                <Button
+                  key={agent.value}
+                  type="button"
+                  size="sm"
+                  variant={globalSkillsAgentFilter === agent.value ? 'default' : 'outline'}
+                  onClick={() => setGlobalSkillsAgentFilter(agent.value)}
+                >
+                  {agent.label}
+                </Button>
+              ))}
+            </div>
+          )}
+          <div className="-mx-1 min-h-0 flex-1 space-y-2 overflow-y-auto px-1">
+            {(globalInstalledQuery.data?.length ?? 0) === 0 ? (
+              <p className="px-1 py-6 text-center text-sm text-muted-foreground">
+                No skills installed globally yet.
+              </p>
+            ) : filteredGlobalSkills.length === 0 ? (
+              <p className="px-1 py-6 text-center text-sm text-muted-foreground">
+                No skills installed for this agent.
+              </p>
+            ) : (
+              filteredGlobalSkills.map((skill) => {
+                const update = globalSkillUpdateBySkillId.get(skill.skillId);
+                return (
+                  <div
+                    key={skill.skillId}
+                    className="flex items-center justify-between rounded-lg border border-border bg-card px-3 py-2 text-sm"
+                  >
+                    <span className="flex flex-wrap items-center gap-2">
+                      {skill.skillId}{' '}
+                      <span className="text-muted-foreground">v{skill.version}</span>
+                      {skill.agents?.map((a) => (
+                        <Badge key={a} variant="outline">
+                          {SKILLS_CLI_AGENT_OPTIONS.find((o) => o.value === a)?.label ?? a}
+                        </Badge>
+                      ))}
+                      {update?.hasUpdate && (
+                        <Badge variant="secondary">v{update.latestVersion} available</Badge>
+                      )}
+                    </span>
+                    <div className="flex items-center gap-1">
+                      {update?.hasUpdate && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={
+                            updateGlobalSkillMutation.isPending &&
+                            updateGlobalSkillMutation.variables?.skillId === skill.skillId
+                          }
+                          onClick={() => updateGlobalSkillMutation.mutate(update)}
+                        >
+                          <RefreshCw className="h-3.5 w-3.5" /> Update
+                        </Button>
+                      )}
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => {
+                          void confirmDialog({
+                            title: `Remove "${skill.skillId}"?`,
+                            description: 'This removes it globally.',
+                            confirmLabel: 'Remove',
+                            variant: 'destructive',
+                          }).then((confirmed) => {
+                            if (confirmed) removeGlobalSkillMutation.mutate(skill.skillId);
+                          });
+                        }}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
         </DialogContent>
       </Dialog>
     </div>

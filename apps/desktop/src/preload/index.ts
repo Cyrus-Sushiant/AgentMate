@@ -198,20 +198,23 @@ const skills = {
     ipcRenderer.invoke(IPC.skills.getRepositoryIndex, repositoryId),
   pickLocalRepository: (): Promise<string | null> =>
     ipcRenderer.invoke(IPC.skills.pickLocalRepository),
-  install: (params: { projectId: string; repositoryId: string; skillId: string }): Promise<void> =>
-    ipcRenderer.invoke(IPC.skills.install, params),
-  remove: (params: { projectId: string; skillId: string }): Promise<void> =>
+  install: (params: {
+    projectId: string | null;
+    repositoryId: string;
+    skillId: string;
+  }): Promise<void> => ipcRenderer.invoke(IPC.skills.install, params),
+  remove: (params: { projectId: string | null; skillId: string }): Promise<void> =>
     ipcRenderer.invoke(IPC.skills.remove, params),
-  listInstalled: (projectId: string): Promise<InstalledSkillRecord[]> =>
+  listInstalled: (projectId: string | null): Promise<InstalledSkillRecord[]> =>
     ipcRenderer.invoke(IPC.skills.listInstalled, projectId),
-  checkForUpdates: (projectId: string): Promise<SkillUpdateInfo[]> =>
+  checkForUpdates: (projectId: string | null): Promise<SkillUpdateInfo[]> =>
     ipcRenderer.invoke(IPC.skills.checkForUpdates, projectId),
   searchSkillsSh: (query: string): Promise<SkillsShSearchResult[]> =>
     ipcRenderer.invoke(IPC.skills.searchSkillsSh, query),
   getSkillsShDetail: (skillPath: string): Promise<SkillsShDetail> =>
     ipcRenderer.invoke(IPC.skills.getSkillsShDetail, skillPath),
-  installFromSkillsSh: (input: InstallFromSkillsShInput): Promise<void> =>
-    ipcRenderer.invoke(IPC.skills.installFromSkillsSh, input),
+  recordSkillsShInstall: (input: InstallFromSkillsShInput): Promise<void> =>
+    ipcRenderer.invoke(IPC.skills.recordSkillsShInstall, input),
 };
 
 const mcp = {

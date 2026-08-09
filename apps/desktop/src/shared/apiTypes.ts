@@ -92,6 +92,8 @@ export interface InstalledSkillRecord {
   repositoryId: string;
   version: string;
   installedAt: string;
+  /** CLI agent ids (e.g. 'claude-code', 'cursor') this skill was installed for. Unset for repo-based skills, which aren't agent-specific. */
+  agents?: string[];
 }
 
 /** Compares an installed repo-based skill's stored version against its repository's current version. */
@@ -129,10 +131,13 @@ export interface SkillsShDetail {
 }
 
 export interface InstallFromSkillsShInput {
-  projectId: string;
+  /** null installs globally to ~/.claude/skills instead of a project. */
+  projectId: string | null;
   owner: string;
   repo: string;
   skillName: string;
+  /** CLI agent ids (e.g. 'claude-code', 'cursor') the skill was installed for. */
+  agents: string[];
 }
 
 export type PromptHistorySource = 'generate' | 'translate';

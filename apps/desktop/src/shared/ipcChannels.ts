@@ -58,7 +58,7 @@ export const IPC = {
     checkForUpdates: 'skills:checkForUpdates',
     searchSkillsSh: 'skills:searchSkillsSh',
     getSkillsShDetail: 'skills:getSkillsShDetail',
-    installFromSkillsSh: 'skills:installFromSkillsSh',
+    recordSkillsShInstall: 'skills:recordSkillsShInstall',
   },
   mcp: {
     listRepositories: 'mcp:listRepositories',

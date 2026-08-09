@@ -37,6 +37,47 @@ function installedSkillsFilePath(projectFolderPath: string): string {
   return join(projectFolderPath, '.agentmate', 'installed-skills.json');
 }
 
+/** ~/.claude is the scope root for globally-installed skills, mirroring Claude Code's own global skills dir. */
+function globalSkillsScopeRoot(): string {
+  return join(app.getPath('home'), '.claude');
+}
+
+/** Resolves where a skill install/list/remove should read and write: a project's folder, or the global scope for null. */
+async function resolveSkillScopeRoot(projectId: string | null): Promise<string> {
+  if (projectId === null) return globalSkillsScopeRoot();
+  const projects = await store.getProjects();
+  const project = projects.find((p) => p.id === projectId);
+  if (!project) throw new Error(`Project ${projectId} not found`);
+  return project.folderPath;
+}
+
+// GitHub owner/repo and skill directory names are restricted to this character set. Validating
+// against it before shelling out means the values can never carry shell metacharacters.
+const GITHUB_REPO_PATTERN = /^[\w.-]+\/[\w.-]+$/;
+const SKILL_NAME_PATTERN = /^[\w.-]+$/;
+
+const ANSI_ESCAPE_PATTERN = new RegExp('\\x1b\\[[?]?[0-9;]*[a-zA-Z]', 'g');
+
+function stripAnsi(text: string): string {
+  return text.replace(ANSI_ESCAPE_PATTERN, '').replace(/\r/g, '').trim();
+}
+
+/**
+ * Runs the real `skills` CLI (skills.sh's own installer) instead of hand-rolling GitHub tree
+ * traversal, since repos vary in where they nest a skill's folder. `npx` is a `.cmd` shim on
+ * Windows, which `execFile` can't launch without a shell; the args are validated by the caller
+ * against `GITHUB_REPO_PATTERN`/`SKILL_NAME_PATTERN` first, so enabling the shell there is safe.
+ */
+async function runSkillsCli(args: string[], cwd: string): Promise<void> {
+  try {
+    await execFileAsync('npx', args, { cwd, shell: process.platform === 'win32' });
+  } catch (error) {
+    const stderr = (error as NodeJS.ErrnoException & { stderr?: string }).stderr;
+    const message = stderr?.trim() || (error instanceof Error ? error.message : String(error));
+    throw new Error(stripAnsi(message));
+  }
+}
+
 async function readInstalledSkills(projectFolderPath: string): Promise<InstalledSkillRecord[]> {
   try {
     const raw = await readFile(installedSkillsFilePath(projectFolderPath), 'utf-8');
@@ -104,35 +145,6 @@ async function readSkillFileContent(
   return response.text();
 }
 
-const GITHUB_API_HEADERS = {
-  'User-Agent': 'AgentMate',
-  Accept: 'application/vnd.github+json',
-};
-
-/** Lists every file under `{skillName}/` in a skill's GitHub repo, via the repo's file tree. */
-async function listSkillsShFiles(
-  repo: string,
-  skillName: string,
-): Promise<{ branch: string; paths: string[] }> {
-  const repoRes = await fetch(`https://api.github.com/repos/${repo}`, {
-    headers: GITHUB_API_HEADERS,
-  });
-  if (!repoRes.ok) throw new Error(`GitHub repo lookup failed for ${repo}: HTTP ${repoRes.status}`);
-  const { default_branch: branch } = (await repoRes.json()) as { default_branch: string };
-
-  const treeRes = await fetch(
-    `https://api.github.com/repos/${repo}/git/trees/${branch}?recursive=1`,
-    { headers: GITHUB_API_HEADERS },
-  );
-  if (!treeRes.ok) throw new Error(`GitHub tree lookup failed for ${repo}: HTTP ${treeRes.status}`);
-  const { tree } = (await treeRes.json()) as { tree: { path: string; type: string }[] };
-
-  const prefix = `${skillName}/`;
-  const paths = tree
-    .filter((e) => e.type === 'blob' && e.path.startsWith(prefix))
-    .map((e) => e.path);
-  return { branch, paths };
-}
 
 export function registerSkillHandlers(): void {
   ipcMain.handle(
@@ -208,11 +220,12 @@ export function registerSkillHandlers(): void {
     IPC.skills.install,
     async (
       _event,
-      params: { projectId: string; repositoryId: string; skillId: string },
+      params: { projectId: string | null; repositoryId: string; skillId: string },
     ): Promise<void> => {
-      const [projects, repos] = await Promise.all([store.getProjects(), store.getRepositories()]);
-      const project = projects.find((p) => p.id === params.projectId);
-      if (!project) throw new Error(`Project ${params.projectId} not found`);
+      const [scopeRoot, repos] = await Promise.all([
+        resolveSkillScopeRoot(params.projectId),
+        store.getRepositories(),
+      ]);
       const repo = repos.find((r) => r.id === params.repositoryId);
       if (!repo) throw new Error(`Repository ${params.repositoryId} not found`);
 
@@ -220,7 +233,7 @@ export function registerSkillHandlers(): void {
       const skill = index.skills.find((s) => s.id === params.skillId);
       if (!skill) throw new Error(`Skill ${params.skillId} not found in repository ${repo.name}`);
 
-      const skillDir = join(project.folderPath, 'skills', skill.id);
+      const skillDir = join(scopeRoot, 'skills', skill.id);
       for (const file of skill.files) {
         const content = await readSkillFileContent(file, { baseDir, baseUrl });
         const targetPath = join(skillDir, file.path);
@@ -228,7 +241,7 @@ export function registerSkillHandlers(): void {
         await writeFile(targetPath, content, 'utf-8');
       }
 
-      const installed = await readInstalledSkills(project.folderPath);
+      const installed = await readInstalledSkills(scopeRoot);
       const withoutExisting = installed.filter((s) => s.skillId !== skill.id);
       withoutExisting.push({
         skillId: skill.id,
@@ -236,25 +249,41 @@ export function registerSkillHandlers(): void {
         version: skill.version,
         installedAt: new Date().toISOString(),
       });
-      await writeInstalledSkills(project.folderPath, withoutExisting);
+      await writeInstalledSkills(scopeRoot, withoutExisting);
     },
   );
 
   ipcMain.handle(
     IPC.skills.remove,
-    async (_event, params: { projectId: string; skillId: string }): Promise<void> => {
-      const projects = await store.getProjects();
-      const project = projects.find((p) => p.id === params.projectId);
-      if (!project) throw new Error(`Project ${params.projectId} not found`);
+    async (_event, params: { projectId: string | null; skillId: string }): Promise<void> => {
+      const scopeRoot = await resolveSkillScopeRoot(params.projectId);
+      const installed = await readInstalledSkills(scopeRoot);
+      const record = installed.find((s) => s.skillId === params.skillId);
 
-      await rm(join(project.folderPath, 'skills', params.skillId), {
-        recursive: true,
-        force: true,
-      });
+      if (record?.repositoryId === SKILLS_SH_PSEUDO_REPOSITORY_ID) {
+        const skillName = params.skillId.split('/').pop() ?? params.skillId;
+        if (SKILL_NAME_PATTERN.test(skillName)) {
+          const agents = (record.agents ?? []).filter((a) => SKILL_NAME_PATTERN.test(a));
+          const args = [
+            'skills',
+            'remove',
+            skillName,
+            '--agent',
+            ...(agents.length > 0 ? agents : ['*']),
+            '-y',
+          ];
+          if (params.projectId === null) args.push('--global');
+          await runSkillsCli(args, scopeRoot);
+        }
+      } else {
+        await rm(join(scopeRoot, 'skills', params.skillId), {
+          recursive: true,
+          force: true,
+        });
+      }
 
-      const installed = await readInstalledSkills(project.folderPath);
       await writeInstalledSkills(
-        project.folderPath,
+        scopeRoot,
         installed.filter((s) => s.skillId !== params.skillId),
       );
     },
@@ -262,22 +291,18 @@ export function registerSkillHandlers(): void {
 
   ipcMain.handle(
     IPC.skills.listInstalled,
-    async (_event, projectId: string): Promise<InstalledSkillRecord[]> => {
-      const projects = await store.getProjects();
-      const project = projects.find((p) => p.id === projectId);
-      if (!project) throw new Error(`Project ${projectId} not found`);
-      return readInstalledSkills(project.folderPath);
+    async (_event, projectId: string | null): Promise<InstalledSkillRecord[]> => {
+      const scopeRoot = await resolveSkillScopeRoot(projectId);
+      return readInstalledSkills(scopeRoot);
     },
   );
 
   ipcMain.handle(
     IPC.skills.checkForUpdates,
-    async (_event, projectId: string): Promise<SkillUpdateInfo[]> => {
-      const projects = await store.getProjects();
-      const project = projects.find((p) => p.id === projectId);
-      if (!project) throw new Error(`Project ${projectId} not found`);
+    async (_event, projectId: string | null): Promise<SkillUpdateInfo[]> => {
+      const scopeRoot = await resolveSkillScopeRoot(projectId);
 
-      const installed = await readInstalledSkills(project.folderPath);
+      const installed = await readInstalledSkills(scopeRoot);
       const repos = await store.getRepositories();
       const indexCache = new Map<string, SkillRepositoryIndex>();
       const updates: SkillUpdateInfo[] = [];
@@ -367,42 +392,35 @@ export function registerSkillHandlers(): void {
     },
   );
 
+  // The actual `skills add` command now runs in a visible terminal (opened from the renderer)
+  // instead of a detached child process, since it can prompt for confirmation or a choice partway
+  // through. This handler just records the install in AgentMate's own bookkeeping once the
+  // renderer has opened that terminal, so the skill shows up in the installed-skills lists.
   ipcMain.handle(
-    IPC.skills.installFromSkillsSh,
+    IPC.skills.recordSkillsShInstall,
     async (_event, params: InstallFromSkillsShInput): Promise<void> => {
-      const projects = await store.getProjects();
-      const project = projects.find((p) => p.id === params.projectId);
-      if (!project) throw new Error(`Project ${params.projectId} not found`);
-
-      const { branch, paths } = await listSkillsShFiles(params.repo, params.skillName);
-      if (paths.length === 0) {
-        throw new Error(
-          `No files found for ${params.repo}/${params.skillName} on GitHub. The skill may have moved or been renamed.`,
-        );
+      if (!GITHUB_REPO_PATTERN.test(params.repo)) {
+        throw new Error(`Invalid repository: ${params.repo}`);
+      }
+      if (!SKILL_NAME_PATTERN.test(params.skillName)) {
+        throw new Error(`Invalid skill name: ${params.skillName}`);
       }
 
+      const scopeRoot = await resolveSkillScopeRoot(params.projectId);
+      await mkdir(scopeRoot, { recursive: true });
+
+      const agents = params.agents.filter((a) => SKILL_NAME_PATTERN.test(a));
       const skillId = `${params.repo}/${params.skillName}`;
-      const skillDir = join(project.folderPath, 'skills', skillId);
-      const prefix = `${params.skillName}/`;
-      for (const path of paths) {
-        const rawUrl = `https://raw.githubusercontent.com/${params.repo}/${branch}/${path}`;
-        const fileRes = await fetch(rawUrl);
-        if (!fileRes.ok) throw new Error(`Failed to fetch ${path}: HTTP ${fileRes.status}`);
-        const content = Buffer.from(await fileRes.arrayBuffer());
-        const targetPath = join(skillDir, path.slice(prefix.length));
-        await mkdir(dirname(targetPath), { recursive: true });
-        await writeFile(targetPath, content);
-      }
-
-      const installed = await readInstalledSkills(project.folderPath);
+      const installed = await readInstalledSkills(scopeRoot);
       const withoutExisting = installed.filter((s) => s.skillId !== skillId);
       withoutExisting.push({
         skillId,
         repositoryId: SKILLS_SH_PSEUDO_REPOSITORY_ID,
-        version: branch,
+        version: new Date().toISOString().slice(0, 10),
         installedAt: new Date().toISOString(),
+        agents,
       });
-      await writeInstalledSkills(project.folderPath, withoutExisting);
+      await writeInstalledSkills(scopeRoot, withoutExisting);
     },
   );
 }

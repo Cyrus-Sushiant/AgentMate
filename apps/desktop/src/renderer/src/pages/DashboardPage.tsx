@@ -1086,9 +1086,22 @@ export default function DashboardPage(): React.JSX.Element {
                   />
                 </span>
               </SimpleTooltip>
-              <span className="truncate font-mono text-lg font-semibold">
-                {ipGeoQuery.data.ip || 'N/A'}
-              </span>
+              {ipGeoQuery.data.ip ? (
+                <SimpleTooltip label="Copy IP address">
+                  <button
+                    type="button"
+                    className="truncate rounded font-mono text-lg font-semibold transition-colors hover:text-primary"
+                    onClick={() => {
+                      void navigator.clipboard.writeText(ipGeoQuery.data.ip);
+                      toast.success('IP address copied.');
+                    }}
+                  >
+                    {ipGeoQuery.data.ip}
+                  </button>
+                </SimpleTooltip>
+              ) : (
+                <span className="truncate font-mono text-lg font-semibold">N/A</span>
+              )}
             </div>
           )
         }

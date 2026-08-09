@@ -642,7 +642,16 @@ export default function ProjectDetailPage(): React.JSX.Element {
                           <Button
                             variant="ghost"
                             size="icon"
-                            onClick={() => removeSkillMutation.mutate(skill.skillId)}
+                            onClick={() => {
+                              void confirmDialog({
+                                title: `Remove "${skill.skillId}"?`,
+                                description: 'This removes it from this project.',
+                                confirmLabel: 'Remove',
+                                variant: 'destructive',
+                              }).then((confirmed) => {
+                                if (confirmed) removeSkillMutation.mutate(skill.skillId);
+                              });
+                            }}
                           >
                             <Trash2 className="h-4 w-4" />
                           </Button>
