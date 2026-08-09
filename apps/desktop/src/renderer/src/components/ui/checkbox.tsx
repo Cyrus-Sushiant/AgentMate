@@ -1,7 +1,24 @@
 import * as React from 'react';
 import * as CheckboxPrimitive from '@radix-ui/react-checkbox';
-import { Check } from '@/components/icons';
 import { cn } from '@/lib/utils';
+
+/**
+ * A drawn tick rather than the Font Awesome one from `@/components/icons`, which is a solid glyph
+ * with sharp corners and reads heavy at this size. Round caps and a thin stroke keep it soft.
+ */
+function CheckTick(): React.JSX.Element {
+  return (
+    <svg viewBox="0 0 14 14" fill="none" className="h-3 w-3" aria-hidden="true">
+      <path
+        d="M3.2 7.3 5.8 9.9 10.8 4.4"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
 
 const Checkbox = React.forwardRef<
   React.ElementRef<typeof CheckboxPrimitive.Root>,
@@ -15,8 +32,8 @@ const Checkbox = React.forwardRef<
     )}
     {...props}
   >
-    <CheckboxPrimitive.Indicator className="flex items-center justify-center text-current">
-      <Check className="h-2.5 w-2.5" />
+    <CheckboxPrimitive.Indicator className="flex animate-in zoom-in-50 items-center justify-center text-current duration-150">
+      <CheckTick />
     </CheckboxPrimitive.Indicator>
   </CheckboxPrimitive.Root>
 ));

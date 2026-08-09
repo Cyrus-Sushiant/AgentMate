@@ -10,7 +10,7 @@
   },
   "main": "./out/main/index.mjs",
   "scripts": {
-    "dev": "pnpm rebuild:native && electron-vite dev",
+    "dev": "pnpm rebuild:native && electron-vite dev --watch",
     "build": "electron-vite build",
     "preview": "electron-vite preview",
     "package": "pnpm rebuild:native && electron-vite build && electron-builder",

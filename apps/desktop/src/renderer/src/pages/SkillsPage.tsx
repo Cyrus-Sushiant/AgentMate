@@ -3,7 +3,6 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useLocation } from 'react-router-dom';
 import { toast } from 'sonner';
 import {
-  Check,
   CircleCheck,
   Copy,
   ExternalLink,
@@ -23,6 +22,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Combobox } from '@/components/ui/combobox';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -93,16 +93,6 @@ function liveResultToDisplayEntry(r: SkillsShSearchResult): SkillsShDisplayEntry
     installCommand: r.installCommand,
     installsLabel: installsFormatter.format(r.installs),
   };
-}
-
-/**
- * Uses skills.sh's own published install command verbatim (the same one shown on the skill's
- * page), only appending `-g` for a global install, so what runs matches what the user sees there.
- * It runs in a terminal the user drives, since the CLI can prompt mid-install (e.g. a
- * security-risk confirmation).
- */
-function skillsShInstallCommand(skill: SkillsShDisplayEntry, global: boolean): string {
-  return global ? `${skill.installCommand} -g` : skill.installCommand;
 }
 
 export default function SkillsPage(): React.JSX.Element {
@@ -215,9 +205,12 @@ export default function SkillsPage(): React.JSX.Element {
         for (const target of targets) {
           const project = target === null ? null : projectById.get(target);
           try {
+            // Always the exact command skills.sh publishes for this skill, no extra flags. A
+            // global install is just the same command run from the home directory instead of a
+            // project folder, which is where the `skills` CLI puts its global skills.
             openTerminalSession({
               title: `Install ${skill.name}`,
-              initialInput: skillsShInstallCommand(skill, target === null),
+              initialInput: skill.installCommand,
               cwd: project?.folderPath,
               projectId: project?.id,
             });
@@ -846,22 +839,18 @@ export default function SkillsPage(): React.JSX.Element {
               onChange={(e) => setInstallPickerSearch(e.target.value)}
             />
           </div>
-          <button
-            type="button"
+          <label
             className={cn(
-              'flex w-full items-center gap-2.5 rounded-md border border-transparent px-3 py-2 text-left transition-colors hover:bg-muted',
-              installGlobally && 'border-primary bg-muted',
+              'flex cursor-pointer items-center gap-3 rounded-lg border px-3 py-2.5 transition-colors',
+              installGlobally
+                ? 'border-primary/60 bg-primary/10'
+                : 'border-border bg-card/60 hover:bg-card',
             )}
-            onClick={() => setInstallGlobally((v) => !v)}
           >
-            <span
-              className={cn(
-                'flex h-4 w-4 shrink-0 items-center justify-center rounded-sm border border-border',
-                installGlobally && 'border-primary bg-primary text-primary-foreground',
-              )}
-            >
-              {installGlobally && <Check className="h-3 w-3" />}
-            </span>
+            <Checkbox
+              checked={installGlobally}
+              onCheckedChange={(checked) => setInstallGlobally(checked === true)}
+            />
             <span className="flex min-w-0 flex-col">
               <span className="flex items-center gap-1.5 truncate text-sm font-medium text-foreground">
                 <Globe className="h-3.5 w-3.5" /> Install globally
@@ -870,34 +859,30 @@ export default function SkillsPage(): React.JSX.Element {
                 Available to every project
               </span>
             </span>
-          </button>
+          </label>
           <div className="border-t border-border" />
-          <div className="-mx-1 min-h-0 flex-1 space-y-1 overflow-y-auto px-1">
+          <div className="-mx-1 min-h-0 flex-1 space-y-1.5 overflow-y-auto px-1 py-0.5">
             {filteredProjectsForPicker.map((p) => {
               const checked = installPickerProjectIds.has(p.id);
               return (
-                <button
+                <label
                   key={p.id}
-                  type="button"
                   className={cn(
-                    'flex w-full items-center gap-2.5 rounded-md border border-transparent px-3 py-2 text-left transition-colors hover:bg-muted',
-                    checked && 'border-primary bg-muted',
+                    'flex cursor-pointer items-center gap-3 rounded-lg border px-3 py-2.5 transition-colors',
+                    checked
+                      ? 'border-primary/60 bg-primary/10'
+                      : 'border-border bg-card/60 hover:bg-card',
                   )}
-                  onClick={() => toggleInstallPickerProject(p.id)}
                 >
-                  <span
-                    className={cn(
-                      'flex h-4 w-4 shrink-0 items-center justify-center rounded-sm border border-border',
-                      checked && 'border-primary bg-primary text-primary-foreground',
-                    )}
-                  >
-                    {checked && <Check className="h-3 w-3" />}
-                  </span>
+                  <Checkbox
+                    checked={checked}
+                    onCheckedChange={() => toggleInstallPickerProject(p.id)}
+                  />
                   <span className="flex min-w-0 flex-col">
                     <span className="truncate text-sm font-medium text-foreground">{p.name}</span>
                     <span className="truncate text-xs text-muted-foreground">{p.folderPath}</span>
                   </span>
-                </button>
+                </label>
               );
             })}
             {filteredProjectsForPicker.length === 0 && (
