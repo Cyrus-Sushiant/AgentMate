@@ -1036,18 +1036,6 @@ export const bundledSkillsShDirectory: SkillsShEntry[] = [
     installCommand: 'npx skills add https://github.com/juliusbrussee/caveman --skill caveman',
   },
   {
-    id: 'mattpocock/skills/to-prd',
-    name: 'to-prd',
-    owner: 'mattpocock',
-    repo: 'mattpocock/skills',
-    description:
-      "Turn the current conversation into a PRD and publish it to the project issue tracker: no interview, just synthesis of what you've already discussed.",
-    official: false,
-    installsLabel: '358.3K',
-    url: 'https://www.skills.sh/mattpocock/skills/to-prd',
-    installCommand: 'npx skills add https://github.com/mattpocock/skills --skill to-prd',
-  },
-  {
     id: 'agentspace-so/runcomfy-agent-skills/codex-pet',
     name: 'codex-pet',
     owner: 'agentspace-so',
@@ -1059,18 +1047,6 @@ export const bundledSkillsShDirectory: SkillsShEntry[] = [
     url: 'https://www.skills.sh/agentspace-so/runcomfy-agent-skills/codex-pet',
     installCommand:
       'npx skills add https://github.com/agentspace-so/runcomfy-agent-skills --skill codex-pet',
-  },
-  {
-    id: 'mattpocock/skills/to-issues',
-    name: 'to-issues',
-    owner: 'mattpocock',
-    repo: 'mattpocock/skills',
-    description:
-      'Break a plan, spec, or PRD into independently-grabbable issues on the project issue tracker using tracer-bullet vertical slices.',
-    official: false,
-    installsLabel: '345.6K',
-    url: 'https://www.skills.sh/mattpocock/skills/to-issues',
-    installCommand: 'npx skills add https://github.com/mattpocock/skills --skill to-issues',
   },
   {
     id: 'soultrace-ai/soultrace-skill/soultrace',
@@ -2580,18 +2556,6 @@ export const bundledSkillsShDirectory: SkillsShEntry[] = [
     installCommand: 'npx skills add https://github.com/heygen-com/hyperframes --skill hyperframes',
   },
   {
-    id: 'mattpocock/skills/diagnose',
-    name: 'diagnose',
-    owner: 'mattpocock',
-    repo: 'mattpocock/skills',
-    description:
-      'Disciplined diagnosis loop for hard bugs and performance regressions. Reproduce → minimise → hypothesise → instrument → fix → regression-test. Use when user says "diagnose this" / "debug this", reports a bug, says something is broken/throwing/failing, or describes a performance regression.',
-    official: false,
-    installsLabel: '233.6K',
-    url: 'https://www.skills.sh/mattpocock/skills/diagnose',
-    installCommand: 'npx skills add https://github.com/mattpocock/skills --skill diagnose',
-  },
-  {
     id: '101-skills/skills/ai-video-generation',
     name: 'ai-video-generation',
     owner: '101-skills',
@@ -2666,42 +2630,6 @@ export const bundledSkillsShDirectory: SkillsShEntry[] = [
     url: 'https://www.skills.sh/heygen-com/hyperframes/hyperframes-registry',
     installCommand:
       'npx skills add https://github.com/heygen-com/hyperframes --skill hyperframes-registry',
-  },
-  {
-    id: 'mattpocock/skills/write-a-skill',
-    name: 'write-a-skill',
-    owner: 'mattpocock',
-    repo: 'mattpocock/skills',
-    description:
-      'Create new agent skills with proper structure, progressive disclosure, and bundled resources. Use when user wants to create, write, or build a new skill.',
-    official: false,
-    installsLabel: '225.4K',
-    url: 'https://www.skills.sh/mattpocock/skills/write-a-skill',
-    installCommand: 'npx skills add https://github.com/mattpocock/skills --skill write-a-skill',
-  },
-  {
-    id: 'mattpocock/skills/zoom-out',
-    name: 'zoom-out',
-    owner: 'mattpocock',
-    repo: 'mattpocock/skills',
-    description:
-      "Tell the agent to zoom out and give broader context or a higher-level perspective. Use when you're unfamiliar with a section of code or need to understand how it fits into the bigger picture.",
-    official: false,
-    installsLabel: '224.7K',
-    url: 'https://www.skills.sh/mattpocock/skills/zoom-out',
-    installCommand: 'npx skills add https://github.com/mattpocock/skills --skill zoom-out',
-  },
-  {
-    id: 'mattpocock/skills/caveman',
-    name: 'caveman',
-    owner: 'mattpocock',
-    repo: 'mattpocock/skills',
-    description:
-      'Ultra-compressed communication mode. Cuts token usage ~75% by dropping filler, articles, and pleasantries while keeping full technical accuracy. Use when user says "caveman mode", "talk like caveman", "use caveman", "less tokens", "be brief", or invokes /caveman.\n',
-    official: false,
-    installsLabel: '219.6K',
-    url: 'https://www.skills.sh/mattpocock/skills/caveman',
-    installCommand: 'npx skills add https://github.com/mattpocock/skills --skill caveman',
   },
   {
     id: 'larksuite/cli/lark-apps',
@@ -2903,17 +2831,17 @@ export const bundledSkillsShDirectory: SkillsShEntry[] = [
     installCommand: 'npx skills add https://github.com/mattpocock/skills --skill codebase-design',
   },
   {
-    id: 'mattpocock/skills/writing-great-skills',
-    name: 'writing-great-skills',
+    id: 'mattpocock/skills/writing-for-agents',
+    name: 'writing-for-agents',
     owner: 'mattpocock',
     repo: 'mattpocock/skills',
     description:
-      'Reference for writing and editing skills well: the vocabulary and principles that make a skill predictable.',
+      'Writing documents for agents. Use when creating or editing skills, or modifying AGENTS.md or CLAUDE.md.',
     official: false,
     installsLabel: '193.9K',
-    url: 'https://www.skills.sh/mattpocock/skills/writing-great-skills',
+    url: 'https://www.skills.sh/mattpocock/skills/writing-for-agents',
     installCommand:
-      'npx skills add https://github.com/mattpocock/skills --skill writing-great-skills',
+      'npx skills add https://github.com/mattpocock/skills --skill writing-for-agents',
   },
   {
     id: 'mattpocock/skills/diagnosing-bugs',
@@ -3213,19 +3141,6 @@ export const bundledSkillsShDirectory: SkillsShEntry[] = [
       'npx skills add https://github.com/leonxlnx/taste-skill --skill imagegen-frontend-web',
   },
   {
-    id: 'mattpocock/skills/design-an-interface',
-    name: 'design-an-interface',
-    owner: 'mattpocock',
-    repo: 'mattpocock/skills',
-    description:
-      'Generate multiple radically different interface designs for a module using parallel sub-agents. Use when user wants to design an API, explore interface options, compare module shapes, or mentions "design it twice".',
-    official: false,
-    installsLabel: '155.9K',
-    url: 'https://www.skills.sh/mattpocock/skills/design-an-interface',
-    installCommand:
-      'npx skills add https://github.com/mattpocock/skills --skill design-an-interface',
-  },
-  {
     id: 'coreyhaines31/marketingskills/copywriting',
     name: 'copywriting',
     owner: 'coreyhaines31',
@@ -3264,19 +3179,6 @@ export const bundledSkillsShDirectory: SkillsShEntry[] = [
     installCommand: 'npx skills add https://github.com/anthropics/skills --skill docx',
   },
   {
-    id: 'mattpocock/skills/request-refactor-plan',
-    name: 'request-refactor-plan',
-    owner: 'mattpocock',
-    repo: 'mattpocock/skills',
-    description:
-      'Create a detailed refactor plan with tiny commits via user interview, then file it as a GitHub issue. Use when user wants to plan a refactor, create a refactoring RFC, or break a refactor into safe incremental steps.',
-    official: false,
-    installsLabel: '151.6K',
-    url: 'https://www.skills.sh/mattpocock/skills/request-refactor-plan',
-    installCommand:
-      'npx skills add https://github.com/mattpocock/skills --skill request-refactor-plan',
-  },
-  {
     id: 'obra/superpowers/subagent-driven-development',
     name: 'subagent-driven-development',
     owner: 'obra',
@@ -3313,31 +3215,6 @@ export const bundledSkillsShDirectory: SkillsShEntry[] = [
     installsLabel: '147.5K',
     url: 'https://www.skills.sh/emilkowalski/skills/emil-design-eng',
     installCommand: 'npx skills add https://github.com/emilkowalski/skills --skill emil-design-eng',
-  },
-  {
-    id: 'mattpocock/skills/qa',
-    name: 'qa',
-    owner: 'mattpocock',
-    repo: 'mattpocock/skills',
-    description:
-      'Interactive QA session where user reports bugs or issues conversationally, and the agent files GitHub issues. Explores the codebase in the background for context and domain language. Use when user wants to report bugs, do QA, file issues conversationally, or mentions "QA session".',
-    official: false,
-    installsLabel: '147.2K',
-    url: 'https://www.skills.sh/mattpocock/skills/qa',
-    installCommand: 'npx skills add https://github.com/mattpocock/skills --skill qa',
-  },
-  {
-    id: 'mattpocock/skills/ubiquitous-language',
-    name: 'ubiquitous-language',
-    owner: 'mattpocock',
-    repo: 'mattpocock/skills',
-    description:
-      'Extract a DDD-style ubiquitous language glossary from the current conversation, flagging ambiguities and proposing canonical terms. Saves to UBIQUITOUS_LANGUAGE.md. Use when user wants to define domain terms, build a glossary, harden terminology, create a ubiquitous language, or mentions "domain model" or "DDD".',
-    official: false,
-    installsLabel: '147.2K',
-    url: 'https://www.skills.sh/mattpocock/skills/ubiquitous-language',
-    installCommand:
-      'npx skills add https://github.com/mattpocock/skills --skill ubiquitous-language',
   },
   {
     id: 'lllllllama/rigorpilot-skills/ai-research-explore',
@@ -3508,16 +3385,27 @@ export const bundledSkillsShDirectory: SkillsShEntry[] = [
       'npx skills add https://github.com/mattpocock/skills --skill git-guardrails-claude-code',
   },
   {
-    id: 'mattpocock/skills/obsidian-vault',
-    name: 'obsidian-vault',
+    id: 'mattpocock/skills/to-questionnaire',
+    name: 'to-questionnaire',
     owner: 'mattpocock',
     repo: 'mattpocock/skills',
     description:
-      'Search, create, and manage notes in the Obsidian vault with wikilinks and index notes. Use when user wants to find, create, or organize notes in Obsidian.',
+      "Turn a decision you can't fully answer into a questionnaire for someone else to fill in.",
     official: false,
     installsLabel: '144.4K',
-    url: 'https://www.skills.sh/mattpocock/skills/obsidian-vault',
-    installCommand: 'npx skills add https://github.com/mattpocock/skills --skill obsidian-vault',
+    url: 'https://www.skills.sh/mattpocock/skills/to-questionnaire',
+    installCommand: 'npx skills add https://github.com/mattpocock/skills --skill to-questionnaire',
+  },
+  {
+    id: 'mattpocock/skills/wait-what',
+    name: 'wait-what',
+    owner: 'mattpocock',
+    repo: 'mattpocock/skills',
+    description: 'Stop. That last message did not land: re-pitch it.',
+    official: false,
+    installsLabel: '144.3K',
+    url: 'https://www.skills.sh/mattpocock/skills/wait-what',
+    installCommand: 'npx skills add https://github.com/mattpocock/skills --skill wait-what',
   },
   {
     id: 'heygen-com/hyperframes/hyperframes-media',
@@ -3557,18 +3445,6 @@ export const bundledSkillsShDirectory: SkillsShEntry[] = [
     url: 'https://www.skills.sh/obra/superpowers/receiving-code-review',
     installCommand:
       'npx skills add https://github.com/obra/superpowers --skill receiving-code-review',
-  },
-  {
-    id: 'mattpocock/skills/edit-article',
-    name: 'edit-article',
-    owner: 'mattpocock',
-    repo: 'mattpocock/skills',
-    description:
-      'Edit and improve articles by restructuring sections, improving clarity, and tightening prose. Use when user wants to edit, revise, or improve an article draft.',
-    official: false,
-    installsLabel: '141.5K',
-    url: 'https://www.skills.sh/mattpocock/skills/edit-article',
-    installCommand: 'npx skills add https://github.com/mattpocock/skills --skill edit-article',
   },
   {
     id: 'heygen-com/hyperframes/hyperframes-creative',
@@ -3815,7 +3691,7 @@ export const bundledSkillsShDirectory: SkillsShEntry[] = [
     owner: 'mattpocock',
     repo: 'mattpocock/skills',
     description:
-      'Review the changes since a fixed point (commit, branch, tag, or merge-base) along two axes: Standards (does the code follow this repo\'s documented coding standards?) and Spec (does the code match what the originating issue/PRD asked for?). Runs both reviews in parallel sub-agents and reports them side by side. Use when the user wants to review a branch, a PR, work-in-progress changes, or asks to "review since X".',
+      'Review the changes since a fixed point (commit, branch, tag, or merge-base) along two axes: Standards (does the code follow this repo\'s documented coding standards?) and Spec (does the code match what the originating issue/spec asked for?). Runs both reviews in parallel sub-agents and reports them side by side. Use when the user wants to review a branch, a PR, work-in-progress changes, or asks to "review since X".',
     official: false,
     installsLabel: '127.9K',
     url: 'https://www.skills.sh/mattpocock/skills/code-review',
@@ -4380,18 +4256,6 @@ export const bundledSkillsShDirectory: SkillsShEntry[] = [
     installsLabel: '93.0K',
     url: 'https://www.skills.sh/firecrawl/cli/firecrawl',
     installCommand: 'npx skills add https://github.com/firecrawl/cli --skill firecrawl',
-  },
-  {
-    id: 'mattpocock/skills/review',
-    name: 'review',
-    owner: 'mattpocock',
-    repo: 'mattpocock/skills',
-    description:
-      'Review the changes since a fixed point (commit, branch, tag, or merge-base) along two axes: Standards (does the code follow this repo\'s documented coding standards?) and Spec (does the code match what the originating issue/PRD asked for?). Runs both reviews in parallel sub-agents and reports them side by side. Use when the user wants to review a branch, a PR, work-in-progress changes, or asks to "review since X".',
-    official: false,
-    installsLabel: '92.0K',
-    url: 'https://www.skills.sh/mattpocock/skills/review',
-    installCommand: 'npx skills add https://github.com/mattpocock/skills --skill review',
   },
   {
     id: 'heygen-com/hyperframes/music-to-video',
@@ -5371,7 +5235,7 @@ export const bundledSkillsShDirectory: SkillsShEntry[] = [
     owner: 'mattpocock',
     repo: 'mattpocock/skills',
     description:
-      'Generate an interactive bash wizard that walks a human through a manual procedure (third-party setup, a one-off migration, an A→B state transition): opening URLs, capturing values, confirming each step, and writing .env files and GitHub Actions secrets.',
+      "Generate an interactive bash wizard that walks a human through steps only they can perform. Use when provisioning infrastructure, setting up credentials or CI secrets, walking an unfamiliar third-party dashboard, or running a one-off migration or cutover. Don't invoke this for steps the agent can perform itself.",
     official: false,
     installsLabel: '62.1K',
     url: 'https://www.skills.sh/mattpocock/skills/wizard',
@@ -6502,18 +6366,6 @@ export const bundledSkillsShDirectory: SkillsShEntry[] = [
     url: 'https://www.skills.sh/jakubkrehel/make-interfaces-feel-better/make-interfaces-feel-better',
     installCommand:
       'npx skills add https://github.com/jakubkrehel/make-interfaces-feel-better --skill make-interfaces-feel-better',
-  },
-  {
-    id: 'mattpocock/skills/decision-mapping',
-    name: 'decision-mapping',
-    owner: 'mattpocock',
-    repo: 'mattpocock/skills',
-    description:
-      'Turn a loose idea into a sequenced map of investigation tickets, then drive them to resolution one at a time.',
-    official: false,
-    installsLabel: '43.5K',
-    url: 'https://www.skills.sh/mattpocock/skills/decision-mapping',
-    installCommand: 'npx skills add https://github.com/mattpocock/skills --skill decision-mapping',
   },
   {
     id: 'expo/skills/expo-dev-client',
