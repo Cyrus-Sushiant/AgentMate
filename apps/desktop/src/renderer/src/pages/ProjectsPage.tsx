@@ -6,6 +6,7 @@ import type { Project } from '@agentmat/core';
 import {
   Folder,
   FolderPlus,
+  Globe,
   GripVertical,
   Pin,
   Play,
@@ -25,6 +26,7 @@ import { cn } from '@/lib/utils';
 import { usePageHeader } from '@/stores/pageHeaderStore';
 import { useTerminalStore } from '@/stores/terminalStore';
 import { ProjectFormDialog, type ProjectFormValues } from '@/components/projects/ProjectFormDialog';
+import { ProjectIcon } from '@/components/projects/ProjectIcon';
 import { ProjectPromptBuildDialog } from '@/components/projects/ProjectPromptBuildDialog';
 
 /** Moves `draggedId` to sit just before `targetId` within one pin group. */
@@ -324,9 +326,7 @@ function ProjectCard({
       <CardHeader className="pb-3">
         <div className="flex items-start justify-between gap-2">
           <div className="flex min-w-0 items-center gap-3">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-              <Folder className="h-4 w-4" />
-            </div>
+            <ProjectIcon iconDataUrl={project.iconDataUrl} />
             <div className="min-w-0">
               <CardTitle className="truncate">{project.name}</CardTitle>
               <p className="mt-0.5 text-xs text-muted-foreground">
@@ -409,6 +409,19 @@ function ProjectCard({
             <Play className="h-3 w-3 shrink-0" />
             <span className="truncate font-mono">{project.runCommand}</span>
           </div>
+        )}
+        {project.websiteUrl && (
+          <button
+            type="button"
+            className="flex max-w-full items-center gap-1.5 truncate text-xs text-muted-foreground hover:text-primary hover:underline"
+            onClick={(e) => {
+              e.stopPropagation();
+              void window.agentmat.shell.openExternal(project.websiteUrl);
+            }}
+          >
+            <Globe className="h-3 w-3 shrink-0" />
+            <span className="truncate">{project.websiteUrl.replace(/^https?:\/\//, '')}</span>
+          </button>
         )}
         <div className="flex flex-wrap gap-1.5">
           <Badge variant="secondary">{project.agentType}</Badge>

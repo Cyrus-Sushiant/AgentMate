@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, stat, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { dialog, ipcMain } from 'electron';
 import { defaultProjectNotifications, getBootstrapPlan } from '@agentmat/core';
@@ -10,14 +10,31 @@ import type {
   ProjectNotificationSettings,
 } from '@agentmat/core';
 import { IPC } from '../../shared/ipcChannels';
-import type { BootstrapResult, CreateProjectInput } from '../../shared/apiTypes';
+import type { BootstrapResult, CreateProjectInput, FaviconResult } from '../../shared/apiTypes';
 import { store, logActivity } from '../store';
+import { ICON_FILE_EXTENSIONS, fetchSiteFavicon, readIconFile } from '../projectIcons';
 import {
   deleteClaudeHook,
   installProjectNotificationHooks,
   listClaudeHooks,
   updateClaudeHook,
 } from '../notifications/hookInstaller';
+
+/**
+ * The folder the user set as their projects root, if it is still there. A path
+ * that has since been moved or deleted is dropped so the dialog falls back to
+ * the OS default instead of opening on nothing.
+ */
+async function projectsRootPath(): Promise<string | null> {
+  const { projectsRootPath: root } = await store.getSettings();
+  if (!root) return null;
+  try {
+    const info = await stat(root);
+    return info.isDirectory() ? root : null;
+  } catch {
+    return null;
+  }
+}
 
 function planFor(project: Project): BootstrapPlan {
   return getBootstrapPlan({
@@ -46,6 +63,8 @@ export function registerProjectHandlers(): void {
         prompt: input.prompt ?? '',
         notifications: defaultProjectNotifications(),
         cliId: input.cliId ?? null,
+        iconDataUrl: input.iconDataUrl ?? null,
+        websiteUrl: input.websiteUrl ?? '',
         pinned: false,
         createdAt: now,
         updatedAt: now,
@@ -225,8 +244,23 @@ export function registerProjectHandlers(): void {
   ipcMain.handle(IPC.projects.pickFolder, async (): Promise<string | null> => {
     const result = await dialog.showOpenDialog({
       properties: ['openDirectory', 'createDirectory'],
+      defaultPath: (await projectsRootPath()) ?? undefined,
     });
     if (result.canceled || result.filePaths.length === 0) return null;
     return result.filePaths[0];
   });
+
+  ipcMain.handle(IPC.projects.pickIcon, async (): Promise<string | null> => {
+    const result = await dialog.showOpenDialog({
+      properties: ['openFile'],
+      filters: [{ name: 'Images', extensions: ICON_FILE_EXTENSIONS }],
+    });
+    if (result.canceled || result.filePaths.length === 0) return null;
+    return readIconFile(result.filePaths[0]);
+  });
+
+  ipcMain.handle(
+    IPC.projects.fetchFavicon,
+    (_event, siteUrl: string): Promise<FaviconResult | null> => fetchSiteFavicon(siteUrl),
+  );
 }

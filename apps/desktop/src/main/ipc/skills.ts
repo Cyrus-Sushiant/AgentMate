@@ -5,9 +5,12 @@ import { dirname, join } from 'node:path';
 import { promisify } from 'node:util';
 import { app, dialog, ipcMain } from 'electron';
 import {
+  isUiProAiTarget,
   parseRepositoryIndex,
   SKILLS_SH_PSEUDO_REPOSITORY_ID,
   SKILLS_SH_VERIFIED_OWNERS,
+  UI_UX_PRO_MAX_PSEUDO_REPOSITORY_ID,
+  UI_UX_PRO_MAX_SKILL_ID,
 } from '@agentmat/core';
 import type {
   Skill,
@@ -19,9 +22,12 @@ import { IPC } from '../../shared/ipcChannels';
 import type {
   InstallFromSkillsShInput,
   InstalledSkillRecord,
+  RecordUiProInstallInput,
   SkillsShDetail,
   SkillsShSearchResult,
   SkillUpdateInfo,
+  UiProPrerequisites,
+  UiProToolProbe,
 } from '../../shared/apiTypes';
 import { store } from '../store';
 
@@ -76,6 +82,43 @@ async function runSkillsCli(args: string[], cwd: string): Promise<void> {
     const message = stderr?.trim() || (error instanceof Error ? error.message : String(error));
     throw new Error(stripAnsi(message));
   }
+}
+
+const PROBE_TIMEOUT_MS = 8000;
+
+/** Runs a command purely to see whether it resolves, mirroring the probe in tools.ts. */
+async function probeCommand(command: string, args: string[]): Promise<string | null> {
+  try {
+    // npm-installed CLIs are .cmd shims on Windows, which Node refuses to spawn directly, so
+    // route through cmd.exe with a static argv array.
+    const { stdout } =
+      process.platform === 'win32'
+        ? await execFileAsync('cmd.exe', ['/d', '/s', '/c', command, ...args], {
+            timeout: PROBE_TIMEOUT_MS,
+            windowsHide: true,
+          })
+        : await execFileAsync(command, args, { timeout: PROBE_TIMEOUT_MS, windowsHide: true });
+    return stdout.trim();
+  } catch {
+    return null;
+  }
+}
+
+function toProbe(output: string | null): UiProToolProbe {
+  return { found: output !== null, version: output?.match(/\d+\.\d+(\.\d+)?[\w.-]*/)?.[0] ?? null };
+}
+
+/**
+ * Python 3 answers to `python3` on most systems and to `python` on Windows. The version string is
+ * matched rather than just the exit code, since Windows ships a `python` alias that opens the
+ * Microsoft Store instead of running anything.
+ */
+async function probePython(): Promise<{ probe: UiProToolProbe; command: string | null }> {
+  for (const command of ['python3', 'python']) {
+    const output = await probeCommand(command, ['--version']);
+    if (output && /Python 3\./.test(output)) return { probe: toProbe(output), command };
+  }
+  return { probe: { found: false, version: null }, command: null };
 }
 
 async function readInstalledSkills(projectFolderPath: string): Promise<InstalledSkillRecord[]> {
@@ -260,7 +303,11 @@ export function registerSkillHandlers(): void {
       const installed = await readInstalledSkills(scopeRoot);
       const record = installed.find((s) => s.skillId === params.skillId);
 
-      if (record?.repositoryId === SKILLS_SH_PSEUDO_REPOSITORY_ID) {
+      if (record?.repositoryId === UI_UX_PRO_MAX_PSEUDO_REPOSITORY_ID) {
+        // Nothing to delete here: `uipro uninstall` owns the files it wrote, and the renderer
+        // runs it in a visible terminal (it prints what it removed and can ask for a platform).
+        // This handler only drops AgentMate's own bookkeeping entry.
+      } else if (record?.repositoryId === SKILLS_SH_PSEUDO_REPOSITORY_ID) {
         const skillName = params.skillId.split('/').pop() ?? params.skillId;
         if (SKILL_NAME_PATTERN.test(skillName)) {
           const agents = (record.agents ?? []).filter((a) => SKILL_NAME_PATTERN.test(a));
@@ -421,6 +468,57 @@ export function registerSkillHandlers(): void {
         agents,
       });
       await writeInstalledSkills(scopeRoot, withoutExisting);
+    },
+  );
+
+  ipcMain.handle(
+    IPC.skills.checkUiProPrerequisites,
+    async (): Promise<UiProPrerequisites> => {
+      const [node, npm, python, uipro] = await Promise.all([
+        probeCommand('node', ['--version']),
+        probeCommand('npm', ['--version']),
+        probePython(),
+        probeCommand('uipro', ['--version']),
+      ]);
+      return {
+        node: toProbe(node),
+        npm: toProbe(npm),
+        python: python.probe,
+        pythonCommand: python.command,
+        uipro: toProbe(uipro),
+      };
+    },
+  );
+
+  // Like the skills.sh flow, `uipro init` runs in a visible terminal opened by the renderer,
+  // since it prints the files it writes and can prompt. This only records the install so the
+  // skill shows up in AgentMate's installed lists.
+  ipcMain.handle(
+    IPC.skills.recordUiProInstall,
+    async (_event, params: RecordUiProInstallInput): Promise<void> => {
+      const agents = params.agents.filter(isUiProAiTarget);
+      if (agents.length === 0) throw new Error('No valid assistant selected.');
+
+      const scopeRoot = await resolveSkillScopeRoot(params.projectId);
+      await mkdir(scopeRoot, { recursive: true });
+
+      const installed = await readInstalledSkills(scopeRoot);
+      const existing = installed.find((s) => s.skillId === UI_UX_PRO_MAX_SKILL_ID);
+      // Installing for a second assistant adds to the record instead of replacing it, since the
+      // earlier assistant's files are still on disk.
+      const mergedAgents = [...new Set([...(existing?.agents ?? []), ...agents])];
+
+      await writeInstalledSkills(scopeRoot, [
+        ...installed.filter((s) => s.skillId !== UI_UX_PRO_MAX_SKILL_ID),
+        {
+          skillId: UI_UX_PRO_MAX_SKILL_ID,
+          repositoryId: UI_UX_PRO_MAX_PSEUDO_REPOSITORY_ID,
+          version: new Date().toISOString().slice(0, 10),
+          installedAt: new Date().toISOString(),
+          agents: mergedAgents,
+          installMethod: params.method,
+        },
+      ]);
     },
   );
 }

@@ -23,6 +23,7 @@ import {
   GitBranch,
   GitCommit,
   GitPullRequest,
+  Globe,
   History,
   MessageSquare,
   Package,
@@ -85,6 +86,8 @@ import { SimpleTooltip } from '@/components/ui/tooltip';
 import { MonacoEditor } from '@/components/editor/MonacoEditor';
 import { ProjectFileBrowser } from '@/components/projects/ProjectFileBrowser';
 import { ProjectFormDialog, type ProjectFormValues } from '@/components/projects/ProjectFormDialog';
+import { ProjectIcon } from '@/components/projects/ProjectIcon';
+import { GitSetupWizard } from '@/components/projects/GitSetupWizard';
 import { ProjectPromptDialog } from '@/components/projects/ProjectPromptDialog';
 import {
   BootstrapDescriptionDialog,
@@ -136,9 +139,7 @@ export default function ProjectDetailPage(): React.JSX.Element {
     queryFn: () => window.agentmat.skills.checkForUpdates(projectId!),
     enabled: !!projectId && (installedSkillsQuery.data?.length ?? 0) > 0,
   });
-  const skillUpdateBySkillId = new Map(
-    (skillUpdatesQuery.data ?? []).map((u) => [u.skillId, u]),
-  );
+  const skillUpdateBySkillId = new Map((skillUpdatesQuery.data ?? []).map((u) => [u.skillId, u]));
 
   // Shares its key with the Overview tab's drafts list, so both read one fetch.
   const draftsQuery = useQuery({
@@ -346,9 +347,11 @@ export default function ProjectDetailPage(): React.JSX.Element {
       <div className="glass rounded-lg p-5">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="flex min-w-0 items-start gap-4">
-            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-              <Folder className="h-5 w-5" />
-            </div>
+            <ProjectIcon
+              iconDataUrl={project.iconDataUrl}
+              className="h-12 w-12"
+              glyphClassName="h-5 w-5"
+            />
             <div className="min-w-0 space-y-2">
               <h1 className="truncate text-lg font-semibold">{project.name}</h1>
               {project.description && (
@@ -393,6 +396,20 @@ export default function ProjectDetailPage(): React.JSX.Element {
                   </button>
                 </SimpleTooltip>
               </div>
+              {project.websiteUrl && (
+                <SimpleTooltip label={`Open ${project.websiteUrl}`}>
+                  <button
+                    type="button"
+                    onClick={() => void window.agentmat.shell.openExternal(project.websiteUrl)}
+                    className="flex min-w-0 items-center gap-1.5 truncate text-xs text-muted-foreground hover:text-foreground"
+                  >
+                    <Globe className="h-3 w-3 shrink-0" />
+                    <span className="truncate">
+                      {project.websiteUrl.replace(/^https?:\/\//, '')}
+                    </span>
+                  </button>
+                </SimpleTooltip>
+              )}
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-2">
@@ -703,7 +720,7 @@ export default function ProjectDetailPage(): React.JSX.Element {
             </TabsContent>
 
             <TabsContent value="git" className="space-y-4">
-              <GitTab projectId={project.id} />
+              <GitTab projectId={project.id} folderPath={project.folderPath} />
             </TabsContent>
 
             <TabsContent value="schedule" className="space-y-3">
@@ -1368,9 +1385,16 @@ function AiSuggestButton({
   );
 }
 
-function GitTab({ projectId }: { projectId: string }): React.JSX.Element {
+function GitTab({
+  projectId,
+  folderPath,
+}: {
+  projectId: string;
+  folderPath: string;
+}): React.JSX.Element {
   const queryClient = useQueryClient();
 
+  const [setupOpen, setSetupOpen] = useState(false);
   const [branchName, setBranchName] = useState('');
   const [commitMessage, setCommitMessage] = useState('');
   const [suggestingBranch, setSuggestingBranch] = useState(false);
@@ -1488,7 +1512,32 @@ function GitTab({ projectId }: { projectId: string }): React.JSX.Element {
   }
 
   if (!statusQuery.data?.isRepo) {
-    return <p className="text-sm text-muted-foreground">This folder isn't a git repository.</p>;
+    return (
+      <>
+        <div className="glass flex flex-col items-center gap-3 rounded-lg p-10 text-center">
+          <GitBranch className="h-8 w-8 text-muted-foreground" />
+          <div className="space-y-1">
+            <p className="text-sm font-medium">This folder isn't a git repository yet</p>
+            <p className="text-xs text-muted-foreground">
+              Start one on a master branch, then publish it to a GitHub account or organization
+              without leaving the app.
+            </p>
+          </div>
+          <Button onClick={() => setSetupOpen(true)}>
+            <GitBranch className="h-4 w-4" /> Initialize repository
+          </Button>
+        </div>
+
+        <GitSetupWizard
+          projectId={projectId}
+          folderPath={folderPath}
+          isRepo={false}
+          currentBranch={null}
+          open={setupOpen}
+          onOpenChange={setSetupOpen}
+        />
+      </>
+    );
   }
 
   const status = statusQuery.data;
@@ -1540,18 +1589,20 @@ function GitTab({ projectId }: { projectId: string }): React.JSX.Element {
           <Button
             variant="outline"
             size="sm"
-            disabled={anyOpPending}
+            disabled={anyOpPending || !status.hasRemote}
             onClick={() => pushMutation.mutate()}
           >
             <CloudUpload className="h-3.5 w-3.5" /> Push
           </Button>
-          <Button
-            size="sm"
-            disabled={anyOpPending || !status.hasRemote}
-            onClick={() => syncMutation.mutate()}
-          >
-            <RefreshCw className="h-3.5 w-3.5" /> Sync
-          </Button>
+          {status.hasRemote ? (
+            <Button size="sm" disabled={anyOpPending} onClick={() => syncMutation.mutate()}>
+              <RefreshCw className="h-3.5 w-3.5" /> Sync
+            </Button>
+          ) : (
+            <Button size="sm" onClick={() => setSetupOpen(true)}>
+              <CloudUpload className="h-3.5 w-3.5" /> Connect to GitHub
+            </Button>
+          )}
         </div>
       </div>
 
@@ -1670,6 +1721,15 @@ function GitTab({ projectId }: { projectId: string }): React.JSX.Element {
           <GitPullRequest className="h-3.5 w-3.5" /> Create Pull Request
         </Button>
       </div>
+
+      <GitSetupWizard
+        projectId={projectId}
+        folderPath={folderPath}
+        isRepo
+        currentBranch={status.branch}
+        open={setupOpen}
+        onOpenChange={setSetupOpen}
+      />
 
       <TagVersionDialog
         projectId={projectId}

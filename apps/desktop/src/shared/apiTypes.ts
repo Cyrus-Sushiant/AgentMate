@@ -62,8 +62,21 @@ export interface CreateProjectInput {
   runCommand: string;
   /** CLI_REGISTRY id for this project's AI actions; null means the app default in Settings. */
   cliId?: string | null;
+  /** Icon image inlined as a data URL; null (or omitted) leaves the project on the folder glyph. */
+  iconDataUrl?: string | null;
+  /** Site this project lives at; the favicon fetch reads it. */
+  websiteUrl?: string;
   /** Optional: the create/edit form doesn't collect it; the Prompt dialog defines it later. */
   prompt?: string;
+}
+
+export interface FaviconResult {
+  /** The icon itself, ready to store on the project. */
+  dataUrl: string;
+  /** Where it came from, so the UI can say which site answered after redirects. */
+  sourceUrl: string;
+  /** The normalized site URL, which is what gets saved as the project's websiteUrl. */
+  siteUrl: string;
 }
 
 export interface BootstrapResult {
@@ -94,6 +107,8 @@ export interface InstalledSkillRecord {
   installedAt: string;
   /** CLI agent ids (e.g. 'claude-code', 'cursor') this skill was installed for. Unset for repo-based skills, which aren't agent-specific. */
   agents?: string[];
+  /** How the skill's own CLI was run ('npm-global' or 'npx'), so removal uses the same route. */
+  installMethod?: string;
 }
 
 /** Compares an installed repo-based skill's stored version against its repository's current version. */
@@ -138,6 +153,36 @@ export interface InstallFromSkillsShInput {
   skillName: string;
   /** CLI agent ids (e.g. 'claude-code', 'cursor') the skill was installed for. */
   agents: string[];
+}
+
+/** One probed command behind the UI UX Pro Max wizard's prerequisite step. */
+export interface UiProToolProbe {
+  found: boolean;
+  version: string | null;
+}
+
+/**
+ * What the `uipro` CLI needs to be able to run: Node and npm to install it, and Python 3 for the
+ * skill's own search/design-system scripts. `uipro` itself is reported so the wizard can skip the
+ * global npm install when it is already there.
+ */
+export interface UiProPrerequisites {
+  node: UiProToolProbe;
+  npm: UiProToolProbe;
+  /** True when either `python3` or `python` resolves to a Python 3.x. */
+  python: UiProToolProbe;
+  /** The command that found Python, so the wizard can show the one that works here. */
+  pythonCommand: string | null;
+  uipro: UiProToolProbe;
+}
+
+export interface RecordUiProInstallInput {
+  /** null records a global install (~/.claude/skills and friends) instead of a project one. */
+  projectId: string | null;
+  /** `--ai` values the skill was installed for, or ['all']. */
+  agents: string[];
+  /** Which route was used, kept so the removal command matches the install. */
+  method: string;
 }
 
 export type PromptHistorySource = 'generate' | 'translate';
@@ -399,6 +444,72 @@ export interface CreatePullRequestResult {
   error?: string;
   /** True when the GitHub CLI wasn't available and we opened a compare page in the browser instead. */
   usedFallback?: boolean;
+}
+
+export interface GitInitInput {
+  projectId: string;
+  /** Branch the fresh repository starts on, e.g. "master". */
+  branch: string;
+  /** Stage everything and record a first commit right after the init. */
+  initialCommit: boolean;
+  commitMessage?: string;
+}
+
+export type GithubOwnerType = 'user' | 'organization';
+
+export interface GithubOwner {
+  login: string;
+  type: GithubOwnerType;
+}
+
+export interface GithubAccount {
+  /** False when the GitHub CLI isn't installed at all. */
+  cliAvailable: boolean;
+  /** False when gh is there but nobody has logged in with it. */
+  authenticated: boolean;
+  login: string | null;
+  /** The signed-in account first, then every organization it belongs to. */
+  owners: GithubOwner[];
+  error?: string;
+}
+
+export interface GithubRepoInfo {
+  fullName: string;
+  htmlUrl: string;
+  cloneUrl: string;
+  sshUrl: string;
+  defaultBranch: string;
+  isPrivate: boolean;
+}
+
+export interface GithubRepoLookup {
+  /** False only when the lookup itself failed, which is different from "no such repo". */
+  ok: boolean;
+  exists: boolean;
+  repo?: GithubRepoInfo;
+  error?: string;
+}
+
+export interface CreateGithubRepoInput {
+  /** A user login or an organization login the account can create repos in. */
+  owner: string;
+  name: string;
+  isPrivate: boolean;
+  description?: string;
+}
+
+export interface CreateGithubRepoResult {
+  ok: boolean;
+  repo?: GithubRepoInfo;
+  error?: string;
+}
+
+export interface ConnectRemoteInput {
+  projectId: string;
+  /** Remote URL, https or ssh. */
+  url: string;
+  /** Push the current branch with -u once the remote is wired up. */
+  push: boolean;
 }
 
 export type PackageManagerEcosystem = 'node' | 'dotnet';

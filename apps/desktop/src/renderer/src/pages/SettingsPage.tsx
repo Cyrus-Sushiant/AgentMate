@@ -5,6 +5,8 @@ import { toast } from 'sonner';
 import {
   Blocks,
   Download,
+  Folder,
+  FolderOpen,
   HardDrive,
   Languages,
   MessageSquare,
@@ -213,6 +215,37 @@ export default function SettingsPage(): React.JSX.Element {
     toast.success('Ping targets updated.');
   }
 
+  const [projectsRootPath, setProjectsRootPath] = useState('');
+  const [projectsRootDirty, setProjectsRootDirty] = useState(false);
+
+  useEffect(() => {
+    if (!projectsRootDirty && settingsQuery.data) {
+      setProjectsRootPath(settingsQuery.data.projectsRootPath ?? '');
+    }
+  }, [settingsQuery.data, projectsRootDirty]);
+
+  const saveProjectsRootMutation = useMutation({
+    mutationFn: () =>
+      window.agentmat.settings.update({ projectsRootPath: projectsRootPath.trim() || null }),
+    onSuccess: (settings) => {
+      setProjectsRootPath(settings.projectsRootPath ?? '');
+      toast.success(
+        settings.projectsRootPath
+          ? 'Projects folder saved.'
+          : 'Projects folder cleared. Folder pickers open wherever your system last left off.',
+      );
+      setProjectsRootDirty(false);
+      void queryClient.invalidateQueries({ queryKey: queryKeys.settings });
+    },
+  });
+
+  async function handleBrowseProjectsRoot(): Promise<void> {
+    const picked = await window.agentmat.projects.pickFolder();
+    if (!picked) return;
+    setProjectsRootPath(picked);
+    setProjectsRootDirty(true);
+  }
+
   const [translateMaxRetriesText, setTranslateMaxRetriesText] = useState('3');
   const [translateRetriesDirty, setTranslateRetriesDirty] = useState(false);
 
@@ -367,6 +400,39 @@ export default function SettingsPage(): React.JSX.Element {
               <option.icon /> {option.label}
             </Button>
           ))}
+        </CardContent>
+      </Card>
+
+      <Card className="glass">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Folder className="h-4 w-4" /> Projects Folder
+          </CardTitle>
+          <CardDescription>
+            Where you keep your projects. Folder pickers, like the one for adding a project, open
+            here instead of the system default. Leave it empty to use the system default.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-wrap items-center gap-2">
+          <Input
+            value={projectsRootPath}
+            onChange={(e) => {
+              setProjectsRootPath(e.target.value);
+              setProjectsRootDirty(true);
+            }}
+            placeholder="C:\Users\you\Projects"
+            className="max-w-md"
+          />
+          <Button variant="outline" onClick={handleBrowseProjectsRoot}>
+            <FolderOpen /> Browse…
+          </Button>
+          <Button
+            variant="outline"
+            disabled={!projectsRootDirty || saveProjectsRootMutation.isPending}
+            onClick={() => saveProjectsRootMutation.mutate()}
+          >
+            Save
+          </Button>
         </CardContent>
       </Card>
 

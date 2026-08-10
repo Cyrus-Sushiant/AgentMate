@@ -15,8 +15,19 @@ import {
   Trash2,
 } from '@/components/icons';
 import type { SkillRepositorySourceType } from '@agentmat/core';
-import { bundledSkillsShDirectory, SKILLS_SH_SNAPSHOT_DATE } from '@agentmat/core';
-import type { SkillsShSearchResult, SkillUpdateInfo } from '../../../shared/apiTypes';
+import {
+  bundledSkillsShDirectory,
+  buildUiProUninstallCommands,
+  SKILLS_SH_SNAPSHOT_DATE,
+  UI_UX_PRO_MAX_AI_TARGETS,
+  UI_UX_PRO_MAX_PSEUDO_REPOSITORY_ID,
+} from '@agentmat/core';
+import type { UiProInstallMethod } from '@agentmat/core';
+import type {
+  InstalledSkillRecord,
+  SkillsShSearchResult,
+  SkillUpdateInfo,
+} from '../../../shared/apiTypes';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -35,6 +46,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { CatalogCardSkeleton } from '@/components/CatalogCardSkeleton';
+import { UiUxProMaxCard } from '@/components/skills/UiUxProMaxCard';
 import { queryKeys } from '@/lib/queryKeys';
 import { cn } from '@/lib/utils';
 import { confirmDialog } from '@/stores/confirmStore';
@@ -81,6 +93,27 @@ const SKILLS_CLI_AGENT_OPTIONS: { value: string; label: string }[] = [
   { value: 'gemini-cli', label: 'Gemini CLI' },
 ];
 const ALL_SKILLS_CLI_AGENTS = SKILLS_CLI_AGENT_OPTIONS.map((a) => a.value);
+
+/**
+ * The `uipro` CLI names the same agents differently, so its installed records still answer to the
+ * Global Skills filter above.
+ */
+const UI_PRO_AGENT_ALIASES: Record<string, string> = {
+  'claude-code': 'claude',
+  codex: 'codex',
+  cursor: 'cursor',
+  opencode: 'opencode',
+  'gemini-cli': 'gemini',
+};
+
+function agentLabel(value: string): string {
+  if (value === 'all') return 'Every assistant';
+  return (
+    SKILLS_CLI_AGENT_OPTIONS.find((o) => o.value === value)?.label ??
+    UI_UX_PRO_MAX_AI_TARGETS.find((t) => t.value === value)?.label ??
+    value
+  );
+}
 
 function liveResultToDisplayEntry(r: SkillsShSearchResult): SkillsShDisplayEntry {
   return {
@@ -349,11 +382,28 @@ export default function SkillsPage(): React.JSX.Element {
   const filteredGlobalSkills = useMemo(() => {
     const skills = globalInstalledQuery.data ?? [];
     if (globalSkillsAgentFilter === 'all') return skills;
-    return skills.filter((s) => s.agents?.includes(globalSkillsAgentFilter));
+    const alias = UI_PRO_AGENT_ALIASES[globalSkillsAgentFilter];
+    return skills.filter((s) =>
+      s.agents?.some((a) => a === globalSkillsAgentFilter || a === alias || a === 'all'),
+    );
   }, [globalInstalledQuery.data, globalSkillsAgentFilter]);
 
   const removeGlobalSkillMutation = useMutation({
-    mutationFn: (skillId: string) => window.agentmat.skills.remove({ projectId: null, skillId }),
+    mutationFn: async (record: InstalledSkillRecord) => {
+      if (record.repositoryId === UI_UX_PRO_MAX_PSEUDO_REPOSITORY_ID) {
+        // `uipro uninstall` owns the files it wrote and reports what it removed, so it runs in a
+        // visible terminal the same way the install did.
+        openTerminalSession({
+          title: 'Remove UI UX Pro Max',
+          initialInput: buildUiProUninstallCommands({
+            method: (record.installMethod as UiProInstallMethod) ?? 'npm-global',
+            agents: record.agents ?? [],
+            global: true,
+          }).join('; '),
+        });
+      }
+      await window.agentmat.skills.remove({ projectId: null, skillId: record.skillId });
+    },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.installedSkills(null) });
       void queryClient.invalidateQueries({ queryKey: queryKeys.skillUpdates(null) });
@@ -412,9 +462,10 @@ export default function SkillsPage(): React.JSX.Element {
 
   return (
     <div className="space-y-6 p-6">
-      <Tabs defaultValue="marketplace">
+      <Tabs defaultValue="featured">
         <div className="flex items-center justify-between">
           <TabsList>
+            <TabsTrigger value="featured">Featured</TabsTrigger>
             <TabsTrigger value="marketplace">My Repositories</TabsTrigger>
             <TabsTrigger value="directory">skills.sh Directory</TabsTrigger>
           </TabsList>
@@ -427,6 +478,14 @@ export default function SkillsPage(): React.JSX.Element {
             )}
           </Button>
         </div>
+
+        <TabsContent value="featured" className="space-y-6">
+          <p className="text-sm text-muted-foreground">
+            Skills that ship their own installer instead of plain files, so AgentMate walks you
+            through their CLI rather than copying a folder.
+          </p>
+          <UiUxProMaxCard />
+        </TabsContent>
 
         <TabsContent value="marketplace" className="space-y-6">
           <div className="flex flex-wrap items-end gap-3">
@@ -975,7 +1034,7 @@ export default function SkillsPage(): React.JSX.Element {
                       <span className="text-muted-foreground">v{skill.version}</span>
                       {skill.agents?.map((a) => (
                         <Badge key={a} variant="outline">
-                          {SKILLS_CLI_AGENT_OPTIONS.find((o) => o.value === a)?.label ?? a}
+                          {agentLabel(a)}
                         </Badge>
                       ))}
                       {update?.hasUpdate && (
@@ -1002,11 +1061,14 @@ export default function SkillsPage(): React.JSX.Element {
                         onClick={() => {
                           void confirmDialog({
                             title: `Remove "${skill.skillId}"?`,
-                            description: 'This removes it globally.',
+                            description:
+                              skill.repositoryId === UI_UX_PRO_MAX_PSEUDO_REPOSITORY_ID
+                                ? 'This opens a terminal with the uninstall command, which you run yourself, and drops it from this list.'
+                                : 'This removes it globally.',
                             confirmLabel: 'Remove',
                             variant: 'destructive',
                           }).then((confirmed) => {
-                            if (confirmed) removeGlobalSkillMutation.mutate(skill.skillId);
+                            if (confirmed) removeGlobalSkillMutation.mutate(skill);
                           });
                         }}
                       >

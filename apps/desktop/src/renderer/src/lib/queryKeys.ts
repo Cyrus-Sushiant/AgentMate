@@ -27,8 +27,10 @@ export const queryKeys = {
   claudeHooks: (projectId: string) => ['claude-hooks', projectId] as const,
   gitStatus: (projectId: string) => ['git-status', projectId] as const,
   gitTags: (projectId: string) => ['git-tags', projectId] as const,
+  githubAccount: ['github-account'] as const,
   packages: (projectId: string) => ['packages', projectId] as const,
   skillsShSearch: (query: string) => ['skills-sh-search', query] as const,
   skillsShDetail: (id: string) => ['skills-sh-detail', id] as const,
+  uiProPrerequisites: ['ui-ux-pro-max-prerequisites'] as const,
   remoteSavedServers: ['remote-saved-servers'] as const,
 };

@@ -51,6 +51,8 @@ export type DashboardUsageSummaryId = (typeof DASHBOARD_USAGE_SUMMARY_IDS)[numbe
 export interface AppSettings {
   defaultCliId: string | null;
   theme: ThemeMode;
+  /** Folder that holds the user's projects; folder pickers open here instead of the OS default. */
+  projectsRootPath: string | null;
   skillRepositoryIds: string[];
   /** Hosts/IPs pinged for the dashboard's Network Status graph. */
   pingTargets: string[];
@@ -165,6 +167,14 @@ export interface Project {
    * different agent.
    */
   cliId: string | null;
+  /**
+   * The project's own icon, stored inline as a data URL so it survives backups
+   * and never depends on a file that moves. Either picked from disk or grabbed
+   * from `websiteUrl`'s favicon. Null falls back to the generic folder glyph.
+   */
+  iconDataUrl: string | null;
+  /** Site this project lives at, and the source its favicon is fetched from. Empty when unset. */
+  websiteUrl: string;
   /** Pinned projects are sorted first on the Projects page, above the drag-ordered rest. */
   pinned: boolean;
   createdAt: string;

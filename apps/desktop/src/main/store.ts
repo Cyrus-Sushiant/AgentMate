@@ -48,6 +48,7 @@ async function writeJsonFile<T>(fileName: string, data: T): Promise<void> {
 const DEFAULT_SETTINGS: AppSettings = {
   defaultCliId: null,
   theme: 'system',
+  projectsRootPath: null,
   skillRepositoryIds: [],
   pingTargets: ['1.1.1.1'],
   telegramBotToken: null,
@@ -98,7 +99,7 @@ function withSettingsMigrations(settings: AppSettings): AppSettings {
   };
 }
 
-/** Older projects.json entries predate the notifications, prompt, pinned, and cliId fields. */
+/** Older projects.json entries predate the notifications, prompt, pinned, cliId, and icon fields. */
 function withProjectDefaults(project: Project): Project {
   return {
     ...project,
@@ -106,6 +107,8 @@ function withProjectDefaults(project: Project): Project {
     prompt: project.prompt ?? '',
     pinned: project.pinned ?? false,
     cliId: project.cliId ?? null,
+    iconDataUrl: project.iconDataUrl ?? null,
+    websiteUrl: project.websiteUrl ?? '',
   };
 }
 

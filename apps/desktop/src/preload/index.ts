@@ -37,6 +37,7 @@ import type {
   CreateProjectInput,
   CreateProjectDraftInput,
   CreateScheduledTasksInput,
+  FaviconResult,
   SaveTemplateInput,
   DirectoryEntry,
   InstalledSkillRecord,
@@ -45,6 +46,8 @@ import type {
   SkillsShDetail,
   SkillsShSearchResult,
   InstallFromSkillsShInput,
+  UiProPrerequisites,
+  RecordUiProInstallInput,
   AddPromptHistoryInput,
   PromptHistoryEntry,
   BackupExportResult,
@@ -72,6 +75,12 @@ import type {
   ApplyVersionResult,
   CreatePullRequestInput,
   CreatePullRequestResult,
+  GitInitInput,
+  GithubAccount,
+  GithubRepoLookup,
+  CreateGithubRepoInput,
+  CreateGithubRepoResult,
+  ConnectRemoteInput,
   PackageScanResult,
   PackageUpdateProgress,
   PackageUpdateRequest,
@@ -166,6 +175,11 @@ const projects = {
   bootstrapPlan: (projectId: string): Promise<BootstrapPlan> =>
     ipcRenderer.invoke(IPC.projects.bootstrapPlan, projectId),
   pickFolder: (): Promise<string | null> => ipcRenderer.invoke(IPC.projects.pickFolder),
+  /** Opens an image picker and returns the file inlined as a data URL, or null if cancelled. */
+  pickIcon: (): Promise<string | null> => ipcRenderer.invoke(IPC.projects.pickIcon),
+  /** Downloads a site's favicon; null when the site is unreachable or has no icon. */
+  fetchFavicon: (siteUrl: string): Promise<FaviconResult | null> =>
+    ipcRenderer.invoke(IPC.projects.fetchFavicon, siteUrl),
   updateNotifications: (
     projectId: string,
     notifications: ProjectNotificationSettings,
@@ -215,6 +229,10 @@ const skills = {
     ipcRenderer.invoke(IPC.skills.getSkillsShDetail, skillPath),
   recordSkillsShInstall: (input: InstallFromSkillsShInput): Promise<void> =>
     ipcRenderer.invoke(IPC.skills.recordSkillsShInstall, input),
+  checkUiProPrerequisites: (): Promise<UiProPrerequisites> =>
+    ipcRenderer.invoke(IPC.skills.checkUiProPrerequisites),
+  recordUiProInstall: (input: RecordUiProInstallInput): Promise<void> =>
+    ipcRenderer.invoke(IPC.skills.recordUiProInstall, input),
 };
 
 const mcp = {
@@ -421,6 +439,17 @@ const git = {
     ipcRenderer.invoke(IPC.git.cancelSuggestCommitMessage, requestId),
   createPullRequest: (input: CreatePullRequestInput): Promise<CreatePullRequestResult> =>
     ipcRenderer.invoke(IPC.git.createPullRequest, input),
+  /** Creates the repository in the project folder, on the branch the caller picked. */
+  init: (input: GitInitInput): Promise<GitOpResult> => ipcRenderer.invoke(IPC.git.init, input),
+  /** Who the GitHub CLI is signed in as, plus the organizations that account belongs to. */
+  githubAccount: (): Promise<GithubAccount> => ipcRenderer.invoke(IPC.git.githubAccount),
+  lookupGithubRepo: (owner: string, name: string): Promise<GithubRepoLookup> =>
+    ipcRenderer.invoke(IPC.git.lookupGithubRepo, owner, name),
+  createGithubRepo: (input: CreateGithubRepoInput): Promise<CreateGithubRepoResult> =>
+    ipcRenderer.invoke(IPC.git.createGithubRepo, input),
+  /** Points origin at `url`, and optionally pushes the current branch with -u. */
+  connectRemote: (input: ConnectRemoteInput): Promise<GitOpResult> =>
+    ipcRenderer.invoke(IPC.git.connectRemote, input),
 };
 
 function subscribe<T>(channel: string, callback: (payload: T) => void): () => void {

@@ -6,10 +6,18 @@ import { IPC } from '../../shared/ipcChannels';
 import type {
   ApplyVersionInput,
   ApplyVersionResult,
+  ConnectRemoteInput,
+  CreateGithubRepoInput,
+  CreateGithubRepoResult,
   CreatePullRequestInput,
   CreatePullRequestResult,
   CreateTagInput,
   GitFileChange,
+  GithubAccount,
+  GithubOwner,
+  GithubRepoInfo,
+  GithubRepoLookup,
+  GitInitInput,
   GitOpResult,
   GitStatus,
   GitTagInfo,
@@ -21,6 +29,8 @@ import { store } from '../store';
 
 const execFileAsync = promisify(execFile);
 const GIT_TIMEOUT_MS = 30000;
+/** Pushing a whole project for the first time can take a while on a slow line. */
+const PUSH_TIMEOUT_MS = 180000;
 const MAX_DIFF_CHARS = 8000;
 
 async function getProject(projectId: string): Promise<Project> {
@@ -34,11 +44,14 @@ async function getProjectPath(projectId: string): Promise<string> {
   return (await getProject(projectId)).folderPath;
 }
 
-async function git(cwd: string, args: string[]): Promise<string> {
+async function git(cwd: string, args: string[], timeoutMs = GIT_TIMEOUT_MS): Promise<string> {
   const { stdout } = await execFileAsync('git', ['-C', cwd, ...args], {
-    timeout: GIT_TIMEOUT_MS,
+    timeout: timeoutMs,
     windowsHide: true,
     maxBuffer: 10 * 1024 * 1024,
+    // Nobody can answer a credential prompt in a hidden process, so a command that would
+    // ask for one should fail with a readable error instead of sitting there until the timeout.
+    env: { ...process.env, GIT_TERMINAL_PROMPT: '0' },
   });
   return stdout;
 }
@@ -360,11 +373,11 @@ async function runGitOp(fn: () => Promise<string>): Promise<GitOpResult> {
 
 async function pushCurrentBranch(cwd: string, branch: string): Promise<string> {
   try {
-    return await git(cwd, ['push']);
+    return await git(cwd, ['push'], PUSH_TIMEOUT_MS);
   } catch (error) {
     const err = error as { stderr?: string };
     if (/has no upstream branch|set the upstream/i.test(err.stderr ?? '')) {
-      return git(cwd, ['push', '-u', 'origin', branch]);
+      return git(cwd, ['push', '-u', 'origin', branch], PUSH_TIMEOUT_MS);
     }
     throw error;
   }
@@ -383,6 +396,83 @@ async function isGhCliAvailable(): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+const GH_TIMEOUT_MS = 20000;
+/** What GitHub accepts for a login or a repository name, and git for a branch. */
+const GITHUB_NAME_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
+const BRANCH_NAME_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._/-]*$/;
+
+function ghErrorMessage(error: unknown): string {
+  const err = error as { stderr?: string; message?: string };
+  return (err.stderr || err.message || 'The GitHub CLI command failed.').trim();
+}
+
+/** One `gh api` call, parsed. Throws with gh's own stderr, which is usually the clearest message. */
+async function ghApi<T>(path: string, args: string[] = []): Promise<T> {
+  const { stdout } = await execFileAsync(
+    'gh',
+    ['api', '-H', 'Accept: application/vnd.github+json', path, ...args],
+    {
+      timeout: GH_TIMEOUT_MS,
+      windowsHide: true,
+      maxBuffer: 10 * 1024 * 1024,
+      env: { ...process.env, NO_COLOR: '1' },
+    },
+  );
+  return JSON.parse(stdout) as T;
+}
+
+interface GithubApiRepo {
+  full_name: string;
+  html_url: string;
+  clone_url: string;
+  ssh_url: string;
+  default_branch: string | null;
+  private: boolean;
+}
+
+function toRepoInfo(repo: GithubApiRepo): GithubRepoInfo {
+  return {
+    fullName: repo.full_name,
+    htmlUrl: repo.html_url,
+    cloneUrl: repo.clone_url,
+    sshUrl: repo.ssh_url,
+    // A repository with no commits yet reports no default branch.
+    defaultBranch: repo.default_branch ?? '',
+    isPrivate: repo.private,
+  };
+}
+
+/** Who the GitHub CLI is logged in as, and everywhere that account can publish a repo. */
+async function readGithubAccount(): Promise<GithubAccount> {
+  if (!(await isGhCliAvailable())) {
+    return { cliAvailable: false, authenticated: false, login: null, owners: [] };
+  }
+
+  let login: string;
+  try {
+    login = (await ghApi<{ login: string }>('user')).login;
+  } catch (error) {
+    return {
+      cliAvailable: true,
+      authenticated: false,
+      login: null,
+      owners: [],
+      error: ghErrorMessage(error),
+    };
+  }
+
+  const owners: GithubOwner[] = [{ login, type: 'user' }];
+  try {
+    const orgs = await ghApi<{ login: string }[]>('user/orgs?per_page=100');
+    for (const org of orgs) owners.push({ login: org.login, type: 'organization' });
+  } catch {
+    // Listing organizations needs the read:org scope, which plenty of tokens don't carry.
+    // The personal account on its own is still a perfectly good place to publish to.
+  }
+
+  return { cliAvailable: true, authenticated: true, login, owners };
 }
 
 export function registerGitHandlers(): void {
@@ -769,6 +859,153 @@ export function registerGitHandlers(): void {
       const params = new URLSearchParams({ expand: '1', title: input.title, body: input.body });
       const url = `https://github.com/${parsed.owner}/${parsed.repo}/compare/${base}...${status.branch}?${params.toString()}`;
       return { ok: true, url, usedFallback: true };
+    },
+  );
+
+  ipcMain.handle(IPC.git.init, async (_event, input: GitInitInput): Promise<GitOpResult> => {
+    const cwd = await getProjectPath(input.projectId);
+    const branch = input.branch.trim().replace(/\s+/g, '-');
+    if (!branch) return { ok: false, message: 'Branch name cannot be empty.' };
+    if (!BRANCH_NAME_PATTERN.test(branch) || branch.includes('..')) {
+      return {
+        ok: false,
+        message:
+          'Invalid branch name. Use letters, digits, dots, dashes, underscores or slashes (e.g. master).',
+      };
+    }
+    if (await isGitRepo(cwd)) {
+      return { ok: false, message: 'This folder is already a git repository.' };
+    }
+
+    return runGitOp(async () => {
+      try {
+        await git(cwd, ['init', '-b', branch]);
+      } catch {
+        // git older than 2.28 has no --initial-branch, so point HEAD at the branch by hand.
+        await git(cwd, ['init']);
+        await git(cwd, ['symbolic-ref', 'HEAD', `refs/heads/${branch}`]);
+      }
+
+      if (!input.initialCommit) return `Initialized an empty repository on ${branch}.`;
+
+      await git(cwd, ['add', '-A']);
+      const staged = (await git(cwd, ['diff', '--cached', '--name-only']).catch(() => '')).trim();
+      if (!staged) {
+        return `Initialized an empty repository on ${branch}. There was nothing to commit yet.`;
+      }
+      await git(cwd, ['commit', '-m', input.commitMessage?.trim() || 'Initial commit']);
+      return `Initialized the repository on ${branch} and committed the current files.`;
+    });
+  });
+
+  ipcMain.handle(IPC.git.githubAccount, async (): Promise<GithubAccount> => readGithubAccount());
+
+  ipcMain.handle(
+    IPC.git.lookupGithubRepo,
+    async (_event, owner: string, name: string): Promise<GithubRepoLookup> => {
+      const cleanOwner = owner.trim();
+      const cleanName = name.trim().replace(/\.git$/i, '');
+      if (!GITHUB_NAME_PATTERN.test(cleanOwner) || !GITHUB_NAME_PATTERN.test(cleanName)) {
+        return {
+          ok: false,
+          exists: false,
+          error:
+            'Owner and repository names can only hold letters, digits, dots, dashes and underscores.',
+        };
+      }
+      if (!(await isGhCliAvailable())) {
+        return { ok: false, exists: false, error: 'GitHub CLI (gh) is not installed.' };
+      }
+
+      try {
+        const repo = await ghApi<GithubApiRepo>(`repos/${cleanOwner}/${cleanName}`);
+        return { ok: true, exists: true, repo: toRepoInfo(repo) };
+      } catch (error) {
+        const message = ghErrorMessage(error);
+        // A 404 is the answer we asked for ("there is no such repo"), not a failure.
+        if (/\b404\b|not found/i.test(message)) return { ok: true, exists: false };
+        return { ok: false, exists: false, error: message };
+      }
+    },
+  );
+
+  ipcMain.handle(
+    IPC.git.createGithubRepo,
+    async (_event, input: CreateGithubRepoInput): Promise<CreateGithubRepoResult> => {
+      const owner = input.owner.trim();
+      const name = input.name.trim().replace(/\.git$/i, '');
+      if (!GITHUB_NAME_PATTERN.test(owner) || !GITHUB_NAME_PATTERN.test(name)) {
+        return {
+          ok: false,
+          error:
+            'Owner and repository names can only hold letters, digits, dots, dashes and underscores.',
+        };
+      }
+
+      const account = await readGithubAccount();
+      if (!account.authenticated) {
+        return {
+          ok: false,
+          error: account.cliAvailable
+            ? `Not signed in to the GitHub CLI. Run "gh auth login" first.${account.error ? ` (${account.error})` : ''}`
+            : 'GitHub CLI (gh) is not installed.',
+        };
+      }
+
+      // Repos live under either the account itself or one of its organizations, and
+      // GitHub has a separate endpoint for each.
+      const isPersonal = owner.toLowerCase() === (account.login ?? '').toLowerCase();
+      const endpoint = isPersonal ? 'user/repos' : `orgs/${owner}/repos`;
+      const args = ['-X', 'POST', '-f', `name=${name}`, '-F', `private=${input.isPrivate}`];
+      const description = input.description?.trim();
+      if (description) args.push('-f', `description=${description}`);
+
+      try {
+        const repo = await ghApi<GithubApiRepo>(endpoint, args);
+        return { ok: true, repo: toRepoInfo(repo) };
+      } catch (error) {
+        return { ok: false, error: ghErrorMessage(error) };
+      }
+    },
+  );
+
+  ipcMain.handle(
+    IPC.git.connectRemote,
+    async (_event, input: ConnectRemoteInput): Promise<GitOpResult> => {
+      const cwd = await getProjectPath(input.projectId);
+      const url = input.url.trim();
+      if (!url) return { ok: false, message: 'Remote URL cannot be empty.' };
+      if (!/^(https?:\/\/|ssh:\/\/|git@)/i.test(url)) {
+        return { ok: false, message: 'The remote must be an https or ssh git URL.' };
+      }
+      if (!(await isGitRepo(cwd))) {
+        return { ok: false, message: 'This folder is not a git repository yet.' };
+      }
+
+      return runGitOp(async () => {
+        const remotes = (await git(cwd, ['remote']).catch(() => ''))
+          .split('\n')
+          .map((remote) => remote.trim())
+          .filter(Boolean);
+        if (remotes.includes('origin')) {
+          await git(cwd, ['remote', 'set-url', 'origin', url]);
+        } else {
+          await git(cwd, ['remote', 'add', 'origin', url]);
+        }
+        if (!input.push) return `Connected origin to ${url}.`;
+
+        const hasCommit = await git(cwd, ['rev-parse', '--verify', 'HEAD'])
+          .then(() => true)
+          .catch(() => false);
+        if (!hasCommit) {
+          return `Connected origin to ${url}. There is nothing to push until you make a commit.`;
+        }
+
+        const branch = (await git(cwd, ['branch', '--show-current'])).trim();
+        if (!branch) throw new Error('No current branch to push, HEAD is detached.');
+        await git(cwd, ['push', '-u', 'origin', branch], PUSH_TIMEOUT_MS);
+        return `Connected origin and pushed ${branch}.`;
+      });
     },
   );
 }

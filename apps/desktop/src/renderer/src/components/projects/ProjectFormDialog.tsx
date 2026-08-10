@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react';
-import { FolderOpen } from '@/components/icons';
+import { useEffect, useRef, useState } from 'react';
+import { toast } from 'sonner';
+import { FolderOpen, Globe, Spinner, Trash2, Upload } from '@/components/icons';
 import { CLI_REGISTRY } from '@agentmat/core';
 import type { AgentType, Project } from '@agentmat/core';
 import {
@@ -14,6 +15,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Combobox } from '@/components/ui/combobox';
+import { ProjectIcon } from '@/components/projects/ProjectIcon';
 
 const AGENT_TYPES: { value: AgentType; label: string }[] = [
   { value: 'claude-code', label: 'Claude Code' },
@@ -37,6 +39,9 @@ export interface ProjectFormValues {
   runCommand: string;
   /** null = follow the app-wide default CLI from Settings. */
   cliId: string | null;
+  /** Icon inlined as a data URL, either picked from disk or fetched from the site. */
+  iconDataUrl: string | null;
+  websiteUrl: string;
 }
 
 export interface ProjectFormDialogProps {
@@ -62,6 +67,12 @@ export function ProjectFormDialog({
   const [notes, setNotes] = useState('');
   const [runCommand, setRunCommand] = useState('');
   const [cliId, setCliId] = useState<string>(APP_DEFAULT_CLI);
+  const [iconDataUrl, setIconDataUrl] = useState<string | null>(null);
+  const [websiteUrl, setWebsiteUrl] = useState('');
+  const [fetchingFavicon, setFetchingFavicon] = useState(false);
+  // Remembers the last URL the auto-fetch already tried, so tabbing in and out
+  // of the field doesn't re-download the same favicon on every blur.
+  const autoFetchedUrl = useRef<string | null>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -73,11 +84,58 @@ export function ProjectFormDialog({
     setNotes(initial?.notes ?? '');
     setRunCommand(initial?.runCommand ?? '');
     setCliId(initial?.cliId ?? APP_DEFAULT_CLI);
+    setIconDataUrl(initial?.iconDataUrl ?? null);
+    setWebsiteUrl(initial?.websiteUrl ?? '');
+    setFetchingFavicon(false);
+    autoFetchedUrl.current = initial?.websiteUrl || null;
   }, [open, initial]);
 
   async function handlePickFolder(): Promise<void> {
     const picked = await window.agentmat.projects.pickFolder();
     if (picked) setFolderPath(picked);
+  }
+
+  async function handlePickIcon(): Promise<void> {
+    try {
+      const dataUrl = await window.agentmat.projects.pickIcon();
+      if (dataUrl) setIconDataUrl(dataUrl);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not read that image.');
+    }
+  }
+
+  /**
+   * `silent` is the on-blur pass: it fills an empty icon slot as a convenience,
+   * so a site without a favicon shouldn't nag. Pressing the button is a request,
+   * and gets told what happened either way.
+   */
+  async function handleFetchFavicon(silent: boolean): Promise<void> {
+    const url = websiteUrl.trim();
+    if (!url || fetchingFavicon) return;
+    autoFetchedUrl.current = url;
+    setFetchingFavicon(true);
+    try {
+      const result = await window.agentmat.projects.fetchFavicon(url);
+      if (!result) {
+        if (!silent) toast.error("Couldn't find a favicon on that site.");
+        return;
+      }
+      setIconDataUrl(result.dataUrl);
+      setWebsiteUrl(result.siteUrl);
+      if (!silent) toast.success('Favicon downloaded.');
+    } catch (error) {
+      if (!silent) {
+        toast.error(error instanceof Error ? error.message : 'Could not reach that site.');
+      }
+    } finally {
+      setFetchingFavicon(false);
+    }
+  }
+
+  function handleWebsiteBlur(): void {
+    const url = websiteUrl.trim();
+    if (!url || iconDataUrl || url === autoFetchedUrl.current) return;
+    void handleFetchFavicon(true);
   }
 
   function handleSubmit(): void {
@@ -93,6 +151,8 @@ export function ProjectFormDialog({
       notes,
       runCommand: runCommand.trim(),
       cliId: cliId === APP_DEFAULT_CLI ? null : cliId,
+      iconDataUrl,
+      websiteUrl: websiteUrl.trim(),
     });
   }
 
@@ -128,6 +188,72 @@ export function ProjectFormDialog({
                 <FolderOpen className="h-4 w-4" />
               </Button>
             </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label>Icon</Label>
+            <div className="flex items-center gap-3">
+              <ProjectIcon
+                iconDataUrl={iconDataUrl}
+                className="h-12 w-12 border border-border"
+                glyphClassName="h-5 w-5"
+              />
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => void handlePickIcon()}
+                >
+                  <Upload className="h-3.5 w-3.5" /> Choose image
+                </Button>
+                {iconDataUrl && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setIconDataUrl(null)}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" /> Remove
+                  </Button>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label>Website</Label>
+            <div className="flex gap-2">
+              <Input
+                value={websiteUrl}
+                onChange={(e) => setWebsiteUrl(e.target.value)}
+                onBlur={handleWebsiteBlur}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    void handleFetchFavicon(false);
+                  }
+                }}
+                placeholder="example.com"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                disabled={!websiteUrl.trim() || fetchingFavicon}
+                onClick={() => void handleFetchFavicon(false)}
+              >
+                {fetchingFavicon ? (
+                  <Spinner className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Globe className="h-4 w-4" />
+                )}
+                Use favicon
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              The project's site. Its favicon is downloaded and used as the icon when you don't pick
+              an image.
+            </p>
           </div>
 
           <div className="space-y-1.5">
