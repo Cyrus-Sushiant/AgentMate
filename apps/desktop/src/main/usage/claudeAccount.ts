@@ -18,8 +18,9 @@ import {
 //   2. Which plan, so the window labels and the local estimate's budgets match.
 //
 // Both come off disk with no network: `~/.claude/.credentials.json` holds the
-// OAuth grant (including `subscriptionType`) and `~/.claude.json` holds the
-// profile the CLI cached at login.
+// OAuth grant and `~/.claude.json` holds the account profile the CLI caches.
+// Only the profile is a live answer to question 2. The credentials file records
+// `subscriptionType` once, at login, and leaves it there, so it's the fallback.
 
 const CLAUDE_DIR_ENV = 'CLAUDE_CONFIG_DIR';
 
@@ -67,6 +68,12 @@ interface ProfileFile {
     billingType?: string;
     organizationName?: string;
     seatTier?: string;
+    /** Plan family as the account service reports it: 'claude_max', 'claude_pro'. */
+    organizationType?: string;
+    /** Tier the org's limits come from: 'default_claude_max_5x', 'default_claude_ai'. */
+    organizationRateLimitTier?: string;
+    /** Set when the member's own tier overrides the org's. Usually null. */
+    userRateLimitTier?: string;
   };
   /** ISO date of the account's very first Claude Code token. */
   claudeCodeFirstTokenDate?: string;
@@ -89,19 +96,31 @@ export interface ClaudeAccount {
 }
 
 /**
- * Turn the raw `subscriptionType` + `rateLimitTier` pair into a display plan.
- * The tier string is what distinguishes the Max levels ('…max_5x' / '…max_20x');
- * an unrecognized type still yields a capitalized label rather than nothing, so
- * a new plan name shows up as itself instead of disappearing.
+ * Drop the decoration the account service puts on plan and tier strings so both
+ * can be matched against one vocabulary: 'claude_max' and 'default_claude_max_5x'
+ * both reduce to something starting with 'max'.
+ */
+function stripPlanPrefix(raw?: string): string {
+  return (raw ?? '')
+    .trim()
+    .toLowerCase()
+    .replace(/^default_/, '')
+    .replace(/^claude_/, '');
+}
+
+/**
+ * Turn a plan-family string + a rate-limit tier into a display plan. The tier is
+ * what distinguishes the Max levels ('…max_5x' / '…max_20x'); an unrecognized
+ * family still yields a capitalized label rather than nothing, so a new plan name
+ * shows up as itself instead of disappearing.
  */
 function resolvePlan(subscriptionType?: string, rateLimitTier?: string): SubscriptionPlan | null {
-  const type = subscriptionType?.trim().toLowerCase();
+  const type = stripPlanPrefix(subscriptionType);
   if (!type) return null;
-  const tier = rateLimitTier?.toLowerCase() ?? '';
 
-  if (type === 'max' || type.startsWith('max')) {
+  if (type.startsWith('max')) {
     // The multiplier lives in either field depending on CLI version.
-    const source = `${type} ${tier}`;
+    const source = `${type} ${stripPlanPrefix(rateLimitTier)}`;
     if (source.includes('20x')) return { id: 'max20x', label: 'Max 20×' };
     if (source.includes('5x')) return { id: 'max5x', label: 'Max 5×' };
     return { id: 'max', label: 'Max' };
@@ -110,6 +129,22 @@ function resolvePlan(subscriptionType?: string, rateLimitTier?: string): Subscri
   if (type === 'team') return { id: 'team', label: 'Team' };
   if (type === 'enterprise') return { id: 'enterprise', label: 'Enterprise' };
   return { id: type, label: type.charAt(0).toUpperCase() + type.slice(1) };
+}
+
+const KNOWN_PLAN_IDS = new Set(['pro', 'max', 'max5x', 'max20x', 'team', 'enterprise']);
+
+/**
+ * Same as {@link resolvePlan} but refuses to guess. The profile's fields carry
+ * values that aren't plan names at all ('default_claude_ai'), and capitalizing
+ * one of those into a label would read as a plan the user has never heard of, so
+ * anything unrecognized falls through to the next source instead.
+ */
+function resolveKnownPlan(
+  subscriptionType?: string,
+  rateLimitTier?: string,
+): SubscriptionPlan | null {
+  const plan = resolvePlan(subscriptionType, rateLimitTier);
+  return plan && KNOWN_PLAN_IDS.has(plan.id) ? plan : null;
 }
 
 /** True when the CLI is configured to bill an API key / cloud vendor instead. */
@@ -135,8 +170,25 @@ export async function readClaudeAccount(): Promise<ClaudeAccount> {
     : NaN;
   const weeklyAnchor = Number.isNaN(firstToken) ? null : firstToken;
   const oauth = creds?.claudeAiOauth;
+  const account = profile?.oauthAccount;
 
-  if (!oauth?.subscriptionType) {
+  // Plan, best source first:
+  //  1. A seat on a Team/Enterprise workspace reports its own tier, and that's
+  //     the plan whose limits actually apply.
+  //  2. The org fields, which the CLI re-fetches with the profile and so track
+  //     upgrades and downgrades.
+  //  3. The credentials file, last. `subscriptionType` is written at login and
+  //     never rewritten on a token refresh, so after an upgrade it keeps
+  //     reporting the plan the account was on when it first signed in.
+  const plan =
+    resolveKnownPlan(account?.seatTier, account?.userRateLimitTier) ??
+    resolveKnownPlan(
+      account?.organizationType,
+      account?.userRateLimitTier ?? account?.organizationRateLimitTier,
+    ) ??
+    resolvePlan(oauth?.subscriptionType, oauth?.rateLimitTier);
+
+  if (!oauth?.subscriptionType && !plan) {
     return {
       mode: hasApiKeyBilling() ? 'api' : 'subscription',
       plan: null,
@@ -146,16 +198,12 @@ export async function readClaudeAccount(): Promise<ClaudeAccount> {
     };
   }
 
-  const plan = resolvePlan(oauth.subscriptionType, oauth.rateLimitTier);
-  // A seat on a Team/Enterprise workspace reports its own tier; prefer it since
-  // it's the plan whose limits actually apply.
-  const seatTier = profile?.oauthAccount?.seatTier;
-  const expired = typeof oauth.expiresAt === 'number' && oauth.expiresAt <= Date.now();
+  const expired = typeof oauth?.expiresAt === 'number' && oauth.expiresAt <= Date.now();
 
   return {
     mode: 'subscription',
-    plan: seatTier ? (resolvePlan(seatTier) ?? plan) : plan,
-    accessToken: expired ? null : (oauth.accessToken ?? null),
+    plan,
+    accessToken: expired ? null : (oauth?.accessToken ?? null),
     tokenExpired: expired,
     weeklyAnchor,
   };
@@ -188,6 +236,13 @@ const WINDOW_LABELS: Record<string, { key: SubscriptionWindow['key']; label: str
   seven_day_opus: { key: 'week-fable', label: FABLE_WEEK_LABEL },
   sevendayopus: { key: 'week-fable', label: FABLE_WEEK_LABEL },
   week_opus: { key: 'week-fable', label: FABLE_WEEK_LABEL },
+};
+
+/** Newer payloads list the same windows as a flat `limits` array instead. */
+const LIMIT_KINDS: Record<string, SubscriptionWindow['key']> = {
+  session: 'session',
+  weekly_all: 'week',
+  weekly_scoped: 'week-fable',
 };
 
 function normalizeKey(raw: string): string {
@@ -225,6 +280,18 @@ function readResetAt(node: Record<string, unknown>): string | null {
 }
 
 /**
+ * Label for a `limits` entry. The scoped weekly window names the model it meters,
+ * so read it off the payload rather than hardcoding today's top model, and fall
+ * back to the constant when the scope is missing.
+ */
+function limitLabel(key: SubscriptionWindow['key'], node: Record<string, unknown>): string {
+  if (key !== 'week-fable') return key === 'session' ? 'Session (5h)' : 'Weekly';
+  const scope = node.scope as { model?: { display_name?: unknown } } | null | undefined;
+  const model = scope?.model?.display_name;
+  return typeof model === 'string' && model.trim() ? `Weekly (${model.trim()})` : FABLE_WEEK_LABEL;
+}
+
+/**
  * Walk the payload for objects sitting under a known window key that carry a
  * utilization number. Depth-limited so a surprising response can't send us
  * spelunking through a huge object graph.
@@ -255,6 +322,23 @@ function collectWindows(payload: unknown, fableWeek: boolean): SubscriptionWindo
   }
 
   visit(payload, 0);
+
+  // Second pass over `limits`, filling only what the keys didn't cover. The
+  // scoped weekly window lives here and nowhere else: the top-level bucket that
+  // used to carry it (`seven_day_opus`) now comes back null, so without this the
+  // Fable bar would never appear for a plan that has one.
+  const limits = (payload as { limits?: unknown } | null)?.limits;
+  if (Array.isArray(limits)) {
+    for (const entry of limits) {
+      if (entry === null || typeof entry !== 'object') continue;
+      const node = entry as Record<string, unknown>;
+      const key = typeof node.kind === 'string' ? LIMIT_KINDS[normalizeKey(node.kind)] : undefined;
+      if (!key || found.has(key)) continue;
+      const percent = readPercent(node);
+      if (percent === null) continue;
+      found.set(key, { key, label: limitLabel(key, node), percent, resetAt: readResetAt(node) });
+    }
+  }
 
   // Stable display order regardless of the order the payload listed them in.
   const order: SubscriptionWindow['key'][] = ['session', 'week', 'week-fable'];
