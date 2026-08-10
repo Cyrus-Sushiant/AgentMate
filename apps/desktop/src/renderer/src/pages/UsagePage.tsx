@@ -59,6 +59,7 @@ import { queryKeys } from '@/lib/queryKeys';
 import { formatCost, formatReset, formatTokens } from '@/lib/usageFormat';
 import { usePageHeader } from '@/stores/pageHeaderStore';
 import { useDashboardLayoutStore } from '@/stores/dashboardLayoutStore';
+import { confirmDialog } from '@/stores/confirmStore';
 
 function isDisplayed(id: string, configs: Record<string, UsageProviderConfig>): boolean {
   const def = getUsageProvider(id);
@@ -170,19 +171,31 @@ export default function UsagePage(): React.JSX.Element {
     await queryClient.invalidateQueries({ queryKey: queryKeys.usageList });
   }
 
+  /** Asks before taking a card off the Dashboard, since the pin is a one-click action. */
+  function confirmRemoval(label: string): Promise<boolean> {
+    return confirmDialog({
+      title: `Remove ${label} from the dashboard?`,
+      description: `The ${label} card stops showing on the Dashboard page. It stays here on Token Usage, and you can add it back any time.`,
+      confirmLabel: 'Remove',
+      variant: 'destructive',
+    });
+  }
+
   /** Adds/removes this provider's card on the Dashboard page. */
-  function toggleDashboard(providerId: string): void {
+  async function toggleDashboard(providerId: string): Promise<void> {
     const name = getUsageProvider(providerId)?.name ?? 'Card';
+    if (dashboardCards.includes(providerId) && !(await confirmRemoval(name))) return;
     const added = toggleDashboardCard(providerId);
     if (added) toast.success(`${name} added to your dashboard.`);
     else toast.info(`${name} removed from your dashboard.`);
   }
 
   /** Adds/removes one of the summary tiles above on the Dashboard page. */
-  function toggleSummaryDashboard(
+  async function toggleSummaryDashboard(
     id: 'tokens-today' | 'tokens-week' | 'cost-today' | 'providers-tracked',
     label: string,
-  ): void {
+  ): Promise<void> {
+    if (dashboardSummaryCards.includes(id) && !(await confirmRemoval(label))) return;
     const added = toggleDashboardSummaryCard(id);
     if (added) toast.success(`${label} added to your dashboard.`);
     else toast.info(`${label} removed from your dashboard.`);
@@ -200,7 +213,7 @@ export default function UsagePage(): React.JSX.Element {
           variant="ghost"
           size="icon"
           className={cn('h-5 w-5', pinned && 'text-primary')}
-          onClick={() => toggleSummaryDashboard(id, label)}
+          onClick={() => void toggleSummaryDashboard(id, label)}
         >
           <LayoutDashboard className="h-3 w-3" />
         </Button>
@@ -477,7 +490,7 @@ export default function UsagePage(): React.JSX.Element {
                         variant="ghost"
                         size="icon"
                         className={onDashboard ? 'text-primary' : undefined}
-                        onClick={() => toggleDashboard(id)}
+                        onClick={() => void toggleDashboard(id)}
                       >
                         <LayoutDashboard className="h-3.5 w-3.5" />
                       </Button>
