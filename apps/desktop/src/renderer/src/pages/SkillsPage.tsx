@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useLocation } from 'react-router-dom';
 import { toast } from 'sonner';
 import {
@@ -74,9 +74,15 @@ interface SkillsShDisplayEntry {
   description?: string;
 }
 
+/**
+ * The Repository picker's default: every repository's skills in one grid, so the tab shows what
+ * is available without making the user pick a repository first.
+ */
+const ALL_REPOSITORIES = '__all__';
+
 /** What the install picker modal is currently installing, and where it came from. */
 type InstallTarget =
-  | { kind: 'repo'; skillId: string; skillName: string }
+  | { kind: 'repo'; repositoryId: string; skillId: string; skillName: string }
   | { kind: 'skillsSh'; skill: SkillsShDisplayEntry };
 
 const installsFormatter = new Intl.NumberFormat('en', {
@@ -134,7 +140,9 @@ export default function SkillsPage(): React.JSX.Element {
   const queryClient = useQueryClient();
   const openTerminalSession = useTerminalStore((s) => s.openSession);
 
-  const [selectedRepoId, setSelectedRepoId] = useState<string>(navState?.repositoryId ?? '');
+  const [selectedRepoId, setSelectedRepoId] = useState<string>(
+    navState?.repositoryId ?? ALL_REPOSITORIES,
+  );
   const [search, setSearch] = useState(navState?.query ?? '');
   const [addRepoOpen, setAddRepoOpen] = useState(false);
   const [repoName, setRepoName] = useState('');
@@ -183,16 +191,37 @@ export default function SkillsPage(): React.JSX.Element {
     queryFn: () => window.agentmat.skills.listRepositories(),
   });
 
-  useEffect(() => {
-    if (!selectedRepoId && reposQuery.data && reposQuery.data.length > 0) {
-      setSelectedRepoId(reposQuery.data[0].id);
-    }
-  }, [reposQuery.data, selectedRepoId]);
+  const showingAllRepos = selectedRepoId === ALL_REPOSITORIES;
 
-  const repoIndexQuery = useQuery({
-    queryKey: queryKeys.repositoryIndex(selectedRepoId),
-    queryFn: () => window.agentmat.skills.getRepositoryIndex(selectedRepoId),
-    enabled: !!selectedRepoId,
+  // A repository that was selected and then removed falls back to the all-repositories view.
+  useEffect(() => {
+    if (showingAllRepos || !reposQuery.data) return;
+    if (!reposQuery.data.some((r) => r.id === selectedRepoId)) setSelectedRepoId(ALL_REPOSITORIES);
+  }, [reposQuery.data, selectedRepoId, showingAllRepos]);
+
+  const repoCount = reposQuery.data?.length ?? 0;
+
+  const visibleRepos = useMemo(() => {
+    const repos = reposQuery.data ?? [];
+    return showingAllRepos ? repos : repos.filter((r) => r.id === selectedRepoId);
+  }, [reposQuery.data, selectedRepoId, showingAllRepos]);
+
+  // One query per visible repository, sharing the same cache keys the single-repository view uses,
+  // so a refresh or a watched folder change updates both views.
+  const repoIndexes = useQueries({
+    queries: visibleRepos.map((repo) => ({
+      queryKey: queryKeys.repositoryIndex(repo.id),
+      queryFn: () => window.agentmat.skills.getRepositoryIndex(repo.id),
+    })),
+    combine: (results) => ({
+      isPending: results.some((r) => r.isPending),
+      entries: results.flatMap((result, i) =>
+        (result.data?.skills ?? []).map((skill) => ({ skill, repo: visibleRepos[i] })),
+      ),
+      failed: results.flatMap((result, i) =>
+        result.error ? [{ repo: visibleRepos[i], message: result.error.message }] : [],
+      ),
+    }),
   });
 
   // What the folder in the path field actually contains, so the dialog can report it before the
@@ -242,15 +271,27 @@ export default function SkillsPage(): React.JSX.Element {
     mutationFn: (id: string) => window.agentmat.skills.removeRepository(id),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.repositories });
-      setSelectedRepoId('');
+      setSelectedRepoId(ALL_REPOSITORIES);
     },
   });
 
+  // Refreshes the selected repository, or every one of them in the all-repositories view.
   const refreshRepoMutation = useMutation({
-    mutationFn: (id: string) => window.agentmat.skills.refreshRepository(id),
-    onSuccess: () => {
-      toast.success('Repository refreshed.');
-      void queryClient.invalidateQueries({ queryKey: queryKeys.repositoryIndex(selectedRepoId) });
+    mutationFn: async (ids: string[]) => {
+      const results = await Promise.allSettled(
+        ids.map((id) => window.agentmat.skills.refreshRepository(id)),
+      );
+      const failure = results.find((r): r is PromiseRejectedResult => r.status === 'rejected');
+      return { count: results.length - (failure ? 1 : 0), failure };
+    },
+    onSuccess: ({ count, failure }) => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.repositoryIndexes });
+      if (failure) {
+        const reason = failure.reason;
+        toast.error(reason instanceof Error ? reason.message : String(reason));
+      } else {
+        toast.success(count === 1 ? 'Repository refreshed.' : `${count} repositories refreshed.`);
+      }
     },
     onError: (error: Error) => toast.error(error.message),
   });
@@ -300,7 +341,7 @@ export default function SkillsPage(): React.JSX.Element {
         targets.map((projectId) =>
           window.agentmat.skills.install({
             projectId,
-            repositoryId: selectedRepoId,
+            repositoryId: installTarget.repositoryId,
             skillId: installTarget.skillId,
           }),
         ),
@@ -348,17 +389,17 @@ export default function SkillsPage(): React.JSX.Element {
   });
 
   const filteredSkills = useMemo(() => {
-    const skills = repoIndexQuery.data?.skills ?? [];
     const q = search.trim().toLowerCase();
-    if (!q) return skills;
-    return skills.filter(
-      (s) =>
+    if (!q) return repoIndexes.entries;
+    return repoIndexes.entries.filter(
+      ({ skill: s, repo }) =>
         s.name.toLowerCase().includes(q) ||
         s.description.toLowerCase().includes(q) ||
         s.category.toLowerCase().includes(q) ||
-        s.tags.some((t) => t.toLowerCase().includes(q)),
+        s.tags.some((t) => t.toLowerCase().includes(q)) ||
+        repo.name.toLowerCase().includes(q),
     );
-  }, [repoIndexQuery.data, search]);
+  }, [repoIndexes.entries, search]);
 
   const bundledShResults = useMemo(() => {
     const q = shSearch.trim().toLowerCase();
@@ -501,12 +542,12 @@ export default function SkillsPage(): React.JSX.Element {
 
   return (
     <div className="space-y-6 p-6">
-      <Tabs defaultValue="featured">
+      <Tabs defaultValue="directory">
         <div className="flex items-center justify-between">
           <TabsList>
+            <TabsTrigger value="directory">skills.sh Directory</TabsTrigger>
             <TabsTrigger value="featured">Featured</TabsTrigger>
             <TabsTrigger value="marketplace">My Repositories</TabsTrigger>
-            <TabsTrigger value="directory">skills.sh Directory</TabsTrigger>
           </TabsList>
           <Button variant="outline" onClick={() => setGlobalSkillsModalOpen(true)}>
             <Globe className="h-4 w-4" /> Global Skills
@@ -537,29 +578,38 @@ export default function SkillsPage(): React.JSX.Element {
                   onChange={setSelectedRepoId}
                   placeholder="Choose a repository"
                   searchPlaceholder="Search repositories…"
-                  options={reposQuery.data?.map((r) => ({ value: r.id, label: r.name })) ?? []}
+                  options={[
+                    {
+                      value: ALL_REPOSITORIES,
+                      label: `All repositories${repoCount > 0 ? ` (${repoCount})` : ''}`,
+                    },
+                    ...(reposQuery.data?.map((r) => ({ value: r.id, label: r.name })) ?? []),
+                  ]}
                 />
-                {selectedRepoId && (
-                  <>
-                    <SimpleTooltip label="Refresh">
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        onClick={() => refreshRepoMutation.mutate(selectedRepoId)}
-                      >
-                        <RefreshCw className="h-4 w-4" />
-                      </Button>
-                    </SimpleTooltip>
-                    <SimpleTooltip label="Remove repository">
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        onClick={() => removeRepoMutation.mutate(selectedRepoId)}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </SimpleTooltip>
-                  </>
+                {visibleRepos.length > 0 && (
+                  <SimpleTooltip label={showingAllRepos ? 'Refresh all repositories' : 'Refresh'}>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      disabled={refreshRepoMutation.isPending}
+                      onClick={() => refreshRepoMutation.mutate(visibleRepos.map((r) => r.id))}
+                    >
+                      <RefreshCw
+                        className={cn('h-4 w-4', refreshRepoMutation.isPending && 'animate-spin')}
+                      />
+                    </Button>
+                  </SimpleTooltip>
+                )}
+                {!showingAllRepos && (
+                  <SimpleTooltip label="Remove repository">
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={() => removeRepoMutation.mutate(selectedRepoId)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </SimpleTooltip>
                 )}
               </div>
             </div>
@@ -582,13 +632,23 @@ export default function SkillsPage(): React.JSX.Element {
             </Button>
           </div>
 
+          {repoIndexes.failed.length > 0 && (
+            <div className="space-y-1">
+              {repoIndexes.failed.map(({ repo, message }) => (
+                <p key={repo.id} className="text-sm text-destructive">
+                  {repo.name}: {message}
+                </p>
+              ))}
+            </div>
+          )}
+
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
             {/* The repository index is fetched per repo, so the grid shimmers
                 while it lands instead of sitting empty. */}
-            {(reposQuery.isPending || (!!selectedRepoId && repoIndexQuery.isPending)) &&
+            {(reposQuery.isPending || (visibleRepos.length > 0 && repoIndexes.isPending)) &&
               Array.from({ length: 6 }, (_, i) => <CatalogCardSkeleton key={i} />)}
-            {filteredSkills.map((skill) => (
-              <Card key={skill.id} className="glass flex flex-col">
+            {filteredSkills.map(({ skill, repo }) => (
+              <Card key={`${repo.id}:${skill.id}`} className="glass flex flex-col">
                 <CardHeader>
                   <div className="flex items-start justify-between gap-2">
                     <CardTitle>{skill.name}</CardTitle>
@@ -605,6 +665,17 @@ export default function SkillsPage(): React.JSX.Element {
                     ))}
                   </div>
                   <div className="text-xs text-muted-foreground">
+                    {/* Which repository a skill came from only matters when several are mixed. */}
+                    {showingAllRepos && (
+                      <button
+                        type="button"
+                        className="underline underline-offset-2 hover:text-foreground"
+                        onClick={() => setSelectedRepoId(repo.id)}
+                      >
+                        {repo.name}
+                      </button>
+                    )}
+                    {showingAllRepos && ' · '}
                     {skill.author} · v{skill.version}
                   </div>
                   <div className="flex items-center gap-2">
@@ -613,6 +684,7 @@ export default function SkillsPage(): React.JSX.Element {
                       onClick={() =>
                         openInstallPicker({
                           kind: 'repo',
+                          repositoryId: repo.id,
                           skillId: skill.id,
                           skillName: skill.name,
                         })
@@ -636,6 +708,16 @@ export default function SkillsPage(): React.JSX.Element {
               </Card>
             ))}
           </div>
+
+          {!reposQuery.isPending && !repoIndexes.isPending && filteredSkills.length === 0 && (
+            <p className="text-sm text-muted-foreground">
+              {repoCount === 0
+                ? 'No repositories yet. Add one to browse its skills here.'
+                : search.trim()
+                  ? 'No skills match your search.'
+                  : 'No skills in this repository yet.'}
+            </p>
+          )}
         </TabsContent>
 
         <TabsContent value="directory" className="space-y-6">

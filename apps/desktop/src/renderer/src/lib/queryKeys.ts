@@ -4,6 +4,8 @@ export const queryKeys = {
   project: (id: string) => ['projects', id] as const,
   activity: ['activity'] as const,
   repositories: ['skill-repositories'] as const,
+  /** Prefix of every repositoryIndex key, for invalidating them all at once. */
+  repositoryIndexes: ['skill-repository-index'] as const,
   repositoryIndex: (id: string) => ['skill-repository-index', id] as const,
   localSkillFolderPreviews: ['local-skill-folder-preview'] as const,
   localSkillFolderPreview: (path: string) => ['local-skill-folder-preview', path] as const,
