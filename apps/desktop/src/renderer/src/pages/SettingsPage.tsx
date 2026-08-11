@@ -1,32 +1,29 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import {
   Blocks,
   Download,
-  Folder,
   FolderOpen,
   HardDrive,
-  Languages,
   MessageSquare,
-  Microphone,
   Monitor,
   Moon,
   RefreshCw,
   Robot,
-  SatelliteDish,
-  Send,
+  SettingsIcon,
   Sun,
   Upload,
 } from '@/components/icons';
 import { CLI_REGISTRY } from '@agentmat/core';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Combobox } from '@/components/ui/combobox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Separator } from '@/components/ui/separator';
 import { Switch } from '@/components/ui/switch';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { queryKeys } from '@/lib/queryKeys';
 import { usePageHeader } from '@/stores/pageHeaderStore';
 import { useCliStore } from '@/stores/cliStore';
@@ -64,6 +61,77 @@ const THEME_OPTIONS: { value: ThemeMode; label: string; icon: typeof Sun }[] = [
   { value: 'dark', label: 'Dark', icon: Moon },
   { value: 'system', label: 'System', icon: Monitor },
 ];
+
+function SettingsPanel({ children }: { children: ReactNode }): React.JSX.Element {
+  return <div className="glass divide-y divide-border/60 rounded-lg">{children}</div>;
+}
+
+function SettingsSection({
+  title,
+  description,
+  children,
+  action,
+}: {
+  title: string;
+  description?: ReactNode;
+  children: ReactNode;
+  action?: ReactNode;
+}): React.JSX.Element {
+  return (
+    <section className="px-5 py-5">
+      <div className="mb-4 flex items-start justify-between gap-4">
+        <div className="min-w-0 space-y-1">
+          <h3 className="text-sm font-semibold tracking-tight">{title}</h3>
+          {description ? (
+            <div className="text-sm text-muted-foreground">{description}</div>
+          ) : null}
+        </div>
+        {action ? <div className="shrink-0">{action}</div> : null}
+      </div>
+      {children}
+    </section>
+  );
+}
+
+function Field({
+  label,
+  htmlFor,
+  hint,
+  children,
+  className,
+}: {
+  label: string;
+  htmlFor?: string;
+  hint?: ReactNode;
+  children: ReactNode;
+  className?: string;
+}): React.JSX.Element {
+  return (
+    <div className={cn('space-y-1.5', className)}>
+      <Label htmlFor={htmlFor}>{label}</Label>
+      {children}
+      {hint ? <p className="text-xs text-muted-foreground">{hint}</p> : null}
+    </div>
+  );
+}
+
+function ExternalLinkButton({
+  href,
+  children,
+}: {
+  href: string;
+  children: ReactNode;
+}): React.JSX.Element {
+  return (
+    <button
+      type="button"
+      className="underline underline-offset-2 hover:text-foreground"
+      onClick={() => void window.agentmat.shell.openExternal(href)}
+    >
+      {children}
+    </button>
+  );
+}
 
 export default function SettingsPage(): React.JSX.Element {
   const navigate = useNavigate();
@@ -360,508 +428,539 @@ export default function SettingsPage(): React.JSX.Element {
     }
   }
 
+  const versionLabel =
+    appVersionQuery.data == null
+      ? '…'
+      : appVersionQuery.data === 'dev'
+        ? 'dev build'
+        : `v${appVersionQuery.data}`;
+
   usePageHeader('Settings', 'Configure defaults for AgentMate.');
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6 p-6">
-      <Card className="glass">
-        <CardHeader>
-          <CardTitle>Default CLI</CardTitle>
-          <CardDescription>
-            Used whenever a feature needs an AI provider without asking explicitly.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Combobox
-            className="w-64"
-            value={defaultCliId ?? ''}
-            onChange={(v) => setDefaultCliId(v || null)}
-            placeholder="No default set"
-            searchPlaceholder="Search CLIs…"
-            options={CLI_REGISTRY.map((cli) => ({ value: cli.id, label: cli.name }))}
-            clearable
-          />
-        </CardContent>
-      </Card>
+    <div className="mx-auto w-full max-w-3xl p-6">
+      <Tabs defaultValue="general" className="flex flex-col gap-4">
+        <TabsList containerClassName="self-start">
+          <TabsTrigger value="general" className="gap-1.5">
+            <SettingsIcon className="h-3.5 w-3.5" /> General
+          </TabsTrigger>
+          <TabsTrigger value="ai" className="gap-1.5">
+            <MessageSquare className="h-3.5 w-3.5" /> AI
+          </TabsTrigger>
+          <TabsTrigger value="notifications" className="gap-1.5">
+            <Robot className="h-3.5 w-3.5" /> Notifications
+          </TabsTrigger>
+          <TabsTrigger value="data" className="gap-1.5">
+            <HardDrive className="h-3.5 w-3.5" /> Data
+          </TabsTrigger>
+        </TabsList>
 
-      <Card className="glass">
-        <CardHeader>
-          <CardTitle>Appearance</CardTitle>
-          <CardDescription>Choose how AgentMate looks.</CardDescription>
-        </CardHeader>
-        <CardContent className="flex gap-2">
-          {THEME_OPTIONS.map((option) => (
-            <Button
-              key={option.value}
-              variant={theme === option.value ? 'secondary' : 'outline'}
-              className={cn(theme === option.value && 'ring-1 ring-primary')}
-              onClick={() => setTheme(option.value)}
+        <TabsContent value="general" className="mt-0">
+          <SettingsPanel>
+            <SettingsSection title="Appearance" description="How AgentMate looks on this machine.">
+              <div
+                role="group"
+                aria-label="Theme"
+                className="inline-flex rounded-md border border-border bg-background/40 p-0.5"
+              >
+                {THEME_OPTIONS.map((option) => {
+                  const active = theme === option.value;
+                  return (
+                    <button
+                      key={option.value}
+                      type="button"
+                      onClick={() => setTheme(option.value)}
+                      className={cn(
+                        'inline-flex h-8 items-center gap-1.5 rounded-[5px] px-3 text-sm transition-colors',
+                        active
+                          ? 'bg-secondary text-foreground shadow-sm'
+                          : 'text-muted-foreground hover:text-foreground',
+                      )}
+                    >
+                      <option.icon className="h-3.5 w-3.5" />
+                      {option.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </SettingsSection>
+
+            <SettingsSection
+              title="Default CLI"
+              description="Used when a feature needs an AI provider without asking."
             >
-              <option.icon /> {option.label}
-            </Button>
-          ))}
-        </CardContent>
-      </Card>
-
-      <Card className="glass">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Folder className="h-4 w-4" /> Projects Folder
-          </CardTitle>
-          <CardDescription>
-            Where you keep your projects. Folder pickers, like the one for adding a project, open
-            here instead of the system default. Leave it empty to use the system default.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-wrap items-center gap-2">
-          <Input
-            value={projectsRootPath}
-            onChange={(e) => {
-              setProjectsRootPath(e.target.value);
-              setProjectsRootDirty(true);
-            }}
-            placeholder="C:\Users\you\Projects"
-            className="max-w-md"
-          />
-          <Button variant="outline" onClick={handleBrowseProjectsRoot}>
-            <FolderOpen /> Browse…
-          </Button>
-          <Button
-            variant="outline"
-            disabled={!projectsRootDirty || saveProjectsRootMutation.isPending}
-            onClick={() => saveProjectsRootMutation.mutate()}
-          >
-            Save
-          </Button>
-        </CardContent>
-      </Card>
-
-      <Card className="glass">
-        <CardHeader>
-          <CardTitle>Skill Repositories</CardTitle>
-          <CardDescription>
-            {reposQuery.data?.length ?? 0} repositor{reposQuery.data?.length === 1 ? 'y' : 'ies'}{' '}
-            configured.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Button variant="outline" onClick={() => navigate('/skills')}>
-            <Blocks /> Manage repositories
-          </Button>
-        </CardContent>
-      </Card>
-
-      <Card className="glass">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <SatelliteDish className="h-4 w-4" /> Network Ping Targets
-          </CardTitle>
-          <CardDescription>
-            Hosts or IPs pinged for the dashboard&apos;s Network Status graph. Each one gets its own
-            line on the chart.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="flex gap-2">
-          <Input
-            value={pingTargetsText}
-            onChange={(e) => {
-              setPingTargetsText(e.target.value);
-              setPingTargetsDirty(true);
-            }}
-            placeholder="1.1.1.1, 8.8.8.8"
-            className="max-w-md"
-          />
-          <Button variant="outline" disabled={!pingTargetsDirty} onClick={handleSavePingTargets}>
-            Save
-          </Button>
-        </CardContent>
-      </Card>
-
-      <Card className="glass">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Languages className="h-4 w-4" /> Translation
-          </CardTitle>
-          <CardDescription>
-            How many extra attempts Prompt Builder's Translate action makes if a translation request
-            fails, e.g. due to a flaky connection.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="flex items-center gap-2">
-          <Input
-            type="number"
-            min={0}
-            max={10}
-            value={translateMaxRetriesText}
-            onChange={(e) => {
-              setTranslateMaxRetriesText(e.target.value);
-              setTranslateRetriesDirty(true);
-            }}
-            className="w-24"
-          />
-          <Button
-            variant="outline"
-            disabled={!translateRetriesDirty || saveTranslateRetriesMutation.isPending}
-            onClick={() => saveTranslateRetriesMutation.mutate()}
-          >
-            Save
-          </Button>
-        </CardContent>
-      </Card>
-
-      <Card className="glass">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Microphone className="h-4 w-4" /> Voice Input
-          </CardTitle>
-          <CardDescription>
-            Prompt Builder can transcribe your voice into the request box using a local Whisper
-            model that runs entirely offline. The model downloads once on first use and is cached.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid max-w-md grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label>Model</Label>
               <Combobox
-                value={speechModel}
-                onChange={(v) => {
-                  setSpeechModel(v);
-                  setSpeechDirty(true);
-                }}
-                options={[
-                  { value: 'tiny', label: 'Tiny (fastest, ~75 MB)' },
-                  { value: 'base', label: 'Base (balanced, ~145 MB)' },
-                  { value: 'small', label: 'Small (most accurate, ~490 MB)' },
-                ]}
+                className="w-64"
+                value={defaultCliId ?? ''}
+                onChange={(v) => setDefaultCliId(v || null)}
+                placeholder="No default set"
+                searchPlaceholder="Search CLIs…"
+                options={CLI_REGISTRY.map((cli) => ({ value: cli.id, label: cli.name }))}
+                clearable
               />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Spoken language</Label>
-              <Combobox
-                value={speechLanguage}
-                onChange={(v) => {
-                  setSpeechLanguage(v);
-                  setSpeechDirty(true);
-                }}
-                options={SPEECH_LANGUAGES}
-              />
-            </div>
-          </div>
-          <Button
-            variant="outline"
-            disabled={!speechDirty || saveSpeechMutation.isPending}
-            onClick={() => saveSpeechMutation.mutate()}
-          >
-            Save
-          </Button>
-        </CardContent>
-      </Card>
+            </SettingsSection>
 
-      <Card className="glass">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <MessageSquare className="h-4 w-4" /> Ask AI Providers
-          </CardTitle>
-          <CardDescription>
-            Configure the providers used by Ask AI: an OpenAI API key for GPT models, a Gemini API
-            key for Google's models, and/or the address of a local Ollama server.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-1.5">
-            <Label htmlFor="openai-api-key">OpenAI API key</Label>
-            <Input
-              id="openai-api-key"
-              type="password"
-              value={openaiApiKey}
-              onChange={(e) => {
-                setOpenaiApiKey(e.target.value);
-                setAiDirty(true);
-              }}
-              placeholder="sk-…"
-              className="max-w-md font-mono"
-              autoComplete="off"
-            />
-            <p className="text-xs text-muted-foreground">
-              Create one at{' '}
-              <button
-                type="button"
-                className="underline underline-offset-2 hover:text-foreground"
-                onClick={() =>
-                  void window.agentmat.shell.openExternal('https://platform.openai.com/api-keys')
-                }
-              >
-                platform.openai.com/api-keys
-              </button>
-              .
-            </p>
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="openai-model">Default OpenAI model</Label>
-            <Input
-              id="openai-model"
-              value={openaiModel}
-              onChange={(e) => {
-                setOpenaiModel(e.target.value);
-                setAiDirty(true);
-              }}
-              placeholder="gpt-4o-mini"
-              className="max-w-xs font-mono"
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="ollama-base-url">Ollama server URL</Label>
-            <Input
-              id="ollama-base-url"
-              value={ollamaBaseUrl}
-              onChange={(e) => {
-                setOllamaBaseUrl(e.target.value);
-                setAiDirty(true);
-              }}
-              placeholder="http://localhost:11434"
-              className="max-w-xs font-mono"
-            />
-            <p className="text-xs text-muted-foreground">
-              Address of a running{' '}
-              <button
-                type="button"
-                className="underline underline-offset-2 hover:text-foreground"
-                onClick={() => void window.agentmat.shell.openExternal('https://ollama.com')}
-              >
-                Ollama
-              </button>{' '}
-              instance. Leave the default if it runs on this machine.
-            </p>
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="gemini-api-key">Gemini API key</Label>
-            <Input
-              id="gemini-api-key"
-              type="password"
-              value={geminiApiKey}
-              onChange={(e) => {
-                setGeminiApiKey(e.target.value);
-                setAiDirty(true);
-              }}
-              placeholder="AIza…"
-              className="max-w-md font-mono"
-              autoComplete="off"
-            />
-            <p className="text-xs text-muted-foreground">
-              Create one at{' '}
-              <button
-                type="button"
-                className="underline underline-offset-2 hover:text-foreground"
-                onClick={() =>
-                  void window.agentmat.shell.openExternal('https://aistudio.google.com/apikey')
-                }
-              >
-                aistudio.google.com/apikey
-              </button>
-              .
-            </p>
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="gemini-model">Default Gemini model</Label>
-            <Input
-              id="gemini-model"
-              value={geminiModel}
-              onChange={(e) => {
-                setGeminiModel(e.target.value);
-                setAiDirty(true);
-              }}
-              placeholder="gemini-2.0-flash"
-              className="max-w-xs font-mono"
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label>Prompt Builder AI</Label>
-            <Combobox
-              className="w-40"
-              value={promptBuilderProvider}
-              onChange={(v) => {
-                setPromptBuilderProvider(v as AiProvider);
-                setAiDirty(true);
-              }}
-              options={PROMPT_BUILDER_PROVIDER_OPTIONS}
-            />
-            <p className="text-xs text-muted-foreground">
-              Provider used by Prompt Builder's Generate Prompt button. Uses the API key/model
-              configured above for that provider.
-            </p>
-          </div>
-          <Button
-            disabled={!aiDirty || saveAiMutation.isPending}
-            onClick={() => saveAiMutation.mutate()}
-          >
-            Save
-          </Button>
-        </CardContent>
-      </Card>
-
-      <Card className="glass">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Robot className="h-4 w-4" /> Telegram Bot
-          </CardTitle>
-          <CardDescription>
-            Used by project Notification hooks to message you on completion or when confirmation is
-            needed. Create a bot via{' '}
-            <button
-              type="button"
-              className="underline underline-offset-2 hover:text-foreground"
-              onClick={() => void window.agentmat.shell.openExternal('https://t.me/BotFather')}
+            <SettingsSection
+              title="Projects folder"
+              description="Folder pickers open here instead of the system default. Leave empty to use the last system location."
+              action={
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={!projectsRootDirty || saveProjectsRootMutation.isPending}
+                  onClick={() => saveProjectsRootMutation.mutate()}
+                >
+                  Save
+                </Button>
+              }
             >
-              @BotFather
-            </button>
-            , then paste its token below.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-1.5">
-            <Label htmlFor="telegram-bot-token">Bot token</Label>
-            <Input
-              id="telegram-bot-token"
-              type="password"
-              value={botToken}
-              onChange={(e) => {
-                setBotToken(e.target.value);
-                setTelegramDirty(true);
-              }}
-              placeholder="123456789:AAExampleTokenFromBotFather"
-              className="max-w-md font-mono"
-              autoComplete="off"
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="telegram-chat-id">Chat ID</Label>
-            <div className="flex gap-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <Input
+                  value={projectsRootPath}
+                  onChange={(e) => {
+                    setProjectsRootPath(e.target.value);
+                    setProjectsRootDirty(true);
+                  }}
+                  placeholder="C:\Users\you\Projects"
+                  className="min-w-[16rem] flex-1 font-mono text-xs"
+                />
+                <Button variant="outline" size="sm" onClick={handleBrowseProjectsRoot}>
+                  <FolderOpen /> Browse…
+                </Button>
+              </div>
+            </SettingsSection>
+
+            <SettingsSection
+              title="Skill repositories"
+              description={`${reposQuery.data?.length ?? 0} repositor${reposQuery.data?.length === 1 ? 'y' : 'ies'} configured.`}
+              action={
+                <Button variant="outline" size="sm" onClick={() => navigate('/skills')}>
+                  <Blocks /> Manage
+                </Button>
+              }
+            >
+              <p className="text-sm text-muted-foreground">
+                Add and sync skill sources from the Skills page.
+              </p>
+            </SettingsSection>
+          </SettingsPanel>
+        </TabsContent>
+
+        <TabsContent value="ai" className="mt-0">
+          <SettingsPanel>
+            <SettingsSection
+              title="Providers"
+              description="Keys and models used by Ask AI and Prompt Builder."
+              action={
+                <Button
+                  size="sm"
+                  disabled={!aiDirty || saveAiMutation.isPending}
+                  onClick={() => saveAiMutation.mutate()}
+                >
+                  Save
+                </Button>
+              }
+            >
+              <div className="space-y-5">
+                <div className="space-y-3">
+                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                    OpenAI
+                  </p>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <Field
+                      label="API key"
+                      htmlFor="openai-api-key"
+                      hint={
+                        <>
+                          Create one at{' '}
+                          <ExternalLinkButton href="https://platform.openai.com/api-keys">
+                            platform.openai.com/api-keys
+                          </ExternalLinkButton>
+                          .
+                        </>
+                      }
+                      className="sm:col-span-2"
+                    >
+                      <Input
+                        id="openai-api-key"
+                        type="password"
+                        value={openaiApiKey}
+                        onChange={(e) => {
+                          setOpenaiApiKey(e.target.value);
+                          setAiDirty(true);
+                        }}
+                        placeholder="sk-…"
+                        className="font-mono"
+                        autoComplete="off"
+                      />
+                    </Field>
+                    <Field label="Default model" htmlFor="openai-model">
+                      <Input
+                        id="openai-model"
+                        value={openaiModel}
+                        onChange={(e) => {
+                          setOpenaiModel(e.target.value);
+                          setAiDirty(true);
+                        }}
+                        placeholder="gpt-4o-mini"
+                        className="font-mono"
+                      />
+                    </Field>
+                  </div>
+                </div>
+
+                <Separator />
+
+                <div className="space-y-3">
+                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                    Gemini
+                  </p>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <Field
+                      label="API key"
+                      htmlFor="gemini-api-key"
+                      hint={
+                        <>
+                          Create one at{' '}
+                          <ExternalLinkButton href="https://aistudio.google.com/apikey">
+                            aistudio.google.com/apikey
+                          </ExternalLinkButton>
+                          .
+                        </>
+                      }
+                      className="sm:col-span-2"
+                    >
+                      <Input
+                        id="gemini-api-key"
+                        type="password"
+                        value={geminiApiKey}
+                        onChange={(e) => {
+                          setGeminiApiKey(e.target.value);
+                          setAiDirty(true);
+                        }}
+                        placeholder="AIza…"
+                        className="font-mono"
+                        autoComplete="off"
+                      />
+                    </Field>
+                    <Field label="Default model" htmlFor="gemini-model">
+                      <Input
+                        id="gemini-model"
+                        value={geminiModel}
+                        onChange={(e) => {
+                          setGeminiModel(e.target.value);
+                          setAiDirty(true);
+                        }}
+                        placeholder="gemini-2.0-flash"
+                        className="font-mono"
+                      />
+                    </Field>
+                  </div>
+                </div>
+
+                <Separator />
+
+                <div className="space-y-3">
+                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                    Ollama
+                  </p>
+                  <Field
+                    label="Server URL"
+                    htmlFor="ollama-base-url"
+                    hint={
+                      <>
+                        Address of a running{' '}
+                        <ExternalLinkButton href="https://ollama.com">Ollama</ExternalLinkButton>{' '}
+                        instance. Leave the default if it runs on this machine.
+                      </>
+                    }
+                  >
+                    <Input
+                      id="ollama-base-url"
+                      value={ollamaBaseUrl}
+                      onChange={(e) => {
+                        setOllamaBaseUrl(e.target.value);
+                        setAiDirty(true);
+                      }}
+                      placeholder="http://localhost:11434"
+                      className="max-w-md font-mono"
+                    />
+                  </Field>
+                </div>
+
+                <Separator />
+
+                <Field
+                  label="Prompt Builder provider"
+                  hint="Used by Generate Prompt. Uses the key and model for that provider above."
+                >
+                  <Combobox
+                    className="w-40"
+                    value={promptBuilderProvider}
+                    onChange={(v) => {
+                      setPromptBuilderProvider(v as AiProvider);
+                      setAiDirty(true);
+                    }}
+                    options={PROMPT_BUILDER_PROVIDER_OPTIONS}
+                  />
+                </Field>
+              </div>
+            </SettingsSection>
+
+            <SettingsSection
+              title="Voice input"
+              description="Local Whisper transcription for Prompt Builder. The model downloads once and stays cached."
+              action={
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={!speechDirty || saveSpeechMutation.isPending}
+                  onClick={() => saveSpeechMutation.mutate()}
+                >
+                  Save
+                </Button>
+              }
+            >
+              <div className="grid max-w-lg grid-cols-1 gap-3 sm:grid-cols-2">
+                <Field label="Model">
+                  <Combobox
+                    value={speechModel}
+                    onChange={(v) => {
+                      setSpeechModel(v);
+                      setSpeechDirty(true);
+                    }}
+                    options={[
+                      { value: 'tiny', label: 'Tiny (fastest, ~75 MB)' },
+                      { value: 'base', label: 'Base (balanced, ~145 MB)' },
+                      { value: 'small', label: 'Small (most accurate, ~490 MB)' },
+                    ]}
+                  />
+                </Field>
+                <Field label="Spoken language">
+                  <Combobox
+                    value={speechLanguage}
+                    onChange={(v) => {
+                      setSpeechLanguage(v);
+                      setSpeechDirty(true);
+                    }}
+                    options={SPEECH_LANGUAGES}
+                  />
+                </Field>
+              </div>
+            </SettingsSection>
+
+            <SettingsSection
+              title="Translation retries"
+              description="Extra attempts Prompt Builder makes if a translate request fails."
+              action={
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={!translateRetriesDirty || saveTranslateRetriesMutation.isPending}
+                  onClick={() => saveTranslateRetriesMutation.mutate()}
+                >
+                  Save
+                </Button>
+              }
+            >
               <Input
-                id="telegram-chat-id"
-                value={chatId}
+                type="number"
+                min={0}
+                max={10}
+                value={translateMaxRetriesText}
                 onChange={(e) => {
-                  setChatId(e.target.value);
-                  setTelegramDirty(true);
+                  setTranslateMaxRetriesText(e.target.value);
+                  setTranslateRetriesDirty(true);
                 }}
-                placeholder="e.g. 123456789"
-                className="max-w-xs font-mono"
+                className="w-24"
               />
-              <Button
-                type="button"
-                variant="outline"
-                disabled={detectingChatId || !botToken.trim()}
-                onClick={() => void handleDetectChatId()}
-              >
-                {detectingChatId ? 'Detecting…' : 'Detect from last message'}
-              </Button>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Message your bot on Telegram once, then click detect. No need to hunt for your chat ID
-              manually.
-            </p>
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="telegram-scheduled-tasks-chat-id">Scheduled tasks chat/group ID</Label>
-            <Input
-              id="telegram-scheduled-tasks-chat-id"
-              value={scheduledTasksChatId}
-              onChange={(e) => {
-                setScheduledTasksChatId(e.target.value);
-                setTelegramDirty(true);
-              }}
-              placeholder="e.g. -1001234567890"
-              className="max-w-xs font-mono"
-            />
-            <p className="text-xs text-muted-foreground">
-              Optional. When set, every scheduled task is posted here and the message is edited in
-              place whenever its status changes.
-            </p>
-          </div>
-          <div className="flex items-center gap-2 pt-1">
-            <Button
-              disabled={!telegramDirty || saveTelegramMutation.isPending}
-              onClick={() => saveTelegramMutation.mutate()}
-            >
-              Save
-            </Button>
-            <Button
-              variant="outline"
-              disabled={sendingTest || (!botToken.trim() && !settingsQuery.data?.telegramBotToken)}
-              onClick={() => void handleSendTest()}
-            >
-              <Send className="h-4 w-4" /> {sendingTest ? 'Sending…' : 'Send test message'}
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+            </SettingsSection>
+          </SettingsPanel>
+        </TabsContent>
 
-      <Card className="glass">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <HardDrive className="h-4 w-4" /> Backup &amp; Restore
-          </CardTitle>
-          <CardDescription>
-            Export a single file with your projects, settings, templates, and other AgentMate data,
-            including any saved API keys and bot tokens, so keep it somewhere private. Restoring
-            replaces everything currently on this machine.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex items-center gap-2">
-            <Switch
-              id="compress-backup"
-              checked={compressBackup}
-              onCheckedChange={setCompressBackup}
-            />
-            <Label htmlFor="compress-backup" className="font-normal text-muted-foreground">
-              Compress export as a .zip file
-            </Label>
-          </div>
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              disabled={exportingBackup}
-              onClick={() => void handleExportBackup()}
+        <TabsContent value="notifications" className="mt-0">
+          <SettingsPanel>
+            <SettingsSection
+              title="Telegram bot"
+              description={
+                <>
+                  Used by project notification hooks. Create a bot with{' '}
+                  <ExternalLinkButton href="https://t.me/BotFather">@BotFather</ExternalLinkButton>,
+                  then paste its token below.
+                </>
+              }
+              action={
+                <div className="flex items-center gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={
+                      sendingTest || (!botToken.trim() && !settingsQuery.data?.telegramBotToken)
+                    }
+                    onClick={() => void handleSendTest()}
+                  >
+                    {sendingTest ? 'Sending…' : 'Send test'}
+                  </Button>
+                  <Button
+                    size="sm"
+                    disabled={!telegramDirty || saveTelegramMutation.isPending}
+                    onClick={() => saveTelegramMutation.mutate()}
+                  >
+                    Save
+                  </Button>
+                </div>
+              }
             >
-              <Download className="h-4 w-4" /> {exportingBackup ? 'Exporting…' : 'Export backup'}
-            </Button>
-            <Button
-              variant="outline"
-              disabled={importingBackup}
-              onClick={() => void handleImportBackup()}
-            >
-              <Upload className="h-4 w-4" />{' '}
-              {importingBackup ? 'Restoring…' : 'Restore from backup…'}
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+              <div className="space-y-4">
+                <Field label="Bot token" htmlFor="telegram-bot-token">
+                  <Input
+                    id="telegram-bot-token"
+                    type="password"
+                    value={botToken}
+                    onChange={(e) => {
+                      setBotToken(e.target.value);
+                      setTelegramDirty(true);
+                    }}
+                    placeholder="123456789:AAExampleTokenFromBotFather"
+                    className="max-w-md font-mono"
+                    autoComplete="off"
+                  />
+                </Field>
 
-      <Card className="glass">
-        <CardHeader>
-          <CardTitle>About</CardTitle>
-          <CardDescription>
-            AgentMate{' '}
-            {appVersionQuery.data == null
-              ? '…'
-              : appVersionQuery.data === 'dev'
-                ? '(dev build)'
-                : `v${appVersionQuery.data}`}
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <p className="text-sm text-muted-foreground">{updateStatusLabel()}</p>
-          <Button
-            variant="outline"
-            disabled={checkingForUpdates}
-            onClick={() => void handleCheckForUpdates()}
-          >
-            <RefreshCw className={cn('h-4 w-4', checkingForUpdates && 'animate-spin')} />
-            {checkingForUpdates ? 'Checking…' : 'Check for updates'}
-          </Button>
-        </CardContent>
-      </Card>
+                <Field
+                  label="Chat ID"
+                  htmlFor="telegram-chat-id"
+                  hint="Message your bot once on Telegram, then click detect."
+                >
+                  <div className="flex flex-wrap gap-2">
+                    <Input
+                      id="telegram-chat-id"
+                      value={chatId}
+                      onChange={(e) => {
+                        setChatId(e.target.value);
+                        setTelegramDirty(true);
+                      }}
+                      placeholder="e.g. 123456789"
+                      className="max-w-xs font-mono"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={detectingChatId || !botToken.trim()}
+                      onClick={() => void handleDetectChatId()}
+                    >
+                      {detectingChatId ? 'Detecting…' : 'Detect from last message'}
+                    </Button>
+                  </div>
+                </Field>
+
+                <Field
+                  label="Scheduled tasks chat/group ID"
+                  htmlFor="telegram-scheduled-tasks-chat-id"
+                  hint="Optional. Scheduled tasks post here and the message updates as status changes."
+                >
+                  <Input
+                    id="telegram-scheduled-tasks-chat-id"
+                    value={scheduledTasksChatId}
+                    onChange={(e) => {
+                      setScheduledTasksChatId(e.target.value);
+                      setTelegramDirty(true);
+                    }}
+                    placeholder="e.g. -1001234567890"
+                    className="max-w-xs font-mono"
+                  />
+                </Field>
+              </div>
+            </SettingsSection>
+          </SettingsPanel>
+        </TabsContent>
+
+        <TabsContent value="data" className="mt-0">
+          <SettingsPanel>
+            <SettingsSection
+              title="Network ping targets"
+              description="Hosts shown on the dashboard Network Status graph."
+              action={
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={!pingTargetsDirty}
+                  onClick={handleSavePingTargets}
+                >
+                  Save
+                </Button>
+              }
+            >
+              <Input
+                value={pingTargetsText}
+                onChange={(e) => {
+                  setPingTargetsText(e.target.value);
+                  setPingTargetsDirty(true);
+                }}
+                placeholder="1.1.1.1, 8.8.8.8"
+                className="max-w-md font-mono text-xs"
+              />
+            </SettingsSection>
+
+            <SettingsSection
+              title="Backup & restore"
+              description="Exports include projects, settings, templates, and saved keys. Keep the file private. Restoring replaces everything on this machine."
+            >
+              <div className="space-y-4">
+                <div className="flex items-center gap-2">
+                  <Switch
+                    id="compress-backup"
+                    checked={compressBackup}
+                    onCheckedChange={setCompressBackup}
+                  />
+                  <Label htmlFor="compress-backup" className="font-normal text-muted-foreground">
+                    Compress export as a .zip file
+                  </Label>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={exportingBackup}
+                    onClick={() => void handleExportBackup()}
+                  >
+                    <Download className="h-4 w-4" />{' '}
+                    {exportingBackup ? 'Exporting…' : 'Export backup'}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={importingBackup}
+                    onClick={() => void handleImportBackup()}
+                  >
+                    <Upload className="h-4 w-4" />{' '}
+                    {importingBackup ? 'Restoring…' : 'Restore from backup…'}
+                  </Button>
+                </div>
+              </div>
+            </SettingsSection>
+
+            <SettingsSection
+              title="About"
+              description={`AgentMate ${versionLabel}`}
+              action={
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={checkingForUpdates}
+                  onClick={() => void handleCheckForUpdates()}
+                >
+                  <RefreshCw className={cn('h-4 w-4', checkingForUpdates && 'animate-spin')} />
+                  {checkingForUpdates ? 'Checking…' : 'Check for updates'}
+                </Button>
+              }
+            >
+              <p className="text-sm text-muted-foreground">{updateStatusLabel()}</p>
+            </SettingsSection>
+          </SettingsPanel>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
