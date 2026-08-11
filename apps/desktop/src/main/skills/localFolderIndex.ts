@@ -194,7 +194,7 @@ function asList(value: string | string[] | undefined): string[] {
     .filter(Boolean);
 }
 
-/** Skill ids become directory names under `<scope>/skills/`, so keep them to safe characters. */
+/** Skill ids become directory names under agent skills folders (e.g. `.claude/skills/`), so keep them to safe characters. */
 function toSkillId(name: string): string {
   return (
     name

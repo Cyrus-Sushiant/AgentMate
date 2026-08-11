@@ -6,14 +6,18 @@ import { basename, dirname, join } from 'node:path';
 import { promisify } from 'node:util';
 import { app, BrowserWindow, dialog, ipcMain } from 'electron';
 import {
+  allProjectSkillRemoveDirs,
   isUiProAiTarget,
+  KNOWN_AGENT_DIRS,
   parseRepositoryIndex,
+  resolveProjectSkillInstallDirs,
   SKILLS_SH_PSEUDO_REPOSITORY_ID,
   SKILLS_SH_VERIFIED_OWNERS,
   UI_UX_PRO_MAX_PSEUDO_REPOSITORY_ID,
   UI_UX_PRO_MAX_SKILL_ID,
 } from '@agentmat/core';
 import type {
+  AgentType,
   Skill,
   SkillRepository,
   SkillRepositoryIndex,
@@ -51,13 +55,56 @@ function globalSkillsScopeRoot(): string {
   return join(app.getPath('home'), '.claude');
 }
 
+type SkillScope = {
+  /** Project folder, or ~/.claude for a global install. */
+  scopeRoot: string;
+  /** Null when installing globally (always under ~/.claude/skills). */
+  agentType: AgentType | null;
+};
+
 /** Resolves where a skill install/list/remove should read and write: a project's folder, or the global scope for null. */
-async function resolveSkillScopeRoot(projectId: string | null): Promise<string> {
-  if (projectId === null) return globalSkillsScopeRoot();
+async function resolveSkillScope(projectId: string | null): Promise<SkillScope> {
+  if (projectId === null) return { scopeRoot: globalSkillsScopeRoot(), agentType: null };
   const projects = await store.getProjects();
   const project = projects.find((p) => p.id === projectId);
   if (!project) throw new Error(`Project ${projectId} not found`);
-  return project.folderPath;
+  return { scopeRoot: project.folderPath, agentType: project.agentType };
+}
+
+async function resolveSkillScopeRoot(projectId: string | null): Promise<string> {
+  return (await resolveSkillScope(projectId)).scopeRoot;
+}
+
+/**
+ * Absolute dirs to copy a repo/local skill into. Global installs stay under ~/.claude/skills.
+ * Project installs go into the skills folder of whichever agent dirs already exist
+ * (.claude, .agents, .codex, …), falling back to the project's agentType convention.
+ */
+async function resolveSkillInstallDirs(scope: SkillScope): Promise<string[]> {
+  if (scope.agentType === null) {
+    return [join(scope.scopeRoot, 'skills')];
+  }
+
+  const existingAgentDirs: string[] = [];
+  for (const agentDir of KNOWN_AGENT_DIRS) {
+    if (await directoryExists(join(scope.scopeRoot, agentDir))) {
+      existingAgentDirs.push(agentDir);
+    }
+  }
+
+  return resolveProjectSkillInstallDirs(scope.agentType, existingAgentDirs).map((relative) =>
+    join(scope.scopeRoot, ...relative.split('/')),
+  );
+}
+
+/** Absolute dirs to delete when removing a repo/local skill (covers agent dirs and legacy root skills/). */
+function resolveSkillRemoveDirs(scope: SkillScope): string[] {
+  if (scope.agentType === null) {
+    return [join(scope.scopeRoot, 'skills')];
+  }
+  return allProjectSkillRemoveDirs(scope.agentType).map((relative) =>
+    join(scope.scopeRoot, ...relative.split('/')),
+  );
 }
 
 // GitHub owner/repo and skill directory names are restricted to this character set. Validating
@@ -397,8 +444,8 @@ export function registerSkillHandlers(): void {
       _event,
       params: { projectId: string | null; repositoryId: string; skillId: string },
     ): Promise<void> => {
-      const [scopeRoot, repos] = await Promise.all([
-        resolveSkillScopeRoot(params.projectId),
+      const [scope, repos] = await Promise.all([
+        resolveSkillScope(params.projectId),
         store.getRepositories(),
       ]);
       const repo = repos.find((r) => r.id === params.repositoryId);
@@ -408,15 +455,18 @@ export function registerSkillHandlers(): void {
       const skill = index.skills.find((s) => s.id === params.skillId);
       if (!skill) throw new Error(`Skill ${params.skillId} not found in repository ${repo.name}`);
 
-      const skillDir = join(scopeRoot, 'skills', skill.id);
-      for (const file of skill.files) {
-        const content = await readSkillFileContent(file, { baseDir, baseUrl });
-        const targetPath = join(skillDir, file.path);
-        await mkdir(dirname(targetPath), { recursive: true });
-        await writeFile(targetPath, content, 'utf-8');
+      const installDirs = await resolveSkillInstallDirs(scope);
+      for (const skillsParent of installDirs) {
+        const skillDir = join(skillsParent, skill.id);
+        for (const file of skill.files) {
+          const content = await readSkillFileContent(file, { baseDir, baseUrl });
+          const targetPath = join(skillDir, file.path);
+          await mkdir(dirname(targetPath), { recursive: true });
+          await writeFile(targetPath, content, 'utf-8');
+        }
       }
 
-      const installed = await readInstalledSkills(scopeRoot);
+      const installed = await readInstalledSkills(scope.scopeRoot);
       const withoutExisting = installed.filter((s) => s.skillId !== skill.id);
       withoutExisting.push({
         skillId: skill.id,
@@ -424,15 +474,15 @@ export function registerSkillHandlers(): void {
         version: skill.version,
         installedAt: new Date().toISOString(),
       });
-      await writeInstalledSkills(scopeRoot, withoutExisting);
+      await writeInstalledSkills(scope.scopeRoot, withoutExisting);
     },
   );
 
   ipcMain.handle(
     IPC.skills.remove,
     async (_event, params: { projectId: string | null; skillId: string }): Promise<void> => {
-      const scopeRoot = await resolveSkillScopeRoot(params.projectId);
-      const installed = await readInstalledSkills(scopeRoot);
+      const scope = await resolveSkillScope(params.projectId);
+      const installed = await readInstalledSkills(scope.scopeRoot);
       const record = installed.find((s) => s.skillId === params.skillId);
 
       if (record?.repositoryId === UI_UX_PRO_MAX_PSEUDO_REPOSITORY_ID) {
@@ -452,17 +502,19 @@ export function registerSkillHandlers(): void {
             '-y',
           ];
           if (params.projectId === null) args.push('--global');
-          await runSkillsCli(args, scopeRoot);
+          await runSkillsCli(args, scope.scopeRoot);
         }
       } else {
-        await rm(join(scopeRoot, 'skills', params.skillId), {
-          recursive: true,
-          force: true,
-        });
+        // Cover agent dirs (.claude/skills, .agents/skills, …) plus the old root skills/ path.
+        await Promise.all(
+          resolveSkillRemoveDirs(scope).map((skillsParent) =>
+            rm(join(skillsParent, params.skillId), { recursive: true, force: true }),
+          ),
+        );
       }
 
       await writeInstalledSkills(
-        scopeRoot,
+        scope.scopeRoot,
         installed.filter((s) => s.skillId !== params.skillId),
       );
     },
