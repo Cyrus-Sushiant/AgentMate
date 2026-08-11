@@ -6,6 +6,7 @@ import type { Project } from '@agentmat/core';
 import {
   Folder,
   FolderPlus,
+  GitBranch,
   Globe,
   GripVertical,
   Pin,
@@ -421,6 +422,19 @@ function ProjectCard({
           >
             <Globe className="h-3 w-3 shrink-0" />
             <span className="truncate">{project.websiteUrl.replace(/^https?:\/\//, '')}</span>
+          </button>
+        )}
+        {project.repoUrl && (
+          <button
+            type="button"
+            className="flex max-w-full items-center gap-1.5 truncate text-xs text-muted-foreground hover:text-primary hover:underline"
+            onClick={(e) => {
+              e.stopPropagation();
+              void window.agentmat.shell.openExternal(project.repoUrl);
+            }}
+          >
+            <GitBranch className="h-3 w-3 shrink-0" />
+            <span className="truncate">{project.repoUrl.replace(/^https?:\/\//, '')}</span>
           </button>
         )}
         <div className="flex flex-wrap gap-1.5">

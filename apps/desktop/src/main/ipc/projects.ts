@@ -65,6 +65,7 @@ export function registerProjectHandlers(): void {
         cliId: input.cliId ?? null,
         iconDataUrl: input.iconDataUrl ?? null,
         websiteUrl: input.websiteUrl ?? '',
+        repoUrl: input.repoUrl ?? '',
         pinned: false,
         createdAt: now,
         updatedAt: now,

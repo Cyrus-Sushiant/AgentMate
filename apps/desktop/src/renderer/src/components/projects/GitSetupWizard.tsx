@@ -33,6 +33,12 @@ import { queryKeys } from '@/lib/queryKeys';
 
 const GH_INSTALL_URL = 'https://cli.github.com/';
 
+/**
+ * Each step of the wizard shows its own spinner in the button that is running, so these
+ * writes opt out of the app-wide loading overlay (see `useAppLoadingOverlay`).
+ */
+const GIT_SETUP_META = { silentLoading: true } as const;
+
 /** GitHub itself swaps anything outside this set for a dash, so do the same up front. */
 function suggestRepoName(folderPath: string): string {
   const base = folderPath.split(/[\\/]/).filter(Boolean).pop() ?? '';
@@ -124,6 +130,7 @@ export function GitSetupWizard({
       pushedBranch.current = branch;
       setStep('github');
     },
+    meta: GIT_SETUP_META,
   });
 
   const lookupMutation = useMutation({
@@ -132,6 +139,7 @@ export function GitSetupWizard({
       setLookup(result);
       if (!result.ok) toast.error(result.error ?? 'Could not reach GitHub.');
     },
+    meta: GIT_SETUP_META,
   });
 
   const connectMutation = useMutation({
@@ -169,6 +177,7 @@ export function GitSetupWizard({
       refreshGitState();
       toast.error(error.message || 'Could not connect the repository.');
     },
+    meta: GIT_SETUP_META,
   });
 
   const account = accountQuery.data;

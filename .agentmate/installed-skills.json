@@ -1,0 +1,15 @@
+[
+  {
+    "skillId": "anthropics/skills/frontend-design",
+    "repositoryId": "skills-sh-directory",
+    "version": "2026-08-11",
+    "installedAt": "2026-08-11T06:45:48.340Z",
+    "agents": [
+      "claude-code",
+      "codex",
+      "cursor",
+      "opencode",
+      "gemini-cli"
+    ]
+  }
+]

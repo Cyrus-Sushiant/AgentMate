@@ -54,6 +54,7 @@ export const IPC = {
     refreshRepository: 'skills:refreshRepository',
     getRepositoryIndex: 'skills:getRepositoryIndex',
     pickLocalRepository: 'skills:pickLocalRepository',
+    previewLocalRepository: 'skills:previewLocalRepository',
     install: 'skills:install',
     remove: 'skills:remove',
     listInstalled: 'skills:listInstalled',
@@ -63,6 +64,9 @@ export const IPC = {
     recordSkillsShInstall: 'skills:recordSkillsShInstall',
     checkUiProPrerequisites: 'skills:checkUiProPrerequisites',
     recordUiProInstall: 'skills:recordUiProInstall',
+    // main -> renderer events
+    /** A watched local-folder repository changed on disk; payload is the repository id. */
+    onRepositoryChanged: 'skills:onRepositoryChanged',
   },
   mcp: {
     listRepositories: 'mcp:listRepositories',
@@ -276,6 +280,7 @@ export const IPC = {
     lookupGithubRepo: 'git:lookupGithubRepo',
     createGithubRepo: 'git:createGithubRepo',
     connectRemote: 'git:connectRemote',
+    detectRemote: 'git:detectRemote',
   },
   packages: {
     list: 'packages:list',

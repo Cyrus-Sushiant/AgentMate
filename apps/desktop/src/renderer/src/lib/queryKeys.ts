@@ -5,6 +5,8 @@ export const queryKeys = {
   activity: ['activity'] as const,
   repositories: ['skill-repositories'] as const,
   repositoryIndex: (id: string) => ['skill-repository-index', id] as const,
+  localSkillFolderPreviews: ['local-skill-folder-preview'] as const,
+  localSkillFolderPreview: (path: string) => ['local-skill-folder-preview', path] as const,
   installedSkills: (projectId: string | null) => ['installed-skills', projectId] as const,
   skillUpdates: (projectId: string | null) => ['skill-updates', projectId] as const,
   mcpRepositories: ['mcp-repositories'] as const,

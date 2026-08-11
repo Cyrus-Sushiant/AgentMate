@@ -41,6 +41,7 @@ import type {
   SaveTemplateInput,
   DirectoryEntry,
   InstalledSkillRecord,
+  LocalSkillFolderPreview,
   SkillUpdateInfo,
   InstalledMcpServerRecord,
   SkillsShDetail,
@@ -210,8 +211,13 @@ const skills = {
     ipcRenderer.invoke(IPC.skills.refreshRepository, repositoryId),
   getRepositoryIndex: (repositoryId: string): Promise<SkillRepositoryIndex> =>
     ipcRenderer.invoke(IPC.skills.getRepositoryIndex, repositoryId),
-  pickLocalRepository: (): Promise<string | null> =>
-    ipcRenderer.invoke(IPC.skills.pickLocalRepository),
+  /** `currentPath` seeds the dialog; it falls back to the projects folder from Settings. */
+  pickLocalRepository: (currentPath?: string | null): Promise<string | null> =>
+    ipcRenderer.invoke(IPC.skills.pickLocalRepository, currentPath ?? null),
+  previewLocalRepository: (folderPath: string): Promise<LocalSkillFolderPreview> =>
+    ipcRenderer.invoke(IPC.skills.previewLocalRepository, folderPath),
+  onRepositoryChanged: (cb: (repositoryId: string) => void): (() => void) =>
+    subscribe(IPC.skills.onRepositoryChanged, cb),
   install: (params: {
     projectId: string | null;
     repositoryId: string;
@@ -450,6 +456,9 @@ const git = {
   /** Points origin at `url`, and optionally pushes the current branch with -u. */
   connectRemote: (input: ConnectRemoteInput): Promise<GitOpResult> =>
     ipcRenderer.invoke(IPC.git.connectRemote, input),
+  /** Origin's URL for a folder path, as a browsable link. Null when there isn't one. */
+  detectRemote: (folderPath: string): Promise<string | null> =>
+    ipcRenderer.invoke(IPC.git.detectRemote, folderPath),
 };
 
 function subscribe<T>(channel: string, callback: (payload: T) => void): () => void {

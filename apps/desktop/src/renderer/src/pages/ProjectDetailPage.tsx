@@ -410,6 +410,18 @@ export default function ProjectDetailPage(): React.JSX.Element {
                   </button>
                 </SimpleTooltip>
               )}
+              {project.repoUrl && (
+                <SimpleTooltip label={`Open ${project.repoUrl}`}>
+                  <button
+                    type="button"
+                    onClick={() => void window.agentmat.shell.openExternal(project.repoUrl)}
+                    className="flex min-w-0 items-center gap-1.5 truncate text-xs text-muted-foreground hover:text-foreground"
+                  >
+                    <GitBranch className="h-3 w-3 shrink-0" />
+                    <span className="truncate">{project.repoUrl.replace(/^https?:\/\//, '')}</span>
+                  </button>
+                </SimpleTooltip>
+              )}
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-2">
@@ -1385,6 +1397,56 @@ function AiSuggestButton({
   );
 }
 
+/**
+ * Git writes report progress in the button the user clicked, so they opt out of the
+ * app-wide loading overlay (see `useAppLoadingOverlay`). Blanking the whole page for a
+ * push hides the branch, the file list and the status badges the user is reading.
+ */
+const GIT_OP_META = { silentLoading: true } as const;
+
+/**
+ * A git action button that carries its own progress: the icon swaps for a spinner and
+ * the label says what is happening, so the page around it stays readable.
+ */
+function GitOpButton({
+  icon: Icon,
+  label,
+  pendingLabel,
+  pending,
+  disabled,
+  onClick,
+  variant,
+  size,
+}: {
+  icon?: React.ComponentType<{ className?: string }>;
+  label: string;
+  /** What this button is doing right now, e.g. "Pushing…". */
+  pendingLabel: string;
+  pending: boolean;
+  disabled?: boolean;
+  onClick: () => void;
+  variant?: 'outline';
+  size?: 'sm';
+}): React.JSX.Element {
+  const iconSize = size === 'sm' ? 'h-3.5 w-3.5' : 'h-4 w-4';
+  return (
+    <Button
+      variant={variant}
+      size={size}
+      disabled={disabled || pending}
+      onClick={onClick}
+      aria-busy={pending}
+    >
+      {pending ? (
+        <Spinner className={`${iconSize} animate-spin`} />
+      ) : (
+        Icon && <Icon className={iconSize} />
+      )}
+      {pending ? pendingLabel : label}
+    </Button>
+  );
+}
+
 function GitTab({
   projectId,
   folderPath,
@@ -1432,18 +1494,22 @@ function GitTab({
   const fetchMutation = useMutation({
     mutationFn: () => window.agentmat.git.fetch(projectId),
     onSuccess: reportOpResult,
+    meta: GIT_OP_META,
   });
   const pullMutation = useMutation({
     mutationFn: () => window.agentmat.git.pull(projectId),
     onSuccess: reportOpResult,
+    meta: GIT_OP_META,
   });
   const pushMutation = useMutation({
     mutationFn: () => window.agentmat.git.push(projectId),
     onSuccess: reportOpResult,
+    meta: GIT_OP_META,
   });
   const syncMutation = useMutation({
     mutationFn: () => window.agentmat.git.sync(projectId),
     onSuccess: reportOpResult,
+    meta: GIT_OP_META,
   });
   const createBranchMutation = useMutation({
     mutationFn: (name: string) => window.agentmat.git.createBranch(projectId, name),
@@ -1451,6 +1517,7 @@ function GitTab({
       reportOpResult(result);
       if (result.ok) setBranchName('');
     },
+    meta: GIT_OP_META,
   });
   const commitMutation = useMutation({
     mutationFn: (message: string) => window.agentmat.git.commit(projectId, message),
@@ -1458,6 +1525,7 @@ function GitTab({
       reportOpResult(result);
       if (result.ok) setCommitMessage('');
     },
+    meta: GIT_OP_META,
   });
 
   /** Kills the CLI process behind an in-flight suggestion, rather than just ignoring its answer. */
@@ -1541,11 +1609,15 @@ function GitTab({
   }
 
   const status = statusQuery.data;
+  // Git serialises on the repo's index, so one running command locks the other buttons out.
+  // Only the button that was clicked shows the spinner, the rest just grey out.
   const anyOpPending =
     fetchMutation.isPending ||
     pullMutation.isPending ||
     pushMutation.isPending ||
-    syncMutation.isPending;
+    syncMutation.isPending ||
+    createBranchMutation.isPending ||
+    commitMutation.isPending;
 
   return (
     <div className="space-y-4">
@@ -1570,34 +1642,46 @@ function GitTab({
           )}
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Button
-            variant="outline"
+          <GitOpButton
             size="sm"
+            variant="outline"
+            icon={Download}
+            label="Fetch"
+            pendingLabel="Fetching…"
+            pending={fetchMutation.isPending}
             disabled={anyOpPending}
             onClick={() => fetchMutation.mutate()}
-          >
-            <Download className="h-3.5 w-3.5" /> Fetch
-          </Button>
-          <Button
-            variant="outline"
+          />
+          <GitOpButton
             size="sm"
+            variant="outline"
+            icon={Download}
+            label="Pull"
+            pendingLabel="Pulling…"
+            pending={pullMutation.isPending}
             disabled={anyOpPending || !status.hasRemote}
             onClick={() => pullMutation.mutate()}
-          >
-            <Download className="h-3.5 w-3.5" /> Pull
-          </Button>
-          <Button
-            variant="outline"
+          />
+          <GitOpButton
             size="sm"
+            variant="outline"
+            icon={CloudUpload}
+            label="Push"
+            pendingLabel="Pushing…"
+            pending={pushMutation.isPending}
             disabled={anyOpPending || !status.hasRemote}
             onClick={() => pushMutation.mutate()}
-          >
-            <CloudUpload className="h-3.5 w-3.5" /> Push
-          </Button>
+          />
           {status.hasRemote ? (
-            <Button size="sm" disabled={anyOpPending} onClick={() => syncMutation.mutate()}>
-              <RefreshCw className="h-3.5 w-3.5" /> Sync
-            </Button>
+            <GitOpButton
+              size="sm"
+              icon={RefreshCw}
+              label="Sync"
+              pendingLabel="Syncing…"
+              pending={syncMutation.isPending}
+              disabled={anyOpPending}
+              onClick={() => syncMutation.mutate()}
+            />
           ) : (
             <Button size="sm" onClick={() => setSetupOpen(true)}>
               <CloudUpload className="h-3.5 w-3.5" /> Connect to GitHub
@@ -1643,13 +1727,14 @@ function GitTab({
                 cancelSuggestion(branchRequestRef, window.agentmat.git.cancelSuggestBranchName)
               }
             />
-            <Button
+            <GitOpButton
               size="sm"
-              disabled={createBranchMutation.isPending || !branchName.trim()}
+              label="Create"
+              pendingLabel="Creating…"
+              pending={createBranchMutation.isPending}
+              disabled={anyOpPending || !branchName.trim()}
               onClick={() => createBranchMutation.mutate(branchName)}
-            >
-              Create
-            </Button>
+            />
           </div>
         </div>
 
@@ -1676,15 +1761,14 @@ function GitTab({
                 cancelSuggestion(commitRequestRef, window.agentmat.git.cancelSuggestCommitMessage)
               }
             />
-            <Button
+            <GitOpButton
               size="sm"
-              disabled={
-                commitMutation.isPending || !commitMessage.trim() || status.files.length === 0
-              }
+              label="Commit all changes"
+              pendingLabel="Committing…"
+              pending={commitMutation.isPending}
+              disabled={anyOpPending || !commitMessage.trim() || status.files.length === 0}
               onClick={() => commitMutation.mutate(commitMessage)}
-            >
-              Commit all changes
-            </Button>
+            />
           </div>
         </div>
       </div>
@@ -1801,6 +1885,7 @@ function ApplyVersionDialog({
       requestRef.current = null;
       void queryClient.invalidateQueries({ queryKey: queryKeys.gitStatus(projectId) });
     },
+    meta: GIT_OP_META,
   });
 
   // Tagging is gated on a clean working tree (see TagVersionDialog), so the version bump
@@ -1812,6 +1897,7 @@ function ApplyVersionDialog({
       else toast.error(result.message);
       void queryClient.invalidateQueries({ queryKey: queryKeys.gitStatus(projectId) });
     },
+    meta: GIT_OP_META,
   });
 
   const { reset, mutate } = applyMutation;
@@ -1897,19 +1983,20 @@ function ApplyVersionDialog({
                   <p className="min-w-0 flex-1 text-xs text-muted-foreground">
                     Tagging is locked until this version bump is committed.
                   </p>
-                  <Button
+                  <GitOpButton
                     size="sm"
                     variant="outline"
-                    disabled={commitMutation.isPending}
+                    icon={GitCommit}
+                    label="Commit version bump"
+                    pendingLabel="Committing…"
+                    pending={commitMutation.isPending}
                     onClick={() =>
                       tag &&
                       commitMutation.mutate(
                         `chore(release): bump version to ${tag.replace(/^v/, '')}`,
                       )
                     }
-                  >
-                    <GitCommit className="h-3.5 w-3.5" /> Commit version bump
-                  </Button>
+                  />
                 </div>
               )}
             </div>
@@ -2012,6 +2099,7 @@ function TagVersionDialog({
         toast.error(result.error ?? 'The CLI could not work out a version.');
       }
     },
+    meta: GIT_OP_META,
   });
 
   /** Kills the CLI process behind the running suggestion, rather than just ignoring its answer. */
@@ -2035,6 +2123,7 @@ function TagVersionDialog({
         toast.error(result.message);
       }
     },
+    meta: GIT_OP_META,
   });
 
   function handleOpenChange(next: boolean): void {
@@ -2150,12 +2239,14 @@ function TagVersionDialog({
             label={isDirty ? 'Commit the changed files above before tagging.' : null}
             wrapTrigger
           >
-            <Button
-              disabled={createTagMutation.isPending || !tag.trim() || isDirty}
+            <GitOpButton
+              icon={Tag}
+              label={hasRemote ? 'Create & push tag' : 'Create tag'}
+              pendingLabel={hasRemote ? 'Creating & pushing…' : 'Creating tag…'}
+              pending={createTagMutation.isPending}
+              disabled={!tag.trim() || isDirty}
               onClick={() => createTagMutation.mutate()}
-            >
-              <Tag className="h-4 w-4" /> {hasRemote ? 'Create & push tag' : 'Create tag'}
-            </Button>
+            />
           </SimpleTooltip>
         </DialogFooter>
       </DialogContent>
@@ -2205,6 +2296,7 @@ function CreatePrDialog({
         toast.error(result.error ?? 'Failed to create pull request.');
       }
     },
+    meta: GIT_OP_META,
   });
 
   return (
@@ -2241,12 +2333,14 @@ function CreatePrDialog({
           </div>
         </div>
         <DialogFooter>
-          <Button
-            disabled={createPrMutation.isPending || !title.trim()}
+          <GitOpButton
+            icon={GitPullRequest}
+            label="Create Pull Request"
+            pendingLabel="Pushing & opening PR…"
+            pending={createPrMutation.isPending}
+            disabled={!title.trim()}
             onClick={() => createPrMutation.mutate()}
-          >
-            <GitPullRequest className="h-4 w-4" /> Create Pull Request
-          </Button>
+          />
         </DialogFooter>
       </DialogContent>
     </Dialog>

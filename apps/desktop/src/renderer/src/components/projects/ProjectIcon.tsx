@@ -34,10 +34,12 @@ export function ProjectIcon({
       )}
     >
       {showImage ? (
+        // Inset rather than edge to edge: a photo filling the whole tile reads
+        // much heavier next to the title than the folder glyph it replaces.
         <img
           src={iconDataUrl}
           alt=""
-          className="h-full w-full object-contain p-1"
+          className="h-3/5 w-3/5 object-contain"
           onError={() => setFailedIcon(iconDataUrl)}
         />
       ) : (

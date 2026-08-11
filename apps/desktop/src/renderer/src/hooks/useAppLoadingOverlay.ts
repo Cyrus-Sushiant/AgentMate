@@ -14,7 +14,8 @@ const BOOT_GRACE_MS = 1500;
  * Opening another page, a background refetch or a poll is shown inline by
  * whichever card is still waiting (see `ui/skeleton.tsx`) instead of blanking
  * out the page the user is reading. Mutations keep the overlay: they block on a
- * write the user just asked for.
+ * write the user just asked for, unless they report progress on their own
+ * button (see `meta.silentLoading` below).
  */
 export function useAppLoadingOverlay(): boolean {
   // A query that already has data is refreshing in place, so it isn't part of
@@ -23,7 +24,11 @@ export function useAppLoadingOverlay(): boolean {
   const bootFetching = useIsFetching({
     predicate: (query) => !query.meta?.silentLoading && query.state.data === undefined,
   });
-  const isMutating = useIsMutating();
+  // Same opt-out for writes: a mutation whose button shows its own spinner has
+  // no business blanking the page around it (e.g. every git action).
+  const isMutating = useIsMutating({
+    predicate: (mutation) => !mutation.options.meta?.silentLoading,
+  });
   const [booted, setBooted] = useState(false);
   const sawFetch = useRef(false);
 

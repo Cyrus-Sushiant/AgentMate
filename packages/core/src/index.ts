@@ -5,6 +5,7 @@ export * from './promptBuilder/promptTypeProfiles.js';
 export * from './promptBuilder/targetAiNotes.js';
 export * from './promptBuilder/templateEngine.js';
 export * from './projectBootstrap/templates.js';
+export * from './git/remoteUrl.js';
 export * from './skills/types.js';
 export * from './skills/skillsSh.js';
 export * from './skills/uiUxProMax.js';

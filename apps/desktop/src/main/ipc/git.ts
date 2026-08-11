@@ -1,6 +1,7 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { ipcMain } from 'electron';
+import { browsableRepoUrl } from '@agentmat/core';
 import type { Project } from '@agentmat/core';
 import { IPC } from '../../shared/ipcChannels';
 import type {
@@ -382,6 +383,12 @@ async function pushCurrentBranch(cwd: string, branch: string): Promise<string> {
     throw error;
   }
 }
+
+/**
+ * Origin can point at a folder, a UNC share or a file:// URL. Those clone fine but
+ * are nothing to hand a browser, so the project's repository link stays empty.
+ */
+const LOCAL_REMOTE_PATTERN = /^([a-z]:[\\/]|\\\\|\/|\.{1,2}[\\/]|file:)/i;
 
 function parseGithubRemote(url: string): { owner: string; repo: string } | null {
   const match = url.trim().match(/github\.com[/:]([^/]+)\/([^/]+?)(\.git)?\/?$/);
@@ -1006,6 +1013,22 @@ export function registerGitHandlers(): void {
         await git(cwd, ['push', '-u', 'origin', branch], PUSH_TIMEOUT_MS);
         return `Connected origin and pushed ${branch}.`;
       });
+    },
+  );
+
+  /**
+   * Origin's URL for a folder on disk, addressed by path rather than project id:
+   * the new-project form needs this before the project exists. Null when the
+   * folder isn't a repository or has no origin, which is not an error worth showing.
+   */
+  ipcMain.handle(
+    IPC.git.detectRemote,
+    async (_event, folderPath: string): Promise<string | null> => {
+      const cwd = folderPath?.trim();
+      if (!cwd || !(await isGitRepo(cwd))) return null;
+      const remote = (await git(cwd, ['remote', 'get-url', 'origin']).catch(() => '')).trim();
+      if (!remote || LOCAL_REMOTE_PATTERN.test(remote)) return null;
+      return browsableRepoUrl(remote);
     },
   );
 }

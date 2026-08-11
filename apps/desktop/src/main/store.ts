@@ -99,7 +99,10 @@ function withSettingsMigrations(settings: AppSettings): AppSettings {
   };
 }
 
-/** Older projects.json entries predate the notifications, prompt, pinned, cliId, and icon fields. */
+/**
+ * Older projects.json entries predate the notifications, prompt, pinned, cliId, icon
+ * and repository fields.
+ */
 function withProjectDefaults(project: Project): Project {
   return {
     ...project,
@@ -109,6 +112,7 @@ function withProjectDefaults(project: Project): Project {
     cliId: project.cliId ?? null,
     iconDataUrl: project.iconDataUrl ?? null,
     websiteUrl: project.websiteUrl ?? '',
+    repoUrl: project.repoUrl ?? '',
   };
 }
 

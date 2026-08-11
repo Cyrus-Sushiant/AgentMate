@@ -175,6 +175,12 @@ export interface Project {
   iconDataUrl: string | null;
   /** Site this project lives at, and the source its favicon is fetched from. Empty when unset. */
   websiteUrl: string;
+  /**
+   * Where the project's code is hosted, e.g. "https://github.com/me/my-app". Filled in
+   * on the create form (detected from the folder's origin remote when there is one),
+   * and only ever a label to open: nothing here runs git. Empty when unset.
+   */
+  repoUrl: string;
   /** Pinned projects are sorted first on the Projects page, above the drag-ordered rest. */
   pinned: boolean;
   createdAt: string;

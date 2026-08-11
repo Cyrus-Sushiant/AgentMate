@@ -140,6 +140,7 @@ export default function SkillsPage(): React.JSX.Element {
   const [repoName, setRepoName] = useState('');
   const [repoSourceType, setRepoSourceType] = useState<SkillRepositorySourceType>('local-folder');
   const [repoSource, setRepoSource] = useState('');
+  const [debouncedRepoSource, setDebouncedRepoSource] = useState('');
   const [shMode, setShMode] = useState<SkillsShSearchMode>('bundled');
   const [shSearch, setShSearch] = useState('');
   const [shDebouncedSearch, setShDebouncedSearch] = useState('');
@@ -157,6 +158,11 @@ export default function SkillsPage(): React.JSX.Element {
     const timer = setTimeout(() => setShDebouncedSearch(shSearch), 350);
     return () => clearTimeout(timer);
   }, [shSearch]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedRepoSource(repoSource), 300);
+    return () => clearTimeout(timer);
+  }, [repoSource]);
 
   const projectsQuery = useQuery({
     queryKey: queryKeys.projects,
@@ -189,18 +195,44 @@ export default function SkillsPage(): React.JSX.Element {
     enabled: !!selectedRepoId,
   });
 
+  // What the folder in the path field actually contains, so the dialog can report it before the
+  // user commits to adding it.
+  const folderPreviewQuery = useQuery({
+    queryKey: queryKeys.localSkillFolderPreview(debouncedRepoSource),
+    queryFn: () => window.agentmat.skills.previewLocalRepository(debouncedRepoSource),
+    enabled: addRepoOpen && repoSourceType === 'local-folder' && debouncedRepoSource.trim() !== '',
+    staleTime: 0,
+  });
+  // Ignored for URL/git sources, whose cached preview would otherwise linger after a type switch.
+  const folderPreview = repoSourceType === 'local-folder' ? folderPreviewQuery.data : undefined;
+
+  // Local-folder repositories are watched in the main process: a skill added to (or deleted from)
+  // the folder refreshes the marketplace on its own.
+  useEffect(
+    () =>
+      window.agentmat.skills.onRepositoryChanged((repositoryId) => {
+        void queryClient.invalidateQueries({
+          queryKey: queryKeys.repositoryIndex(repositoryId),
+        });
+        void queryClient.invalidateQueries({ queryKey: queryKeys.localSkillFolderPreviews });
+      }),
+    [queryClient],
+  );
+
   const addRepoMutation = useMutation({
     mutationFn: () =>
       window.agentmat.skills.addRepository({
-        name: repoName,
+        name: repoName.trim() || (folderPreview?.suggestedName ?? ''),
         sourceType: repoSourceType,
-        source: repoSource,
+        source: repoSource.trim(),
       }),
-    onSuccess: () => {
+    onSuccess: (repo) => {
       toast.success('Repository added.');
       setAddRepoOpen(false);
       setRepoName('');
       setRepoSource('');
+      setDebouncedRepoSource('');
+      setSelectedRepoId(repo.id);
       void queryClient.invalidateQueries({ queryKey: queryKeys.repositories });
     },
     onError: (error: Error) => toast.error(error.message),
@@ -225,7 +257,8 @@ export default function SkillsPage(): React.JSX.Element {
 
   const installBatchMutation = useMutation({
     mutationFn: async ({ projectIds, global }: { projectIds: string[]; global: boolean }) => {
-      if (!installTarget) return { succeeded: [] as (string | null)[], failed: [] as (string | null)[] };
+      if (!installTarget)
+        return { succeeded: [] as (string | null)[], failed: [] as (string | null)[] };
       const targets: (string | null)[] = global ? [...projectIds, null] : projectIds;
 
       if (installTarget.kind === 'skillsSh') {
@@ -284,7 +317,8 @@ export default function SkillsPage(): React.JSX.Element {
     onSuccess: ({ succeeded, failed, firstFailureMessage, skillsSh }) => {
       for (const target of succeeded) {
         void queryClient.invalidateQueries({ queryKey: queryKeys.installedSkills(target) });
-        if (target === null) void queryClient.invalidateQueries({ queryKey: queryKeys.skillUpdates(null) });
+        if (target === null)
+          void queryClient.invalidateQueries({ queryKey: queryKeys.skillUpdates(null) });
       }
       if (succeeded.length > 0 && skillsSh) {
         toast.info(
@@ -427,8 +461,13 @@ export default function SkillsPage(): React.JSX.Element {
   });
 
   async function handlePickLocalFolder(): Promise<void> {
-    const picked = await window.agentmat.skills.pickLocalRepository();
-    if (picked) setRepoSource(picked);
+    // Whatever is typed wins as the starting directory; the main process falls back to the
+    // projects folder from Settings when the field is empty or points nowhere.
+    const picked = await window.agentmat.skills.pickLocalRepository(repoSource);
+    if (picked) {
+      setRepoSource(picked);
+      setDebouncedRepoSource(picked);
+    }
   }
 
   function handleCopyInstallCommand(command: string): void {
@@ -738,10 +777,24 @@ export default function SkillsPage(): React.JSX.Element {
         </TabsContent>
       </Tabs>
 
-      <Dialog open={addRepoOpen} onOpenChange={setAddRepoOpen}>
+      <Dialog
+        open={addRepoOpen}
+        onOpenChange={(open) => {
+          setAddRepoOpen(open);
+          // Closing clears the form so the next open starts empty rather than on a stale path.
+          if (!open) {
+            setRepoName('');
+            setRepoSource('');
+            setDebouncedRepoSource('');
+          }
+        }}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Add repository</DialogTitle>
+            <DialogDescription>
+              Point AgentMate at a folder of skills, a git repository, or a JSON index.
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
             <div className="space-y-1.5">
@@ -749,8 +802,15 @@ export default function SkillsPage(): React.JSX.Element {
               <Input
                 value={repoName}
                 onChange={(e) => setRepoName(e.target.value)}
-                placeholder="Community Repository"
+                placeholder={folderPreview?.suggestedName || 'Community Repository'}
               />
+              {repoSourceType === 'local-folder' &&
+                !repoName.trim() &&
+                folderPreview?.suggestedName && (
+                  <p className="text-xs text-muted-foreground">
+                    Leave this empty to use the folder name.
+                  </p>
+                )}
             </div>
             <div className="space-y-1.5">
               <Label>Type</Label>
@@ -764,15 +824,31 @@ export default function SkillsPage(): React.JSX.Element {
               <Label>{repoSourceType === 'local-folder' ? 'Folder' : 'Source'}</Label>
               {repoSourceType === 'local-folder' ? (
                 <div className="flex gap-2">
-                  <Input value={repoSource} readOnly placeholder="Choose a folder…" />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="icon"
-                    onClick={() => void handlePickLocalFolder()}
-                  >
-                    <FolderOpen className="h-4 w-4" />
-                  </Button>
+                  <Input
+                    value={repoSource}
+                    onChange={(e) => setRepoSource(e.target.value)}
+                    onPaste={(e) => {
+                      // Paths pasted from Explorer often come wrapped in quotes.
+                      const pasted = e.clipboardData.getData('text').trim().replace(/^"|"$/g, '');
+                      if (!pasted) return;
+                      e.preventDefault();
+                      setRepoSource(pasted);
+                      setDebouncedRepoSource(pasted);
+                    }}
+                    spellCheck={false}
+                    className="font-mono text-xs"
+                    placeholder="Type or paste a folder path, or browse…"
+                  />
+                  <SimpleTooltip label="Browse for a folder">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      onClick={() => void handlePickLocalFolder()}
+                    >
+                      <FolderOpen className="h-4 w-4" />
+                    </Button>
+                  </SimpleTooltip>
                 </div>
               ) : (
                 <Input
@@ -785,14 +861,48 @@ export default function SkillsPage(): React.JSX.Element {
                   }
                 />
               )}
+              {repoSourceType === 'local-folder' && (
+                <div className="text-xs">
+                  {folderPreviewQuery.isFetching ? (
+                    <p className="text-muted-foreground">Checking folder…</p>
+                  ) : folderPreview?.error ? (
+                    <p className="text-destructive">{folderPreview.error}</p>
+                  ) : folderPreview ? (
+                    <p className="text-muted-foreground">
+                      Found {folderPreview.skillNames.length}{' '}
+                      {folderPreview.skillNames.length === 1 ? 'skill' : 'skills'}
+                      {folderPreview.hasManifest ? ' from repository.json' : ''}:{' '}
+                      <span className="text-foreground">
+                        {folderPreview.skillNames.slice(0, 5).join(', ')}
+                        {folderPreview.skillNames.length > 5
+                          ? ` +${folderPreview.skillNames.length - 5} more`
+                          : ''}
+                      </span>
+                    </p>
+                  ) : (
+                    <p className="text-muted-foreground">
+                      A folder of skills: subfolders with a SKILL.md, or plain .md files. No
+                      repository.json needed.
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
           </div>
           <DialogFooter>
             <Button
-              disabled={!repoName.trim() || !repoSource.trim() || addRepoMutation.isPending}
+              disabled={
+                !repoSource.trim() ||
+                addRepoMutation.isPending ||
+                (repoSourceType === 'local-folder'
+                  ? !!folderPreview?.error ||
+                    folderPreviewQuery.isFetching ||
+                    debouncedRepoSource.trim() !== repoSource.trim()
+                  : !repoName.trim())
+              }
               onClick={() => addRepoMutation.mutate()}
             >
-              Add
+              {addRepoMutation.isPending ? 'Adding…' : 'Add'}
             </Button>
           </DialogFooter>
         </DialogContent>

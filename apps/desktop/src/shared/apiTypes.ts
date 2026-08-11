@@ -66,6 +66,8 @@ export interface CreateProjectInput {
   iconDataUrl?: string | null;
   /** Site this project lives at; the favicon fetch reads it. */
   websiteUrl?: string;
+  /** Git repository the code lives in, stored as a link only. */
+  repoUrl?: string;
   /** Optional: the create/edit form doesn't collect it; the Prompt dialog defines it later. */
   prompt?: string;
 }
@@ -137,6 +139,18 @@ export interface SkillsShSearchResult {
   official: boolean;
   url: string;
   installCommand: string;
+}
+
+/** What a folder looks like as a skill repository, shown while the user types or picks a path. */
+export interface LocalSkillFolderPreview {
+  path: string;
+  /** Folder name, offered as the repository name when the user left that field empty. */
+  suggestedName: string;
+  skillNames: string[];
+  /** True when the folder carries its own repository.json instead of being scanned. */
+  hasManifest: boolean;
+  /** Why the folder can't be used, or null when it can. */
+  error: string | null;
 }
 
 /** Detail fetched on demand for a single skills.sh skill (description isn't in search results). */

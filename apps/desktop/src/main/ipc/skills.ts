@@ -1,9 +1,10 @@
 import { execFile } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
-import { dirname, join } from 'node:path';
+import { watch, type FSWatcher } from 'node:fs';
+import { mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { basename, dirname, join } from 'node:path';
 import { promisify } from 'node:util';
-import { app, dialog, ipcMain } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain } from 'electron';
 import {
   isUiProAiTarget,
   parseRepositoryIndex,
@@ -22,6 +23,7 @@ import { IPC } from '../../shared/ipcChannels';
 import type {
   InstallFromSkillsShInput,
   InstalledSkillRecord,
+  LocalSkillFolderPreview,
   RecordUiProInstallInput,
   SkillsShDetail,
   SkillsShSearchResult,
@@ -29,6 +31,7 @@ import type {
   UiProPrerequisites,
   UiProToolProbe,
 } from '../../shared/apiTypes';
+import { scanSkillFolder } from '../skills/localFolderIndex';
 import { store } from '../store';
 
 const SKILLS_SH_VERIFIED_OWNER_SET = new Set(SKILLS_SH_VERIFIED_OWNERS);
@@ -140,28 +143,49 @@ async function writeInstalledSkills(
   await writeFile(filePath, JSON.stringify(records, null, 2), 'utf-8');
 }
 
+async function directoryExists(path: string): Promise<boolean> {
+  return stat(path)
+    .then((stats) => stats.isDirectory())
+    .catch(() => false);
+}
+
+/**
+ * Reads a folder's `repository.json` when it has one, and otherwise scans the folder for skills.
+ * Most people keep their skills as plain `<name>/SKILL.md` folders (or loose `.md` files) without
+ * ever writing a manifest, so a missing `repository.json` is a normal case, not an error.
+ */
+async function loadDirectoryIndex(dir: string): Promise<SkillRepositoryIndex> {
+  if (!(await directoryExists(dir))) {
+    throw new Error(`Folder not found: ${dir}`);
+  }
+  try {
+    const raw = await readFile(join(dir, 'repository.json'), 'utf-8');
+    return parseRepositoryIndex(JSON.parse(raw));
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+  }
+  return scanSkillFolder(dir);
+}
+
 /** Resolves a repository's index and the base directory/URL its skill file paths are relative to. */
 async function loadRepositoryIndex(
   repo: SkillRepository,
 ): Promise<{ index: SkillRepositoryIndex; baseDir: string | null; baseUrl: string | null }> {
   if (repo.sourceType === 'local-folder') {
-    const raw = await readFile(join(repo.source, 'repository.json'), 'utf-8');
-    return { index: parseRepositoryIndex(JSON.parse(raw)), baseDir: repo.source, baseUrl: null };
+    return { index: await loadDirectoryIndex(repo.source), baseDir: repo.source, baseUrl: null };
   }
 
   if (repo.sourceType === 'git') {
     const cacheDir = repoCacheDir(repo.id);
-    const alreadyCloned = await readFile(join(cacheDir, 'repository.json'), 'utf-8')
-      .then(() => true)
-      .catch(() => false);
+    const alreadyCloned = await directoryExists(join(cacheDir, '.git'));
     if (!alreadyCloned) {
+      await rm(cacheDir, { recursive: true, force: true });
       await mkdir(dirname(cacheDir), { recursive: true });
       await execFileAsync('git', ['clone', '--depth=1', repo.source, cacheDir]);
     } else {
       await execFileAsync('git', ['-C', cacheDir, 'pull', '--ff-only']).catch(() => undefined);
     }
-    const raw = await readFile(join(cacheDir, 'repository.json'), 'utf-8');
-    return { index: parseRepositoryIndex(JSON.parse(raw)), baseDir: cacheDir, baseUrl: null };
+    return { index: await loadDirectoryIndex(cacheDir), baseDir: cacheDir, baseUrl: null };
   }
 
   // 'url'
@@ -188,8 +212,58 @@ async function readSkillFileContent(
   return response.text();
 }
 
+const localRepoWatchers = new Map<string, FSWatcher>();
+const localRepoRefreshTimers = new Map<string, NodeJS.Timeout>();
+
+function broadcastRepositoryChanged(repositoryId: string): void {
+  for (const win of BrowserWindow.getAllWindows()) {
+    if (!win.webContents.isDestroyed()) {
+      win.webContents.send(IPC.skills.onRepositoryChanged, repositoryId);
+    }
+  }
+}
+
+/**
+ * Watches every local-folder repository, so a skill dropped into (or removed from) the folder
+ * shows up in the marketplace without the user hitting refresh.
+ */
+async function syncLocalRepositoryWatchers(): Promise<void> {
+  const repos = await store.getRepositories();
+  const localRepos = repos.filter((r) => r.sourceType === 'local-folder');
+
+  for (const [repositoryId, watcher] of localRepoWatchers) {
+    if (localRepos.some((r) => r.id === repositoryId)) continue;
+    watcher.close();
+    localRepoWatchers.delete(repositoryId);
+    clearTimeout(localRepoRefreshTimers.get(repositoryId));
+    localRepoRefreshTimers.delete(repositoryId);
+  }
+
+  for (const repo of localRepos) {
+    if (localRepoWatchers.has(repo.id)) continue;
+    try {
+      const watcher = watch(repo.source, { recursive: true }, () => {
+        // Editors and installers write in bursts, so collapse them into one refresh per repo.
+        clearTimeout(localRepoRefreshTimers.get(repo.id));
+        localRepoRefreshTimers.set(
+          repo.id,
+          setTimeout(() => broadcastRepositoryChanged(repo.id), 400),
+        );
+      });
+      watcher.on('error', () => {
+        watcher.close();
+        localRepoWatchers.delete(repo.id);
+      });
+      localRepoWatchers.set(repo.id, watcher);
+    } catch {
+      // The folder can be gone or on a disconnected drive. Manual refresh still covers it.
+    }
+  }
+}
 
 export function registerSkillHandlers(): void {
+  void syncLocalRepositoryWatchers();
+
   ipcMain.handle(
     IPC.skills.listRepositories,
     (): Promise<SkillRepository[]> => store.getRepositories(),
@@ -201,18 +275,28 @@ export function registerSkillHandlers(): void {
       _event,
       input: { name: string; sourceType: SkillRepositorySourceType; source: string },
     ): Promise<SkillRepository> => {
+      const source = input.source.trim();
       const repo: SkillRepository = {
         id: randomUUID(),
-        name: input.name,
+        name:
+          input.name.trim() || (input.sourceType === 'local-folder' ? basename(source) : source),
         sourceType: input.sourceType,
-        source: input.source,
+        source,
         addedAt: new Date().toISOString(),
         lastRefreshedAt: null,
       };
-      await loadRepositoryIndex(repo);
+      const { index } = await loadRepositoryIndex(repo);
+      if (index.skills.length === 0) {
+        throw new Error(
+          input.sourceType === 'local-folder'
+            ? `No skills found in "${source}". A skill is a folder with a SKILL.md inside it, or a .md file in this folder.`
+            : `No skills found in "${source}".`,
+        );
+      }
       const repos = await store.getRepositories();
       repos.unshift({ ...repo, lastRefreshedAt: new Date().toISOString() });
       await store.setRepositories(repos);
+      void syncLocalRepositoryWatchers();
       return repo;
     },
   );
@@ -223,6 +307,7 @@ export function registerSkillHandlers(): void {
       const repos = await store.getRepositories();
       await store.setRepositories(repos.filter((r) => r.id !== repositoryId));
       await rm(repoCacheDir(repositoryId), { recursive: true, force: true });
+      void syncLocalRepositoryWatchers();
     },
   );
 
@@ -253,11 +338,58 @@ export function registerSkillHandlers(): void {
     },
   );
 
-  ipcMain.handle(IPC.skills.pickLocalRepository, async (): Promise<string | null> => {
-    const result = await dialog.showOpenDialog({ properties: ['openDirectory'] });
-    if (result.canceled || result.filePaths.length === 0) return null;
-    return result.filePaths[0];
-  });
+  // Opens on whatever the renderer already has in the path field, falling back to the projects
+  // folder from Settings, so the picker starts where the user keeps their work.
+  ipcMain.handle(
+    IPC.skills.pickLocalRepository,
+    async (_event, currentPath?: string | null): Promise<string | null> => {
+      const candidate = currentPath?.trim();
+      const settings = await store.getSettings();
+      const defaultPath =
+        candidate && (await directoryExists(candidate))
+          ? candidate
+          : (settings.projectsRootPath ?? undefined);
+      const result = await dialog.showOpenDialog({
+        properties: ['openDirectory', 'createDirectory'],
+        defaultPath: defaultPath ?? undefined,
+      });
+      if (result.canceled || result.filePaths.length === 0) return null;
+      return result.filePaths[0];
+    },
+  );
+
+  // Lets the Add Repository dialog say what it found in a typed or pasted path before adding it.
+  ipcMain.handle(
+    IPC.skills.previewLocalRepository,
+    async (_event, folderPath: string): Promise<LocalSkillFolderPreview> => {
+      const path = folderPath.trim();
+      const preview: LocalSkillFolderPreview = {
+        path,
+        suggestedName: basename(path) || path,
+        skillNames: [],
+        hasManifest: false,
+        error: null,
+      };
+      if (!path) return { ...preview, error: 'Enter a folder path.' };
+      if (!(await directoryExists(path))) {
+        return { ...preview, error: 'That folder does not exist.' };
+      }
+      preview.hasManifest = await readFile(join(path, 'repository.json'), 'utf-8')
+        .then(() => true)
+        .catch(() => false);
+      try {
+        const index = await loadDirectoryIndex(path);
+        preview.skillNames = index.skills.map((s) => s.name);
+        if (index.skills.length === 0) {
+          preview.error =
+            'No skills in this folder. A skill is a folder with a SKILL.md inside it, or a .md file here.';
+        }
+      } catch (error) {
+        preview.error = error instanceof Error ? error.message : String(error);
+      }
+      return preview;
+    },
+  );
 
   ipcMain.handle(
     IPC.skills.install,
@@ -471,24 +603,21 @@ export function registerSkillHandlers(): void {
     },
   );
 
-  ipcMain.handle(
-    IPC.skills.checkUiProPrerequisites,
-    async (): Promise<UiProPrerequisites> => {
-      const [node, npm, python, uipro] = await Promise.all([
-        probeCommand('node', ['--version']),
-        probeCommand('npm', ['--version']),
-        probePython(),
-        probeCommand('uipro', ['--version']),
-      ]);
-      return {
-        node: toProbe(node),
-        npm: toProbe(npm),
-        python: python.probe,
-        pythonCommand: python.command,
-        uipro: toProbe(uipro),
-      };
-    },
-  );
+  ipcMain.handle(IPC.skills.checkUiProPrerequisites, async (): Promise<UiProPrerequisites> => {
+    const [node, npm, python, uipro] = await Promise.all([
+      probeCommand('node', ['--version']),
+      probeCommand('npm', ['--version']),
+      probePython(),
+      probeCommand('uipro', ['--version']),
+    ]);
+    return {
+      node: toProbe(node),
+      npm: toProbe(npm),
+      python: python.probe,
+      pythonCommand: python.command,
+      uipro: toProbe(uipro),
+    };
+  });
 
   // Like the skills.sh flow, `uipro init` runs in a visible terminal opened by the renderer,
   // since it prints the files it writes and can prompt. This only records the install so the
