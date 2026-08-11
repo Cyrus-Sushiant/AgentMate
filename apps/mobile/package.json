@@ -7,20 +7,20 @@
     "@agentmat/protocol": "workspace:*",
     "@config-plugins/react-native-webrtc": "^15.0.1",
     "@react-native-async-storage/async-storage": "2.2.0",
-    "expo": "~57.0.9",
+    "expo": "~57.0.11",
     "expo-camera": "~57.0.3",
     "expo-clipboard": "~57.0.1",
     "expo-splash-screen": "~57.0.5",
     "expo-status-bar": "~57.0.1",
     "react": "19.2.3",
     "react-native": "0.86.2",
-    "react-native-safe-area-context": "~5.7.0",
+    "react-native-safe-area-context": "~5.8.1",
     "react-native-webrtc": "^124.0.8"
   },
   "devDependencies": {
-    "@types/react": "~19.2.17",
+    "@types/react": "~19.2.18",
     "event-target-shim": "6.0.2",
-    "typescript": "~6.0.3"
+    "typescript": "~7.0.2"
   },
   "scripts": {
     "start": "expo start",
