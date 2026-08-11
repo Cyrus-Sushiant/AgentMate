@@ -217,6 +217,7 @@ async function loadDirectoryIndex(dir: string): Promise<SkillRepositoryIndex> {
 /** Resolves a repository's index and the base directory/URL its skill file paths are relative to. */
 async function loadRepositoryIndex(
   repo: SkillRepository,
+  options: { pull?: boolean } = {},
 ): Promise<{ index: SkillRepositoryIndex; baseDir: string | null; baseUrl: string | null }> {
   if (repo.sourceType === 'local-folder') {
     return { index: await loadDirectoryIndex(repo.source), baseDir: repo.source, baseUrl: null };
@@ -229,7 +230,9 @@ async function loadRepositoryIndex(
       await rm(cacheDir, { recursive: true, force: true });
       await mkdir(dirname(cacheDir), { recursive: true });
       await execFileAsync('git', ['clone', '--depth=1', repo.source, cacheDir]);
-    } else {
+    } else if (options.pull) {
+      // Only pull on explicit refresh. Browsing the marketplace must not hit the network
+      // for every repository on every open.
       await execFileAsync('git', ['-C', cacheDir, 'pull', '--ff-only']).catch(() => undefined);
     }
     return { index: await loadDirectoryIndex(cacheDir), baseDir: cacheDir, baseUrl: null };
@@ -291,10 +294,12 @@ async function syncLocalRepositoryWatchers(): Promise<void> {
     try {
       const watcher = watch(repo.source, { recursive: true }, () => {
         // Editors and installers write in bursts, so collapse them into one refresh per repo.
+        // A longer debounce keeps large trees (or tools that touch many files) from thrashing
+        // the marketplace with rescans.
         clearTimeout(localRepoRefreshTimers.get(repo.id));
         localRepoRefreshTimers.set(
           repo.id,
-          setTimeout(() => broadcastRepositoryChanged(repo.id), 400),
+          setTimeout(() => broadcastRepositoryChanged(repo.id), 1500),
         );
       });
       watcher.on('error', () => {
@@ -367,7 +372,7 @@ export function registerSkillHandlers(): void {
       if (repo.sourceType === 'git') {
         await rm(repoCacheDir(repositoryId), { recursive: true, force: true });
       }
-      const { index } = await loadRepositoryIndex(repo);
+      const { index } = await loadRepositoryIndex(repo, { pull: true });
       repo.lastRefreshedAt = new Date().toISOString();
       await store.setRepositories(repos);
       return index;

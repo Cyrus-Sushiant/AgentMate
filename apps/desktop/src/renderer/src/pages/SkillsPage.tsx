@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useLocation } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -60,6 +60,11 @@ const SOURCE_TYPES: { value: SkillRepositorySourceType; label: string }[] = [
 ];
 
 type SkillsShSearchMode = 'bundled' | 'live';
+type SkillsTab = 'directory' | 'featured' | 'marketplace';
+
+/** How many skill cards to mount at once. Rendering the full bundled catalog (~1k glass cards)
+ * freezes Electron/Chromium on open; page in chunks instead. */
+const SKILL_GRID_PAGE_SIZE = 36;
 
 /** A card/modal-ready skill.sh entry. `description` is absent for live results until fetched. */
 interface SkillsShDisplayEntry {
@@ -112,6 +117,12 @@ const UI_PRO_AGENT_ALIASES: Record<string, string> = {
   'gemini-cli': 'gemini',
 };
 
+/** Lowercased search blobs built once when this chunk loads, so typing doesn't re-lower 1k descriptions. */
+const BUNDLED_SH_SEARCH_INDEX = bundledSkillsShDirectory.map((s) => ({
+  skill: s,
+  haystack: `${s.name}\n${s.owner}\n${s.repo}\n${s.description}`.toLowerCase(),
+}));
+
 function agentLabel(value: string): string {
   if (value === 'all') return 'Every assistant';
   return (
@@ -133,6 +144,61 @@ function liveResultToDisplayEntry(r: SkillsShSearchResult): SkillsShDisplayEntry
     installsLabel: installsFormatter.format(r.installs),
   };
 }
+
+const SkillsShDirectoryCard = memo(function SkillsShDirectoryCard({
+  skill,
+  onInstall,
+  onView,
+}: {
+  skill: SkillsShDisplayEntry;
+  onInstall: (skill: SkillsShDisplayEntry) => void;
+  onView: (skill: SkillsShDisplayEntry) => void;
+}): React.JSX.Element {
+  return (
+    <Card className="flex flex-col">
+      <CardHeader>
+        <div className="flex items-start justify-between gap-2">
+          <CardTitle className="flex items-center gap-1.5">
+            {skill.name}
+            {skill.official && (
+              <span title="Official: skills.sh has verified this publisher">
+                <CircleCheck className="h-4 w-4 shrink-0 text-blue-500" />
+              </span>
+            )}
+          </CardTitle>
+        </div>
+        <CardDescription className="line-clamp-3">
+          {skill.description ?? 'Click View for the full description.'}
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="mt-auto space-y-3">
+        <div className="flex flex-wrap items-center gap-1.5">
+          <Badge variant={skill.official ? 'default' : 'secondary'}>
+            {skill.official ? 'Official' : 'Community'}
+          </Badge>
+          <Badge variant="outline">{skill.installsLabel} installs</Badge>
+        </div>
+        <div className="text-xs text-muted-foreground">{skill.repo}</div>
+        <div className="flex items-center gap-2">
+          <Button size="sm" onClick={() => onInstall(skill)}>
+            Install
+          </Button>
+          <Button size="sm" variant="outline" onClick={() => onView(skill)}>
+            <Eye /> View
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            title="Open on skills.sh"
+            onClick={() => void window.agentmat.shell.openExternal(skill.url)}
+          >
+            <ExternalLink className="h-4 w-4" />
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+});
 
 export default function SkillsPage(): React.JSX.Element {
   const location = useLocation();
@@ -161,6 +227,9 @@ export default function SkillsPage(): React.JSX.Element {
   const [installPickerSearch, setInstallPickerSearch] = useState('');
   const [globalSkillsModalOpen, setGlobalSkillsModalOpen] = useState(false);
   const [globalSkillsAgentFilter, setGlobalSkillsAgentFilter] = useState<string>('all');
+  const [activeTab, setActiveTab] = useState<SkillsTab>('directory');
+  const [directoryVisibleCount, setDirectoryVisibleCount] = useState(SKILL_GRID_PAGE_SIZE);
+  const [marketplaceVisibleCount, setMarketplaceVisibleCount] = useState(SKILL_GRID_PAGE_SIZE);
 
   useEffect(() => {
     const timer = setTimeout(() => setShDebouncedSearch(shSearch), 350);
@@ -207,11 +276,13 @@ export default function SkillsPage(): React.JSX.Element {
   }, [reposQuery.data, selectedRepoId, showingAllRepos]);
 
   // One query per visible repository, sharing the same cache keys the single-repository view uses,
-  // so a refresh or a watched folder change updates both views.
+  // so a refresh or a watched folder change updates both views. Only fetch while the marketplace
+  // tab is open; the default directory tab should not index every repo on page load.
   const repoIndexes = useQueries({
     queries: visibleRepos.map((repo) => ({
       queryKey: queryKeys.repositoryIndex(repo.id),
       queryFn: () => window.agentmat.skills.getRepositoryIndex(repo.id),
+      enabled: activeTab === 'marketplace',
     })),
     combine: (results) => ({
       isPending: results.some((r) => r.isPending),
@@ -401,19 +472,27 @@ export default function SkillsPage(): React.JSX.Element {
     );
   }, [repoIndexes.entries, search]);
 
+  const visibleMarketplaceSkills = useMemo(
+    () => filteredSkills.slice(0, marketplaceVisibleCount),
+    [filteredSkills, marketplaceVisibleCount],
+  );
+
+  useEffect(() => {
+    setMarketplaceVisibleCount(SKILL_GRID_PAGE_SIZE);
+  }, [search, selectedRepoId]);
+
   const bundledShResults = useMemo(() => {
-    const q = shSearch.trim().toLowerCase();
-    return bundledSkillsShDirectory.filter((s) => {
-      if (shOfficialOnly && !s.official) return false;
+    const q = shDebouncedSearch.trim().toLowerCase();
+    return BUNDLED_SH_SEARCH_INDEX.filter(({ skill, haystack }) => {
+      if (shOfficialOnly && !skill.official) return false;
       if (!q) return true;
-      return (
-        s.name.toLowerCase().includes(q) ||
-        s.owner.toLowerCase().includes(q) ||
-        s.repo.toLowerCase().includes(q) ||
-        s.description.toLowerCase().includes(q)
-      );
-    });
-  }, [shSearch, shOfficialOnly]);
+      return haystack.includes(q);
+    }).map(({ skill }) => skill);
+  }, [shDebouncedSearch, shOfficialOnly]);
+
+  useEffect(() => {
+    setDirectoryVisibleCount(SKILL_GRID_PAGE_SIZE);
+  }, [shDebouncedSearch, shOfficialOnly, shMode]);
 
   const liveShSearchQuery = useQuery({
     queryKey: queryKeys.skillsShSearch(shDebouncedSearch.trim().toLowerCase()),
@@ -428,6 +507,11 @@ export default function SkillsPage(): React.JSX.Element {
 
   const filteredShSkills: SkillsShDisplayEntry[] =
     shMode === 'live' ? liveShResults : bundledShResults;
+
+  const visibleShSkills = useMemo(
+    () => filteredShSkills.slice(0, directoryVisibleCount),
+    [filteredShSkills, directoryVisibleCount],
+  );
 
   const shDetailQuery = useQuery({
     queryKey: queryKeys.skillsShDetail(shSelected?.id ?? ''),
@@ -523,6 +607,13 @@ export default function SkillsPage(): React.JSX.Element {
     setInstallPickerSearch('');
   }
 
+  const handleInstallSkillsSh = useCallback((skill: SkillsShDisplayEntry) => {
+    setInstallTarget({ kind: 'skillsSh', skill });
+    setInstallPickerProjectIds(new Set());
+    setInstallGlobally(false);
+    setInstallPickerSearch('');
+  }, []);
+
   function toggleInstallPickerProject(projectId: string): void {
     setInstallPickerProjectIds((prev) => {
       const next = new Set(prev);
@@ -542,7 +633,7 @@ export default function SkillsPage(): React.JSX.Element {
 
   return (
     <div className="space-y-6 p-6">
-      <Tabs defaultValue="directory">
+      <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as SkillsTab)}>
         <div className="flex items-center justify-between">
           <TabsList>
             <TabsTrigger value="directory">skills.sh Directory</TabsTrigger>
@@ -647,8 +738,8 @@ export default function SkillsPage(): React.JSX.Element {
                 while it lands instead of sitting empty. */}
             {(reposQuery.isPending || (visibleRepos.length > 0 && repoIndexes.isPending)) &&
               Array.from({ length: 6 }, (_, i) => <CatalogCardSkeleton key={i} />)}
-            {filteredSkills.map(({ skill, repo }) => (
-              <Card key={`${repo.id}:${skill.id}`} className="glass flex flex-col">
+            {visibleMarketplaceSkills.map(({ skill, repo }) => (
+              <Card key={`${repo.id}:${skill.id}`} className="flex flex-col">
                 <CardHeader>
                   <div className="flex items-start justify-between gap-2">
                     <CardTitle>{skill.name}</CardTitle>
@@ -708,6 +799,19 @@ export default function SkillsPage(): React.JSX.Element {
               </Card>
             ))}
           </div>
+
+          {filteredSkills.length > visibleMarketplaceSkills.length && (
+            <div className="flex justify-center">
+              <Button
+                variant="outline"
+                onClick={() =>
+                  setMarketplaceVisibleCount((count) => count + SKILL_GRID_PAGE_SIZE)
+                }
+              >
+                Show more ({filteredSkills.length - visibleMarketplaceSkills.length} remaining)
+              </Button>
+            </div>
+          )}
 
           {!reposQuery.isPending && !repoIndexes.isPending && filteredSkills.length === 0 && (
             <p className="text-sm text-muted-foreground">
@@ -801,55 +905,26 @@ export default function SkillsPage(): React.JSX.Element {
           )}
 
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {filteredShSkills.map((skill) => (
-              <Card key={skill.id} className="glass flex flex-col">
-                <CardHeader>
-                  <div className="flex items-start justify-between gap-2">
-                    <CardTitle className="flex items-center gap-1.5">
-                      {skill.name}
-                      {skill.official && (
-                        <SimpleTooltip label="Official: skills.sh has verified this publisher">
-                          <CircleCheck className="h-4 w-4 shrink-0 text-blue-500" />
-                        </SimpleTooltip>
-                      )}
-                    </CardTitle>
-                  </div>
-                  <CardDescription className="line-clamp-3">
-                    {skill.description ?? 'Click View for the full description.'}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="mt-auto space-y-3">
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    <Badge variant={skill.official ? 'default' : 'secondary'}>
-                      {skill.official ? 'Official' : 'Community'}
-                    </Badge>
-                    <Badge variant="outline">{skill.installsLabel} installs</Badge>
-                  </div>
-                  <div className="text-xs text-muted-foreground">{skill.repo}</div>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      size="sm"
-                      onClick={() => openInstallPicker({ kind: 'skillsSh', skill })}
-                    >
-                      Install
-                    </Button>
-                    <Button size="sm" variant="outline" onClick={() => setShSelected(skill)}>
-                      <Eye /> View
-                    </Button>
-                    <SimpleTooltip label="Open on skills.sh">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => void window.agentmat.shell.openExternal(skill.url)}
-                      >
-                        <ExternalLink className="h-4 w-4" />
-                      </Button>
-                    </SimpleTooltip>
-                  </div>
-                </CardContent>
-              </Card>
+            {visibleShSkills.map((skill) => (
+              <SkillsShDirectoryCard
+                key={skill.id}
+                skill={skill}
+                onInstall={handleInstallSkillsSh}
+                onView={setShSelected}
+              />
             ))}
           </div>
+
+          {filteredShSkills.length > visibleShSkills.length && (
+            <div className="flex justify-center">
+              <Button
+                variant="outline"
+                onClick={() => setDirectoryVisibleCount((count) => count + SKILL_GRID_PAGE_SIZE)}
+              >
+                Show more ({filteredShSkills.length - visibleShSkills.length} remaining)
+              </Button>
+            </div>
+          )}
 
           {filteredShSkills.length === 0 &&
             !(

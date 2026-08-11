@@ -8,7 +8,7 @@ import { Skeleton } from '@/components/ui/skeleton';
  */
 export function CatalogCardSkeleton(): React.JSX.Element {
   return (
-    <Card className="glass flex flex-col">
+    <Card className="flex flex-col">
       <CardHeader className="space-y-2">
         <div className="flex items-start justify-between gap-2">
           <Skeleton className="h-5 w-36" />

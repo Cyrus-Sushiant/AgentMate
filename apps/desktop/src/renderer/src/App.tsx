@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { lazy, Suspense, useEffect } from 'react';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { HashRouter, Route, Routes } from 'react-router-dom';
 import { Toaster, toast } from 'sonner';
@@ -20,7 +20,6 @@ import PromptBuilderPage from './pages/PromptBuilderPage';
 import PromptHistoryPage from './pages/PromptHistoryPage';
 import ProjectsPage from './pages/ProjectsPage';
 import ProjectDetailPage from './pages/ProjectDetailPage';
-import SkillsPage from './pages/SkillsPage';
 import McpPage from './pages/McpPage';
 import ToolsPage from './pages/ToolsPage';
 import AskAiPage from './pages/AskAiPage';
@@ -31,6 +30,9 @@ import UsagePage from './pages/UsagePage';
 import WidgetRoute from './components/usage/WidgetRoute';
 import PromptBuildWidgetRoute from './components/projects/PromptBuildWidgetRoute';
 import RemoteSessionRoute from './components/remote/RemoteSessionRoute';
+
+/** Skills ships a large offline catalog; keep it out of the main chunk until this route opens. */
+const SkillsPage = lazy(() => import('./pages/SkillsPage'));
 
 /* Glass toasts: richColors is off on purpose. It paints an opaque per-type
    background that would defeat the frosted surface. The type accents live in
@@ -80,7 +82,18 @@ export default function App(): React.JSX.Element {
                 <Route path="prompt-history" element={<PromptHistoryPage />} />
                 <Route path="projects" element={<ProjectsPage />} />
                 <Route path="projects/:projectId" element={<ProjectDetailPage />} />
-                <Route path="skills" element={<SkillsPage />} />
+                <Route
+                  path="skills"
+                  element={
+                    <Suspense
+                      fallback={
+                        <div className="p-6 text-sm text-muted-foreground">Loading skills…</div>
+                      }
+                    >
+                      <SkillsPage />
+                    </Suspense>
+                  }
+                />
                 <Route path="mcp" element={<McpPage />} />
                 <Route path="tools" element={<ToolsPage />} />
                 <Route path="usage" element={<UsagePage />} />
