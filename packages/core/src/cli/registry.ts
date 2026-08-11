@@ -103,7 +103,11 @@ export const CLI_REGISTRY: CliDefinition[] = [
     executableNames: ['opencode'],
     detectCommand: { command: 'opencode', args: ['--version'] },
     versionCommand: { command: 'opencode', args: ['--version'] },
+    // `opencode run` reads a piped prompt; stdin avoids Windows cmd.exe's ~8191-char limit.
     promptCommand: { command: 'opencode', args: ['run'] },
+    promptInputMode: 'stdin',
+    // `--auto` is a `run` flag, so it must follow `run` in argv (see headlessPrompt write-arg order).
+    promptWriteArgs: ['--auto'],
     installCommand: {
       win32: 'npm install -g opencode-ai@latest',
       darwin: 'npm install -g opencode-ai@latest',

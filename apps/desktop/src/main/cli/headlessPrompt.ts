@@ -238,10 +238,16 @@ export async function runHeadlessCliPrompt(
   // Stdin bypasses cmd.exe's command line entirely, so a CLI confirmed to read the
   // prompt that way needs neither the %VAR% stripping nor the length truncation below,
   // both of which only exist because cmd.exe reparses whatever lands in argv.
-  // Write flags go before the prompt so they're read as flags, not as part of it.
-  const baseArgs = options.allowWrites
-    ? [...(cli.promptWriteArgs ?? []), ...cli.promptCommand.args]
-    : cli.promptCommand.args;
+  // Arg-mode CLIs need write flags before the prompt-taking flag (`-p PROMPT`), or the
+  // flag would be swallowed as the prompt. Stdin-mode CLIs have no prompt in argv, and
+  // some (OpenCode's `run --auto`) require write flags after the subcommand instead.
+  const writeArgs = options.allowWrites ? (cli.promptWriteArgs ?? []) : [];
+  const baseArgs =
+    writeArgs.length === 0
+      ? cli.promptCommand.args
+      : cli.promptInputMode === 'stdin'
+        ? [...cli.promptCommand.args, ...writeArgs]
+        : [...writeArgs, ...cli.promptCommand.args];
 
   const outcome =
     cli.promptInputMode === 'stdin'

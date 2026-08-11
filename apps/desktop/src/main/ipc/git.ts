@@ -234,22 +234,33 @@ interface SuggestedTag {
   message?: string;
 }
 
-/**
- * Pulls the tag, the rationale and the release notes out of the CLI's answer,
- * tolerating chatter around the requested TAG/WHY/NOTES format.
- */
-function parseSuggestedTag(text: string, latestTag: string | null): SuggestedTag | null {
-  const tagLine = text.match(/^\s*TAG:\s*(.+)$/im)?.[1];
-  const semver = /v?\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?/;
-  const match = (tagLine ?? text).match(semver);
-  if (!match) return null;
-
-  let tag = match[0];
-  // Keep the repo's own prefix style rather than whatever the model felt like emitting.
+/** Keeps the repo's own `v` prefix style rather than whatever the model emitted. */
+function formatTagForRepo(version: string, latestTag: string | null): string {
   const wantsPrefix = latestTag ? latestTag.startsWith('v') : true;
-  if (wantsPrefix && !tag.startsWith('v')) tag = `v${tag}`;
-  if (!wantsPrefix && tag.startsWith('v')) tag = tag.slice(1);
+  if (wantsPrefix && !version.startsWith('v')) return `v${version}`;
+  if (!wantsPrefix && version.startsWith('v')) return version.slice(1);
+  return version;
+}
 
+/**
+ * Models often answer `TAG: patch` (or minor/major) instead of a concrete semver.
+ * That still tells us which component to bump when we already know the latest tag.
+ */
+function parseBumpKind(text: string): 'major' | 'minor' | 'patch' | null {
+  const tagLine = text.match(/^\s*TAG:\s*(.+)$/im)?.[1]?.trim() ?? '';
+  // Only trust the TAG line so a NOTES sentence mentioning "major refactor" doesn't bump major.
+  const word = tagLine.match(/\b(major|minor|patch)\b/i)?.[1]?.toLowerCase();
+  if (word === 'major' || word === 'minor' || word === 'patch') return word;
+  return null;
+}
+
+function bumpVersion(latest: SemverParts, kind: 'major' | 'minor' | 'patch'): string {
+  if (kind === 'major') return `${latest.major + 1}.0.0`;
+  if (kind === 'minor') return `${latest.major}.${latest.minor + 1}.0`;
+  return `${latest.major}.${latest.minor}.${latest.patch + 1}`;
+}
+
+function extractTagNotes(text: string): { reason?: string; message?: string } {
   const reason = text
     .match(/^\s*WHY:\s*(.+)$/im)?.[1]
     ?.trim()
@@ -265,7 +276,24 @@ function parseSuggestedTag(text: string, latestTag: string | null): SuggestedTag
     .join('\n');
   const notes = stripMarkdownFences(headed ?? bulletsOnly).slice(0, MAX_TAG_MESSAGE_CHARS);
 
-  return { tag, reason: reason || undefined, message: notes || undefined };
+  return { reason: reason || undefined, message: notes || undefined };
+}
+
+/**
+ * Pulls the tag, the rationale and the release notes out of the CLI's answer,
+ * tolerating chatter around the requested TAG/WHY/NOTES format.
+ */
+function parseSuggestedTag(text: string, latestTag: string | null): SuggestedTag | null {
+  const tagLine = text.match(/^\s*TAG:\s*(.+)$/im)?.[1];
+  const semver = /v?\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?/;
+  // Prefer a concrete version on the TAG line. If the model wrote "TAG: patch" (no
+  // digits), keep looking through the rest of the answer before giving up.
+  const match = tagLine?.match(semver) ?? text.match(semver);
+  if (!match) return null;
+
+  const tag = formatTagForRepo(match[0], latestTag);
+  const { reason, message } = extractTagNotes(text);
+  return { tag, reason, message };
 }
 
 interface SemverParts {
@@ -661,7 +689,25 @@ export function registerGitHandlers(): void {
       }
 
       const parsed = parseSuggestedTag(result.text, latestTag);
-      if (!parsed) {
+      const notes = extractTagNotes(result.text);
+      const latestParts = latestTag ? parseSemver(latestTag) : null;
+
+      // Models often skip a concrete semver ("TAG: patch", prose only, etc.). When we
+      // already know the latest tag, turn that into a real bump instead of failing the run.
+      let tag = parsed?.tag;
+      let reason = parsed?.reason ?? notes.reason;
+      if (!tag && latestParts) {
+        const bumpKind = parseBumpKind(result.text);
+        const derived = bumpKind
+          ? bumpVersion(latestParts, bumpKind)
+          : deriveNextVersion(latestParts, subjects);
+        tag = formatTagForRepo(derived, latestTag);
+        reason = bumpKind
+          ? `${result.cliName} suggested a ${bumpKind} bump; used ${tag}.`
+          : `${result.cliName} did not return a version number; used ${tag} from the commit history instead.`;
+      }
+
+      if (!tag) {
         return {
           ok: false,
           cliName: result.cliName,
@@ -672,14 +718,11 @@ export function registerGitHandlers(): void {
       // Models regularly answer with a stock version ("1.2.3") that has nothing to do with
       // the repo. Anything that isn't strictly newer than the latest tag is dropped in favour
       // of a bump derived from the commits themselves.
-      let tag = parsed.tag;
-      let reason = parsed.reason;
-      const latestParts = latestTag ? parseSemver(latestTag) : null;
       const suggestedParts = parseSemver(tag);
       if (latestParts && (!suggestedParts || compareSemver(suggestedParts, latestParts) <= 0)) {
         const derived = deriveNextVersion(latestParts, subjects);
         const rejected = tag;
-        tag = latestTag?.startsWith('v') ? `v${derived}` : derived;
+        tag = formatTagForRepo(derived, latestTag);
         reason = `${result.cliName} suggested ${rejected}, which isn't newer than ${latestTag}; used ${tag} from the commit history instead.`;
       }
 
@@ -688,7 +731,7 @@ export function registerGitHandlers(): void {
         tag,
         reason,
         // A CLI that ignored the NOTES section still gets a usable annotation, straight from the log.
-        message: parsed.message || fallbackTagMessage(tag, subjects),
+        message: parsed?.message || notes.message || fallbackTagMessage(tag, subjects),
         cliName: result.cliName,
       };
     },
