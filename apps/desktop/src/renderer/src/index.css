@@ -415,6 +415,89 @@ body {
   -webkit-app-region: no-drag;
 }
 
+/* Terminal drawer: one continuous ink well. xterm's canvas is only as large as
+   the fitted grid, so the well, pane, and viewport must share this fill or the
+   leftover pixels read as a nested black box. */
+.terminal-well {
+  background: #0a1210;
+}
+
+.terminal-pane {
+  padding: 8px 12px;
+  background: #0a1210;
+}
+
+.terminal-pane .xterm {
+  height: 100%;
+  width: 100%;
+  background: #0a1210;
+}
+
+.terminal-pane .xterm-viewport,
+.terminal-pane .xterm-screen {
+  background: #0a1210;
+}
+
+.terminal-pane .xterm-viewport {
+  overflow-y: auto !important;
+  scrollbar-width: thin;
+  scrollbar-color: hsl(150 90% 48% / 0.55) transparent;
+}
+
+.terminal-pane .xterm-viewport::-webkit-scrollbar {
+  width: 8px;
+}
+
+.terminal-pane .xterm-viewport::-webkit-scrollbar-track {
+  background: hsl(0 0% 100% / 0.04);
+  border-radius: 9999px;
+  margin: 4px 2px;
+}
+
+.terminal-pane .xterm-viewport::-webkit-scrollbar-thumb {
+  background-color: hsl(150 90% 48% / 0.45);
+  background-clip: padding-box;
+  border: 2px solid transparent;
+  border-radius: 9999px;
+}
+
+.terminal-pane .xterm-viewport::-webkit-scrollbar-thumb:hover {
+  background-color: hsl(150 100% 45% / 0.8);
+  box-shadow: 0 0 10px hsl(150 100% 45% / 0.4);
+}
+
+.terminal-pane .xterm-viewport::-webkit-scrollbar-thumb:active {
+  background-color: hsl(150 100% 45% / 0.95);
+}
+
+.terminal-pane .xterm-viewport::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+.terminal-pane .xterm-helpers textarea:focus {
+  outline: none;
+}
+
+@keyframes terminal-live {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
+}
+
+.terminal-live-dot {
+  animation: terminal-live 2.2s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .terminal-live-dot {
+    animation: none;
+  }
+}
+
 /* Windows 11 caption glyphs (minimize / maximize / restore / close) use the
    system's Segoe icon fonts so the buttons look native. */
 .caption-glyph {

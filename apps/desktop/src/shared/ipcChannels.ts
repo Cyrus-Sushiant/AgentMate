@@ -100,6 +100,8 @@ export const IPC = {
   },
   system: {
     sample: 'system:sample',
+    topApps: 'system:topApps',
+    killProcess: 'system:killProcess',
   },
   ipGeo: {
     lookup: 'ipGeo:lookup',

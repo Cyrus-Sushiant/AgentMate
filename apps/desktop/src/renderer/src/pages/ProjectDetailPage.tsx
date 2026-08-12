@@ -1,7 +1,29 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import type {
+  CliDefinition,
+  DetectedClaudeHook,
+  NotificationHookKind,
+  Project,
+  ProjectDraftStatus,
+  ProjectNotificationHook,
+  ProjectNotificationSettings,
+  ScheduledTask,
+} from '@agentmat/core';
+import { CLI_REGISTRY } from '@agentmat/core';
+import type {
+  BootstrapResult,
+  GitStatus,
+  GitTagInfo,
+  PackageInfo,
+  PackageManagerSection,
+  PackageUpdateRequest,
+  SkillUpdateInfo,
+} from '@shared/apiTypes';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
+import { CliLogo } from '@/components/cliLogos';
+import { MonacoEditor } from '@/components/editor/MonacoEditor';
 import {
   ArrowLeft,
   ArrowRight,
@@ -14,6 +36,7 @@ import {
   Download,
   FileCog,
   FileText,
+  Folder,
   FolderTree,
   GitBranch,
   GitCommit,
@@ -35,29 +58,28 @@ import {
   Wand2,
   X,
 } from '@/components/icons';
-import { CliLogo } from '@/components/cliLogos';
-import { CLI_REGISTRY } from '@agentmat/core';
-import type {
-  BootstrapResult,
-  GitStatus,
-  GitTagInfo,
-  PackageInfo,
-  PackageManagerSection,
-  PackageUpdateRequest,
-  SkillUpdateInfo,
-} from '@shared/apiTypes';
-import type {
-  CliDefinition,
-  DetectedClaudeHook,
-  NotificationHookKind,
-  Project,
-  ProjectDraftStatus,
-  ProjectNotificationHook,
-  ProjectNotificationSettings,
-  ScheduledTask,
-} from '@agentmat/core';
-import { Button } from '@/components/ui/button';
+import {
+  type BootstrapDescription,
+  BootstrapDescriptionDialog,
+} from '@/components/projects/BootstrapDescriptionDialog';
+import { GitSetupWizard } from '@/components/projects/GitSetupWizard';
+import {
+  AGENT_TYPE_LABELS,
+  isProjectSectionId,
+  ProjectDetailHeader,
+  ProjectDetailSkeleton,
+  ProjectEmptyState,
+  ProjectNotesCard,
+  type ProjectSectionId,
+  ProjectSectionNav,
+  type SectionBadge,
+} from '@/components/projects/ProjectDetailChrome';
+import { ProjectFileBrowser } from '@/components/projects/ProjectFileBrowser';
+import { ProjectFormDialog, type ProjectFormValues } from '@/components/projects/ProjectFormDialog';
+import { ProjectPromptDialog } from '@/components/projects/ProjectPromptDialog';
+import { ProjectPromptHistory } from '@/components/projects/ProjectPromptHistory';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Combobox } from '@/components/ui/combobox';
 import {
@@ -75,35 +97,14 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { SimpleTooltip } from '@/components/ui/tooltip';
-import { MonacoEditor } from '@/components/editor/MonacoEditor';
-import { ProjectFileBrowser } from '@/components/projects/ProjectFileBrowser';
-import { ProjectFormDialog, type ProjectFormValues } from '@/components/projects/ProjectFormDialog';
-import {
-  AGENT_TYPE_LABELS,
-  isProjectSectionId,
-  ProjectDetailHeader,
-  ProjectDetailSkeleton,
-  ProjectEmptyState,
-  ProjectNotesCard,
-  ProjectSectionNav,
-  type ProjectSectionId,
-  type SectionBadge,
-} from '@/components/projects/ProjectDetailChrome';
-import { GitSetupWizard } from '@/components/projects/GitSetupWizard';
-import { ProjectPromptDialog } from '@/components/projects/ProjectPromptDialog';
-import {
-  BootstrapDescriptionDialog,
-  type BootstrapDescription,
-} from '@/components/projects/BootstrapDescriptionDialog';
-import { ProjectPromptHistory } from '@/components/projects/ProjectPromptHistory';
 import { queryKeys } from '@/lib/queryKeys';
 import { persianTextProps } from '@/lib/rtl';
 import { timeAgo } from '@/lib/time';
 import { cn } from '@/lib/utils';
-import { usePageHeader } from '@/stores/pageHeaderStore';
 import { useCliStore } from '@/stores/cliStore';
-import { useTerminalStore } from '@/stores/terminalStore';
 import { confirmDialog } from '@/stores/confirmStore';
+import { usePageHeader } from '@/stores/pageHeaderStore';
+import { useTerminalStore } from '@/stores/terminalStore';
 
 const TARGET_AI_TO_CLI_ID: Record<string, string> = {
   Claude: 'claude-code',
@@ -151,10 +152,7 @@ export default function ProjectDetailPage(): React.JSX.Element {
   });
   const project = projectsQuery.data?.find((p) => p.id === projectId);
 
-  usePageHeader(
-    project?.name ?? '',
-    project ? AGENT_TYPE_LABELS[project.agentType] : undefined,
-  );
+  usePageHeader(project?.name ?? '', project ? AGENT_TYPE_LABELS[project.agentType] : undefined);
 
   const installedSkillsQuery = useQuery({
     queryKey: queryKeys.installedSkills(projectId ?? ''),
@@ -175,8 +173,9 @@ export default function ProjectDetailPage(): React.JSX.Element {
     queryFn: () => window.agentmat.projectDrafts.listByProject(projectId!),
     enabled: !!projectId,
   });
-  const openDraftCount = (draftsQuery.data ?? []).filter((draft) => draft.status === 'draft')
-    .length;
+  const openDraftCount = (draftsQuery.data ?? []).filter(
+    (draft) => draft.status === 'draft',
+  ).length;
 
   const installedMcpServersQuery = useQuery({
     queryKey: queryKeys.installedMcpServers(projectId ?? ''),
@@ -381,12 +380,7 @@ export default function ProjectDetailPage(): React.JSX.Element {
     if (skillCount > 0) badges.skills = { count: skillCount, attention: skillUpdateCount > 0 };
     if (mcpCount > 0) badges.mcp = { count: mcpCount };
     return badges;
-  }, [
-    installedMcpServersQuery.data,
-    installedSkillsQuery.data,
-    openDraftCount,
-    skillUpdateCount,
-  ]);
+  }, [installedMcpServersQuery.data, installedSkillsQuery.data, openDraftCount, skillUpdateCount]);
 
   if (projectsQuery.isLoading) {
     return <ProjectDetailSkeleton />;
@@ -744,42 +738,21 @@ export default function ProjectDetailPage(): React.JSX.Element {
           {section === 'hooks' && <HooksTab project={project} />}
 
           {section === 'terminal' && (
-            <div className="space-y-4">
-              <div className="glass rounded-lg p-5">
-                <h2 className="text-sm font-medium">Terminal</h2>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  Opens in this project's folder. The drawer stays available from the top bar after
-                  that.
-                </p>
-                <div className="mt-4 flex flex-wrap items-center gap-2">
-                  <Button
-                    onClick={() =>
-                      openSession({
-                        title: project.name,
-                        cwd: project.folderPath,
-                        projectId: project.id,
-                      })
-                    }
-                  >
-                    <TerminalSquare /> Open terminal here
-                  </Button>
-                  {project.runCommand ? (
-                    <Button variant="outline" onClick={handleRun}>
-                      <Play /> Run {project.runCommand}
-                    </Button>
-                  ) : (
-                    <Button variant="outline" onClick={() => setEditOpen(true)}>
-                      Set a run command
-                    </Button>
-                  )}
-                </div>
-              </div>
-            </div>
+            <ProjectTerminalSection
+              project={project}
+              onOpenHere={() =>
+                openSession({
+                  title: project.name,
+                  cwd: project.folderPath,
+                  projectId: project.id,
+                })
+              }
+              onRun={handleRun}
+              onSetRun={() => setEditOpen(true)}
+            />
           )}
 
-          {section === 'config' && (
-            <ProjectConfigEditor projectFolderPath={project.folderPath} />
-          )}
+          {section === 'config' && <ProjectConfigEditor projectFolderPath={project.folderPath} />}
         </div>
       </div>
 
@@ -800,6 +773,95 @@ export default function ProjectDetailPage(): React.JSX.Element {
         onSubmit={(values) => updateMutation.mutate(values)}
         isSubmitting={updateMutation.isPending}
       />
+    </div>
+  );
+}
+
+function ProjectTerminalSection({
+  project,
+  onOpenHere,
+  onRun,
+  onSetRun,
+}: {
+  project: Project;
+  onOpenHere: () => void;
+  onRun: () => void;
+  onSetRun: () => void;
+}): React.JSX.Element {
+  const sessions = useTerminalStore((s) => s.sessions);
+  const activeSessionId = useTerminalStore((s) => s.activeSessionId);
+  const setActiveSession = useTerminalStore((s) => s.setActiveSession);
+  const openDrawer = useTerminalStore((s) => s.openDrawer);
+  const projectSessions = sessions.filter((session) => session.projectId === project.id);
+
+  function showSession(id: string): void {
+    setActiveSession(id);
+    openDrawer();
+  }
+
+  return (
+    <div className="overflow-hidden rounded-lg border border-border">
+      <div className="flex items-start gap-3 border-b border-border bg-card/80 px-5 py-4">
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+          <TerminalSquare className="h-4 w-4" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <h2 className="text-sm font-medium">Project terminal</h2>
+          <p className="mt-0.5 text-sm text-muted-foreground">
+            Opens in this folder. Hide the panel from the top bar and the shell keeps running.
+          </p>
+          <p className="mt-2 flex items-center gap-1.5 truncate font-mono text-xs text-muted-foreground">
+            <Folder className="h-3 w-3 shrink-0" />
+            {project.folderPath}
+          </p>
+        </div>
+      </div>
+
+      {projectSessions.length > 0 && (
+        <div className="space-y-1.5 border-b border-border px-5 py-3">
+          <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+            Open here
+          </p>
+          {projectSessions.map((session) => (
+            <button
+              key={session.id}
+              type="button"
+              onClick={() => showSession(session.id)}
+              className={cn(
+                'flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-sm transition-colors hover:bg-accent',
+                session.id === activeSessionId && 'bg-primary/10',
+              )}
+            >
+              <span
+                className={cn(
+                  'h-1.5 w-1.5 shrink-0 rounded-full',
+                  session.id === activeSessionId
+                    ? 'terminal-live-dot bg-primary shadow-[0_0_6px_hsl(var(--primary))]'
+                    : 'bg-foreground/25',
+                )}
+              />
+              <span className="min-w-0 flex-1 truncate">{session.title}</span>
+              <span className="text-xs text-muted-foreground">Show</span>
+            </button>
+          ))}
+        </div>
+      )}
+
+      <div className="flex flex-wrap items-center gap-2 px-5 py-4">
+        <Button onClick={onOpenHere}>
+          <TerminalSquare /> Open terminal here
+        </Button>
+        {project.runCommand ? (
+          <Button variant="outline" onClick={onRun}>
+            <Play /> Run {project.runCommand}
+          </Button>
+        ) : (
+          <Button variant="outline" onClick={onSetRun}>
+            Set a run command
+          </Button>
+        )}
+        <span className="text-xs text-muted-foreground">Ctrl+` toggles the panel</span>
+      </div>
     </div>
   );
 }

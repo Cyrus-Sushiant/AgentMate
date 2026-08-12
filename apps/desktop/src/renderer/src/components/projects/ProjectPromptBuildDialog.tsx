@@ -1,20 +1,24 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import {
+  Check,
   Copy,
   Languages,
   Pin,
   Save,
   Sparkles,
+  Spinner,
   Trash2,
   WindowMaximize,
   WindowRestore,
 } from '@/components/icons';
 import { cn } from '@/lib/utils';
+import { containsPersian } from '@/lib/rtl';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -34,6 +38,9 @@ export interface ProjectPromptBuildDialogProps {
   projectName: string;
 }
 
+const chromeBtnClass =
+  'flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground opacity-80 transition-colors hover:bg-accent hover:text-foreground hover:opacity-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-40';
+
 export function ProjectPromptBuildDialog({
   open,
   onOpenChange,
@@ -42,6 +49,9 @@ export function ProjectPromptBuildDialog({
 }: ProjectPromptBuildDialogProps): React.JSX.Element {
   const [isMaximized, setIsMaximized] = useState(false);
   const [isPinning, setIsPinning] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const requestRef = useRef<HTMLTextAreaElement>(null);
+  const copiedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const {
     rawInput,
     setRawInput,
@@ -63,6 +73,21 @@ export function ProjectPromptBuildDialog({
     onDraftSaved: () => onOpenChange(false),
   });
 
+  const hasRequest = rawInput.trim().length > 0;
+  const isBusy = isGenerating || isTranslating;
+  const isPersian = containsPersian(rawInput);
+  const shortcut = typeof window !== 'undefined' && window.agentmat.platform === 'darwin' ? '⌘' : 'Ctrl';
+
+  useEffect(() => {
+    return () => {
+      if (copiedTimer.current) clearTimeout(copiedTimer.current);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!open) setIsMaximized(false);
+  }, [open]);
+
   async function handlePinToDesktop(): Promise<void> {
     setIsPinning(true);
     try {
@@ -76,23 +101,49 @@ export function ProjectPromptBuildDialog({
     }
   }
 
+  async function onCopy(): Promise<void> {
+    await handleCopy();
+    setCopied(true);
+    if (copiedTimer.current) clearTimeout(copiedTimer.current);
+    copiedTimer.current = setTimeout(() => setCopied(false), 1600);
+  }
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         className={cn(
-          'flex flex-col overflow-hidden transition-[width,height,max-width,max-height]',
-          isMaximized ? 'h-[92vh] max-h-[92vh] w-[95vw] max-w-[95vw]' : 'max-h-[85vh] max-w-lg',
+          'flex flex-col gap-0 overflow-hidden p-0 transition-[width,height,max-width,max-height]',
+          isMaximized
+            ? 'h-[92vh] max-h-[92vh] w-[95vw] max-w-[95vw]'
+            : 'h-[min(38rem,82vh)] max-h-[82vh] w-[min(56rem,94vw)] max-w-4xl',
         )}
+        onOpenAutoFocus={(event) => {
+          event.preventDefault();
+          requestRef.current?.focus();
+        }}
+        onKeyDown={(event) => {
+          if (event.shiftKey || event.altKey) return;
+          if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
+            event.preventDefault();
+            if (hasRequest && !isBusy) void handleGenerate();
+            return;
+          }
+          if (event.key.toLowerCase() === 'c' && (event.ctrlKey || event.metaKey)) {
+            if (hasTextSelection() || !generated || isBusy) return;
+            event.preventDefault();
+            void onCopy();
+          }
+        }}
       >
         {!isMaximized && (
-          <SimpleTooltip label="Add to desktop">
+          <SimpleTooltip label="Keep this on the desktop">
             <button
               type="button"
               onClick={() => void handlePinToDesktop()}
               disabled={isPinning}
-              className="absolute right-[4.5rem] top-4 rounded-sm opacity-70 transition-opacity hover:opacity-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-40"
+              className={cn(chromeBtnClass, 'absolute right-[5.25rem] top-3 z-10')}
             >
-              <Pin className="h-4 w-4" />
+              <Pin className="h-3.5 w-3.5" />
               <span className="sr-only">Add to desktop</span>
             </button>
           </SimpleTooltip>
@@ -102,116 +153,172 @@ export function ProjectPromptBuildDialog({
           <button
             type="button"
             onClick={() => setIsMaximized((v) => !v)}
-            className="absolute right-11 top-4 rounded-sm opacity-70 transition-opacity hover:opacity-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className={cn(chromeBtnClass, 'absolute right-12 top-3 z-10')}
           >
             {isMaximized ? (
-              <WindowRestore className="h-4 w-4" />
+              <WindowRestore className="h-3.5 w-3.5" />
             ) : (
-              <WindowMaximize className="h-4 w-4" />
+              <WindowMaximize className="h-3.5 w-3.5" />
             )}
             <span className="sr-only">{isMaximized ? 'Restore size' : 'Maximize'}</span>
           </button>
         </SimpleTooltip>
 
-        <DialogHeader>
-          <DialogTitle>Build Prompt: {projectName}</DialogTitle>
+        <DialogHeader className="space-y-1 border-b border-border/70 px-5 py-4 pr-28 text-left">
+          <DialogTitle>Build Prompt</DialogTitle>
+          <DialogDescription>
+            Turn a rough request into a prompt for {projectName}.
+          </DialogDescription>
         </DialogHeader>
 
-        <div
-          className={cn(
-            'min-h-0 flex-1 gap-6',
-            isMaximized
-              ? 'grid grid-cols-1 overflow-hidden lg:grid-cols-2'
-              : 'space-y-3 overflow-y-auto',
-          )}
-        >
-          <div className="flex min-h-0 flex-col space-y-3 overflow-y-auto pr-1">
-            <div className="flex min-h-0 flex-1 flex-col space-y-1.5">
-              <Label>Your request</Label>
-              <Textarea
-                className="min-h-[160px] flex-1 resize-none"
-                placeholder="e.g. Add a login form with email/password validation…"
-                value={rawInput}
-                onChange={(e) => setRawInput(e.target.value)}
+        <div className="flex min-h-0 flex-1 flex-col">
+          <div className="flex shrink-0 flex-wrap items-center gap-x-4 gap-y-2 border-b border-border/70 px-5 py-2.5">
+            <div className="flex min-w-0 items-center gap-2">
+              <Label className="shrink-0 text-xs text-muted-foreground">Type</Label>
+              <Combobox
+                className="h-8 w-[11.5rem]"
+                value={promptType}
+                onChange={(v) => setPromptType(v as PromptType)}
+                options={PROMPT_TYPES.map((type) => ({ value: type, label: type }))}
               />
             </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label>Prompt Type</Label>
-                <Combobox
-                  value={promptType}
-                  onChange={(v) => setPromptType(v as PromptType)}
-                  options={PROMPT_TYPES.map((type) => ({ value: type, label: type }))}
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label>Target AI</Label>
-                <Combobox
-                  value={targetAI}
-                  onChange={(v) => setTargetAI(v as TargetAI)}
-                  options={TARGET_AIS.map((ai) => ({ value: ai, label: ai }))}
-                />
-              </div>
+            <div className="flex min-w-0 items-center gap-2">
+              <Label className="shrink-0 text-xs text-muted-foreground">Target</Label>
+              <Combobox
+                className="h-8 w-[9.5rem]"
+                value={targetAI}
+                onChange={(v) => setTargetAI(v as TargetAI)}
+                options={TARGET_AIS.map((ai) => ({ value: ai, label: ai }))}
+              />
             </div>
-
-            <Button
-              onClick={() => void handleGenerate()}
-              disabled={isGenerating}
-              className="w-full"
-            >
-              <Sparkles /> {isGenerating ? 'Generating…' : 'Generate Prompt'}
-            </Button>
-
-            <div className="flex items-center gap-2">
-              <div className="h-px flex-1 bg-border" />
-              <span className="text-xs text-muted-foreground">
-                or translate directly to English
-              </span>
-              <div className="h-px flex-1 bg-border" />
-            </div>
-
-            <Button
-              variant="secondary"
-              className="w-full"
-              onClick={() => void handleTranslate()}
-              disabled={isTranslating}
-            >
-              <Languages /> {isTranslating ? 'Translating…' : 'Translate to English'}
-            </Button>
           </div>
 
-          <div className="flex min-h-0 flex-col space-y-1.5">
-            <Label>Generated prompt</Label>
-            <Textarea
-              value={generated}
-              onChange={(e) => setGenerated(e.target.value)}
-              placeholder="Generated or translated text appears here."
-              className="min-h-[120px] flex-1 resize-none font-mono text-xs"
-            />
+          <div className="grid min-h-0 flex-1 grid-cols-1 md:grid-cols-2">
+            <div className="flex min-h-0 flex-col gap-2 border-b border-border/70 p-5 md:border-b-0 md:border-r">
+              <div className="flex items-baseline justify-between gap-3">
+                <Label htmlFor="prompt-build-request">Your request</Label>
+                <span className="text-[11px] tabular-nums text-muted-foreground">
+                  {rawInput.length === 0 ? 'Empty' : `${rawInput.length} chars`}
+                </span>
+              </div>
+              <div className="relative min-h-0 flex-1">
+                <Textarea
+                  id="prompt-build-request"
+                  ref={requestRef}
+                  className="absolute inset-0 min-h-0 resize-none bg-background/60"
+                  placeholder="e.g. Add a login form with email/password validation…"
+                  value={rawInput}
+                  onChange={(e) => setRawInput(e.target.value)}
+                />
+              </div>
+              {isPersian && (
+                <p className="text-[11px] text-muted-foreground">
+                  Persian is fine. Generate writes the prompt in English.
+                </p>
+              )}
+              <div className="flex gap-2">
+                <Button
+                  className="flex-1"
+                  onClick={() => void handleGenerate()}
+                  disabled={!hasRequest || isBusy}
+                >
+                  {isGenerating ? <Spinner className="animate-spin" /> : <Sparkles />}
+                  {isGenerating ? 'Generating…' : 'Generate prompt'}
+                </Button>
+                <SimpleTooltip label="Copy your request into English without generating a prompt">
+                  <Button
+                    variant="secondary"
+                    onClick={() => void handleTranslate()}
+                    disabled={!hasRequest || isBusy}
+                  >
+                    {isTranslating ? <Spinner className="animate-spin" /> : <Languages />}
+                    {isTranslating ? 'Translating…' : 'Translate'}
+                  </Button>
+                </SimpleTooltip>
+              </div>
+            </div>
+
+            <div className="relative flex min-h-0 flex-col gap-2 p-5">
+              <div className="flex items-center justify-between gap-3">
+                <Label htmlFor="prompt-build-output">Generated prompt</Label>
+                <SimpleTooltip
+                  label={copied ? 'Copied' : `Copy prompt (${shortcut}+C)`}
+                  wrapTrigger={!generated || isBusy}
+                >
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 gap-1.5 px-2 text-xs"
+                    disabled={!generated || isBusy}
+                    onClick={() => void onCopy()}
+                  >
+                    {copied ? <Check className="text-primary" /> : <Copy />}
+                    {copied ? 'Copied' : 'Copy'}
+                  </Button>
+                </SimpleTooltip>
+              </div>
+              <div className="relative min-h-0 flex-1">
+                <Textarea
+                  id="prompt-build-output"
+                  value={generated}
+                  onChange={(e) => setGenerated(e.target.value)}
+                  placeholder="Generate or translate to fill this."
+                  className="absolute inset-0 min-h-0 resize-none bg-background/60 font-mono text-sm leading-relaxed"
+                  aria-busy={isBusy}
+                />
+                {isBusy && (
+                  <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 rounded-lg bg-background/70 backdrop-blur-[2px]">
+                    <Spinner className="h-5 w-5 animate-spin text-primary" />
+                    <p className="text-sm text-muted-foreground">
+                      {isGenerating ? 'Generating prompt…' : 'Translating…'}
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         </div>
 
-        <DialogFooter>
+        <DialogFooter className="items-center border-t border-border/70 bg-muted/20 px-5 py-3 sm:justify-between">
           <Button
-            variant="outline"
+            variant="ghost"
+            size="sm"
             disabled={!rawInput && !generated}
             onClick={handleClear}
-            className="mr-auto"
+            className="text-muted-foreground"
           >
             <Trash2 /> Clear
           </Button>
-          <Button variant="outline" disabled={!generated} onClick={() => void handleCopy()}>
-            <Copy /> Copy
-          </Button>
-          <Button
-            disabled={!generated || saveDraftMutation.isPending}
-            onClick={() => saveDraftMutation.mutate()}
+          <p className="hidden text-xs text-muted-foreground sm:block">
+            {shortcut}+Enter to generate · {shortcut}+C to copy
+          </p>
+          <SimpleTooltip
+            label={generated ? 'Park this on the project’s Overview tab' : 'Generate a prompt first'}
+            wrapTrigger={!generated}
           >
-            <Save /> {saveDraftMutation.isPending ? 'Saving…' : 'Save draft to project'}
-          </Button>
+            <Button
+              disabled={!generated || saveDraftMutation.isPending}
+              onClick={() => saveDraftMutation.mutate()}
+            >
+              {saveDraftMutation.isPending ? <Spinner className="animate-spin" /> : <Save />}
+              {saveDraftMutation.isPending ? 'Saving…' : 'Save draft'}
+            </Button>
+          </SimpleTooltip>
         </DialogFooter>
       </DialogContent>
     </Dialog>
   );
+}
+
+/** True when the user is copying a highlighted range, so Ctrl+C should stay native. */
+function hasTextSelection(): boolean {
+  const el = document.activeElement;
+  if (
+    (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) &&
+    el.selectionStart !== el.selectionEnd
+  ) {
+    return true;
+  }
+  return (window.getSelection()?.toString().length ?? 0) > 0;
 }

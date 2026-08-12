@@ -12,6 +12,7 @@ import {
   Plus,
   RefreshCw,
   Search,
+  Sparkles,
   Trash2,
 } from '@/components/icons';
 import type { SkillRepositorySourceType } from '@agentmat/core';
@@ -631,26 +632,52 @@ export default function SkillsPage(): React.JSX.Element {
 
   usePageHeader('Skill Marketplace', 'Install skills from configurable repositories or skills.sh.');
 
+  const globalInstalledCount = globalInstalledQuery.data?.length ?? 0;
+
   return (
     <div className="space-y-6 p-6">
-      <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as SkillsTab)}>
-        <div className="flex items-center justify-between">
-          <TabsList>
-            <TabsTrigger value="directory">skills.sh Directory</TabsTrigger>
-            <TabsTrigger value="featured">Featured</TabsTrigger>
-            <TabsTrigger value="marketplace">My Repositories</TabsTrigger>
+      <Tabs
+        value={activeTab}
+        onValueChange={(value) => setActiveTab(value as SkillsTab)}
+        className="flex flex-col gap-4"
+      >
+        <div className="flex items-end gap-3 border-b border-border">
+          <TabsList containerClassName="min-w-0 flex-1 border-b-0">
+            <TabsTrigger value="directory" className="gap-1.5">
+              <Search className="h-3.5 w-3.5" />
+              Directory
+            </TabsTrigger>
+            <TabsTrigger value="featured" className="gap-1.5">
+              <Sparkles className="h-3.5 w-3.5" />
+              Featured
+            </TabsTrigger>
+            <TabsTrigger value="marketplace" className="group gap-1.5">
+              <FolderOpen className="h-3.5 w-3.5" />
+              Repositories
+              {repoCount > 0 ? (
+                <span className="min-w-4 rounded-full bg-muted px-1.5 text-center text-[10px] font-medium tabular-nums text-muted-foreground group-data-[state=active]:bg-foreground/10 group-data-[state=active]:text-foreground">
+                  {repoCount}
+                </span>
+              ) : null}
+            </TabsTrigger>
           </TabsList>
-          <Button variant="outline" onClick={() => setGlobalSkillsModalOpen(true)}>
-            <Globe className="h-4 w-4" /> Global Skills
-            {(globalInstalledQuery.data?.length ?? 0) > 0 && (
-              <Badge variant="secondary" className="ml-1">
-                {globalInstalledQuery.data?.length}
-              </Badge>
-            )}
+          <Button
+            variant="outline"
+            size="sm"
+            className="mb-1.5 shrink-0"
+            onClick={() => setGlobalSkillsModalOpen(true)}
+          >
+            <Globe />
+            Global Skills
+            {globalInstalledCount > 0 ? (
+              <span className="min-w-4 rounded-full bg-muted px-1.5 text-center text-[10px] font-medium tabular-nums text-muted-foreground">
+                {globalInstalledCount}
+              </span>
+            ) : null}
           </Button>
         </div>
 
-        <TabsContent value="featured" className="space-y-6">
+        <TabsContent value="featured" className="mt-0 space-y-6">
           <p className="text-sm text-muted-foreground">
             Skills that ship their own installer instead of plain files, so AgentMate walks you
             through their CLI rather than copying a folder.
@@ -658,7 +685,7 @@ export default function SkillsPage(): React.JSX.Element {
           <UiUxProMaxCard />
         </TabsContent>
 
-        <TabsContent value="marketplace" className="space-y-6">
+        <TabsContent value="marketplace" className="mt-0 space-y-6">
           <div className="flex flex-wrap items-end gap-3">
             <div className="space-y-1.5">
               <Label>Repository</Label>
@@ -824,7 +851,7 @@ export default function SkillsPage(): React.JSX.Element {
           )}
         </TabsContent>
 
-        <TabsContent value="directory" className="space-y-6">
+        <TabsContent value="directory" className="mt-0 space-y-6">
           <p className="text-sm text-muted-foreground">
             {bundledSkillsShDirectory.length} popular skills bundled from{' '}
             <button

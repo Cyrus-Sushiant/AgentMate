@@ -98,7 +98,6 @@ export function useProjectPromptBuilder(
       return;
     }
 
-    setGenerated('');
     setIsGenerating(true);
     try {
       const request = buildPromptGenerationRequest({ rawInput, promptType, targetAI });
@@ -122,7 +121,6 @@ export function useProjectPromptBuilder(
       toast.error('Enter some text before translating.');
       return;
     }
-    setGenerated('');
     setIsTranslating(true);
     try {
       const translated = await window.agentmat.translate.text({ text: rawInput, targetLang: 'en' });

@@ -1,5 +1,8 @@
 import { create } from 'zustand';
 
+export const TERMINAL_MIN_HEIGHT = 160;
+export const TERMINAL_DEFAULT_HEIGHT = 288;
+
 export interface TerminalSessionMeta {
   id: string;
   title: string;
@@ -11,11 +14,13 @@ export interface TerminalSessionMeta {
 
 interface TerminalState {
   isOpen: boolean;
+  drawerHeight: number;
   sessions: TerminalSessionMeta[];
   activeSessionId: string | null;
   openDrawer: () => void;
   closeDrawer: () => void;
   toggleDrawer: () => void;
+  setDrawerHeight: (height: number) => void;
   openSession: (meta: Omit<TerminalSessionMeta, 'id'> & { id?: string }) => string;
   closeSession: (id: string) => void;
   setActiveSession: (id: string) => void;
@@ -23,11 +28,14 @@ interface TerminalState {
 
 export const useTerminalStore = create<TerminalState>((set, get) => ({
   isOpen: false,
+  drawerHeight: TERMINAL_DEFAULT_HEIGHT,
   sessions: [],
   activeSessionId: null,
   openDrawer: () => set({ isOpen: true }),
   closeDrawer: () => set({ isOpen: false }),
   toggleDrawer: () => set((state) => ({ isOpen: !state.isOpen })),
+  setDrawerHeight: (height) =>
+    set({ drawerHeight: Math.max(TERMINAL_MIN_HEIGHT, Math.round(height)) }),
   openSession: (meta) => {
     const id = meta.id ?? crypto.randomUUID();
     const session: TerminalSessionMeta = {

@@ -1,125 +1,333 @@
-import { useState } from 'react';
-import { Plus, WindowMaximize, WindowRestore, X } from '@/components/icons';
-import { useTerminalStore } from '@/stores/terminalStore';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { Folder, Plus, TerminalSquare, WindowMaximize, WindowRestore, X } from '@/components/icons';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
+import {
+  TERMINAL_MIN_HEIGHT,
+  type TerminalSessionMeta,
+  useTerminalStore,
+} from '@/stores/terminalStore';
 import { TerminalPane } from './TerminalPane';
+
+function defaultNewSession(): { title: string; shell?: string } {
+  const platform = window.agentmat.platform;
+  if (platform === 'win32') return { title: 'PowerShell', shell: 'powershell.exe' };
+  if (platform === 'darwin') return { title: 'zsh', shell: 'zsh' };
+  return { title: 'bash', shell: 'bash' };
+}
+
+function shellDisplayName(shell?: string): string {
+  if (!shell) return defaultNewSession().title;
+  const base = shell.replace(/\\/g, '/').split('/').pop()?.toLowerCase() ?? shell;
+  if (base === 'powershell.exe' || base === 'pwsh.exe' || base === 'pwsh') return 'PowerShell';
+  if (base === 'cmd.exe' || base === 'cmd') return 'Command Prompt';
+  return base.replace(/\.exe$/, '');
+}
+
+function shortPath(path: string): string {
+  const sep = path.includes('\\') ? '\\' : '/';
+  const parts = path.split(/[/\\]/).filter(Boolean);
+  if (parts.length <= 2) return path;
+  return `…${sep}${parts.slice(-2).join(sep)}`;
+}
+
+function IconButton({
+  label,
+  onClick,
+  children,
+}: {
+  label: string;
+  onClick: () => void;
+  children: React.ReactNode;
+}): React.JSX.Element {
+  return (
+    <SimpleTooltip label={label}>
+      <button
+        type="button"
+        aria-label={label}
+        onClick={onClick}
+        className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-foreground/10 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        {children}
+      </button>
+    </SimpleTooltip>
+  );
+}
+
+function SessionTab({
+  session,
+  active,
+  onSelect,
+  onClose,
+}: {
+  session: TerminalSessionMeta;
+  active: boolean;
+  onSelect: () => void;
+  onClose: () => void;
+}): React.JSX.Element {
+  return (
+    <SimpleTooltip label={session.cwd ? `${session.title}\n${session.cwd}` : session.title}>
+      <div
+        className={cn(
+          'group relative flex h-7 max-w-[14rem] shrink-0 items-center gap-1.5 rounded-t-md px-2.5 text-xs transition-colors',
+          active
+            ? 'bg-[#0a1210] text-zinc-100'
+            : 'text-muted-foreground hover:bg-foreground/8 hover:text-foreground',
+        )}
+      >
+        <button
+          type="button"
+          role="tab"
+          aria-selected={active}
+          onClick={onSelect}
+          onMouseDown={(e) => {
+            if (e.button === 1) e.preventDefault();
+          }}
+          onAuxClick={(e) => {
+            if (e.button === 1) {
+              e.preventDefault();
+              onClose();
+            }
+          }}
+          className="flex min-w-0 flex-1 items-center gap-2 text-left focus-visible:outline-none"
+        >
+          <span
+            className={cn(
+              'h-1.5 w-1.5 shrink-0 rounded-full',
+              active
+                ? 'terminal-live-dot bg-primary shadow-[0_0_6px_hsl(var(--primary))]'
+                : 'bg-foreground/25',
+            )}
+          />
+          <span className="truncate">{session.title}</span>
+        </button>
+        <button
+          type="button"
+          aria-label={`Close ${session.title}`}
+          onClick={(e) => {
+            e.stopPropagation();
+            onClose();
+          }}
+          className={cn(
+            'flex h-4 w-4 shrink-0 items-center justify-center rounded-sm text-muted-foreground transition-opacity hover:bg-foreground/15 hover:text-foreground',
+            active
+              ? 'opacity-100'
+              : 'opacity-0 group-hover:opacity-100 group-focus-within:opacity-100',
+          )}
+        >
+          <X className="h-2.5 w-2.5" />
+        </button>
+      </div>
+    </SimpleTooltip>
+  );
+}
 
 export function TerminalDrawer(): React.JSX.Element {
   const isOpen = useTerminalStore((s) => s.isOpen);
+  const drawerHeight = useTerminalStore((s) => s.drawerHeight);
+  const setDrawerHeight = useTerminalStore((s) => s.setDrawerHeight);
   const sessions = useTerminalStore((s) => s.sessions);
   const activeSessionId = useTerminalStore((s) => s.activeSessionId);
   const setActiveSession = useTerminalStore((s) => s.setActiveSession);
   const closeSession = useTerminalStore((s) => s.closeSession);
   const openSession = useTerminalStore((s) => s.openSession);
   const closeDrawer = useTerminalStore((s) => s.closeDrawer);
+  const toggleDrawer = useTerminalStore((s) => s.toggleDrawer);
   const [isMaximized, setIsMaximized] = useState(false);
+  const [isResizing, setIsResizing] = useState(false);
+  const drawerRef = useRef<HTMLDivElement>(null);
+
+  const activeSession = sessions.find((s) => s.id === activeSessionId) ?? sessions.at(-1) ?? null;
+
+  const handleNewSession = useCallback((): void => {
+    const next = defaultNewSession();
+    const current = useTerminalStore.getState().sessions;
+    const count = current.filter((s) => s.shell === next.shell).length;
+    openSession({
+      title: count === 0 ? next.title : `${next.title} ${count + 1}`,
+      shell: next.shell,
+    });
+  }, [openSession]);
 
   function handleCloseDrawer(): void {
     setIsMaximized(false);
     closeDrawer();
   }
 
-  function handleNewPowerShell(): void {
-    const count = sessions.filter((s) => s.shell === 'powershell.exe').length;
-    openSession({
-      title: count === 0 ? 'PowerShell' : `PowerShell ${count + 1}`,
-      shell: 'powershell.exe',
-    });
+  function startResize(event: React.PointerEvent<HTMLDivElement>): void {
+    if (isMaximized) return;
+    event.preventDefault();
+    const startY = event.clientY;
+    const startHeight = drawerRef.current?.offsetHeight ?? drawerHeight;
+    const parentHeight = drawerRef.current?.parentElement?.clientHeight ?? window.innerHeight;
+    const maxHeight = Math.max(TERMINAL_MIN_HEIGHT, parentHeight - 240);
+    setIsResizing(true);
+    document.body.style.cursor = 'ns-resize';
+    document.body.style.userSelect = 'none';
+
+    function handleMove(move: PointerEvent): void {
+      const next = Math.min(
+        maxHeight,
+        Math.max(TERMINAL_MIN_HEIGHT, startHeight + (startY - move.clientY)),
+      );
+      setDrawerHeight(next);
+    }
+    function handleUp(): void {
+      setIsResizing(false);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+      window.removeEventListener('pointermove', handleMove);
+      window.removeEventListener('pointerup', handleUp);
+    }
+    window.addEventListener('pointermove', handleMove);
+    window.addEventListener('pointerup', handleUp);
   }
+
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent): void {
+      if (event.altKey || event.metaKey) return;
+      if (event.ctrlKey && event.code === 'Backquote') {
+        event.preventDefault();
+        if (event.shiftKey) {
+          handleNewSession();
+          return;
+        }
+        toggleDrawer();
+        return;
+      }
+      if (event.key === 'Escape' && isMaximized && isOpen) {
+        event.preventDefault();
+        setIsMaximized(false);
+      }
+    }
+    window.addEventListener('keydown', onKeyDown, true);
+    return () => window.removeEventListener('keydown', onKeyDown, true);
+  }, [handleNewSession, isMaximized, isOpen, toggleDrawer]);
 
   // Closing the drawer only hides it: the panes stay mounted so their ptys keep
   // running. Unmounting them here would kill every shell (see TerminalPane's
   // cleanup), which is what closing an individual tab is for.
   return (
     <div
+      ref={drawerRef}
       className={cn(
-        'flex flex-col border-t border-border bg-black/60 backdrop-blur-2xl',
-        isMaximized
-          ? 'fixed inset-x-0 bottom-0 top-11 z-50 h-auto'
-          : 'absolute inset-x-0 bottom-0 z-20 h-72',
+        'flex flex-col border-t border-border bg-card/90 backdrop-blur-xl',
+        isMaximized ? 'absolute inset-0 z-50 h-auto' : 'absolute inset-x-0 bottom-0 z-20',
         !isOpen && 'hidden',
+        isResizing && 'select-none',
       )}
+      style={isMaximized || !isOpen ? undefined : { height: drawerHeight }}
     >
-      <div className="flex items-center gap-1 border-b border-white/10 px-2 py-1">
+      {!isMaximized && (
+        <div
+          role="separator"
+          aria-orientation="horizontal"
+          aria-label="Resize terminal"
+          onPointerDown={startResize}
+          className="group absolute inset-x-0 -top-1 z-10 flex h-2 cursor-ns-resize items-start justify-center"
+        >
+          <div className="mt-px h-1 w-10 rounded-full bg-foreground/20 transition-colors group-hover:bg-primary group-hover:shadow-[0_0_8px_hsl(var(--primary)/0.55)]" />
+        </div>
+      )}
+
+      <div className="flex h-9 shrink-0 items-end gap-1 px-1.5 pt-1">
         {sessions.length === 0 ? (
-          <span className="px-2 py-1 text-xs text-white/50">
-            No terminal sessions. Install a CLI or open one from a project.
-          </span>
+          <div className="flex h-7 items-center gap-2 px-2 text-xs text-muted-foreground">
+            <TerminalSquare className="h-3.5 w-3.5" />
+            No sessions
+          </div>
         ) : (
-          sessions.map((session) => (
-            <SimpleTooltip key={session.id} label={session.title}>
-              <button
-                onClick={() => setActiveSession(session.id)}
-                onMouseDown={(e) => {
-                  // Prevent the middle-click autoscroll cursor from appearing.
-                  if (e.button === 1) e.preventDefault();
-                }}
-                onAuxClick={(e) => {
-                  // Middle-click (mouse wheel button) closes the tab, like browsers.
-                  if (e.button === 1) {
-                    e.preventDefault();
-                    closeSession(session.id);
-                  }
-                }}
-                className={cn(
-                  'group flex items-center gap-2 rounded-t-md px-3 py-1.5 text-xs',
-                  session.id === activeSessionId
-                    ? 'bg-white/10 text-white'
-                    : 'text-white/50 hover:text-white/80',
-                )}
-              >
-                <span className="max-w-[10rem] truncate">{session.title}</span>
-                <X
-                  className="h-3 w-3 opacity-0 group-hover:opacity-100"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    closeSession(session.id);
-                  }}
-                />
-              </button>
-            </SimpleTooltip>
-          ))
+          <div
+            role="tablist"
+            aria-label="Terminal sessions"
+            className="flex min-w-0 flex-1 items-end gap-0.5 overflow-x-auto [scrollbar-width:thin]"
+          >
+            {sessions.map((session) => (
+              <SessionTab
+                key={session.id}
+                session={session}
+                active={session.id === activeSessionId}
+                onSelect={() => setActiveSession(session.id)}
+                onClose={() => closeSession(session.id)}
+              />
+            ))}
+          </div>
         )}
-        <SimpleTooltip label="New PowerShell terminal">
-          <button
-            onClick={handleNewPowerShell}
-            className="flex items-center rounded-t-md px-2 py-1.5 text-white/50 hover:text-white/80"
+        {sessions.length === 0 && <div className="flex-1" />}
+        <div className="mb-0.5 flex shrink-0 items-center gap-0.5">
+          <IconButton
+            label={`New ${defaultNewSession().title} (Ctrl+Shift+\`)`}
+            onClick={handleNewSession}
           >
             <Plus className="h-3.5 w-3.5" />
-          </button>
-        </SimpleTooltip>
-        <div className="flex-1" />
-        <SimpleTooltip label={isMaximized ? 'Restore terminal' : 'Maximize terminal'}>
-          <button
+          </IconButton>
+          <IconButton
+            label={isMaximized ? 'Restore terminal' : 'Maximize terminal'}
             onClick={() => setIsMaximized((v) => !v)}
-            className="flex items-center rounded-t-md px-2 py-1.5 text-white/50 hover:text-white/80"
           >
             {isMaximized ? (
               <WindowRestore className="h-3.5 w-3.5" />
             ) : (
               <WindowMaximize className="h-3.5 w-3.5" />
             )}
-          </button>
-        </SimpleTooltip>
-        <SimpleTooltip label="Close terminal panel">
-          <button
-            onClick={handleCloseDrawer}
-            className="flex items-center rounded-t-md px-2 py-1.5 text-white/50 hover:text-white/80"
-          >
+          </IconButton>
+          <IconButton label="Close terminal panel" onClick={handleCloseDrawer}>
             <X className="h-3.5 w-3.5" />
-          </button>
-        </SimpleTooltip>
+          </IconButton>
+        </div>
       </div>
-      <div className="relative min-h-0 flex-1">
-        {sessions.map((session) => (
-          <TerminalPane
-            key={session.id}
-            meta={session}
-            active={isOpen && session.id === activeSessionId}
-            onExit={() => closeSession(session.id)}
-          />
-        ))}
+
+      <div className="terminal-well relative min-h-0 flex-1 overflow-hidden">
+        {sessions.length === 0 ? (
+          <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center">
+            <div className="flex h-11 w-11 items-center justify-center rounded-full bg-primary/15 text-primary">
+              <TerminalSquare className="h-5 w-5" />
+            </div>
+            <div className="space-y-1">
+              <p className="text-sm font-medium text-zinc-100">Open a terminal</p>
+              <p className="max-w-sm text-xs leading-relaxed text-zinc-400">
+                Run installs, project commands, and CLIs here. Sessions keep running if you hide
+                this panel.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={handleNewSession}
+              className="inline-flex h-8 items-center gap-2 rounded-md bg-primary px-3 text-xs font-semibold text-primary-foreground shadow-[0_0_18px_-6px_hsl(var(--primary)/0.7)] hover:brightness-110"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              New {defaultNewSession().title}
+            </button>
+          </div>
+        ) : (
+          sessions.map((session) => (
+            <TerminalPane
+              key={session.id}
+              meta={session}
+              active={isOpen && session.id === activeSessionId}
+              onExit={() => closeSession(session.id)}
+            />
+          ))
+        )}
+      </div>
+
+      <div className="flex h-6 shrink-0 items-center gap-2 border-t border-white/5 bg-[#0a1210] px-3 font-mono text-[10px] text-zinc-500">
+        <span className="truncate">{shellDisplayName(activeSession?.shell)}</span>
+        {activeSession?.cwd ? (
+          <>
+            <span className="text-zinc-700">·</span>
+            <span className="flex min-w-0 items-center gap-1.5 truncate" title={activeSession.cwd}>
+              <Folder className="h-2.5 w-2.5 shrink-0" />
+              {shortPath(activeSession.cwd)}
+            </span>
+          </>
+        ) : null}
+        <span className="flex-1" />
+        <span>
+          {sessions.length} session{sessions.length === 1 ? '' : 's'}
+        </span>
+        <span className="text-zinc-700">·</span>
+        <span>Ctrl+`</span>
       </div>
     </div>
   );

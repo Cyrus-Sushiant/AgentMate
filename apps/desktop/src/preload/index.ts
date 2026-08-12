@@ -61,6 +61,9 @@ import type {
   AskAiInput,
   AskAiResult,
   SystemStatsSample,
+  TopResourceAppsResult,
+  TopResourceKind,
+  KillProcessResult,
   IpGeoInfo,
   DetectChatIdResult,
   NotificationSendResult,
@@ -353,6 +356,10 @@ const speech = {
 
 const system = {
   sample: (): Promise<SystemStatsSample> => ipcRenderer.invoke(IPC.system.sample),
+  topApps: (resource: TopResourceKind): Promise<TopResourceAppsResult> =>
+    ipcRenderer.invoke(IPC.system.topApps, resource),
+  killProcess: (pid: number): Promise<KillProcessResult> =>
+    ipcRenderer.invoke(IPC.system.killProcess, pid),
 };
 
 const ipGeo = {

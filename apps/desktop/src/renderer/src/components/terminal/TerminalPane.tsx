@@ -1,16 +1,36 @@
-import { useEffect, useRef } from 'react';
-import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
+import { type ITheme, Terminal } from '@xterm/xterm';
+import { useEffect, useRef } from 'react';
 import '@xterm/xterm/css/xterm.css';
 import type { TerminalSessionMeta } from '@/stores/terminalStore';
 
-// Transparent background so the drawer's glass surface shows through;
-// see the allowTransparency flag below.
-const TERMINAL_THEME = {
-  background: '#00000000',
-  foreground: '#e4e4e7',
+// Same fill as `.terminal-well` so leftover cells after a fit() don't read as a
+// nested black rectangle inside the panel.
+const TERMINAL_WELL_BG = '#0a1210';
+
+const TERMINAL_THEME: ITheme = {
+  background: TERMINAL_WELL_BG,
+  foreground: '#d4ddd6',
   cursor: '#00e572',
-  selectionBackground: '#00e57233',
+  cursorAccent: TERMINAL_WELL_BG,
+  selectionBackground: '#00e57240',
+  selectionForeground: TERMINAL_WELL_BG,
+  black: '#1a1f1c',
+  red: '#f07178',
+  green: '#00e572',
+  yellow: '#e6c07b',
+  blue: '#6bb0ff',
+  magenta: '#c792ea',
+  cyan: '#56d4c1',
+  white: '#d4ddd6',
+  brightBlack: '#6b756f',
+  brightRed: '#ff8b92',
+  brightGreen: '#5eec9a',
+  brightYellow: '#f0d48a',
+  brightBlue: '#8fc4ff',
+  brightMagenta: '#d7a6f5',
+  brightCyan: '#7ee4d4',
+  brightWhite: '#f4f7f5',
 };
 
 export interface TerminalPaneProps {
@@ -30,13 +50,20 @@ export function TerminalPane({ meta, active, onExit }: TerminalPaneProps): React
     const container = containerRef.current;
     if (!container) return;
 
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     const term = new Terminal({
       convertEol: true,
       fontSize: 13,
-      fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
+      lineHeight: 1.35,
+      fontFamily:
+        "'Cascadia Code', 'Cascadia Mono', 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
       theme: TERMINAL_THEME,
-      cursorBlink: true,
-      allowTransparency: true,
+      cursorBlink: !reduceMotion,
+      cursorStyle: 'bar',
+      cursorWidth: 2,
+      scrollback: 5000,
+      scrollSensitivity: 1.2,
+      smoothScrollDuration: reduceMotion ? 0 : 140,
     });
     const fitAddon = new FitAddon();
     term.loadAddon(fitAddon);
@@ -149,5 +176,7 @@ export function TerminalPane({ meta, active, onExit }: TerminalPaneProps): React
     if (active) termRef.current?.focus();
   }, [active]);
 
-  return <div ref={containerRef} className={active ? 'h-full w-full p-2' : 'hidden'} />;
+  return (
+    <div ref={containerRef} className={active ? 'terminal-pane absolute inset-0' : 'hidden'} />
+  );
 }

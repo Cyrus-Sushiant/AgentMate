@@ -1,22 +1,22 @@
 import { useEffect, useRef } from 'react';
-import { AnglesLeft, AnglesRight, MessageSquare, TerminalSquare } from '@/components/icons';
 import { Outlet, useLocation } from 'react-router-dom';
-import { Sidebar } from './Sidebar';
-import { TitleBar } from './TitleBar';
-import { LoadingOverlay } from './LoadingOverlay';
+import { AskAiModal } from '@/components/askAi/AskAiModal';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
+import { AnglesLeft, AnglesRight, MessageSquare, TerminalSquare } from '@/components/icons';
+import { CommandPalette } from '@/components/search/CommandPalette';
+import { TerminalDrawer } from '@/components/terminal/TerminalDrawer';
 import { Button } from '@/components/ui/button';
 import { SimpleTooltip } from '@/components/ui/tooltip';
-import { useTerminalStore } from '@/stores/terminalStore';
-import { useUiStore } from '@/stores/uiStore';
-import { usePageHeaderStore } from '@/stores/pageHeaderStore';
-import { useSearchStore } from '@/stores/searchStore';
-import { useAskAiStore } from '@/stores/askAiStore';
-import { TerminalDrawer } from '@/components/terminal/TerminalDrawer';
-import { CommandPalette } from '@/components/search/CommandPalette';
-import { AskAiModal } from '@/components/askAi/AskAiModal';
 import { useAppLoadingOverlay } from '@/hooks/useAppLoadingOverlay';
 import { cn } from '@/lib/utils';
+import { useAskAiStore } from '@/stores/askAiStore';
+import { usePageHeaderStore } from '@/stores/pageHeaderStore';
+import { useSearchStore } from '@/stores/searchStore';
+import { useTerminalStore } from '@/stores/terminalStore';
+import { useUiStore } from '@/stores/uiStore';
+import { LoadingOverlay } from './LoadingOverlay';
+import { Sidebar } from './Sidebar';
+import { TitleBar } from './TitleBar';
 
 function TopBar(): React.JSX.Element {
   const isTerminalOpen = useTerminalStore((s) => s.isOpen);
@@ -52,17 +52,30 @@ function TopBar(): React.JSX.Element {
 
       <div className="flex shrink-0 items-center justify-end gap-2">
         {activeSession && (
-          <span className="max-w-[16rem] truncate text-xs text-muted-foreground">
+          <span className="hidden max-w-[16rem] truncate text-xs text-muted-foreground sm:inline">
             {activeSession.title}
           </span>
         )}
-        <SimpleTooltip label="Toggle terminal">
+        <SimpleTooltip label="Toggle terminal (Ctrl+`)">
           <Button
             variant={isTerminalOpen ? 'secondary' : 'ghost'}
             size="icon"
+            aria-pressed={isTerminalOpen}
+            aria-label="Toggle terminal"
             onClick={toggleDrawer}
+            className="relative"
           >
             <TerminalSquare className="h-4 w-4" />
+            {sessions.length > 0 && (
+              <span
+                className={cn(
+                  'absolute right-1 top-1 h-1.5 w-1.5 rounded-full',
+                  isTerminalOpen
+                    ? 'bg-primary shadow-[0_0_6px_hsl(var(--primary))]'
+                    : 'bg-primary/70',
+                )}
+              />
+            )}
           </Button>
         </SimpleTooltip>
         <SimpleTooltip label="Ask AI">
@@ -125,8 +138,8 @@ export function AppShell(): React.JSX.Element {
               </div>
             </div>
             <LoadingOverlay show={showLoading} />
+            <TerminalDrawer />
           </div>
-          <TerminalDrawer />
         </div>
       </div>
     </div>

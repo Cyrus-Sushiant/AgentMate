@@ -602,6 +602,38 @@ export interface GpuUsage {
   memTotalBytes: number;
 }
 
+/** One app (possibly several processes) in a top-CPU, GPU, memory, or disk listing. */
+export interface TopResourceApp {
+  name: string;
+  /** Heaviest process in the group, useful when processCount is 1. */
+  pid: number;
+  /** Share of the resource, 0-100, already scaled to match the dashboard graphs. */
+  percent: number;
+  processCount: number;
+  /** Working set (CPU/memory) or dedicated GPU memory (GPU), when the OS reports it. */
+  memBytes?: number;
+  /** Disk read+write throughput, when listing top disk apps. */
+  rateBytesPerSec?: number;
+  /** Small PNG data URL of the app's file icon, when the OS can resolve it. */
+  iconDataUrl?: string;
+}
+
+export type TopResourceKind = 'cpu' | 'gpu' | 'memory' | 'disk';
+
+export interface TopResourceAppsResult {
+  apps: TopResourceApp[];
+  /**
+   * False when this machine has no way to attribute the resource to processes
+   * (typical for GPU on macOS without nvidia-smi, or disk I/O on macOS).
+   */
+  available: boolean;
+}
+
+export interface KillProcessResult {
+  ok: boolean;
+  error?: string;
+}
+
 export interface SystemStatsSample {
   timestamp: number;
   /** e.g. "Intel(R) Core(TM) i7-9700K CPU @ 3.60GHz". */

@@ -24,6 +24,7 @@ export const queryKeys = {
   // Nested under the same root so invalidating `promptHistory` refreshes it too.
   projectPromptHistory: (projectId: string) => ['prompt-history', 'project', projectId] as const,
   ipGeo: ['ip-geo'] as const,
+  topResourceApps: (resource: string) => ['top-resource-apps', resource] as const,
   cliUpdateCheck: (cliId: string, version: string | null) =>
     ['cli-update-check', cliId, version] as const,
   projectDrafts: (projectId: string) => ['project-drafts', projectId] as const,

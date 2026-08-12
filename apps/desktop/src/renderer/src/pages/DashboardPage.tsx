@@ -18,6 +18,7 @@ import {
   Gpu,
   GripVertical,
   HardDrive,
+  ListUnordered,
   MemoryStick,
   NetworkIcon,
   Pencil,
@@ -69,6 +70,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { SparklineChart } from '@/components/dashboard/SparklineChart';
+import { TopResourceAppsDialog } from '@/components/dashboard/TopResourceAppsDialog';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useSystemStatsHistory } from '@/hooks/useSystemStatsHistory';
 import { useUsageSummary } from '@/hooks/useUsageSummary';
@@ -468,6 +470,8 @@ export default function DashboardPage(): React.JSX.Element {
   const [dragChartId, setDragChartId] = useState<DashboardItemId | null>(null);
   const [dragRowId, setDragRowId] = useState<string | null>(null);
   const [cpuView, setCpuView] = useState<'total' | 'cores'>('total');
+  const [topAppsOpen, setTopAppsOpen] = useState(false);
+  const [topAppsResource, setTopAppsResource] = useState<'cpu' | 'gpu' | 'memory' | 'disk'>('cpu');
 
   // Token Usage cards the user added to the dashboard read the same list (and
   // the same tokens/plan-limits choice) the Usage page does.
@@ -555,6 +559,18 @@ export default function DashboardPage(): React.JSX.Element {
             <Cpu className="h-3.5 w-3.5" /> CPU Usage
           </CardTitle>
           <div className="flex items-center gap-2">
+            <SimpleTooltip label="Top apps using CPU">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => {
+                  setTopAppsResource('cpu');
+                  setTopAppsOpen(true);
+                }}
+              >
+                <ListUnordered className="h-3.5 w-3.5" />
+              </Button>
+            </SimpleTooltip>
             {latest && latest.cpuCoreCount > 1 && (
               <Tabs value={cpuView} onValueChange={(v) => setCpuView(v as 'total' | 'cores')}>
                 <TabsList
@@ -653,7 +669,21 @@ export default function DashboardPage(): React.JSX.Element {
           <CardTitle className="flex items-center gap-2 text-xs text-muted-foreground">
             <MemoryStick className="h-3.5 w-3.5" /> Memory Usage
           </CardTitle>
-          {dragHandle('memory')}
+          <div className="flex items-center gap-2">
+            <SimpleTooltip label="Top apps using memory">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => {
+                  setTopAppsResource('memory');
+                  setTopAppsOpen(true);
+                }}
+              >
+                <ListUnordered className="h-3.5 w-3.5" />
+              </Button>
+            </SimpleTooltip>
+            {dragHandle('memory')}
+          </div>
         </CardHeader>
         <CardContent>
           <div className="mb-2 flex h-8 items-baseline gap-2">
@@ -702,7 +732,21 @@ export default function DashboardPage(): React.JSX.Element {
           <CardTitle className="flex items-center gap-2 text-xs text-muted-foreground">
             <HardDrive className="h-3.5 w-3.5" /> Disk I/O
           </CardTitle>
-          {dragHandle('disk')}
+          <div className="flex items-center gap-2">
+            <SimpleTooltip label="Top apps using disk">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => {
+                  setTopAppsResource('disk');
+                  setTopAppsOpen(true);
+                }}
+              >
+                <ListUnordered className="h-3.5 w-3.5" />
+              </Button>
+            </SimpleTooltip>
+            {dragHandle('disk')}
+          </div>
         </CardHeader>
         <CardContent>
           <div className="mb-2 flex h-8 items-baseline gap-2">
@@ -769,7 +813,21 @@ export default function DashboardPage(): React.JSX.Element {
           <CardTitle className="flex items-center gap-2 text-xs text-muted-foreground">
             <Gpu className="h-3.5 w-3.5" /> GPU Usage
           </CardTitle>
-          {dragHandle('gpu')}
+          <div className="flex items-center gap-2">
+            <SimpleTooltip label="Top apps using GPU">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => {
+                  setTopAppsResource('gpu');
+                  setTopAppsOpen(true);
+                }}
+              >
+                <ListUnordered className="h-3.5 w-3.5" />
+              </Button>
+            </SimpleTooltip>
+            {dragHandle('gpu')}
+          </div>
         </CardHeader>
         <CardContent>
           <div className="mb-2 flex h-8 items-baseline gap-2">
@@ -1408,6 +1466,12 @@ export default function DashboardPage(): React.JSX.Element {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <TopResourceAppsDialog
+        open={topAppsOpen}
+        onOpenChange={setTopAppsOpen}
+        resource={topAppsResource}
+      />
 
       <Dialog open={speedTestOpen} onOpenChange={setSpeedTestOpen}>
         <DialogContent>
