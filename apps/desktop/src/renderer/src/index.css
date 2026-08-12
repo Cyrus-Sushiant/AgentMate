@@ -260,6 +260,145 @@ body {
     0 8px 32px -8px hsl(0 0% 0% / 0.35);
 }
 
+/* Desktop usage widget: React Bits glass surface with a tunable frost
+   (--widget-blur / --widget-frost) and a quiet spotlight + sheen. */
+.widget-glass {
+  --widget-blur: 20px;
+  --widget-frost: 0.5;
+  --widget-bg: hsl(var(--card));
+  position: relative;
+  background: color-mix(in srgb, var(--widget-bg) calc(var(--widget-frost) * 100%), transparent);
+  backdrop-filter: blur(var(--widget-blur)) saturate(160%);
+  -webkit-backdrop-filter: blur(var(--widget-blur)) saturate(160%);
+  border: 1px solid hsl(var(--foreground) / 0.12);
+  box-shadow:
+    inset 0 1px 0 0 hsl(0 0% 100% / 0.45),
+    0 10px 32px -12px hsl(0 0% 0% / 0.35);
+}
+
+.dark .widget-glass {
+  border-color: hsl(var(--foreground) / 0.14);
+  box-shadow:
+    inset 0 1px 0 0 hsl(0 0% 100% / 0.08),
+    0 12px 36px -10px hsl(0 0% 0% / 0.5);
+}
+
+.widget-glass::after {
+  content: "";
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(
+    135deg,
+    hsl(var(--foreground) / 0.28),
+    transparent 42%,
+    hsl(var(--primary) / 0.22)
+  );
+  mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+}
+
+.widget-sheen {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(
+    105deg,
+    transparent 38%,
+    hsl(0 0% 100% / 0.1) 50%,
+    transparent 62%
+  );
+  animation: widget-sheen 9s ease-in-out infinite;
+}
+
+@keyframes widget-sheen {
+  from {
+    transform: translateX(-40%);
+  }
+  to {
+    transform: translateX(40%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .widget-sheen {
+    animation: none;
+    opacity: 0;
+  }
+}
+
+.widget-gradient-text {
+  background: linear-gradient(
+    135deg,
+    hsl(var(--foreground)) 0%,
+    hsl(var(--primary)) 70%
+  );
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+}
+
+.bar-shine {
+  position: relative;
+  overflow: hidden;
+}
+
+.bar-shine::after {
+  content: "";
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, hsl(0 0% 100% / 0.35), transparent);
+  animation: bar-shine 2.6s ease-in-out infinite;
+}
+
+@keyframes bar-shine {
+  from {
+    transform: translateX(-120%);
+  }
+  to {
+    transform: translateX(120%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bar-shine::after {
+    animation: none;
+    opacity: 0;
+  }
+}
+
+.widget-range {
+  appearance: none;
+  height: 4px;
+  border-radius: 999px;
+  background: hsl(var(--foreground) / 0.15);
+  outline: none;
+}
+
+.widget-range::-webkit-slider-thumb {
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  background: hsl(var(--primary));
+  box-shadow: 0 0 0 3px hsl(var(--primary) / 0.2);
+  cursor: pointer;
+}
+
+.widget-range:focus-visible::-webkit-slider-thumb {
+  box-shadow: 0 0 0 3px hsl(var(--ring) / 0.45);
+}
+
 /* Cursor-follow wash on cards (React Bits Spotlight Card, kept quiet enough
    for a desktop app). Position vars are set from card.tsx on pointer move.
    The top-edge sheen lives on ::after so it doesn't fight .glass box-shadows. */
@@ -288,7 +427,7 @@ body {
   opacity: 1;
 }
 
-.card-spot:not(.glass):not(.glass-opaque)::after {
+.card-spot:not(.glass):not(.glass-opaque):not(.widget-glass)::after {
   content: "";
   pointer-events: none;
   position: absolute;
@@ -297,7 +436,7 @@ body {
   box-shadow: inset 0 1px 0 0 hsl(0 0% 100% / 0.5);
 }
 
-.dark .card-spot:not(.glass):not(.glass-opaque)::after {
+.dark .card-spot:not(.glass):not(.glass-opaque):not(.widget-glass)::after {
   box-shadow: inset 0 1px 0 0 hsl(0 0% 100% / 0.06);
 }
 
@@ -359,12 +498,8 @@ body {
   --toast-tint: hsl(var(--warning) / 0.16);
 }
 .toaster-glass [data-sonner-toast][data-type="info"] {
-  --toast-accent: hsl(205 85% 45%);
-  --toast-tint: hsl(205 85% 45% / 0.16);
-}
-.dark .toaster-glass [data-sonner-toast][data-type="info"] {
-  --toast-accent: hsl(205 90% 58%);
-  --toast-tint: hsl(205 90% 58% / 0.18);
+  --toast-accent: hsl(var(--muted-foreground));
+  --toast-tint: hsl(var(--foreground) / 0.08);
 }
 .toaster-glass [data-sonner-toast][data-type="loading"] {
   --toast-accent: hsl(var(--primary));

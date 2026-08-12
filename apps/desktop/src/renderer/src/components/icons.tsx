@@ -1,17 +1,17 @@
-import * as React from 'react';
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import type { IconDefinition } from '@fortawesome/fontawesome-svg-core';
 import {
   faAnglesLeft,
   faAnglesRight,
+  faArrowDown,
   faArrowLeft,
   faArrowRight,
   faArrowsRotate,
+  faArrowUp,
   faArrowUpRightFromSquare,
   faBell,
   faBold,
-  faBookmark,
   faBolt,
+  faBookmark,
   faBox,
   faCalendarDays,
   faChartColumn,
@@ -21,18 +21,20 @@ import {
   faCircleQuestion,
   faClock,
   faClockRotateLeft,
+  faCloudArrowDown,
+  faCloudArrowUp,
   faCode,
   faCodeBranch,
   faCodeCommit,
   faCodePullRequest,
   faComments,
-  faCloudArrowDown,
-  faCloudArrowUp,
   faCopy,
+  faCubes,
   faDisplay,
   faDownload,
   faEllipsisVertical,
   faEye,
+  faEyeSlash,
   faFile,
   faFileLines,
   faFloppyDisk,
@@ -59,7 +61,6 @@ import {
   faMicrophone,
   faMicrophoneSlash,
   faMinus,
-  faSpinner,
   faMoon,
   faNetworkWired,
   faPaperPlane,
@@ -74,29 +75,31 @@ import {
   faRoute,
   faSatelliteDish,
   faSort,
+  faSpinner,
   faSquareCheck,
   faStop,
   faStrikethrough,
-  faThumbtack,
-  faTowerBroadcast,
-  faUpload,
-  faWifi,
   faSun,
   faTable,
   faTableColumns,
   faTag,
   faTerminal,
+  faThumbtack,
+  faTowerBroadcast,
   faTrashCan,
   faTriangleExclamation,
-  faCubes,
+  faUpload,
   faWandMagic,
   faWandMagicSparkles,
+  faWifi,
   faWindowMaximize,
   faWindowMinimize,
   faWindowRestore,
   faWrench,
   faXmark,
 } from '@fortawesome/free-solid-svg-icons';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import * as React from 'react';
 
 export interface IconProps {
   className?: string;
@@ -113,8 +116,10 @@ function makeIcon(icon: IconDefinition): React.ForwardRefExoticComponent<IconPro
 
 // Names mirror the lucide-react icons they replace so call sites didn't need
 // to change, only their import path.
+export const ArrowDown = makeIcon(faArrowDown);
 export const ArrowLeft = makeIcon(faArrowLeft);
 export const ArrowRight = makeIcon(faArrowRight);
+export const ArrowUp = makeIcon(faArrowUp);
 export const Blocks = makeIcon(faCubes);
 export const Bookmark = makeIcon(faBookmark);
 export const Check = makeIcon(faCheck);
@@ -123,6 +128,7 @@ export const Copy = makeIcon(faCopy);
 export const Download = makeIcon(faDownload);
 export const EllipsisVertical = makeIcon(faEllipsisVertical);
 export const Eye = makeIcon(faEye);
+export const EyeOff = makeIcon(faEyeSlash);
 export const ExternalLink = makeIcon(faArrowUpRightFromSquare);
 export const File = makeIcon(faFile);
 export const FileCog = makeIcon(faGear);

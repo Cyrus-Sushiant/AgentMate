@@ -10,6 +10,7 @@ import { Combobox } from '@/components/ui/combobox';
 import { TARGET_AI_CLI_ID, cliOptionIcon } from '@/components/cliLogos';
 import { PROMPT_TYPES, TARGET_AIS } from '@agentmat/core';
 import type { PromptType, TargetAI } from '@agentmat/core';
+import { isShortcutLetter } from '@/lib/shortcutKey';
 import { useProjectPromptBuilder } from './useProjectPromptBuilder';
 
 /**
@@ -83,18 +84,17 @@ export default function PromptBuildWidgetRoute(): React.JSX.Element {
           onKeyDown={(event) => {
             if (event.shiftKey || event.altKey) return;
             if (!(event.ctrlKey || event.metaKey)) return;
-            const key = event.key.toLowerCase();
-            if (event.key === 'Enter' || key === 'g') {
+            if (event.key === 'Enter' || isShortcutLetter(event, 'g')) {
               event.preventDefault();
               if (hasRequest && !isBusy) void handleGenerate();
               return;
             }
-            if (key === 't') {
+            if (isShortcutLetter(event, 't')) {
               event.preventDefault();
               if (hasRequest && !isBusy) void handleTranslate();
               return;
             }
-            if (key === 'c') {
+            if (isShortcutLetter(event, 'c')) {
               if (hasTextSelection() || !generated || isBusy) return;
               event.preventDefault();
               void onCopy();

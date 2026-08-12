@@ -33,6 +33,7 @@ import {
   toggleInlineWrap,
   type EditState,
 } from './markdownCommands';
+import { isShortcutLetter } from '@/lib/shortcutKey';
 import { cn } from '@/lib/utils';
 
 export type MarkdownViewMode = 'write' | 'split' | 'preview';
@@ -208,22 +209,22 @@ export function MarkdownEditor({
   function handleKeyDown(event: React.KeyboardEvent<HTMLTextAreaElement>): void {
     const mod = event.ctrlKey || event.metaKey;
 
-    if (mod && event.key.toLowerCase() === 's') {
+    if (mod && isShortcutLetter(event, 's')) {
       event.preventDefault();
       onSave?.();
       return;
     }
-    if (mod && event.key.toLowerCase() === 'b') {
+    if (mod && isShortcutLetter(event, 'b')) {
       event.preventDefault();
       apply((s) => toggleInlineWrap(s, '**'));
       return;
     }
-    if (mod && event.key.toLowerCase() === 'i') {
+    if (mod && isShortcutLetter(event, 'i')) {
       event.preventDefault();
       apply((s) => toggleInlineWrap(s, '*'));
       return;
     }
-    if (mod && event.key.toLowerCase() === 'k') {
+    if (mod && isShortcutLetter(event, 'k')) {
       event.preventDefault();
       apply(insertLink);
       return;

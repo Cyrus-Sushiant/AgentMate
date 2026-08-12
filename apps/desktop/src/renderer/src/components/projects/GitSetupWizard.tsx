@@ -29,6 +29,7 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { OverflowScroll } from '@/components/ui/overflow-scroll';
 import { queryKeys } from '@/lib/queryKeys';
 
 const GH_INSTALL_URL = 'https://cli.github.com/';
@@ -199,7 +200,7 @@ export function GitSetupWizard({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-w-lg overflow-hidden">
         <DialogHeader>
           <DialogTitle>
             {step === 'init' ? 'Set up git for this project' : 'Connect this project to GitHub'}
@@ -211,241 +212,246 @@ export function GitSetupWizard({
           </DialogDescription>
         </DialogHeader>
 
-        {step === 'init' && (
-          <div className="space-y-3">
-            <div className="rounded-lg border border-border bg-muted/30 px-3 py-2">
-              <p className="text-xs text-muted-foreground">Folder</p>
-              <p className="truncate font-mono text-xs">{folderPath}</p>
-            </div>
-            <div className="space-y-1.5">
-              <Label>Initial branch</Label>
-              <Input
-                value={branch}
-                onChange={(e) => setBranch(e.target.value)}
-                placeholder="master"
-              />
-            </div>
-            <label className="flex cursor-pointer items-center gap-2 text-sm">
-              <Checkbox
-                checked={initialCommit}
-                onCheckedChange={(checked) => setInitialCommit(checked === true)}
-              />
-              Commit the files that are already in the folder
-            </label>
-            {initialCommit && (
+        <OverflowScroll fill>
+          {step === 'init' && (
+            <div className="space-y-3">
+              <div className="rounded-lg border border-border bg-muted/30 px-3 py-2">
+                <p className="text-xs text-muted-foreground">Folder</p>
+                <p className="truncate font-mono text-xs">{folderPath}</p>
+              </div>
               <div className="space-y-1.5">
-                <Label>Commit message</Label>
+                <Label>Initial branch</Label>
                 <Input
-                  value={commitMessage}
-                  onChange={(e) => setCommitMessage(e.target.value)}
-                  placeholder="Initial commit"
+                  value={branch}
+                  onChange={(e) => setBranch(e.target.value)}
+                  placeholder="master"
                 />
               </div>
-            )}
-          </div>
-        )}
-
-        {step === 'github' && (
-          <div className="space-y-3">
-            {manualMode ? (
-              <>
+              <label className="flex cursor-pointer items-center gap-2 text-sm">
+                <Checkbox
+                  checked={initialCommit}
+                  onCheckedChange={(checked) => setInitialCommit(checked === true)}
+                />
+                Commit the files that are already in the folder
+              </label>
+              {initialCommit && (
                 <div className="space-y-1.5">
-                  <Label>Remote URL</Label>
+                  <Label>Commit message</Label>
                   <Input
-                    value={manualUrl}
-                    onChange={(e) => setManualUrl(e.target.value)}
-                    placeholder="https://github.com/owner/repo.git"
+                    value={commitMessage}
+                    onChange={(e) => setCommitMessage(e.target.value)}
+                    placeholder="Initial commit"
                   />
-                  <p className="text-xs text-muted-foreground">
-                    Set as origin, then the current branch is pushed with -u.
-                  </p>
                 </div>
-                <Button variant="ghost" size="sm" onClick={() => setManualMode(false)}>
-                  Back to the GitHub account
-                </Button>
-              </>
-            ) : accountQuery.isLoading ? (
-              <p className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Spinner className="h-3.5 w-3.5 animate-spin" /> Checking your GitHub sign-in…
-              </p>
-            ) : !account?.cliAvailable || !account.authenticated ? (
-              <div className="space-y-3">
-                <div className="flex gap-2 rounded-lg border border-warning/40 bg-warning/10 p-3 text-sm">
-                  <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
-                  <div className="space-y-1">
-                    <p className="font-medium">
-                      {account?.cliAvailable
-                        ? 'The GitHub CLI is not signed in.'
-                        : 'The GitHub CLI (gh) is not installed.'}
-                    </p>
+              )}
+            </div>
+          )}
+
+          {step === 'github' && (
+            <div className="space-y-3">
+              {manualMode ? (
+                <>
+                  <div className="space-y-1.5">
+                    <Label>Remote URL</Label>
+                    <Input
+                      value={manualUrl}
+                      onChange={(e) => setManualUrl(e.target.value)}
+                      placeholder="https://github.com/owner/repo.git"
+                    />
                     <p className="text-xs text-muted-foreground">
-                      {account?.cliAvailable
-                        ? 'Run "gh auth login" in a terminal, then check again. It is what lets this app list your organizations and create repositories.'
-                        : 'Install it to list your organizations and create a repository from here. You can also just paste a remote URL instead.'}
+                      Set as origin, then the current branch is pushed with -u.
                     </p>
-                    {account?.error && (
-                      <p className="font-mono text-xs text-muted-foreground">{account.error}</p>
-                    )}
                   </div>
-                </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  {!account?.cliAvailable && (
+                  <Button variant="ghost" size="sm" onClick={() => setManualMode(false)}>
+                    Back to the GitHub account
+                  </Button>
+                </>
+              ) : accountQuery.isLoading ? (
+                <p className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Spinner className="h-3.5 w-3.5 animate-spin" /> Checking your GitHub sign-in…
+                </p>
+              ) : !account?.cliAvailable || !account.authenticated ? (
+                <div className="space-y-3">
+                  <div className="flex gap-2 rounded-lg border border-warning/40 bg-warning/10 p-3 text-sm">
+                    <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
+                    <div className="space-y-1">
+                      <p className="font-medium">
+                        {account?.cliAvailable
+                          ? 'The GitHub CLI is not signed in.'
+                          : 'The GitHub CLI (gh) is not installed.'}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {account?.cliAvailable
+                          ? 'Run "gh auth login" in a terminal, then check again. It is what lets this app list your organizations and create repositories.'
+                          : 'Install it to list your organizations and create a repository from here. You can also just paste a remote URL instead.'}
+                      </p>
+                      {account?.error && (
+                        <p className="font-mono text-xs text-muted-foreground">{account.error}</p>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    {!account?.cliAvailable && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => void window.agentmat.shell.openExternal(GH_INSTALL_URL)}
+                      >
+                        <ExternalLink className="h-3.5 w-3.5" /> Install the GitHub CLI
+                      </Button>
+                    )}
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => void window.agentmat.shell.openExternal(GH_INSTALL_URL)}
+                      disabled={accountQuery.isFetching}
+                      onClick={() => void accountQuery.refetch()}
                     >
-                      <ExternalLink className="h-3.5 w-3.5" /> Install the GitHub CLI
+                      <RefreshCw className="h-3.5 w-3.5" /> Check again
                     </Button>
+                    <Button variant="ghost" size="sm" onClick={() => setManualMode(true)}>
+                      Use a remote URL instead
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <p className="text-xs text-muted-foreground">
+                    Signed in as{' '}
+                    <span className="font-medium text-foreground">{account.login}</span>.
+                  </p>
+                  <div className="space-y-1.5">
+                    <Label>Owner</Label>
+                    <Combobox
+                      options={ownerOptions}
+                      value={owner}
+                      onChange={(next) => {
+                        setOwner(next);
+                        resetLookup();
+                      }}
+                      placeholder="Select an account or organization…"
+                      searchPlaceholder="Search organizations…"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Repository name</Label>
+                    <div className="flex items-center gap-2">
+                      <Input
+                        value={repoName}
+                        onChange={(e) => {
+                          setRepoName(e.target.value);
+                          resetLookup();
+                        }}
+                        placeholder="my-project"
+                      />
+                      <Button
+                        variant="outline"
+                        disabled={!canLookUp || lookupMutation.isPending}
+                        onClick={() => lookupMutation.mutate()}
+                      >
+                        {lookupMutation.isPending ? (
+                          <Spinner className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <Search className="h-3.5 w-3.5" />
+                        )}
+                        Check
+                      </Button>
+                    </div>
+                  </div>
+
+                  {repoExists && lookup?.repo && (
+                    <div className="space-y-2 rounded-lg border border-border bg-muted/30 p-3">
+                      <p className="flex items-center gap-2 text-sm font-medium">
+                        <CircleCheck className="h-4 w-4 text-success" /> {lookup.repo.fullName}{' '}
+                        exists
+                        <Badge variant="outline">
+                          {lookup.repo.isPrivate ? 'Private' : 'Public'}
+                        </Badge>
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        Origin will point at it and your current branch gets pushed. If the
+                        repository already has commits, git will refuse the push until you pull them
+                        first.
+                      </p>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() =>
+                          void window.agentmat.shell.openExternal(lookup.repo?.htmlUrl ?? '')
+                        }
+                      >
+                        <ExternalLink className="h-3.5 w-3.5" /> Open on GitHub
+                      </Button>
+                    </div>
                   )}
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={accountQuery.isFetching}
-                    onClick={() => void accountQuery.refetch()}
-                  >
-                    <RefreshCw className="h-3.5 w-3.5" /> Check again
-                  </Button>
+
+                  {repoMissing && (
+                    <div className="space-y-3 rounded-lg border border-border bg-muted/30 p-3">
+                      <p className="flex items-center gap-2 text-sm font-medium">
+                        <Plus className="h-4 w-4" /> No repository named {repoName} under {owner}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        It will be created for you, then connected and pushed.
+                      </p>
+                      <div className="space-y-1.5">
+                        <Label>Description (optional)</Label>
+                        <Input
+                          value={description}
+                          onChange={(e) => setDescription(e.target.value)}
+                          placeholder="What this project is"
+                        />
+                      </div>
+                      <label className="flex cursor-pointer items-center gap-2 text-sm">
+                        <Checkbox
+                          checked={isPrivate}
+                          onCheckedChange={(checked) => setIsPrivate(checked === true)}
+                        />
+                        {isPrivate ? (
+                          'Private repository'
+                        ) : (
+                          <span className="flex items-center gap-1.5">
+                            <Globe className="h-3.5 w-3.5" /> Public repository
+                          </span>
+                        )}
+                      </label>
+                    </div>
+                  )}
+
+                  {(repoExists || repoMissing) && (
+                    <label className="flex cursor-pointer items-center gap-2 text-sm">
+                      <Checkbox
+                        checked={useSsh}
+                        onCheckedChange={(checked) => setUseSsh(checked === true)}
+                      />
+                      Connect over SSH instead of HTTPS
+                    </label>
+                  )}
+
                   <Button variant="ghost" size="sm" onClick={() => setManualMode(true)}>
                     Use a remote URL instead
                   </Button>
-                </div>
-              </div>
-            ) : (
-              <>
-                <p className="text-xs text-muted-foreground">
-                  Signed in as <span className="font-medium text-foreground">{account.login}</span>.
-                </p>
-                <div className="space-y-1.5">
-                  <Label>Owner</Label>
-                  <Combobox
-                    options={ownerOptions}
-                    value={owner}
-                    onChange={(next) => {
-                      setOwner(next);
-                      resetLookup();
-                    }}
-                    placeholder="Select an account or organization…"
-                    searchPlaceholder="Search organizations…"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label>Repository name</Label>
-                  <div className="flex items-center gap-2">
-                    <Input
-                      value={repoName}
-                      onChange={(e) => {
-                        setRepoName(e.target.value);
-                        resetLookup();
-                      }}
-                      placeholder="my-project"
-                    />
-                    <Button
-                      variant="outline"
-                      disabled={!canLookUp || lookupMutation.isPending}
-                      onClick={() => lookupMutation.mutate()}
-                    >
-                      {lookupMutation.isPending ? (
-                        <Spinner className="h-3.5 w-3.5 animate-spin" />
-                      ) : (
-                        <Search className="h-3.5 w-3.5" />
-                      )}
-                      Check
-                    </Button>
-                  </div>
-                </div>
+                </>
+              )}
+            </div>
+          )}
 
-                {repoExists && lookup?.repo && (
-                  <div className="space-y-2 rounded-lg border border-border bg-muted/30 p-3">
-                    <p className="flex items-center gap-2 text-sm font-medium">
-                      <CircleCheck className="h-4 w-4 text-success" /> {lookup.repo.fullName} exists
-                      <Badge variant="outline">
-                        {lookup.repo.isPrivate ? 'Private' : 'Public'}
-                      </Badge>
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      Origin will point at it and your current branch gets pushed. If the repository
-                      already has commits, git will refuse the push until you pull them first.
-                    </p>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() =>
-                        void window.agentmat.shell.openExternal(lookup.repo?.htmlUrl ?? '')
-                      }
-                    >
-                      <ExternalLink className="h-3.5 w-3.5" /> Open on GitHub
-                    </Button>
-                  </div>
-                )}
-
-                {repoMissing && (
-                  <div className="space-y-3 rounded-lg border border-border bg-muted/30 p-3">
-                    <p className="flex items-center gap-2 text-sm font-medium">
-                      <Plus className="h-4 w-4" /> No repository named {repoName} under {owner}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      It will be created for you, then connected and pushed.
-                    </p>
-                    <div className="space-y-1.5">
-                      <Label>Description (optional)</Label>
-                      <Input
-                        value={description}
-                        onChange={(e) => setDescription(e.target.value)}
-                        placeholder="What this project is"
-                      />
-                    </div>
-                    <label className="flex cursor-pointer items-center gap-2 text-sm">
-                      <Checkbox
-                        checked={isPrivate}
-                        onCheckedChange={(checked) => setIsPrivate(checked === true)}
-                      />
-                      {isPrivate ? (
-                        'Private repository'
-                      ) : (
-                        <span className="flex items-center gap-1.5">
-                          <Globe className="h-3.5 w-3.5" /> Public repository
-                        </span>
-                      )}
-                    </label>
-                  </div>
-                )}
-
-                {(repoExists || repoMissing) && (
-                  <label className="flex cursor-pointer items-center gap-2 text-sm">
-                    <Checkbox
-                      checked={useSsh}
-                      onCheckedChange={(checked) => setUseSsh(checked === true)}
-                    />
-                    Connect over SSH instead of HTTPS
-                  </label>
-                )}
-
-                <Button variant="ghost" size="sm" onClick={() => setManualMode(true)}>
-                  Use a remote URL instead
+          {step === 'done' && (
+            <div className="space-y-3">
+              <p className="flex items-center gap-2 text-sm font-medium">
+                <CircleCheck className="h-4 w-4 text-success" /> Pushed{' '}
+                {pushedBranch.current ?? currentBranch ?? 'your branch'} to origin.
+              </p>
+              {finishedRepoUrl && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => void window.agentmat.shell.openExternal(finishedRepoUrl)}
+                >
+                  <ExternalLink className="h-3.5 w-3.5" /> Open the repository on GitHub
                 </Button>
-              </>
-            )}
-          </div>
-        )}
-
-        {step === 'done' && (
-          <div className="space-y-3">
-            <p className="flex items-center gap-2 text-sm font-medium">
-              <CircleCheck className="h-4 w-4 text-success" /> Pushed{' '}
-              {pushedBranch.current ?? currentBranch ?? 'your branch'} to origin.
-            </p>
-            {finishedRepoUrl && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => void window.agentmat.shell.openExternal(finishedRepoUrl)}
-              >
-                <ExternalLink className="h-3.5 w-3.5" /> Open the repository on GitHub
-              </Button>
-            )}
-          </div>
-        )}
+              )}
+            </div>
+          )}
+        </OverflowScroll>
 
         <DialogFooter>
           {step === 'init' && (

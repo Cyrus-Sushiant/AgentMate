@@ -1,6 +1,7 @@
 import { ipcMain } from 'electron';
 import type {
   DesktopWidgetInstance,
+  OpenWidgetOptions,
   ProviderUsage,
   UsageResetAlertSettings,
   UsageThresholdAlertSettings,
@@ -86,12 +87,8 @@ export function registerUsageHandlers(): void {
   );
   ipcMain.handle(
     IPC.usage.openWidget,
-    (
-      _e,
-      providerId: string,
-      size?: WidgetSize,
-      mode?: WidgetMode,
-    ): Promise<DesktopWidgetInstance> => widgetManager.open(providerId, size, mode),
+    (_e, providerId: string, options?: OpenWidgetOptions): Promise<DesktopWidgetInstance> =>
+      widgetManager.open(providerId, options),
   );
   ipcMain.handle(IPC.usage.closeWidget, (_e, id: string): Promise<void> => widgetManager.close(id));
   ipcMain.handle(
@@ -105,5 +102,9 @@ export function registerUsageHandlers(): void {
   ipcMain.handle(
     IPC.usage.setWidgetMode,
     (_e, id: string, mode: WidgetMode): Promise<void> => widgetManager.setMode(id, mode),
+  );
+  ipcMain.handle(
+    IPC.usage.configureWidget,
+    (_e, id: string, patch: OpenWidgetOptions): Promise<void> => widgetManager.configure(id, patch),
   );
 }

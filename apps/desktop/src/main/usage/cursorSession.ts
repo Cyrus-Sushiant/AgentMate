@@ -7,6 +7,7 @@ import {
 import { getCursorAccount } from './cursorAccount';
 import {
   accumulate,
+  buildCostSeries,
   buildSeries,
   startOfLocalDay,
   toEntry,
@@ -256,6 +257,7 @@ export async function fetchCursorSessionUsage(): Promise<ProviderUsage> {
     window,
     subscription,
     series: buildSeries(entries),
+    costSeries: buildCostSeries(entries),
     currency: 'USD',
     updatedAt: new Date(now).toISOString(),
   };

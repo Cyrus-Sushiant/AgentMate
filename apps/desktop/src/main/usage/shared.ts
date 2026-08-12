@@ -57,16 +57,24 @@ function accumulatePeriod(entries: UsageEntry[], sinceMs: number): UsagePeriod {
 
 const SERIES_DAYS = 14;
 
-/** Daily token totals for the last 14 days (oldest first) for the sparkline. */
-function buildSeries(entries: UsageEntry[]): number[] {
+function bucketDaily(entries: UsageEntry[], value: (entry: UsageEntry) => number): number[] {
   const startToday = startOfLocalDay(Date.now());
   const buckets = new Array<number>(SERIES_DAYS).fill(0);
   for (const entry of entries) {
     const dayIdx = Math.floor((startToday - startOfLocalDay(entry.at.getTime())) / DAY_MS);
     const idx = SERIES_DAYS - 1 - dayIdx;
-    if (idx >= 0 && idx < SERIES_DAYS) buckets[idx] += entry.tokens.total;
+    if (idx >= 0 && idx < SERIES_DAYS) buckets[idx] += value(entry);
   }
   return buckets;
+}
+
+/** Daily token totals for the last 14 days (oldest first) for the sparkline. */
+function buildSeries(entries: UsageEntry[]): number[] {
+  return bucketDaily(entries, (entry) => entry.tokens.total);
+}
+
+function buildCostSeries(entries: UsageEntry[]): number[] {
+  return bucketDaily(entries, (entry) => estimateCost(entry.model, entry.tokens) ?? 0);
 }
 
 /** Fold a list of priced token events into the normalized ProviderUsage shape. */
@@ -85,6 +93,7 @@ export function buildUsageFromEntries(
     last30d: accumulatePeriod(entries, now - 30 * DAY_MS),
     window,
     series: buildSeries(entries),
+    costSeries: buildCostSeries(entries),
     currency: 'USD',
     updatedAt: new Date(now).toISOString(),
   };

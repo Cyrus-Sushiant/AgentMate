@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { MarkdownEditor } from '@/components/editor/MarkdownEditor';
 import { MonacoEditor } from '@/components/editor/MonacoEditor';
+import { isShortcutLetter } from '@/lib/shortcutKey';
 import { cn } from '@/lib/utils';
 
 function parentOf(path: string): string {
@@ -172,7 +173,7 @@ export function ProjectFileBrowser({
       <div
         className="min-w-0 flex-1"
         onKeyDown={(event) => {
-          if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') {
+          if ((event.ctrlKey || event.metaKey) && isShortcutLetter(event, 's')) {
             event.preventDefault();
             void saveFile();
           }

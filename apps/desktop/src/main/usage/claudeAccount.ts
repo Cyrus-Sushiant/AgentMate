@@ -108,6 +108,46 @@ function stripPlanPrefix(raw?: string): string {
     .replace(/^claude_/, '');
 }
 
+/** Higher wins when login-time credentials and the live profile disagree. */
+function planRank(plan: SubscriptionPlan): number {
+  const id = plan.id.trim().toLowerCase();
+  if (id === 'max20x' || id.includes('20x')) return 40;
+  if (id === 'max5x' || id.includes('5x')) return 30;
+  if (id.startsWith('max') || id === 'enterprise') return 25;
+  if (id === 'team') return 20;
+  if (id === 'pro') return 10;
+  return 5;
+}
+
+function pickHighestPlan(plans: Array<SubscriptionPlan | null | undefined>): SubscriptionPlan | null {
+  let best: SubscriptionPlan | null = null;
+  for (const plan of plans) {
+    if (!plan) continue;
+    if (!best || planRank(plan) > planRank(best)) best = plan;
+  }
+  return best;
+}
+
+/**
+ * The rate-limit tier is the plan whose limits actually apply. It survives as
+ * `default_claude_max_5x` even when `subscriptionType` is still the 'pro' that
+ * was written at first login, and even when `organizationType` is missing.
+ */
+function resolvePlanFromTier(rateLimitTier?: string | null): SubscriptionPlan | null {
+  const tier = stripPlanPrefix(rateLimitTier ?? undefined);
+  if (!tier) return null;
+  if (tier.includes('20x')) return { id: 'max20x', label: 'Max 20×' };
+  if (tier.includes('5x')) return { id: 'max5x', label: 'Max 5×' };
+  if (tier.startsWith('max')) return { id: 'max', label: 'Max' };
+  if (tier === 'team' || tier.startsWith('team')) return { id: 'team', label: 'Team' };
+  if (tier === 'enterprise' || tier.startsWith('enterprise')) {
+    return { id: 'enterprise', label: 'Enterprise' };
+  }
+  // `default_claude_ai` strips down to 'ai'; that's Pro's rate-limit bucket.
+  if (tier === 'ai' || tier === 'pro' || tier.startsWith('pro')) return { id: 'pro', label: 'Pro' };
+  return null;
+}
+
 /**
  * Turn a plan-family string + a rate-limit tier into a display plan. The tier is
  * what distinguishes the Max levels ('…max_5x' / '…max_20x'); an unrecognized
@@ -116,19 +156,24 @@ function stripPlanPrefix(raw?: string): string {
  */
 function resolvePlan(subscriptionType?: string, rateLimitTier?: string): SubscriptionPlan | null {
   const type = stripPlanPrefix(subscriptionType);
-  if (!type) return null;
+  const fromTier = resolvePlanFromTier(rateLimitTier);
+  if (!type) return fromTier;
 
   if (type.startsWith('max')) {
     // The multiplier lives in either field depending on CLI version.
     const source = `${type} ${stripPlanPrefix(rateLimitTier)}`;
     if (source.includes('20x')) return { id: 'max20x', label: 'Max 20×' };
     if (source.includes('5x')) return { id: 'max5x', label: 'Max 5×' };
-    return { id: 'max', label: 'Max' };
+    return fromTier?.id.startsWith('max') ? fromTier : { id: 'max', label: 'Max' };
   }
-  if (type === 'pro') return { id: 'pro', label: 'Pro' };
+  if (type === 'pro') {
+    // Stale credentials keep saying Pro after an upgrade; the tier is current.
+    if (fromTier && planRank(fromTier) > planRank({ id: 'pro', label: 'Pro' })) return fromTier;
+    return { id: 'pro', label: 'Pro' };
+  }
   if (type === 'team') return { id: 'team', label: 'Team' };
   if (type === 'enterprise') return { id: 'enterprise', label: 'Enterprise' };
-  return { id: type, label: type.charAt(0).toUpperCase() + type.slice(1) };
+  return pickHighestPlan([fromTier, { id: type, label: type.charAt(0).toUpperCase() + type.slice(1) }]);
 }
 
 const KNOWN_PLAN_IDS = new Set(['pro', 'max', 'max5x', 'max20x', 'team', 'enterprise']);
@@ -172,21 +217,23 @@ export async function readClaudeAccount(): Promise<ClaudeAccount> {
   const oauth = creds?.claudeAiOauth;
   const account = profile?.oauthAccount;
 
-  // Plan, best source first:
-  //  1. A seat on a Team/Enterprise workspace reports its own tier, and that's
-  //     the plan whose limits actually apply.
-  //  2. The org fields, which the CLI re-fetches with the profile and so track
-  //     upgrades and downgrades.
-  //  3. The credentials file, last. `subscriptionType` is written at login and
-  //     never rewritten on a token refresh, so after an upgrade it keeps
-  //     reporting the plan the account was on when it first signed in.
-  const plan =
-    resolveKnownPlan(account?.seatTier, account?.userRateLimitTier) ??
+  // Plan signals, highest capacity wins. Credentials are written once at login
+  // and never refreshed, so after a Pro → Max upgrade they still say Pro.
+  // The profile's org fields (and especially the rate-limit tier) are what the
+  // CLI re-fetches, so they track the plan whose limits actually apply. Taking
+  // the first non-null source used to let a leftover Pro seat/org string beat
+  // a Max tier sitting next to it.
+  const plan = pickHighestPlan([
+    resolveKnownPlan(account?.seatTier, account?.userRateLimitTier ?? undefined),
+    resolvePlanFromTier(account?.userRateLimitTier),
     resolveKnownPlan(
       account?.organizationType,
       account?.userRateLimitTier ?? account?.organizationRateLimitTier,
-    ) ??
-    resolvePlan(oauth?.subscriptionType, oauth?.rateLimitTier);
+    ),
+    resolvePlanFromTier(account?.organizationRateLimitTier),
+    resolvePlan(oauth?.subscriptionType, oauth?.rateLimitTier),
+    resolvePlanFromTier(oauth?.rateLimitTier),
+  ]);
 
   if (!oauth?.subscriptionType && !plan) {
     return {
@@ -220,6 +267,11 @@ export async function readClaudeAccount(): Promise<ClaudeAccount> {
 
 const USAGE_ENDPOINT = 'https://api.anthropic.com/api/oauth/usage';
 const FETCH_TIMEOUT_MS = 8_000;
+// Anthropic keys this endpoint's rate-limit bucket off User-Agent. Node's
+// default (and Electron's) lands in a bucket that 429s, especially on Max,
+// so the card falls back to the local estimate and Max looks like Pro. The
+// CLI's own /usage sends this prefix; anything else is treated as a scraper.
+const USAGE_USER_AGENT = 'claude-code/2.1.80';
 
 const WINDOW_LABELS: Record<string, { key: SubscriptionWindow['key']; label: string }> = {
   five_hour: { key: 'session', label: 'Session (5h)' },
@@ -296,9 +348,9 @@ function limitLabel(key: SubscriptionWindow['key'], node: Record<string, unknown
  * utilization number. Depth-limited so a surprising response can't send us
  * spelunking through a huge object graph.
  *
- * `fableWeek` gates the Fable bucket: on Pro the endpoint has been seen echoing
- * a zeroed one, and showing a bar for a limit the plan doesn't have reads as
- * headroom that isn't there.
+ * `fableWeek` still hides a zeroed Fable bucket on Pro (the endpoint has been
+ * seen echoing one). A bucket with real utilization is kept even when the
+ * local plan guess is Pro, because that guess is often stale credentials.
  */
 function collectWindows(payload: unknown, fableWeek: boolean): SubscriptionWindow[] {
   const found = new Map<string, SubscriptionWindow>();
@@ -343,9 +395,14 @@ function collectWindows(payload: unknown, fableWeek: boolean): SubscriptionWindo
   // Stable display order regardless of the order the payload listed them in.
   const order: SubscriptionWindow['key'][] = ['session', 'week', 'week-fable'];
   return order.flatMap((key) => {
-    if (key === 'week-fable' && !fableWeek) return [];
     const window = found.get(key);
-    return window ? [window] : [];
+    if (!window) return [];
+    // Pro payloads have been seen echoing a zeroed Fable bucket. Hide that
+    // empty row, but if the account actually used the bucket, the local plan
+    // guess was wrong (stale Pro credentials after a Max upgrade) and the bar
+    // should still show.
+    if (key === 'week-fable' && !fableWeek && window.percent <= 0) return [];
+    return [window];
   });
 }
 
@@ -367,6 +424,7 @@ async function fetchLiveWindows(
         Authorization: `Bearer ${accessToken}`,
         'anthropic-beta': 'oauth-2025-04-20',
         Accept: 'application/json',
+        'User-Agent': USAGE_USER_AGENT,
       },
       signal: controller.signal,
     });

@@ -26,6 +26,7 @@ import type {
   UsageThresholdAlertSettings,
   DesktopWidgetInstance,
   DesktopPromptBuildWidgetInstance,
+  OpenWidgetOptions,
   WidgetMode,
   WidgetSize,
   WidgetStyle,
@@ -592,12 +593,8 @@ const usage = {
   listWidgets: (): Promise<DesktopWidgetInstance[]> => ipcRenderer.invoke(IPC.usage.listWidgets),
   getWidget: (id: string): Promise<DesktopWidgetInstance | null> =>
     ipcRenderer.invoke(IPC.usage.getWidget, id),
-  openWidget: (
-    providerId: string,
-    size?: WidgetSize,
-    mode?: WidgetMode,
-  ): Promise<DesktopWidgetInstance> =>
-    ipcRenderer.invoke(IPC.usage.openWidget, providerId, size, mode),
+  openWidget: (providerId: string, options?: OpenWidgetOptions): Promise<DesktopWidgetInstance> =>
+    ipcRenderer.invoke(IPC.usage.openWidget, providerId, options),
   closeWidget: (id: string): Promise<void> => ipcRenderer.invoke(IPC.usage.closeWidget, id),
   setWidgetStyle: (id: string, style: WidgetStyle): Promise<void> =>
     ipcRenderer.invoke(IPC.usage.setWidgetStyle, id, style),
@@ -605,6 +602,8 @@ const usage = {
     ipcRenderer.invoke(IPC.usage.setWidgetSize, id, size),
   setWidgetMode: (id: string, mode: WidgetMode): Promise<void> =>
     ipcRenderer.invoke(IPC.usage.setWidgetMode, id, mode),
+  configureWidget: (id: string, patch: OpenWidgetOptions): Promise<void> =>
+    ipcRenderer.invoke(IPC.usage.configureWidget, id, patch),
   onWidgetUpdated: (callback: (payload: { id: string }) => void): (() => void) =>
     subscribe(IPC.usage.onWidgetUpdated, callback),
 };

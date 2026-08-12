@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import { toast } from 'sonner';
 import {
+  ALL_AGENTS_WIDGET_ID,
   FABLE_WEEK_LABEL,
   USAGE_PROVIDER_REGISTRY,
   getUsageProvider,
@@ -49,11 +50,17 @@ import {
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { ProviderLogo } from '@/components/providerLogos';
 import { Skeleton } from '@/components/ui/skeleton';
+import { AllAgentsCharts } from '@/components/usage/AllAgentsCharts';
 import {
   UsageCardBody,
   UsageCardBodySkeleton,
   hasSubscriptionView,
 } from '@/components/usage/UsageCard';
+import { WidgetPinDialog } from '@/components/usage/WidgetPinDialog';
+import {
+  settingsToOpenOptions,
+  type WidgetSettingsValue,
+} from '@/components/usage/WidgetSettingsForm';
 import { cn } from '@/lib/utils';
 import { queryKeys } from '@/lib/queryKeys';
 import { formatCost, formatReset, formatTokens } from '@/lib/usageFormat';
@@ -89,6 +96,7 @@ export default function UsagePage(): React.JSX.Element {
   const [addOpen, setAddOpen] = useState(false);
   const [alertsOpen, setAlertsOpen] = useState(false);
   const [thresholdAlertsOpen, setThresholdAlertsOpen] = useState(false);
+  const [pinTarget, setPinTarget] = useState<string | null>(null);
   const [dragId, setDragId] = useState<string | null>(null);
   // Off by default so the drag handle doesn't clutter the everyday view, same
   // pattern as the Dashboard's layout-edit mode.
@@ -118,6 +126,7 @@ export default function UsagePage(): React.JSX.Element {
     () => orderedProviderIds(settings?.usageCardOrder ?? [], settings?.usageProviderConfigs ?? {}),
     [settings],
   );
+  const pinDef = pinTarget ? getUsageProvider(pinTarget) : undefined;
 
   const usageById = useMemo(() => {
     const map = new Map<string, ProviderUsage>();
@@ -221,16 +230,25 @@ export default function UsagePage(): React.JSX.Element {
     );
   }
 
-  /** Pins whichever view the card is currently showing. */
-  async function popOut(providerId: string): Promise<void> {
-    const name = getUsageProvider(providerId)?.name;
-    const mode = cardModes[providerId] ?? 'tokens';
+  /** Opens the pin dialog so frost, placement, and period can be set first. */
+  function popOut(providerId: string): void {
+    setPinTarget(providerId);
+  }
+
+  async function pinToDesktop(settings: WidgetSettingsValue): Promise<void> {
+    if (!pinTarget) return;
+    const name = getUsageProvider(pinTarget)?.name;
+    const mode = cardModes[pinTarget] ?? 'tokens';
     const label = mode === 'subscription' ? `${name} plan limits` : name;
     try {
-      await window.agentmat.usage.openWidget(providerId, undefined, mode);
+      await window.agentmat.usage.openWidget(pinTarget, {
+        ...settingsToOpenOptions(settings),
+        mode,
+      });
       toast.success(`${label} widget added to your desktop.`);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Could not add the widget to your desktop.');
+      throw err;
     }
   }
 
@@ -358,6 +376,16 @@ export default function UsagePage(): React.JSX.Element {
           }
         />
       </div>
+
+      <AllAgentsCharts
+        actions={
+          <SimpleTooltip label="Add to desktop">
+            <Button variant="ghost" size="icon" onClick={() => popOut(ALL_AGENTS_WIDGET_ID)}>
+              <Pin className="h-3.5 w-3.5" />
+            </Button>
+          </SimpleTooltip>
+        }
+      />
 
       {/* Provider cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
@@ -496,7 +524,7 @@ export default function UsagePage(): React.JSX.Element {
                       </Button>
                     </SimpleTooltip>
                     <SimpleTooltip label="Add to desktop">
-                      <Button variant="ghost" size="icon" onClick={() => void popOut(id)}>
+                      <Button variant="ghost" size="icon" onClick={() => popOut(id)}>
                         <Pin className="h-3.5 w-3.5" />
                       </Button>
                     </SimpleTooltip>
@@ -534,6 +562,19 @@ export default function UsagePage(): React.JSX.Element {
         configs={configs}
         onSave={setConfig}
       />
+
+      {pinDef && (
+        <WidgetPinDialog
+          open={!!pinTarget}
+          onOpenChange={(open) => {
+            if (!open) setPinTarget(null);
+          }}
+          def={pinDef}
+          usage={pinTarget ? usageById.get(pinTarget) : undefined}
+          mode={pinTarget ? (cardModes[pinTarget] ?? 'tokens') : 'tokens'}
+          onPin={pinToDesktop}
+        />
+      )}
 
       <ResetAlertDialog
         open={alertsOpen}

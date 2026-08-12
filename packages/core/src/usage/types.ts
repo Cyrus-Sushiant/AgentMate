@@ -165,6 +165,8 @@ export interface ProviderUsage {
   subscription?: SubscriptionUsage;
   /** Recent per-hour (or per-day) token totals for the burn-rate sparkline. */
   series?: number[];
+  /** Daily cost totals aligned with `series`, when the source can price calls. */
+  costSeries?: number[];
   /** Currency code for the cost figures (only 'USD' for now). */
   currency: string;
   /** ISO datetime this snapshot was computed. */
@@ -173,6 +175,8 @@ export interface ProviderUsage {
 
 export type WidgetSize = 'small' | 'medium' | 'large';
 export type WidgetStyle = 'mono' | 'colorful';
+/** Which period the tokens/cost headline and averages use. */
+export type WidgetPeriod = 'day' | 'week' | 'month';
 
 /**
  * What a widget shows. These are two separate widgets a user can pin side by
@@ -181,6 +185,24 @@ export type WidgetStyle = 'mono' | 'colorful';
  * a pinned widget keeps showing what it was pinned to show.
  */
 export type WidgetMode = 'tokens' | 'subscription';
+
+/** Options the pin dialog and in-widget settings send when creating or updating a widget. */
+export interface OpenWidgetOptions {
+  size?: WidgetSize;
+  mode?: WidgetMode;
+  style?: WidgetStyle;
+  /** 0–100 frost amount for the glass background. */
+  blurPercent?: number;
+  /** Hex fill for the glass, or null to use the app theme. */
+  backgroundColor?: string | null;
+  /** True keeps the widget above other windows; false leaves it on the desktop. */
+  alwaysOnTop?: boolean;
+  period?: WidgetPeriod;
+}
+
+export const DEFAULT_WIDGET_BLUR_PERCENT = 50;
+export const DEFAULT_WIDGET_ALWAYS_ON_TOP = true;
+export const DEFAULT_WIDGET_PERIOD: WidgetPeriod = 'day';
 
 /** A floating desktop widget the user has pinned; persisted in AppSettings. */
 export interface DesktopWidgetInstance {
@@ -192,6 +214,44 @@ export interface DesktopWidgetInstance {
   style: WidgetStyle;
   /** Absent on widgets pinned before modes existed; those are token widgets. */
   mode?: WidgetMode;
+  /** 0–100 frost amount. Absent on older widgets; treated as 50. */
+  blurPercent?: number;
+  /** Hex fill for the glass. Absent or null uses the app theme. */
+  backgroundColor?: string | null;
+  /** Absent on older widgets; treated as true (always on top). */
+  alwaysOnTop?: boolean;
+  /** Headline period. Absent on older widgets; treated as day. */
+  period?: WidgetPeriod;
+  /** Last dragged size, when the user resized past the S/M/L preset. */
+  width?: number;
+  height?: number;
+}
+
+export function clampWidgetBlurPercent(value: number | undefined): number {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return DEFAULT_WIDGET_BLUR_PERCENT;
+  return Math.min(100, Math.max(0, Math.round(value)));
+}
+
+export function widgetAlwaysOnTop(widget: Pick<DesktopWidgetInstance, 'alwaysOnTop'>): boolean {
+  return widget.alwaysOnTop !== false;
+}
+
+export function widgetPeriod(widget: Pick<DesktopWidgetInstance, 'period'>): WidgetPeriod {
+  return widget.period === 'week' || widget.period === 'month'
+    ? widget.period
+    : DEFAULT_WIDGET_PERIOD;
+}
+
+/** A 3- or 6-digit hex, or null when the widget should use the app theme. */
+export function widgetBackgroundColor(value: string | null | undefined): string | null {
+  if (value == null || typeof value !== 'string') return null;
+  const hex = value.trim();
+  const six = /^#([0-9a-fA-F]{6})$/.exec(hex);
+  if (six) return `#${six[1].toLowerCase()}`;
+  const three = /^#([0-9a-fA-F]{3})$/.exec(hex);
+  if (!three) return null;
+  const [r, g, b] = three[1];
+  return `#${r}${r}${g}${g}${b}${b}`.toLowerCase();
 }
 
 // --- Rate-limit reset alerts ----------------------------------------------

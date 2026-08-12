@@ -1,5 +1,17 @@
 import type { UsageProviderDefinition } from './types.js';
 
+/** Sentinel provider id for the combined All agents desktop widget and chart. */
+export const ALL_AGENTS_WIDGET_ID = 'all-agents';
+
+export const ALL_AGENTS_PROVIDER: UsageProviderDefinition = {
+  id: ALL_AGENTS_WIDGET_ID,
+  name: 'All agents',
+  category: 'other',
+  dataSource: 'unsupported',
+  supportsCost: true,
+  accentColor: '#00994d',
+};
+
 // The full catalog of 63 providers mirrors steipete/CodexBar's registry so the
 // Usage page reads as complete. Only the cross-platform starter set has a live
 // `dataSource` today (local-log for the coding CLIs, api-key for a handful of
@@ -578,6 +590,7 @@ export const USAGE_PROVIDER_REGISTRY: UsageProviderDefinition[] = [
 ];
 
 export function getUsageProvider(id: string): UsageProviderDefinition | undefined {
+  if (id === ALL_AGENTS_WIDGET_ID) return ALL_AGENTS_PROVIDER;
   return USAGE_PROVIDER_REGISTRY.find((p) => p.id === id);
 }
 

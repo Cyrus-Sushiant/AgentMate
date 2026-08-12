@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import type {
   ProviderUsage,
   SubscriptionUsage,
@@ -5,6 +6,7 @@ import type {
   UsageProviderDefinition,
   UsageSegment,
   WidgetMode,
+  WidgetPeriod,
   WidgetStyle,
 } from '@agentmat/core';
 import { ProviderLogo } from '@/components/providerLogos';
@@ -19,6 +21,8 @@ import {
   formatReset,
   formatTokens,
 } from '@/lib/usageFormat';
+import { CountUp } from './CountUp';
+import { PeriodChips, PeriodCompare, periodDays, periodOf } from './PeriodCompare';
 
 export interface UsageCardBodyProps {
   usage: ProviderUsage;
@@ -31,6 +35,9 @@ export interface UsageCardBodyProps {
   hideHeader?: boolean;
   /** Which of the two widgets this is. Defaults to the original tokens view. */
   mode?: WidgetMode;
+  /** Headline window for tokens/cost. Uncontrolled on the Usage page. */
+  period?: WidgetPeriod;
+  onPeriodChange?: (period: WidgetPeriod) => void;
 }
 
 /**
@@ -83,7 +90,16 @@ export function UsageCardBody({
   compact = false,
   hideHeader = false,
   mode = 'tokens',
+  period: periodProp,
+  onPeriodChange,
 }: UsageCardBodyProps): React.JSX.Element {
+  const [localPeriod, setLocalPeriod] = useState<WidgetPeriod>(periodProp ?? 'day');
+  const activePeriod = onPeriodChange ? (periodProp ?? 'day') : localPeriod;
+  function setPeriod(next: WidgetPeriod): void {
+    if (onPeriodChange) onPeriodChange(next);
+    else setLocalPeriod(next);
+  }
+
   // Brand hex as the registry states it, nudged only when that exact color
   // would be unreadable on the current theme's card (the many near-black
   // vendor accents against the dark surface).
@@ -152,41 +168,64 @@ export function UsageCardBody({
     );
   }
 
-  const todayTokens = usage.today.tokens.total;
-  const period = todayTokens > 0 ? usage.today : usage.last30d;
-  const primaryTokens = period.tokens.total;
-  const primaryLabel = todayTokens > 0 ? 'today' : 'last 30d';
-  const cost = formatCost(usage.today.costUsd ?? usage.last30d.costUsd);
+  const selected = periodOf(usage, activePeriod);
+  const primaryTokens = selected.tokens.total;
+  const primaryLabel =
+    activePeriod === 'day' ? 'today' : activePeriod === 'week' ? 'this week' : 'this month';
+  const costUsd = selected.costUsd;
+  const cost = formatCost(costUsd);
+  const days = periodDays(activePeriod);
+  const avgTokens = days > 1 ? primaryTokens / days : null;
+  const avgCost = days > 1 && costUsd != null ? costUsd / days : null;
   // Segments partition the period the headline number came from, so the rows
   // below always add up to it. Empty slices are dropped rather than shown as 0.
-  const segments = (period.segments ?? []).filter(
+  const segments = (selected.segments ?? []).filter(
     (s) => s.tokens.total > 0 || (s.requests ?? 0) > 0,
   );
   const series = usage.series ?? [];
+  const costSeries = usage.costSeries ?? [];
+  const hasCostSeries = costSeries.some((n) => n > 0);
   const window = usage.window;
   const reset = formatReset(window?.resetAt);
 
   return (
-    <div className="flex h-full flex-col gap-2">
+    <div className="flex h-full min-h-0 flex-col gap-2">
       {header}
 
-      <div className="flex items-baseline gap-2">
-        <span className="text-2xl font-semibold tabular-nums">{formatTokens(primaryTokens)}</span>
-        <span className="text-[11px] text-muted-foreground">tokens {primaryLabel}</span>
+      <PeriodChips value={activePeriod} onChange={setPeriod} />
+
+      <div className="flex min-w-0 items-baseline gap-2">
+        <CountUp
+          value={primaryTokens}
+          format={formatTokens}
+          className="text-2xl font-semibold tabular-nums tracking-tight"
+        />
+        <span className="shrink-0 text-[11px] text-muted-foreground">tokens {primaryLabel}</span>
         {cost && (
-          <span className="ml-auto text-sm font-medium tabular-nums" style={{ color: accent }}>
-            {cost}
+          <span className="ml-auto shrink-0" style={{ color: accent }}>
+            <CountUp
+              value={costUsd ?? 0}
+              format={(n) => formatCost(n) ?? '$0.00'}
+              className="text-sm font-medium tabular-nums"
+            />
           </span>
         )}
       </div>
 
+      {(avgTokens != null || avgCost != null) && (
+        <div className="text-[11px] text-muted-foreground">
+          avg {formatTokens(avgTokens ?? 0)} / day
+          {avgCost != null ? ` · ${formatCost(avgCost)}` : ''}
+        </div>
+      )}
+
       {window && (
         <div className="space-y-1">
-          <div className="flex items-center justify-between text-[11px] text-muted-foreground">
-            <span>
+          <div className="flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
+            <span className="min-w-0 truncate">
               {window.label} {formatPercent(window.percent)}
             </span>
-            {reset && <span>{reset}</span>}
+            {reset && <span className="shrink-0">{reset}</span>}
           </div>
           <div className="h-1.5 w-full overflow-hidden rounded-full bg-foreground/10">
             <div
@@ -197,22 +236,43 @@ export function UsageCardBody({
         </div>
       )}
 
+      <PeriodCompare usage={usage} accent={accent} compact={compact} />
+
       {segments.length > 0 && (
         <SegmentBreakdown segments={segments} total={primaryTokens} accent={accent} />
       )}
 
       {!compact && series.length > 1 && (
-        <div className="mt-auto">
+        <div className="mt-auto space-y-2">
           <SparklineChart
             height={44}
             timestamps={series.map((_, i) => i)}
             domainMin={0}
             formatValue={formatTokens}
-            series={[{ key: def.id, label: def.name, color: accent, values: series }]}
+            series={[{ key: def.id, label: 'Tokens', color: accent, values: series }]}
           />
-          <div className="mt-0.5 flex justify-between text-[10px] text-muted-foreground">
-            <span>7d {formatTokens(usage.last7d.tokens.total)}</span>
-            <span>30d {formatTokens(usage.last30d.tokens.total)}</span>
+          {hasCostSeries && onPeriodChange && (
+            <SparklineChart
+              height={36}
+              timestamps={costSeries.map((_, i) => i)}
+              domainMin={0}
+              formatValue={(n) => formatCost(n) ?? '$0.00'}
+              series={[
+                {
+                  key: `${def.id}-cost`,
+                  label: 'Cost',
+                  color: accent,
+                  values: costSeries,
+                },
+              ]}
+            />
+          )}
+          <div className="flex justify-between gap-2 text-[10px] text-muted-foreground">
+            <span>14-day trend</span>
+            <span className="tabular-nums">
+              7d {formatTokens(usage.last7d.tokens.total)}
+              {formatCost(usage.last7d.costUsd) ? ` · ${formatCost(usage.last7d.costUsd)}` : ''}
+            </span>
           </div>
         </div>
       )}

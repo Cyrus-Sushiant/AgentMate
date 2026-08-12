@@ -16,13 +16,48 @@ function isDisplayed(id: string, configs: Record<string, UsageProviderConfig>): 
   return !!configs[id]?.enabled;
 }
 
+export interface AgentUsageRow {
+  id: string;
+  name: string;
+  accentColor: string;
+  todayTokens: number;
+  weekTokens: number;
+  monthTokens: number;
+  todayCost: number | null;
+  weekCost: number | null;
+  monthCost: number | null;
+}
+
 export interface UsageSummary {
   todayTokens: number;
   weekTokens: number;
+  monthTokens: number;
+  /** Today’s cost; kept for the dashboard tiles that already read `cost`. */
   cost: number;
+  todayCost: number;
+  weekCost: number;
+  monthCost: number;
+  hasCost: boolean;
   trackedCount: number;
   totalCount: number;
+  okCount: number;
+  series: number[];
+  costSeries: number[];
+  agents: AgentUsageRow[];
   isPending: boolean;
+}
+
+function sumSeries(items: Array<number[] | undefined>): number[] {
+  let len = 0;
+  for (const item of items) {
+    if (item && item.length > len) len = item.length;
+  }
+  const out = new Array<number>(len).fill(0);
+  for (const item of items) {
+    if (!item) continue;
+    for (let i = 0; i < item.length; i++) out[i] += item[i] ?? 0;
+  }
+  return out;
 }
 
 /**
@@ -58,15 +93,65 @@ export function useUsageSummary(enabled = true): UsageSummary {
   const totals = useMemo(() => {
     let todayTokens = 0;
     let weekTokens = 0;
-    let cost = 0;
+    let monthTokens = 0;
+    let todayCost = 0;
+    let weekCost = 0;
+    let monthCost = 0;
+    let hasCost = false;
+    const agents: AgentUsageRow[] = [];
+    const tokenSeries: Array<number[] | undefined> = [];
+    const costSeries: Array<number[] | undefined> = [];
+
     for (const id of displayedIds) {
       const u = usageById.get(id);
-      if (!u || u.status !== 'ok') continue;
+      const def = getUsageProvider(id);
+      if (!u || u.status !== 'ok' || !def) continue;
       todayTokens += u.today.tokens.total;
       weekTokens += u.last7d.tokens.total;
-      cost += u.today.costUsd ?? 0;
+      monthTokens += u.last30d.tokens.total;
+      if (u.today.costUsd != null) {
+        todayCost += u.today.costUsd;
+        hasCost = true;
+      }
+      if (u.last7d.costUsd != null) {
+        weekCost += u.last7d.costUsd;
+        hasCost = true;
+      }
+      if (u.last30d.costUsd != null) {
+        monthCost += u.last30d.costUsd;
+        hasCost = true;
+      }
+      tokenSeries.push(u.series);
+      costSeries.push(u.costSeries);
+      agents.push({
+        id,
+        name: def.name,
+        accentColor: def.accentColor,
+        todayTokens: u.today.tokens.total,
+        weekTokens: u.last7d.tokens.total,
+        monthTokens: u.last30d.tokens.total,
+        todayCost: u.today.costUsd,
+        weekCost: u.last7d.costUsd,
+        monthCost: u.last30d.costUsd,
+      });
     }
-    return { todayTokens, weekTokens, cost };
+
+    agents.sort((a, b) => b.weekTokens - a.weekTokens);
+
+    return {
+      todayTokens,
+      weekTokens,
+      monthTokens,
+      cost: todayCost,
+      todayCost,
+      weekCost,
+      monthCost,
+      hasCost,
+      okCount: agents.length,
+      series: sumSeries(tokenSeries),
+      costSeries: sumSeries(costSeries),
+      agents,
+    };
   }, [displayedIds, usageById]);
 
   return {

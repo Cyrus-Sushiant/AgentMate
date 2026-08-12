@@ -9,29 +9,24 @@ import type {
   ScheduledTask,
 } from '@agentmat/core';
 import { CLI_REGISTRY } from '@agentmat/core';
-import type {
-  BootstrapResult,
-  GitStatus,
-  GitTagInfo,
-  PackageInfo,
-  PackageManagerSection,
-  PackageUpdateRequest,
-  SkillUpdateInfo,
-} from '@shared/apiTypes';
+import type { BootstrapResult, GitStatus, GitTagInfo, SkillUpdateInfo } from '@shared/apiTypes';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
-import { CliLogo, TARGET_AI_CLI_ID, cliOptionIcon } from '@/components/cliLogos';
+import { CliLogo, cliOptionIcon, TARGET_AI_CLI_ID } from '@/components/cliLogos';
 import { MonacoEditor } from '@/components/editor/MonacoEditor';
 import {
+  ArrowDown,
   ArrowLeft,
   ArrowRight,
+  ArrowUp,
   Blocks,
   CalendarDays,
   Check,
   CircleCheck,
   CircleQuestion,
+  CloudDownload,
   CloudUpload,
   Download,
   FileCog,
@@ -41,8 +36,8 @@ import {
   GitBranch,
   GitCommit,
   GitPullRequest,
+  LinkOff,
   MessageSquare,
-  Package,
   Pencil,
   Play,
   Plug,
@@ -63,6 +58,7 @@ import {
   BootstrapDescriptionDialog,
 } from '@/components/projects/BootstrapDescriptionDialog';
 import { GitSetupWizard } from '@/components/projects/GitSetupWizard';
+import { PackagesTab } from '@/components/projects/PackagesTab';
 import {
   AGENT_TYPE_LABELS,
   isProjectSectionId,
@@ -80,7 +76,6 @@ import { ProjectPromptDialog } from '@/components/projects/ProjectPromptDialog';
 import { ProjectPromptHistory } from '@/components/projects/ProjectPromptHistory';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Checkbox } from '@/components/ui/checkbox';
 import { Combobox } from '@/components/ui/combobox';
 import {
   Dialog,
@@ -92,6 +87,7 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { OverflowScroll } from '@/components/ui/overflow-scroll';
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Switch } from '@/components/ui/switch';
@@ -1370,23 +1366,72 @@ function sanitizeCommitMessage(text: string): string {
     .trim();
 }
 
-function GitStatusBadge({ x, y }: { x: string; y: string }): React.JSX.Element {
+type GitFileKind = 'untracked' | 'deleted' | 'added' | 'renamed' | 'modified';
+
+function gitFileKind(x: string, y: string): GitFileKind {
   const code = `${x}${y}`.trim();
-  const label =
-    code === '??'
-      ? 'untracked'
-      : code.includes('D')
-        ? 'deleted'
-        : code.includes('A')
-          ? 'added'
-          : code.includes('R')
-            ? 'renamed'
-            : 'modified';
-  const variant = label === 'deleted' ? 'destructive' : label === 'added' ? 'success' : 'outline';
+  if (code === '??') return 'untracked';
+  if (code.includes('D')) return 'deleted';
+  if (code.includes('A')) return 'added';
+  if (code.includes('R')) return 'renamed';
+  return 'modified';
+}
+
+function GitStatusBadge({ kind }: { kind: GitFileKind }): React.JSX.Element {
+  const variant =
+    kind === 'deleted'
+      ? 'destructive'
+      : kind === 'added'
+        ? 'success'
+        : kind === 'modified'
+          ? 'warning'
+          : 'outline';
   return (
-    <Badge variant={variant} className="shrink-0 font-mono text-[10px] uppercase">
-      {label}
+    <Badge variant={variant} className="shrink-0 font-mono text-[10px] uppercase tracking-wide">
+      {kind}
     </Badge>
+  );
+}
+
+function splitGitPath(path: string): { dir: string; name: string } {
+  const i = Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\'));
+  if (i < 0) return { dir: '', name: path };
+  return { dir: path.slice(0, i + 1), name: path.slice(i + 1) };
+}
+
+function parseSemverTag(
+  tag: string,
+): { prefix: string; major: number; minor: number; patch: number } | null {
+  const match = tag.trim().match(/^(v?)(\d+)\.(\d+)\.(\d+)/i);
+  if (!match) return null;
+  return {
+    prefix: match[1] ?? '',
+    major: Number(match[2]),
+    minor: Number(match[3]),
+    patch: Number(match[4]),
+  };
+}
+
+function bumpSemverTag(latestTag: string | null, kind: 'major' | 'minor' | 'patch'): string {
+  const parsed = latestTag
+    ? parseSemverTag(latestTag)
+    : { prefix: 'v', major: 0, minor: 0, patch: 0 };
+  const prefix = parsed?.prefix ?? 'v';
+  if (!parsed) {
+    if (kind === 'major') return `${prefix}1.0.0`;
+    if (kind === 'minor') return `${prefix}0.1.0`;
+    return `${prefix}0.0.1`;
+  }
+  if (kind === 'major') return `${prefix}${parsed.major + 1}.0.0`;
+  if (kind === 'minor') return `${prefix}${parsed.major}.${parsed.minor + 1}.0`;
+  return `${prefix}${parsed.major}.${parsed.minor}.${parsed.patch + 1}`;
+}
+
+function GitIconWell({ children }: { children: React.ReactNode }): React.JSX.Element {
+  return (
+    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+      {children}
+    </div>
   );
 }
 
@@ -1489,6 +1534,32 @@ function GitOpButton({
       )}
       {pending ? pendingLabel : label}
     </Button>
+  );
+}
+
+function GitTabSkeleton(): React.JSX.Element {
+  return (
+    <div className="space-y-4">
+      <div className="glass flex flex-wrap items-center justify-between gap-3 rounded-xl p-4">
+        <div className="flex items-center gap-3">
+          <Skeleton className="h-9 w-9 rounded-lg" />
+          <div className="space-y-1.5">
+            <Skeleton className="h-4 w-28" />
+            <Skeleton className="h-3 w-44" />
+          </div>
+        </div>
+        <div className="flex gap-2">
+          <Skeleton className="h-8 w-16 rounded-md" />
+          <Skeleton className="h-8 w-14 rounded-md" />
+          <Skeleton className="h-8 w-14 rounded-md" />
+          <Skeleton className="h-8 w-16 rounded-md" />
+        </div>
+      </div>
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <Skeleton className="h-40 rounded-xl" />
+        <Skeleton className="h-40 rounded-xl" />
+      </div>
+    </div>
   );
 }
 
@@ -1621,25 +1692,22 @@ function GitTab({
   }
 
   if (statusQuery.isLoading) {
-    return <p className="text-sm text-muted-foreground">Checking for a git repository…</p>;
+    return <GitTabSkeleton />;
   }
 
   if (!statusQuery.data?.isRepo) {
     return (
       <>
-        <div className="glass flex flex-col items-center gap-3 rounded-lg p-10 text-center">
-          <GitBranch className="h-8 w-8 text-muted-foreground" />
-          <div className="space-y-1">
-            <p className="text-sm font-medium">This folder isn't a git repository yet</p>
-            <p className="text-xs text-muted-foreground">
-              Start one on a master branch, then publish it to a GitHub account or organization
-              without leaving the app.
-            </p>
-          </div>
-          <Button onClick={() => setSetupOpen(true)}>
-            <GitBranch className="h-4 w-4" /> Initialize repository
-          </Button>
-        </div>
+        <ProjectEmptyState
+          icon={GitBranch}
+          title="This folder isn't a git repository yet"
+          description="Start one on a master branch, then publish it to a GitHub account or organization without leaving the app."
+          action={
+            <Button onClick={() => setSetupOpen(true)}>
+              <GitBranch className="h-4 w-4" /> Initialize repository
+            </Button>
+          }
+        />
 
         <GitSetupWizard
           projectId={projectId}
@@ -1664,33 +1732,58 @@ function GitTab({
     createBranchMutation.isPending ||
     commitMutation.isPending;
 
+  const pullPrimary = status.hasRemote && status.behind > 0 && status.ahead === 0;
+  const pushPrimary = status.hasRemote && status.ahead > 0 && status.behind === 0;
+  const tagInfo = tagsQuery.data;
+  const commitsSince = tagInfo?.commitsSinceLatestTag ?? 0;
+
   return (
     <div className="space-y-4">
-      <div className="glass flex flex-wrap items-center justify-between gap-3 rounded-lg p-4">
-        <div className="flex flex-wrap items-center gap-2 text-sm">
-          <Badge variant="secondary" className="gap-1.5">
-            <GitBranch className="h-3 w-3" /> {status.branch ?? 'detached HEAD'}
-          </Badge>
-          {status.hasRemote && status.ahead > 0 && (
-            <Badge variant="warning">{status.ahead} ahead</Badge>
-          )}
-          {status.hasRemote && status.behind > 0 && (
-            <Badge variant="warning">{status.behind} behind</Badge>
-          )}
-          {!status.hasRemote && <Badge variant="outline">No remote configured</Badge>}
-          {status.files.length > 0 ? (
-            <Badge variant="outline">
-              {status.files.length} changed file{status.files.length === 1 ? '' : 's'}
-            </Badge>
-          ) : (
-            <Badge variant="success">Working tree clean</Badge>
-          )}
+      <div className="glass flex flex-wrap items-center justify-between gap-3 rounded-xl p-4">
+        <div className="flex min-w-0 items-center gap-3">
+          <GitIconWell>
+            <GitBranch className="h-4 w-4" />
+          </GitIconWell>
+          <div className="min-w-0 space-y-1">
+            <p className="truncate font-mono text-sm font-semibold">
+              {status.branch ?? 'detached HEAD'}
+            </p>
+            <div className="flex flex-wrap items-center gap-1.5">
+              {status.hasRemote && status.ahead === 0 && status.behind === 0 && (
+                <Badge variant="success" className="gap-1">
+                  <CircleCheck className="h-3 w-3" /> In sync
+                </Badge>
+              )}
+              {status.hasRemote && status.ahead > 0 && (
+                <Badge variant="warning" className="gap-1">
+                  <ArrowUp className="h-3 w-3" /> {status.ahead} ahead
+                </Badge>
+              )}
+              {status.hasRemote && status.behind > 0 && (
+                <Badge variant="warning" className="gap-1">
+                  <ArrowDown className="h-3 w-3" /> {status.behind} behind
+                </Badge>
+              )}
+              {!status.hasRemote && (
+                <Badge variant="outline" className="gap-1">
+                  <LinkOff className="h-3 w-3" /> No remote
+                </Badge>
+              )}
+              {status.files.length > 0 ? (
+                <Badge variant="outline">
+                  {status.files.length} changed file{status.files.length === 1 ? '' : 's'}
+                </Badge>
+              ) : (
+                <Badge variant="success">Clean</Badge>
+              )}
+            </div>
+          </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <GitOpButton
             size="sm"
             variant="outline"
-            icon={Download}
+            icon={CloudDownload}
             label="Fetch"
             pendingLabel="Fetching…"
             pending={fetchMutation.isPending}
@@ -1699,7 +1792,7 @@ function GitTab({
           />
           <GitOpButton
             size="sm"
-            variant="outline"
+            variant={pullPrimary ? undefined : 'outline'}
             icon={Download}
             label="Pull"
             pendingLabel="Pulling…"
@@ -1709,7 +1802,7 @@ function GitTab({
           />
           <GitOpButton
             size="sm"
-            variant="outline"
+            variant={pushPrimary ? undefined : 'outline'}
             icon={CloudUpload}
             label="Push"
             pendingLabel="Pushing…"
@@ -1720,6 +1813,7 @@ function GitTab({
           {status.hasRemote ? (
             <GitOpButton
               size="sm"
+              variant={pullPrimary || pushPrimary ? 'outline' : undefined}
               icon={RefreshCw}
               label="Sync"
               pendingLabel="Syncing…"
@@ -1736,30 +1830,62 @@ function GitTab({
       </div>
 
       {status.files.length > 0 && (
-        <div className="glass space-y-1.5 rounded-lg p-4">
-          <p className="text-xs font-medium text-muted-foreground">Changed files</p>
-          <div className="max-h-48 space-y-1 overflow-y-auto">
-            {status.files.map((file) => (
-              <div key={file.path} className="flex items-center justify-between gap-2 text-sm">
-                <span className="truncate font-mono text-xs">{file.path}</span>
-                <GitStatusBadge x={file.x} y={file.y} />
-              </div>
-            ))}
+        <div className="glass space-y-2.5 rounded-xl p-4">
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-sm font-medium">Changed files</p>
+            <span className="text-xs text-muted-foreground">{status.files.length}</span>
           </div>
+          <OverflowScroll className="max-h-56 space-y-1 pr-1" surface="card">
+            {status.files.map((file) => {
+              const kind = gitFileKind(file.x, file.y);
+              const { dir, name } = splitGitPath(file.path);
+              return (
+                <SimpleTooltip key={file.path} label={file.path}>
+                  <div
+                    className={cn(
+                      'flex items-center justify-between gap-2 rounded-md border-l-2 px-2.5 py-1.5 transition-colors hover:bg-foreground/5',
+                      kind === 'deleted' && 'border-l-destructive',
+                      kind === 'added' && 'border-l-success',
+                      kind === 'modified' && 'border-l-warning',
+                      kind === 'renamed' && 'border-l-primary',
+                      kind === 'untracked' && 'border-l-muted-foreground/50',
+                    )}
+                  >
+                    <p className="min-w-0 truncate font-mono text-xs">
+                      {dir ? <span className="text-muted-foreground">{dir}</span> : null}
+                      <span className="text-foreground">{name}</span>
+                    </p>
+                    <GitStatusBadge kind={kind} />
+                  </div>
+                </SimpleTooltip>
+              );
+            })}
+          </OverflowScroll>
         </div>
       )}
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-        <div className="glass space-y-2 rounded-lg p-4">
-          <p className="flex items-center gap-1.5 text-sm font-medium">
-            <GitBranch className="h-3.5 w-3.5" /> Create branch
-          </p>
-          <Input
-            value={branchName}
-            onChange={(e) => setBranchName(e.target.value)}
-            placeholder="feat/my-change"
-          />
-          <div className="flex items-center gap-2 pt-1">
+        <div className="glass space-y-3 rounded-xl p-4">
+          <div className="flex items-start gap-3">
+            <GitIconWell>
+              <GitBranch className="h-4 w-4" />
+            </GitIconWell>
+            <div className="min-w-0">
+              <p className="text-sm font-medium">Create branch</p>
+              <p className="text-xs text-muted-foreground">Starts from the current HEAD.</p>
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="git-branch-name">Branch name</Label>
+            <Input
+              id="git-branch-name"
+              value={branchName}
+              onChange={(e) => setBranchName(e.target.value)}
+              placeholder="feat/my-change"
+              className="font-mono"
+            />
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
             <AiSuggestButton
               size="sm"
               label="Suggest with AI"
@@ -1783,17 +1909,37 @@ function GitTab({
           </div>
         </div>
 
-        <div className="glass space-y-2 rounded-lg p-4">
-          <p className="flex items-center gap-1.5 text-sm font-medium">
-            <GitCommit className="h-3.5 w-3.5" /> Commit changes
-          </p>
-          <Textarea
-            value={commitMessage}
-            onChange={(e) => setCommitMessage(e.target.value)}
-            placeholder="Describe what changed…"
-            rows={3}
-          />
-          <div className="flex items-center gap-2 pt-1">
+        <div
+          className={cn(
+            'glass space-y-3 rounded-xl p-4',
+            status.files.length > 0 && 'ring-1 ring-primary/25',
+          )}
+        >
+          <div className="flex items-start gap-3">
+            <GitIconWell>
+              <GitCommit className="h-4 w-4" />
+            </GitIconWell>
+            <div className="min-w-0">
+              <p className="text-sm font-medium">Commit changes</p>
+              <p className="text-xs text-muted-foreground">
+                {status.files.length > 0
+                  ? `${status.files.length} file${status.files.length === 1 ? '' : 's'} will be included.`
+                  : 'Working tree is clean. Nothing to commit.'}
+              </p>
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="git-commit-message">Commit message</Label>
+            <Textarea
+              id="git-commit-message"
+              value={commitMessage}
+              onChange={(e) => setCommitMessage(e.target.value)}
+              placeholder="Describe what changed…"
+              rows={3}
+              disabled={status.files.length === 0}
+            />
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
             <AiSuggestButton
               size="sm"
               label="Suggest with AI"
@@ -1818,37 +1964,71 @@ function GitTab({
         </div>
       </div>
 
-      <div className="glass flex flex-wrap items-center justify-between gap-3 rounded-lg p-4">
-        <div>
-          <p className="flex items-center gap-1.5 text-sm font-medium">
-            <Tag className="h-3.5 w-3.5" /> Version tag
-          </p>
-          <p className="text-xs text-muted-foreground">
-            {tagsQuery.data?.latestTag
-              ? `Latest tag ${tagsQuery.data.latestTag} · ${tagsQuery.data.commitsSinceLatestTag} commit${
-                  tagsQuery.data.commitsSinceLatestTag === 1 ? '' : 's'
-                } since then.`
-              : 'No tags in this repository yet.'}
-          </p>
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <div className="glass flex flex-col gap-3 rounded-xl p-4">
+          <div className="flex items-start gap-3">
+            <GitIconWell>
+              <Tag className="h-4 w-4" />
+            </GitIconWell>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-medium">Version tag</p>
+              {tagInfo?.latestTag ? (
+                <p className="text-xs text-muted-foreground">
+                  Latest <span className="font-mono text-foreground">{tagInfo.latestTag}</span>
+                  {commitsSince > 0
+                    ? ` · ${commitsSince} commit${commitsSince === 1 ? '' : 's'} since`
+                    : ' · HEAD is on this tag'}
+                </p>
+              ) : (
+                <p className="text-xs text-muted-foreground">No tags in this repository yet.</p>
+              )}
+            </div>
+          </div>
+          {tagInfo && tagInfo.recentTags.length > 0 && (
+            <div className="flex flex-wrap gap-1.5">
+              {tagInfo.recentTags.slice(0, 4).map((existing) => (
+                <Badge
+                  key={existing}
+                  variant={existing === tagInfo.latestTag ? 'secondary' : 'outline'}
+                  className="font-mono text-[10px]"
+                >
+                  {existing}
+                </Badge>
+              ))}
+            </div>
+          )}
+          <Button variant="outline" className="mt-auto self-start" onClick={() => setTagOpen(true)}>
+            <Tag className="h-3.5 w-3.5" /> Tag a version
+          </Button>
         </div>
-        <Button variant="outline" onClick={() => setTagOpen(true)}>
-          <Tag className="h-3.5 w-3.5" /> Tag a version
-        </Button>
-      </div>
 
-      <div className="glass flex items-center justify-between rounded-lg p-4">
-        <div>
-          <p className="flex items-center gap-1.5 text-sm font-medium">
-            <GitPullRequest className="h-3.5 w-3.5" /> Pull request
-          </p>
-          <p className="text-xs text-muted-foreground">
-            Pushes the current branch and opens a pull request via the GitHub CLI (or the compare
-            page in your browser if it isn't installed).
-          </p>
+        <div className="glass flex flex-col gap-3 rounded-xl p-4">
+          <div className="flex items-start gap-3">
+            <GitIconWell>
+              <GitPullRequest className="h-4 w-4" />
+            </GitIconWell>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-medium">Pull request</p>
+              <p className="text-xs text-muted-foreground">
+                Pushes this branch and opens a pull request with the GitHub CLI, or the compare page
+                in your browser if it isn't installed.
+              </p>
+            </div>
+          </div>
+          <SimpleTooltip
+            label={!status.hasRemote ? 'Connect a remote before opening a pull request.' : null}
+            wrapTrigger
+          >
+            <Button
+              variant="outline"
+              className="mt-auto self-start"
+              onClick={() => setPrOpen(true)}
+              disabled={!status.hasRemote}
+            >
+              <GitPullRequest className="h-3.5 w-3.5" /> Create pull request
+            </Button>
+          </SimpleTooltip>
         </div>
-        <Button variant="outline" onClick={() => setPrOpen(true)} disabled={!status.hasRemote}>
-          <GitPullRequest className="h-3.5 w-3.5" /> Create Pull Request
-        </Button>
       </div>
 
       <GitSetupWizard
@@ -1972,7 +2152,7 @@ function ApplyVersionDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex max-h-[85vh] max-w-2xl flex-col overflow-hidden">
+      <DialogContent className="max-w-2xl overflow-hidden">
         <DialogHeader>
           <DialogTitle>Update version in files</DialogTitle>
           <DialogDescription>
@@ -1980,11 +2160,16 @@ function ApplyVersionDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="-mx-1 min-h-0 flex-1 space-y-3 overflow-y-auto px-1">
+        <OverflowScroll fill className="-mx-1 space-y-3 px-1">
           {applyMutation.isPending && (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Spinner className="h-4 w-4 animate-spin" />
-              Your CLI is updating version strings. This can take a minute…
+            <div className="flex items-center gap-3 rounded-xl border border-border bg-card/60 px-3 py-3">
+              <Spinner className="h-4 w-4 animate-spin text-primary" />
+              <div className="min-w-0">
+                <p className="text-sm font-medium">Updating version strings</p>
+                <p className="text-xs text-muted-foreground">
+                  Your CLI is editing manifests. This can take a minute.
+                </p>
+              </div>
             </div>
           )}
 
@@ -1995,7 +2180,10 @@ function ApplyVersionDialog({
           )}
 
           {failed && (
-            <div className="space-y-1 rounded-lg border border-destructive/40 bg-destructive/5 p-3">
+            <div
+              role="alert"
+              className="space-y-1 rounded-xl border border-destructive/40 bg-destructive/5 p-3"
+            >
               <p className="flex items-center gap-1.5 text-sm font-medium text-destructive">
                 <TriangleAlert className="h-3.5 w-3.5" /> The run failed
               </p>
@@ -2008,29 +2196,41 @@ function ApplyVersionDialog({
           )}
 
           {result && result.changedFiles.length > 0 && (
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <p className="text-xs font-medium text-muted-foreground">
                 Files changed ({result.changedFiles.length})
               </p>
               <div className="space-y-1">
-                {result.changedFiles.map((file) => (
-                  <p key={file} className="truncate font-mono text-xs">
-                    {file}
-                  </p>
-                ))}
+                {result.changedFiles.map((file) => {
+                  const { dir, name } = splitGitPath(file);
+                  return (
+                    <div
+                      key={file}
+                      className="flex items-center gap-2 rounded-md border-l-2 border-l-success px-2.5 py-1.5"
+                    >
+                      <CircleCheck className="h-3.5 w-3.5 shrink-0 text-success" />
+                      <p className="min-w-0 truncate font-mono text-xs">
+                        {dir ? <span className="text-muted-foreground">{dir}</span> : null}
+                        <span>{name}</span>
+                      </p>
+                    </div>
+                  );
+                })}
               </div>
               {commitMutation.isSuccess && commitMutation.data.ok ? (
-                <p className="text-xs text-muted-foreground">
-                  Committed. Tagging is unlocked, use "Back to tag" to continue.
-                </p>
+                <div className="flex items-start gap-2 rounded-xl border border-success/30 bg-success/10 px-3 py-2.5">
+                  <CircleCheck className="mt-0.5 h-3.5 w-3.5 shrink-0 text-success" />
+                  <p className="text-xs text-muted-foreground">
+                    Committed. Tagging is unlocked. Use "Back to tag" to continue.
+                  </p>
+                </div>
               ) : (
-                <div className="flex items-center gap-2 rounded-lg border border-border bg-card/60 px-3 py-2">
+                <div className="flex flex-col gap-2 rounded-xl border border-warning/30 bg-warning/10 px-3 py-2.5 sm:flex-row sm:items-center">
                   <p className="min-w-0 flex-1 text-xs text-muted-foreground">
                     Tagging is locked until this version bump is committed.
                   </p>
                   <GitOpButton
                     size="sm"
-                    variant="outline"
                     icon={GitCommit}
                     label="Commit version bump"
                     pendingLabel="Committing…"
@@ -2048,10 +2248,13 @@ function ApplyVersionDialog({
           )}
 
           {result?.ok && result.changedFiles.length === 0 && result.committedByCli && (
-            <p className="text-sm text-muted-foreground">
-              Your CLI committed the version bump itself (some version tools do this on their own).
-              Tagging is unlocked, use "Back to tag" to continue.
-            </p>
+            <div className="flex items-start gap-2 rounded-xl border border-success/30 bg-success/10 px-3 py-2.5">
+              <CircleCheck className="mt-0.5 h-3.5 w-3.5 shrink-0 text-success" />
+              <p className="text-sm text-muted-foreground">
+                Your CLI committed the version bump itself (some version tools do this on their
+                own). Tagging is unlocked. Use "Back to tag" to continue.
+              </p>
+            </div>
           )}
 
           {result?.ok && result.changedFiles.length === 0 && !result.committedByCli && (
@@ -2066,12 +2269,12 @@ function ApplyVersionDialog({
               <p className="text-xs font-medium text-muted-foreground">
                 {result.cliName ?? 'CLI'} output
               </p>
-              <pre className="max-h-64 overflow-auto rounded-lg border border-border bg-card/60 p-3 text-xs whitespace-pre-wrap">
+              <pre className="max-h-64 overflow-auto rounded-xl border border-border bg-card/60 p-3 text-xs whitespace-pre-wrap">
                 {result.output}
               </pre>
             </div>
           )}
-        </div>
+        </OverflowScroll>
 
         <DialogFooter>
           {applyMutation.isPending ? (
@@ -2117,12 +2320,30 @@ function TagVersionDialog({
   const [message, setMessage] = useState('');
   const [reason, setReason] = useState<string | null>(null);
   const suggestRequestRef = useRef<string | null>(null);
+  const keepFieldsRef = useRef(false);
 
   const hasRemote = tagInfo?.hasRemote ?? false;
   // Gate tagging (and the push that follows it) on a clean tree: a version bump's edits must
   // land in a commit first, otherwise the tag would point at a commit missing those edits.
   const dirtyFileCount = status?.files.length ?? 0;
   const isDirty = dirtyFileCount > 0;
+  const bumpOptions = [
+    {
+      kind: 'patch' as const,
+      label: 'Patch',
+      next: bumpSemverTag(tagInfo?.latestTag ?? null, 'patch'),
+    },
+    {
+      kind: 'minor' as const,
+      label: 'Minor',
+      next: bumpSemverTag(tagInfo?.latestTag ?? null, 'minor'),
+    },
+    {
+      kind: 'major' as const,
+      label: 'Major',
+      next: bumpSemverTag(tagInfo?.latestTag ?? null, 'major'),
+    },
+  ];
 
   const suggestMutation = useMutation({
     mutationFn: () => {
@@ -2172,127 +2393,221 @@ function TagVersionDialog({
   });
 
   function handleOpenChange(next: boolean): void {
-    if (!next) {
+    if (!next && !keepFieldsRef.current) {
       setTag('');
       setMessage('');
       setReason(null);
     }
+    keepFieldsRef.current = false;
     onOpenChange(next);
+  }
+
+  function handleApplyVersion(): void {
+    const next = tag.trim();
+    if (!next) return;
+    keepFieldsRef.current = true;
+    onApplyVersion(next);
+  }
+
+  function handleBump(nextTag: string): void {
+    setTag(nextTag);
+    setReason(null);
   }
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent>
+      <DialogContent className="max-w-xl overflow-hidden">
         <DialogHeader>
           <DialogTitle>Tag a version</DialogTitle>
           <DialogDescription>
             {tagInfo?.latestTag ? (
               <>
-                Latest tag is <span className="font-mono">{tagInfo.latestTag}</span>, with{' '}
                 {tagInfo.commitsSinceLatestTag} commit
-                {tagInfo.commitsSinceLatestTag === 1 ? '' : 's'} on top of it.
+                {tagInfo.commitsSinceLatestTag === 1 ? '' : 's'} since{' '}
+                <span className="font-mono">{tagInfo.latestTag}</span>.
               </>
             ) : (
-              'This repository has no tags yet.'
+              'This repository has no tags yet. Pick a first version below.'
             )}
           </DialogDescription>
         </DialogHeader>
-        <div className="space-y-3">
+        <OverflowScroll fill className="-mx-1 space-y-4 px-1">
+          <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 rounded-xl border border-border bg-card/60 px-3 py-3">
+            <div className="min-w-0 text-center">
+              <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                Latest
+              </p>
+              <p className="truncate font-mono text-lg font-semibold">
+                {tagInfo?.latestTag ?? 'None'}
+              </p>
+            </div>
+            <ArrowRight className="h-4 w-4 text-muted-foreground" />
+            <div className="min-w-0 text-center">
+              <p className="text-[10px] font-medium uppercase tracking-wider text-primary">Next</p>
+              <p className="truncate font-mono text-lg font-semibold text-primary">
+                {tag.trim() || '—'}
+              </p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-3 gap-2">
+            {bumpOptions.map((option) => {
+              const selected = tag.trim() === option.next;
+              return (
+                <button
+                  key={option.kind}
+                  type="button"
+                  aria-pressed={selected}
+                  aria-label={`${option.label} bump to ${option.next}`}
+                  onClick={() => handleBump(option.next)}
+                  className={cn(
+                    'flex cursor-pointer flex-col items-center gap-0.5 rounded-lg border px-2 py-2 text-center transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                    selected
+                      ? 'border-primary/50 bg-primary/10 text-foreground'
+                      : 'border-border bg-card/40 text-muted-foreground hover:border-foreground/20 hover:bg-accent hover:text-foreground',
+                  )}
+                >
+                  <span className="text-xs font-medium">{option.label}</span>
+                  <span className="font-mono text-[10px]">{option.next}</span>
+                </button>
+              );
+            })}
+          </div>
+
           <div className="space-y-1.5">
-            <Label>Tag name</Label>
+            <Label htmlFor="git-tag-name">Tag name</Label>
             <Input
+              id="git-tag-name"
               value={tag}
-              onChange={(e) => setTag(e.target.value)}
+              onChange={(e) => {
+                setTag(e.target.value);
+                setReason(null);
+              }}
               placeholder="v1.0.1"
               className="font-mono"
             />
-            {reason && <p className="text-xs text-muted-foreground">{reason}</p>}
+            {reason && (
+              <div className="flex gap-2 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2">
+                <Sparkles className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" />
+                <p className="text-xs text-muted-foreground">{reason}</p>
+              </div>
+            )}
           </div>
+
           <div className="space-y-1.5">
-            <Label>Tag message (optional)</Label>
+            <Label htmlFor="git-tag-message">Tag message (optional)</Label>
             <Textarea
+              id="git-tag-message"
               value={message}
               onChange={(e) => setMessage(e.target.value)}
-              rows={6}
+              rows={4}
               placeholder="What this release contains…"
             />
           </div>
-          <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-card/60 px-3 py-2">
-            <div className="min-w-0">
-              <p className="text-sm font-medium">Apply this version to the project</p>
-              <p className="text-xs text-muted-foreground">
-                Runs your CLI over package.json, other manifests and any version shown in the app,
-                and reports what it changed. Commit those edits before tagging.
-              </p>
+
+          <div className="space-y-2.5 rounded-xl border border-border bg-card/60 p-3">
+            <div className="flex items-start gap-3">
+              <GitIconWell>
+                <FileCog className="h-4 w-4" />
+              </GitIconWell>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-medium">Update version in files</p>
+                <p className="text-xs text-muted-foreground">
+                  Runs your CLI over package.json, other manifests and any version shown in the app.
+                  Commit those edits before tagging.
+                </p>
+              </div>
             </div>
             <Button
               variant="outline"
               size="sm"
-              disabled={!tag.trim()}
-              onClick={() => onApplyVersion(tag.trim())}
+              disabled={!tag.trim() || createTagMutation.isPending}
+              onClick={handleApplyVersion}
             >
               <FileCog className="h-3.5 w-3.5" /> Update version in files
             </Button>
           </div>
 
           {tagInfo && tagInfo.recentTags.length > 0 && (
-            <div className="flex flex-wrap items-center gap-1.5">
-              <span className="text-xs text-muted-foreground">Existing:</span>
-              {tagInfo.recentTags.map((existing) => (
-                <Badge key={existing} variant="outline" className="font-mono text-[10px]">
-                  {existing}
-                </Badge>
-              ))}
+            <div className="space-y-1.5">
+              <p className="text-xs font-medium text-muted-foreground">Recent tags</p>
+              <div className="flex flex-wrap gap-1.5">
+                {tagInfo.recentTags.map((existing) => (
+                  <Badge
+                    key={existing}
+                    variant={existing === tagInfo.latestTag ? 'secondary' : 'outline'}
+                    className="font-mono text-[10px]"
+                  >
+                    {existing}
+                  </Badge>
+                ))}
+              </div>
             </div>
           )}
-          <p className="text-xs text-muted-foreground">
-            {hasRemote
-              ? 'The tag is created locally and pushed to origin.'
-              : 'No remote is configured, so the tag is only created locally.'}
-          </p>
+
           {isDirty && (
-            <p className="flex items-center gap-1.5 text-xs text-destructive">
-              <TriangleAlert className="h-3.5 w-3.5" />
-              Commit {dirtyFileCount} changed file{dirtyFileCount === 1 ? '' : 's'} before tagging.
-            </p>
+            <div
+              role="alert"
+              className="flex gap-2 rounded-xl border border-destructive/40 bg-destructive/5 px-3 py-2.5"
+            >
+              <TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0 text-destructive" />
+              <p className="text-xs text-muted-foreground">
+                Commit {dirtyFileCount} changed file{dirtyFileCount === 1 ? '' : 's'} before
+                tagging. The tag has to point at a commit that already includes the version bump.
+              </p>
+            </div>
           )}
-        </div>
-        <DialogFooter>
-          {suggestMutation.isPending ? (
-            <AiSuggestButton
-              label="Suggest with AI"
-              pendingLabel="Asking your CLI…"
-              pendingTooltip="Reading the commits since the latest tag, click to cancel"
-              pending
-              onStart={() => suggestMutation.mutate()}
-              onCancel={handleCancelSuggest}
-            />
-          ) : (
-            <SimpleTooltip label="Reads the commits since the latest tag with your CLI and proposes the next semantic version">
+        </OverflowScroll>
+        <DialogFooter className="sm:justify-between">
+          <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center">
+            {suggestMutation.isPending ? (
               <AiSuggestButton
                 label="Suggest with AI"
                 pendingLabel="Asking your CLI…"
-                pendingTooltip=""
-                pending={false}
-                disabled={createTagMutation.isPending}
+                pendingTooltip="Reading the commits since the latest tag, click to cancel"
+                pending
                 onStart={() => suggestMutation.mutate()}
                 onCancel={handleCancelSuggest}
               />
+            ) : (
+              <SimpleTooltip label="Reads the commits since the latest tag with your CLI and proposes the next semantic version">
+                <AiSuggestButton
+                  label="Suggest with AI"
+                  pendingLabel="Asking your CLI…"
+                  pendingTooltip=""
+                  pending={false}
+                  disabled={createTagMutation.isPending}
+                  onStart={() => suggestMutation.mutate()}
+                  onCancel={handleCancelSuggest}
+                />
+              </SimpleTooltip>
+            )}
+            <p className="text-[11px] text-muted-foreground sm:hidden">
+              {hasRemote
+                ? 'Created locally, then pushed to origin.'
+                : 'No remote is configured, so the tag stays local.'}
+            </p>
+          </div>
+          <div className="flex flex-col items-stretch gap-1.5 sm:items-end">
+            <SimpleTooltip
+              label={isDirty ? 'Commit the changed files above before tagging.' : null}
+              wrapTrigger
+            >
+              <GitOpButton
+                icon={Tag}
+                label={hasRemote ? 'Create & push tag' : 'Create tag'}
+                pendingLabel={hasRemote ? 'Creating & pushing…' : 'Creating tag…'}
+                pending={createTagMutation.isPending}
+                disabled={!tag.trim() || isDirty}
+                onClick={() => createTagMutation.mutate()}
+              />
             </SimpleTooltip>
-          )}
-          <SimpleTooltip
-            label={isDirty ? 'Commit the changed files above before tagging.' : null}
-            wrapTrigger
-          >
-            <GitOpButton
-              icon={Tag}
-              label={hasRemote ? 'Create & push tag' : 'Create tag'}
-              pendingLabel={hasRemote ? 'Creating & pushing…' : 'Creating tag…'}
-              pending={createTagMutation.isPending}
-              disabled={!tag.trim() || isDirty}
-              onClick={() => createTagMutation.mutate()}
-            />
-          </SimpleTooltip>
+            <p className="hidden text-[11px] text-muted-foreground sm:block">
+              {hasRemote
+                ? 'Created locally, then pushed to origin.'
+                : 'No remote is configured, so the tag stays local.'}
+            </p>
+          </div>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -2389,375 +2704,6 @@ function CreatePrDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
-  );
-}
-
-function packageKey(pkg: PackageInfo): string {
-  return `${pkg.manifestPath}::${pkg.name}`;
-}
-
-function ecosystemLabel(section: PackageManagerSection): string {
-  if (section.ecosystem === 'dotnet') return 'NuGet (.NET)';
-  if (section.manager === 'yarn') return 'Yarn';
-  if (section.manager === 'pnpm') return 'pnpm';
-  return 'npm';
-}
-
-/** Staggered widths so placeholder rows read as a list of names, not a stack of identical bars. */
-const PACKAGE_SKELETON_WIDTHS = ['w-40', 'w-56', 'w-32', 'w-48', 'w-36', 'w-52'];
-
-function PackageRowSkeleton({ nameWidth }: { nameWidth: string }): React.JSX.Element {
-  return (
-    <div className="flex items-center gap-3 rounded-lg border border-border bg-card/60 px-3 py-2">
-      <Skeleton className="h-4 w-4 shrink-0 rounded-[4px]" />
-      <div className="min-w-0 flex-1 space-y-1.5">
-        <Skeleton className={`h-3.5 ${nameWidth}`} />
-        <Skeleton className="h-2.5 w-20" />
-      </div>
-      <Skeleton className="h-5 w-16 shrink-0 rounded-full" />
-    </div>
-  );
-}
-
-/**
- * Stand-in for one ecosystem card while the scan runs. It mirrors the real
- * card's shape (header, select-all bar, package rows) so the tab doesn't jump
- * when the data lands. A .NET scan shells out to `dotnet list package` for every
- * project in the solution and can take the better part of a minute, which is far
- * too long to leave the tab empty.
- */
-function PackagesSectionSkeleton({ rows }: { rows: number }): React.JSX.Element {
-  return (
-    <div className="glass space-y-3 rounded-xl p-4">
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <Skeleton className="h-8 w-8 shrink-0 rounded-lg" />
-          <div className="space-y-1.5">
-            <Skeleton className="h-4 w-28" />
-            <Skeleton className="h-2.5 w-16" />
-          </div>
-        </div>
-        <Skeleton className="h-8 w-40 rounded-md" />
-      </div>
-      <div className="space-y-2">
-        <div className="flex items-center rounded-md bg-card/60 px-3 py-1.5">
-          <Skeleton className="h-3 w-28" />
-        </div>
-        <div className="space-y-1.5">
-          {Array.from({ length: rows }, (_, i) => (
-            <PackageRowSkeleton
-              key={i}
-              nameWidth={PACKAGE_SKELETON_WIDTHS[i % PACKAGE_SKELETON_WIDTHS.length]}
-            />
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function PackagesTabSkeleton(): React.JSX.Element {
-  return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between gap-3">
-        <Skeleton className="h-5 w-40 rounded-full" />
-        <Skeleton className="h-8 w-24 rounded-md" />
-      </div>
-      <PackagesSectionSkeleton rows={5} />
-      <PackagesSectionSkeleton rows={3} />
-    </div>
-  );
-}
-
-function PackagesTab({ projectId }: { projectId: string }): React.JSX.Element {
-  const queryClient = useQueryClient();
-  const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [showOutdatedOnly, setShowOutdatedOnly] = useState(false);
-  const [progress, setProgress] = useState<
-    Map<string, { status: 'running' | 'done' | 'error'; message?: string }>
-  >(new Map());
-
-  const scanQuery = useQuery({
-    queryKey: queryKeys.packages(projectId),
-    queryFn: () => window.agentmat.packages.list(projectId),
-  });
-
-  useEffect(() => {
-    return window.agentmat.packages.onUpdateProgress((p) => {
-      if (p.projectId !== projectId) return;
-      setProgress((prev) => {
-        const next = new Map(prev);
-        next.set(p.packageName, { status: p.status, message: p.message });
-        return next;
-      });
-    });
-  }, [projectId]);
-
-  const updateMutation = useMutation({
-    mutationFn: (updates: PackageUpdateRequest[]) =>
-      window.agentmat.packages.update(projectId, updates),
-    onSuccess: (result) => {
-      const failed = result.results.filter((r) => !r.ok);
-      const count = result.results.length;
-      if (result.ok) {
-        toast.success(`Updated ${count} package${count === 1 ? '' : 's'}.`);
-      } else {
-        toast.error(
-          `${failed.length} of ${count} package${count === 1 ? '' : 's'} failed to update.`,
-        );
-      }
-      setSelected(new Set());
-      void queryClient.invalidateQueries({ queryKey: queryKeys.packages(projectId) });
-    },
-  });
-
-  function toggle(key: string): void {
-    setSelected((prev) => {
-      const next = new Set(prev);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
-      return next;
-    });
-  }
-
-  function toggleAllOutdated(section: PackageManagerSection, checked: boolean): void {
-    setSelected((prev) => {
-      const next = new Set(prev);
-      for (const pkg of section.packages) {
-        if (!pkg.isOutdated) continue;
-        if (checked) next.add(packageKey(pkg));
-        else next.delete(packageKey(pkg));
-      }
-      return next;
-    });
-  }
-
-  function updateSection(section: PackageManagerSection): void {
-    const updates: PackageUpdateRequest[] = section.packages
-      .filter((pkg) => selected.has(packageKey(pkg)))
-      .map((pkg) => ({
-        ecosystem: section.ecosystem,
-        name: pkg.name,
-        targetVersion: pkg.latestVersion ?? pkg.currentVersion,
-        manifestPath: pkg.manifestPath,
-      }));
-    if (updates.length === 0) return;
-    setProgress(new Map());
-    updateMutation.mutate(updates);
-  }
-
-  if (scanQuery.isLoading) {
-    return <PackagesTabSkeleton />;
-  }
-
-  const sections = scanQuery.data?.sections ?? [];
-  // A refresh keeps the current list on screen rather than collapsing back to
-  // skeletons: the versions shown are still the last known good ones, and a
-  // .NET rescan is slow enough that blanking them out would be a regression.
-  const isRefreshing = scanQuery.isFetching;
-
-  if (sections.length === 0) {
-    return (
-      <div className="space-y-3">
-        <div className="flex justify-end">
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={scanQuery.isFetching}
-            onClick={() => void scanQuery.refetch()}
-          >
-            <RefreshCw className={`h-3.5 w-3.5 ${scanQuery.isFetching ? 'animate-spin' : ''}`} />
-            Refresh
-          </Button>
-        </div>
-        <p className="text-sm text-muted-foreground">
-          No npm/yarn/pnpm or .NET project files were found in this project's folder.
-        </p>
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <label className="flex cursor-pointer items-center gap-2 text-sm">
-          <Switch checked={showOutdatedOnly} onCheckedChange={setShowOutdatedOnly} />
-          Show outdated only
-        </label>
-        <Button
-          variant="outline"
-          size="sm"
-          disabled={scanQuery.isFetching}
-          onClick={() => void scanQuery.refetch()}
-        >
-          <RefreshCw className={`h-3.5 w-3.5 ${scanQuery.isFetching ? 'animate-spin' : ''}`} />
-          Refresh
-        </Button>
-      </div>
-      {sections.map((section) => {
-        const outdatedPackages = section.packages.filter((p) => p.isOutdated);
-        const sectionSelectedCount = section.packages.filter((p) =>
-          selected.has(packageKey(p)),
-        ).length;
-        const allOutdatedSelected =
-          outdatedPackages.length > 0 && outdatedPackages.every((p) => selected.has(packageKey(p)));
-        const showProjectLabel = new Set(section.packages.map((p) => p.projectLabel)).size > 1;
-        const visiblePackages = showOutdatedOnly ? outdatedPackages : section.packages;
-
-        return (
-          <div
-            key={`${section.ecosystem}-${section.manager}`}
-            className="glass relative space-y-3 overflow-hidden rounded-xl p-4"
-          >
-            {isRefreshing && <Skeleton className="absolute inset-x-0 top-0 h-0.5 rounded-none" />}
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="flex items-center gap-2">
-                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                  <Package className="h-4 w-4" />
-                </div>
-                <div className="flex flex-col">
-                  <span className="flex items-center gap-1.5 text-sm font-semibold">
-                    {ecosystemLabel(section)}
-                    {outdatedPackages.length > 0 && (
-                      <Badge variant="warning">{outdatedPackages.length} outdated</Badge>
-                    )}
-                    {section.status === 'ok' &&
-                      outdatedPackages.length === 0 &&
-                      section.packages.length > 0 && <Badge variant="success">Up to date</Badge>}
-                  </span>
-                  {section.status === 'ok' && section.packages.length > 0 && (
-                    <span className="text-xs text-muted-foreground">
-                      {section.packages.length} package{section.packages.length === 1 ? '' : 's'}
-                    </span>
-                  )}
-                </div>
-              </div>
-              {section.status === 'ok' && section.packages.length > 0 && (
-                <Button
-                  size="sm"
-                  disabled={sectionSelectedCount === 0 || updateMutation.isPending}
-                  onClick={() => updateSection(section)}
-                >
-                  {updateMutation.isPending ? (
-                    <Spinner className="h-3.5 w-3.5 animate-spin" />
-                  ) : (
-                    <RefreshCw className="h-3.5 w-3.5" />
-                  )}
-                  Update Selected ({sectionSelectedCount})
-                </Button>
-              )}
-            </div>
-
-            {section.status === 'cli-missing' && (
-              <p className="text-sm text-muted-foreground">{section.message}</p>
-            )}
-
-            {section.status === 'error' && (
-              <p className="text-sm text-destructive">{section.message}</p>
-            )}
-
-            {section.status === 'ok' && section.message && (
-              <p className="text-sm text-muted-foreground">{section.message}</p>
-            )}
-
-            {section.status === 'ok' && section.packages.length === 0 && (
-              <p className="text-sm text-muted-foreground">No dependencies declared.</p>
-            )}
-
-            {section.status === 'ok' &&
-              section.packages.length > 0 &&
-              visiblePackages.length === 0 && (
-                <p className="text-sm text-muted-foreground">All packages are up to date.</p>
-              )}
-
-            {section.status === 'ok' && visiblePackages.length > 0 && (
-              <div className="space-y-2">
-                <div className="flex items-center justify-between rounded-md bg-card/60 px-3 py-1.5">
-                  <label className="flex cursor-pointer items-center gap-2 text-xs text-muted-foreground">
-                    <Checkbox
-                      checked={allOutdatedSelected}
-                      disabled={outdatedPackages.length === 0}
-                      onCheckedChange={(checked) => toggleAllOutdated(section, checked === true)}
-                    />
-                    Select all outdated
-                  </label>
-                  {sectionSelectedCount > 0 && (
-                    <span className="text-xs text-muted-foreground">
-                      {sectionSelectedCount} selected
-                    </span>
-                  )}
-                </div>
-                <div className="max-h-80 space-y-1.5 overflow-y-auto pr-1">
-                  {visiblePackages.map((pkg) => {
-                    const key = packageKey(pkg);
-                    const tick = progress.get(pkg.name);
-                    return (
-                      <label
-                        key={key}
-                        className="flex cursor-pointer items-center gap-3 rounded-lg border border-border bg-card/60 px-3 py-2 transition-colors hover:bg-card"
-                      >
-                        <Checkbox checked={selected.has(key)} onCheckedChange={() => toggle(key)} />
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-2">
-                            <span className="truncate text-sm font-medium">{pkg.name}</span>
-                            {pkg.isDev && (
-                              <Badge
-                                variant="outline"
-                                className="px-1.5 py-0 text-[10px] leading-4"
-                              >
-                                dev
-                              </Badge>
-                            )}
-                            {showProjectLabel && (
-                              <Badge
-                                variant="outline"
-                                className="px-1.5 py-0 text-[10px] leading-4"
-                              >
-                                {pkg.projectLabel}
-                              </Badge>
-                            )}
-                          </div>
-                          <div className="flex items-center gap-1.5 font-mono text-xs text-muted-foreground">
-                            <span>{pkg.currentVersion}</span>
-                            {pkg.isOutdated && pkg.latestVersion && (
-                              <>
-                                <ArrowRight className="h-2.5 w-2.5" />
-                                <span className="text-foreground">{pkg.latestVersion}</span>
-                              </>
-                            )}
-                          </div>
-                        </div>
-                        <div className="flex w-28 shrink-0 items-center justify-end gap-2">
-                          {tick?.status === 'running' && (
-                            <Spinner className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
-                          )}
-                          {tick?.status === 'done' && (
-                            <Check className="h-3.5 w-3.5 text-success" />
-                          )}
-                          {tick?.status === 'error' && (
-                            <SimpleTooltip label={tick.message ?? 'Update failed'} wrapTrigger>
-                              <TriangleAlert className="h-3.5 w-3.5 text-destructive" />
-                            </SimpleTooltip>
-                          )}
-                          {!tick &&
-                            (pkg.isOutdated ? (
-                              <Badge variant="warning">Outdated</Badge>
-                            ) : (
-                              <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                                <Check className="h-3 w-3 text-success" /> Up to date
-                              </span>
-                            ))}
-                        </div>
-                      </label>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-          </div>
-        );
-      })}
-    </div>
   );
 }
 

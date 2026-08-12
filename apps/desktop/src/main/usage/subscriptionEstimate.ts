@@ -58,11 +58,13 @@ interface PlanBudget {
  */
 const PLAN_BUDGETS: Record<string, PlanBudget> = {
   pro: { session: 18, week: 90 },
-  max: { session: 35, week: 350, fableWeek: 120 },
-  max5x: { session: 35, week: 350, fableWeek: 120 },
-  max20x: { session: 140, week: 1400, fableWeek: 480 },
-  team: { session: 25, week: 125, fableWeek: 45 },
-  enterprise: { session: 35, week: 350, fableWeek: 120 },
+  // Max is sold as 5× / 20× Pro usage. The previous Max 5× session figure
+  // (35) was only ~2× Pro, so a Max account's estimate bars filled like Pro.
+  max: { session: 90, week: 450, fableWeek: 150 },
+  max5x: { session: 90, week: 450, fableWeek: 150 },
+  max20x: { session: 360, week: 1800, fableWeek: 600 },
+  team: { session: 90, week: 450, fableWeek: 150 },
+  enterprise: { session: 90, week: 450, fableWeek: 150 },
 };
 
 const FALLBACK_BUDGET = PLAN_BUDGETS.pro;

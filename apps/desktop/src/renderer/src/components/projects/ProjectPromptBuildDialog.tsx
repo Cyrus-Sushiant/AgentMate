@@ -14,6 +14,7 @@ import {
 } from '@/components/icons';
 import { cn } from '@/lib/utils';
 import { containsPersian } from '@/lib/rtl';
+import { isShortcutLetter } from '@/lib/shortcutKey';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import {
   Dialog,
@@ -125,18 +126,17 @@ export function ProjectPromptBuildDialog({
         onKeyDown={(event) => {
           if (event.shiftKey || event.altKey) return;
           if (!(event.ctrlKey || event.metaKey)) return;
-          const key = event.key.toLowerCase();
-          if (event.key === 'Enter' || key === 'g') {
+          if (event.key === 'Enter' || isShortcutLetter(event, 'g')) {
             event.preventDefault();
             if (hasRequest && !isBusy) void handleGenerate();
             return;
           }
-          if (key === 't') {
+          if (isShortcutLetter(event, 't')) {
             event.preventDefault();
             if (hasRequest && !isBusy) void handleTranslate();
             return;
           }
-          if (key === 'c') {
+          if (isShortcutLetter(event, 'c')) {
             if (hasTextSelection() || !generated || isBusy) return;
             event.preventDefault();
             void onCopy();

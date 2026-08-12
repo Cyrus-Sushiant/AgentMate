@@ -639,7 +639,11 @@ export interface SystemStatsSample {
   /** e.g. "Intel(R) Core(TM) i7-9700K CPU @ 3.60GHz". */
   cpuModel: string;
   cpuCoreCount: number;
-  /** Aggregate usage across all cores (average of cpuCorePercents). */
+  /**
+   * Aggregate CPU usage, 0-100. On Windows this is % Processor Time, the
+   * same formula Windows 11 Task Manager uses (busy time / elapsed / cores).
+   * On other platforms it is the average of cpuCorePercents.
+   */
   cpuPercent: number;
   /** Per-logical-core usage, same order as reported by the OS. */
   cpuCorePercents: number[];

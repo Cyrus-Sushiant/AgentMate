@@ -1,31 +1,45 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import {
+  Bell,
   Blocks,
+  CircleQuestion,
   Download,
+  Eye,
+  EyeOff,
   FolderOpen,
   HardDrive,
+  Languages,
   MessageSquare,
+  Microphone,
   Monitor,
   Moon,
+  NetworkIcon,
   RefreshCw,
-  Robot,
+  Save,
+  Search,
   SettingsIcon,
   Sun,
+  TerminalSquare,
   Upload,
+  X,
 } from '@/components/icons';
 import { CLI_REGISTRY } from '@agentmat/core';
 import { cliOptionIcon } from '@/components/cliLogos';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Combobox } from '@/components/ui/combobox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Separator } from '@/components/ui/separator';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Switch } from '@/components/ui/switch';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { SimpleTooltip } from '@/components/ui/tooltip';
 import { queryKeys } from '@/lib/queryKeys';
+import { isShortcutLetter } from '@/lib/shortcutKey';
 import { usePageHeader } from '@/stores/pageHeaderStore';
 import { useCliStore } from '@/stores/cliStore';
 import { useThemeStore } from '@/stores/themeStore';
@@ -41,8 +55,6 @@ const PROMPT_BUILDER_PROVIDER_OPTIONS: { value: AiProvider; label: string }[] = 
   { value: 'ollama', label: 'Ollama' },
 ];
 
-// Whisper's most common languages for voice input; "auto" lets the model
-// detect the spoken language. Codes match Prompt Builder's translate list.
 const SPEECH_LANGUAGES: { value: string; label: string }[] = [
   { value: 'auto', label: 'Auto-detect' },
   { value: 'en', label: 'English' },
@@ -57,63 +69,38 @@ const SPEECH_LANGUAGES: { value: string; label: string }[] = [
   { value: 'tr', label: 'Turkish' },
 ];
 
-const THEME_OPTIONS: { value: ThemeMode; label: string; icon: typeof Sun }[] = [
-  { value: 'light', label: 'Light', icon: Sun },
-  { value: 'dark', label: 'Dark', icon: Moon },
-  { value: 'system', label: 'System', icon: Monitor },
+const THEME_OPTIONS: { value: ThemeMode; label: string; hint: string; icon: typeof Sun }[] = [
+  { value: 'light', label: 'Light', hint: 'Bright canvas', icon: Sun },
+  { value: 'dark', label: 'Dark', hint: 'Near-black canvas', icon: Moon },
+  { value: 'system', label: 'System', hint: 'Follow this machine', icon: Monitor },
 ];
 
-function SettingsPanel({ children }: { children: ReactNode }): React.JSX.Element {
-  return <div className="glass divide-y divide-border/60 rounded-lg">{children}</div>;
+const SETTINGS_TABS = ['general', 'ai', 'notifications', 'data'] as const;
+type SettingsTab = (typeof SETTINGS_TABS)[number];
+
+function isSettingsTab(value: string | null): value is SettingsTab {
+  return SETTINGS_TABS.includes(value as SettingsTab);
 }
 
-function SettingsSection({
-  title,
-  description,
-  children,
-  action,
-}: {
-  title: string;
-  description?: ReactNode;
-  children: ReactNode;
-  action?: ReactNode;
-}): React.JSX.Element {
-  return (
-    <section className="px-5 py-5">
-      <div className="mb-4 flex items-start justify-between gap-4">
-        <div className="min-w-0 space-y-1">
-          <h3 className="text-sm font-semibold tracking-tight">{title}</h3>
-          {description ? (
-            <div className="text-sm text-muted-foreground">{description}</div>
-          ) : null}
-        </div>
-        {action ? <div className="shrink-0">{action}</div> : null}
-      </div>
-      {children}
-    </section>
-  );
-}
-
-function Field({
-  label,
-  htmlFor,
-  hint,
-  children,
-  className,
-}: {
+const TAB_META: {
+  id: SettingsTab;
   label: string;
-  htmlFor?: string;
-  hint?: ReactNode;
-  children: ReactNode;
-  className?: string;
-}): React.JSX.Element {
-  return (
-    <div className={cn('space-y-1.5', className)}>
-      <Label htmlFor={htmlFor}>{label}</Label>
-      {children}
-      {hint ? <p className="text-xs text-muted-foreground">{hint}</p> : null}
-    </div>
-  );
+  icon: typeof SettingsIcon;
+  keywords: string;
+}[] = [
+  { id: 'general', label: 'General', icon: SettingsIcon, keywords: 'appearance theme cli projects folder skills' },
+  { id: 'ai', label: 'AI', icon: MessageSquare, keywords: 'openai gemini ollama api key whisper voice translate' },
+  { id: 'notifications', label: 'Notifications', icon: Bell, keywords: 'telegram bot chat notify' },
+  { id: 'data', label: 'Data', icon: HardDrive, keywords: 'backup restore ping network about version update' },
+];
+
+function matchesQuery(query: string, ...parts: Array<string | undefined>): boolean {
+  if (!query) return true;
+  return parts.some((part) => part?.toLowerCase().includes(query));
+}
+
+function saveShortcutLabel(): string {
+  return typeof navigator !== 'undefined' && /mac/i.test(navigator.platform) ? '⌘S' : 'Ctrl+S';
 }
 
 function ExternalLinkButton({
@@ -134,8 +121,205 @@ function ExternalLinkButton({
   );
 }
 
+function Field({
+  label,
+  htmlFor,
+  hint,
+  children,
+  className,
+}: {
+  label: string;
+  htmlFor?: string;
+  hint?: ReactNode;
+  children: ReactNode;
+  className?: string;
+}): React.JSX.Element {
+  return (
+    <div className={cn('space-y-1.5', className)}>
+      <Label htmlFor={htmlFor}>{label}</Label>
+      {children}
+      {hint ? <p className="text-xs leading-relaxed text-muted-foreground">{hint}</p> : null}
+    </div>
+  );
+}
+
+function SecretInput({
+  id,
+  value,
+  onChange,
+  placeholder,
+  className,
+}: {
+  id?: string;
+  value: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+  className?: string;
+}): React.JSX.Element {
+  const [visible, setVisible] = useState(false);
+  return (
+    <div className="relative">
+      <Input
+        id={id}
+        type={visible ? 'text' : 'password'}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder={placeholder}
+        autoComplete="off"
+        spellCheck={false}
+        className={cn('pr-9 font-mono', className)}
+      />
+      <button
+        type="button"
+        className="absolute right-1.5 top-1/2 flex h-7 w-7 -translate-y-1/2 cursor-pointer items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+        onClick={() => setVisible((current) => !current)}
+        aria-label={visible ? 'Hide value' : 'Show value'}
+      >
+        {visible ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+      </button>
+    </div>
+  );
+}
+
+function SettingsCard({
+  icon: Icon,
+  title,
+  description,
+  action,
+  dirty,
+  children,
+}: {
+  icon: typeof Sun;
+  title: string;
+  description?: ReactNode;
+  action?: ReactNode;
+  dirty?: boolean;
+  children?: ReactNode;
+}): React.JSX.Element {
+  return (
+    <Card className={cn('glass', dirty && 'ring-1 ring-primary/35')}>
+      <CardHeader className={cn('flex-row items-start justify-between gap-4', !children && 'pb-5')}>
+        <div className="flex min-w-0 items-start gap-3">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+            <Icon className="h-4 w-4" />
+          </div>
+          <div className="min-w-0 space-y-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <CardTitle>{title}</CardTitle>
+              {dirty ? (
+                <Badge variant="warning" className="font-normal">
+                  Unsaved
+                </Badge>
+              ) : null}
+            </div>
+            {description ? <CardDescription>{description}</CardDescription> : null}
+          </div>
+        </div>
+        {action ? <div className="shrink-0">{action}</div> : null}
+      </CardHeader>
+      {children ? <CardContent>{children}</CardContent> : null}
+    </Card>
+  );
+}
+
+function ThemePreview({ mode }: { mode: ThemeMode }): React.JSX.Element {
+  if (mode === 'system') {
+    return (
+      <div className="flex h-16 overflow-hidden rounded-md border border-border">
+        <MiniWindow dark={false} className="w-1/2 rounded-none border-0 border-r border-black/10" />
+        <MiniWindow dark className="w-1/2 rounded-none border-0" />
+      </div>
+    );
+  }
+  return <MiniWindow dark={mode === 'dark'} className="h-16" />;
+}
+
+function MiniWindow({ dark, className }: { dark: boolean; className?: string }): React.JSX.Element {
+  return (
+    <div
+      className={cn(
+        'flex overflow-hidden rounded-md border',
+        dark ? 'border-white/10 bg-[#0a0a0a]' : 'border-black/10 bg-[#f4f4f4]',
+        className,
+      )}
+    >
+      <div className={cn('w-5 shrink-0', dark ? 'bg-[#1c1c1c]' : 'bg-[#e4e4e4]')} />
+      <div className="flex min-w-0 flex-1 flex-col gap-1 p-1.5">
+        <div className={cn('h-1.5 w-7 rounded-full', dark ? 'bg-white/25' : 'bg-black/20')} />
+        <div className="h-1.5 w-10 rounded-full bg-[hsl(var(--primary))]" />
+        <div className={cn('mt-0.5 min-h-0 flex-1 rounded-sm', dark ? 'bg-white/8' : 'bg-black/8')} />
+      </div>
+    </div>
+  );
+}
+
+function HostChips({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+}): React.JSX.Element {
+  const [draft, setDraft] = useState('');
+  const hosts = useMemo(
+    () => Array.from(new Set(value.split(',').map((host) => host.trim()).filter(Boolean))),
+    [value],
+  );
+
+  function commit(raw: string): void {
+    const next = raw.trim();
+    if (!next || hosts.includes(next)) {
+      setDraft('');
+      return;
+    }
+    onChange([...hosts, next].join(', '));
+    setDraft('');
+  }
+
+  function remove(host: string): void {
+    onChange(hosts.filter((item) => item !== host).join(', '));
+  }
+
+  return (
+    <div className="flex min-h-9 flex-wrap items-center gap-1.5 rounded-lg border border-input bg-background px-2 py-1.5 shadow-[inset_0_1px_0_0_hsl(0_0%_100%/0.04)] transition-colors focus-within:border-primary/50 focus-within:ring-2 focus-within:ring-ring/50">
+      {hosts.map((host) => (
+        <span
+          key={host}
+          className="inline-flex items-center gap-1 rounded-md bg-secondary px-2 py-0.5 font-mono text-xs"
+        >
+          {host}
+          <button
+            type="button"
+            className="cursor-pointer rounded-sm p-0.5 text-muted-foreground hover:bg-accent hover:text-foreground"
+            aria-label={`Remove ${host}`}
+            onClick={() => remove(host)}
+          >
+            <X className="h-3 w-3" />
+          </button>
+        </span>
+      ))}
+      <input
+        value={draft}
+        onChange={(event) => setDraft(event.target.value)}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter' || event.key === ',') {
+            event.preventDefault();
+            commit(draft);
+          } else if (event.key === 'Backspace' && !draft && hosts.length > 0) {
+            remove(hosts[hosts.length - 1]);
+          }
+        }}
+        onBlur={() => commit(draft)}
+        placeholder={hosts.length === 0 ? '1.1.1.1' : 'Add host'}
+        className="min-w-[8rem] flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+      />
+    </div>
+  );
+}
+
 export default function SettingsPage(): React.JSX.Element {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const defaultCliId = useCliStore((s) => s.defaultCliId);
   const setDefaultCliId = useCliStore((s) => s.setDefaultCliId);
   const theme = useThemeStore((s) => s.theme);
@@ -144,6 +328,11 @@ export default function SettingsPage(): React.JSX.Element {
   const setPingTargets = usePingTargetsStore((s) => s.setPingTargets);
 
   const queryClient = useQueryClient();
+  const tab: SettingsTab = isSettingsTab(searchParams.get('tab'))
+    ? (searchParams.get('tab') as SettingsTab)
+    : 'general';
+  const [search, setSearch] = useState('');
+  const query = search.trim().toLowerCase();
 
   const reposQuery = useQuery({
     queryKey: queryKeys.repositories,
@@ -407,7 +596,6 @@ export default function SettingsPage(): React.JSX.Element {
     const result = await window.agentmat.app.checkForUpdates();
     if (result.state === 'not-available') toast.success("You're on the latest version.");
     else if (result.state === 'error') toast.error(result.message);
-    // 'available' is surfaced globally as a confirm dialog once the check resolves.
   }
 
   function updateStatusLabel(): string {
@@ -436,536 +624,736 @@ export default function SettingsPage(): React.JSX.Element {
         ? 'dev build'
         : `v${appVersionQuery.data}`;
 
-  usePageHeader('Settings', 'Configure defaults for AgentMate.');
+  const tabDirty: Record<SettingsTab, boolean> = {
+    general: projectsRootDirty,
+    ai: aiDirty || speechDirty || translateRetriesDirty,
+    notifications: telegramDirty,
+    data: pingTargetsDirty,
+  };
+  const anyDirty = Object.values(tabDirty).some(Boolean);
+  const saving =
+    saveProjectsRootMutation.isPending ||
+    saveAiMutation.isPending ||
+    saveSpeechMutation.isPending ||
+    saveTranslateRetriesMutation.isPending ||
+    saveTelegramMutation.isPending;
+
+  async function handleSaveAll(): Promise<void> {
+    if (projectsRootDirty) await saveProjectsRootMutation.mutateAsync();
+    if (aiDirty) await saveAiMutation.mutateAsync();
+    if (speechDirty) await saveSpeechMutation.mutateAsync();
+    if (translateRetriesDirty) await saveTranslateRetriesMutation.mutateAsync();
+    if (telegramDirty) await saveTelegramMutation.mutateAsync();
+    if (pingTargetsDirty) handleSavePingTargets();
+  }
+
+  function handleDiscardAll(): void {
+    setProjectsRootDirty(false);
+    setAiDirty(false);
+    setSpeechDirty(false);
+    setTranslateRetriesDirty(false);
+    setTelegramDirty(false);
+    setPingTargetsDirty(false);
+  }
+
+  const saveAllRef = useRef(handleSaveAll);
+  saveAllRef.current = handleSaveAll;
+  const anyDirtyRef = useRef(anyDirty);
+  anyDirtyRef.current = anyDirty;
+
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent): void {
+      if (!(event.metaKey || event.ctrlKey)) return;
+      if (!isShortcutLetter(event, 's')) return;
+      if (!anyDirtyRef.current) return;
+      event.preventDefault();
+      void saveAllRef.current();
+    }
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, []);
+
+  usePageHeader('Settings', anyDirty ? 'You have unsaved changes.' : 'Defaults for this machine.');
+
+  function selectTab(next: SettingsTab): void {
+    const nextParams = new URLSearchParams(searchParams);
+    if (next === 'general') nextParams.delete('tab');
+    else nextParams.set('tab', next);
+    setSearchParams(nextParams, { replace: true });
+    setSearch('');
+  }
+
+  function showSection(sectionTab: SettingsTab, keywords: string, title: string): boolean {
+    if (query) return matchesQuery(query, title, keywords, TAB_META.find((item) => item.id === sectionTab)?.label);
+    return tab === sectionTab;
+  }
+
+  const visibleCount = [
+    showSection('general', 'appearance theme dark light system look', 'Appearance'),
+    showSection('general', 'default cli provider agent', 'Default CLI'),
+    showSection('general', 'projects folder path directory', 'Projects folder'),
+    showSection('general', 'skills repositories sources', 'Skill repositories'),
+    showSection('ai', 'openai gemini ollama api key model prompt builder provider', 'Providers'),
+    showSection('ai', 'voice whisper speech microphone transcription', 'Voice input'),
+    showSection('ai', 'translation retries translate', 'Translation retries'),
+    showSection('notifications', 'telegram bot token chat notify', 'Telegram bot'),
+    showSection('data', 'ping network hosts dashboard', 'Network ping targets'),
+    showSection('data', 'backup restore export import zip', 'Backup & restore'),
+    showSection('data', 'about version update check', 'About'),
+  ].filter(Boolean).length;
+
+  const repoCount = reposQuery.data?.length ?? 0;
+  const telegramReady = Boolean(botToken.trim() && chatId.trim());
 
   return (
-    <div className="mx-auto w-full max-w-3xl p-6">
-      <Tabs defaultValue="general" className="flex flex-col gap-4">
-        <TabsList containerClassName="self-start">
-          <TabsTrigger value="general" className="gap-1.5">
-            <SettingsIcon className="h-3.5 w-3.5" /> General
-          </TabsTrigger>
-          <TabsTrigger value="ai" className="gap-1.5">
-            <MessageSquare className="h-3.5 w-3.5" /> AI
-          </TabsTrigger>
-          <TabsTrigger value="notifications" className="gap-1.5">
-            <Robot className="h-3.5 w-3.5" /> Notifications
-          </TabsTrigger>
-          <TabsTrigger value="data" className="gap-1.5">
-            <HardDrive className="h-3.5 w-3.5" /> Data
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="general" className="mt-0">
-          <SettingsPanel>
-            <SettingsSection title="Appearance" description="How AgentMate looks on this machine.">
-              <div
-                role="group"
-                aria-label="Theme"
-                className="inline-flex rounded-md border border-border bg-background/40 p-0.5"
+    <div className="flex min-h-full flex-col">
+      <div className="sticky top-0 z-20 border-b border-border/80 bg-background/80 px-6 py-3 backdrop-blur-xl">
+        <div className="mx-auto flex w-full max-w-5xl flex-col gap-3">
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-2.5 top-2.5 z-10 h-4 w-4 text-muted-foreground" />
+            <Input
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Search settings…"
+              className="pl-8 pr-8"
+              aria-label="Search settings"
+            />
+            {search ? (
+              <button
+                type="button"
+                className="absolute right-1.5 top-1/2 flex h-7 w-7 -translate-y-1/2 cursor-pointer items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
+                aria-label="Clear search"
+                onClick={() => setSearch('')}
               >
-                {THEME_OPTIONS.map((option) => {
-                  const active = theme === option.value;
-                  return (
+                <X className="h-3.5 w-3.5" />
+              </button>
+            ) : null}
+          </div>
+          {!query ? (
+            <Tabs value={tab} onValueChange={(value) => selectTab(value as SettingsTab)} className="lg:hidden">
+              <TabsList containerClassName="border-0">
+                {TAB_META.map((item) => (
+                  <TabsTrigger key={item.id} value={item.id} className="gap-1.5">
+                    <item.icon className="h-3.5 w-3.5" />
+                    {item.label}
+                    {tabDirty[item.id] ? (
+                      <span className="h-1.5 w-1.5 rounded-full bg-primary" aria-label="Unsaved changes" />
+                    ) : null}
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+            </Tabs>
+          ) : null}
+        </div>
+      </div>
+
+      <div className="mx-auto flex w-full max-w-5xl flex-1 gap-8 px-6 py-6">
+        {!query ? (
+          <nav
+            aria-label="Settings categories"
+            className="sticky top-[4.75rem] hidden h-fit w-48 shrink-0 lg:block"
+          >
+            <ul className="space-y-1">
+              {TAB_META.map((item) => {
+                const active = tab === item.id;
+                return (
+                  <li key={item.id}>
                     <button
-                      key={option.value}
                       type="button"
-                      onClick={() => setTheme(option.value)}
+                      onClick={() => selectTab(item.id)}
                       className={cn(
-                        'inline-flex h-8 items-center gap-1.5 rounded-[5px] px-3 text-sm transition-colors',
+                        'flex w-full cursor-pointer items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition-colors duration-150',
                         active
-                          ? 'bg-secondary text-foreground shadow-sm'
-                          : 'text-muted-foreground hover:text-foreground',
+                          ? 'bg-primary/15 font-medium text-foreground'
+                          : 'text-muted-foreground hover:bg-accent hover:text-foreground',
                       )}
+                      aria-current={active ? 'page' : undefined}
                     >
-                      <option.icon className="h-3.5 w-3.5" />
-                      {option.label}
+                      <item.icon className={cn('h-3.5 w-3.5', active && 'text-primary')} />
+                      <span className="flex-1 text-left">{item.label}</span>
+                      {tabDirty[item.id] ? (
+                        <span className="h-1.5 w-1.5 rounded-full bg-primary" aria-label="Unsaved changes" />
+                      ) : null}
                     </button>
-                  );
-                })}
-              </div>
-            </SettingsSection>
+                  </li>
+                );
+              })}
+            </ul>
+          </nav>
+        ) : null}
 
-            <SettingsSection
-              title="Default CLI"
-              description="Used when a feature needs an AI provider without asking."
-            >
-              <Combobox
-                className="w-64"
-                value={defaultCliId ?? ''}
-                onChange={(v) => setDefaultCliId(v || null)}
-                placeholder="No default set"
-                searchPlaceholder="Search CLIs…"
-                options={CLI_REGISTRY.map((cli) => ({
-                  value: cli.id,
-                  label: cli.name,
-                  icon: cliOptionIcon(cli.id),
-                }))}
-                clearable
-              />
-            </SettingsSection>
-
-            <SettingsSection
-              title="Projects folder"
-              description="Folder pickers open here instead of the system default. Leave empty to use the last system location."
-              action={
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={!projectsRootDirty || saveProjectsRootMutation.isPending}
-                  onClick={() => saveProjectsRootMutation.mutate()}
-                >
-                  Save
-                </Button>
-              }
-            >
-              <div className="flex flex-wrap items-center gap-2">
-                <Input
-                  value={projectsRootPath}
-                  onChange={(e) => {
-                    setProjectsRootPath(e.target.value);
-                    setProjectsRootDirty(true);
-                  }}
-                  placeholder="C:\Users\you\Projects"
-                  className="min-w-[16rem] flex-1 font-mono text-xs"
-                />
-                <Button variant="outline" size="sm" onClick={handleBrowseProjectsRoot}>
-                  <FolderOpen /> Browse…
-                </Button>
-              </div>
-            </SettingsSection>
-
-            <SettingsSection
-              title="Skill repositories"
-              description={`${reposQuery.data?.length ?? 0} repositor${reposQuery.data?.length === 1 ? 'y' : 'ies'} configured.`}
-              action={
-                <Button variant="outline" size="sm" onClick={() => navigate('/skills')}>
-                  <Blocks /> Manage
-                </Button>
-              }
-            >
-              <p className="text-sm text-muted-foreground">
-                Add and sync skill sources from the Skills page.
+        <div className="min-w-0 flex-1 space-y-4">
+          {settingsQuery.isLoading ? (
+            Array.from({ length: 4 }, (_, index) => (
+              <Card key={index} className="glass">
+                <CardHeader className="flex-row items-start gap-3">
+                  <Skeleton className="h-9 w-9 shrink-0 rounded-lg" />
+                  <div className="flex-1 space-y-2">
+                    <Skeleton className="h-4 w-32" />
+                    <Skeleton className="h-3 w-56" />
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <Skeleton className="h-9 w-full" />
+                </CardContent>
+              </Card>
+            ))
+          ) : settingsQuery.isError ? (
+            <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed border-border px-4 py-16 text-center">
+              <p className="text-sm font-medium">Could not load settings</p>
+              <p className="max-w-sm text-sm text-muted-foreground">
+                Something went wrong reading this machine's defaults.
               </p>
-            </SettingsSection>
-          </SettingsPanel>
-        </TabsContent>
-
-        <TabsContent value="ai" className="mt-0">
-          <SettingsPanel>
-            <SettingsSection
-              title="Providers"
-              description="Keys and models used by Ask AI and Prompt Builder."
-              action={
-                <Button
-                  size="sm"
-                  disabled={!aiDirty || saveAiMutation.isPending}
-                  onClick={() => saveAiMutation.mutate()}
-                >
-                  Save
-                </Button>
-              }
-            >
-              <div className="space-y-5">
-                <div className="space-y-3">
-                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                    OpenAI
-                  </p>
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <Field
-                      label="API key"
-                      htmlFor="openai-api-key"
-                      hint={
-                        <>
-                          Create one at{' '}
-                          <ExternalLinkButton href="https://platform.openai.com/api-keys">
-                            platform.openai.com/api-keys
-                          </ExternalLinkButton>
-                          .
-                        </>
-                      }
-                      className="sm:col-span-2"
-                    >
-                      <Input
-                        id="openai-api-key"
-                        type="password"
-                        value={openaiApiKey}
-                        onChange={(e) => {
-                          setOpenaiApiKey(e.target.value);
-                          setAiDirty(true);
-                        }}
-                        placeholder="sk-…"
-                        className="font-mono"
-                        autoComplete="off"
-                      />
-                    </Field>
-                    <Field label="Default model" htmlFor="openai-model">
-                      <Input
-                        id="openai-model"
-                        value={openaiModel}
-                        onChange={(e) => {
-                          setOpenaiModel(e.target.value);
-                          setAiDirty(true);
-                        }}
-                        placeholder="gpt-4o-mini"
-                        className="font-mono"
-                      />
-                    </Field>
-                  </div>
-                </div>
-
-                <Separator />
-
-                <div className="space-y-3">
-                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                    Gemini
-                  </p>
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <Field
-                      label="API key"
-                      htmlFor="gemini-api-key"
-                      hint={
-                        <>
-                          Create one at{' '}
-                          <ExternalLinkButton href="https://aistudio.google.com/apikey">
-                            aistudio.google.com/apikey
-                          </ExternalLinkButton>
-                          .
-                        </>
-                      }
-                      className="sm:col-span-2"
-                    >
-                      <Input
-                        id="gemini-api-key"
-                        type="password"
-                        value={geminiApiKey}
-                        onChange={(e) => {
-                          setGeminiApiKey(e.target.value);
-                          setAiDirty(true);
-                        }}
-                        placeholder="AIza…"
-                        className="font-mono"
-                        autoComplete="off"
-                      />
-                    </Field>
-                    <Field label="Default model" htmlFor="gemini-model">
-                      <Input
-                        id="gemini-model"
-                        value={geminiModel}
-                        onChange={(e) => {
-                          setGeminiModel(e.target.value);
-                          setAiDirty(true);
-                        }}
-                        placeholder="gemini-2.0-flash"
-                        className="font-mono"
-                      />
-                    </Field>
-                  </div>
-                </div>
-
-                <Separator />
-
-                <div className="space-y-3">
-                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                    Ollama
-                  </p>
-                  <Field
-                    label="Server URL"
-                    htmlFor="ollama-base-url"
-                    hint={
-                      <>
-                        Address of a running{' '}
-                        <ExternalLinkButton href="https://ollama.com">Ollama</ExternalLinkButton>{' '}
-                        instance. Leave the default if it runs on this machine.
-                      </>
-                    }
-                  >
-                    <Input
-                      id="ollama-base-url"
-                      value={ollamaBaseUrl}
-                      onChange={(e) => {
-                        setOllamaBaseUrl(e.target.value);
-                        setAiDirty(true);
-                      }}
-                      placeholder="http://localhost:11434"
-                      className="max-w-md font-mono"
-                    />
-                  </Field>
-                </div>
-
-                <Separator />
-
-                <Field
-                  label="Prompt Builder provider"
-                  hint="Used by Generate Prompt. Uses the key and model for that provider above."
-                >
-                  <Combobox
-                    className="w-40"
-                    value={promptBuilderProvider}
-                    onChange={(v) => {
-                      setPromptBuilderProvider(v as AiProvider);
-                      setAiDirty(true);
-                    }}
-                    options={PROMPT_BUILDER_PROVIDER_OPTIONS}
-                  />
-                </Field>
+              <Button variant="outline" size="sm" onClick={() => void settingsQuery.refetch()}>
+                Try again
+              </Button>
+            </div>
+          ) : visibleCount === 0 ? (
+            <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed border-border px-4 py-16 text-center">
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary">
+                <Search className="h-5 w-5" />
               </div>
-            </SettingsSection>
-
-            <SettingsSection
-              title="Voice input"
-              description="Local Whisper transcription for Prompt Builder. The model downloads once and stays cached."
-              action={
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={!speechDirty || saveSpeechMutation.isPending}
-                  onClick={() => saveSpeechMutation.mutate()}
-                >
-                  Save
-                </Button>
-              }
-            >
-              <div className="grid max-w-lg grid-cols-1 gap-3 sm:grid-cols-2">
-                <Field label="Model">
-                  <Combobox
-                    value={speechModel}
-                    onChange={(v) => {
-                      setSpeechModel(v);
-                      setSpeechDirty(true);
-                    }}
-                    options={[
-                      { value: 'tiny', label: 'Tiny (fastest, ~75 MB)' },
-                      { value: 'base', label: 'Base (balanced, ~145 MB)' },
-                      { value: 'small', label: 'Small (most accurate, ~490 MB)' },
-                    ]}
-                  />
-                </Field>
-                <Field label="Spoken language">
-                  <Combobox
-                    value={speechLanguage}
-                    onChange={(v) => {
-                      setSpeechLanguage(v);
-                      setSpeechDirty(true);
-                    }}
-                    options={SPEECH_LANGUAGES}
-                  />
-                </Field>
+              <div className="space-y-1">
+                <p className="text-sm font-medium">No settings match “{search.trim()}”</p>
+                <p className="max-w-sm text-sm text-muted-foreground">
+                  Try theme, API key, Telegram, backup, or a category name.
+                </p>
               </div>
-            </SettingsSection>
-
-            <SettingsSection
-              title="Translation retries"
-              description="Extra attempts Prompt Builder makes if a translate request fails."
-              action={
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={!translateRetriesDirty || saveTranslateRetriesMutation.isPending}
-                  onClick={() => saveTranslateRetriesMutation.mutate()}
+              <Button variant="outline" size="sm" onClick={() => setSearch('')}>
+                Clear search
+              </Button>
+            </div>
+          ) : (
+            <>
+              {showSection('general', 'appearance theme dark light system look', 'Appearance') && (
+                <SettingsCard
+                  icon={theme === 'dark' ? Moon : theme === 'light' ? Sun : Monitor}
+                  title="Appearance"
+                  description="How AgentMate looks on this machine."
                 >
-                  Save
-                </Button>
-              }
-            >
-              <Input
-                type="number"
-                min={0}
-                max={10}
-                value={translateMaxRetriesText}
-                onChange={(e) => {
-                  setTranslateMaxRetriesText(e.target.value);
-                  setTranslateRetriesDirty(true);
-                }}
-                className="w-24"
-              />
-            </SettingsSection>
-          </SettingsPanel>
-        </TabsContent>
+                  <div role="group" aria-label="Theme" className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                    {THEME_OPTIONS.map((option) => {
+                      const active = theme === option.value;
+                      return (
+                        <button
+                          key={option.value}
+                          type="button"
+                          onClick={() => setTheme(option.value)}
+                          className={cn(
+                            'cursor-pointer rounded-lg border p-3 text-left transition-all duration-150',
+                            active
+                              ? 'border-primary/50 bg-primary/10 ring-1 ring-primary/40'
+                              : 'border-border bg-background/40 hover:border-foreground/20 hover:bg-accent/40',
+                          )}
+                          aria-pressed={active}
+                        >
+                          <ThemePreview mode={option.value} />
+                          <div className="mt-2.5 flex items-center gap-2">
+                            <option.icon className="h-3.5 w-3.5 text-muted-foreground" />
+                            <span className="text-sm font-medium">{option.label}</span>
+                          </div>
+                          <p className="mt-0.5 text-xs text-muted-foreground">{option.hint}</p>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </SettingsCard>
+              )}
 
-        <TabsContent value="notifications" className="mt-0">
-          <SettingsPanel>
-            <SettingsSection
-              title="Telegram bot"
-              description={
-                <>
-                  Used by project notification hooks. Create a bot with{' '}
-                  <ExternalLinkButton href="https://t.me/BotFather">@BotFather</ExternalLinkButton>,
-                  then paste its token below.
-                </>
-              }
-              action={
-                <div className="flex items-center gap-2">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    disabled={
-                      sendingTest || (!botToken.trim() && !settingsQuery.data?.telegramBotToken)
-                    }
-                    onClick={() => void handleSendTest()}
-                  >
-                    {sendingTest ? 'Sending…' : 'Send test'}
-                  </Button>
-                  <Button
-                    size="sm"
-                    disabled={!telegramDirty || saveTelegramMutation.isPending}
-                    onClick={() => saveTelegramMutation.mutate()}
-                  >
-                    Save
-                  </Button>
-                </div>
-              }
-            >
-              <div className="space-y-4">
-                <Field label="Bot token" htmlFor="telegram-bot-token">
-                  <Input
-                    id="telegram-bot-token"
-                    type="password"
-                    value={botToken}
-                    onChange={(e) => {
-                      setBotToken(e.target.value);
-                      setTelegramDirty(true);
-                    }}
-                    placeholder="123456789:AAExampleTokenFromBotFather"
-                    className="max-w-md font-mono"
-                    autoComplete="off"
+              {showSection('general', 'default cli provider agent', 'Default CLI') && (
+                <SettingsCard
+                  icon={TerminalSquare}
+                  title="Default CLI"
+                  description="Used when a feature needs an AI provider without asking."
+                >
+                  <Combobox
+                    className="max-w-sm"
+                    value={defaultCliId ?? ''}
+                    onChange={(value) => setDefaultCliId(value || null)}
+                    placeholder="No default set"
+                    searchPlaceholder="Search CLIs…"
+                    options={CLI_REGISTRY.map((cli) => ({
+                      value: cli.id,
+                      label: cli.name,
+                      icon: cliOptionIcon(cli.id),
+                    }))}
+                    clearable
                   />
-                </Field>
+                </SettingsCard>
+              )}
 
-                <Field
-                  label="Chat ID"
-                  htmlFor="telegram-chat-id"
-                  hint="Message your bot once on Telegram, then click detect."
+              {showSection('general', 'projects folder path directory', 'Projects folder') && (
+                <SettingsCard
+                  icon={FolderOpen}
+                  title="Projects folder"
+                  description="Folder pickers open here instead of the system default. Leave empty to use the last system location."
+                  dirty={projectsRootDirty}
                 >
-                  <div className="flex flex-wrap gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     <Input
-                      id="telegram-chat-id"
-                      value={chatId}
-                      onChange={(e) => {
-                        setChatId(e.target.value);
-                        setTelegramDirty(true);
+                      value={projectsRootPath}
+                      onChange={(event) => {
+                        setProjectsRootPath(event.target.value);
+                        setProjectsRootDirty(true);
                       }}
-                      placeholder="e.g. 123456789"
-                      className="max-w-xs font-mono"
+                      placeholder="C:\Users\you\Projects"
+                      className="min-w-[16rem] flex-1 font-mono text-xs"
+                      spellCheck={false}
                     />
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      disabled={detectingChatId || !botToken.trim()}
-                      onClick={() => void handleDetectChatId()}
-                    >
-                      {detectingChatId ? 'Detecting…' : 'Detect from last message'}
+                    <Button variant="outline" size="sm" onClick={() => void handleBrowseProjectsRoot()}>
+                      <FolderOpen /> Browse…
                     </Button>
                   </div>
-                </Field>
+                </SettingsCard>
+              )}
 
-                <Field
-                  label="Scheduled tasks chat/group ID"
-                  htmlFor="telegram-scheduled-tasks-chat-id"
-                  hint="Optional. Scheduled tasks post here and the message updates as status changes."
+              {showSection('general', 'skills repositories sources', 'Skill repositories') && (
+                <SettingsCard
+                  icon={Blocks}
+                  title="Skill repositories"
+                  description={
+                    reposQuery.isLoading
+                      ? 'Loading repositories…'
+                      : `${repoCount} repositor${repoCount === 1 ? 'y' : 'ies'} configured. Add and sync sources from the Skills page.`
+                  }
+                  action={
+                    <Button variant="outline" size="sm" onClick={() => navigate('/skills')}>
+                      <Blocks /> Manage
+                    </Button>
+                  }
+                />
+              )}
+
+              {showSection(
+                'ai',
+                'openai gemini ollama api key model prompt builder provider',
+                'Providers',
+              ) && (
+                <SettingsCard
+                  icon={MessageSquare}
+                  title="Providers"
+                  description="Keys and models used by Ask AI and Prompt Builder."
+                  dirty={aiDirty}
+                >
+                  <div className="space-y-5">
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-2">
+                        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                          OpenAI
+                        </p>
+                        <Badge variant={openaiApiKey.trim() ? 'success' : 'secondary'} className="font-normal">
+                          {openaiApiKey.trim() ? 'Key set' : 'No key'}
+                        </Badge>
+                      </div>
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <Field
+                          label="API key"
+                          htmlFor="openai-api-key"
+                          hint={
+                            <>
+                              Create one at{' '}
+                              <ExternalLinkButton href="https://platform.openai.com/api-keys">
+                                platform.openai.com/api-keys
+                              </ExternalLinkButton>
+                              .
+                            </>
+                          }
+                          className="sm:col-span-2"
+                        >
+                          <SecretInput
+                            id="openai-api-key"
+                            value={openaiApiKey}
+                            onChange={(value) => {
+                              setOpenaiApiKey(value);
+                              setAiDirty(true);
+                            }}
+                            placeholder="sk-…"
+                          />
+                        </Field>
+                        <Field label="Default model" htmlFor="openai-model">
+                          <Input
+                            id="openai-model"
+                            value={openaiModel}
+                            onChange={(event) => {
+                              setOpenaiModel(event.target.value);
+                              setAiDirty(true);
+                            }}
+                            placeholder="gpt-4o-mini"
+                            className="font-mono"
+                            spellCheck={false}
+                          />
+                        </Field>
+                      </div>
+                    </div>
+
+                    <div className="space-y-3 border-t border-border/60 pt-5">
+                      <div className="flex items-center gap-2">
+                        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                          Gemini
+                        </p>
+                        <Badge variant={geminiApiKey.trim() ? 'success' : 'secondary'} className="font-normal">
+                          {geminiApiKey.trim() ? 'Key set' : 'No key'}
+                        </Badge>
+                      </div>
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <Field
+                          label="API key"
+                          htmlFor="gemini-api-key"
+                          hint={
+                            <>
+                              Create one at{' '}
+                              <ExternalLinkButton href="https://aistudio.google.com/apikey">
+                                aistudio.google.com/apikey
+                              </ExternalLinkButton>
+                              .
+                            </>
+                          }
+                          className="sm:col-span-2"
+                        >
+                          <SecretInput
+                            id="gemini-api-key"
+                            value={geminiApiKey}
+                            onChange={(value) => {
+                              setGeminiApiKey(value);
+                              setAiDirty(true);
+                            }}
+                            placeholder="AIza…"
+                          />
+                        </Field>
+                        <Field label="Default model" htmlFor="gemini-model">
+                          <Input
+                            id="gemini-model"
+                            value={geminiModel}
+                            onChange={(event) => {
+                              setGeminiModel(event.target.value);
+                              setAiDirty(true);
+                            }}
+                            placeholder="gemini-2.0-flash"
+                            className="font-mono"
+                            spellCheck={false}
+                          />
+                        </Field>
+                      </div>
+                    </div>
+
+                    <div className="space-y-3 border-t border-border/60 pt-5">
+                      <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                        Ollama
+                      </p>
+                      <Field
+                        label="Server URL"
+                        htmlFor="ollama-base-url"
+                        hint={
+                          <>
+                            Address of a running{' '}
+                            <ExternalLinkButton href="https://ollama.com">Ollama</ExternalLinkButton>{' '}
+                            instance. Leave the default if it runs on this machine.
+                          </>
+                        }
+                      >
+                        <Input
+                          id="ollama-base-url"
+                          value={ollamaBaseUrl}
+                          onChange={(event) => {
+                            setOllamaBaseUrl(event.target.value);
+                            setAiDirty(true);
+                          }}
+                          placeholder="http://localhost:11434"
+                          className="max-w-md font-mono"
+                          spellCheck={false}
+                        />
+                      </Field>
+                    </div>
+
+                    <div className="border-t border-border/60 pt-5">
+                      <Field
+                        label="Prompt Builder provider"
+                        hint="Used by Generate Prompt. Uses the key and model for that provider above."
+                      >
+                        <Combobox
+                          className="w-40"
+                          value={promptBuilderProvider}
+                          onChange={(value) => {
+                            setPromptBuilderProvider(value as AiProvider);
+                            setAiDirty(true);
+                          }}
+                          options={PROMPT_BUILDER_PROVIDER_OPTIONS}
+                        />
+                      </Field>
+                    </div>
+                  </div>
+                </SettingsCard>
+              )}
+
+              {showSection('ai', 'voice whisper speech microphone transcription', 'Voice input') && (
+                <SettingsCard
+                  icon={Microphone}
+                  title="Voice input"
+                  description="Local Whisper transcription for Prompt Builder. The model downloads once and stays cached."
+                  dirty={speechDirty}
+                >
+                  <div className="grid max-w-lg grid-cols-1 gap-3 sm:grid-cols-2">
+                    <Field label="Model">
+                      <Combobox
+                        value={speechModel}
+                        onChange={(value) => {
+                          setSpeechModel(value);
+                          setSpeechDirty(true);
+                        }}
+                        options={[
+                          { value: 'tiny', label: 'Tiny (fastest, ~75 MB)' },
+                          { value: 'base', label: 'Base (balanced, ~145 MB)' },
+                          { value: 'small', label: 'Small (most accurate, ~490 MB)' },
+                        ]}
+                      />
+                    </Field>
+                    <Field label="Spoken language">
+                      <Combobox
+                        value={speechLanguage}
+                        onChange={(value) => {
+                          setSpeechLanguage(value);
+                          setSpeechDirty(true);
+                        }}
+                        options={SPEECH_LANGUAGES}
+                      />
+                    </Field>
+                  </div>
+                </SettingsCard>
+              )}
+
+              {showSection('ai', 'translation retries translate', 'Translation retries') && (
+                <SettingsCard
+                  icon={Languages}
+                  title="Translation retries"
+                  description="Extra attempts Prompt Builder makes if a translate request fails."
+                  dirty={translateRetriesDirty}
                 >
                   <Input
-                    id="telegram-scheduled-tasks-chat-id"
-                    value={scheduledTasksChatId}
-                    onChange={(e) => {
-                      setScheduledTasksChatId(e.target.value);
-                      setTelegramDirty(true);
+                    type="number"
+                    min={0}
+                    max={10}
+                    value={translateMaxRetriesText}
+                    onChange={(event) => {
+                      setTranslateMaxRetriesText(event.target.value);
+                      setTranslateRetriesDirty(true);
                     }}
-                    placeholder="e.g. -1001234567890"
-                    className="max-w-xs font-mono"
+                    className="w-24"
                   />
-                </Field>
-              </div>
-            </SettingsSection>
-          </SettingsPanel>
-        </TabsContent>
+                </SettingsCard>
+              )}
 
-        <TabsContent value="data" className="mt-0">
-          <SettingsPanel>
-            <SettingsSection
-              title="Network ping targets"
-              description="Hosts shown on the dashboard Network Status graph."
-              action={
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={!pingTargetsDirty}
-                  onClick={handleSavePingTargets}
+              {showSection('notifications', 'telegram bot token chat notify', 'Telegram bot') && (
+                <SettingsCard
+                  icon={Bell}
+                  title="Telegram bot"
+                  description="Used by project notification hooks and scheduled task updates."
+                  dirty={telegramDirty}
+                  action={
+                    <Badge variant={telegramReady ? 'success' : 'secondary'} className="font-normal">
+                      {telegramReady ? 'Ready' : 'Not configured'}
+                    </Badge>
+                  }
                 >
-                  Save
-                </Button>
-              }
-            >
-              <Input
-                value={pingTargetsText}
-                onChange={(e) => {
-                  setPingTargetsText(e.target.value);
-                  setPingTargetsDirty(true);
-                }}
-                placeholder="1.1.1.1, 8.8.8.8"
-                className="max-w-md font-mono text-xs"
-              />
-            </SettingsSection>
+                  <div className="space-y-4">
+                    <ol className="list-decimal space-y-1 pl-4 text-sm text-muted-foreground">
+                      <li>
+                        Create a bot with{' '}
+                        <ExternalLinkButton href="https://t.me/BotFather">@BotFather</ExternalLinkButton> and
+                        paste its token.
+                      </li>
+                      <li>Message the bot once on Telegram, then detect the chat ID.</li>
+                    </ol>
 
-            <SettingsSection
-              title="Backup & restore"
-              description="Exports include projects, settings, templates, and saved keys. Keep the file private. Restoring replaces everything on this machine."
-            >
-              <div className="space-y-4">
-                <div className="flex items-center gap-2">
-                  <Switch
-                    id="compress-backup"
-                    checked={compressBackup}
-                    onCheckedChange={setCompressBackup}
+                    <Field label="Bot token" htmlFor="telegram-bot-token">
+                      <SecretInput
+                        id="telegram-bot-token"
+                        value={botToken}
+                        onChange={(value) => {
+                          setBotToken(value);
+                          setTelegramDirty(true);
+                        }}
+                        placeholder="123456789:AAExampleTokenFromBotFather"
+                        className="max-w-md"
+                      />
+                    </Field>
+
+                    <Field
+                      label="Chat ID"
+                      htmlFor="telegram-chat-id"
+                      hint="Message your bot once on Telegram, then click detect."
+                    >
+                      <div className="flex flex-wrap gap-2">
+                        <Input
+                          id="telegram-chat-id"
+                          value={chatId}
+                          onChange={(event) => {
+                            setChatId(event.target.value);
+                            setTelegramDirty(true);
+                          }}
+                          placeholder="e.g. 123456789"
+                          className="max-w-xs font-mono"
+                          spellCheck={false}
+                        />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          disabled={detectingChatId || !botToken.trim()}
+                          onClick={() => void handleDetectChatId()}
+                        >
+                          {detectingChatId ? 'Detecting…' : 'Detect from last message'}
+                        </Button>
+                      </div>
+                    </Field>
+
+                    <Field
+                      label="Scheduled tasks chat/group ID"
+                      htmlFor="telegram-scheduled-tasks-chat-id"
+                      hint="Optional. Scheduled tasks post here and the message updates as status changes."
+                    >
+                      <Input
+                        id="telegram-scheduled-tasks-chat-id"
+                        value={scheduledTasksChatId}
+                        onChange={(event) => {
+                          setScheduledTasksChatId(event.target.value);
+                          setTelegramDirty(true);
+                        }}
+                        placeholder="e.g. -1001234567890"
+                        className="max-w-xs font-mono"
+                        spellCheck={false}
+                      />
+                    </Field>
+
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={sendingTest || (!botToken.trim() && !settingsQuery.data?.telegramBotToken)}
+                      onClick={() => void handleSendTest()}
+                    >
+                      {sendingTest ? 'Sending…' : 'Send test'}
+                    </Button>
+                  </div>
+                </SettingsCard>
+              )}
+
+              {showSection('data', 'ping network hosts dashboard', 'Network ping targets') && (
+                <SettingsCard
+                  icon={NetworkIcon}
+                  title="Network ping targets"
+                  description="Hosts shown on the dashboard Network Status graph. Press Enter to add one."
+                  dirty={pingTargetsDirty}
+                >
+                  <HostChips
+                    value={pingTargetsText}
+                    onChange={(value) => {
+                      setPingTargetsText(value);
+                      setPingTargetsDirty(true);
+                    }}
                   />
-                  <Label htmlFor="compress-backup" className="font-normal text-muted-foreground">
-                    Compress export as a .zip file
-                  </Label>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={exportingBackup}
-                    onClick={() => void handleExportBackup()}
-                  >
-                    <Download className="h-4 w-4" />{' '}
-                    {exportingBackup ? 'Exporting…' : 'Export backup'}
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={importingBackup}
-                    onClick={() => void handleImportBackup()}
-                  >
-                    <Upload className="h-4 w-4" />{' '}
-                    {importingBackup ? 'Restoring…' : 'Restore from backup…'}
-                  </Button>
-                </div>
-              </div>
-            </SettingsSection>
+                </SettingsCard>
+              )}
 
-            <SettingsSection
-              title="About"
-              description={`AgentMate ${versionLabel}`}
-              action={
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={checkingForUpdates}
-                  onClick={() => void handleCheckForUpdates()}
+              {showSection('data', 'backup restore export import zip', 'Backup & restore') && (
+                <SettingsCard
+                  icon={HardDrive}
+                  title="Backup & restore"
+                  description="Exports include projects, settings, templates, and saved keys. Keep the file private. Restoring replaces everything on this machine."
                 >
-                  <RefreshCw className={cn('h-4 w-4', checkingForUpdates && 'animate-spin')} />
-                  {checkingForUpdates ? 'Checking…' : 'Check for updates'}
+                  <div className="space-y-4">
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <div className="rounded-lg border border-border bg-background/40 p-4">
+                        <p className="text-sm font-medium">Export</p>
+                        <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                          Save a copy of this machine's AgentMate data.
+                        </p>
+                        <div className="mt-3 flex items-center gap-2">
+                          <Switch
+                            id="compress-backup"
+                            checked={compressBackup}
+                            onCheckedChange={setCompressBackup}
+                          />
+                          <Label htmlFor="compress-backup" className="font-normal text-muted-foreground">
+                            Compress as .zip
+                          </Label>
+                        </div>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="mt-3"
+                          disabled={exportingBackup}
+                          onClick={() => void handleExportBackup()}
+                        >
+                          <Download className="h-4 w-4" />
+                          {exportingBackup ? 'Exporting…' : 'Export backup'}
+                        </Button>
+                      </div>
+                      <div className="rounded-lg border border-destructive/25 bg-destructive/5 p-4">
+                        <p className="text-sm font-medium">Restore</p>
+                        <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                          Replaces current data. This cannot be undone.
+                        </p>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="mt-8"
+                          disabled={importingBackup}
+                          onClick={() => void handleImportBackup()}
+                        >
+                          <Upload className="h-4 w-4" />
+                          {importingBackup ? 'Restoring…' : 'Restore from backup…'}
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                </SettingsCard>
+              )}
+
+              {showSection('data', 'about version update check', 'About') && (
+                <SettingsCard
+                  icon={CircleQuestion}
+                  title="About"
+                  description={`AgentMate ${versionLabel}`}
+                  action={
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={checkingForUpdates}
+                      onClick={() => void handleCheckForUpdates()}
+                    >
+                      <RefreshCw className={cn('h-4 w-4', checkingForUpdates && 'animate-spin')} />
+                      {checkingForUpdates ? 'Checking…' : 'Check for updates'}
+                    </Button>
+                  }
+                >
+                  <p className="text-sm text-muted-foreground">{updateStatusLabel()}</p>
+                </SettingsCard>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+
+      {anyDirty ? (
+        <div className="sticky bottom-0 z-20 border-t border-border/80 bg-background/85 px-6 py-3 backdrop-blur-xl">
+          <div className="mx-auto flex w-full max-w-5xl items-center justify-between gap-3">
+            <p className="text-sm text-muted-foreground">
+              Unsaved changes
+              <span className="ml-2 hidden text-xs sm:inline">({saveShortcutLabel()} to save)</span>
+            </p>
+            <div className="flex items-center gap-2">
+              <Button variant="ghost" size="sm" disabled={saving} onClick={handleDiscardAll}>
+                Discard
+              </Button>
+              <SimpleTooltip label={`Save all changes (${saveShortcutLabel()})`}>
+                <Button size="sm" disabled={saving} onClick={() => void handleSaveAll()}>
+                  <Save className="h-4 w-4" />
+                  {saving ? 'Saving…' : 'Save changes'}
                 </Button>
-              }
-            >
-              <p className="text-sm text-muted-foreground">{updateStatusLabel()}</p>
-            </SettingsSection>
-          </SettingsPanel>
-        </TabsContent>
-      </Tabs>
+              </SimpleTooltip>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

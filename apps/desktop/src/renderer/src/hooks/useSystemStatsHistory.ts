@@ -15,8 +15,10 @@ export function useSystemStatsHistory(): SystemStatsSample[] {
 
   useEffect(() => {
     let cancelled = false;
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
 
-    async function poll(): Promise<void> {
+    async function tick(): Promise<void> {
+      const started = Date.now();
       try {
         const sample = await window.agentmat.system.sample();
         if (cancelled) return;
@@ -28,13 +30,15 @@ export function useSystemStatsHistory(): SystemStatsSample[] {
       } catch {
         // Transient IPC/ping failures just skip a tick, the chart keeps its history.
       }
+      if (cancelled) return;
+      const wait = Math.max(0, SAMPLE_INTERVAL_MS - (Date.now() - started));
+      timeoutId = setTimeout(() => void tick(), wait);
     }
 
-    void poll();
-    const interval = setInterval(() => void poll(), SAMPLE_INTERVAL_MS);
+    void tick();
     return () => {
       cancelled = true;
-      clearInterval(interval);
+      if (timeoutId !== undefined) clearTimeout(timeoutId);
     };
   }, []);
 

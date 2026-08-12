@@ -24,16 +24,35 @@ interface CpuSnapshot {
   total: number;
 }
 
+interface CpuSample {
+  cpuPercent: number;
+  cpuCorePercents: number[];
+}
+
 // os.cpus()[n].model is padded/repeats vendor boilerplate on some platforms
 // (e.g. trailing whitespace on Windows), so it's normalized once here.
 function readCpuModel(): string {
   return os.cpus()[0]?.model.trim().replace(/\s+/g, ' ') ?? 'Unknown CPU';
 }
 
+function clampPercent(n: number): number {
+  if (!Number.isFinite(n)) return 0;
+  return Math.max(0, Math.min(100, n));
+}
+
+function averagePercents(values: number[]): number {
+  if (values.length === 0) return 0;
+  return values.reduce((sum, p) => sum + p, 0) / values.length;
+}
+
 function readCpuSnapshots(): CpuSnapshot[] {
   return os.cpus().map((cpu) => {
     const t = cpu.times;
-    return { idle: t.idle, total: t.user + t.nice + t.sys + t.idle + t.irq };
+    // On Windows, libuv's `sys` is KernelTime - IdleTime, and KernelTime
+    // already includes interrupt time. Adding `irq` would double-count it
+    // and inflate usage. On Unix, irq is a separate slice of /proc/stat.
+    const irq = process.platform === 'win32' ? 0 : t.irq;
+    return { idle: t.idle, total: t.user + t.nice + t.sys + t.idle + irq };
   });
 }
 
@@ -43,19 +62,62 @@ function percentFromDelta(previous: CpuSnapshot, snapshot: CpuSnapshot): number 
   const idleDelta = snapshot.idle - previous.idle;
   const totalDelta = snapshot.total - previous.total;
   if (totalDelta <= 0) return 0;
-  return Math.max(0, Math.min(100, 100 * (1 - idleDelta / totalDelta)));
+  return clampPercent(100 * (1 - idleDelta / totalDelta));
 }
 
 // Instantaneous CPU load isn't exposed by Node, only cumulative per-core
 // tick counters, so usage is derived from the delta between consecutive
 // samples (same technique top/htop use). Returns per-core percentages; the
 // aggregate total is the average of all cores.
-function sampleCpuCorePercents(): number[] {
+function sampleCpuCorePercentsFromOs(): number[] {
   const snapshots = readCpuSnapshots();
   const previous = lastCpuSnapshots;
   lastCpuSnapshots = snapshots;
   if (!previous || previous.length !== snapshots.length) return snapshots.map(() => 0);
   return snapshots.map((snapshot, i) => percentFromDelta(previous[i], snapshot));
+}
+
+const WIN_CPU_SCRIPT = `
+$ErrorActionPreference = 'SilentlyContinue'
+Get-CimInstance Win32_PerfFormattedData_PerfOS_Processor |
+  Select-Object Name, PercentProcessorTime |
+  ConvertTo-Json -Compress
+`;
+
+function cookedPercent(value: unknown): number {
+  const n = Number(value);
+  return Number.isFinite(n) ? clampPercent(n) : 0;
+}
+
+// Windows 11 24H2+ Task Manager uses % Processor Time
+// (Win32_PerfFormattedData_PerfOS_Processor), not Processor Utility and not
+// Node's os.cpus() idle ticks. Cooked WMI values are already 0-100 for the
+// last interval, so we do not keep raw deltas (those raced when samples
+// overlapped and showed 0% whenever the timestamp had not moved).
+async function sampleWindowsCpu(): Promise<CpuSample | null> {
+  const parsed = await runPowerShellJson<{ Name?: string; PercentProcessorTime?: number | null }[]>(
+    WIN_CPU_SCRIPT,
+  );
+  const rows = asArray(parsed).filter((row) => typeof row.Name === 'string' && row.Name.length > 0);
+  const cores = rows
+    .filter((row) => /^\d+$/.test(row.Name ?? ''))
+    .sort((a, b) => Number(a.Name) - Number(b.Name));
+  if (cores.length === 0) return null;
+  const cpuCorePercents = cores.map((row) => cookedPercent(row.PercentProcessorTime));
+  const totalRow = rows.find((row) => row.Name?.toLowerCase() === '_total');
+  const cpuPercent = totalRow
+    ? cookedPercent(totalRow.PercentProcessorTime)
+    : averagePercents(cpuCorePercents);
+  return { cpuPercent, cpuCorePercents };
+}
+
+async function sampleCpu(): Promise<CpuSample> {
+  if (process.platform === 'win32') {
+    const win = await sampleWindowsCpu();
+    if (win) return win;
+  }
+  const cpuCorePercents = sampleCpuCorePercentsFromOs();
+  return { cpuPercent: averagePercents(cpuCorePercents), cpuCorePercents };
 }
 
 function sampleMemory(): Pick<SystemStatsSample, 'memPercent' | 'memUsedBytes' | 'memTotalBytes'> {
@@ -1002,21 +1064,19 @@ export function registerSystemStatsHandlers(): void {
     // Older settings.json files predate this field.
     const hosts = (settings.pingTargets ?? []).map((h) => h.trim()).filter(Boolean);
 
-    const [net, pings, disks, gpus] = await Promise.all([
+    const [net, pings, disks, gpus, cpu] = await Promise.all([
       sampleNetworkRates(),
       Promise.all(hosts.map((host) => pingHost(host))),
       sampleDisks(),
       sampleGpus(),
+      sampleCpu(),
     ]);
-    const cpuCorePercents = sampleCpuCorePercents();
-    const cpuPercent =
-      cpuCorePercents.reduce((sum, p) => sum + p, 0) / (cpuCorePercents.length || 1);
     return {
       timestamp: Date.now(),
       cpuModel,
-      cpuCoreCount: cpuCorePercents.length,
-      cpuPercent,
-      cpuCorePercents,
+      cpuCoreCount: cpu.cpuCorePercents.length,
+      cpuPercent: cpu.cpuPercent,
+      cpuCorePercents: cpu.cpuCorePercents,
       ...sampleMemory(),
       disks,
       gpus,

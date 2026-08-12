@@ -8,6 +8,7 @@ import { TerminalDrawer } from '@/components/terminal/TerminalDrawer';
 import { Button } from '@/components/ui/button';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { useAppLoadingOverlay } from '@/hooks/useAppLoadingOverlay';
+import { isShortcutLetter } from '@/lib/shortcutKey';
 import { cn } from '@/lib/utils';
 import { useAskAiStore } from '@/stores/askAiStore';
 import { usePageHeaderStore } from '@/stores/pageHeaderStore';
@@ -102,9 +103,7 @@ export function AppShell(): React.JSX.Element {
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent): void {
-      // e.code matches the physical key regardless of keyboard layout (e.g. Persian),
-      // while e.key keeps non-QWERTY layouts like Dvorak working.
-      if ((e.metaKey || e.ctrlKey) && (e.code === 'KeyK' || e.key.toLowerCase() === 'k')) {
+      if ((e.metaKey || e.ctrlKey) && isShortcutLetter(e, 'k')) {
         e.preventDefault();
         toggleSearch();
       }

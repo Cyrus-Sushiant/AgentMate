@@ -247,6 +247,7 @@ export const IPC = {
     setWidgetStyle: 'usage:setWidgetStyle',
     setWidgetSize: 'usage:setWidgetSize',
     setWidgetMode: 'usage:setWidgetMode',
+    configureWidget: 'usage:configureWidget',
     setResetAlerts: 'usage:setResetAlerts',
     testResetAlert: 'usage:testResetAlert',
     setThresholdAlerts: 'usage:setThresholdAlerts',

@@ -2,6 +2,7 @@ import { FitAddon } from '@xterm/addon-fit';
 import { type ITheme, Terminal } from '@xterm/xterm';
 import { useEffect, useRef } from 'react';
 import '@xterm/xterm/css/xterm.css';
+import { isShortcutLetter } from '@/lib/shortcutKey';
 import type { TerminalSessionMeta } from '@/stores/terminalStore';
 
 // Same fill as `.terminal-well` so leftover cells after a fit() don't read as a
@@ -102,7 +103,7 @@ export function TerminalPane({ meta, active, onExit }: TerminalPaneProps): React
         (event.ctrlKey || event.metaKey) &&
         !event.shiftKey &&
         !event.altKey &&
-        event.key.toLowerCase() === 'c' &&
+        isShortcutLetter(event, 'c') &&
         term.hasSelection()
       ) {
         void navigator.clipboard.writeText(term.getSelection());

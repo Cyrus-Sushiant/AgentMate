@@ -280,16 +280,25 @@ export function accumulate(entries: CursorEntry[], sinceMs: number): UsagePeriod
   };
 }
 
-/** Daily token totals for the last 14 days (oldest first) for the sparkline. */
-export function buildSeries(entries: CursorEntry[]): number[] {
+function bucketDaily(entries: CursorEntry[], value: (entry: CursorEntry) => number): number[] {
   const startToday = startOfLocalDay(Date.now());
   const buckets = new Array<number>(SERIES_DAYS).fill(0);
   for (const entry of entries) {
     const dayIdx = Math.floor((startToday - startOfLocalDay(entry.at)) / DAY_MS);
     const idx = SERIES_DAYS - 1 - dayIdx;
-    if (idx >= 0 && idx < SERIES_DAYS) buckets[idx] += entry.tokens.total;
+    if (idx >= 0 && idx < SERIES_DAYS) buckets[idx] += value(entry);
   }
   return buckets;
+}
+
+/** Daily token totals for the last 14 days (oldest first) for the sparkline. */
+export function buildSeries(entries: CursorEntry[]): number[] {
+  return bucketDaily(entries, (entry) => entry.tokens.total);
+}
+
+/** Daily cost totals aligned with {@link buildSeries}. */
+export function buildCostSeries(entries: CursorEntry[]): number[] {
+  return bucketDaily(entries, (entry) => entry.costUsd ?? 0);
 }
 
 /** Live Cursor usage, split into Auto-mode and API consumption. */
@@ -307,6 +316,7 @@ export async function fetchCursorUsage(cfg: UsageProviderConfig): Promise<Provid
     last7d: accumulate(entries, now - 7 * DAY_MS),
     last30d: accumulate(entries, now - WINDOW_DAYS * DAY_MS),
     series: buildSeries(entries),
+    costSeries: buildCostSeries(entries),
     currency: 'USD',
     updatedAt: new Date(now).toISOString(),
   };
