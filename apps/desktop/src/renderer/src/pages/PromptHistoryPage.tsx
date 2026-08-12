@@ -27,6 +27,8 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { queryKeys } from '@/lib/queryKeys';
+import { persianTextProps } from '@/lib/rtl';
+import { cn } from '@/lib/utils';
 import { usePageHeader } from '@/stores/pageHeaderStore';
 import { confirmDialog } from '@/stores/confirmStore';
 import type { PromptHistoryEntry } from '../../../shared/apiTypes';
@@ -210,7 +212,9 @@ export default function PromptHistoryPage(): React.JSX.Element {
         </div>
       ) : (
         <div className="space-y-3">
-          {entries.map((entry) => (
+          {entries.map((entry) => {
+            const contentPersian = persianTextProps(entry.content);
+            return (
             <Card key={entry.id} className="glass">
               <CardHeader>
                 <div className="flex items-start justify-between gap-2">
@@ -241,7 +245,10 @@ export default function PromptHistoryPage(): React.JSX.Element {
                     {new Date(entry.createdAt).toLocaleString()}
                   </span>
                 </div>
-                <CardDescription className="line-clamp-3 whitespace-pre-wrap">
+                <CardDescription
+                  dir={contentPersian.dir}
+                  className={cn('line-clamp-3 whitespace-pre-wrap', contentPersian.className)}
+                >
                   {entry.content}
                 </CardDescription>
               </CardHeader>
@@ -278,7 +285,8 @@ export default function PromptHistoryPage(): React.JSX.Element {
                 </div>
               </CardContent>
             </Card>
-          ))}
+            );
+          })}
         </div>
       )}
 
@@ -317,33 +325,7 @@ export default function PromptHistoryPage(): React.JSX.Element {
                   {new Date(selectedEntry.createdAt).toLocaleString()}
                 </DialogDescription>
               </DialogHeader>
-              <div className="max-h-[60vh] space-y-4 overflow-y-auto">
-                {selectedEntry.tags.length > 0 ? (
-                  <div className="flex flex-wrap gap-1.5">
-                    {selectedEntry.tags.map((tag) => (
-                      <Badge key={tag} variant="outline">
-                        {tag}
-                      </Badge>
-                    ))}
-                  </div>
-                ) : null}
-                <div className="space-y-1.5">
-                  <p className="text-xs font-medium text-muted-foreground">Original input</p>
-                  <p className="whitespace-pre-wrap rounded-lg border border-border bg-muted/40 p-3 text-sm">
-                    {selectedEntry.rawInput}
-                  </p>
-                </div>
-                <div className="space-y-1.5">
-                  <p className="text-xs font-medium text-muted-foreground">
-                    {selectedEntry.source === 'translate'
-                      ? 'Translated prompt'
-                      : 'Generated prompt'}
-                  </p>
-                  <p className="whitespace-pre-wrap rounded-lg border border-border bg-muted/40 p-3 text-sm">
-                    {selectedEntry.content}
-                  </p>
-                </div>
-              </div>
+              <SelectedEntryBody entry={selectedEntry} />
               <div className="flex items-center gap-2">
                 <Button
                   variant="outline"
@@ -357,6 +339,50 @@ export default function PromptHistoryPage(): React.JSX.Element {
           ) : null}
         </DialogContent>
       </Dialog>
+    </div>
+  );
+}
+
+function SelectedEntryBody({ entry }: { entry: PromptHistoryEntry }): React.JSX.Element {
+  const rawPersian = persianTextProps(entry.rawInput);
+  const contentPersian = persianTextProps(entry.content);
+  return (
+    <div className="max-h-[60vh] space-y-4 overflow-y-auto">
+      {entry.tags.length > 0 ? (
+        <div className="flex flex-wrap gap-1.5">
+          {entry.tags.map((tag) => (
+            <Badge key={tag} variant="outline">
+              {tag}
+            </Badge>
+          ))}
+        </div>
+      ) : null}
+      <div className="space-y-1.5">
+        <p className="text-xs font-medium text-muted-foreground">Original input</p>
+        <p
+          dir={rawPersian.dir}
+          className={cn(
+            'whitespace-pre-wrap rounded-lg border border-border bg-muted/40 p-3 text-sm',
+            rawPersian.className,
+          )}
+        >
+          {entry.rawInput}
+        </p>
+      </div>
+      <div className="space-y-1.5">
+        <p className="text-xs font-medium text-muted-foreground">
+          {entry.source === 'translate' ? 'Translated prompt' : 'Generated prompt'}
+        </p>
+        <p
+          dir={contentPersian.dir}
+          className={cn(
+            'whitespace-pre-wrap rounded-lg border border-border bg-muted/40 p-3 text-sm',
+            contentPersian.className,
+          )}
+        >
+          {entry.content}
+        </p>
+      </div>
     </div>
   );
 }

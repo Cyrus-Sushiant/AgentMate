@@ -95,7 +95,9 @@ import {
 } from '@/components/projects/BootstrapDescriptionDialog';
 import { ProjectPromptHistory } from '@/components/projects/ProjectPromptHistory';
 import { queryKeys } from '@/lib/queryKeys';
+import { persianTextProps } from '@/lib/rtl';
 import { timeAgo } from '@/lib/time';
+import { cn } from '@/lib/utils';
 import { usePageHeader } from '@/stores/pageHeaderStore';
 import { useCliStore } from '@/stores/cliStore';
 import { useTerminalStore } from '@/stores/terminalStore';
@@ -354,9 +356,9 @@ export default function ProjectDetailPage(): React.JSX.Element {
             />
             <div className="min-w-0 space-y-2">
               <h1 className="truncate text-lg font-semibold">{project.name}</h1>
-              {project.description && (
-                <p className="max-w-2xl text-sm text-muted-foreground">{project.description}</p>
-              )}
+              {project.description ? (
+                <ProjectDescription text={project.description} />
+              ) : null}
               <div className="flex flex-wrap items-center gap-1.5">
                 <Badge variant="secondary">{project.agentType}</Badge>
                 {project.tags.map((tag) => (
@@ -1141,9 +1143,12 @@ function DraftsSection({ projectId }: { projectId: string }): React.JSX.Element 
                 </div>
 
                 <p
-                  className={`whitespace-pre-wrap text-xs ${
-                    implemented ? 'text-muted-foreground' : ''
-                  }`}
+                  dir={persianTextProps(draft.rawInput).dir}
+                  className={cn(
+                    'whitespace-pre-wrap text-xs',
+                    implemented ? 'text-muted-foreground' : '',
+                    persianTextProps(draft.rawInput).className,
+                  )}
                 >
                   {draft.rawInput || '(no description)'}
                 </p>
@@ -2887,6 +2892,18 @@ interface NotificationHookCardProps {
   installedAgents: CliDefinition[];
   onSave: (hook: ProjectNotificationHook) => void;
   saving: boolean;
+}
+
+function ProjectDescription({ text }: { text: string }): React.JSX.Element {
+  const persian = persianTextProps(text);
+  return (
+    <p
+      dir={persian.dir}
+      className={cn('max-w-2xl text-sm text-muted-foreground', persian.className)}
+    >
+      {text}
+    </p>
+  );
 }
 
 function NotificationHookCard({
