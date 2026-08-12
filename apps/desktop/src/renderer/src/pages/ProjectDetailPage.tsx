@@ -1,30 +1,23 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import {
   ArrowLeft,
   ArrowRight,
-  Bell,
   Blocks,
   CalendarDays,
   Check,
   CircleCheck,
   CircleQuestion,
   CloudUpload,
-  Copy,
   Download,
-  File,
   FileCog,
   FileText,
-  Folder,
-  FolderOpen,
   FolderTree,
   GitBranch,
   GitCommit,
   GitPullRequest,
-  Globe,
-  History,
   MessageSquare,
   Package,
   Pencil,
@@ -80,13 +73,22 @@ import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Switch } from '@/components/ui/switch';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { MonacoEditor } from '@/components/editor/MonacoEditor';
 import { ProjectFileBrowser } from '@/components/projects/ProjectFileBrowser';
 import { ProjectFormDialog, type ProjectFormValues } from '@/components/projects/ProjectFormDialog';
-import { ProjectIcon } from '@/components/projects/ProjectIcon';
+import {
+  AGENT_TYPE_LABELS,
+  isProjectSectionId,
+  ProjectDetailHeader,
+  ProjectDetailSkeleton,
+  ProjectEmptyState,
+  ProjectNotesCard,
+  ProjectSectionNav,
+  type ProjectSectionId,
+  type SectionBadge,
+} from '@/components/projects/ProjectDetailChrome';
 import { GitSetupWizard } from '@/components/projects/GitSetupWizard';
 import { ProjectPromptDialog } from '@/components/projects/ProjectPromptDialog';
 import {
@@ -117,10 +119,31 @@ const TARGET_AI_TO_CLI_ID: Record<string, string> = {
 export default function ProjectDetailPage(): React.JSX.Element {
   const { projectId } = useParams<{ projectId: string }>();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const queryClient = useQueryClient();
   const openSession = useTerminalStore((s) => s.openSession);
   const [editOpen, setEditOpen] = useState(false);
   const [promptOpen, setPromptOpen] = useState(false);
+  const workspaceRef = useRef<HTMLDivElement>(null);
+
+  const tabParam = searchParams.get('tab');
+  const section: ProjectSectionId = isProjectSectionId(tabParam) ? tabParam : 'overview';
+
+  function setSection(next: ProjectSectionId): void {
+    setSearchParams(
+      (prev) => {
+        const params = new URLSearchParams(prev);
+        if (next === 'overview') params.delete('tab');
+        else params.set('tab', next);
+        return params;
+      },
+      { replace: true },
+    );
+  }
+
+  useEffect(() => {
+    workspaceRef.current?.scrollIntoView({ block: 'nearest' });
+  }, [section]);
 
   const projectsQuery = useQuery({
     queryKey: queryKeys.projects,
@@ -128,7 +151,10 @@ export default function ProjectDetailPage(): React.JSX.Element {
   });
   const project = projectsQuery.data?.find((p) => p.id === projectId);
 
-  usePageHeader(project?.name ?? '', project?.folderPath);
+  usePageHeader(
+    project?.name ?? '',
+    project ? AGENT_TYPE_LABELS[project.agentType] : undefined,
+  );
 
   const installedSkillsQuery = useQuery({
     queryKey: queryKeys.installedSkills(projectId ?? ''),
@@ -149,8 +175,8 @@ export default function ProjectDetailPage(): React.JSX.Element {
     queryFn: () => window.agentmat.projectDrafts.listByProject(projectId!),
     enabled: !!projectId,
   });
-  const drafts = draftsQuery.data ?? [];
-  const openDraftCount = drafts.filter((draft) => draft.status === 'draft').length;
+  const openDraftCount = (draftsQuery.data ?? []).filter((draft) => draft.status === 'draft')
+    .length;
 
   const installedMcpServersQuery = useQuery({
     queryKey: queryKeys.installedMcpServers(projectId ?? ''),
@@ -185,6 +211,15 @@ export default function ProjectDetailPage(): React.JSX.Element {
       setEditOpen(false);
       void queryClient.invalidateQueries({ queryKey: queryKeys.projects });
     },
+  });
+
+  const notesMutation = useMutation({
+    mutationFn: (notes: string) => window.agentmat.projects.update(projectId!, { notes }),
+    onSuccess: () => {
+      toast.success('Notes saved.');
+      void queryClient.invalidateQueries({ queryKey: queryKeys.projects });
+    },
+    onError: (error: Error) => toast.error(error.message),
   });
 
   const [bootstrapResult, setBootstrapResult] = useState<BootstrapResult | null>(null);
@@ -325,206 +360,124 @@ export default function ProjectDetailPage(): React.JSX.Element {
     toast.info(`Press Enter in the terminal to run "${project.runCommand}".`);
   }
 
+  function handleDelete(): void {
+    if (!project) return;
+    void confirmDialog({
+      title: `Remove "${project.name}"?`,
+      description: 'This removes it from AgentMate. Files on disk are kept.',
+      confirmLabel: 'Remove',
+      variant: 'destructive',
+    }).then((confirmed) => {
+      if (confirmed) deleteMutation.mutate();
+    });
+  }
+
+  const skillUpdateCount = (skillUpdatesQuery.data ?? []).filter((u) => u.hasUpdate).length;
+  const sectionBadges = useMemo((): Partial<Record<ProjectSectionId, SectionBadge>> => {
+    const badges: Partial<Record<ProjectSectionId, SectionBadge>> = {};
+    const skillCount = installedSkillsQuery.data?.length ?? 0;
+    const mcpCount = installedMcpServersQuery.data?.length ?? 0;
+    if (openDraftCount > 0) badges.overview = { count: openDraftCount };
+    if (skillCount > 0) badges.skills = { count: skillCount, attention: skillUpdateCount > 0 };
+    if (mcpCount > 0) badges.mcp = { count: mcpCount };
+    return badges;
+  }, [
+    installedMcpServersQuery.data,
+    installedSkillsQuery.data,
+    openDraftCount,
+    skillUpdateCount,
+  ]);
+
   if (projectsQuery.isLoading) {
-    return <p className="p-6 text-sm text-muted-foreground">Loading project…</p>;
+    return <ProjectDetailSkeleton />;
   }
 
   if (!project) {
     return (
-      <div className="space-y-3 p-6">
+      <div className="space-y-4 p-6">
         <Button variant="ghost" size="sm" onClick={() => navigate('/projects')} className="-ml-2">
           <ArrowLeft /> Back to Projects
         </Button>
-        <p className="text-sm text-muted-foreground">This project could not be found.</p>
+        <ProjectEmptyState
+          icon={FileText}
+          title="Project not found"
+          description="It may have been removed, or this link is out of date."
+          action={
+            <Button variant="outline" onClick={() => navigate('/projects')}>
+              <ArrowLeft /> Back to Projects
+            </Button>
+          }
+        />
       </div>
     );
   }
 
   return (
-    <div className="space-y-6 p-6">
-      <Button variant="ghost" size="sm" onClick={() => navigate('/projects')} className="-ml-2">
-        <ArrowLeft /> Projects
-      </Button>
+    <div className="flex min-h-full flex-1 flex-col gap-5 p-6">
+      <ProjectDetailHeader
+        project={project}
+        onBack={() => navigate('/projects')}
+        onRun={handleRun}
+        onPrompt={() => setPromptOpen(true)}
+        onEdit={() => setEditOpen(true)}
+        onDelete={handleDelete}
+        onCopyPath={() => void handleCopyPath()}
+        onOpenFolder={() => void handleOpenInFileExplorer()}
+        onOpenTerminal={handleOpenTerminalHere}
+      />
 
-      <div className="glass rounded-lg p-5">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div className="flex min-w-0 items-start gap-4">
-            <ProjectIcon
-              iconDataUrl={project.iconDataUrl}
-              className="h-12 w-12"
-              glyphClassName="h-5 w-5"
-            />
-            <div className="min-w-0 space-y-2">
-              <h1 className="truncate text-lg font-semibold">{project.name}</h1>
-              {project.description ? (
-                <ProjectDescription text={project.description} />
-              ) : null}
-              <div className="flex flex-wrap items-center gap-1.5">
-                <Badge variant="secondary">{project.agentType}</Badge>
-                {project.tags.map((tag) => (
-                  <Badge key={tag} variant="outline">
-                    {tag}
-                  </Badge>
-                ))}
-              </div>
-              <div className="flex max-w-full items-center gap-1">
-                <SimpleTooltip label={`Copy path: ${project.folderPath}`}>
-                  <button
-                    type="button"
-                    onClick={() => void handleCopyPath()}
-                    className="flex min-w-0 items-center gap-1.5 truncate text-xs text-muted-foreground hover:text-foreground"
-                  >
-                    <Folder className="h-3 w-3 shrink-0" />
-                    <span className="truncate">{project.folderPath}</span>
-                    <Copy className="h-3 w-3 shrink-0" />
-                  </button>
-                </SimpleTooltip>
-                <SimpleTooltip label="Open in File Explorer">
-                  <button
-                    type="button"
-                    onClick={() => void handleOpenInFileExplorer()}
-                    className="shrink-0 text-muted-foreground hover:text-foreground"
-                  >
-                    <FolderOpen className="h-3 w-3" />
-                  </button>
-                </SimpleTooltip>
-                <SimpleTooltip label="Open terminal here">
-                  <button
-                    type="button"
-                    onClick={handleOpenTerminalHere}
-                    className="shrink-0 text-muted-foreground hover:text-foreground"
-                  >
-                    <TerminalSquare className="h-3 w-3" />
-                  </button>
-                </SimpleTooltip>
-              </div>
-              {project.websiteUrl && (
-                <SimpleTooltip label={`Open ${project.websiteUrl}`}>
-                  <button
-                    type="button"
-                    onClick={() => void window.agentmat.shell.openExternal(project.websiteUrl)}
-                    className="flex min-w-0 items-center gap-1.5 truncate text-xs text-muted-foreground hover:text-foreground"
-                  >
-                    <Globe className="h-3 w-3 shrink-0" />
-                    <span className="truncate">
-                      {project.websiteUrl.replace(/^https?:\/\//, '')}
-                    </span>
-                  </button>
-                </SimpleTooltip>
-              )}
-              {project.repoUrl && (
-                <SimpleTooltip label={`Open ${project.repoUrl}`}>
-                  <button
-                    type="button"
-                    onClick={() => void window.agentmat.shell.openExternal(project.repoUrl)}
-                    className="flex min-w-0 items-center gap-1.5 truncate text-xs text-muted-foreground hover:text-foreground"
-                  >
-                    <GitBranch className="h-3 w-3 shrink-0" />
-                    <span className="truncate">{project.repoUrl.replace(/^https?:\/\//, '')}</span>
-                  </button>
-                </SimpleTooltip>
-              )}
-            </div>
-          </div>
-          <div className="flex shrink-0 items-center gap-2">
-            {project.runCommand && (
-              <Button size="sm" onClick={handleRun}>
-                <Play /> Run
-              </Button>
-            )}
-            <Button variant="outline" size="sm" onClick={() => setPromptOpen(true)}>
-              <MessageSquare /> Prompt
-            </Button>
-            <Button variant="outline" size="sm" onClick={() => setEditOpen(true)}>
-              <Pencil /> Edit
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              className="text-destructive hover:text-destructive"
-              onClick={() => {
-                void confirmDialog({
-                  title: `Remove "${project.name}"?`,
-                  description: 'This removes it from AgentMate. Files on disk are kept.',
-                  confirmLabel: 'Remove',
-                  variant: 'destructive',
-                }).then((confirmed) => {
-                  if (confirmed) deleteMutation.mutate();
-                });
-              }}
-            >
-              <Trash2 /> Delete
-            </Button>
-          </div>
-        </div>
-      </div>
+      <div
+        ref={workspaceRef}
+        className="flex min-w-0 flex-1 flex-col gap-4 lg:flex-row lg:items-start"
+      >
+        <ProjectSectionNav
+          section={section}
+          onSectionChange={setSection}
+          badges={sectionBadges}
+          createdAt={project.createdAt}
+          updatedAt={project.updatedAt}
+        />
 
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-4">
-        <div className="min-w-0 xl:col-span-3">
-          <Tabs defaultValue="overview">
-            <TabsList>
-              <TabsTrigger value="overview" className="gap-1.5">
-                <File className="h-3.5 w-3.5" /> Overview
-              </TabsTrigger>
-              <TabsTrigger value="bootstrap" className="gap-1.5">
-                <Wand2 className="h-3.5 w-3.5" /> Bootstrap
-              </TabsTrigger>
-              <TabsTrigger value="prompts" className="gap-1.5">
-                <History className="h-3.5 w-3.5" /> Prompt History
-              </TabsTrigger>
-              <TabsTrigger value="skills" className="gap-1.5">
-                <Blocks className="h-3.5 w-3.5" /> Skills
-              </TabsTrigger>
-              <TabsTrigger value="mcp" className="gap-1.5">
-                <Plug className="h-3.5 w-3.5" /> MCP
-              </TabsTrigger>
-              <TabsTrigger value="packages" className="gap-1.5">
-                <Package className="h-3.5 w-3.5" /> Packages
-              </TabsTrigger>
-              <TabsTrigger value="git" className="gap-1.5">
-                <GitBranch className="h-3.5 w-3.5" /> Git
-              </TabsTrigger>
-              <TabsTrigger value="schedule" className="gap-1.5">
-                <CalendarDays className="h-3.5 w-3.5" /> Schedule
-              </TabsTrigger>
-              <TabsTrigger value="hooks" className="gap-1.5">
-                <Bell className="h-3.5 w-3.5" /> Hooks
-              </TabsTrigger>
-              <TabsTrigger value="terminal" className="gap-1.5">
-                <TerminalSquare className="h-3.5 w-3.5" /> Terminal
-              </TabsTrigger>
-              <TabsTrigger value="config" className="gap-1.5">
-                <FileCog className="h-3.5 w-3.5" /> Config
-              </TabsTrigger>
-            </TabsList>
+        <div className="min-w-0 flex-1">
+          {section === 'overview' && (
+            <div className="space-y-5">
+              <section className="space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <h2 className="text-xs font-medium text-muted-foreground">Standing prompt</h2>
+                  <Button variant="ghost" size="sm" onClick={() => setPromptOpen(true)}>
+                    <MessageSquare /> {project.prompt ? 'Edit prompt' : 'Define prompt'}
+                  </Button>
+                </div>
+                {project.prompt ? (
+                  <p className="whitespace-pre-wrap rounded-lg border border-border bg-card p-3 text-sm leading-relaxed">
+                    {project.prompt}
+                  </p>
+                ) : (
+                  <ProjectEmptyState
+                    icon={MessageSquare}
+                    title="No standing prompt"
+                    description="Set the context agents should start from every time they work on this project."
+                    action={
+                      <Button variant="outline" size="sm" onClick={() => setPromptOpen(true)}>
+                        <MessageSquare /> Define prompt
+                      </Button>
+                    }
+                  />
+                )}
+              </section>
 
-            <TabsContent value="overview" className="space-y-3">
-              <div className="flex items-center justify-between gap-2">
-                <p className="text-xs font-medium text-muted-foreground">Project prompt</p>
-                <Button variant="ghost" size="sm" onClick={() => setPromptOpen(true)}>
-                  <MessageSquare /> {project.prompt ? 'Edit prompt' : 'Define prompt'}
-                </Button>
-              </div>
-              {project.prompt ? (
-                <p className="whitespace-pre-wrap rounded-lg border border-border bg-card p-3 text-sm">
-                  {project.prompt}
-                </p>
-              ) : (
-                <p className="rounded-lg border border-dashed border-border p-3 text-sm text-muted-foreground">
-                  No prompt defined yet. Set the standing context agents should start from on this
-                  project.
-                </p>
-              )}
-
-              <p className="text-xs font-medium text-muted-foreground">Notes</p>
-              <Textarea value={project.notes} readOnly rows={6} placeholder="No notes yet." />
-
-              <Separator />
+              <ProjectNotesCard
+                notes={project.notes}
+                onSave={(notes) => notesMutation.mutate(notes)}
+                saving={notesMutation.isPending}
+              />
 
               <DraftsSection projectId={project.id} />
-            </TabsContent>
+            </div>
+          )}
 
-            <TabsContent value="bootstrap" className="space-y-4">
+          {section === 'bootstrap' && (
+            <div className="space-y-4">
               <div className="flex items-start justify-between gap-4">
                 <p className="text-sm text-muted-foreground">
                   {bootstrapPlanQuery.data ? (
@@ -595,7 +548,11 @@ export default function ProjectDetailPage(): React.JSX.Element {
                     Could not load the plan: {(bootstrapPlanQuery.error as Error).message}
                   </p>
                 ) : bootstrapPlanQuery.isPending ? (
-                  <p className="text-xs text-muted-foreground">Loading plan…</p>
+                  <div className="space-y-2">
+                    <Skeleton className="h-3 w-40" />
+                    <Skeleton className="h-3 w-56" />
+                    <Skeleton className="h-3 w-32" />
+                  </div>
                 ) : (
                   <>
                     <p className="mb-2 text-xs font-medium text-muted-foreground">
@@ -622,24 +579,38 @@ export default function ProjectDetailPage(): React.JSX.Element {
                 <FolderTree className="h-3.5 w-3.5" /> Browse and edit project files
               </div>
               <ProjectFileBrowser rootPath={project.folderPath} revision={fileBrowserRevision} />
-            </TabsContent>
+            </div>
+          )}
 
-            <TabsContent value="prompts">
-              <ProjectPromptHistory projectId={project.id} />
-            </TabsContent>
+          {section === 'prompts' && <ProjectPromptHistory projectId={project.id} />}
 
-            <TabsContent value="skills" className="space-y-3">
-              <div className="flex items-center justify-between">
+          {section === 'skills' && (
+            <div className="space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
                 <p className="text-sm text-muted-foreground">Skills installed into this project.</p>
                 <Button
                   variant="outline"
+                  size="sm"
                   onClick={() => navigate(`/skills?projectId=${project.id}`)}
                 >
-                  <Blocks /> Browse Marketplace
+                  <Blocks /> Browse marketplace
                 </Button>
               </div>
               {installedSkillsQuery.data?.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No skills installed yet.</p>
+                <ProjectEmptyState
+                  icon={Blocks}
+                  title="No skills installed"
+                  description="Pull skills from the marketplace so agents on this project can use them."
+                  action={
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => navigate(`/skills?projectId=${project.id}`)}
+                    >
+                      <Blocks /> Browse marketplace
+                    </Button>
+                  }
+                />
               ) : (
                 <div className="space-y-2">
                   {installedSkillsQuery.data?.map((skill) => {
@@ -647,180 +618,168 @@ export default function ProjectDetailPage(): React.JSX.Element {
                     return (
                       <div
                         key={skill.skillId}
-                        className="flex items-center justify-between rounded-lg border border-border bg-card px-3 py-2 text-sm"
+                        className="flex items-center justify-between gap-3 rounded-lg border border-border bg-card px-3 py-2.5 text-sm"
                       >
-                        <span className="flex items-center gap-2">
-                          {skill.skillId}{' '}
-                          <span className="text-muted-foreground">v{skill.version}</span>
+                        <div className="min-w-0 space-y-1">
+                          <p className="truncate font-medium">{skill.skillId}</p>
+                          <p className="text-xs text-muted-foreground">v{skill.version}</p>
+                        </div>
+                        <div className="flex shrink-0 items-center gap-1">
                           {update?.hasUpdate && (
-                            <Badge variant="secondary">v{update.latestVersion} available</Badge>
+                            <>
+                              <Badge variant="warning">v{update.latestVersion} available</Badge>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                disabled={
+                                  updateSkillMutation.isPending &&
+                                  updateSkillMutation.variables?.skillId === skill.skillId
+                                }
+                                onClick={() => updateSkillMutation.mutate(update)}
+                              >
+                                <RefreshCw className="h-3.5 w-3.5" /> Update
+                              </Button>
+                            </>
                           )}
-                        </span>
-                        <div className="flex items-center gap-1">
-                          {update?.hasUpdate && (
+                          <SimpleTooltip label={`Remove ${skill.skillId}`}>
                             <Button
-                              variant="outline"
-                              size="sm"
-                              disabled={
-                                updateSkillMutation.isPending &&
-                                updateSkillMutation.variables?.skillId === skill.skillId
-                              }
-                              onClick={() => updateSkillMutation.mutate(update)}
+                              variant="ghost"
+                              size="icon"
+                              aria-label={`Remove ${skill.skillId}`}
+                              onClick={() => {
+                                void confirmDialog({
+                                  title: `Remove "${skill.skillId}"?`,
+                                  description: 'This removes it from this project.',
+                                  confirmLabel: 'Remove',
+                                  variant: 'destructive',
+                                }).then((confirmed) => {
+                                  if (confirmed) removeSkillMutation.mutate(skill.skillId);
+                                });
+                              }}
                             >
-                              <RefreshCw className="h-3.5 w-3.5" /> Update
+                              <Trash2 className="h-4 w-4" />
                             </Button>
-                          )}
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => {
-                              void confirmDialog({
-                                title: `Remove "${skill.skillId}"?`,
-                                description: 'This removes it from this project.',
-                                confirmLabel: 'Remove',
-                                variant: 'destructive',
-                              }).then((confirmed) => {
-                                if (confirmed) removeSkillMutation.mutate(skill.skillId);
-                              });
-                            }}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
+                          </SimpleTooltip>
                         </div>
                       </div>
                     );
                   })}
                 </div>
               )}
-            </TabsContent>
+            </div>
+          )}
 
-            <TabsContent value="mcp" className="space-y-3">
-              <div className="flex items-center justify-between">
+          {section === 'mcp' && (
+            <div className="space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
                 <p className="text-sm text-muted-foreground">
                   MCP servers installed into this project.
                 </p>
-                <Button variant="outline" onClick={() => navigate(`/mcp?projectId=${project.id}`)}>
-                  <Plug /> Browse Marketplace
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => navigate(`/mcp?projectId=${project.id}`)}
+                >
+                  <Plug /> Browse marketplace
                 </Button>
               </div>
               {installedMcpServersQuery.data?.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No MCP servers installed yet.</p>
+                <ProjectEmptyState
+                  icon={Plug}
+                  title="No MCP servers installed"
+                  description="Install servers from the marketplace to give this project's agents extra tools."
+                  action={
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => navigate(`/mcp?projectId=${project.id}`)}
+                    >
+                      <Plug /> Browse marketplace
+                    </Button>
+                  }
+                />
               ) : (
                 <div className="space-y-2">
                   {installedMcpServersQuery.data?.map((server) => (
                     <div
                       key={server.serverId}
-                      className="flex items-center justify-between rounded-lg border border-border bg-card px-3 py-2 text-sm"
+                      className="flex items-center justify-between gap-3 rounded-lg border border-border bg-card px-3 py-2.5 text-sm"
                     >
-                      <span>
-                        {server.serverId}{' '}
-                        <span className="text-muted-foreground">v{server.version}</span>
-                      </span>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => removeMcpServerMutation.mutate(server.serverId)}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                      <div className="min-w-0 space-y-1">
+                        <p className="truncate font-medium">{server.serverId}</p>
+                        <p className="text-xs text-muted-foreground">v{server.version}</p>
+                      </div>
+                      <SimpleTooltip label={`Remove ${server.serverId}`}>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          aria-label={`Remove ${server.serverId}`}
+                          onClick={() => {
+                            void confirmDialog({
+                              title: `Remove "${server.serverId}"?`,
+                              description: 'This removes it from this project.',
+                              confirmLabel: 'Remove',
+                              variant: 'destructive',
+                            }).then((confirmed) => {
+                              if (confirmed) removeMcpServerMutation.mutate(server.serverId);
+                            });
+                          }}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </SimpleTooltip>
                     </div>
                   ))}
                 </div>
               )}
-            </TabsContent>
+            </div>
+          )}
 
-            <TabsContent value="packages" className="space-y-4">
-              <PackagesTab projectId={project.id} />
-            </TabsContent>
+          {section === 'packages' && <PackagesTab projectId={project.id} />}
 
-            <TabsContent value="git" className="space-y-4">
-              <GitTab projectId={project.id} folderPath={project.folderPath} />
-            </TabsContent>
+          {section === 'git' && <GitTab projectId={project.id} folderPath={project.folderPath} />}
 
-            <TabsContent value="schedule" className="space-y-3">
-              <ScheduleTab projectId={project.id} />
-            </TabsContent>
+          {section === 'schedule' && <ScheduleTab projectId={project.id} />}
 
-            <TabsContent value="hooks" className="space-y-4">
-              <HooksTab project={project} />
-            </TabsContent>
+          {section === 'hooks' && <HooksTab project={project} />}
 
-            <TabsContent value="terminal" className="space-y-3">
-              <p className="text-sm text-muted-foreground">
-                Open a terminal in this project's folder.
-              </p>
-              <div className="flex flex-wrap items-center gap-2">
-                <Button
-                  onClick={() =>
-                    openSession({
-                      title: project.name,
-                      cwd: project.folderPath,
-                      projectId: project.id,
-                    })
-                  }
-                >
-                  <TerminalSquare /> Open Terminal Here
-                </Button>
-                {project.runCommand && (
-                  <Button variant="outline" onClick={handleRun}>
-                    <Play /> Run "{project.runCommand}"
-                  </Button>
-                )}
-              </div>
-              {!project.runCommand && (
-                <p className="text-xs text-muted-foreground">
-                  Set a run command from Edit to add a one-click Run action here and on the Projects
-                  page.
+          {section === 'terminal' && (
+            <div className="space-y-4">
+              <div className="glass rounded-lg p-5">
+                <h2 className="text-sm font-medium">Terminal</h2>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Opens in this project's folder. The drawer stays available from the top bar after
+                  that.
                 </p>
-              )}
-            </TabsContent>
+                <div className="mt-4 flex flex-wrap items-center gap-2">
+                  <Button
+                    onClick={() =>
+                      openSession({
+                        title: project.name,
+                        cwd: project.folderPath,
+                        projectId: project.id,
+                      })
+                    }
+                  >
+                    <TerminalSquare /> Open terminal here
+                  </Button>
+                  {project.runCommand ? (
+                    <Button variant="outline" onClick={handleRun}>
+                      <Play /> Run {project.runCommand}
+                    </Button>
+                  ) : (
+                    <Button variant="outline" onClick={() => setEditOpen(true)}>
+                      Set a run command
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
 
-            <TabsContent value="config">
-              <ProjectConfigEditor projectFolderPath={project.folderPath} />
-            </TabsContent>
-          </Tabs>
-        </div>
-
-        <div className="space-y-4 xl:col-span-1">
-          <div className="glass rounded-lg p-5">
-            <p className="mb-3 text-xs font-medium text-muted-foreground">Details</p>
-            <dl className="space-y-3 text-sm">
-              <div className="flex items-center justify-between gap-2">
-                <dt className="text-muted-foreground">Agent</dt>
-                <dd className="font-medium">{project.agentType}</dd>
-              </div>
-              <div className="flex items-center justify-between gap-2">
-                <dt className="shrink-0 text-muted-foreground">Run command</dt>
-                <SimpleTooltip label={project.runCommand}>
-                  <dd className="min-w-0 truncate text-right font-mono text-xs">
-                    {project.runCommand || 'N/A'}
-                  </dd>
-                </SimpleTooltip>
-              </div>
-              <div className="flex items-center justify-between gap-2">
-                <dt className="text-muted-foreground">Created</dt>
-                <dd>{timeAgo(project.createdAt)}</dd>
-              </div>
-              <div className="flex items-center justify-between gap-2">
-                <dt className="text-muted-foreground">Updated</dt>
-                <dd>{timeAgo(project.updatedAt)}</dd>
-              </div>
-              <div className="flex items-center justify-between gap-2">
-                <dt className="text-muted-foreground">Tags</dt>
-                <dd className="text-right">
-                  {project.tags.length > 0 ? project.tags.length : 'N/A'}
-                </dd>
-              </div>
-              <div className="flex items-center justify-between gap-2">
-                <dt className="text-muted-foreground">Drafts</dt>
-                <dd className="text-right">
-                  {drafts.length === 0
-                    ? 'N/A'
-                    : `${openDraftCount} open · ${drafts.length - openDraftCount} implemented`}
-                </dd>
-              </div>
-            </dl>
-          </div>
+          {section === 'config' && (
+            <ProjectConfigEditor projectFolderPath={project.folderPath} />
+          )}
         </div>
       </div>
 
@@ -881,7 +840,14 @@ function ProjectConfigEditor({
     toast.success('Config saved.');
   }
 
-  if (!loaded) return <p className="text-sm text-muted-foreground">Loading…</p>;
+  if (!loaded) {
+    return (
+      <div className="space-y-2">
+        <Skeleton className="h-4 w-48" />
+        <Skeleton className="h-80 w-full rounded-lg" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-2">
@@ -1026,6 +992,7 @@ function EditClaudeHookDialog({
  */
 function DraftsSection({ projectId }: { projectId: string }): React.JSX.Element {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const draftsQuery = useQuery({
@@ -1070,11 +1037,21 @@ function DraftsSection({ projectId }: { projectId: string }): React.JSX.Element 
       </div>
 
       {draftsQuery.isLoading ? (
-        <p className="text-sm text-muted-foreground">Loading drafts…</p>
+        <div className="space-y-2">
+          <Skeleton className="h-20 w-full rounded-lg" />
+          <Skeleton className="h-20 w-full rounded-lg" />
+        </div>
       ) : drafts.length === 0 ? (
-        <p className="text-sm text-muted-foreground">
-          No drafts yet. In Prompt Builder, set Status to "Draft", pick this project, and save.
-        </p>
+        <ProjectEmptyState
+          icon={FileText}
+          title="No drafts yet"
+          description='In Prompt Builder, set Status to "Draft", pick this project, and save.'
+          action={
+            <Button variant="outline" size="sm" onClick={() => navigate('/prompt-builder')}>
+              Open Prompt Builder
+            </Button>
+          }
+        />
       ) : (
         <div className="space-y-2">
           {drafts.map((draft) => {
@@ -1188,6 +1165,7 @@ function statusBadgeVariant(
 
 function ScheduleTab({ projectId }: { projectId: string }): React.JSX.Element {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const openSession = useTerminalStore((s) => s.openSession);
   const defaultCliId = useCliStore((s) => s.defaultCliId);
 
@@ -1234,15 +1212,26 @@ function ScheduleTab({ projectId }: { projectId: string }): React.JSX.Element {
   }
 
   if (tasksQuery.isLoading) {
-    return <p className="text-sm text-muted-foreground">Loading schedule…</p>;
+    return (
+      <div className="space-y-2">
+        <Skeleton className="h-16 w-full rounded-lg" />
+        <Skeleton className="h-16 w-full rounded-lg" />
+      </div>
+    );
   }
 
   if (tasks.length === 0) {
     return (
-      <p className="text-sm text-muted-foreground">
-        No scheduled tasks yet. Build a series from Prompt Builder by setting its Status to
-        "Scheduled" and choosing this project.
-      </p>
+      <ProjectEmptyState
+        icon={CalendarDays}
+        title="No scheduled tasks"
+        description='Build a series from Prompt Builder by setting Status to "Scheduled" and choosing this project.'
+        action={
+          <Button variant="outline" size="sm" onClick={() => navigate('/prompt-builder')}>
+            Open Prompt Builder
+          </Button>
+        }
+      />
     );
   }
 
@@ -2892,18 +2881,6 @@ interface NotificationHookCardProps {
   installedAgents: CliDefinition[];
   onSave: (hook: ProjectNotificationHook) => void;
   saving: boolean;
-}
-
-function ProjectDescription({ text }: { text: string }): React.JSX.Element {
-  const persian = persianTextProps(text);
-  return (
-    <p
-      dir={persian.dir}
-      className={cn('max-w-2xl text-sm text-muted-foreground', persian.className)}
-    >
-      {text}
-    </p>
-  );
 }
 
 function NotificationHookCard({

@@ -31,6 +31,7 @@ import {
   faCopy,
   faDisplay,
   faDownload,
+  faEllipsisVertical,
   faEye,
   faFile,
   faFileLines,
@@ -120,6 +121,7 @@ export const Check = makeIcon(faCheck);
 export const ChevronsUpDown = makeIcon(faSort);
 export const Copy = makeIcon(faCopy);
 export const Download = makeIcon(faDownload);
+export const EllipsisVertical = makeIcon(faEllipsisVertical);
 export const Eye = makeIcon(faEye);
 export const ExternalLink = makeIcon(faArrowUpRightFromSquare);
 export const File = makeIcon(faFile);
