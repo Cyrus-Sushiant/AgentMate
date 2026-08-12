@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
+import { LayoutGroup, motion, useReducedMotion } from 'framer-motion';
 import { NavLink, useLocation } from 'react-router-dom';
-import { queryKeys } from '@/lib/queryKeys';
+import type { IconProps } from '@/components/icons';
 import {
   Blocks,
   Broadcast,
@@ -14,10 +15,10 @@ import {
   TerminalSquare,
   Wrench,
 } from '@/components/icons';
-import type { IconProps } from '@/components/icons';
+import { SimpleTooltip } from '@/components/ui/tooltip';
+import { queryKeys } from '@/lib/queryKeys';
 import { cn } from '@/lib/utils';
 import { useUiStore } from '@/stores/uiStore';
-import { SimpleTooltip } from '@/components/ui/tooltip';
 
 interface NavItem {
   to: string;
@@ -51,64 +52,81 @@ export const NAV_ITEMS: NavItem[] = [
 export function Sidebar(): React.JSX.Element {
   const collapsed = useUiStore((s) => s.sidebarCollapsed);
   const { pathname } = useLocation();
+  const reduceMotion = useReducedMotion();
   const appVersionQuery = useQuery({
     queryKey: queryKeys.appVersion,
     queryFn: () => window.agentmat.app.getVersion(),
   });
+  const pillTransition = reduceMotion
+    ? { duration: 0 }
+    : { type: 'spring' as const, stiffness: 420, damping: 32 };
 
   return (
     <aside
       className={cn(
-        'sidebar-gradient flex h-full shrink-0 flex-col border-r border-border px-3 py-4 transition-[width] duration-200',
+        'sidebar-gradient flex h-full shrink-0 flex-col border-r border-border/80 px-2.5 py-3 transition-[width] duration-200',
         collapsed ? 'w-16' : 'w-56',
       )}
     >
-      <nav className="flex flex-1 flex-col gap-1">
-        {NAV_ITEMS.map((item) => {
-          const activeByAlias =
-            item.alsoActiveOn?.some((p) => pathname === p || pathname.startsWith(`${p}/`)) ?? false;
+      <LayoutGroup>
+        <nav className="flex flex-1 flex-col gap-0.5">
+          {NAV_ITEMS.map((item) => {
+            const activeByAlias =
+              item.alsoActiveOn?.some((p) => pathname === p || pathname.startsWith(`${p}/`)) ??
+              false;
 
-          const link = (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              end={item.end}
-              className={({ isActive }) =>
-                cn(
-                  'group relative flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
-                  collapsed && 'justify-center px-0',
-                  isActive || activeByAlias
-                    ? 'bg-primary/15 font-semibold text-primary'
-                    : 'text-muted-foreground hover:bg-foreground/[0.06] hover:text-foreground',
-                )
-              }
-            >
-              {({ isActive }) => (
-                <>
-                  <item.icon
-                    className={cn(
-                      'h-4 w-4 shrink-0',
-                      (isActive || activeByAlias) && 'text-primary',
-                    )}
-                  />
-                  {!collapsed && <span>{item.label}</span>}
-                </>
-              )}
-            </NavLink>
-          );
+            const link = (
+              <NavLink
+                key={item.to}
+                to={item.to}
+                end={item.end}
+                className={({ isActive }) =>
+                  cn(
+                    'group relative flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
+                    collapsed && 'justify-center px-0',
+                    isActive || activeByAlias
+                      ? 'font-semibold text-primary'
+                      : 'text-muted-foreground hover:bg-foreground/[0.06] hover:text-foreground',
+                  )
+                }
+              >
+                {({ isActive }) => {
+                  const active = isActive || activeByAlias;
+                  return (
+                    <>
+                      {active && (
+                        <motion.span
+                          layoutId="sidebar-active"
+                          className="absolute inset-0 rounded-lg bg-primary/12"
+                          transition={pillTransition}
+                        />
+                      )}
+                      {active && !collapsed && (
+                        <span className="absolute left-0 top-1/2 z-10 h-4 w-[3px] -translate-y-1/2 rounded-full bg-primary shadow-[0_0_8px_hsl(var(--primary)/0.7)]" />
+                      )}
+                      <item.icon
+                        className={cn('relative z-10 h-4 w-4 shrink-0', active && 'text-primary')}
+                      />
+                      {!collapsed && <span className="relative z-10">{item.label}</span>}
+                    </>
+                  );
+                }}
+              </NavLink>
+            );
 
-          return collapsed ? (
-            <SimpleTooltip key={item.to} label={item.label} side="right">
-              {link}
-            </SimpleTooltip>
-          ) : (
-            link
-          );
-        })}
-      </nav>
+            return collapsed ? (
+              <SimpleTooltip key={item.to} label={item.label} side="right">
+                {link}
+              </SimpleTooltip>
+            ) : (
+              link
+            );
+          })}
+        </nav>
+      </LayoutGroup>
 
       {!collapsed && (
-        <div className="px-2.5 pt-2 text-[11px] text-muted-foreground/60">
+        <div className="mt-2 border-t border-border/50 px-2.5 pt-3 text-[11px] text-muted-foreground/55">
           AgentMate{' '}
           {appVersionQuery.data == null
             ? ''

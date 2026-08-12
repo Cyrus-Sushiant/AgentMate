@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useState } from 'react';
+import type { Project } from '@agentmat/core';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
-import type { Project } from '@agentmat/core';
 import {
   Folder,
   FolderPlus,
@@ -15,9 +15,12 @@ import {
   Search,
   Sparkles,
 } from '@/components/icons';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
+import { ProjectFormDialog, type ProjectFormValues } from '@/components/projects/ProjectFormDialog';
+import { ProjectIcon } from '@/components/projects/ProjectIcon';
+import { ProjectPromptBuildDialog } from '@/components/projects/ProjectPromptBuildDialog';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { SimpleTooltip } from '@/components/ui/tooltip';
@@ -26,9 +29,6 @@ import { timeAgo } from '@/lib/time';
 import { cn } from '@/lib/utils';
 import { usePageHeader } from '@/stores/pageHeaderStore';
 import { useTerminalStore } from '@/stores/terminalStore';
-import { ProjectFormDialog, type ProjectFormValues } from '@/components/projects/ProjectFormDialog';
-import { ProjectIcon } from '@/components/projects/ProjectIcon';
-import { ProjectPromptBuildDialog } from '@/components/projects/ProjectPromptBuildDialog';
 
 /** Moves `draggedId` to sit just before `targetId` within one pin group. */
 function reorderWithinGroup(list: Project[], draggedId: string, targetId: string): Project[] {
@@ -312,7 +312,7 @@ function ProjectCard({
   return (
     <Card
       className={cn(
-        'glass group flex cursor-pointer flex-col transition-all duration-150 hover:-translate-y-0.5 hover:border-primary/50 hover:shadow-lg',
+        'glass group flex cursor-pointer flex-col transition-all duration-150 hover:-translate-y-0.5 hover:border-primary/40',
         isDragging && 'opacity-50',
       )}
       onClick={onNavigate}

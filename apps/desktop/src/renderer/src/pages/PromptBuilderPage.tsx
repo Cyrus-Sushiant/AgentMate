@@ -36,6 +36,7 @@ import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Combobox } from '@/components/ui/combobox';
+import { TARGET_AI_CLI_ID, cliOptionIcon } from '@/components/cliLogos';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import {
   Dialog,
@@ -86,17 +87,6 @@ const TRANSLATE_LANGUAGES = [
   { value: 'hi', label: 'Hindi' },
   { value: 'tr', label: 'Turkish' },
 ];
-
-const TARGET_AI_TO_CLI_ID: Record<TargetAI, string> = {
-  Claude: 'claude-code',
-  Gemini: 'gemini-cli',
-  OpenCode: 'opencode',
-  Codex: 'codex-cli',
-  Qwen: 'qwen-cli',
-  Aider: 'aider',
-  Goose: 'goose',
-  Continue: 'continue-cli',
-};
 
 export default function PromptBuilderPage(): React.JSX.Element {
   const {
@@ -280,7 +270,7 @@ export default function PromptBuilderPage(): React.JSX.Element {
     scheduleQueue.every((item) => item.text.trim() && item.runAt);
 
   const cliForSendTo = useMemo(() => {
-    const cliId = defaultCliId ?? TARGET_AI_TO_CLI_ID[targetAI];
+    const cliId = defaultCliId ?? TARGET_AI_CLI_ID[targetAI];
     return CLI_REGISTRY.find((c) => c.id === cliId) ?? null;
   }, [defaultCliId, targetAI]);
 
@@ -481,7 +471,11 @@ export default function PromptBuilderPage(): React.JSX.Element {
                 <Combobox
                   value={targetAI}
                   onChange={(v) => setTargetAI(v as TargetAI)}
-                  options={TARGET_AIS.map((ai) => ({ value: ai, label: ai }))}
+                  options={TARGET_AIS.map((ai) => ({
+                    value: ai,
+                    label: ai,
+                    icon: cliOptionIcon(TARGET_AI_CLI_ID[ai]),
+                  }))}
                 />
               </div>
             </div>

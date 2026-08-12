@@ -1,14 +1,13 @@
-import { useState } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { toast } from 'sonner';
-import { CloudDownload, ExternalLink, RefreshCw, TerminalSquare } from '@/components/icons';
-import { CliLogo } from '@/components/cliLogos';
-import { CatalogCardSkeleton } from '@/components/CatalogCardSkeleton';
 import { CLI_REGISTRY, type CliDefinition } from '@agentmat/core';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useState } from 'react';
+import { toast } from 'sonner';
+import { CatalogCardSkeleton } from '@/components/CatalogCardSkeleton';
+import { CliLogo } from '@/components/cliLogos';
+import { CloudDownload, ExternalLink, RefreshCw, TerminalSquare } from '@/components/icons';
 import { Badge } from '@/components/ui/badge';
-import { SimpleTooltip } from '@/components/ui/tooltip';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Dialog,
   DialogContent,
@@ -17,9 +16,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { SimpleTooltip } from '@/components/ui/tooltip';
 import { queryKeys } from '@/lib/queryKeys';
-import { usePageHeader } from '@/stores/pageHeaderStore';
 import { useCliStore } from '@/stores/cliStore';
+import { usePageHeader } from '@/stores/pageHeaderStore';
 import { useTerminalStore } from '@/stores/terminalStore';
 
 interface PendingUpdate {
@@ -205,7 +205,7 @@ export default function CliManagerPage(): React.JSX.Element {
           const isDefault = defaultCliId === cli.id;
 
           return (
-            <Card key={cli.id} className="glass flex flex-col">
+            <Card key={cli.id} className="glass flex flex-col hover:border-primary/30">
               <CardHeader>
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex items-center gap-2">

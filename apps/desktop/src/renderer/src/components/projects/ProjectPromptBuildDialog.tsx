@@ -27,6 +27,7 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Combobox } from '@/components/ui/combobox';
+import { TARGET_AI_CLI_ID, cliOptionIcon } from '@/components/cliLogos';
 import { PROMPT_TYPES, TARGET_AIS } from '@agentmat/core';
 import type { PromptType, TargetAI } from '@agentmat/core';
 import { useProjectPromptBuilder } from './useProjectPromptBuilder';
@@ -123,12 +124,19 @@ export function ProjectPromptBuildDialog({
         }}
         onKeyDown={(event) => {
           if (event.shiftKey || event.altKey) return;
-          if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
+          if (!(event.ctrlKey || event.metaKey)) return;
+          const key = event.key.toLowerCase();
+          if (event.key === 'Enter' || key === 'g') {
             event.preventDefault();
             if (hasRequest && !isBusy) void handleGenerate();
             return;
           }
-          if (event.key.toLowerCase() === 'c' && (event.ctrlKey || event.metaKey)) {
+          if (key === 't') {
+            event.preventDefault();
+            if (hasRequest && !isBusy) void handleTranslate();
+            return;
+          }
+          if (key === 'c') {
             if (hasTextSelection() || !generated || isBusy) return;
             event.preventDefault();
             void onCopy();
@@ -188,7 +196,11 @@ export function ProjectPromptBuildDialog({
                 className="h-8 w-[9.5rem]"
                 value={targetAI}
                 onChange={(v) => setTargetAI(v as TargetAI)}
-                options={TARGET_AIS.map((ai) => ({ value: ai, label: ai }))}
+                options={TARGET_AIS.map((ai) => ({
+                  value: ai,
+                  label: ai,
+                  icon: cliOptionIcon(TARGET_AI_CLI_ID[ai]),
+                }))}
               />
             </div>
           </div>
@@ -217,15 +229,28 @@ export function ProjectPromptBuildDialog({
                 </p>
               )}
               <div className="flex gap-2">
-                <Button
-                  className="flex-1"
-                  onClick={() => void handleGenerate()}
-                  disabled={!hasRequest || isBusy}
+                <SimpleTooltip
+                  label={`${shortcut}+G or ${shortcut}+Enter`}
+                  wrapTrigger={!hasRequest || isBusy}
                 >
-                  {isGenerating ? <Spinner className="animate-spin" /> : <Sparkles />}
-                  {isGenerating ? 'Generating…' : 'Generate prompt'}
-                </Button>
-                <SimpleTooltip label="Copy your request into English without generating a prompt">
+                  <Button
+                    className="flex-1"
+                    onClick={() => void handleGenerate()}
+                    disabled={!hasRequest || isBusy}
+                  >
+                    {isGenerating ? <Spinner className="animate-spin" /> : <Sparkles />}
+                    {isGenerating ? 'Generating…' : 'Generate prompt'}
+                    {!isGenerating && (
+                      <kbd className="ml-auto rounded border border-primary-foreground/25 px-1 py-px text-[10px] font-medium text-primary-foreground/80">
+                        {shortcut}+G
+                      </kbd>
+                    )}
+                  </Button>
+                </SimpleTooltip>
+                <SimpleTooltip
+                  label={`Copy your request into English without generating a prompt (${shortcut}+T)`}
+                  wrapTrigger={!hasRequest || isBusy}
+                >
                   <Button
                     variant="secondary"
                     onClick={() => void handleTranslate()}
@@ -233,6 +258,11 @@ export function ProjectPromptBuildDialog({
                   >
                     {isTranslating ? <Spinner className="animate-spin" /> : <Languages />}
                     {isTranslating ? 'Translating…' : 'Translate'}
+                    {!isTranslating && (
+                      <kbd className="rounded border border-border px-1 py-px text-[10px] font-medium text-muted-foreground">
+                        {shortcut}+T
+                      </kbd>
+                    )}
                   </Button>
                 </SimpleTooltip>
               </div>
@@ -291,7 +321,7 @@ export function ProjectPromptBuildDialog({
             <Trash2 /> Clear
           </Button>
           <p className="hidden text-xs text-muted-foreground sm:block">
-            {shortcut}+Enter to generate · {shortcut}+C to copy
+            {shortcut}+G generate · {shortcut}+T translate · {shortcut}+C copy
           </p>
           <SimpleTooltip
             label={generated ? 'Park this on the project’s Overview tab' : 'Generate a prompt first'}

@@ -17,6 +17,7 @@ import {
   Upload,
 } from '@/components/icons';
 import { CLI_REGISTRY } from '@agentmat/core';
+import { cliOptionIcon } from '@/components/cliLogos';
 import { Button } from '@/components/ui/button';
 import { Combobox } from '@/components/ui/combobox';
 import { Input } from '@/components/ui/input';
@@ -495,7 +496,11 @@ export default function SettingsPage(): React.JSX.Element {
                 onChange={(v) => setDefaultCliId(v || null)}
                 placeholder="No default set"
                 searchPlaceholder="Search CLIs…"
-                options={CLI_REGISTRY.map((cli) => ({ value: cli.id, label: cli.name }))}
+                options={CLI_REGISTRY.map((cli) => ({
+                  value: cli.id,
+                  label: cli.name,
+                  icon: cliOptionIcon(cli.id),
+                }))}
                 clearable
               />
             </SettingsSection>

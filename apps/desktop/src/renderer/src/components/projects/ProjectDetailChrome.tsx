@@ -23,7 +23,7 @@ import {
   Trash2,
   Wand2,
 } from '@/components/icons';
-import { CliLogo } from '@/components/cliLogos';
+import { AGENT_TYPE_CLI_ID, CliLogo } from '@/components/cliLogos';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -64,15 +64,6 @@ export const AGENT_TYPE_LABELS: Record<AgentType, string> = {
   codex: 'Codex',
   cursor: 'Cursor',
   generic: 'Generic',
-};
-
-const AGENT_TYPE_CLI_ID: Record<AgentType, string | null> = {
-  'claude-code': 'claude-code',
-  gemini: 'gemini-cli',
-  opencode: 'opencode',
-  codex: 'codex-cli',
-  cursor: 'cursor-cli',
-  generic: null,
 };
 
 const SECTIONS: {

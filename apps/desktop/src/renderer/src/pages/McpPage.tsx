@@ -65,7 +65,7 @@ function FilterChip({
       type="button"
       onClick={onClick}
       className={cn(
-        'h-7 shrink-0 rounded-full border px-2.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+        'h-7 shrink-0 cursor-pointer rounded-full border px-2.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
         active
           ? 'border-primary/40 bg-primary/15 text-primary'
           : 'border-border text-muted-foreground hover:border-foreground/20 hover:text-foreground',
@@ -147,7 +147,7 @@ const McpServerCard = memo(function McpServerCard({
   return (
     <Card
       className={cn(
-        'glass flex flex-col transition-all duration-150 hover:-translate-y-0.5 hover:shadow-lg',
+        'glass flex flex-col transition-all duration-150 hover:-translate-y-0.5',
         isInstalled ? 'border-success/35 hover:border-success/55' : 'hover:border-primary/40',
       )}
     >

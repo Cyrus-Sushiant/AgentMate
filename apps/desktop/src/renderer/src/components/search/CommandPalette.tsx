@@ -1,13 +1,13 @@
-import { useEffect, useMemo, useState } from 'react';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
-import { Command as CommandPrimitive } from 'cmdk';
-import { useNavigate } from 'react-router-dom';
 import { useQueries, useQuery } from '@tanstack/react-query';
+import { Command as CommandPrimitive } from 'cmdk';
+import { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Blocks, Folder, History, Search } from '@/components/icons';
+import { NAV_ITEMS } from '@/components/layout/Sidebar';
 import { queryKeys } from '@/lib/queryKeys';
 import { cn } from '@/lib/utils';
 import { useSearchStore } from '@/stores/searchStore';
-import { NAV_ITEMS } from '@/components/layout/Sidebar';
 
 export function CommandPalette(): React.JSX.Element {
   const open = useSearchStore((s) => s.open);
@@ -78,8 +78,8 @@ export function CommandPalette(): React.JSX.Element {
         <DialogPrimitive.Content
           onOpenAutoFocus={(e) => e.preventDefault()}
           className={cn(
-            'fixed left-1/2 top-[14%] z-50 w-full max-w-xl -translate-x-1/2 overflow-hidden rounded-lg',
-            'border border-border/60 bg-popover/60 text-popover-foreground shadow-2xl backdrop-blur-2xl backdrop-saturate-150',
+            'fixed left-1/2 top-[14%] z-50 w-full max-w-xl -translate-x-1/2 overflow-hidden rounded-xl',
+            'border border-border/60 bg-popover/60 text-popover-foreground shadow-2xl shadow-black/20 backdrop-blur-2xl backdrop-saturate-150',
             'data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0',
             'data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95',
           )}
@@ -116,7 +116,7 @@ export function CommandPalette(): React.JSX.Element {
                     key={item.to}
                     value={`page ${item.label}`}
                     onSelect={() => selectPage(item.to)}
-                    className="flex cursor-default select-none items-center gap-2.5 rounded-md px-2 py-2 text-sm outline-none aria-selected:bg-accent aria-selected:text-accent-foreground"
+                    className="flex cursor-pointer select-none items-center gap-2.5 rounded-md px-2 py-2 text-sm outline-none aria-selected:bg-primary/12 aria-selected:text-foreground"
                   >
                     <item.icon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                     {item.label}
@@ -134,7 +134,7 @@ export function CommandPalette(): React.JSX.Element {
                       key={project.id}
                       value={`project ${project.name} ${project.description} ${project.folderPath} ${project.tags.join(' ')}`}
                       onSelect={() => selectProject(project.id)}
-                      className="flex cursor-default select-none items-center gap-2.5 rounded-md px-2 py-2 text-sm outline-none aria-selected:bg-accent aria-selected:text-accent-foreground"
+                      className="flex cursor-pointer select-none items-center gap-2.5 rounded-md px-2 py-2 text-sm outline-none aria-selected:bg-primary/12 aria-selected:text-foreground"
                     >
                       <Folder className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                       <div className="min-w-0">
@@ -162,7 +162,7 @@ export function CommandPalette(): React.JSX.Element {
                           : `history ${entry.promptType} ${entry.targetAI} ${entry.content} ${entry.tags.join(' ')}`
                       }
                       onSelect={() => selectHistoryEntry(entry.id)}
-                      className="flex cursor-default select-none items-center gap-2.5 rounded-md px-2 py-2 text-sm outline-none aria-selected:bg-accent aria-selected:text-accent-foreground"
+                      className="flex cursor-pointer select-none items-center gap-2.5 rounded-md px-2 py-2 text-sm outline-none aria-selected:bg-primary/12 aria-selected:text-foreground"
                     >
                       <History className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                       <div className="min-w-0">
@@ -190,7 +190,7 @@ export function CommandPalette(): React.JSX.Element {
                       key={`${repo.id}-${skill.id}`}
                       value={`skill ${skill.name} ${skill.description} ${skill.category} ${skill.tags.join(' ')}`}
                       onSelect={() => selectSkill(repo.id, skill.name)}
-                      className="flex cursor-default select-none items-center gap-2.5 rounded-md px-2 py-2 text-sm outline-none aria-selected:bg-accent aria-selected:text-accent-foreground"
+                      className="flex cursor-pointer select-none items-center gap-2.5 rounded-md px-2 py-2 text-sm outline-none aria-selected:bg-primary/12 aria-selected:text-foreground"
                     >
                       <Blocks className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                       <div className="min-w-0">

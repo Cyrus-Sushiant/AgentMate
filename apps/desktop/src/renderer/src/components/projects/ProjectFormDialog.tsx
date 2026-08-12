@@ -14,6 +14,7 @@ import {
   Upload,
   X,
 } from '@/components/icons';
+import { AGENT_TYPE_CLI_ID, cliOptionIcon } from '@/components/cliLogos';
 import { ProjectIcon } from '@/components/projects/ProjectIcon';
 import { Button } from '@/components/ui/button';
 import { Combobox } from '@/components/ui/combobox';
@@ -544,7 +545,11 @@ export function ProjectFormDialog({
                   <Combobox
                     value={agentType}
                     onChange={(v) => setAgentType(v as AgentType)}
-                    options={AGENT_TYPES.map((a) => ({ value: a.value, label: a.label }))}
+                    options={AGENT_TYPES.map((a) => ({
+                      value: a.value,
+                      label: a.label,
+                      icon: cliOptionIcon(AGENT_TYPE_CLI_ID[a.value]),
+                    }))}
                   />
                 </Field>
 
@@ -554,7 +559,11 @@ export function ProjectFormDialog({
                     onChange={setCliId}
                     options={[
                       { value: APP_DEFAULT_CLI, label: 'App default (from Settings)' },
-                      ...CLI_REGISTRY.map((cli) => ({ value: cli.id, label: cli.name })),
+                      ...CLI_REGISTRY.map((cli) => ({
+                        value: cli.id,
+                        label: cli.name,
+                        icon: cliOptionIcon(cli.id),
+                      })),
                     ]}
                   />
                 </Field>

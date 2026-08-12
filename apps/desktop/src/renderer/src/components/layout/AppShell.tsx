@@ -31,7 +31,7 @@ function TopBar(): React.JSX.Element {
   const openAskAi = useAskAiStore((s) => s.openModal);
 
   return (
-    <div className="flex h-16 shrink-0 items-center justify-between gap-3 border-b border-border px-3">
+    <div className="flex h-14 shrink-0 items-center justify-between gap-3 border-b border-border/80 px-4">
       <div className="flex min-w-0 items-center gap-3">
         <SimpleTooltip label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}>
           <Button variant="ghost" size="icon" onClick={toggleSidebar}>

@@ -1,10 +1,20 @@
-import { memo, useCallback, useEffect, useMemo, useState } from 'react';
+import type { SkillRepositorySourceType, UiProInstallMethod } from '@agentmat/core';
+import {
+  buildUiProUninstallCommands,
+  bundledSkillsShDirectory,
+  SKILLS_SH_SNAPSHOT_DATE,
+  UI_UX_PRO_MAX_AI_TARGETS,
+  UI_UX_PRO_MAX_PSEUDO_REPOSITORY_ID,
+} from '@agentmat/core';
 import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
+import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { toast } from 'sonner';
+import { CatalogCardSkeleton } from '@/components/CatalogCardSkeleton';
 import {
   CircleCheck,
   Copy,
+  Download,
   ExternalLink,
   Eye,
   FolderOpen,
@@ -15,29 +25,12 @@ import {
   Sparkles,
   Trash2,
 } from '@/components/icons';
-import type { SkillRepositorySourceType } from '@agentmat/core';
-import {
-  bundledSkillsShDirectory,
-  buildUiProUninstallCommands,
-  SKILLS_SH_SNAPSHOT_DATE,
-  UI_UX_PRO_MAX_AI_TARGETS,
-  UI_UX_PRO_MAX_PSEUDO_REPOSITORY_ID,
-} from '@agentmat/core';
-import type { UiProInstallMethod } from '@agentmat/core';
-import type {
-  InstalledSkillRecord,
-  SkillsShSearchResult,
-  SkillUpdateInfo,
-} from '../../../shared/apiTypes';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import { UiUxProMaxCard } from '@/components/skills/UiUxProMaxCard';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Combobox } from '@/components/ui/combobox';
-import { SimpleTooltip } from '@/components/ui/tooltip';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   Dialog,
   DialogContent,
@@ -46,13 +39,20 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { CatalogCardSkeleton } from '@/components/CatalogCardSkeleton';
-import { UiUxProMaxCard } from '@/components/skills/UiUxProMaxCard';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { SimpleTooltip } from '@/components/ui/tooltip';
 import { queryKeys } from '@/lib/queryKeys';
 import { cn } from '@/lib/utils';
 import { confirmDialog } from '@/stores/confirmStore';
 import { usePageHeader } from '@/stores/pageHeaderStore';
 import { useTerminalStore } from '@/stores/terminalStore';
+import type {
+  InstalledSkillRecord,
+  SkillsShSearchResult,
+  SkillUpdateInfo,
+} from '../../../shared/apiTypes';
 
 const SOURCE_TYPES: { value: SkillRepositorySourceType; label: string }[] = [
   { value: 'url', label: 'URL (JSON index)' },
@@ -156,7 +156,7 @@ const SkillsShDirectoryCard = memo(function SkillsShDirectoryCard({
   onView: (skill: SkillsShDisplayEntry) => void;
 }): React.JSX.Element {
   return (
-    <Card className="flex flex-col">
+    <Card className="flex flex-col hover:border-primary/30">
       <CardHeader>
         <div className="flex items-start justify-between gap-2">
           <CardTitle className="flex items-center gap-1.5">
@@ -182,7 +182,7 @@ const SkillsShDirectoryCard = memo(function SkillsShDirectoryCard({
         <div className="text-xs text-muted-foreground">{skill.repo}</div>
         <div className="flex items-center gap-2">
           <Button size="sm" onClick={() => onInstall(skill)}>
-            Install
+            <Download /> Install
           </Button>
           <Button size="sm" variant="outline" onClick={() => onView(skill)}>
             <Eye /> View
@@ -766,7 +766,10 @@ export default function SkillsPage(): React.JSX.Element {
             {(reposQuery.isPending || (visibleRepos.length > 0 && repoIndexes.isPending)) &&
               Array.from({ length: 6 }, (_, i) => <CatalogCardSkeleton key={i} />)}
             {visibleMarketplaceSkills.map(({ skill, repo }) => (
-              <Card key={`${repo.id}:${skill.id}`} className="flex flex-col">
+              <Card
+                key={`${repo.id}:${skill.id}`}
+                className="flex flex-col hover:border-primary/30"
+              >
                 <CardHeader>
                   <div className="flex items-start justify-between gap-2">
                     <CardTitle>{skill.name}</CardTitle>
@@ -808,7 +811,7 @@ export default function SkillsPage(): React.JSX.Element {
                         })
                       }
                     >
-                      Install
+                      <Download /> Install
                     </Button>
                     {skill.documentationUrl && (
                       <Button
@@ -831,9 +834,7 @@ export default function SkillsPage(): React.JSX.Element {
             <div className="flex justify-center">
               <Button
                 variant="outline"
-                onClick={() =>
-                  setMarketplaceVisibleCount((count) => count + SKILL_GRID_PAGE_SIZE)
-                }
+                onClick={() => setMarketplaceVisibleCount((count) => count + SKILL_GRID_PAGE_SIZE)}
               >
                 Show more ({filteredSkills.length - visibleMarketplaceSkills.length} remaining)
               </Button>
@@ -1151,7 +1152,7 @@ export default function SkillsPage(): React.JSX.Element {
                 shSelected && openInstallPicker({ kind: 'skillsSh', skill: shSelected })
               }
             >
-              Install…
+              <Download /> Install…
             </Button>
             <Button
               type="button"
@@ -1260,7 +1261,7 @@ export default function SkillsPage(): React.JSX.Element {
                 })
               }
             >
-              Install
+              <Download /> Install
               {installPickerProjectIds.size + (installGlobally ? 1 : 0) > 0
                 ? ` (${installPickerProjectIds.size + (installGlobally ? 1 : 0)})`
                 : ''}

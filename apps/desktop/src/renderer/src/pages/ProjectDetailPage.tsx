@@ -22,7 +22,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
-import { CliLogo } from '@/components/cliLogos';
+import { CliLogo, TARGET_AI_CLI_ID, cliOptionIcon } from '@/components/cliLogos';
 import { MonacoEditor } from '@/components/editor/MonacoEditor';
 import {
   ArrowLeft,
@@ -105,17 +105,6 @@ import { useCliStore } from '@/stores/cliStore';
 import { confirmDialog } from '@/stores/confirmStore';
 import { usePageHeader } from '@/stores/pageHeaderStore';
 import { useTerminalStore } from '@/stores/terminalStore';
-
-const TARGET_AI_TO_CLI_ID: Record<string, string> = {
-  Claude: 'claude-code',
-  Gemini: 'gemini-cli',
-  OpenCode: 'opencode',
-  Codex: 'codex-cli',
-  Qwen: 'qwen-cli',
-  Aider: 'aider',
-  Goose: 'goose',
-  Continue: 'continue-cli',
-};
 
 export default function ProjectDetailPage(): React.JSX.Element {
   const { projectId } = useParams<{ projectId: string }>();
@@ -1254,7 +1243,7 @@ function ScheduleTab({ projectId }: { projectId: string }): React.JSX.Element {
   });
 
   async function handleRun(task: ScheduledTask): Promise<void> {
-    const cliId = defaultCliId ?? TARGET_AI_TO_CLI_ID[task.targetAI];
+    const cliId = defaultCliId ?? TARGET_AI_CLI_ID[task.targetAI];
     const cliDef = CLI_REGISTRY.find((c) => c.id === cliId);
     if (!cliDef) {
       toast.error('No CLI available for this task. Set a default CLI in Settings.');
@@ -3026,7 +3015,11 @@ function NotificationHookCard({
             placeholder={installedAgents.length ? 'Select an agent…' : 'No installed CLIs detected'}
             emptyText="No installed CLIs detected."
             disabled={installedAgents.length === 0}
-            options={installedAgents.map((cli) => ({ value: cli.id, label: cli.name }))}
+            options={installedAgents.map((cli) => ({
+              value: cli.id,
+              label: cli.name,
+              icon: cliOptionIcon(cli.id),
+            }))}
           />
           {installedAgents.length === 0 && (
             <p className="text-xs text-muted-foreground">

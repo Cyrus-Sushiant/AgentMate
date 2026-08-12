@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Combobox } from '@/components/ui/combobox';
+import { TARGET_AI_CLI_ID, cliOptionIcon } from '@/components/cliLogos';
 import { PROMPT_TYPES, TARGET_AIS } from '@agentmat/core';
 import type { PromptType, TargetAI } from '@agentmat/core';
 import { useProjectPromptBuilder } from './useProjectPromptBuilder';
@@ -81,12 +82,19 @@ export default function PromptBuildWidgetRoute(): React.JSX.Element {
           className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-hidden px-3 pb-3"
           onKeyDown={(event) => {
             if (event.shiftKey || event.altKey) return;
-            if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
+            if (!(event.ctrlKey || event.metaKey)) return;
+            const key = event.key.toLowerCase();
+            if (event.key === 'Enter' || key === 'g') {
               event.preventDefault();
               if (hasRequest && !isBusy) void handleGenerate();
               return;
             }
-            if (event.key.toLowerCase() === 'c' && (event.ctrlKey || event.metaKey)) {
+            if (key === 't') {
+              event.preventDefault();
+              if (hasRequest && !isBusy) void handleTranslate();
+              return;
+            }
+            if (key === 'c') {
               if (hasTextSelection() || !generated || isBusy) return;
               event.preventDefault();
               void onCopy();
@@ -127,21 +135,30 @@ export default function PromptBuildWidgetRoute(): React.JSX.Element {
                 className="h-8"
                 value={targetAI}
                 onChange={(v) => setTargetAI(v as TargetAI)}
-                options={TARGET_AIS.map((ai) => ({ value: ai, label: ai }))}
+                options={TARGET_AIS.map((ai) => ({
+                  value: ai,
+                  label: ai,
+                  icon: cliOptionIcon(TARGET_AI_CLI_ID[ai]),
+                }))}
               />
             </div>
           </div>
 
           <div className="flex shrink-0 gap-2">
-            <Button
-              onClick={() => void handleGenerate()}
-              disabled={!hasRequest || isBusy}
-              className="flex-1"
+            <SimpleTooltip label="Ctrl+G or Ctrl+Enter" wrapTrigger={!hasRequest || isBusy}>
+              <Button
+                onClick={() => void handleGenerate()}
+                disabled={!hasRequest || isBusy}
+                className="flex-1"
+              >
+                {isGenerating ? <Spinner className="animate-spin" /> : <Sparkles />}
+                {isGenerating ? 'Generating…' : 'Generate'}
+              </Button>
+            </SimpleTooltip>
+            <SimpleTooltip
+              label="Copy your request into English without generating a prompt (Ctrl+T)"
+              wrapTrigger={!hasRequest || isBusy}
             >
-              {isGenerating ? <Spinner className="animate-spin" /> : <Sparkles />}
-              {isGenerating ? 'Generating…' : 'Generate'}
-            </Button>
-            <SimpleTooltip label="Copy your request into English without generating a prompt">
               <Button
                 variant="secondary"
                 onClick={() => void handleTranslate()}

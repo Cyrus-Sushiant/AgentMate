@@ -1,5 +1,11 @@
-import { useMemo, useState } from 'react';
+import {
+  AGENT_TOOL_REGISTRY,
+  type AgentToolDefinition,
+  type ToolSettingsAction,
+  type ToolSettingsValues,
+} from '@agentmat/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import {
   ExternalLink,
@@ -12,21 +18,10 @@ import {
   Trash2,
   Wrench,
 } from '@/components/icons';
-import {
-  AGENT_TOOL_REGISTRY,
-  type AgentToolDefinition,
-  type ToolSettingsAction,
-  type ToolSettingsValues,
-} from '@agentmat/core';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { Skeleton } from '@/components/ui/skeleton';
-import { Switch } from '@/components/ui/switch';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Combobox } from '@/components/ui/combobox';
-import { SimpleTooltip } from '@/components/ui/tooltip';
 import {
   Dialog,
   DialogContent,
@@ -35,6 +30,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Switch } from '@/components/ui/switch';
+import { SimpleTooltip } from '@/components/ui/tooltip';
 import { queryKeys } from '@/lib/queryKeys';
 import { usePageHeader } from '@/stores/pageHeaderStore';
 import { useTerminalStore } from '@/stores/terminalStore';
@@ -230,7 +230,7 @@ export default function ToolsPage(): React.JSX.Element {
         {AGENT_TOOL_REGISTRY.map((tool) => {
           const status = statusFor(tool.id);
           return (
-            <Card key={tool.id} className="glass flex flex-col">
+            <Card key={tool.id} className="glass flex flex-col hover:border-primary/30">
               <CardHeader>
                 <div className="flex items-start justify-between gap-2">
                   <CardTitle>{tool.name}</CardTitle>

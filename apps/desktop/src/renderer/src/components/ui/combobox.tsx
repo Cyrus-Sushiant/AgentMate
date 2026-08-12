@@ -1,6 +1,6 @@
-import * as React from 'react';
 import * as PopoverPrimitive from '@radix-ui/react-popover';
 import { Command as CommandPrimitive } from 'cmdk';
+import * as React from 'react';
 import { Check, ChevronsUpDown, Search, X } from '@/components/icons';
 import { cn } from '@/lib/utils';
 
@@ -8,6 +8,7 @@ export interface ComboboxOption {
   value: string;
   label: string;
   keywords?: string[];
+  icon?: React.ReactNode;
 }
 
 export interface ComboboxProps {
@@ -46,12 +47,13 @@ export function Combobox({
           aria-expanded={open}
           disabled={disabled}
           className={cn(
-            'flex h-9 w-full items-center justify-between gap-2 rounded-lg border border-input bg-background px-3 py-2 text-sm transition-colors focus:outline-none focus-visible:border-primary/50 focus-visible:ring-2 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50 data-[state=open]:border-primary/50',
+            'flex h-9 w-full cursor-pointer items-center justify-between gap-2 rounded-lg border border-input bg-background px-3 py-2 text-sm shadow-[inset_0_1px_0_0_hsl(0_0%_100%/0.04)] transition-colors hover:border-foreground/20 focus:outline-none focus-visible:border-primary/50 focus-visible:ring-2 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50 data-[state=open]:border-primary/50',
             className,
           )}
         >
-          <span className={cn('truncate', !selected && 'text-muted-foreground')}>
-            {selected ? selected.label : placeholder}
+          <span className={cn('flex min-w-0 items-center gap-2', !selected && 'text-muted-foreground')}>
+            {selected?.icon}
+            <span className="truncate">{selected ? selected.label : placeholder}</span>
           </span>
           {clearable && selected && !disabled ? (
             <span
@@ -98,7 +100,7 @@ export function Combobox({
                     onChange(option.value);
                     setOpen(false);
                   }}
-                  className="flex cursor-default select-none items-center gap-2 rounded-md px-2 py-1.5 text-sm outline-none aria-selected:bg-accent aria-selected:text-accent-foreground data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50"
+                  className="flex cursor-pointer select-none items-center gap-2 rounded-md px-2 py-1.5 text-sm outline-none aria-selected:bg-primary/12 aria-selected:text-foreground data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50"
                 >
                   <Check
                     className={cn(
@@ -106,6 +108,7 @@ export function Combobox({
                       option.value === value ? 'opacity-100' : 'opacity-0',
                     )}
                   />
+                  {option.icon}
                   <span className="truncate">{option.label}</span>
                 </CommandPrimitive.Item>
               ))}
