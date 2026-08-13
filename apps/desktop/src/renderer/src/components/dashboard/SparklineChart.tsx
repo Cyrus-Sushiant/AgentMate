@@ -113,12 +113,11 @@ export function SparklineChart({
   }, [hovered, hoverIndex, series]);
 
   return (
-    <div className={cn('relative', className)}>
+    <div className={cn('relative w-full overflow-hidden', className)} style={{ minHeight: height }}>
       <svg
         ref={svgRef}
         viewBox={`0 0 ${VIEW_WIDTH} ${height}`}
-        width="100%"
-        height={height}
+        className="absolute inset-0 h-full w-full"
         preserveAspectRatio="none"
         role="img"
         aria-label="Time series chart"

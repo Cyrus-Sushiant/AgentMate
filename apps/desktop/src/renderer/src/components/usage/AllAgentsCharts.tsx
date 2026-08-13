@@ -86,7 +86,7 @@ export function AllAgentsCharts({
       Track a provider to see combined usage, averages, and cost across your agents.
     </p>
   ) : (
-    <div className="flex min-h-0 flex-col gap-3">
+    <div className="flex min-h-0 grow flex-col gap-3">
       <div className="flex min-w-0 items-baseline gap-2">
         <CountUp
           value={tokens}
@@ -143,8 +143,9 @@ export function AllAgentsCharts({
       <AgentBreakdown agents={summary.agents} period={period} compact={compact} />
 
       {!compact && summary.series.length > 1 && (
-        <div className="space-y-1">
+        <div className="flex min-h-0 grow flex-col gap-1">
           <SparklineChart
+            className="min-h-[44px] grow"
             height={44}
             timestamps={summary.series.map((_, i) => i)}
             domainMin={0}
@@ -153,6 +154,7 @@ export function AllAgentsCharts({
           />
           {summary.hasCost && summary.costSeries.some((n) => n > 0) && (
             <SparklineChart
+              className="h-9 shrink-0"
               height={36}
               timestamps={summary.costSeries.map((_, i) => i)}
               domainMin={0}
@@ -162,7 +164,9 @@ export function AllAgentsCharts({
               ]}
             />
           )}
-          <div className="text-[10px] text-muted-foreground">14-day trend across all agents</div>
+          <div className="shrink-0 text-[10px] text-muted-foreground">
+            14-day trend across all agents
+          </div>
         </div>
       )}
     </div>
@@ -187,8 +191,8 @@ export function AllAgentsCharts({
   }
 
   return (
-    <Card className={cn('glass h-full', className)}>
-      <CardContent className="flex h-full flex-col p-4">
+    <Card className={cn('glass', className)}>
+      <CardContent className="flex h-full min-h-0 flex-col p-4">
         {header}
         {body}
       </CardContent>
