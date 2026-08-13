@@ -1150,3 +1150,33 @@ body {
   line-height: 1;
   -webkit-font-smoothing: antialiased;
 }
+
+/* Leading-edge pulse on an in-flight update download. The filled width is the
+   bytes already on disk, so a reconnect does not snap the bar back to empty. */
+.update-progress-bar[data-live="true"] {
+  position: relative;
+  overflow: hidden;
+}
+
+.update-progress-bar[data-live="true"]::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 0.45rem;
+  background: hsl(var(--primary-foreground) / 0.55);
+  animation: update-progress-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes update-progress-pulse {
+  50% {
+    opacity: 0.25;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .update-progress-bar[data-live="true"]::after {
+    animation: none;
+  }
+}

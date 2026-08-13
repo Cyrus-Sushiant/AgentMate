@@ -69,6 +69,7 @@ import {
   faMoon,
   faNetworkWired,
   faPaperPlane,
+  faPause,
   faPaw,
   faPen,
   faPlay,
@@ -189,6 +190,7 @@ export const CloudDownload = makeIcon(faCloudArrowDown);
 export const CalendarDays = makeIcon(faCalendarDays);
 export const Clock = makeIcon(faClock);
 export const Play = makeIcon(faPlay);
+export const Pause = makeIcon(faPause);
 export const Run = makeIcon(faCirclePlay);
 
 // Notification hook icons.

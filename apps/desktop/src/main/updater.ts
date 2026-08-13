@@ -1,8 +1,19 @@
-import { app, BrowserWindow } from 'electron';
+import { createHash } from 'node:crypto';
+import { createReadStream } from 'node:fs';
+import { copyFile, mkdir, readdir, rename, rm, writeFile } from 'node:fs/promises';
+import { homedir } from 'node:os';
+import { basename, join } from 'node:path';
+import { app, BrowserWindow, powerSaveBlocker } from 'electron';
 import { autoUpdater } from 'electron-updater';
 import type { ProgressInfo, UpdateInfo as ElectronUpdateInfo } from 'electron-updater';
 import { IPC } from '../shared/ipcChannels';
-import type { UpdateInfo, UpdateStatus } from '../shared/apiTypes';
+import type { UpdateDownloadProgress, UpdateInfo, UpdateStatus } from '../shared/apiTypes';
+import {
+  DownloadAbortedError,
+  DownloadFatalError,
+  fileSize,
+  ResumableDownload,
+} from './updater/resumableDownload';
 
 /**
  * electron-builder.yml publishes releases via GitHub (see the `publish` block
@@ -11,13 +22,57 @@ import type { UpdateInfo, UpdateStatus } from '../shared/apiTypes';
  * every state transition is broadcast to the renderer, which is responsible
  * for asking the user to confirm before a download begins and again before
  * restarting to install.
+ *
+ * The installer itself is fetched with Range-resume. electron-updater deletes
+ * its temp file on any timeout, which on a weak connection means starting the
+ * whole download again. We keep bytes in userData, retry from there, then
+ * hand the complete file to electron-updater's cache so quit-and-install
+ * still goes through its usual path.
  */
 const ONE_HOUR_MS = 60 * 60 * 1000;
+const GITHUB_OWNER = 'Cyrus-Sushiant';
+const GITHUB_REPO = 'AgentMate';
 
 let currentStatus: UpdateStatus = { state: 'idle' };
 let activeUpdateInfo: UpdateInfo | null = null;
 let pendingResolvers: Array<(status: UpdateStatus) => void> = [];
 let wired = false;
+let activeDownload: ResumableDownload | null = null;
+let downloadLock: Promise<void> | null = null;
+let powerSaveBlockerId: number | null = null;
+let lastProgress: UpdateDownloadProgress | null = null;
+
+interface ResolvedAsset {
+  url: string;
+  fileName: string;
+  sha512: string;
+  size: number | null;
+}
+
+interface UpdaterDiskConfig {
+  updaterCacheDirName?: string;
+  owner?: string;
+  repo?: string;
+}
+
+interface ResolvedFileInfo {
+  url: URL;
+  info: { sha512?: string; size?: number; url?: string };
+}
+
+interface UpdateInfoAndProvider {
+  info: ElectronUpdateInfo;
+  provider: { resolveFiles: (info: ElectronUpdateInfo) => ResolvedFileInfo[] };
+}
+
+interface AutoUpdaterInternals {
+  updateInfoAndProvider?: UpdateInfoAndProvider;
+  configOnDisk: { value: Promise<UpdaterDiskConfig> };
+}
+
+function internals(): AutoUpdaterInternals {
+  return autoUpdater as unknown as AutoUpdaterInternals;
+}
 
 function toUpdateInfo(info: ElectronUpdateInfo): UpdateInfo {
   const notes = info.releaseNotes;
@@ -30,10 +85,12 @@ function toUpdateInfo(info: ElectronUpdateInfo): UpdateInfo {
             .filter(Boolean)
             .join('\n\n') || null
         : null;
+  const file = info.files?.[0];
   return {
     version: info.version,
     releaseDate: info.releaseDate ?? null,
     releaseNotes,
+    sizeBytes: typeof file?.size === 'number' ? file.size : null,
   };
 }
 
@@ -52,57 +109,246 @@ function settlePending(status: UpdateStatus): void {
   for (const resolve of resolvers) resolve(status);
 }
 
+function downloadsRoot(): string {
+  return join(app.getPath('userData'), 'update-downloads');
+}
+
+function versionDir(version: string): string {
+  return join(downloadsRoot(), version.replace(/[/\\]/g, '_'));
+}
+
+function partialPath(asset: ResolvedAsset, version: string): string {
+  return join(versionDir(version), `${asset.fileName}.partial`);
+}
+
+function completePath(asset: ResolvedAsset, version: string): string {
+  return join(versionDir(version), asset.fileName);
+}
+
+function userAgent(): string {
+  return `AgentMate/${app.getVersion()} (${process.platform})`;
+}
+
+function progressFromBytes(
+  transferred: number,
+  total: number,
+  bytesPerSecond: number,
+  resumed: boolean,
+): UpdateDownloadProgress {
+  const safeTotal = total > 0 ? total : transferred;
+  const percent = safeTotal > 0 ? Math.min(100, (transferred / safeTotal) * 100) : 0;
+  const remaining = Math.max(0, safeTotal - transferred);
+  const etaSeconds =
+    bytesPerSecond > 8 * 1024 ? Math.round(remaining / bytesPerSecond) : null;
+  return {
+    percent,
+    transferredBytes: transferred,
+    totalBytes: safeTotal,
+    bytesPerSecond,
+    etaSeconds,
+    resumed,
+  };
+}
+
+function setPowerSave(active: boolean): void {
+  if (active && powerSaveBlockerId == null) {
+    powerSaveBlockerId = powerSaveBlocker.start('prevent-app-suspension');
+  } else if (!active && powerSaveBlockerId != null) {
+    powerSaveBlocker.stop(powerSaveBlockerId);
+    powerSaveBlockerId = null;
+  }
+}
+
 function wireEvents(): void {
   if (wired) return;
   wired = true;
 
   autoUpdater.autoDownload = false;
   autoUpdater.autoInstallOnAppQuit = true;
+  autoUpdater.disableDifferentialDownload = true;
+  autoUpdater.disableWebInstaller = true;
   autoUpdater.logger = null;
   // An unhandled 'error' event on an EventEmitter throws, so always keep a listener.
   autoUpdater.on('error', (error) => {
+    if (downloadLock) return;
     const status: UpdateStatus = {
       state: 'error',
       message: error instanceof Error ? error.message : 'Update check failed.',
+      info: activeUpdateInfo ?? undefined,
+      resumable: false,
     };
     broadcast(status);
     settlePending(status);
   });
 
-  autoUpdater.on('checking-for-update', () => broadcast({ state: 'checking' }));
+  autoUpdater.on('checking-for-update', () => {
+    if (downloadLock) return;
+    broadcast({ state: 'checking' });
+  });
 
   autoUpdater.on('update-available', (info) => {
     activeUpdateInfo = toUpdateInfo(info);
-    const status: UpdateStatus = { state: 'available', info: activeUpdateInfo };
-    broadcast(status);
-    settlePending(status);
+    void (async () => {
+      const update = activeUpdateInfo;
+      if (!update) return;
+      try {
+        const partialBytes = await localBytesFor(update);
+        await pruneOtherVersions(update.version);
+        const status: UpdateStatus = { state: 'available', info: update, partialBytes };
+        broadcast(status);
+        settlePending(status);
+      } catch (error) {
+        const status: UpdateStatus = {
+          state: 'error',
+          message: error instanceof Error ? error.message : 'Update check failed.',
+          info: update,
+        };
+        broadcast(status);
+        settlePending(status);
+      }
+    })();
   });
 
   autoUpdater.on('update-not-available', () => {
+    if (downloadLock) return;
     activeUpdateInfo = null;
+    lastProgress = null;
     const status: UpdateStatus = { state: 'not-available' };
     broadcast(status);
     settlePending(status);
   });
 
   autoUpdater.on('download-progress', (progress: ProgressInfo) => {
-    if (!activeUpdateInfo) return;
+    // Only surface electron-updater's own progress when we are not driving
+    // the download ourselves (the cache-seed path should skip this).
+    if (downloadLock || !activeUpdateInfo) return;
+    lastProgress = progressFromBytes(
+      progress.transferred,
+      progress.total,
+      progress.bytesPerSecond,
+      false,
+    );
     broadcast({
       state: 'downloading',
       info: activeUpdateInfo,
-      progress: {
-        percent: progress.percent,
-        transferredBytes: progress.transferred,
-        totalBytes: progress.total,
-        bytesPerSecond: progress.bytesPerSecond,
-      },
+      progress: lastProgress,
+      reconnecting: false,
     });
   });
 
   autoUpdater.on('update-downloaded', (info) => {
     activeUpdateInfo = toUpdateInfo(info);
+    lastProgress = null;
     broadcast({ state: 'downloaded', info: activeUpdateInfo });
   });
+}
+
+async function resolveAsset(info: UpdateInfo): Promise<ResolvedAsset> {
+  const bundle = internals().updateInfoAndProvider;
+  let url: string | null = null;
+  let fileName: string | null = null;
+  let sha512: string | null = null;
+  let size: number | null = info.sizeBytes;
+
+  if (bundle?.provider) {
+    const files = bundle.provider.resolveFiles(bundle.info);
+    const preferredExt =
+      process.platform === 'darwin' ? '.zip' : process.platform === 'linux' ? '.AppImage' : '.exe';
+    const match =
+      files.find((file) => file.url.pathname.toLowerCase().endsWith(preferredExt.toLowerCase())) ??
+      files[0];
+    if (match) {
+      url = match.url.href;
+      fileName = basename(decodeURIComponent(match.url.pathname));
+      sha512 = match.info.sha512 ?? null;
+      if (typeof match.info.size === 'number') size = match.info.size;
+    }
+  }
+
+  if (url == null || fileName == null) {
+    const electronInfo = bundle?.info;
+    const listed = electronInfo?.files?.[0];
+    fileName = listed?.url ? basename(listed.url) : electronInfo?.path ? basename(electronInfo.path) : null;
+    sha512 = listed?.sha512 ?? electronInfo?.sha512 ?? sha512;
+    if (typeof listed?.size === 'number') size = listed.size;
+    const config = await internals().configOnDisk.value.catch(() => ({}) as UpdaterDiskConfig);
+    const owner = config.owner ?? GITHUB_OWNER;
+    const repo = config.repo ?? GITHUB_REPO;
+    if (fileName) {
+      url = `https://github.com/${owner}/${repo}/releases/download/v${info.version}/${fileName}`;
+    }
+  }
+
+  if (url == null || fileName == null || sha512 == null) {
+    throw new DownloadFatalError('Could not resolve the update file URL.');
+  }
+
+  return { url, fileName, sha512, size };
+}
+
+async function hashFileSha512(filePath: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const hash = createHash('sha512');
+    createReadStream(filePath)
+      .on('error', reject)
+      .on('data', (chunk) => hash.update(chunk))
+      .on('end', () => resolve(hash.digest('base64')));
+  });
+}
+
+function updaterCacheRoot(cacheDirName: string): string {
+  const home = homedir();
+  const base =
+    process.platform === 'win32'
+      ? process.env.LOCALAPPDATA || join(home, 'AppData', 'Local')
+      : process.platform === 'darwin'
+        ? join(home, 'Library', 'Caches')
+        : process.env.XDG_CACHE_HOME || join(home, '.cache');
+  return join(base, cacheDirName);
+}
+
+async function seedElectronUpdaterCache(asset: ResolvedAsset, sourcePath: string): Promise<void> {
+  const config = await internals().configOnDisk.value;
+  const cacheDirName = config.updaterCacheDirName || `${app.getName()}-updater`;
+  const pendingDir = join(updaterCacheRoot(cacheDirName), 'pending');
+  await mkdir(pendingDir, { recursive: true });
+  const dest = join(pendingDir, asset.fileName);
+  if (dest !== sourcePath) await copyFile(sourcePath, dest);
+  await writeFile(
+    join(pendingDir, 'update-info.json'),
+    JSON.stringify({
+      fileName: asset.fileName,
+      sha512: asset.sha512,
+      isAdminRightsRequired: false,
+    }),
+  );
+}
+
+async function pruneOtherVersions(keepVersion: string): Promise<void> {
+  const root = downloadsRoot();
+  let entries: string[] = [];
+  try {
+    entries = await readdir(root);
+  } catch {
+    return;
+  }
+  const keep = keepVersion.replace(/[/\\]/g, '_');
+  await Promise.all(
+    entries
+      .filter((name) => name !== keep)
+      .map((name) => rm(join(root, name), { recursive: true, force: true })),
+  );
+}
+
+async function localBytesFor(info: UpdateInfo): Promise<number> {
+  try {
+    const asset = await resolveAsset(info);
+    const complete = await fileSize(completePath(asset, info.version));
+    if (complete > 0) return complete;
+    return await fileSize(partialPath(asset, info.version));
+  } catch {
+    return 0;
+  }
 }
 
 /**
@@ -120,6 +366,14 @@ export async function checkForUpdates(manual: boolean): Promise<UpdateStatus> {
     return status;
   }
 
+  if (
+    currentStatus.state === 'downloading' ||
+    currentStatus.state === 'paused' ||
+    currentStatus.state === 'downloaded'
+  ) {
+    return currentStatus;
+  }
+
   wireEvents();
   return new Promise((resolve) => {
     pendingResolvers.push(resolve);
@@ -134,9 +388,143 @@ export async function checkForUpdates(manual: boolean): Promise<UpdateStatus> {
   });
 }
 
+async function runDownload(): Promise<void> {
+  if (!app.isPackaged) return;
+  wireEvents();
+  if (!activeUpdateInfo) {
+    throw new DownloadFatalError('No update is available to download.');
+  }
+  const info = activeUpdateInfo;
+  const asset = await resolveAsset(info);
+  await mkdir(versionDir(info.version), { recursive: true });
+  await pruneOtherVersions(info.version);
+
+  const done = completePath(asset, info.version);
+  const part = partialPath(asset, info.version);
+  const existingComplete = await fileSize(done);
+  if (existingComplete > 0) {
+    const digest = await hashFileSha512(done);
+    if (digest === asset.sha512) {
+      await seedElectronUpdaterCache(asset, done);
+      await autoUpdater.downloadUpdate();
+      return;
+    }
+    await rm(done, { force: true });
+  }
+
+  const startedFrom = await fileSize(part);
+  lastProgress = progressFromBytes(
+    startedFrom,
+    asset.size ?? startedFrom,
+    0,
+    startedFrom > 0,
+  );
+  broadcast({
+    state: 'downloading',
+    info,
+    progress: lastProgress,
+    reconnecting: false,
+  });
+
+  const download = new ResumableDownload();
+  activeDownload = download;
+  setPowerSave(true);
+  try {
+    await download.run({
+      url: asset.url,
+      destPath: part,
+      expectedSize: asset.size,
+      userAgent: userAgent(),
+      onProgress: (progress) => {
+        lastProgress = progressFromBytes(
+          progress.transferred,
+          progress.total,
+          progress.bytesPerSecond,
+          startedFrom > 0,
+        );
+        broadcast({
+          state: 'downloading',
+          info,
+          progress: lastProgress,
+          reconnecting: false,
+        });
+      },
+      onReconnect: (_attempt, transferred) => {
+        lastProgress = progressFromBytes(
+          transferred,
+          asset.size ?? lastProgress?.totalBytes ?? transferred,
+          0,
+          true,
+        );
+        broadcast({
+          state: 'downloading',
+          info,
+          progress: lastProgress,
+          reconnecting: true,
+        });
+      },
+    });
+
+    const digest = await hashFileSha512(part);
+    if (digest !== asset.sha512) {
+      await rm(part, { force: true });
+      lastProgress = null;
+      throw new DownloadFatalError(
+        'Downloaded file did not match the published checksum. The partial was discarded so the next try starts clean.',
+      );
+    }
+    await rename(part, done);
+    await seedElectronUpdaterCache(asset, done);
+    await autoUpdater.downloadUpdate();
+  } catch (error) {
+    if (error instanceof DownloadAbortedError) {
+      const transferred = await fileSize(part);
+      lastProgress = progressFromBytes(
+        transferred,
+        asset.size ?? lastProgress?.totalBytes ?? transferred,
+        0,
+        transferred > 0,
+      );
+      broadcast({
+        state: 'paused',
+        info,
+        progress: lastProgress,
+        message: 'Download paused. What you already have stays on disk.',
+      });
+      return;
+    }
+    const transferred = Math.max(await fileSize(part), await fileSize(done));
+    const resumable = transferred > 0 && !(error instanceof DownloadFatalError);
+    lastProgress = progressFromBytes(
+      transferred,
+      asset.size ?? lastProgress?.totalBytes ?? transferred,
+      0,
+      transferred > 0,
+    );
+    broadcast({
+      state: 'error',
+      message: error instanceof Error ? error.message : 'Failed to download the update.',
+      info,
+      resumable,
+      progress: lastProgress,
+    });
+  } finally {
+    if (activeDownload === download) activeDownload = null;
+    setPowerSave(false);
+  }
+}
+
 export async function downloadUpdate(): Promise<void> {
   if (!app.isPackaged) return;
-  await autoUpdater.downloadUpdate();
+  if (downloadLock) return downloadLock;
+  downloadLock = runDownload().finally(() => {
+    downloadLock = null;
+  });
+  return downloadLock;
+}
+
+export function pauseDownload(): void {
+  activeDownload?.abort();
 }
 
 export function quitAndInstall(): void {
@@ -151,7 +539,11 @@ export function startHourlyUpdateChecks(): void {
   void checkForUpdates(false);
   setInterval(() => {
     // Don't clobber a check/download/restart-confirmation the user is already in.
-    const idleStates: UpdateStatus['state'][] = ['idle', 'not-available', 'error'];
-    if (idleStates.includes(currentStatus.state)) void checkForUpdates(false);
+    const idleStates: UpdateStatus['state'][] = ['idle', 'not-available'];
+    const canRetryError =
+      currentStatus.state === 'error' && currentStatus.resumable !== true;
+    if (idleStates.includes(currentStatus.state) || canRetryError) {
+      void checkForUpdates(false);
+    }
   }, ONE_HOUR_MS);
 }

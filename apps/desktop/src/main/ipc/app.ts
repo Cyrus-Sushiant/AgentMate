@@ -1,7 +1,7 @@
 import { app, ipcMain } from 'electron';
 import { IPC } from '../../shared/ipcChannels';
 import type { UpdateStatus } from '../../shared/apiTypes';
-import { checkForUpdates, downloadUpdate, quitAndInstall } from '../updater';
+import { checkForUpdates, downloadUpdate, pauseDownload, quitAndInstall } from '../updater';
 
 /**
  * Unpackaged runs (electron-vite dev, or `electron .` against the built
@@ -14,6 +14,7 @@ export function registerAppHandlers(): void {
   ipcMain.handle(IPC.app.getVersion, (): string => (app.isPackaged ? app.getVersion() : 'dev'));
   ipcMain.handle(IPC.app.checkForUpdates, (): Promise<UpdateStatus> => checkForUpdates(true));
   ipcMain.handle(IPC.app.downloadUpdate, (): Promise<void> => downloadUpdate());
+  ipcMain.handle(IPC.app.pauseDownload, (): void => pauseDownload());
   ipcMain.handle(IPC.app.quitAndInstall, (): void => quitAndInstall());
   ipcMain.handle(IPC.app.relaunch, (): void => {
     app.relaunch();

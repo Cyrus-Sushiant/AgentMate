@@ -3,6 +3,7 @@ import { Outlet, useLocation } from 'react-router-dom';
 import { AskAiModal } from '@/components/askAi/AskAiModal';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { AnglesLeft, AnglesRight, History, MessageSquare, TerminalSquare } from '@/components/icons';
+import { UpdateStatusChip } from '@/components/UpdateManager';
 import { CommandPalette } from '@/components/search/CommandPalette';
 import { TerminalDrawer } from '@/components/terminal/TerminalDrawer';
 import { ToastHistoryPanel } from '@/components/toast/ToastHistoryPanel';
@@ -65,6 +66,7 @@ function TopBar(): React.JSX.Element {
             {activeSession.title}
           </span>
         )}
+        <UpdateStatusChip />
         <SimpleTooltip label="Recent messages">
           <Button
             variant={toastHistoryOpen ? 'secondary' : 'ghost'}

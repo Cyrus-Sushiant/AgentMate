@@ -129,6 +129,7 @@ const appInfo = {
   getVersion: (): Promise<string> => ipcRenderer.invoke(IPC.app.getVersion),
   checkForUpdates: (): Promise<UpdateStatus> => ipcRenderer.invoke(IPC.app.checkForUpdates),
   downloadUpdate: (): Promise<void> => ipcRenderer.invoke(IPC.app.downloadUpdate),
+  pauseDownload: (): Promise<void> => ipcRenderer.invoke(IPC.app.pauseDownload),
   quitAndInstall: (): Promise<void> => ipcRenderer.invoke(IPC.app.quitAndInstall),
   onUpdateStatus: (callback: (status: UpdateStatus) => void): (() => void) => {
     const listener = (_event: Electron.IpcRendererEvent, status: UpdateStatus): void =>

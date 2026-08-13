@@ -3,6 +3,7 @@ export const IPC = {
     getVersion: 'app:getVersion',
     checkForUpdates: 'app:checkForUpdates',
     downloadUpdate: 'app:downloadUpdate',
+    pauseDownload: 'app:pauseDownload',
     quitAndInstall: 'app:quitAndInstall',
     onUpdateStatus: 'app:onUpdateStatus',
     relaunch: 'app:relaunch',

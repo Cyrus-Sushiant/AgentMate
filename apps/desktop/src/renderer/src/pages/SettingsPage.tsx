@@ -18,6 +18,8 @@ import {
   Moon,
   NetworkIcon,
   Paw,
+  Pause,
+  Play,
   RefreshCw,
   Save,
   Search,
@@ -41,11 +43,16 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { queryKeys } from '@/lib/queryKeys';
 import { isShortcutLetter } from '@/lib/shortcutKey';
+import {
+  formatUpdateBytes,
+  UpdateProgressTrack,
+  updatePercent,
+} from '@/components/UpdateManager';
 import { usePageHeader } from '@/stores/pageHeaderStore';
 import { useCliStore } from '@/stores/cliStore';
 import { useThemeStore } from '@/stores/themeStore';
 import { usePingTargetsStore } from '@/stores/pingTargetsStore';
-import { useUpdateStore } from '@/stores/updateStore';
+import { openUpdateDialog, useUpdateStore } from '@/stores/updateStore';
 import { confirmDialog } from '@/stores/confirmStore';
 import type { AiProvider, ThemeMode } from '@agentmat/core';
 import { cn } from '@/lib/utils';
@@ -608,9 +615,15 @@ export default function SettingsPage(): React.JSX.Element {
       case 'not-available':
         return "You're on the latest version.";
       case 'available':
-        return `Update available: v${updateStatus.info.version}.`;
+        return updateStatus.partialBytes > 0
+          ? `v${updateStatus.info.version} is available. ${formatUpdateBytes(updateStatus.partialBytes)} already on disk.`
+          : `v${updateStatus.info.version} is available. Downloads resume if the connection drops.`;
       case 'downloading':
-        return `Downloading v${updateStatus.info.version} (${updateStatus.progress.percent.toFixed(0)}%).`;
+        return updateStatus.reconnecting
+          ? `Connection dropped. Keeping ${formatUpdateBytes(updateStatus.progress.transferredBytes)} and retrying.`
+          : `Downloading v${updateStatus.info.version}.`;
+      case 'paused':
+        return updateStatus.message;
       case 'downloaded':
         return `v${updateStatus.info.version} downloaded. Restart to install.`;
       case 'error':
@@ -1327,18 +1340,75 @@ export default function SettingsPage(): React.JSX.Element {
                   title="About"
                   description={`AgentMate ${versionLabel}`}
                   action={
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={checkingForUpdates}
-                      onClick={() => void handleCheckForUpdates()}
-                    >
-                      <RefreshCw className={cn('h-4 w-4', checkingForUpdates && 'animate-spin')} />
-                      {checkingForUpdates ? 'Checking…' : 'Check for updates'}
-                    </Button>
+                    updateStatus.state === 'downloaded' ? (
+                      <Button size="sm" onClick={() => void window.agentmat.app.quitAndInstall()}>
+                        Restart now
+                      </Button>
+                    ) : updateStatus.state === 'downloading' ? (
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => void window.agentmat.app.pauseDownload()}
+                        >
+                          <Pause className="h-4 w-4" />
+                          Pause
+                        </Button>
+                        <Button variant="outline" size="sm" onClick={() => openUpdateDialog()}>
+                          Show
+                        </Button>
+                      </div>
+                    ) : updateStatus.state === 'paused' ||
+                      (updateStatus.state === 'error' && updateStatus.resumable) ||
+                      updateStatus.state === 'available' ? (
+                      <Button
+                        size="sm"
+                        onClick={() => {
+                          openUpdateDialog();
+                          void window.agentmat.app.downloadUpdate();
+                        }}
+                      >
+                        {updateStatus.state === 'available' && updateStatus.partialBytes === 0 ? (
+                          <>
+                            <Download className="h-4 w-4" />
+                            Download
+                          </>
+                        ) : (
+                          <>
+                            <Play className="h-4 w-4" />
+                            Resume download
+                          </>
+                        )}
+                      </Button>
+                    ) : (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={checkingForUpdates}
+                        onClick={() => void handleCheckForUpdates()}
+                      >
+                        <RefreshCw
+                          className={cn('h-4 w-4', checkingForUpdates && 'animate-spin')}
+                        />
+                        {checkingForUpdates ? 'Checking…' : 'Check for updates'}
+                      </Button>
+                    )
                   }
                 >
-                  <p className="text-sm text-muted-foreground">{updateStatusLabel()}</p>
+                  <div className="space-y-3">
+                    <p className="text-sm text-muted-foreground">{updateStatusLabel()}</p>
+                    {updatePercent(updateStatus) != null &&
+                    updateStatus.state !== 'downloaded' &&
+                    updateStatus.state !== 'idle' ? (
+                      <UpdateProgressTrack
+                        percent={updatePercent(updateStatus) ?? 0}
+                        live={updateStatus.state === 'downloading'}
+                        reconnecting={
+                          updateStatus.state === 'downloading' && updateStatus.reconnecting
+                        }
+                      />
+                    ) : null}
+                  </div>
                 </SettingsCard>
               )}
             </>

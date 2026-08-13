@@ -23,6 +23,8 @@ export interface UpdateInfo {
   version: string;
   releaseDate: string | null;
   releaseNotes: string | null;
+  /** Installer size from the release metadata, when the feed includes it. */
+  sizeBytes: number | null;
 }
 
 export interface UpdateDownloadProgress {
@@ -30,17 +32,40 @@ export interface UpdateDownloadProgress {
   transferredBytes: number;
   totalBytes: number;
   bytesPerSecond: number;
+  /** Null when speed is too low to estimate. */
+  etaSeconds: number | null;
+  /** True when this session continued from bytes already on disk. */
+  resumed: boolean;
 }
 
 /** Pushed to the renderer over IPC.app.onUpdateStatus as the main-process auto-updater progresses. */
 export type UpdateStatus =
   | { state: 'idle' }
   | { state: 'checking' }
-  | { state: 'available'; info: UpdateInfo }
+  | {
+      state: 'available';
+      info: UpdateInfo;
+      /** Bytes already on disk from an earlier interrupted download of this version. */
+      partialBytes: number;
+    }
   | { state: 'not-available' }
-  | { state: 'downloading'; info: UpdateInfo; progress: UpdateDownloadProgress }
+  | {
+      state: 'downloading';
+      info: UpdateInfo;
+      progress: UpdateDownloadProgress;
+      /** True while waiting out a stall or dropped connection before Range-resuming. */
+      reconnecting: boolean;
+    }
+  | { state: 'paused'; info: UpdateInfo; progress: UpdateDownloadProgress; message: string }
   | { state: 'downloaded'; info: UpdateInfo }
-  | { state: 'error'; message: string };
+  | {
+      state: 'error';
+      message: string;
+      info?: UpdateInfo;
+      /** True when the partial file is still on disk and Resume will continue it. */
+      resumable?: boolean;
+      progress?: UpdateDownloadProgress;
+    };
 
 export interface CreateTerminalOptions {
   cwd?: string;
