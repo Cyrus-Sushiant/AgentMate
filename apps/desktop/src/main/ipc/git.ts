@@ -306,13 +306,23 @@ async function resolveBranchRef(cwd: string, branchName: string): Promise<string
   throw new Error(`Branch '${sanitized}' is not available locally or on a remote.`);
 }
 
+function parseLogTags(decorations: string): string[] {
+  if (!decorations) return [];
+  const tags: string[] = [];
+  for (const part of decorations.split(',')) {
+    const trimmed = part.trim();
+    if (trimmed.startsWith('tag: ')) tags.push(trimmed.slice(5));
+  }
+  return tags;
+}
+
 function parseCommitLog(output: string): GitCommitInfo[] {
   return output
     .split('\x1e')
     .map((record) => record.trim())
     .filter(Boolean)
     .map((record) => {
-      const [hash, shortHash, author, date, parents, subject] = record.split('\x1f');
+      const [hash, shortHash, author, date, parents, decorations, subject] = record.split('\x1f');
       return {
         hash: hash ?? '',
         shortHash: shortHash ?? '',
@@ -320,6 +330,7 @@ function parseCommitLog(output: string): GitCommitInfo[] {
         date: date ?? '',
         subject: subject ?? '',
         parents: (parents ?? '').split(' ').filter(Boolean),
+        tags: parseLogTags(decorations ?? ''),
       };
     })
     .filter((commit) => commit.hash.length > 0);
@@ -328,7 +339,7 @@ function parseCommitLog(output: string): GitCommitInfo[] {
 async function readBranchHistory(cwd: string, branchName: string): Promise<GitBranchHistory> {
   const sanitized = sanitizeGitBranchName(branchName);
   const ref = await resolveBranchRef(cwd, sanitized);
-  const pretty = '%H%x1f%h%x1f%an%x1f%aI%x1f%P%x1f%s%x1e';
+  const pretty = '%H%x1f%h%x1f%an%x1f%aI%x1f%P%x1f%D%x1f%s%x1e';
   const log = await git(cwd, [
     'log',
     ref,

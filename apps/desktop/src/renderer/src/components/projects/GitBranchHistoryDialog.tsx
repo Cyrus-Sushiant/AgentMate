@@ -2,7 +2,8 @@ import type { GitCommitInfo, GitDayCount } from '@shared/apiTypes';
 import { useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
 import { toast } from 'sonner';
-import { GitCommit, History, Spinner } from '@/components/icons';
+import { GitCommit, History, Spinner, Tag } from '@/components/icons';
+import { Badge } from '@/components/ui/badge';
 import {
   Dialog,
   DialogContent,
@@ -248,7 +249,26 @@ export function GitBranchHistoryDialog({
                       <div className="flex min-w-0 flex-1 items-center gap-2 py-1.5 pr-1">
                         <GitCommit className="hidden h-3.5 w-3.5 shrink-0 text-muted-foreground sm:block" />
                         <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm">{row.commit.subject || '(no subject)'}</p>
+                          <div className="flex min-w-0 items-center gap-1.5">
+                            <p className="min-w-0 truncate text-sm">
+                              {row.commit.subject || '(no subject)'}
+                            </p>
+                            {row.commit.tags.length > 0 ? (
+                              <div className="flex max-w-[45%] shrink-0 items-center gap-1 overflow-hidden">
+                                {row.commit.tags.map((tag) => (
+                                  <Badge
+                                    key={tag}
+                                    variant="secondary"
+                                    className="max-w-full gap-1 truncate px-1.5 py-0 font-mono text-[10px]"
+                                    title={tag}
+                                  >
+                                    <Tag className="h-2.5 w-2.5 shrink-0" />
+                                    {tag}
+                                  </Badge>
+                                ))}
+                              </div>
+                            ) : null}
+                          </div>
                           <p className="truncate text-[11px] text-muted-foreground">
                             {row.commit.author}
                             {row.commit.date ? ` · ${timeAgo(row.commit.date)}` : ''}

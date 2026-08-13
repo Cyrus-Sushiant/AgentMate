@@ -406,6 +406,8 @@ export interface GitCommitInfo {
   date: string;
   subject: string;
   parents: string[];
+  /** Local tag names pointing at this commit. Empty when none. */
+  tags: string[];
 }
 
 export interface GitDayCount {
