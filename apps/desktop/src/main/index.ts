@@ -12,6 +12,8 @@ import { registerIpGeoHandlers } from './ipc/ipGeo';
 import { registerMcpHandlers } from './ipc/mcp';
 import { registerNotificationHandlers } from './ipc/notifications';
 import { registerPackageManagerHandlers } from './ipc/packageManagers';
+import { registerPetHandlers } from './ipc/pet';
+import { registerPipelineHandlers } from './ipc/pipelines';
 import { registerProjectDraftHandlers } from './ipc/projectDrafts';
 import { registerProjectHandlers } from './ipc/projects';
 import { registerPromptBuildWidgetHandlers } from './ipc/promptBuildWidget';
@@ -30,6 +32,7 @@ import { registerTranslateHandlers } from './ipc/translate';
 import { registerUsageHandlers } from './ipc/usage';
 import { widgetManager } from './usage/widgetWindows';
 import { promptBuildWidgetManager } from './promptBuild/widgetWindows';
+import { petManager } from './pet/petWindow';
 import { registerWindowHandlers } from './ipc/window';
 import { seedExampleRepositoryIfEmpty } from './exampleSkillRepo';
 import { startHookServer, stopHookServer } from './notifications/hookServer';
@@ -37,6 +40,7 @@ import { startResetAlertWatcher, stopResetAlertWatcher } from './usage/resetAler
 import { startThresholdAlertWatcher, stopThresholdAlertWatcher } from './usage/thresholdAlerts';
 import { remoteManager } from './remote/manager';
 import { startHourlyUpdateChecks } from './updater';
+import { startPipelineWatcher, stopPipelineWatcher } from './pipelines/watcher';
 
 // Chromium normally deprioritizes timers, rendering, and IPC delivery for a
 // minimized/occluded window (and Windows' own efficiency-mode throttling
@@ -100,6 +104,7 @@ function createMainWindow(): void {
     if (process.platform !== 'darwin') {
       widgetManager.closeAll();
       promptBuildWidgetManager.closeAll();
+      petManager.close();
     }
   });
 
@@ -154,6 +159,8 @@ function registerAllIpcHandlers(): void {
   registerUsageHandlers();
   registerBackupHandlers();
   registerPromptBuildWidgetHandlers();
+  registerPetHandlers();
+  registerPipelineHandlers();
 }
 
 app.whenReady().then(() => {
@@ -201,8 +208,10 @@ app.whenReady().then(() => {
   createMainWindow();
   void widgetManager.restoreAll();
   void promptBuildWidgetManager.restoreAll();
+  void petManager.syncFromSettings();
   startResetAlertWatcher();
   startThresholdAlertWatcher();
+  startPipelineWatcher();
   startHourlyUpdateChecks();
 
   app.on('activate', () => {
@@ -225,8 +234,10 @@ app.on('window-all-closed', () => {
 
 app.on('before-quit', () => {
   killAllTerminalSessions();
+  petManager.close();
   stopHookServer();
   stopResetAlertWatcher();
   stopThresholdAlertWatcher();
+  stopPipelineWatcher();
   remoteManager.shutdown();
 });

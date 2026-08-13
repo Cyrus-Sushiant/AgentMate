@@ -1,13 +1,16 @@
 import { contextBridge, ipcRenderer } from 'electron';
 import type {
   AppSettings,
+  AppNotification,
   BootstrapPlan,
   CliUpdateCheckResult,
+  CustomDesktopPet,
   DetectedClaudeHook,
   InstalledCli,
   Project,
   ProjectDraft,
   ProjectDraftStatus,
+  ProjectGithubAction,
   ProjectNotificationSettings,
   PromptTemplate,
   ActivityEvent,
@@ -32,6 +35,7 @@ import type {
   WidgetStyle,
 } from '@agentmat/core';
 import { IPC } from '../shared/ipcChannels';
+import type { PetPipelineMessage, PetWorkArea } from '../shared/pet';
 import type {
   BootstrapResult,
   CreateTerminalOptions,
@@ -73,6 +77,9 @@ import type {
   GitStatus,
   GitOpResult,
   GitTagInfo,
+  GitBranchHistory,
+  RenameBranchInput,
+  DeleteBranchInput,
   CreateTagInput,
   SuggestGitTextResult,
   SuggestTagResult,
@@ -82,6 +89,8 @@ import type {
   CreatePullRequestResult,
   GitInitInput,
   GithubAccount,
+  GithubActivity,
+  GithubNotifications,
   GithubRepoLookup,
   CreateGithubRepoInput,
   CreateGithubRepoResult,
@@ -100,6 +109,8 @@ import type {
   RemoteLogEvent,
   StartHostInput,
   UpdateStatus,
+  ProjectPipelineStatus,
+  GithubActionsActivity,
 } from '../shared/apiTypes';
 import type { RemoteInputEvent, RemoteRtcMessage } from '../shared/remoteProtocol';
 
@@ -426,6 +437,16 @@ const git = {
   sync: (projectId: string): Promise<GitOpResult> => ipcRenderer.invoke(IPC.git.sync, projectId),
   createBranch: (projectId: string, branchName: string): Promise<GitOpResult> =>
     ipcRenderer.invoke(IPC.git.createBranch, projectId, branchName),
+  checkoutBranch: (projectId: string, branchName: string): Promise<GitOpResult> =>
+    ipcRenderer.invoke(IPC.git.checkoutBranch, projectId, branchName),
+  setDefaultBranch: (projectId: string, branchName: string): Promise<GitOpResult> =>
+    ipcRenderer.invoke(IPC.git.setDefaultBranch, projectId, branchName),
+  renameBranch: (input: RenameBranchInput): Promise<GitOpResult> =>
+    ipcRenderer.invoke(IPC.git.renameBranch, input),
+  deleteBranch: (input: DeleteBranchInput): Promise<GitOpResult> =>
+    ipcRenderer.invoke(IPC.git.deleteBranch, input),
+  branchHistory: (projectId: string, branchName: string): Promise<GitBranchHistory> =>
+    ipcRenderer.invoke(IPC.git.branchHistory, projectId, branchName),
   commit: (projectId: string, message: string): Promise<GitOpResult> =>
     ipcRenderer.invoke(IPC.git.commit, projectId, message),
   tags: (projectId: string): Promise<GitTagInfo> => ipcRenderer.invoke(IPC.git.tags, projectId),
@@ -457,6 +478,17 @@ const git = {
   init: (input: GitInitInput): Promise<GitOpResult> => ipcRenderer.invoke(IPC.git.init, input),
   /** Who the GitHub CLI is signed in as, plus the organizations that account belongs to. */
   githubAccount: (): Promise<GithubAccount> => ipcRenderer.invoke(IPC.git.githubAccount),
+  /** Contribution counts for the signed-in GitHub user, used by the dashboard chart. */
+  githubActivity: (): Promise<GithubActivity> => ipcRenderer.invoke(IPC.git.githubActivity),
+  /** Unread GitHub notifications for the signed-in account. */
+  githubNotifications: (): Promise<GithubNotifications> =>
+    ipcRenderer.invoke(IPC.git.githubNotifications),
+  /** Marks one GitHub notification thread as read. */
+  githubMarkNotificationRead: (threadId: string): Promise<GitOpResult> =>
+    ipcRenderer.invoke(IPC.git.githubMarkNotificationRead, threadId),
+  /** Marks every unread GitHub notification as read. */
+  githubMarkNotificationsRead: (): Promise<GitOpResult> =>
+    ipcRenderer.invoke(IPC.git.githubMarkNotificationsRead),
   lookupGithubRepo: (owner: string, name: string): Promise<GithubRepoLookup> =>
     ipcRenderer.invoke(IPC.git.lookupGithubRepo, owner, name),
   createGithubRepo: (input: CreateGithubRepoInput): Promise<CreateGithubRepoResult> =>
@@ -467,6 +499,28 @@ const git = {
   /** Origin's URL for a folder path, as a browsable link. Null when there isn't one. */
   detectRemote: (folderPath: string): Promise<string | null> =>
     ipcRenderer.invoke(IPC.git.detectRemote, folderPath),
+};
+
+const pipelines = {
+  status: (projectId: string): Promise<ProjectPipelineStatus> =>
+    ipcRenderer.invoke(IPC.pipelines.status, projectId),
+  setWatched: (
+    projectId: string,
+    actions: ProjectGithubAction[],
+  ): Promise<ProjectPipelineStatus> =>
+    ipcRenderer.invoke(IPC.pipelines.setWatched, projectId, actions),
+  listNotifications: (): Promise<AppNotification[]> =>
+    ipcRenderer.invoke(IPC.pipelines.listNotifications),
+  unreadCount: (): Promise<number> => ipcRenderer.invoke(IPC.pipelines.unreadCount),
+  markRead: (notificationId: string): Promise<AppNotification[]> =>
+    ipcRenderer.invoke(IPC.pipelines.markRead, notificationId),
+  markAllRead: (): Promise<AppNotification[]> => ipcRenderer.invoke(IPC.pipelines.markAllRead),
+  removeNotification: (notificationId: string): Promise<AppNotification[]> =>
+    ipcRenderer.invoke(IPC.pipelines.removeNotification, notificationId),
+  onNotificationsChanged: (callback: () => void): (() => void) =>
+    subscribe(IPC.pipelines.onNotificationsChanged, callback),
+  dashboardActivity: (): Promise<GithubActionsActivity> =>
+    ipcRenderer.invoke(IPC.pipelines.dashboardActivity),
 };
 
 function subscribe<T>(channel: string, callback: (payload: T) => void): () => void {
@@ -608,6 +662,20 @@ const usage = {
     subscribe(IPC.usage.onWidgetUpdated, callback),
 };
 
+const pet = {
+  setClickThrough: (ignore: boolean): void => ipcRenderer.send(IPC.pet.setClickThrough, ignore),
+  getWorkArea: (): Promise<PetWorkArea> => ipcRenderer.invoke(IPC.pet.getWorkArea),
+  onDisplayChanged: (callback: (area: PetWorkArea) => void): (() => void) =>
+    subscribe(IPC.pet.onDisplayChanged, callback),
+  onSettingsChanged: (callback: () => void): (() => void) =>
+    subscribe(IPC.pet.onSettingsChanged, callback),
+  onPipelineMessage: (callback: (payload: PetPipelineMessage) => void): (() => void) =>
+    subscribe(IPC.pet.onPipelineMessage, callback),
+  importCustom: (): Promise<CustomDesktopPet | null> => ipcRenderer.invoke(IPC.pet.importCustom),
+  removeCustom: (id: string): Promise<void> => ipcRenderer.invoke(IPC.pet.removeCustom, id),
+  customDataUrls: (): Promise<Record<string, string>> => ipcRenderer.invoke(IPC.pet.customDataUrls),
+};
+
 const windowControls = {
   minimize: (): Promise<void> => ipcRenderer.invoke(IPC.window.minimize),
   maximizeToggle: (): Promise<void> => ipcRenderer.invoke(IPC.window.maximizeToggle),
@@ -661,9 +729,11 @@ const agentmatApi = {
   scheduledTasks,
   notifications,
   git,
+  pipelines,
   packages,
   remote,
   usage,
+  pet,
   backup,
 };
 

@@ -1,5 +1,7 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
-import type { AgentType, Project } from '@agentmat/core';
+import type { Project } from '@agentmat/core';
+import { AGENT_TYPE_CLI_ID, AGENT_TYPE_LABELS, configuredRunCommands } from '@agentmat/core';
+import { type ReactNode, useEffect, useRef, useState } from 'react';
+import { CliLogo } from '@/components/cliLogos';
 import {
   ArrowLeft,
   Bell,
@@ -12,6 +14,7 @@ import {
   Folder,
   FolderOpen,
   GitBranch,
+  GitPullRequest,
   Globe,
   History,
   MessageSquare,
@@ -23,7 +26,7 @@ import {
   Trash2,
   Wand2,
 } from '@/components/icons';
-import { AGENT_TYPE_CLI_ID, CliLogo } from '@/components/cliLogos';
+import { ProjectIcon } from '@/components/projects/ProjectIcon';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -36,7 +39,7 @@ import {
 import { Skeleton } from '@/components/ui/skeleton';
 import { Textarea } from '@/components/ui/textarea';
 import { SimpleTooltip } from '@/components/ui/tooltip';
-import { ProjectIcon } from '@/components/projects/ProjectIcon';
+import { openCliInTerminal } from '@/lib/openCli';
 import { persianTextProps } from '@/lib/rtl';
 import { timeAgo } from '@/lib/time';
 import { cn } from '@/lib/utils';
@@ -45,6 +48,7 @@ export const PROJECT_SECTION_IDS = [
   'overview',
   'prompts',
   'git',
+  'review',
   'packages',
   'schedule',
   'terminal',
@@ -57,14 +61,7 @@ export const PROJECT_SECTION_IDS = [
 
 export type ProjectSectionId = (typeof PROJECT_SECTION_IDS)[number];
 
-export const AGENT_TYPE_LABELS: Record<AgentType, string> = {
-  'claude-code': 'Claude Code',
-  gemini: 'Gemini',
-  opencode: 'OpenCode',
-  codex: 'Codex',
-  cursor: 'Cursor',
-  generic: 'Generic',
-};
+export { AGENT_TYPE_LABELS };
 
 const SECTIONS: {
   id: ProjectSectionId;
@@ -75,6 +72,7 @@ const SECTIONS: {
   { id: 'overview', label: 'Overview', icon: File, group: 'work' },
   { id: 'prompts', label: 'Prompt history', icon: History, group: 'work' },
   { id: 'git', label: 'Git', icon: GitBranch, group: 'work' },
+  { id: 'review', label: 'Review', icon: GitPullRequest, group: 'work' },
   { id: 'packages', label: 'Packages', icon: Package, group: 'work' },
   { id: 'schedule', label: 'Schedule', icon: CalendarDays, group: 'work' },
   { id: 'terminal', label: 'Terminal', icon: TerminalSquare, group: 'work' },
@@ -173,6 +171,7 @@ export function ProjectDetailHeader({
 }): React.JSX.Element {
   const agentLabel = AGENT_TYPE_LABELS[project.agentType];
   const agentCliId = AGENT_TYPE_CLI_ID[project.agentType];
+  const hasRunCommand = configuredRunCommands(project).length > 0;
   const description = persianTextProps(project.description);
 
   return (
@@ -205,10 +204,33 @@ export function ProjectDetailHeader({
                 ) : null}
               </div>
               <div className="flex flex-wrap items-center gap-1.5">
-                <Badge variant="secondary" className="gap-1.5">
-                  {agentCliId ? <CliLogo cliId={agentCliId} className="h-3 w-3" /> : null}
-                  {agentLabel}
-                </Badge>
+                {agentCliId ? (
+                  <SimpleTooltip label={`Open ${agentLabel} in the terminal`}>
+                    <button
+                      type="button"
+                      className="rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      onClick={() =>
+                        openCliInTerminal({
+                          cliId: agentCliId,
+                          cwd: project.folderPath,
+                          projectId: project.id,
+                        })
+                      }
+                    >
+                      <Badge
+                        variant="secondary"
+                        className="cursor-pointer gap-1.5 hover:border-primary/40 hover:bg-primary/10"
+                      >
+                        <CliLogo cliId={agentCliId} className="h-3 w-3" />
+                        {agentLabel}
+                      </Badge>
+                    </button>
+                  </SimpleTooltip>
+                ) : (
+                  <Badge variant="secondary" className="gap-1.5">
+                    {agentLabel}
+                  </Badge>
+                )}
                 {project.tags.map((tag) => (
                   <Badge key={tag} variant="outline">
                     {tag}
@@ -242,7 +264,7 @@ export function ProjectDetailHeader({
           </div>
 
           <div className="flex shrink-0 items-center gap-2">
-            {project.runCommand ? (
+            {hasRunCommand ? (
               <Button size="sm" onClick={onRun}>
                 <Play /> Run
               </Button>
@@ -260,7 +282,7 @@ export function ProjectDetailHeader({
                 <DropdownMenuItem onSelect={onEdit}>
                   <Pencil className="h-4 w-4" /> Edit project
                 </DropdownMenuItem>
-                {!project.runCommand ? (
+                {!hasRunCommand ? (
                   <DropdownMenuItem onSelect={onEdit}>
                     <Play className="h-4 w-4" /> Set a run command
                   </DropdownMenuItem>
@@ -355,13 +377,16 @@ export function ProjectSectionNav({
   badges,
   createdAt,
   updatedAt,
+  hiddenIds,
 }: {
   section: ProjectSectionId;
   onSectionChange: (id: ProjectSectionId) => void;
   badges: Partial<Record<ProjectSectionId, SectionBadge>>;
   createdAt: string;
   updatedAt: string;
+  hiddenIds?: readonly ProjectSectionId[];
 }): React.JSX.Element {
+  const hidden = new Set(hiddenIds ?? []);
   return (
     <nav
       aria-label="Project sections"
@@ -373,7 +398,7 @@ export function ProjectSectionNav({
           section={section}
           onSectionChange={onSectionChange}
           badges={badges}
-          items={SECTIONS.filter((item) => item.group === 'work')}
+          items={SECTIONS.filter((item) => item.group === 'work' && !hidden.has(item.id))}
         />
         <div className="mx-1 w-px shrink-0 self-stretch bg-border lg:mx-0 lg:my-1 lg:h-px lg:w-auto" />
         <SectionGroup
@@ -381,7 +406,7 @@ export function ProjectSectionNav({
           section={section}
           onSectionChange={onSectionChange}
           badges={badges}
-          items={SECTIONS.filter((item) => item.group === 'setup')}
+          items={SECTIONS.filter((item) => item.group === 'setup' && !hidden.has(item.id))}
         />
       </div>
       <dl className="hidden gap-1.5 px-2 text-xs text-muted-foreground lg:grid">

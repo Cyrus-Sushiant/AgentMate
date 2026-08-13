@@ -1,9 +1,8 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { ipcMain } from 'electron';
-import { browsableRepoUrl } from '@agentmat/core';
 import type { Project } from '@agentmat/core';
-import { IPC } from '../../shared/ipcChannels';
+import { browsableRepoUrl } from '@agentmat/core';
+import { ipcMain } from 'electron';
 import type {
   ApplyVersionInput,
   ApplyVersionResult,
@@ -13,8 +12,16 @@ import type {
   CreatePullRequestInput,
   CreatePullRequestResult,
   CreateTagInput,
+  DeleteBranchInput,
+  GitBranchHistory,
+  GitBranchInfo,
+  GitCommitInfo,
+  GitDayCount,
   GitFileChange,
   GithubAccount,
+  GithubActivity,
+  GithubNotificationItem,
+  GithubNotifications,
   GithubOwner,
   GithubRepoInfo,
   GithubRepoLookup,
@@ -22,10 +29,21 @@ import type {
   GitOpResult,
   GitStatus,
   GitTagInfo,
+  RenameBranchInput,
   SuggestGitTextResult,
   SuggestTagResult,
 } from '../../shared/apiTypes';
+import { IPC } from '../../shared/ipcChannels';
 import { cancelHeadlessPrompt, runHeadlessCliPrompt } from '../cli/headlessPrompt';
+import {
+  ghApi,
+  ghApiAllowEmpty,
+  ghErrorMessage,
+  ghGraphql,
+  isGhCliAvailable,
+  parseGithubRemote,
+} from '../git/githubCli';
+import { schedulePipelineCheck } from '../pipelines/watcher';
 import { store } from '../store';
 
 const execFileAsync = promisify(execFile);
@@ -65,12 +83,66 @@ async function isGitRepo(cwd: string): Promise<boolean> {
   }
 }
 
+function sanitizeGitBranchName(name: string): string {
+  return name.trim().replace(/\s+/g, '-');
+}
+
+async function primaryRemote(cwd: string): Promise<string | null> {
+  const remotes = (await git(cwd, ['remote']).catch(() => ''))
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean);
+  if (remotes.includes('origin')) return 'origin';
+  return remotes[0] ?? null;
+}
+
+async function listRefNames(cwd: string, pattern: string): Promise<string[]> {
+  const output = await git(cwd, ['for-each-ref', '--format=%(refname:short)', pattern]).catch(
+    () => '',
+  );
+  return output
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean);
+}
+
+async function listBranches(cwd: string): Promise<GitBranchInfo[]> {
+  const localNames = new Set(await listRefNames(cwd, 'refs/heads'));
+  const remote = await primaryRemote(cwd);
+  const remoteNames = new Set<string>();
+  if (remote) {
+    const prefix = `${remote}/`;
+    for (const ref of await listRefNames(cwd, `refs/remotes/${remote}`)) {
+      const name = ref.startsWith(prefix) ? ref.slice(prefix.length) : ref;
+      if (name && name !== 'HEAD') remoteNames.add(name);
+    }
+  }
+
+  const current = (await git(cwd, ['branch', '--show-current']).catch(() => '')).trim();
+  if (current) localNames.add(current);
+
+  const names = new Set([...localNames, ...remoteNames]);
+  return [...names]
+    .sort((a, b) => a.localeCompare(b))
+    .map((name) => ({
+      name,
+      local: localNames.has(name),
+      remote: remoteNames.has(name),
+    }));
+}
+
 /** Best-effort guess at the repo's primary branch, e.g. "main" vs "master". */
-async function detectDefaultBranch(cwd: string): Promise<string | null> {
-  const symbolicRef = (
-    await git(cwd, ['symbolic-ref', '--short', 'refs/remotes/origin/HEAD']).catch(() => '')
-  ).trim();
-  if (symbolicRef) return symbolicRef.replace(/^origin\//, '');
+async function detectDefaultBranch(cwd: string, remote?: string | null): Promise<string | null> {
+  const remoteName = remote === undefined ? await primaryRemote(cwd) : remote;
+  if (remoteName) {
+    const symbolicRef = (
+      await git(cwd, ['symbolic-ref', '--short', `refs/remotes/${remoteName}/HEAD`]).catch(() => '')
+    ).trim();
+    if (symbolicRef) {
+      const prefix = `${remoteName}/`;
+      return symbolicRef.startsWith(prefix) ? symbolicRef.slice(prefix.length) : symbolicRef;
+    }
+  }
 
   for (const candidate of ['main', 'master']) {
     const exists = await git(cwd, ['show-ref', '--verify', '--quiet', `refs/heads/${candidate}`])
@@ -102,12 +174,17 @@ async function readStatus(cwd: string): Promise<GitStatus> {
       behind: 0,
       hasRemote: false,
       files: [],
+      branches: [],
     };
   }
 
   const branch = (await git(cwd, ['branch', '--show-current']).catch(() => '')).trim() || null;
-  const hasRemote = (await git(cwd, ['remote']).catch(() => '')).trim().length > 0;
-  const defaultBranch = await detectDefaultBranch(cwd);
+  const remote = await primaryRemote(cwd);
+  const hasRemote = remote !== null;
+  const [defaultBranch, branches] = await Promise.all([
+    detectDefaultBranch(cwd, remote),
+    listBranches(cwd),
+  ]);
 
   let ahead = 0;
   let behind = 0;
@@ -125,7 +202,253 @@ async function readStatus(cwd: string): Promise<GitStatus> {
 
   const files = parseStatusPorcelain(await git(cwd, ['status', '--porcelain']));
 
-  return { isRepo: true, branch, defaultBranch, ahead, behind, hasRemote, files };
+  return { isRepo: true, branch, defaultBranch, ahead, behind, hasRemote, files, branches };
+}
+
+async function checkoutBranch(cwd: string, branchName: string): Promise<string> {
+  const sanitized = sanitizeGitBranchName(branchName);
+  if (!sanitized) throw new Error('Branch name cannot be empty.');
+
+  const current = (await git(cwd, ['branch', '--show-current']).catch(() => '')).trim();
+  if (current === sanitized) return `Already on '${sanitized}'.`;
+
+  const branches = await listBranches(cwd);
+  const info = branches.find((branch) => branch.name === sanitized);
+  if (!info) {
+    throw new Error(`Branch '${sanitized}' was not found locally or on the remote.`);
+  }
+
+  if (info.local) {
+    return git(cwd, ['checkout', sanitized]);
+  }
+
+  const remote = await primaryRemote(cwd);
+  if (!remote || !info.remote) {
+    throw new Error(`Branch '${sanitized}' is not available locally or on a remote.`);
+  }
+
+  await git(cwd, ['fetch', remote, sanitized]).catch(() => '');
+  return git(cwd, ['checkout', '--track', `${remote}/${sanitized}`]);
+}
+
+async function setDefaultBranch(cwd: string, branchName: string): Promise<string> {
+  const sanitized = sanitizeGitBranchName(branchName);
+  if (!sanitized) throw new Error('Branch name cannot be empty.');
+
+  const remote = await primaryRemote(cwd);
+  if (!remote) {
+    throw new Error('Connect a remote before changing the default branch.');
+  }
+
+  const branches = await listBranches(cwd);
+  const info = branches.find((branch) => branch.name === sanitized);
+  if (!info) throw new Error(`Branch '${sanitized}' was not found.`);
+  if (!info.remote) {
+    throw new Error(`Push '${sanitized}' before making it the default branch.`);
+  }
+
+  const currentDefault = await detectDefaultBranch(cwd, remote);
+  if (currentDefault === sanitized) {
+    return `'${sanitized}' is already the default branch.`;
+  }
+
+  const remoteUrl = (await git(cwd, ['remote', 'get-url', remote]).catch(() => '')).trim();
+  const parsed = parseGithubRemote(remoteUrl);
+  if (parsed && (await isGhCliAvailable())) {
+    await ghApi<GithubApiRepo>(`repos/${parsed.owner}/${parsed.repo}`, [
+      '-X',
+      'PATCH',
+      '-f',
+      `default_branch=${sanitized}`,
+    ]);
+    await git(cwd, ['remote', 'set-head', remote, sanitized]);
+    return `Default branch is now '${sanitized}' on GitHub.`;
+  }
+
+  await git(cwd, ['remote', 'set-head', remote, sanitized]);
+  if (parsed) {
+    return `Local remote HEAD now points at '${sanitized}'. Install and sign in to the GitHub CLI to change it on GitHub too.`;
+  }
+  return `Remote HEAD now points at '${sanitized}'.`;
+}
+
+const HISTORY_COMMIT_LIMIT = 100;
+const ACTIVITY_DAYS = 84;
+
+function localIsoDate(value: Date): string {
+  const year = value.getFullYear();
+  const month = String(value.getMonth() + 1).padStart(2, '0');
+  const day = String(value.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function emptyActivity(): GitDayCount[] {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const days: GitDayCount[] = [];
+  for (let offset = ACTIVITY_DAYS - 1; offset >= 0; offset -= 1) {
+    const day = new Date(today);
+    day.setDate(today.getDate() - offset);
+    days.push({ date: localIsoDate(day), count: 0 });
+  }
+  return days;
+}
+
+async function resolveBranchRef(cwd: string, branchName: string): Promise<string> {
+  const sanitized = sanitizeGitBranchName(branchName);
+  if (!sanitized) throw new Error('Branch name cannot be empty.');
+  const branches = await listBranches(cwd);
+  const info = branches.find((branch) => branch.name === sanitized);
+  if (!info) throw new Error(`Branch '${sanitized}' was not found.`);
+  if (info.local) return sanitized;
+  const remote = await primaryRemote(cwd);
+  if (remote && info.remote) return `${remote}/${sanitized}`;
+  throw new Error(`Branch '${sanitized}' is not available locally or on a remote.`);
+}
+
+function parseCommitLog(output: string): GitCommitInfo[] {
+  return output
+    .split('\x1e')
+    .map((record) => record.trim())
+    .filter(Boolean)
+    .map((record) => {
+      const [hash, shortHash, author, date, parents, subject] = record.split('\x1f');
+      return {
+        hash: hash ?? '',
+        shortHash: shortHash ?? '',
+        author: author ?? '',
+        date: date ?? '',
+        subject: subject ?? '',
+        parents: (parents ?? '').split(' ').filter(Boolean),
+      };
+    })
+    .filter((commit) => commit.hash.length > 0);
+}
+
+async function readBranchHistory(cwd: string, branchName: string): Promise<GitBranchHistory> {
+  const sanitized = sanitizeGitBranchName(branchName);
+  const ref = await resolveBranchRef(cwd, sanitized);
+  const pretty = '%H%x1f%h%x1f%an%x1f%aI%x1f%P%x1f%s%x1e';
+  const log = await git(cwd, [
+    'log',
+    ref,
+    `--max-count=${HISTORY_COMMIT_LIMIT}`,
+    `--pretty=format:${pretty}`,
+  ]).catch(() => '');
+  const commits = parseCommitLog(log);
+
+  const since = new Date();
+  since.setDate(since.getDate() - ACTIVITY_DAYS);
+  const activityLog = await git(cwd, [
+    'log',
+    ref,
+    `--since=${since.toISOString()}`,
+    '--pretty=format:%aI',
+  ]).catch(() => '');
+  const activity = emptyActivity();
+  const index = new Map(activity.map((day, i) => [day.date, i]));
+  for (const line of activityLog.split('\n')) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    const parsed = new Date(trimmed);
+    if (Number.isNaN(parsed.getTime())) continue;
+    const key = localIsoDate(parsed);
+    const slot = index.get(key);
+    if (slot !== undefined) activity[slot].count += 1;
+  }
+
+  return { branch: sanitized, commits, activity };
+}
+
+async function renameBranch(
+  cwd: string,
+  from: string,
+  to: string,
+  updateRemote: boolean,
+): Promise<string> {
+  const currentName = sanitizeGitBranchName(from);
+  const nextName = sanitizeGitBranchName(to);
+  if (!currentName || !nextName) throw new Error('Branch name cannot be empty.');
+  if (currentName === nextName) throw new Error('The new name is the same as the current one.');
+
+  const branches = await listBranches(cwd);
+  const info = branches.find((branch) => branch.name === currentName);
+  if (!info) throw new Error(`Branch '${currentName}' was not found.`);
+  if (!info.local) {
+    throw new Error(`Switch to '${currentName}' before renaming it.`);
+  }
+  if (branches.some((branch) => branch.name === nextName)) {
+    throw new Error(`A branch named '${nextName}' already exists.`);
+  }
+
+  await git(cwd, ['branch', '-m', currentName, nextName]);
+  const notes = [`Renamed '${currentName}' to '${nextName}'.`];
+
+  if (updateRemote) {
+    const remote = await primaryRemote(cwd);
+    if (!remote) throw new Error('Connect a remote before renaming a branch there.');
+    try {
+      await git(cwd, ['push', '-u', remote, nextName], PUSH_TIMEOUT_MS);
+      notes.push(`Pushed '${nextName}' to ${remote}.`);
+      const defaultBranch = await detectDefaultBranch(cwd, remote);
+      if (info.remote && (defaultBranch === currentName || defaultBranch === nextName)) {
+        notes.push(await setDefaultBranch(cwd, nextName));
+      }
+      if (info.remote) {
+        await git(cwd, ['push', remote, '--delete', currentName], PUSH_TIMEOUT_MS);
+        notes.push(`Deleted '${currentName}' on ${remote}.`);
+      }
+    } catch (error) {
+      const err = error as { stderr?: string; message?: string };
+      throw new Error(
+        `Renamed locally to '${nextName}', but the remote update failed: ${(err.stderr || err.message || 'unknown error').trim()}`,
+      );
+    }
+  }
+
+  return notes.join(' ');
+}
+
+async function deleteBranch(
+  cwd: string,
+  branchName: string,
+  options: { deleteRemote: boolean; force: boolean },
+): Promise<string> {
+  const sanitized = sanitizeGitBranchName(branchName);
+  if (!sanitized) throw new Error('Branch name cannot be empty.');
+
+  const current = (await git(cwd, ['branch', '--show-current']).catch(() => '')).trim();
+  if (current === sanitized) {
+    throw new Error('Switch to another branch before deleting this one.');
+  }
+
+  const remote = await primaryRemote(cwd);
+  const defaultBranch = await detectDefaultBranch(cwd, remote);
+  if (defaultBranch === sanitized) {
+    throw new Error('Change the default branch before deleting this one.');
+  }
+
+  const branches = await listBranches(cwd);
+  const info = branches.find((branch) => branch.name === sanitized);
+  if (!info) throw new Error(`Branch '${sanitized}' was not found.`);
+
+  const notes: string[] = [];
+  if (info.local) {
+    await git(cwd, ['branch', options.force ? '-D' : '-d', sanitized]);
+    notes.push(`Deleted local branch '${sanitized}'.`);
+  }
+
+  const shouldDeleteRemote = info.remote && (options.deleteRemote || !info.local);
+  if (shouldDeleteRemote) {
+    if (!remote) throw new Error('Connect a remote before deleting a remote branch.');
+    await git(cwd, ['push', remote, '--delete', sanitized], PUSH_TIMEOUT_MS);
+    notes.push(`Deleted '${sanitized}' on ${remote}.`);
+  }
+
+  if (notes.length === 0) {
+    throw new Error(`Nothing to delete for '${sanitized}'.`);
+  }
+  return notes.join(' ');
 }
 
 /** Plain-text summary of the working tree, meant to be dropped into an AI prompt. */
@@ -418,45 +741,9 @@ async function pushCurrentBranch(cwd: string, branch: string): Promise<string> {
  */
 const LOCAL_REMOTE_PATTERN = /^([a-z]:[\\/]|\\\\|\/|\.{1,2}[\\/]|file:)/i;
 
-function parseGithubRemote(url: string): { owner: string; repo: string } | null {
-  const match = url.trim().match(/github\.com[/:]([^/]+)\/([^/]+?)(\.git)?\/?$/);
-  if (!match) return null;
-  return { owner: match[1], repo: match[2] };
-}
-
-async function isGhCliAvailable(): Promise<boolean> {
-  try {
-    await execFileAsync('gh', ['--version'], { timeout: 5000, windowsHide: true });
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-const GH_TIMEOUT_MS = 20000;
 /** What GitHub accepts for a login or a repository name, and git for a branch. */
 const GITHUB_NAME_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 const BRANCH_NAME_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._/-]*$/;
-
-function ghErrorMessage(error: unknown): string {
-  const err = error as { stderr?: string; message?: string };
-  return (err.stderr || err.message || 'The GitHub CLI command failed.').trim();
-}
-
-/** One `gh api` call, parsed. Throws with gh's own stderr, which is usually the clearest message. */
-async function ghApi<T>(path: string, args: string[] = []): Promise<T> {
-  const { stdout } = await execFileAsync(
-    'gh',
-    ['api', '-H', 'Accept: application/vnd.github+json', path, ...args],
-    {
-      timeout: GH_TIMEOUT_MS,
-      windowsHide: true,
-      maxBuffer: 10 * 1024 * 1024,
-      env: { ...process.env, NO_COLOR: '1' },
-    },
-  );
-  return JSON.parse(stdout) as T;
-}
 
 interface GithubApiRepo {
   full_name: string;
@@ -510,6 +797,196 @@ async function readGithubAccount(): Promise<GithubAccount> {
   return { cliAvailable: true, authenticated: true, login, owners };
 }
 
+const GITHUB_ACTIVITY_DAYS = 84;
+
+interface GithubContributionCalendar {
+  viewer: {
+    login: string;
+    contributionsCollection: {
+      contributionCalendar: {
+        totalContributions: number;
+        weeks: { contributionDays: { date: string; contributionCount: number }[] }[];
+      };
+    };
+  } | null;
+}
+
+function emptyGithubActivity(partial: Omit<GithubActivity, 'yearCount' | 'days'>): GithubActivity {
+  return { ...partial, yearCount: 0, days: [] };
+}
+
+function sliceRecentDays(
+  byDate: Map<string, number>,
+  days: number,
+): { date: string; count: number }[] {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const result: { date: string; count: number }[] = [];
+  for (let offset = days - 1; offset >= 0; offset -= 1) {
+    const day = new Date(today);
+    day.setDate(today.getDate() - offset);
+    const date = localIsoDate(day);
+    result.push({ date, count: byDate.get(date) ?? 0 });
+  }
+  return result;
+}
+
+/** Contribution calendar for the GitHub CLI's signed-in user. */
+async function readGithubActivity(): Promise<GithubActivity> {
+  if (!(await isGhCliAvailable())) {
+    return emptyGithubActivity({
+      ok: false,
+      cliAvailable: false,
+      authenticated: false,
+      login: null,
+      error: 'GitHub CLI (gh) is not installed.',
+    });
+  }
+
+  try {
+    const data = await ghGraphql<GithubContributionCalendar>(
+      'query{viewer{login contributionsCollection{contributionCalendar{totalContributions weeks{contributionDays{date contributionCount}}}}}}',
+    );
+    const viewer = data.viewer;
+    if (!viewer) {
+      return emptyGithubActivity({
+        ok: false,
+        cliAvailable: true,
+        authenticated: false,
+        login: null,
+        error: 'Not signed in to the GitHub CLI. Run "gh auth login" first.',
+      });
+    }
+
+    const byDate = new Map<string, number>();
+    for (const week of viewer.contributionsCollection.contributionCalendar.weeks) {
+      for (const day of week.contributionDays) {
+        byDate.set(day.date, day.contributionCount);
+      }
+    }
+
+    return {
+      ok: true,
+      cliAvailable: true,
+      authenticated: true,
+      login: viewer.login,
+      yearCount: viewer.contributionsCollection.contributionCalendar.totalContributions,
+      days: sliceRecentDays(byDate, GITHUB_ACTIVITY_DAYS),
+    };
+  } catch (error) {
+    const message = ghErrorMessage(error);
+    const signedOut = /401|not logged|must authenticate|gh auth login/i.test(message);
+    return emptyGithubActivity({
+      ok: false,
+      cliAvailable: true,
+      authenticated: !signedOut,
+      login: null,
+      error: signedOut
+        ? `Not signed in to the GitHub CLI. Run "gh auth login" first. (${message})`
+        : message,
+    });
+  }
+}
+
+interface GithubApiNotification {
+  id: string;
+  unread: boolean;
+  reason: string;
+  updated_at: string;
+  subject: { title: string; url: string | null; type: string };
+  repository: { full_name: string; html_url: string };
+}
+
+function notificationUrl(item: GithubApiNotification): string | null {
+  const apiUrl = item.subject.url;
+  if (!apiUrl) return item.repository.html_url || null;
+  return apiUrl
+    .replace('https://api.github.com/repos/', 'https://github.com/')
+    .replace('/pulls/', '/pull/')
+    .replace('/commits/', '/commit/');
+}
+
+function toNotificationItem(item: GithubApiNotification): GithubNotificationItem {
+  return {
+    id: item.id,
+    unread: item.unread,
+    reason: item.reason,
+    title: item.subject.title,
+    type: item.subject.type,
+    repo: item.repository.full_name,
+    updatedAt: item.updated_at,
+    url: notificationUrl(item),
+  };
+}
+
+function emptyGithubNotifications(
+  partial: Omit<GithubNotifications, 'notifications'>,
+): GithubNotifications {
+  return { ...partial, notifications: [] };
+}
+
+async function readGithubNotifications(): Promise<GithubNotifications> {
+  if (!(await isGhCliAvailable())) {
+    return emptyGithubNotifications({
+      ok: false,
+      cliAvailable: false,
+      authenticated: false,
+      error: 'GitHub CLI (gh) is not installed.',
+    });
+  }
+
+  try {
+    const items = await ghApi<GithubApiNotification[]>('notifications?per_page=50');
+    return {
+      ok: true,
+      cliAvailable: true,
+      authenticated: true,
+      notifications: items.map(toNotificationItem),
+    };
+  } catch (error) {
+    const message = ghErrorMessage(error);
+    const signedOut = /401|not logged|must authenticate|gh auth login/i.test(message);
+    return emptyGithubNotifications({
+      ok: false,
+      cliAvailable: true,
+      authenticated: !signedOut,
+      error: signedOut
+        ? `Not signed in to the GitHub CLI. Run "gh auth login" first. (${message})`
+        : message,
+    });
+  }
+}
+
+const GITHUB_THREAD_ID_PATTERN = /^\d+$/;
+
+async function markGithubNotificationRead(threadId: string): Promise<GitOpResult> {
+  const id = threadId.trim();
+  if (!GITHUB_THREAD_ID_PATTERN.test(id)) {
+    return { ok: false, message: 'That notification id is not valid.' };
+  }
+  if (!(await isGhCliAvailable())) {
+    return { ok: false, message: 'GitHub CLI (gh) is not installed.' };
+  }
+  try {
+    await ghApiAllowEmpty(`notifications/threads/${id}`, ['-X', 'PATCH']);
+    return { ok: true, message: 'Marked as read.' };
+  } catch (error) {
+    return { ok: false, message: ghErrorMessage(error) };
+  }
+}
+
+async function markGithubNotificationsRead(): Promise<GitOpResult> {
+  if (!(await isGhCliAvailable())) {
+    return { ok: false, message: 'GitHub CLI (gh) is not installed.' };
+  }
+  try {
+    await ghApiAllowEmpty('notifications', ['-X', 'PUT']);
+    return { ok: true, message: 'All notifications marked as read.' };
+  } catch (error) {
+    return { ok: false, message: ghErrorMessage(error) };
+  }
+}
+
 export function registerGitHandlers(): void {
   ipcMain.handle(IPC.git.status, async (_event, projectId: string): Promise<GitStatus> => {
     return readStatus(await getProjectPath(projectId));
@@ -531,31 +1008,79 @@ export function registerGitHandlers(): void {
 
   ipcMain.handle(IPC.git.push, async (_event, projectId: string): Promise<GitOpResult> => {
     const cwd = await getProjectPath(projectId);
-    return runGitOp(async () => {
+    const result = await runGitOp(async () => {
       const status = await readStatus(cwd);
       if (!status.branch) throw new Error('No current branch to push.');
       return pushCurrentBranch(cwd, status.branch);
     });
+    if (result.ok) schedulePipelineCheck(projectId);
+    return result;
   });
 
   ipcMain.handle(IPC.git.sync, async (_event, projectId: string): Promise<GitOpResult> => {
     const cwd = await getProjectPath(projectId);
-    return runGitOp(async () => {
+    const result = await runGitOp(async () => {
       const fetchOut = await git(cwd, ['fetch', '--all', '--prune']);
       const pullOut = await git(cwd, ['pull']);
       const status = await readStatus(cwd);
       const pushOut = status.branch ? await pushCurrentBranch(cwd, status.branch) : '';
       return [fetchOut, pullOut, pushOut].filter(Boolean).join('\n');
     });
+    if (result.ok) schedulePipelineCheck(projectId);
+    return result;
   });
 
   ipcMain.handle(
     IPC.git.createBranch,
     async (_event, projectId: string, branchName: string): Promise<GitOpResult> => {
       const cwd = await getProjectPath(projectId);
-      const sanitized = branchName.trim().replace(/\s+/g, '-');
+      const sanitized = sanitizeGitBranchName(branchName);
       if (!sanitized) return { ok: false, message: 'Branch name cannot be empty.' };
       return runGitOp(() => git(cwd, ['checkout', '-b', sanitized]));
+    },
+  );
+
+  ipcMain.handle(
+    IPC.git.checkoutBranch,
+    async (_event, projectId: string, branchName: string): Promise<GitOpResult> => {
+      const cwd = await getProjectPath(projectId);
+      return runGitOp(() => checkoutBranch(cwd, branchName));
+    },
+  );
+
+  ipcMain.handle(
+    IPC.git.setDefaultBranch,
+    async (_event, projectId: string, branchName: string): Promise<GitOpResult> => {
+      const cwd = await getProjectPath(projectId);
+      return runGitOp(() => setDefaultBranch(cwd, branchName));
+    },
+  );
+
+  ipcMain.handle(
+    IPC.git.renameBranch,
+    async (_event, input: RenameBranchInput): Promise<GitOpResult> => {
+      const cwd = await getProjectPath(input.projectId);
+      return runGitOp(() => renameBranch(cwd, input.from, input.to, Boolean(input.updateRemote)));
+    },
+  );
+
+  ipcMain.handle(
+    IPC.git.deleteBranch,
+    async (_event, input: DeleteBranchInput): Promise<GitOpResult> => {
+      const cwd = await getProjectPath(input.projectId);
+      return runGitOp(() =>
+        deleteBranch(cwd, input.branchName, {
+          deleteRemote: Boolean(input.deleteRemote),
+          force: Boolean(input.force),
+        }),
+      );
+    },
+  );
+
+  ipcMain.handle(
+    IPC.git.branchHistory,
+    async (_event, projectId: string, branchName: string): Promise<GitBranchHistory> => {
+      return readBranchHistory(await getProjectPath(projectId), branchName);
     },
   );
 
@@ -949,6 +1474,23 @@ export function registerGitHandlers(): void {
   });
 
   ipcMain.handle(IPC.git.githubAccount, async (): Promise<GithubAccount> => readGithubAccount());
+
+  ipcMain.handle(IPC.git.githubActivity, async (): Promise<GithubActivity> => readGithubActivity());
+
+  ipcMain.handle(
+    IPC.git.githubNotifications,
+    async (): Promise<GithubNotifications> => readGithubNotifications(),
+  );
+
+  ipcMain.handle(
+    IPC.git.githubMarkNotificationRead,
+    async (_event, threadId: string): Promise<GitOpResult> => markGithubNotificationRead(threadId),
+  );
+
+  ipcMain.handle(
+    IPC.git.githubMarkNotificationsRead,
+    async (): Promise<GitOpResult> => markGithubNotificationsRead(),
+  );
 
   ipcMain.handle(
     IPC.git.lookupGithubRepo,

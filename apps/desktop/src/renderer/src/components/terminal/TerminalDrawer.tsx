@@ -1,5 +1,14 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { Folder, Plus, TerminalSquare, WindowMaximize, WindowRestore, X } from '@/components/icons';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import {
+  ArrowLeft,
+  ArrowRight,
+  Folder,
+  Plus,
+  TerminalSquare,
+  WindowMaximize,
+  WindowRestore,
+  X,
+} from '@/components/icons';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import {
@@ -122,6 +131,120 @@ function SessionTab({
   );
 }
 
+const TAB_SCROLL = 120;
+
+function SessionTabStrip({
+  sessions,
+  activeSessionId,
+  onSelect,
+  onClose,
+}: {
+  sessions: TerminalSessionMeta[];
+  activeSessionId: string | null;
+  onSelect: (id: string) => void;
+  onClose: (id: string) => void;
+}): React.JSX.Element {
+  const listRef = useRef<HTMLDivElement>(null);
+  const [overflow, setOverflow] = useState({ start: false, end: false });
+
+  const syncOverflow = useCallback(() => {
+    const el = listRef.current;
+    if (!el) return;
+    const max = el.scrollWidth - el.clientWidth;
+    setOverflow((prev) => {
+      const next = { start: el.scrollLeft > 1, end: el.scrollLeft < max - 1 };
+      return prev.start === next.start && prev.end === next.end ? prev : next;
+    });
+  }, []);
+
+  const scrollActiveIntoView = useCallback(() => {
+    const el = listRef.current;
+    if (!el) return;
+    const active = el.querySelector('[aria-selected="true"]');
+    if (!(active instanceof HTMLElement)) return;
+    const parent = el.getBoundingClientRect();
+    const child = active.getBoundingClientRect();
+    if (child.left < parent.left) el.scrollLeft += child.left - parent.left;
+    else if (child.right > parent.right) el.scrollLeft += child.right - parent.right;
+  }, []);
+
+  useLayoutEffect(() => {
+    const el = listRef.current;
+    if (!el) return;
+    scrollActiveIntoView();
+    syncOverflow();
+    const observer = new ResizeObserver(syncOverflow);
+    observer.observe(el);
+    for (const child of Array.from(el.children)) observer.observe(child);
+    return () => observer.disconnect();
+  }, [sessions, activeSessionId, scrollActiveIntoView, syncOverflow]);
+
+  useEffect(() => {
+    const el = listRef.current;
+    if (!el) return;
+    const onWheel = (event: WheelEvent): void => {
+      if (el.scrollWidth <= el.clientWidth) return;
+      if (Math.abs(event.deltaY) <= Math.abs(event.deltaX)) return;
+      el.scrollLeft += event.deltaY;
+      event.preventDefault();
+    };
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
+  }, []);
+
+  const scrollBy = useCallback((delta: number) => {
+    listRef.current?.scrollBy({ left: delta, behavior: 'smooth' });
+  }, []);
+
+  const canScroll = overflow.start || overflow.end;
+
+  return (
+    <div className="flex min-w-0 flex-1 items-end gap-0.5">
+      {canScroll && (
+        <button
+          type="button"
+          tabIndex={-1}
+          aria-label="Scroll tabs left"
+          disabled={!overflow.start}
+          onClick={() => scrollBy(-TAB_SCROLL)}
+          className="mb-px flex h-7 w-6 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-foreground/10 hover:text-foreground disabled:pointer-events-none disabled:opacity-30"
+        >
+          <ArrowLeft className="h-3 w-3" />
+        </button>
+      )}
+      <div
+        ref={listRef}
+        role="tablist"
+        aria-label="Terminal sessions"
+        onScroll={syncOverflow}
+        className="flex min-w-0 flex-1 flex-nowrap items-end gap-0.5 overflow-x-auto overflow-y-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      >
+        {sessions.map((session) => (
+          <SessionTab
+            key={session.id}
+            session={session}
+            active={session.id === activeSessionId}
+            onSelect={() => onSelect(session.id)}
+            onClose={() => onClose(session.id)}
+          />
+        ))}
+      </div>
+      {canScroll && (
+        <button
+          type="button"
+          tabIndex={-1}
+          aria-label="Scroll tabs right"
+          disabled={!overflow.end}
+          onClick={() => scrollBy(TAB_SCROLL)}
+          className="mb-px flex h-7 w-6 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-foreground/10 hover:text-foreground disabled:pointer-events-none disabled:opacity-30"
+        >
+          <ArrowRight className="h-3 w-3" />
+        </button>
+      )}
+    </div>
+  );
+}
+
 export function TerminalDrawer(): React.JSX.Element {
   const isOpen = useTerminalStore((s) => s.isOpen);
   const drawerHeight = useTerminalStore((s) => s.drawerHeight);
@@ -237,21 +360,12 @@ export function TerminalDrawer(): React.JSX.Element {
             No sessions
           </div>
         ) : (
-          <div
-            role="tablist"
-            aria-label="Terminal sessions"
-            className="flex min-w-0 flex-1 items-end gap-0.5 overflow-x-auto [scrollbar-width:thin]"
-          >
-            {sessions.map((session) => (
-              <SessionTab
-                key={session.id}
-                session={session}
-                active={session.id === activeSessionId}
-                onSelect={() => setActiveSession(session.id)}
-                onClose={() => closeSession(session.id)}
-              />
-            ))}
-          </div>
+          <SessionTabStrip
+            sessions={sessions}
+            activeSessionId={activeSessionId}
+            onSelect={setActiveSession}
+            onClose={closeSession}
+          />
         )}
         {sessions.length === 0 && <div className="flex-1" />}
         <div className="mb-0.5 flex shrink-0 items-center gap-0.5">

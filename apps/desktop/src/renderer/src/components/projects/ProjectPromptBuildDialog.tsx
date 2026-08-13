@@ -28,8 +28,8 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Combobox } from '@/components/ui/combobox';
-import { TARGET_AI_CLI_ID, cliOptionIcon } from '@/components/cliLogos';
-import { PROMPT_TYPES, TARGET_AIS } from '@agentmat/core';
+import { cliOptionIcon } from '@/components/cliLogos';
+import { PROMPT_TYPES, TARGET_AIS, cliIdForTargetAI } from '@agentmat/core';
 import type { PromptType, TargetAI } from '@agentmat/core';
 import { useProjectPromptBuilder } from './useProjectPromptBuilder';
 
@@ -193,13 +193,13 @@ export function ProjectPromptBuildDialog({
             <div className="flex min-w-0 items-center gap-2">
               <Label className="shrink-0 text-xs text-muted-foreground">Target</Label>
               <Combobox
-                className="h-8 w-[9.5rem]"
+                className="h-8 w-[11.5rem]"
                 value={targetAI}
                 onChange={(v) => setTargetAI(v as TargetAI)}
                 options={TARGET_AIS.map((ai) => ({
                   value: ai,
                   label: ai,
-                  icon: cliOptionIcon(TARGET_AI_CLI_ID[ai]),
+                  icon: cliOptionIcon(cliIdForTargetAI(ai)),
                 }))}
               />
             </div>

@@ -1,24 +1,28 @@
 import { randomUUID } from 'node:crypto';
 import { mkdir, stat, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
-import { dialog, ipcMain } from 'electron';
-import { defaultProjectNotifications, getBootstrapPlan } from '@agentmat/core';
 import type {
   BootstrapPlan,
   DetectedClaudeHook,
   Project,
   ProjectNotificationSettings,
 } from '@agentmat/core';
-import { IPC } from '../../shared/ipcChannels';
+import {
+  defaultProjectNotifications,
+  getBootstrapPlan,
+  normalizeProjectRunCommands,
+} from '@agentmat/core';
+import { dialog, ipcMain } from 'electron';
 import type { BootstrapResult, CreateProjectInput, FaviconResult } from '../../shared/apiTypes';
-import { store, logActivity } from '../store';
-import { ICON_FILE_EXTENSIONS, fetchSiteFavicon, readIconFile } from '../projectIcons';
+import { IPC } from '../../shared/ipcChannels';
 import {
   deleteClaudeHook,
   installProjectNotificationHooks,
   listClaudeHooks,
   updateClaudeHook,
 } from '../notifications/hookInstaller';
+import { fetchSiteFavicon, ICON_FILE_EXTENSIONS, readIconFile } from '../projectIcons';
+import { logActivity, store } from '../store';
 
 /**
  * The folder the user set as their projects root, if it is still there. A path
@@ -59,13 +63,14 @@ export function registerProjectHandlers(): void {
         tags: input.tags,
         agentType: input.agentType,
         notes: input.notes,
-        runCommand: input.runCommand,
+        runCommands: normalizeProjectRunCommands(input),
         prompt: input.prompt ?? '',
         notifications: defaultProjectNotifications(),
         cliId: input.cliId ?? null,
         iconDataUrl: input.iconDataUrl ?? null,
         websiteUrl: input.websiteUrl ?? '',
         repoUrl: input.repoUrl ?? '',
+        githubActions: [],
         pinned: false,
         createdAt: now,
         updatedAt: now,
@@ -86,9 +91,13 @@ export function registerProjectHandlers(): void {
       const projects = await store.getProjects();
       const index = projects.findIndex((p) => p.id === projectId);
       if (index === -1) throw new Error(`Project ${projectId} not found`);
+      const current = projects[index];
       const updated: Project = {
-        ...projects[index],
+        ...current,
         ...updates,
+        runCommands: updates.runCommands
+          ? normalizeProjectRunCommands({ runCommands: updates.runCommands })
+          : current.runCommands,
         updatedAt: new Date().toISOString(),
       };
       projects[index] = updated;

@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { DEFAULT_TARGET_AI, normalizeTargetAI } from '@agentmat/core';
 import type { PromptType, TargetAI } from '@agentmat/core';
 
 export type PromptBuilderStatus = 'draft' | 'scheduled';
@@ -26,7 +27,7 @@ export const usePromptBuilderStore = create<PromptBuilderState>()(
     (set) => ({
       rawInput: '',
       promptType: 'Full Stack',
-      targetAI: 'Claude',
+      targetAI: DEFAULT_TARGET_AI,
       generated: '',
       targetLang: 'en',
       projectId: null,
@@ -39,6 +40,13 @@ export const usePromptBuilderStore = create<PromptBuilderState>()(
       setProjectId: (v) => set({ projectId: v }),
       setStatus: (v) => set({ status: v }),
     }),
-    { name: 'agentmate-prompt-builder' },
+    {
+      name: 'agentmate-prompt-builder',
+      merge: (persisted, current) => {
+        const saved = persisted as Partial<PromptBuilderState> | undefined;
+        const targetAI = saved?.targetAI ? normalizeTargetAI(saved.targetAI) : DEFAULT_TARGET_AI;
+        return { ...current, ...saved, targetAI };
+      },
+    },
   ),
 );

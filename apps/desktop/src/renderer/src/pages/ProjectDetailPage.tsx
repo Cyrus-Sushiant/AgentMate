@@ -4,17 +4,18 @@ import type {
   NotificationHookKind,
   Project,
   ProjectDraftStatus,
+  ProjectGithubAction,
   ProjectNotificationHook,
   ProjectNotificationSettings,
   ScheduledTask,
 } from '@agentmat/core';
-import { CLI_REGISTRY } from '@agentmat/core';
-import type { BootstrapResult, GitStatus, GitTagInfo, SkillUpdateInfo } from '@shared/apiTypes';
+import { CLI_REGISTRY, cliIdForTargetAI, configuredRunCommands, DIFFRAY_TOOL_ID } from '@agentmat/core';
+import type { BootstrapResult, GitBranchInfo, GitStatus, GitTagInfo, SkillUpdateInfo } from '@shared/apiTypes';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
-import { CliLogo, cliOptionIcon, TARGET_AI_CLI_ID } from '@/components/cliLogos';
+import { CliLogo, cliOptionIcon } from '@/components/cliLogos';
 import { MonacoEditor } from '@/components/editor/MonacoEditor';
 import {
   ArrowDown,
@@ -29,6 +30,7 @@ import {
   CloudDownload,
   CloudUpload,
   Download,
+  EllipsisVertical,
   FileCog,
   FileText,
   Folder,
@@ -36,6 +38,7 @@ import {
   GitBranch,
   GitCommit,
   GitPullRequest,
+  History,
   LinkOff,
   MessageSquare,
   Pencil,
@@ -57,6 +60,9 @@ import {
   type BootstrapDescription,
   BootstrapDescriptionDialog,
 } from '@/components/projects/BootstrapDescriptionDialog';
+import { DiffrayReviewLaunchCard, DiffrayReviewWizard } from '@/components/projects/DiffrayReviewWizard';
+import { GitActionsCard } from '@/components/projects/GitActionsCard';
+import { GitBranchHistoryDialog } from '@/components/projects/GitBranchHistoryDialog';
 import { GitSetupWizard } from '@/components/projects/GitSetupWizard';
 import { PackagesTab } from '@/components/projects/PackagesTab';
 import {
@@ -74,9 +80,11 @@ import { ProjectFileBrowser } from '@/components/projects/ProjectFileBrowser';
 import { ProjectFormDialog, type ProjectFormValues } from '@/components/projects/ProjectFormDialog';
 import { ProjectPromptDialog } from '@/components/projects/ProjectPromptDialog';
 import { ProjectPromptHistory } from '@/components/projects/ProjectPromptHistory';
+import { useProjectRun } from '@/components/projects/useProjectRun';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Combobox } from '@/components/ui/combobox';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Combobox, type ComboboxOption } from '@/components/ui/combobox';
 import {
   Dialog,
   DialogContent,
@@ -85,6 +93,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { OverflowScroll } from '@/components/ui/overflow-scroll';
@@ -108,6 +123,7 @@ export default function ProjectDetailPage(): React.JSX.Element {
   const [searchParams, setSearchParams] = useSearchParams();
   const queryClient = useQueryClient();
   const openSession = useTerminalStore((s) => s.openSession);
+  const { requestRun, runPicker } = useProjectRun();
   const [editOpen, setEditOpen] = useState(false);
   const [promptOpen, setPromptOpen] = useState(false);
   const workspaceRef = useRef<HTMLDivElement>(null);
@@ -167,6 +183,13 @@ export default function ProjectDetailPage(): React.JSX.Element {
     queryFn: () => window.agentmat.mcp.listInstalled(projectId!),
     enabled: !!projectId,
   });
+
+  const toolsStatusQuery = useQuery({
+    queryKey: queryKeys.toolsStatus,
+    queryFn: () => window.agentmat.tools.detectAll(),
+  });
+  const diffrayInstalled =
+    toolsStatusQuery.data?.find((tool) => tool.id === DIFFRAY_TOOL_ID)?.installed === true;
 
   // The preload bridge is only attached when the window is created, so a
   // hot-reloaded renderer can outrun it. Feature-detect instead of calling
@@ -334,14 +357,8 @@ export default function ProjectDetailPage(): React.JSX.Element {
   }
 
   function handleRun(): void {
-    if (!project || !project.runCommand) return;
-    openSession({
-      title: project.name,
-      cwd: project.folderPath,
-      projectId: project.id,
-      initialInput: project.runCommand,
-    });
-    toast.info(`Press Enter in the terminal to run "${project.runCommand}".`);
+    if (!project) return;
+    requestRun(project);
   }
 
   function handleDelete(): void {
@@ -415,6 +432,7 @@ export default function ProjectDetailPage(): React.JSX.Element {
           badges={sectionBadges}
           createdAt={project.createdAt}
           updatedAt={project.updatedAt}
+          hiddenIds={diffrayInstalled ? [] : ['review']}
         />
 
         <div className="min-w-0 flex-1">
@@ -449,6 +467,11 @@ export default function ProjectDetailPage(): React.JSX.Element {
                 notes={project.notes}
                 onSave={(notes) => notesMutation.mutate(notes)}
                 saving={notesMutation.isPending}
+              />
+
+              <DiffrayReviewLaunchCard
+                installed={diffrayInstalled}
+                onOpen={() => setSection('review')}
               />
 
               <DraftsSection projectId={project.id} />
@@ -716,7 +739,26 @@ export default function ProjectDetailPage(): React.JSX.Element {
 
           {section === 'packages' && <PackagesTab projectId={project.id} />}
 
-          {section === 'git' && <GitTab projectId={project.id} folderPath={project.folderPath} />}
+          {section === 'git' && (
+            <GitTab
+              projectId={project.id}
+              folderPath={project.folderPath}
+              watchedActions={project.githubActions ?? []}
+              diffrayInstalled={diffrayInstalled}
+              onReviewWithDiffray={() => setSection('review')}
+            />
+          )}
+
+          {section === 'review' && (
+            <DiffrayReviewWizard
+              key={project.id}
+              projectId={project.id}
+              projectName={project.name}
+              folderPath={project.folderPath}
+              agentType={project.agentType}
+              installed={diffrayInstalled}
+            />
+          )}
 
           {section === 'schedule' && <ScheduleTab projectId={project.id} />}
 
@@ -758,6 +800,7 @@ export default function ProjectDetailPage(): React.JSX.Element {
         onSubmit={(values) => updateMutation.mutate(values)}
         isSubmitting={updateMutation.isPending}
       />
+      {runPicker}
     </div>
   );
 }
@@ -777,6 +820,7 @@ function ProjectTerminalSection({
   const activeSessionId = useTerminalStore((s) => s.activeSessionId);
   const setActiveSession = useTerminalStore((s) => s.setActiveSession);
   const openDrawer = useTerminalStore((s) => s.openDrawer);
+  const runCommands = configuredRunCommands(project);
   const projectSessions = sessions.filter((session) => session.projectId === project.id);
 
   function showSession(id: string): void {
@@ -836,9 +880,9 @@ function ProjectTerminalSection({
         <Button onClick={onOpenHere}>
           <TerminalSquare /> Open terminal here
         </Button>
-        {project.runCommand ? (
+        {runCommands.length > 0 ? (
           <Button variant="outline" onClick={onRun}>
-            <Play /> Run {project.runCommand}
+            <Play /> {runCommands.length === 1 ? `Run ${runCommands[0].command}` : 'Run'}
           </Button>
         ) : (
           <Button variant="outline" onClick={onSetRun}>
@@ -1239,7 +1283,7 @@ function ScheduleTab({ projectId }: { projectId: string }): React.JSX.Element {
   });
 
   async function handleRun(task: ScheduledTask): Promise<void> {
-    const cliId = defaultCliId ?? TARGET_AI_CLI_ID[task.targetAI];
+    const cliId = defaultCliId ?? cliIdForTargetAI(task.targetAI);
     const cliDef = CLI_REGISTRY.find((c) => c.id === cliId);
     if (!cliDef) {
       toast.error('No CLI available for this task. Set a default CLI in Settings.');
@@ -1354,6 +1398,43 @@ function sanitizeBranchName(text: string): string {
     .replace(/^["']|["']$/g, '')
     .trim()
     .replace(/\s+/g, '-');
+}
+
+function gitBranchOptions(
+  branches: GitBranchInfo[],
+  current: string | null,
+  defaultBranch: string | null,
+): ComboboxOption[] {
+  return [...branches]
+    .sort((a, b) => {
+      if (a.name === current) return -1;
+      if (b.name === current) return 1;
+      if (a.name === defaultBranch) return -1;
+      if (b.name === defaultBranch) return 1;
+      return a.name.localeCompare(b.name);
+    })
+    .map((branch) => {
+      const tags: string[] = [];
+      if (branch.name === defaultBranch) tags.push('default');
+      if (!branch.local && branch.remote) tags.push('remote');
+      return {
+        value: branch.name,
+        label: tags.length > 0 ? `${branch.name} · ${tags.join(' · ')}` : branch.name,
+        keywords: [
+          branch.name,
+          ...tags,
+          branch.local ? 'local' : '',
+          branch.remote ? 'remote' : '',
+          !branch.local && branch.remote ? 'pull' : '',
+        ].filter(Boolean),
+        icon:
+          !branch.local && branch.remote ? (
+            <CloudDownload className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+          ) : (
+            <GitBranch className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+          ),
+      };
+    });
 }
 
 /** Strips markdown fences/quotes but keeps line breaks, for AI-suggested commit messages. */
@@ -1515,7 +1596,7 @@ function GitOpButton({
   pending: boolean;
   disabled?: boolean;
   onClick: () => void;
-  variant?: 'outline';
+  variant?: 'outline' | 'destructive';
   size?: 'sm';
 }): React.JSX.Element {
   const iconSize = size === 'sm' ? 'h-3.5 w-3.5' : 'h-4 w-4';
@@ -1566,20 +1647,34 @@ function GitTabSkeleton(): React.JSX.Element {
 function GitTab({
   projectId,
   folderPath,
+  watchedActions,
+  diffrayInstalled,
+  onReviewWithDiffray,
 }: {
   projectId: string;
   folderPath: string;
+  watchedActions: ProjectGithubAction[];
+  diffrayInstalled: boolean;
+  onReviewWithDiffray: () => void;
 }): React.JSX.Element {
   const queryClient = useQueryClient();
 
   const [setupOpen, setSetupOpen] = useState(false);
   const [branchName, setBranchName] = useState('');
+  const [defaultBranchPick, setDefaultBranchPick] = useState('');
   const [commitMessage, setCommitMessage] = useState('');
   const [suggestingBranch, setSuggestingBranch] = useState(false);
   const [suggestingCommit, setSuggestingCommit] = useState(false);
   const [prOpen, setPrOpen] = useState(false);
   const [tagOpen, setTagOpen] = useState(false);
   const [applyVersionTag, setApplyVersionTag] = useState<string | null>(null);
+  const [historyBranch, setHistoryBranch] = useState<string | null>(null);
+  const [renameTarget, setRenameTarget] = useState<GitBranchInfo | null>(null);
+  const [renameTo, setRenameTo] = useState('');
+  const [renameRemote, setRenameRemote] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<GitBranchInfo | null>(null);
+  const [deleteRemote, setDeleteRemote] = useState(false);
+  const [deleteForce, setDeleteForce] = useState(false);
   const branchRequestRef = useRef<string | null>(null);
   const commitRequestRef = useRef<string | null>(null);
 
@@ -1619,12 +1714,18 @@ function GitTab({
   });
   const pushMutation = useMutation({
     mutationFn: () => window.agentmat.git.push(projectId),
-    onSuccess: reportOpResult,
+    onSuccess: (result) => {
+      reportOpResult(result);
+      void queryClient.invalidateQueries({ queryKey: queryKeys.pipelineStatus(projectId) });
+    },
     meta: GIT_OP_META,
   });
   const syncMutation = useMutation({
     mutationFn: () => window.agentmat.git.sync(projectId),
-    onSuccess: reportOpResult,
+    onSuccess: (result) => {
+      reportOpResult(result);
+      void queryClient.invalidateQueries({ queryKey: queryKeys.pipelineStatus(projectId) });
+    },
     meta: GIT_OP_META,
   });
   const createBranchMutation = useMutation({
@@ -1632,6 +1733,59 @@ function GitTab({
     onSuccess: (result) => {
       reportOpResult(result);
       if (result.ok) setBranchName('');
+    },
+    meta: GIT_OP_META,
+  });
+  const checkoutBranchMutation = useMutation({
+    mutationFn: (name: string) => window.agentmat.git.checkoutBranch(projectId, name),
+    onSuccess: reportOpResult,
+    meta: GIT_OP_META,
+  });
+  const setDefaultBranchMutation = useMutation({
+    mutationFn: (name: string) => window.agentmat.git.setDefaultBranch(projectId, name),
+    onSuccess: (result) => {
+      reportOpResult(result);
+      if (result.ok) setDefaultBranchPick('');
+    },
+    meta: GIT_OP_META,
+  });
+  const renameBranchMutation = useMutation({
+    mutationFn: () => {
+      if (!renameTarget) return Promise.resolve({ ok: false, message: 'No branch selected.' });
+      return window.agentmat.git.renameBranch({
+        projectId,
+        from: renameTarget.name,
+        to: renameTo,
+        updateRemote: renameRemote,
+      });
+    },
+    onSuccess: (result) => {
+      reportOpResult(result);
+      if (result.ok) {
+        setRenameTarget(null);
+        setRenameTo('');
+        setRenameRemote(false);
+      }
+    },
+    meta: GIT_OP_META,
+  });
+  const deleteBranchMutation = useMutation({
+    mutationFn: () => {
+      if (!deleteTarget) return Promise.resolve({ ok: false, message: 'No branch selected.' });
+      return window.agentmat.git.deleteBranch({
+        projectId,
+        branchName: deleteTarget.name,
+        deleteRemote,
+        force: deleteForce,
+      });
+    },
+    onSuccess: (result) => {
+      reportOpResult(result);
+      if (result.ok) {
+        setDeleteTarget(null);
+        setDeleteRemote(false);
+        setDeleteForce(false);
+      }
     },
     meta: GIT_OP_META,
   });
@@ -1730,12 +1884,40 @@ function GitTab({
     pushMutation.isPending ||
     syncMutation.isPending ||
     createBranchMutation.isPending ||
+    checkoutBranchMutation.isPending ||
+    setDefaultBranchMutation.isPending ||
+    renameBranchMutation.isPending ||
+    deleteBranchMutation.isPending ||
     commitMutation.isPending;
 
   const pullPrimary = status.hasRemote && status.behind > 0 && status.ahead === 0;
   const pushPrimary = status.hasRemote && status.ahead > 0 && status.behind === 0;
   const tagInfo = tagsQuery.data;
   const commitsSince = tagInfo?.commitsSinceLatestTag ?? 0;
+  const branchOptions = gitBranchOptions(
+    status.branches ?? [],
+    status.branch,
+    status.defaultBranch,
+  );
+  const defaultBranchOptions = gitBranchOptions(
+    status.hasRemote
+      ? (status.branches ?? []).filter((branch) => branch.remote)
+      : (status.branches ?? []),
+    status.branch,
+    status.defaultBranch,
+  );
+  const defaultBranchValue = defaultBranchPick || status.defaultBranch || '';
+  const canSetDefault =
+    status.hasRemote &&
+    Boolean(defaultBranchValue) &&
+    defaultBranchValue !== status.defaultBranch;
+  const listedBranches = [...(status.branches ?? [])].sort((a, b) => {
+    if (a.name === status.branch) return -1;
+    if (b.name === status.branch) return 1;
+    if (a.name === status.defaultBranch) return -1;
+    if (b.name === status.defaultBranch) return 1;
+    return a.name.localeCompare(b.name);
+  });
 
   return (
     <div className="space-y-4">
@@ -1745,9 +1927,38 @@ function GitTab({
             <GitBranch className="h-4 w-4" />
           </GitIconWell>
           <div className="min-w-0 space-y-1">
-            <p className="truncate font-mono text-sm font-semibold">
-              {status.branch ?? 'detached HEAD'}
-            </p>
+            <div className="flex min-w-0 items-center gap-2">
+              <Combobox
+                options={branchOptions}
+                value={status.branch ?? ''}
+                onChange={(name) => {
+                  if (!name || name === status.branch) return;
+                  checkoutBranchMutation.mutate(name);
+                }}
+                placeholder={status.branch ?? 'detached HEAD'}
+                searchPlaceholder="Search branches…"
+                emptyText="Fetch to see remote branches, or create one below."
+                disabled={anyOpPending}
+                className="h-8 w-[min(20rem,100%)] font-mono text-sm font-semibold"
+              />
+              {checkoutBranchMutation.isPending ? (
+                <Spinner className="h-3.5 w-3.5 shrink-0 animate-spin text-muted-foreground" />
+              ) : null}
+              {status.branch ? (
+                <SimpleTooltip label="Chart and history">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8"
+                    disabled={anyOpPending}
+                    onClick={() => setHistoryBranch(status.branch)}
+                    aria-label="Branch chart and history"
+                  >
+                    <History className="h-3.5 w-3.5" />
+                  </Button>
+                </SimpleTooltip>
+              ) : null}
+            </div>
             <div className="flex flex-wrap items-center gap-1.5">
               {status.hasRemote && status.ahead === 0 && status.behind === 0 && (
                 <Badge variant="success" className="gap-1">
@@ -1780,6 +1991,11 @@ function GitTab({
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          {diffrayInstalled && (
+            <Button size="sm" variant="outline" onClick={onReviewWithDiffray} disabled={anyOpPending}>
+              <GitPullRequest /> Review with diffray
+            </Button>
+          )}
           <GitOpButton
             size="sm"
             variant="outline"
@@ -1871,12 +2087,14 @@ function GitTab({
               <GitBranch className="h-4 w-4" />
             </GitIconWell>
             <div className="min-w-0">
-              <p className="text-sm font-medium">Create branch</p>
-              <p className="text-xs text-muted-foreground">Starts from the current HEAD.</p>
+              <p className="text-sm font-medium">Branches</p>
+              <p className="text-xs text-muted-foreground">
+                Create one from the current HEAD, or change the default used for pull requests.
+              </p>
             </div>
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="git-branch-name">Branch name</Label>
+            <Label htmlFor="git-branch-name">New branch</Label>
             <Input
               id="git-branch-name"
               value={branchName}
@@ -1907,6 +2125,153 @@ function GitTab({
               onClick={() => createBranchMutation.mutate(branchName)}
             />
           </div>
+          <Separator />
+          <div className="space-y-1.5">
+            <Label>Default branch</Label>
+            <p className="text-xs text-muted-foreground">
+              {status.hasRemote
+                ? 'Must already exist on the remote. GitHub is updated when the GitHub CLI is signed in.'
+                : 'Connect a remote before changing the default branch.'}
+            </p>
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+              <Combobox
+                options={defaultBranchOptions}
+                value={defaultBranchValue}
+                onChange={setDefaultBranchPick}
+                placeholder={status.defaultBranch ?? 'Select a branch'}
+                searchPlaceholder="Search branches…"
+                emptyText={
+                  status.hasRemote
+                    ? 'Fetch to see remote branches.'
+                    : 'No local branches to choose from.'
+                }
+                disabled={anyOpPending || !status.hasRemote || defaultBranchOptions.length === 0}
+                className="font-mono"
+              />
+              <SimpleTooltip
+                label={
+                  !status.hasRemote
+                    ? 'Connect a remote before changing the default branch.'
+                    : !canSetDefault
+                      ? 'This is already the default branch.'
+                      : null
+                }
+                wrapTrigger
+              >
+                <GitOpButton
+                  size="sm"
+                  label="Set default"
+                  pendingLabel="Updating…"
+                  pending={setDefaultBranchMutation.isPending}
+                  disabled={anyOpPending || !canSetDefault}
+                  onClick={() => setDefaultBranchMutation.mutate(defaultBranchValue)}
+                />
+              </SimpleTooltip>
+            </div>
+          </div>
+          {listedBranches.length > 0 ? (
+            <>
+              <Separator />
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between gap-2">
+                  <Label>All branches</Label>
+                  <span className="text-xs text-muted-foreground">{listedBranches.length}</span>
+                </div>
+                <OverflowScroll className="max-h-56 space-y-0.5 pr-1" surface="card">
+                  {listedBranches.map((branch) => {
+                    const isCurrent = branch.name === status.branch;
+                    const isDefault = branch.name === status.defaultBranch;
+                    const canDelete = !isCurrent && !isDefault;
+                    return (
+                      <div
+                        key={branch.name}
+                        className="flex items-center gap-1 rounded-md px-1 py-0.5 hover:bg-foreground/5"
+                      >
+                        <button
+                          type="button"
+                          className="min-w-0 flex-1 truncate text-left font-mono text-xs disabled:cursor-default"
+                          disabled={anyOpPending || isCurrent}
+                          onClick={() => checkoutBranchMutation.mutate(branch.name)}
+                          title={isCurrent ? 'Current branch' : `Switch to ${branch.name}`}
+                        >
+                          {branch.name}
+                        </button>
+                        <div className="flex shrink-0 items-center gap-1">
+                          {isCurrent ? (
+                            <Badge variant="secondary" className="h-5 px-1.5 text-[10px]">
+                              current
+                            </Badge>
+                          ) : null}
+                          {isDefault ? (
+                            <Badge variant="outline" className="h-5 px-1.5 text-[10px]">
+                              default
+                            </Badge>
+                          ) : null}
+                          {!branch.local && branch.remote ? (
+                            <Badge variant="outline" className="h-5 px-1.5 text-[10px]">
+                              remote
+                            </Badge>
+                          ) : null}
+                          <SimpleTooltip label="Chart and history">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7"
+                              disabled={anyOpPending}
+                              onClick={() => setHistoryBranch(branch.name)}
+                              aria-label={`History of ${branch.name}`}
+                            >
+                              <History className="h-3.5 w-3.5" />
+                            </Button>
+                          </SimpleTooltip>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7"
+                                disabled={anyOpPending}
+                                aria-label={`Actions for ${branch.name}`}
+                              >
+                                <EllipsisVertical className="h-3.5 w-3.5" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onSelect={() => setHistoryBranch(branch.name)}>
+                                <History className="h-4 w-4" /> History
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                disabled={!branch.local}
+                                onSelect={() => {
+                                  setRenameTarget(branch);
+                                  setRenameTo(branch.name);
+                                  setRenameRemote(branch.remote);
+                                }}
+                              >
+                                <Pencil className="h-4 w-4" /> Rename
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem
+                                disabled={!canDelete}
+                                className="text-destructive focus:text-destructive"
+                                onSelect={() => {
+                                  setDeleteTarget(branch);
+                                  setDeleteRemote(!branch.local && branch.remote);
+                                  setDeleteForce(false);
+                                }}
+                              >
+                                <Trash2 className="h-4 w-4" /> Delete
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </OverflowScroll>
+              </div>
+            </>
+          ) : null}
         </div>
 
         <div
@@ -2031,6 +2396,10 @@ function GitTab({
         </div>
       </div>
 
+      {status.hasRemote ? (
+        <GitActionsCard projectId={projectId} watched={watchedActions} />
+      ) : null}
+
       <GitSetupWizard
         projectId={projectId}
         folderPath={folderPath}
@@ -2070,10 +2439,130 @@ function GitTab({
         projectId={projectId}
         branch={status.branch}
         defaultBranch={status.defaultBranch}
+        branches={status.branches ?? []}
         open={prOpen}
         onOpenChange={setPrOpen}
         suggestedTitle={commitMessage.split('\n')[0]}
       />
+
+      <GitBranchHistoryDialog
+        projectId={projectId}
+        branch={historyBranch}
+        open={historyBranch !== null}
+        onOpenChange={(next) => {
+          if (!next) setHistoryBranch(null);
+        }}
+      />
+
+      <Dialog
+        open={renameTarget !== null}
+        onOpenChange={(next) => {
+          if (!next) {
+            setRenameTarget(null);
+            setRenameTo('');
+            setRenameRemote(false);
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Rename branch</DialogTitle>
+            <DialogDescription>
+              From <span className="font-mono">{renameTarget?.name}</span> to a new name.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="git-rename-branch">New name</Label>
+              <Input
+                id="git-rename-branch"
+                value={renameTo}
+                onChange={(e) => setRenameTo(e.target.value)}
+                className="font-mono"
+                placeholder="feat/new-name"
+              />
+            </div>
+            {renameTarget?.remote ? (
+              <label className="flex cursor-pointer items-center gap-2 text-sm">
+                <Checkbox
+                  checked={renameRemote}
+                  onCheckedChange={(checked) => setRenameRemote(checked === true)}
+                />
+                Also rename it on the remote
+              </label>
+            ) : null}
+          </div>
+          <DialogFooter>
+            <GitOpButton
+              size="sm"
+              icon={Pencil}
+              label="Rename"
+              pendingLabel="Renaming…"
+              pending={renameBranchMutation.isPending}
+              disabled={
+                anyOpPending ||
+                !renameTo.trim() ||
+                renameTo.trim().replace(/\s+/g, '-') === renameTarget?.name
+              }
+              onClick={() => renameBranchMutation.mutate()}
+            />
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={deleteTarget !== null}
+        onOpenChange={(next) => {
+          if (!next) {
+            setDeleteTarget(null);
+            setDeleteRemote(false);
+            setDeleteForce(false);
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete branch</DialogTitle>
+            <DialogDescription>
+              {deleteTarget && !deleteTarget.local && deleteTarget.remote
+                ? `This removes '${deleteTarget.name}' on the remote.`
+                : `This removes '${deleteTarget?.name ?? 'this branch'}' from the local repository.`}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            {deleteTarget?.local && deleteTarget.remote ? (
+              <label className="flex cursor-pointer items-center gap-2 text-sm">
+                <Checkbox
+                  checked={deleteRemote}
+                  onCheckedChange={(checked) => setDeleteRemote(checked === true)}
+                />
+                Also delete it on the remote
+              </label>
+            ) : null}
+            {deleteTarget?.local ? (
+              <label className="flex cursor-pointer items-center gap-2 text-sm">
+                <Checkbox
+                  checked={deleteForce}
+                  onCheckedChange={(checked) => setDeleteForce(checked === true)}
+                />
+                Delete even if it is not merged
+              </label>
+            ) : null}
+          </div>
+          <DialogFooter>
+            <GitOpButton
+              size="sm"
+              variant="destructive"
+              icon={Trash2}
+              label="Delete branch"
+              pendingLabel="Deleting…"
+              pending={deleteBranchMutation.isPending}
+              disabled={anyOpPending}
+              onClick={() => deleteBranchMutation.mutate()}
+            />
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -2618,6 +3107,7 @@ function CreatePrDialog({
   projectId,
   branch,
   defaultBranch,
+  branches,
   open,
   onOpenChange,
   suggestedTitle,
@@ -2625,6 +3115,7 @@ function CreatePrDialog({
   projectId: string;
   branch: string | null;
   defaultBranch: string | null;
+  branches: GitBranchInfo[];
   open: boolean;
   onOpenChange: (open: boolean) => void;
   suggestedTitle: string;
@@ -2659,6 +3150,8 @@ function CreatePrDialog({
     meta: GIT_OP_META,
   });
 
+  const baseOptions = gitBranchOptions(branches, null, defaultBranch);
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
@@ -2680,7 +3173,24 @@ function CreatePrDialog({
           </div>
           <div className="space-y-1.5">
             <Label>Base branch</Label>
-            <Input value={base} onChange={(e) => setBase(e.target.value)} placeholder="main" />
+            {baseOptions.length > 0 ? (
+              <Combobox
+                options={baseOptions}
+                value={base}
+                onChange={setBase}
+                placeholder={defaultBranch || 'main'}
+                searchPlaceholder="Search branches…"
+                emptyText="No branches found."
+                className="font-mono"
+              />
+            ) : (
+              <Input
+                value={base}
+                onChange={(e) => setBase(e.target.value)}
+                placeholder="main"
+                className="font-mono"
+              />
+            )}
           </div>
           <div className="space-y-1.5">
             <Label>Description</Label>

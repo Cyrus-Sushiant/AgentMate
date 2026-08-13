@@ -19,6 +19,11 @@ export type UpdateCheckSource = z.infer<typeof UpdateCheckSourceSchema>;
 export const CliDefinitionSchema = z.object({
   id: z.string(),
   name: z.string(),
+  /**
+   * Short name used in every agent picker (Target AI, project agent type, and
+   * similar dropdowns) so those lists cannot drift from this registry.
+   */
+  label: z.string(),
   description: z.string(),
   homepageUrl: z.string().url().optional(),
   docsUrl: z.string().url().optional(),
@@ -59,6 +64,7 @@ export const CLI_REGISTRY: CliDefinition[] = [
   {
     id: 'claude-code',
     name: 'Claude Code CLI',
+    label: 'Claude Code',
     description: "Anthropic's agentic coding CLI.",
     homepageUrl: 'https://claude.com/claude-code',
     docsUrl: 'https://docs.claude.com/en/docs/claude-code',
@@ -79,6 +85,7 @@ export const CLI_REGISTRY: CliDefinition[] = [
   {
     id: 'gemini-cli',
     name: 'Gemini CLI',
+    label: 'Gemini',
     description: "Google's Gemini command-line AI agent.",
     homepageUrl: 'https://github.com/google-gemini/gemini-cli',
     executableNames: ['gemini'],
@@ -98,6 +105,7 @@ export const CLI_REGISTRY: CliDefinition[] = [
   {
     id: 'opencode',
     name: 'OpenCode',
+    label: 'OpenCode',
     description: 'Open-source AI coding agent for the terminal.',
     homepageUrl: 'https://opencode.ai',
     executableNames: ['opencode'],
@@ -119,6 +127,7 @@ export const CLI_REGISTRY: CliDefinition[] = [
   {
     id: 'codex-cli',
     name: 'Codex CLI',
+    label: 'Codex',
     description: "OpenAI's local coding agent CLI.",
     homepageUrl: 'https://github.com/openai/codex',
     executableNames: ['codex'],
@@ -138,6 +147,7 @@ export const CLI_REGISTRY: CliDefinition[] = [
   {
     id: 'grok-cli',
     name: 'Grok CLI',
+    label: 'Grok',
     description: "xAI's official Grok coding agent CLI.",
     homepageUrl: 'https://x.ai',
     docsUrl: 'https://docs.x.ai/build/overview',
@@ -156,6 +166,7 @@ export const CLI_REGISTRY: CliDefinition[] = [
   {
     id: 'cursor-cli',
     name: 'Cursor CLI',
+    label: 'Cursor',
     description: "Cursor's agentic coding CLI for the terminal.",
     homepageUrl: 'https://cursor.com/cli',
     docsUrl: 'https://cursor.com/docs/cli/overview',
@@ -181,6 +192,7 @@ export const CLI_REGISTRY: CliDefinition[] = [
   {
     id: 'freebuff-cli',
     name: 'FreeBuff CLI',
+    label: 'FreeBuff',
     description: 'Free, ad-supported AI coding agent for the terminal.',
     homepageUrl: 'https://freebuff.com',
     docsUrl: 'https://freebuff.com/get-started',
@@ -198,6 +210,7 @@ export const CLI_REGISTRY: CliDefinition[] = [
   {
     id: 'qwen-cli',
     name: 'Qwen CLI',
+    label: 'Qwen',
     description: "Alibaba's Qwen Code command-line AI agent.",
     homepageUrl: 'https://github.com/QwenLM/qwen-code',
     executableNames: ['qwen'],
@@ -217,6 +230,7 @@ export const CLI_REGISTRY: CliDefinition[] = [
   {
     id: 'aider',
     name: 'Aider',
+    label: 'Aider',
     description: 'AI pair programming CLI that edits code in your local git repo.',
     homepageUrl: 'https://aider.chat',
     executableNames: ['aider'],
@@ -238,6 +252,7 @@ export const CLI_REGISTRY: CliDefinition[] = [
   {
     id: 'goose',
     name: 'Goose',
+    label: 'Goose',
     description: "Block's on-machine AI agent CLI.",
     homepageUrl: 'https://github.com/block/goose',
     executableNames: ['goose'],
@@ -262,6 +277,7 @@ export const CLI_REGISTRY: CliDefinition[] = [
   {
     id: 'cline-cli',
     name: 'Cline CLI',
+    label: 'Cline',
     description: 'Autonomous coding agent CLI from the Cline team.',
     homepageUrl: 'https://cline.bot/cli',
     docsUrl: 'https://docs.cline.bot/cli/cli-reference',
@@ -280,6 +296,7 @@ export const CLI_REGISTRY: CliDefinition[] = [
   {
     id: 'continue-cli',
     name: 'Continue CLI',
+    label: 'Continue',
     description: 'Open-source AI coding assistant CLI ("cn").',
     homepageUrl: 'https://continue.dev',
     executableNames: ['cn'],
@@ -298,6 +315,63 @@ export const CLI_REGISTRY: CliDefinition[] = [
 
 export function getCliDefinition(id: string): CliDefinition | undefined {
   return CLI_REGISTRY.find((cli) => cli.id === id);
+}
+
+/**
+ * Prompt Builder / Target AI values. Same order and names as CLI_REGISTRY, so a
+ * new CLI shows up in every picker without a second handwritten list.
+ */
+export const TARGET_AIS: readonly string[] = CLI_REGISTRY.map((cli) => cli.label);
+export type TargetAI = (typeof TARGET_AIS)[number];
+export const DEFAULT_TARGET_AI: TargetAI = CLI_REGISTRY[0]?.label ?? 'Claude Code';
+
+/** Prompt Builder used to store "Claude" before the label matched Claude Code. */
+const LEGACY_TARGET_AI_LABELS: Record<string, string> = {
+  Claude: 'Claude Code',
+};
+
+/** Map a stored Target AI string (current label, legacy label, or CLI id) onto today's label. */
+export function normalizeTargetAI(value: string): string {
+  const mapped = LEGACY_TARGET_AI_LABELS[value] ?? value;
+  const byLabel = CLI_REGISTRY.find((cli) => cli.label === mapped);
+  if (byLabel) return byLabel.label;
+  const byId = getCliDefinition(mapped);
+  if (byId) return byId.label;
+  return mapped;
+}
+
+export function isTargetAI(value: string): boolean {
+  return TARGET_AIS.includes(normalizeTargetAI(value));
+}
+
+export function cliIdForTargetAI(targetAI: string): string | undefined {
+  const normalized = normalizeTargetAI(targetAI);
+  return CLI_REGISTRY.find((cli) => cli.label === normalized || cli.id === targetAI)?.id;
+}
+
+export function targetAIForCliId(cliId: string): string | undefined {
+  return getCliDefinition(cliId)?.label;
+}
+
+/**
+ * Pick the Target AI for a prompt form. Prefers an explicit stored value when it
+ * still names a known CLI. `untouched` covers empty forms that still hold the old
+ * hardcoded Claude default from before this followed the project's agent.
+ */
+export function resolvePromptTargetAI(
+  stored: string | undefined,
+  fallback: string,
+  options?: { untouched?: boolean },
+): string {
+  if (!stored) return fallback;
+  const normalized = normalizeTargetAI(stored);
+  // Older builds always wrote "Claude" into an empty form. If the project is a
+  // different agent and the user hasn't started a request, follow the project.
+  if (options?.untouched && stored === 'Claude' && fallback !== normalized) {
+    return fallback;
+  }
+  if (TARGET_AIS.includes(normalized)) return normalized;
+  return fallback;
 }
 
 export function getInstallCommandForCurrentOS(

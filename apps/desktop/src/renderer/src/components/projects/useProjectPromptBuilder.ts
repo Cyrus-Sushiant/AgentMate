@@ -1,7 +1,12 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { buildPromptGenerationRequest } from '@agentmat/core';
+import {
+  buildPromptGenerationRequest,
+  DEFAULT_TARGET_AI,
+  resolvePromptTargetAI,
+  targetAIForProject,
+} from '@agentmat/core';
 import type { PromptType, TargetAI } from '@agentmat/core';
 import { queryKeys } from '@/lib/queryKeys';
 import { useProjectPromptBuildStore } from '@/stores/projectPromptBuildStore';
@@ -22,12 +27,10 @@ export function useProjectPromptBuilder(
   { enabled = true, onDraftSaved }: UseProjectPromptBuilderOptions = {},
 ) {
   const queryClient = useQueryClient();
-  const rawInput = useProjectPromptBuildStore((s) => s.entries[projectId]?.rawInput ?? '');
-  const promptType = useProjectPromptBuildStore(
-    (s) => s.entries[projectId]?.promptType ?? 'Full Stack',
-  );
-  const targetAI = useProjectPromptBuildStore((s) => s.entries[projectId]?.targetAI ?? 'Claude');
-  const generated = useProjectPromptBuildStore((s) => s.entries[projectId]?.generated ?? '');
+  const stored = useProjectPromptBuildStore((s) => s.entries[projectId]);
+  const rawInput = stored?.rawInput ?? '';
+  const promptType = stored?.promptType ?? 'Full Stack';
+  const generated = stored?.generated ?? '';
   const updateEntry = useProjectPromptBuildStore((s) => s.update);
   const setRawInput = (v: string) => updateEntry(projectId, { rawInput: v });
   const setPromptType = (v: PromptType) => updateEntry(projectId, { promptType: v });
@@ -43,6 +46,25 @@ export function useProjectPromptBuilder(
     queryFn: () => window.agentmat.settings.get(),
     enabled,
   });
+
+  const projectsQuery = useQuery({
+    queryKey: queryKeys.projects,
+    queryFn: () => window.agentmat.projects.list(),
+    enabled,
+  });
+  const project = projectsQuery.data?.find((p) => p.id === projectId);
+  const fallbackTargetAI = project
+    ? targetAIForProject(project.agentType, project.cliId)
+    : DEFAULT_TARGET_AI;
+  const targetAI = resolvePromptTargetAI(stored?.targetAI, fallbackTargetAI, {
+    untouched: !rawInput.trim() && !generated.trim(),
+  }) as TargetAI;
+
+  useEffect(() => {
+    if (!enabled || !projectId || projectsQuery.isLoading) return;
+    if (stored?.targetAI === targetAI) return;
+    updateEntry(projectId, { targetAI });
+  }, [enabled, projectId, projectsQuery.isLoading, stored?.targetAI, targetAI, updateEntry]);
 
   const saveDraftMutation = useMutation({
     mutationFn: () =>

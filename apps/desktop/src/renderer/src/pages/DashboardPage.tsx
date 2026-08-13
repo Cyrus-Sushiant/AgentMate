@@ -37,6 +37,7 @@ import {
 import {
   ALL_AGENTS_WIDGET_ID,
   CLI_REGISTRY,
+  DASHBOARD_CHART_IDS,
   DASHBOARD_COLUMN_OPTIONS,
   DASHBOARD_STAT_IDS,
   DASHBOARD_USAGE_SUMMARY_IDS,
@@ -71,6 +72,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { GithubActionsCard } from '@/components/dashboard/GithubActionsCard';
+import { GithubActivityCard } from '@/components/dashboard/GithubActivityCard';
 import { SparklineChart } from '@/components/dashboard/SparklineChart';
 import { TopResourceAppsDialog } from '@/components/dashboard/TopResourceAppsDialog';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -149,6 +152,18 @@ const GRID_COLUMN_CLASS: Record<DashboardColumns, string> = {
   2: 'grid-cols-1 lg:grid-cols-2',
   3: 'grid-cols-1 lg:grid-cols-2 xl:grid-cols-3',
   4: 'grid-cols-1 lg:grid-cols-2 xl:grid-cols-4',
+};
+
+/** Labels for the "Add card" menu, which re-shows hidden built-in charts. */
+const CHART_LABELS: Record<DashboardChartId, string> = {
+  cpu: 'CPU Usage',
+  memory: 'Memory Usage',
+  disk: 'Disk I/O',
+  gpu: 'GPU Usage',
+  network: 'Network Throughput',
+  pings: 'Network Status',
+  github: 'GitHub Activity',
+  'github-actions': 'GitHub Actions',
 };
 
 /** Labels for the "Add card" menu, which re-shows hidden built-in stat tiles. */
@@ -457,6 +472,8 @@ export default function DashboardPage(): React.JSX.Element {
     pingQualityPercent != null ? getNetworkQualityInfo(pingQualityPercent) : null;
 
   const rows = useDashboardLayoutStore((s) => s.rows);
+  const chartCardsShown = useDashboardLayoutStore((s) => s.chartCards);
+  const toggleChartCard = useDashboardLayoutStore((s) => s.toggleChartCard);
   const usageCards = useDashboardLayoutStore((s) => s.usageCards);
   const toggleUsageCard = useDashboardLayoutStore((s) => s.toggleUsageCard);
   const statCards = useDashboardLayoutStore((s) => s.statCards);
@@ -540,6 +557,23 @@ export default function DashboardPage(): React.JSX.Element {
     );
   }
 
+  /** Hides a built-in chart; brought back from the "Add card" menu below. */
+  function removeChartCard(id: DashboardChartId, label: string): void {
+    toggleChartCard(id);
+    toast.info(`${label} removed from the dashboard.`);
+  }
+
+  function chartRemove(id: DashboardChartId): React.ReactNode {
+    if (!editing) return null;
+    return (
+      <SimpleTooltip label="Remove from dashboard">
+        <Button variant="ghost" size="icon" onClick={() => removeChartCard(id, CHART_LABELS[id])}>
+          <X className="h-3.5 w-3.5" />
+        </Button>
+      </SimpleTooltip>
+    );
+  }
+
   /** Hides a built-in stat tile; brought back from the "Add card" menu below. */
   function removeStatCard(id: DashboardStatId, label: string): void {
     toggleStatCard(id);
@@ -596,6 +630,7 @@ export default function DashboardPage(): React.JSX.Element {
               </Tabs>
             )}
             {dragHandle('cpu')}
+            {chartRemove('cpu')}
           </div>
         </CardHeader>
         <CardContent>
@@ -686,6 +721,7 @@ export default function DashboardPage(): React.JSX.Element {
               </Button>
             </SimpleTooltip>
             {dragHandle('memory')}
+            {chartRemove('memory')}
           </div>
         </CardHeader>
         <CardContent>
@@ -749,6 +785,7 @@ export default function DashboardPage(): React.JSX.Element {
               </Button>
             </SimpleTooltip>
             {dragHandle('disk')}
+            {chartRemove('disk')}
           </div>
         </CardHeader>
         <CardContent>
@@ -830,6 +867,7 @@ export default function DashboardPage(): React.JSX.Element {
               </Button>
             </SimpleTooltip>
             {dragHandle('gpu')}
+            {chartRemove('gpu')}
           </div>
         </CardHeader>
         <CardContent>
@@ -899,6 +937,7 @@ export default function DashboardPage(): React.JSX.Element {
           </CardTitle>
           <div className="flex items-center gap-2">
             {dragHandle('network')}
+            {chartRemove('network')}
             <SimpleTooltip label="Test network speed">
               <Button variant="ghost" size="icon" onClick={() => setSpeedTestOpen(true)}>
                 <Bolt className="h-3.5 w-3.5" />
@@ -972,6 +1011,7 @@ export default function DashboardPage(): React.JSX.Element {
           </CardTitle>
           <div className="flex items-center gap-2">
             {dragHandle('pings')}
+            {chartRemove('pings')}
             <SimpleTooltip label="Manage ping targets">
               <Button variant="ghost" size="icon" onClick={() => navigate('/settings')}>
                 <SettingsIcon className="h-3.5 w-3.5" />
@@ -1063,6 +1103,28 @@ export default function DashboardPage(): React.JSX.Element {
           )}
         </CardContent>
       </Card>
+    ),
+
+    github: (
+      <GithubActivityCard
+        className={cardClass('github')}
+        dragHandle={dragHandle('github')}
+        onRemove={editing ? () => removeChartCard('github', CHART_LABELS.github) : undefined}
+        chartHeight={CHART_HEIGHT}
+      />
+    ),
+
+    'github-actions': (
+      <GithubActionsCard
+        className={cardClass('github-actions')}
+        dragHandle={dragHandle('github-actions')}
+        onRemove={
+          editing
+            ? () => removeChartCard('github-actions', CHART_LABELS['github-actions'])
+            : undefined
+        }
+        chartHeight={CHART_HEIGHT}
+      />
     ),
   };
 
@@ -1256,6 +1318,17 @@ export default function DashboardPage(): React.JSX.Element {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
+              <DropdownMenuLabel>Charts</DropdownMenuLabel>
+              {DASHBOARD_CHART_IDS.map((id) => (
+                <DropdownMenuCheckboxItem
+                  key={id}
+                  checked={chartCardsShown.includes(id)}
+                  onCheckedChange={() => toggleChartCard(id)}
+                >
+                  {CHART_LABELS[id]}
+                </DropdownMenuCheckboxItem>
+              ))}
+              <DropdownMenuSeparator />
               <DropdownMenuLabel>Dashboard stats</DropdownMenuLabel>
               {DASHBOARD_STAT_IDS.map((id) => (
                 <DropdownMenuCheckboxItem

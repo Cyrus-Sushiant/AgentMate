@@ -7,8 +7,8 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Combobox } from '@/components/ui/combobox';
-import { TARGET_AI_CLI_ID, cliOptionIcon } from '@/components/cliLogos';
-import { PROMPT_TYPES, TARGET_AIS } from '@agentmat/core';
+import { cliOptionIcon } from '@/components/cliLogos';
+import { PROMPT_TYPES, TARGET_AIS, cliIdForTargetAI } from '@agentmat/core';
 import type { PromptType, TargetAI } from '@agentmat/core';
 import { isShortcutLetter } from '@/lib/shortcutKey';
 import { useProjectPromptBuilder } from './useProjectPromptBuilder';
@@ -138,7 +138,7 @@ export default function PromptBuildWidgetRoute(): React.JSX.Element {
                 options={TARGET_AIS.map((ai) => ({
                   value: ai,
                   label: ai,
-                  icon: cliOptionIcon(TARGET_AI_CLI_ID[ai]),
+                  icon: cliOptionIcon(cliIdForTargetAI(ai)),
                 }))}
               />
             </div>

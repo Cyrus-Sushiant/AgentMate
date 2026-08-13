@@ -1,4 +1,5 @@
 import type { AgentType } from '../types/index.js';
+import { AGENT_TYPE_LABELS } from '../cli/agentTypes.js';
 
 export interface BootstrapFile {
   relativePath: string;
@@ -28,11 +29,7 @@ export interface BootstrapPlan {
 export const AGENTMATE_DIR = '.agentmate';
 
 const AGENT_LABELS: Record<AgentType, string> = {
-  'claude-code': 'Claude Code',
-  gemini: 'Gemini CLI',
-  opencode: 'opencode',
-  codex: 'Codex CLI',
-  cursor: 'Cursor',
+  ...AGENT_TYPE_LABELS,
   generic: 'a generic AI coding agent',
 };
 

@@ -2,6 +2,7 @@ import type { SkillRepositorySourceType, UiProInstallMethod } from '@agentmat/co
 import {
   buildUiProUninstallCommands,
   bundledSkillsShDirectory,
+  getCliDefinition,
   SKILLS_SH_SNAPSHOT_DATE,
   UI_UX_PRO_MAX_AI_TARGETS,
   UI_UX_PRO_MAX_PSEUDO_REPOSITORY_ID,
@@ -96,14 +97,17 @@ const installsFormatter = new Intl.NumberFormat('en', {
   maximumFractionDigits: 1,
 });
 
-/** Agent ids the `skills` CLI recognizes, scoped to the agents AgentMate itself targets. */
+/** Agent ids the `skills` CLI recognizes. Labels come from CLI_REGISTRY. */
 const SKILLS_CLI_AGENT_OPTIONS: { value: string; label: string }[] = [
-  { value: 'claude-code', label: 'Claude Code' },
-  { value: 'codex', label: 'Codex' },
-  { value: 'cursor', label: 'Cursor' },
-  { value: 'opencode', label: 'opencode' },
-  { value: 'gemini-cli', label: 'Gemini CLI' },
-];
+  { value: 'claude-code', cliId: 'claude-code' },
+  { value: 'codex', cliId: 'codex-cli' },
+  { value: 'cursor', cliId: 'cursor-cli' },
+  { value: 'opencode', cliId: 'opencode' },
+  { value: 'gemini-cli', cliId: 'gemini-cli' },
+].map((agent) => ({
+  value: agent.value,
+  label: getCliDefinition(agent.cliId)?.label ?? agent.value,
+}));
 const ALL_SKILLS_CLI_AGENTS = SKILLS_CLI_AGENT_OPTIONS.map((a) => a.value);
 
 /**

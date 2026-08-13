@@ -1,6 +1,7 @@
 import { ipcMain } from 'electron';
 import type { AppSettings } from '@agentmat/core';
 import { IPC } from '../../shared/ipcChannels';
+import { petManager } from '../pet/petWindow';
 import { store } from '../store';
 
 export function registerSettingsHandlers(): void {
@@ -12,6 +13,7 @@ export function registerSettingsHandlers(): void {
       const current = await store.getSettings();
       const next = { ...current, ...updates };
       await store.setSettings(next);
+      void petManager.syncFromSettings();
       return next;
     },
   );

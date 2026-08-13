@@ -618,6 +618,374 @@ body {
   -webkit-app-region: no-drag;
 }
 
+/* Desktop companion overlay (#/desktop-pet). Soft easing so walks and
+   turns feel like weight shifting, not a stepped sprite loop. */
+.desktop-pet-stage {
+  background: transparent;
+  user-select: none;
+}
+.pet-speech {
+  position: absolute;
+  z-index: 8;
+  pointer-events: none;
+  padding: 0.65rem 0.8rem 0.7rem;
+  border-radius: 0.85rem 0.85rem 0.85rem 0.35rem;
+  background: hsl(var(--card) / 0.92);
+  color: hsl(var(--card-foreground));
+  box-shadow:
+    0 10px 28px hsl(0 0% 0% / 0.28),
+    inset 0 1px 0 hsl(0 0% 100% / 0.08);
+  backdrop-filter: blur(10px);
+  animation: pet-speech-in 0.22s ease-out;
+}
+.pet-speech.is-fail {
+  border: 1px solid hsl(var(--destructive) / 0.55);
+}
+.pet-speech.is-pass {
+  border: 1px solid hsl(var(--primary) / 0.55);
+}
+.pet-speech::after {
+  content: '';
+  position: absolute;
+  left: 1.35rem;
+  width: 0;
+  height: 0;
+  border: 7px solid transparent;
+}
+.pet-speech.is-above::after {
+  bottom: -13px;
+  border-top-color: hsl(var(--card) / 0.92);
+}
+.pet-speech.is-below::after {
+  top: -13px;
+  border-bottom-color: hsl(var(--card) / 0.92);
+}
+.pet-speech-name {
+  margin: 0 0 0.15rem;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: hsl(var(--muted-foreground));
+}
+.pet-speech-text {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.35;
+  font-weight: 500;
+}
+@keyframes pet-speech-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pet-speech {
+    animation: none;
+  }
+}
+.desktop-pet-body {
+  position: absolute;
+  z-index: 2;
+  overflow: visible;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  cursor: grab;
+  transform-origin: 50% 100%;
+}
+.desktop-pet-body.is-chute .desktop-pet-shadow {
+  opacity: 0.12;
+}
+.desktop-pet-body.is-dragging {
+  z-index: 6;
+  cursor: grabbing;
+}
+.desktop-pet-body.is-left:not(.is-turning) {
+  transform: scaleX(-1);
+}
+.desktop-pet-body.is-turning {
+  animation: pet-turn 0.56s ease-in-out both;
+}
+.desktop-pet-body.is-left.is-turning {
+  animation-name: pet-turn-from-left;
+}
+.desktop-pet-shadow {
+  position: absolute;
+  bottom: 2px;
+  left: 50%;
+  z-index: 0;
+  height: 8px;
+  width: 52px;
+  translate: -50% 0;
+  border-radius: 100%;
+  background: hsl(0 0% 0% / 0.28);
+  filter: blur(2px);
+}
+.desktop-pet-body .desktop-pet-sprite {
+  position: relative;
+  z-index: 1;
+  display: block;
+  width: auto;
+  max-width: 100%;
+  object-fit: contain;
+  object-position: bottom center;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  -webkit-user-drag: none;
+  user-select: none;
+  pointer-events: none;
+}
+.desktop-pet-sprite {
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  -webkit-user-drag: none;
+  user-select: none;
+}
+.desktop-pet-sprite.is-walk {
+  animation: pet-walk var(--pet-gait, 0.78s) ease-in-out infinite;
+}
+.desktop-pet-sprite.is-idle {
+  animation: pet-idle 3.4s ease-in-out infinite;
+}
+.desktop-pet-sprite.is-hop {
+  animation: pet-hop 0.56s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.desktop-pet-sprite.is-climb {
+  animation: pet-climb var(--pet-climb-gait, 0.92s) ease-in-out infinite;
+}
+.desktop-pet-sprite.is-hang {
+  animation: pet-hang var(--pet-hang-gait, 1.15s) ease-in-out infinite;
+}
+.desktop-pet-sprite.is-wait {
+  animation: pet-wait 0.9s ease-in-out infinite;
+}
+
+.pet-rig {
+  position: absolute;
+  inset: 0;
+  overflow: visible;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+}
+.pet-rig.is-chute {
+  animation: pet-chute-bob 1.5s ease-in-out infinite;
+}
+.pet-rig .desktop-pet-sprite {
+  position: relative;
+  z-index: 1;
+}
+
+.pet-chute {
+  position: absolute;
+  overflow: visible;
+  pointer-events: none;
+}
+.pet-chute.is-back {
+  z-index: 0;
+}
+.pet-chute.is-front {
+  z-index: 3;
+}
+.pet-chute-riser-ink {
+  stroke: #3a2418;
+  stroke-width: 3.2;
+  stroke-linecap: round;
+}
+.pet-chute-riser {
+  stroke: #e2c48a;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+}
+.pet-chute-strap-ink {
+  fill: none;
+  stroke: #3a2418;
+  stroke-width: 4;
+  stroke-linecap: round;
+}
+.pet-chute-strap {
+  fill: none;
+  stroke: #8a6230;
+  stroke-width: 2.2;
+  stroke-linecap: round;
+}
+.pet-chute-clip-ink {
+  fill: #3a2418;
+}
+.pet-chute-clip {
+  fill: #d7b44a;
+}
+.pet-chute-dome {
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+  animation: pet-chute-open 0.42s ease-out;
+}
+.pet-chute-dome-edge {
+  fill: none;
+  stroke: #3a2418;
+  stroke-width: 2;
+  stroke-linejoin: round;
+}
+
+.pet-rope {
+  position: absolute;
+  z-index: 1;
+  width: 10px;
+  margin-left: -5px;
+  pointer-events: none;
+}
+.pet-rope-cord {
+  display: block;
+  height: 100%;
+  width: 3px;
+  margin: 0 auto;
+  border-radius: 1px;
+  background: repeating-linear-gradient(
+    to bottom,
+    #e2c48a 0 4px,
+    #8a6230 4px 6px,
+    #c9a05a 6px 7px
+  );
+  box-shadow: 1px 0 0 #4a3318;
+}
+.pet-rope-hook {
+  position: absolute;
+  left: 50%;
+  width: 10px;
+  height: 10px;
+  translate: -50% 0;
+  border: 2px solid #d7b44a;
+  background: #2a2114;
+}
+.pet-rope-hook.is-start {
+  top: -3px;
+  border-radius: 99px;
+}
+.pet-rope-hook.is-end {
+  bottom: -2px;
+  height: 8px;
+  width: 12px;
+  border-radius: 1px 1px 3px 3px;
+  background: #d7b44a;
+}
+
+.pet-token-card {
+  pointer-events: auto;
+}
+
+@keyframes pet-walk {
+  0%,
+  100% {
+    transform: translateY(0) rotate(0deg);
+  }
+  25% {
+    transform: translateY(-2px) rotate(-1.4deg);
+  }
+  50% {
+    transform: translateY(1px) rotate(0deg);
+  }
+  75% {
+    transform: translateY(-2px) rotate(1.4deg);
+  }
+}
+@keyframes pet-idle {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(2px);
+  }
+}
+@keyframes pet-hop {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  38% {
+    transform: translateY(-16px);
+  }
+  72% {
+    transform: translateY(-3px);
+  }
+}
+@keyframes pet-climb {
+  0%,
+  100% {
+    transform: translateY(0) rotate(-2deg);
+  }
+  50% {
+    transform: translateY(-4px) rotate(2deg);
+  }
+}
+@keyframes pet-hang {
+  0%,
+  100% {
+    transform: translateY(0) rotate(3deg);
+  }
+  50% {
+    transform: translateY(3px) rotate(-2deg);
+  }
+}
+@keyframes pet-wait {
+  0%,
+  100% {
+    transform: translateY(0) rotate(-1.5deg);
+  }
+  50% {
+    transform: translateY(-2px) rotate(1.5deg);
+  }
+}
+@keyframes pet-chute-open {
+  0% {
+    transform: translateY(10px) scale(0.22);
+    opacity: 0.35;
+  }
+  100% {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
+}
+@keyframes pet-chute-bob {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-3px);
+  }
+}
+@keyframes pet-turn {
+  0% {
+    transform: scaleX(1);
+  }
+  50% {
+    transform: scaleX(0.08);
+  }
+  100% {
+    transform: scaleX(-1);
+  }
+}
+@keyframes pet-turn-from-left {
+  0% {
+    transform: scaleX(-1);
+  }
+  50% {
+    transform: scaleX(-0.08);
+  }
+  100% {
+    transform: scaleX(1);
+  }
+}
+
 /* Terminal drawer: one continuous ink well. xterm's canvas is only as large as
    the fitted grid, so the well, pane, and viewport must share this fill or the
    leftover pixels read as a nested black box. */

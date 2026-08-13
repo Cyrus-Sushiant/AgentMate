@@ -1,8 +1,10 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { LayoutGroup, motion, useReducedMotion } from 'framer-motion';
+import { useEffect } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import type { IconProps } from '@/components/icons';
 import {
+  Bell,
   Blocks,
   Broadcast,
   ChartColumn,
@@ -40,6 +42,7 @@ export const NAV_ITEMS: NavItem[] = [
     alsoActiveOn: ['/prompt-history'],
   },
   { to: '/projects', label: 'Projects', icon: FolderKanban },
+  { to: '/notifications', label: 'Notifications', icon: Bell },
   { to: '/skills', label: 'Skills', icon: Blocks },
   { to: '/mcp', label: 'MCP Servers', icon: Plug },
   { to: '/tools', label: 'Agent Tools', icon: Wrench },
@@ -53,10 +56,24 @@ export function Sidebar(): React.JSX.Element {
   const collapsed = useUiStore((s) => s.sidebarCollapsed);
   const { pathname } = useLocation();
   const reduceMotion = useReducedMotion();
+  const queryClient = useQueryClient();
   const appVersionQuery = useQuery({
     queryKey: queryKeys.appVersion,
     queryFn: () => window.agentmat.app.getVersion(),
   });
+  const unreadQuery = useQuery({
+    queryKey: queryKeys.appNotificationUnread,
+    queryFn: () => window.agentmat.pipelines.unreadCount(),
+    refetchInterval: 60_000,
+  });
+
+  useEffect(() => {
+    return window.agentmat.pipelines.onNotificationsChanged(() => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.appNotificationUnread });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.appNotifications });
+    });
+  }, [queryClient]);
+  const unread = unreadQuery.data ?? 0;
   const pillTransition = reduceMotion
     ? { duration: 0 }
     : { type: 'spring' as const, stiffness: 420, damping: 32 };
@@ -108,6 +125,15 @@ export function Sidebar(): React.JSX.Element {
                         className={cn('relative z-10 h-4 w-4 shrink-0', active && 'text-primary')}
                       />
                       {!collapsed && <span className="relative z-10">{item.label}</span>}
+                      {item.to === '/notifications' && unread > 0 ? (
+                        collapsed ? (
+                          <span className="absolute right-1.5 top-1.5 z-10 h-1.5 w-1.5 rounded-full bg-destructive" />
+                        ) : (
+                          <span className="relative z-10 ml-auto rounded-full bg-destructive px-1.5 py-0.5 text-[10px] font-semibold leading-none text-destructive-foreground">
+                            {unread > 99 ? '99+' : unread}
+                          </span>
+                        )
+                      ) : null}
                     </>
                   );
                 }}

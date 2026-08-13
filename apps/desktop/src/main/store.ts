@@ -1,27 +1,36 @@
 import { randomUUID } from 'node:crypto';
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { app } from 'electron';
 import type {
   ActivityEvent,
   ActivityEventType,
+  AppNotification,
   AppSettings,
+  McpRepository,
   Project,
   ProjectDraft,
   PromptTemplate,
   ScheduledTask,
+  SkillRepository,
 } from '@agentmat/core';
-import type { RemoteSavedServer } from '../shared/apiTypes';
 import {
+  clampDesktopPetScale,
+  DASHBOARD_CHART_IDS,
   DASHBOARD_STAT_IDS,
+  DEFAULT_DESKTOP_PET_ACTION_SPEEDS,
   defaultProjectNotifications,
   defaultUsageResetAlerts,
   defaultUsageThresholdAlerts,
+  normalizeCustomDesktopPets,
+  normalizeDesktopPetActionSpeeds,
+  normalizeDesktopPetId,
+  normalizeProjectGithubActions,
+  normalizeProjectRunCommands,
   normalizeUsageResetAlerts,
   normalizeUsageThresholdAlerts,
 } from '@agentmat/core';
-import type { SkillRepository } from '@agentmat/core';
-import type { McpRepository } from '@agentmat/core';
+import { app } from 'electron';
+import type { RemoteSavedServer } from '../shared/apiTypes';
 
 function dataDir(): string {
   return join(app.getPath('userData'), 'data');
@@ -62,12 +71,14 @@ const DEFAULT_SETTINGS: AppSettings = {
   geminiModel: 'gemini-2.0-flash',
   promptBuilderProvider: 'openai',
   dashboardChartOrder: [],
+  dashboardChartCards: [...DASHBOARD_CHART_IDS],
   dashboardUsageCards: [],
   // Preserves today's always-shown behavior for existing installs; users can
   // hide any of these from the Dashboard's edit mode once they upgrade.
   dashboardStatCards: [...DASHBOARD_STAT_IDS],
   dashboardUsageSummaryCards: [],
   dashboardLayout: [],
+  dashboardIntroducedCharts: DASHBOARD_CHART_IDS.filter((id) => id !== 'github-actions'),
   translateMaxRetries: 3,
   speechModel: 'base',
   speechLanguage: 'auto',
@@ -78,6 +89,16 @@ const DEFAULT_SETTINGS: AppSettings = {
   usageCardModes: {},
   usageResetAlerts: defaultUsageResetAlerts(),
   usageThresholdAlerts: defaultUsageThresholdAlerts(),
+  desktopPetEnabled: false,
+  desktopPetCharacterId: 'tide',
+  desktopPetCustoms: [],
+  desktopPetCanMove: true,
+  desktopPetCanClimb: true,
+  desktopPetCanParachute: false,
+  desktopPetActionSpeeds: { ...DEFAULT_DESKTOP_PET_ACTION_SPEEDS },
+  desktopPetScale: 100,
+  desktopPetPipelineOnFail: false,
+  desktopPetPipelineOnPass: false,
 };
 
 /**
@@ -92,20 +113,39 @@ function withSettingsMigrations(settings: AppSettings): AppSettings {
   const windows = alerts.windows.map((key) =>
     String(key) === 'week-opus' ? ('week-fable' as const) : key,
   );
+  const customs = normalizeCustomDesktopPets(settings.desktopPetCustoms);
   return {
     ...settings,
+    desktopPetCustoms: customs,
+    desktopPetCharacterId: normalizeDesktopPetId(
+      settings.desktopPetCharacterId,
+      customs.map((pet) => pet.id),
+    ),
+    desktopPetCanMove: settings.desktopPetCanMove !== false,
+    desktopPetCanClimb: settings.desktopPetCanClimb !== false,
+    desktopPetCanParachute: settings.desktopPetCanParachute === true,
+    desktopPetActionSpeeds: normalizeDesktopPetActionSpeeds(settings.desktopPetActionSpeeds),
+    desktopPetScale: clampDesktopPetScale(settings.desktopPetScale),
+    desktopPetPipelineOnFail: settings.desktopPetPipelineOnFail === true,
+    desktopPetPipelineOnPass: settings.desktopPetPipelineOnPass === true,
+    dashboardIntroducedCharts: Array.isArray(settings.dashboardIntroducedCharts)
+      ? settings.dashboardIntroducedCharts.filter((id) => typeof id === 'string')
+      : DASHBOARD_CHART_IDS.filter((id) => id !== 'github-actions'),
     usageResetAlerts: { ...alerts, windows: [...new Set(windows)] },
     usageThresholdAlerts: normalizeUsageThresholdAlerts(settings.usageThresholdAlerts),
   };
 }
 
 /**
- * Older projects.json entries predate the notifications, prompt, pinned, cliId, icon
- * and repository fields.
+ * Older projects.json entries predate notifications, prompt, pinned, cliId, icon,
+ * repository, and the runCommands list (they used a single `runCommand` string).
  */
-function withProjectDefaults(project: Project): Project {
+function withProjectDefaults(project: Project & { runCommand?: string }): Project {
+  const rest = { ...project };
+  delete rest.runCommand;
   return {
-    ...project,
+    ...rest,
+    runCommands: normalizeProjectRunCommands(project),
     notifications: project.notifications ?? defaultProjectNotifications(),
     prompt: project.prompt ?? '',
     pinned: project.pinned ?? false,
@@ -113,6 +153,7 @@ function withProjectDefaults(project: Project): Project {
     iconDataUrl: project.iconDataUrl ?? null,
     websiteUrl: project.websiteUrl ?? '',
     repoUrl: project.repoUrl ?? '',
+    githubActions: normalizeProjectGithubActions(project.githubActions),
   };
 }
 
@@ -157,7 +198,21 @@ export const store = {
   getRemoteServers: (): Promise<RemoteSavedServer[]> => readJsonFile('remote-servers.json', []),
   setRemoteServers: (servers: RemoteSavedServer[]): Promise<void> =>
     writeJsonFile('remote-servers.json', servers),
+
+  getAppNotifications: (): Promise<AppNotification[]> => readJsonFile('app-notifications.json', []),
+  setAppNotifications: (notifications: AppNotification[]): Promise<void> =>
+    writeJsonFile('app-notifications.json', notifications),
+
+  getPipelineWatch: (): Promise<PipelineWatchState> =>
+    readJsonFile('pipeline-watch.json', { lastCompletedRunId: {} }),
+  setPipelineWatch: (state: PipelineWatchState): Promise<void> =>
+    writeJsonFile('pipeline-watch.json', state),
 };
+
+/** `${projectId}:${workflowId}` to the newest completed run already processed. */
+export interface PipelineWatchState {
+  lastCompletedRunId: Record<string, number>;
+}
 
 export async function logActivity(
   type: ActivityEventType,

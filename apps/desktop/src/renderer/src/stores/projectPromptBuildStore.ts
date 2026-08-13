@@ -5,14 +5,14 @@ import type { PromptType, TargetAI } from '@agentmat/core';
 interface ProjectPromptBuildEntry {
   rawInput: string;
   promptType: PromptType;
-  targetAI: TargetAI;
+  /** Absent until the user picks one; the form then follows the project's agent. */
+  targetAI?: TargetAI;
   generated: string;
 }
 
 const EMPTY_ENTRY: ProjectPromptBuildEntry = {
   rawInput: '',
   promptType: 'Full Stack',
-  targetAI: 'Claude',
   generated: '',
 };
 

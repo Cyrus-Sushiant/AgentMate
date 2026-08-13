@@ -1,11 +1,13 @@
-import type { AgentType, Project } from '@agentmat/core';
-import { browsableRepoUrl, CLI_REGISTRY } from '@agentmat/core';
+import type { AgentType, Project, ProjectRunCommand } from '@agentmat/core';
+import { AGENT_TYPES, browsableRepoUrl, CLI_REGISTRY, configuredRunCommands } from '@agentmat/core';
 import { useEffect, useId, useRef, useState } from 'react';
 import { toast } from 'sonner';
+import { cliOptionIcon } from '@/components/cliLogos';
 import {
   FolderOpen,
   GitBranch,
   Globe,
+  Plus,
   Sparkles,
   Spinner,
   Tag,
@@ -14,7 +16,6 @@ import {
   Upload,
   X,
 } from '@/components/icons';
-import { AGENT_TYPE_CLI_ID, cliOptionIcon } from '@/components/cliLogos';
 import { ProjectIcon } from '@/components/projects/ProjectIcon';
 import { Button } from '@/components/ui/button';
 import { Combobox } from '@/components/ui/combobox';
@@ -33,15 +34,6 @@ import { Textarea } from '@/components/ui/textarea';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 
-const AGENT_TYPES: { value: AgentType; label: string }[] = [
-  { value: 'claude-code', label: 'Claude Code' },
-  { value: 'gemini', label: 'Gemini' },
-  { value: 'opencode', label: 'OpenCode' },
-  { value: 'codex', label: 'Codex' },
-  { value: 'cursor', label: 'Cursor' },
-  { value: 'generic', label: 'Generic' },
-];
-
 /** Combobox needs a non-empty value, so "inherit the app default" travels as this sentinel. */
 const APP_DEFAULT_CLI = '__app-default__';
 
@@ -55,7 +47,7 @@ export interface ProjectFormValues {
   tags: string[];
   agentType: AgentType;
   notes: string;
-  runCommand: string;
+  runCommands: ProjectRunCommand[];
   /** null = follow the app-wide default CLI from Settings. */
   cliId: string | null;
   /** Icon inlined as a data URL, either picked from disk or fetched from the site. */
@@ -93,6 +85,16 @@ function folderName(path: string): string {
   return path.split(/[\\/]/).filter(Boolean).pop() ?? '';
 }
 
+function emptyRunCommand(): ProjectRunCommand {
+  return { id: crypto.randomUUID(), label: '', command: '' };
+}
+
+function draftsFromProject(initial?: Project): ProjectRunCommand[] {
+  const existing = initial ? configuredRunCommands(initial) : [];
+  if (existing.length === 0) return [emptyRunCommand()];
+  return existing.map((entry) => ({ ...entry }));
+}
+
 export function ProjectFormDialog({
   open,
   onOpenChange,
@@ -109,7 +111,7 @@ export function ProjectFormDialog({
   const [tagDraft, setTagDraft] = useState('');
   const [agentType, setAgentType] = useState<AgentType>('claude-code');
   const [notes, setNotes] = useState('');
-  const [runCommand, setRunCommand] = useState('');
+  const [runCommands, setRunCommands] = useState<ProjectRunCommand[]>([emptyRunCommand()]);
   const [cliId, setCliId] = useState<string>(APP_DEFAULT_CLI);
   const [iconDataUrl, setIconDataUrl] = useState<string | null>(null);
   const [websiteUrl, setWebsiteUrl] = useState('');
@@ -134,7 +136,7 @@ export function ProjectFormDialog({
     setTagDraft('');
     setAgentType(initial?.agentType ?? 'claude-code');
     setNotes(initial?.notes ?? '');
-    setRunCommand(initial?.runCommand ?? '');
+    setRunCommands(draftsFromProject(initial));
     setCliId(initial?.cliId ?? APP_DEFAULT_CLI);
     setIconDataUrl(initial?.iconDataUrl ?? null);
     setWebsiteUrl(initial?.websiteUrl ?? '');
@@ -270,7 +272,13 @@ export function ProjectFormDialog({
       tags: mergeTags(tags, splitTags(tagDraft)),
       agentType,
       notes,
-      runCommand: runCommand.trim(),
+      runCommands: runCommands
+        .filter((row) => row.command.trim().length > 0)
+        .map((row) => ({
+          id: row.id,
+          label: row.label.trim(),
+          command: row.command.trim(),
+        })),
       cliId: cliId === APP_DEFAULT_CLI ? null : cliId,
       iconDataUrl,
       websiteUrl: websiteUrl.trim(),
@@ -548,7 +556,7 @@ export function ProjectFormDialog({
                     options={AGENT_TYPES.map((a) => ({
                       value: a.value,
                       label: a.label,
-                      icon: cliOptionIcon(AGENT_TYPE_CLI_ID[a.value]),
+                      icon: cliOptionIcon(a.cliId),
                     }))}
                   />
                 </Field>
@@ -570,17 +578,69 @@ export function ProjectFormDialog({
               </div>
 
               <Field
-                label="Run command"
-                htmlFor={`${ids}-run`}
-                hint="What the Run button executes in the project folder."
+                label="Run commands"
+                hint="What the Run button executes in the project folder. Add one per environment if you need more than one; Run will ask which to use."
               >
-                <Input
-                  id={`${ids}-run`}
-                  value={runCommand}
-                  onChange={(e) => setRunCommand(e.target.value)}
-                  placeholder="npm run dev"
-                  className="font-mono text-xs"
-                />
+                <div className="space-y-2">
+                  <div className="flex gap-2 text-[0.65rem] font-medium uppercase tracking-wide text-muted-foreground">
+                    <span className="w-[7.5rem] shrink-0 px-1">Environment</span>
+                    <span className="min-w-0 flex-1 px-1">Command</span>
+                    <span className="w-9 shrink-0" />
+                  </div>
+                  {runCommands.map((row, index) => (
+                    <div key={row.id} className="flex gap-2">
+                      <Input
+                        value={row.label}
+                        onChange={(e) =>
+                          setRunCommands((prev) =>
+                            prev.map((item) =>
+                              item.id === row.id ? { ...item, label: e.target.value } : item,
+                            ),
+                          )
+                        }
+                        placeholder="dev"
+                        aria-label={`Environment ${index + 1}`}
+                        className="w-[7.5rem] shrink-0"
+                      />
+                      <Input
+                        value={row.command}
+                        onChange={(e) =>
+                          setRunCommands((prev) =>
+                            prev.map((item) =>
+                              item.id === row.id ? { ...item, command: e.target.value } : item,
+                            ),
+                          )
+                        }
+                        placeholder="npm run dev"
+                        aria-label={`Command ${index + 1}`}
+                        className="min-w-0 flex-1 font-mono text-xs"
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        aria-label={`Remove command ${index + 1}`}
+                        className="shrink-0"
+                        onClick={() =>
+                          setRunCommands((prev) => {
+                            const next = prev.filter((item) => item.id !== row.id);
+                            return next.length > 0 ? next : [emptyRunCommand()];
+                          })
+                        }
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  ))}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setRunCommands((prev) => [...prev, emptyRunCommand()])}
+                  >
+                    <Plus className="h-3.5 w-3.5" /> Add command
+                  </Button>
+                </div>
               </Field>
 
               <Field label="Notes" htmlFor={`${ids}-notes`}>

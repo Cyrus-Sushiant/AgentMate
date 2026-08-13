@@ -1,5 +1,5 @@
 import { PROMPT_TYPE_PROFILES } from './promptTypeProfiles.js';
-import { TARGET_AI_NOTES } from './targetAiNotes.js';
+import { targetAINote } from './targetAiNotes.js';
 import type { GeneratePromptInput } from './types.js';
 
 function bulletList(items: string[]): string {
@@ -9,7 +9,7 @@ function bulletList(items: string[]): string {
 export function generatePrompt({ rawInput, promptType, targetAI }: GeneratePromptInput): string {
   const profile = PROMPT_TYPE_PROFILES[promptType];
   const trimmedInput = rawInput.trim();
-  const aiNote = TARGET_AI_NOTES[targetAI];
+  const aiNote = targetAINote(targetAI);
 
   return `# Task Request
 
@@ -54,7 +54,7 @@ export function buildPromptGenerationRequest({
   targetAI,
 }: GeneratePromptInput): string {
   const profile = PROMPT_TYPE_PROFILES[promptType];
-  const aiNote = TARGET_AI_NOTES[targetAI];
+  const aiNote = targetAINote(targetAI);
   const trimmedInput = rawInput.trim();
 
   return `You are an expert prompt engineer. Write a single, complete, ready-to-use prompt that a developer can paste directly into ${targetAI} to accomplish the task described below.

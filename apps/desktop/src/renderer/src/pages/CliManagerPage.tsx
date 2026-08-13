@@ -17,6 +17,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { SimpleTooltip } from '@/components/ui/tooltip';
+import { openCliInTerminal } from '@/lib/openCli';
 import { queryKeys } from '@/lib/queryKeys';
 import { useCliStore } from '@/stores/cliStore';
 import { usePageHeader } from '@/stores/pageHeaderStore';
@@ -209,8 +210,23 @@ export default function CliManagerPage(): React.JSX.Element {
               <CardHeader>
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex items-center gap-2">
-                    <CliLogo cliId={cli.id} className="h-4 w-4" />
-                    <CardTitle>{cli.name}</CardTitle>
+                    {status?.installed ? (
+                      <SimpleTooltip label={`Open ${cli.name} in the terminal`}>
+                        <button
+                          type="button"
+                          className="flex min-w-0 cursor-pointer items-center gap-2 rounded-sm text-left hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                          onClick={() => openCliInTerminal({ cliId: cli.id })}
+                        >
+                          <CliLogo cliId={cli.id} className="h-4 w-4" />
+                          <CardTitle>{cli.name}</CardTitle>
+                        </button>
+                      </SimpleTooltip>
+                    ) : (
+                      <>
+                        <CliLogo cliId={cli.id} className="h-4 w-4" />
+                        <CardTitle>{cli.name}</CardTitle>
+                      </>
+                    )}
                   </div>
                   <Badge variant={status?.installed ? 'success' : 'outline'}>
                     {status?.installed ? (status.version ?? 'Installed') : 'Not installed'}

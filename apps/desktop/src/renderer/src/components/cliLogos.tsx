@@ -32,28 +32,6 @@ const MONOGRAM_LOGOS: Record<string, MonogramLogo> = {
   'freebuff-cli': { letter: 'F', color: '#16A34A' },
 };
 
-/** CLI_REGISTRY id used to render a brand mark for a project agent type. */
-export const AGENT_TYPE_CLI_ID: Record<string, string | null> = {
-  'claude-code': 'claude-code',
-  gemini: 'gemini-cli',
-  opencode: 'opencode',
-  codex: 'codex-cli',
-  cursor: 'cursor-cli',
-  generic: null,
-};
-
-/** CLI_REGISTRY id for a Prompt Builder / Target AI label. */
-export const TARGET_AI_CLI_ID: Record<string, string> = {
-  Claude: 'claude-code',
-  Gemini: 'gemini-cli',
-  OpenCode: 'opencode',
-  Codex: 'codex-cli',
-  Qwen: 'qwen-cli',
-  Aider: 'aider',
-  Goose: 'goose',
-  Continue: 'continue-cli',
-};
-
 export interface CliLogoProps {
   cliId: string;
   className?: string;

@@ -2,6 +2,7 @@ import type {
   AgentType,
   AiProvider,
   ProjectNotificationSettings,
+  ProjectRunCommand,
   UsageProviderConfig,
 } from '@agentmat/core';
 
@@ -59,7 +60,8 @@ export interface CreateProjectInput {
   tags: string[];
   agentType: AgentType;
   notes: string;
-  runCommand: string;
+  /** Launch commands the Run button can start. Empty when none are set. */
+  runCommands: ProjectRunCommand[];
   /** CLI_REGISTRY id for this project's AI actions; null means the app default in Settings. */
   cliId?: string | null;
   /** Icon image inlined as a data URL; null (or omitted) leaves the project on the folder glyph. */
@@ -363,6 +365,54 @@ export interface GitFileChange {
   y: string;
 }
 
+export interface GitBranchInfo {
+  name: string;
+  /** Present as a local `refs/heads` branch. */
+  local: boolean;
+  /** Present on the primary remote (usually origin). */
+  remote: boolean;
+}
+
+export interface GitCommitInfo {
+  hash: string;
+  shortHash: string;
+  author: string;
+  /** ISO-8601 committer date. */
+  date: string;
+  subject: string;
+  parents: string[];
+}
+
+export interface GitDayCount {
+  /** Local calendar day, YYYY-MM-DD. */
+  date: string;
+  count: number;
+}
+
+export interface GitBranchHistory {
+  branch: string;
+  commits: GitCommitInfo[];
+  /** Daily commit counts covering the last 12 weeks, including empty days. */
+  activity: GitDayCount[];
+}
+
+export interface RenameBranchInput {
+  projectId: string;
+  from: string;
+  to: string;
+  /** Push the new name and delete the old one on the primary remote. */
+  updateRemote?: boolean;
+}
+
+export interface DeleteBranchInput {
+  projectId: string;
+  branchName: string;
+  /** Also `git push --delete` on the primary remote. */
+  deleteRemote?: boolean;
+  /** Use `git branch -D` when the branch is not fully merged. */
+  force?: boolean;
+}
+
 export interface GitStatus {
   isRepo: boolean;
   branch: string | null;
@@ -372,6 +422,7 @@ export interface GitStatus {
   behind: number;
   hasRemote: boolean;
   files: GitFileChange[];
+  branches: GitBranchInfo[];
 }
 
 export interface GitOpResult {
@@ -484,6 +535,39 @@ export interface GithubAccount {
   login: string | null;
   /** The signed-in account first, then every organization it belongs to. */
   owners: GithubOwner[];
+  error?: string;
+}
+
+/** Daily GitHub contribution counts for the dashboard activity chart. */
+export interface GithubActivity {
+  ok: boolean;
+  cliAvailable: boolean;
+  authenticated: boolean;
+  login: string | null;
+  /** Contributions in GitHub's current contribution year. */
+  yearCount: number;
+  /** Last 12 weeks of local calendar days, including days with no activity. */
+  days: GitDayCount[];
+  error?: string;
+}
+
+export interface GithubNotificationItem {
+  id: string;
+  unread: boolean;
+  reason: string;
+  title: string;
+  type: string;
+  repo: string;
+  updatedAt: string;
+  /** Browser URL when GitHub gave us enough to build one; otherwise the repo page. */
+  url: string | null;
+}
+
+export interface GithubNotifications {
+  ok: boolean;
+  cliAvailable: boolean;
+  authenticated: boolean;
+  notifications: GithubNotificationItem[];
   error?: string;
 }
 
@@ -792,4 +876,95 @@ export interface RemoteLogEvent {
 export interface StartHostInput {
   ip: string;
   port: number;
+}
+
+export type PipelineRunStatus =
+  | 'queued'
+  | 'in_progress'
+  | 'completed'
+  | 'waiting'
+  | 'requested'
+  | 'pending'
+  | 'unknown';
+
+export type PipelineConclusion =
+  | 'success'
+  | 'failure'
+  | 'cancelled'
+  | 'skipped'
+  | 'timed_out'
+  | 'action_required'
+  | 'neutral'
+  | 'stale'
+  | null;
+
+export interface GithubWorkflowInfo {
+  id: number;
+  name: string;
+  path: string;
+  state: string;
+  htmlUrl: string;
+  badgeUrl: string;
+}
+
+export interface GithubWorkflowRunInfo {
+  id: number;
+  workflowId: number;
+  name: string;
+  displayTitle: string;
+  runNumber: number;
+  headBranch: string;
+  status: PipelineRunStatus;
+  conclusion: PipelineConclusion;
+  htmlUrl: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ProjectPipelineStatus {
+  projectId: string;
+  cliAvailable: boolean;
+  authenticated: boolean;
+  github: { owner: string; repo: string } | null;
+  error?: string;
+  workflows: GithubWorkflowInfo[];
+  /** Latest run for each workflow id, or null when that workflow has never run. */
+  runsByWorkflowId: Record<number, GithubWorkflowRunInfo | null>;
+}
+
+export interface GithubActionsDayCount {
+  date: string;
+  passed: number;
+  failed: number;
+}
+
+export interface GithubActionsHistoryItem {
+  id: number;
+  projectId: string | null;
+  projectName: string;
+  repo: string;
+  workflowName: string;
+  displayTitle: string;
+  runNumber: number;
+  headBranch: string;
+  status: PipelineRunStatus;
+  conclusion: PipelineConclusion;
+  htmlUrl: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface GithubActionsActivity {
+  ok: boolean;
+  cliAvailable: boolean;
+  authenticated: boolean;
+  /** Last 14 local calendar days, including days with no runs. */
+  days: GithubActionsDayCount[];
+  /** Newest first. */
+  runs: GithubActionsHistoryItem[];
+  weekPassed: number;
+  weekFailed: number;
+  runningCount: number;
+  repoCount: number;
+  error?: string;
 }

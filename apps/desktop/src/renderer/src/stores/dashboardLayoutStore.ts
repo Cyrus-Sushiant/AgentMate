@@ -1,16 +1,17 @@
-import { create } from 'zustand';
 import {
+  DASHBOARD_CHART_IDS,
   DASHBOARD_COLUMN_OPTIONS,
   DASHBOARD_STAT_IDS,
   DASHBOARD_USAGE_SUMMARY_IDS,
+  type DashboardChartId,
   type DashboardColumns,
   type DashboardRow,
   type DashboardStatId,
   type DashboardUsageSummaryId,
 } from '@agentmat/core';
+import { create } from 'zustand';
 
-export const DASHBOARD_CHART_IDS = ['cpu', 'memory', 'disk', 'gpu', 'network', 'pings'] as const;
-export type DashboardChartId = (typeof DASHBOARD_CHART_IDS)[number];
+export { DASHBOARD_CHART_IDS, type DashboardChartId };
 
 /**
  * Token Usage provider cards, built-in stat tiles, and Token Usage summary
@@ -69,6 +70,8 @@ const DEFAULT_COLUMNS: DashboardColumns = 2;
 
 interface DashboardLayoutState {
   rows: DashboardRow[];
+  /** Built-in chart ids currently shown on the dashboard (see `DASHBOARD_CHART_IDS`). */
+  chartCards: DashboardChartId[];
   /** Provider ids the user added to the dashboard, in the order they were added. */
   usageCards: string[];
   /** Built-in stat tiles currently shown on the dashboard (see `DASHBOARD_STAT_IDS`). */
@@ -94,6 +97,8 @@ interface DashboardLayoutState {
   ) => void;
   /** Moves a row before `beforeRowId`, or to the end when null. */
   moveRow: (rowId: string, beforeRowId: string | null) => void;
+  /** Shows or hides a built-in chart; returns true when it's now shown. */
+  toggleChartCard: (id: DashboardChartId) => boolean;
   /** Adds or removes a Token Usage card; returns true when it's now shown. */
   toggleUsageCard: (providerId: string) => boolean;
   /** Shows or hides a built-in stat tile; returns true when it's now shown. */
@@ -137,12 +142,13 @@ function appendItem(rows: DashboardRow[], id: DashboardItemId): DashboardRow[] {
  */
 function sanitizeLayout(
   rows: DashboardRow[] | undefined,
+  chartCards: DashboardChartId[],
   usageCards: string[],
   statCards: DashboardStatId[],
   summaryCards: DashboardUsageSummaryId[],
 ): DashboardRow[] {
   const all: DashboardItemId[] = [
-    ...DASHBOARD_CHART_IDS,
+    ...chartCards,
     ...statCards.map(statItemId),
     ...usageCards.map(usageItemId),
     ...summaryCards.map(summaryItemId),
@@ -177,21 +183,28 @@ function rowsFromLegacyOrder(order: string[] | undefined, usageCards: string[]):
 function persist(
   rows: DashboardRow[],
   extra?: {
+    chartCards?: DashboardChartId[];
     usageCards?: string[];
     statCards?: DashboardStatId[];
     summaryCards?: DashboardUsageSummaryId[];
+    introducedCharts?: string[];
   },
 ): void {
   void window.agentmat.settings.update({
     dashboardLayout: rows,
+    ...(extra?.chartCards !== undefined ? { dashboardChartCards: extra.chartCards } : {}),
     ...(extra?.usageCards ? { dashboardUsageCards: extra.usageCards } : {}),
     ...(extra?.statCards ? { dashboardStatCards: extra.statCards } : {}),
     ...(extra?.summaryCards ? { dashboardUsageSummaryCards: extra.summaryCards } : {}),
+    ...(extra?.introducedCharts !== undefined
+      ? { dashboardIntroducedCharts: extra.introducedCharts }
+      : {}),
   });
 }
 
 export const useDashboardLayoutStore = create<DashboardLayoutState>((set, get) => ({
   rows: [emptyRow()],
+  chartCards: [...DASHBOARD_CHART_IDS],
   usageCards: [],
   statCards: [],
   summaryCards: [],
@@ -259,6 +272,18 @@ export const useDashboardLayoutStore = create<DashboardLayoutState>((set, get) =
     persist(rows);
   },
 
+  toggleChartCard: (id) => {
+    const { rows, chartCards } = get();
+    const added = !chartCards.includes(id);
+    const nextCards = added ? [...chartCards, id] : chartCards.filter((x) => x !== id);
+    const nextRows = added
+      ? appendItem(rows, id)
+      : rows.map((row) => ({ ...row, items: row.items.filter((x) => x !== id) }));
+    set({ chartCards: nextCards, rows: nextRows });
+    persist(nextRows, { chartCards: nextCards });
+    return added;
+  },
+
   toggleUsageCard: (providerId) => {
     const { rows, usageCards } = get();
     const itemId = usageItemId(providerId);
@@ -303,6 +328,14 @@ export const useDashboardLayoutStore = create<DashboardLayoutState>((set, get) =
 
 export async function initDashboardLayout(): Promise<void> {
   const settings = await window.agentmat.settings.get();
+  let chartCards = (settings.dashboardChartCards ?? [...DASHBOARD_CHART_IDS]).filter(
+    (id): id is DashboardChartId => (DASHBOARD_CHART_IDS as readonly string[]).includes(id),
+  );
+  const introduced = settings.dashboardIntroducedCharts ?? [];
+  const novel = DASHBOARD_CHART_IDS.filter(
+    (id) => !introduced.includes(id) && !chartCards.includes(id),
+  );
+  if (novel.length > 0) chartCards = [...chartCards, ...novel];
   const usageCards = settings.dashboardUsageCards ?? [];
   const statCards = (settings.dashboardStatCards ?? [...DASHBOARD_STAT_IDS]).filter(
     (id): id is DashboardStatId => (DASHBOARD_STAT_IDS as readonly string[]).includes(id),
@@ -314,10 +347,19 @@ export async function initDashboardLayout(): Promise<void> {
   const stored = settings.dashboardLayout?.length
     ? settings.dashboardLayout
     : rowsFromLegacyOrder(settings.dashboardChartOrder, usageCards);
+  const rows = sanitizeLayout(stored, chartCards, usageCards, statCards, summaryCards);
   useDashboardLayoutStore.setState({
+    chartCards,
     usageCards,
     statCards,
     summaryCards,
-    rows: sanitizeLayout(stored, usageCards, statCards, summaryCards),
+    rows,
   });
+  const introducedNow = [...DASHBOARD_CHART_IDS];
+  const introducedChanged =
+    introducedNow.length !== introduced.length ||
+    introducedNow.some((id) => !introduced.includes(id));
+  if (novel.length > 0 || introducedChanged) {
+    persist(rows, { chartCards, introducedCharts: introducedNow });
+  }
 }

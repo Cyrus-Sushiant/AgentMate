@@ -1,5 +1,6 @@
 export * from './types/index.js';
 export * from './cli/registry.js';
+export * from './cli/agentTypes.js';
 export * from './promptBuilder/types.js';
 export * from './promptBuilder/promptTypeProfiles.js';
 export * from './promptBuilder/targetAiNotes.js';
@@ -13,6 +14,7 @@ export * from './skills/uiUxProMax.js';
 export * from './mcp/types.js';
 export * from './mcp/bundledDirectory.js';
 export * from './tools/types.js';
+export * from './tools/diffray.js';
 export * from './tools/registry.js';
 export * from './usage/types.js';
 export * from './usage/registry.js';

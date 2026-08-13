@@ -11,6 +11,161 @@ export type ThemeMode = 'light' | 'dark' | 'system';
 
 export type AiProvider = 'openai' | 'ollama' | 'gemini';
 
+export const DESKTOP_PET_IDS = [
+  'claude',
+  'gremlin',
+  'opencode',
+  'tide',
+  'pip',
+  'brick',
+  'ember',
+  'nori',
+  'bolt',
+  'moss',
+  'cocoa',
+  'hex',
+] as const;
+export type DesktopPetId = (typeof DESKTOP_PET_IDS)[number];
+
+export const CUSTOM_PET_ID_PREFIX = 'custom-';
+
+export interface CustomDesktopPet {
+  id: string;
+  name: string;
+  /** File name under the app's pets folder, e.g. custom-….webp */
+  fileName: string;
+}
+
+export const DESKTOP_PET_SCALE_MIN = 50;
+export const DESKTOP_PET_SCALE_MAX = 160;
+export const DESKTOP_PET_SCALE_DEFAULT = 100;
+
+export function isDesktopPetId(value: unknown): value is DesktopPetId {
+  return DESKTOP_PET_IDS.includes(value as DesktopPetId);
+}
+
+export function isCustomPetId(value: unknown): value is string {
+  return typeof value === 'string' && value.startsWith(CUSTOM_PET_ID_PREFIX) && value.length > CUSTOM_PET_ID_PREFIX.length;
+}
+
+export function normalizeCustomDesktopPets(value: unknown): CustomDesktopPet[] {
+  if (!Array.isArray(value)) return [];
+  const seen = new Set<string>();
+  const pets: CustomDesktopPet[] = [];
+  for (const item of value) {
+    if (!item || typeof item !== 'object') continue;
+    const rec = item as Record<string, unknown>;
+    if (!isCustomPetId(rec.id) || typeof rec.name !== 'string' || typeof rec.fileName !== 'string') {
+      continue;
+    }
+    if (seen.has(rec.id)) continue;
+    if (!/^custom-[0-9a-f-]+\.(png|gif|webp)$/i.test(rec.fileName)) continue;
+    seen.add(rec.id);
+    const name = rec.name.trim().slice(0, 40) || 'My pet';
+    pets.push({ id: rec.id, name, fileName: rec.fileName });
+  }
+  return pets;
+}
+
+export function normalizeDesktopPetId(value: unknown, customIds: readonly string[] = []): string {
+  if (isDesktopPetId(value)) return value;
+  if (typeof value === 'string' && customIds.includes(value)) return value;
+  return 'tide';
+}
+
+export function isAnimatedPetFile(fileName: string): boolean {
+  const ext = fileName.split('.').pop()?.toLowerCase();
+  return ext === 'gif' || ext === 'webp';
+}
+
+export function clampDesktopPetScale(value: unknown): number {
+  const n = typeof value === 'number' && Number.isFinite(value) ? value : DESKTOP_PET_SCALE_DEFAULT;
+  return Math.round(Math.min(DESKTOP_PET_SCALE_MAX, Math.max(DESKTOP_PET_SCALE_MIN, n)));
+}
+
+export function petBoxSize(scalePercent: number): number {
+  return Math.round(120 * (clampDesktopPetScale(scalePercent) / 100));
+}
+
+export const DESKTOP_PET_SPEED_MIN = 40;
+export const DESKTOP_PET_SPEED_MAX = 200;
+export const DESKTOP_PET_SPEED_DEFAULT = 100;
+
+export interface DesktopPetActionSpeeds {
+  /** How fast it walks the floor and the top edge. */
+  walk: number;
+  /** How fast it climbs the rope. */
+  climb: number;
+  /** How fast it rappels back down. */
+  descend: number;
+  /** How fast it floats under a parachute. */
+  parachute: number;
+}
+
+export const DEFAULT_DESKTOP_PET_ACTION_SPEEDS: DesktopPetActionSpeeds = {
+  walk: DESKTOP_PET_SPEED_DEFAULT,
+  climb: DESKTOP_PET_SPEED_DEFAULT,
+  descend: DESKTOP_PET_SPEED_DEFAULT,
+  parachute: DESKTOP_PET_SPEED_DEFAULT,
+};
+
+export function clampDesktopPetSpeed(value: unknown): number {
+  const n = typeof value === 'number' && Number.isFinite(value) ? value : DESKTOP_PET_SPEED_DEFAULT;
+  return Math.round(Math.min(DESKTOP_PET_SPEED_MAX, Math.max(DESKTOP_PET_SPEED_MIN, n)));
+}
+
+export function normalizeDesktopPetActionSpeeds(value: unknown): DesktopPetActionSpeeds {
+  const rec = value && typeof value === 'object' ? (value as Record<string, unknown>) : {};
+  return {
+    walk: clampDesktopPetSpeed(rec.walk),
+    climb: clampDesktopPetSpeed(rec.climb),
+    descend: clampDesktopPetSpeed(rec.descend),
+    parachute: clampDesktopPetSpeed(rec.parachute),
+  };
+}
+
+/** A GitHub Actions workflow the user connected on a project's Git tab. */
+export interface ProjectGithubAction {
+  workflowId: number;
+  /** Path like `.github/workflows/ci.yml`, used if the numeric id changes. */
+  path: string;
+  name: string;
+}
+
+export function normalizeProjectGithubActions(value: unknown): ProjectGithubAction[] {
+  if (!Array.isArray(value)) return [];
+  const seen = new Set<number>();
+  const actions: ProjectGithubAction[] = [];
+  for (const item of value) {
+    if (!item || typeof item !== 'object') continue;
+    const rec = item as Record<string, unknown>;
+    const workflowId = typeof rec.workflowId === 'number' ? rec.workflowId : Number(rec.workflowId);
+    if (!Number.isInteger(workflowId) || workflowId <= 0 || seen.has(workflowId)) continue;
+    if (typeof rec.path !== 'string' || typeof rec.name !== 'string') continue;
+    const path = rec.path.trim();
+    const name = rec.name.trim();
+    if (!path || !name) continue;
+    seen.add(workflowId);
+    actions.push({ workflowId, path, name });
+  }
+  return actions;
+}
+
+export type AppNotificationKind = 'pipeline-failure';
+
+/** In-app inbox item, currently pipeline failures from watched GitHub Actions. */
+export interface AppNotification {
+  id: string;
+  kind: AppNotificationKind;
+  title: string;
+  body: string;
+  projectId: string | null;
+  projectName: string;
+  htmlUrl: string | null;
+  createdAt: string;
+  read: boolean;
+}
+
 /** Column counts a single dashboard row can be switched between. */
 export const DASHBOARD_COLUMN_OPTIONS = [1, 2, 3, 4] as const;
 export type DashboardColumns = (typeof DASHBOARD_COLUMN_OPTIONS)[number];
@@ -26,9 +181,23 @@ export interface DashboardRow {
   /**
    * Card ids in display order: chart ids, `stat:<id>` built-in stat tiles,
    * `usage:<providerId>` Token Usage cards, and `summary:<id>` usage-summary tiles.
+   * Charts can be hidden from the dashboard the same way as the other cards.
    */
   items: string[];
 }
+
+/** Built-in Dashboard charts, movable and hideable like any other dashboard card. */
+export const DASHBOARD_CHART_IDS = [
+  'cpu',
+  'memory',
+  'disk',
+  'gpu',
+  'network',
+  'pings',
+  'github',
+  'github-actions',
+] as const;
+export type DashboardChartId = (typeof DASHBOARD_CHART_IDS)[number];
 
 /** Built-in Dashboard stat tiles, movable and hideable like any other dashboard card. */
 export const DASHBOARD_STAT_IDS = [
@@ -81,6 +250,8 @@ export interface AppSettings {
    * `dashboardLayout`, and only read once to build rows for users upgrading.
    */
   dashboardChartOrder: string[];
+  /** Which built-in Dashboard charts (see `DASHBOARD_CHART_IDS`) are shown; hidden ones can be brought back from the Dashboard's edit mode. */
+  dashboardChartCards: string[];
   /** Provider ids whose Token Usage card is shown on the dashboard. */
   dashboardUsageCards: string[];
   /** Which built-in Dashboard stat tiles (see `DASHBOARD_STAT_IDS`) are shown; hidden ones can be brought back from the Dashboard's edit mode. */
@@ -89,6 +260,11 @@ export interface AppSettings {
   dashboardUsageSummaryCards: string[];
   /** The dashboard's rows, each with its own column count and cards. */
   dashboardLayout: DashboardRow[];
+  /**
+   * Chart ids already auto-inserted into the dashboard once. New built-in charts
+   * that are not in this list are added on upgrade; hiding one afterwards sticks.
+   */
+  dashboardIntroducedCharts: string[];
   /** How many extra attempts Prompt Builder's translate action makes after an initial failure. */
   translateMaxRetries: number;
   /** Local Whisper model used for Prompt Builder voice input: 'tiny' | 'base' | 'small'. Larger is more accurate but slower and bigger to download. */
@@ -112,6 +288,29 @@ export interface AppSettings {
   usageResetAlerts: UsageResetAlertSettings;
   /** OS notification (in-app toast fallback) when a rate-limit window crosses a percent threshold. */
   usageThresholdAlerts: UsageThresholdAlertSettings;
+  /**
+   * Floating pixel companion that walks around the desktop while AgentMate is
+   * open. Off until the user turns it on in Settings.
+   */
+  desktopPetEnabled: boolean;
+  /** Built-in id or a custom-… id from desktopPetCustoms. */
+  desktopPetCharacterId: string;
+  /** Pets the user added from a PNG, GIF, or WebP. */
+  desktopPetCustoms: CustomDesktopPet[];
+  /** When false the companion stays put (idle pose) instead of wandering. */
+  desktopPetCanMove: boolean;
+  /** When false it never climbs a rope to the top of the screen. */
+  desktopPetCanClimb: boolean;
+  /** When true it floats down under a parachute instead of rappelling. */
+  desktopPetCanParachute: boolean;
+  /** Walk, climb, rappel, and parachute speed as a percent of the default (40-200). */
+  desktopPetActionSpeeds: DesktopPetActionSpeeds;
+  /** Display size as a percent of the default (50–160). */
+  desktopPetScale: number;
+  /** When true the desktop pet speaks if a watched GitHub Actions run fails. */
+  desktopPetPipelineOnFail: boolean;
+  /** When true the desktop pet speaks if a watched GitHub Actions run passes. */
+  desktopPetPipelineOnPass: boolean;
 }
 
 export type AgentType = 'claude-code' | 'gemini' | 'opencode' | 'codex' | 'cursor' | 'generic';
@@ -144,6 +343,52 @@ export interface DetectedClaudeHook {
   cliId: string;
 }
 
+/** One launch command, usually tied to an environment (dev, staging, prod). */
+export interface ProjectRunCommand {
+  id: string;
+  /** Environment or display name, e.g. "dev". Empty falls back to the command itself. */
+  label: string;
+  command: string;
+}
+
+/**
+ * Older project records stored a single `runCommand` string. Accept either shape
+ * so loaders and backups can be normalized in one place.
+ */
+export type ProjectRunCommandSource = {
+  runCommands?: ProjectRunCommand[] | null;
+  runCommand?: string | null;
+};
+
+export function normalizeProjectRunCommands(source: ProjectRunCommandSource): ProjectRunCommand[] {
+  if (Array.isArray(source.runCommands)) {
+    return source.runCommands
+      .filter((entry) => typeof entry?.command === 'string' && entry.command.trim().length > 0)
+      .map((entry, index) => ({
+        id: typeof entry.id === 'string' && entry.id.trim() ? entry.id : `run-${index}`,
+        label: typeof entry.label === 'string' ? entry.label.trim() : '',
+        command: entry.command.trim(),
+      }));
+  }
+  const legacy = typeof source.runCommand === 'string' ? source.runCommand.trim() : '';
+  if (!legacy) return [];
+  return [{ id: 'legacy', label: '', command: legacy }];
+}
+
+export function configuredRunCommands(project: Pick<Project, 'runCommands'>): ProjectRunCommand[] {
+  return project.runCommands.filter((entry) => entry.command.trim().length > 0);
+}
+
+/** Label shown in pickers and tooltips: the environment name, or the command if unnamed. */
+export function projectRunCommandTitle(entry: ProjectRunCommand): string {
+  return entry.label.trim() || entry.command;
+}
+
+export function projectRunCommandHint(entry: ProjectRunCommand): string {
+  const title = entry.label.trim();
+  return title ? `${title}: ${entry.command}` : entry.command;
+}
+
 export interface Project {
   id: string;
   name: string;
@@ -152,8 +397,8 @@ export interface Project {
   tags: string[];
   agentType: AgentType;
   notes: string;
-  /** Shell command that starts this project (e.g. "npm run dev"). Empty when not configured. */
-  runCommand: string;
+  /** Launch commands the Run button can start in the project folder. Empty when none are set. */
+  runCommands: ProjectRunCommand[];
   /**
    * The project's standing prompt: the context handed to an agent every time it
    * works on this project. Defined from the Prompt dialog on the project detail
@@ -181,6 +426,8 @@ export interface Project {
    * and only ever a label to open: nothing here runs git. Empty when unset.
    */
   repoUrl: string;
+  /** GitHub Actions workflows connected on the Git tab. Empty when none are watched. */
+  githubActions: ProjectGithubAction[];
   /** Pinned projects are sorted first on the Projects page, above the drag-ordered rest. */
   pinned: boolean;
   createdAt: string;

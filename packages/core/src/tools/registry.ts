@@ -1,4 +1,11 @@
 import type { SupportedOS } from '../cli/registry.js';
+import {
+  buildDiffrayProjectConfig,
+  DIFFRAY_EXECUTORS,
+  DIFFRAY_REPOSITORY_URL,
+  DIFFRAY_TOOL_ID,
+  DIFFRAY_WEBSITE_URL,
+} from './diffray.js';
 import type { AgentToolDefinition } from './types.js';
 
 /**
@@ -406,6 +413,63 @@ export const AGENT_TOOL_REGISTRY: AgentToolDefinition[] = [
         cwd: 'none',
       };
     },
+  },
+  {
+    id: DIFFRAY_TOOL_ID,
+    name: 'diffray',
+    description:
+      'Free multi-agent code review CLI. Specialized agents (bugs, security, performance, consistency) review git diffs locally with Claude Code, Cursor Agent, OpenCode, or Codex. After install, each project gets a review wizard. Hosted PR reviews live at diffray.ai.',
+    category: 'Code Intelligence',
+    tags: ['code-review', 'multi-agent', 'cli'],
+    author: 'diffray',
+    official: false,
+    websiteUrl: DIFFRAY_WEBSITE_URL,
+    repositoryUrl: DIFFRAY_REPOSITORY_URL,
+    installKind: 'shell',
+    installCommand: {
+      win32: 'npm install -g diffray',
+      darwin: 'npm install -g diffray',
+      linux: 'npm install -g diffray',
+    },
+    uninstallCommand: {
+      win32: 'npm uninstall -g diffray',
+      darwin: 'npm uninstall -g diffray',
+      linux: 'npm uninstall -g diffray',
+    },
+    detectCommand: { command: 'diffray', args: ['--version'] },
+    quickActions: [
+      {
+        id: 'init',
+        label: 'Initialize in project',
+        action: { kind: 'command', command: 'diffray config init', cwd: 'project' },
+      },
+      {
+        id: 'setup-command',
+        label: 'Install /diffray slash command',
+        action: { kind: 'command', command: 'diffray setup-command', cwd: 'none' },
+      },
+    ],
+    settingsFields: [
+      {
+        key: 'executor',
+        label: 'Review executor',
+        type: 'select',
+        options: DIFFRAY_EXECUTORS.map((executor) => ({
+          value: executor.id,
+          label: executor.label,
+        })),
+        defaultValue: 'claude-cli',
+      },
+      {
+        key: 'excludeTests',
+        label: 'Skip tests and build output',
+        type: 'boolean',
+        defaultValue: true,
+        description: 'Writes excludePatterns for test files, dist, and node_modules.',
+      },
+    ],
+    settingsScope: 'project',
+    buildSettingsAction: buildDiffrayProjectConfig,
   },
 ];
 

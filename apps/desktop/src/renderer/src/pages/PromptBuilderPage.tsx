@@ -24,10 +24,16 @@ import {
 } from '@/components/icons';
 import {
   CLI_REGISTRY,
+  DEFAULT_TARGET_AI,
   PROMPT_TYPES,
   TARGET_AIS,
   buildPromptGenerationRequest,
+  cliIdForTargetAI,
   generatePrompt,
+  isTargetAI,
+  normalizeTargetAI,
+  resolvePromptTargetAI,
+  targetAIForProject,
 } from '@agentmat/core';
 import type { PromptType, TargetAI } from '@agentmat/core';
 import { Card, CardContent } from '@/components/ui/card';
@@ -36,7 +42,7 @@ import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Combobox } from '@/components/ui/combobox';
-import { TARGET_AI_CLI_ID, cliOptionIcon } from '@/components/cliLogos';
+import { cliOptionIcon } from '@/components/cliLogos';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import {
   Dialog,
@@ -140,6 +146,24 @@ export default function PromptBuilderPage(): React.JSX.Element {
     queryFn: () => window.agentmat.projects.list(),
   });
   const projects = projectsQuery.data ?? [];
+  const didSyncTargetFromProject = useRef(false);
+
+  useEffect(() => {
+    if (didSyncTargetFromProject.current || !projectsQuery.isSuccess) return;
+    didSyncTargetFromProject.current = true;
+    const project = projectId ? projects.find((p) => p.id === projectId) : undefined;
+    const fallback = project
+      ? targetAIForProject(project.agentType, project.cliId)
+      : DEFAULT_TARGET_AI;
+    const untouched = !rawInput.trim() && !generated.trim();
+    const next = resolvePromptTargetAI(targetAI, fallback, { untouched });
+    const followProject =
+      untouched &&
+      (targetAI === 'Claude' || targetAI === DEFAULT_TARGET_AI) &&
+      fallback !== targetAI;
+    const resolved = followProject ? fallback : next;
+    if (resolved !== targetAI) setTargetAI(resolved as TargetAI);
+  }, [generated, projectId, projects, projectsQuery.isSuccess, rawInput, setTargetAI, targetAI]);
 
   const settingsQuery = useQuery({
     queryKey: queryKeys.settings,
@@ -270,7 +294,7 @@ export default function PromptBuilderPage(): React.JSX.Element {
     scheduleQueue.every((item) => item.text.trim() && item.runAt);
 
   const cliForSendTo = useMemo(() => {
-    const cliId = defaultCliId ?? TARGET_AI_CLI_ID[targetAI];
+    const cliId = defaultCliId ?? cliIdForTargetAI(targetAI);
     return CLI_REGISTRY.find((c) => c.id === cliId) ?? null;
   }, [defaultCliId, targetAI]);
 
@@ -305,8 +329,8 @@ export default function PromptBuilderPage(): React.JSX.Element {
       if ((PROMPT_TYPES as readonly string[]).includes(entry.promptType)) {
         setPromptType(entry.promptType as PromptType);
       }
-      if ((TARGET_AIS as readonly string[]).includes(entry.targetAI)) {
-        setTargetAI(entry.targetAI as TargetAI);
+      if (isTargetAI(entry.targetAI)) {
+        setTargetAI(normalizeTargetAI(entry.targetAI) as TargetAI);
       }
     }
     setGenerated(entry.content);
@@ -474,7 +498,7 @@ export default function PromptBuilderPage(): React.JSX.Element {
                   options={TARGET_AIS.map((ai) => ({
                     value: ai,
                     label: ai,
-                    icon: cliOptionIcon(TARGET_AI_CLI_ID[ai]),
+                    icon: cliOptionIcon(cliIdForTargetAI(ai)),
                   }))}
                 />
               </div>
@@ -485,7 +509,15 @@ export default function PromptBuilderPage(): React.JSX.Element {
                 <Label>Project</Label>
                 <Combobox
                   value={projectId ?? ''}
-                  onChange={(v) => setProjectId(v || null)}
+                  onChange={(v) => {
+                    const nextId = v || null;
+                    setProjectId(nextId);
+                    if (!nextId) return;
+                    const project = projects.find((p) => p.id === nextId);
+                    if (project) {
+                      setTargetAI(targetAIForProject(project.agentType, project.cliId) as TargetAI);
+                    }
+                  }}
                   placeholder="No project"
                   emptyText="No projects yet."
                   options={projects.map((p) => ({ value: p.id, label: p.name }))}

@@ -4,6 +4,7 @@ import { app, dialog, ipcMain } from 'electron';
 import AdmZip from 'adm-zip';
 import type {
   ActivityEvent,
+  AppNotification,
   AppSettings,
   Project,
   ProjectDraft,
@@ -19,6 +20,7 @@ import type {
   PromptHistoryEntry,
 } from '../../shared/apiTypes';
 import { store } from '../store';
+import { petManager } from '../pet/petWindow';
 import { promptHistoryDb } from '../promptHistoryDb';
 
 const BACKUP_VERSION = 1;
@@ -38,6 +40,7 @@ interface BackupEnvelope {
     projectDrafts?: ProjectDraft[];
     scheduledTasks?: ScheduledTask[];
     promptHistory?: PromptHistoryEntry[];
+    appNotifications?: AppNotification[];
   };
 }
 
@@ -80,6 +83,7 @@ export function registerBackupHandlers(): void {
           projectDrafts: await store.getProjectDrafts(),
           scheduledTasks: await store.getScheduledTasks(),
           promptHistory: promptHistoryDb.exportAll(),
+          appNotifications: await store.getAppNotifications(),
         },
       };
       const json = JSON.stringify(envelope, null, 2);
@@ -128,7 +132,9 @@ export function registerBackupHandlers(): void {
     if (Array.isArray(data.projectDrafts)) await store.setProjectDrafts(data.projectDrafts);
     if (Array.isArray(data.scheduledTasks)) await store.setScheduledTasks(data.scheduledTasks);
     if (Array.isArray(data.promptHistory)) promptHistoryDb.importAll(data.promptHistory);
+    if (Array.isArray(data.appNotifications)) await store.setAppNotifications(data.appNotifications);
 
+    void petManager.syncFromSettings();
     return { ok: true };
   });
 }

@@ -1,3 +1,5 @@
+import type { TargetAI } from '../cli/registry.js';
+
 export const PROMPT_TYPES = [
   'Frontend',
   'Backend',
@@ -29,18 +31,7 @@ export const PROMPT_TYPES = [
 
 export type PromptType = (typeof PROMPT_TYPES)[number];
 
-export const TARGET_AIS = [
-  'Claude',
-  'Gemini',
-  'OpenCode',
-  'Codex',
-  'Qwen',
-  'Aider',
-  'Goose',
-  'Continue',
-] as const;
-
-export type TargetAI = (typeof TARGET_AIS)[number];
+export type { TargetAI };
 
 export interface GeneratePromptInput {
   rawInput: string;

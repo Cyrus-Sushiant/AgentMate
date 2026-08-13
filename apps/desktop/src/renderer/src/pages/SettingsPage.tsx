@@ -17,6 +17,7 @@ import {
   Monitor,
   Moon,
   NetworkIcon,
+  Paw,
   RefreshCw,
   Save,
   Search,
@@ -48,6 +49,7 @@ import { useUpdateStore } from '@/stores/updateStore';
 import { confirmDialog } from '@/stores/confirmStore';
 import type { AiProvider, ThemeMode } from '@agentmat/core';
 import { cn } from '@/lib/utils';
+import { CompanionSettings } from '@/components/pet/CompanionSettings';
 
 const PROMPT_BUILDER_PROVIDER_OPTIONS: { value: AiProvider; label: string }[] = [
   { value: 'openai', label: 'OpenAI' },
@@ -75,7 +77,7 @@ const THEME_OPTIONS: { value: ThemeMode; label: string; hint: string; icon: type
   { value: 'system', label: 'System', hint: 'Follow this machine', icon: Monitor },
 ];
 
-const SETTINGS_TABS = ['general', 'ai', 'notifications', 'data'] as const;
+const SETTINGS_TABS = ['general', 'companion', 'ai', 'notifications', 'data'] as const;
 type SettingsTab = (typeof SETTINGS_TABS)[number];
 
 function isSettingsTab(value: string | null): value is SettingsTab {
@@ -89,6 +91,7 @@ const TAB_META: {
   keywords: string;
 }[] = [
   { id: 'general', label: 'General', icon: SettingsIcon, keywords: 'appearance theme cli projects folder skills' },
+  { id: 'companion', label: 'AI Pet', icon: Paw, keywords: 'pet ai pet my ai pet companion desktop character walk mascot climb rope size wander gif png webp custom add pipeline github actions fail pass notify' },
   { id: 'ai', label: 'AI', icon: MessageSquare, keywords: 'openai gemini ollama api key whisper voice translate' },
   { id: 'notifications', label: 'Notifications', icon: Bell, keywords: 'telegram bot chat notify' },
   { id: 'data', label: 'Data', icon: HardDrive, keywords: 'backup restore ping network about version update' },
@@ -626,6 +629,7 @@ export default function SettingsPage(): React.JSX.Element {
 
   const tabDirty: Record<SettingsTab, boolean> = {
     general: projectsRootDirty,
+    companion: false,
     ai: aiDirty || speechDirty || translateRetriesDirty,
     notifications: telegramDirty,
     data: pingTargetsDirty,
@@ -690,6 +694,7 @@ export default function SettingsPage(): React.JSX.Element {
 
   const visibleCount = [
     showSection('general', 'appearance theme dark light system look', 'Appearance'),
+    showSection('companion', 'pet ai pet my ai pet companion desktop character walk mascot climb rope size wander pipeline github actions fail pass', 'My AI Pet'),
     showSection('general', 'default cli provider agent', 'Default CLI'),
     showSection('general', 'projects folder path directory', 'Projects folder'),
     showSection('general', 'skills repositories sources', 'Skill repositories'),
@@ -816,7 +821,7 @@ export default function SettingsPage(): React.JSX.Element {
               <div className="space-y-1">
                 <p className="text-sm font-medium">No settings match “{search.trim()}”</p>
                 <p className="max-w-sm text-sm text-muted-foreground">
-                  Try theme, API key, Telegram, backup, or a category name.
+                  Try theme, AI Pet, API key, Telegram, backup, or a category name.
                 </p>
               </div>
               <Button variant="outline" size="sm" onClick={() => setSearch('')}>
@@ -859,6 +864,14 @@ export default function SettingsPage(): React.JSX.Element {
                   </div>
                 </SettingsCard>
               )}
+
+              {showSection(
+                'companion',
+                'pet ai pet my ai pet companion desktop character walk mascot climb rope size wander pipeline github actions fail pass',
+                'My AI Pet',
+              ) && settingsQuery.data ? (
+                <CompanionSettings settings={settingsQuery.data} />
+              ) : null}
 
               {showSection('general', 'default cli provider agent', 'Default CLI') && (
                 <SettingsCard

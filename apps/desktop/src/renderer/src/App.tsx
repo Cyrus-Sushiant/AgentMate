@@ -1,6 +1,6 @@
 import { lazy, Suspense, useEffect } from 'react';
 import { QueryClientProvider } from '@tanstack/react-query';
-import { HashRouter, Route, Routes } from 'react-router-dom';
+import { HashRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { Toaster, toast } from 'sonner';
 import { TooltipProvider } from './components/ui/tooltip';
 import { ErrorBoundary } from './components/ErrorBoundary';
@@ -26,9 +26,11 @@ import AskAiPage from './pages/AskAiPage';
 import RemotePage from './pages/RemotePage';
 import RemoteFileManagerPage from './pages/RemoteFileManagerPage';
 import SettingsPage from './pages/SettingsPage';
+import NotificationsPage from './pages/NotificationsPage';
 import UsagePage from './pages/UsagePage';
 import WidgetRoute from './components/usage/WidgetRoute';
 import PromptBuildWidgetRoute from './components/projects/PromptBuildWidgetRoute';
+import DesktopPetRoute from './components/pet/DesktopPetRoute';
 import RemoteSessionRoute from './components/remote/RemoteSessionRoute';
 
 /** Skills ships a large offline catalog; keep it out of the main chunk until this route opens. */
@@ -41,6 +43,24 @@ function AppToaster(): React.JSX.Element {
   const theme = useThemeStore((s) => s.theme);
   return (
     <Toaster theme={theme} className="toaster-glass" position="bottom-right" gap={12} closeButton />
+  );
+}
+
+function isStandalonePath(pathname: string): boolean {
+  return (
+    pathname.startsWith('/widget') || pathname === '/desktop-pet' || pathname === '/remote-session'
+  );
+}
+
+function AppChrome(): React.JSX.Element | null {
+  const { pathname } = useLocation();
+  if (isStandalonePath(pathname)) return null;
+  return (
+    <>
+      <AppToaster />
+      <ConfirmDialogHost />
+      <UpdateManager />
+    </>
   );
 }
 
@@ -74,6 +94,7 @@ export default function App(): React.JSX.Element {
               {/* Floating desktop widget windows render standalone, outside the app shell. */}
               <Route path="widget/:id" element={<WidgetRoute />} />
               <Route path="widget/prompt-build/:id" element={<PromptBuildWidgetRoute />} />
+              <Route path="desktop-pet" element={<DesktopPetRoute />} />
               <Route path="remote-session" element={<RemoteSessionRoute />} />
               <Route element={<AppShell />}>
                 <Route index element={<DashboardPage />} />
@@ -82,6 +103,7 @@ export default function App(): React.JSX.Element {
                 <Route path="prompt-history" element={<PromptHistoryPage />} />
                 <Route path="projects" element={<ProjectsPage />} />
                 <Route path="projects/:projectId" element={<ProjectDetailPage />} />
+                <Route path="notifications" element={<NotificationsPage />} />
                 <Route
                   path="skills"
                   element={
@@ -103,11 +125,9 @@ export default function App(): React.JSX.Element {
                 <Route path="settings" element={<SettingsPage />} />
               </Route>
             </Routes>
+            <AppChrome />
           </HashRouter>
         </ErrorBoundary>
-        <AppToaster />
-        <ConfirmDialogHost />
-        <UpdateManager />
       </TooltipProvider>
     </QueryClientProvider>
   );
