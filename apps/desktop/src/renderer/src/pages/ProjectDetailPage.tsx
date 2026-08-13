@@ -2775,12 +2775,9 @@ function ApplyVersionDialog({
               <X className="h-4 w-4 text-destructive" /> Cancel
             </Button>
           ) : (
-            <>
-              <Button variant="outline" onClick={onBackToTag}>
-                <Tag className="h-4 w-4" /> Back to tag
-              </Button>
-              <Button onClick={() => onOpenChange(false)}>Done</Button>
-            </>
+            <Button onClick={onBackToTag}>
+              <Tag className="h-4 w-4" /> Back to tag
+            </Button>
           )}
         </DialogFooter>
       </DialogContent>
@@ -2808,8 +2805,10 @@ function TagVersionDialog({
   const [tag, setTag] = useState('');
   const [message, setMessage] = useState('');
   const [reason, setReason] = useState<string | null>(null);
+  const [updatedVersionFor, setUpdatedVersionFor] = useState<string | null>(null);
   const suggestRequestRef = useRef<string | null>(null);
   const keepFieldsRef = useRef(false);
+  const confirmingSkipRef = useRef(false);
 
   const hasRemote = tagInfo?.hasRemote ?? false;
   // Gate tagging (and the push that follows it) on a clean tree: a version bump's edits must
@@ -2882,10 +2881,14 @@ function TagVersionDialog({
   });
 
   function handleOpenChange(next: boolean): void {
+    // The shared confirm dialog sits on top of this one. Ignore dismissals
+    // that come from clicking it, so the tag form stays put.
+    if (!next && confirmingSkipRef.current) return;
     if (!next && !keepFieldsRef.current) {
       setTag('');
       setMessage('');
       setReason(null);
+      setUpdatedVersionFor(null);
     }
     keepFieldsRef.current = false;
     onOpenChange(next);
@@ -2895,7 +2898,28 @@ function TagVersionDialog({
     const next = tag.trim();
     if (!next) return;
     keepFieldsRef.current = true;
+    setUpdatedVersionFor(next);
     onApplyVersion(next);
+  }
+
+  function handleCreateTag(): void {
+    const next = tag.trim();
+    if (!next) return;
+    if (updatedVersionFor === next) {
+      createTagMutation.mutate();
+      return;
+    }
+    confirmingSkipRef.current = true;
+    void confirmDialog({
+      title: 'Skip updating version in files?',
+      description:
+        'You have not run Update version in files for this tag. Package manifests and other version strings may still show the old version.',
+      confirmLabel: hasRemote ? 'Create & push anyway' : 'Create anyway',
+      cancelLabel: 'Go back',
+    }).then((confirmed) => {
+      confirmingSkipRef.current = false;
+      if (confirmed) createTagMutation.mutate();
+    });
   }
 
   function handleBump(nextTag: string): void {
@@ -3088,7 +3112,7 @@ function TagVersionDialog({
                 pendingLabel={hasRemote ? 'Creating & pushing…' : 'Creating tag…'}
                 pending={createTagMutation.isPending}
                 disabled={!tag.trim() || isDirty}
-                onClick={() => createTagMutation.mutate()}
+                onClick={handleCreateTag}
               />
             </SimpleTooltip>
             <p className="hidden text-[11px] text-muted-foreground sm:block">
