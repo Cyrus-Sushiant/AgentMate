@@ -42,13 +42,20 @@ jobs:
           # retired by GitHub in December 2025. electron-builder.yml targets
           # both mac arches, but native modules (better-sqlite3) only get
           # rebuilt for the host's own architecture, so each arch is built on
-          # its matching runner and pinned with an explicit --arm64/--x64
-          # flag rather than letting electron-builder attempt both from a
-          # single host.
+          # its matching runner.
+          #
+          # The arch has to be pinned as a "target:arch" pair, not with a bare
+          # --arm64/--x64 flag: electron-builder only honours the CLI arch
+          # flags when no target names are given, and the mac targets in
+          # electron-builder.yml carry their own `arch: [x64, arm64]` lists,
+          # which get expanded back in and make each runner build both arches
+          # (the wrong one against the host's native modules).
           - os: macos-latest
-            build_args: "--arm64"
+            mac_arch: arm64
+            build_args: "--mac dmg:arm64 zip:arm64"
           - os: macos-26-intel
-            build_args: "--x64"
+            mac_arch: x64
+            build_args: "--mac dmg:x64 zip:x64"
 
     steps:
       - name: Checkout
@@ -99,8 +106,29 @@ jobs:
       - name: Build desktop app
         run: pnpm --filter @agentmat/desktop build
 
+      # Spotlight indexes the disk image dmgbuild mounts while it is still
+      # open, which keeps the volume busy and makes the unmount at the end of
+      # the dmg build fail ("hdiutil: couldn't eject diskN - Resource busy").
+      # Nothing on a throwaway runner needs the index.
+      - name: Turn off Spotlight indexing
+        if: startsWith(matrix.os, 'macos')
+        run: sudo mdutil -a -i off || true
+
+      # The dmg unmount above is racy even with indexing off, and a failed
+      # unmount fails the whole build, so give it a couple of retries before
+      # giving up. electron-builder is happy to overwrite its own output, so
+      # a retry just redoes the work.
       - name: Package installer
-        run: pnpm --filter @agentmat/desktop exec electron-builder --publish never ${{ matrix.build_args }}
+        shell: bash
+        run: |
+          for attempt in 1 2 3; do
+            if pnpm --filter @agentmat/desktop exec electron-builder --publish never ${{ matrix.build_args }}; then
+              exit 0
+            fi
+            echo "::warning::electron-builder failed on attempt $attempt of 3"
+            sleep 30
+          done
+          exit 1
 
       # electron-builder writes one `latest-mac.yml` per invocation. The two
       # macOS runners each package a single arch, so both would produce a
@@ -111,12 +139,7 @@ jobs:
       - name: Disambiguate macOS update manifest by arch
         if: startsWith(matrix.os, 'macos')
         shell: bash
-        run: |
-          if [ "${{ matrix.build_args }}" = "--arm64" ]; then
-            mv apps/desktop/release/latest-mac.yml apps/desktop/release/latest-mac-arm64.yml
-          else
-            mv apps/desktop/release/latest-mac.yml apps/desktop/release/latest-mac-x64.yml
-          fi
+        run: mv apps/desktop/release/latest-mac.yml apps/desktop/release/latest-mac-${{ matrix.mac_arch }}.yml
 
       - name: Upload installer artifacts
         uses: actions/upload-artifact@v7
