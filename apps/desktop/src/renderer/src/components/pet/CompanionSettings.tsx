@@ -2,10 +2,13 @@ import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import {
+  DESKTOP_PET_CLICK_AREA_MAX,
+  DESKTOP_PET_CLICK_AREA_MIN,
   DESKTOP_PET_SCALE_MAX,
   DESKTOP_PET_SCALE_MIN,
   DESKTOP_PET_SPEED_MAX,
   DESKTOP_PET_SPEED_MIN,
+  clampDesktopPetClickArea,
   clampDesktopPetSpeed,
   isAnimatedPetFile,
   normalizeDesktopPetActionSpeeds,
@@ -45,6 +48,10 @@ export function CompanionSettings({
   const canParachute = settings.desktopPetCanParachute === true;
   const [scale, setScale] = useState(settings.desktopPetScale);
   const scaleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [clickArea, setClickArea] = useState(() =>
+    clampDesktopPetClickArea(settings.desktopPetClickArea),
+  );
+  const clickAreaTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [speeds, setSpeeds] = useState(() => normalizeDesktopPetActionSpeeds(settings.desktopPetActionSpeeds));
   const speedTimers = useRef<Partial<Record<keyof DesktopPetActionSpeeds, ReturnType<typeof setTimeout>>>>({});
   const [importing, setImporting] = useState(false);
@@ -54,12 +61,17 @@ export function CompanionSettings({
   }, [settings.desktopPetScale]);
 
   useEffect(() => {
+    setClickArea(clampDesktopPetClickArea(settings.desktopPetClickArea));
+  }, [settings.desktopPetClickArea]);
+
+  useEffect(() => {
     setSpeeds(normalizeDesktopPetActionSpeeds(settings.desktopPetActionSpeeds));
   }, [settings.desktopPetActionSpeeds]);
 
   useEffect(() => {
     return () => {
       if (scaleTimer.current) clearTimeout(scaleTimer.current);
+      if (clickAreaTimer.current) clearTimeout(clickAreaTimer.current);
       for (const timer of Object.values(speedTimers.current)) {
         if (timer) clearTimeout(timer);
       }
@@ -71,6 +83,15 @@ export function CompanionSettings({
     if (scaleTimer.current) clearTimeout(scaleTimer.current);
     scaleTimer.current = setTimeout(() => {
       save.mutate({ desktopPetScale: next });
+    }, 160);
+  }
+
+  function commitClickArea(next: number): void {
+    const value = clampDesktopPetClickArea(next);
+    setClickArea(value);
+    if (clickAreaTimer.current) clearTimeout(clickAreaTimer.current);
+    clickAreaTimer.current = setTimeout(() => {
+      save.mutate({ desktopPetClickArea: value });
     }, 160);
   }
 
@@ -347,9 +368,9 @@ export function CompanionSettings({
 
       <Card className="glass">
         <CardHeader>
-          <CardTitle>Pipelines</CardTitle>
+          <CardTitle>Alerts</CardTitle>
           <CardDescription>
-            When a watched GitHub Actions run finishes, the pet can say so out loud.
+            The pet can speak up when a watched GitHub Actions run finishes, or when the internet changes.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -381,31 +402,57 @@ export function CompanionSettings({
               disabled={pending || !settings.desktopPetEnabled}
             />
           </div>
+          <div className="flex items-center justify-between gap-4">
+            <div className="min-w-0">
+              <Label htmlFor="pet-network-quality">Tell me when internet quality changes</Label>
+              <p className="text-xs text-muted-foreground">
+                A short message next to the pet if the connection drops, comes back, or clearly gets better or worse.
+              </p>
+            </div>
+            <Switch
+              id="pet-network-quality"
+              checked={settings.desktopPetNetworkQuality === true}
+              onCheckedChange={(enabled) => save.mutate({ desktopPetNetworkQuality: enabled })}
+              disabled={pending || !settings.desktopPetEnabled}
+            />
+          </div>
         </CardContent>
       </Card>
 
       <Card className="glass">
         <CardHeader>
           <CardTitle>Size</CardTitle>
-          <CardDescription>How large it appears on the desktop.</CardDescription>
+          <CardDescription>How large it appears on the desktop, and how much of the picture counts as the character.</CardDescription>
         </CardHeader>
-        <CardContent>
-          <div className="flex items-center gap-3">
-            <input
-              type="range"
-              min={DESKTOP_PET_SCALE_MIN}
-              max={DESKTOP_PET_SCALE_MAX}
-              step={5}
-              value={scale}
-              disabled={pending}
-              aria-label="AI pet size"
-              className="h-2 w-full cursor-pointer accent-primary"
-              onChange={(event) => commitScale(Number(event.target.value))}
-            />
-            <span className="w-12 shrink-0 text-right font-mono text-sm tabular-nums">
-              {scale}%
-            </span>
-          </div>
+        <CardContent className="space-y-5">
+          <RangeControl
+            id="pet-scale"
+            min={DESKTOP_PET_SCALE_MIN}
+            max={DESKTOP_PET_SCALE_MAX}
+            step={5}
+            value={scale}
+            disabled={pending}
+            label="Display size"
+            hint="How large the pet looks on screen."
+            valueLabel={`${scale}%`}
+            lowLabel="Small"
+            highLabel="Large"
+            onChange={commitScale}
+          />
+          <RangeControl
+            id="pet-click-area"
+            min={DESKTOP_PET_CLICK_AREA_MIN}
+            max={DESKTOP_PET_CLICK_AREA_MAX}
+            step={5}
+            value={clickArea}
+            disabled={pending}
+            label="Click area"
+            hint="Turn this down if the file has empty space around the character. Clicks and the token card follow the smaller area."
+            valueLabel={`${clickArea}%`}
+            lowLabel="Tight"
+            highLabel="Wide"
+            onChange={commitClickArea}
+          />
         </CardContent>
       </Card>
     </div>
@@ -428,25 +475,90 @@ function SpeedRow({
   onChange: (next: number) => void;
 }): React.JSX.Element {
   return (
+    <RangeControl
+      id={id}
+      min={DESKTOP_PET_SPEED_MIN}
+      max={DESKTOP_PET_SPEED_MAX}
+      step={5}
+      value={value}
+      disabled={disabled}
+      label={label}
+      hint={hint}
+      valueLabel={`${value}%`}
+      lowLabel="Slow"
+      highLabel="Fast"
+      onChange={onChange}
+    />
+  );
+}
+
+function RangeControl({
+  id,
+  min,
+  max,
+  step,
+  value,
+  disabled,
+  label,
+  hint,
+  valueLabel,
+  lowLabel,
+  highLabel,
+  ariaLabel,
+  onChange,
+}: {
+  id: string;
+  min: number;
+  max: number;
+  step: number;
+  value: number;
+  disabled: boolean;
+  label?: string;
+  hint?: string;
+  valueLabel: string;
+  lowLabel: string;
+  highLabel: string;
+  ariaLabel?: string;
+  onChange: (next: number) => void;
+}): React.JSX.Element {
+  const pct = max === min ? 0 : ((value - min) / (max - min)) * 100;
+  return (
     <div className="space-y-2">
-      <div className="flex items-end justify-between gap-3">
-        <div className="min-w-0">
-          <Label htmlFor={id}>{label}</Label>
-          <p className="text-xs text-muted-foreground">{hint}</p>
+      {label ? (
+        <div className="flex items-end justify-between gap-3">
+          <div className="min-w-0">
+            <Label htmlFor={id}>{label}</Label>
+            {hint ? <p className="text-xs text-muted-foreground">{hint}</p> : null}
+          </div>
+          <span className="inline-flex h-6 min-w-[2.75rem] shrink-0 items-center justify-center rounded-md bg-muted px-1.5 font-mono text-xs tabular-nums text-foreground">
+            {valueLabel}
+          </span>
         </div>
-        <span className="w-12 shrink-0 text-right font-mono text-sm tabular-nums">{value}%</span>
+      ) : null}
+      <div className="flex items-center gap-2.5">
+        <span className="w-9 shrink-0 text-[11px] leading-none text-muted-foreground">{lowLabel}</span>
+        <input
+          id={id}
+          type="range"
+          min={min}
+          max={max}
+          step={step}
+          value={value}
+          disabled={disabled}
+          aria-label={ariaLabel ?? label}
+          style={{ ['--range-pct' as string]: `${pct}%` }}
+          className="settings-range min-w-0 flex-1"
+          onChange={(event) => onChange(Number(event.target.value))}
+        />
+        <span className="w-9 shrink-0 text-right text-[11px] leading-none text-muted-foreground">
+          {highLabel}
+        </span>
+        {label ? null : (
+          <span className="inline-flex h-6 min-w-[2.75rem] shrink-0 items-center justify-center rounded-md bg-muted px-1.5 font-mono text-xs tabular-nums text-foreground">
+            {valueLabel}
+          </span>
+        )}
       </div>
-      <input
-        id={id}
-        type="range"
-        min={DESKTOP_PET_SPEED_MIN}
-        max={DESKTOP_PET_SPEED_MAX}
-        step={5}
-        value={value}
-        disabled={disabled}
-        className="h-2 w-full cursor-pointer accent-primary disabled:cursor-not-allowed disabled:opacity-50"
-        onChange={(event) => onChange(Number(event.target.value))}
-      />
     </div>
   );
 }

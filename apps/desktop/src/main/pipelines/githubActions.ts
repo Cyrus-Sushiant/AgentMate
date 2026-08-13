@@ -6,6 +6,8 @@ import type {
   GithubActionsActivity,
   GithubActionsDayCount,
   GithubActionsHistoryItem,
+  GithubActionsRunErrorInput,
+  GithubActionsRunErrorResult,
   GithubWorkflowInfo,
   GithubWorkflowRunInfo,
   PipelineConclusion,
@@ -351,6 +353,190 @@ export async function fetchProjectPipelineStatus(project: Project): Promise<Proj
         ? 'Not signed in to the GitHub CLI. Run "gh auth login" first.'
         : message,
     };
+  }
+}
+
+interface GhJobStep {
+  name: string;
+  conclusion: string | null;
+}
+
+interface GhJob {
+  id: number;
+  name: string;
+  conclusion: string | null;
+  steps?: GhJobStep[];
+}
+
+interface GhAnnotation {
+  path: string;
+  start_line: number;
+  annotation_level: string;
+  message: string;
+  title?: string;
+}
+
+const ERROR_CACHE_MS = 10 * 60_000;
+const LOG_CHAR_CAP = 12_000;
+const errorCache = new Map<string, { text: string; at: number }>();
+
+function isFailedConclusion(value: string | null | undefined): boolean {
+  return value === 'failure' || value === 'timed_out';
+}
+
+function parseOwnerRepo(repo: string): { owner: string; repo: string } | null {
+  const parts = repo.trim().split('/');
+  if (parts.length !== 2) return null;
+  const [owner, name] = parts;
+  if (!owner || !name || owner.includes('..') || name.includes('..')) return null;
+  return { owner, repo: name };
+}
+
+function stripAnsi(value: string): string {
+  return value.replace(new RegExp(`${String.fromCharCode(27)}\\[[0-9;]*m`, 'g'), '');
+}
+
+function truncateEnd(value: string, maxChars: number): string {
+  const trimmed = value.trim();
+  if (trimmed.length <= maxChars) return trimmed;
+  return `...\n${trimmed.slice(-maxChars).trim()}`;
+}
+
+function annotationsNeedLogs(text: string): boolean {
+  if (!text) return true;
+  return (
+    text.length < 600 &&
+    /process completed with exit code|the process '.+' failed with exit code/i.test(text)
+  );
+}
+
+function formatAnnotations(items: GhAnnotation[]): string {
+  const preferred = items.filter((item) => item.annotation_level === 'failure');
+  const list = preferred.length > 0 ? preferred : items;
+  return list
+    .map((item) => {
+      const location = item.path
+        ? item.start_line
+          ? `${item.path}:${item.start_line}`
+          : item.path
+        : '';
+      const title = item.title?.trim();
+      const message = item.message?.trim() ?? '';
+      return [location, title && title !== message ? title : '', message].filter(Boolean).join('\n');
+    })
+    .filter(Boolean)
+    .join('\n\n');
+}
+
+async function failedLogs(owner: string, repo: string, runId: number): Promise<string> {
+  const { stdout, stderr } = await execFileAsync(
+    'gh',
+    ['run', 'view', String(runId), '--repo', `${owner}/${repo}`, '--log-failed'],
+    {
+      timeout: 30000,
+      windowsHide: true,
+      maxBuffer: 8 * 1024 * 1024,
+      env: { ...process.env, NO_COLOR: '1' },
+    },
+  );
+  const text = stripAnsi((stdout || stderr || '').trim());
+  if (!text) return '';
+  return truncateEnd(text, LOG_CHAR_CAP);
+}
+
+/** Failed-job annotations and logs for one Actions run, ready to copy. */
+export async function fetchRunFailureText(
+  input: GithubActionsRunErrorInput,
+): Promise<GithubActionsRunErrorResult> {
+  const parsed = parseOwnerRepo(input.repo);
+  const runId = Number(input.runId);
+  if (!parsed || !Number.isInteger(runId) || runId <= 0) {
+    return { ok: false, error: 'That workflow run could not be identified.' };
+  }
+
+  const cacheKey = `${parsed.owner}/${parsed.repo}#${runId}`;
+  const cached = errorCache.get(cacheKey);
+  if (cached && Date.now() - cached.at < ERROR_CACHE_MS) {
+    return { ok: true, text: cached.text };
+  }
+
+  if (!(await isGhCliAvailable())) {
+    return { ok: false, error: 'Install the GitHub CLI and sign in to copy this error.' };
+  }
+
+  try {
+    const header = [
+      `${input.displayTitle || input.workflowName || 'Workflow'} failed`,
+      [
+        `${parsed.owner}/${parsed.repo}`,
+        input.runNumber != null ? `#${input.runNumber}` : '',
+        input.headBranch,
+      ]
+        .filter(Boolean)
+        .join(' · '),
+    ]
+      .filter(Boolean)
+      .join('\n');
+
+    const jobPayload = await ghApi<{ jobs?: GhJob[] }>(
+      `repos/${parsed.owner}/${parsed.repo}/actions/runs/${runId}/jobs?per_page=100`,
+    );
+    const jobs = jobPayload.jobs ?? [];
+    const failedJobs = jobs.filter(
+      (job) =>
+        isFailedConclusion(job.conclusion) ||
+        (job.steps ?? []).some((step) => isFailedConclusion(step.conclusion)),
+    );
+
+    const jobLines = (failedJobs.length > 0 ? failedJobs : jobs).flatMap((job) => {
+      const failedSteps = (job.steps ?? []).filter((step) => isFailedConclusion(step.conclusion));
+      if (failedSteps.length === 0) {
+        return [`Job: ${job.name}${job.conclusion ? ` (${job.conclusion})` : ''}`];
+      }
+      return [
+        `Job: ${job.name}`,
+        ...failedSteps.map((step) => `  Step: ${step.name} (${step.conclusion})`),
+      ];
+    });
+
+    const annotationLists = await Promise.all(
+      failedJobs.map(async (job) => {
+        try {
+          const payload = await ghApi<GhAnnotation[] | { annotations?: GhAnnotation[] }>(
+            `repos/${parsed.owner}/${parsed.repo}/check-runs/${job.id}/annotations`,
+          );
+          return Array.isArray(payload) ? payload : (payload.annotations ?? []);
+        } catch {
+          return [] as GhAnnotation[];
+        }
+      }),
+    );
+    const annotations = formatAnnotations(annotationLists.flat());
+
+    let logs = '';
+    if (annotationsNeedLogs(annotations)) {
+      try {
+        logs = await failedLogs(parsed.owner, parsed.repo, runId);
+      } catch (error) {
+        const message = ghErrorMessage(error);
+        if (!jobLines.length && !annotations) {
+          return { ok: false, error: message };
+        }
+      }
+    }
+
+    const text = [header, jobLines.join('\n'), annotations, logs]
+      .filter(Boolean)
+      .join('\n\n')
+      .trim();
+    if (!text) {
+      return { ok: false, error: 'No error details were available for this run.' };
+    }
+
+    errorCache.set(cacheKey, { text, at: Date.now() });
+    return { ok: true, text };
+  } catch (error) {
+    return { ok: false, error: ghErrorMessage(error) };
   }
 }
 

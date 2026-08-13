@@ -2,9 +2,10 @@ import { useEffect, useRef } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import { AskAiModal } from '@/components/askAi/AskAiModal';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
-import { AnglesLeft, AnglesRight, MessageSquare, TerminalSquare } from '@/components/icons';
+import { AnglesLeft, AnglesRight, History, MessageSquare, TerminalSquare } from '@/components/icons';
 import { CommandPalette } from '@/components/search/CommandPalette';
 import { TerminalDrawer } from '@/components/terminal/TerminalDrawer';
+import { ToastHistoryPanel } from '@/components/toast/ToastHistoryPanel';
 import { Button } from '@/components/ui/button';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { useAppLoadingOverlay } from '@/hooks/useAppLoadingOverlay';
@@ -14,6 +15,7 @@ import { useAskAiStore } from '@/stores/askAiStore';
 import { usePageHeaderStore } from '@/stores/pageHeaderStore';
 import { useSearchStore } from '@/stores/searchStore';
 import { useTerminalStore } from '@/stores/terminalStore';
+import { useToastHistoryStore } from '@/stores/toastHistoryStore';
 import { useUiStore } from '@/stores/uiStore';
 import { LoadingOverlay } from './LoadingOverlay';
 import { Sidebar } from './Sidebar';
@@ -30,6 +32,12 @@ function TopBar(): React.JSX.Element {
   const pageTitle = usePageHeaderStore((s) => s.title);
   const pageSubtitle = usePageHeaderStore((s) => s.subtitle);
   const openAskAi = useAskAiStore((s) => s.openModal);
+  const toastHistoryOpen = useToastHistoryStore((s) => s.open);
+  const openToastHistory = useToastHistoryStore((s) => s.setOpen);
+  const toastUnread = useToastHistoryStore((s) => s.items.filter((item) => !item.read).length);
+  const toastUnreadError = useToastHistoryStore((s) =>
+    s.items.some((item) => !item.read && item.kind === 'error'),
+  );
 
   return (
     <div className="flex h-14 shrink-0 items-center justify-between gap-3 border-b border-border/80 px-4">
@@ -57,6 +65,28 @@ function TopBar(): React.JSX.Element {
             {activeSession.title}
           </span>
         )}
+        <SimpleTooltip label="Recent messages">
+          <Button
+            variant={toastHistoryOpen ? 'secondary' : 'ghost'}
+            size="icon"
+            aria-pressed={toastHistoryOpen}
+            aria-label="Recent messages"
+            onClick={() => openToastHistory(!toastHistoryOpen)}
+            className="relative"
+          >
+            <History className="h-4 w-4" />
+            {toastUnread > 0 && (
+              <span
+                className={cn(
+                  'absolute right-1 top-1 h-1.5 w-1.5 rounded-full',
+                  toastUnreadError
+                    ? 'bg-destructive shadow-[0_0_6px_hsl(var(--destructive))]'
+                    : 'bg-primary shadow-[0_0_6px_hsl(var(--primary))]',
+                )}
+              />
+            )}
+          </Button>
+        </SimpleTooltip>
         <SimpleTooltip label="Toggle terminal (Ctrl+`)">
           <Button
             variant={isTerminalOpen ? 'secondary' : 'ghost'}
@@ -117,6 +147,7 @@ export function AppShell(): React.JSX.Element {
       <TitleBar />
       <CommandPalette />
       <AskAiModal />
+      <ToastHistoryPanel />
       <div className="flex min-h-0 flex-1 overflow-hidden">
         <Sidebar />
         <div className="relative flex min-w-0 flex-1 flex-col">

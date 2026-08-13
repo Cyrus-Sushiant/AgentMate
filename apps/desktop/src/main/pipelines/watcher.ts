@@ -4,26 +4,13 @@ import type { AppNotification, Project } from '@agentmat/core';
 import type { GithubWorkflowRunInfo } from '../../shared/apiTypes';
 import type { PetPipelineMessage } from '../../shared/pet';
 import { IPC } from '../../shared/ipcChannels';
+import { petDisplayName } from '../pet/names';
 import { petManager } from '../pet/petWindow';
 import { store, type PipelineWatchState } from '../store';
 import { fetchProjectPipelineStatus, githubRepoForFolder, listWorkflowRuns } from './githubActions';
 
 const TICK_MS = 45_000;
 const MAX_NOTIFICATIONS = 200;
-const PET_NAMES: Record<string, string> = {
-  claude: 'Claude',
-  gremlin: 'Gremlin',
-  opencode: 'OpenCode',
-  tide: 'Tide',
-  pip: 'Pip',
-  brick: 'Brick',
-  ember: 'Ember',
-  nori: 'Nori',
-  bolt: 'Bolt',
-  moss: 'Moss',
-  cocoa: 'Cocoa',
-  hex: 'Hex',
-};
 
 let timer: NodeJS.Timeout | null = null;
 let ticking = false;
@@ -36,15 +23,6 @@ function broadcastNotificationsChanged(): void {
   for (const win of BrowserWindow.getAllWindows()) {
     if (!win.webContents.isDestroyed()) win.webContents.send(IPC.pipelines.onNotificationsChanged);
   }
-}
-
-function petNameFromSettings(
-  characterId: string,
-  customs: { id: string; name: string }[],
-): string {
-  const custom = customs.find((item) => item.id === characterId);
-  if (custom) return custom.name;
-  return PET_NAMES[characterId] ?? 'Your pet';
 }
 
 function petSpeech(
@@ -91,7 +69,7 @@ async function maybeSpeak(kind: 'pass' | 'fail', project: Project, workflowName:
 
   const payload: PetPipelineMessage = {
     kind,
-    petName: petNameFromSettings(settings.desktopPetCharacterId, settings.desktopPetCustoms ?? []),
+    petName: petDisplayName(settings.desktopPetCharacterId, settings.desktopPetCustoms ?? []),
     text: petSpeech(kind, project.name, workflowName),
     projectName: project.name,
     workflowName,

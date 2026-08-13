@@ -15,6 +15,7 @@ import type {
 } from '@agentmat/core';
 import {
   clampDesktopPetScale,
+  clampDesktopPetClickArea,
   DASHBOARD_CHART_IDS,
   DASHBOARD_STAT_IDS,
   DEFAULT_DESKTOP_PET_ACTION_SPEEDS,
@@ -97,8 +98,10 @@ const DEFAULT_SETTINGS: AppSettings = {
   desktopPetCanParachute: false,
   desktopPetActionSpeeds: { ...DEFAULT_DESKTOP_PET_ACTION_SPEEDS },
   desktopPetScale: 100,
+  desktopPetClickArea: 100,
   desktopPetPipelineOnFail: false,
   desktopPetPipelineOnPass: false,
+  desktopPetNetworkQuality: false,
 };
 
 /**
@@ -126,8 +129,12 @@ function withSettingsMigrations(settings: AppSettings): AppSettings {
     desktopPetCanParachute: settings.desktopPetCanParachute === true,
     desktopPetActionSpeeds: normalizeDesktopPetActionSpeeds(settings.desktopPetActionSpeeds),
     desktopPetScale: clampDesktopPetScale(settings.desktopPetScale),
+    desktopPetClickArea: clampDesktopPetClickArea(settings.desktopPetClickArea),
     desktopPetPipelineOnFail: settings.desktopPetPipelineOnFail === true,
     desktopPetPipelineOnPass: settings.desktopPetPipelineOnPass === true,
+    desktopPetNetworkQuality:
+      settings.desktopPetNetworkQuality === true ||
+      (settings as AppSettings & { networkQualityAlerts?: boolean }).networkQualityAlerts === true,
     dashboardIntroducedCharts: Array.isArray(settings.dashboardIntroducedCharts)
       ? settings.dashboardIntroducedCharts.filter((id) => typeof id === 'string')
       : DASHBOARD_CHART_IDS.filter((id) => id !== 'github-actions'),

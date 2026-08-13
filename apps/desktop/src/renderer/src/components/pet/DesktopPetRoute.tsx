@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { clampDesktopPetScale, isAnimatedPetFile, normalizeDesktopPetActionSpeeds, normalizeDesktopPetId, petBoxSize } from '@agentmat/core';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { clampDesktopPetClickArea, clampDesktopPetScale, isAnimatedPetFile, normalizeDesktopPetActionSpeeds, normalizeDesktopPetId, petBoxSize, petClickRect } from '@agentmat/core';
 import type { PetPipelineMessage, PetWorkArea } from '@shared/pet';
 import { cn } from '@/lib/utils';
 import { queryKeys } from '@/lib/queryKeys';
@@ -41,12 +41,12 @@ const SPEECH_W = 220;
 const SPEECH_H = 96;
 
 function speechRectFor(
-  actor: Actor,
+  hit: { x: number; y: number; w: number; h: number },
   area: PetWorkArea,
 ): { x: number; y: number; w: number; h: number; below: boolean } {
-  const below = actor.y < 102;
-  const x = Math.min(Math.max(8, actor.x + actor.box / 2 - SPEECH_W / 2), Math.max(8, area.width - SPEECH_W - 8));
-  const y = below ? actor.y + actor.box + 8 : Math.max(8, actor.y - SPEECH_H - 10);
+  const below = hit.y < 102;
+  const x = Math.min(Math.max(8, hit.x + hit.w / 2 - SPEECH_W / 2), Math.max(8, area.width - SPEECH_W - 8));
+  const y = below ? hit.y + hit.h + 8 : Math.max(8, hit.y - SPEECH_H - 10);
   return { x, y, w: SPEECH_W, h: SPEECH_H, below };
 }
 
@@ -55,6 +55,7 @@ function speechRectFor(
  * empty space. Click the character for a token report.
  */
 export default function DesktopPetRoute(): React.JSX.Element {
+  const queryClient = useQueryClient();
   const settingsQuery = useQuery({
     queryKey: queryKeys.settings,
     queryFn: () => window.agentmat.settings.get(),
@@ -74,6 +75,7 @@ export default function DesktopPetRoute(): React.JSX.Element {
   const canParachute = settingsQuery.data?.desktopPetCanParachute === true;
   const actionSpeeds = speedsFromSettings(settingsQuery.data?.desktopPetActionSpeeds);
   const scale = clampDesktopPetScale(settingsQuery.data?.desktopPetScale);
+  const clickArea = clampDesktopPetClickArea(settingsQuery.data?.desktopPetClickArea);
   const box = petBoxSize(scale);
   const custom = customs.find((item) => item.id === characterId);
   const pet = resolvePet(
@@ -109,6 +111,7 @@ export default function DesktopPetRoute(): React.JSX.Element {
   const ropeRef = useRef<HTMLDivElement>(null);
   const speechElRef = useRef<HTMLDivElement>(null);
   const spriteHRef = useRef(spriteH);
+  const drawnRef = useRef(drawn);
   const configRef = useRef({
     canMove,
     canClimb,
@@ -118,10 +121,12 @@ export default function DesktopPetRoute(): React.JSX.Element {
     spriteH,
     ropeGripY,
     speeds: actionSpeeds,
+    clickArea,
   });
 
   openRef.current = open;
   speechRef.current = speech;
+  drawnRef.current = drawn;
   configRef.current = {
     canMove,
     canClimb,
@@ -131,7 +136,20 @@ export default function DesktopPetRoute(): React.JSX.Element {
     spriteH: spriteHRef.current,
     ropeGripY,
     speeds: actionSpeeds,
+    clickArea,
   };
+
+  function hitRectFor(current: Actor): { x: number; y: number; w: number; h: number } {
+    const drawnNow = drawnRef.current;
+    return petClickRect(
+      current.x,
+      current.y,
+      current.box,
+      drawnNow.w || current.box,
+      drawnNow.h || spriteHRef.current || current.box,
+      configRef.current.clickArea,
+    );
+  }
 
   function applyPose(current: Actor): void {
     const body = bodyRef.current;
@@ -150,7 +168,7 @@ export default function DesktopPetRoute(): React.JSX.Element {
     }
     const bubble = speechElRef.current;
     if (bubble) {
-      const rect = speechRectFor(current, areaRef.current);
+      const rect = speechRectFor(hitRectFor(current), areaRef.current);
       bubble.style.left = `${rect.x}px`;
       bubble.style.top = `${rect.y}px`;
       bubble.classList.toggle('is-below', rect.below);
@@ -160,7 +178,7 @@ export default function DesktopPetRoute(): React.JSX.Element {
 
   function hitSpeech(clientX: number, clientY: number): boolean {
     if (!speechRef.current || !actorRef.current) return false;
-    const rect = speechRectFor(actorRef.current, areaRef.current);
+    const rect = speechRectFor(hitRectFor(actorRef.current), areaRef.current);
     return (
       clientX >= rect.x &&
       clientX <= rect.x + rect.w &&
@@ -193,8 +211,11 @@ export default function DesktopPetRoute(): React.JSX.Element {
   }, [characterId, spriteH, box, pet?.src, ropeGripY]);
 
   useLayoutEffect(() => {
-    if (actorRef.current) applyPose(actorRef.current);
-  });
+    const current = actorRef.current;
+    if (!current) return;
+    applyPose(current);
+    setActor(snapshot(current));
+  }, [clickArea, box]);
 
   useEffect(() => {
     if (open) window.agentmat.pet.setClickThrough(false);
@@ -228,10 +249,35 @@ export default function DesktopPetRoute(): React.JSX.Element {
 
   useEffect(() => {
     return window.agentmat.pet.onSettingsChanged(() => {
-      void settingsQuery.refetch();
-      void customImages.refetch();
+      void (async () => {
+        const settings = await window.agentmat.settings.get();
+        queryClient.setQueryData(queryKeys.settings, settings);
+        const nextBox = petBoxSize(clampDesktopPetScale(settings.desktopPetScale));
+        const nextClickArea = clampDesktopPetClickArea(settings.desktopPetClickArea);
+        const nextId = normalizeDesktopPetId(
+          settings.desktopPetCharacterId,
+          (settings.desktopPetCustoms ?? []).map((pet) => pet.id),
+        );
+        configRef.current = {
+          ...configRef.current,
+          canMove: settings.desktopPetCanMove !== false,
+          canClimb: settings.desktopPetCanClimb !== false,
+          canParachute: settings.desktopPetCanParachute === true,
+          speeds: speedsFromSettings(settings.desktopPetActionSpeeds),
+          box: nextBox,
+          clickArea: nextClickArea,
+          characterId: nextId,
+        };
+        const current = actorRef.current;
+        if (current) {
+          applyBox(current, stageFromArea(areaRef.current), nextBox);
+          applyPose(current);
+          setActor(snapshot(current));
+        }
+        void queryClient.invalidateQueries({ queryKey: queryKeys.petCustomImages });
+      })();
     });
-  }, [settingsQuery, customImages]);
+  }, [queryClient]);
 
   useEffect(() => {
     return window.agentmat.pet.onPipelineMessage((payload) => {
@@ -261,7 +307,7 @@ export default function DesktopPetRoute(): React.JSX.Element {
     function sync(next: Actor, force = false): void {
       actorRef.current = next;
       applyPose(next);
-      const key = `${next.action}:${next.facing}:${next.rope ? 1 : 0}:${next.box}:${next.id}`;
+      const key = `${next.action}:${next.facing}:${next.rope ? 1 : 0}:${next.box}:${next.id}:${configRef.current.clickArea}`;
       if (!force && key === poseKey) return;
       poseKey = key;
       setActor(snapshot(next));
@@ -288,6 +334,7 @@ export default function DesktopPetRoute(): React.JSX.Element {
         speeds: speedsFromSettings(settings.desktopPetActionSpeeds),
         box,
         characterId,
+        clickArea: clampDesktopPetClickArea(settings.desktopPetClickArea),
       };
       sync(spawnCompanion(stageFromArea(area), characterId, box, canMove), true);
       lastTs = 0;
@@ -335,11 +382,12 @@ export default function DesktopPetRoute(): React.JSX.Element {
   function hitTest(clientX: number, clientY: number): boolean {
     const current = actorRef.current;
     if (!current) return false;
+    const hit = hitRectFor(current);
     return (
-      clientX >= current.x &&
-      clientX <= current.x + current.box &&
-      clientY >= current.y &&
-      clientY <= current.y + current.box
+      clientX >= hit.x &&
+      clientX <= hit.x + hit.w &&
+      clientY >= hit.y &&
+      clientY <= hit.y + hit.h
     );
   }
 
@@ -403,11 +451,13 @@ export default function DesktopPetRoute(): React.JSX.Element {
       : performance.now() + 60_000;
   }
 
-  const placement = actor
+  const hit = actor ? hitRectFor(actor) : null;
+  const placement = actor && hit
     ? placeTokenCard(
-        actor.x,
-        actor.y,
-        actor.box,
+        hit.x,
+        hit.y,
+        hit.w,
+        hit.h,
         areaRef.current.width,
         areaRef.current.height,
         cardSize.w,
@@ -415,7 +465,7 @@ export default function DesktopPetRoute(): React.JSX.Element {
       )
       : null;
 
-  const bubble = actor && speech ? speechRectFor(actor, areaRef.current) : null;
+  const bubble = actor && speech && hit ? speechRectFor(hit, areaRef.current) : null;
   const bubbleBelow = bubble?.below ?? false;
 
   const chute =
@@ -500,7 +550,11 @@ export default function DesktopPetRoute(): React.JSX.Element {
       {bubble && speech ? (
         <div
           ref={speechElRef}
-          className={cn('pet-speech', bubbleBelow ? 'is-below' : 'is-above', speech.kind === 'fail' ? 'is-fail' : 'is-pass')}
+          className={cn(
+            'pet-speech',
+            bubbleBelow ? 'is-below' : 'is-above',
+            speech.kind === 'fail' ? 'is-fail' : speech.kind === 'warn' ? 'is-warn' : 'is-pass',
+          )}
           style={{ left: bubble.x, top: bubble.y, width: bubble.w }}
         >
           <p className="pet-speech-name">{speech.petName}</p>

@@ -87,6 +87,52 @@ export function petBoxSize(scalePercent: number): number {
   return Math.round(120 * (clampDesktopPetScale(scalePercent) / 100));
 }
 
+/** How much of the sprite counts as the character for clicks and the token card. */
+export const DESKTOP_PET_CLICK_AREA_MIN = 40;
+export const DESKTOP_PET_CLICK_AREA_MAX = 100;
+export const DESKTOP_PET_CLICK_AREA_DEFAULT = 100;
+
+export function clampDesktopPetClickArea(value: unknown): number {
+  const n =
+    typeof value === 'number' && Number.isFinite(value) ? value : DESKTOP_PET_CLICK_AREA_DEFAULT;
+  return Math.round(Math.min(DESKTOP_PET_CLICK_AREA_MAX, Math.max(DESKTOP_PET_CLICK_AREA_MIN, n)));
+}
+
+export interface PetClickRect {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+/**
+ * Clickable / card-anchor box inside the pet hit square. Sprites sit on the
+ * bottom of that square; `clickAreaPercent` then shrinks toward the sprite
+ * center so empty padding around the drawing is ignored.
+ */
+export function petClickRect(
+  actorX: number,
+  actorY: number,
+  box: number,
+  spriteW: number,
+  spriteH: number,
+  clickAreaPercent: number,
+): PetClickRect {
+  const area = clampDesktopPetClickArea(clickAreaPercent) / 100;
+  const fullW = Math.max(8, spriteW > 0 ? Math.min(spriteW, box) : box);
+  const fullH = Math.max(8, spriteH > 0 ? Math.min(spriteH, box) : box);
+  const w = Math.max(8, fullW * area);
+  const h = Math.max(8, fullH * area);
+  const spriteLeft = actorX + (box - fullW) / 2;
+  const spriteTop = actorY + box - fullH;
+  return {
+    x: spriteLeft + (fullW - w) / 2,
+    y: spriteTop + (fullH - h) / 2,
+    w,
+    h,
+  };
+}
+
 export const DESKTOP_PET_SPEED_MIN = 40;
 export const DESKTOP_PET_SPEED_MAX = 200;
 export const DESKTOP_PET_SPEED_DEFAULT = 100;
@@ -307,10 +353,20 @@ export interface AppSettings {
   desktopPetActionSpeeds: DesktopPetActionSpeeds;
   /** Display size as a percent of the default (50–160). */
   desktopPetScale: number;
+  /**
+   * How much of the sprite is clickable and used to place the token card
+   * (40–100). Lower ignores empty padding around the drawing.
+   */
+  desktopPetClickArea: number;
   /** When true the desktop pet speaks if a watched GitHub Actions run fails. */
   desktopPetPipelineOnFail: boolean;
   /** When true the desktop pet speaks if a watched GitHub Actions run passes. */
   desktopPetPipelineOnPass: boolean;
+  /**
+   * When true the desktop pet speaks if internet quality changes (offline,
+   * back online, or a clear drop or improvement).
+   */
+  desktopPetNetworkQuality: boolean;
 }
 
 export type AgentType = 'claude-code' | 'gemini' | 'opencode' | 'codex' | 'cursor' | 'generic';

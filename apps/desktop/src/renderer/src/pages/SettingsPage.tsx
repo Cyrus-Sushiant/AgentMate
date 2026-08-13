@@ -91,7 +91,7 @@ const TAB_META: {
   keywords: string;
 }[] = [
   { id: 'general', label: 'General', icon: SettingsIcon, keywords: 'appearance theme cli projects folder skills' },
-  { id: 'companion', label: 'AI Pet', icon: Paw, keywords: 'pet ai pet my ai pet companion desktop character walk mascot climb rope size wander gif png webp custom add pipeline github actions fail pass notify' },
+  { id: 'companion', label: 'AI Pet', icon: Paw, keywords: 'pet ai pet my ai pet companion desktop character walk mascot climb rope size click area tight wander gif png webp custom add pipeline github actions fail pass notify internet quality ping offline' },
   { id: 'ai', label: 'AI', icon: MessageSquare, keywords: 'openai gemini ollama api key whisper voice translate' },
   { id: 'notifications', label: 'Notifications', icon: Bell, keywords: 'telegram bot chat notify' },
   { id: 'data', label: 'Data', icon: HardDrive, keywords: 'backup restore ping network about version update' },
@@ -694,7 +694,7 @@ export default function SettingsPage(): React.JSX.Element {
 
   const visibleCount = [
     showSection('general', 'appearance theme dark light system look', 'Appearance'),
-    showSection('companion', 'pet ai pet my ai pet companion desktop character walk mascot climb rope size wander pipeline github actions fail pass', 'My AI Pet'),
+    showSection('companion', 'pet ai pet my ai pet companion desktop character walk mascot climb rope size click area tight wander pipeline github actions fail pass internet quality', 'My AI Pet'),
     showSection('general', 'default cli provider agent', 'Default CLI'),
     showSection('general', 'projects folder path directory', 'Projects folder'),
     showSection('general', 'skills repositories sources', 'Skill repositories'),
@@ -867,7 +867,7 @@ export default function SettingsPage(): React.JSX.Element {
 
               {showSection(
                 'companion',
-                'pet ai pet my ai pet companion desktop character walk mascot climb rope size wander pipeline github actions fail pass',
+                'pet ai pet my ai pet companion desktop character walk mascot climb rope size click area tight wander pipeline github actions fail pass internet quality',
                 'My AI Pet',
               ) && settingsQuery.data ? (
                 <CompanionSettings settings={settingsQuery.data} />
@@ -1253,7 +1253,7 @@ export default function SettingsPage(): React.JSX.Element {
                 <SettingsCard
                   icon={NetworkIcon}
                   title="Network ping targets"
-                  description="Hosts shown on the dashboard Network Status graph. Press Enter to add one."
+                  description="Hosts shown on the dashboard Network Status graph. The AI pet uses these too if internet alerts are on. Press Enter to add one."
                   dirty={pingTargetsDirty}
                 >
                   <HostChips

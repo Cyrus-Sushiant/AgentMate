@@ -111,6 +111,8 @@ import type {
   UpdateStatus,
   ProjectPipelineStatus,
   GithubActionsActivity,
+  GithubActionsRunErrorInput,
+  GithubActionsRunErrorResult,
 } from '../shared/apiTypes';
 import type { RemoteInputEvent, RemoteRtcMessage } from '../shared/remoteProtocol';
 
@@ -521,6 +523,8 @@ const pipelines = {
     subscribe(IPC.pipelines.onNotificationsChanged, callback),
   dashboardActivity: (): Promise<GithubActionsActivity> =>
     ipcRenderer.invoke(IPC.pipelines.dashboardActivity),
+  runError: (input: GithubActionsRunErrorInput): Promise<GithubActionsRunErrorResult> =>
+    ipcRenderer.invoke(IPC.pipelines.runError, input),
 };
 
 function subscribe<T>(channel: string, callback: (payload: T) => void): () => void {

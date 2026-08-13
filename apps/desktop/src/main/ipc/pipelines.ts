@@ -2,9 +2,18 @@ import { ipcMain } from 'electron';
 import type { AppNotification, ProjectGithubAction } from '@agentmat/core';
 import { normalizeProjectGithubActions } from '@agentmat/core';
 import { IPC } from '../../shared/ipcChannels';
-import type { GithubActionsActivity, ProjectPipelineStatus } from '../../shared/apiTypes';
+import type {
+  GithubActionsActivity,
+  GithubActionsRunErrorInput,
+  GithubActionsRunErrorResult,
+  ProjectPipelineStatus,
+} from '../../shared/apiTypes';
 import { store } from '../store';
-import { fetchDashboardActionsActivity, setProjectWatchedActions } from '../pipelines/githubActions';
+import {
+  fetchDashboardActionsActivity,
+  fetchRunFailureText,
+  setProjectWatchedActions,
+} from '../pipelines/githubActions';
 import {
   refreshProjectPipelineStatus,
   schedulePipelineCheck,
@@ -44,6 +53,13 @@ export function registerPipelineHandlers(): void {
   ipcMain.handle(IPC.pipelines.dashboardActivity, (): Promise<GithubActionsActivity> => {
     return fetchDashboardActionsActivity();
   });
+
+  ipcMain.handle(
+    IPC.pipelines.runError,
+    (_event, input: GithubActionsRunErrorInput): Promise<GithubActionsRunErrorResult> => {
+      return fetchRunFailureText(input);
+    },
+  );
 
   ipcMain.handle(IPC.pipelines.listNotifications, (): Promise<AppNotification[]> => {
     return store.getAppNotifications();

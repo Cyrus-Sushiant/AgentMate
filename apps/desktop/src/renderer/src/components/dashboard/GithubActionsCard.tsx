@@ -4,11 +4,13 @@ import { type ReactNode, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import {
   CircleCheck,
+  Copy,
   ExternalLink,
   Github,
   History,
   Play,
   RefreshCw,
+  Spinner,
   TriangleAlert,
   X,
 } from '@/components/icons';
@@ -110,6 +112,54 @@ function GhSetupHint({
   );
 }
 
+function CopyErrorButton({ item }: { item: GithubActionsHistoryItem }): React.JSX.Element {
+  const [busy, setBusy] = useState(false);
+
+  async function copyError(): Promise<void> {
+    setBusy(true);
+    try {
+      const result = await window.agentmat.pipelines.runError({
+        repo: item.repo,
+        runId: item.id,
+        workflowName: item.workflowName,
+        displayTitle: item.displayTitle,
+        runNumber: item.runNumber,
+        headBranch: item.headBranch,
+      });
+      if (!result.ok) {
+        toast.error(result.error);
+        return;
+      }
+      await navigator.clipboard.writeText(result.text);
+      toast.success('Error copied to clipboard.');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not copy that error.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <SimpleTooltip label="Copy the failure from this run">
+      <Button
+        variant="ghost"
+        size="sm"
+        className="mt-1.5 h-8 shrink-0 gap-1 px-2 text-xs"
+        disabled={busy}
+        aria-label="Copy error"
+        onClick={() => void copyError()}
+      >
+        {busy ? (
+          <Spinner className="h-3.5 w-3.5 animate-spin" />
+        ) : (
+          <Copy className="h-3.5 w-3.5" />
+        )}
+        Copy error
+      </Button>
+    </SimpleTooltip>
+  );
+}
+
 function HistoryRow({ item }: { item: GithubActionsHistoryItem }): React.JSX.Element {
   const tone = runTone(item);
   const failed = tone.variant === 'destructive';
@@ -170,6 +220,7 @@ function HistoryRow({ item }: { item: GithubActionsHistoryItem }): React.JSX.Ele
           <ExternalLink className="mt-1.5 h-3.5 w-3.5 shrink-0 text-muted-foreground/50" />
         ) : null}
       </button>
+      {failed ? <CopyErrorButton item={item} /> : null}
     </div>
   );
 }

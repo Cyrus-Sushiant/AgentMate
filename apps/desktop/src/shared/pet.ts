@@ -9,9 +9,9 @@ export interface PetWorkArea {
 export const PET_BOX = 120;
 
 export interface PetPipelineMessage {
-  kind: 'pass' | 'fail';
+  kind: 'pass' | 'fail' | 'warn';
   petName: string;
   text: string;
-  projectName: string;
-  workflowName: string;
+  projectName?: string;
+  workflowName?: string;
 }

@@ -32,6 +32,9 @@ import WidgetRoute from './components/usage/WidgetRoute';
 import PromptBuildWidgetRoute from './components/projects/PromptBuildWidgetRoute';
 import DesktopPetRoute from './components/pet/DesktopPetRoute';
 import RemoteSessionRoute from './components/remote/RemoteSessionRoute';
+import { installToastHistoryCapture } from './lib/toastHistory';
+
+installToastHistoryCapture();
 
 /** Skills ships a large offline catalog; keep it out of the main chunk until this route opens. */
 const SkillsPage = lazy(() => import('./pages/SkillsPage'));

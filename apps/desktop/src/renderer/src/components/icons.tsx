@@ -19,8 +19,10 @@ import {
   faCheck,
   faCircleCheck,
   faCircleHalfStroke,
+  faCircleInfo,
   faCirclePlay,
   faCircleQuestion,
+  faCircleXmark,
   faClock,
   faClockRotateLeft,
   faCloudArrowDown,
@@ -193,7 +195,9 @@ export const Run = makeIcon(faCirclePlay);
 export const Bell = makeIcon(faBell);
 export const Send = makeIcon(faPaperPlane);
 export const CircleCheck = makeIcon(faCircleCheck);
+export const CircleInfo = makeIcon(faCircleInfo);
 export const CircleQuestion = makeIcon(faCircleQuestion);
+export const CircleX = makeIcon(faCircleXmark);
 export const Paw = makeIcon(faPaw);
 export const Robot = makeIcon(faRobot);
 export const TriangleAlert = makeIcon(faTriangleExclamation);

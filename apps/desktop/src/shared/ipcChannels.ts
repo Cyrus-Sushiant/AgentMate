@@ -278,6 +278,7 @@ export const IPC = {
     unreadCount: 'pipelines:unreadCount',
     onNotificationsChanged: 'pipelines:onNotificationsChanged',
     dashboardActivity: 'pipelines:dashboardActivity',
+    runError: 'pipelines:runError',
   },
   git: {
     status: 'git:status',

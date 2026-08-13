@@ -8,6 +8,7 @@ import { NAV_ITEMS } from '@/components/layout/Sidebar';
 import { queryKeys } from '@/lib/queryKeys';
 import { cn } from '@/lib/utils';
 import { useSearchStore } from '@/stores/searchStore';
+import { useToastHistoryStore } from '@/stores/toastHistoryStore';
 
 export function CommandPalette(): React.JSX.Element {
   const open = useSearchStore((s) => s.open);
@@ -54,6 +55,11 @@ export function CommandPalette(): React.JSX.Element {
   function selectPage(to: string): void {
     setOpen(false);
     navigate(to);
+  }
+
+  function selectToastHistory(): void {
+    setOpen(false);
+    useToastHistoryStore.getState().setOpen(true);
   }
 
   function selectProject(id: string): void {
@@ -122,6 +128,14 @@ export function CommandPalette(): React.JSX.Element {
                     {item.label}
                   </CommandPrimitive.Item>
                 ))}
+                <CommandPrimitive.Item
+                  value="page recent messages toast history alerts"
+                  onSelect={selectToastHistory}
+                  className="flex cursor-pointer select-none items-center gap-2.5 rounded-md px-2 py-2 text-sm outline-none aria-selected:bg-primary/12 aria-selected:text-foreground"
+                >
+                  <History className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                  Recent messages
+                </CommandPrimitive.Item>
               </CommandPrimitive.Group>
 
               {(projectsQuery.data?.length ?? 0) > 0 && (

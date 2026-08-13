@@ -968,3 +968,16 @@ export interface GithubActionsActivity {
   repoCount: number;
   error?: string;
 }
+
+export interface GithubActionsRunErrorInput {
+  repo: string;
+  runId: number;
+  workflowName?: string;
+  displayTitle?: string;
+  runNumber?: number;
+  headBranch?: string;
+}
+
+export type GithubActionsRunErrorResult =
+  | { ok: true; text: string }
+  | { ok: false; error: string };

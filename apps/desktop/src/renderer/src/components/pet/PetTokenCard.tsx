@@ -17,24 +17,26 @@ export type CardSide = 'top' | 'bottom' | 'left' | 'right';
 export function placeTokenCard(
   x: number,
   y: number,
-  box: number,
+  w: number,
+  h: number,
   stageW: number,
   stageH: number,
   cardW = CARD_W,
   cardH = CARD_H,
 ): { left: number; top: number; side: CardSide } {
-  const hit = box || PET_BOX;
+  const hitW = w || PET_BOX;
+  const hitH = h || PET_BOX;
   const maxLeft = Math.max(CARD_PAD, stageW - cardW - CARD_PAD);
   const maxTop = Math.max(CARD_PAD, stageH - cardH - CARD_PAD);
   const clampLeft = (value: number) => Math.min(maxLeft, Math.max(CARD_PAD, value));
   const clampTop = (value: number) => Math.min(maxTop, Math.max(CARD_PAD, value));
 
   const petLeft = x;
-  const petRight = x + hit;
+  const petRight = x + hitW;
   const petTop = y;
-  const petBottom = y + hit;
-  const midX = x + hit / 2;
-  const midY = y + hit / 2;
+  const petBottom = y + hitH;
+  const midX = x + hitW / 2;
+  const midY = y + hitH / 2;
 
   const candidates: Array<{ side: CardSide; left: number; top: number }> = [
     { side: 'right', left: petRight + CARD_GAP, top: midY - cardH / 2 },

@@ -38,6 +38,10 @@ import { seedExampleRepositoryIfEmpty } from './exampleSkillRepo';
 import { startHookServer, stopHookServer } from './notifications/hookServer';
 import { startResetAlertWatcher, stopResetAlertWatcher } from './usage/resetAlerts';
 import { startThresholdAlertWatcher, stopThresholdAlertWatcher } from './usage/thresholdAlerts';
+import {
+  startNetworkQualityAlertWatcher,
+  stopNetworkQualityAlertWatcher,
+} from './network/qualityAlerts';
 import { remoteManager } from './remote/manager';
 import { startHourlyUpdateChecks } from './updater';
 import { startPipelineWatcher, stopPipelineWatcher } from './pipelines/watcher';
@@ -211,6 +215,7 @@ app.whenReady().then(() => {
   void petManager.syncFromSettings();
   startResetAlertWatcher();
   startThresholdAlertWatcher();
+  startNetworkQualityAlertWatcher();
   startPipelineWatcher();
   startHourlyUpdateChecks();
 
@@ -238,6 +243,7 @@ app.on('before-quit', () => {
   stopHookServer();
   stopResetAlertWatcher();
   stopThresholdAlertWatcher();
+  stopNetworkQualityAlertWatcher();
   stopPipelineWatcher();
   remoteManager.shutdown();
 });

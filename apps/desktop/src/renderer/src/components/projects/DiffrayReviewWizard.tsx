@@ -1,4 +1,4 @@
-import type { AgentType } from '@agentmat/core';
+import type { AgentType, Project } from '@agentmat/core';
 import {
   allDiffrayAgentIds,
   allDiffraySeverities,
@@ -40,6 +40,12 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Combobox } from '@/components/ui/combobox';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
@@ -122,18 +128,62 @@ export function DiffrayReviewLaunchCard({
   );
 }
 
+export function DiffrayReviewWizardDialog({
+  open,
+  onOpenChange,
+  project,
+  installed,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  project: Project;
+  installed: boolean;
+}): React.JSX.Element {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="flex max-h-[85vh] max-w-2xl flex-col gap-0 overflow-hidden p-0">
+        <DialogTitle className="sr-only">Review {project.name} with diffray</DialogTitle>
+        <DialogDescription className="sr-only">
+          Choose a diff, pick review agents, then run diffray in this project's terminal.
+        </DialogDescription>
+        {open && (
+          <div className="min-h-0 flex-1 overflow-y-auto">
+            <DiffrayReviewWizard
+              key={project.id}
+              projectId={project.id}
+              projectName={project.name}
+              folderPath={project.folderPath}
+              agentType={project.agentType}
+              installed={installed}
+              compact
+              onLaunched={() => onOpenChange(false)}
+              onDismiss={() => onOpenChange(false)}
+            />
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export function DiffrayReviewWizard({
   projectId,
   projectName,
   folderPath,
   agentType,
   installed,
+  compact = false,
+  onLaunched,
+  onDismiss,
 }: {
   projectId: string;
   projectName: string;
   folderPath: string;
   agentType: AgentType;
   installed: boolean;
+  compact?: boolean;
+  onLaunched?: () => void;
+  onDismiss?: () => void;
 }): React.JSX.Element {
   const navigate = useNavigate();
   const openSession = useTerminalStore((s) => s.openSession);
@@ -301,26 +351,44 @@ export function DiffrayReviewWizard({
       projectId,
     });
     toast.info('Press Enter in the terminal to start the review.');
+    onLaunched?.();
+  }
+
+  function goToTools(): void {
+    onDismiss?.();
+    navigate('/tools');
+  }
+
+  function goToGit(): void {
+    onDismiss?.();
+    navigate(`/projects/${projectId}?tab=git`);
   }
 
   if (!installed) {
     return (
-      <ProjectEmptyState
-        icon={GitPullRequest}
-        title="diffray is not installed yet"
-        description="Install the CLI from Agent Tools, then come back here to review this project's changes with specialized agents."
-        action={
-          <Button variant="outline" onClick={() => navigate('/tools')}>
-            <Wrench /> Open Agent Tools
-          </Button>
-        }
-      />
+      <div className={compact ? 'p-6 pr-12' : undefined}>
+        <ProjectEmptyState
+          icon={GitPullRequest}
+          title="diffray is not installed yet"
+          description="Install the CLI from Agent Tools, then come back here to review this project's changes with specialized agents."
+          action={
+            <Button variant="outline" onClick={goToTools}>
+              <Wrench /> Open Agent Tools
+            </Button>
+          }
+        />
+      </div>
     );
   }
 
   if (gitQuery.isPending) {
     return (
-      <div className="flex items-center gap-2 rounded-xl border border-border px-4 py-10 text-sm text-muted-foreground">
+      <div
+        className={cn(
+          'flex items-center gap-2 text-sm text-muted-foreground',
+          compact ? 'px-6 py-10 pr-12' : 'rounded-xl border border-border px-4 py-10',
+        )}
+      >
         <Spinner className="h-4 w-4 animate-spin" /> Reading git status…
       </div>
     );
@@ -328,27 +396,34 @@ export function DiffrayReviewWizard({
 
   if (!status?.isRepo) {
     return (
-      <ProjectEmptyState
-        icon={GitBranch}
-        title="This folder is not a git repository"
-        description="diffray reviews git diffs. Initialize a repository on the Git tab first."
-        action={
-          <Button variant="outline" onClick={() => navigate(`/projects/${projectId}?tab=git`)}>
-            <GitBranch /> Open Git
-          </Button>
-        }
-      />
+      <div className={compact ? 'p-6 pr-12' : undefined}>
+        <ProjectEmptyState
+          icon={GitBranch}
+          title="This folder is not a git repository"
+          description="diffray reviews git diffs. Initialize a repository on the Git tab first."
+          action={
+            <Button variant="outline" onClick={goToGit}>
+              <GitBranch /> Open Git
+            </Button>
+          }
+        />
+      </div>
     );
   }
 
   return (
-    <div className="relative overflow-hidden rounded-xl border border-border bg-card">
+    <div
+      className={cn(
+        'relative overflow-hidden',
+        compact ? '' : 'rounded-xl border border-border bg-card',
+      )}
+    >
       <div className="absolute inset-y-0 left-0 w-1 overflow-hidden" aria-hidden>
         <div className="h-1/2 bg-primary" />
         <div className="h-1/2 bg-destructive/70" />
       </div>
 
-      <div className="space-y-5 p-5 pl-6">
+      <div className={cn('space-y-5 p-5 pl-6', compact && 'pr-12 pt-6')}>
         <header className="space-y-1">
           <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
             Multi-agent review

@@ -399,6 +399,76 @@ body {
   box-shadow: 0 0 0 3px hsl(var(--ring) / 0.45);
 }
 
+/* Settings sliders (pet speed/size). Native range chrome on Windows is a
+   thick OS track; this keeps a filled bar and a round thumb in both engines. */
+.settings-range {
+  --range-pct: 0%;
+  appearance: none;
+  width: 100%;
+  height: 18px;
+  margin: 0;
+  background: transparent;
+  cursor: pointer;
+}
+.settings-range:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+.settings-range::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: 999px;
+  background: linear-gradient(
+    to right,
+    hsl(var(--primary)) 0,
+    hsl(var(--primary)) var(--range-pct),
+    hsl(var(--foreground) / 0.12) var(--range-pct),
+    hsl(var(--foreground) / 0.12) 100%
+  );
+}
+.settings-range::-webkit-slider-thumb {
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  margin-top: -5px;
+  border-radius: 999px;
+  border: 2px solid hsl(var(--background));
+  background: hsl(var(--primary));
+  box-shadow:
+    0 0 0 1px hsl(var(--primary) / 0.35),
+    0 1px 4px hsl(0 0% 0% / 0.22);
+}
+.settings-range:hover:not(:disabled)::-webkit-slider-thumb {
+  box-shadow:
+    0 0 0 4px hsl(var(--primary) / 0.22),
+    0 1px 4px hsl(0 0% 0% / 0.22);
+}
+.settings-range:focus-visible {
+  outline: none;
+}
+.settings-range:focus-visible::-webkit-slider-thumb {
+  box-shadow: 0 0 0 4px hsl(var(--primary) / 0.32);
+}
+.settings-range::-moz-range-track {
+  height: 6px;
+  border-radius: 999px;
+  background: hsl(var(--foreground) / 0.12);
+  border: none;
+}
+.settings-range::-moz-range-progress {
+  height: 6px;
+  border-radius: 999px;
+  background: hsl(var(--primary));
+  border: none;
+}
+.settings-range::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border: 2px solid hsl(var(--background));
+  border-radius: 999px;
+  background: hsl(var(--primary));
+  box-shadow: 0 0 0 1px hsl(var(--primary) / 0.35);
+}
+
 /* Cursor-follow wash on cards (React Bits Spotlight Card, kept quiet enough
    for a desktop app). Position vars are set from card.tsx on pointer move.
    The top-edge sheen lives on ::after so it doesn't fight .glass box-shadows. */
@@ -643,6 +713,9 @@ body {
 }
 .pet-speech.is-pass {
   border: 1px solid hsl(var(--primary) / 0.55);
+}
+.pet-speech.is-warn {
+  border: 1px solid hsl(38 92% 50% / 0.7);
 }
 .pet-speech::after {
   content: '';

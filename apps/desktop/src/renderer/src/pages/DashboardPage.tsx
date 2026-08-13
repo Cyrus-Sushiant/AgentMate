@@ -1013,7 +1013,7 @@ export default function DashboardPage(): React.JSX.Element {
             {dragHandle('pings')}
             {chartRemove('pings')}
             <SimpleTooltip label="Manage ping targets">
-              <Button variant="ghost" size="icon" onClick={() => navigate('/settings')}>
+              <Button variant="ghost" size="icon" onClick={() => navigate('/settings?tab=data')}>
                 <SettingsIcon className="h-3.5 w-3.5" />
               </Button>
             </SimpleTooltip>
@@ -1076,7 +1076,7 @@ export default function DashboardPage(): React.JSX.Element {
                   No ping targets configured. Add one in{' '}
                   <button
                     className="underline underline-offset-2"
-                    onClick={() => navigate('/settings')}
+                    onClick={() => navigate('/settings?tab=data')}
                   >
                     Settings
                   </button>

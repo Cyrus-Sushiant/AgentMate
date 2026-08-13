@@ -3,6 +3,7 @@ import {
   AGENT_TYPE_CLI_ID,
   AGENT_TYPE_LABELS,
   configuredRunCommands,
+  DIFFRAY_TOOL_ID,
   projectRunCommandHint,
 } from '@agentmat/core';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -15,6 +16,7 @@ import {
   FolderKanban,
   FolderPlus,
   GitBranch,
+  GitPullRequest,
   Globe,
   GripVertical,
   ListUnordered,
@@ -25,6 +27,7 @@ import {
   Sparkles,
   X,
 } from '@/components/icons';
+import { DiffrayReviewWizardDialog } from '@/components/projects/DiffrayReviewWizard';
 import { ProjectFormDialog, type ProjectFormValues } from '@/components/projects/ProjectFormDialog';
 import { ProjectIcon } from '@/components/projects/ProjectIcon';
 import { ProjectPromptBuildDialog } from '@/components/projects/ProjectPromptBuildDialog';
@@ -91,6 +94,8 @@ export default function ProjectsPage(): React.JSX.Element {
   const [promptBuildProject, setPromptBuildProject] = useState<{ id: string; name: string } | null>(
     null,
   );
+  const [reviewOpen, setReviewOpen] = useState(false);
+  const [reviewProject, setReviewProject] = useState<Project | null>(null);
   const [search, setSearch] = useState('');
   const [agentFilter, setAgentFilter] = useState<AgentFilter>('all');
   const [view, setView] = useState<ProjectsView>(readStoredView);
@@ -104,6 +109,12 @@ export default function ProjectsPage(): React.JSX.Element {
     queryKey: queryKeys.projects,
     queryFn: () => window.agentmat.projects.list(),
   });
+  const toolsStatusQuery = useQuery({
+    queryKey: queryKeys.toolsStatus,
+    queryFn: () => window.agentmat.tools.detectAll(),
+  });
+  const diffrayInstalled =
+    toolsStatusQuery.data?.find((tool) => tool.id === DIFFRAY_TOOL_ID)?.installed === true;
 
   useEffect(() => {
     if (searchParams.get('new') === '1') {
@@ -123,7 +134,7 @@ export default function ProjectsPage(): React.JSX.Element {
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent): void {
-      if (dialogOpen || promptBuildOpen) return;
+      if (dialogOpen || promptBuildOpen || reviewOpen) return;
       if (event.key !== '/' || event.metaKey || event.ctrlKey || event.altKey) return;
       const target = event.target as HTMLElement | null;
       if (
@@ -138,7 +149,7 @@ export default function ProjectsPage(): React.JSX.Element {
     }
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [dialogOpen, promptBuildOpen]);
+  }, [dialogOpen, promptBuildOpen, reviewOpen]);
 
   const createMutation = useMutation({
     mutationFn: (values: ProjectFormValues) => window.agentmat.projects.create(values),
@@ -249,6 +260,10 @@ export default function ProjectsPage(): React.JSX.Element {
       onBuildPrompt: () => {
         setPromptBuildProject({ id: project.id, name: project.name });
         setPromptBuildOpen(true);
+      },
+      onReview: () => {
+        setReviewProject(project);
+        setReviewOpen(true);
       },
       onTogglePin: () => pinMutation.mutate({ projectId: project.id, pinned: !project.pinned }),
     };
@@ -494,6 +509,14 @@ export default function ProjectsPage(): React.JSX.Element {
           projectName={promptBuildProject.name}
         />
       )}
+      {reviewProject && (
+        <DiffrayReviewWizardDialog
+          open={reviewOpen}
+          onOpenChange={setReviewOpen}
+          project={reviewProject}
+          installed={diffrayInstalled}
+        />
+      )}
       {runPicker}
     </div>
   );
@@ -538,6 +561,7 @@ interface ProjectItemProps {
   onNavigate: () => void;
   onRun: () => void;
   onBuildPrompt: () => void;
+  onReview: () => void;
   onTogglePin: () => void;
 }
 
@@ -643,8 +667,18 @@ function ProjectCard(props: ProjectItemProps): React.JSX.Element {
         </div>
         <ProjectMetaLinks project={project} />
       </CardContent>
-      <CardFooter className="mt-auto gap-2 border-t border-border/70 pt-3">
+      <CardFooter className="mt-auto flex-wrap gap-2 border-t border-border/70 pt-3">
         <RunButton project={project} onRun={props.onRun} />
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={(e) => {
+            e.stopPropagation();
+            props.onReview();
+          }}
+        >
+          <GitPullRequest /> Review
+        </Button>
         <Button
           size="sm"
           variant="outline"
@@ -702,6 +736,19 @@ function ProjectRow(props: ProjectItemProps): React.JSX.Element {
         <AgentBadge project={project} />
       </div>
       <RunButton project={project} onRun={props.onRun} iconOnly />
+      <SimpleTooltip label="Review with diffray">
+        <Button
+          size="icon"
+          variant="outline"
+          aria-label="Review with diffray"
+          onClick={(e) => {
+            e.stopPropagation();
+            props.onReview();
+          }}
+        >
+          <GitPullRequest className="h-4 w-4" />
+        </Button>
+      </SimpleTooltip>
       <SimpleTooltip label="Build a prompt for this project">
         <Button
           size="icon"
