@@ -7,6 +7,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { SparklineChart } from '@/components/dashboard/SparklineChart';
 import { useChartColors, useReadableAccent } from '@/lib/chartColors';
 import { formatCost, formatTokens } from '@/lib/usageFormat';
+import { cn } from '@/lib/utils';
 import { useUsageSummary, type AgentUsageRow } from '@/hooks/useUsageSummary';
 import { CountUp } from './CountUp';
 import { PeriodChips, PeriodTotalsCompare, periodDays } from './PeriodCompare';
@@ -34,6 +35,7 @@ export function AllAgentsCharts({
   period: periodProp,
   onPeriodChange,
   actions,
+  className,
 }: {
   compact?: boolean;
   /** Wrap in a glass card (Usage page). The desktop widget already has glass. */
@@ -41,6 +43,7 @@ export function AllAgentsCharts({
   period?: WidgetPeriod;
   onPeriodChange?: (period: WidgetPeriod) => void;
   actions?: React.ReactNode;
+  className?: string;
 }): React.JSX.Element {
   const summary = useUsageSummary();
   const { green } = useChartColors();
@@ -184,8 +187,8 @@ export function AllAgentsCharts({
   }
 
   return (
-    <Card className="glass">
-      <CardContent className="p-4">
+    <Card className={cn('glass h-full', className)}>
+      <CardContent className="flex h-full flex-col p-4">
         {header}
         {body}
       </CardContent>

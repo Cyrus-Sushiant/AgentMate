@@ -32,8 +32,10 @@ import {
   TerminalSquare,
   Trash2,
   FolderPlus,
+  X,
 } from '@/components/icons';
 import {
+  ALL_AGENTS_WIDGET_ID,
   CLI_REGISTRY,
   DASHBOARD_COLUMN_OPTIONS,
   DASHBOARD_STAT_IDS,
@@ -81,6 +83,7 @@ import { formatCost, formatPercent, formatTokens } from '@/lib/usageFormat';
 import { usePageHeader } from '@/stores/pageHeaderStore';
 import { useTerminalStore } from '@/stores/terminalStore';
 import { DashboardUsageCard } from '@/components/usage/DashboardUsageCard';
+import { AllAgentsCharts } from '@/components/usage/AllAgentsCharts';
 import {
   useDashboardLayoutStore,
   usageProviderIdOf,
@@ -1265,6 +1268,16 @@ export default function DashboardPage(): React.JSX.Element {
               ))}
               <DropdownMenuSeparator />
               <DropdownMenuLabel>Token Usage</DropdownMenuLabel>
+              <DropdownMenuCheckboxItem
+                checked={usageCards.includes(ALL_AGENTS_WIDGET_ID)}
+                onCheckedChange={() => {
+                  const added = toggleUsageCard(ALL_AGENTS_WIDGET_ID);
+                  if (added) toast.success('All agents added to your dashboard.');
+                  else toast.info('All agents removed from the dashboard.');
+                }}
+              >
+                All agents
+              </DropdownMenuCheckboxItem>
               {DASHBOARD_USAGE_SUMMARY_IDS.map((id) => (
                 <DropdownMenuCheckboxItem
                   key={id}
@@ -1380,7 +1393,35 @@ export default function DashboardPage(): React.JSX.Element {
                       onDragOver={(e) => e.preventDefault()}
                       onDrop={() => handleChartDrop(row.id, id)}
                     >
-                      {providerId ? (
+                      {providerId === ALL_AGENTS_WIDGET_ID ? (
+                        <AllAgentsCharts
+                          className={cardClass(id)}
+                          actions={
+                            <>
+                              {dragHandle(id)}
+                              <SimpleTooltip label="Open Token Usage">
+                                <Button variant="ghost" size="icon" onClick={() => navigate('/usage')}>
+                                  <ExternalLink className="h-3.5 w-3.5" />
+                                </Button>
+                              </SimpleTooltip>
+                              {editing && (
+                                <SimpleTooltip label="Remove from dashboard">
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() => {
+                                      toggleUsageCard(ALL_AGENTS_WIDGET_ID);
+                                      toast.info('All agents removed from the dashboard.');
+                                    }}
+                                  >
+                                    <X className="h-3.5 w-3.5" />
+                                  </Button>
+                                </SimpleTooltip>
+                              )}
+                            </>
+                          }
+                        />
+                      ) : providerId ? (
                         <DashboardUsageCard
                           providerId={providerId}
                           usage={usageById.get(providerId)}

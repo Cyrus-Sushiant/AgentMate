@@ -379,11 +379,31 @@ export default function UsagePage(): React.JSX.Element {
 
       <AllAgentsCharts
         actions={
-          <SimpleTooltip label="Add to desktop">
-            <Button variant="ghost" size="icon" onClick={() => popOut(ALL_AGENTS_WIDGET_ID)}>
-              <Pin className="h-3.5 w-3.5" />
-            </Button>
-          </SimpleTooltip>
+          <>
+            <SimpleTooltip
+              label={
+                dashboardCards.includes(ALL_AGENTS_WIDGET_ID)
+                  ? 'Remove from dashboard'
+                  : 'Add to dashboard'
+              }
+            >
+              <Button
+                variant="ghost"
+                size="icon"
+                className={
+                  dashboardCards.includes(ALL_AGENTS_WIDGET_ID) ? 'text-primary' : undefined
+                }
+                onClick={() => void toggleDashboard(ALL_AGENTS_WIDGET_ID)}
+              >
+                <LayoutDashboard className="h-3.5 w-3.5" />
+              </Button>
+            </SimpleTooltip>
+            <SimpleTooltip label="Add to desktop">
+              <Button variant="ghost" size="icon" onClick={() => popOut(ALL_AGENTS_WIDGET_ID)}>
+                <Pin className="h-3.5 w-3.5" />
+              </Button>
+            </SimpleTooltip>
+          </>
         }
       />
 
