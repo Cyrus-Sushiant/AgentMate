@@ -270,7 +270,7 @@ export async function runHeadlessCliPrompt(
     return { ok: false, text: '', cliName: cli.name, cancelled: true, error: 'Request cancelled.' };
   }
 
-  const text = outcome.stdout.trim();
+  const text = stripAnsi(outcome.stdout).trim();
   if (text) return { ok: true, text, cliName: cli.name };
 
   return {
@@ -278,7 +278,16 @@ export async function runHeadlessCliPrompt(
     text: '',
     cliName: cli.name,
     error: outcome.failed
-      ? outcome.stderr.trim() || outcome.errorMessage || `${cli.name} failed to run.`
+      ? stripAnsi(outcome.stderr).trim() || outcome.errorMessage || `${cli.name} failed to run.`
       : `${cli.name} returned an empty answer.`,
   };
+}
+
+/** Color and cursor codes are noise once the answer is shown in a dialog. */
+function stripAnsi(text: string): string {
+  return text
+    .replace(/\u001B\[[?]?\d*(?:;\d+)*[a-zA-Z]/g, '')
+    .replace(/\u001B\][^\u0007\u001B]*(?:\u0007|\u001B\\)/g, '')
+    .replace(/\[(?:\d{1,3};)*\d{1,3}m/g, '')
+    .replace(/\r/g, '');
 }

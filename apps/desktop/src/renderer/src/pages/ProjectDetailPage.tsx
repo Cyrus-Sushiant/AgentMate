@@ -1480,6 +1480,17 @@ function splitGitPath(path: string): { dir: string; name: string } {
   return { dir: path.slice(0, i + 1), name: path.slice(i + 1) };
 }
 
+/** CLI transcripts often arrive with color codes that a dialog cannot render. */
+function displayCliOutput(raw: string): string {
+  return raw
+    .replace(/\u001B\[[?]?\d*(?:;\d+)*[a-zA-Z]/g, '')
+    .replace(/\u001B\][^\u0007\u001B]*(?:\u0007|\u001B\\)/g, '')
+    .replace(/\[(?:\d{1,3};)*\d{1,3}m/g, '')
+    .replace(/\r/g, '')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
 function parseSemverTag(
   tag: string,
 ): { prefix: string; major: number; minor: number; patch: number } | null {
@@ -2636,11 +2647,32 @@ function ApplyVersionDialog({
     void window.agentmat.git.cancelApplyVersion(requestId);
   }
 
+  function handleRetry(): void {
+    if (!tag) return;
+    startedForRef.current = tag;
+    commitMutation.reset();
+    reset();
+    mutate(tag);
+  }
+
   const result = applyMutation.data;
   const failed = applyMutation.isError || (result && !result.ok && !result.cancelled);
+  const didNothing =
+    !!result?.ok && result.changedFiles.length === 0 && !result.committedByCli;
+  const canRetry = Boolean(failed || result?.cancelled || didNothing);
+  const cliOutput = result?.output ? displayCliOutput(result.output) : '';
+  const errorText = displayCliOutput(
+    result?.error ?? (applyMutation.error as Error | null)?.message ?? 'Unknown error.',
+  );
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        if (!next) onBackToTag();
+        else onOpenChange(next);
+      }}
+    >
       <DialogContent className="max-w-2xl overflow-hidden">
         <DialogHeader>
           <DialogTitle>Update version in files</DialogTitle>
@@ -2663,24 +2695,30 @@ function ApplyVersionDialog({
           )}
 
           {result?.cancelled && (
-            <p className="text-sm text-muted-foreground">
-              Cancelled. Any edits already written are listed below.
-            </p>
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+              <p className="min-w-0 flex-1 text-sm text-muted-foreground">
+                Cancelled. Any edits already written are listed below.
+              </p>
+              <Button variant="outline" size="sm" onClick={handleRetry}>
+                <RefreshCw className="h-3.5 w-3.5" /> Try again
+              </Button>
+            </div>
           )}
 
           {failed && (
             <div
               role="alert"
-              className="space-y-1 rounded-xl border border-destructive/40 bg-destructive/5 p-3"
+              className="flex flex-col gap-2 rounded-xl border border-destructive/40 bg-destructive/5 p-3 sm:flex-row sm:items-center"
             >
-              <p className="flex items-center gap-1.5 text-sm font-medium text-destructive">
-                <TriangleAlert className="h-3.5 w-3.5" /> The run failed
-              </p>
-              <p className="text-xs text-muted-foreground">
-                {result?.error ??
-                  (applyMutation.error as Error | null)?.message ??
-                  'Unknown error.'}
-              </p>
+              <div className="min-w-0 flex-1 space-y-1">
+                <p className="flex items-center gap-1.5 text-sm font-medium text-destructive">
+                  <TriangleAlert className="h-3.5 w-3.5" /> The run failed
+                </p>
+                <p className="text-xs text-muted-foreground">{errorText}</p>
+              </div>
+              <Button variant="outline" size="sm" onClick={handleRetry}>
+                <RefreshCw className="h-3.5 w-3.5" /> Try again
+              </Button>
             </div>
           )}
 
@@ -2746,20 +2784,25 @@ function ApplyVersionDialog({
             </div>
           )}
 
-          {result?.ok && result.changedFiles.length === 0 && !result.committedByCli && (
-            <p className="text-sm text-muted-foreground">
-              The run finished without changing any files. The version may already be set, or the
-              CLI could not find where it lives.
-            </p>
+          {didNothing && (
+            <div className="flex flex-col gap-2 rounded-xl border border-warning/30 bg-warning/10 px-3 py-2.5 sm:flex-row sm:items-center">
+              <p className="min-w-0 flex-1 text-sm text-muted-foreground">
+                The run finished without changing any files. The version may already be set, or the
+                CLI could not find where it lives.
+              </p>
+              <Button variant="outline" size="sm" onClick={handleRetry}>
+                <RefreshCw className="h-3.5 w-3.5" /> Try again
+              </Button>
+            </div>
           )}
 
-          {result?.output && (
+          {cliOutput && (
             <div className="space-y-1.5">
               <p className="text-xs font-medium text-muted-foreground">
-                {result.cliName ?? 'CLI'} output
+                {result?.cliName ?? 'CLI'} output
               </p>
               <pre className="max-h-64 overflow-auto rounded-xl border border-border bg-card/60 p-3 text-xs whitespace-pre-wrap">
-                {result.output}
+                {cliOutput}
               </pre>
             </div>
           )}
@@ -2775,9 +2818,16 @@ function ApplyVersionDialog({
               <X className="h-4 w-4 text-destructive" /> Cancel
             </Button>
           ) : (
-            <Button onClick={onBackToTag}>
-              <Tag className="h-4 w-4" /> Back to tag
-            </Button>
+            <>
+              {canRetry ? (
+                <Button variant="outline" onClick={handleRetry}>
+                  <RefreshCw className="h-4 w-4" /> Try again
+                </Button>
+              ) : null}
+              <Button onClick={onBackToTag}>
+                <Tag className="h-4 w-4" /> Back to tag
+              </Button>
+            </>
           )}
         </DialogFooter>
       </DialogContent>
