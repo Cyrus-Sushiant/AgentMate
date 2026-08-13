@@ -470,7 +470,7 @@ export interface CreateTagInput {
   tag: string;
   /** Annotation message; falls back to the tag name when empty. */
   message?: string;
-  /** Push the new tag to origin after creating it. */
+  /** Push the current branch and the new tag to origin after creating it. */
   push: boolean;
 }
 

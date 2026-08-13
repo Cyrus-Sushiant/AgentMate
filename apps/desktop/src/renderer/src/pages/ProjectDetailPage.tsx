@@ -3073,7 +3073,7 @@ function TagVersionDialog({
             )}
             <p className="text-[11px] text-muted-foreground sm:hidden">
               {hasRemote
-                ? 'Created locally, then pushed to origin.'
+                ? 'Creates the tag, then pushes the current branch and tag to origin.'
                 : 'No remote is configured, so the tag stays local.'}
             </p>
           </div>
@@ -3093,7 +3093,7 @@ function TagVersionDialog({
             </SimpleTooltip>
             <p className="hidden text-[11px] text-muted-foreground sm:block">
               {hasRemote
-                ? 'Created locally, then pushed to origin.'
+                ? 'Creates the tag, then pushes the current branch and tag to origin.'
                 : 'No remote is configured, so the tag stays local.'}
             </p>
           </div>

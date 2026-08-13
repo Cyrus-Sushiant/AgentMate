@@ -729,10 +729,25 @@ async function pushCurrentBranch(cwd: string, branch: string): Promise<string> {
   } catch (error) {
     const err = error as { stderr?: string };
     if (/has no upstream branch|set the upstream/i.test(err.stderr ?? '')) {
-      return git(cwd, ['push', '-u', 'origin', branch], PUSH_TIMEOUT_MS);
+      const remote = (await primaryRemote(cwd)) ?? 'origin';
+      return git(cwd, ['push', '-u', remote, branch], PUSH_TIMEOUT_MS);
     }
     throw error;
   }
+}
+
+/**
+ * Push the current branch first (so the tagged commit lands on origin), then the tag.
+ * Pushing only `refs/tags/...` leaves the branch ahead, which is why "Create & push"
+ * used to still need the git-section Push button afterwards.
+ */
+async function pushBranchAndTag(cwd: string, tag: string): Promise<void> {
+  const remote = (await primaryRemote(cwd)) ?? 'origin';
+  const branch = (await git(cwd, ['branch', '--show-current']).catch(() => '')).trim();
+  if (branch) {
+    await pushCurrentBranch(cwd, branch);
+  }
+  await git(cwd, ['push', remote, `refs/tags/${tag}`], PUSH_TIMEOUT_MS);
 }
 
 /**
@@ -1129,41 +1144,49 @@ export function registerGitHandlers(): void {
       }
       if (!input.push) return { ok: false, message: `Tag ${tag} already exists locally.` };
 
-      return runGitOp(async () => {
+      const existingResult = await runGitOp(async () => {
+        const remote = (await primaryRemote(cwd)) ?? 'origin';
         // Annotated tags list under their own object sha; the "^{}" peeled ref is what
         // resolves that back to the commit, which is what `localSha` was compared against above.
         const remoteRefs = (
-          await git(cwd, ['ls-remote', 'origin', `refs/tags/${tag}`, `refs/tags/${tag}^{}`]).catch(
-            () => '',
-          )
+          await git(cwd, [
+            'ls-remote',
+            remote,
+            `refs/tags/${tag}`,
+            `refs/tags/${tag}^{}`,
+          ]).catch(() => '')
         )
           .split('\n')
           .map((line) => line.trim())
           .filter(Boolean);
         const peeled = remoteRefs.find((line) => line.endsWith('^{}'));
         const remoteSha = (peeled ?? remoteRefs[0])?.split(/\s+/)[0];
-        if (remoteSha) {
-          if (remoteSha === localSha)
-            return `Tag ${tag} already exists locally and on origin, nothing to push.`;
+        if (remoteSha && remoteSha !== localSha) {
           throw new Error(`Tag ${tag} already exists on origin and points at a different commit.`);
         }
-        await git(cwd, ['push', 'origin', tag]);
-        return `Tag ${tag} already existed locally, pushed it to origin.`;
+        await pushBranchAndTag(cwd, tag);
+        return remoteSha
+          ? `Tag ${tag} already exists locally and on origin.`
+          : `Tag ${tag} already existed locally, pushed the branch and tag to origin.`;
       });
+      if (existingResult.ok) schedulePipelineCheck(input.projectId);
+      return existingResult;
     }
 
-    return runGitOp(async () => {
+    const createdResult = await runGitOp(async () => {
       await git(cwd, ['tag', '-a', tag, '-m', input.message?.trim() || tag]);
       if (!input.push) return `Created tag ${tag} locally.`;
       try {
-        await git(cwd, ['push', 'origin', tag]);
+        await pushBranchAndTag(cwd, tag);
       } catch (error) {
         // Leave the repo as we found it so the user can retry the same tag after fixing the remote.
         await git(cwd, ['tag', '-d', tag]).catch(() => undefined);
         throw error;
       }
-      return `Created tag ${tag} and pushed it to origin.`;
+      return `Created tag ${tag} and pushed the branch and tag to origin.`;
     });
+    if (createdResult.ok && input.push) schedulePipelineCheck(input.projectId);
+    return createdResult;
   });
 
   ipcMain.handle(
