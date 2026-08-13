@@ -3071,8 +3071,8 @@ function TagVersionDialog({
             </div>
           )}
         </OverflowScroll>
-        <DialogFooter className="sm:justify-between">
-          <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center">
+        <DialogFooter className="flex-col gap-1.5 sm:flex-col sm:items-stretch">
+          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-between">
             {suggestMutation.isPending ? (
               <AiSuggestButton
                 label="Suggest with AI"
@@ -3095,13 +3095,6 @@ function TagVersionDialog({
                 />
               </SimpleTooltip>
             )}
-            <p className="text-[11px] text-muted-foreground sm:hidden">
-              {hasRemote
-                ? 'Creates the tag, then pushes the current branch and tag to origin.'
-                : 'No remote is configured, so the tag stays local.'}
-            </p>
-          </div>
-          <div className="flex flex-col items-stretch gap-1.5 sm:items-end">
             <SimpleTooltip
               label={isDirty ? 'Commit the changed files above before tagging.' : null}
               wrapTrigger
@@ -3115,12 +3108,12 @@ function TagVersionDialog({
                 onClick={handleCreateTag}
               />
             </SimpleTooltip>
-            <p className="hidden text-[11px] text-muted-foreground sm:block">
-              {hasRemote
-                ? 'Creates the tag, then pushes the current branch and tag to origin.'
-                : 'No remote is configured, so the tag stays local.'}
-            </p>
           </div>
+          <p className="text-[11px] text-muted-foreground sm:text-right">
+            {hasRemote
+              ? 'Creates the tag, then pushes the current branch and tag to origin.'
+              : 'No remote is configured, so the tag stays local.'}
+          </p>
         </DialogFooter>
       </DialogContent>
     </Dialog>
