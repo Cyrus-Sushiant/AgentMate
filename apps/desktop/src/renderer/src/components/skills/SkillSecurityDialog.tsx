@@ -1,11 +1,10 @@
-import { CLI_REGISTRY, SKILL_RISK_CATEGORIES } from '@agentmat/core';
+import { SKILL_RISK_CATEGORIES } from '@agentmat/core';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import { Shield, Sparkles, Spinner, X } from '@/components/icons';
+import { Shield, Spinner, X } from '@/components/icons';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Combobox } from '@/components/ui/combobox';
 import {
   Dialog,
   DialogContent,
@@ -14,11 +13,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Label } from '@/components/ui/label';
-import { Switch } from '@/components/ui/switch';
 import { queryKeys } from '@/lib/queryKeys';
 import type { SkillAuditRecord, SkillAuditTarget } from '../../../../shared/apiTypes';
 import { SkillAuditReport, SkillAuditVerdictBadge } from './SkillAuditReport';
+import {
+  DEFAULT_CLI_VALUE,
+  deepReviewInput,
+  SkillDeepReviewOptions,
+} from './SkillDeepReviewOptions';
 
 /** What the dialog is checking, plus the name to show while it does. */
 export interface SkillSecurityTarget {
@@ -28,8 +30,11 @@ export interface SkillSecurityTarget {
   skillId: string;
 }
 
-/** Falls back to whatever Settings picked as the default CLI. */
-const DEFAULT_CLI_VALUE = '__default__';
+/**
+ * A check can take minutes when a CLI review is on, and this dialog shows its own progress and a
+ * cancel button, so it must not raise the app-wide loading overlay over itself.
+ */
+const AUDIT_META = { silentLoading: true } as const;
 
 export function SkillSecurityDialog({
   subject,
@@ -50,32 +55,21 @@ export function SkillSecurityDialog({
     setRequestId(null);
   }, [subject?.skillId]);
 
-  const cliQuery = useQuery({
-    queryKey: queryKeys.cliStatus,
-    queryFn: () => window.agentmat.cli.detectAll(),
-    enabled: !!subject,
-  });
-
   const historyQuery = useQuery({
     queryKey: queryKeys.skillAuditsFor(subject?.skillId ?? ''),
     queryFn: () => window.agentmat.skills.listAudits({ skillId: subject!.skillId, limit: 20 }),
     enabled: !!subject,
   });
 
-  // CLIs that can answer a one-shot prompt and are actually installed here.
-  const installedPromptClis = CLI_REGISTRY.filter(
-    (cli) => cli.promptCommand && cliQuery.data?.find((c) => c.id === cli.id)?.installed,
-  );
-
   const auditMutation = useMutation({
+    meta: AUDIT_META,
     mutationFn: async () => {
       if (!subject) throw new Error('Nothing to scan.');
       const id = crypto.randomUUID();
       setRequestId(id);
       return window.agentmat.skills.runAudit({
         target: subject.target,
-        deepReview,
-        cliId: cliId === DEFAULT_CLI_VALUE ? null : cliId,
+        ...deepReviewInput(deepReview, cliId),
         requestId: id,
       });
     },
@@ -116,42 +110,14 @@ export function SkillSecurityDialog({
         </DialogHeader>
 
         <div className="-mx-1 -my-1 min-h-0 flex-1 space-y-4 overflow-y-auto px-1 py-1">
-          <div className="space-y-3 rounded-lg border border-border bg-card/60 px-3 py-3">
-            <label className="flex cursor-pointer items-center justify-between gap-3">
-              <span className="flex min-w-0 flex-col">
-                <span className="flex items-center gap-1.5 text-sm font-medium text-foreground">
-                  <Sparkles className="h-3.5 w-3.5" /> Deep review with an agent CLI
-                </span>
-                <span className="text-xs text-muted-foreground">
-                  Sends the skill's text to an installed CLI for a second opinion. Slower, and it
-                  can only make the verdict stricter.
-                </span>
-              </span>
-              <Switch checked={deepReview} onCheckedChange={setDeepReview} disabled={running} />
-            </label>
-
-            {deepReview && (
-              <div className="space-y-1.5">
-                <Label>CLI</Label>
-                <Combobox
-                  className="w-full"
-                  value={cliId}
-                  onChange={setCliId}
-                  disabled={running}
-                  placeholder="Choose a CLI"
-                  options={[
-                    { value: DEFAULT_CLI_VALUE, label: 'Default CLI (from Settings)' },
-                    ...installedPromptClis.map((cli) => ({ value: cli.id, label: cli.label })),
-                  ]}
-                />
-                {cliQuery.isFetched && installedPromptClis.length === 0 && (
-                  <p className="text-xs text-muted-foreground">
-                    No CLI with a non-interactive mode was detected. Install one from CLI Manager,
-                    or leave the deep review off and rely on the static scan.
-                  </p>
-                )}
-              </div>
-            )}
+          <div className="rounded-lg border border-border bg-card/60 px-3 py-3">
+            <SkillDeepReviewOptions
+              enabled={deepReview}
+              onEnabledChange={setDeepReview}
+              cliId={cliId}
+              onCliIdChange={setCliId}
+              disabled={running}
+            />
           </div>
 
           {running && (

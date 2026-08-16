@@ -10,7 +10,18 @@ import { SimpleTooltip } from '@/components/ui/tooltip';
 import { queryKeys } from '@/lib/queryKeys';
 import type { AuditSourceSkill, SkillAuditRecord } from '../../../../shared/apiTypes';
 import { SkillAuditVerdictBadge } from './SkillAuditReport';
+import {
+  DEFAULT_CLI_VALUE,
+  deepReviewInput,
+  SkillDeepReviewOptions,
+} from './SkillDeepReviewOptions';
 import type { SkillSecurityTarget } from './SkillSecurityDialog';
+
+/**
+ * A batch reports progress on its own button, so it must not raise the app-wide loading overlay
+ * (see `useAppLoadingOverlay`). Blanking the page would hide the very list being worked through.
+ */
+const BATCH_META = { silentLoading: true } as const;
 
 /**
  * Checks a skill that AgentMate knows nothing about: a folder on disk, or a GitHub address.
@@ -31,6 +42,9 @@ export function AdHocSkillScanner({
   /** Results from a "Check all" run, so verdicts appear as each skill finishes. */
   const [batchResults, setBatchResults] = useState<Map<string, SkillAuditRecord>>(new Map());
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
+  // Set once for the whole batch, rather than the dialog asking again for each skill.
+  const [deepReview, setDeepReview] = useState(false);
+  const [cliId, setCliId] = useState(DEFAULT_CLI_VALUE);
 
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedInput(input.trim()), 400);
@@ -55,10 +69,10 @@ export function AdHocSkillScanner({
 
   /**
    * Checks every skill at this location in one go, so a repository of twenty does not need
-   * twenty clicks. Static scan only: it is fast and needs no CLI. A single skill can still be
-   * opened for a deep review afterwards.
+   * twenty clicks. The deep-review switch above applies to the whole run.
    */
   const checkAllMutation = useMutation({
+    meta: BATCH_META,
     mutationFn: async (skills: AuditSourceSkill[]) => {
       const records: SkillAuditRecord[] = [];
       const failed: string[] = [];
@@ -69,7 +83,7 @@ export function AdHocSkillScanner({
       for (const skill of skills) {
         const result = await window.agentmat.skills.runAudit({
           target: skill.target,
-          deepReview: false,
+          ...deepReviewInput(deepReview, cliId),
         });
         if (result.ok && result.record) {
           const record = result.record;
@@ -210,6 +224,21 @@ export function AdHocSkillScanner({
                 </>
               )}
             </Button>
+          </div>
+
+          <div className="rounded-lg border border-border bg-card px-3 py-2.5">
+            <SkillDeepReviewOptions
+              enabled={deepReview}
+              onEnabledChange={setDeepReview}
+              cliId={cliId}
+              onCliIdChange={setCliId}
+              disabled={checkingAll}
+              batchHint={
+                preview.skills.length > 1
+                  ? `Check all runs the CLI once per skill, so ${preview.skills.length} skills will take a while.`
+                  : undefined
+              }
+            />
           </div>
 
           <div className="max-h-72 space-y-1.5 overflow-y-auto">

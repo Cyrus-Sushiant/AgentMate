@@ -45,6 +45,7 @@ import {
   Play,
   Plug,
   RefreshCw,
+  Run,
   Save,
   Send,
   Shield,
@@ -83,6 +84,11 @@ import { ProjectPromptDialog } from '@/components/projects/ProjectPromptDialog';
 import { ProjectPromptHistory } from '@/components/projects/ProjectPromptHistory';
 import { useProjectRun } from '@/components/projects/useProjectRun';
 import { SkillAuditVerdictBadge } from '@/components/skills/SkillAuditReport';
+import {
+  DEFAULT_CLI_VALUE,
+  deepReviewInput,
+  SkillDeepReviewOptions,
+} from '@/components/skills/SkillDeepReviewOptions';
 import {
   SkillSecurityDialog,
   type SkillSecurityTarget,
@@ -224,20 +230,32 @@ export default function ProjectDetailPage(): React.JSX.Element {
     return [...fromRecords, ...fromDisk];
   }, [installedSkillsQuery.data, projectSkillRows, projectId]);
 
+  const [skillDeepReview, setSkillDeepReview] = useState(false);
+  const [skillReviewCliId, setSkillReviewCliId] = useState(DEFAULT_CLI_VALUE);
+  const [skillCheckProgress, setSkillCheckProgress] = useState<{
+    done: number;
+    total: number;
+  } | null>(null);
+
   const checkAllSkillsMutation = useMutation({
+    // Progress lives on the button, so the app-wide overlay stays down (see GIT_OP_META).
+    meta: { silentLoading: true },
     mutationFn: async (targets: SkillSecurityTarget[]) => {
       // Sequential on purpose: a static scan is cheap, and a burst of parallel GitHub or disk
       // reads would only make the progress harder to reason about.
       const records = [];
+      setSkillCheckProgress({ done: 0, total: targets.length });
       for (const subject of targets) {
         const result = await window.agentmat.skills.runAudit({
           target: subject.target,
-          deepReview: false,
+          ...deepReviewInput(skillDeepReview, skillReviewCliId),
         });
         if (result.ok && result.record) records.push(result.record);
+        setSkillCheckProgress((prev) => (prev ? { ...prev, done: prev.done + 1 } : prev));
       }
       return records;
     },
+    onSettled: () => setSkillCheckProgress(null),
     onSuccess: (records) => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.skillAudits });
       void queryClient.invalidateQueries({ queryKey: queryKeys.skillAuditsLatest });
@@ -688,11 +706,17 @@ export default function ProjectDetailPage(): React.JSX.Element {
                       onClick={() => checkAllSkillsMutation.mutate(allProjectSkillSubjects)}
                     >
                       {checkAllSkillsMutation.isPending ? (
-                        <Spinner className="h-3.5 w-3.5 animate-spin" />
+                        <>
+                          <Spinner className="h-3.5 w-3.5 animate-spin" />
+                          {skillCheckProgress
+                            ? `Checking ${skillCheckProgress.done + 1} of ${skillCheckProgress.total}…`
+                            : 'Checking…'}
+                        </>
                       ) : (
-                        <Shield />
+                        <>
+                          <Shield /> Check all ({allProjectSkillSubjects.length})
+                        </>
                       )}
-                      Check all ({allProjectSkillSubjects.length})
                     </Button>
                   )}
                   <Button
@@ -704,6 +728,23 @@ export default function ProjectDetailPage(): React.JSX.Element {
                   </Button>
                 </div>
               </div>
+
+              {allProjectSkillSubjects.length > 0 && (
+                <div className="rounded-lg border border-border bg-card/60 px-3 py-2.5">
+                  <SkillDeepReviewOptions
+                    enabled={skillDeepReview}
+                    onEnabledChange={setSkillDeepReview}
+                    cliId={skillReviewCliId}
+                    onCliIdChange={setSkillReviewCliId}
+                    disabled={checkAllSkillsMutation.isPending}
+                    batchHint={
+                      allProjectSkillSubjects.length > 1
+                        ? `Check all runs the CLI once per skill, so ${allProjectSkillSubjects.length} skills will take a while.`
+                        : undefined
+                    }
+                  />
+                </div>
+              )}
               {installedSkillsQuery.data?.length === 0 ? (
                 <ProjectEmptyState
                   icon={Blocks}
@@ -1074,7 +1115,7 @@ function ProjectTerminalSection({
         </Button>
         {runCommands.length > 0 ? (
           <Button variant="outline" onClick={onRun}>
-            <Play /> {runCommands.length === 1 ? `Run ${runCommands[0].command}` : 'Run'}
+            <Run /> {runCommands.length === 1 ? `Run ${runCommands[0].command}` : 'Run'}
           </Button>
         ) : (
           <Button variant="outline" onClick={onSetRun}>

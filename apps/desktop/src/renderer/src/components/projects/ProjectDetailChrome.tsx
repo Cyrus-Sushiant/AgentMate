@@ -20,8 +20,8 @@ import {
   MessageSquare,
   Package,
   Pencil,
-  Play,
   Plug,
+  Run,
   TerminalSquare,
   Trash2,
   Wand2,
@@ -266,7 +266,7 @@ export function ProjectDetailHeader({
           <div className="flex shrink-0 items-center gap-2">
             {hasRunCommand ? (
               <Button size="sm" onClick={onRun}>
-                <Play /> Run
+                <Run /> Run
               </Button>
             ) : null}
             <Button variant="outline" size="sm" onClick={onPrompt}>
@@ -284,7 +284,7 @@ export function ProjectDetailHeader({
                 </DropdownMenuItem>
                 {!hasRunCommand ? (
                   <DropdownMenuItem onSelect={onEdit}>
-                    <Play className="h-4 w-4" /> Set a run command
+                    <Run className="h-4 w-4" /> Set a run command
                   </DropdownMenuItem>
                 ) : null}
                 <DropdownMenuItem onSelect={onOpenFolder}>
