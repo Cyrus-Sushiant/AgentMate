@@ -14,6 +14,8 @@ export const queryKeys = {
   skillAudits: ['skill-audits'] as const,
   skillAuditsFor: (skillId: string) => ['skill-audits', skillId] as const,
   skillAuditsLatest: ['skill-audits-latest'] as const,
+  auditSourcePreview: (input: string) => ['audit-source-preview', input] as const,
+  onDiskSkills: (projectId: string) => ['on-disk-skills', projectId] as const,
   skillUpdates: (projectId: string | null) => ['skill-updates', projectId] as const,
   mcpRepositories: ['mcp-repositories'] as const,
   mcpRepositoryIndex: (id: string) => ['mcp-repository-index', id] as const,

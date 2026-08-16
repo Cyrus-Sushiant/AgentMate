@@ -47,6 +47,7 @@ import {
   RefreshCw,
   Save,
   Send,
+  Shield,
   Sparkles,
   Spinner,
   Tag,
@@ -81,6 +82,11 @@ import { ProjectFormDialog, type ProjectFormValues } from '@/components/projects
 import { ProjectPromptDialog } from '@/components/projects/ProjectPromptDialog';
 import { ProjectPromptHistory } from '@/components/projects/ProjectPromptHistory';
 import { useProjectRun } from '@/components/projects/useProjectRun';
+import { SkillAuditVerdictBadge } from '@/components/skills/SkillAuditReport';
+import {
+  SkillSecurityDialog,
+  type SkillSecurityTarget,
+} from '@/components/skills/SkillSecurityDialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -168,6 +174,88 @@ export default function ProjectDetailPage(): React.JSX.Element {
     enabled: !!projectId && (installedSkillsQuery.data?.length ?? 0) > 0,
   });
   const skillUpdateBySkillId = new Map((skillUpdatesQuery.data ?? []).map((u) => [u.skillId, u]));
+
+  // Skills sitting in this project's agent dirs, including any that arrived with the repository
+  // rather than through AgentMate. Those still get read by an agent, so they still get checked.
+  const onDiskSkillsQuery = useQuery({
+    queryKey: queryKeys.onDiskSkills(projectId ?? ''),
+    queryFn: () => window.agentmat.skills.listOnDiskSkills(projectId!),
+    enabled: !!projectId,
+  });
+
+  const latestAuditsQuery = useQuery({
+    queryKey: queryKeys.skillAuditsLatest,
+    queryFn: () => window.agentmat.skills.latestAuditPerSkill(),
+  });
+  const auditBySkillId = useMemo(
+    () => new Map((latestAuditsQuery.data ?? []).map((audit) => [audit.skillId, audit])),
+    [latestAuditsQuery.data],
+  );
+
+  // One row per skill in this project: the installed record when there is one, plus anything
+  // else found on disk. Checking works the same either way.
+  const projectSkillRows = useMemo(() => {
+    const installed = installedSkillsQuery.data ?? [];
+    const onDisk = onDiskSkillsQuery.data ?? [];
+    const recordedNames = new Set(
+      installed.map((skill) => skill.skillId.split('/').pop() ?? skill.skillId),
+    );
+    return onDisk.filter((skill) => !recordedNames.has(skill.name));
+  }, [installedSkillsQuery.data, onDiskSkillsQuery.data]);
+
+  const [securitySubject, setSecuritySubject] = useState<SkillSecurityTarget | null>(null);
+
+  /** Every skill in this project, in the shape the "Check all" run and the dialog both take. */
+  const allProjectSkillSubjects = useMemo((): SkillSecurityTarget[] => {
+    const fromRecords = (installedSkillsQuery.data ?? []).map((skill) => ({
+      skillId: skill.skillId,
+      skillName: skill.skillId.split('/').pop() ?? skill.skillId,
+      target: {
+        kind: 'installed' as const,
+        projectId: projectId ?? null,
+        skillId: skill.skillId,
+      },
+    }));
+    const fromDisk = projectSkillRows.map((skill) => ({
+      skillId: skill.name,
+      skillName: skill.name,
+      target: skill.target,
+    }));
+    return [...fromRecords, ...fromDisk];
+  }, [installedSkillsQuery.data, projectSkillRows, projectId]);
+
+  const checkAllSkillsMutation = useMutation({
+    mutationFn: async (targets: SkillSecurityTarget[]) => {
+      // Sequential on purpose: a static scan is cheap, and a burst of parallel GitHub or disk
+      // reads would only make the progress harder to reason about.
+      const records = [];
+      for (const subject of targets) {
+        const result = await window.agentmat.skills.runAudit({
+          target: subject.target,
+          deepReview: false,
+        });
+        if (result.ok && result.record) records.push(result.record);
+      }
+      return records;
+    },
+    onSuccess: (records) => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.skillAudits });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.skillAuditsLatest });
+      const flagged = records.filter((record) => record.verdict !== 'safe');
+      if (records.length === 0) {
+        toast.error('No skills could be scanned.');
+      } else if (flagged.length === 0) {
+        toast.success(`Checked ${records.length} skills, nothing flagged.`);
+      } else {
+        toast.warning(
+          `Checked ${records.length} skills, ${flagged.length} need a look: ${flagged
+            .map((record) => record.skillName)
+            .join(', ')}.`,
+        );
+      }
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
 
   // Shares its key with the Overview tab's drafts list, so both read one fetch.
   const draftsQuery = useQuery({
@@ -591,13 +679,30 @@ export default function ProjectDetailPage(): React.JSX.Element {
             <div className="space-y-3">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <p className="text-sm text-muted-foreground">Skills installed into this project.</p>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => navigate(`/skills?projectId=${project.id}`)}
-                >
-                  <Blocks /> Browse marketplace
-                </Button>
+                <div className="flex items-center gap-2">
+                  {allProjectSkillSubjects.length > 0 && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={checkAllSkillsMutation.isPending}
+                      onClick={() => checkAllSkillsMutation.mutate(allProjectSkillSubjects)}
+                    >
+                      {checkAllSkillsMutation.isPending ? (
+                        <Spinner className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <Shield />
+                      )}
+                      Check all ({allProjectSkillSubjects.length})
+                    </Button>
+                  )}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => navigate(`/skills?projectId=${project.id}`)}
+                  >
+                    <Blocks /> Browse marketplace
+                  </Button>
+                </div>
               </div>
               {installedSkillsQuery.data?.length === 0 ? (
                 <ProjectEmptyState
@@ -625,9 +730,37 @@ export default function ProjectDetailPage(): React.JSX.Element {
                       >
                         <div className="min-w-0 space-y-1">
                           <p className="truncate font-medium">{skill.skillId}</p>
-                          <p className="text-xs text-muted-foreground">v{skill.version}</p>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <p className="text-xs text-muted-foreground">v{skill.version}</p>
+                            {auditBySkillId.has(skill.skillId) && (
+                              <SkillAuditVerdictBadge
+                                verdict={auditBySkillId.get(skill.skillId)!.verdict}
+                                score={auditBySkillId.get(skill.skillId)!.score}
+                              />
+                            )}
+                          </div>
                         </div>
                         <div className="flex shrink-0 items-center gap-1">
+                          <SimpleTooltip label={`Check ${skill.skillId} for unsafe instructions`}>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              aria-label={`Check ${skill.skillId}`}
+                              onClick={() =>
+                                setSecuritySubject({
+                                  skillId: skill.skillId,
+                                  skillName: skill.skillId.split('/').pop() ?? skill.skillId,
+                                  target: {
+                                    kind: 'installed',
+                                    projectId: project.id,
+                                    skillId: skill.skillId,
+                                  },
+                                })
+                              }
+                            >
+                              <Shield className="h-4 w-4" />
+                            </Button>
+                          </SimpleTooltip>
                           {update?.hasUpdate && (
                             <>
                               <Badge variant="warning">v{update.latestVersion} available</Badge>
@@ -664,6 +797,56 @@ export default function ProjectDetailPage(): React.JSX.Element {
                             </Button>
                           </SimpleTooltip>
                         </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {projectSkillRows.length > 0 && (
+                <div className="space-y-2 border-t border-border pt-3">
+                  <div className="space-y-0.5">
+                    <p className="text-sm font-medium text-foreground">Also in this project</p>
+                    <p className="text-xs text-muted-foreground">
+                      Skills found in this project's agent folders that AgentMate did not install,
+                      for example ones that came with the repository. Agents read these too.
+                    </p>
+                  </div>
+                  {projectSkillRows.map((skill) => {
+                    const audit = auditBySkillId.get(skill.name);
+                    return (
+                      <div
+                        key={skill.location}
+                        className="flex items-center justify-between gap-3 rounded-lg border border-border bg-card px-3 py-2.5 text-sm"
+                      >
+                        <div className="min-w-0 space-y-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="truncate font-medium">{skill.name}</span>
+                            {audit && (
+                              <SkillAuditVerdictBadge
+                                verdict={audit.verdict}
+                                score={audit.score}
+                              />
+                            )}
+                          </div>
+                          <p className="truncate font-mono text-xs text-muted-foreground">
+                            {skill.location}
+                          </p>
+                        </div>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="shrink-0"
+                          onClick={() =>
+                            setSecuritySubject({
+                              skillId: skill.name,
+                              skillName: skill.name,
+                              target: skill.target,
+                            })
+                          }
+                        >
+                          <Shield /> Check
+                        </Button>
                       </div>
                     );
                   })}
@@ -800,6 +983,13 @@ export default function ProjectDetailPage(): React.JSX.Element {
         initial={project}
         onSubmit={(values) => updateMutation.mutate(values)}
         isSubmitting={updateMutation.isPending}
+      />
+
+      <SkillSecurityDialog
+        subject={securitySubject}
+        onOpenChange={(open) => {
+          if (!open) setSecuritySubject(null);
+        }}
       />
       {runPicker}
     </div>

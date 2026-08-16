@@ -199,16 +199,39 @@ export interface InstallFromSkillsShInput {
 }
 
 /** Where the files a security audit read came from. */
-export type SkillAuditSourceKind = 'repository' | 'installed' | 'github';
+export type SkillAuditSourceKind = 'repository' | 'installed' | 'github' | 'folder';
 
 /**
- * What to audit. A repository skill is read from its index, an installed one straight off disk,
- * and a skills.sh entry from the GitHub repo that publishes it (nothing is installed to scan it).
+ * What to audit. A repository skill is read from its index and an installed one straight off
+ * disk; the last three need nothing added to AgentMate at all, so any folder or GitHub address
+ * can be checked before it is trusted.
  */
 export type SkillAuditTarget =
   | { kind: 'repository'; repositoryId: string; skillId: string }
   | { kind: 'installed'; projectId: string | null; skillId: string }
-  | { kind: 'github'; repo: string; skillName: string };
+  | { kind: 'github'; repo: string; skillName: string }
+  /** A folder (or a single .md file) anywhere on disk. */
+  | { kind: 'folder'; path: string }
+  /** An exact directory inside a GitHub repository, at a given branch, tag, or commit. */
+  | { kind: 'githubPath'; repo: string; ref: string; path: string; skillName: string };
+
+/** One skill found at a pasted location, ready to be checked. */
+export interface AuditSourceSkill {
+  name: string;
+  /** Where it sits inside the source, so two skills with the same name can be told apart. */
+  location: string;
+  target: SkillAuditTarget;
+}
+
+/** What a typed or pasted path/URL turned out to contain, shown before anything is scanned. */
+export interface AuditSourcePreview {
+  kind: SkillAuditSourceKind | null;
+  /** Folder path or `owner/repo@ref`, so the user can see what was understood. */
+  label: string;
+  skills: AuditSourceSkill[];
+  /** Why nothing can be scanned there, or null. */
+  error: string | null;
+}
 
 export interface RunSkillAuditInput {
   target: SkillAuditTarget;

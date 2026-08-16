@@ -10,6 +10,7 @@ export * from './git/remoteUrl.js';
 export * from './skills/types.js';
 export * from './skills/installPaths.js';
 export * from './skills/securityAudit.js';
+export * from './skills/skillSource.js';
 export * from './skills/skillsSh.js';
 export * from './skills/uiUxProMax.js';
 export * from './mcp/types.js';

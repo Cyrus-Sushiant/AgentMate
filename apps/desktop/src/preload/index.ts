@@ -54,6 +54,8 @@ import type {
   InstallFromSkillsShInput,
   UiProPrerequisites,
   RecordUiProInstallInput,
+  AuditSourcePreview,
+  AuditSourceSkill,
   RunSkillAuditInput,
   RunSkillAuditResult,
   SkillAuditRecord,
@@ -266,6 +268,12 @@ const skills = {
   /** Stops the CLI review half of an audit started with the same requestId. */
   cancelAudit: (requestId: string): Promise<boolean> =>
     ipcRenderer.invoke(IPC.skills.cancelAudit, requestId),
+  /** Lists the skills at a folder path or GitHub address, so either can be checked ad hoc. */
+  previewAuditSource: (input: string): Promise<AuditSourcePreview> =>
+    ipcRenderer.invoke(IPC.skills.previewAuditSource, input),
+  /** Skills present in a project's (or the global) skills dirs, installed by AgentMate or not. */
+  listOnDiskSkills: (projectId: string | null): Promise<AuditSourceSkill[]> =>
+    ipcRenderer.invoke(IPC.skills.listOnDiskSkills, projectId),
   listAudits: (options?: { skillId?: string | null; limit?: number }): Promise<SkillAuditRecord[]> =>
     ipcRenderer.invoke(IPC.skills.listAudits, options ?? {}),
   latestAuditPerSkill: (): Promise<SkillAuditRecord[]> =>

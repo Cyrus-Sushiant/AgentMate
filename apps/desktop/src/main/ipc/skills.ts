@@ -10,6 +10,7 @@ import {
   isUiProAiTarget,
   KNOWN_AGENT_DIRS,
   parseRepositoryIndex,
+  parseSkillSourceInput,
   resolveProjectSkillInstallDirs,
   SKILLS_SH_PSEUDO_REPOSITORY_ID,
   SKILLS_SH_VERIFIED_OWNERS,
@@ -26,6 +27,8 @@ import type {
 import { IPC } from '../../shared/ipcChannels';
 import type { SkillAuditFileInput } from '@agentmat/core';
 import type {
+  AuditSourcePreview,
+  AuditSourceSkill,
   InstallFromSkillsShInput,
   InstalledSkillRecord,
   LocalSkillFolderPreview,
@@ -44,9 +47,13 @@ import type {
 import { cancelHeadlessPrompt } from '../cli/headlessPrompt';
 import { skillAuditDb } from '../skillAuditDb';
 import {
+  fetchGithubPathFiles,
   fetchGithubSkillFiles,
+  findGithubSkills,
+  findLocalSkills,
   isScannableFile,
   readSkillDirFiles,
+  readSkillPathFiles,
   runSkillAudit,
 } from '../skills/auditRunner';
 import { scanSkillFolder } from '../skills/localFolderIndex';
@@ -378,17 +385,7 @@ async function collectInstalledSkill(
   // A global install can land in any agent's own dir (`skills add --global` writes one per
   // assistant), so the audit looks wider than install/remove do rather than reporting a skill
   // as missing just because it is not the Claude Code copy.
-  const globalParents =
-    projectId === null
-      ? KNOWN_AGENT_DIRS.map((agentDir) => join(app.getPath('home'), agentDir, 'skills'))
-      : [];
-  const candidateParents = [
-    ...new Set([
-      ...(await resolveSkillInstallDirs(scope)),
-      ...resolveSkillRemoveDirs(scope),
-      ...globalParents,
-    ]),
-  ];
+  const candidateParents = await skillParentDirs(scope, projectId);
   const folderNames = [...new Set([skillId, skillId.split('/').pop() ?? skillId])];
 
   for (const parent of candidateParents) {
@@ -420,6 +417,37 @@ async function collectAuditSubject(target: SkillAuditTarget): Promise<AuditSubje
     return collectInstalledSkill(target.projectId, target.skillId);
   }
 
+  // A folder anywhere on disk: nothing is added to AgentMate, the files are just read where
+  // they are. The skill id is the path, so re-checking the same folder builds one history.
+  if (target.kind === 'folder') {
+    const files = await readSkillPathFiles(target.path);
+    if (files.length === 0) throw new Error(`Nothing to scan in ${target.path}.`);
+    return {
+      skillId: target.path,
+      skillName: basename(target.path).replace(/\.md$/i, ''),
+      sourceKind: 'folder',
+      sourceLabel: target.path,
+      projectId: null,
+      files,
+      cwd: (await directoryExists(target.path)) ? target.path : dirname(target.path),
+    };
+  }
+
+  if (target.kind === 'githubPath') {
+    if (!GITHUB_REPO_PATTERN.test(target.repo)) {
+      throw new Error(`Invalid repository: ${target.repo}`);
+    }
+    return {
+      skillId: `${target.repo}/${target.path || target.skillName}`,
+      skillName: target.skillName,
+      sourceKind: 'github',
+      sourceLabel: `${target.repo}${target.ref === 'HEAD' ? '' : `@${target.ref}`}${target.path ? `/${target.path}` : ''}`,
+      projectId: null,
+      files: await fetchGithubPathFiles(target.repo, target.ref, target.path),
+      cwd: app.getPath('userData'),
+    };
+  }
+
   if (!GITHUB_REPO_PATTERN.test(target.repo)) throw new Error(`Invalid repository: ${target.repo}`);
   if (!SKILL_NAME_PATTERN.test(target.skillName)) {
     throw new Error(`Invalid skill name: ${target.skillName}`);
@@ -433,6 +461,161 @@ async function collectAuditSubject(target: SkillAuditTarget): Promise<AuditSubje
     files: await fetchGithubSkillFiles(target.repo, target.skillName),
     cwd: app.getPath('userData'),
   };
+}
+
+/** Every skills dir a scope could be using, which is what an on-disk listing has to look through. */
+async function skillParentDirs(scope: SkillScope, projectId: string | null): Promise<string[]> {
+  const globalParents =
+    projectId === null
+      ? KNOWN_AGENT_DIRS.map((agentDir) => join(app.getPath('home'), agentDir, 'skills'))
+      : [];
+  return [
+    ...new Set([
+      ...(await resolveSkillInstallDirs(scope)),
+      ...resolveSkillRemoveDirs(scope),
+      ...globalParents,
+    ]),
+  ];
+}
+
+/**
+ * Lists the skills actually sitting in a project's agent dirs, whether or not AgentMate installed
+ * them. A cloned repository arrives with `.claude/skills/…` already populated and no record of it
+ * here, and those are exactly the skills worth checking before an agent reads them.
+ */
+async function listOnDiskSkills(projectId: string | null): Promise<AuditSourceSkill[]> {
+  const scope = await resolveSkillScope(projectId);
+  const parents = await skillParentDirs(scope, projectId);
+
+  const found: AuditSourceSkill[] = [];
+  const seenLocations = new Set<string>();
+
+  for (const parent of parents) {
+    if (!(await directoryExists(parent))) continue;
+    for (const skill of await findLocalSkills(parent)) {
+      if (seenLocations.has(skill.location)) continue;
+      seenLocations.add(skill.location);
+      const isDirectory = await directoryExists(skill.location);
+      found.push({
+        name: skill.name,
+        location: skill.location,
+        // A folder under a skills dir is addressable by name, which keeps its history lined up
+        // with the same skill's installed record. A loose .md file is only addressable by path.
+        target: isDirectory
+          ? { kind: 'installed', projectId, skillId: skill.name }
+          : { kind: 'folder', path: skill.location },
+      });
+    }
+  }
+
+  return found.sort((a, b) => a.name.localeCompare(b.name));
+}
+
+/** Expands a leading `~`, since people paste `~/skills/foo` as often as an absolute path. */
+function expandHome(path: string): string {
+  if (path === '~') return app.getPath('home');
+  if (path.startsWith('~/') || path.startsWith('~\\')) {
+    return join(app.getPath('home'), path.slice(2));
+  }
+  return path;
+}
+
+async function pathExists(path: string): Promise<boolean> {
+  return stat(path)
+    .then(() => true)
+    .catch(() => false);
+}
+
+/**
+ * Reports what a typed or pasted location holds, without adding a repository, installing
+ * anything, or downloading a skill's files. This is what makes an ad-hoc check possible: the
+ * preview lists what is there, and each entry carries the target that would scan it.
+ */
+async function previewAuditSource(rawInput: string): Promise<AuditSourcePreview> {
+  const input = rawInput.trim();
+  if (!input) return { kind: null, label: '', skills: [], error: null };
+
+  const parsed = parseSkillSourceInput(input);
+  if (!parsed) {
+    return {
+      kind: null,
+      label: input,
+      skills: [],
+      error:
+        'Not a folder path or a GitHub address. Paste a folder, a github.com link, "owner/repo", or a skills.sh page.',
+    };
+  }
+
+  if (parsed.kind === 'local') {
+    const path = expandHome(parsed.path);
+    if (!(await pathExists(path))) {
+      return { kind: 'folder', label: path, skills: [], error: 'That path does not exist.' };
+    }
+
+    // A path that names a file is one skill on its own, so it needs no browsing.
+    if (!(await directoryExists(path))) {
+      return {
+        kind: 'folder',
+        label: path,
+        skills: [
+          {
+            name: basename(path).replace(/\.md$/i, ''),
+            location: path,
+            target: { kind: 'folder', path },
+          },
+        ],
+        error: null,
+      };
+    }
+
+    const found = await findLocalSkills(path);
+    return {
+      kind: 'folder',
+      label: path,
+      skills: found.map((skill) => ({
+        name: skill.name,
+        location: skill.location === path ? basename(path) : skill.location.slice(path.length + 1),
+        target: { kind: 'folder', path: skill.location },
+      })),
+      error:
+        found.length === 0
+          ? 'No skill in this folder. A skill is a folder with a SKILL.md inside it, or a .md file.'
+          : null,
+    };
+  }
+
+  if (!GITHUB_REPO_PATTERN.test(parsed.repo)) {
+    return { kind: 'github', label: parsed.repo, skills: [], error: 'Invalid repository name.' };
+  }
+
+  const label = `${parsed.repo}${parsed.ref === 'HEAD' ? '' : `@${parsed.ref}`}${parsed.path ? `/${parsed.path}` : ''}`;
+  try {
+    const found = await findGithubSkills(parsed.repo, parsed.ref, parsed.path);
+    // A link that named one skill (a skills.sh page, a `--skill` flag) shows just that one,
+    // as long as the repository still has it.
+    const named = parsed.skillName?.toLowerCase();
+    const matching = named ? found.filter((s) => s.name.toLowerCase() === named) : found;
+    const skills = matching.length > 0 ? matching : found;
+
+    return {
+      kind: 'github',
+      label,
+      skills: skills.map((skill) => ({
+        name: skill.name,
+        location: skill.location || '(repository root)',
+        target: {
+          kind: 'githubPath',
+          repo: parsed.repo,
+          ref: parsed.ref,
+          path: skill.location,
+          skillName: skill.name,
+        },
+      })),
+      error: skills.length === 0 ? 'No skill found at that address.' : null,
+    };
+  } catch (error) {
+    return { kind: 'github', label, skills: [], error: (error as Error).message };
+  }
 }
 
 export function registerSkillHandlers(): void {
@@ -851,6 +1034,16 @@ export function registerSkillHandlers(): void {
 
   ipcMain.handle(IPC.skills.cancelAudit, (_event, requestId: string): boolean =>
     cancelHeadlessPrompt(requestId),
+  );
+
+  ipcMain.handle(
+    IPC.skills.previewAuditSource,
+    (_event, input: string): Promise<AuditSourcePreview> => previewAuditSource(input),
+  );
+
+  ipcMain.handle(
+    IPC.skills.listOnDiskSkills,
+    (_event, projectId: string | null): Promise<AuditSourceSkill[]> => listOnDiskSkills(projectId),
   );
 
   ipcMain.handle(

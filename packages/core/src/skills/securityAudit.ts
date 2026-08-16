@@ -193,8 +193,10 @@ const SKILL_AUDIT_RULES: SkillAuditRule[] = [
     title: 'Asks the agent to hide what it is doing',
     detail:
       'Instructions to act without telling the user are how an injected payload stays unnoticed.',
+    // Only verbs about disclosure. "Don't ask the user" and "don't warn the user" are ordinary
+    // instructions about staying out of the way, not about hiding what happened.
     pattern:
-      /\b(do\s+not|don'?t|never)\b[^\n]{0,30}\b(tell|inform|mention|show|reveal|notify|warn|ask)\b[^\n]{0,25}\b(the\s+)?(user|human|operator)/i,
+      /\b(do\s+not|don'?t|never|without)\b[^\n]{0,30}\b(tell|telling|inform|informing|mention|mentioning|reveal|revealing|disclose|disclosing|notify|notifying)\b[^\n]{0,25}\b(the\s+)?(user|human|operator)/i,
   },
   {
     id: 'pi-comment-directive',
@@ -224,7 +226,10 @@ const SKILL_AUDIT_RULES: SkillAuditRule[] = [
     severity: 'critical',
     title: 'Pipes local output straight to the network',
     detail: 'Anything produced on the left of the pipe leaves the machine.',
-    pattern: /\|\s*(curl|wget|nc|ncat|netcat|telnet)\b/i,
+    // The piped command has to take an argument, so a markdown table cell reading `| cURL |`
+    // is not mistaken for a shell pipeline.
+    pattern: /\|\s*(curl|wget|nc|ncat|netcat|telnet)\s+[^\s|]/i,
+    unless: /^\s*\|.*\|\s*$/,
   },
   {
     id: 'ex-post-body',
@@ -321,9 +326,10 @@ const SKILL_AUDIT_RULES: SkillAuditRule[] = [
   {
     id: 'cred-secret-vars',
     category: 'credential-theft',
-    severity: 'medium',
+    severity: 'low',
     title: 'Reaches for secret-shaped environment variables',
-    detail: 'Reading token/key/password variables is only normal when the skill needs that one key.',
+    detail:
+      'Normal when the skill needs that one key for its own API. It matters when it sits next to something that sends data out.',
     pattern:
       /(process\.env|os\.environ|getenv|\$env:|\$\{?)[[(.]?\s*['"]?[A-Z0-9_]*(TOKEN|SECRET|PASSWORD|PASSWD|API[_-]?KEY|ACCESS[_-]?KEY|PRIVATE[_-]?KEY|CREDENTIAL)/,
   },
@@ -437,10 +443,10 @@ const SKILL_AUDIT_RULES: SkillAuditRule[] = [
   {
     id: 'sc-global-install',
     category: 'supply-chain',
-    severity: 'medium',
+    severity: 'low',
     title: 'Installs a package globally',
     detail:
-      'A global install changes tools outside the project and outlives whatever the skill was asked to do.',
+      'Routine in setup steps, but it does change tools outside the project and outlives whatever the skill was asked to do.',
     pattern: /\b(npm|pnpm|yarn|bun)\s+(i|add|install)\b[^\n]{0,40}(-g\b|--global\b)/i,
   },
   {
@@ -496,7 +502,9 @@ const SKILL_AUDIT_RULES: SkillAuditRule[] = [
     title: 'Evaluates a string as code',
     detail:
       'eval and its relatives turn any text the skill can reach, including model output, into running code.',
-    pattern: /\b(eval|exec)\s*\(|\bnew\s+Function\s*\(|\bFunction\s*\(\s*['"`]/,
+    // `exec` only counts as a bare call: `pattern.exec(text)` is a regex match, not execution.
+    // `child_process.exec` is covered by the shell-spawning rule instead.
+    pattern: /\beval\s*\(|(?<![.\w])exec\s*\(|\bnew\s+Function\s*\(|\bFunction\s*\(\s*['"`]/,
   },
   {
     id: 'rce-shell-true',
@@ -626,8 +634,10 @@ const SKILL_AUDIT_RULES: SkillAuditRule[] = [
     severity: 'high',
     title: 'Asks the agent to remember an instruction permanently',
     detail: 'Instructions meant to outlive the task are how one bad skill contaminates every project.',
+    // What must persist has to be an instruction. Plenty of skills legitimately describe saving
+    // state, context, or documents across sessions, and that is not memory poisoning.
     pattern:
-      /\b(remember|store|persist|save|keep)\b[^\n]{0,40}\b(for\s+(all\s+)?(future|later|every)|permanently|in\s+(your\s+)?memory|across\s+sessions|from\s+now\s+on)/i,
+      /\b(remember|store|persist|save|keep|apply)\b[^\n]{0,40}\b(instruction|rule|directive|prompt|command|guideline)s?\b[^\n]{0,40}\b(for\s+(all\s+)?(future|later|every)|permanently|in\s+(your\s+)?memory|across\s+sessions|from\s+now\s+on|every\s+(session|conversation|project))/i,
   },
   {
     id: 'mem-every-response',
@@ -647,8 +657,10 @@ const SKILL_AUDIT_RULES: SkillAuditRule[] = [
     title: 'Tells the agent to skip validation or escaping',
     detail:
       'Output that reaches a shell, a page, or a query without escaping is where injection lands.',
+    // Something concrete has to be going unescaped. A CLI flag that skips escaping, or a step
+    // that skips a review, is a feature description rather than an instruction to be unsafe.
     pattern:
-      /\b(no\s+need\s+to|do\s+not|don'?t|skip|without)\b[^\n]{0,25}\b(sanitiz|escap|validat|verify|check|review)/i,
+      /\b(no\s+need\s+to|do\s+not|don'?t|skip|without)\b[^\n]{0,25}\b(sanitiz\w*|escap\w*|validat\w*)\b[^\n]{0,30}\b(input|output|user|content|html|sql|query|command|argument|param\w*|data|response)\b/i,
   },
   {
     id: 'uo-execute-response',
@@ -663,19 +675,21 @@ const SKILL_AUDIT_RULES: SkillAuditRule[] = [
   {
     id: 'uo-inner-html',
     category: 'unsafe-output',
-    severity: 'medium',
+    severity: 'low',
     title: 'Writes unescaped content into the DOM',
-    detail: 'innerHTML and document.write turn any interpolated text into markup that runs.',
+    detail:
+      'innerHTML and document.write turn any interpolated text into markup that runs. Common in a skill’s own local page, worth checking when the content comes from elsewhere.',
     pattern: /(dangerouslySetInnerHTML|\.innerHTML\s*=|document\.write\s*\(|v-html\s*=)/,
   },
   {
     id: 'uo-string-sql',
     category: 'unsafe-output',
     severity: 'medium',
-    title: 'Builds a query or command by string concatenation',
-    detail: 'Interpolating values into SQL or a shell line is the textbook injection path.',
+    title: 'Builds a query by string concatenation',
+    detail: 'Interpolating values into SQL is the textbook injection path.',
+    // Real statement shapes only, so a JS call like `deleteRow(${idx})` is not read as SQL.
     pattern:
-      /(SELECT|INSERT|UPDATE|DELETE|DROP)\b[^\n]{0,60}(\$\{|\+\s*[a-z_]\w*\s*\+|%s['"]?\s*%|f["'][^"']*\{)/i,
+      /\b(SELECT\s+[\w*][^\n]{0,60}\bFROM\b|INSERT\s+INTO\s+\w+|UPDATE\s+\w+\s+SET\b|DELETE\s+FROM\s+\w+|DROP\s+TABLE\s+\w+)[^\n]{0,60}(\$\{|\+\s*[a-z_]\w*\s*\+|%s['"]?\s*%|f["'][^"']*\{)/i,
   },
 
   // Dark-pattern payment funnels
@@ -784,11 +798,22 @@ const SKILL_AUDIT_RULES: SkillAuditRule[] = [
 
   // Destructive actions
   {
-    id: 'des-recursive-delete',
+    id: 'des-recursive-delete-wide',
     category: 'destructive-action',
     severity: 'critical',
+    title: 'Recursively deletes a home, root, or variable path',
+    detail:
+      'A recursive delete aimed at a home directory, an absolute path, a wildcard, or a variable takes far more than a build folder with it, and an empty variable takes everything.',
+    pattern:
+      /(rm\s+-[a-z]*[rf][a-z]*\s+|Remove-Item[^\n]{0,60}-Recurse[^\n]{0,30})["']?(~|\/[a-z]*\s|\$\{?\w|%\w+%|\*|[A-Za-z]:[\\/])/i,
+  },
+  {
+    id: 'des-recursive-delete',
+    category: 'destructive-action',
+    severity: 'low',
     title: 'Recursively deletes files',
-    detail: 'A wrong path or an empty variable here wipes more than the skill intended.',
+    detail:
+      'Usually a build folder being cleaned, which is routine. Worth a glance at what the path actually is.',
     pattern:
       /(rm\s+-[a-z]*r[a-z]*f|rm\s+-[a-z]*f[a-z]*r|Remove-Item[^\n]{0,60}-Recurse[^\n]{0,20}-Force|\bdel\s+\/[sqf]\b|rmdir\s+\/s)/i,
   },

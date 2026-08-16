@@ -68,6 +68,10 @@ export const IPC = {
     // Security audit
     runAudit: 'skills:runAudit',
     cancelAudit: 'skills:cancelAudit',
+    /** Reports what a pasted folder path or GitHub address holds, before anything is scanned. */
+    previewAuditSource: 'skills:previewAuditSource',
+    /** Skills sitting in a scope's agent dirs, whether or not AgentMate installed them. */
+    listOnDiskSkills: 'skills:listOnDiskSkills',
     listAudits: 'skills:listAudits',
     latestAuditPerSkill: 'skills:latestAuditPerSkill',
     getAudit: 'skills:getAudit',

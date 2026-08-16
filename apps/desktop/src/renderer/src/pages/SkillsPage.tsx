@@ -28,6 +28,7 @@ import {
   Sparkles,
   Trash2,
 } from '@/components/icons';
+import { AdHocSkillScanner } from '@/components/skills/AdHocSkillScanner';
 import {
   SkillAuditReport,
   SkillAuditVerdictBadge,
@@ -79,7 +80,8 @@ type SkillsTab = 'directory' | 'featured' | 'marketplace' | 'security';
 const AUDIT_SOURCE_LABEL: Record<SkillAuditRecord['sourceKind'], string> = {
   repository: 'Repository',
   installed: 'Installed',
-  github: 'skills.sh',
+  github: 'GitHub',
+  folder: 'Local folder',
 };
 
 /** How many skill cards to mount at once. Rendering the full bundled catalog (~1k glass cards)
@@ -1077,11 +1079,13 @@ export default function SkillsPage(): React.JSX.Element {
         </TabsContent>
 
         <TabsContent value="security" className="mt-0 space-y-6">
+          <AdHocSkillScanner auditBySkillId={auditBySkillId} onCheck={setSecuritySubject} />
+
           <div className="space-y-3">
             <p className="text-sm text-muted-foreground">
               A skill is instructions an agent reads and acts on, so its text is as powerful as
-              code. Use the shield button on any skill card to read its files and check them
-              against these patterns, before or after installing. Every check is kept here.
+              code. Anything checked above, or with the shield button on a skill card, is read
+              against these patterns. Every check is kept here.
             </p>
             <div className="grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-3">
               {SKILL_RISK_CATEGORIES.map((category) => (

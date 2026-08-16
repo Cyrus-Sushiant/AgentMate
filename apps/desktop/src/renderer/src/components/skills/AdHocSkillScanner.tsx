@@ -1,0 +1,268 @@
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useEffect, useState } from 'react';
+import { toast } from 'sonner';
+import { FolderOpen, Globe, Search, Shield, Spinner } from '@/components/icons';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { SimpleTooltip } from '@/components/ui/tooltip';
+import { queryKeys } from '@/lib/queryKeys';
+import type { AuditSourceSkill, SkillAuditRecord } from '../../../../shared/apiTypes';
+import { SkillAuditVerdictBadge } from './SkillAuditReport';
+import type { SkillSecurityTarget } from './SkillSecurityDialog';
+
+/**
+ * Checks a skill that AgentMate knows nothing about: a folder on disk, or a GitHub address.
+ * Nothing is added as a repository and nothing is installed, which is the point. The location is
+ * browsed first so a repository holding twenty skills lists them instead of guessing at one.
+ */
+export function AdHocSkillScanner({
+  auditBySkillId,
+  onCheck,
+}: {
+  /** Last verdict per skill id, so a location already checked says so before it is checked again. */
+  auditBySkillId: Map<string, SkillAuditRecord>;
+  onCheck: (subject: SkillSecurityTarget) => void;
+}): React.JSX.Element {
+  const queryClient = useQueryClient();
+  const [input, setInput] = useState('');
+  const [debouncedInput, setDebouncedInput] = useState('');
+  /** Results from a "Check all" run, so verdicts appear as each skill finishes. */
+  const [batchResults, setBatchResults] = useState<Map<string, SkillAuditRecord>>(new Map());
+  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedInput(input.trim()), 400);
+    return () => clearTimeout(timer);
+  }, [input]);
+
+  // A new location starts with a clean slate rather than the last one's verdicts.
+  useEffect(() => {
+    setBatchResults(new Map());
+  }, [debouncedInput]);
+
+  const previewQuery = useQuery({
+    queryKey: queryKeys.auditSourcePreview(debouncedInput),
+    queryFn: () => window.agentmat.skills.previewAuditSource(debouncedInput),
+    enabled: debouncedInput.length > 0,
+    // Browsing a repository is a network call, so do not repeat it on every focus change.
+    staleTime: 60_000,
+  });
+
+  const preview = previewQuery.data;
+  const settled = debouncedInput === input.trim() && !previewQuery.isFetching;
+
+  /**
+   * Checks every skill at this location in one go, so a repository of twenty does not need
+   * twenty clicks. Static scan only: it is fast and needs no CLI. A single skill can still be
+   * opened for a deep review afterwards.
+   */
+  const checkAllMutation = useMutation({
+    mutationFn: async (skills: AuditSourceSkill[]) => {
+      const records: SkillAuditRecord[] = [];
+      const failed: string[] = [];
+      setProgress({ done: 0, total: skills.length });
+
+      // Sequential: a GitHub location means one download per skill, and hammering the API in
+      // parallel is the fastest way to get rate-limited halfway through.
+      for (const skill of skills) {
+        const result = await window.agentmat.skills.runAudit({
+          target: skill.target,
+          deepReview: false,
+        });
+        if (result.ok && result.record) {
+          const record = result.record;
+          records.push(record);
+          setBatchResults((prev) => new Map(prev).set(record.skillId, record));
+        } else {
+          failed.push(skill.name);
+        }
+        setProgress((prev) => (prev ? { ...prev, done: prev.done + 1 } : prev));
+      }
+      return { records, failed };
+    },
+    onSettled: () => setProgress(null),
+    onSuccess: ({ records, failed }) => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.skillAudits });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.skillAuditsLatest });
+
+      const flagged = records.filter((record) => record.verdict !== 'safe');
+      if (records.length === 0) {
+        toast.error('None of those skills could be scanned.');
+      } else if (flagged.length > 0) {
+        toast.warning(
+          `Checked ${records.length} skills, ${flagged.length} need a look: ${flagged
+            .map((record) => record.skillName)
+            .join(', ')}.`,
+        );
+      } else {
+        toast.success(`Checked ${records.length} skills, nothing flagged.`);
+      }
+      if (failed.length > 0) {
+        toast.error(`Could not scan ${failed.length}: ${failed.slice(0, 5).join(', ')}.`);
+      }
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  const checkingAll = checkAllMutation.isPending;
+
+  async function handleBrowse(): Promise<void> {
+    const picked = await window.agentmat.skills.pickLocalRepository(input.trim() || null);
+    if (picked) {
+      setInput(picked);
+      setDebouncedInput(picked);
+    }
+  }
+
+  return (
+    <div className="space-y-3 rounded-lg border border-border bg-card/60 px-4 py-4">
+      <div className="space-y-1">
+        <p className="text-sm font-medium text-foreground">Check any skill</p>
+        <p className="text-xs text-muted-foreground">
+          A folder on this machine or a skill published on GitHub. It does not have to be
+          installed, and it does not have to be added as a repository.
+        </p>
+      </div>
+
+      <div className="space-y-1.5">
+        <Label>Folder path or GitHub address</Label>
+        <div className="flex gap-2">
+          <div className="relative flex-1">
+            <Search className="pointer-events-none absolute left-2.5 top-2.5 z-10 h-4 w-4 text-muted-foreground" />
+            <Input
+              className="pl-8 font-mono text-xs"
+              spellCheck={false}
+              placeholder="C:\skills\my-skill · github.com/owner/repo/tree/main/skills/foo · owner/repo · skills.sh/owner/repo/name"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onPaste={(e) => {
+                // Explorer copies paths wrapped in quotes, and the preview should not wait for
+                // the debounce when a whole location arrives at once.
+                const pasted = e.clipboardData.getData('text').trim().replace(/^"|"$/g, '');
+                if (!pasted) return;
+                e.preventDefault();
+                setInput(pasted);
+                setDebouncedInput(pasted);
+              }}
+            />
+          </div>
+          <SimpleTooltip label="Browse for a folder">
+            <Button type="button" variant="outline" size="icon" onClick={() => void handleBrowse()}>
+              <FolderOpen className="h-4 w-4" />
+            </Button>
+          </SimpleTooltip>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          A GitHub link can point at the repository, a branch, or the skill's own folder. Pasting a
+          whole "npx skills add …" command works too.
+        </p>
+      </div>
+
+      {!settled && debouncedInput.length > 0 && (
+        <p className="flex items-center gap-2 text-xs text-muted-foreground">
+          <Spinner className="h-3.5 w-3.5 animate-spin" />
+          {preview?.kind === 'github' || /github|skills\.sh|^[\w.-]+\/[\w.-]+$/i.test(debouncedInput)
+            ? 'Reading the repository…'
+            : 'Looking at that location…'}
+        </p>
+      )}
+
+      {settled && previewQuery.isError && (
+        <p className="text-xs text-destructive">{(previewQuery.error as Error).message}</p>
+      )}
+
+      {settled && preview?.error && <p className="text-xs text-destructive">{preview.error}</p>}
+
+      {settled && preview && preview.skills.length > 0 && (
+        <div className="space-y-2">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex min-w-0 flex-wrap items-center gap-2 text-xs text-muted-foreground">
+              <Badge variant="outline" className="gap-1">
+                {preview.kind === 'github' ? (
+                  <Globe className="h-3 w-3" />
+                ) : (
+                  <FolderOpen className="h-3 w-3" />
+                )}
+                {preview.kind === 'github' ? 'GitHub' : 'Local folder'}
+              </Badge>
+              <span className="truncate font-mono">{preview.label}</span>
+              <span>·</span>
+              <span>
+                {preview.skills.length} skill{preview.skills.length === 1 ? '' : 's'} found
+              </span>
+            </div>
+            <Button
+              size="sm"
+              className="shrink-0"
+              disabled={checkingAll}
+              onClick={() => checkAllMutation.mutate(preview.skills)}
+            >
+              {checkingAll ? (
+                <>
+                  <Spinner className="h-3.5 w-3.5 animate-spin" />
+                  {progress ? `Checking ${progress.done + 1} of ${progress.total}…` : 'Checking…'}
+                </>
+              ) : (
+                <>
+                  <Shield /> Check all ({preview.skills.length})
+                </>
+              )}
+            </Button>
+          </div>
+
+          <div className="max-h-72 space-y-1.5 overflow-y-auto">
+            {preview.skills.map((skill) => {
+              const skillId =
+                skill.target.kind === 'folder'
+                  ? skill.target.path
+                  : skill.target.kind === 'githubPath'
+                    ? `${skill.target.repo}/${skill.target.path || skill.target.skillName}`
+                    : skill.name;
+              // A verdict from the run in progress wins over the last stored one.
+              const audit = batchResults.get(skillId) ?? auditBySkillId.get(skillId);
+              return (
+                <div
+                  key={`${skill.name}:${skill.location}`}
+                  className="flex items-center justify-between gap-2 rounded-lg border border-border bg-card px-3 py-2"
+                >
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-sm font-medium text-foreground">{skill.name}</span>
+                      {audit && (
+                        <SkillAuditVerdictBadge verdict={audit.verdict} score={audit.score} />
+                      )}
+                    </div>
+                    <p className="truncate font-mono text-xs text-muted-foreground">
+                      {skill.location}
+                    </p>
+                  </div>
+                  <SimpleTooltip
+                    label={
+                      audit
+                        ? 'Open this check, or run it again with a CLI review'
+                        : 'Check this one, with the option of a CLI review'
+                    }
+                  >
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="shrink-0"
+                      disabled={checkingAll}
+                      onClick={() =>
+                        onCheck({ skillId, skillName: skill.name, target: skill.target })
+                      }
+                    >
+                      <Shield /> {audit ? 'Open' : 'Check'}
+                    </Button>
+                  </SimpleTooltip>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
