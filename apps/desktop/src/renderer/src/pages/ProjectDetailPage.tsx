@@ -2945,17 +2945,26 @@ function ApplyVersionDialog({
           {failed && (
             <div
               role="alert"
-              className="flex flex-col gap-2 rounded-xl border border-destructive/40 bg-destructive/5 p-3 sm:flex-row sm:items-center"
+              className="space-y-2 rounded-xl border border-destructive/40 bg-destructive/5 p-3"
             >
-              <div className="min-w-0 flex-1 space-y-1">
-                <p className="flex items-center gap-1.5 text-sm font-medium text-destructive">
-                  <TriangleAlert className="h-3.5 w-3.5" /> The run failed
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                <p className="flex min-w-0 flex-1 items-center gap-1.5 text-sm font-medium text-destructive">
+                  <TriangleAlert className="h-3.5 w-3.5 shrink-0" /> The run failed
                 </p>
-                <p className="text-xs text-muted-foreground">{errorText}</p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleRetry}
+                  className="shrink-0 self-start sm:self-auto"
+                >
+                  <RefreshCw className="h-3.5 w-3.5" /> Try again
+                </Button>
               </div>
-              <Button variant="outline" size="sm" onClick={handleRetry}>
-                <RefreshCw className="h-3.5 w-3.5" /> Try again
-              </Button>
+              {/* CLI failures can dump a whole transcript, so the message gets its
+                  own scroll box instead of pushing the rest of the dialog around. */}
+              <pre className="max-h-40 overflow-y-auto overscroll-contain text-xs break-words whitespace-pre-wrap text-muted-foreground">
+                {errorText}
+              </pre>
             </div>
           )}
 
@@ -3038,7 +3047,7 @@ function ApplyVersionDialog({
               <p className="text-xs font-medium text-muted-foreground">
                 {result?.cliName ?? 'CLI'} output
               </p>
-              <pre className="max-h-64 overflow-auto rounded-xl border border-border bg-card/60 p-3 text-xs whitespace-pre-wrap">
+              <pre className="max-h-64 overflow-y-auto overscroll-contain rounded-xl border border-border bg-card/60 p-3 text-xs break-words whitespace-pre-wrap">
                 {cliOutput}
               </pre>
             </div>
