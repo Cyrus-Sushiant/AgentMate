@@ -11,6 +11,7 @@ import {
   EyeOff,
   FolderOpen,
   HardDrive,
+  Keyboard,
   Languages,
   MessageSquare,
   Microphone,
@@ -57,6 +58,7 @@ import { confirmDialog } from '@/stores/confirmStore';
 import type { AiProvider, ThemeMode } from '@agentmat/core';
 import { cn } from '@/lib/utils';
 import { CompanionSettings } from '@/components/pet/CompanionSettings';
+import { ShortcutSettings } from '@/components/settings/ShortcutSettings';
 
 const PROMPT_BUILDER_PROVIDER_OPTIONS: { value: AiProvider; label: string }[] = [
   { value: 'openai', label: 'OpenAI' },
@@ -84,7 +86,14 @@ const THEME_OPTIONS: { value: ThemeMode; label: string; hint: string; icon: type
   { value: 'system', label: 'System', hint: 'Follow this machine', icon: Monitor },
 ];
 
-const SETTINGS_TABS = ['general', 'companion', 'ai', 'notifications', 'data'] as const;
+const SETTINGS_TABS = [
+  'general',
+  'shortcuts',
+  'companion',
+  'ai',
+  'notifications',
+  'data',
+] as const;
 type SettingsTab = (typeof SETTINGS_TABS)[number];
 
 function isSettingsTab(value: string | null): value is SettingsTab {
@@ -98,11 +107,15 @@ const TAB_META: {
   keywords: string;
 }[] = [
   { id: 'general', label: 'General', icon: SettingsIcon, keywords: 'appearance theme cli projects folder skills' },
+  { id: 'shortcuts', label: 'Shortcuts', icon: Keyboard, keywords: 'keyboard shortcut shortcuts keybinding hotkey ctrl cmd alt terminal projects palette' },
   { id: 'companion', label: 'AI Pet', icon: Paw, keywords: 'pet ai pet my ai pet companion desktop character walk mascot climb rope size click area tight wander gif png webp custom add pipeline github actions fail pass notify internet quality ping offline' },
   { id: 'ai', label: 'AI', icon: MessageSquare, keywords: 'openai gemini ollama api key whisper voice translate' },
   { id: 'notifications', label: 'Notifications', icon: Bell, keywords: 'telegram bot chat notify' },
   { id: 'data', label: 'Data', icon: HardDrive, keywords: 'backup restore ping network about version update' },
 ];
+
+const SHORTCUT_KEYWORDS =
+  'keyboard shortcut shortcuts keybinding hotkey ctrl cmd alt terminal projects command palette layout language';
 
 function matchesQuery(query: string, ...parts: Array<string | undefined>): boolean {
   if (!query) return true;
@@ -642,6 +655,8 @@ export default function SettingsPage(): React.JSX.Element {
 
   const tabDirty: Record<SettingsTab, boolean> = {
     general: projectsRootDirty,
+    // Shortcuts persist the moment they change, so there is nothing to save.
+    shortcuts: false,
     companion: false,
     ai: aiDirty || speechDirty || translateRetriesDirty,
     notifications: telegramDirty,
@@ -680,6 +695,8 @@ export default function SettingsPage(): React.JSX.Element {
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent): void {
+      // The shortcut recorder swallows the keys it is capturing.
+      if (event.defaultPrevented) return;
       if (!(event.metaKey || event.ctrlKey)) return;
       if (!isShortcutLetter(event, 's')) return;
       if (!anyDirtyRef.current) return;
@@ -707,6 +724,7 @@ export default function SettingsPage(): React.JSX.Element {
 
   const visibleCount = [
     showSection('general', 'appearance theme dark light system look', 'Appearance'),
+    showSection('shortcuts', SHORTCUT_KEYWORDS, 'Keyboard shortcuts'),
     showSection('companion', 'pet ai pet my ai pet companion desktop character walk mascot climb rope size click area tight wander pipeline github actions fail pass internet quality', 'My AI Pet'),
     showSection('general', 'default cli provider agent', 'Default CLI'),
     showSection('general', 'projects folder path directory', 'Projects folder'),
@@ -875,6 +893,16 @@ export default function SettingsPage(): React.JSX.Element {
                       );
                     })}
                   </div>
+                </SettingsCard>
+              )}
+
+              {showSection('shortcuts', SHORTCUT_KEYWORDS, 'Keyboard shortcuts') && (
+                <SettingsCard
+                  icon={Keyboard}
+                  title="Keyboard shortcuts"
+                  description="Rebind the app-wide shortcuts. Changes apply right away."
+                >
+                  <ShortcutSettings />
                 </SettingsCard>
               )}
 

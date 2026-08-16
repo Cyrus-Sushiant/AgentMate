@@ -65,6 +65,14 @@ export const IPC = {
     recordSkillsShInstall: 'skills:recordSkillsShInstall',
     checkUiProPrerequisites: 'skills:checkUiProPrerequisites',
     recordUiProInstall: 'skills:recordUiProInstall',
+    // Security audit
+    runAudit: 'skills:runAudit',
+    cancelAudit: 'skills:cancelAudit',
+    listAudits: 'skills:listAudits',
+    latestAuditPerSkill: 'skills:latestAuditPerSkill',
+    getAudit: 'skills:getAudit',
+    removeAudit: 'skills:removeAudit',
+    clearAudits: 'skills:clearAudits',
     // main -> renderer events
     /** A watched local-folder repository changed on disk; payload is the repository id. */
     onRepositoryChanged: 'skills:onRepositoryChanged',

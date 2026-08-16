@@ -54,6 +54,9 @@ import type {
   InstallFromSkillsShInput,
   UiProPrerequisites,
   RecordUiProInstallInput,
+  RunSkillAuditInput,
+  RunSkillAuditResult,
+  SkillAuditRecord,
   AddPromptHistoryInput,
   PromptHistoryEntry,
   BackupExportResult,
@@ -257,6 +260,20 @@ const skills = {
     ipcRenderer.invoke(IPC.skills.checkUiProPrerequisites),
   recordUiProInstall: (input: RecordUiProInstallInput): Promise<void> =>
     ipcRenderer.invoke(IPC.skills.recordUiProInstall, input),
+  /** Scans a skill for prompt injection, exfiltration, and the other risk categories. */
+  runAudit: (input: RunSkillAuditInput): Promise<RunSkillAuditResult> =>
+    ipcRenderer.invoke(IPC.skills.runAudit, input),
+  /** Stops the CLI review half of an audit started with the same requestId. */
+  cancelAudit: (requestId: string): Promise<boolean> =>
+    ipcRenderer.invoke(IPC.skills.cancelAudit, requestId),
+  listAudits: (options?: { skillId?: string | null; limit?: number }): Promise<SkillAuditRecord[]> =>
+    ipcRenderer.invoke(IPC.skills.listAudits, options ?? {}),
+  latestAuditPerSkill: (): Promise<SkillAuditRecord[]> =>
+    ipcRenderer.invoke(IPC.skills.latestAuditPerSkill),
+  getAudit: (id: string): Promise<SkillAuditRecord | null> =>
+    ipcRenderer.invoke(IPC.skills.getAudit, id),
+  removeAudit: (id: string): Promise<void> => ipcRenderer.invoke(IPC.skills.removeAudit, id),
+  clearAudits: (): Promise<void> => ipcRenderer.invoke(IPC.skills.clearAudits),
 };
 
 const mcp = {

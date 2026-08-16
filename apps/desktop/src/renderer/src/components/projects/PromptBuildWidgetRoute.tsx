@@ -10,7 +10,12 @@ import { Combobox } from '@/components/ui/combobox';
 import { cliOptionIcon } from '@/components/cliLogos';
 import { PROMPT_TYPES, TARGET_AIS, cliIdForTargetAI } from '@agentmat/core';
 import type { PromptType, TargetAI } from '@agentmat/core';
-import { isShortcutLetter } from '@/lib/shortcutKey';
+import {
+  commandForEvent,
+  useShortcutLabel,
+  useShortcutLabelList,
+  useShortcutStore,
+} from '@/stores/shortcutStore';
 import { useProjectPromptBuilder } from './useProjectPromptBuilder';
 
 /**
@@ -55,6 +60,10 @@ export default function PromptBuildWidgetRoute(): React.JSX.Element {
 
   const hasRequest = rawInput.trim().length > 0;
   const isBusy = isGenerating || isTranslating;
+  const overrides = useShortcutStore((s) => s.overrides);
+  const generateKeys = useShortcutLabelList('prompt.generate');
+  const translateKey = useShortcutLabel('prompt.translate');
+  const copyKey = useShortcutLabel('prompt.copy');
 
   async function onCopy(): Promise<void> {
     await handleCopy();
@@ -82,19 +91,18 @@ export default function PromptBuildWidgetRoute(): React.JSX.Element {
         <div
           className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-hidden px-3 pb-3"
           onKeyDown={(event) => {
-            if (event.shiftKey || event.altKey) return;
-            if (!(event.ctrlKey || event.metaKey)) return;
-            if (event.key === 'Enter' || isShortcutLetter(event, 'g')) {
+            const command = commandForEvent(event.nativeEvent, overrides, false, 'prompt');
+            if (command === 'prompt.generate') {
               event.preventDefault();
               if (hasRequest && !isBusy) void handleGenerate();
               return;
             }
-            if (isShortcutLetter(event, 't')) {
+            if (command === 'prompt.translate') {
               event.preventDefault();
               if (hasRequest && !isBusy) void handleTranslate();
               return;
             }
-            if (isShortcutLetter(event, 'c')) {
+            if (command === 'prompt.copy') {
               if (hasTextSelection() || !generated || isBusy) return;
               event.preventDefault();
               void onCopy();
@@ -145,7 +153,10 @@ export default function PromptBuildWidgetRoute(): React.JSX.Element {
           </div>
 
           <div className="flex shrink-0 gap-2">
-            <SimpleTooltip label="Ctrl+G or Ctrl+Enter" wrapTrigger={!hasRequest || isBusy}>
+            <SimpleTooltip
+              label={generateKeys ?? 'Generate'}
+              wrapTrigger={!hasRequest || isBusy}
+            >
               <Button
                 onClick={() => void handleGenerate()}
                 disabled={!hasRequest || isBusy}
@@ -156,7 +167,11 @@ export default function PromptBuildWidgetRoute(): React.JSX.Element {
               </Button>
             </SimpleTooltip>
             <SimpleTooltip
-              label="Copy your request into English without generating a prompt (Ctrl+T)"
+              label={
+                translateKey
+                  ? `Copy your request into English without generating a prompt (${translateKey})`
+                  : 'Copy your request into English without generating a prompt'
+              }
               wrapTrigger={!hasRequest || isBusy}
             >
               <Button
@@ -174,7 +189,7 @@ export default function PromptBuildWidgetRoute(): React.JSX.Element {
             <div className="flex items-center justify-between gap-2">
               <Label htmlFor="widget-prompt-output">Generated prompt</Label>
               <SimpleTooltip
-                label={copied ? 'Copied' : 'Copy prompt (Ctrl+C)'}
+                label={copied ? 'Copied' : copyKey ? `Copy prompt (${copyKey})` : 'Copy prompt'}
                 wrapTrigger={!generated || isBusy}
               >
                 <Button

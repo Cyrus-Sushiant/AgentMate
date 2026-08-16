@@ -3,6 +3,8 @@ import type {
   AiProvider,
   ProjectNotificationSettings,
   ProjectRunCommand,
+  SkillAuditFinding,
+  SkillAuditVerdict,
   UsageProviderConfig,
 } from '@agentmat/core';
 
@@ -194,6 +196,60 @@ export interface InstallFromSkillsShInput {
   skillName: string;
   /** CLI agent ids (e.g. 'claude-code', 'cursor') the skill was installed for. */
   agents: string[];
+}
+
+/** Where the files a security audit read came from. */
+export type SkillAuditSourceKind = 'repository' | 'installed' | 'github';
+
+/**
+ * What to audit. A repository skill is read from its index, an installed one straight off disk,
+ * and a skills.sh entry from the GitHub repo that publishes it (nothing is installed to scan it).
+ */
+export type SkillAuditTarget =
+  | { kind: 'repository'; repositoryId: string; skillId: string }
+  | { kind: 'installed'; projectId: string | null; skillId: string }
+  | { kind: 'github'; repo: string; skillName: string };
+
+export interface RunSkillAuditInput {
+  target: SkillAuditTarget;
+  /** Also send the skill to an agent CLI for a second opinion. Slower, needs an installed CLI. */
+  deepReview: boolean;
+  /** CLI to use for the deep review; null falls back to the default CLI from Settings. */
+  cliId?: string | null;
+  /** Lets cancelSkillAudit(requestId) stop the CLI review. */
+  requestId?: string;
+}
+
+/** One completed audit, as stored in the history database. */
+export interface SkillAuditRecord {
+  id: string;
+  skillId: string;
+  skillName: string;
+  sourceKind: SkillAuditSourceKind;
+  /** Repository name, project path, or `owner/repo`, whichever the audit read from. */
+  sourceLabel: string;
+  /** Set for an installed-skill audit scoped to a project; null for a global or remote one. */
+  projectId: string | null;
+  verdict: SkillAuditVerdict;
+  score: number;
+  findings: SkillAuditFinding[];
+  filesScanned: number;
+  bytesScanned: number;
+  deepReview: boolean;
+  /** CLI that answered the deep review, when one ran. */
+  cliName: string | null;
+  aiSummary: string | null;
+  /** Why the deep review produced nothing, when it was asked for and failed. */
+  aiError: string | null;
+  createdAt: string;
+}
+
+export interface RunSkillAuditResult {
+  ok: boolean;
+  record: SkillAuditRecord | null;
+  /** Why the audit could not run at all (no files found, repository gone, rate limited). */
+  error?: string;
+  cancelled?: boolean;
 }
 
 /** One probed command behind the UI UX Pro Max wizard's prerequisite step. */

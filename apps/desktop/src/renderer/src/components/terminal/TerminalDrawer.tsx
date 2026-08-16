@@ -11,19 +11,14 @@ import {
 } from '@/components/icons';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
+import { useShortcutLabel } from '@/stores/shortcutStore';
 import {
+  defaultNewSession,
   TERMINAL_MIN_HEIGHT,
   type TerminalSessionMeta,
   useTerminalStore,
 } from '@/stores/terminalStore';
 import { TerminalPane } from './TerminalPane';
-
-function defaultNewSession(): { title: string; shell?: string } {
-  const platform = window.agentmat.platform;
-  if (platform === 'win32') return { title: 'PowerShell', shell: 'powershell.exe' };
-  if (platform === 'darwin') return { title: 'zsh', shell: 'zsh' };
-  return { title: 'bash', shell: 'bash' };
-}
 
 function shellDisplayName(shell?: string): string {
   if (!shell) return defaultNewSession().title;
@@ -253,24 +248,15 @@ export function TerminalDrawer(): React.JSX.Element {
   const activeSessionId = useTerminalStore((s) => s.activeSessionId);
   const setActiveSession = useTerminalStore((s) => s.setActiveSession);
   const closeSession = useTerminalStore((s) => s.closeSession);
-  const openSession = useTerminalStore((s) => s.openSession);
+  const openDefaultSession = useTerminalStore((s) => s.openDefaultSession);
   const closeDrawer = useTerminalStore((s) => s.closeDrawer);
-  const toggleDrawer = useTerminalStore((s) => s.toggleDrawer);
+  const toggleShortcut = useShortcutLabel('terminal.toggle');
+  const newTabShortcut = useShortcutLabel('terminal.new');
   const [isMaximized, setIsMaximized] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
   const drawerRef = useRef<HTMLDivElement>(null);
 
   const activeSession = sessions.find((s) => s.id === activeSessionId) ?? sessions.at(-1) ?? null;
-
-  const handleNewSession = useCallback((): void => {
-    const next = defaultNewSession();
-    const current = useTerminalStore.getState().sessions;
-    const count = current.filter((s) => s.shell === next.shell).length;
-    openSession({
-      title: count === 0 ? next.title : `${next.title} ${count + 1}`,
-      shell: next.shell,
-    });
-  }, [openSession]);
 
   function handleCloseDrawer(): void {
     setIsMaximized(false);
@@ -306,26 +292,18 @@ export function TerminalDrawer(): React.JSX.Element {
     window.addEventListener('pointerup', handleUp);
   }
 
+  // Toggling and opening tabs live in the global shortcut registry (see
+  // useGlobalShortcuts). Only Escape stays here, because it is meaningful just
+  // while this drawer is maximized.
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent): void {
-      if (event.altKey || event.metaKey) return;
-      if (event.ctrlKey && event.code === 'Backquote') {
-        event.preventDefault();
-        if (event.shiftKey) {
-          handleNewSession();
-          return;
-        }
-        toggleDrawer();
-        return;
-      }
-      if (event.key === 'Escape' && isMaximized && isOpen) {
-        event.preventDefault();
-        setIsMaximized(false);
-      }
+      if (event.key !== 'Escape' || !isMaximized || !isOpen) return;
+      event.preventDefault();
+      setIsMaximized(false);
     }
     window.addEventListener('keydown', onKeyDown, true);
     return () => window.removeEventListener('keydown', onKeyDown, true);
-  }, [handleNewSession, isMaximized, isOpen, toggleDrawer]);
+  }, [isMaximized, isOpen]);
 
   // Closing the drawer only hides it: the panes stay mounted so their ptys keep
   // running. Unmounting them here would kill every shell (see TerminalPane's
@@ -370,8 +348,12 @@ export function TerminalDrawer(): React.JSX.Element {
         {sessions.length === 0 && <div className="flex-1" />}
         <div className="mb-0.5 flex shrink-0 items-center gap-0.5">
           <IconButton
-            label={`New ${defaultNewSession().title} (Ctrl+Shift+\`)`}
-            onClick={handleNewSession}
+            label={
+              newTabShortcut
+                ? `New ${defaultNewSession().title} (${newTabShortcut})`
+                : `New ${defaultNewSession().title}`
+            }
+            onClick={() => void openDefaultSession()}
           >
             <Plus className="h-3.5 w-3.5" />
           </IconButton>
@@ -406,7 +388,7 @@ export function TerminalDrawer(): React.JSX.Element {
             </div>
             <button
               type="button"
-              onClick={handleNewSession}
+              onClick={() => void openDefaultSession()}
               className="inline-flex h-8 items-center gap-2 rounded-md bg-primary px-3 text-xs font-semibold text-primary-foreground shadow-[0_0_18px_-6px_hsl(var(--primary)/0.7)] hover:brightness-110"
             >
               <Plus className="h-3.5 w-3.5" />
@@ -440,8 +422,12 @@ export function TerminalDrawer(): React.JSX.Element {
         <span>
           {sessions.length} session{sessions.length === 1 ? '' : 's'}
         </span>
-        <span className="text-zinc-700">·</span>
-        <span>Ctrl+`</span>
+        {toggleShortcut ? (
+          <>
+            <span className="text-zinc-700">·</span>
+            <span>{toggleShortcut}</span>
+          </>
+        ) : null}
       </div>
     </div>
   );

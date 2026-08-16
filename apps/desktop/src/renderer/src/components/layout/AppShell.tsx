@@ -2,7 +2,13 @@ import { useEffect, useRef } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import { AskAiModal } from '@/components/askAi/AskAiModal';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
-import { AnglesLeft, AnglesRight, History, MessageSquare, TerminalSquare } from '@/components/icons';
+import {
+  AnglesLeft,
+  AnglesRight,
+  History,
+  MessageSquare,
+  TerminalSquare,
+} from '@/components/icons';
 import { UpdateStatusChip } from '@/components/UpdateManager';
 import { CommandPalette } from '@/components/search/CommandPalette';
 import { TerminalDrawer } from '@/components/terminal/TerminalDrawer';
@@ -10,11 +16,11 @@ import { ToastHistoryPanel } from '@/components/toast/ToastHistoryPanel';
 import { Button } from '@/components/ui/button';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { useAppLoadingOverlay } from '@/hooks/useAppLoadingOverlay';
-import { isShortcutLetter } from '@/lib/shortcutKey';
+import { useGlobalShortcuts } from '@/hooks/useGlobalShortcuts';
 import { cn } from '@/lib/utils';
 import { useAskAiStore } from '@/stores/askAiStore';
 import { usePageHeaderStore } from '@/stores/pageHeaderStore';
-import { useSearchStore } from '@/stores/searchStore';
+import { useShortcutLabel } from '@/stores/shortcutStore';
 import { useTerminalStore } from '@/stores/terminalStore';
 import { useToastHistoryStore } from '@/stores/toastHistoryStore';
 import { useUiStore } from '@/stores/uiStore';
@@ -39,6 +45,7 @@ function TopBar(): React.JSX.Element {
   const toastUnreadError = useToastHistoryStore((s) =>
     s.items.some((item) => !item.read && item.kind === 'error'),
   );
+  const terminalShortcut = useShortcutLabel('terminal.toggle');
 
   return (
     <div className="flex h-14 shrink-0 items-center justify-between gap-3 border-b border-border/80 px-4">
@@ -89,7 +96,9 @@ function TopBar(): React.JSX.Element {
             )}
           </Button>
         </SimpleTooltip>
-        <SimpleTooltip label="Toggle terminal (Ctrl+`)">
+        <SimpleTooltip
+          label={terminalShortcut ? `Toggle terminal (${terminalShortcut})` : 'Toggle terminal'}
+        >
           <Button
             variant={isTerminalOpen ? 'secondary' : 'ghost'}
             size="icon"
@@ -127,22 +136,12 @@ export function AppShell(): React.JSX.Element {
   // in place on the card that's waiting. See the hook for why.
   const showLoading = useAppLoadingOverlay();
   const scrollRef = useRef<HTMLDivElement>(null);
-  const toggleSearch = useSearchStore((s) => s.toggle);
+
+  useGlobalShortcuts();
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: 0 });
   }, [location.pathname]);
-
-  useEffect(() => {
-    function onKeyDown(e: KeyboardEvent): void {
-      if ((e.metaKey || e.ctrlKey) && isShortcutLetter(e, 'k')) {
-        e.preventDefault();
-        toggleSearch();
-      }
-    }
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, [toggleSearch]);
 
   return (
     <div className="relative flex h-full w-full flex-col overflow-hidden bg-background text-foreground">

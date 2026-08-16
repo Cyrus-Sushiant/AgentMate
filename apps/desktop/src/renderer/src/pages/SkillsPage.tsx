@@ -3,6 +3,7 @@ import {
   buildUiProUninstallCommands,
   bundledSkillsShDirectory,
   getCliDefinition,
+  SKILL_RISK_CATEGORIES,
   SKILLS_SH_SNAPSHOT_DATE,
   UI_UX_PRO_MAX_AI_TARGETS,
   UI_UX_PRO_MAX_PSEUDO_REPOSITORY_ID,
@@ -23,9 +24,18 @@ import {
   Plus,
   RefreshCw,
   Search,
+  Shield,
   Sparkles,
   Trash2,
 } from '@/components/icons';
+import {
+  SkillAuditReport,
+  SkillAuditVerdictBadge,
+} from '@/components/skills/SkillAuditReport';
+import {
+  SkillSecurityDialog,
+  type SkillSecurityTarget,
+} from '@/components/skills/SkillSecurityDialog';
 import { UiUxProMaxCard } from '@/components/skills/UiUxProMaxCard';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -51,6 +61,7 @@ import { usePageHeader } from '@/stores/pageHeaderStore';
 import { useTerminalStore } from '@/stores/terminalStore';
 import type {
   InstalledSkillRecord,
+  SkillAuditRecord,
   SkillsShSearchResult,
   SkillUpdateInfo,
 } from '../../../shared/apiTypes';
@@ -62,7 +73,14 @@ const SOURCE_TYPES: { value: SkillRepositorySourceType; label: string }[] = [
 ];
 
 type SkillsShSearchMode = 'bundled' | 'live';
-type SkillsTab = 'directory' | 'featured' | 'marketplace';
+type SkillsTab = 'directory' | 'featured' | 'marketplace' | 'security';
+
+/** How a stored audit's source is labelled in the history list. */
+const AUDIT_SOURCE_LABEL: Record<SkillAuditRecord['sourceKind'], string> = {
+  repository: 'Repository',
+  installed: 'Installed',
+  github: 'skills.sh',
+};
 
 /** How many skill cards to mount at once. Rendering the full bundled catalog (~1k glass cards)
  * freezes Electron/Chromium on open; page in chunks instead. */
@@ -152,12 +170,17 @@ function liveResultToDisplayEntry(r: SkillsShSearchResult): SkillsShDisplayEntry
 
 const SkillsShDirectoryCard = memo(function SkillsShDirectoryCard({
   skill,
+  audit,
   onInstall,
   onView,
+  onCheckSecurity,
 }: {
   skill: SkillsShDisplayEntry;
+  /** Last security check for this skill, when it has one. */
+  audit: SkillAuditRecord | undefined;
   onInstall: (skill: SkillsShDisplayEntry) => void;
   onView: (skill: SkillsShDisplayEntry) => void;
+  onCheckSecurity: (skill: SkillsShDisplayEntry) => void;
 }): React.JSX.Element {
   return (
     <Card className="flex flex-col hover:border-primary/30">
@@ -166,9 +189,9 @@ const SkillsShDirectoryCard = memo(function SkillsShDirectoryCard({
           <CardTitle className="flex items-center gap-1.5">
             {skill.name}
             {skill.official && (
-              <span title="Official: skills.sh has verified this publisher">
+              <SimpleTooltip label="Official: skills.sh has verified this publisher">
                 <CircleCheck className="h-4 w-4 shrink-0 text-blue-500" />
-              </span>
+              </SimpleTooltip>
             )}
           </CardTitle>
         </div>
@@ -182,6 +205,7 @@ const SkillsShDirectoryCard = memo(function SkillsShDirectoryCard({
             {skill.official ? 'Official' : 'Community'}
           </Badge>
           <Badge variant="outline">{skill.installsLabel} installs</Badge>
+          {audit && <SkillAuditVerdictBadge verdict={audit.verdict} score={audit.score} />}
         </div>
         <div className="text-xs text-muted-foreground">{skill.repo}</div>
         <div className="flex items-center gap-2">
@@ -191,14 +215,20 @@ const SkillsShDirectoryCard = memo(function SkillsShDirectoryCard({
           <Button size="sm" variant="outline" onClick={() => onView(skill)}>
             <Eye /> View
           </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            title="Open on skills.sh"
-            onClick={() => void window.agentmat.shell.openExternal(skill.url)}
-          >
-            <ExternalLink className="h-4 w-4" />
-          </Button>
+          <SimpleTooltip label="Check this skill for unsafe instructions">
+            <Button variant="ghost" size="icon" onClick={() => onCheckSecurity(skill)}>
+              <Shield className="h-4 w-4" />
+            </Button>
+          </SimpleTooltip>
+          <SimpleTooltip label="Open on skills.sh">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => void window.agentmat.shell.openExternal(skill.url)}
+            >
+              <ExternalLink className="h-4 w-4" />
+            </Button>
+          </SimpleTooltip>
         </div>
       </CardContent>
     </Card>
@@ -233,6 +263,8 @@ export default function SkillsPage(): React.JSX.Element {
   const [globalSkillsModalOpen, setGlobalSkillsModalOpen] = useState(false);
   const [globalSkillsAgentFilter, setGlobalSkillsAgentFilter] = useState<string>('all');
   const [activeTab, setActiveTab] = useState<SkillsTab>('directory');
+  const [securitySubject, setSecuritySubject] = useState<SkillSecurityTarget | null>(null);
+  const [auditDetail, setAuditDetail] = useState<SkillAuditRecord | null>(null);
   const [directoryVisibleCount, setDirectoryVisibleCount] = useState(SKILL_GRID_PAGE_SIZE);
   const [marketplaceVisibleCount, setMarketplaceVisibleCount] = useState(SKILL_GRID_PAGE_SIZE);
 
@@ -532,6 +564,43 @@ export default function SkillsPage(): React.JSX.Element {
     queryFn: () => window.agentmat.skills.listInstalled(null),
   });
 
+  // One row per skill that has ever been checked, so cards can show their last verdict without
+  // anyone having to open the dialog again.
+  const latestAuditsQuery = useQuery({
+    queryKey: queryKeys.skillAuditsLatest,
+    queryFn: () => window.agentmat.skills.latestAuditPerSkill(),
+  });
+
+  const auditBySkillId = useMemo(
+    () => new Map((latestAuditsQuery.data ?? []).map((audit) => [audit.skillId, audit])),
+    [latestAuditsQuery.data],
+  );
+
+  const auditHistoryQuery = useQuery({
+    queryKey: queryKeys.skillAudits,
+    queryFn: () => window.agentmat.skills.listAudits({ limit: 200 }),
+    enabled: activeTab === 'security',
+  });
+
+  const removeAuditMutation = useMutation({
+    mutationFn: (id: string) => window.agentmat.skills.removeAudit(id),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.skillAudits });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.skillAuditsLatest });
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  const clearAuditsMutation = useMutation({
+    mutationFn: () => window.agentmat.skills.clearAudits(),
+    onSuccess: () => {
+      toast.success('Security check history cleared.');
+      void queryClient.invalidateQueries({ queryKey: queryKeys.skillAudits });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.skillAuditsLatest });
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
   const globalSkillUpdatesQuery = useQuery({
     queryKey: queryKeys.skillUpdates(null),
     queryFn: () => window.agentmat.skills.checkForUpdates(null),
@@ -612,6 +681,17 @@ export default function SkillsPage(): React.JSX.Element {
     setInstallPickerSearch('');
   }
 
+  // A skills.sh skill is checked straight from the GitHub repo that publishes it, so nothing has
+  // to be installed first. The id matches what the audit stores, which is what links a card to
+  // its last verdict.
+  const handleCheckSkillsShSecurity = useCallback((skill: SkillsShDisplayEntry) => {
+    setSecuritySubject({
+      skillId: `${skill.repo}/${skill.name}`,
+      skillName: skill.name,
+      target: { kind: 'github', repo: skill.repo, skillName: skill.name },
+    });
+  }, []);
+
   const handleInstallSkillsSh = useCallback((skill: SkillsShDisplayEntry) => {
     setInstallTarget({ kind: 'skillsSh', skill });
     setInstallPickerProjectIds(new Set());
@@ -663,6 +743,10 @@ export default function SkillsPage(): React.JSX.Element {
                   {repoCount}
                 </span>
               ) : null}
+            </TabsTrigger>
+            <TabsTrigger value="security" className="gap-1.5">
+              <Shield className="h-3.5 w-3.5" />
+              Security
             </TabsTrigger>
           </TabsList>
           <Button
@@ -788,6 +872,12 @@ export default function SkillsPage(): React.JSX.Element {
                         {tag}
                       </Badge>
                     ))}
+                    {auditBySkillId.has(skill.id) && (
+                      <SkillAuditVerdictBadge
+                        verdict={auditBySkillId.get(skill.id)!.verdict}
+                        score={auditBySkillId.get(skill.id)!.score}
+                      />
+                    )}
                   </div>
                   <div className="text-xs text-muted-foreground">
                     {/* Which repository a skill came from only matters when several are mixed. */}
@@ -817,6 +907,25 @@ export default function SkillsPage(): React.JSX.Element {
                     >
                       <Download /> Install
                     </Button>
+                    <SimpleTooltip label="Check this skill for unsafe instructions">
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        onClick={() =>
+                          setSecuritySubject({
+                            skillId: skill.id,
+                            skillName: skill.name,
+                            target: {
+                              kind: 'repository',
+                              repositoryId: repo.id,
+                              skillId: skill.id,
+                            },
+                          })
+                        }
+                      >
+                        <Shield className="h-4 w-4" />
+                      </Button>
+                    </SimpleTooltip>
                     {skill.documentationUrl && (
                       <Button
                         variant="ghost"
@@ -941,8 +1050,10 @@ export default function SkillsPage(): React.JSX.Element {
               <SkillsShDirectoryCard
                 key={skill.id}
                 skill={skill}
+                audit={auditBySkillId.get(`${skill.repo}/${skill.name}`)}
                 onInstall={handleInstallSkillsSh}
                 onView={setShSelected}
+                onCheckSecurity={handleCheckSkillsShSecurity}
               />
             ))}
           </div>
@@ -963,6 +1074,105 @@ export default function SkillsPage(): React.JSX.Element {
               shMode === 'live' &&
               (liveShSearchQuery.isFetching || shDebouncedSearch.trim().length < 2)
             ) && <p className="text-sm text-muted-foreground">No skills match your search.</p>}
+        </TabsContent>
+
+        <TabsContent value="security" className="mt-0 space-y-6">
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              A skill is instructions an agent reads and acts on, so its text is as powerful as
+              code. Use the shield button on any skill card to read its files and check them
+              against these patterns, before or after installing. Every check is kept here.
+            </p>
+            <div className="grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-3">
+              {SKILL_RISK_CATEGORIES.map((category) => (
+                <div
+                  key={category.id}
+                  className="rounded-lg border border-border bg-card/60 px-3 py-2"
+                >
+                  <p className="text-sm font-medium text-foreground">{category.label}</p>
+                  <p className="text-xs text-muted-foreground">{category.description}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between gap-3 border-t border-border pt-4">
+            <div>
+              <p className="text-sm font-medium text-foreground">Check history</p>
+              <p className="text-xs text-muted-foreground">
+                {auditHistoryQuery.data?.length ?? 0} check
+                {(auditHistoryQuery.data?.length ?? 0) === 1 ? '' : 's'} saved on this machine.
+              </p>
+            </div>
+            {(auditHistoryQuery.data?.length ?? 0) > 0 && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  void confirmDialog({
+                    title: 'Clear the security check history?',
+                    description: 'Every saved check is deleted. The skills themselves are not touched.',
+                    confirmLabel: 'Clear',
+                    variant: 'destructive',
+                  }).then((confirmed) => {
+                    if (confirmed) clearAuditsMutation.mutate();
+                  });
+                }}
+              >
+                <Trash2 /> Clear history
+              </Button>
+            )}
+          </div>
+
+          <div className="space-y-2">
+            {auditHistoryQuery.isPending && (
+              <p className="text-sm text-muted-foreground">Loading checks…</p>
+            )}
+            {auditHistoryQuery.data?.length === 0 && (
+              <p className="text-sm text-muted-foreground">
+                No skills checked yet. Open the Directory or Repositories tab and use the shield
+                button on a skill.
+              </p>
+            )}
+            {(auditHistoryQuery.data ?? []).map((audit) => (
+              <div
+                key={audit.id}
+                className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-card px-3 py-2"
+              >
+                <div className="min-w-0 space-y-0.5">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-sm font-medium text-foreground">{audit.skillName}</span>
+                    <SkillAuditVerdictBadge verdict={audit.verdict} score={audit.score} />
+                    <Badge variant="outline">{AUDIT_SOURCE_LABEL[audit.sourceKind]}</Badge>
+                    {audit.deepReview && (
+                      <Badge variant="outline" className="gap-1">
+                        <Sparkles className="h-3 w-3" />
+                        {audit.cliName ?? 'CLI'}
+                      </Badge>
+                    )}
+                  </div>
+                  <p className="truncate text-xs text-muted-foreground">
+                    {audit.findings.length} finding{audit.findings.length === 1 ? '' : 's'} ·{' '}
+                    {audit.sourceLabel} · {new Date(audit.createdAt).toLocaleString()}
+                  </p>
+                </div>
+                <div className="flex items-center gap-1">
+                  <Button variant="outline" size="sm" onClick={() => setAuditDetail(audit)}>
+                    <Eye /> View
+                  </Button>
+                  <SimpleTooltip label="Delete this check">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => removeAuditMutation.mutate(audit.id)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </SimpleTooltip>
+                </div>
+              </div>
+            ))}
+          </div>
         </TabsContent>
       </Tabs>
 
@@ -1339,8 +1549,33 @@ export default function SkillsPage(): React.JSX.Element {
                       {update?.hasUpdate && (
                         <Badge variant="secondary">v{update.latestVersion} available</Badge>
                       )}
+                      {auditBySkillId.has(skill.skillId) && (
+                        <SkillAuditVerdictBadge
+                          verdict={auditBySkillId.get(skill.skillId)!.verdict}
+                          score={auditBySkillId.get(skill.skillId)!.score}
+                        />
+                      )}
                     </span>
                     <div className="flex items-center gap-1">
+                      <SimpleTooltip label="Check this skill for unsafe instructions">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() =>
+                            setSecuritySubject({
+                              skillId: skill.skillId,
+                              skillName: skill.skillId.split('/').pop() ?? skill.skillId,
+                              target: {
+                                kind: 'installed',
+                                projectId: null,
+                                skillId: skill.skillId,
+                              },
+                            })
+                          }
+                        >
+                          <Shield className="h-4 w-4" />
+                        </Button>
+                      </SimpleTooltip>
                       {update?.hasUpdate && (
                         <Button
                           variant="outline"
@@ -1378,6 +1613,31 @@ export default function SkillsPage(): React.JSX.Element {
                 );
               })
             )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <SkillSecurityDialog
+        subject={securitySubject}
+        onOpenChange={(open) => {
+          if (!open) setSecuritySubject(null);
+        }}
+      />
+
+      <Dialog open={!!auditDetail} onOpenChange={(open) => !open && setAuditDetail(null)}>
+        <DialogContent className="flex max-h-[85vh] max-w-2xl flex-col overflow-hidden">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 pr-6">
+              <Shield className="h-4 w-4" />
+              {auditDetail?.skillName}
+            </DialogTitle>
+            <DialogDescription>
+              Saved security check from{' '}
+              {auditDetail ? new Date(auditDetail.createdAt).toLocaleString() : ''}.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="-mx-1 -my-1 min-h-0 flex-1 overflow-y-auto px-1 py-1">
+            {auditDetail && <SkillAuditReport record={auditDetail} />}
           </div>
         </DialogContent>
       </Dialog>

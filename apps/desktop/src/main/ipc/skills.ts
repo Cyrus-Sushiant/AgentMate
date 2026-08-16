@@ -24,17 +24,31 @@ import type {
   SkillRepositorySourceType,
 } from '@agentmat/core';
 import { IPC } from '../../shared/ipcChannels';
+import type { SkillAuditFileInput } from '@agentmat/core';
 import type {
   InstallFromSkillsShInput,
   InstalledSkillRecord,
   LocalSkillFolderPreview,
   RecordUiProInstallInput,
+  RunSkillAuditInput,
+  RunSkillAuditResult,
+  SkillAuditRecord,
+  SkillAuditSourceKind,
+  SkillAuditTarget,
   SkillsShDetail,
   SkillsShSearchResult,
   SkillUpdateInfo,
   UiProPrerequisites,
   UiProToolProbe,
 } from '../../shared/apiTypes';
+import { cancelHeadlessPrompt } from '../cli/headlessPrompt';
+import { skillAuditDb } from '../skillAuditDb';
+import {
+  fetchGithubSkillFiles,
+  isScannableFile,
+  readSkillDirFiles,
+  runSkillAudit,
+} from '../skills/auditRunner';
 import { scanSkillFolder } from '../skills/localFolderIndex';
 import { store } from '../store';
 
@@ -311,6 +325,114 @@ async function syncLocalRepositoryWatchers(): Promise<void> {
       // The folder can be gone or on a disconnected drive. Manual refresh still covers it.
     }
   }
+}
+
+/** Everything the audit runner needs about one skill, whatever kind of source it came from. */
+interface AuditSubject {
+  skillId: string;
+  skillName: string;
+  sourceKind: SkillAuditSourceKind;
+  sourceLabel: string;
+  projectId: string | null;
+  files: SkillAuditFileInput[];
+  cwd: string;
+}
+
+/** Repository skills are read through the same index the marketplace shows, so what is scanned is what would be installed. */
+async function collectRepositorySkill(repositoryId: string, skillId: string): Promise<AuditSubject> {
+  const repos = await store.getRepositories();
+  const repo = repos.find((r) => r.id === repositoryId);
+  if (!repo) throw new Error(`Repository ${repositoryId} not found`);
+
+  const { index, baseDir, baseUrl } = await loadRepositoryIndex(repo);
+  const skill = index.skills.find((s) => s.id === skillId);
+  if (!skill) throw new Error(`Skill ${skillId} not found in repository ${repo.name}`);
+
+  const files: SkillAuditFileInput[] = [];
+  for (const file of skill.files.filter((f) => isScannableFile(f.path)).slice(0, 40)) {
+    const content = await readSkillFileContent(file, { baseDir, baseUrl }).catch(() => null);
+    if (content !== null) files.push({ path: file.path, content });
+  }
+
+  return {
+    skillId: skill.id,
+    skillName: skill.name,
+    sourceKind: 'repository',
+    sourceLabel: repo.name,
+    projectId: null,
+    files,
+    cwd: app.getPath('userData'),
+  };
+}
+
+/**
+ * Finds an installed skill's folder. Repo-installed skills live under `<skills>/<skillId>`, while
+ * the `skills` CLI writes `owner/repo/name` records whose folder on disk is just the last segment,
+ * so both spellings are tried in every agent dir the scope could have used.
+ */
+async function collectInstalledSkill(
+  projectId: string | null,
+  skillId: string,
+): Promise<AuditSubject> {
+  const scope = await resolveSkillScope(projectId);
+  // A global install can land in any agent's own dir (`skills add --global` writes one per
+  // assistant), so the audit looks wider than install/remove do rather than reporting a skill
+  // as missing just because it is not the Claude Code copy.
+  const globalParents =
+    projectId === null
+      ? KNOWN_AGENT_DIRS.map((agentDir) => join(app.getPath('home'), agentDir, 'skills'))
+      : [];
+  const candidateParents = [
+    ...new Set([
+      ...(await resolveSkillInstallDirs(scope)),
+      ...resolveSkillRemoveDirs(scope),
+      ...globalParents,
+    ]),
+  ];
+  const folderNames = [...new Set([skillId, skillId.split('/').pop() ?? skillId])];
+
+  for (const parent of candidateParents) {
+    for (const folderName of folderNames) {
+      const skillDir = join(parent, ...folderName.split('/'));
+      if (!(await directoryExists(skillDir))) continue;
+      return {
+        skillId,
+        skillName: folderName,
+        sourceKind: 'installed',
+        sourceLabel: skillDir,
+        projectId,
+        files: await readSkillDirFiles(skillDir),
+        cwd: scope.scopeRoot,
+      };
+    }
+  }
+
+  throw new Error(
+    `Could not find "${skillId}" on disk. Skills installed by their own CLI may live outside AgentMate's install folders.`,
+  );
+}
+
+async function collectAuditSubject(target: SkillAuditTarget): Promise<AuditSubject> {
+  if (target.kind === 'repository') {
+    return collectRepositorySkill(target.repositoryId, target.skillId);
+  }
+  if (target.kind === 'installed') {
+    return collectInstalledSkill(target.projectId, target.skillId);
+  }
+
+  if (!GITHUB_REPO_PATTERN.test(target.repo)) throw new Error(`Invalid repository: ${target.repo}`);
+  if (!SKILL_NAME_PATTERN.test(target.skillName)) {
+    throw new Error(`Invalid skill name: ${target.skillName}`);
+  }
+  return {
+    skillId: `${target.repo}/${target.skillName}`,
+    skillName: target.skillName,
+    sourceKind: 'github',
+    sourceLabel: target.repo,
+    projectId: null,
+    files: await fetchGithubSkillFiles(target.repo, target.skillName),
+    cwd: app.getPath('userData'),
+  };
 }
 
 export function registerSkillHandlers(): void {
@@ -707,4 +829,47 @@ export function registerSkillHandlers(): void {
       ]);
     },
   );
+
+  ipcMain.handle(
+    IPC.skills.runAudit,
+    async (_event, input: RunSkillAuditInput): Promise<RunSkillAuditResult> => {
+      let subject: AuditSubject;
+      try {
+        subject = await collectAuditSubject(input.target);
+      } catch (error) {
+        return { ok: false, record: null, error: (error as Error).message };
+      }
+
+      return runSkillAudit({
+        ...subject,
+        deepReview: input.deepReview,
+        cliId: input.cliId ?? null,
+        requestId: input.requestId,
+      });
+    },
+  );
+
+  ipcMain.handle(IPC.skills.cancelAudit, (_event, requestId: string): boolean =>
+    cancelHeadlessPrompt(requestId),
+  );
+
+  ipcMain.handle(
+    IPC.skills.listAudits,
+    (_event, options: { skillId?: string | null; limit?: number } = {}): SkillAuditRecord[] =>
+      skillAuditDb.list(options),
+  );
+
+  ipcMain.handle(
+    IPC.skills.latestAuditPerSkill,
+    (): SkillAuditRecord[] => skillAuditDb.latestPerSkill(),
+  );
+
+  ipcMain.handle(
+    IPC.skills.getAudit,
+    (_event, id: string): SkillAuditRecord | null => skillAuditDb.get(id),
+  );
+
+  ipcMain.handle(IPC.skills.removeAudit, (_event, id: string): void => skillAuditDb.remove(id));
+
+  ipcMain.handle(IPC.skills.clearAudits, (): void => skillAuditDb.clear());
 }

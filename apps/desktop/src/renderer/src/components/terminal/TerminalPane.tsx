@@ -3,6 +3,7 @@ import { type ITheme, Terminal } from '@xterm/xterm';
 import { useEffect, useRef } from 'react';
 import '@xterm/xterm/css/xterm.css';
 import { isShortcutLetter } from '@/lib/shortcutKey';
+import { commandForEvent, useShortcutStore } from '@/stores/shortcutStore';
 import type { TerminalSessionMeta } from '@/stores/terminalStore';
 
 // Same fill as `.terminal-well` so leftover cells after a fit() don't read as a
@@ -107,6 +108,15 @@ export function TerminalPane({ meta, active, onExit }: TerminalPaneProps): React
         term.hasSelection()
       ) {
         void navigator.clipboard.writeText(term.getSelection());
+        return false;
+      }
+      // Hand app shortcuts (Ctrl+T and friends) back to the window listener
+      // instead of writing them to the pty. Returning false makes xterm ignore
+      // the key entirely, so it keeps bubbling.
+      if (
+        event.type === 'keydown' &&
+        commandForEvent(event, useShortcutStore.getState().overrides, true) !== null
+      ) {
         return false;
       }
       return true;

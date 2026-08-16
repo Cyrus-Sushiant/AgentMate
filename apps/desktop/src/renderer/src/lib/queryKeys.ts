@@ -10,6 +10,10 @@ export const queryKeys = {
   localSkillFolderPreviews: ['local-skill-folder-preview'] as const,
   localSkillFolderPreview: (path: string) => ['local-skill-folder-preview', path] as const,
   installedSkills: (projectId: string | null) => ['installed-skills', projectId] as const,
+  /** Prefix of every skill-audit key, so one invalidate refreshes the history and the per-skill lists. */
+  skillAudits: ['skill-audits'] as const,
+  skillAuditsFor: (skillId: string) => ['skill-audits', skillId] as const,
+  skillAuditsLatest: ['skill-audits-latest'] as const,
   skillUpdates: (projectId: string | null) => ['skill-updates', projectId] as const,
   mcpRepositories: ['mcp-repositories'] as const,
   mcpRepositoryIndex: (id: string) => ['mcp-repository-index', id] as const,

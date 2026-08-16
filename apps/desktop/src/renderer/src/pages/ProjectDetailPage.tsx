@@ -115,6 +115,7 @@ import { cn } from '@/lib/utils';
 import { useCliStore } from '@/stores/cliStore';
 import { confirmDialog } from '@/stores/confirmStore';
 import { usePageHeader } from '@/stores/pageHeaderStore';
+import { useShortcutLabel } from '@/stores/shortcutStore';
 import { useTerminalStore } from '@/stores/terminalStore';
 
 export default function ProjectDetailPage(): React.JSX.Element {
@@ -820,6 +821,7 @@ function ProjectTerminalSection({
   const activeSessionId = useTerminalStore((s) => s.activeSessionId);
   const setActiveSession = useTerminalStore((s) => s.setActiveSession);
   const openDrawer = useTerminalStore((s) => s.openDrawer);
+  const terminalShortcut = useShortcutLabel('terminal.toggle');
   const runCommands = configuredRunCommands(project);
   const projectSessions = sessions.filter((session) => session.projectId === project.id);
 
@@ -889,7 +891,11 @@ function ProjectTerminalSection({
             Set a run command
           </Button>
         )}
-        <span className="text-xs text-muted-foreground">Ctrl+` toggles the panel</span>
+        {terminalShortcut ? (
+          <span className="text-xs text-muted-foreground">
+            {terminalShortcut} toggles the panel
+          </span>
+        ) : null}
       </div>
     </div>
   );

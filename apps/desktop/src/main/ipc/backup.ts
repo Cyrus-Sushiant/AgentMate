@@ -18,10 +18,12 @@ import type {
   BackupExportResult,
   BackupImportResult,
   PromptHistoryEntry,
+  SkillAuditRecord,
 } from '../../shared/apiTypes';
 import { store } from '../store';
 import { petManager } from '../pet/petWindow';
 import { promptHistoryDb } from '../promptHistoryDb';
+import { skillAuditDb } from '../skillAuditDb';
 
 const BACKUP_VERSION = 1;
 const ZIP_ENTRY_NAME = 'backup.json';
@@ -40,6 +42,7 @@ interface BackupEnvelope {
     projectDrafts?: ProjectDraft[];
     scheduledTasks?: ScheduledTask[];
     promptHistory?: PromptHistoryEntry[];
+    skillAudits?: SkillAuditRecord[];
     appNotifications?: AppNotification[];
   };
 }
@@ -83,6 +86,7 @@ export function registerBackupHandlers(): void {
           projectDrafts: await store.getProjectDrafts(),
           scheduledTasks: await store.getScheduledTasks(),
           promptHistory: promptHistoryDb.exportAll(),
+          skillAudits: skillAuditDb.exportAll(),
           appNotifications: await store.getAppNotifications(),
         },
       };
@@ -132,6 +136,7 @@ export function registerBackupHandlers(): void {
     if (Array.isArray(data.projectDrafts)) await store.setProjectDrafts(data.projectDrafts);
     if (Array.isArray(data.scheduledTasks)) await store.setScheduledTasks(data.scheduledTasks);
     if (Array.isArray(data.promptHistory)) promptHistoryDb.importAll(data.promptHistory);
+    if (Array.isArray(data.skillAudits)) skillAuditDb.importAll(data.skillAudits);
     if (Array.isArray(data.appNotifications)) await store.setAppNotifications(data.appNotifications);
 
     void petManager.syncFromSettings();

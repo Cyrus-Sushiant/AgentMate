@@ -6,6 +6,7 @@ import { SimpleTooltip } from '@/components/ui/tooltip';
 import { useIsDarkMode } from '@/lib/chartColors';
 import { cn } from '@/lib/utils';
 import { useSearchStore } from '@/stores/searchStore';
+import { useShortcutLabel } from '@/stores/shortcutStore';
 import { HistoryNav } from './HistoryNav';
 
 function TrafficLight({
@@ -118,7 +119,7 @@ export function NativeCaptionButtons({
 
 function SearchTrigger(): React.JSX.Element {
   const openSearch = useSearchStore((s) => s.setOpen);
-  const isMac = window.agentmat.platform === 'darwin';
+  const searchShortcut = useShortcutLabel('search.toggle');
 
   return (
     <button
@@ -128,9 +129,11 @@ function SearchTrigger(): React.JSX.Element {
     >
       <Search className="h-3.5 w-3.5 shrink-0" />
       <span className="flex-1 truncate text-left">Search projects, history, skills…</span>
-      <kbd className="hidden shrink-0 items-center gap-0.5 rounded-md border border-border/80 bg-background/60 px-1.5 py-0.5 text-[10px] font-medium sm:flex">
-        {isMac ? '⌘' : 'Ctrl'} K
-      </kbd>
+      {searchShortcut ? (
+        <kbd className="hidden shrink-0 items-center gap-0.5 rounded-md border border-border/80 bg-background/60 px-1.5 py-0.5 text-[10px] font-medium sm:flex">
+          {searchShortcut}
+        </kbd>
+      ) : null}
     </button>
   );
 }

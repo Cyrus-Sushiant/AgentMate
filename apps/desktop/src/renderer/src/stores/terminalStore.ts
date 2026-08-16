@@ -22,8 +22,17 @@ interface TerminalState {
   toggleDrawer: () => void;
   setDrawerHeight: (height: number) => void;
   openSession: (meta: Omit<TerminalSessionMeta, 'id'> & { id?: string }) => string;
+  openDefaultSession: () => string;
   closeSession: (id: string) => void;
   setActiveSession: (id: string) => void;
+}
+
+/** The shell a plain "new tab" starts, per platform. */
+export function defaultNewSession(): { title: string; shell?: string } {
+  const platform = window.agentmat.platform;
+  if (platform === 'win32') return { title: 'PowerShell', shell: 'powershell.exe' };
+  if (platform === 'darwin') return { title: 'zsh', shell: 'zsh' };
+  return { title: 'bash', shell: 'bash' };
 }
 
 export const useTerminalStore = create<TerminalState>((set, get) => ({
@@ -52,6 +61,14 @@ export const useTerminalStore = create<TerminalState>((set, get) => ({
       isOpen: true,
     }));
     return id;
+  },
+  openDefaultSession: () => {
+    const next = defaultNewSession();
+    const count = get().sessions.filter((s) => s.shell === next.shell).length;
+    return get().openSession({
+      title: count === 0 ? next.title : `${next.title} ${count + 1}`,
+      shell: next.shell,
+    });
   },
   closeSession: (id) => {
     const { sessions, activeSessionId } = get();

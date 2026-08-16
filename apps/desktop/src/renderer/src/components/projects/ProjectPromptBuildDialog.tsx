@@ -14,7 +14,12 @@ import {
 } from '@/components/icons';
 import { cn } from '@/lib/utils';
 import { containsPersian } from '@/lib/rtl';
-import { isShortcutLetter } from '@/lib/shortcutKey';
+import {
+  commandForEvent,
+  useShortcutLabel,
+  useShortcutLabelList,
+  useShortcutStore,
+} from '@/stores/shortcutStore';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import {
   Dialog,
@@ -78,7 +83,11 @@ export function ProjectPromptBuildDialog({
   const hasRequest = rawInput.trim().length > 0;
   const isBusy = isGenerating || isTranslating;
   const isPersian = containsPersian(rawInput);
-  const shortcut = typeof window !== 'undefined' && window.agentmat.platform === 'darwin' ? '⌘' : 'Ctrl';
+  const overrides = useShortcutStore((s) => s.overrides);
+  const generateKeys = useShortcutLabelList('prompt.generate');
+  const generateKey = useShortcutLabel('prompt.generate');
+  const translateKey = useShortcutLabel('prompt.translate');
+  const copyKey = useShortcutLabel('prompt.copy');
 
   useEffect(() => {
     return () => {
@@ -123,20 +132,22 @@ export function ProjectPromptBuildDialog({
           event.preventDefault();
           requestRef.current?.focus();
         }}
+        // These run before the app-wide shortcuts, which stand down for
+        // anything handled here. That is what lets Ctrl+T translate in this
+        // dialog while it toggles the terminal everywhere else.
         onKeyDown={(event) => {
-          if (event.shiftKey || event.altKey) return;
-          if (!(event.ctrlKey || event.metaKey)) return;
-          if (event.key === 'Enter' || isShortcutLetter(event, 'g')) {
+          const command = commandForEvent(event.nativeEvent, overrides, false, 'prompt');
+          if (command === 'prompt.generate') {
             event.preventDefault();
             if (hasRequest && !isBusy) void handleGenerate();
             return;
           }
-          if (isShortcutLetter(event, 't')) {
+          if (command === 'prompt.translate') {
             event.preventDefault();
             if (hasRequest && !isBusy) void handleTranslate();
             return;
           }
-          if (isShortcutLetter(event, 'c')) {
+          if (command === 'prompt.copy') {
             if (hasTextSelection() || !generated || isBusy) return;
             event.preventDefault();
             void onCopy();
@@ -230,7 +241,7 @@ export function ProjectPromptBuildDialog({
               )}
               <div className="flex gap-2">
                 <SimpleTooltip
-                  label={`${shortcut}+G or ${shortcut}+Enter`}
+                  label={generateKeys ?? 'Generate prompt'}
                   wrapTrigger={!hasRequest || isBusy}
                 >
                   <Button
@@ -240,15 +251,19 @@ export function ProjectPromptBuildDialog({
                   >
                     {isGenerating ? <Spinner className="animate-spin" /> : <Sparkles />}
                     {isGenerating ? 'Generating…' : 'Generate prompt'}
-                    {!isGenerating && (
+                    {!isGenerating && generateKey && (
                       <kbd className="ml-auto rounded border border-primary-foreground/25 px-1 py-px text-[10px] font-medium text-primary-foreground/80">
-                        {shortcut}+G
+                        {generateKey}
                       </kbd>
                     )}
                   </Button>
                 </SimpleTooltip>
                 <SimpleTooltip
-                  label={`Copy your request into English without generating a prompt (${shortcut}+T)`}
+                  label={
+                    translateKey
+                      ? `Copy your request into English without generating a prompt (${translateKey})`
+                      : 'Copy your request into English without generating a prompt'
+                  }
                   wrapTrigger={!hasRequest || isBusy}
                 >
                   <Button
@@ -258,9 +273,9 @@ export function ProjectPromptBuildDialog({
                   >
                     {isTranslating ? <Spinner className="animate-spin" /> : <Languages />}
                     {isTranslating ? 'Translating…' : 'Translate'}
-                    {!isTranslating && (
+                    {!isTranslating && translateKey && (
                       <kbd className="rounded border border-border px-1 py-px text-[10px] font-medium text-muted-foreground">
-                        {shortcut}+T
+                        {translateKey}
                       </kbd>
                     )}
                   </Button>
@@ -272,7 +287,9 @@ export function ProjectPromptBuildDialog({
               <div className="flex items-center justify-between gap-3">
                 <Label htmlFor="prompt-build-output">Generated prompt</Label>
                 <SimpleTooltip
-                  label={copied ? 'Copied' : `Copy prompt (${shortcut}+C)`}
+                  label={
+                    copied ? 'Copied' : copyKey ? `Copy prompt (${copyKey})` : 'Copy prompt'
+                  }
                   wrapTrigger={!generated || isBusy}
                 >
                   <Button
@@ -321,7 +338,13 @@ export function ProjectPromptBuildDialog({
             <Trash2 /> Clear
           </Button>
           <p className="hidden text-xs text-muted-foreground sm:block">
-            {shortcut}+G generate · {shortcut}+T translate · {shortcut}+C copy
+            {[
+              generateKey && `${generateKey} generate`,
+              translateKey && `${translateKey} translate`,
+              copyKey && `${copyKey} copy`,
+            ]
+              .filter(Boolean)
+              .join(' · ')}
           </p>
           <SimpleTooltip
             label={generated ? 'Park this on the project’s Overview tab' : 'Generate a prompt first'}
