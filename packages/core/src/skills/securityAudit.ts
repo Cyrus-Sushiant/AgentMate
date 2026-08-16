@@ -180,10 +180,10 @@ const SKILL_AUDIT_RULES: SkillAuditRule[] = [
   {
     id: 'pi-role-spoof',
     category: 'prompt-injection',
-    severity: 'medium',
+    severity: 'low',
     title: 'Fakes a system or developer turn',
     detail:
-      'Lines formatted as a system/developer message try to pass skill text off as a higher-trust instruction.',
+      'Lines formatted as a system/developer message can pass skill text off as a higher-trust instruction. API documentation shows the same shape legitimately, so read the line before judging it.',
     pattern: /^\s*(\[|<)?\s*(system|developer)\s*(\]|>)?\s*:\s*\S/i,
   },
   {
@@ -527,10 +527,10 @@ const SKILL_AUDIT_RULES: SkillAuditRule[] = [
   {
     id: 'rce-inline-interpreter',
     category: 'remote-code-execution',
-    severity: 'medium',
+    severity: 'low',
     title: 'Runs an inline one-liner through an interpreter',
     detail:
-      'python -c and node -e execute code that never lands in a file, which keeps it out of review and out of diffs.',
+      'python -c and node -e execute code that never lands in a file, so it stays out of review and out of diffs. Ordinary in setup scripts; read what the one-liner does.',
     pattern: /\b(python3?|node|ruby|perl|deno)\s+-(c|e|eval)\s+["'`]/,
   },
 
@@ -638,6 +638,16 @@ const SKILL_AUDIT_RULES: SkillAuditRule[] = [
     // state, context, or documents across sessions, and that is not memory poisoning.
     pattern:
       /\b(remember|store|persist|save|keep|apply)\b[^\n]{0,40}\b(instruction|rule|directive|prompt|command|guideline)s?\b[^\n]{0,40}\b(for\s+(all\s+)?(future|later|every)|permanently|in\s+(your\s+)?memory|across\s+sessions|from\s+now\s+on|every\s+(session|conversation|project))/i,
+  },
+  {
+    id: 'mem-standing-rule',
+    category: 'memory-poisoning',
+    severity: 'medium',
+    title: 'Declares a rule that keeps applying after this task',
+    detail:
+      'Written the other way round from the rule above: the instruction is the subject, and it claims to stay in force once the skill is done.',
+    pattern:
+      /\b(this|these|the\s+following|those)\s+(instruction|rule|directive|prompt|command|guideline|requirement)s?\b[^\n]{0,50}\b(apply|applies|persist|remain|stay|hold|continue)\b[^\n]{0,30}\b(from\s+now\s+on|for\s+(all\s+)?(future|later|every)|permanently|across\s+sessions|in\s+every\s+(session|conversation|project|response))/i,
   },
   {
     id: 'mem-every-response',
@@ -805,7 +815,7 @@ const SKILL_AUDIT_RULES: SkillAuditRule[] = [
     detail:
       'A recursive delete aimed at a home directory, an absolute path, a wildcard, or a variable takes far more than a build folder with it, and an empty variable takes everything.',
     pattern:
-      /(rm\s+-[a-z]*[rf][a-z]*\s+|Remove-Item[^\n]{0,60}-Recurse[^\n]{0,30})["']?(~|\/[a-z]*\s|\$\{?\w|%\w+%|\*|[A-Za-z]:[\\/])/i,
+      /(rm\s+-[a-z]*[rf][a-z]*\s+|Remove-Item[^\n]{0,60}-Recurse[^\n]{0,30})["']?(~|\/\w|\/\s*$|\$\{?\w|%\w+%|\*|[A-Za-z]:[\\/])/i,
   },
   {
     id: 'des-recursive-delete',
