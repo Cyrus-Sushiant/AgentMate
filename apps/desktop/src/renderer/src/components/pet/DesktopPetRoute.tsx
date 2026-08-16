@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils';
 import { queryKeys } from '@/lib/queryKeys';
 import { chuteFitFor, resolvePet, ropeGripYFor } from './characters';
 import { CARD_H, CARD_W, placeTokenCard, PetTokenCard } from './PetTokenCard';
+import { MENU_H, MENU_W, placePetMenu, PetMenu } from './PetMenu';
 import { PetChute } from './PetChute';
 import {
   applyBox,
@@ -39,6 +40,8 @@ function snapshot(actor: Actor): Actor {
 
 const SPEECH_W = 220;
 const SPEECH_H = 96;
+/** Two clicks closer together than this open the app instead of the token card. */
+const DOUBLE_CLICK_MS = 260;
 
 function speechRectFor(
   hit: { x: number; y: number; w: number; h: number },
@@ -98,9 +101,14 @@ export default function DesktopPetRoute(): React.JSX.Element {
   const [speech, setSpeech] = useState<PetPipelineMessage | null>(null);
   const [dragging, setDragging] = useState(false);
   const [cardSize, setCardSize] = useState({ w: CARD_W, h: CARD_H });
+  const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
+  const [menuSize, setMenuSize] = useState({ w: MENU_W, h: MENU_H });
   const actorRef = useRef<Actor | null>(null);
   const areaRef = useRef<PetWorkArea>({ x: 0, y: 0, width: 0, height: 0 });
   const openRef = useRef(false);
+  const menuRef = useRef(false);
+  const menuElRef = useRef<HTMLDivElement>(null);
+  const clickTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const speechRef = useRef<PetPipelineMessage | null>(null);
   const speechTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const dragRef = useRef<{ dx: number; dy: number; moved: boolean } | null>(null);
@@ -125,6 +133,7 @@ export default function DesktopPetRoute(): React.JSX.Element {
   });
 
   openRef.current = open;
+  menuRef.current = menu !== null;
   speechRef.current = speech;
   drawnRef.current = drawn;
   configRef.current = {
@@ -222,6 +231,31 @@ export default function DesktopPetRoute(): React.JSX.Element {
     if (!open) setCardSize({ w: CARD_W, h: CARD_H });
   }, [open]);
 
+  useEffect(() => {
+    if (!menu) {
+      setMenuSize({ w: MENU_W, h: MENU_H });
+      return;
+    }
+    window.agentmat.pet.setClickThrough(false);
+    function onKeyDown(event: KeyboardEvent): void {
+      if (event.key === 'Escape') setMenu(null);
+    }
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [menu]);
+
+  useLayoutEffect(() => {
+    const node = menuElRef.current;
+    if (!menu || !node) return;
+    const rect = node.getBoundingClientRect();
+    if (rect.width < 8 || rect.height < 8) return;
+    setMenuSize((prev) =>
+      prev.w === Math.ceil(rect.width) && prev.h === Math.ceil(rect.height)
+        ? prev
+        : { w: Math.ceil(rect.width), h: Math.ceil(rect.height) },
+    );
+  }, [menu]);
+
   useLayoutEffect(() => {
     if (!open) return;
     const node = cardRef.current;
@@ -295,6 +329,7 @@ export default function DesktopPetRoute(): React.JSX.Element {
   useEffect(() => {
     return () => {
       if (speechTimer.current) clearTimeout(speechTimer.current);
+      if (clickTimer.current) clearTimeout(clickTimer.current);
     };
   }, []);
 
@@ -351,7 +386,7 @@ export default function DesktopPetRoute(): React.JSX.Element {
       const cfg = configRef.current;
       if (current.id !== cfg.characterId) current.id = cfg.characterId;
       applyBox(current, stageFromArea(areaRef.current), cfg.box);
-      const paused = openRef.current || dragRef.current !== null;
+      const paused = openRef.current || menuRef.current || dragRef.current !== null;
       stepCompanion(current, stageFromArea(areaRef.current), dt, ts, paused, cfg);
       sync(current);
     }
@@ -391,15 +426,45 @@ export default function DesktopPetRoute(): React.JSX.Element {
     );
   }
 
+  function insideMenu(target: EventTarget | null): boolean {
+    return target instanceof Element && target.closest('[data-pet-hit="menu"]') !== null;
+  }
+
+  /** Drops a click that was waiting to see whether a double click followed. */
+  function cancelPendingClick(): void {
+    if (!clickTimer.current) return;
+    clearTimeout(clickTimer.current);
+    clickTimer.current = null;
+  }
+
+  function onContextMenu(event: React.MouseEvent<HTMLDivElement>): void {
+    event.preventDefault();
+    if (insideMenu(event.target)) return;
+    if (!actorRef.current || !hitTest(event.clientX, event.clientY)) {
+      setMenu(null);
+      return;
+    }
+    cancelPendingClick();
+    setOpen(false);
+    setMenu({ x: event.clientX, y: event.clientY });
+  }
+
   function onPointerDown(event: React.PointerEvent<HTMLDivElement>): void {
+    if (insideMenu(event.target)) return;
     if (event.button !== 0) return;
     const current = actorRef.current;
+    if (menuRef.current) {
+      setMenu(null);
+      return;
+    }
     if (hitSpeech(event.clientX, event.clientY)) {
+      cancelPendingClick();
       setSpeech(null);
       if (speechTimer.current) clearTimeout(speechTimer.current);
       return;
     }
     if (!current || !hitTest(event.clientX, event.clientY)) {
+      cancelPendingClick();
       setOpen(false);
       return;
     }
@@ -416,7 +481,12 @@ export default function DesktopPetRoute(): React.JSX.Element {
     const drag = dragRef.current;
     const current = actorRef.current;
     if (!drag) {
-      setHit(hitTest(event.clientX, event.clientY) || hitSpeech(event.clientX, event.clientY) || openRef.current);
+      setHit(
+        hitTest(event.clientX, event.clientY) ||
+          hitSpeech(event.clientX, event.clientY) ||
+          openRef.current ||
+          menuRef.current,
+      );
       return;
     }
     if (!current) return;
@@ -440,8 +510,19 @@ export default function DesktopPetRoute(): React.JSX.Element {
     setDragging(false);
     if (!current) return;
     if (!drag.moved) {
-      setOpen((value) => !value);
       hopActor(current, performance.now());
+      // A second click before the timer runs out is a double click, which opens
+      // the app instead of the token card.
+      if (clickTimer.current) {
+        cancelPendingClick();
+        setOpen(false);
+        window.agentmat.pet.showMainWindow();
+        return;
+      }
+      clickTimer.current = setTimeout(() => {
+        clickTimer.current = null;
+        setOpen((value) => !value);
+      }, DOUBLE_CLICK_MS);
       return;
     }
     current.rope = null;
@@ -449,6 +530,26 @@ export default function DesktopPetRoute(): React.JSX.Element {
     current.nextAt = configRef.current.canMove
       ? performance.now() + 2800 + Math.random() * 6000
       : performance.now() + 60_000;
+  }
+
+  function handleOpenApp(): void {
+    setMenu(null);
+    window.agentmat.pet.showMainWindow();
+  }
+
+  function handleToggleMove(): void {
+    setMenu(null);
+    void window.agentmat.settings.update({ desktopPetCanMove: !canMove });
+  }
+
+  function handleSnooze(minutes: number): void {
+    setMenu(null);
+    void window.agentmat.pet.snooze(minutes);
+  }
+
+  function handleTurnOff(): void {
+    setMenu(null);
+    void window.agentmat.settings.update({ desktopPetEnabled: false });
   }
 
   const hit = actor ? hitRectFor(actor) : null;
@@ -485,7 +586,7 @@ export default function DesktopPetRoute(): React.JSX.Element {
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
       onPointerCancel={onPointerUp}
-      onContextMenu={(event) => event.preventDefault()}
+      onContextMenu={onContextMenu}
     >
       {actor?.rope ? (
         <div
@@ -569,6 +670,30 @@ export default function DesktopPetRoute(): React.JSX.Element {
           style={{ left: placement.left, top: placement.top }}
         >
           <PetTokenCard pet={pet} side={placement.side} onClose={() => setOpen(false)} />
+        </div>
+      ) : null}
+
+      {menu && pet ? (
+        <div
+          ref={menuElRef}
+          className="absolute z-30"
+          style={placePetMenu(
+            menu.x,
+            menu.y,
+            areaRef.current.width,
+            areaRef.current.height,
+            menuSize.w,
+            menuSize.h,
+          )}
+        >
+          <PetMenu
+            petName={pet.name}
+            canMove={canMove}
+            onOpenApp={handleOpenApp}
+            onToggleMove={handleToggleMove}
+            onSnooze={handleSnooze}
+            onTurnOff={handleTurnOff}
+          />
         </div>
       ) : null}
     </div>

@@ -33,6 +33,7 @@ import { registerUsageHandlers } from './ipc/usage';
 import { widgetManager } from './usage/widgetWindows';
 import { promptBuildWidgetManager } from './promptBuild/widgetWindows';
 import { petManager } from './pet/petWindow';
+import { setMainWindow, setMainWindowFactory } from './mainWindow';
 import { registerWindowHandlers } from './ipc/window';
 import { seedExampleRepositoryIfEmpty } from './exampleSkillRepo';
 import { startHookServer, stopHookServer } from './notifications/hookServer';
@@ -74,7 +75,7 @@ if (!isSingleInstance) {
   app.quit();
 }
 
-function createMainWindow(): void {
+function createMainWindow(): BrowserWindow {
   const win = new BrowserWindow({
     width: 1440,
     height: 860,
@@ -98,6 +99,7 @@ function createMainWindow(): void {
   });
 
   win.once('ready-to-show', () => win.show());
+  setMainWindow(win);
   registerWindowHandlers(win);
   remoteManager.init(win);
 
@@ -133,6 +135,8 @@ function createMainWindow(): void {
   } else {
     void win.loadFile(join(__dirname, '../renderer/index.html'));
   }
+
+  return win;
 }
 
 function registerAllIpcHandlers(): void {
@@ -209,6 +213,7 @@ app.whenReady().then(() => {
   registerAllIpcHandlers();
   void seedExampleRepositoryIfEmpty();
   void startHookServer();
+  setMainWindowFactory(createMainWindow);
   createMainWindow();
   void widgetManager.restoreAll();
   void promptBuildWidgetManager.restoreAll();

@@ -24,6 +24,7 @@ export const queryKeys = {
   templates: ['prompt-templates'] as const,
   settings: ['settings'] as const,
   petCustomImages: ['pet-custom-images'] as const,
+  petSnooze: ['pet-snooze'] as const,
   usageList: ['usage-list'] as const,
   appVersion: ['app-version'] as const,
   promptHistory: ['prompt-history'] as const,

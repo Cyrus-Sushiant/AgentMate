@@ -2,11 +2,18 @@ import { join } from 'node:path';
 import { BrowserWindow, screen } from 'electron';
 import icon from '../../../resources/icon.ico?asset';
 import { IPC } from '../../shared/ipcChannels';
-import type { PetPipelineMessage, PetWorkArea } from '../../shared/pet';
+import {
+  PET_SNOOZE_MAX_MINUTES,
+  type PetPipelineMessage,
+  type PetSnoozeState,
+  type PetWorkArea,
+} from '../../shared/pet';
 import { store } from '../store';
 
 let win: BrowserWindow | null = null;
 let displayListenersBound = false;
+let snoozeUntil: number | null = null;
+let snoozeTimer: ReturnType<typeof setTimeout> | null = null;
 
 function primaryWorkArea(): PetWorkArea {
   const area = screen.getPrimaryDisplay().workArea;
@@ -43,6 +50,27 @@ function bindDisplayListeners(): void {
 function applyClickThrough(target: BrowserWindow, ignore: boolean): void {
   if (ignore) target.setIgnoreMouseEvents(true, { forward: true });
   else target.setIgnoreMouseEvents(false);
+}
+
+function broadcastSnooze(): void {
+  const state: PetSnoozeState = { until: snoozeUntil };
+  for (const target of BrowserWindow.getAllWindows()) {
+    if (!target.webContents.isDestroyed()) target.webContents.send(IPC.pet.onSnoozeChanged, state);
+  }
+}
+
+function stopSnoozeTimer(): void {
+  if (!snoozeTimer) return;
+  clearTimeout(snoozeTimer);
+  snoozeTimer = null;
+}
+
+function clearSnooze(): boolean {
+  if (snoozeUntil === null) return false;
+  stopSnoozeTimer();
+  snoozeUntil = null;
+  broadcastSnooze();
+  return true;
 }
 
 function createPetWindow(): BrowserWindow {
@@ -111,12 +139,50 @@ export const petManager = {
 
   async syncFromSettings(): Promise<void> {
     const settings = await store.getSettings();
-    if (settings.desktopPetEnabled) {
-      this.open();
-      this.notifySettings();
-    } else {
+    if (!settings.desktopPetEnabled) {
+      // Switching the pet off and back on is a deliberate "show it now", so a
+      // pending hide should not survive that round trip.
+      clearSnooze();
       this.close();
+      return;
     }
+    if (snoozeUntil !== null && snoozeUntil > Date.now()) {
+      this.close();
+      return;
+    }
+    this.open();
+    this.notifySettings();
+  },
+
+  snoozeState(): PetSnoozeState {
+    return { until: snoozeUntil };
+  },
+
+  /** Hides the companion for a while. It comes back by itself when time is up. */
+  snooze(minutes: number): PetSnoozeState {
+    const requested = Number(minutes);
+    const safe = Math.min(
+      PET_SNOOZE_MAX_MINUTES,
+      Math.max(1, Math.round(Number.isFinite(requested) ? requested : 0)),
+    );
+    const ms = safe * 60_000;
+    stopSnoozeTimer();
+    snoozeUntil = Date.now() + ms;
+    this.close();
+    snoozeTimer = setTimeout(() => {
+      snoozeTimer = null;
+      snoozeUntil = null;
+      broadcastSnooze();
+      void this.syncFromSettings();
+    }, ms);
+    broadcastSnooze();
+    return this.snoozeState();
+  },
+
+  /** Ends a hide early, bringing the companion straight back if it is turned on. */
+  cancelSnooze(): PetSnoozeState {
+    if (clearSnooze()) void this.syncFromSettings();
+    return this.snoozeState();
   },
 
   notifySettings(): void {

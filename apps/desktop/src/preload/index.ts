@@ -35,7 +35,7 @@ import type {
   WidgetStyle,
 } from '@agentmat/core';
 import { IPC } from '../shared/ipcChannels';
-import type { PetPipelineMessage, PetWorkArea } from '../shared/pet';
+import type { PetPipelineMessage, PetSnoozeState, PetWorkArea } from '../shared/pet';
 import type {
   BootstrapResult,
   CreateTerminalOptions,
@@ -704,6 +704,13 @@ const pet = {
   importCustom: (): Promise<CustomDesktopPet | null> => ipcRenderer.invoke(IPC.pet.importCustom),
   removeCustom: (id: string): Promise<void> => ipcRenderer.invoke(IPC.pet.removeCustom, id),
   customDataUrls: (): Promise<Record<string, string>> => ipcRenderer.invoke(IPC.pet.customDataUrls),
+  snooze: (minutes: number): Promise<PetSnoozeState> =>
+    ipcRenderer.invoke(IPC.pet.snooze, minutes),
+  cancelSnooze: (): Promise<PetSnoozeState> => ipcRenderer.invoke(IPC.pet.cancelSnooze),
+  getSnooze: (): Promise<PetSnoozeState> => ipcRenderer.invoke(IPC.pet.getSnooze),
+  onSnoozeChanged: (callback: (state: PetSnoozeState) => void): (() => void) =>
+    subscribe(IPC.pet.onSnoozeChanged, callback),
+  showMainWindow: (): void => ipcRenderer.send(IPC.pet.showMainWindow),
 };
 
 const windowControls = {

@@ -280,6 +280,14 @@ export const IPC = {
     importCustom: 'pet:importCustom',
     removeCustom: 'pet:removeCustom',
     customDataUrls: 'pet:customDataUrls',
+    /** Hide the companion for N minutes; it comes back on its own. */
+    snooze: 'pet:snooze',
+    cancelSnooze: 'pet:cancelSnooze',
+    getSnooze: 'pet:getSnooze',
+    /** main -> every renderer: the hide started, was cancelled, or ran out. */
+    onSnoozeChanged: 'pet:snoozeChanged',
+    /** Double-clicking the companion brings the app window back to the front. */
+    showMainWindow: 'pet:showMainWindow',
   },
   pipelines: {
     status: 'pipelines:status',

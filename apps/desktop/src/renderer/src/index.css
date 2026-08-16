@@ -954,6 +954,93 @@ body {
   pointer-events: auto;
 }
 
+.pet-menu {
+  pointer-events: auto;
+  width: 216px;
+  padding: 0.4rem;
+  border-radius: 0.7rem;
+  color: hsl(var(--card-foreground));
+  animation: pet-menu-in 0.12s ease-out;
+}
+.pet-menu-title {
+  margin: 0;
+  padding: 0.25rem 0.45rem 0.35rem;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: hsl(var(--muted-foreground));
+}
+.pet-menu-item {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.45rem;
+  border-radius: 0.4rem;
+  font-size: 12.5px;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+  color: inherit;
+}
+.pet-menu-item:hover {
+  background: hsl(var(--accent) / 0.7);
+}
+.pet-menu-item.is-danger {
+  color: hsl(var(--destructive));
+}
+.pet-menu-item.is-danger:hover {
+  background: hsl(var(--destructive) / 0.15);
+}
+.pet-menu-sep {
+  margin: 0.3rem 0.2rem;
+  height: 1px;
+  background: hsl(var(--foreground) / 0.1);
+}
+.pet-menu-label {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin: 0 0 0.3rem;
+  padding: 0 0.45rem;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: hsl(var(--muted-foreground));
+}
+.pet-menu-chip {
+  padding: 0.3rem 0.25rem;
+  border-radius: 0.4rem;
+  border: 1px solid hsl(var(--foreground) / 0.12);
+  background: hsl(var(--foreground) / 0.04);
+  font-size: 12px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  color: inherit;
+}
+.pet-menu-chip:hover {
+  border-color: hsl(var(--primary) / 0.5);
+  background: hsl(var(--primary) / 0.14);
+}
+@keyframes pet-menu-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pet-menu {
+    animation: none;
+  }
+}
+
 @keyframes pet-walk {
   0%,
   100% {

@@ -42,6 +42,20 @@ export function CompanionSettings({
     queryFn: () => window.agentmat.pet.customDataUrls(),
   });
 
+  const snooze = useQuery({
+    queryKey: queryKeys.petSnooze,
+    queryFn: () => window.agentmat.pet.getSnooze(),
+  });
+
+  useEffect(() => {
+    return window.agentmat.pet.onSnoozeChanged((state) => {
+      queryClient.setQueryData(queryKeys.petSnooze, state);
+    });
+  }, [queryClient]);
+
+  const hiddenUntil = snooze.data?.until ?? null;
+  const isHidden = hiddenUntil !== null && hiddenUntil > Date.now();
+
   const pending = save.isPending;
   const canMove = settings.desktopPetCanMove !== false;
   const canClimb = settings.desktopPetCanClimb !== false;
@@ -154,7 +168,8 @@ export function CompanionSettings({
             <div className="min-w-0 space-y-1">
               <CardTitle>My AI Pet</CardTitle>
               <CardDescription>
-                One character on your screen. Click it for a token report. Drag it to place it.
+                One character on your screen. Click it for a token report, double-click to bring up
+                AgentMate, right-click for quick options. Drag it to place it.
               </CardDescription>
             </div>
           </div>
@@ -165,6 +180,29 @@ export function CompanionSettings({
             aria-label="Show my AI pet"
           />
         </CardHeader>
+        {isHidden ? (
+          <CardContent>
+            <div className="flex items-center justify-between gap-3 rounded-lg border border-border bg-background/40 px-3 py-2">
+              <p className="min-w-0 text-xs text-muted-foreground">
+                Hidden from its right-click menu until{' '}
+                <span className="font-medium text-foreground">
+                  {new Date(hiddenUntil).toLocaleTimeString([], {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  })}
+                </span>
+                .
+              </p>
+              <button
+                type="button"
+                className="shrink-0 cursor-pointer rounded-md border border-border px-2.5 py-1 text-xs font-medium hover:bg-accent"
+                onClick={() => void window.agentmat.pet.cancelSnooze()}
+              >
+                Show now
+              </button>
+            </div>
+          </CardContent>
+        ) : null}
       </Card>
 
       <Card className="glass">
