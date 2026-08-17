@@ -50,7 +50,9 @@ export function CliArgsField({
         onKeyDown={(event) => {
           if (event.key === 'Enter') event.currentTarget.blur();
         }}
-        placeholder="--model sonnet"
+        // Every CLI names its flags differently, so the hint comes from the registry
+        // entry rather than one CLI's syntax standing in for all of them.
+        placeholder={cli.argsExample ?? '--flag value'}
         className="h-8 font-mono text-xs"
         spellCheck={false}
       />
