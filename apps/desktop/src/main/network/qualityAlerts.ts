@@ -136,7 +136,11 @@ async function tick(): Promise<void> {
     const speech = petNetworkSpeech(from, band, latencyMs);
     petManager.sendPipelineMessage({
       kind: speech.kind,
-      petName: petDisplayName(settings.desktopPetCharacterId, settings.desktopPetCustoms ?? []),
+      petName: petDisplayName(
+        settings.desktopPetCharacterId,
+        settings.desktopPetCustoms ?? [],
+        settings.desktopPetName,
+      ),
       text: speech.text,
     });
   } catch {

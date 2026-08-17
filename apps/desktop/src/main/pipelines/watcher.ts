@@ -69,7 +69,11 @@ async function maybeSpeak(kind: 'pass' | 'fail', project: Project, workflowName:
 
   const payload: PetPipelineMessage = {
     kind,
-    petName: petDisplayName(settings.desktopPetCharacterId, settings.desktopPetCustoms ?? []),
+    petName: petDisplayName(
+      settings.desktopPetCharacterId,
+      settings.desktopPetCustoms ?? [],
+      settings.desktopPetName,
+    ),
     text: petSpeech(kind, project.name, workflowName),
     projectName: project.name,
     workflowName,

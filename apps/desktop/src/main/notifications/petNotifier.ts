@@ -11,7 +11,11 @@ export function speakOnPet(settings: AppSettings, projectName: string, text: str
   if (!settings.desktopPetEnabled || !petManager.isOpen()) return false;
   petManager.sendPipelineMessage({
     kind: 'pass',
-    petName: petDisplayName(settings.desktopPetCharacterId, settings.desktopPetCustoms ?? []),
+    petName: petDisplayName(
+      settings.desktopPetCharacterId,
+      settings.desktopPetCustoms ?? [],
+      settings.desktopPetName,
+    ),
     text,
     projectName,
   });

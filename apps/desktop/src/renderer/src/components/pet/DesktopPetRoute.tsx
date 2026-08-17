@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { clampDesktopPetClickArea, clampDesktopPetScale, isAnimatedPetFile, normalizeDesktopPetActionSpeeds, normalizeDesktopPetCardView, normalizeDesktopPetId, petBoxSize, petClickRect, type DesktopPetCardView } from '@agentmat/core';
+import { clampDesktopPetClickArea, clampDesktopPetScale, isAnimatedPetFile, normalizeDesktopPetActionSpeeds, normalizeDesktopPetCardView, normalizeDesktopPetId, normalizeDesktopPetName, petBoxSize, petClickRect, type DesktopPetCardView } from '@agentmat/core';
 import type { PetPipelineMessage, PetWorkArea } from '@shared/pet';
 import { cn } from '@/lib/utils';
 import { queryKeys } from '@/lib/queryKeys';
@@ -82,7 +82,8 @@ export default function DesktopPetRoute(): React.JSX.Element {
   const cardView = normalizeDesktopPetCardView(settingsQuery.data?.desktopPetCardView);
   const box = petBoxSize(scale);
   const custom = customs.find((item) => item.id === characterId);
-  const pet = resolvePet(
+  const nickname = normalizeDesktopPetName(settingsQuery.data?.desktopPetName);
+  const character = resolvePet(
     characterId,
     custom && customImages.data?.[custom.id]
       ? {
@@ -92,6 +93,9 @@ export default function DesktopPetRoute(): React.JSX.Element {
         }
       : null,
   );
+  // The nickname stands in for the character's name everywhere it is shown: the
+  // stats card header and the right-click menu.
+  const pet = character && nickname ? { ...character, name: nickname } : character;
   const spriteH = pet ? Math.round(pet.height * (scale / 100)) : box;
   const ropeGripY = pet ? ropeGripYFor(pet) : 0.5;
   const chuteFit = pet ? chuteFitFor(pet) : null;

@@ -4,6 +4,7 @@ import { toast } from 'sonner';
 import {
   DESKTOP_PET_CLICK_AREA_MAX,
   DESKTOP_PET_CLICK_AREA_MIN,
+  DESKTOP_PET_NAME_MAX,
   DESKTOP_PET_SCALE_MAX,
   DESKTOP_PET_SCALE_MIN,
   DESKTOP_PET_SPEED_MAX,
@@ -12,11 +13,13 @@ import {
   clampDesktopPetSpeed,
   isAnimatedPetFile,
   normalizeDesktopPetActionSpeeds,
+  normalizeDesktopPetName,
   type AppSettings,
   type DesktopPetActionSpeeds,
 } from '@agentmat/core';
 import { Paw, Plus, Trash2 } from '@/components/icons';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { queryKeys } from '@/lib/queryKeys';
@@ -69,6 +72,8 @@ export function CompanionSettings({
   const [speeds, setSpeeds] = useState(() => normalizeDesktopPetActionSpeeds(settings.desktopPetActionSpeeds));
   const speedTimers = useRef<Partial<Record<keyof DesktopPetActionSpeeds, ReturnType<typeof setTimeout>>>>({});
   const [importing, setImporting] = useState(false);
+  const [petName, setPetName] = useState(() => settings.desktopPetName ?? '');
+  const petNameTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     setScale(settings.desktopPetScale);
@@ -82,10 +87,18 @@ export function CompanionSettings({
     setSpeeds(normalizeDesktopPetActionSpeeds(settings.desktopPetActionSpeeds));
   }, [settings.desktopPetActionSpeeds]);
 
+  // Only pull the saved name back into the field when it is genuinely different,
+  // so a trailing space someone is still typing past does not get yanked away.
+  useEffect(() => {
+    const saved = settings.desktopPetName ?? '';
+    setPetName((prev) => (normalizeDesktopPetName(prev) === saved ? prev : saved));
+  }, [settings.desktopPetName]);
+
   useEffect(() => {
     return () => {
       if (scaleTimer.current) clearTimeout(scaleTimer.current);
       if (clickAreaTimer.current) clearTimeout(clickAreaTimer.current);
+      if (petNameTimer.current) clearTimeout(petNameTimer.current);
       for (const timer of Object.values(speedTimers.current)) {
         if (timer) clearTimeout(timer);
       }
@@ -122,6 +135,21 @@ export function CompanionSettings({
     });
   }
 
+  function commitPetName(next: string): void {
+    setPetName(next);
+    if (petNameTimer.current) clearTimeout(petNameTimer.current);
+    petNameTimer.current = setTimeout(() => {
+      save.mutate({ desktopPetName: normalizeDesktopPetName(next) });
+    }, 320);
+  }
+
+  function flushPetName(): void {
+    if (petNameTimer.current) clearTimeout(petNameTimer.current);
+    const value = normalizeDesktopPetName(petName);
+    setPetName(value);
+    if (value !== (settings.desktopPetName ?? '')) save.mutate({ desktopPetName: value });
+  }
+
   async function handleAddPet(): Promise<void> {
     setImporting(true);
     try {
@@ -156,6 +184,11 @@ export function CompanionSettings({
   }
 
   const customs = settings.desktopPetCustoms ?? [];
+  const activeCustom = customs.find((item) => item.id === settings.desktopPetCharacterId);
+  const characterName =
+    activeCustom?.name ??
+    PET_CHARACTERS.find((pet) => pet.id === settings.desktopPetCharacterId)?.name ??
+    'Your pet';
 
   return (
     <div className="space-y-4">
@@ -304,6 +337,27 @@ export function CompanionSettings({
               <span className="text-sm font-medium text-foreground">Add your pet</span>
               <span className="text-xs">PNG, GIF, or WebP</span>
             </button>
+          </div>
+
+          <div className="mt-4 space-y-2 border-t border-border pt-4">
+            <div className="min-w-0">
+              <Label htmlFor="pet-name">Name</Label>
+              <p className="text-xs text-muted-foreground">
+                Give it a name of your own. It shows on the stats card, in the right-click menu, and
+                on anything the pet says. Leave it empty to keep {characterName}.
+              </p>
+            </div>
+            <Input
+              id="pet-name"
+              value={petName}
+              maxLength={DESKTOP_PET_NAME_MAX}
+              placeholder={characterName}
+              spellCheck={false}
+              autoComplete="off"
+              className="max-w-xs"
+              onChange={(event) => commitPetName(event.target.value)}
+              onBlur={flushPetName}
+            />
           </div>
         </CardContent>
       </Card>

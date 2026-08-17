@@ -38,6 +38,18 @@ export interface CustomDesktopPet {
   fileName: string;
 }
 
+/** Longest nickname the user can give their pet. */
+export const DESKTOP_PET_NAME_MAX = 24;
+
+/**
+ * Cleans up a nickname typed in Settings. Empty means the user has not named the
+ * pet, so callers fall back to the character's own name.
+ */
+export function normalizeDesktopPetName(value: unknown): string {
+  if (typeof value !== 'string') return '';
+  return value.replace(/\s+/g, ' ').trim().slice(0, DESKTOP_PET_NAME_MAX);
+}
+
 export const DESKTOP_PET_SCALE_MIN = 50;
 export const DESKTOP_PET_SCALE_MAX = 160;
 export const DESKTOP_PET_SCALE_DEFAULT = 100;
@@ -364,6 +376,12 @@ export interface AppSettings {
   desktopPetCharacterId: string;
   /** Pets the user added from a PNG, GIF, or WebP. */
   desktopPetCustoms: CustomDesktopPet[];
+  /**
+   * Nickname the user gave the pet. It replaces the character's own name in the
+   * stats card, the right-click menu, and anything the pet says. Empty means the
+   * character keeps its own name.
+   */
+  desktopPetName: string;
   /** When false the companion stays put (idle pose) instead of wandering. */
   desktopPetCanMove: boolean;
   /** When false it never climbs a rope to the top of the screen. */
