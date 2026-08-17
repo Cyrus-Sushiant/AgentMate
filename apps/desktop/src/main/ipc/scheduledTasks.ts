@@ -23,6 +23,36 @@ function renderTaskMessage(task: ScheduledTask, projectName: string): string {
   ].join('\n');
 }
 
+async function projectName(projectId: string): Promise<string> {
+  const projects = await store.getProjects();
+  return projects.find((p) => p.id === projectId)?.name ?? 'Unknown project';
+}
+
+/**
+ * Announces each new task in the Telegram chat set aside for scheduled tasks and
+ * records the message it posted, so `updateStatus` can edit that same message
+ * later instead of posting a second one. A task is created either way, so a
+ * missing token or a failed send is silently skipped rather than raised.
+ */
+async function announceOnTelegram(tasks: ScheduledTask[], projectId: string): Promise<void> {
+  const settings = await store.getSettings();
+  const { telegramBotToken, telegramScheduledTasksChatId } = settings;
+  if (!telegramBotToken || !telegramScheduledTasksChatId) return;
+
+  const name = await projectName(projectId);
+  for (const task of tasks) {
+    const result = await sendTelegramMessage(
+      telegramBotToken,
+      telegramScheduledTasksChatId,
+      renderTaskMessage(task, name),
+    );
+    if (result.ok) {
+      task.telegramChatId = telegramScheduledTasksChatId;
+      task.telegramMessageId = result.messageId ?? null;
+    }
+  }
+}
+
 export function registerScheduledTaskHandlers(): void {
   ipcMain.handle(
     IPC.scheduledTasks.list,
@@ -53,23 +83,7 @@ export function registerScheduledTaskHandlers(): void {
         createdAt: now,
       }));
 
-      const [settings, projects] = await Promise.all([store.getSettings(), store.getProjects()]);
-      const { telegramBotToken, telegramScheduledTasksChatId } = settings;
-      if (telegramBotToken && telegramScheduledTasksChatId) {
-        const projectName =
-          projects.find((p) => p.id === input.projectId)?.name ?? 'Unknown project';
-        for (const task of created) {
-          const result = await sendTelegramMessage(
-            telegramBotToken,
-            telegramScheduledTasksChatId,
-            renderTaskMessage(task, projectName),
-          );
-          if (result.ok) {
-            task.telegramChatId = telegramScheduledTasksChatId;
-            task.telegramMessageId = result.messageId ?? null;
-          }
-        }
-      }
+      await announceOnTelegram(created, input.projectId);
 
       const tasks = await store.getScheduledTasks();
       tasks.push(...created);
@@ -91,14 +105,11 @@ export function registerScheduledTaskHandlers(): void {
       if (updated.telegramChatId && updated.telegramMessageId) {
         const settings = await store.getSettings();
         if (settings.telegramBotToken) {
-          const projects = await store.getProjects();
-          const projectName =
-            projects.find((p) => p.id === updated.projectId)?.name ?? 'Unknown project';
           await editTelegramMessage(
             settings.telegramBotToken,
             updated.telegramChatId,
             updated.telegramMessageId,
-            renderTaskMessage(updated, projectName),
+            renderTaskMessage(updated, await projectName(updated.projectId)),
           );
         }
       }

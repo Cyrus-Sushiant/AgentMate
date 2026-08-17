@@ -583,6 +583,7 @@ export default function SettingsPage(): React.JSX.Element {
     try {
       const result = await window.agentmat.backup.export(compressBackup);
       if (result.ok && result.path) toast.success(`Backup saved to ${result.path}`);
+      else if (result.error) toast.error(result.error);
     } finally {
       setExportingBackup(false);
     }
@@ -605,6 +606,9 @@ export default function SettingsPage(): React.JSX.Element {
         if (result.error) toast.error(result.error);
         return;
       }
+      // Rows that could not be read, plus any setting the backup carried that
+      // decides what the app will execute later.
+      for (const warning of result.warnings ?? []) toast.warning(warning);
       const restart = await confirmDialog({
         title: 'Backup restored',
         description: 'AgentMate needs to restart to load the restored data.',

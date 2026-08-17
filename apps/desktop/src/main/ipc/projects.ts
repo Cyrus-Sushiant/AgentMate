@@ -40,6 +40,30 @@ async function projectsRootPath(): Promise<string | null> {
   }
 }
 
+async function requireProject(projectId: string): Promise<Project> {
+  const projects = await store.getProjects();
+  const project = projects.find((p) => p.id === projectId);
+  if (!project) throw new Error(`Project ${projectId} not found`);
+  return project;
+}
+
+/**
+ * Applies `mutate` to one project and persists the whole list. `updatedAt` is
+ * stamped here so no caller can forget it.
+ */
+async function mutateProject(
+  projectId: string,
+  mutate: (current: Project) => Project,
+): Promise<Project> {
+  const projects = await store.getProjects();
+  const index = projects.findIndex((p) => p.id === projectId);
+  if (index === -1) throw new Error(`Project ${projectId} not found`);
+  const updated: Project = { ...mutate(projects[index]), updatedAt: new Date().toISOString() };
+  projects[index] = updated;
+  await store.setProjects(projects);
+  return updated;
+}
+
 function planFor(project: Project): BootstrapPlan {
   return getBootstrapPlan({
     name: project.name,
@@ -88,21 +112,13 @@ export function registerProjectHandlers(): void {
   ipcMain.handle(
     IPC.projects.update,
     async (_event, projectId: string, updates: Partial<CreateProjectInput>): Promise<Project> => {
-      const projects = await store.getProjects();
-      const index = projects.findIndex((p) => p.id === projectId);
-      if (index === -1) throw new Error(`Project ${projectId} not found`);
-      const current = projects[index];
-      const updated: Project = {
+      return mutateProject(projectId, (current) => ({
         ...current,
         ...updates,
         runCommands: updates.runCommands
           ? normalizeProjectRunCommands({ runCommands: updates.runCommands })
           : current.runCommands,
-        updatedAt: new Date().toISOString(),
-      };
-      projects[index] = updated;
-      await store.setProjects(projects);
-      return updated;
+      }));
     },
   );
 
@@ -113,16 +129,7 @@ export function registerProjectHandlers(): void {
       projectId: string,
       notifications: ProjectNotificationSettings,
     ): Promise<Project> => {
-      const projects = await store.getProjects();
-      const index = projects.findIndex((p) => p.id === projectId);
-      if (index === -1) throw new Error(`Project ${projectId} not found`);
-      const updated: Project = {
-        ...projects[index],
-        notifications,
-        updatedAt: new Date().toISOString(),
-      };
-      projects[index] = updated;
-      await store.setProjects(projects);
+      const updated = await mutateProject(projectId, (current) => ({ ...current, notifications }));
       await installProjectNotificationHooks(updated);
       return updated;
     },
@@ -152,13 +159,7 @@ export function registerProjectHandlers(): void {
   ipcMain.handle(
     IPC.projects.setPinned,
     async (_event, projectId: string, pinned: boolean): Promise<Project> => {
-      const projects = await store.getProjects();
-      const index = projects.findIndex((p) => p.id === projectId);
-      if (index === -1) throw new Error(`Project ${projectId} not found`);
-      const updated: Project = { ...projects[index], pinned, updatedAt: new Date().toISOString() };
-      projects[index] = updated;
-      await store.setProjects(projects);
-      return updated;
+      return mutateProject(projectId, (current) => ({ ...current, pinned }));
     },
   );
 
@@ -170,20 +171,14 @@ export function registerProjectHandlers(): void {
   ipcMain.handle(
     IPC.projects.bootstrapPlan,
     async (_event, projectId: string): Promise<BootstrapPlan> => {
-      const projects = await store.getProjects();
-      const project = projects.find((p) => p.id === projectId);
-      if (!project) throw new Error(`Project ${projectId} not found`);
-      return planFor(project);
+      return planFor(await requireProject(projectId));
     },
   );
 
   ipcMain.handle(
     IPC.projects.bootstrap,
     async (_event, projectId: string): Promise<BootstrapResult> => {
-      const projects = await store.getProjects();
-      const project = projects.find((p) => p.id === projectId);
-      if (!project) throw new Error(`Project ${projectId} not found`);
-
+      const project = await requireProject(projectId);
       const plan = planFor(project);
 
       for (const folder of plan.folders) {
@@ -219,10 +214,7 @@ export function registerProjectHandlers(): void {
   ipcMain.handle(
     IPC.projects.listClaudeHooks,
     async (_event, projectId: string): Promise<DetectedClaudeHook[]> => {
-      const projects = await store.getProjects();
-      const project = projects.find((p) => p.id === projectId);
-      if (!project) throw new Error(`Project ${projectId} not found`);
-      return listClaudeHooks(project.folderPath);
+      return listClaudeHooks((await requireProject(projectId)).folderPath);
     },
   );
 
@@ -234,9 +226,7 @@ export function registerProjectHandlers(): void {
       hookId: string,
       updates: { matcher?: string; hook: Record<string, unknown> },
     ): Promise<void> => {
-      const projects = await store.getProjects();
-      const project = projects.find((p) => p.id === projectId);
-      if (!project) throw new Error(`Project ${projectId} not found`);
+      const project = await requireProject(projectId);
       await updateClaudeHook(project.folderPath, hookId, updates);
     },
   );
@@ -244,9 +234,7 @@ export function registerProjectHandlers(): void {
   ipcMain.handle(
     IPC.projects.deleteClaudeHook,
     async (_event, projectId: string, hookId: string): Promise<void> => {
-      const projects = await store.getProjects();
-      const project = projects.find((p) => p.id === projectId);
-      if (!project) throw new Error(`Project ${projectId} not found`);
+      const project = await requireProject(projectId);
       await deleteClaudeHook(project.folderPath, hookId);
     },
   );

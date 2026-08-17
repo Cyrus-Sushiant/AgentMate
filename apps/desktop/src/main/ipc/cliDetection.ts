@@ -60,9 +60,39 @@ async function detectCli(cli: CliDefinition): Promise<InstalledCli> {
   }
 }
 
+/**
+ * A full sweep spawns one child process per registry entry (two on Windows, via
+ * cmd.exe) and five renderer call sites share the same query key, so plain
+ * navigation between Dashboard, CLI Manager, Tools and Project Detail used to
+ * re-run the whole thing every few seconds. Installing or removing a CLI is rare
+ * enough that a few minutes of staleness costs nothing, and the CLI Manager's
+ * Refresh button passes `force` when the user genuinely wants a rescan.
+ */
+const DETECT_CACHE_TTL_MS = 5 * 60 * 1000;
+
+let detectCache: { value: InstalledCli[]; at: number } | null = null;
+let detectInFlight: Promise<InstalledCli[]> | null = null;
+
+function detectAllClis(force: boolean): Promise<InstalledCli[]> {
+  if (!force && detectCache && Date.now() - detectCache.at < DETECT_CACHE_TTL_MS) {
+    return Promise.resolve(detectCache.value);
+  }
+  // Concurrent callers share one sweep rather than each starting their own.
+  if (detectInFlight) return detectInFlight;
+  detectInFlight = Promise.all(CLI_REGISTRY.map((cli) => detectCli(cli)))
+    .then((value) => {
+      detectCache = { value, at: Date.now() };
+      return value;
+    })
+    .finally(() => {
+      detectInFlight = null;
+    });
+  return detectInFlight;
+}
+
 export function registerCliDetectionHandlers(): void {
-  ipcMain.handle(IPC.cli.detectAll, async (): Promise<InstalledCli[]> => {
-    return Promise.all(CLI_REGISTRY.map((cli) => detectCli(cli)));
+  ipcMain.handle(IPC.cli.detectAll, (_event, force?: boolean): Promise<InstalledCli[]> => {
+    return detectAllClis(force === true);
   });
 
   ipcMain.handle(IPC.cli.getInstallCommand, (_event, cliId: string): string | null => {

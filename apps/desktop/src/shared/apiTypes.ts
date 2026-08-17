@@ -334,11 +334,18 @@ export interface BackupExportResult {
   ok: boolean;
   /** Absolute path the backup was written to; unset when the save dialog was canceled. */
   path?: string;
+  /** Set when the write itself failed; unset on a plain cancel. */
+  error?: string;
 }
 
 export interface BackupImportResult {
   ok: boolean;
   error?: string;
+  /**
+   * Things the user should look at after a successful restore: rows that could not
+   * be read, and settings the backup carried that affect what gets executed.
+   */
+  warnings?: string[];
 }
 
 export interface TranslateTextInput {

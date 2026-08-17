@@ -1,5 +1,5 @@
 import { ipcMain } from 'electron';
-import type { RemoteState } from '../../shared/apiTypes';
+import type { RemoteConnectIntent, RemoteState } from '../../shared/apiTypes';
 import { IPC } from '../../shared/ipcChannels';
 import {
   decodePairingCode,
@@ -24,19 +24,20 @@ export function registerRemoteHandlers(): void {
 
   ipcMain.handle(IPC.remote.generatePairingCode, () => remoteManager.generatePairingCode());
 
-  ipcMain.handle(IPC.remote.connect, (_e, code: string): { ok: boolean; error?: string } => {
-    const payload = decodePairingCode(code);
-    if (!payload) return { ok: false, error: 'That pairing code is not valid.' };
-    remoteManager.connect(payload);
-    return { ok: true };
-  });
+  // The control and files variants differ only in the intent they dial with, so
+  // the code validation and its error copy live in one place.
+  const pairingConnect =
+    (intent?: RemoteConnectIntent) =>
+    (_e: unknown, code: string): { ok: boolean; error?: string } => {
+      const payload = decodePairingCode(code);
+      if (!payload) return { ok: false, error: 'That pairing code is not valid.' };
+      remoteManager.connect(payload, intent);
+      return { ok: true };
+    };
 
-  ipcMain.handle(IPC.remote.connectFiles, (_e, code: string): { ok: boolean; error?: string } => {
-    const payload = decodePairingCode(code);
-    if (!payload) return { ok: false, error: 'That pairing code is not valid.' };
-    remoteManager.connect(payload, 'files');
-    return { ok: true };
-  });
+  ipcMain.handle(IPC.remote.connect, pairingConnect());
+
+  ipcMain.handle(IPC.remote.connectFiles, pairingConnect('files'));
 
   ipcMain.handle(IPC.remote.disconnect, () => {
     remoteManager.closeSessionAndDisconnect();
@@ -44,11 +45,12 @@ export function registerRemoteHandlers(): void {
 
   ipcMain.handle(IPC.remote.listSavedServers, () => remoteManager.listSavedServers());
 
-  ipcMain.handle(IPC.remote.connectSaved, (_e, id: string) => remoteManager.connectSaved(id));
+  const savedConnect = (intent?: RemoteConnectIntent) => (_e: unknown, id: string) =>
+    remoteManager.connectSaved(id, intent);
 
-  ipcMain.handle(IPC.remote.connectSavedFiles, (_e, id: string) =>
-    remoteManager.connectSaved(id, 'files'),
-  );
+  ipcMain.handle(IPC.remote.connectSaved, savedConnect());
+
+  ipcMain.handle(IPC.remote.connectSavedFiles, savedConnect('files'));
 
   ipcMain.handle(IPC.remote.renameSavedServer, (_e, id: string, nickname: string) =>
     remoteManager.renameSavedServer(id, nickname),

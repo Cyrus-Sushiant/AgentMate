@@ -183,8 +183,12 @@ export default function CliManagerPage(): React.JSX.Element {
           <Button
             variant="outline"
             onClick={() => {
-              void queryClient.invalidateQueries({ queryKey: queryKeys.cliStatus });
               toast.info('Re-scanning installed CLIs…');
+              // `true` skips the main process's detection cache, which is what
+              // makes this button different from a plain query invalidation.
+              void window.agentmat.cli
+                .detectAll(true)
+                .then((fresh) => queryClient.setQueryData(queryKeys.cliStatus, fresh));
             }}
           >
             <RefreshCw /> Refresh

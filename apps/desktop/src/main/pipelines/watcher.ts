@@ -21,7 +21,7 @@ function watchKey(projectId: string, workflowId: number): string {
 
 function broadcastNotificationsChanged(): void {
   for (const win of BrowserWindow.getAllWindows()) {
-    if (!win.webContents.isDestroyed()) win.webContents.send(IPC.pipelines.onNotificationsChanged);
+    if (!win.webContents.isDestroyed()) win.webContents.send(IPC.appNotifications.onChanged);
   }
 }
 

@@ -155,7 +155,8 @@ const backup = {
 };
 
 const cli = {
-  detectAll: (): Promise<InstalledCli[]> => ipcRenderer.invoke(IPC.cli.detectAll),
+  detectAll: (force?: boolean): Promise<InstalledCli[]> =>
+    ipcRenderer.invoke(IPC.cli.detectAll, force),
   getInstallCommand: (cliId: string): Promise<string | null> =>
     ipcRenderer.invoke(IPC.cli.getInstallCommand, cliId),
   checkForUpdate: (cliId: string, currentVersion: string | null): Promise<CliUpdateCheckResult> =>
@@ -548,20 +549,23 @@ const pipelines = {
     ipcRenderer.invoke(IPC.pipelines.status, projectId),
   setWatched: (projectId: string, actions: ProjectGithubAction[]): Promise<ProjectPipelineStatus> =>
     ipcRenderer.invoke(IPC.pipelines.setWatched, projectId, actions),
-  listNotifications: (): Promise<AppNotification[]> =>
-    ipcRenderer.invoke(IPC.pipelines.listNotifications),
-  unreadCount: (): Promise<number> => ipcRenderer.invoke(IPC.pipelines.unreadCount),
-  markRead: (notificationId: string): Promise<AppNotification[]> =>
-    ipcRenderer.invoke(IPC.pipelines.markRead, notificationId),
-  markAllRead: (): Promise<AppNotification[]> => ipcRenderer.invoke(IPC.pipelines.markAllRead),
-  removeNotification: (notificationId: string): Promise<AppNotification[]> =>
-    ipcRenderer.invoke(IPC.pipelines.removeNotification, notificationId),
-  onNotificationsChanged: (callback: () => void): (() => void) =>
-    subscribe(IPC.pipelines.onNotificationsChanged, callback),
   dashboardActivity: (): Promise<GithubActionsActivity> =>
     ipcRenderer.invoke(IPC.pipelines.dashboardActivity),
   runError: (input: GithubActionsRunErrorInput): Promise<GithubActionsRunErrorResult> =>
     ipcRenderer.invoke(IPC.pipelines.runError, input),
+};
+
+const appNotifications = {
+  list: (): Promise<AppNotification[]> => ipcRenderer.invoke(IPC.appNotifications.list),
+  unreadCount: (): Promise<number> => ipcRenderer.invoke(IPC.appNotifications.unreadCount),
+  markRead: (notificationId: string): Promise<AppNotification[]> =>
+    ipcRenderer.invoke(IPC.appNotifications.markRead, notificationId),
+  markAllRead: (): Promise<AppNotification[]> =>
+    ipcRenderer.invoke(IPC.appNotifications.markAllRead),
+  remove: (notificationId: string): Promise<AppNotification[]> =>
+    ipcRenderer.invoke(IPC.appNotifications.remove, notificationId),
+  onChanged: (callback: () => void): (() => void) =>
+    subscribe(IPC.appNotifications.onChanged, callback),
 };
 
 function subscribe<T>(channel: string, callback: (payload: T) => void): () => void {
@@ -801,6 +805,7 @@ const agentmatApi = {
   notifications,
   git,
   pipelines,
+  appNotifications,
   packages,
   remote,
   usage,

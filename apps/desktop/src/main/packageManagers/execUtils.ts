@@ -24,10 +24,30 @@ const NOT_FOUND_PATTERN =
 export class CliNotFoundError extends Error {}
 
 /**
+ * Wraps one argument for `cmd.exe /s /c`. Inside double quotes cmd stops treating
+ * `&`, `|`, `<`, `>` and `^` as syntax, so quoting every argument is what keeps a
+ * package name or a folder called `a & b` from being read as a second command.
+ * A run of trailing backslashes is doubled so a path ending in one doesn't escape
+ * the closing quote.
+ *
+ * A literal double quote is refused rather than escaped: cmd has no escape for it
+ * that survives this form, and nothing here can legitimately contain one (Windows
+ * paths can't hold a quote, and package names and versions are validated upstream).
+ */
+function quoteForCmd(value: string): string {
+  if (value.includes('"')) {
+    throw new Error(`Refusing to run a command with a quote in an argument: ${value}`);
+  }
+  return `"${value.replace(/(\\*)$/, '$1$1')}"`;
+}
+
+/**
  * Runs a CLI command, routing through cmd.exe on Windows so npm/yarn/pnpm/dotnet
  * .cmd shims spawn correctly (Node refuses to spawn .cmd files directly as of
- * Node >=18.20/20.11/21.6). Command/args are always static, code-authored
- * strings assembled from parsed manifest data, never raw renderer input.
+ * Node >=18.20/20.11/21.6). Arguments carry parsed manifest data and, for
+ * updates, a package name and version that started life in the renderer, so on
+ * Windows the whole command line is quoted by hand and handed to cmd verbatim
+ * rather than left to Node, which only quotes arguments containing whitespace.
  *
  * Non-zero exits are returned rather than thrown. Outdated-package commands
  * commonly exit 1 when they find results, which is expected, not a failure.
@@ -51,9 +71,17 @@ export async function runCli(
     env: { ...process.env, CLINE_NO_AUTO_UPDATE: '1' },
   };
   try {
+    // The command name stays unquoted: npm/yarn/pnpm are .cmd shims that work out
+    // their own install directory from %~dp0, and that only resolves correctly when
+    // cmd found the name on PATH itself. These names are code-authored constants.
+    const commandLine = `"${[command, ...args.map(quoteForCmd)].join(' ')}"`;
     const { stdout, stderr } =
       process.platform === 'win32'
-        ? await execFileAsync('cmd.exe', ['/d', '/s', '/c', command, ...args], options)
+        ? await execFileAsync('cmd.exe', ['/d', '/s', '/c', commandLine], {
+            ...options,
+            // Node must not re-quote what is already a finished command line.
+            windowsVerbatimArguments: true,
+          })
         : await execFileAsync(command, args, options);
     return { stdout, stderr, code: 0 };
   } catch (err) {

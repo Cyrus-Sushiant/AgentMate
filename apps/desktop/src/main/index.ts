@@ -4,6 +4,7 @@ import icon from '../../resources/icon.ico?asset';
 import { registerActivityHandlers } from './ipc/activity';
 import { registerAiHandlers } from './ipc/ai';
 import { registerAppHandlers } from './ipc/app';
+import { registerAppNotificationHandlers } from './ipc/appNotifications';
 import { registerBackupHandlers } from './ipc/backup';
 import { registerCliDetectionHandlers } from './ipc/cliDetection';
 import { registerFileSystemHandlers } from './ipc/fileSystem';
@@ -197,6 +198,7 @@ function registerAllIpcHandlers(): void {
   registerPromptBuildWidgetHandlers();
   registerPetHandlers();
   registerPipelineHandlers();
+  registerAppNotificationHandlers();
   registerSpellcheckHandlers();
   registerGrammarHandlers();
 }

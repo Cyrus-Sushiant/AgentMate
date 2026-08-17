@@ -13,18 +13,18 @@ async function allowedRoots(): Promise<string[]> {
 
 export function registerFileSystemHandlers(): void {
   ipcMain.handle(IPC.fs.readFile, async (_event, path: string): Promise<string> => {
-    const safePath = assertPathWithinRoots(path, await allowedRoots());
+    const safePath = await assertPathWithinRoots(path, await allowedRoots());
     return readFile(safePath, 'utf-8');
   });
 
   ipcMain.handle(IPC.fs.writeFile, async (_event, path: string, content: string): Promise<void> => {
-    const safePath = assertPathWithinRoots(path, await allowedRoots());
+    const safePath = await assertPathWithinRoots(path, await allowedRoots());
     await mkdir(dirname(safePath), { recursive: true });
     await writeFile(safePath, content, 'utf-8');
   });
 
   ipcMain.handle(IPC.fs.listDirectory, async (_event, path: string): Promise<DirectoryEntry[]> => {
-    const safePath = assertPathWithinRoots(path, await allowedRoots());
+    const safePath = await assertPathWithinRoots(path, await allowedRoots());
     const entries = await readdir(safePath, { withFileTypes: true });
     return entries
       .map((entry) => ({

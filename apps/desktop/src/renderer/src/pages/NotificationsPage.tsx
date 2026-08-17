@@ -25,32 +25,32 @@ export default function NotificationsPage(): React.JSX.Element {
 
   const listQuery = useQuery({
     queryKey: queryKeys.appNotifications,
-    queryFn: () => window.agentmat.pipelines.listNotifications(),
+    queryFn: () => window.agentmat.appNotifications.list(),
   });
 
   useEffect(() => {
-    return window.agentmat.pipelines.onNotificationsChanged(() => {
+    return window.agentmat.appNotifications.onChanged(() => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.appNotifications });
       void queryClient.invalidateQueries({ queryKey: queryKeys.appNotificationUnread });
     });
   }, [queryClient]);
 
   const markRead = useMutation({
-    mutationFn: (id: string) => window.agentmat.pipelines.markRead(id),
+    mutationFn: (id: string) => window.agentmat.appNotifications.markRead(id),
     onSuccess: (items) => {
       queryClient.setQueryData(queryKeys.appNotifications, items);
       void queryClient.invalidateQueries({ queryKey: queryKeys.appNotificationUnread });
     },
   });
   const markAllRead = useMutation({
-    mutationFn: () => window.agentmat.pipelines.markAllRead(),
+    mutationFn: () => window.agentmat.appNotifications.markAllRead(),
     onSuccess: (items) => {
       queryClient.setQueryData(queryKeys.appNotifications, items);
       void queryClient.invalidateQueries({ queryKey: queryKeys.appNotificationUnread });
     },
   });
   const removeItem = useMutation({
-    mutationFn: (id: string) => window.agentmat.pipelines.removeNotification(id),
+    mutationFn: (id: string) => window.agentmat.appNotifications.remove(id),
     onSuccess: (items) => {
       queryClient.setQueryData(queryKeys.appNotifications, items);
       void queryClient.invalidateQueries({ queryKey: queryKeys.appNotificationUnread });

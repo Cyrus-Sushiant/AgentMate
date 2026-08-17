@@ -16,8 +16,11 @@ export function registerAppHandlers(): void {
   ipcMain.handle(IPC.app.downloadUpdate, (): Promise<void> => downloadUpdate());
   ipcMain.handle(IPC.app.pauseDownload, (): void => pauseDownload());
   ipcMain.handle(IPC.app.quitAndInstall, (): void => quitAndInstall());
+  // app.quit(), not app.exit(): exit() skips before-quit, so the terminal sessions,
+  // pet window, hook server and watchers registered there would never be torn down
+  // and every relaunch would orphan the spawned CLI/PTY children.
   ipcMain.handle(IPC.app.relaunch, (): void => {
     app.relaunch();
-    app.exit(0);
+    app.quit();
   });
 }

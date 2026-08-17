@@ -63,12 +63,12 @@ export function Sidebar(): React.JSX.Element {
   });
   const unreadQuery = useQuery({
     queryKey: queryKeys.appNotificationUnread,
-    queryFn: () => window.agentmat.pipelines.unreadCount(),
+    queryFn: () => window.agentmat.appNotifications.unreadCount(),
     refetchInterval: 60_000,
   });
 
   useEffect(() => {
-    return window.agentmat.pipelines.onNotificationsChanged(() => {
+    return window.agentmat.appNotifications.onChanged(() => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.appNotificationUnread });
       void queryClient.invalidateQueries({ queryKey: queryKeys.appNotifications });
     });

@@ -60,7 +60,8 @@ async function writeJsonFile<T>(fileName: string, data: T): Promise<void> {
   await rename(tmpPath, filePath);
 }
 
-const DEFAULT_SETTINGS: AppSettings = {
+/** Exported so backup import can treat its keys as the allowlist of known settings. */
+export const DEFAULT_SETTINGS: AppSettings = {
   defaultCliId: null,
   cliArgs: {},
   theme: 'system',

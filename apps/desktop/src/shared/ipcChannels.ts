@@ -312,14 +312,21 @@ export const IPC = {
   pipelines: {
     status: 'pipelines:status',
     setWatched: 'pipelines:setWatched',
-    listNotifications: 'pipelines:listNotifications',
-    markRead: 'pipelines:markRead',
-    markAllRead: 'pipelines:markAllRead',
-    removeNotification: 'pipelines:removeNotification',
-    unreadCount: 'pipelines:unreadCount',
-    onNotificationsChanged: 'pipelines:onNotificationsChanged',
     dashboardActivity: 'pipelines:dashboardActivity',
     runError: 'pipelines:runError',
+  },
+  /**
+   * The in-app notification inbox. Distinct from the `notifications` group above,
+   * which is about sending a notification out (Telegram, the desktop companion).
+   */
+  appNotifications: {
+    list: 'appNotifications:list',
+    markRead: 'appNotifications:markRead',
+    markAllRead: 'appNotifications:markAllRead',
+    remove: 'appNotifications:remove',
+    unreadCount: 'appNotifications:unreadCount',
+    /** main -> every renderer: something was added to or changed in the inbox. */
+    onChanged: 'appNotifications:onChanged',
   },
   git: {
     status: 'git:status',
