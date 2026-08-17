@@ -2,6 +2,7 @@ import type { AgentType, Project } from '@agentmat/core';
 import {
   allDiffrayAgentIds,
   allDiffraySeverities,
+  buildDiffrayCodebaseScript,
   buildDiffrayProjectConfig,
   chunkDiffrayFiles,
   DIFFRAY_AGENTS,
@@ -353,26 +354,22 @@ export function DiffrayReviewWizard({
     [filesPerPass, reviewedCodebaseFiles, scope],
   );
 
-  const { commands, reportFiles } = useMemo(
-    () =>
-      planDiffrayReview(
-        {
-          scope,
-          baseRef,
-          commitCount,
-          files: scope === 'codebase' ? reviewedCodebaseFiles : [...selectedFiles],
-          fullFiles,
-          filesPerPass,
-          agentIds: [...agentIds],
-          executor,
-          model,
-          severities: [...severities],
-          skipValidation,
-          stream,
-          jsonOutput,
-        },
-        { shell: terminalShell(), jsonFileName },
-      ),
+  const reviewInput = useMemo(
+    () => ({
+      scope,
+      baseRef,
+      commitCount,
+      files: scope === 'codebase' ? reviewedCodebaseFiles : [...selectedFiles],
+      fullFiles,
+      filesPerPass,
+      agentIds: [...agentIds],
+      executor,
+      model,
+      severities: [...severities],
+      skipValidation,
+      stream,
+      jsonOutput,
+    }),
     [
       agentIds,
       baseRef,
@@ -380,7 +377,6 @@ export function DiffrayReviewWizard({
       executor,
       filesPerPass,
       fullFiles,
-      jsonFileName,
       jsonOutput,
       model,
       reviewedCodebaseFiles,
@@ -389,6 +385,41 @@ export function DiffrayReviewWizard({
       severities,
       skipValidation,
       stream,
+    ],
+  );
+
+  const { commands, reportFiles } = useMemo(
+    () => planDiffrayReview(reviewInput, { shell: terminalShell(), jsonFileName }),
+    [jsonFileName, reviewInput],
+  );
+
+  /**
+   * A whole-codebase review is dozens of passes, and chaining those onto the prompt means a line
+   * thousands of characters long that no shell handles well. That run goes through a script
+   * instead, which resolves the file list itself when it runs.
+   */
+  const codebaseScript = useMemo(
+    () =>
+      scope === 'codebase'
+        ? buildDiffrayCodebaseScript(reviewInput, {
+            shell: terminalShell(),
+            label: projectName,
+            scriptId: projectId,
+            jsonFileName,
+            folder: codebaseFolder,
+            includeTests,
+            skipFiles: [...skippedFiles],
+          })
+        : null,
+    [
+      codebaseFolder,
+      includeTests,
+      jsonFileName,
+      projectId,
+      projectName,
+      reviewInput,
+      scope,
+      skippedFiles,
     ],
   );
 
@@ -462,15 +493,23 @@ export function DiffrayReviewWizard({
         toast.success(`${DIFFRAY_PROJECT_CONFIG_FILE} written to ${projectName}.`);
       }
     }
+    let initialInput = joinDiffrayCommands(commands);
+    if (codebaseScript) {
+      const scriptPath = await window.agentmat.fs.writeScratchFile(
+        codebaseScript.fileName,
+        codebaseScript.content,
+      );
+      initialInput = codebaseScript.commandFor(scriptPath);
+    }
     openSession({
       title: `diffray · ${projectName}`,
-      initialInput: joinDiffrayCommands(commands),
+      initialInput,
       cwd: folderPath,
       projectId,
     });
     toast.info(
-      commands.length > 1
-        ? `${commands.length} passes queued. Press Enter in the terminal to start.`
+      codebaseScript
+        ? `${commands.length} passes ready to run. Press Enter in the terminal to start.`
         : 'Press Enter in the terminal to start the review.',
     );
     onLaunched?.();
@@ -1027,28 +1066,41 @@ export function DiffrayReviewWizard({
           {step === 'launch' && (
             <div className="space-y-3">
               <p className="text-sm text-muted-foreground">
-                {commands.length > 1
-                  ? `${commands.length} passes go into the terminal as one line, and they run in order. Nothing starts until you press Enter.`
+                {codebaseScript
+                  ? `The terminal gets one line, not ${commands.length} pasted commands. It runs a script that lists the source files itself, then reviews them ${filesPerPass} at a time. Nothing starts until you press Enter.`
                   : 'The command is not run until you press Enter in the terminal. That keeps the review in your hands.'}
               </p>
               <div className="max-h-56 space-y-2 overflow-y-auto">
-                {commands.map((entry, index) => (
-                  <div
-                    key={entry}
-                    className="overflow-hidden rounded-lg border border-border bg-background font-mono text-xs"
-                  >
-                    <div className="flex items-center gap-2 border-b border-border px-3 py-1.5 text-[11px] uppercase tracking-wide text-muted-foreground">
-                      <span className="text-primary">+</span>
-                      {commands.length > 1
-                        ? `pass ${index + 1} of ${commands.length}`
-                        : 'review hunk'}
-                    </div>
-                    <pre className="overflow-x-auto whitespace-pre-wrap px-3 py-2.5 text-foreground">
+                {codebaseScript ? (
+                  <>
+                    <CommandBlock label="what goes in the terminal">
+                      {codebaseScript.commandFor(`…/${codebaseScript.fileName}`)}
+                    </CommandBlock>
+                    <CommandBlock label={`each of the ${commands.length} passes`}>
+                      {codebaseScript.samplePassCommand}
+                    </CommandBlock>
+                  </>
+                ) : (
+                  commands.map((entry, index) => (
+                    <CommandBlock
+                      key={entry}
+                      label={
+                        commands.length > 1 ? `pass ${index + 1} of ${commands.length}` : 'review hunk'
+                      }
+                    >
                       {entry}
-                    </pre>
-                  </div>
-                ))}
+                    </CommandBlock>
+                  ))
+                )}
               </div>
+              {codebaseScript && (
+                <p className="text-xs text-muted-foreground">
+                  {reviewedCodebaseFiles.length} file
+                  {reviewedCodebaseFiles.length === 1 ? '' : 's'} ·{' '}
+                  {commands.length * Math.max(agentIds.size, 1)} agent runs. The script prints its
+                  progress per pass, and Ctrl+C stops it between files.
+                </p>
+              )}
               {reportFiles.length > 0 && (
                 <p className="text-xs text-muted-foreground">
                   Findings land in{' '}
@@ -1102,6 +1154,26 @@ export function DiffrayReviewWizard({
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+function CommandBlock({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}): React.JSX.Element {
+  return (
+    <div className="overflow-hidden rounded-lg border border-border bg-background font-mono text-xs">
+      <div className="flex items-center gap-2 border-b border-border px-3 py-1.5 text-[11px] uppercase tracking-wide text-muted-foreground">
+        <span className="text-primary">+</span>
+        {label}
+      </div>
+      <pre className="overflow-x-auto whitespace-pre-wrap px-3 py-2.5 text-foreground">
+        {children}
+      </pre>
     </div>
   );
 }

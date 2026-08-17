@@ -405,23 +405,34 @@ export function buildDiffrayReviewCommand(input: DiffrayReviewInput): string {
   const parts = ['diffray', 'review'];
 
   if (input.scope === 'base-branch' && input.baseRef?.trim()) {
-    parts.push('--base', quoteArg(input.baseRef.trim()));
+    parts.push('--base', input.baseRef.trim());
   } else if (input.scope === 'last-commits') {
     const n = Math.max(1, Math.min(50, Math.round(input.commitCount ?? 3)));
     parts.push('--base', `HEAD~${n}`);
   } else if (input.scope === 'files' && input.files && input.files.length > 0) {
-    parts.push('--files', quoteArg(input.files.join(',')));
+    parts.push('--files', input.files.join(','));
     if (input.fullFiles) parts.push('--full');
   } else if (input.scope === 'codebase' && input.files && input.files.length > 0) {
     // Whole-file review, so no --base here: the CLI rejects --full together with --base.
-    parts.push('--files', quoteArg(input.files.join(',')), '--full');
+    parts.push('--files', input.files.join(','), '--full');
   }
+
+  parts.push(...diffrayReviewFlags(input));
+  return parts.map(quoteArg).join(' ');
+}
+
+/**
+ * Everything after the scope flags, unquoted. Kept separate from the command so the codebase
+ * runner script can splat the same flags around a file list it works out at run time.
+ */
+export function diffrayReviewFlags(input: DiffrayReviewInput): string[] {
+  const parts: string[] = [];
 
   const selectedAgents = input.agentIds.filter((id) => ALL_AGENT_IDS.includes(id));
   if (selectedAgents.length > 0 && selectedAgents.length < ALL_AGENT_IDS.length) {
-    for (const id of selectedAgents) {
-      parts.push('--agent', id);
-    }
+    // The CLI takes one comma-separated list. Repeating the flag makes its parser hand the
+    // option an array, and diffray then splits a non-string and gives up.
+    parts.push('--agent', selectedAgents.join(','));
   }
 
   if (input.executor.trim()) {
@@ -429,7 +440,7 @@ export function buildDiffrayReviewCommand(input: DiffrayReviewInput): string {
   }
 
   const model = input.model?.trim();
-  if (model) parts.push('--model', quoteArg(model));
+  if (model) parts.push('--model', model);
 
   const selectedSeverities = input.severities.filter((severity) =>
     (DIFFRAY_SEVERITIES as readonly string[]).includes(severity),
@@ -444,7 +455,7 @@ export function buildDiffrayReviewCommand(input: DiffrayReviewInput): string {
   // land in the file and break the parse.
   else if (input.stream) parts.push('--stream');
 
-  return parts.join(' ');
+  return parts;
 }
 
 /**
@@ -487,6 +498,23 @@ export interface DiffrayCommandPlan {
 }
 
 /**
+ * How long everything around the file list is, so a batch can be sized against the real command
+ * rather than a guess. The probe uses a one character path and the widest report name a run can
+ * produce, which leaves the estimate a little pessimistic and never short.
+ */
+function diffrayPassOverheadChars(
+  input: DiffrayReviewInput,
+  shell: DiffrayShellKind,
+  jsonFileName: string,
+): number {
+  const probe = buildDiffrayReviewCommand({ ...input, files: ['x'] });
+  const wrapped = input.jsonOutput
+    ? redirectDiffrayCommandToFile(probe, diffrayJsonFileForPass(jsonFileName, 999, 999), shell)
+    : probe;
+  return wrapped.length - 1;
+}
+
+/**
  * Plans a run. Every scope but `codebase` is a single command; a codebase review is split into
  * passes so no single invocation drowns the agents (or the shell) in files.
  */
@@ -498,7 +526,11 @@ export function planDiffrayReview(
   const fileName = options.jsonFileName?.trim() || DIFFRAY_DEFAULT_JSON_FILE;
   const batches =
     input.scope === 'codebase'
-      ? chunkDiffrayFiles(input.files ?? [], input.filesPerPass)
+      ? chunkDiffrayFiles(
+          input.files ?? [],
+          input.filesPerPass,
+          diffrayPassOverheadChars(input, shell, fileName),
+        )
       : [input.files ?? []];
 
   const commands: string[] = [];
@@ -521,6 +553,287 @@ export function joinDiffrayCommands(commands: readonly string[]): string {
   // `;` rather than `&&`: it works in PowerShell 5.1, pwsh, bash, zsh, and fish alike, and a
   // failed pass should not stop the ones after it.
   return commands.join('; ');
+}
+
+function escapeRegex(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function alternation(values: Iterable<string>): string {
+  return [...values].map(escapeRegex).join('|');
+}
+
+/**
+ * The same rules `isDiffraySourceFile` and `isDiffrayTestFile` apply, as regexes a shell can use.
+ * They are generated from the sets above rather than written out twice, so the script keeps
+ * matching what the wizard previewed.
+ */
+export const DIFFRAY_FILE_PATTERNS = {
+  source: `\\.(${alternation(SOURCE_EXTENSIONS)})$`,
+  ignored: `(^|/)(${alternation(IGNORED_DIRECTORIES)})/`,
+  test: `(^|/)(${alternation(TEST_DIRECTORIES)})/|\\.(test|spec)\\.[^.]+$`,
+  generated: `\\.d\\.ts$|\\.(min|bundle|generated)\\.`,
+} as const;
+
+export interface DiffrayCodebaseScriptOptions {
+  shell?: DiffrayShellKind;
+  /** Project name, for the header comment. */
+  label?: string;
+  /** Keeps two projects from sharing one script file. */
+  scriptId?: string;
+  jsonFileName?: string;
+  folder?: string;
+  includeTests?: boolean;
+  /** Files the user unchecked in the wizard. */
+  skipFiles?: readonly string[];
+}
+
+export interface DiffrayRunScript {
+  fileName: string;
+  content: string;
+  /** Runs the script once it is on disk. Takes the path the file was written to. */
+  commandFor: (scriptPath: string) => string;
+  /** What a single pass ends up looking like, for the preview in the wizard. */
+  samplePassCommand: string;
+}
+
+function quotePosixLiteral(value: string): string {
+  return `'${value.replace(/'/g, "'\\''")}'`;
+}
+
+function powerShellCodebaseScript(
+  input: DiffrayReviewInput,
+  options: DiffrayCodebaseScriptOptions,
+  reportFile: string,
+): string {
+  const ps = quotePowerShellLiteral;
+  const flags = diffrayReviewFlags(input).map(ps).join(', ');
+  const skip = (options.skipFiles ?? []).map(ps).join(', ');
+  return `# diffray whole-file review for ${options.label?.trim() || 'this project'}, written by AgentMate.
+# The file list is worked out here instead of being pasted onto the prompt, so the command
+# you run stays one line long. Ctrl+C stops the run.
+$ErrorActionPreference = 'Continue'
+
+$perPass = ${Math.max(1, Math.min(DIFFRAY_MAX_FILES_PER_PASS, Math.round(input.filesPerPass ?? DIFFRAY_DEFAULT_FILES_PER_PASS)))}
+$maxChars = ${MAX_COMMAND_CHARS}
+$folder = ${ps(normalizeFolder(options.folder))}
+$includeTests = $${options.includeTests ? 'true' : 'false'}
+$reportFile = ${ps(input.jsonOutput ? reportFile : '')}
+$sourcePattern = ${ps(DIFFRAY_FILE_PATTERNS.source)}
+$ignoredPattern = ${ps(DIFFRAY_FILE_PATTERNS.ignored)}
+$testPattern = ${ps(DIFFRAY_FILE_PATTERNS.test)}
+$generatedPattern = ${ps(DIFFRAY_FILE_PATTERNS.generated)}
+$flags = @(${flags})
+$skip = @(${skip})
+
+$files = @(git -c core.quotepath=off ls-files --cached --others --exclude-standard |
+  ForEach-Object { $_ -replace '\\\\', '/' } |
+  Where-Object { $_ -match $sourcePattern } |
+  Where-Object { $_ -notmatch $ignoredPattern -and $_ -notmatch $generatedPattern } |
+  Where-Object { $includeTests -or $_ -notmatch $testPattern } |
+  Where-Object { $folder -eq '' -or $_.StartsWith($folder + '/') } |
+  Where-Object { $skip -notcontains $_ } |
+  Sort-Object -Unique)
+
+if ($files.Count -eq 0) {
+  Write-Host 'No source files matched. Check the folder and the test filter.' -ForegroundColor Yellow
+  exit 1
+}
+
+# One pass per batch: diffray goes through a .cmd shim on Windows, and cmd.exe refuses a
+# command line past 8191 characters, so the batch is capped by length as well as by count.
+$batches = New-Object System.Collections.ArrayList
+$current = New-Object System.Collections.ArrayList
+$length = 0
+foreach ($file in $files) {
+  if ($current.Count -gt 0 -and ($current.Count -ge $perPass -or ($length + $file.Length + 1) -gt $maxChars)) {
+    [void]$batches.Add(($current -join ','))
+    $current.Clear()
+    $length = 0
+  }
+  [void]$current.Add($file)
+  $length += $file.Length + 1
+}
+if ($current.Count -gt 0) { [void]$batches.Add(($current -join ',')) }
+
+Write-Host ("diffray: {0} files in {1} passes" -f $files.Count, $batches.Count) -ForegroundColor Cyan
+$failed = @()
+$started = Get-Date
+for ($i = 0; $i -lt $batches.Count; $i++) {
+  $label = "pass {0}/{1}" -f ($i + 1), $batches.Count
+  # Indexing has to happen before the call: PowerShell reads $batches[$i] in an argument list
+  # as the array followed by a literal [$i].
+  $batch = $batches[$i]
+  Write-Host ''
+  Write-Host "=== diffray $label ===" -ForegroundColor Cyan
+  $global:LASTEXITCODE = 0
+  if ($reportFile -eq '') {
+    diffray review --files $batch --full @flags
+  } else {
+    $name = if ($batches.Count -eq 1) { $reportFile } else { $reportFile -replace '\\.json$', ("-{0}.json" -f ($i + 1)) }
+    $out = Join-Path $PWD $name
+    # Both > and Out-File add a BOM or UTF-16 that JSON parsers choke on, hence .NET here.
+    diffray review --files $batch --full @flags | Out-String | ForEach-Object { [IO.File]::WriteAllText($out, $_) }
+    Write-Host "wrote $name"
+  }
+  if ($LASTEXITCODE -ne 0) {
+    $failed += ($i + 1)
+    Write-Host "$label exited with code $LASTEXITCODE" -ForegroundColor Yellow
+  }
+}
+
+$elapsed = (Get-Date) - $started
+Write-Host ''
+if ($failed.Count -gt 0) {
+  Write-Host ("Finished in {0:hh\\:mm\\:ss}. Failed passes: {1}" -f $elapsed, ($failed -join ', ')) -ForegroundColor Yellow
+} else {
+  Write-Host ("All {0} passes finished in {1:hh\\:mm\\:ss}." -f $batches.Count, $elapsed) -ForegroundColor Green
+}
+`;
+}
+
+function posixCodebaseScript(
+  input: DiffrayReviewInput,
+  options: DiffrayCodebaseScriptOptions,
+  reportFile: string,
+): string {
+  const sh = quotePosixLiteral;
+  const flags = diffrayReviewFlags(input).map(sh).join(' ');
+  const skip = (options.skipFiles ?? []).map(sh).join(' ');
+  return `#!/usr/bin/env bash
+# diffray whole-file review for ${options.label?.trim() || 'this project'}, written by AgentMate.
+# The file list is worked out here instead of being pasted onto the prompt, so the command
+# you run stays one line long. Ctrl+C stops the run.
+
+per_pass=${Math.max(1, Math.min(DIFFRAY_MAX_FILES_PER_PASS, Math.round(input.filesPerPass ?? DIFFRAY_DEFAULT_FILES_PER_PASS)))}
+max_chars=${MAX_COMMAND_CHARS}
+folder=${sh(normalizeFolder(options.folder))}
+include_tests=${options.includeTests ? '1' : '0'}
+report_file=${sh(input.jsonOutput ? reportFile : '')}
+source_pattern=${sh(DIFFRAY_FILE_PATTERNS.source)}
+ignored_pattern=${sh(DIFFRAY_FILE_PATTERNS.ignored)}
+test_pattern=${sh(DIFFRAY_FILE_PATTERNS.test)}
+generated_pattern=${sh(DIFFRAY_FILE_PATTERNS.generated)}
+flags=(${flags})
+skip=(${skip})
+
+files=()
+while IFS= read -r path; do
+  files+=("$path")
+done < <(
+  git -c core.quotepath=off ls-files --cached --others --exclude-standard |
+    tr '\\\\' '/' |
+    grep -Ei "$source_pattern" |
+    grep -Eiv "$ignored_pattern" |
+    grep -Eiv "$generated_pattern" |
+    { if [ "$include_tests" = "1" ]; then cat; else grep -Eiv "$test_pattern"; fi; } |
+    { if [ -n "$folder" ]; then grep -E "^$folder/"; else cat; fi; } |
+    { if [ \${#skip[@]} -gt 0 ]; then grep -Fxv -f <(printf '%s\\n' "\${skip[@]}"); else cat; fi; } |
+    sort -u
+)
+
+if [ \${#files[@]} -eq 0 ]; then
+  printf 'No source files matched. Check the folder and the test filter.\\n'
+  exit 1
+fi
+
+# One pass per batch, capped by length as well as by count so a long file list cannot
+# outgrow the shell's limit on a single command line.
+batches=()
+current=''
+count=0
+for file in "\${files[@]}"; do
+  if [ $count -gt 0 ] && { [ $count -ge $per_pass ] || [ $(( \${#current} + \${#file} + 1 )) -gt $max_chars ]; }; then
+    batches+=("$current")
+    current=''
+    count=0
+  fi
+  if [ -z "$current" ]; then current="$file"; else current="$current,$file"; fi
+  count=$(( count + 1 ))
+done
+[ -n "$current" ] && batches+=("$current")
+
+total=\${#batches[@]}
+printf 'diffray: %d files in %d passes\\n' "\${#files[@]}" "$total"
+failed=()
+start=$SECONDS
+for i in "\${!batches[@]}"; do
+  printf '\\n=== diffray pass %d/%d ===\\n' "$(( i + 1 ))" "$total"
+  status=0
+  if [ -z "$report_file" ]; then
+    diffray review --files "\${batches[$i]}" --full "\${flags[@]}" || status=$?
+  else
+    if [ "$total" -eq 1 ]; then name="$report_file"; else name="\${report_file%.json}-$(( i + 1 )).json"; fi
+    diffray review --files "\${batches[$i]}" --full "\${flags[@]}" > "$name" || status=$?
+    printf 'wrote %s\\n' "$name"
+  fi
+  if [ $status -ne 0 ]; then
+    failed+=("$(( i + 1 ))")
+    printf 'pass %d/%d exited with code %d\\n' "$(( i + 1 ))" "$total" "$status"
+  fi
+done
+
+elapsed=$(( SECONDS - start ))
+printf '\\n'
+if [ \${#failed[@]} -gt 0 ]; then
+  printf 'Finished in %dm %ds. Failed passes: %s\\n' "$(( elapsed / 60 ))" "$(( elapsed % 60 ))" "\${failed[*]}"
+else
+  printf 'All %d passes finished in %dm %ds.\\n' "$total" "$(( elapsed / 60 ))" "$(( elapsed % 60 ))"
+fi
+`;
+}
+
+/**
+ * A whole-codebase review as a script the terminal runs with one short command. The file list is
+ * resolved by the script at run time, so hundreds of paths never touch the prompt, and the passes
+ * are batched there too, which keeps every `diffray review` inside the shell's line limit.
+ */
+export function buildDiffrayCodebaseScript(
+  input: DiffrayReviewInput,
+  options: DiffrayCodebaseScriptOptions = {},
+): DiffrayRunScript {
+  const shell = options.shell ?? 'posix';
+  const reportFile = diffrayJsonFileForPass(
+    options.jsonFileName?.trim() || DIFFRAY_DEFAULT_JSON_FILE,
+    1,
+    1,
+  );
+  const perPass = Math.max(
+    1,
+    Math.min(
+      DIFFRAY_MAX_FILES_PER_PASS,
+      Math.round(input.filesPerPass ?? DIFFRAY_DEFAULT_FILES_PER_PASS),
+    ),
+  );
+  const samplePassCommand = [
+    'diffray',
+    'review',
+    '--files',
+    `"<${perPass} files>"`,
+    '--full',
+    ...diffrayReviewFlags(input).map(quoteArg),
+  ].join(' ');
+  const suffix = (options.scriptId ?? '').replace(/[^a-zA-Z0-9._-]/g, '');
+  const stem = suffix ? `diffray-review-${suffix}` : 'diffray-review';
+
+  if (shell === 'powershell') {
+    return {
+      fileName: `${stem}.ps1`,
+      content: powerShellCodebaseScript(input, options, reportFile),
+      // -ExecutionPolicy Bypass because a machine left on the Restricted default refuses to run
+      // the file at all, and -NoProfile keeps someone's prompt setup out of the report.
+      commandFor: (scriptPath) =>
+        `powershell -NoProfile -ExecutionPolicy Bypass -File ${quoteArg(scriptPath)}`,
+      samplePassCommand,
+    };
+  }
+  return {
+    fileName: `${stem}.sh`,
+    content: posixCodebaseScript(input, options, reportFile),
+    // `bash <file>` rather than `./file`, so the script does not need an executable bit.
+    commandFor: (scriptPath) => `bash ${quoteArg(scriptPath)}`,
+    samplePassCommand,
+  };
 }
 
 export function buildDiffrayProjectConfig(values: ToolSettingsValues): ToolSettingsAction {
