@@ -709,6 +709,28 @@ async function readWorkingTreeFingerprint(cwd: string): Promise<Map<string, stri
   return fingerprint;
 }
 
+/**
+ * Every file git knows about: tracked plus untracked ones that are not ignored. Used by the
+ * diffray wizard to offer a whole-codebase review. `-z` keeps paths with spaces or non-ASCII
+ * characters intact, which `ls-files` would otherwise escape and quote.
+ */
+async function listRepoFiles(cwd: string): Promise<string[]> {
+  if (!(await isGitRepo(cwd))) return [];
+  const output = await git(cwd, [
+    'ls-files',
+    '-z',
+    '--cached',
+    '--others',
+    '--exclude-standard',
+  ]).catch(() => '');
+  const paths = new Set<string>();
+  for (const entry of output.split('\0')) {
+    const path = entry.trim();
+    if (path) paths.add(path);
+  }
+  return [...paths].sort((a, b) => a.localeCompare(b));
+}
+
 /** Prompt handed to the agent CLI to roll a new version number through the project's files. */
 function buildVersionBumpPrompt(tag: string): string {
   const version = tag.replace(/^v/, '');
@@ -1022,6 +1044,10 @@ async function markGithubNotificationsRead(): Promise<GitOpResult> {
 export function registerGitHandlers(): void {
   ipcMain.handle(IPC.git.status, async (_event, projectId: string): Promise<GitStatus> => {
     return readStatus(await getProjectPath(projectId));
+  });
+
+  ipcMain.handle(IPC.git.listFiles, async (_event, projectId: string): Promise<string[]> => {
+    return listRepoFiles(await getProjectPath(projectId));
   });
 
   ipcMain.handle(IPC.git.changeSummary, async (_event, projectId: string): Promise<string> => {

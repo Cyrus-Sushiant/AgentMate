@@ -463,6 +463,8 @@ const notifications = {
 
 const git = {
   status: (projectId: string): Promise<GitStatus> => ipcRenderer.invoke(IPC.git.status, projectId),
+  listFiles: (projectId: string): Promise<string[]> =>
+    ipcRenderer.invoke(IPC.git.listFiles, projectId),
   changeSummary: (projectId: string): Promise<string> =>
     ipcRenderer.invoke(IPC.git.changeSummary, projectId),
   fetch: (projectId: string): Promise<GitOpResult> => ipcRenderer.invoke(IPC.git.fetch, projectId),

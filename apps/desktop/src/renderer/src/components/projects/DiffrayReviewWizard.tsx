@@ -3,36 +3,55 @@ import {
   allDiffrayAgentIds,
   allDiffraySeverities,
   buildDiffrayProjectConfig,
-  buildDiffrayReviewCommand,
-  defaultDiffrayExecutorForAgentType,
+  chunkDiffrayFiles,
   DIFFRAY_AGENTS,
+  DIFFRAY_DEFAULT_FILES_PER_PASS,
+  DIFFRAY_DEFAULT_JSON_FILE,
   DIFFRAY_EXECUTORS,
   DIFFRAY_GITHUB_APP_URL,
+  DIFFRAY_MAX_FILES_PER_PASS,
   DIFFRAY_MODELS,
   DIFFRAY_PROJECT_CONFIG_FILE,
   type DiffrayExecutorId,
   type DiffrayReviewScope,
+  type DiffrayShellKind,
+  defaultDiffrayExecutorForAgentType,
+  diffrayCodebaseFolders,
+  filterDiffrayCodebaseFiles,
+  joinDiffrayCommands,
+  planDiffrayReview,
 } from '@agentmat/core';
 import type { GitStatus } from '@shared/apiTypes';
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
+import { CliLogo, cliOptionIcon } from '@/components/cliLogos';
 import {
+  ArrowDown,
   ArrowLeft,
   ArrowRight,
   Bolt,
   Bug,
   Check,
+  CircleInfo,
+  CircleX,
   Code,
   Copy,
+  Cpu,
   ExternalLink,
+  File,
+  FileCog,
+  FolderTree,
   GitBranch,
   GitCommit,
+  Github,
   GitPullRequest,
   Play,
+  Robot,
   Shield,
   Spinner,
+  TriangleAlert,
   Wrench,
 } from '@/components/icons';
 import { ProjectEmptyState } from '@/components/projects/ProjectDetailChrome';
@@ -40,12 +59,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Combobox } from '@/components/ui/combobox';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogTitle,
-} from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
@@ -55,11 +69,11 @@ import { useTerminalStore } from '@/stores/terminalStore';
 
 type WizardStep = 'diff' | 'agents' | 'engine' | 'launch';
 
-const STEPS: { id: WizardStep; label: string; hint: string }[] = [
-  { id: 'diff', label: 'Diffs', hint: 'What to scan' },
-  { id: 'agents', label: 'Agents', hint: 'Who looks' },
-  { id: 'engine', label: 'Engine', hint: 'Which AI' },
-  { id: 'launch', label: 'Launch', hint: 'Run the review' },
+const STEPS: { id: WizardStep; label: string; hint: string; icon: typeof Code }[] = [
+  { id: 'diff', label: 'Diffs', hint: 'What to scan', icon: GitPullRequest },
+  { id: 'agents', label: 'Agents', hint: 'Who looks', icon: Robot },
+  { id: 'engine', label: 'Engine', hint: 'Which AI', icon: Cpu },
+  { id: 'launch', label: 'Launch', hint: 'Run the review', icon: Play },
 ];
 
 const AGENT_ICON = {
@@ -70,6 +84,21 @@ const AGENT_ICON = {
   'consistency-check': Copy,
 } as const;
 
+/** diffray executor ids don't match the CLI ids the brand logos are keyed by. */
+const EXECUTOR_LOGO_ID: Record<DiffrayExecutorId, string> = {
+  'claude-cli': 'claude-code',
+  'cursor-agent-cli': 'cursor-cli',
+  'opencode-cli': 'opencode',
+  'codex-cli': 'codex-cli',
+};
+
+const SEVERITY_ICON = {
+  critical: CircleX,
+  high: TriangleAlert,
+  medium: CircleInfo,
+  low: ArrowDown,
+} as const;
+
 const AGENT_GUTTER: Record<string, string> = {
   general: 'border-l-primary',
   'bug-hunter': 'border-l-destructive',
@@ -77,6 +106,19 @@ const AGENT_GUTTER: Record<string, string> = {
   'performance-check': 'border-l-primary/70',
   'consistency-check': 'border-l-foreground/40',
 };
+
+/** Combobox values cannot be empty, so the whole-repo choice gets a sentinel. */
+const ROOT_FOLDER_VALUE = '__root';
+
+/** Commit counts people actually ask for, one click away from the number field. */
+const COMMIT_PRESETS = [1, 3, 5, 10];
+
+/** How many files of the preview list get rendered before it turns into a count. */
+const FILE_PREVIEW_LIMIT = 200;
+
+function terminalShell(): DiffrayShellKind {
+  return window.agentmat.platform === 'win32' ? 'powershell' : 'posix';
+}
 
 function defaultScope(status: GitStatus | undefined): DiffrayReviewScope {
   if (!status?.isRepo) return 'working-tree';
@@ -101,10 +143,7 @@ export function DiffrayReviewLaunchCard({
       onClick={onOpen}
       className="group relative w-full overflow-hidden rounded-xl border border-border bg-card px-4 py-3.5 text-left transition-colors hover:border-primary/40 hover:bg-card/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
     >
-      <span
-        className="absolute inset-y-0 left-0 w-1 overflow-hidden"
-        aria-hidden
-      >
+      <span className="absolute inset-y-0 left-0 w-1 overflow-hidden" aria-hidden>
         <span className="block h-1/2 bg-primary" />
         <span className="block h-1/2 bg-destructive/70" />
       </span>
@@ -118,8 +157,8 @@ export function DiffrayReviewLaunchCard({
             <Badge variant="secondary">Multi-agent</Badge>
           </span>
           <span className="mt-0.5 block text-xs text-muted-foreground">
-            Run specialized agents over this project's git changes, then read the report in the
-            terminal.
+            Run specialized agents over this project's git changes or its whole source tree, then
+            read the report in the terminal or save it as JSON.
           </span>
         </span>
         <ArrowRight className="mt-2 h-4 w-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:text-foreground" />
@@ -194,6 +233,12 @@ export function DiffrayReviewWizard({
   const [commitCount, setCommitCount] = useState(3);
   const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set());
   const [fullFiles, setFullFiles] = useState(false);
+  const [codebaseFolder, setCodebaseFolder] = useState('');
+  const [includeTests, setIncludeTests] = useState(false);
+  const [filesPerPass, setFilesPerPass] = useState(DIFFRAY_DEFAULT_FILES_PER_PASS);
+  const [skippedFiles, setSkippedFiles] = useState<Set<string>>(new Set());
+  const [jsonOutput, setJsonOutput] = useState(false);
+  const [jsonFileName, setJsonFileName] = useState(DIFFRAY_DEFAULT_JSON_FILE);
   const [agentIds, setAgentIds] = useState<Set<string>>(() => new Set(allDiffrayAgentIds()));
   const [executor, setExecutor] = useState<DiffrayExecutorId>(() =>
     defaultDiffrayExecutorForAgentType(agentType),
@@ -210,6 +255,14 @@ export function DiffrayReviewWizard({
     queryKey: queryKeys.gitStatus(projectId),
     queryFn: () => window.agentmat.git.status(projectId),
     enabled: installed,
+  });
+
+  // Only the codebase scope needs the full file list, so it is not fetched until asked for.
+  const repoFilesQuery = useQuery({
+    queryKey: queryKeys.gitFiles(projectId),
+    queryFn: () => window.agentmat.git.listFiles(projectId),
+    enabled: installed && scope === 'codebase',
+    staleTime: 30_000,
   });
 
   useEffect(() => {
@@ -249,31 +302,85 @@ export function DiffrayReviewWizard({
     }
     if (status?.defaultBranch) names.add(status.defaultBranch);
     if (status?.branch) names.add(status.branch);
-    return [...names].sort().map((name) => ({ value: name, label: name }));
+    return [...names].sort().map((name) => ({
+      value: name,
+      label: name,
+      icon: <GitBranch className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />,
+    }));
   }, [status]);
 
-  const command = useMemo(
+  const modelOptions = useMemo(
     () =>
-      buildDiffrayReviewCommand({
-        scope,
-        baseRef,
-        commitCount,
-        files: [...selectedFiles],
-        fullFiles,
-        agentIds: [...agentIds],
-        executor,
-        model,
-        severities: [...severities],
-        skipValidation,
-        stream,
-      }),
+      models.map((entry) => ({
+        value: entry.value || '__default',
+        label: entry.label,
+        icon: cliOptionIcon(EXECUTOR_LOGO_ID[executor]),
+      })),
+    [executor, models],
+  );
+
+  const repoFiles = repoFilesQuery.data;
+  const codebaseFiles = useMemo(
+    () => filterDiffrayCodebaseFiles(repoFiles ?? [], { folder: codebaseFolder, includeTests }),
+    [codebaseFolder, includeTests, repoFiles],
+  );
+  const reviewedCodebaseFiles = useMemo(
+    () => codebaseFiles.filter((file) => !skippedFiles.has(file)),
+    [codebaseFiles, skippedFiles],
+  );
+  const folderOptions = useMemo(() => {
+    const all = filterDiffrayCodebaseFiles(repoFiles ?? [], { includeTests });
+    return [
+      {
+        value: ROOT_FOLDER_VALUE,
+        label: `Whole repository (${all.length} file${all.length === 1 ? '' : 's'})`,
+        icon: <FolderTree className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />,
+      },
+      ...diffrayCodebaseFolders(repoFiles ?? [], { includeTests }).map((folder) => ({
+        value: folder.path,
+        label: `${folder.path} (${folder.fileCount})`,
+        icon: <FolderTree className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />,
+      })),
+    ];
+  }, [includeTests, repoFiles]);
+
+  const passes = useMemo(
+    () =>
+      scope === 'codebase' ? chunkDiffrayFiles(reviewedCodebaseFiles, filesPerPass).length : 1,
+    [filesPerPass, reviewedCodebaseFiles, scope],
+  );
+
+  const { commands, reportFiles } = useMemo(
+    () =>
+      planDiffrayReview(
+        {
+          scope,
+          baseRef,
+          commitCount,
+          files: scope === 'codebase' ? reviewedCodebaseFiles : [...selectedFiles],
+          fullFiles,
+          filesPerPass,
+          agentIds: [...agentIds],
+          executor,
+          model,
+          severities: [...severities],
+          skipValidation,
+          stream,
+          jsonOutput,
+        },
+        { shell: terminalShell(), jsonFileName },
+      ),
     [
       agentIds,
       baseRef,
       commitCount,
       executor,
+      filesPerPass,
       fullFiles,
+      jsonFileName,
+      jsonOutput,
       model,
+      reviewedCodebaseFiles,
       scope,
       selectedFiles,
       severities,
@@ -287,10 +394,11 @@ export function DiffrayReviewWizard({
       (scope === 'working-tree' ||
         (scope === 'base-branch' && Boolean(baseRef.trim())) ||
         (scope === 'last-commits' && commitCount >= 1) ||
-        (scope === 'files' && selectedFiles.size > 0))) ||
+        (scope === 'files' && selectedFiles.size > 0) ||
+        (scope === 'codebase' && reviewedCodebaseFiles.length > 0))) ||
     (step === 'agents' && agentIds.size > 0) ||
     (step === 'engine' && Boolean(executor)) ||
-    step === 'launch';
+    (step === 'launch' && commands.length > 0);
 
   function goNext(): void {
     const next = STEPS[stepIndex + 1];
@@ -329,28 +437,39 @@ export function DiffrayReviewWizard({
     });
   }
 
+  function toggleSkippedFile(path: string): void {
+    setSkippedFiles((prev) => {
+      const next = new Set(prev);
+      if (next.has(path)) next.delete(path);
+      else next.add(path);
+      return next;
+    });
+  }
+
   async function handleLaunch(): Promise<void> {
+    if (commands.length === 0) return;
     if (writeConfig) {
       const action = buildDiffrayProjectConfig({
         executor,
         excludeTests: true,
       });
       if (action.kind === 'write-project-file') {
-        await window.agentmat.fs.writeFile(
-          `${folderPath}/${action.relativePath}`,
-          action.content,
-        );
+        await window.agentmat.fs.writeFile(`${folderPath}/${action.relativePath}`, action.content);
         setHasConfig(true);
         toast.success(`${DIFFRAY_PROJECT_CONFIG_FILE} written to ${projectName}.`);
       }
     }
     openSession({
       title: `diffray · ${projectName}`,
-      initialInput: command,
+      initialInput: joinDiffrayCommands(commands),
       cwd: folderPath,
       projectId,
     });
-    toast.info('Press Enter in the terminal to start the review.');
+    toast.info(
+      commands.length > 1
+        ? `${commands.length} passes queued. Press Enter in the terminal to start.`
+        : 'Press Enter in the terminal to start the review.',
+    );
     onLaunched?.();
   }
 
@@ -449,6 +568,7 @@ export function DiffrayReviewWizard({
           {STEPS.map((entry, index) => {
             const active = entry.id === step;
             const done = index < stepIndex;
+            const StepIcon = entry.icon;
             return (
               <li key={entry.id}>
                 <button
@@ -465,13 +585,18 @@ export function DiffrayReviewWizard({
                 >
                   <span
                     className={cn(
-                      'block text-[11px] font-medium uppercase tracking-wide',
+                      'flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide',
                       active ? 'text-primary' : 'text-muted-foreground',
                     )}
                   >
+                    {done ? (
+                      <Check className="h-3 w-3 shrink-0" />
+                    ) : (
+                      <StepIcon className="h-3 w-3 shrink-0" />
+                    )}
                     {entry.label}
                   </span>
-                  <span className="mt-0.5 hidden text-xs text-muted-foreground sm:block">
+                  <span className="mt-0.5 hidden pl-[1.125rem] text-xs text-muted-foreground sm:block">
                     {entry.hint}
                   </span>
                 </button>
@@ -519,19 +644,40 @@ export function DiffrayReviewWizard({
                 onClick={() => setScope('last-commits')}
               >
                 {scope === 'last-commits' && (
-                  <div className="mt-2.5 space-y-1.5" onClick={(event) => event.stopPropagation()}>
+                  <div className="mt-2.5 space-y-2" onClick={(event) => event.stopPropagation()}>
                     <Label htmlFor="diffray-commit-count">Commit count</Label>
-                    <Input
-                      id="diffray-commit-count"
-                      type="number"
-                      min={1}
-                      max={50}
-                      value={commitCount}
-                      onChange={(event) =>
-                        setCommitCount(Math.max(1, Math.min(50, Number(event.target.value) || 1)))
-                      }
-                      className="w-28 font-mono"
-                    />
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <Input
+                        id="diffray-commit-count"
+                        type="number"
+                        min={1}
+                        max={50}
+                        value={commitCount}
+                        onChange={(event) =>
+                          setCommitCount(Math.max(1, Math.min(50, Number(event.target.value) || 1)))
+                        }
+                        className="w-24 font-mono"
+                      />
+                      {COMMIT_PRESETS.map((preset) => (
+                        <button
+                          key={preset}
+                          type="button"
+                          onClick={() => setCommitCount(preset)}
+                          className={cn(
+                            'rounded-full border px-2.5 py-1 text-xs transition-colors',
+                            commitCount === preset
+                              ? 'border-primary/50 bg-primary/15 text-foreground'
+                              : 'border-border text-muted-foreground hover:bg-muted/50',
+                          )}
+                        >
+                          Last {preset}
+                        </button>
+                      ))}
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Reviews everything since{' '}
+                      <span className="font-mono text-foreground">HEAD~{commitCount}</span>.
+                    </p>
                   </div>
                 )}
               </ScopeCard>
@@ -559,6 +705,7 @@ export function DiffrayReviewWizard({
                             checked={selectedFiles.has(file.path)}
                             onCheckedChange={() => toggleFile(file.path)}
                           />
+                          <File className="h-3 w-3 shrink-0 text-muted-foreground" />
                           <span className="min-w-0 truncate font-mono text-xs">{file.path}</span>
                         </label>
                       ))}
@@ -567,6 +714,104 @@ export function DiffrayReviewWizard({
                       <Switch checked={fullFiles} onCheckedChange={setFullFiles} />
                       Review the whole file, not just the diff
                     </label>
+                  </div>
+                )}
+              </ScopeCard>
+              <ScopeCard
+                selected={scope === 'codebase'}
+                title="Whole codebase"
+                description="Every source file in the project, reviewed in full. No git diff involved."
+                icon={FolderTree}
+                onClick={() => setScope('codebase')}
+              >
+                {scope === 'codebase' && (
+                  <div className="mt-2.5 space-y-3" onClick={(event) => event.stopPropagation()}>
+                    {repoFilesQuery.isPending ? (
+                      <p className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <Spinner className="h-3.5 w-3.5 animate-spin" /> Listing source files…
+                      </p>
+                    ) : (
+                      <>
+                        <div className="space-y-1.5">
+                          <Label>Folder</Label>
+                          <Combobox
+                            className="w-full font-mono"
+                            value={codebaseFolder || ROOT_FOLDER_VALUE}
+                            onChange={(next) =>
+                              setCodebaseFolder(next === ROOT_FOLDER_VALUE ? '' : next)
+                            }
+                            options={folderOptions}
+                            placeholder="Whole repository"
+                            searchPlaceholder="Search folders…"
+                          />
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-2">
+                          <label className="flex items-center gap-2 text-sm">
+                            <Switch checked={includeTests} onCheckedChange={setIncludeTests} />
+                            Include tests
+                          </label>
+                          <div className="space-y-1.5">
+                            <Label htmlFor="diffray-files-per-pass">Files per pass</Label>
+                            <Input
+                              id="diffray-files-per-pass"
+                              type="number"
+                              min={1}
+                              max={DIFFRAY_MAX_FILES_PER_PASS}
+                              value={filesPerPass}
+                              onChange={(event) =>
+                                setFilesPerPass(
+                                  Math.max(
+                                    1,
+                                    Math.min(
+                                      DIFFRAY_MAX_FILES_PER_PASS,
+                                      Number(event.target.value) || 1,
+                                    ),
+                                  ),
+                                )
+                              }
+                              className="w-24 font-mono"
+                            />
+                          </div>
+                        </div>
+
+                        {codebaseFiles.length === 0 ? (
+                          <p className="text-xs text-muted-foreground">
+                            No reviewable source files here. Pick another folder, or turn tests on.
+                          </p>
+                        ) : (
+                          <>
+                            <div className="max-h-40 space-y-1 overflow-y-auto rounded-md border border-border bg-background/60 p-2">
+                              {codebaseFiles.slice(0, FILE_PREVIEW_LIMIT).map((file) => (
+                                <label
+                                  key={file}
+                                  className="flex cursor-pointer items-center gap-2 rounded px-1 py-1 text-sm hover:bg-muted/60"
+                                >
+                                  <Checkbox
+                                    checked={!skippedFiles.has(file)}
+                                    onCheckedChange={() => toggleSkippedFile(file)}
+                                  />
+                                  <File className="h-3 w-3 shrink-0 text-muted-foreground" />
+                                  <span className="min-w-0 truncate font-mono text-xs">{file}</span>
+                                </label>
+                              ))}
+                              {codebaseFiles.length > FILE_PREVIEW_LIMIT && (
+                                <p className="px-1 py-1 text-xs text-muted-foreground">
+                                  and {codebaseFiles.length - FILE_PREVIEW_LIMIT} more, all included
+                                </p>
+                              )}
+                            </div>
+                            <p className="text-xs text-muted-foreground">
+                              {reviewedCodebaseFiles.length} file
+                              {reviewedCodebaseFiles.length === 1 ? '' : 's'} · {passes} pass
+                              {passes === 1 ? '' : 'es'} · {passes * Math.max(agentIds.size, 1)}{' '}
+                              agent runs. Each pass is its own review, so a large tree costs real
+                              tokens.
+                            </p>
+                          </>
+                        )}
+                      </>
+                    )}
                   </div>
                 )}
               </ScopeCard>
@@ -647,10 +892,11 @@ export function DiffrayReviewWizard({
                       )}
                     >
                       <span className="flex items-center gap-2 text-sm font-medium">
+                        <CliLogo cliId={EXECUTOR_LOGO_ID[entry.id]} className="h-4 w-4 shrink-0" />
                         {entry.label}
                         {selected && <Check className="ml-auto h-3.5 w-3.5 text-primary" />}
                       </span>
-                      <span className="mt-1 block text-xs text-muted-foreground">
+                      <span className="mt-1 block pl-6 text-xs text-muted-foreground">
                         {entry.description}
                       </span>
                     </button>
@@ -663,9 +909,7 @@ export function DiffrayReviewWizard({
                 <Combobox
                   value={model || '__default'}
                   onChange={(next) => setModel(next === '__default' ? '' : next)}
-                  options={models.map((entry) =>
-                    entry.value ? entry : { ...entry, value: '__default' },
-                  )}
+                  options={modelOptions}
                   placeholder="Executor default"
                 />
               </div>
@@ -675,18 +919,20 @@ export function DiffrayReviewWizard({
                 <div className="flex flex-wrap gap-1.5">
                   {allDiffraySeverities().map((severity) => {
                     const checked = severities.has(severity);
+                    const SeverityIcon = SEVERITY_ICON[severity];
                     return (
                       <button
                         key={severity}
                         type="button"
                         onClick={() => toggleSeverity(severity)}
                         className={cn(
-                          'rounded-full border px-2.5 py-1 text-xs capitalize transition-colors',
+                          'flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs capitalize transition-colors',
                           checked
                             ? 'border-primary/50 bg-primary/15 text-foreground'
                             : 'border-border text-muted-foreground hover:bg-muted/50',
                         )}
                       >
+                        <SeverityIcon className="h-3 w-3 shrink-0" />
                         {severity}
                       </button>
                     );
@@ -695,46 +941,109 @@ export function DiffrayReviewWizard({
               </div>
 
               <label className="flex items-center justify-between gap-3 rounded-lg border border-border px-3 py-2.5">
-                <span>
-                  <span className="block text-sm font-medium">Skip validation</span>
-                  <span className="text-xs text-muted-foreground">
-                    Faster, with more false positives.
+                <span className="flex items-start gap-2.5">
+                  <Shield className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+                  <span>
+                    <span className="block text-sm font-medium">Skip validation</span>
+                    <span className="text-xs text-muted-foreground">
+                      Faster, with more false positives.
+                    </span>
                   </span>
                 </span>
                 <Switch checked={skipValidation} onCheckedChange={setSkipValidation} />
               </label>
               <label className="flex items-center justify-between gap-3 rounded-lg border border-border px-3 py-2.5">
-                <span>
-                  <span className="block text-sm font-medium">Stream progress</span>
-                  <span className="text-xs text-muted-foreground">
-                    Show each agent as it works in the terminal.
+                <span className="flex items-start gap-2.5">
+                  <Bolt className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+                  <span>
+                    <span className="block text-sm font-medium">Stream progress</span>
+                    <span className="text-xs text-muted-foreground">
+                      {jsonOutput
+                        ? 'Off while findings go to a file, or the streamed output lands in the JSON.'
+                        : 'Show each agent as it works in the terminal.'}
+                    </span>
                   </span>
                 </span>
-                <Switch checked={stream} onCheckedChange={setStream} />
+                <Switch
+                  checked={stream && !jsonOutput}
+                  onCheckedChange={setStream}
+                  disabled={jsonOutput}
+                />
               </label>
+
+              <div className="rounded-lg border border-border px-3 py-2.5">
+                <label className="flex items-center justify-between gap-3">
+                  <span className="flex items-start gap-2.5">
+                    <FileCog className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+                    <span>
+                      <span className="block text-sm font-medium">Save findings as JSON</span>
+                      <span className="text-xs text-muted-foreground">
+                        Writes a machine-readable report into the project instead of printing it.
+                      </span>
+                    </span>
+                  </span>
+                  <Switch checked={jsonOutput} onCheckedChange={setJsonOutput} />
+                </label>
+                {jsonOutput && (
+                  <div className="mt-2.5 space-y-1.5 pl-6.5">
+                    <Label htmlFor="diffray-json-file">Report file</Label>
+                    <Input
+                      id="diffray-json-file"
+                      value={jsonFileName}
+                      onChange={(event) => setJsonFileName(event.target.value)}
+                      placeholder={DIFFRAY_DEFAULT_JSON_FILE}
+                      className="font-mono"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      {reportFiles.length > 1
+                        ? `One file per pass, ${reportFiles[0]} through ${reportFiles[reportFiles.length - 1]}, written in ${projectName}.`
+                        : `Written in ${projectName} as ${reportFiles[0] ?? DIFFRAY_DEFAULT_JSON_FILE}.`}
+                    </p>
+                  </div>
+                )}
+              </div>
             </div>
           )}
 
           {step === 'launch' && (
             <div className="space-y-3">
               <p className="text-sm text-muted-foreground">
-                The command is not run until you press Enter in the terminal. That keeps the review
-                in your hands.
+                {commands.length > 1
+                  ? `${commands.length} passes go into the terminal as one line, and they run in order. Nothing starts until you press Enter.`
+                  : 'The command is not run until you press Enter in the terminal. That keeps the review in your hands.'}
               </p>
-              <div className="overflow-hidden rounded-lg border border-border bg-background font-mono text-xs">
-                <div className="flex items-center gap-2 border-b border-border px-3 py-1.5 text-[11px] uppercase tracking-wide text-muted-foreground">
-                  <span className="text-primary">+</span> review hunk
-                </div>
-                <pre className="overflow-x-auto whitespace-pre-wrap px-3 py-2.5 text-foreground">
-                  {command}
-                </pre>
+              <div className="max-h-56 space-y-2 overflow-y-auto">
+                {commands.map((entry, index) => (
+                  <div
+                    key={entry}
+                    className="overflow-hidden rounded-lg border border-border bg-background font-mono text-xs"
+                  >
+                    <div className="flex items-center gap-2 border-b border-border px-3 py-1.5 text-[11px] uppercase tracking-wide text-muted-foreground">
+                      <span className="text-primary">+</span>
+                      {commands.length > 1
+                        ? `pass ${index + 1} of ${commands.length}`
+                        : 'review hunk'}
+                    </div>
+                    <pre className="overflow-x-auto whitespace-pre-wrap px-3 py-2.5 text-foreground">
+                      {entry}
+                    </pre>
+                  </div>
+                ))}
               </div>
+              {reportFiles.length > 0 && (
+                <p className="text-xs text-muted-foreground">
+                  Findings land in{' '}
+                  <span className="font-mono text-foreground">
+                    {reportFiles.length > 1
+                      ? `${reportFiles[0]} … ${reportFiles[reportFiles.length - 1]}`
+                      : reportFiles[0]}
+                  </span>
+                  , not in the terminal output.
+                </p>
+              )}
               <label className="flex items-start gap-3 rounded-lg border border-border px-3 py-2.5">
-                <Switch
-                  className="mt-0.5"
-                  checked={writeConfig}
-                  onCheckedChange={setWriteConfig}
-                />
+                <Switch className="mt-0.5" checked={writeConfig} onCheckedChange={setWriteConfig} />
+                <FileCog className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
                 <span>
                   <span className="block text-sm font-medium">
                     {hasConfig ? 'Update' : 'Write'} {DIFFRAY_PROJECT_CONFIG_FILE}
@@ -749,7 +1058,10 @@ export function DiffrayReviewWizard({
                 className="flex w-full items-center justify-between gap-2 rounded-lg border border-dashed border-border px-3 py-2.5 text-left text-sm text-muted-foreground transition-colors hover:bg-muted/40"
                 onClick={() => void window.agentmat.shell.openExternal(DIFFRAY_GITHUB_APP_URL)}
               >
-                <span>Want automatic PR comments? Install the GitHub App instead.</span>
+                <span className="flex items-center gap-2">
+                  <Github className="h-3.5 w-3.5 shrink-0" />
+                  Want automatic PR comments? Install the GitHub App instead.
+                </span>
                 <ExternalLink className="h-3.5 w-3.5 shrink-0" />
               </button>
             </div>

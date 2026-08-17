@@ -319,6 +319,7 @@ export const IPC = {
   },
   git: {
     status: 'git:status',
+    listFiles: 'git:listFiles',
     changeSummary: 'git:changeSummary',
     fetch: 'git:fetch',
     pull: 'git:pull',
