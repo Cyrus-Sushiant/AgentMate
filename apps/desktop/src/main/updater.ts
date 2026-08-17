@@ -74,17 +74,62 @@ function internals(): AutoUpdaterInternals {
   return autoUpdater as unknown as AutoUpdaterInternals;
 }
 
+const HTML_ENTITIES: Record<string, string> = {
+  amp: '&',
+  lt: '<',
+  gt: '>',
+  quot: '"',
+  apos: "'",
+  nbsp: ' ',
+};
+
+function decodeEntities(text: string): string {
+  return text.replace(/&(#x[0-9a-f]+|#\d+|[a-z]+);/gi, (match, entity: string) => {
+    const lower = entity.toLowerCase();
+    if (lower.startsWith('#')) {
+      const code = lower.startsWith('#x')
+        ? Number.parseInt(lower.slice(2), 16)
+        : Number.parseInt(lower.slice(1), 10);
+      if (!Number.isInteger(code) || code < 0 || code > 0x10ffff) return match;
+      return String.fromCodePoint(code);
+    }
+    return HTML_ENTITIES[lower] ?? match;
+  });
+}
+
+/**
+ * GitHub gives electron-updater the release body as HTML, but the update
+ * dialog renders it as plain text, so the tags would show up literally.
+ * Turn the markup back into readable lines: list items become bullets, block
+ * elements become line breaks, everything else is dropped.
+ */
+function htmlToText(html: string): string {
+  const stripped = html
+    .replace(/<\s*(script|style)\b[^>]*>[\s\S]*?<\s*\/\s*\1\s*>/gi, '')
+    .replace(/<\s*br\s*\/?\s*>/gi, '\n')
+    .replace(/\s*<\s*\/\s*li\s*>\s*/gi, '')
+    .replace(/<\s*li\b[^>]*>\s*/gi, '\n- ')
+    .replace(/<\s*\/\s*(p|div|ul|ol|h[1-6]|tr|blockquote|pre|table)\s*>/gi, '\n')
+    .replace(/<[^>]*>/g, '');
+  return decodeEntities(stripped)
+    .replace(/\r\n/g, '\n')
+    .replace(/[ \t]+\n/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
 function toUpdateInfo(info: ElectronUpdateInfo): UpdateInfo {
   const notes = info.releaseNotes;
-  const releaseNotes =
+  const raw =
     typeof notes === 'string'
       ? notes
       : Array.isArray(notes)
         ? notes
             .map((n) => n.note ?? '')
             .filter(Boolean)
-            .join('\n\n') || null
-        : null;
+            .join('\n\n')
+        : '';
+  const releaseNotes = htmlToText(raw) || null;
   const file = info.files?.[0];
   return {
     version: info.version,
