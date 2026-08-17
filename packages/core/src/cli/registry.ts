@@ -145,7 +145,10 @@ export const CLI_REGISTRY: CliDefinition[] = [
     versionCommand: { command: 'codex', args: ['--version'] },
     promptCommand: { command: 'codex', args: ['exec'] },
     promptInputMode: 'stdin',
-    promptWriteArgs: ['--full-auto'],
+    // `--full-auto` only exists on the interactive `codex` command; `codex exec` rejects it
+    // ("unexpected argument '--full-auto'"). The exec equivalent is the sandbox policy, and
+    // exec never prompts for approvals anyway.
+    promptWriteArgs: ['--sandbox', 'workspace-write'],
     argsExample: '--model gpt-5-codex',
     installCommand: {
       win32: 'npm install -g @openai/codex',
