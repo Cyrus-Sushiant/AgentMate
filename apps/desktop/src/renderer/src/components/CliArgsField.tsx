@@ -1,0 +1,64 @@
+import { getCliDefinition } from '@agentmat/core';
+import { useEffect, useState } from 'react';
+import { Input } from '@/components/ui/input';
+import { SimpleTooltip } from '@/components/ui/tooltip';
+import { useCliStore } from '@/stores/cliStore';
+
+const HINT =
+  'Passed to this CLI everywhere AgentMate runs it: commit messages, tag suggestions, version bumps, skill audits, and terminal launches.';
+
+/**
+ * Extra flags for one CLI, e.g. "--model sonnet". Saved on blur (and on Enter) rather
+ * than per keystroke, so a half-typed flag never reaches a run.
+ */
+export function CliArgsField({
+  cliId,
+  label = 'Arguments',
+}: {
+  cliId: string;
+  label?: string;
+}): React.JSX.Element | null {
+  const savedArgs = useCliStore((s) => s.cliArgs[cliId] ?? '');
+  const setCliArgs = useCliStore((s) => s.setCliArgs);
+  const [value, setValue] = useState(savedArgs);
+  const [editing, setEditing] = useState(false);
+
+  // The same CLI can be edited from CLI Manager and from Settings; pick up an edit made
+  // on the other surface, but not while this input is the one being typed in.
+  useEffect(() => {
+    if (!editing) setValue(savedArgs);
+  }, [savedArgs, editing]);
+
+  const cli = getCliDefinition(cliId);
+  if (!cli) return null;
+
+  function commit(): void {
+    setEditing(false);
+    if (value.trim() !== savedArgs) setCliArgs(cliId, value);
+  }
+
+  return (
+    <div className="w-full space-y-1.5">
+      <SimpleTooltip label={HINT}>
+        <span className="w-fit text-xs text-muted-foreground">{label}</span>
+      </SimpleTooltip>
+      <Input
+        value={value}
+        onChange={(event) => setValue(event.target.value)}
+        onFocus={() => setEditing(true)}
+        onBlur={commit}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter') event.currentTarget.blur();
+        }}
+        placeholder="--model sonnet"
+        className="h-8 font-mono text-xs"
+        spellCheck={false}
+      />
+      {value.trim() && (
+        <p className="truncate font-mono text-[11px] text-muted-foreground">
+          {cli.executableNames[0]} {value.trim()}
+        </p>
+      )}
+    </div>
+  );
+}

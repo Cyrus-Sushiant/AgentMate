@@ -6,6 +6,7 @@ import type {
   WidgetMode,
 } from '../usage/types.js';
 import type { DesktopPromptBuildWidgetInstance } from '../promptBuilder/types.js';
+import type { CliArgsMap } from '../cli/args.js';
 
 export type ThemeMode = 'light' | 'dark' | 'system';
 
@@ -265,6 +266,12 @@ export type DashboardUsageSummaryId = (typeof DASHBOARD_USAGE_SUMMARY_IDS)[numbe
 
 export interface AppSettings {
   defaultCliId: string | null;
+  /**
+   * Extra arguments per CLI id, typed as a command line (e.g. "--model sonnet").
+   * Added wherever the app runs that CLI: headless prompts (commit messages, tag
+   * suggestions, version bumps, skill audits) and terminal launches.
+   */
+  cliArgs: CliArgsMap;
   theme: ThemeMode;
   /** Folder that holds the user's projects; folder pickers open here instead of the OS default. */
   projectsRootPath: string | null;

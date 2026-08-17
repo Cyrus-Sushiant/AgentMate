@@ -1,5 +1,6 @@
 export * from './types/index.js';
 export * from './cli/registry.js';
+export * from './cli/args.js';
 export * from './cli/agentTypes.js';
 export * from './promptBuilder/types.js';
 export * from './promptBuilder/promptTypeProfiles.js';

@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { CatalogCardSkeleton } from '@/components/CatalogCardSkeleton';
+import { CliArgsField } from '@/components/CliArgsField';
 import { CliLogo } from '@/components/cliLogos';
 import { CloudDownload, ExternalLink, RefreshCw, TerminalSquare } from '@/components/icons';
 import { Badge } from '@/components/ui/badge';
@@ -234,45 +235,50 @@ export default function CliManagerPage(): React.JSX.Element {
                 </div>
                 <CardDescription>{cli.description}</CardDescription>
               </CardHeader>
-              <CardContent className="mt-auto flex items-center gap-2">
-                {status?.installed ? (
-                  <>
-                    <Button
-                      variant={isDefault ? 'secondary' : 'outline'}
-                      size="sm"
-                      onClick={() => setDefaultCliId(isDefault ? null : cli.id)}
-                    >
-                      {isDefault ? 'Default CLI' : 'Set as default'}
-                    </Button>
-                    <SimpleTooltip label="Check for updates">
+              <CardContent className="mt-auto space-y-3">
+                <div className="flex items-center gap-2">
+                  {status?.installed ? (
+                    <>
                       <Button
-                        variant="outline"
-                        size="icon"
-                        disabled={checkingCliId === cli.id}
-                        onClick={() => void handleCheckForUpdate(cli, status.version)}
+                        variant={isDefault ? 'secondary' : 'outline'}
+                        size="sm"
+                        onClick={() => setDefaultCliId(isDefault ? null : cli.id)}
                       >
-                        <CloudDownload
-                          className={checkingCliId === cli.id ? 'h-4 w-4 animate-pulse' : 'h-4 w-4'}
-                        />
+                        {isDefault ? 'Default CLI' : 'Set as default'}
+                      </Button>
+                      <SimpleTooltip label="Check for updates">
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          disabled={checkingCliId === cli.id}
+                          onClick={() => void handleCheckForUpdate(cli, status.version)}
+                        >
+                          <CloudDownload
+                            className={
+                              checkingCliId === cli.id ? 'h-4 w-4 animate-pulse' : 'h-4 w-4'
+                            }
+                          />
+                        </Button>
+                      </SimpleTooltip>
+                    </>
+                  ) : (
+                    <Button size="sm" onClick={() => void handleInstall(cli.id, cli.name)}>
+                      <TerminalSquare /> Install
+                    </Button>
+                  )}
+                  {cli.homepageUrl && (
+                    <SimpleTooltip label="Open homepage">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => void window.agentmat.shell.openExternal(cli.homepageUrl!)}
+                      >
+                        <ExternalLink className="h-4 w-4" />
                       </Button>
                     </SimpleTooltip>
-                  </>
-                ) : (
-                  <Button size="sm" onClick={() => void handleInstall(cli.id, cli.name)}>
-                    <TerminalSquare /> Install
-                  </Button>
-                )}
-                {cli.homepageUrl && (
-                  <SimpleTooltip label="Open homepage">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => void window.agentmat.shell.openExternal(cli.homepageUrl!)}
-                    >
-                      <ExternalLink className="h-4 w-4" />
-                    </Button>
-                  </SimpleTooltip>
-                )}
+                  )}
+                </div>
+                {status?.installed && <CliArgsField cliId={cli.id} />}
               </CardContent>
             </Card>
           );

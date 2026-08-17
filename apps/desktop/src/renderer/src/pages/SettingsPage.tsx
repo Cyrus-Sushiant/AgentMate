@@ -31,6 +31,7 @@ import {
   X,
 } from '@/components/icons';
 import { CLI_REGISTRY } from '@agentmat/core';
+import { CliArgsField } from '@/components/CliArgsField';
 import { cliOptionIcon } from '@/components/cliLogos';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -726,7 +727,7 @@ export default function SettingsPage(): React.JSX.Element {
     showSection('general', 'appearance theme dark light system look', 'Appearance'),
     showSection('shortcuts', SHORTCUT_KEYWORDS, 'Keyboard shortcuts'),
     showSection('companion', 'pet ai pet my ai pet companion desktop character walk mascot climb rope size click area tight wander pipeline github actions fail pass internet quality', 'My AI Pet'),
-    showSection('general', 'default cli provider agent', 'Default CLI'),
+    showSection('general', 'default cli provider agent arguments args flags model', 'Default CLI'),
     showSection('general', 'projects folder path directory', 'Projects folder'),
     showSection('general', 'skills repositories sources', 'Skill repositories'),
     showSection('ai', 'openai gemini ollama api key model prompt builder provider', 'Providers'),
@@ -914,25 +915,29 @@ export default function SettingsPage(): React.JSX.Element {
                 <CompanionSettings settings={settingsQuery.data} />
               ) : null}
 
-              {showSection('general', 'default cli provider agent', 'Default CLI') && (
+              {showSection('general', 'default cli provider agent arguments args flags model', 'Default CLI') && (
                 <SettingsCard
                   icon={TerminalSquare}
                   title="Default CLI"
                   description="Used when a feature needs an AI provider without asking."
                 >
-                  <Combobox
-                    className="max-w-sm"
-                    value={defaultCliId ?? ''}
-                    onChange={(value) => setDefaultCliId(value || null)}
-                    placeholder="No default set"
-                    searchPlaceholder="Search CLIs…"
-                    options={CLI_REGISTRY.map((cli) => ({
-                      value: cli.id,
-                      label: cli.name,
-                      icon: cliOptionIcon(cli.id),
-                    }))}
-                    clearable
-                  />
+                  <div className="max-w-sm space-y-3">
+                    <Combobox
+                      value={defaultCliId ?? ''}
+                      onChange={(value) => setDefaultCliId(value || null)}
+                      placeholder="No default set"
+                      searchPlaceholder="Search CLIs…"
+                      options={CLI_REGISTRY.map((cli) => ({
+                        value: cli.id,
+                        label: cli.name,
+                        icon: cliOptionIcon(cli.id),
+                      }))}
+                      clearable
+                    />
+                    {/* Per CLI, not per default: switching the default brings up that
+                        CLI's own flags. Every CLI has the same field in CLI Manager. */}
+                    {defaultCliId && <CliArgsField cliId={defaultCliId} />}
+                  </div>
                 </SettingsCard>
               )}
 

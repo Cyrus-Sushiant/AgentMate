@@ -54,6 +54,7 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { MonacoEditor } from '@/components/editor/MonacoEditor';
+import { cliLaunchCommand } from '@/lib/openCli';
 import { queryKeys } from '@/lib/queryKeys';
 import { usePageHeader } from '@/stores/pageHeaderStore';
 import { useCliStore } from '@/stores/cliStore';
@@ -428,11 +429,11 @@ export default function PromptBuilderPage(): React.JSX.Element {
       `prompt-${Date.now()}.md`,
       generated,
     );
-    const executable = cliForSendTo.executableNames[0];
+    const launch = cliLaunchCommand(cliForSendTo.id) ?? cliForSendTo.executableNames[0];
     const command =
       window.agentmat.platform === 'win32'
-        ? `& ${executable} (Get-Content -Raw -LiteralPath "${filePath}")`
-        : `${executable} "$(cat '${filePath}')"`;
+        ? `& ${launch} (Get-Content -Raw -LiteralPath "${filePath}")`
+        : `${launch} "$(cat '${filePath}')"`;
     openSession({ title: cliForSendTo.name, initialInput: command });
   }
 

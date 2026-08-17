@@ -22,6 +22,7 @@ import {
   defaultProjectNotifications,
   defaultUsageResetAlerts,
   defaultUsageThresholdAlerts,
+  normalizeCliArgs,
   normalizeCustomDesktopPets,
   normalizeDesktopPetActionSpeeds,
   normalizeDesktopPetId,
@@ -57,6 +58,7 @@ async function writeJsonFile<T>(fileName: string, data: T): Promise<void> {
 
 const DEFAULT_SETTINGS: AppSettings = {
   defaultCliId: null,
+  cliArgs: {},
   theme: 'system',
   projectsRootPath: null,
   skillRepositoryIds: [],
@@ -119,6 +121,7 @@ function withSettingsMigrations(settings: AppSettings): AppSettings {
   const customs = normalizeCustomDesktopPets(settings.desktopPetCustoms);
   return {
     ...settings,
+    cliArgs: normalizeCliArgs(settings.cliArgs),
     desktopPetCustoms: customs,
     desktopPetCharacterId: normalizeDesktopPetId(
       settings.desktopPetCharacterId,

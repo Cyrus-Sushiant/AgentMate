@@ -120,6 +120,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { SimpleTooltip } from '@/components/ui/tooltip';
+import { cliLaunchCommand } from '@/lib/openCli';
 import { queryKeys } from '@/lib/queryKeys';
 import { persianTextProps } from '@/lib/rtl';
 import { timeAgo } from '@/lib/time';
@@ -1530,11 +1531,11 @@ function ScheduleTab({ projectId }: { projectId: string }): React.JSX.Element {
       `scheduled-task-${task.id}.md`,
       task.content,
     );
-    const executable = cliDef.executableNames[0];
+    const launch = cliLaunchCommand(cliDef.id) ?? cliDef.executableNames[0];
     const command =
       window.agentmat.platform === 'win32'
-        ? `& ${executable} (Get-Content -Raw -LiteralPath "${filePath}")`
-        : `${executable} "$(cat '${filePath}')"`;
+        ? `& ${launch} (Get-Content -Raw -LiteralPath "${filePath}")`
+        : `${launch} "$(cat '${filePath}')"`;
     openSession({ title: cliDef.name, initialInput: command });
     updateStatusMutation.mutate({ taskId: task.id, status: 'completed' });
   }

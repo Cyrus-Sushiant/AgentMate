@@ -1,7 +1,7 @@
 import { execFile } from 'node:child_process';
 import type { ChildProcess } from 'node:child_process';
-import { CLI_REGISTRY, getCliDefinition } from '@agentmat/core';
-import type { CliDefinition, SupportedOS } from '@agentmat/core';
+import { CLI_REGISTRY, getCliArgvFor, getCliDefinition } from '@agentmat/core';
+import type { AppSettings, CliDefinition, SupportedOS } from '@agentmat/core';
 import { runCli } from '../packageManagers/execUtils';
 import { store } from '../store';
 
@@ -155,8 +155,10 @@ function supportsHeadlessPrompt(cli: CliDefinition): boolean {
  * own CLI, then the app-wide default from Settings, then any registry CLI with a
  * headless mode that is on PATH. Returns null when nothing usable is installed.
  */
-async function resolveHeadlessCli(preferredCliId?: string | null): Promise<CliDefinition | null> {
-  const settings = await store.getSettings();
+async function resolveHeadlessCli(
+  settings: AppSettings,
+  preferredCliId?: string | null,
+): Promise<CliDefinition | null> {
   const candidateIds = [preferredCliId, settings.defaultCliId].filter((id): id is string => !!id);
 
   const tried = new Set<string>();
@@ -247,7 +249,8 @@ export async function runHeadlessCliPrompt(
   };
   if (options.requestId && cancelledBeforeStart.delete(options.requestId)) return cancelledResult;
 
-  const cli = await resolveHeadlessCli(options.preferredCliId);
+  const settings = await store.getSettings();
+  const cli = await resolveHeadlessCli(settings, options.preferredCliId);
   // Resolving the CLI can take seconds; the user may have cancelled in the meantime.
   if (options.requestId && cancelledBeforeStart.delete(options.requestId)) return cancelledResult;
 
@@ -269,12 +272,16 @@ export async function runHeadlessCliPrompt(
   // flag would be swallowed as the prompt. Stdin-mode CLIs have no prompt in argv, and
   // some (OpenCode's `run --auto`) require write flags after the subcommand instead.
   const writeArgs = options.allowWrites ? (cli.promptWriteArgs ?? []) : [];
+  // The user's own flags for this CLI (Settings / CLI Manager), e.g. "--model sonnet".
+  // Stdin-mode CLIs take them last, after any subcommand, which is where a flag like
+  // `--model` belongs for `opencode run` or `codex exec`. Arg-mode CLIs get them first:
+  // there the prompt is the value of the last flag (`-p PROMPT`), so anything appended
+  // after that flag would be read as the prompt instead.
+  const userArgs = getCliArgvFor(settings.cliArgs, cli.id);
   const baseArgs =
-    writeArgs.length === 0
-      ? cli.promptCommand.args
-      : cli.promptInputMode === 'stdin'
-        ? [...cli.promptCommand.args, ...writeArgs]
-        : [...writeArgs, ...cli.promptCommand.args];
+    cli.promptInputMode === 'stdin'
+      ? [...cli.promptCommand.args, ...writeArgs, ...userArgs]
+      : [...userArgs, ...writeArgs, ...cli.promptCommand.args];
 
   const timeoutMs = options.timeoutMs ?? HEADLESS_TIMEOUT_MS;
   const outcome =
