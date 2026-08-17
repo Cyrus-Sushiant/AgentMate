@@ -2,6 +2,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { LayoutGroup, motion, useReducedMotion } from 'framer-motion';
 import { useEffect } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
+import { toast } from 'sonner';
 import type { IconProps } from '@/components/icons';
 import {
   Bell,
@@ -21,6 +22,7 @@ import { SimpleTooltip } from '@/components/ui/tooltip';
 import { queryKeys } from '@/lib/queryKeys';
 import { cn } from '@/lib/utils';
 import { useUiStore } from '@/stores/uiStore';
+import { openUpdateDialog, useUpdateStore } from '@/stores/updateStore';
 
 interface NavItem {
   to: string;
@@ -74,6 +76,21 @@ export function Sidebar(): React.JSX.Element {
     });
   }, [queryClient]);
   const unread = unreadQuery.data ?? 0;
+  const checkingForUpdates = useUpdateStore((s) => s.status.state === 'checking');
+
+  /**
+   * Double-click, not a single click, so the version line stays a label first.
+   * A check that finds something hands off to UpdateManager's dialog; the quiet
+   * outcomes (already current, or the check itself failed) only get a toast.
+   */
+  async function checkForUpdates(): Promise<void> {
+    if (checkingForUpdates) return;
+    const result = await window.agentmat.app.checkForUpdates();
+    if (result.state === 'not-available') toast.success("You're on the latest version.");
+    else if (result.state === 'error') toast.error(result.message);
+    else openUpdateDialog();
+  }
+
   const pillTransition = reduceMotion
     ? { duration: 0 }
     : { type: 'spring' as const, stiffness: 420, damping: 32 };
@@ -152,13 +169,22 @@ export function Sidebar(): React.JSX.Element {
       </LayoutGroup>
 
       {!collapsed && (
-        <div className="mt-2 border-t border-border/50 px-2.5 pt-3 text-[11px] text-muted-foreground/55">
-          AgentMate{' '}
-          {appVersionQuery.data == null
-            ? ''
-            : appVersionQuery.data === 'dev'
-              ? 'dev'
-              : `v${appVersionQuery.data}`}
+        <div className="mt-2 border-t border-border/50 pt-2">
+          <SimpleTooltip label="Double-click to check for updates" side="top" align="start">
+            <button
+              type="button"
+              onDoubleClick={() => void checkForUpdates()}
+              className="w-full select-none rounded-md px-2.5 py-1 text-left text-[11px] text-muted-foreground/55 transition-colors hover:bg-foreground/[0.06] hover:text-muted-foreground"
+            >
+              AgentMate{' '}
+              {appVersionQuery.data == null
+                ? ''
+                : appVersionQuery.data === 'dev'
+                  ? 'dev'
+                  : `v${appVersionQuery.data}`}
+              {checkingForUpdates ? ' · checking for updates' : ''}
+            </button>
+          </SimpleTooltip>
         </div>
       )}
     </aside>
