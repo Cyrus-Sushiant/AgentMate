@@ -60,6 +60,7 @@ import type { AiProvider, ThemeMode } from '@agentmat/core';
 import { cn } from '@/lib/utils';
 import { CompanionSettings } from '@/components/pet/CompanionSettings';
 import { ShortcutSettings } from '@/components/settings/ShortcutSettings';
+import { WritingCheckSettings } from '@/components/settings/WritingCheckSettings';
 
 const PROMPT_BUILDER_PROVIDER_OPTIONS: { value: AiProvider; label: string }[] = [
   { value: 'openai', label: 'OpenAI' },
@@ -110,10 +111,13 @@ const TAB_META: {
   { id: 'general', label: 'General', icon: SettingsIcon, keywords: 'appearance theme cli projects folder skills' },
   { id: 'shortcuts', label: 'Shortcuts', icon: Keyboard, keywords: 'keyboard shortcut shortcuts keybinding hotkey ctrl cmd alt terminal projects palette' },
   { id: 'companion', label: 'AI Pet', icon: Paw, keywords: 'pet ai pet my ai pet companion desktop character walk mascot climb rope size click area tight wander gif png webp custom add pipeline github actions fail pass notify internet quality ping offline' },
-  { id: 'ai', label: 'AI', icon: MessageSquare, keywords: 'openai gemini ollama api key whisper voice translate' },
+  { id: 'ai', label: 'AI', icon: MessageSquare, keywords: 'openai gemini ollama api key whisper voice translate writing grammar spelling style languagetool' },
   { id: 'notifications', label: 'Notifications', icon: Bell, keywords: 'telegram bot chat notify' },
   { id: 'data', label: 'Data', icon: HardDrive, keywords: 'backup restore ping network about version update' },
 ];
+
+const WRITING_CHECK_KEYWORDS =
+  'writing grammar grammarly spelling spellcheck spell check style languagetool language tool proofread punctuation local server offline java tools folder mother tongue picky rules';
 
 const SHORTCUT_KEYWORDS =
   'keyboard shortcut shortcuts keybinding hotkey ctrl cmd alt terminal projects command palette layout language';
@@ -732,6 +736,7 @@ export default function SettingsPage(): React.JSX.Element {
     showSection('general', 'skills repositories sources', 'Skill repositories'),
     showSection('ai', 'openai gemini ollama api key model prompt builder provider', 'Providers'),
     showSection('ai', 'voice whisper speech microphone transcription', 'Voice input'),
+    showSection('ai', WRITING_CHECK_KEYWORDS, 'Writing check'),
     showSection('ai', 'translation retries translate', 'Translation retries'),
     showSection('notifications', 'telegram bot token chat notify', 'Telegram bot'),
     showSection('data', 'ping network hosts dashboard', 'Network ping targets'),
@@ -1179,6 +1184,10 @@ export default function SettingsPage(): React.JSX.Element {
                   </div>
                 </SettingsCard>
               )}
+
+              {showSection('ai', WRITING_CHECK_KEYWORDS, 'Writing check') && settingsQuery.data ? (
+                <WritingCheckSettings settings={settingsQuery.data} />
+              ) : null}
 
               {showSection('ai', 'translation retries translate', 'Translation retries') && (
                 <SettingsCard

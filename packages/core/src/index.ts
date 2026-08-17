@@ -8,6 +8,7 @@ export * from './promptBuilder/targetAiNotes.js';
 export * from './promptBuilder/templateEngine.js';
 export * from './projectBootstrap/templates.js';
 export * from './git/remoteUrl.js';
+export * from './grammar/languagetool.js';
 export * from './skills/types.js';
 export * from './skills/installPaths.js';
 export * from './skills/securityAudit.js';

@@ -1,5 +1,11 @@
 import type { SupportedOS } from '../cli/registry.js';
 import {
+  LANGUAGETOOL_DOWNLOAD_URL,
+  LANGUAGETOOL_REPOSITORY_URL,
+  LANGUAGETOOL_TOOL_ID,
+  LANGUAGETOOL_WEBSITE_URL,
+} from '../grammar/languagetool.js';
+import {
   buildDiffrayProjectConfig,
   DIFFRAY_EXECUTORS,
   DIFFRAY_REPOSITORY_URL,
@@ -470,6 +476,23 @@ export const AGENT_TOOL_REGISTRY: AgentToolDefinition[] = [
     ],
     settingsScope: 'project',
     buildSettingsAction: buildDiffrayProjectConfig,
+  },
+  {
+    id: LANGUAGETOOL_TOOL_ID,
+    name: 'LanguageTool',
+    description:
+      "Grammar, spelling, and style checker behind AgentMate's writing checks. Install it here to run every check offline on this machine instead of sending text to LanguageTool's public API. Needs Java 17 or newer on PATH.",
+    category: 'Writing & Docs',
+    tags: ['grammar', 'offline', 'java'],
+    author: 'LanguageTool',
+    official: true,
+    websiteUrl: LANGUAGETOOL_WEBSITE_URL,
+    repositoryUrl: LANGUAGETOOL_REPOSITORY_URL,
+    // No install command: it ships as a zip, and AgentMate runs the server out of
+    // its own tools folder rather than installing anything system-wide. The card
+    // has its own download/open-folder buttons instead.
+    installKind: 'manual',
+    manualInstallInstructions: `1. Download ${LANGUAGETOOL_DOWNLOAD_URL}\n2. Extract it into AgentMate's tools folder (the "Open tools folder" button opens it).\n3. Turn on "Use local LanguageTool" in Settings > AI > Writing check.`,
   },
 ];
 

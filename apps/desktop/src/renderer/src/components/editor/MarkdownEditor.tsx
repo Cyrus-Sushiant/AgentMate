@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import type { GrammarIssue } from '@shared/grammar';
 import {
   Bold,
   Code,
@@ -19,6 +20,9 @@ import {
   WindowRestore,
 } from '@/components/icons';
 import { SimpleTooltip } from '@/components/ui/tooltip';
+import { GrammarPanel } from '@/components/grammar/GrammarPanel';
+import { GrammarUnderlines } from '@/components/grammar/GrammarUnderlines';
+import { useGrammarCheck } from '@/hooks/useGrammarCheck';
 import { MarkdownPreview } from './MarkdownPreview';
 import {
   RULE_SNIPPET,
@@ -138,7 +142,11 @@ export function MarkdownEditor({
   const [isMaximized, setIsMaximized] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  // State, not a ref: the writing check and the underline overlay both need to
+  // re-run once the element is there, which a ref assignment doesn't trigger.
+  const [field, setField] = useState<HTMLTextAreaElement | null>(null);
+  const [activeIssue, setActiveIssue] = useState<GrammarIssue | null>(null);
+  const grammar = useGrammarCheck({ value, field, enabled: !readOnly });
   const previewRef = useRef<HTMLDivElement>(null);
   // A command's caret position can only be applied once React has flushed the
   // new value into the textarea, so it waits here until the layout effect.
@@ -146,12 +154,11 @@ export function MarkdownEditor({
 
   useLayoutEffect(() => {
     const pending = pendingSelection.current;
-    const textarea = textareaRef.current;
-    if (!pending || !textarea) return;
+    if (!pending || !field) return;
     pendingSelection.current = null;
-    textarea.focus();
-    textarea.setSelectionRange(pending.start, pending.end);
-  }, [value]);
+    field.focus();
+    field.setSelectionRange(pending.start, pending.end);
+  }, [value, field]);
 
   // Escape is the way out of a full-screen panel, but only while it is one.
   // Otherwise the key belongs to whatever dialog the editor is sitting in.
@@ -187,7 +194,7 @@ export function MarkdownEditor({
   }
 
   function apply(run: (state: EditState) => EditState | null): boolean {
-    const textarea = textareaRef.current;
+    const textarea = field;
     if (!textarea || readOnly) return false;
     const next = run({
       value: textarea.value,
@@ -243,7 +250,7 @@ export function MarkdownEditor({
 
   /** Keep the preview roughly at the same relative position as the source. */
   function syncPreviewScroll(): void {
-    const textarea = textareaRef.current;
+    const textarea = field;
     const preview = previewRef.current;
     if (!textarea || !preview) return;
     const scrollable = textarea.scrollHeight - textarea.clientHeight;
@@ -294,22 +301,32 @@ export function MarkdownEditor({
               ))}
             </div>
           ))}
-        <div className="ml-auto flex items-center gap-0.5 rounded-md bg-background p-0.5">
-          {VIEW_MODES.map((mode) => (
-            <SimpleTooltip key={mode.key} label={`${mode.label} mode`}>
-              <button
-                type="button"
-                onClick={() => setView(mode.key)}
-                className={cn(
-                  'flex h-6 items-center gap-1 rounded px-2 text-xs text-muted-foreground hover:bg-accent',
-                  view === mode.key && 'bg-accent text-foreground',
-                )}
-              >
-                <mode.icon className="h-3 w-3" />
-                {mode.label}
-              </button>
-            </SimpleTooltip>
-          ))}
+        <div className="ml-auto flex items-center gap-1.5">
+          {showEditor && !readOnly ? (
+            <GrammarPanel
+              field={field}
+              value={value}
+              state={grammar}
+              onActiveIssueChange={setActiveIssue}
+            />
+          ) : null}
+          <div className="flex items-center gap-0.5 rounded-md bg-background p-0.5">
+            {VIEW_MODES.map((mode) => (
+              <SimpleTooltip key={mode.key} label={`${mode.label} mode`}>
+                <button
+                  type="button"
+                  onClick={() => setView(mode.key)}
+                  className={cn(
+                    'flex h-6 items-center gap-1 rounded px-2 text-xs text-muted-foreground hover:bg-accent',
+                    view === mode.key && 'bg-accent text-foreground',
+                  )}
+                >
+                  <mode.icon className="h-3 w-3" />
+                  {mode.label}
+                </button>
+              </SimpleTooltip>
+            ))}
+          </div>
         </div>
         <SimpleTooltip label={isMaximized ? 'Restore editor (Esc)' : 'Maximize editor'}>
           <button
@@ -331,22 +348,27 @@ export function MarkdownEditor({
 
       <div className="flex min-h-0 flex-1 divide-x divide-border">
         {showEditor && (
-          <textarea
-            ref={textareaRef}
-            value={value}
-            readOnly={readOnly}
-            // Markdown here is prose (READMEs, skill docs), so the spellchecker
-            // earns its keep even though it also flags the odd code fence.
-            spellCheck
-            aria-label="Markdown source"
-            onChange={(event) => onChange(event.target.value)}
-            onKeyDown={handleKeyDown}
-            onScroll={showPreview ? syncPreviewScroll : undefined}
-            className={cn(
-              'min-h-0 flex-1 resize-none bg-transparent p-3 font-mono text-[13px] leading-relaxed outline-none',
-              showPreview ? 'w-1/2' : 'w-full',
-            )}
-          />
+          <div className={cn('relative min-h-0 flex-1', showPreview ? 'w-1/2' : 'w-full')}>
+            <textarea
+              ref={setField}
+              value={value}
+              readOnly={readOnly}
+              // Markdown here is prose (READMEs, skill docs), so the spellchecker
+              // earns its keep even though it also flags the odd code fence.
+              spellCheck
+              aria-label="Markdown source"
+              onChange={(event) => onChange(event.target.value)}
+              onKeyDown={handleKeyDown}
+              onScroll={showPreview ? syncPreviewScroll : undefined}
+              className="h-full w-full resize-none bg-transparent p-3 font-mono text-[13px] leading-relaxed outline-none"
+            />
+            <GrammarUnderlines
+              field={field}
+              value={value}
+              issues={grammar.issues}
+              activeIssue={activeIssue}
+            />
+          </div>
         )}
         {showPreview && (
           <div

@@ -119,6 +119,7 @@ import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
+import { GrammarTextarea } from '@/components/grammar/GrammarTextarea';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { cliLaunchCommand } from '@/lib/openCli';
 import { queryKeys } from '@/lib/queryKeys';
@@ -2544,7 +2545,7 @@ function GitTab({
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="git-commit-message">Commit message</Label>
-            <Textarea
+            <GrammarTextarea
               id="git-commit-message"
               value={commitMessage}
               onChange={(e) => setCommitMessage(e.target.value)}
@@ -3333,7 +3334,7 @@ function TagVersionDialog({
 
           <div className="space-y-1.5">
             <Label htmlFor="git-tag-message">Tag message (optional)</Label>
-            <Textarea
+            <GrammarTextarea
               id="git-tag-message"
               value={message}
               onChange={(e) => setMessage(e.target.value)}
@@ -3535,7 +3536,7 @@ function CreatePrDialog({
           </div>
           <div className="space-y-1.5">
             <Label>Description</Label>
-            <Textarea
+            <GrammarTextarea
               value={body}
               onChange={(e) => setBody(e.target.value)}
               rows={5}

@@ -6,6 +6,7 @@ import { SimpleTooltip } from '@/components/ui/tooltip';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { GrammarTextarea } from '@/components/grammar/GrammarTextarea';
 import { Combobox } from '@/components/ui/combobox';
 import { cliOptionIcon } from '@/components/cliLogos';
 import { PROMPT_TYPES, TARGET_AIS, cliIdForTargetAI } from '@agentmat/core';
@@ -117,9 +118,10 @@ export default function PromptBuildWidgetRoute(): React.JSX.Element {
               </span>
             </div>
             <div className="relative min-h-0 flex-1">
-              <Textarea
+              <GrammarTextarea
                 id="widget-prompt-request"
-                className="absolute inset-0 min-h-0 resize-none text-sm"
+                containerClassName="absolute inset-0"
+                className="h-full min-h-0 w-full resize-none text-sm"
                 placeholder="e.g. Add a login form with email/password validation…"
                 value={rawInput}
                 onChange={(e) => setRawInput(e.target.value)}

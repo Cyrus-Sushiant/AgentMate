@@ -1,14 +1,19 @@
 import {
   AGENT_TOOL_REGISTRY,
+  LANGUAGETOOL_DOWNLOAD_URL,
+  LANGUAGETOOL_TOOL_ID,
   type AgentToolDefinition,
   type ToolSettingsAction,
   type ToolSettingsValues,
 } from '@agentmat/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import {
+  Download,
   ExternalLink,
+  FolderOpen,
   GitBranch,
   Globe,
   Play,
@@ -43,6 +48,7 @@ type DockerAction = 'run' | 'start' | 'stop' | 'reset' | 'remove';
 
 export default function ToolsPage(): React.JSX.Element {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const openSession = useTerminalStore((s) => s.openSession);
 
   const [selectedProjectId, setSelectedProjectId] = useState('');
@@ -57,11 +63,35 @@ export default function ToolsPage(): React.JSX.Element {
     queryKey: queryKeys.toolsStatus,
     queryFn: () => window.agentmat.tools.detectAll(),
   });
+  // LanguageTool isn't on PATH: it lives in the app's tools folder, so its card
+  // reads the grammar status instead of the PATH probe every other tool uses.
+  const languageToolQuery = useQuery({
+    queryKey: queryKeys.grammarLocalStatus,
+    queryFn: () => window.agentmat.grammar.localStatus(),
+  });
 
   const selectedProject = projectsQuery.data?.find((p) => p.id === selectedProjectId);
 
   function statusFor(toolId: string) {
     return statusQuery.data?.find((s) => s.id === toolId);
+  }
+
+  async function openToolsFolder(): Promise<void> {
+    const dir = await window.agentmat.grammar.openToolsFolder();
+    toast.info(`Extract LanguageTool-stable.zip into ${dir}`);
+  }
+
+  async function toggleLanguageToolServer(action: 'start' | 'stop'): Promise<void> {
+    if (action === 'start') toast.info('Starting LanguageTool. The first start loads its rules.');
+    const next =
+      action === 'start'
+        ? await window.agentmat.grammar.startLocal()
+        : await window.agentmat.grammar.stopLocal();
+    queryClient.setQueryData(queryKeys.grammarLocalStatus, next);
+    if (action === 'start') {
+      if (next.serverState === 'running') toast.success('LanguageTool is running.');
+      else toast.error(next.error ?? 'LanguageTool did not start.');
+    }
   }
 
   async function runAction(
@@ -228,7 +258,17 @@ export default function ToolsPage(): React.JSX.Element {
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
         {AGENT_TOOL_REGISTRY.map((tool) => {
-          const status = statusFor(tool.id);
+          const isLanguageTool = tool.id === LANGUAGETOOL_TOOL_ID;
+          const languageTool = isLanguageTool ? languageToolQuery.data : undefined;
+          const status = isLanguageTool
+            ? {
+                id: tool.id,
+                installed: Boolean(languageTool?.installPath),
+                version: languageTool?.version ? `v${languageTool.version}` : null,
+                dockerStatus: 'unavailable' as const,
+                lastCheckedAt: '',
+              }
+            : statusFor(tool.id);
           return (
             <Card key={tool.id} className="glass flex flex-col hover:border-primary/30">
               <CardHeader>
@@ -242,13 +282,20 @@ export default function ToolsPage(): React.JSX.Element {
                 <div className="flex flex-wrap gap-1.5">
                   {/* "Not detected" is a result, not a starting state, so shimmer
                       the badge until the scan actually says so. */}
-                  {statusQuery.isPending ? (
+                  {(isLanguageTool ? languageToolQuery.isPending : statusQuery.isPending) ? (
                     <Skeleton className="h-5 w-24 rounded-full" />
                   ) : (
                     <Badge variant={status?.installed ? 'success' : 'secondary'}>
-                      {status?.installed ? (status.version ?? 'Installed') : 'Not detected'}
+                      {status?.installed
+                        ? (status.version ?? 'Installed')
+                        : isLanguageTool
+                          ? 'Not in tools folder'
+                          : 'Not detected'}
                     </Badge>
                   )}
+                  {isLanguageTool && languageTool?.serverState === 'running' ? (
+                    <Badge variant="success">Server running</Badge>
+                  ) : null}
                   {tool.docker && statusQuery.isPending && (
                     <Skeleton className="h-5 w-28 rounded-full" />
                   )}
@@ -274,7 +321,49 @@ export default function ToolsPage(): React.JSX.Element {
                 <div className="text-xs text-muted-foreground">{tool.author}</div>
 
                 <div className="flex flex-wrap items-center gap-2">
-                  {tool.installKind === 'shell' ? (
+                  {isLanguageTool ? (
+                    <>
+                      <Button
+                        size="sm"
+                        variant={status?.installed ? 'outline' : 'default'}
+                        onClick={() =>
+                          void window.agentmat.shell.openExternal(LANGUAGETOOL_DOWNLOAD_URL)
+                        }
+                      >
+                        <Download /> Download zip
+                      </Button>
+                      <SimpleTooltip label="Extract the zip here, then start the server">
+                        <Button size="sm" variant="outline" onClick={() => void openToolsFolder()}>
+                          <FolderOpen /> Open tools folder
+                        </Button>
+                      </SimpleTooltip>
+                      {languageTool?.serverState === 'running' ? (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => void toggleLanguageToolServer('stop')}
+                        >
+                          <StopCircle /> Stop server
+                        </Button>
+                      ) : (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={!status?.installed}
+                          onClick={() => void toggleLanguageToolServer('start')}
+                        >
+                          <Play /> Start server
+                        </Button>
+                      )}
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => navigate('/settings?tab=ai')}
+                      >
+                        <Wrench /> Writing settings
+                      </Button>
+                    </>
+                  ) : tool.installKind === 'shell' ? (
                     status?.installed ? (
                       <Button
                         size="sm"

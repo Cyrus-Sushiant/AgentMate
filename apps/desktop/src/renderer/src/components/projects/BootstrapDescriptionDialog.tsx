@@ -11,7 +11,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Textarea } from '@/components/ui/textarea';
+import { GrammarTextarea } from '@/components/grammar/GrammarTextarea';
 import { containsPersian } from '@/lib/rtl';
 
 /** What the Bootstrap tab needs to scaffold the project and record the translation. */
@@ -113,7 +113,7 @@ export function BootstrapDescriptionDialog({
 
         {step === 'input' ? (
           <div className="space-y-2">
-            <Textarea
+            <GrammarTextarea
               autoFocus
               rows={8}
               value={draft}
@@ -153,7 +153,11 @@ export function BootstrapDescriptionDialog({
               <p className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
                 <Languages className="h-3.5 w-3.5" /> English translation
               </p>
-              <Textarea rows={7} value={english} onChange={(e) => setEnglish(e.target.value)} />
+              <GrammarTextarea
+                rows={7}
+                value={english}
+                onChange={(e) => setEnglish(e.target.value)}
+              />
             </div>
           </div>
         )}

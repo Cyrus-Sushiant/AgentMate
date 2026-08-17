@@ -8,6 +8,7 @@ import {
   faArrowsRotate,
   faArrowUp,
   faArrowUpRightFromSquare,
+  faBan,
   faBell,
   faBold,
   faBolt,
@@ -83,6 +84,7 @@ import {
   faSatelliteDish,
   faShieldHalved,
   faSort,
+  faSpellCheck,
   faSpinner,
   faSquareCheck,
   faStop,
@@ -270,6 +272,10 @@ export const HorizontalRule = makeIcon(faMinus);
 export const FileText = makeIcon(faFileLines);
 export const SplitView = makeIcon(faTableColumns);
 export const Pin = makeIcon(faThumbtack);
+
+// Writing check icons.
+export const SpellCheck = makeIcon(faSpellCheck);
+export const Ban = makeIcon(faBan);
 
 // Voice input icons.
 export const Microphone = makeIcon(faMicrophone);

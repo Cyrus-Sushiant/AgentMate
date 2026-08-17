@@ -20,9 +20,11 @@ import {
   DASHBOARD_STAT_IDS,
   DEFAULT_DESKTOP_PET_ACTION_SPEEDS,
   defaultProjectNotifications,
+  defaultGrammarSettings,
   defaultUsageResetAlerts,
   defaultUsageThresholdAlerts,
   normalizeCliArgs,
+  normalizeGrammarSettings,
   normalizeCustomDesktopPets,
   normalizeDesktopPetActionSpeeds,
   normalizeDesktopPetId,
@@ -85,6 +87,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   translateMaxRetries: 3,
   speechModel: 'base',
   speechLanguage: 'auto',
+  grammar: defaultGrammarSettings(),
   usageProviderConfigs: {},
   usageWidgets: [],
   promptBuildWidgets: [],
@@ -122,6 +125,7 @@ function withSettingsMigrations(settings: AppSettings): AppSettings {
   return {
     ...settings,
     cliArgs: normalizeCliArgs(settings.cliArgs),
+    grammar: normalizeGrammarSettings(settings.grammar),
     desktopPetCustoms: customs,
     desktopPetCharacterId: normalizeDesktopPetId(
       settings.desktopPetCharacterId,

@@ -38,6 +38,11 @@ import { IPC } from '../shared/ipcChannels';
 import type { PetPipelineMessage, PetSnoozeState, PetWorkArea } from '../shared/pet';
 import type { SpellcheckMenuPayload } from '../shared/spellcheck';
 import type {
+  GrammarCheckInput,
+  GrammarCheckResult,
+  GrammarLocalStatus,
+} from '../shared/grammar';
+import type {
   BootstrapResult,
   CreateTerminalOptions,
   CreateProjectInput,
@@ -722,6 +727,20 @@ const spellcheck = {
     ipcRenderer.invoke(IPC.spellcheck.addToDictionary, word),
 };
 
+const grammar = {
+  /** Resolves with no issues when grammar checking is off, so callers don't have to check first. */
+  check: (input: GrammarCheckInput): Promise<GrammarCheckResult> =>
+    ipcRenderer.invoke(IPC.grammar.check, input),
+  localStatus: (): Promise<GrammarLocalStatus> => ipcRenderer.invoke(IPC.grammar.localStatus),
+  /** Starts the server if it isn't up; resolves with the status either way, error included. */
+  startLocal: (): Promise<GrammarLocalStatus> => ipcRenderer.invoke(IPC.grammar.startLocal),
+  stopLocal: (): Promise<GrammarLocalStatus> => ipcRenderer.invoke(IPC.grammar.stopLocal),
+  /** Resolves with the folder that was opened. */
+  openToolsFolder: (): Promise<string> => ipcRenderer.invoke(IPC.grammar.openToolsFolder),
+  onLocalStatus: (callback: (status: GrammarLocalStatus) => void): (() => void) =>
+    subscribe(IPC.grammar.onLocalStatus, callback),
+};
+
 const windowControls = {
   minimize: (): Promise<void> => ipcRenderer.invoke(IPC.window.minimize),
   maximizeToggle: (): Promise<void> => ipcRenderer.invoke(IPC.window.maximizeToggle),
@@ -763,6 +782,7 @@ const agentmatApi = {
   activity,
   shell: shellApi,
   spellcheck,
+  grammar,
   window: windowControls,
   remoteSessionWindow: remoteSessionWindowControls,
   promptHistory,

@@ -30,7 +30,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Textarea } from '@/components/ui/textarea';
+import { GrammarTextarea } from '@/components/grammar/GrammarTextarea';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 
@@ -443,7 +443,7 @@ export function ProjectFormDialog({
               </Field>
 
               <Field label="Description" htmlFor={`${ids}-description`}>
-                <Textarea
+                <GrammarTextarea
                   id={`${ids}-description`}
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
@@ -644,7 +644,7 @@ export function ProjectFormDialog({
               </Field>
 
               <Field label="Notes" htmlFor={`${ids}-notes`}>
-                <Textarea
+                <GrammarTextarea
                   id={`${ids}-notes`}
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}

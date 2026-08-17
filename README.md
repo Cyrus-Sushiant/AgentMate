@@ -54,10 +54,11 @@
 - **AI CLI Manager**: detects every AI coding CLI installed on the machine and installs or updates missing ones with one click (Claude Code, Gemini, OpenCode, Codex, Grok, Cursor, Qwen, Aider, Goose, Cline, Continue, and more).
 - **Prompt Builder**: describe what you want, and AgentMate structures it into a prompt for the agent of your choice. Generate, translate, and copy from the keyboard.
 - **Prompt History**: every prompt you've generated or translated, searchable, with tags and proper Persian / RTL rendering.
+- **Writing check**: grammar, spelling, and style checking in the app's text boxes, powered by LanguageTool. Issues are underlined as you type, right-click one for its fix (or to check the text on the spot), and the counter in the corner opens the full list with one-click fixes. Uses LanguageTool's public API by default; drop the LanguageTool download into the app's tools folder and AgentMate runs the server itself, so nothing you write leaves the machine.
 - **Skill Marketplace**: install agent skills from configurable repositories or skills.sh, including into a project's agent folders.
 - **Skill Security**: check what a skill actually does before you let an agent read it. A static scan over 14 risk categories, an optional deep review by an installed agent CLI, and a saved history of every check. See [Skill security](#skill-security).
 - **MCP Marketplace**: install MCP servers into a project from configurable repositories.
-- **Agent Tools**: curated third-party tools that cut agent token spend or improve code quality, including Diffray.
+- **Agent Tools**: curated third-party tools that cut agent token spend or improve code quality, including Diffray and LanguageTool for offline writing checks.
 - **Ask AI**: a persistent assistant conversation, one keystroke away.
 - **Remote**: control another AgentMate over your local network, AnyDesk-style, over WebSockets, including from the companion mobile app.
 - **AI Pet**: an optional desktop companion. Click it for a token report, double-click to bring AgentMate to the front, drag it around, and let it tell you when a pipeline fails or the network drops. Right-click for a menu (open the app, stop it wandering, snooze it for 15 minutes to 3 hours, or send it away), and it reappears on its own when the snooze ends. Built-in characters, or add your own GIF / PNG / WebP.

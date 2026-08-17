@@ -40,6 +40,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
+import { GrammarTextarea } from '@/components/grammar/GrammarTextarea';
 import { Label } from '@/components/ui/label';
 import { Combobox } from '@/components/ui/combobox';
 import { cliOptionIcon } from '@/components/cliLogos';
@@ -473,8 +474,9 @@ export default function PromptBuilderPage(): React.JSX.Element {
                   </SimpleTooltip>
                 )}
               </div>
-              <Textarea
+              <GrammarTextarea
                 id="raw-input"
+                containerClassName="flex min-h-[120px] flex-1 flex-col"
                 className="min-h-[120px] flex-1 resize-none"
                 placeholder="e.g. Add a login form with email/password validation…"
                 value={rawInput}

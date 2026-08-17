@@ -37,7 +37,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Textarea } from '@/components/ui/textarea';
+import { GrammarTextarea } from '@/components/grammar/GrammarTextarea';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { openCliInTerminal } from '@/lib/openCli';
 import { persianTextProps } from '@/lib/rtl';
@@ -538,7 +538,7 @@ export function ProjectNotesCard({
             </Button>
           </div>
         </div>
-        <Textarea
+        <GrammarTextarea
           value={draft}
           onChange={(event) => setDraft(event.target.value)}
           rows={6}

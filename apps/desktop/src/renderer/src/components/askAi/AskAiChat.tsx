@@ -15,7 +15,7 @@ import {
   TriangleAlert,
 } from '@/components/icons';
 import { Button } from '@/components/ui/button';
-import { Textarea } from '@/components/ui/textarea';
+import { GrammarTextarea } from '@/components/grammar/GrammarTextarea';
 import { Combobox } from '@/components/ui/combobox';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -447,9 +447,13 @@ export function AskAiChat({
       </ScrollArea>
 
       <div className="flex items-end gap-2 rounded-2xl border border-input bg-background p-1.5 pl-3 transition-colors focus-within:border-primary/50 focus-within:ring-2 focus-within:ring-inset focus-within:ring-ring/50">
-        <Textarea
+        <GrammarTextarea
           ref={textareaRef}
-          className="min-h-[40px] flex-1 resize-none border-none bg-transparent p-1.5 shadow-none focus-visible:ring-0"
+          containerClassName="flex-1"
+          // The counter would sit on top of the last line of a short question,
+          // and the right-click menu is the useful part in a chat box anyway.
+          hideCounter
+          className="min-h-[40px] w-full resize-none border-none bg-transparent p-1.5 shadow-none focus-visible:ring-0"
           placeholder="Type your question… (Enter to send, Shift+Enter for a new line)"
           value={prompt}
           onChange={(e) => setPrompt(e.target.value)}

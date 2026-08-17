@@ -54,4 +54,6 @@ export const queryKeys = {
   skillsShDetail: (id: string) => ['skills-sh-detail', id] as const,
   uiProPrerequisites: ['ui-ux-pro-max-prerequisites'] as const,
   remoteSavedServers: ['remote-saved-servers'] as const,
+  /** Local LanguageTool install and server state, for Settings and the Tools card. */
+  grammarLocalStatus: ['grammar-local-status'] as const,
 };

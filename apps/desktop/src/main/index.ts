@@ -8,6 +8,7 @@ import { registerBackupHandlers } from './ipc/backup';
 import { registerCliDetectionHandlers } from './ipc/cliDetection';
 import { registerFileSystemHandlers } from './ipc/fileSystem';
 import { registerGitHandlers } from './ipc/git';
+import { registerGrammarHandlers } from './ipc/grammar';
 import { registerIpGeoHandlers } from './ipc/ipGeo';
 import { registerMcpHandlers } from './ipc/mcp';
 import { registerNotificationHandlers } from './ipc/notifications';
@@ -47,6 +48,7 @@ import {
 import { remoteManager } from './remote/manager';
 import { startHourlyUpdateChecks } from './updater';
 import { startPipelineWatcher, stopPipelineWatcher } from './pipelines/watcher';
+import { shutdownLocalServer } from './grammar/localServer';
 
 // Chromium normally deprioritizes timers, rendering, and IPC delivery for a
 // minimized/occluded window (and Windows' own efficiency-mode throttling
@@ -171,6 +173,7 @@ function registerAllIpcHandlers(): void {
   registerPetHandlers();
   registerPipelineHandlers();
   registerSpellcheckHandlers();
+  registerGrammarHandlers();
 }
 
 app.whenReady().then(() => {
@@ -253,5 +256,6 @@ app.on('before-quit', () => {
   stopThresholdAlertWatcher();
   stopNetworkQualityAlertWatcher();
   stopPipelineWatcher();
+  shutdownLocalServer();
   remoteManager.shutdown();
 });

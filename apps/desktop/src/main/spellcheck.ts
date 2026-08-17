@@ -47,8 +47,11 @@ export function configureSpellChecker(): void {
 }
 
 /**
- * Forwards the spelling suggestions Chromium computed for a right-clicked word
- * to the renderer, which draws the correction menu itself instead of the OS one.
+ * Forwards every right-click inside an editable field to the renderer, along
+ * with whatever Chromium's spellchecker had to say about the word under the
+ * cursor. The renderer draws the writing menu itself instead of the OS one, and
+ * it opens for grammar issues too, which is why a click on a correctly spelled
+ * word is still worth sending.
  */
 export function registerSpellcheckHandlers(): void {
   ipcMain.handle(IPC.spellcheck.addToDictionary, (_event, word: string): boolean => {
@@ -61,10 +64,11 @@ export function registerSpellcheckHandlers(): void {
   // known window.
   app.on('web-contents-created', (_event, contents) => {
     contents.on('context-menu', (_contextMenuEvent, params) => {
-      if (!params.isEditable || !params.misspelledWord) return;
+      if (!params.isEditable) return;
       const payload: SpellcheckMenuPayload = {
         word: params.misspelledWord,
         suggestions: params.dictionarySuggestions,
+        selectionText: params.selectionText,
       };
       contents.send(IPC.spellcheck.onShowMenu, payload);
     });

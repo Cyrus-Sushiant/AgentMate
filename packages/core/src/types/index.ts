@@ -7,6 +7,7 @@ import type {
 } from '../usage/types.js';
 import type { DesktopPromptBuildWidgetInstance } from '../promptBuilder/types.js';
 import type { CliArgsMap } from '../cli/args.js';
+import type { GrammarSettings } from '../grammar/languagetool.js';
 
 export type ThemeMode = 'light' | 'dark' | 'system';
 
@@ -324,6 +325,8 @@ export interface AppSettings {
   speechModel: string;
   /** Spoken language for voice input as a Whisper code (e.g. "en", "fa"), or "auto" to detect it. */
   speechLanguage: string;
+  /** LanguageTool-backed grammar, spelling, and style checking in the app's text fields. */
+  grammar: GrammarSettings;
   /** Per-provider config for the Token Usage page (enabled flag + optional API key), keyed by provider id. */
   usageProviderConfigs: Record<string, UsageProviderConfig>;
   /** Floating desktop usage widgets the user has pinned; recreated on app launch. */

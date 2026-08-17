@@ -165,9 +165,20 @@ export const IPC = {
     remove: 'scheduledTasks:remove',
   },
   spellcheck: {
-    // main -> renderer: a misspelled word was right-clicked, open the menu
+    // main -> renderer: an editable field was right-clicked, open the writing menu
     onShowMenu: 'spellcheck:showMenu',
     addToDictionary: 'spellcheck:addToDictionary',
+  },
+  grammar: {
+    check: 'grammar:check',
+    /** Where the local LanguageTool lives, whether Java is there, and what the server is doing. */
+    localStatus: 'grammar:localStatus',
+    startLocal: 'grammar:startLocal',
+    stopLocal: 'grammar:stopLocal',
+    /** Opens the tools folder in the OS file manager, creating it first if needed. */
+    openToolsFolder: 'grammar:openToolsFolder',
+    // main -> renderer: the local server changed state (starting, up, failed)
+    onLocalStatus: 'grammar:onLocalStatus',
   },
   window: {
     minimize: 'window:minimize',
