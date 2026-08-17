@@ -1,8 +1,10 @@
+import type { DesktopPetCardView } from '@agentmat/core';
 import { PET_BOX } from '@shared/pet';
 import { formatCost, formatTokens } from '@/lib/usageFormat';
 import { useUsageSummary } from '@/hooks/useUsageSummary';
 import { cn } from '@/lib/utils';
 import { type PetCharacter } from './characters';
+import { PetNetworkPanel, PetSystemPanel } from './PetStatsPanels';
 
 const CARD_W = 268;
 /** First-paint estimate. The overlay measures the real box and re-places. */
@@ -14,7 +16,7 @@ export { CARD_W, CARD_H };
 
 export type CardSide = 'top' | 'bottom' | 'left' | 'right';
 
-export function placeTokenCard(
+export function placePetCard(
   x: number,
   y: number,
   w: number,
@@ -90,47 +92,29 @@ function MiniBurn({ values }: { values: number[] }): React.JSX.Element | null {
     .join(' ');
   return (
     <svg viewBox={`0 0 ${width} ${height}`} className="h-9 w-full" aria-hidden>
-      <path d={path} fill="none" stroke="hsl(var(--primary))" strokeWidth="1.8" strokeLinecap="round" />
+      <path
+        d={path}
+        fill="none"
+        stroke="hsl(var(--primary))"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+      />
     </svg>
   );
 }
 
-export function PetTokenCard({
-  pet,
-  side,
-  onClose,
-}: {
-  pet: PetCharacter;
-  side: CardSide;
-  onClose: () => void;
-}): React.JSX.Element {
+const VIEW_TABS: { id: DesktopPetCardView; label: string; title: string }[] = [
+  { id: 'tokens', label: 'Tokens', title: 'Token report' },
+  { id: 'system', label: 'System', title: 'System state' },
+  { id: 'network', label: 'Network', title: 'Network status' },
+];
+
+function PetTokensPanel(): React.JSX.Element {
   const summary = useUsageSummary(true);
   const topAgents = summary.agents.slice(0, 3);
 
   return (
-    <div
-      data-pet-hit="card"
-      className={cn(
-        'widget-glass pet-token-card pointer-events-auto w-[268px] overflow-hidden rounded-xl p-3.5',
-        `is-${side}`,
-      )}
-    >
-      <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0">
-          <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
-            Token report
-          </p>
-          <p className="truncate text-sm font-semibold text-foreground">{pet.name}</p>
-        </div>
-        <button
-          type="button"
-          className="cursor-pointer rounded-md px-1.5 py-0.5 text-xs text-muted-foreground hover:bg-accent hover:text-foreground"
-          onClick={onClose}
-        >
-          Close
-        </button>
-      </div>
-
+    <>
       {summary.isPending ? (
         <p className="mt-4 text-xs text-muted-foreground">Reading usage…</p>
       ) : (
@@ -175,7 +159,9 @@ export function PetTokenCard({
                     />
                     <span className="truncate">{agent.name}</span>
                   </span>
-                  <span className="font-mono text-foreground">{formatTokens(agent.todayTokens)}</span>
+                  <span className="font-mono text-foreground">
+                    {formatTokens(agent.todayTokens)}
+                  </span>
                 </li>
               ))}
             </ul>
@@ -186,7 +172,74 @@ export function PetTokenCard({
           )}
         </>
       )}
-    </div>
+    </>
   );
 }
 
+export function PetStatsCard({
+  pet,
+  side,
+  view,
+  onSelectView,
+  onClose,
+}: {
+  pet: PetCharacter;
+  side: CardSide;
+  view: DesktopPetCardView;
+  onSelectView: (view: DesktopPetCardView) => void;
+  onClose: () => void;
+}): React.JSX.Element {
+  const title = VIEW_TABS.find((tab) => tab.id === view)?.title ?? 'Token report';
+
+  return (
+    <div
+      data-pet-hit="card"
+      className={cn(
+        'widget-glass pet-token-card pointer-events-auto w-[268px] overflow-hidden rounded-xl p-3.5',
+        `is-${side}`,
+      )}
+    >
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
+            {title}
+          </p>
+          <p className="truncate text-sm font-semibold text-foreground">{pet.name}</p>
+        </div>
+        <button
+          type="button"
+          className="cursor-pointer rounded-md px-1.5 py-0.5 text-xs text-muted-foreground hover:bg-accent hover:text-foreground"
+          onClick={onClose}
+        >
+          Close
+        </button>
+      </div>
+
+      <div className="mt-2.5 flex gap-1 rounded-lg bg-foreground/5 p-0.5">
+        {VIEW_TABS.map((tab) => (
+          <button
+            key={tab.id}
+            type="button"
+            onClick={() => onSelectView(tab.id)}
+            className={cn(
+              'flex-1 cursor-pointer rounded-md px-1.5 py-1 text-[11px] font-medium transition-colors',
+              tab.id === view
+                ? 'bg-background/80 text-foreground shadow-sm'
+                : 'text-muted-foreground hover:text-foreground',
+            )}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {view === 'system' ? (
+        <PetSystemPanel />
+      ) : view === 'network' ? (
+        <PetNetworkPanel />
+      ) : (
+        <PetTokensPanel />
+      )}
+    </div>
+  );
+}

@@ -1,11 +1,11 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { clampDesktopPetClickArea, clampDesktopPetScale, isAnimatedPetFile, normalizeDesktopPetActionSpeeds, normalizeDesktopPetId, petBoxSize, petClickRect } from '@agentmat/core';
+import { clampDesktopPetClickArea, clampDesktopPetScale, isAnimatedPetFile, normalizeDesktopPetActionSpeeds, normalizeDesktopPetCardView, normalizeDesktopPetId, petBoxSize, petClickRect, type DesktopPetCardView } from '@agentmat/core';
 import type { PetPipelineMessage, PetWorkArea } from '@shared/pet';
 import { cn } from '@/lib/utils';
 import { queryKeys } from '@/lib/queryKeys';
 import { chuteFitFor, resolvePet, ropeGripYFor } from './characters';
-import { CARD_H, CARD_W, placeTokenCard, PetTokenCard } from './PetTokenCard';
+import { CARD_H, CARD_W, placePetCard, PetStatsCard } from './PetStatsCard';
 import { MENU_H, MENU_W, placePetMenu, PetMenu } from './PetMenu';
 import { PetChute } from './PetChute';
 import {
@@ -79,6 +79,7 @@ export default function DesktopPetRoute(): React.JSX.Element {
   const actionSpeeds = speedsFromSettings(settingsQuery.data?.desktopPetActionSpeeds);
   const scale = clampDesktopPetScale(settingsQuery.data?.desktopPetScale);
   const clickArea = clampDesktopPetClickArea(settingsQuery.data?.desktopPetClickArea);
+  const cardView = normalizeDesktopPetCardView(settingsQuery.data?.desktopPetCardView);
   const box = petBoxSize(scale);
   const custom = customs.find((item) => item.id === characterId);
   const pet = resolvePet(
@@ -542,6 +543,16 @@ export default function DesktopPetRoute(): React.JSX.Element {
     void window.agentmat.settings.update({ desktopPetCanMove: !canMove });
   }
 
+  function handleSelectCardView(next: DesktopPetCardView): void {
+    // Painted from the cache right away so the tab switches under the cursor;
+    // the saved value comes back through onSettingsChanged a moment later.
+    queryClient.setQueryData<Awaited<ReturnType<typeof window.agentmat.settings.get>>>(
+      queryKeys.settings,
+      (prev) => (prev ? { ...prev, desktopPetCardView: next } : prev),
+    );
+    void window.agentmat.settings.update({ desktopPetCardView: next });
+  }
+
   function handleSnooze(minutes: number): void {
     setMenu(null);
     void window.agentmat.pet.snooze(minutes);
@@ -554,7 +565,7 @@ export default function DesktopPetRoute(): React.JSX.Element {
 
   const hit = actor ? hitRectFor(actor) : null;
   const placement = actor && hit
-    ? placeTokenCard(
+    ? placePetCard(
         hit.x,
         hit.y,
         hit.w,
@@ -669,7 +680,13 @@ export default function DesktopPetRoute(): React.JSX.Element {
           className="absolute z-20"
           style={{ left: placement.left, top: placement.top }}
         >
-          <PetTokenCard pet={pet} side={placement.side} onClose={() => setOpen(false)} />
+          <PetStatsCard
+            pet={pet}
+            side={placement.side}
+            view={cardView}
+            onSelectView={handleSelectCardView}
+            onClose={() => setOpen(false)}
+          />
         </div>
       ) : null}
 

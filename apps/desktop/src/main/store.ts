@@ -27,6 +27,7 @@ import {
   normalizeGrammarSettings,
   normalizeCustomDesktopPets,
   normalizeDesktopPetActionSpeeds,
+  normalizeDesktopPetCardView,
   normalizeDesktopPetId,
   normalizeProjectGithubActions,
   normalizeProjectRunCommands,
@@ -104,6 +105,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   desktopPetActionSpeeds: { ...DEFAULT_DESKTOP_PET_ACTION_SPEEDS },
   desktopPetScale: 100,
   desktopPetClickArea: 100,
+  desktopPetCardView: 'tokens',
   desktopPetPipelineOnFail: false,
   desktopPetPipelineOnPass: false,
   desktopPetNetworkQuality: false,
@@ -137,6 +139,7 @@ function withSettingsMigrations(settings: AppSettings): AppSettings {
     desktopPetActionSpeeds: normalizeDesktopPetActionSpeeds(settings.desktopPetActionSpeeds),
     desktopPetScale: clampDesktopPetScale(settings.desktopPetScale),
     desktopPetClickArea: clampDesktopPetClickArea(settings.desktopPetClickArea),
+    desktopPetCardView: normalizeDesktopPetCardView(settings.desktopPetCardView),
     desktopPetPipelineOnFail: settings.desktopPetPipelineOnFail === true,
     desktopPetPipelineOnPass: settings.desktopPetPipelineOnPass === true,
     desktopPetNetworkQuality:

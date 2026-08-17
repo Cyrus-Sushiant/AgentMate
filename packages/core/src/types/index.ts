@@ -135,6 +135,17 @@ export function petClickRect(
   };
 }
 
+/** Which chart the companion's card opens on. */
+export type DesktopPetCardView = 'tokens' | 'system' | 'network';
+
+export const DESKTOP_PET_CARD_VIEWS = ['tokens', 'system', 'network'] as const;
+
+export function normalizeDesktopPetCardView(value: unknown): DesktopPetCardView {
+  return DESKTOP_PET_CARD_VIEWS.includes(value as DesktopPetCardView)
+    ? (value as DesktopPetCardView)
+    : 'tokens';
+}
+
 export const DESKTOP_PET_SPEED_MIN = 40;
 export const DESKTOP_PET_SPEED_MAX = 200;
 export const DESKTOP_PET_SPEED_DEFAULT = 100;
@@ -368,6 +379,8 @@ export interface AppSettings {
    * (40–100). Lower ignores empty padding around the drawing.
    */
   desktopPetClickArea: number;
+  /** Chart the companion's card shows: token report, system state, or network. */
+  desktopPetCardView: DesktopPetCardView;
   /** When true the desktop pet speaks if a watched GitHub Actions run fails. */
   desktopPetPipelineOnFail: boolean;
   /** When true the desktop pet speaks if a watched GitHub Actions run passes. */
