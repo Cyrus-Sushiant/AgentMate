@@ -3,7 +3,7 @@
     "name": "AgentMate",
     "slug": "agentmate-remote",
     "scheme": "agentmate",
-    "version": "1.19.0",
+    "version": "1.20.0",
     "orientation": "default",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
