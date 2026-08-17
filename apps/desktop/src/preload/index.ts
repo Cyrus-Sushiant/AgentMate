@@ -36,6 +36,7 @@ import type {
 } from '@agentmat/core';
 import { IPC } from '../shared/ipcChannels';
 import type { PetPipelineMessage, PetSnoozeState, PetWorkArea } from '../shared/pet';
+import type { SpellcheckMenuPayload } from '../shared/spellcheck';
 import type {
   BootstrapResult,
   CreateTerminalOptions,
@@ -713,6 +714,14 @@ const pet = {
   showMainWindow: (): void => ipcRenderer.send(IPC.pet.showMainWindow),
 };
 
+const spellcheck = {
+  onShowMenu: (callback: (payload: SpellcheckMenuPayload) => void): (() => void) =>
+    subscribe(IPC.spellcheck.onShowMenu, callback),
+  /** Resolves false when the platform has no custom dictionary (macOS). */
+  addToDictionary: (word: string): Promise<boolean> =>
+    ipcRenderer.invoke(IPC.spellcheck.addToDictionary, word),
+};
+
 const windowControls = {
   minimize: (): Promise<void> => ipcRenderer.invoke(IPC.window.minimize),
   maximizeToggle: (): Promise<void> => ipcRenderer.invoke(IPC.window.maximizeToggle),
@@ -753,6 +762,7 @@ const agentmatApi = {
   templates,
   activity,
   shell: shellApi,
+  spellcheck,
   window: windowControls,
   remoteSessionWindow: remoteSessionWindowControls,
   promptHistory,

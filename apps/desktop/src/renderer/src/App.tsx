@@ -6,6 +6,7 @@ import { TooltipProvider } from './components/ui/tooltip';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { ConfirmDialogHost } from './components/ConfirmDialog';
 import { UpdateManager } from './components/UpdateManager';
+import { SpellcheckMenuHost } from './components/SpellcheckMenu';
 import { queryClient } from './queryClient';
 import { initTheme, useThemeStore } from './stores/themeStore';
 import { initDefaultCli } from './stores/cliStore';
@@ -129,6 +130,9 @@ export default function App(): React.JSX.Element {
               </Route>
             </Routes>
             <AppChrome />
+            {/* Outside AppChrome on purpose: the standalone widget windows have
+                text boxes too, and they should get the same correction menu. */}
+            <SpellcheckMenuHost />
           </HashRouter>
         </ErrorBoundary>
       </TooltipProvider>

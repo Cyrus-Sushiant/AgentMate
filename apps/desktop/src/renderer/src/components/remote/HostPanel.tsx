@@ -175,6 +175,7 @@ export function HostPanel(): React.JSX.Element {
                     <div className="flex gap-2">
                       <textarea
                         readOnly
+                        spellCheck={false}
                         value={pairing.code}
                         onFocus={(e) => e.currentTarget.select()}
                         className="h-20 flex-1 resize-none rounded-md border border-input bg-background p-2 font-mono text-[11px] leading-tight"

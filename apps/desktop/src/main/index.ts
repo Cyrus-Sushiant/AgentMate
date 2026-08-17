@@ -34,6 +34,7 @@ import { widgetManager } from './usage/widgetWindows';
 import { promptBuildWidgetManager } from './promptBuild/widgetWindows';
 import { petManager } from './pet/petWindow';
 import { setMainWindow, setMainWindowFactory } from './mainWindow';
+import { configureSpellChecker, registerSpellcheckHandlers } from './spellcheck';
 import { registerWindowHandlers } from './ipc/window';
 import { seedExampleRepositoryIfEmpty } from './exampleSkillRepo';
 import { startHookServer, stopHookServer } from './notifications/hookServer';
@@ -169,6 +170,7 @@ function registerAllIpcHandlers(): void {
   registerPromptBuildWidgetHandlers();
   registerPetHandlers();
   registerPipelineHandlers();
+  registerSpellcheckHandlers();
 }
 
 app.whenReady().then(() => {
@@ -210,6 +212,7 @@ app.whenReady().then(() => {
     { useSystemPicker: false },
   );
 
+  configureSpellChecker();
   registerAllIpcHandlers();
   void seedExampleRepositoryIfEmpty();
   void startHookServer();

@@ -1267,3 +1267,12 @@ body {
     animation: none;
   }
 }
+
+/* Chromium paints its own dotted marker under a misspelled word, which is thin
+   and almost invisible on the dark theme. This is the same idea in the app's
+   own red, thick enough to read at a glance in both themes. */
+::spelling-error {
+  text-decoration: underline wavy hsl(var(--destructive));
+  text-decoration-skip-ink: none;
+  text-underline-offset: 0.18em;
+}

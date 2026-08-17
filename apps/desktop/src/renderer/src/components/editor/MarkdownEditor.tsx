@@ -335,7 +335,9 @@ export function MarkdownEditor({
             ref={textareaRef}
             value={value}
             readOnly={readOnly}
-            spellCheck={false}
+            // Markdown here is prose (READMEs, skill docs), so the spellchecker
+            // earns its keep even though it also flags the odd code fence.
+            spellCheck
             aria-label="Markdown source"
             onChange={(event) => onChange(event.target.value)}
             onKeyDown={handleKeyDown}

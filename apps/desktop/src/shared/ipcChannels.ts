@@ -164,6 +164,11 @@ export const IPC = {
     updateStatus: 'scheduledTasks:updateStatus',
     remove: 'scheduledTasks:remove',
   },
+  spellcheck: {
+    // main -> renderer: a misspelled word was right-clicked, open the menu
+    onShowMenu: 'spellcheck:showMenu',
+    addToDictionary: 'spellcheck:addToDictionary',
+  },
   window: {
     minimize: 'window:minimize',
     maximizeToggle: 'window:maximizeToggle',

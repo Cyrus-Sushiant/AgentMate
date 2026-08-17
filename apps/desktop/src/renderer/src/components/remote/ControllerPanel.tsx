@@ -270,6 +270,7 @@ export function ControllerPanel(): React.JSX.Element {
             <textarea
               value={code}
               onChange={(e) => setCode(e.target.value)}
+              spellCheck={false}
               placeholder="AGENTMATE1:…"
               className="h-24 resize-none rounded-md border border-input bg-background p-2 font-mono text-xs"
             />
