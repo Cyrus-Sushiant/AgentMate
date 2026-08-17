@@ -45,6 +45,8 @@ export const IPC = {
   },
   notifications: {
     sendTest: 'notifications:sendTest',
+    /** Shows a message on the desktop companion, the way the pet hook does. */
+    sendPetTest: 'notifications:sendPetTest',
     detectChatId: 'notifications:detectChatId',
     onConfirmationForwarded: 'notifications:onConfirmationForwarded',
   },
@@ -260,6 +262,8 @@ export const IPC = {
   tools: {
     detectAll: 'tools:detectAll',
     getInstallCommand: 'tools:getInstallCommand',
+    checkForUpdate: 'tools:checkForUpdate',
+    getUpdateCommand: 'tools:getUpdateCommand',
     getUninstallCommand: 'tools:getUninstallCommand',
     getInteractiveLaunchCommand: 'tools:getInteractiveLaunchCommand',
     getDockerCommand: 'tools:getDockerCommand',

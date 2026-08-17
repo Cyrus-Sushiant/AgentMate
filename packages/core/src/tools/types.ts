@@ -1,4 +1,4 @@
-import type { ShellCommand, SupportedOS } from '../cli/registry.js';
+import type { ShellCommand, SupportedOS, UpdateCheckSource } from '../cli/registry.js';
 
 export type ToolSettingFieldType = 'select' | 'text' | 'boolean';
 
@@ -76,6 +76,10 @@ export interface AgentToolDefinition {
     /** Commands to run once the program is up, auto-copied to the clipboard for pasting. */
     pasteCommands: string;
   };
+  /** Per-OS global update command; falls back to installCommand when absent. */
+  updateCommand?: Partial<Record<SupportedOS, string>>;
+  /** Where to look up the latest published version, if known. Without it the tool can't be update-checked. */
+  updateCheck?: UpdateCheckSource;
   /** Per-OS global uninstall command, opened in a terminal for the user to confirm. */
   uninstallCommand?: Partial<Record<SupportedOS, string>>;
   /** Shown with a copy button when the tool can't be uninstalled with a single shell command. */
@@ -89,6 +93,17 @@ export interface AgentToolDefinition {
   /** Whether the settings wizard's result targets one project or the whole machine; changes wizard copy. */
   settingsScope?: 'project' | 'global';
   buildSettingsAction?: (values: ToolSettingsValues) => ToolSettingsAction;
+}
+
+/** Same shape as CliUpdateCheckResult, keyed by tool id, so both feed one dashboard list. */
+export interface ToolUpdateCheckResult {
+  toolId: string;
+  /** False when this tool has no known source to check the latest version against. */
+  supported: boolean;
+  currentVersion: string | null;
+  latestVersion: string | null;
+  updateAvailable: boolean;
+  checkedAt: string;
 }
 
 export interface InstalledAgentTool {

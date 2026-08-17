@@ -3,10 +3,12 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { app, BrowserWindow } from 'electron';
 import type { NotificationHookKind } from '@agentmat/core';
+import { NOTIFICATION_HOOK_KINDS } from '@agentmat/core';
 import { IPC } from '../../shared/ipcChannels';
 import type { ConfirmationForwardedPayload } from '../../shared/apiTypes';
 import { store } from '../store';
 import { findSessionIdForProject, writeToSession } from '../ipc/terminal';
+import { speakOnPet } from './petNotifier';
 import { pollTelegramUpdates, sendTelegramMessage } from './telegramApi';
 
 let server: Server | null = null;
@@ -31,10 +33,17 @@ function renderMessage(template: string, projectName: string): string {
 async function handleHookRequest(projectId: string, kind: NotificationHookKind): Promise<void> {
   const [settings, projects] = await Promise.all([store.getSettings(), store.getProjects()]);
   const project = projects.find((p) => p.id === projectId);
-  if (!project || !settings.telegramBotToken || !settings.telegramChatId) return;
+  if (!project) return;
 
   const hook = project.notifications[kind];
   if (!hook.enabled) return;
+
+  if (kind === 'pet') {
+    speakOnPet(settings, project.name, renderMessage(hook.message, project.name));
+    return;
+  }
+
+  if (!settings.telegramBotToken || !settings.telegramChatId) return;
 
   const text = renderMessage(hook.message, project.name);
   const result = await sendTelegramMessage(
@@ -118,8 +127,11 @@ export async function startHookServer(): Promise<void> {
       res.writeHead(204).end();
       try {
         const parsed = JSON.parse(body) as { projectId?: string; kind?: string };
-        if (parsed.projectId && (parsed.kind === 'completion' || parsed.kind === 'confirmation')) {
-          void handleHookRequest(parsed.projectId, parsed.kind);
+        const kind = NOTIFICATION_HOOK_KINDS.find((candidate) => candidate === parsed.kind);
+        if (parsed.projectId && kind) {
+          void handleHookRequest(parsed.projectId, kind).catch(() => {
+            // Nothing to report back: the hook script has already exited.
+          });
         }
       } catch {
         // Malformed payload from a stale/hand-edited hook script; ignore.

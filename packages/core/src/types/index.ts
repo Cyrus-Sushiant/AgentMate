@@ -394,7 +394,18 @@ export interface AppSettings {
 
 export type AgentType = 'claude-code' | 'gemini' | 'opencode' | 'codex' | 'cursor' | 'generic';
 
-export type NotificationHookKind = 'completion' | 'confirmation';
+export type NotificationHookKind = 'completion' | 'confirmation' | 'pet';
+
+export const NOTIFICATION_HOOK_KINDS: readonly NotificationHookKind[] = [
+  'completion',
+  'confirmation',
+  'pet',
+];
+
+/** Where a notification hook delivers its message. */
+export function notificationHookChannel(kind: NotificationHookKind): 'telegram' | 'pet' {
+  return kind === 'pet' ? 'pet' : 'telegram';
+}
 
 export interface ProjectNotificationHook {
   enabled: boolean;
@@ -406,6 +417,12 @@ export interface ProjectNotificationHook {
 export interface ProjectNotificationSettings {
   completion: ProjectNotificationHook;
   confirmation: ProjectNotificationHook;
+  /**
+   * Speaks the message through the desktop companion instead of Telegram. It only lands
+   * while AgentMate is running with the companion on screen; any other time the hook
+   * quietly does nothing, so the agent's CLI never sees a failure.
+   */
+  pet: ProjectNotificationHook;
 }
 
 /** A single hook entry found in a project's .claude/settings.json or .claude/settings.local.json. */
@@ -562,6 +579,27 @@ export function defaultProjectNotifications(): ProjectNotificationSettings {
       message:
         '⏸️ {{project}} needs your confirmation to continue. Reply to this message to continue.',
     },
+    pet: {
+      enabled: false,
+      cliId: null,
+      message: '{{project}} is done, come take a look.',
+    },
+  };
+}
+
+/**
+ * Fills in hooks a stored project has never seen (the pet hook was added after the
+ * Telegram ones), so reading an older projects.json never hands back a missing kind.
+ */
+export function normalizeProjectNotifications(
+  value: Partial<ProjectNotificationSettings> | null | undefined,
+): ProjectNotificationSettings {
+  const defaults = defaultProjectNotifications();
+  if (!value) return defaults;
+  return {
+    completion: { ...defaults.completion, ...value.completion },
+    confirmation: { ...defaults.confirmation, ...value.confirmation },
+    pet: { ...defaults.pet, ...value.pet },
   };
 }
 

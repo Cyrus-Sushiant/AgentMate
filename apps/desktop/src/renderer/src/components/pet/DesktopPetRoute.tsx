@@ -431,6 +431,14 @@ export default function DesktopPetRoute(): React.JSX.Element {
     return target instanceof Element && target.closest('[data-pet-hit="menu"]') !== null;
   }
 
+  /**
+   * The card sits outside the pet's hit box, so without this its own controls
+   * (the view tabs) would read as a click on empty space and close it.
+   */
+  function insideCard(target: EventTarget | null): boolean {
+    return target instanceof Element && target.closest('[data-pet-hit="card"]') !== null;
+  }
+
   /** Drops a click that was waiting to see whether a double click followed. */
   function cancelPendingClick(): void {
     if (!clickTimer.current) return;
@@ -440,7 +448,7 @@ export default function DesktopPetRoute(): React.JSX.Element {
 
   function onContextMenu(event: React.MouseEvent<HTMLDivElement>): void {
     event.preventDefault();
-    if (insideMenu(event.target)) return;
+    if (insideMenu(event.target) || insideCard(event.target)) return;
     if (!actorRef.current || !hitTest(event.clientX, event.clientY)) {
       setMenu(null);
       return;
@@ -451,7 +459,7 @@ export default function DesktopPetRoute(): React.JSX.Element {
   }
 
   function onPointerDown(event: React.PointerEvent<HTMLDivElement>): void {
-    if (insideMenu(event.target)) return;
+    if (insideMenu(event.target) || insideCard(event.target)) return;
     if (event.button !== 0) return;
     const current = actorRef.current;
     if (menuRef.current) {

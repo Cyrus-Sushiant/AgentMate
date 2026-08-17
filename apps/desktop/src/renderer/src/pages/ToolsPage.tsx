@@ -11,6 +11,7 @@ import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import {
+  CloudDownload,
   Download,
   ExternalLink,
   FolderOpen,
@@ -46,6 +47,13 @@ import { useTerminalStore } from '@/stores/terminalStore';
 
 type DockerAction = 'run' | 'start' | 'stop' | 'reset' | 'remove';
 
+interface PendingToolUpdate {
+  tool: AgentToolDefinition;
+  currentVersion: string | null;
+  latestVersion: string;
+  command: string;
+}
+
 export default function ToolsPage(): React.JSX.Element {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
@@ -54,6 +62,10 @@ export default function ToolsPage(): React.JSX.Element {
   const [selectedProjectId, setSelectedProjectId] = useState('');
   const [settingsTool, setSettingsTool] = useState<AgentToolDefinition | null>(null);
   const [settingsValues, setSettingsValues] = useState<ToolSettingsValues>({});
+  const [checkingToolId, setCheckingToolId] = useState<string | null>(null);
+  const [checkingAll, setCheckingAll] = useState(false);
+  const [pendingUpdate, setPendingUpdate] = useState<PendingToolUpdate | null>(null);
+  const [, setUpdateQueue] = useState<PendingToolUpdate[]>([]);
 
   const projectsQuery = useQuery({
     queryKey: queryKeys.projects,
@@ -136,6 +148,101 @@ export default function ToolsPage(): React.JSX.Element {
     }
     openSession({ title: `Install ${tool.name}`, initialInput: command });
     toast.info(`Press Enter in the terminal to install ${tool.name}.`);
+  }
+
+  async function buildPendingUpdate(
+    tool: AgentToolDefinition,
+    currentVersion: string | null,
+  ): Promise<PendingToolUpdate | 'uncheckable' | 'up-to-date' | null> {
+    const result = await window.agentmat.tools.checkForUpdate(tool.id, currentVersion);
+    if (!result.supported || !result.latestVersion) return 'uncheckable';
+    if (!result.updateAvailable) return 'up-to-date';
+    const command = await window.agentmat.tools.getUpdateCommand(tool.id);
+    if (!command) return null;
+    return { tool, currentVersion, latestVersion: result.latestVersion, command };
+  }
+
+  async function handleCheckForUpdate(
+    tool: AgentToolDefinition,
+    currentVersion: string | null,
+  ): Promise<void> {
+    setCheckingToolId(tool.id);
+    try {
+      const pending = await buildPendingUpdate(tool, currentVersion);
+      if (pending === 'uncheckable') {
+        toast.info(`Can't check updates for ${tool.name} automatically.`);
+        return;
+      }
+      if (pending === 'up-to-date') {
+        toast.success(`${tool.name} is up to date.`);
+        return;
+      }
+      if (!pending) {
+        toast.error(`No update command available for ${tool.name} on this OS.`);
+        return;
+      }
+      setPendingUpdate(pending);
+    } finally {
+      setCheckingToolId(null);
+    }
+  }
+
+  function dismissPendingUpdate(): void {
+    setUpdateQueue((queue) => {
+      const [next, ...rest] = queue;
+      setPendingUpdate(next ?? null);
+      return rest;
+    });
+  }
+
+  function handleConfirmUpdate(): void {
+    if (!pendingUpdate) return;
+    openSession({
+      title: `Update ${pendingUpdate.tool.name}`,
+      initialInput: pendingUpdate.command,
+    });
+    toast.info(`Press Enter in the terminal to update ${pendingUpdate.tool.name}.`);
+    dismissPendingUpdate();
+  }
+
+  async function handleCheckAllForUpdates(): Promise<void> {
+    const installedTools = AGENT_TOOL_REGISTRY.filter(
+      (tool) => tool.updateCheck && statusFor(tool.id)?.installed,
+    );
+    if (installedTools.length === 0) {
+      toast.info('No installed tools to check.');
+      return;
+    }
+
+    setCheckingAll(true);
+    try {
+      const updates: PendingToolUpdate[] = [];
+      let uncheckable = 0;
+      for (const tool of installedTools) {
+        const pending = await buildPendingUpdate(tool, statusFor(tool.id)?.version ?? null);
+        if (pending === 'uncheckable' || pending === null) {
+          uncheckable += 1;
+          continue;
+        }
+        if (pending !== 'up-to-date') updates.push(pending);
+      }
+
+      if (updates.length === 0) {
+        toast.success(
+          uncheckable > 0
+            ? `All checkable tools are up to date (${uncheckable} could not be checked).`
+            : 'All tools are up to date.',
+        );
+        return;
+      }
+
+      toast.info(`${updates.length} tool update${updates.length > 1 ? 's' : ''} available.`);
+      const [first, ...rest] = updates;
+      setPendingUpdate(first);
+      setUpdateQueue(rest);
+    } finally {
+      setCheckingAll(false);
+    }
   }
 
   async function handleUninstall(tool: AgentToolDefinition): Promise<void> {
@@ -240,15 +347,25 @@ export default function ToolsPage(): React.JSX.Element {
             clearable
           />
         </div>
-        <Button
-          variant="outline"
-          onClick={() => {
-            void queryClient.invalidateQueries({ queryKey: queryKeys.toolsStatus });
-            toast.info('Re-checking installed tools…');
-          }}
-        >
-          <RefreshCw /> Refresh
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            disabled={checkingAll}
+            onClick={() => void handleCheckAllForUpdates()}
+          >
+            <CloudDownload className={checkingAll ? 'animate-pulse' : undefined} />
+            {checkingAll ? 'Checking updates…' : 'Check all for updates'}
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => {
+              void queryClient.invalidateQueries({ queryKey: queryKeys.toolsStatus });
+              toast.info('Re-checking installed tools…');
+            }}
+          >
+            <RefreshCw /> Refresh
+          </Button>
+        </div>
       </div>
 
       <p className="text-sm text-muted-foreground">
@@ -394,6 +511,26 @@ export default function ToolsPage(): React.JSX.Element {
                       <TerminalSquare /> Copy setup commands
                     </Button>
                   )}
+                  {tool.updateCheck && status?.installed && (
+                    <SimpleTooltip
+                      label="Check for updates"
+                      wrapTrigger={checkingToolId === tool.id}
+                    >
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        disabled={checkingToolId === tool.id}
+                        onClick={() => void handleCheckForUpdate(tool, status.version)}
+                      >
+                        <CloudDownload
+                          className={
+                            checkingToolId === tool.id ? 'h-4 w-4 animate-pulse' : 'h-4 w-4'
+                          }
+                        />
+                      </Button>
+                    </SimpleTooltip>
+                  )}
+
                   {tool.manualUninstallInstructions && (
                     <SimpleTooltip label="Copy uninstall commands">
                       <Button
@@ -522,6 +659,39 @@ export default function ToolsPage(): React.JSX.Element {
           );
         })}
       </div>
+
+      <Dialog
+        open={pendingUpdate !== null}
+        onOpenChange={(open) => !open && dismissPendingUpdate()}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Update {pendingUpdate?.tool.name}?</DialogTitle>
+            <DialogDescription>
+              This opens a terminal session and runs the update command below.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2 text-sm">
+            <p>
+              <span className="text-muted-foreground">Current version:</span>{' '}
+              {pendingUpdate?.currentVersion ?? 'unknown'}
+            </p>
+            <p>
+              <span className="text-muted-foreground">Latest version:</span>{' '}
+              {pendingUpdate?.latestVersion}
+            </p>
+            <code className="block overflow-x-auto rounded bg-muted px-3 py-2 font-mono text-xs">
+              {pendingUpdate?.command}
+            </code>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={dismissPendingUpdate}>
+              Cancel
+            </Button>
+            <Button onClick={handleConfirmUpdate}>Update</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={!!settingsTool} onOpenChange={(open) => !open && setSettingsTool(null)}>
         <DialogContent>

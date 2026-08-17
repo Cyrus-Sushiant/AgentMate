@@ -10,6 +10,7 @@ import {
   DIFFRAY_EXECUTORS,
   DIFFRAY_GITHUB_APP_URL,
   DIFFRAY_MAX_FILES_PER_PASS,
+  DIFFRAY_MODEL_TRADEOFFS,
   DIFFRAY_MODELS,
   DIFFRAY_PROJECT_CONFIG_FILE,
   type DiffrayExecutorId,
@@ -36,6 +37,7 @@ import {
   Check,
   CircleInfo,
   CircleX,
+  Clock,
   Code,
   Copy,
   Cpu,
@@ -244,6 +246,7 @@ export function DiffrayReviewWizard({
     defaultDiffrayExecutorForAgentType(agentType),
   );
   const [model, setModel] = useState('');
+  const [showTradeoffs, setShowTradeoffs] = useState(false);
   const [severities, setSeverities] = useState<Set<string>>(() => new Set(allDiffraySeverities()));
   const [skipValidation, setSkipValidation] = useState(false);
   const [stream, setStream] = useState(true);
@@ -873,6 +876,22 @@ export function DiffrayReviewWizard({
 
           {step === 'engine' && (
             <div className="space-y-4">
+              <div className="flex items-start justify-between gap-2">
+                <p className="text-sm text-muted-foreground">
+                  Pick the CLI that runs the agents, then the model it reviews with.
+                </p>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="shrink-0"
+                  onClick={() => setShowTradeoffs((prev) => !prev)}
+                >
+                  <CircleInfo /> {showTradeoffs ? 'Hide' : 'Compare'} models
+                </Button>
+              </div>
+
+              {showTradeoffs && <ModelTradeoffTable current={model} />}
+
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                 {DIFFRAY_EXECUTORS.map((entry) => {
                   const selected = executor === entry.id;
@@ -1083,6 +1102,87 @@ export function DiffrayReviewWizard({
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+/**
+ * diffray's own speed/quality/cost table, so people are not guessing what a
+ * model choice costs them. `current` highlights the row already selected.
+ */
+function ModelTradeoffTable({ current }: { current: string }): React.JSX.Element {
+  return (
+    <div className="space-y-1.5">
+      <div className="overflow-x-auto rounded-lg border border-border bg-background/50">
+        <table className="w-full min-w-[34rem] border-collapse text-xs">
+          <thead>
+            <tr className="border-b border-border text-[11px] uppercase tracking-wide text-muted-foreground">
+              <th className="px-2.5 py-2 text-left font-medium">Model</th>
+              <th className="px-2.5 py-2 text-left font-medium">Speed</th>
+              <th className="px-2.5 py-2 text-left font-medium">Quality</th>
+              <th className="px-2.5 py-2 text-left font-medium">Cost</th>
+              <th className="px-2.5 py-2 text-left font-medium">Best for</th>
+            </tr>
+          </thead>
+          <tbody>
+            {DIFFRAY_MODEL_TRADEOFFS.map((row) => {
+              const selected = row.model === current;
+              return (
+                <tr
+                  key={row.model}
+                  className={cn(
+                    'border-b border-border/60 last:border-b-0',
+                    selected && 'bg-primary/10',
+                  )}
+                >
+                  <td className="whitespace-nowrap px-2.5 py-2 font-mono text-foreground">
+                    {row.model}
+                  </td>
+                  <td className="px-2.5 py-2">
+                    <span className="flex items-center gap-1.5 whitespace-nowrap text-muted-foreground">
+                      {row.speed === 'fast' ? (
+                        <Bolt className="h-3 w-3 shrink-0 text-warning" />
+                      ) : (
+                        <Clock className="h-3 w-3 shrink-0" />
+                      )}
+                      {row.speed === 'fast' ? 'Fast' : 'Moderate'}
+                    </span>
+                  </td>
+                  <td
+                    className={cn(
+                      'whitespace-nowrap px-2.5 py-2',
+                      row.recommended ? 'font-medium text-foreground' : 'text-muted-foreground',
+                    )}
+                  >
+                    {row.quality}
+                  </td>
+                  <td className="px-2.5 py-2">
+                    <span className="flex items-center gap-1.5 whitespace-nowrap text-muted-foreground">
+                      <span className="flex gap-0.5" aria-hidden>
+                        {[1, 2, 3].map((dot) => (
+                          <span
+                            key={dot}
+                            className={cn(
+                              'h-1.5 w-1.5 rounded-full',
+                              dot <= row.cost ? 'bg-primary' : 'bg-border',
+                            )}
+                          />
+                        ))}
+                      </span>
+                      {row.costLabel}
+                    </span>
+                  </td>
+                  <td className="px-2.5 py-2 text-muted-foreground">{row.bestFor}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      <p className="text-xs text-muted-foreground">
+        From diffray's docs. Some rows belong to executors other than the one you picked, so the
+        model list below only offers what the selected CLI can run.
+      </p>
     </div>
   );
 }

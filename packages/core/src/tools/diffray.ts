@@ -87,6 +87,64 @@ export const DIFFRAY_MODELS: Record<DiffrayExecutorId, { value: string; label: s
   'codex-cli': [{ value: '', label: 'Executor default' }],
 };
 
+export interface DiffrayModelTradeoff {
+  /** Model id as diffray's docs write it, not the wizard's option value. */
+  model: string;
+  speed: 'fast' | 'moderate';
+  quality: 'Good' | 'Very Good' | 'Excellent' | 'Outstanding';
+  /** Rough relative price, 1 is cheapest. */
+  cost: 1 | 2 | 3;
+  costLabel: 'Low' | 'Medium' | 'High';
+  bestFor: string;
+  /** Called out in the docs as the sweet spot. */
+  recommended?: boolean;
+}
+
+/** The performance vs quality table from diffray's docs, shown as a hint on the engine step. */
+export const DIFFRAY_MODEL_TRADEOFFS: DiffrayModelTradeoff[] = [
+  {
+    model: 'haiku',
+    speed: 'fast',
+    quality: 'Good',
+    cost: 1,
+    costLabel: 'Low',
+    bestFor: 'Daily development, large PRs',
+  },
+  {
+    model: 'sonnet',
+    speed: 'moderate',
+    quality: 'Excellent',
+    cost: 2,
+    costLabel: 'Medium',
+    bestFor: 'Most use cases, balanced approach',
+  },
+  {
+    model: 'opus',
+    speed: 'fast',
+    quality: 'Outstanding',
+    cost: 3,
+    costLabel: 'High',
+    bestFor: 'Optimal balance of speed and quality, security, critical bugs',
+    recommended: true,
+  },
+  {
+    model: 'gpt-5.2',
+    speed: 'fast',
+    quality: 'Very Good',
+    cost: 2,
+    costLabel: 'Medium',
+    bestFor: 'General purpose, cost-effective',
+  },
+  {
+    model: 'opencode/gpt-5-nano',
+    speed: 'fast',
+    quality: 'Good',
+    cost: 1,
+    costLabel: 'Low',
+    bestFor: 'Quick reviews, prototyping',
+  },
+];
+
 export type DiffrayReviewScope =
   | 'working-tree'
   | 'base-branch'

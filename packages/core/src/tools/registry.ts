@@ -38,6 +38,12 @@ export const AGENT_TOOL_REGISTRY: AgentToolDefinition[] = [
       darwin: 'npm install -g 9router',
       linux: 'npm install -g 9router',
     },
+    updateCommand: {
+      win32: 'npm install -g 9router@latest',
+      darwin: 'npm install -g 9router@latest',
+      linux: 'npm install -g 9router@latest',
+    },
+    updateCheck: { type: 'npm', package: '9router' },
     uninstallCommand: {
       win32: 'npm uninstall -g 9router',
       darwin: 'npm uninstall -g 9router',
@@ -125,6 +131,15 @@ export const AGENT_TOOL_REGISTRY: AgentToolDefinition[] = [
         'curl -fsSL https://raw.githubusercontent.com/rtk-ai/rtk/refs/heads/master/install.sh | sh',
       win32: 'cargo install --git https://github.com/rtk-ai/rtk',
     },
+    // brew/cargo have their own upgrade verbs, and the Linux installer script is
+    // idempotent, so re-running it upgrades in place.
+    updateCommand: {
+      darwin: 'brew upgrade rtk',
+      linux:
+        'curl -fsSL https://raw.githubusercontent.com/rtk-ai/rtk/refs/heads/master/install.sh | sh',
+      win32: 'cargo install --git https://github.com/rtk-ai/rtk --force',
+    },
+    updateCheck: { type: 'github-release', package: 'rtk-ai/rtk' },
     // `rtk init -g --uninstall` removes the agent hook (the part that actually affects agent
     // behavior) on every OS; also uninstalling the binary itself is OS-specific (brew/cargo)
     // and left to the user, since we don't know which install method they used.
@@ -211,6 +226,13 @@ export const AGENT_TOOL_REGISTRY: AgentToolDefinition[] = [
       darwin: 'npm i -g @colbymchenry/codegraph && codegraph install',
       linux: 'npm i -g @colbymchenry/codegraph && codegraph install',
     },
+    // `codegraph install` re-registers the MCP server, which the new build may have changed.
+    updateCommand: {
+      win32: 'npm i -g @colbymchenry/codegraph@latest && codegraph install',
+      darwin: 'npm i -g @colbymchenry/codegraph@latest && codegraph install',
+      linux: 'npm i -g @colbymchenry/codegraph@latest && codegraph install',
+    },
+    updateCheck: { type: 'npm', package: '@colbymchenry/codegraph' },
     uninstallCommand: {
       win32: 'codegraph uninstall',
       darwin: 'codegraph uninstall',
@@ -274,6 +296,8 @@ export const AGENT_TOOL_REGISTRY: AgentToolDefinition[] = [
       darwin: 'npm install -g openclaw@latest',
       linux: 'npm install -g openclaw@latest',
     },
+    // installCommand already pins @latest, so it doubles as the update command.
+    updateCheck: { type: 'npm', package: 'openclaw' },
     uninstallCommand: {
       win32: 'npm uninstall -g openclaw',
       darwin: 'npm uninstall -g openclaw',
@@ -359,6 +383,9 @@ export const AGENT_TOOL_REGISTRY: AgentToolDefinition[] = [
       darwin: 'curl -fsSL https://hermes-agent.nousresearch.com/install.sh | bash',
       linux: 'curl -fsSL https://hermes-agent.nousresearch.com/install.sh | bash',
     },
+    // The install script upgrades an existing install in place, so it doubles as the
+    // update command.
+    updateCheck: { type: 'github-release', package: 'NousResearch/hermes-agent' },
     // Without --full this keeps ~/.hermes (config, skills, memories); the user can rerun with
     // --full themselves if they want the data gone too.
     uninstallCommand: {
@@ -437,6 +464,12 @@ export const AGENT_TOOL_REGISTRY: AgentToolDefinition[] = [
       darwin: 'npm install -g diffray',
       linux: 'npm install -g diffray',
     },
+    updateCommand: {
+      win32: 'npm install -g diffray@latest',
+      darwin: 'npm install -g diffray@latest',
+      linux: 'npm install -g diffray@latest',
+    },
+    updateCheck: { type: 'npm', package: 'diffray' },
     uninstallCommand: {
       win32: 'npm uninstall -g diffray',
       darwin: 'npm uninstall -g diffray',
@@ -505,6 +538,14 @@ export function getToolInstallCommandForCurrentOS(
   platform: SupportedOS,
 ): string | null {
   return tool.installCommand?.[platform] ?? null;
+}
+
+/** Falls back to the install command, which for most tools is what upgrades in place. */
+export function getToolUpdateCommandForCurrentOS(
+  tool: AgentToolDefinition,
+  platform: SupportedOS,
+): string | null {
+  return tool.updateCommand?.[platform] ?? tool.installCommand?.[platform] ?? null;
 }
 
 export function getToolUninstallCommandForCurrentOS(

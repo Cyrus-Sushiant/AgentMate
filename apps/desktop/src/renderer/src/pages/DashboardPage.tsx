@@ -32,9 +32,11 @@ import {
   TerminalSquare,
   Trash2,
   FolderPlus,
+  Wrench,
   X,
 } from '@/components/icons';
 import {
+  AGENT_TOOL_REGISTRY,
   ALL_AGENTS_WIDGET_ID,
   CLI_REGISTRY,
   DASHBOARD_CHART_IDS,
@@ -42,10 +44,12 @@ import {
   DASHBOARD_STAT_IDS,
   DASHBOARD_USAGE_SUMMARY_IDS,
   getUsageProvider,
+  type AgentToolDefinition,
   type CliDefinition,
   type DashboardColumns,
   type DashboardStatId,
   type DashboardUsageSummaryId,
+  type InstalledAgentTool,
   type InstalledCli,
   type ProviderUsage,
 } from '@agentmat/core';
@@ -307,40 +311,119 @@ function CliUpdateRow({
   );
 }
 
-// Only lists CLIs with a newer version available. The update checks are hoisted
-// here (rather than living per-row) because the card can't know which rows to
-// render until every check has come back.
-function CliUpdatesCard({
-  installed,
+function ToolUpdateRow({
+  tool,
+  status,
+  latestVersion,
 }: {
-  installed: { cli: CliDefinition; status: InstalledCli }[];
+  tool: AgentToolDefinition;
+  status: InstalledAgentTool;
+  latestVersion: string;
+}): React.JSX.Element {
+  const openSession = useTerminalStore((s) => s.openSession);
+
+  async function handleUpdate(): Promise<void> {
+    const command = await window.agentmat.tools.getUpdateCommand(tool.id);
+    if (!command) {
+      toast.error(`No update command available for ${tool.name} on this OS.`);
+      return;
+    }
+    openSession({ title: `Update ${tool.name}`, initialInput: command });
+    toast.info(`Press Enter in the terminal to update ${tool.name}.`);
+  }
+
+  return (
+    <div className="flex items-center justify-between gap-2 rounded-lg border border-border bg-card px-3 py-2">
+      <div className="flex min-w-0 items-center gap-2">
+        <Wrench className="h-4 w-4 shrink-0 text-muted-foreground" />
+        <div className="min-w-0">
+          <div className="truncate text-sm font-medium">{tool.name}</div>
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <span>{status.version ?? 'unknown version'}</span>
+            <ArrowRight className="h-3 w-3" />
+            <span className="font-medium text-foreground">v{latestVersion}</span>
+          </div>
+        </div>
+      </div>
+      <Button size="sm" variant="outline" className="shrink-0" onClick={() => void handleUpdate()}>
+        <CloudDownload className="h-3.5 w-3.5" /> Update
+      </Button>
+    </div>
+  );
+}
+
+// Only lists CLIs and agent tools with a newer version available. The update checks
+// are hoisted here (rather than living per-row) because the card can't know which
+// rows to render until every check has come back.
+function UpdatesCard({
+  installedClis,
+}: {
+  installedClis: { cli: CliDefinition; status: InstalledCli }[];
 }): React.JSX.Element {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const deferReady = useIdleAfterMount();
 
-  const updateChecks = useQueries({
-    queries: installed.map(({ cli, status }) => ({
+  // Re-checks refresh in place behind the header's spinning icon, so nothing here
+  // may raise the full-page overlay.
+  const toolsQuery = useQuery({
+    queryKey: queryKeys.toolsStatus,
+    queryFn: () => window.agentmat.tools.detectAll(),
+    staleTime: 10 * 60_000,
+    enabled: deferReady,
+    meta: { silentLoading: true },
+  });
+  const installedTools = AGENT_TOOL_REGISTRY.flatMap((tool) => {
+    const status = toolsQuery.data?.find((t) => t.id === tool.id);
+    return tool.updateCheck && status?.installed ? [{ tool, status }] : [];
+  });
+
+  const cliChecks = useQueries({
+    queries: installedClis.map(({ cli, status }) => ({
       queryKey: queryKeys.cliUpdateCheck(cli.id, status.version),
       queryFn: () => window.agentmat.cli.checkForUpdate(cli.id, status.version),
       staleTime: 10 * 60_000,
       enabled: deferReady,
-      // Re-checks refresh in place behind the header's spinning icon, so they
-      // must not raise the full-page overlay.
+      meta: { silentLoading: true },
+    })),
+  });
+  const toolChecks = useQueries({
+    queries: installedTools.map(({ tool, status }) => ({
+      queryKey: queryKeys.toolUpdateCheck(tool.id, status.version),
+      queryFn: () => window.agentmat.tools.checkForUpdate(tool.id, status.version),
+      staleTime: 10 * 60_000,
       meta: { silentLoading: true },
     })),
   });
 
-  const checking = updateChecks.some((q) => q.isPending || q.isFetching);
-  const outdated = installed
+  const allChecks = [...cliChecks, ...toolChecks];
+  // Nothing is known to be up to date until the tool scan lands, so the idle wait
+  // and the scan itself both count as "still checking".
+  const checking =
+    !deferReady ||
+    toolsQuery.isPending ||
+    toolsQuery.isFetching ||
+    allChecks.some((q) => q.isPending || q.isFetching);
+  const installedCount = installedClis.length + installedTools.length;
+
+  const outdatedClis = installedClis
     .map((entry, i) => {
-      const result = updateChecks[i]?.data;
+      const result = cliChecks[i]?.data;
       return { ...entry, latestVersion: result?.updateAvailable ? result.latestVersion : null };
     })
     .filter(
       (entry): entry is typeof entry & { latestVersion: string } => entry.latestVersion != null,
     );
-  const uncheckable = updateChecks.filter(
+  const outdatedTools = installedTools
+    .map((entry, i) => {
+      const result = toolChecks[i]?.data;
+      return { ...entry, latestVersion: result?.updateAvailable ? result.latestVersion : null };
+    })
+    .filter(
+      (entry): entry is typeof entry & { latestVersion: string } => entry.latestVersion != null,
+    );
+  const outdatedCount = outdatedClis.length + outdatedTools.length;
+  const uncheckable = allChecks.filter(
     (q) => q.isError || (q.data != null && (!q.data.supported || !q.data.latestVersion)),
   ).length;
 
@@ -348,24 +431,22 @@ function CliUpdatesCard({
     <Card className="glass">
       <CardHeader className="flex flex-row items-center justify-between space-y-0">
         <div className="flex items-center gap-2">
-          <CardTitle>Update AI CLIs</CardTitle>
-          {outdated.length > 0 && (
+          <CardTitle>Update AI CLIs & tools</CardTitle>
+          {outdatedCount > 0 && (
             <Badge variant="warning">
-              {outdated.length} update{outdated.length > 1 ? 's' : ''}
+              {outdatedCount} update{outdatedCount > 1 ? 's' : ''}
             </Badge>
           )}
         </div>
-        <SimpleTooltip
-          label="Re-check for updates"
-          wrapTrigger={checking || installed.length === 0}
-        >
+        <SimpleTooltip label="Re-check for updates" wrapTrigger={checking || installedCount === 0}>
           <Button
             variant="ghost"
             size="icon"
-            disabled={checking || installed.length === 0}
+            disabled={checking || installedCount === 0}
             onClick={() => {
               void queryClient.invalidateQueries({ queryKey: ['cli-update-check'] });
-              toast.info('Checking installed CLIs for updates…');
+              void queryClient.invalidateQueries({ queryKey: ['tool-update-check'] });
+              toast.info('Checking installed CLIs and tools for updates…');
             }}
           >
             <RefreshCw className={cn('h-3.5 w-3.5', checking && 'animate-spin')} />
@@ -373,37 +454,48 @@ function CliUpdatesCard({
         </SimpleTooltip>
       </CardHeader>
       <CardContent className="space-y-2">
-        {installed.length === 0 ? (
+        {installedCount === 0 && !checking ? (
           <p className="text-sm text-muted-foreground">
-            No AI CLIs detected yet. Visit the{' '}
+            No AI CLIs or agent tools detected yet. Visit the{' '}
             <button
               className="underline underline-offset-2"
               onClick={() => navigate('/cli-manager')}
             >
               CLI Manager
             </button>{' '}
+            or{' '}
+            <button className="underline underline-offset-2" onClick={() => navigate('/tools')}>
+              Agent Tools
+            </button>{' '}
             to install one.
           </p>
         ) : (
           <>
-            {outdated.map(({ cli, status, latestVersion }) => (
+            {outdatedClis.map(({ cli, status, latestVersion }) => (
               <CliUpdateRow key={cli.id} cli={cli} status={status} latestVersion={latestVersion} />
             ))}
-            {checking && outdated.length === 0 && (
+            {outdatedTools.map(({ tool, status, latestVersion }) => (
+              <ToolUpdateRow
+                key={tool.id}
+                tool={tool}
+                status={status}
+                latestVersion={latestVersion}
+              />
+            ))}
+            {checking && outdatedCount === 0 && (
               <p className="text-sm text-muted-foreground">
-                Checking {installed.length} installed CLI{installed.length > 1 ? 's' : ''} for
-                updates…
+                Checking installed CLIs and agent tools for updates…
               </p>
             )}
-            {!checking && outdated.length === 0 && (
+            {!checking && outdatedCount === 0 && (
               <p className="text-sm text-muted-foreground">
-                All {installed.length} installed CLI{installed.length > 1 ? 's are' : ' is'} up to
-                date.
+                All {installedCount} installed CLI{installedCount === 1 ? '' : 's'} and agent tool
+                {installedCount === 1 ? ' is' : 's are'} up to date.
               </p>
             )}
             {!checking && uncheckable > 0 && (
               <p className="text-xs text-muted-foreground">
-                {uncheckable} CLI{uncheckable > 1 ? 's' : ''} couldn't be checked automatically.
+                {uncheckable} of them couldn't be checked automatically.
               </p>
             )}
           </>
@@ -1473,7 +1565,11 @@ export default function DashboardPage(): React.JSX.Element {
                             <>
                               {dragHandle(id)}
                               <SimpleTooltip label="Open Token Usage">
-                                <Button variant="ghost" size="icon" onClick={() => navigate('/usage')}>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => navigate('/usage')}
+                                >
                                   <ExternalLink className="h-3.5 w-3.5" />
                                 </Button>
                               </SimpleTooltip>
@@ -1562,7 +1658,7 @@ export default function DashboardPage(): React.JSX.Element {
         )}
       </div>
 
-      <CliUpdatesCard installed={installedClis} />
+      <UpdatesCard installedClis={installedClis} />
 
       <Dialog open={diagnoseHost !== null} onOpenChange={(open) => !open && setDiagnoseHost(null)}>
         <DialogContent>

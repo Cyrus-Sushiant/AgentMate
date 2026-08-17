@@ -12,9 +12,16 @@ import {
   getInteractiveLaunchCommandForCurrentOS,
   getToolInstallCommandForCurrentOS,
   getToolUninstallCommandForCurrentOS,
+  getToolUpdateCommandForCurrentOS,
 } from '@agentmat/core';
-import type { AgentToolDefinition, InstalledAgentTool, SupportedOS } from '@agentmat/core';
+import type {
+  AgentToolDefinition,
+  InstalledAgentTool,
+  SupportedOS,
+  ToolUpdateCheckResult,
+} from '@agentmat/core';
 import { IPC } from '../../shared/ipcChannels';
+import { compareVersions, fetchLatestVersion } from '../registryVersions';
 
 const execFileAsync = promisify(execFile);
 const DETECT_TIMEOUT_MS = 8000;
@@ -83,6 +90,38 @@ export function registerToolHandlers(): void {
     const tool = getAgentToolDefinition(toolId);
     if (!tool) return null;
     return getToolInstallCommandForCurrentOS(tool, process.platform as SupportedOS);
+  });
+
+  ipcMain.handle(
+    IPC.tools.checkForUpdate,
+    async (
+      _event,
+      toolId: string,
+      currentVersion: string | null,
+    ): Promise<ToolUpdateCheckResult> => {
+      const tool = getAgentToolDefinition(toolId);
+      const checkedAt = new Date().toISOString();
+      if (!tool?.updateCheck) {
+        return {
+          toolId,
+          supported: false,
+          currentVersion,
+          latestVersion: null,
+          updateAvailable: false,
+          checkedAt,
+        };
+      }
+      const latestVersion = await fetchLatestVersion(tool.updateCheck);
+      const updateAvailable =
+        !!latestVersion && !!currentVersion && compareVersions(latestVersion, currentVersion) > 0;
+      return { toolId, supported: true, currentVersion, latestVersion, updateAvailable, checkedAt };
+    },
+  );
+
+  ipcMain.handle(IPC.tools.getUpdateCommand, (_event, toolId: string): string | null => {
+    const tool = getAgentToolDefinition(toolId);
+    if (!tool) return null;
+    return getToolUpdateCommandForCurrentOS(tool, process.platform as SupportedOS);
   });
 
   ipcMain.handle(IPC.tools.getUninstallCommand, (_event, toolId: string): string | null => {

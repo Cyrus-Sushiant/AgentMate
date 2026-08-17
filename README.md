@@ -61,7 +61,7 @@
 - **Agent Tools**: curated third-party tools that cut agent token spend or improve code quality, including Diffray and LanguageTool for offline writing checks.
 - **Ask AI**: a persistent assistant conversation, one keystroke away.
 - **Remote**: control another AgentMate over your local network, AnyDesk-style, over WebSockets, including from the companion mobile app.
-- **AI Pet**: an optional desktop companion. Click it for a token report, double-click to bring AgentMate to the front, drag it around, and let it tell you when a pipeline fails or the network drops. Right-click for a menu (open the app, stop it wandering, snooze it for 15 minutes to 3 hours, or send it away), and it reappears on its own when the snooze ends. Built-in characters, or add your own GIF / PNG / WebP.
+- **AI Pet**: an optional desktop companion. Click it for a token report, double-click to bring AgentMate to the front, drag it around, and let it tell you when a pipeline fails, the network drops, or an agent finishes a project it has a hook for. Right-click for a menu (open the app, stop it wandering, snooze it for 15 minutes to 3 hours, or send it away), and it reappears on its own when the snooze ends. Built-in characters, or add your own GIF / PNG / WebP.
 - **Settings**: tabbed General, Shortcuts, AI Pet, AI, Notifications, and Data. Rebind the global shortcuts (terminal, navigation, command palette, prompt builder), back up and restore your data, and install updates from GitHub Releases. Update downloads run in chunks and can be paused and resumed, so a dropped connection doesn't cost you the bytes you already have.
 - **Also in the app**: a command palette (Ctrl+K / Cmd+K), a tabbed terminal drawer (Ctrl+backtick), and a searchable history of toasts.
 

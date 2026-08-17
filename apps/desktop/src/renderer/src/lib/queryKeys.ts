@@ -35,6 +35,8 @@ export const queryKeys = {
   topResourceApps: (resource: string) => ['top-resource-apps', resource] as const,
   cliUpdateCheck: (cliId: string, version: string | null) =>
     ['cli-update-check', cliId, version] as const,
+  toolUpdateCheck: (toolId: string, version: string | null) =>
+    ['tool-update-check', toolId, version] as const,
   projectDrafts: (projectId: string) => ['project-drafts', projectId] as const,
   scheduledTasks: (projectId: string) => ['scheduled-tasks', projectId] as const,
   claudeHooks: (projectId: string) => ['claude-hooks', projectId] as const,

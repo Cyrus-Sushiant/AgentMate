@@ -23,6 +23,7 @@ import type {
   McpRepositoryIndex,
   McpRepositorySourceType,
   InstalledAgentTool,
+  ToolUpdateCheckResult,
   ProviderUsage,
   UsageProviderConfig,
   UsageResetAlertSettings,
@@ -37,11 +38,7 @@ import type {
 import { IPC } from '../shared/ipcChannels';
 import type { PetPipelineMessage, PetSnoozeState, PetWorkArea } from '../shared/pet';
 import type { SpellcheckMenuPayload } from '../shared/spellcheck';
-import type {
-  GrammarCheckInput,
-  GrammarCheckResult,
-  GrammarLocalStatus,
-} from '../shared/grammar';
+import type { GrammarCheckInput, GrammarCheckResult, GrammarLocalStatus } from '../shared/grammar';
 import type {
   BootstrapResult,
   CreateTerminalOptions,
@@ -280,8 +277,10 @@ const skills = {
   /** Skills present in a project's (or the global) skills dirs, installed by AgentMate or not. */
   listOnDiskSkills: (projectId: string | null): Promise<AuditSourceSkill[]> =>
     ipcRenderer.invoke(IPC.skills.listOnDiskSkills, projectId),
-  listAudits: (options?: { skillId?: string | null; limit?: number }): Promise<SkillAuditRecord[]> =>
-    ipcRenderer.invoke(IPC.skills.listAudits, options ?? {}),
+  listAudits: (options?: {
+    skillId?: string | null;
+    limit?: number;
+  }): Promise<SkillAuditRecord[]> => ipcRenderer.invoke(IPC.skills.listAudits, options ?? {}),
   latestAuditPerSkill: (): Promise<SkillAuditRecord[]> =>
     ipcRenderer.invoke(IPC.skills.latestAuditPerSkill),
   getAudit: (id: string): Promise<SkillAuditRecord | null> =>
@@ -321,6 +320,10 @@ const tools = {
   detectAll: (): Promise<InstalledAgentTool[]> => ipcRenderer.invoke(IPC.tools.detectAll),
   getInstallCommand: (toolId: string): Promise<string | null> =>
     ipcRenderer.invoke(IPC.tools.getInstallCommand, toolId),
+  checkForUpdate: (toolId: string, currentVersion: string | null): Promise<ToolUpdateCheckResult> =>
+    ipcRenderer.invoke(IPC.tools.checkForUpdate, toolId, currentVersion),
+  getUpdateCommand: (toolId: string): Promise<string | null> =>
+    ipcRenderer.invoke(IPC.tools.getUpdateCommand, toolId),
   getUninstallCommand: (toolId: string): Promise<string | null> =>
     ipcRenderer.invoke(IPC.tools.getUninstallCommand, toolId),
   getInteractiveLaunchCommand: (toolId: string): Promise<string | null> =>
@@ -447,6 +450,9 @@ const scheduledTasks = {
 const notifications = {
   sendTest: (input: SendTestNotificationInput): Promise<NotificationSendResult> =>
     ipcRenderer.invoke(IPC.notifications.sendTest, input),
+  /** Shows the message on the desktop companion, so the pet hook can be previewed. */
+  sendPetTest: (input: SendTestNotificationInput): Promise<NotificationSendResult> =>
+    ipcRenderer.invoke(IPC.notifications.sendPetTest, input),
   detectChatId: (): Promise<DetectChatIdResult> =>
     ipcRenderer.invoke(IPC.notifications.detectChatId),
   onConfirmationForwarded: (
@@ -540,10 +546,7 @@ const git = {
 const pipelines = {
   status: (projectId: string): Promise<ProjectPipelineStatus> =>
     ipcRenderer.invoke(IPC.pipelines.status, projectId),
-  setWatched: (
-    projectId: string,
-    actions: ProjectGithubAction[],
-  ): Promise<ProjectPipelineStatus> =>
+  setWatched: (projectId: string, actions: ProjectGithubAction[]): Promise<ProjectPipelineStatus> =>
     ipcRenderer.invoke(IPC.pipelines.setWatched, projectId, actions),
   listNotifications: (): Promise<AppNotification[]> =>
     ipcRenderer.invoke(IPC.pipelines.listNotifications),
@@ -712,8 +715,7 @@ const pet = {
   importCustom: (): Promise<CustomDesktopPet | null> => ipcRenderer.invoke(IPC.pet.importCustom),
   removeCustom: (id: string): Promise<void> => ipcRenderer.invoke(IPC.pet.removeCustom, id),
   customDataUrls: (): Promise<Record<string, string>> => ipcRenderer.invoke(IPC.pet.customDataUrls),
-  snooze: (minutes: number): Promise<PetSnoozeState> =>
-    ipcRenderer.invoke(IPC.pet.snooze, minutes),
+  snooze: (minutes: number): Promise<PetSnoozeState> => ipcRenderer.invoke(IPC.pet.snooze, minutes),
   cancelSnooze: (): Promise<PetSnoozeState> => ipcRenderer.invoke(IPC.pet.cancelSnooze),
   getSnooze: (): Promise<PetSnoozeState> => ipcRenderer.invoke(IPC.pet.getSnooze),
   onSnoozeChanged: (callback: (state: PetSnoozeState) => void): (() => void) =>

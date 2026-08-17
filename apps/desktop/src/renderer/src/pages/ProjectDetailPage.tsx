@@ -9,7 +9,13 @@ import type {
   ProjectNotificationSettings,
   ScheduledTask,
 } from '@agentmat/core';
-import { CLI_REGISTRY, cliIdForTargetAI, configuredRunCommands, DIFFRAY_TOOL_ID } from '@agentmat/core';
+import {
+  CLI_REGISTRY,
+  cliIdForTargetAI,
+  configuredRunCommands,
+  DIFFRAY_TOOL_ID,
+  notificationHookChannel,
+} from '@agentmat/core';
 import type { BootstrapResult, GitBranchInfo, GitStatus, GitTagInfo, SkillUpdateInfo } from '@shared/apiTypes';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -41,6 +47,7 @@ import {
   History,
   LinkOff,
   MessageSquare,
+  Paw,
   Pencil,
   Play,
   Plug,
@@ -3584,6 +3591,7 @@ function HooksTab({ project }: { project: Project }): React.JSX.Element {
   const telegramConfigured = Boolean(
     settingsQuery.data?.telegramBotToken && settingsQuery.data?.telegramChatId,
   );
+  const petEnabled = settingsQuery.data?.desktopPetEnabled === true;
 
   const saveMutation = useMutation({
     mutationFn: (notifications: ProjectNotificationSettings) =>
@@ -3605,15 +3613,15 @@ function HooksTab({ project }: { project: Project }): React.JSX.Element {
   return (
     <div className="space-y-4">
       <p className="text-sm text-muted-foreground">
-        Wire an installed agent to a Telegram notification for this project. Completion and
-        confirmation are configured as two independent hooks.
+        Wire an installed agent to a notification for this project. Completion, confirmation, and
+        the desktop companion are configured as three independent hooks.
       </p>
 
       {!telegramConfigured && (
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-muted/40 px-3 py-2 text-sm">
           <div className="flex items-center gap-2">
             <TriangleAlert className="h-4 w-4 text-muted-foreground" />
-            Set up your Telegram bot in Settings before enabling these hooks.
+            Set up your Telegram bot in Settings before enabling the Telegram hooks.
           </div>
           <Button variant="outline" size="sm" onClick={() => navigate('/settings')}>
             Open Settings
@@ -3639,6 +3647,17 @@ function HooksTab({ project }: { project: Project }): React.JSX.Element {
         project={project}
         installedAgents={installedAgents}
         onSave={(hook) => saveMutation.mutate({ ...project.notifications, confirmation: hook })}
+        saving={saveMutation.isPending}
+      />
+      <NotificationHookCard
+        kind="pet"
+        icon={Paw}
+        title="Desktop companion"
+        description="Speaks the message through the desktop pet when the agent finishes, so you see it without leaving your desk. It only shows while AgentMate is open with the companion on screen; any other time the hook stays silent instead of failing."
+        project={project}
+        installedAgents={installedAgents}
+        petEnabled={petEnabled}
+        onSave={(hook) => saveMutation.mutate({ ...project.notifications, pet: hook })}
         saving={saveMutation.isPending}
       />
 
@@ -3728,6 +3747,8 @@ interface NotificationHookCardProps {
   icon: typeof CircleCheck;
   project: Project;
   installedAgents: CliDefinition[];
+  /** Pet hook only: whether the companion is switched on in Settings. */
+  petEnabled?: boolean;
   onSave: (hook: ProjectNotificationHook) => void;
   saving: boolean;
 }
@@ -3739,6 +3760,7 @@ function NotificationHookCard({
   icon: Icon,
   project,
   installedAgents,
+  petEnabled = false,
   onSave,
   saving,
 }: NotificationHookCardProps): React.JSX.Element {
@@ -3758,8 +3780,8 @@ function NotificationHookCard({
     setMessage(saved.message);
   }, [saved.enabled, saved.cliId, saved.message]);
 
-  const scriptFileName =
-    kind === 'completion' ? 'notify-completion.cjs' : 'notify-confirmation.cjs';
+  const channel = notificationHookChannel(kind);
+  const scriptFileName = `notify-${kind}.cjs`;
   const scriptPath = `${project.folderPath}/.agentmate/hooks/${scriptFileName}`;
   const savedCli = CLI_REGISTRY.find((c) => c.id === saved.cliId);
   const wiredAutomatically = saved.cliId === 'claude-code';
@@ -3773,9 +3795,12 @@ function NotificationHookCard({
     setTesting(true);
     try {
       const rendered = message.replaceAll('{{project}}', project.name);
-      const result = await window.agentmat.notifications.sendTest({ message: rendered });
+      const result =
+        channel === 'pet'
+          ? await window.agentmat.notifications.sendPetTest({ message: rendered })
+          : await window.agentmat.notifications.sendTest({ message: rendered });
       if (result.ok) {
-        toast.success('Sent. Check Telegram.');
+        toast.success(channel === 'pet' ? 'Your companion is saying it now.' : 'Sent. Check Telegram.');
       } else {
         toast.error(result.error ?? 'Failed to send test message.');
       }
@@ -3835,7 +3860,7 @@ function NotificationHookCard({
         </div>
 
         <div className="space-y-1.5">
-          <Label>Telegram message</Label>
+          <Label>{channel === 'pet' ? 'Companion message' : 'Telegram message'}</Label>
           <Textarea
             value={message}
             onChange={(e) => {
@@ -3849,6 +3874,17 @@ function NotificationHookCard({
             name.
           </p>
         </div>
+
+        {channel === 'pet' && !petEnabled && (
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+            <span>
+              The desktop companion is off, so this hook stays quiet until you turn it back on.
+            </span>
+            <Button variant="outline" size="sm" onClick={() => navigate('/settings')}>
+              Open Settings
+            </Button>
+          </div>
+        )}
 
         {saved.enabled && (
           <div className="flex items-start gap-2 rounded-lg border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
@@ -3892,7 +3928,8 @@ function NotificationHookCard({
             disabled={testing || !message.trim()}
             onClick={() => void handleTest()}
           >
-            <Send className="h-4 w-4" /> {testing ? 'Sending…' : 'Send test'}
+            {channel === 'pet' ? <Paw className="h-4 w-4" /> : <Send className="h-4 w-4" />}
+            {testing ? 'Sending…' : channel === 'pet' ? 'Preview on pet' : 'Send test'}
           </Button>
         </div>
       </div>
