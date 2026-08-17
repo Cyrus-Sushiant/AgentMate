@@ -1,5 +1,12 @@
 import { siClaudecode, siCline, siCursor, siGooglegemini, siOpencode, siQwen } from 'simple-icons';
-import { aiderMark, continueMark, gooseMark, openaiMark, xaiMark } from '@/components/brandMarks';
+import {
+  aiderMark,
+  continueMark,
+  gooseMark,
+  openaiMark,
+  piMark,
+  xaiMark,
+} from '@/components/brandMarks';
 import { cn } from '@/lib/utils';
 
 interface BrandLogo {
@@ -23,6 +30,7 @@ const BRAND_LOGOS: Record<string, BrandLogo> = {
   'continue-cli': { ...continueMark, invertOnDark: true },
   aider: aiderMark,
   goose: { ...gooseMark, invertOnDark: true },
+  pi: { ...piMark, invertOnDark: true },
 };
 
 interface MonogramLogo {

@@ -16,7 +16,8 @@ const TARGET_AI_NOTES_BY_CLI_ID: Record<string, string> = {
   'qwen-cli':
     'Keep instructions explicit and unambiguous; avoid idioms that may not translate well.',
   aider: 'Reference exact file paths to edit; keep the request scoped to a small, reviewable diff.',
-  goose: 'Describe the desired end state and let it choose tool calls; provide acceptance criteria.',
+  goose:
+    'Describe the desired end state and let it choose tool calls; provide acceptance criteria.',
   'continue-cli':
     'Keep the request self-contained since context window/session state may reset between runs.',
   'cursor-cli':
@@ -27,6 +28,7 @@ const TARGET_AI_NOTES_BY_CLI_ID: Record<string, string> = {
     'Give a concrete end state and acceptance criteria; mention paths to edit when you know them.',
   'freebuff-cli':
     'Keep the request self-contained and explicit about files, constraints, and the desired result.',
+  pi: 'Assume a bare read/write/edit/bash toolset and no plan mode; spell out each step and file.',
 };
 
 export function targetAINote(targetAI: string): string {

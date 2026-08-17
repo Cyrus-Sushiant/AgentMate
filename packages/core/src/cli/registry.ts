@@ -336,6 +336,34 @@ export const CLI_REGISTRY: CliDefinition[] = [
     updateCheck: { type: 'npm', package: '@continuedev/cli' },
     supportedOS: ['win32', 'darwin', 'linux'],
   },
+  {
+    id: 'pi',
+    name: 'Pi',
+    label: 'Pi',
+    description: 'Minimal, extensible terminal coding agent.',
+    homepageUrl: 'https://pi.dev',
+    docsUrl: 'https://pi.dev/docs',
+    executableNames: ['pi'],
+    detectCommand: { command: 'pi', args: ['--version'] },
+    versionCommand: { command: 'pi', args: ['--version'] },
+    // `pi -p` prints the answer and exits. Print mode also merges piped stdin into the
+    // prompt, which keeps diff-heavy prompts off Windows' ~8191-char cmd.exe line.
+    promptCommand: { command: 'pi', args: ['-p'] },
+    promptInputMode: 'stdin',
+    // No promptWriteArgs: pi has no permission popups, so its write/edit/bash tools run
+    // as-is, and the project trust prompt never appears in non-interactive mode.
+    argsExample: '--model sonnet',
+    // `--ignore-scripts` is what pi's own install docs recommend; it needs no lifecycle scripts.
+    installCommand: {
+      win32: 'npm install -g --ignore-scripts @earendil-works/pi-coding-agent',
+      darwin: 'npm install -g --ignore-scripts @earendil-works/pi-coding-agent',
+      linux: 'npm install -g --ignore-scripts @earendil-works/pi-coding-agent',
+    },
+    // No updateCommand: `pi update --self` only acts on installs it detects as globally
+    // package-managed and writable, so re-running the npm install is the reliable path.
+    updateCheck: { type: 'npm', package: '@earendil-works/pi-coding-agent' },
+    supportedOS: ['win32', 'darwin', 'linux'],
+  },
 ];
 
 export function getCliDefinition(id: string): CliDefinition | undefined {
