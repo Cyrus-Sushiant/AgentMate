@@ -1,4 +1,5 @@
 import { siClaudecode, siCline, siCursor, siGooglegemini, siOpencode, siQwen } from 'simple-icons';
+import { aiderMark, continueMark, gooseMark, openaiMark, xaiMark } from '@/components/brandMarks';
 import { cn } from '@/lib/utils';
 
 interface BrandLogo {
@@ -6,6 +7,8 @@ interface BrandLogo {
   color: string;
   /** Flip pure black/white marks so they stay visible in dark mode. */
   invertOnDark?: boolean;
+  /** Only when the mark isn't drawn on the simple-icons 24x24 grid. */
+  viewBox?: string;
 }
 
 const BRAND_LOGOS: Record<string, BrandLogo> = {
@@ -15,6 +18,11 @@ const BRAND_LOGOS: Record<string, BrandLogo> = {
   opencode: { path: siOpencode.path, color: `#${siOpencode.hex}`, invertOnDark: true },
   'cursor-cli': { path: siCursor.path, color: `#${siCursor.hex}`, invertOnDark: true },
   'cline-cli': { path: siCline.path, color: `#${siCline.hex}`, invertOnDark: true },
+  'codex-cli': { ...openaiMark, invertOnDark: true },
+  'grok-cli': { ...xaiMark, invertOnDark: true },
+  'continue-cli': { ...continueMark, invertOnDark: true },
+  aider: aiderMark,
+  goose: { ...gooseMark, invertOnDark: true },
 };
 
 interface MonogramLogo {
@@ -24,11 +32,6 @@ interface MonogramLogo {
 
 // CLIs without a suitable mark in simple-icons fall back to a colored monogram.
 const MONOGRAM_LOGOS: Record<string, MonogramLogo> = {
-  'codex-cli': { letter: 'C', color: '#412991' },
-  aider: { letter: 'A', color: '#4A9C8E' },
-  goose: { letter: 'G', color: '#D97B29' },
-  'continue-cli': { letter: 'C', color: '#4477FF' },
-  'grok-cli': { letter: 'G', color: '#000000' },
   'freebuff-cli': { letter: 'F', color: '#16A34A' },
 };
 
@@ -43,7 +46,7 @@ export function CliLogo({ cliId, className }: CliLogoProps): React.JSX.Element {
     return (
       <svg
         role="img"
-        viewBox="0 0 24 24"
+        viewBox={brand.viewBox ?? '0 0 24 24'}
         fill={brand.color}
         className={cn('shrink-0', brand.invertOnDark && 'dark:invert', className)}
       >

@@ -1,14 +1,17 @@
-import { siClaude, siCursor, siGooglegemini, siOllama } from 'simple-icons';
 import { getUsageProvider } from '@agentmat/core';
+import { siClaude, siCursor, siGooglegemini, siOllama } from 'simple-icons';
+import { openaiMark, xaiMark } from '@/components/brandMarks';
 import { cn } from '@/lib/utils';
 
 interface BrandLogo {
   path: string;
   color: string;
   invertOnDark?: boolean;
+  /** Only when the mark isn't drawn on the simple-icons 24x24 grid. */
+  viewBox?: string;
 }
 
-// Only providers with a confirmed simple-icons mark get a brand glyph; the rest
+// Only providers with a confirmed mark get a brand glyph; the rest
 // fall back to a colored monogram driven by the registry's accentColor, so all
 // 63 render consistently without risking a missing-icon import.
 const BRAND_LOGOS: Record<string, BrandLogo> = {
@@ -16,6 +19,9 @@ const BRAND_LOGOS: Record<string, BrandLogo> = {
   cursor: { path: siCursor.path, color: `#${siCursor.hex}`, invertOnDark: true },
   gemini: { path: siGooglegemini.path, color: `#${siGooglegemini.hex}` },
   ollama: { path: siOllama.path, color: `#${siOllama.hex}`, invertOnDark: true },
+  codex: { ...openaiMark, invertOnDark: true },
+  openai: { ...openaiMark, invertOnDark: true },
+  grok: { ...xaiMark, invertOnDark: true },
 };
 
 export interface ProviderLogoProps {
@@ -29,7 +35,7 @@ export function ProviderLogo({ providerId, className }: ProviderLogoProps): Reac
     return (
       <svg
         role="img"
-        viewBox="0 0 24 24"
+        viewBox={brand.viewBox ?? '0 0 24 24'}
         fill={brand.color}
         className={cn('shrink-0', brand.invertOnDark && 'dark:invert', className)}
       >
