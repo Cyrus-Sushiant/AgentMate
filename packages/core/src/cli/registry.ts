@@ -154,7 +154,11 @@ export const CLI_REGISTRY: CliDefinition[] = [
     executableNames: ['grok'],
     detectCommand: { command: 'grok', args: ['--version'] },
     versionCommand: { command: 'grok', args: ['--version'] },
-    promptCommand: { command: 'grok', args: ['--prompt'] },
+    // Grok's headless flag is `-p/--single <PROMPT>`; it takes the prompt as the flag's
+    // value, so there is no stdin path (`grok -p` with a piped prompt errors on the
+    // missing value).
+    promptCommand: { command: 'grok', args: ['-p'] },
+    promptWriteArgs: ['--permission-mode', 'acceptEdits'],
     installCommand: {
       win32: 'npm install -g @xai-official/grok',
       darwin: 'npm install -g @xai-official/grok',
