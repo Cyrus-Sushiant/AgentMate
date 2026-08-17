@@ -73,7 +73,32 @@ app.setName(app.isPackaged ? 'AgentMate' : 'AgentMate Dev');
 // registers that id via its shortcut) and dev runs agree on identity.
 if (process.platform === 'win32') app.setAppUserModelId('com.agentmate.app');
 
-const isSingleInstance = app.requestSingleInstanceLock();
+function sleepSync(ms: number): void {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+}
+
+/**
+ * A relaunch (electron-vite's dev restart, or `app.relaunch()` from settings) starts the new
+ * process while the old one is still shutting down. On Windows the old process still has the
+ * SingletonLock file open, so creating it fails with a sharing violation:
+ *
+ *   process_singleton_win.cc: Lock file can not be created! Error code: 32
+ *
+ * Chromium reports that the same way as "another instance owns the lock", so quitting on the
+ * first failure makes the app vanish on restart instead of coming back. Retry for a moment to
+ * give the old process time to let go. A genuine second launch still loses and quits, just a
+ * beat later, after re-notifying (and re-focusing) the instance that is already running.
+ */
+function acquireSingleInstanceLock(): boolean {
+  const attempts = app.isPackaged ? 4 : 10;
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    if (app.requestSingleInstanceLock()) return true;
+    if (attempt < attempts - 1) sleepSync(200);
+  }
+  return false;
+}
+
+const isSingleInstance = acquireSingleInstanceLock();
 if (!isSingleInstance) {
   app.quit();
 }
