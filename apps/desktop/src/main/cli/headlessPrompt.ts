@@ -321,23 +321,39 @@ export async function runHeadlessCliPrompt(
     };
   }
 
-  // stderr is where these CLIs put their progress log, not just their errors, so it is
-  // never an error message on its own; it goes in `log` and the caller decides how to
-  // show it. Only the exit itself says whether the run failed.
+  // stderr carries the progress log as well as any real failure, so neither showing all
+  // of it nor dropping it works: the whole stream reads as noise, and none of it leaves
+  // the user with nothing to act on. Pull out the lines that say what went wrong.
+  const detail = extractCliError(log);
   return {
     ok: false,
     text: '',
     log,
     cliName: cli.name,
     error: outcome.failed
-      ? `${cli.name} exited without answering.${outcome.errorMessage ? ` (${firstLine(outcome.errorMessage)})` : ''}`
+      ? detail
+        ? `${cli.name} failed: ${detail}`
+        : `${cli.name} exited without answering.`
       : `${cli.name} returned an empty answer.`,
   };
 }
 
-/** execFile's error message repeats the whole command and stderr; only the head is useful. */
-function firstLine(message: string): string {
-  return stripAnsi(message).split('\n')[0]?.trim() ?? '';
+/**
+ * Matches how these CLIs announce a failure: a line that leads with an error word or a
+ * failure glyph. Progress lines ("• Find all version manifests") never look like this.
+ */
+const CLI_ERROR_LINE = /^(?:[✗×✘]\s*)?(?:error|fatal|panic|exception|failed)\b/i;
+
+function extractCliError(log: string): string {
+  const lines = log
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => CLI_ERROR_LINE.test(line))
+    // The CLI's own "Error:" label would only repeat the sentence this goes into.
+    .map((line) => line.replace(/^(?:[✗×✘]\s*)?error:?\s*/i, ''))
+    .filter(Boolean);
+  // The last one is the failure that ended the run; earlier ones are often retried.
+  return lines.slice(-2).join(' ');
 }
 
 /**
