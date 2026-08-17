@@ -79,7 +79,6 @@ export function Sidebar(): React.JSX.Element {
   const checkingForUpdates = useUpdateStore((s) => s.status.state === 'checking');
 
   /**
-   * Double-click, not a single click, so the version line stays a label first.
    * A check that finds something hands off to UpdateManager's dialog; the quiet
    * outcomes (already current, or the check itself failed) only get a toast.
    */
@@ -170,10 +169,10 @@ export function Sidebar(): React.JSX.Element {
 
       {!collapsed && (
         <div className="mt-2 border-t border-border/50 pt-2">
-          <SimpleTooltip label="Double-click to check for updates" side="top" align="start">
+          <SimpleTooltip label="Check for updates" side="top" align="start">
             <button
               type="button"
-              onDoubleClick={() => void checkForUpdates()}
+              onClick={() => void checkForUpdates()}
               className="w-full select-none rounded-md px-2.5 py-1 text-left text-[11px] text-muted-foreground/55 transition-colors hover:bg-foreground/[0.06] hover:text-muted-foreground"
             >
               AgentMate{' '}
