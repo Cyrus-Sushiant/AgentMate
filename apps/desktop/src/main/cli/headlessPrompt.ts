@@ -11,11 +11,19 @@ const HEADLESS_TIMEOUT_MS = 180000;
 export interface HeadlessPromptResult {
   ok: boolean;
   text: string;
+  /**
+   * The CLI's progress log (stderr). OpenCode and friends print their banner and every
+   * tool call there and keep stdout for the answer, so this is the only readable account
+   * of a run that ends without a final message.
+   */
+  log?: string;
   /** Display name of the CLI that answered (or that we tried to use). */
   cliName: string | null;
   error?: string;
   /** True when cancelHeadlessPrompt() stopped this run. */
   cancelled?: boolean;
+  /** True when the run was killed for exceeding its time budget. */
+  timedOut?: boolean;
 }
 
 interface RunningPrompt {
@@ -68,6 +76,8 @@ interface ExecOutcome {
   errorMessage: string;
   /** Set when the run ended because cancelHeadlessPrompt() killed it. */
   cancelled: boolean;
+  /** Set when the run ended because it outlived its time budget. */
+  timedOut: boolean;
 }
 
 /**
@@ -83,11 +93,14 @@ function execPrompt(
   cwd: string,
   requestId: string | undefined,
   stdinPayload: string | null,
+  timeoutMs: number,
 ): Promise<ExecOutcome> {
   return new Promise((resolve) => {
     const options = {
       cwd,
-      timeout: HEADLESS_TIMEOUT_MS,
+      // No `timeout` here on purpose: execFile's own timer signals the direct child, which
+      // on Windows is cmd.exe, leaving the agent behind to keep editing files after we
+      // have already reported back. The timer below takes the whole tree down instead.
       windowsHide: true,
       maxBuffer: 10 * 1024 * 1024,
       // Cline's CLI self-updates on every invocation by spawning a detached background
@@ -106,10 +119,17 @@ function execPrompt(
 
     if (requestId) runningPrompts.set(requestId, { child, cancelled: false });
 
+    let timedOut = false;
+    const timer = setTimeout(() => {
+      timedOut = true;
+      killProcessTree(child);
+    }, timeoutMs);
+
     if (stdinPayload !== null) child.stdin?.end(stdinPayload);
     else child.stdin?.end();
 
     function done(error: Error | null, stdout: string, stderr: string): void {
+      clearTimeout(timer);
       // Read the cancelled flag before dropping the entry: the kill lands here as a plain
       // non-zero exit, indistinguishable from a crash without it.
       const cancelled = requestId ? (runningPrompts.get(requestId)?.cancelled ?? false) : false;
@@ -120,6 +140,7 @@ function execPrompt(
         failed: !!error,
         errorMessage: error?.message ?? '',
         cancelled,
+        timedOut,
       });
     }
   });
@@ -199,6 +220,12 @@ export interface HeadlessPromptOptions {
    * them. Only set for prompts the user explicitly asked to run against their files.
    */
   allowWrites?: boolean;
+  /**
+   * Time budget for the run. Defaults to HEADLESS_TIMEOUT_MS, which suits a question the
+   * CLI can answer in one round-trip; a prompt that sends the agent sweeping the repo
+   * (searching for manifests, editing several of them) needs considerably more.
+   */
+  timeoutMs?: number;
 }
 
 /**
@@ -249,9 +276,17 @@ export async function runHeadlessCliPrompt(
         ? [...cli.promptCommand.args, ...writeArgs]
         : [...writeArgs, ...cli.promptCommand.args];
 
+  const timeoutMs = options.timeoutMs ?? HEADLESS_TIMEOUT_MS;
   const outcome =
     cli.promptInputMode === 'stdin'
-      ? await execPrompt(cli.promptCommand.command, baseArgs, cwd, options.requestId, prompt)
+      ? await execPrompt(
+          cli.promptCommand.command,
+          baseArgs,
+          cwd,
+          options.requestId,
+          prompt,
+          timeoutMs,
+        )
       : await execPrompt(
           cli.promptCommand.command,
           [
@@ -261,6 +296,7 @@ export async function runHeadlessCliPrompt(
           cwd,
           options.requestId,
           null,
+          timeoutMs,
         );
 
   // A cancel that lost the race with completion would otherwise sit in the set forever.
@@ -271,16 +307,49 @@ export async function runHeadlessCliPrompt(
   }
 
   const text = stripAnsi(outcome.stdout).trim();
-  if (text) return { ok: true, text, cliName: cli.name };
+  const log = trimLog(stripAnsi(outcome.stderr).trim());
+  if (text && !outcome.timedOut) return { ok: true, text, log, cliName: cli.name };
 
+  if (outcome.timedOut) {
+    return {
+      ok: false,
+      text,
+      log,
+      cliName: cli.name,
+      timedOut: true,
+      error: `${cli.name} was still working after ${Math.round(timeoutMs / 60000)} minutes and was stopped.`,
+    };
+  }
+
+  // stderr is where these CLIs put their progress log, not just their errors, so it is
+  // never an error message on its own; it goes in `log` and the caller decides how to
+  // show it. Only the exit itself says whether the run failed.
   return {
     ok: false,
     text: '',
+    log,
     cliName: cli.name,
     error: outcome.failed
-      ? stripAnsi(outcome.stderr).trim() || outcome.errorMessage || `${cli.name} failed to run.`
+      ? `${cli.name} exited without answering.${outcome.errorMessage ? ` (${firstLine(outcome.errorMessage)})` : ''}`
       : `${cli.name} returned an empty answer.`,
   };
+}
+
+/** execFile's error message repeats the whole command and stderr; only the head is useful. */
+function firstLine(message: string): string {
+  return stripAnsi(message).split('\n')[0]?.trim() ?? '';
+}
+
+/**
+ * Progress logs include the diff of every edit, which across a large repo runs to
+ * megabytes; that all has to cross IPC and land in a dialog. Keep the tail, since what
+ * the run did last is what explains how it ended.
+ */
+const MAX_LOG_CHARS = 20000;
+
+function trimLog(log: string): string {
+  if (log.length <= MAX_LOG_CHARS) return log;
+  return `… (earlier output trimmed)\n${log.slice(-MAX_LOG_CHARS)}`;
 }
 
 /** Color and cursor codes are noise once the answer is shown in a dialog. */

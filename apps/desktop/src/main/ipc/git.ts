@@ -50,6 +50,12 @@ const execFileAsync = promisify(execFile);
 const GIT_TIMEOUT_MS = 30000;
 /** Pushing a whole project for the first time can take a while on a slow line. */
 const PUSH_TIMEOUT_MS = 180000;
+/**
+ * The version bump sends the agent hunting through the repo for manifests before it edits
+ * anything, and some CLIs hand that search to a sub-agent. Three minutes, which is plenty
+ * for a one-question prompt, routinely cuts that off halfway.
+ */
+const VERSION_BUMP_TIMEOUT_MS = 900000;
 const MAX_DIFF_CHARS = 8000;
 
 async function getProject(projectId: string): Promise<Project> {
@@ -1321,6 +1327,7 @@ export function registerGitHandlers(): void {
         requestId: input.requestId,
         preferredCliId: project.cliId,
         allowWrites: true,
+        timeoutMs: VERSION_BUMP_TIMEOUT_MS,
       });
 
       const after = await readWorkingTreeFingerprint(cwd);
@@ -1337,24 +1344,25 @@ export function registerGitHandlers(): void {
         .catch(() => null);
       const committedByCli = headBefore !== null && headAfter !== null && headBefore !== headAfter;
 
-      if (!result.ok) {
-        return {
-          ok: false,
-          output: result.text,
-          changedFiles,
-          committedByCli,
-          cliName: result.cliName,
-          error: result.error,
-          cancelled: result.cancelled,
-        };
-      }
+      // Agent CLIs are unreliable narrators of their own exit: OpenCode ends a run whose
+      // last act was a tool call with an empty stdout, and a run we stop for running long
+      // exits non-zero. Neither says the bump failed, and the working tree above already
+      // knows whether it landed. A cancel still reads as a cancel, since the user asked.
+      const landed = (changedFiles.length > 0 || committedByCli) && !result.cancelled;
 
       return {
-        ok: true,
-        output: result.text,
+        ok: result.ok || landed,
+        // Falls back to the progress log for CLIs that keep stdout for the final message
+        // and print everything they did to stderr.
+        output: result.text || result.log || '',
         changedFiles,
         committedByCli,
         cliName: result.cliName,
+        // A run that wrote files but ended badly is a partial success, not a failure: say
+        // what went wrong without burying the edits the user now has to deal with.
+        warning: landed && !result.ok ? result.error : undefined,
+        error: result.ok || landed ? undefined : result.error,
+        cancelled: result.cancelled,
       };
     },
   );

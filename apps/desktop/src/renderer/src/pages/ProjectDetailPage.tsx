@@ -2896,8 +2896,9 @@ function ApplyVersionDialog({
   const failed = applyMutation.isError || (result && !result.ok && !result.cancelled);
   const didNothing =
     !!result?.ok && result.changedFiles.length === 0 && !result.committedByCli;
-  const canRetry = Boolean(failed || result?.cancelled || didNothing);
+  const canRetry = Boolean(failed || result?.cancelled || didNothing || result?.warning);
   const cliOutput = result?.output ? displayCliOutput(result.output) : '';
+  const warningText = result?.warning ? displayCliOutput(result.warning) : '';
   const errorText = displayCliOutput(
     result?.error ?? (applyMutation.error as Error | null)?.message ?? 'Unknown error.',
   );
@@ -2925,7 +2926,8 @@ function ApplyVersionDialog({
               <div className="min-w-0">
                 <p className="text-sm font-medium">Updating version strings</p>
                 <p className="text-xs text-muted-foreground">
-                  Your CLI is editing manifests. This can take a minute.
+                  Your CLI is searching the repo and editing manifests. This can take several
+                  minutes.
                 </p>
               </div>
             </div>
@@ -2965,6 +2967,31 @@ function ApplyVersionDialog({
               <pre className="max-h-40 overflow-y-auto overscroll-contain text-xs break-words whitespace-pre-wrap text-muted-foreground">
                 {errorText}
               </pre>
+            </div>
+          )}
+
+          {/* The bump landed but the CLI still ended badly, so the file list below may be
+              only part of what the version touched. */}
+          {warningText && (
+            <div className="space-y-1.5 rounded-xl border border-warning/30 bg-warning/10 p-3">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                <p className="flex min-w-0 flex-1 items-center gap-1.5 text-sm font-medium">
+                  <TriangleAlert className="h-3.5 w-3.5 shrink-0 text-warning" /> The CLI stopped
+                  early
+                </p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleRetry}
+                  className="shrink-0 self-start sm:self-auto"
+                >
+                  <RefreshCw className="h-3.5 w-3.5" /> Run again
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {warningText} The files below were already updated, so check whether anything is
+                missing before you commit.
+              </p>
             </div>
           )}
 

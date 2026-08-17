@@ -572,6 +572,8 @@ export interface ApplyVersionResult {
   /** True if HEAD moved during the run, e.g. the CLI ran `npm version` and committed on its own. */
   committedByCli?: boolean;
   cliName?: string | null;
+  /** Set when files were edited but the CLI still ended badly (timed out, exited non-zero). */
+  warning?: string;
   error?: string;
   cancelled?: boolean;
 }
