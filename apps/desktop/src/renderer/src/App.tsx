@@ -1,39 +1,39 @@
-import { lazy, Suspense, useEffect } from 'react';
 import { QueryClientProvider } from '@tanstack/react-query';
-import { HashRouter, Route, Routes, useLocation } from 'react-router-dom';
+import { lazy, Suspense, useEffect } from 'react';
+import { HashRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { Toaster, toast } from 'sonner';
-import { TooltipProvider } from './components/ui/tooltip';
-import { ErrorBoundary } from './components/ErrorBoundary';
 import { ConfirmDialogHost } from './components/ConfirmDialog';
-import { UpdateManager } from './components/UpdateManager';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { WritingMenuHost } from './components/grammar/WritingMenuHost';
-import { queryClient } from './queryClient';
-import { initTheme, useThemeStore } from './stores/themeStore';
-import { initDefaultCli } from './stores/cliStore';
-import { initPingTargets } from './stores/pingTargetsStore';
-import { initDashboardLayout } from './stores/dashboardLayoutStore';
-import { initRemote } from './stores/remoteStore';
-import { initUpdateStatusListener } from './stores/updateStore';
 import { AppShell } from './components/layout/AppShell';
-import DashboardPage from './pages/DashboardPage';
+import DesktopPetRoute from './components/pet/DesktopPetRoute';
+import PromptBuildWidgetRoute from './components/projects/PromptBuildWidgetRoute';
+import RemoteSessionRoute from './components/remote/RemoteSessionRoute';
+import { UpdateManager } from './components/UpdateManager';
+import { TooltipProvider } from './components/ui/tooltip';
+import WidgetRoute from './components/usage/WidgetRoute';
+import { installToastHistoryCapture } from './lib/toastHistory';
+import AskAiPage from './pages/AskAiPage';
 import CliManagerPage from './pages/CliManagerPage';
+import DashboardPage from './pages/DashboardPage';
+import McpPage from './pages/McpPage';
+import PipelinesPage from './pages/PipelinesPage';
+import ProjectDetailPage from './pages/ProjectDetailPage';
+import ProjectsPage from './pages/ProjectsPage';
 import PromptBuilderPage from './pages/PromptBuilderPage';
 import PromptHistoryPage from './pages/PromptHistoryPage';
-import ProjectsPage from './pages/ProjectsPage';
-import ProjectDetailPage from './pages/ProjectDetailPage';
-import McpPage from './pages/McpPage';
-import ToolsPage from './pages/ToolsPage';
-import AskAiPage from './pages/AskAiPage';
-import RemotePage from './pages/RemotePage';
 import RemoteFileManagerPage from './pages/RemoteFileManagerPage';
+import RemotePage from './pages/RemotePage';
 import SettingsPage from './pages/SettingsPage';
-import NotificationsPage from './pages/NotificationsPage';
+import ToolsPage from './pages/ToolsPage';
 import UsagePage from './pages/UsagePage';
-import WidgetRoute from './components/usage/WidgetRoute';
-import PromptBuildWidgetRoute from './components/projects/PromptBuildWidgetRoute';
-import DesktopPetRoute from './components/pet/DesktopPetRoute';
-import RemoteSessionRoute from './components/remote/RemoteSessionRoute';
-import { installToastHistoryCapture } from './lib/toastHistory';
+import { queryClient } from './queryClient';
+import { initDefaultCli } from './stores/cliStore';
+import { initDashboardLayout } from './stores/dashboardLayoutStore';
+import { initPingTargets } from './stores/pingTargetsStore';
+import { initRemote } from './stores/remoteStore';
+import { initTheme, useThemeStore } from './stores/themeStore';
+import { initUpdateStatusListener } from './stores/updateStore';
 
 installToastHistoryCapture();
 
@@ -107,7 +107,8 @@ export default function App(): React.JSX.Element {
                 <Route path="prompt-history" element={<PromptHistoryPage />} />
                 <Route path="projects" element={<ProjectsPage />} />
                 <Route path="projects/:projectId" element={<ProjectDetailPage />} />
-                <Route path="notifications" element={<NotificationsPage />} />
+                <Route path="pipelines" element={<PipelinesPage />} />
+                <Route path="notifications" element={<Navigate to="/pipelines" replace />} />
                 <Route
                   path="skills"
                   element={

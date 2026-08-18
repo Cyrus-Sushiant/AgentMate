@@ -5,11 +5,11 @@ import { NavLink, useLocation } from 'react-router-dom';
 import { toast } from 'sonner';
 import type { IconProps } from '@/components/icons';
 import {
-  Bell,
   Blocks,
   Broadcast,
   ChartColumn,
   FolderKanban,
+  Github,
   LayoutDashboard,
   MessageSquare,
   Plug,
@@ -44,7 +44,7 @@ export const NAV_ITEMS: NavItem[] = [
     alsoActiveOn: ['/prompt-history'],
   },
   { to: '/projects', label: 'Projects', icon: FolderKanban },
-  { to: '/notifications', label: 'Notifications', icon: Bell },
+  { to: '/pipelines', label: 'Pipelines', icon: Github },
   { to: '/skills', label: 'Skills', icon: Blocks },
   { to: '/mcp', label: 'MCP Servers', icon: Plug },
   { to: '/tools', label: 'Agent Tools', icon: Wrench },
@@ -141,7 +141,7 @@ export function Sidebar(): React.JSX.Element {
                         className={cn('relative z-10 h-4 w-4 shrink-0', active && 'text-primary')}
                       />
                       {!collapsed && <span className="relative z-10">{item.label}</span>}
-                      {item.to === '/notifications' && unread > 0 ? (
+                      {item.to === '/pipelines' && unread > 0 ? (
                         collapsed ? (
                           <span className="absolute right-1.5 top-1.5 z-10 h-1.5 w-1.5 rounded-full bg-destructive" />
                         ) : (

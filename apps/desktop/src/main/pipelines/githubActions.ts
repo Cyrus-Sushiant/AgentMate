@@ -129,8 +129,8 @@ export function toWorkflowRun(item: GhRun): GithubWorkflowRunInfo {
 
 const ACTIVITY_DAYS = 14;
 const MAX_REPOS = 12;
-const RUNS_PER_REPO = 30;
-const HISTORY_CAP = 50;
+const RUNS_PER_REPO = 50;
+const HISTORY_CAP = 250;
 
 function localIsoDate(value: Date): string {
   const year = value.getFullYear();
@@ -152,10 +152,9 @@ function emptyActivityDays(): GithubActionsDayCount[] {
 }
 
 function emptyActivity(
-  partial: Pick<
-    GithubActionsActivity,
-    'ok' | 'cliAvailable' | 'authenticated'
-  > & { error?: string },
+  partial: Pick<GithubActionsActivity, 'ok' | 'cliAvailable' | 'authenticated'> & {
+    error?: string;
+  },
 ): GithubActionsActivity {
   return {
     ...partial,
@@ -168,7 +167,7 @@ function emptyActivity(
   };
 }
 
-/** Recent Actions runs across AgentMate projects, for the dashboard chart. */
+/** Recent Actions runs across AgentMate projects, for the dashboard chart and the Pipelines page. */
 export async function fetchDashboardActionsActivity(): Promise<GithubActionsActivity> {
   if (!(await isGhCliAvailable())) {
     return emptyActivity({
@@ -436,7 +435,9 @@ function formatAnnotations(items: GhAnnotation[]): string {
         : '';
       const title = item.title?.trim();
       const message = item.message?.trim() ?? '';
-      return [location, title && title !== message ? title : '', message].filter(Boolean).join('\n');
+      return [location, title && title !== message ? title : '', message]
+        .filter(Boolean)
+        .join('\n');
     })
     .filter(Boolean)
     .join('\n\n');
