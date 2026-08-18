@@ -8,14 +8,25 @@ import type {
   GithubActionsHistoryItem,
   GithubActionsRunErrorInput,
   GithubActionsRunErrorResult,
+  GithubPipelineActionResult,
+  GithubRunCancelRequest,
+  GithubWorkflowDispatchRequest,
   GithubWorkflowInfo,
+  GithubWorkflowRefsResult,
   GithubWorkflowRunInfo,
   PipelineConclusion,
   PipelineRunStatus,
   ProjectPipelineStatus,
 } from '../../shared/apiTypes';
-import { ghApi, ghErrorMessage, isGhCliAvailable, parseGithubRemote } from '../git/githubCli';
+import {
+  ghApi,
+  ghApiAllowEmpty,
+  ghErrorMessage,
+  isGhCliAvailable,
+  parseGithubRemote,
+} from '../git/githubCli';
 import { store } from '../store';
+import { parseWorkflowDispatch, type WorkflowDispatchSpec } from './workflowDispatch';
 
 const execFileAsync = promisify(execFile);
 
@@ -95,6 +106,8 @@ function toWorkflow(item: GhWorkflow): GithubWorkflowInfo {
     state: item.state,
     htmlUrl: item.html_url,
     badgeUrl: item.badge_url,
+    dispatchable: true,
+    dispatchInputs: [],
   };
 }
 
@@ -324,6 +337,7 @@ export async function fetchProjectPipelineStatus(project: Project): Promise<Proj
     const workflows = (workflowPayload.workflows ?? [])
       .filter((item) => item.state !== 'deleted')
       .map(toWorkflow);
+    await annotateDispatchSupport(github.owner, github.repo, workflows);
 
     const runsByWorkflowId: Record<number, GithubWorkflowRunInfo | null> = {};
     for (const workflow of workflows) runsByWorkflowId[workflow.id] = null;
@@ -555,4 +569,157 @@ export async function setProjectWatchedActions(
   projects[index] = updated;
   await store.setProjects(projects);
   return updated;
+}
+
+const DISPATCH_SPEC_TTL_MS = 10 * 60_000;
+/** How many workflow files one status refresh will read to look for a `workflow_dispatch` trigger. */
+const DISPATCH_SPEC_LOOKUP_CAP = 30;
+const dispatchSpecCache = new Map<string, { spec: WorkflowDispatchSpec; at: number }>();
+
+async function readWorkflowFile(owner: string, repo: string, path: string): Promise<string> {
+  const payload = await ghApi<{ content?: string; encoding?: string }>(
+    `repos/${owner}/${repo}/contents/${path.split('/').map(encodeURIComponent).join('/')}`,
+  );
+  if (!payload.content) return '';
+  return Buffer.from(payload.content, payload.encoding === 'base64' ? 'base64' : 'utf8').toString(
+    'utf8',
+  );
+}
+
+/** The `workflow_dispatch` trigger of one workflow, cached because the file rarely changes. */
+async function workflowDispatchSpec(
+  owner: string,
+  repo: string,
+  path: string,
+): Promise<WorkflowDispatchSpec> {
+  const key = `${owner}/${repo}:${path}`;
+  const cached = dispatchSpecCache.get(key);
+  if (cached && Date.now() - cached.at < DISPATCH_SPEC_TTL_MS) return cached.spec;
+
+  const source = await readWorkflowFile(owner, repo, path);
+  if (!source) return { dispatchable: true, inputs: [] };
+  const spec = parseWorkflowDispatch(source);
+  dispatchSpecCache.set(key, { spec, at: Date.now() });
+  return spec;
+}
+
+/**
+ * Fills in `dispatchable`/`dispatchInputs` on each workflow. Anything that could not be read stays
+ * optimistically dispatchable rather than losing its Run button over a transient API hiccup.
+ */
+async function annotateDispatchSupport(
+  owner: string,
+  repo: string,
+  workflows: GithubWorkflowInfo[],
+): Promise<void> {
+  await Promise.all(
+    workflows.slice(0, DISPATCH_SPEC_LOOKUP_CAP).map(async (workflow) => {
+      try {
+        const spec = await workflowDispatchSpec(owner, repo, workflow.path);
+        workflow.dispatchable = spec.dispatchable;
+        workflow.dispatchInputs = spec.inputs;
+      } catch {
+        // Leave the optimistic default in place.
+      }
+    }),
+  );
+}
+
+/** Branches and tags a manual run can be started from. */
+export async function fetchWorkflowRefs(repo: string): Promise<GithubWorkflowRefsResult> {
+  const parsed = parseOwnerRepo(repo);
+  if (!parsed) return { ok: false, error: 'That repository could not be identified.' };
+  if (!(await isGhCliAvailable())) {
+    return { ok: false, error: 'Install the GitHub CLI and sign in to start workflows.' };
+  }
+
+  try {
+    const [info, branches, tags] = await Promise.all([
+      ghApi<{ default_branch?: string }>(`repos/${parsed.owner}/${parsed.repo}`),
+      ghApi<{ name: string }[]>(`repos/${parsed.owner}/${parsed.repo}/branches?per_page=100`),
+      ghApi<{ name: string }[]>(`repos/${parsed.owner}/${parsed.repo}/tags?per_page=50`).catch(
+        () => [] as { name: string }[],
+      ),
+    ]);
+    return {
+      ok: true,
+      defaultBranch: info.default_branch ?? branches[0]?.name ?? '',
+      branches: branches.map((item) => item.name),
+      tags: tags.map((item) => item.name),
+    };
+  } catch (error) {
+    return { ok: false, error: ghErrorMessage(error) };
+  }
+}
+
+/** Starts a `workflow_dispatch` run. */
+export async function dispatchWorkflow(
+  input: GithubWorkflowDispatchRequest,
+): Promise<GithubPipelineActionResult> {
+  const parsed = parseOwnerRepo(input.repo);
+  const workflowId = Number(input.workflowId);
+  if (!parsed || !Number.isInteger(workflowId) || workflowId <= 0) {
+    return { ok: false, error: 'That workflow could not be identified.' };
+  }
+  const ref = String(input.ref ?? '').trim();
+  if (!ref) return { ok: false, error: 'Pick a branch or tag to run this workflow from.' };
+  if (!(await isGhCliAvailable())) {
+    return { ok: false, error: 'Install the GitHub CLI and sign in to start workflows.' };
+  }
+
+  const args = [
+    'workflow',
+    'run',
+    String(workflowId),
+    '--repo',
+    `${parsed.owner}/${parsed.repo}`,
+    '--ref',
+    ref,
+  ];
+  // `--raw-field` rather than `--field`: the latter reads a value starting with "@" as a file
+  // path, and these values come straight from what the user typed. Blank optional inputs are
+  // dropped so the workflow's own default applies.
+  for (const [name, value] of Object.entries(input.inputs ?? {})) {
+    if (!name || value == null || value === '') continue;
+    args.push('--raw-field', `${name}=${value}`);
+  }
+
+  try {
+    await execFileAsync('gh', args, {
+      timeout: 30000,
+      windowsHide: true,
+      env: { ...process.env, NO_COLOR: '1' },
+    });
+    return { ok: true };
+  } catch (error) {
+    return { ok: false, error: ghErrorMessage(error) };
+  }
+}
+
+/** Cancels a queued or in-progress run. */
+export async function cancelWorkflowRun(
+  input: GithubRunCancelRequest,
+): Promise<GithubPipelineActionResult> {
+  const parsed = parseOwnerRepo(input.repo);
+  const runId = Number(input.runId);
+  if (!parsed || !Number.isInteger(runId) || runId <= 0) {
+    return { ok: false, error: 'That workflow run could not be identified.' };
+  }
+  if (!(await isGhCliAvailable())) {
+    return { ok: false, error: 'Install the GitHub CLI and sign in to stop workflow runs.' };
+  }
+
+  try {
+    await ghApiAllowEmpty(`repos/${parsed.owner}/${parsed.repo}/actions/runs/${runId}/cancel`, [
+      '--method',
+      'POST',
+    ]);
+    return { ok: true };
+  } catch (error) {
+    const message = ghErrorMessage(error);
+    if (/409|Conflict/i.test(message)) {
+      return { ok: false, error: 'That run already finished, so there was nothing to stop.' };
+    }
+    return { ok: false, error: message };
+  }
 }

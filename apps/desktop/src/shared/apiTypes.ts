@@ -1020,7 +1020,48 @@ export interface GithubWorkflowInfo {
   state: string;
   htmlUrl: string;
   badgeUrl: string;
+  /**
+   * Whether the workflow declares a `workflow_dispatch` trigger. Optimistically true when the
+   * workflow file could not be read, so the Run button still shows and GitHub reports the real
+   * reason if it turns out not to be dispatchable.
+   */
+  dispatchable: boolean;
+  /** Inputs declared under `workflow_dispatch.inputs`, to prompt for before starting a run. */
+  dispatchInputs: GithubWorkflowDispatchInput[];
 }
+
+export interface GithubWorkflowDispatchInput {
+  name: string;
+  description: string;
+  required: boolean;
+  type: 'string' | 'boolean' | 'choice' | 'number' | 'environment';
+  default: string;
+  options: string[];
+}
+
+export interface GithubWorkflowRefs {
+  defaultBranch: string;
+  branches: string[];
+  tags: string[];
+}
+
+export type GithubWorkflowRefsResult =
+  | ({ ok: true } & GithubWorkflowRefs)
+  | { ok: false; error: string };
+
+export interface GithubWorkflowDispatchRequest {
+  repo: string;
+  workflowId: number;
+  ref: string;
+  inputs: Record<string, string>;
+}
+
+export interface GithubRunCancelRequest {
+  repo: string;
+  runId: number;
+}
+
+export type GithubPipelineActionResult = { ok: true } | { ok: false; error: string };
 
 export interface GithubWorkflowRunInfo {
   id: number;

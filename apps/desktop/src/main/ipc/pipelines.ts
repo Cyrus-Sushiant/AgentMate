@@ -6,12 +6,19 @@ import type {
   GithubActionsActivity,
   GithubActionsRunErrorInput,
   GithubActionsRunErrorResult,
+  GithubPipelineActionResult,
+  GithubRunCancelRequest,
+  GithubWorkflowDispatchRequest,
+  GithubWorkflowRefsResult,
   ProjectPipelineStatus,
 } from '../../shared/apiTypes';
 import { store } from '../store';
 import {
+  cancelWorkflowRun,
+  dispatchWorkflow,
   fetchDashboardActionsActivity,
   fetchRunFailureText,
+  fetchWorkflowRefs,
   setProjectWatchedActions,
 } from '../pipelines/githubActions';
 import {
@@ -58,6 +65,30 @@ export function registerPipelineHandlers(): void {
     IPC.pipelines.runError,
     (_event, input: GithubActionsRunErrorInput): Promise<GithubActionsRunErrorResult> => {
       return fetchRunFailureText(input);
+    },
+  );
+
+  ipcMain.handle(IPC.pipelines.refs, (_event, repo: string): Promise<GithubWorkflowRefsResult> => {
+    return fetchWorkflowRefs(String(repo));
+  });
+
+  ipcMain.handle(
+    IPC.pipelines.dispatch,
+    async (_event, input: GithubWorkflowDispatchRequest): Promise<GithubPipelineActionResult> => {
+      const result = await dispatchWorkflow(input);
+      // The run takes a moment to appear on GitHub, so nudge the watcher rather than
+      // waiting for its next tick.
+      if (result.ok) schedulePipelineCheck();
+      return result;
+    },
+  );
+
+  ipcMain.handle(
+    IPC.pipelines.cancelRun,
+    async (_event, input: GithubRunCancelRequest): Promise<GithubPipelineActionResult> => {
+      const result = await cancelWorkflowRun(input);
+      if (result.ok) schedulePipelineCheck();
+      return result;
     },
   );
 }

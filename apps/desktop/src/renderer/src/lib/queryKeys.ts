@@ -50,6 +50,8 @@ export const queryKeys = {
   githubNotifications: ['github-notifications'] as const,
   githubActionsActivity: ['github-actions-activity'] as const,
   pipelineStatus: (projectId: string) => ['pipeline-status', projectId] as const,
+  /** Branches and tags of a repo, for picking what a manual workflow run should build. */
+  pipelineRefs: (repo: string) => ['pipeline-refs', repo] as const,
   appNotifications: ['app-notifications'] as const,
   appNotificationUnread: ['app-notifications-unread'] as const,
   packages: (projectId: string) => ['packages', projectId] as const,

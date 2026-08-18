@@ -1,5 +1,5 @@
 import { join } from 'node:path';
-import { BrowserWindow, screen } from 'electron';
+import { BrowserWindow, powerMonitor, screen } from 'electron';
 import icon from '../../../resources/icon.ico?asset';
 import { IPC } from '../../shared/ipcChannels';
 import {
@@ -10,8 +10,17 @@ import {
 } from '../../shared/pet';
 import { store } from '../store';
 
+// Windows does not keep a topmost window on top forever. Another app going
+// full screen, a UAC prompt, explorer restarting or waking from sleep can all
+// drop the pet behind whatever is open, and nothing tells us it happened. So we
+// stamp the flag again on a slow timer instead of making the user switch the
+// companion off and on.
+const TOPMOST_REFRESH_MS = 4000;
+
 let win: BrowserWindow | null = null;
 let displayListenersBound = false;
+let powerListenersBound = false;
+let topmostTimer: ReturnType<typeof setInterval> | null = null;
 let snoozeUntil: number | null = null;
 let snoozeTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -37,6 +46,37 @@ function fitToWorkArea(target: BrowserWindow): PetWorkArea {
 function broadcastWorkArea(): void {
   if (!win || win.isDestroyed()) return;
   win.webContents.send(IPC.pet.onDisplayChanged, fitToWorkArea(win));
+  // Resolution and monitor changes are one of the moments the pet slips behind
+  // other windows, so re-stamp right away rather than waiting for the timer.
+  reassertTopmost();
+}
+
+function reassertTopmost(): void {
+  if (!win || win.isDestroyed() || !win.isVisible()) return;
+  // Turning it off first matters: asking for a level the window already claims
+  // to have can be a no-op, even when the OS has quietly moved it down.
+  win.setAlwaysOnTop(false);
+  win.setAlwaysOnTop(true, 'floating');
+  win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: false });
+  win.moveTop();
+}
+
+function startTopmostKeeper(): void {
+  if (topmostTimer) return;
+  topmostTimer = setInterval(reassertTopmost, TOPMOST_REFRESH_MS);
+}
+
+function stopTopmostKeeper(): void {
+  if (!topmostTimer) return;
+  clearInterval(topmostTimer);
+  topmostTimer = null;
+}
+
+function bindPowerListeners(): void {
+  if (powerListenersBound) return;
+  powerListenersBound = true;
+  powerMonitor.on('resume', reassertTopmost);
+  powerMonitor.on('unlock-screen', reassertTopmost);
 }
 
 function bindDisplayListeners(): void {
@@ -106,13 +146,21 @@ function createPetWindow(): BrowserWindow {
   created.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: false });
   created.setMenu(null);
   applyClickThrough(created, true);
-  created.once('ready-to-show', () => created.showInactive());
+  created.once('ready-to-show', () => {
+    created.showInactive();
+    reassertTopmost();
+    startTopmostKeeper();
+  });
   created.on('closed', () => {
-    if (win === created) win = null;
+    if (win === created) {
+      win = null;
+      stopTopmostKeeper();
+    }
   });
 
   loadPetRoute(created);
   bindDisplayListeners();
+  bindPowerListeners();
   return created;
 }
 
@@ -125,6 +173,8 @@ export const petManager = {
     if (this.isOpen()) {
       if (win) fitToWorkArea(win);
       win?.showInactive();
+      reassertTopmost();
+      startTopmostKeeper();
       return;
     }
     win = createPetWindow();
@@ -132,6 +182,7 @@ export const petManager = {
 
   close(): void {
     if (!win) return;
+    stopTopmostKeeper();
     const closing = win;
     win = null;
     if (!closing.isDestroyed()) closing.close();

@@ -4,17 +4,18 @@ import { type ReactNode, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import {
   CircleCheck,
-  Copy,
   ExternalLink,
   Github,
   History,
   Play,
   RefreshCw,
   Spinner,
+  StopCircle,
   TriangleAlert,
   X,
 } from '@/components/icons';
 import { SparklineChart } from '@/components/dashboard/SparklineChart';
+import { CopyRunErrorButton } from '@/components/pipelines/CopyRunErrorButton';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -33,6 +34,7 @@ import { useChartColors } from '@/lib/chartColors';
 import { queryKeys } from '@/lib/queryKeys';
 import { timeAgo } from '@/lib/time';
 import { cn } from '@/lib/utils';
+import { confirmDialog } from '@/stores/confirmStore';
 import { useTerminalStore } from '@/stores/terminalStore';
 
 const GH_INSTALL_URL = 'https://cli.github.com/';
@@ -112,49 +114,54 @@ function GhSetupHint({
   );
 }
 
-function CopyErrorButton({ item }: { item: GithubActionsHistoryItem }): React.JSX.Element {
+function StopRunButton({ item }: { item: GithubActionsHistoryItem }): React.JSX.Element {
+  const queryClient = useQueryClient();
   const [busy, setBusy] = useState(false);
 
-  async function copyError(): Promise<void> {
+  async function stopRun(): Promise<void> {
+    const confirmed = await confirmDialog({
+      title: `Stop ${item.workflowName}?`,
+      description: `Run #${item.runNumber} on ${item.repo} will be cancelled. Jobs already finished stay as they are.`,
+      confirmLabel: 'Stop run',
+      variant: 'destructive',
+    });
+    if (!confirmed) return;
+
     setBusy(true);
     try {
-      const result = await window.agentmat.pipelines.runError({
-        repo: item.repo,
-        runId: item.id,
-        workflowName: item.workflowName,
-        displayTitle: item.displayTitle,
-        runNumber: item.runNumber,
-        headBranch: item.headBranch,
-      });
+      const result = await window.agentmat.pipelines.cancelRun({ repo: item.repo, runId: item.id });
       if (!result.ok) {
         toast.error(result.error);
         return;
       }
-      await navigator.clipboard.writeText(result.text);
-      toast.success('Error copied to clipboard.');
+      toast.success('Asked GitHub to stop that run.');
+      // GitHub takes a moment to flip the run to cancelled, so give it one beat first.
+      setTimeout(() => {
+        void queryClient.invalidateQueries({ queryKey: queryKeys.githubActionsActivity });
+      }, 3000);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Could not copy that error.');
+      toast.error(error instanceof Error ? error.message : 'Could not stop that run.');
     } finally {
       setBusy(false);
     }
   }
 
   return (
-    <SimpleTooltip label="Copy the failure from this run">
+    <SimpleTooltip label="Stop this run">
       <Button
         variant="ghost"
         size="sm"
-        className="mt-1.5 h-8 shrink-0 gap-1 px-2 text-xs"
+        className="mt-1.5 h-8 shrink-0 gap-1 px-2 text-xs hover:text-destructive"
         disabled={busy}
-        aria-label="Copy error"
-        onClick={() => void copyError()}
+        aria-label="Stop run"
+        onClick={() => void stopRun()}
       >
         {busy ? (
           <Spinner className="h-3.5 w-3.5 animate-spin" />
         ) : (
-          <Copy className="h-3.5 w-3.5" />
+          <StopCircle className="h-3.5 w-3.5" />
         )}
-        Copy error
+        Stop
       </Button>
     </SimpleTooltip>
   );
@@ -220,7 +227,20 @@ function HistoryRow({ item }: { item: GithubActionsHistoryItem }): React.JSX.Ele
           <ExternalLink className="mt-1.5 h-3.5 w-3.5 shrink-0 text-muted-foreground/50" />
         ) : null}
       </button>
-      {failed ? <CopyErrorButton item={item} /> : null}
+      {failed ? (
+        <CopyRunErrorButton
+          className="mt-1.5"
+          input={{
+            repo: item.repo,
+            runId: item.id,
+            workflowName: item.workflowName,
+            displayTitle: item.displayTitle,
+            runNumber: item.runNumber,
+            headBranch: item.headBranch,
+          }}
+        />
+      ) : null}
+      {item.status !== 'completed' ? <StopRunButton item={item} /> : null}
     </div>
   );
 }

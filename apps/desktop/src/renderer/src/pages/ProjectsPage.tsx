@@ -256,6 +256,7 @@ export default function ProjectsPage(): React.JSX.Element {
       },
       onDropOn: (targetId) => handleDrop(group, targetId),
       onNavigate: () => navigate(`/projects/${project.id}`),
+      onOpenGit: () => navigate(`/projects/${project.id}?tab=git`),
       onRun: () => handleRun(project),
       onBuildPrompt: () => {
         setPromptBuildProject({ id: project.id, name: project.name });
@@ -405,7 +406,7 @@ export default function ProjectsPage(): React.JSX.Element {
                 </CardContent>
                 <CardFooter className="gap-2 border-t border-border/70 pt-3">
                   <Skeleton className="h-8 w-16 rounded-md" />
-                  <Skeleton className="h-8 w-20 rounded-md" />
+                  <Skeleton className="ml-auto h-8 w-[5.5rem] rounded-lg" />
                 </CardFooter>
               </Card>
             ))}
@@ -559,6 +560,7 @@ interface ProjectItemProps {
   onDragOver: () => void;
   onDropOn: (targetId: string) => void;
   onNavigate: () => void;
+  onOpenGit: () => void;
   onRun: () => void;
   onBuildPrompt: () => void;
   onReview: () => void;
@@ -667,28 +669,9 @@ function ProjectCard(props: ProjectItemProps): React.JSX.Element {
         </div>
         <ProjectMetaLinks project={project} />
       </CardContent>
-      <CardFooter className="mt-auto flex-wrap gap-2 border-t border-border/70 pt-3">
+      <CardFooter className="mt-auto gap-2 border-t border-border/70 pt-3">
         <RunButton project={project} onRun={props.onRun} />
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={(e) => {
-            e.stopPropagation();
-            props.onReview();
-          }}
-        >
-          <GitPullRequest /> Review
-        </Button>
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={(e) => {
-            e.stopPropagation();
-            props.onBuildPrompt();
-          }}
-        >
-          <Sparkles /> Prompt
-        </Button>
+        <ProjectSecondaryActions {...props} compact className="ml-auto" />
       </CardFooter>
     </Card>
   );
@@ -736,33 +719,69 @@ function ProjectRow(props: ProjectItemProps): React.JSX.Element {
         <AgentBadge project={project} />
       </div>
       <RunButton project={project} onRun={props.onRun} iconOnly />
-      <SimpleTooltip label="Review with diffray">
-        <Button
-          size="icon"
-          variant="outline"
-          aria-label="Review with diffray"
-          onClick={(e) => {
-            e.stopPropagation();
-            props.onReview();
-          }}
-        >
-          <GitPullRequest className="h-4 w-4" />
-        </Button>
-      </SimpleTooltip>
-      <SimpleTooltip label="Build a prompt for this project">
-        <Button
-          size="icon"
-          variant="outline"
-          aria-label="Build a prompt for this project"
-          onClick={(e) => {
-            e.stopPropagation();
-            props.onBuildPrompt();
-          }}
-        >
-          <Sparkles className="h-4 w-4" />
-        </Button>
-      </SimpleTooltip>
+      <ProjectSecondaryActions {...props} compact={false} />
     </Card>
+  );
+}
+
+interface SecondaryAction {
+  key: string;
+  label: string;
+  icon: typeof GitBranch;
+  onSelect: () => void;
+}
+
+/**
+ * Git, Review and Prompt share one segmented cluster: it keeps Run as the only
+ * button with real weight, and stops four side-by-side buttons from wrapping
+ * onto a second row in narrow cards.
+ */
+function ProjectSecondaryActions({
+  onOpenGit,
+  onReview,
+  onBuildPrompt,
+  compact,
+  className,
+}: ProjectItemProps & { compact: boolean; className?: string }): React.JSX.Element {
+  const actions: SecondaryAction[] = [
+    { key: 'git', label: 'Open the Git section', icon: GitBranch, onSelect: onOpenGit },
+    { key: 'review', label: 'Review with diffray', icon: GitPullRequest, onSelect: onReview },
+    {
+      key: 'prompt',
+      label: 'Build a prompt for this project',
+      icon: Sparkles,
+      onSelect: onBuildPrompt,
+    },
+  ];
+
+  return (
+    <div
+      className={cn(
+        'flex shrink-0 items-center rounded-lg border border-border p-0.5',
+        compact ? 'h-8' : 'h-9',
+        className,
+      )}
+    >
+      {actions.map(({ key, label, icon: Icon, onSelect }) => (
+        <SimpleTooltip key={key} label={label}>
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label={label}
+            className={cn(
+              'text-muted-foreground hover:text-foreground',
+              compact ? 'h-7 w-7' : 'h-8 w-8',
+            )}
+            onClick={(e) => {
+              e.stopPropagation();
+              onSelect();
+            }}
+          >
+            <Icon className="h-4 w-4" />
+          </Button>
+        </SimpleTooltip>
+      ))}
+    </div>
   );
 }
 

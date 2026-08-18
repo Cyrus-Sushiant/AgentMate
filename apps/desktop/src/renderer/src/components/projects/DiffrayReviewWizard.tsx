@@ -189,19 +189,17 @@ export function DiffrayReviewWizardDialog({
           Choose a diff, pick review agents, then run diffray in this project's terminal.
         </DialogDescription>
         {open && (
-          <div className="min-h-0 flex-1 overflow-y-auto">
-            <DiffrayReviewWizard
-              key={project.id}
-              projectId={project.id}
-              projectName={project.name}
-              folderPath={project.folderPath}
-              agentType={project.agentType}
-              installed={installed}
-              compact
-              onLaunched={() => onOpenChange(false)}
-              onDismiss={() => onOpenChange(false)}
-            />
-          </div>
+          <DiffrayReviewWizard
+            key={project.id}
+            projectId={project.id}
+            projectName={project.name}
+            folderPath={project.folderPath}
+            agentType={project.agentType}
+            installed={installed}
+            compact
+            onLaunched={() => onOpenChange(false)}
+            onDismiss={() => onOpenChange(false)}
+          />
         )}
       </DialogContent>
     </Dialog>
@@ -575,8 +573,8 @@ export function DiffrayReviewWizard({
   return (
     <div
       className={cn(
-        'relative overflow-hidden',
-        compact ? '' : 'rounded-xl border border-border bg-card',
+        'relative flex flex-col overflow-hidden',
+        compact ? 'min-h-0 flex-1' : 'rounded-xl border border-border bg-card',
       )}
     >
       <div className="absolute inset-y-0 left-0 w-1 overflow-hidden" aria-hidden>
@@ -584,8 +582,13 @@ export function DiffrayReviewWizard({
         <div className="h-1/2 bg-destructive/70" />
       </div>
 
-      <div className={cn('space-y-5 p-5 pl-6', compact && 'pr-12 pt-6')}>
-        <header className="space-y-1">
+      <div
+        className={cn(
+          'shrink-0 space-y-4 pb-4 pl-6 pr-5 pt-5',
+          compact && 'border-b border-border/70',
+        )}
+      >
+        <header className="space-y-1 pr-8">
           <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
             Multi-agent review
           </p>
@@ -646,513 +649,519 @@ export function DiffrayReviewWizard({
             );
           })}
         </ol>
+      </div>
 
-        <div className="min-h-[16rem] space-y-3">
-          {step === 'diff' && (
-            <>
-              <ScopeCard
-                selected={scope === 'working-tree'}
-                title="Working tree"
-                description="Uncommitted changes, or the last commit if the tree is clean."
-                icon={Code}
-                onClick={() => setScope('working-tree')}
-              />
-              <ScopeCard
-                selected={scope === 'base-branch'}
-                title="Compare to a branch"
-                description="Everything this branch added since the base you pick."
-                icon={GitBranch}
-                onClick={() => setScope('base-branch')}
-              >
-                {scope === 'base-branch' && (
-                  <div className="mt-2.5 space-y-1.5" onClick={(event) => event.stopPropagation()}>
-                    <Label>Base branch</Label>
-                    <Combobox
-                      className="w-full font-mono"
-                      value={baseRef}
-                      onChange={setBaseRef}
-                      options={branchOptions}
-                      placeholder="main"
-                      searchPlaceholder="Search branches…"
+      <div
+        className={cn(
+          'space-y-3 pb-5 pl-6 pr-5 pt-4',
+          compact ? 'min-h-0 flex-1 overflow-y-auto' : 'min-h-[16rem]',
+        )}
+      >
+        {step === 'diff' && (
+          <>
+            <ScopeCard
+              selected={scope === 'working-tree'}
+              title="Working tree"
+              description="Uncommitted changes, or the last commit if the tree is clean."
+              icon={Code}
+              onClick={() => setScope('working-tree')}
+            />
+            <ScopeCard
+              selected={scope === 'base-branch'}
+              title="Compare to a branch"
+              description="Everything this branch added since the base you pick."
+              icon={GitBranch}
+              onClick={() => setScope('base-branch')}
+            >
+              {scope === 'base-branch' && (
+                <div className="mt-2.5 space-y-1.5" onClick={(event) => event.stopPropagation()}>
+                  <Label>Base branch</Label>
+                  <Combobox
+                    className="w-full font-mono"
+                    value={baseRef}
+                    onChange={setBaseRef}
+                    options={branchOptions}
+                    placeholder="main"
+                    searchPlaceholder="Search branches…"
+                  />
+                </div>
+              )}
+            </ScopeCard>
+            <ScopeCard
+              selected={scope === 'last-commits'}
+              title="Last N commits"
+              description="Review a short window of recent history on this branch."
+              icon={GitCommit}
+              onClick={() => setScope('last-commits')}
+            >
+              {scope === 'last-commits' && (
+                <div className="mt-2.5 space-y-2" onClick={(event) => event.stopPropagation()}>
+                  <Label htmlFor="diffray-commit-count">Commit count</Label>
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <Input
+                      id="diffray-commit-count"
+                      type="number"
+                      min={1}
+                      max={50}
+                      value={commitCount}
+                      onChange={(event) =>
+                        setCommitCount(Math.max(1, Math.min(50, Number(event.target.value) || 1)))
+                      }
+                      className="w-24 font-mono"
                     />
-                  </div>
-                )}
-              </ScopeCard>
-              <ScopeCard
-                selected={scope === 'last-commits'}
-                title="Last N commits"
-                description="Review a short window of recent history on this branch."
-                icon={GitCommit}
-                onClick={() => setScope('last-commits')}
-              >
-                {scope === 'last-commits' && (
-                  <div className="mt-2.5 space-y-2" onClick={(event) => event.stopPropagation()}>
-                    <Label htmlFor="diffray-commit-count">Commit count</Label>
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      <Input
-                        id="diffray-commit-count"
-                        type="number"
-                        min={1}
-                        max={50}
-                        value={commitCount}
-                        onChange={(event) =>
-                          setCommitCount(Math.max(1, Math.min(50, Number(event.target.value) || 1)))
-                        }
-                        className="w-24 font-mono"
-                      />
-                      {COMMIT_PRESETS.map((preset) => (
-                        <button
-                          key={preset}
-                          type="button"
-                          onClick={() => setCommitCount(preset)}
-                          className={cn(
-                            'rounded-full border px-2.5 py-1 text-xs transition-colors',
-                            commitCount === preset
-                              ? 'border-primary/50 bg-primary/15 text-foreground'
-                              : 'border-border text-muted-foreground hover:bg-muted/50',
-                          )}
-                        >
-                          Last {preset}
-                        </button>
-                      ))}
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      Reviews everything since{' '}
-                      <span className="font-mono text-foreground">HEAD~{commitCount}</span>.
-                    </p>
-                  </div>
-                )}
-              </ScopeCard>
-              <ScopeCard
-                selected={scope === 'files'}
-                title="Changed files"
-                description={
-                  changedFiles.length > 0
-                    ? 'Limit the review to files that already differ in git.'
-                    : 'No changed files in the working tree right now.'
-                }
-                icon={GitPullRequest}
-                disabled={changedFiles.length === 0}
-                onClick={() => changedFiles.length > 0 && setScope('files')}
-              >
-                {scope === 'files' && changedFiles.length > 0 && (
-                  <div className="mt-2.5 space-y-2" onClick={(event) => event.stopPropagation()}>
-                    <div className="max-h-40 space-y-1 overflow-y-auto rounded-md border border-border bg-background/60 p-2">
-                      {changedFiles.map((file) => (
-                        <label
-                          key={file.path}
-                          className="flex cursor-pointer items-center gap-2 rounded px-1 py-1 text-sm hover:bg-muted/60"
-                        >
-                          <Checkbox
-                            checked={selectedFiles.has(file.path)}
-                            onCheckedChange={() => toggleFile(file.path)}
-                          />
-                          <File className="h-3 w-3 shrink-0 text-muted-foreground" />
-                          <span className="min-w-0 truncate font-mono text-xs">{file.path}</span>
-                        </label>
-                      ))}
-                    </div>
-                    <label className="flex items-center gap-2 text-sm">
-                      <Switch checked={fullFiles} onCheckedChange={setFullFiles} />
-                      Review the whole file, not just the diff
-                    </label>
-                  </div>
-                )}
-              </ScopeCard>
-              <ScopeCard
-                selected={scope === 'codebase'}
-                title="Whole codebase"
-                description="Every source file in the project, reviewed in full. No git diff involved."
-                icon={FolderTree}
-                onClick={() => setScope('codebase')}
-              >
-                {scope === 'codebase' && (
-                  <div className="mt-2.5 space-y-3" onClick={(event) => event.stopPropagation()}>
-                    {repoFilesQuery.isPending ? (
-                      <p className="flex items-center gap-2 text-xs text-muted-foreground">
-                        <Spinner className="h-3.5 w-3.5 animate-spin" /> Listing source files…
-                      </p>
-                    ) : (
-                      <>
-                        <div className="space-y-1.5">
-                          <Label>Folder</Label>
-                          <Combobox
-                            className="w-full font-mono"
-                            value={codebaseFolder || ROOT_FOLDER_VALUE}
-                            onChange={(next) =>
-                              setCodebaseFolder(next === ROOT_FOLDER_VALUE ? '' : next)
-                            }
-                            options={folderOptions}
-                            placeholder="Whole repository"
-                            searchPlaceholder="Search folders…"
-                          />
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-2">
-                          <label className="flex items-center gap-2 text-sm">
-                            <Switch checked={includeTests} onCheckedChange={setIncludeTests} />
-                            Include tests
-                          </label>
-                          <div className="space-y-1.5">
-                            <Label htmlFor="diffray-files-per-pass">Files per pass</Label>
-                            <Input
-                              id="diffray-files-per-pass"
-                              type="number"
-                              min={1}
-                              max={DIFFRAY_MAX_FILES_PER_PASS}
-                              value={filesPerPass}
-                              onChange={(event) =>
-                                setFilesPerPass(
-                                  Math.max(
-                                    1,
-                                    Math.min(
-                                      DIFFRAY_MAX_FILES_PER_PASS,
-                                      Number(event.target.value) || 1,
-                                    ),
-                                  ),
-                                )
-                              }
-                              className="w-24 font-mono"
-                            />
-                          </div>
-                        </div>
-
-                        {codebaseFiles.length === 0 ? (
-                          <p className="text-xs text-muted-foreground">
-                            No reviewable source files here. Pick another folder, or turn tests on.
-                          </p>
-                        ) : (
-                          <>
-                            <div className="max-h-40 space-y-1 overflow-y-auto rounded-md border border-border bg-background/60 p-2">
-                              {codebaseFiles.slice(0, FILE_PREVIEW_LIMIT).map((file) => (
-                                <label
-                                  key={file}
-                                  className="flex cursor-pointer items-center gap-2 rounded px-1 py-1 text-sm hover:bg-muted/60"
-                                >
-                                  <Checkbox
-                                    checked={!skippedFiles.has(file)}
-                                    onCheckedChange={() => toggleSkippedFile(file)}
-                                  />
-                                  <File className="h-3 w-3 shrink-0 text-muted-foreground" />
-                                  <span className="min-w-0 truncate font-mono text-xs">{file}</span>
-                                </label>
-                              ))}
-                              {codebaseFiles.length > FILE_PREVIEW_LIMIT && (
-                                <p className="px-1 py-1 text-xs text-muted-foreground">
-                                  and {codebaseFiles.length - FILE_PREVIEW_LIMIT} more, all included
-                                </p>
-                              )}
-                            </div>
-                            <p className="text-xs text-muted-foreground">
-                              {reviewedCodebaseFiles.length} file
-                              {reviewedCodebaseFiles.length === 1 ? '' : 's'} · {passes} pass
-                              {passes === 1 ? '' : 'es'} · {passes * Math.max(agentIds.size, 1)}{' '}
-                              agent runs. Each pass is its own review, so a large tree costs real
-                              tokens.
-                            </p>
-                          </>
-                        )}
-                      </>
-                    )}
-                  </div>
-                )}
-              </ScopeCard>
-            </>
-          )}
-
-          {step === 'agents' && (
-            <>
-              <div className="flex items-center justify-between gap-2">
-                <p className="text-sm text-muted-foreground">
-                  Each agent reads the same diff in isolation, then findings are deduplicated and
-                  validated.
-                </p>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() =>
-                    setAgentIds(
-                      agentIds.size === DIFFRAY_AGENTS.length
-                        ? new Set()
-                        : new Set(allDiffrayAgentIds()),
-                    )
-                  }
-                >
-                  {agentIds.size === DIFFRAY_AGENTS.length ? 'Clear' : 'Select all'}
-                </Button>
-              </div>
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                {DIFFRAY_AGENTS.map((agent) => {
-                  const Icon = AGENT_ICON[agent.id];
-                  const checked = agentIds.has(agent.id);
-                  return (
-                    <button
-                      key={agent.id}
-                      type="button"
-                      onClick={() => toggleAgent(agent.id)}
-                      className={cn(
-                        'rounded-lg border border-l-4 px-3 py-3 text-left transition-colors',
-                        AGENT_GUTTER[agent.id],
-                        checked
-                          ? 'border-primary/40 bg-primary/10'
-                          : 'border-border bg-background/50 hover:bg-muted/40',
-                      )}
-                    >
-                      <span className="flex items-center gap-2 text-sm font-medium text-foreground">
-                        <Icon className="h-3.5 w-3.5 shrink-0" />
-                        {agent.label}
-                        {checked && <Check className="ml-auto h-3.5 w-3.5 text-primary" />}
-                      </span>
-                      <span className="mt-1 block text-xs text-muted-foreground">
-                        {agent.description}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            </>
-          )}
-
-          {step === 'engine' && (
-            <div className="space-y-4">
-              <div className="flex items-start justify-between gap-2">
-                <p className="text-sm text-muted-foreground">
-                  Pick the CLI that runs the agents, then the model it reviews with.
-                </p>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="shrink-0"
-                  onClick={() => setShowTradeoffs((prev) => !prev)}
-                >
-                  <CircleInfo /> {showTradeoffs ? 'Hide' : 'Compare'} models
-                </Button>
-              </div>
-
-              {showTradeoffs && <ModelTradeoffTable current={model} />}
-
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                {DIFFRAY_EXECUTORS.map((entry) => {
-                  const selected = executor === entry.id;
-                  return (
-                    <button
-                      key={entry.id}
-                      type="button"
-                      onClick={() => {
-                        setExecutor(entry.id);
-                        setModel('');
-                      }}
-                      className={cn(
-                        'rounded-lg border px-3 py-3 text-left transition-colors',
-                        selected
-                          ? 'border-primary/50 bg-primary/10'
-                          : 'border-border bg-background/50 hover:bg-muted/40',
-                      )}
-                    >
-                      <span className="flex items-center gap-2 text-sm font-medium">
-                        <CliLogo cliId={EXECUTOR_LOGO_ID[entry.id]} className="h-4 w-4 shrink-0" />
-                        {entry.label}
-                        {selected && <Check className="ml-auto h-3.5 w-3.5 text-primary" />}
-                      </span>
-                      <span className="mt-1 block pl-6 text-xs text-muted-foreground">
-                        {entry.description}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-
-              <div className="space-y-1.5">
-                <Label>Model</Label>
-                <Combobox
-                  value={model || '__default'}
-                  onChange={(next) => setModel(next === '__default' ? '' : next)}
-                  options={modelOptions}
-                  placeholder="Executor default"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label>Severity filter</Label>
-                <div className="flex flex-wrap gap-1.5">
-                  {allDiffraySeverities().map((severity) => {
-                    const checked = severities.has(severity);
-                    const SeverityIcon = SEVERITY_ICON[severity];
-                    return (
+                    {COMMIT_PRESETS.map((preset) => (
                       <button
-                        key={severity}
+                        key={preset}
                         type="button"
-                        onClick={() => toggleSeverity(severity)}
+                        onClick={() => setCommitCount(preset)}
                         className={cn(
-                          'flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs capitalize transition-colors',
-                          checked
+                          'rounded-full border px-2.5 py-1 text-xs transition-colors',
+                          commitCount === preset
                             ? 'border-primary/50 bg-primary/15 text-foreground'
                             : 'border-border text-muted-foreground hover:bg-muted/50',
                         )}
                       >
-                        <SeverityIcon className="h-3 w-3 shrink-0" />
-                        {severity}
+                        Last {preset}
                       </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              <label className="flex items-center justify-between gap-3 rounded-lg border border-border px-3 py-2.5">
-                <span className="flex items-start gap-2.5">
-                  <Shield className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
-                  <span>
-                    <span className="block text-sm font-medium">Skip validation</span>
-                    <span className="text-xs text-muted-foreground">
-                      Faster, with more false positives.
-                    </span>
-                  </span>
-                </span>
-                <Switch checked={skipValidation} onCheckedChange={setSkipValidation} />
-              </label>
-              <label className="flex items-center justify-between gap-3 rounded-lg border border-border px-3 py-2.5">
-                <span className="flex items-start gap-2.5">
-                  <Bolt className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
-                  <span>
-                    <span className="block text-sm font-medium">Stream progress</span>
-                    <span className="text-xs text-muted-foreground">
-                      {jsonOutput
-                        ? 'Off while findings go to a file, or the streamed output lands in the JSON.'
-                        : 'Show each agent as it works in the terminal.'}
-                    </span>
-                  </span>
-                </span>
-                <Switch
-                  checked={stream && !jsonOutput}
-                  onCheckedChange={setStream}
-                  disabled={jsonOutput}
-                />
-              </label>
-
-              <div className="rounded-lg border border-border px-3 py-2.5">
-                <label className="flex items-center justify-between gap-3">
-                  <span className="flex items-start gap-2.5">
-                    <FileCog className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
-                    <span>
-                      <span className="block text-sm font-medium">Save findings as JSON</span>
-                      <span className="text-xs text-muted-foreground">
-                        Writes a machine-readable report into the project instead of printing it.
-                      </span>
-                    </span>
-                  </span>
-                  <Switch checked={jsonOutput} onCheckedChange={setJsonOutput} />
-                </label>
-                {jsonOutput && (
-                  <div className="mt-2.5 space-y-1.5 pl-6.5">
-                    <Label htmlFor="diffray-json-file">Report file</Label>
-                    <Input
-                      id="diffray-json-file"
-                      value={jsonFileName}
-                      onChange={(event) => setJsonFileName(event.target.value)}
-                      placeholder={DIFFRAY_DEFAULT_JSON_FILE}
-                      className="font-mono"
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      {reportFiles.length > 1
-                        ? `One file per pass, ${reportFiles[0]} through ${reportFiles[reportFiles.length - 1]}, written in ${projectName}.`
-                        : `Written in ${projectName} as ${reportFiles[0] ?? DIFFRAY_DEFAULT_JSON_FILE}.`}
-                    </p>
+                    ))}
                   </div>
-                )}
-              </div>
-            </div>
-          )}
+                  <p className="text-xs text-muted-foreground">
+                    Reviews everything since{' '}
+                    <span className="font-mono text-foreground">HEAD~{commitCount}</span>.
+                  </p>
+                </div>
+              )}
+            </ScopeCard>
+            <ScopeCard
+              selected={scope === 'files'}
+              title="Changed files"
+              description={
+                changedFiles.length > 0
+                  ? 'Limit the review to files that already differ in git.'
+                  : 'No changed files in the working tree right now.'
+              }
+              icon={GitPullRequest}
+              disabled={changedFiles.length === 0}
+              onClick={() => changedFiles.length > 0 && setScope('files')}
+            >
+              {scope === 'files' && changedFiles.length > 0 && (
+                <div className="mt-2.5 space-y-2" onClick={(event) => event.stopPropagation()}>
+                  <div className="max-h-40 space-y-1 overflow-y-auto rounded-md border border-border bg-background/60 p-2">
+                    {changedFiles.map((file) => (
+                      <label
+                        key={file.path}
+                        className="flex cursor-pointer items-center gap-2 rounded px-1 py-1 text-sm hover:bg-muted/60"
+                      >
+                        <Checkbox
+                          checked={selectedFiles.has(file.path)}
+                          onCheckedChange={() => toggleFile(file.path)}
+                        />
+                        <File className="h-3 w-3 shrink-0 text-muted-foreground" />
+                        <span className="min-w-0 truncate font-mono text-xs">{file.path}</span>
+                      </label>
+                    ))}
+                  </div>
+                  <label className="flex items-center gap-2 text-sm">
+                    <Switch checked={fullFiles} onCheckedChange={setFullFiles} />
+                    Review the whole file, not just the diff
+                  </label>
+                </div>
+              )}
+            </ScopeCard>
+            <ScopeCard
+              selected={scope === 'codebase'}
+              title="Whole codebase"
+              description="Every source file in the project, reviewed in full. No git diff involved."
+              icon={FolderTree}
+              onClick={() => setScope('codebase')}
+            >
+              {scope === 'codebase' && (
+                <div className="mt-2.5 space-y-3" onClick={(event) => event.stopPropagation()}>
+                  {repoFilesQuery.isPending ? (
+                    <p className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <Spinner className="h-3.5 w-3.5 animate-spin" /> Listing source files…
+                    </p>
+                  ) : (
+                    <>
+                      <div className="space-y-1.5">
+                        <Label>Folder</Label>
+                        <Combobox
+                          className="w-full font-mono"
+                          value={codebaseFolder || ROOT_FOLDER_VALUE}
+                          onChange={(next) =>
+                            setCodebaseFolder(next === ROOT_FOLDER_VALUE ? '' : next)
+                          }
+                          options={folderOptions}
+                          placeholder="Whole repository"
+                          searchPlaceholder="Search folders…"
+                        />
+                      </div>
 
-          {step === 'launch' && (
-            <div className="space-y-3">
+                      <div className="grid grid-cols-2 gap-2">
+                        <label className="flex items-center gap-2 text-sm">
+                          <Switch checked={includeTests} onCheckedChange={setIncludeTests} />
+                          Include tests
+                        </label>
+                        <div className="space-y-1.5">
+                          <Label htmlFor="diffray-files-per-pass">Files per pass</Label>
+                          <Input
+                            id="diffray-files-per-pass"
+                            type="number"
+                            min={1}
+                            max={DIFFRAY_MAX_FILES_PER_PASS}
+                            value={filesPerPass}
+                            onChange={(event) =>
+                              setFilesPerPass(
+                                Math.max(
+                                  1,
+                                  Math.min(
+                                    DIFFRAY_MAX_FILES_PER_PASS,
+                                    Number(event.target.value) || 1,
+                                  ),
+                                ),
+                              )
+                            }
+                            className="w-24 font-mono"
+                          />
+                        </div>
+                      </div>
+
+                      {codebaseFiles.length === 0 ? (
+                        <p className="text-xs text-muted-foreground">
+                          No reviewable source files here. Pick another folder, or turn tests on.
+                        </p>
+                      ) : (
+                        <>
+                          <div className="max-h-40 space-y-1 overflow-y-auto rounded-md border border-border bg-background/60 p-2">
+                            {codebaseFiles.slice(0, FILE_PREVIEW_LIMIT).map((file) => (
+                              <label
+                                key={file}
+                                className="flex cursor-pointer items-center gap-2 rounded px-1 py-1 text-sm hover:bg-muted/60"
+                              >
+                                <Checkbox
+                                  checked={!skippedFiles.has(file)}
+                                  onCheckedChange={() => toggleSkippedFile(file)}
+                                />
+                                <File className="h-3 w-3 shrink-0 text-muted-foreground" />
+                                <span className="min-w-0 truncate font-mono text-xs">{file}</span>
+                              </label>
+                            ))}
+                            {codebaseFiles.length > FILE_PREVIEW_LIMIT && (
+                              <p className="px-1 py-1 text-xs text-muted-foreground">
+                                and {codebaseFiles.length - FILE_PREVIEW_LIMIT} more, all included
+                              </p>
+                            )}
+                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            {reviewedCodebaseFiles.length} file
+                            {reviewedCodebaseFiles.length === 1 ? '' : 's'} · {passes} pass
+                            {passes === 1 ? '' : 'es'} · {passes * Math.max(agentIds.size, 1)} agent
+                            runs. Each pass is its own review, so a large tree costs real tokens.
+                          </p>
+                        </>
+                      )}
+                    </>
+                  )}
+                </div>
+              )}
+            </ScopeCard>
+          </>
+        )}
+
+        {step === 'agents' && (
+          <>
+            <div className="flex items-center justify-between gap-2">
               <p className="text-sm text-muted-foreground">
-                {codebaseScript
-                  ? `The terminal gets one line, not ${commands.length} pasted commands. It runs a script that lists the source files itself, then reviews them ${filesPerPass} at a time. Nothing starts until you press Enter.`
-                  : 'The command is not run until you press Enter in the terminal. That keeps the review in your hands.'}
+                Each agent reads the same diff in isolation, then findings are deduplicated and
+                validated.
               </p>
-              <div className="max-h-56 space-y-2 overflow-y-auto">
-                {codebaseScript ? (
-                  <>
-                    <CommandBlock label="what goes in the terminal">
-                      {codebaseScript.commandFor(`…/${codebaseScript.fileName}`)}
-                    </CommandBlock>
-                    <CommandBlock label={`each of the ${commands.length} passes`}>
-                      {codebaseScript.samplePassCommand}
-                    </CommandBlock>
-                  </>
-                ) : (
-                  commands.map((entry, index) => (
-                    <CommandBlock
-                      key={entry}
-                      label={
-                        commands.length > 1 ? `pass ${index + 1} of ${commands.length}` : 'review hunk'
-                      }
-                    >
-                      {entry}
-                    </CommandBlock>
-                  ))
-                )}
-              </div>
-              {codebaseScript && (
-                <p className="text-xs text-muted-foreground">
-                  {reviewedCodebaseFiles.length} file
-                  {reviewedCodebaseFiles.length === 1 ? '' : 's'} ·{' '}
-                  {commands.length * Math.max(agentIds.size, 1)} agent runs. The script prints its
-                  progress per pass, and Ctrl+C stops it between files.
-                </p>
-              )}
-              {reportFiles.length > 0 && (
-                <p className="text-xs text-muted-foreground">
-                  Findings land in{' '}
-                  <span className="font-mono text-foreground">
-                    {reportFiles.length > 1
-                      ? `${reportFiles[0]} … ${reportFiles[reportFiles.length - 1]}`
-                      : reportFiles[0]}
-                  </span>
-                  , not in the terminal output.
-                </p>
-              )}
-              <label className="flex items-start gap-3 rounded-lg border border-border px-3 py-2.5">
-                <Switch className="mt-0.5" checked={writeConfig} onCheckedChange={setWriteConfig} />
-                <FileCog className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
-                <span>
-                  <span className="block text-sm font-medium">
-                    {hasConfig ? 'Update' : 'Write'} {DIFFRAY_PROJECT_CONFIG_FILE}
-                  </span>
-                  <span className="text-xs text-muted-foreground">
-                    Saves the executor and skips tests, dist, and node_modules on later runs.
-                  </span>
-                </span>
-              </label>
-              <button
-                type="button"
-                className="flex w-full items-center justify-between gap-2 rounded-lg border border-dashed border-border px-3 py-2.5 text-left text-sm text-muted-foreground transition-colors hover:bg-muted/40"
-                onClick={() => void window.agentmat.shell.openExternal(DIFFRAY_GITHUB_APP_URL)}
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() =>
+                  setAgentIds(
+                    agentIds.size === DIFFRAY_AGENTS.length
+                      ? new Set()
+                      : new Set(allDiffrayAgentIds()),
+                  )
+                }
               >
-                <span className="flex items-center gap-2">
-                  <Github className="h-3.5 w-3.5 shrink-0" />
-                  Want automatic PR comments? Install the GitHub App instead.
-                </span>
-                <ExternalLink className="h-3.5 w-3.5 shrink-0" />
-              </button>
+                {agentIds.size === DIFFRAY_AGENTS.length ? 'Clear' : 'Select all'}
+              </Button>
             </div>
-          )}
-        </div>
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              {DIFFRAY_AGENTS.map((agent) => {
+                const Icon = AGENT_ICON[agent.id];
+                const checked = agentIds.has(agent.id);
+                return (
+                  <button
+                    key={agent.id}
+                    type="button"
+                    onClick={() => toggleAgent(agent.id)}
+                    className={cn(
+                      'rounded-lg border border-l-4 px-3 py-3 text-left transition-colors',
+                      AGENT_GUTTER[agent.id],
+                      checked
+                        ? 'border-primary/40 bg-primary/10'
+                        : 'border-border bg-background/50 hover:bg-muted/40',
+                    )}
+                  >
+                    <span className="flex items-center gap-2 text-sm font-medium text-foreground">
+                      <Icon className="h-3.5 w-3.5 shrink-0" />
+                      {agent.label}
+                      {checked && <Check className="ml-auto h-3.5 w-3.5 text-primary" />}
+                    </span>
+                    <span className="mt-1 block text-xs text-muted-foreground">
+                      {agent.description}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </>
+        )}
 
-        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border pt-4">
-          <Button variant="ghost" onClick={goBack} disabled={stepIndex === 0}>
-            <ArrowLeft /> Back
+        {step === 'engine' && (
+          <div className="space-y-4">
+            <div className="flex items-start justify-between gap-2">
+              <p className="text-sm text-muted-foreground">
+                Pick the CLI that runs the agents, then the model it reviews with.
+              </p>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="shrink-0"
+                onClick={() => setShowTradeoffs((prev) => !prev)}
+              >
+                <CircleInfo /> {showTradeoffs ? 'Hide' : 'Compare'} models
+              </Button>
+            </div>
+
+            {showTradeoffs && <ModelTradeoffTable current={model} />}
+
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              {DIFFRAY_EXECUTORS.map((entry) => {
+                const selected = executor === entry.id;
+                return (
+                  <button
+                    key={entry.id}
+                    type="button"
+                    onClick={() => {
+                      setExecutor(entry.id);
+                      setModel('');
+                    }}
+                    className={cn(
+                      'rounded-lg border px-3 py-3 text-left transition-colors',
+                      selected
+                        ? 'border-primary/50 bg-primary/10'
+                        : 'border-border bg-background/50 hover:bg-muted/40',
+                    )}
+                  >
+                    <span className="flex items-center gap-2 text-sm font-medium">
+                      <CliLogo cliId={EXECUTOR_LOGO_ID[entry.id]} className="h-4 w-4 shrink-0" />
+                      {entry.label}
+                      {selected && <Check className="ml-auto h-3.5 w-3.5 text-primary" />}
+                    </span>
+                    <span className="mt-1 block pl-6 text-xs text-muted-foreground">
+                      {entry.description}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="space-y-1.5">
+              <Label>Model</Label>
+              <Combobox
+                value={model || '__default'}
+                onChange={(next) => setModel(next === '__default' ? '' : next)}
+                options={modelOptions}
+                placeholder="Executor default"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Severity filter</Label>
+              <div className="flex flex-wrap gap-1.5">
+                {allDiffraySeverities().map((severity) => {
+                  const checked = severities.has(severity);
+                  const SeverityIcon = SEVERITY_ICON[severity];
+                  return (
+                    <button
+                      key={severity}
+                      type="button"
+                      onClick={() => toggleSeverity(severity)}
+                      className={cn(
+                        'flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs capitalize transition-colors',
+                        checked
+                          ? 'border-primary/50 bg-primary/15 text-foreground'
+                          : 'border-border text-muted-foreground hover:bg-muted/50',
+                      )}
+                    >
+                      <SeverityIcon className="h-3 w-3 shrink-0" />
+                      {severity}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <label className="flex items-center justify-between gap-3 rounded-lg border border-border px-3 py-2.5">
+              <span className="flex items-start gap-2.5">
+                <Shield className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+                <span>
+                  <span className="block text-sm font-medium">Skip validation</span>
+                  <span className="text-xs text-muted-foreground">
+                    Faster, with more false positives.
+                  </span>
+                </span>
+              </span>
+              <Switch checked={skipValidation} onCheckedChange={setSkipValidation} />
+            </label>
+            <label className="flex items-center justify-between gap-3 rounded-lg border border-border px-3 py-2.5">
+              <span className="flex items-start gap-2.5">
+                <Bolt className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+                <span>
+                  <span className="block text-sm font-medium">Stream progress</span>
+                  <span className="text-xs text-muted-foreground">
+                    {jsonOutput
+                      ? 'Off while findings go to a file, or the streamed output lands in the JSON.'
+                      : 'Show each agent as it works in the terminal.'}
+                  </span>
+                </span>
+              </span>
+              <Switch
+                checked={stream && !jsonOutput}
+                onCheckedChange={setStream}
+                disabled={jsonOutput}
+              />
+            </label>
+
+            <div className="rounded-lg border border-border px-3 py-2.5">
+              <label className="flex items-center justify-between gap-3">
+                <span className="flex items-start gap-2.5">
+                  <FileCog className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+                  <span>
+                    <span className="block text-sm font-medium">Save findings as JSON</span>
+                    <span className="text-xs text-muted-foreground">
+                      Writes a machine-readable report into the project instead of printing it.
+                    </span>
+                  </span>
+                </span>
+                <Switch checked={jsonOutput} onCheckedChange={setJsonOutput} />
+              </label>
+              {jsonOutput && (
+                <div className="mt-2.5 space-y-1.5 pl-6.5">
+                  <Label htmlFor="diffray-json-file">Report file</Label>
+                  <Input
+                    id="diffray-json-file"
+                    value={jsonFileName}
+                    onChange={(event) => setJsonFileName(event.target.value)}
+                    placeholder={DIFFRAY_DEFAULT_JSON_FILE}
+                    className="font-mono"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    {reportFiles.length > 1
+                      ? `One file per pass, ${reportFiles[0]} through ${reportFiles[reportFiles.length - 1]}, written in ${projectName}.`
+                      : `Written in ${projectName} as ${reportFiles[0] ?? DIFFRAY_DEFAULT_JSON_FILE}.`}
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {step === 'launch' && (
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              {codebaseScript
+                ? `The terminal gets one line, not ${commands.length} pasted commands. It runs a script that lists the source files itself, then reviews them ${filesPerPass} at a time. Nothing starts until you press Enter.`
+                : 'The command is not run until you press Enter in the terminal. That keeps the review in your hands.'}
+            </p>
+            <div className="max-h-56 space-y-2 overflow-y-auto">
+              {codebaseScript ? (
+                <>
+                  <CommandBlock label="what goes in the terminal">
+                    {codebaseScript.commandFor(`…/${codebaseScript.fileName}`)}
+                  </CommandBlock>
+                  <CommandBlock label={`each of the ${commands.length} passes`}>
+                    {codebaseScript.samplePassCommand}
+                  </CommandBlock>
+                </>
+              ) : (
+                commands.map((entry, index) => (
+                  <CommandBlock
+                    key={entry}
+                    label={
+                      commands.length > 1
+                        ? `pass ${index + 1} of ${commands.length}`
+                        : 'review hunk'
+                    }
+                  >
+                    {entry}
+                  </CommandBlock>
+                ))
+              )}
+            </div>
+            {codebaseScript && (
+              <p className="text-xs text-muted-foreground">
+                {reviewedCodebaseFiles.length} file
+                {reviewedCodebaseFiles.length === 1 ? '' : 's'} ·{' '}
+                {commands.length * Math.max(agentIds.size, 1)} agent runs. The script prints its
+                progress per pass, and Ctrl+C stops it between files.
+              </p>
+            )}
+            {reportFiles.length > 0 && (
+              <p className="text-xs text-muted-foreground">
+                Findings land in{' '}
+                <span className="font-mono text-foreground">
+                  {reportFiles.length > 1
+                    ? `${reportFiles[0]} … ${reportFiles[reportFiles.length - 1]}`
+                    : reportFiles[0]}
+                </span>
+                , not in the terminal output.
+              </p>
+            )}
+            <label className="flex items-start gap-3 rounded-lg border border-border px-3 py-2.5">
+              <Switch className="mt-0.5" checked={writeConfig} onCheckedChange={setWriteConfig} />
+              <FileCog className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+              <span>
+                <span className="block text-sm font-medium">
+                  {hasConfig ? 'Update' : 'Write'} {DIFFRAY_PROJECT_CONFIG_FILE}
+                </span>
+                <span className="text-xs text-muted-foreground">
+                  Saves the executor and skips tests, dist, and node_modules on later runs.
+                </span>
+              </span>
+            </label>
+            <button
+              type="button"
+              className="flex w-full items-center justify-between gap-2 rounded-lg border border-dashed border-border px-3 py-2.5 text-left text-sm text-muted-foreground transition-colors hover:bg-muted/40"
+              onClick={() => void window.agentmat.shell.openExternal(DIFFRAY_GITHUB_APP_URL)}
+            >
+              <span className="flex items-center gap-2">
+                <Github className="h-3.5 w-3.5 shrink-0" />
+                Want automatic PR comments? Install the GitHub App instead.
+              </span>
+              <ExternalLink className="h-3.5 w-3.5 shrink-0" />
+            </button>
+          </div>
+        )}
+      </div>
+
+      <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-t border-border pb-5 pl-6 pr-5 pt-4">
+        <Button variant="ghost" onClick={goBack} disabled={stepIndex === 0}>
+          <ArrowLeft /> Back
+        </Button>
+        {step === 'launch' ? (
+          <Button onClick={() => void handleLaunch()} disabled={!canContinue}>
+            <Play /> Run review
           </Button>
-          {step === 'launch' ? (
-            <Button onClick={() => void handleLaunch()} disabled={!canContinue}>
-              <Play /> Run review
-            </Button>
-          ) : (
-            <Button onClick={goNext} disabled={!canContinue}>
-              Continue <ArrowRight />
-            </Button>
-          )}
-        </div>
+        ) : (
+          <Button onClick={goNext} disabled={!canContinue}>
+            Continue <ArrowRight />
+          </Button>
+        )}
       </div>
     </div>
   );

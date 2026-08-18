@@ -314,6 +314,9 @@ export const IPC = {
     setWatched: 'pipelines:setWatched',
     dashboardActivity: 'pipelines:dashboardActivity',
     runError: 'pipelines:runError',
+    refs: 'pipelines:refs',
+    dispatch: 'pipelines:dispatch',
+    cancelRun: 'pipelines:cancelRun',
   },
   /**
    * The in-app notification inbox. Distinct from the `notifications` group above,

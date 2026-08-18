@@ -1,15 +1,20 @@
 import type { ProjectGithubAction } from '@agentmat/core';
 import type { GithubWorkflowInfo, GithubWorkflowRunInfo } from '@shared/apiTypes';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useState } from 'react';
 import { toast } from 'sonner';
 import {
   CircleCheck,
   ExternalLink,
   Github,
+  Play,
   RefreshCw,
   Spinner,
+  StopCircle,
   TriangleAlert,
 } from '@/components/icons';
+import { CopyRunErrorButton } from '@/components/pipelines/CopyRunErrorButton';
+import { RunWorkflowDialog } from '@/components/projects/RunWorkflowDialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
@@ -17,10 +22,13 @@ import { SimpleTooltip } from '@/components/ui/tooltip';
 import { queryKeys } from '@/lib/queryKeys';
 import { timeAgo } from '@/lib/time';
 import { cn } from '@/lib/utils';
+import { confirmDialog } from '@/stores/confirmStore';
 import { useTerminalStore } from '@/stores/terminalStore';
 
 const GH_INSTALL_URL = 'https://cli.github.com/';
 const QUERY_META = { silentLoading: true } as const;
+/** A dispatched run takes a moment to show up in the API, so refresh again shortly after. */
+const SETTLE_MS = 3000;
 
 function runTone(
   run: GithubWorkflowRunInfo | null | undefined,
@@ -76,10 +84,48 @@ export function GitActionsCard({
   });
 
   const status = statusQuery.data;
+  const repo = status?.github ? `${status.github.owner}/${status.github.repo}` : '';
   const effectiveWatched = watchMutation.isPending && watchMutation.variables
     ? watchMutation.variables
     : watched;
   const watchedIds = new Set(effectiveWatched.map((item) => item.workflowId));
+
+  function refreshSoon(): void {
+    void statusQuery.refetch();
+    void queryClient.invalidateQueries({ queryKey: queryKeys.githubActionsActivity });
+    setTimeout(() => {
+      void statusQuery.refetch();
+      void queryClient.invalidateQueries({ queryKey: queryKeys.githubActionsActivity });
+    }, SETTLE_MS);
+  }
+
+  const cancelMutation = useMutation({
+    mutationFn: (runId: number) => window.agentmat.pipelines.cancelRun({ repo, runId }),
+    onSuccess: (result) => {
+      if (!result.ok) {
+        toast.error(result.error);
+        return;
+      }
+      toast.success('Asked GitHub to stop that run.');
+      refreshSoon();
+    },
+    onError: (error) => {
+      toast.error(error instanceof Error ? error.message : 'Could not stop that run.');
+    },
+  });
+
+  async function handleStop(
+    workflow: GithubWorkflowInfo,
+    run: GithubWorkflowRunInfo,
+  ): Promise<void> {
+    const confirmed = await confirmDialog({
+      title: `Stop ${workflow.name}?`,
+      description: `Run #${run.runNumber} on ${run.headBranch || 'this branch'} will be cancelled. Jobs already finished stay as they are.`,
+      confirmLabel: 'Stop run',
+      variant: 'destructive',
+    });
+    if (confirmed) cancelMutation.mutate(run.id);
+  }
 
   function handleInstallGh(): void {
     void window.agentmat.shell.openExternal(GH_INSTALL_URL);
@@ -153,10 +199,14 @@ export function GitActionsCard({
             <WorkflowRow
               key={workflow.id}
               workflow={workflow}
+              repo={repo}
               run={status.runsByWorkflowId[workflow.id]}
               watched={watchedIds.has(workflow.id)}
               pending={watchMutation.isPending}
+              stopping={cancelMutation.isPending}
               onToggle={(enabled) => toggleWatch(workflow, enabled)}
+              onStop={(run) => void handleStop(workflow, run)}
+              onStarted={refreshSoon}
             />
           ))}
         </div>
@@ -167,19 +217,29 @@ export function GitActionsCard({
 
 function WorkflowRow({
   workflow,
+  repo,
   run,
   watched,
   pending,
+  stopping,
   onToggle,
+  onStop,
+  onStarted,
 }: {
   workflow: GithubWorkflowInfo;
+  repo: string;
   run: GithubWorkflowRunInfo | null | undefined;
   watched: boolean;
   pending: boolean;
+  stopping: boolean;
   onToggle: (enabled: boolean) => void;
+  onStop: (run: GithubWorkflowRunInfo) => void;
+  onStarted: () => void;
 }): React.JSX.Element {
+  const [runOpen, setRunOpen] = useState(false);
   const tone = runTone(run);
   const running = run != null && run.status !== 'completed';
+  const failed = tone.variant === 'destructive';
 
   return (
     <div
@@ -220,6 +280,54 @@ function WorkflowRow({
           {run?.updatedAt ? ` · ${timeAgo(run.updatedAt)}` : ''}
         </p>
       </div>
+      {running && run ? (
+        <SimpleTooltip label="Stop this run">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive"
+            disabled={stopping || !repo}
+            onClick={() => onStop(run)}
+            aria-label={`Stop ${workflow.name}`}
+          >
+            <StopCircle className="h-3.5 w-3.5" />
+          </Button>
+        </SimpleTooltip>
+      ) : workflow.dispatchable && repo ? (
+        <SimpleTooltip label="Run this workflow now">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 shrink-0"
+            onClick={() => setRunOpen(true)}
+            aria-label={`Run ${workflow.name}`}
+          >
+            <Play className="h-3.5 w-3.5" />
+          </Button>
+        </SimpleTooltip>
+      ) : null}
+      {failed && run && repo ? (
+        <CopyRunErrorButton
+          iconOnly
+          input={{
+            repo,
+            runId: run.id,
+            workflowName: workflow.name,
+            displayTitle: run.displayTitle,
+            runNumber: run.runNumber,
+            headBranch: run.headBranch,
+          }}
+        />
+      ) : null}
+      {repo ? (
+        <RunWorkflowDialog
+          open={runOpen}
+          onOpenChange={setRunOpen}
+          repo={repo}
+          workflow={workflow}
+          onStarted={onStarted}
+        />
+      ) : null}
       {run?.htmlUrl ? (
         <SimpleTooltip label="Open this run on GitHub">
           <Button

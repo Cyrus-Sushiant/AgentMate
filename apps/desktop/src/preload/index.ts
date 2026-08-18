@@ -117,6 +117,10 @@ import type {
   RemoteLogEvent,
   StartHostInput,
   UpdateStatus,
+  GithubPipelineActionResult,
+  GithubRunCancelRequest,
+  GithubWorkflowDispatchRequest,
+  GithubWorkflowRefsResult,
   ProjectPipelineStatus,
   GithubActionsActivity,
   GithubActionsRunErrorInput,
@@ -553,6 +557,15 @@ const pipelines = {
     ipcRenderer.invoke(IPC.pipelines.dashboardActivity),
   runError: (input: GithubActionsRunErrorInput): Promise<GithubActionsRunErrorResult> =>
     ipcRenderer.invoke(IPC.pipelines.runError, input),
+  /** Branches and tags a manual run can be started from. */
+  refs: (repo: string): Promise<GithubWorkflowRefsResult> =>
+    ipcRenderer.invoke(IPC.pipelines.refs, repo),
+  /** Starts a workflow by hand, the way GitHub's "Run workflow" button does. */
+  dispatch: (input: GithubWorkflowDispatchRequest): Promise<GithubPipelineActionResult> =>
+    ipcRenderer.invoke(IPC.pipelines.dispatch, input),
+  /** Stops a queued or in-progress run. */
+  cancelRun: (input: GithubRunCancelRequest): Promise<GithubPipelineActionResult> =>
+    ipcRenderer.invoke(IPC.pipelines.cancelRun, input),
 };
 
 const appNotifications = {
