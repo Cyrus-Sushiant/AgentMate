@@ -24,10 +24,25 @@ export interface PetSnoozeState {
   until: number | null;
 }
 
+/** The run a pet message is about, so opening the app can land straight on it. */
+export interface PetPipelineRunRef {
+  runId: number;
+  /** owner/repo, matching the rows on the Pipelines page. */
+  repo: string;
+}
+
 export interface PetPipelineMessage {
   kind: 'pass' | 'fail' | 'warn';
   petName: string;
   text: string;
   projectName?: string;
   workflowName?: string;
+  /** Set on failures the watcher raised, so the bubble can open that run. */
+  run?: PetPipelineRunRef;
+}
+
+/** Route the Pipelines page uses to show one run, picked out of the list. */
+export function pipelineRunRoute(run: PetPipelineRunRef): string {
+  const params = new URLSearchParams({ run: String(run.runId), repo: run.repo });
+  return `/pipelines?${params.toString()}`;
 }

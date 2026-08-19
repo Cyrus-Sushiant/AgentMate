@@ -1,7 +1,8 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { clampDesktopPetClickArea, clampDesktopPetScale, isAnimatedPetFile, normalizeDesktopPetActionSpeeds, normalizeDesktopPetCardView, normalizeDesktopPetId, normalizeDesktopPetName, petBoxSize, petClickRect, type DesktopPetCardView } from '@agentmat/core';
-import type { PetPipelineMessage, PetWorkArea } from '@shared/pet';
+import { pipelineRunRoute, type PetPipelineMessage, type PetWorkArea } from '@shared/pet';
+import { ExternalLink } from '@/components/icons';
 import { cn } from '@/lib/utils';
 import { queryKeys } from '@/lib/queryKeys';
 import { chuteFitFor, resolvePet, ropeGripYFor } from './characters';
@@ -40,17 +41,30 @@ function snapshot(actor: Actor): Actor {
 
 const SPEECH_W = 220;
 const SPEECH_H = 96;
+/** A failure bubble carries an extra "open the run" line, so it sits taller. */
+const SPEECH_LINK_H = 24;
 /** Two clicks closer together than this open the app instead of the token card. */
 const DOUBLE_CLICK_MS = 260;
+
+/** The run a bubble points at, or null when it is only a message. */
+function runRefOf(message: PetPipelineMessage | null): PetPipelineMessage['run'] | null {
+  return message?.run ?? null;
+}
+
+function speechHeightFor(message: PetPipelineMessage | null): number {
+  return runRefOf(message) ? SPEECH_H + SPEECH_LINK_H : SPEECH_H;
+}
 
 function speechRectFor(
   hit: { x: number; y: number; w: number; h: number },
   area: PetWorkArea,
+  message: PetPipelineMessage | null,
 ): { x: number; y: number; w: number; h: number; below: boolean } {
+  const height = speechHeightFor(message);
   const below = hit.y < 102;
   const x = Math.min(Math.max(8, hit.x + hit.w / 2 - SPEECH_W / 2), Math.max(8, area.width - SPEECH_W - 8));
-  const y = below ? hit.y + hit.h + 8 : Math.max(8, hit.y - SPEECH_H - 10);
-  return { x, y, w: SPEECH_W, h: SPEECH_H, below };
+  const y = below ? hit.y + hit.h + 8 : Math.max(8, hit.y - height - 10);
+  return { x, y, w: SPEECH_W, h: height, below };
 }
 
 /**
@@ -182,7 +196,7 @@ export default function DesktopPetRoute(): React.JSX.Element {
     }
     const bubble = speechElRef.current;
     if (bubble) {
-      const rect = speechRectFor(hitRectFor(current), areaRef.current);
+      const rect = speechRectFor(hitRectFor(current), areaRef.current, speechRef.current);
       bubble.style.left = `${rect.x}px`;
       bubble.style.top = `${rect.y}px`;
       bubble.classList.toggle('is-below', rect.below);
@@ -192,7 +206,7 @@ export default function DesktopPetRoute(): React.JSX.Element {
 
   function hitSpeech(clientX: number, clientY: number): boolean {
     if (!speechRef.current || !actorRef.current) return false;
-    const rect = speechRectFor(hitRectFor(actorRef.current), areaRef.current);
+    const rect = speechRectFor(hitRectFor(actorRef.current), areaRef.current, speechRef.current);
     return (
       clientX >= rect.x &&
       clientX <= rect.x + rect.w &&
@@ -443,6 +457,21 @@ export default function DesktopPetRoute(): React.JSX.Element {
     return target instanceof Element && target.closest('[data-pet-hit="card"]') !== null;
   }
 
+  /**
+   * Raises the app window. When the pet is still showing a failed run, the app
+   * lands on that run in Pipelines instead of wherever it was left.
+   */
+  function openApp(): void {
+    const run = runRefOf(speechRef.current);
+    window.agentmat.pet.showMainWindow(run ? pipelineRunRoute(run) : undefined);
+  }
+
+  function dismissSpeech(): void {
+    if (speechTimer.current) clearTimeout(speechTimer.current);
+    speechTimer.current = null;
+    setSpeech(null);
+  }
+
   /** Drops a click that was waiting to see whether a double click followed. */
   function cancelPendingClick(): void {
     if (!clickTimer.current) return;
@@ -472,8 +501,15 @@ export default function DesktopPetRoute(): React.JSX.Element {
     }
     if (hitSpeech(event.clientX, event.clientY)) {
       cancelPendingClick();
-      setSpeech(null);
-      if (speechTimer.current) clearTimeout(speechTimer.current);
+      // A failure bubble is a link to the run it announced; anything else just
+      // gets waved away.
+      const run = runRefOf(speechRef.current);
+      dismissSpeech();
+      if (run) {
+        setOpen(false);
+        setMenu(null);
+        window.agentmat.pet.showMainWindow(pipelineRunRoute(run));
+      }
       return;
     }
     if (!current || !hitTest(event.clientX, event.clientY)) {
@@ -529,7 +565,7 @@ export default function DesktopPetRoute(): React.JSX.Element {
       if (clickTimer.current) {
         cancelPendingClick();
         setOpen(false);
-        window.agentmat.pet.showMainWindow();
+        openApp();
         return;
       }
       clickTimer.current = setTimeout(() => {
@@ -547,7 +583,7 @@ export default function DesktopPetRoute(): React.JSX.Element {
 
   function handleOpenApp(): void {
     setMenu(null);
-    window.agentmat.pet.showMainWindow();
+    openApp();
   }
 
   function handleToggleMove(): void {
@@ -589,7 +625,7 @@ export default function DesktopPetRoute(): React.JSX.Element {
       )
       : null;
 
-  const bubble = actor && speech && hit ? speechRectFor(hit, areaRef.current) : null;
+  const bubble = actor && speech && hit ? speechRectFor(hit, areaRef.current, speech) : null;
   const bubbleBelow = bubble?.below ?? false;
 
   const chute =
@@ -683,6 +719,12 @@ export default function DesktopPetRoute(): React.JSX.Element {
         >
           <p className="pet-speech-name">{speech.petName}</p>
           <p className="pet-speech-text">{speech.text}</p>
+          {speech.run ? (
+            <p className="pet-speech-link">
+              <ExternalLink className="h-3 w-3" />
+              <span>Click to open it in AgentMate</span>
+            </p>
+          ) : null}
         </div>
       ) : null}
 
@@ -718,6 +760,7 @@ export default function DesktopPetRoute(): React.JSX.Element {
           <PetMenu
             petName={pet.name}
             canMove={canMove}
+            failedRun={Boolean(speech?.run)}
             onOpenApp={handleOpenApp}
             onToggleMove={handleToggleMove}
             onSnooze={handleSnooze}

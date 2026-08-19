@@ -1,6 +1,7 @@
 import { app, ipcMain } from 'electron';
 import { IPC } from '../../shared/ipcChannels';
 import type { UpdateStatus } from '../../shared/apiTypes';
+import { takePendingRoute } from '../mainWindow';
 import { checkForUpdates, downloadUpdate, pauseDownload, quitAndInstall } from '../updater';
 
 /**
@@ -16,6 +17,7 @@ export function registerAppHandlers(): void {
   ipcMain.handle(IPC.app.downloadUpdate, (): Promise<void> => downloadUpdate());
   ipcMain.handle(IPC.app.pauseDownload, (): void => pauseDownload());
   ipcMain.handle(IPC.app.quitAndInstall, (): void => quitAndInstall());
+  ipcMain.handle(IPC.app.pendingNavigate, (): string | null => takePendingRoute());
   // app.quit(), not app.exit(): exit() skips before-quit, so the terminal sessions,
   // pet window, hook server and watchers registered there would never be torn down
   // and every relaunch would orphan the spawned CLI/PTY children.

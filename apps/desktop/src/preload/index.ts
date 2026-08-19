@@ -150,6 +150,14 @@ const appInfo = {
     return () => ipcRenderer.removeListener(IPC.app.onUpdateStatus, listener);
   },
   relaunch: (): Promise<void> => ipcRenderer.invoke(IPC.app.relaunch),
+  /** A route that arrived while this window was still loading, or null. */
+  pendingNavigate: (): Promise<string | null> => ipcRenderer.invoke(IPC.app.pendingNavigate),
+  /** main asking the app window to show a route, e.g. after a click on the pet. */
+  onNavigate: (callback: (route: string) => void): (() => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, route: string): void => callback(route);
+    ipcRenderer.on(IPC.app.onNavigate, listener);
+    return () => ipcRenderer.removeListener(IPC.app.onNavigate, listener);
+  },
 };
 
 const backup = {
@@ -737,7 +745,7 @@ const pet = {
   getSnooze: (): Promise<PetSnoozeState> => ipcRenderer.invoke(IPC.pet.getSnooze),
   onSnoozeChanged: (callback: (state: PetSnoozeState) => void): (() => void) =>
     subscribe(IPC.pet.onSnoozeChanged, callback),
-  showMainWindow: (): void => ipcRenderer.send(IPC.pet.showMainWindow),
+  showMainWindow: (route?: string): void => ipcRenderer.send(IPC.pet.showMainWindow, route),
 };
 
 const spellcheck = {

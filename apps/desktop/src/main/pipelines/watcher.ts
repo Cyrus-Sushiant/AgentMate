@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { BrowserWindow } from 'electron';
 import type { AppNotification, Project } from '@agentmat/core';
 import type { GithubWorkflowRunInfo } from '../../shared/apiTypes';
-import type { PetPipelineMessage } from '../../shared/pet';
+import type { PetPipelineMessage, PetPipelineRunRef } from '../../shared/pet';
 import { IPC } from '../../shared/ipcChannels';
 import { petDisplayName } from '../pet/names';
 import { petManager } from '../pet/petWindow';
@@ -61,7 +61,12 @@ async function appendFailureNotification(input: {
   broadcastNotificationsChanged();
 }
 
-async function maybeSpeak(kind: 'pass' | 'fail', project: Project, workflowName: string): Promise<void> {
+async function maybeSpeak(
+  kind: 'pass' | 'fail',
+  project: Project,
+  workflowName: string,
+  run?: PetPipelineRunRef,
+): Promise<void> {
   const settings = await store.getSettings();
   if (!settings.desktopPetEnabled) return;
   if (kind === 'fail' && !settings.desktopPetPipelineOnFail) return;
@@ -77,6 +82,7 @@ async function maybeSpeak(kind: 'pass' | 'fail', project: Project, workflowName:
     text: petSpeech(kind, project.name, workflowName),
     projectName: project.name,
     workflowName,
+    run,
   };
   petManager.sendPipelineMessage(payload);
 }
@@ -108,7 +114,9 @@ async function processWatchedWorkflow(
     const name = workflowName || run.name;
     if (isFailedConclusion(run.conclusion)) {
       await appendFailureNotification({ project, workflowName: name, run });
-      await maybeSpeak('fail', project, name);
+      // The ref rides along so clicking the bubble opens this run on the
+      // Pipelines page instead of just raising the window.
+      await maybeSpeak('fail', project, name, { runId: run.id, repo: `${owner}/${repo}` });
     } else if (run.conclusion === 'success') {
       await maybeSpeak('pass', project, name);
     }

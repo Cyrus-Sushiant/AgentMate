@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { Outlet, useLocation } from 'react-router-dom';
+import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { AskAiModal } from '@/components/askAi/AskAiModal';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import {
@@ -132,6 +132,7 @@ function TopBar(): React.JSX.Element {
 
 export function AppShell(): React.JSX.Element {
   const location = useLocation();
+  const navigate = useNavigate();
   // Only the cold start gets the full-page overlay. Every later load shimmers
   // in place on the card that's waiting. See the hook for why.
   const showLoading = useAppLoadingOverlay();
@@ -142,6 +143,20 @@ export function AppShell(): React.JSX.Element {
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: 0 });
   }, [location.pathname]);
+
+  // Deep links from outside the window: clicking the desktop pet after it
+  // announced a failed pipeline lands on that run in Pipelines. A click that
+  // started the window gets its route from the pending slot instead, since the
+  // push would have gone out before this listener existed.
+  useEffect(() => {
+    const stop = window.agentmat.app.onNavigate((route) => {
+      navigate(route);
+    });
+    void window.agentmat.app.pendingNavigate().then((route) => {
+      if (route) navigate(route);
+    });
+    return stop;
+  }, [navigate]);
 
   return (
     <div className="relative flex h-full w-full flex-col overflow-hidden bg-background text-foreground">

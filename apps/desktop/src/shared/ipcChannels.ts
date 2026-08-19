@@ -7,6 +7,10 @@ export const IPC = {
     quitAndInstall: 'app:quitAndInstall',
     onUpdateStatus: 'app:onUpdateStatus',
     relaunch: 'app:relaunch',
+    /** main -> the app window: show this route (a deep link from the pet or a tray click). */
+    onNavigate: 'app:navigate',
+    /** The renderer collecting a route that arrived while the window was still loading. */
+    pendingNavigate: 'app:pendingNavigate',
   },
   backup: {
     export: 'backup:export',
@@ -306,7 +310,10 @@ export const IPC = {
     getSnooze: 'pet:getSnooze',
     /** main -> every renderer: the hide started, was cancelled, or ran out. */
     onSnoozeChanged: 'pet:snoozeChanged',
-    /** Double-clicking the companion brings the app window back to the front. */
+    /**
+     * Brings the app window back to the front. Takes an optional route, so the
+     * failure the pet just announced can open on the Pipelines page.
+     */
     showMainWindow: 'pet:showMainWindow',
   },
   pipelines: {

@@ -38,6 +38,7 @@ export function placePetMenu(
 export function PetMenu({
   petName,
   canMove,
+  failedRun,
   onOpenApp,
   onToggleMove,
   onSnooze,
@@ -45,6 +46,8 @@ export function PetMenu({
 }: {
   petName: string;
   canMove: boolean;
+  /** The pet is still showing a failed pipeline, so opening the app lands on it. */
+  failedRun?: boolean;
   onOpenApp: () => void;
   onToggleMove: () => void;
   onSnooze: (minutes: number) => void;
@@ -57,7 +60,7 @@ export function PetMenu({
 
       <button type="button" className="pet-menu-item" onClick={onOpenApp}>
         <ExternalLink className="h-3.5 w-3.5" />
-        <span>Open AgentMate</span>
+        <span>{failedRun ? 'Open the failed run' : 'Open AgentMate'}</span>
       </button>
 
       <button type="button" className="pet-menu-item" onClick={onToggleMove}>

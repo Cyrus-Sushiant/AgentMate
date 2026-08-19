@@ -1,8 +1,8 @@
 import type { AppNotification } from '@agentmat/core';
 import type { GithubActionsActivity, GithubActionsHistoryItem } from '@shared/apiTypes';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import {
   Check,
@@ -123,11 +123,16 @@ function SetupHint({
 function RunRow({
   item,
   unread,
+  focused,
+  rowRef,
   onOpen,
   onOpenProject,
 }: {
   item: GithubActionsHistoryItem;
   unread: boolean;
+  /** The run someone arrived here to see, e.g. from the desktop pet. */
+  focused: boolean;
+  rowRef: (node: HTMLLIElement | null) => void;
   onOpen: () => void;
   onOpenProject: () => void;
 }): React.JSX.Element {
@@ -137,9 +142,11 @@ function RunRow({
 
   return (
     <li
+      ref={rowRef}
       className={cn(
-        'glass relative overflow-hidden rounded-xl',
+        'glass relative overflow-hidden rounded-xl transition-shadow',
         unread && 'ring-1 ring-destructive/35',
+        focused && 'ring-2 ring-primary shadow-[0_0_0_4px_hsl(var(--primary)/0.15)]',
       )}
     >
       <span
@@ -239,12 +246,24 @@ function RunRow({
 export default function PipelinesPage(): React.JSX.Element {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const [searchParams, setSearchParams] = useSearchParams();
   const openSession = useTerminalStore((s) => s.openSession);
   usePageHeader('Pipelines', 'Every GitHub Actions run across your projects.');
 
   const [filter, setFilter] = useState<FilterKey>('all');
   const [repo, setRepo] = useState('');
   const [search, setSearch] = useState('');
+  /** A run asked for by a deep link, waiting for the list to load. */
+  const [pendingFocus, setPendingFocus] = useState<{ runId: number; repo: string } | null>(null);
+  const [focusedRunId, setFocusedRunId] = useState<number | null>(null);
+  const rowNodes = useRef(new Map<number, HTMLLIElement>());
+
+  const bindRow = useCallback((runId: number) => {
+    return (node: HTMLLIElement | null): void => {
+      if (node) rowNodes.current.set(runId, node);
+      else rowNodes.current.delete(runId);
+    };
+  }, []);
 
   const activityQuery = useQuery({
     queryKey: queryKeys.githubActionsActivity,
@@ -265,6 +284,32 @@ export default function PipelinesPage(): React.JSX.Element {
       void queryClient.invalidateQueries({ queryKey: queryKeys.githubActionsActivity });
     });
   }, [queryClient]);
+
+  // `/pipelines?run=123&repo=owner/name`, the route the desktop pet opens after
+  // announcing a failure. Filters get cleared so the run cannot be hidden by
+  // whatever was set last time, and the query string is dropped once it is read
+  // so a later refresh does not jump around again. The list is refreshed first:
+  // a run that failed seconds ago is not in a cached response yet, and without
+  // that it would look like it had dropped off.
+  useEffect(() => {
+    const runId = Number(searchParams.get('run'));
+    if (!Number.isInteger(runId) || runId <= 0) return;
+    const wanted = { runId, repo: searchParams.get('repo') ?? '' };
+    setFilter('all');
+    setRepo('');
+    setSearch('');
+    setSearchParams({}, { replace: true });
+    let live = true;
+    void queryClient
+      .refetchQueries({ queryKey: queryKeys.githubActionsActivity })
+      .catch(() => undefined)
+      .finally(() => {
+        if (live) setPendingFocus(wanted);
+      });
+    return () => {
+      live = false;
+    };
+  }, [queryClient, searchParams, setSearchParams]);
 
   const markRead = useMutation({
     mutationFn: (id: string) => window.agentmat.appNotifications.markRead(id),
@@ -327,6 +372,34 @@ export default function PipelinesPage(): React.JSX.Element {
       return true;
     });
   }, [filter, repo, runs, search]);
+
+  // The list is in by now, so scroll the requested run into view and ring it.
+  // The frame wait lets the rows the filter reset just brought back mount.
+  useEffect(() => {
+    if (!pendingFocus) return;
+    const match = runs.find(
+      (run) =>
+        run.id === pendingFocus.runId && (!pendingFocus.repo || run.repo === pendingFocus.repo),
+    );
+    setPendingFocus(null);
+    if (!match) {
+      // With no runs at all the page already explains itself, so stay quiet.
+      if (runs.length > 0) toast.info('That run has dropped off the recent list.');
+      return;
+    }
+    setFocusedRunId(match.id);
+    const frame = requestAnimationFrame(() => {
+      rowNodes.current.get(match.id)?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [pendingFocus, runs]);
+
+  // The ring is a "here it is" pointer, not a state, so it fades on its own.
+  useEffect(() => {
+    if (focusedRunId === null) return;
+    const timer = setTimeout(() => setFocusedRunId(null), 6000);
+    return () => clearTimeout(timer);
+  }, [focusedRunId]);
 
   const loading = activityQuery.isPending;
   const connected = activity?.ok === true && activity.cliAvailable && activity.authenticated;
@@ -459,6 +532,8 @@ export default function PipelinesPage(): React.JSX.Element {
                 key={`${item.repo}-${item.id}`}
                 item={item}
                 unread={item.htmlUrl ? unreadByUrl.has(item.htmlUrl) : false}
+                focused={focusedRunId === item.id}
+                rowRef={bindRow(item.id)}
                 onOpen={() => handleOpenRun(item)}
                 onOpenProject={() => {
                   if (item.projectId) navigate(`/projects/${item.projectId}?tab=git`);

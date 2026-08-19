@@ -11,8 +11,10 @@ export function registerPetHandlers(): void {
     petManager.setClickThrough(Boolean(ignore));
   });
 
-  ipcMain.on(IPC.pet.showMainWindow, () => {
-    focusMainWindow();
+  ipcMain.on(IPC.pet.showMainWindow, (_event, route?: unknown) => {
+    // Only in-app routes, never an arbitrary URL the renderer could hand over.
+    const target = typeof route === 'string' && route.startsWith('/') ? route : undefined;
+    focusMainWindow(target);
   });
 
   ipcMain.handle(IPC.pet.getWorkArea, (): PetWorkArea => petManager.workArea());
