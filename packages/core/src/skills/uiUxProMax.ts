@@ -149,6 +149,23 @@ export function buildUiProUpdateCommand(method: UiProInstallMethod, global: bool
 }
 
 /**
+ * Updating means two things: pulling the newest CLI from npm, then re-running `uipro update` so
+ * the installed skill files are regenerated from it. Like the install plan, `claude-plugin` has no
+ * shell commands (the plugin is updated from inside Claude Code).
+ */
+export function buildUiProUpdatePlan(options: {
+  method: UiProInstallMethod;
+  global: boolean;
+}): UiProCommandPlan {
+  if (options.method === 'claude-plugin') return { setup: [], install: [] };
+  return {
+    setup:
+      options.method === 'npm-global' ? [`npm install -g ${UI_UX_PRO_MAX_NPM_PACKAGE}@latest`] : [],
+    install: [buildUiProUpdateCommand(options.method, options.global)],
+  };
+}
+
+/**
  * The design-system generator, invoked directly. The script path depends on which assistant the
  * skill was installed for, hence the folder argument.
  */

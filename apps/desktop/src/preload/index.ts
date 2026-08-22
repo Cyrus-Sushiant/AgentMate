@@ -56,6 +56,7 @@ import type {
   SkillsShSearchResult,
   InstallFromSkillsShInput,
   UiProPrerequisites,
+  UiProUpdateCheck,
   RecordUiProInstallInput,
   AuditSourcePreview,
   AuditSourceSkill,
@@ -276,6 +277,9 @@ const skills = {
     ipcRenderer.invoke(IPC.skills.recordSkillsShInstall, input),
   checkUiProPrerequisites: (): Promise<UiProPrerequisites> =>
     ipcRenderer.invoke(IPC.skills.checkUiProPrerequisites),
+  /** Compares the installed `uipro` CLI against the latest release on npm. */
+  checkUiProUpdate: (): Promise<UiProUpdateCheck> =>
+    ipcRenderer.invoke(IPC.skills.checkUiProUpdate),
   recordUiProInstall: (input: RecordUiProInstallInput): Promise<void> =>
     ipcRenderer.invoke(IPC.skills.recordUiProInstall, input),
   /** Scans a skill for prompt injection, exfiltration, and the other risk categories. */

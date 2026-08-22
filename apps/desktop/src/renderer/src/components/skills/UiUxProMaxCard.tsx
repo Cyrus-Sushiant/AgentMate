@@ -1,7 +1,9 @@
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
 import {
   buildUiProDesignSystemCommand,
+  buildUiProUpdatePlan,
   UI_UX_PRO_MAX_EXAMPLE_PROMPTS,
   UI_UX_PRO_MAX_GITHUB_URL,
   UI_UX_PRO_MAX_HIGHLIGHTS,
@@ -10,7 +12,20 @@ import {
   UI_UX_PRO_MAX_SKILL_ID,
   UI_UX_PRO_MAX_STACK_GROUPS,
 } from '@agentmat/core';
-import { Download, ExternalLink, Eye, Globe, Sparkles } from '@/components/icons';
+import type { UiProInstallMethod } from '@agentmat/core';
+import type { UiProUpdateCheck } from '@shared/apiTypes';
+import {
+  CircleCheck,
+  CloudDownload,
+  Download,
+  ExternalLink,
+  Eye,
+  Globe,
+  RefreshCw,
+  Sparkles,
+  Spinner,
+  TriangleAlert,
+} from '@/components/icons';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -24,6 +39,8 @@ import {
 } from '@/components/ui/dialog';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { queryKeys } from '@/lib/queryKeys';
+import { cn } from '@/lib/utils';
+import { useTerminalStore } from '@/stores/terminalStore';
 import { UiUxProMaxWizard } from './UiUxProMaxWizard';
 
 const PIPELINE = [
@@ -42,6 +59,54 @@ const PIPELINE = [
   },
 ];
 
+/** Keeps the check off the app's loading overlay: it reports progress on its own button. */
+const UPDATE_CHECK_META = { silentLoading: true } as const;
+
+/** The four ways a version check can land, flattened out of the check result for rendering. */
+function updateStatus(check: UiProUpdateCheck): {
+  kind: 'missing' | 'offline' | 'update' | 'current';
+  headline: string;
+  detail: string;
+} {
+  if (!check.cliFound) {
+    return {
+      kind: 'missing',
+      headline: 'The uipro CLI is not on this machine',
+      detail: check.latestVersion
+        ? `The latest release is ${check.latestVersion}. Install the skill to get it.`
+        : 'Install the skill first, then this button reports new releases.',
+    };
+  }
+  if (!check.latestVersion) {
+    return {
+      kind: 'offline',
+      headline: 'Could not reach the npm registry',
+      detail: 'The installed CLI was found, the latest release was not. Try again in a moment.',
+    };
+  }
+  if (check.updateAvailable && check.installedVersion) {
+    return {
+      kind: 'update',
+      headline: `Update available: ${check.installedVersion} to ${check.latestVersion}`,
+      detail: 'Updating pulls the new CLI, then re-runs uipro update to regenerate the skill files.',
+    };
+  }
+  // A CLI whose --version printed nothing recognizable cannot be compared, so it is offered the
+  // update rather than being called up to date.
+  if (!check.installedVersion) {
+    return {
+      kind: 'update',
+      headline: `The latest release is ${check.latestVersion}`,
+      detail: 'The installed CLI did not report a version, so run the update to be sure.',
+    };
+  }
+  return {
+    kind: 'current',
+    headline: `Up to date, uipro ${check.installedVersion}`,
+    detail: 'The skill files came from this release. Re-run the update to regenerate them anyway.',
+  };
+}
+
 /**
  * The featured entry for UI UX Pro Max (https://github.com/nextlevelbuilder/ui-ux-pro-max-skill).
  * It sits apart from the repository and skills.sh tabs because it is installed by its own CLI
@@ -50,12 +115,47 @@ const PIPELINE = [
 export function UiUxProMaxCard(): React.JSX.Element {
   const [wizardOpen, setWizardOpen] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
+  const queryClient = useQueryClient();
+  const openTerminalSession = useTerminalStore((s) => s.openSession);
 
   const globalInstalledQuery = useQuery({
     queryKey: queryKeys.installedSkills(null),
     queryFn: () => window.agentmat.skills.listInstalled(null),
   });
   const globalRecord = globalInstalledQuery.data?.find((s) => s.skillId === UI_UX_PRO_MAX_SKILL_ID);
+
+  // The route the skill was installed by decides how it is updated: npx never installs the CLI
+  // globally, and the Claude Code plugin is updated from inside Claude Code instead.
+  const installMethod = (globalRecord?.installMethod ?? 'npm-global') as UiProInstallMethod;
+  const isPluginInstall = installMethod === 'claude-plugin';
+
+  const updateCheck = useMutation({
+    mutationFn: () => window.agentmat.skills.checkUiProUpdate(),
+    // The button carries its own spinner, so this must not raise the full-page overlay.
+    meta: UPDATE_CHECK_META,
+    onSuccess: () => {
+      // The wizard shows the same `uipro --version`, so let it re-probe next time it opens.
+      void queryClient.invalidateQueries({ queryKey: queryKeys.uiProPrerequisites });
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+  const check = updateCheck.data;
+  const status = check ? updateStatus(check) : null;
+
+  /**
+   * Types the update into a terminal tab without running it, the same way the install wizard
+   * does, so the commands can be read first. PowerShell 5.1 has no `&&`, hence `;`.
+   */
+  function runUpdate(): void {
+    const plan = buildUiProUpdatePlan({ method: installMethod, global: Boolean(globalRecord) });
+    const commands = [...plan.setup, ...plan.install];
+    if (commands.length === 0) return;
+    openTerminalSession({
+      title: 'Update UI UX Pro Max',
+      initialInput: commands.join('; '),
+    });
+    toast.info('Press Enter in the terminal to run the update.');
+  }
 
   return (
     <>
@@ -98,6 +198,18 @@ export function UiUxProMaxCard(): React.JSX.Element {
             <Button variant="outline" onClick={() => setDetailsOpen(true)}>
               <Eye className="h-4 w-4" /> What it does
             </Button>
+            <Button
+              variant="outline"
+              disabled={updateCheck.isPending}
+              onClick={() => updateCheck.mutate()}
+            >
+              {updateCheck.isPending ? (
+                <Spinner className="h-4 w-4 animate-spin" />
+              ) : (
+                <RefreshCw className="h-4 w-4" />
+              )}
+              {updateCheck.isPending ? 'Checking…' : 'Check for updates'}
+            </Button>
             <SimpleTooltip label="Open the repository on GitHub">
               <Button
                 variant="ghost"
@@ -117,6 +229,52 @@ export function UiUxProMaxCard(): React.JSX.Element {
               </Button>
             </SimpleTooltip>
           </div>
+
+          {status && (
+            <div
+              className={cn(
+                'flex flex-wrap items-center gap-3 rounded-lg border px-3 py-2.5',
+                status.kind === 'update'
+                  ? 'border-primary/60 bg-primary/10'
+                  : 'border-border bg-card/60',
+              )}
+            >
+              {status.kind === 'update' ? (
+                <CloudDownload className="h-4 w-4 shrink-0 text-primary" />
+              ) : status.kind === 'current' ? (
+                <CircleCheck className="h-4 w-4 shrink-0 text-success" />
+              ) : (
+                <TriangleAlert className="h-4 w-4 shrink-0 text-warning" />
+              )}
+
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-medium text-foreground">{status.headline}</p>
+                <p className="text-xs text-muted-foreground">
+                  {isPluginInstall && status.kind !== 'missing'
+                    ? 'Installed through the Claude Code plugin marketplace, so update it from /plugin inside Claude Code.'
+                    : status.detail}
+                </p>
+              </div>
+
+              {status.kind === 'missing' ? (
+                <Button size="sm" onClick={() => setWizardOpen(true)}>
+                  <Download className="h-4 w-4" /> Install
+                </Button>
+              ) : (
+                !isPluginInstall &&
+                status.kind !== 'offline' && (
+                  <Button
+                    size="sm"
+                    variant={status.kind === 'update' ? 'default' : 'outline'}
+                    onClick={runUpdate}
+                  >
+                    <CloudDownload className="h-4 w-4" />
+                    {status.kind === 'update' ? 'Update now' : 'Re-run update'}
+                  </Button>
+                )
+              )}
+            </div>
+          )}
 
           {globalRecord && globalRecord.agents && globalRecord.agents.length > 0 && (
             <p className="text-xs text-muted-foreground">

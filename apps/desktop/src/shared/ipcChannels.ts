@@ -70,6 +70,7 @@ export const IPC = {
     getSkillsShDetail: 'skills:getSkillsShDetail',
     recordSkillsShInstall: 'skills:recordSkillsShInstall',
     checkUiProPrerequisites: 'skills:checkUiProPrerequisites',
+    checkUiProUpdate: 'skills:checkUiProUpdate',
     recordUiProInstall: 'skills:recordUiProInstall',
     // Security audit
     runAudit: 'skills:runAudit',
