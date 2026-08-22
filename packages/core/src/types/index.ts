@@ -314,8 +314,12 @@ export interface AppSettings {
   openaiModel: string;
   /** Base URL of a local Ollama server, e.g. "http://localhost:11434". */
   ollamaBaseUrl: string;
-  /** Last model selected for Ollama requests on the Ask AI page. */
+  /** Last model selected for Ollama requests on the Ask AI page, and the default the pickers start on. */
   ollamaModel: string;
+  /** Context window size (num_ctx) sent with Ollama requests; null keeps whatever the model ships with. */
+  ollamaContextLength: number | null;
+  /** How long Ollama keeps a model in RAM after a request: "5m", "1h", "0" to unload right away, "-1" to keep it loaded. */
+  ollamaKeepAlive: string;
   /** API key for Google's Gemini API, used by the Ask AI page. */
   geminiApiKey: string | null;
   /** Model id sent with Gemini requests, e.g. "gemini-2.0-flash". */

@@ -57,6 +57,7 @@ import { usePingTargetsStore } from '@/stores/pingTargetsStore';
 import { openUpdateDialog, useUpdateStore } from '@/stores/updateStore';
 import { confirmDialog } from '@/stores/confirmStore';
 import type { AiProvider, ThemeMode } from '@agentmat/core';
+import type { OllamaConnectionTest } from '@shared/apiTypes';
 import { cn } from '@/lib/utils';
 import { CompanionSettings } from '@/components/pet/CompanionSettings';
 import { ShortcutSettings } from '@/components/settings/ShortcutSettings';
@@ -111,7 +112,7 @@ const TAB_META: {
   { id: 'general', label: 'General', icon: SettingsIcon, keywords: 'appearance theme cli projects folder skills' },
   { id: 'shortcuts', label: 'Shortcuts', icon: Keyboard, keywords: 'keyboard shortcut shortcuts keybinding hotkey ctrl cmd alt terminal projects palette' },
   { id: 'companion', label: 'AI Pet', icon: Paw, keywords: 'pet ai pet my ai pet companion desktop character walk mascot climb rope size click area tight wander gif png webp custom add pipeline github actions fail pass notify internet quality ping offline' },
-  { id: 'ai', label: 'AI', icon: MessageSquare, keywords: 'openai gemini ollama api key whisper voice translate writing grammar spelling style languagetool' },
+  { id: 'ai', label: 'AI', icon: MessageSquare, keywords: 'openai gemini ollama api key whisper voice translate writing grammar spelling style languagetool context length num_ctx keep alive test connection local model' },
   { id: 'notifications', label: 'Notifications', icon: Bell, keywords: 'telegram bot chat notify' },
   { id: 'data', label: 'Data', icon: HardDrive, keywords: 'backup restore ping network about version update' },
 ];
@@ -447,6 +448,12 @@ export default function SettingsPage(): React.JSX.Element {
   const [openaiApiKey, setOpenaiApiKey] = useState('');
   const [openaiModel, setOpenaiModel] = useState('');
   const [ollamaBaseUrl, setOllamaBaseUrl] = useState('');
+  const [ollamaModel, setOllamaModel] = useState('');
+  const [ollamaContextLength, setOllamaContextLength] = useState('');
+  const [ollamaKeepAlive, setOllamaKeepAlive] = useState('');
+  const [debouncedOllamaUrl, setDebouncedOllamaUrl] = useState('');
+  const [ollamaTest, setOllamaTest] = useState<OllamaConnectionTest | null>(null);
+  const [testingOllama, setTestingOllama] = useState(false);
   const [geminiApiKey, setGeminiApiKey] = useState('');
   const [geminiModel, setGeminiModel] = useState('');
   const [promptBuilderProvider, setPromptBuilderProvider] = useState<AiProvider>('openai');
@@ -457,11 +464,60 @@ export default function SettingsPage(): React.JSX.Element {
       setOpenaiApiKey(settingsQuery.data.openaiApiKey ?? '');
       setOpenaiModel(settingsQuery.data.openaiModel);
       setOllamaBaseUrl(settingsQuery.data.ollamaBaseUrl);
+      setOllamaModel(settingsQuery.data.ollamaModel);
+      setOllamaContextLength(
+        settingsQuery.data.ollamaContextLength ? String(settingsQuery.data.ollamaContextLength) : '',
+      );
+      setOllamaKeepAlive(settingsQuery.data.ollamaKeepAlive);
       setGeminiApiKey(settingsQuery.data.geminiApiKey ?? '');
       setGeminiModel(settingsQuery.data.geminiModel);
       setPromptBuilderProvider(settingsQuery.data.promptBuilderProvider);
     }
   }, [settingsQuery.data, aiDirty]);
+
+  // Typing in the URL field shouldn't fire a request per keystroke.
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedOllamaUrl(ollamaBaseUrl), 400);
+    return () => clearTimeout(timer);
+  }, [ollamaBaseUrl]);
+
+  // Only probed while the AI tab is on screen, so a stopped Ollama doesn't error on every visit.
+  const ollamaModelsQuery = useQuery({
+    queryKey: ['settings-ollama-models', debouncedOllamaUrl],
+    queryFn: () => window.agentmat.ai.listOllamaModels(debouncedOllamaUrl),
+    enabled: tab === 'ai' || Boolean(query),
+    retry: false,
+    staleTime: 30_000,
+  });
+
+  const ollamaModelOptions = useMemo(
+    () => (ollamaModelsQuery.data ?? []).map((name) => ({ value: name, label: name })),
+    [ollamaModelsQuery.data],
+  );
+
+  const parsedContext = Number.parseInt(ollamaContextLength.trim(), 10);
+  const parsedOllamaContext =
+    Number.isFinite(parsedContext) && parsedContext > 0 ? parsedContext : null;
+
+  async function handleTestOllama(): Promise<void> {
+    setTestingOllama(true);
+    try {
+      const result = await window.agentmat.ai.testOllama(ollamaBaseUrl);
+      setOllamaTest(result);
+      if (!result.ok) {
+        toast.error(result.error ?? 'Could not reach Ollama.');
+      } else if (result.modelCount === 0) {
+        toast.warning('Connected, but no models are installed. Pull one with "ollama pull".');
+      } else {
+        toast.success(
+          `Connected to Ollama${result.version ? ` ${result.version}` : ''}. ${result.modelCount} model${result.modelCount === 1 ? '' : 's'} installed.`,
+        );
+      }
+      void ollamaModelsQuery.refetch();
+    } finally {
+      setTestingOllama(false);
+    }
+  }
 
   const saveAiMutation = useMutation({
     mutationFn: () =>
@@ -469,6 +525,9 @@ export default function SettingsPage(): React.JSX.Element {
         openaiApiKey: openaiApiKey.trim() || null,
         openaiModel: openaiModel.trim() || 'gpt-4o-mini',
         ollamaBaseUrl: ollamaBaseUrl.trim() || 'http://localhost:11434',
+        ollamaModel: ollamaModel.trim(),
+        ollamaContextLength: parsedOllamaContext,
+        ollamaKeepAlive: ollamaKeepAlive.trim() || '5m',
         geminiApiKey: geminiApiKey.trim() || null,
         geminiModel: geminiModel.trim() || 'gemini-2.0-flash',
         promptBuilderProvider,
@@ -738,7 +797,7 @@ export default function SettingsPage(): React.JSX.Element {
     showSection('general', 'default cli provider agent arguments args flags model', 'Default CLI'),
     showSection('general', 'projects folder path directory', 'Projects folder'),
     showSection('general', 'skills repositories sources', 'Skill repositories'),
-    showSection('ai', 'openai gemini ollama api key model prompt builder provider', 'Providers'),
+    showSection('ai', 'openai gemini ollama api key model prompt builder provider context length num_ctx keep alive test connection', 'Providers'),
     showSection('ai', 'voice whisper speech microphone transcription', 'Voice input'),
     showSection('ai', WRITING_CHECK_KEYWORDS, 'Writing check'),
     showSection('ai', 'translation retries translate', 'Translation retries'),
@@ -994,7 +1053,7 @@ export default function SettingsPage(): React.JSX.Element {
 
               {showSection(
                 'ai',
-                'openai gemini ollama api key model prompt builder provider',
+                'openai gemini ollama api key model prompt builder provider context length num_ctx keep alive test connection',
                 'Providers',
               ) && (
                 <SettingsCard
@@ -1105,9 +1164,23 @@ export default function SettingsPage(): React.JSX.Element {
                     </div>
 
                     <div className="space-y-3 border-t border-border/60 pt-5">
-                      <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                        Ollama
-                      </p>
+                      <div className="flex items-center gap-2">
+                        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                          Ollama
+                        </p>
+                        {ollamaTest ? (
+                          <Badge
+                            variant={ollamaTest.ok ? 'success' : 'destructive'}
+                            className="font-normal"
+                          >
+                            {ollamaTest.ok
+                              ? ollamaTest.version
+                                ? `Connected · ${ollamaTest.version}`
+                                : 'Connected'
+                              : 'Not reachable'}
+                          </Badge>
+                        ) : null}
+                      </div>
                       <Field
                         label="Server URL"
                         htmlFor="ollama-base-url"
@@ -1119,18 +1192,99 @@ export default function SettingsPage(): React.JSX.Element {
                           </>
                         }
                       >
-                        <Input
-                          id="ollama-base-url"
-                          value={ollamaBaseUrl}
-                          onChange={(event) => {
-                            setOllamaBaseUrl(event.target.value);
-                            setAiDirty(true);
-                          }}
-                          placeholder="http://localhost:11434"
-                          className="max-w-md font-mono"
-                          spellCheck={false}
-                        />
+                        <div className="flex max-w-xl items-center gap-2">
+                          <Input
+                            id="ollama-base-url"
+                            value={ollamaBaseUrl}
+                            onChange={(event) => {
+                              setOllamaBaseUrl(event.target.value);
+                              setOllamaTest(null);
+                              setAiDirty(true);
+                            }}
+                            placeholder="http://localhost:11434"
+                            className="font-mono"
+                            spellCheck={false}
+                          />
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="shrink-0"
+                            disabled={testingOllama}
+                            onClick={() => void handleTestOllama()}
+                          >
+                            {testingOllama ? 'Testing…' : 'Test connection'}
+                          </Button>
+                        </div>
                       </Field>
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <Field
+                          label="Default model"
+                          hint="Picked first on the Ask AI page and used by Prompt Builder. The list comes from the server above."
+                        >
+                          <div className="flex items-center gap-2">
+                            <Combobox
+                              className="min-w-0 flex-1"
+                              value={ollamaModel}
+                              onChange={(value) => {
+                                setOllamaModel(value);
+                                setAiDirty(true);
+                              }}
+                              options={ollamaModelOptions}
+                              placeholder={
+                                ollamaModelsQuery.isFetching ? 'Loading models…' : 'Choose a model'
+                              }
+                              emptyText="No models found. Is Ollama running?"
+                              clearable
+                            />
+                            <SimpleTooltip label="Refresh model list" wrapTrigger>
+                              <Button
+                                variant="outline"
+                                size="icon"
+                                className="shrink-0"
+                                disabled={ollamaModelsQuery.isFetching}
+                                onClick={() => void ollamaModelsQuery.refetch()}
+                              >
+                                <RefreshCw className="h-3.5 w-3.5" />
+                              </Button>
+                            </SimpleTooltip>
+                          </div>
+                        </Field>
+                        <Field
+                          label="Context length"
+                          htmlFor="ollama-context-length"
+                          hint="Tokens the model keeps in its window (num_ctx). Leave empty to use whatever the model ships with. Bigger values need more RAM or VRAM."
+                        >
+                          <Input
+                            id="ollama-context-length"
+                            inputMode="numeric"
+                            value={ollamaContextLength}
+                            onChange={(event) => {
+                              setOllamaContextLength(event.target.value.replace(/[^0-9]/g, ''));
+                              setAiDirty(true);
+                            }}
+                            placeholder="Model default (e.g. 8192)"
+                            className="font-mono"
+                            spellCheck={false}
+                          />
+                        </Field>
+                        <Field
+                          label="Keep model in memory"
+                          htmlFor="ollama-keep-alive"
+                          hint='How long Ollama holds the model in RAM after a request (keep_alive). Use "5m", "1h", "0" to free it right away, or "-1" to keep it loaded.'
+                        >
+                          <Input
+                            id="ollama-keep-alive"
+                            value={ollamaKeepAlive}
+                            onChange={(event) => {
+                              setOllamaKeepAlive(event.target.value);
+                              setAiDirty(true);
+                            }}
+                            placeholder="5m"
+                            className="font-mono"
+                            spellCheck={false}
+                          />
+                        </Field>
+                      </div>
                     </div>
 
                     <div className="border-t border-border/60 pt-5">

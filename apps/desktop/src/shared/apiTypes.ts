@@ -401,6 +401,15 @@ export interface SpeechModelState {
   modelId: string;
 }
 
+export interface OllamaConnectionTest {
+  ok: boolean;
+  /** Version reported by the server, when it answered /api/version. */
+  version?: string;
+  /** How many models are installed, so the UI can warn about an empty server. */
+  modelCount?: number;
+  error?: string;
+}
+
 export interface AskAiHistoryMessage {
   role: 'user' | 'assistant';
   content: string;

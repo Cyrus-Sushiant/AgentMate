@@ -75,6 +75,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   openaiModel: 'gpt-4o-mini',
   ollamaBaseUrl: 'http://localhost:11434',
   ollamaModel: '',
+  ollamaContextLength: null,
+  ollamaKeepAlive: '5m',
   geminiApiKey: null,
   geminiModel: 'gemini-2.0-flash',
   promptBuilderProvider: 'openai',

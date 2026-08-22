@@ -150,6 +150,7 @@ export const IPC = {
     ask: 'ai:ask',
     cancel: 'ai:cancel',
     listOllamaModels: 'ai:listOllamaModels',
+    testOllama: 'ai:testOllama',
     listGeminiModels: 'ai:listGeminiModels',
   },
   projectDrafts: {

@@ -5,6 +5,7 @@ import type {
   AskAiHistoryMessage,
   AskAiInput,
   AskAiResult,
+  OllamaConnectionTest,
 } from '../../shared/apiTypes';
 import { store } from '../store';
 
@@ -57,6 +58,16 @@ async function askOpenAi(
   return data.choices?.[0]?.message?.content ?? '';
 }
 
+/** Falls back to the saved server, then to the local default, and drops any trailing slashes. */
+function normalizeOllamaUrl(saved: string, override?: string): string {
+  return (override?.trim() || saved || 'http://localhost:11434').replace(/\/+$/, '');
+}
+
+async function ollamaBaseUrl(override?: string): Promise<string> {
+  const settings = await store.getSettings();
+  return normalizeOllamaUrl(settings.ollamaBaseUrl, override);
+}
+
 async function askOllama(
   model: string,
   prompt: string,
@@ -64,8 +75,11 @@ async function askOllama(
   signal?: AbortSignal,
 ): Promise<string> {
   const settings = await store.getSettings();
-  const baseUrl = (settings.ollamaBaseUrl || 'http://localhost:11434').replace(/\/+$/, '');
+  const baseUrl = normalizeOllamaUrl(settings.ollamaBaseUrl);
   if (!model) throw new Error('Choose an Ollama model first.');
+
+  const numCtx = settings.ollamaContextLength;
+  const keepAlive = settings.ollamaKeepAlive?.trim();
 
   let response: Response;
   try {
@@ -79,6 +93,9 @@ async function askOllama(
           { role: 'user', content: prompt },
         ],
         stream: false,
+        // Omitted keys let Ollama keep its own defaults, so only send what the user set.
+        ...(keepAlive ? { keep_alive: keepAlive } : {}),
+        ...(numCtx && numCtx > 0 ? { options: { num_ctx: numCtx } } : {}),
       }),
       signal,
     });
@@ -173,13 +190,12 @@ async function listGeminiModels(): Promise<string[]> {
     .sort();
 }
 
-async function listOllamaModels(): Promise<string[]> {
-  const settings = await store.getSettings();
-  const baseUrl = (settings.ollamaBaseUrl || 'http://localhost:11434').replace(/\/+$/, '');
+async function listOllamaModels(baseUrlOverride?: string): Promise<string[]> {
+  const baseUrl = await ollamaBaseUrl(baseUrlOverride);
 
   let response: Response;
   try {
-    response = await fetch(`${baseUrl}/api/tags`);
+    response = await fetch(`${baseUrl}/api/tags`, { signal: AbortSignal.timeout(8000) });
   } catch {
     throw new Error(`Could not reach Ollama at ${baseUrl}. Is it running?`);
   }
@@ -189,6 +205,30 @@ async function listOllamaModels(): Promise<string[]> {
 
   const data = (await response.json()) as { models?: { name: string }[] };
   return (data.models ?? []).map((m) => m.name);
+}
+
+/** Probes a server for the Settings "Test connection" button, reporting failures instead of throwing. */
+async function testOllamaConnection(baseUrlOverride?: string): Promise<OllamaConnectionTest> {
+  const baseUrl = await ollamaBaseUrl(baseUrlOverride);
+
+  let version: string | undefined;
+  try {
+    const response = await fetch(`${baseUrl}/api/version`, { signal: AbortSignal.timeout(8000) });
+    if (!response.ok) {
+      return { ok: false, error: `Ollama answered with status ${response.status}.` };
+    }
+    const data = (await response.json()) as { version?: string };
+    version = data.version;
+  } catch {
+    return { ok: false, error: `Could not reach Ollama at ${baseUrl}. Is it running?` };
+  }
+
+  try {
+    const models = await listOllamaModels(baseUrl);
+    return { ok: true, version, modelCount: models.length };
+  } catch (error) {
+    return { ok: false, version, error: (error as Error).message };
+  }
 }
 
 /** Shared by the Ask AI IPC handler and other features (e.g. git branch/commit suggestions). */
@@ -238,6 +278,13 @@ export function registerAiHandlers(): void {
     return true;
   });
 
-  ipcMain.handle(IPC.ai.listOllamaModels, (): Promise<string[]> => listOllamaModels());
+  ipcMain.handle(
+    IPC.ai.listOllamaModels,
+    (_event, baseUrl?: string): Promise<string[]> => listOllamaModels(baseUrl),
+  );
+  ipcMain.handle(
+    IPC.ai.testOllama,
+    (_event, baseUrl?: string): Promise<OllamaConnectionTest> => testOllamaConnection(baseUrl),
+  );
   ipcMain.handle(IPC.ai.listGeminiModels, (): Promise<string[]> => listGeminiModels());
 }

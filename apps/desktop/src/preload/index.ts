@@ -74,6 +74,7 @@ import type {
   SpeechModelState,
   AskAiInput,
   AskAiResult,
+  OllamaConnectionTest,
   SystemStatsSample,
   TopResourceAppsResult,
   TopResourceKind,
@@ -408,7 +409,12 @@ const ai = {
   ask: (input: AskAiInput): Promise<AskAiResult> => ipcRenderer.invoke(IPC.ai.ask, input),
   /** Aborts an in-flight ask() that was given the same requestId. */
   cancel: (requestId: string): Promise<boolean> => ipcRenderer.invoke(IPC.ai.cancel, requestId),
-  listOllamaModels: (): Promise<string[]> => ipcRenderer.invoke(IPC.ai.listOllamaModels),
+  /** Lists installed Ollama models. Pass a baseUrl to probe a server that hasn't been saved yet. */
+  listOllamaModels: (baseUrl?: string): Promise<string[]> =>
+    ipcRenderer.invoke(IPC.ai.listOllamaModels, baseUrl),
+  /** Pings an Ollama server and reports its version and how many models it has. */
+  testOllama: (baseUrl?: string): Promise<OllamaConnectionTest> =>
+    ipcRenderer.invoke(IPC.ai.testOllama, baseUrl),
   listGeminiModels: (): Promise<string[]> => ipcRenderer.invoke(IPC.ai.listGeminiModels),
 };
 
