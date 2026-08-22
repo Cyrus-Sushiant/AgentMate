@@ -1,4 +1,12 @@
-import { siClaudecode, siCline, siCursor, siGooglegemini, siOpencode, siQwen } from 'simple-icons';
+import {
+  siClaudecode,
+  siCline,
+  siCursor,
+  siGithubcopilot,
+  siGooglegemini,
+  siOpencode,
+  siQwen,
+} from 'simple-icons';
 import {
   aiderMark,
   continueMark,
@@ -24,6 +32,11 @@ const BRAND_LOGOS: Record<string, BrandLogo> = {
   'qwen-cli': { path: siQwen.path, color: `#${siQwen.hex}` },
   opencode: { path: siOpencode.path, color: `#${siOpencode.hex}`, invertOnDark: true },
   'cursor-cli': { path: siCursor.path, color: `#${siCursor.hex}`, invertOnDark: true },
+  'copilot-cli': {
+    path: siGithubcopilot.path,
+    color: `#${siGithubcopilot.hex}`,
+    invertOnDark: true,
+  },
   'cline-cli': { path: siCline.path, color: `#${siCline.hex}`, invertOnDark: true },
   'codex-cli': { ...openaiMark, invertOnDark: true },
   'grok-cli': { ...xaiMark, invertOnDark: true },
@@ -41,6 +54,7 @@ interface MonogramLogo {
 // CLIs without a suitable mark in simple-icons fall back to a colored monogram.
 const MONOGRAM_LOGOS: Record<string, MonogramLogo> = {
   'freebuff-cli': { letter: 'F', color: '#16A34A' },
+  openclaude: { letter: 'O', color: '#7C3AED' },
 };
 
 export interface CliLogoProps {

@@ -135,6 +135,30 @@ export const CLI_REGISTRY: CliDefinition[] = [
     supportedOS: ['win32', 'darwin', 'linux'],
   },
   {
+    id: 'openclaude',
+    name: 'OpenClaude',
+    label: 'OpenClaude',
+    description: 'Open-source coding agent CLI that runs against any model provider.',
+    homepageUrl: 'https://openclaude.gitlawb.com',
+    docsUrl: 'https://openclaude.gitlawb.com/docs/cli-reference/',
+    executableNames: ['openclaude'],
+    detectCommand: { command: 'openclaude', args: ['--version'] },
+    versionCommand: { command: 'openclaude', args: ['--version'] },
+    // `-p/--print` is a boolean flag that answers and exits, and it reads a piped prompt,
+    // which keeps diff-heavy prompts off Windows' ~8191-char cmd.exe line.
+    promptCommand: { command: 'openclaude', args: ['-p'] },
+    promptInputMode: 'stdin',
+    promptWriteArgs: ['--permission-mode', 'acceptEdits'],
+    argsExample: '--model sonnet',
+    installCommand: {
+      win32: 'npm install -g @gitlawb/openclaude@latest',
+      darwin: 'npm install -g @gitlawb/openclaude@latest',
+      linux: 'npm install -g @gitlawb/openclaude@latest',
+    },
+    updateCheck: { type: 'npm', package: '@gitlawb/openclaude' },
+    supportedOS: ['win32', 'darwin', 'linux'],
+  },
+  {
     id: 'codex-cli',
     name: 'Codex CLI',
     label: 'Codex',
@@ -207,6 +231,31 @@ export const CLI_REGISTRY: CliDefinition[] = [
       darwin: 'cursor-agent update',
       linux: 'cursor-agent update',
     },
+    supportedOS: ['win32', 'darwin', 'linux'],
+  },
+  {
+    id: 'copilot-cli',
+    name: 'GitHub Copilot CLI',
+    label: 'Copilot',
+    description: "GitHub's Copilot coding agent in the terminal.",
+    homepageUrl: 'https://github.com/features/copilot/cli',
+    docsUrl: 'https://docs.github.com/en/copilot/how-tos/copilot-cli',
+    executableNames: ['copilot'],
+    detectCommand: { command: 'copilot', args: ['--version'] },
+    versionCommand: { command: 'copilot', args: ['--version'] },
+    // Copilot ignores piped input whenever `-p/--prompt` is also passed, so the stdin path
+    // deliberately leaves the prompt flag off and lets the pipe carry the prompt. `-s`
+    // suppresses the session banner and stats, leaving only the answer on stdout.
+    promptCommand: { command: 'copilot', args: ['-s'] },
+    promptInputMode: 'stdin',
+    promptWriteArgs: ['--allow-all-tools'],
+    argsExample: '--model claude-sonnet-4.5',
+    installCommand: {
+      win32: 'npm install -g @github/copilot',
+      darwin: 'npm install -g @github/copilot',
+      linux: 'npm install -g @github/copilot',
+    },
+    updateCheck: { type: 'npm', package: '@github/copilot' },
     supportedOS: ['win32', 'darwin', 'linux'],
   },
   {

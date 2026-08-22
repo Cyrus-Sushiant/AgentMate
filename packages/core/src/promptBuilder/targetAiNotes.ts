@@ -9,6 +9,8 @@ const TARGET_AI_NOTES_BY_CLI_ID: Record<string, string> = {
     'Use clear markdown structure with explicit headers; state constraints up front; ask for a brief plan before large edits.',
   'gemini-cli':
     'Be direct and concise; enumerate steps explicitly; prefer bullet lists over long prose.',
+  openclaude:
+    'Name the provider/model if it matters; spell out the files to touch and keep the diff reviewable.',
   opencode:
     'State the target files/directories explicitly if known; keep instructions terminal-and-diff friendly.',
   'codex-cli':
@@ -22,6 +24,8 @@ const TARGET_AI_NOTES_BY_CLI_ID: Record<string, string> = {
     'Keep the request self-contained since context window/session state may reset between runs.',
   'cursor-cli':
     'State the goal and constraints clearly; name the files to edit when known; keep the request scoped so the agent can apply a reviewable diff.',
+  'copilot-cli':
+    'Lean on its GitHub context (repo, issues, PRs) when useful; state the files to change and the expected result.',
   'grok-cli':
     'Be direct; spell out the files, the expected change, and what should stay untouched.',
   'cline-cli':
