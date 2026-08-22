@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -524,14 +524,31 @@ export default function DashboardPage(): React.JSX.Element {
     queryFn: () => window.agentmat.skills.listRepositories(),
   });
   const ipGeoDeferReady = useIdleAfterMount();
+  // Set right before a manual refetch so the lookup skips the main-process cache.
+  const ipGeoForceRef = useRef(false);
+  const [ipGeoSpinning, setIpGeoSpinning] = useState(false);
   const ipGeoQuery = useQuery({
     queryKey: queryKeys.ipGeo,
-    queryFn: () => window.agentmat.ipGeo.lookup(),
+    queryFn: () => {
+      const force = ipGeoForceRef.current;
+      ipGeoForceRef.current = false;
+      return window.agentmat.ipGeo.lookup(force);
+    },
     staleTime: Infinity,
     retry: false,
     enabled: ipGeoDeferReady,
     meta: { silentLoading: true },
   });
+  const refreshIpGeo = () => {
+    if (ipGeoSpinning || ipGeoQuery.isFetching) return;
+    ipGeoForceRef.current = true;
+    setIpGeoSpinning(true);
+    // Keep the icon turning long enough to read as a refresh, even on a fast reply.
+    void Promise.all([
+      ipGeoQuery.refetch(),
+      new Promise((resolve) => setTimeout(resolve, 600)),
+    ]).finally(() => setIpGeoSpinning(false));
+  };
 
   const installedClis = CLI_REGISTRY.flatMap((cli) => {
     const status = cliQuery.data?.find((c) => c.id === cli.id);
@@ -1277,10 +1294,14 @@ export default function DashboardPage(): React.JSX.Element {
             variant="ghost"
             size="icon"
             className="h-5 w-5"
-            onClick={() => void ipGeoQuery.refetch()}
-            disabled={ipGeoQuery.isFetching}
+            onClick={refreshIpGeo}
+            disabled={ipGeoSpinning || ipGeoQuery.isFetching}
           >
-            <RefreshCw className={ipGeoQuery.isFetching ? 'h-3 w-3 animate-spin' : 'h-3 w-3'} />
+            <RefreshCw
+              className={
+                ipGeoSpinning || ipGeoQuery.isFetching ? 'h-3 w-3 animate-spin' : 'h-3 w-3'
+              }
+            />
           </Button>
         }
         value={

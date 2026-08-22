@@ -429,7 +429,7 @@ const system = {
 };
 
 const ipGeo = {
-  lookup: (): Promise<IpGeoInfo> => ipcRenderer.invoke(IPC.ipGeo.lookup),
+  lookup: (force?: boolean): Promise<IpGeoInfo> => ipcRenderer.invoke(IPC.ipGeo.lookup, force),
 };
 
 const projectDrafts = {

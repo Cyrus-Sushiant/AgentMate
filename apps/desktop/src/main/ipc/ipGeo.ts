@@ -35,9 +35,14 @@ async function lookupIpGeo(): Promise<IpGeoInfo> {
   };
 }
 
-/** Serves the cached answer, and collapses concurrent lookups into one request. */
-function cachedIpGeo(): Promise<IpGeoInfo> {
-  if (cached && Date.now() - cached.at < CACHE_TTL_MS) return Promise.resolve(cached.value);
+/**
+ * Serves the cached answer, and collapses concurrent lookups into one request.
+ * `force` skips the cache so a manual refresh really asks the network again.
+ */
+function cachedIpGeo(force: boolean): Promise<IpGeoInfo> {
+  if (!force && cached && Date.now() - cached.at < CACHE_TTL_MS) {
+    return Promise.resolve(cached.value);
+  }
   if (inFlight) return inFlight;
   inFlight = lookupIpGeo()
     .then((value) => {
@@ -51,5 +56,8 @@ function cachedIpGeo(): Promise<IpGeoInfo> {
 }
 
 export function registerIpGeoHandlers(): void {
-  ipcMain.handle(IPC.ipGeo.lookup, (): Promise<IpGeoInfo> => cachedIpGeo());
+  ipcMain.handle(
+    IPC.ipGeo.lookup,
+    (_event, force?: boolean): Promise<IpGeoInfo> => cachedIpGeo(force === true),
+  );
 }
