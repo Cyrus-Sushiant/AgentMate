@@ -1,8 +1,8 @@
 /**
  * Brand marks simple-icons doesn't ship, kept inline so surfaces that need them
- * (Codex, Grok, Continue, Aider, Goose, Pi) get a real logo instead of a monogram
- * fallback. Everything but Aider is a dark single-color mark, so those need the
- * dark-mode invert to stay visible.
+ * (Codex, Grok, Continue, Aider, Goose, Pi, FreeBuff, OpenClaude) get a real logo
+ * instead of a monogram fallback. The dark single-color marks need the dark-mode
+ * invert to stay visible; Aider, FreeBuff and OpenClaude carry their own hue.
  */
 export interface InlineBrandMark {
   path: string;
@@ -62,4 +62,26 @@ export const piMark: InlineBrandMark = {
   path: 'M165.29 165.29H517.36V400H400V517.36H282.65V634.72H165.29ZM282.65 282.65V400H400V282.65ZM517.36 400H634.72V634.72H517.36Z',
   color: '#000000',
   viewBox: '165.29 165.29 469.43 469.43',
+};
+
+/**
+ * FreeBuff's terminal tile from their site icon: a rounded black window with the
+ * sparkle and the prompt bar knocked out of it. Both cutouts are wound against the
+ * outer rect so they read as holes under the default nonzero fill rule.
+ */
+export const freebuffMark: InlineBrandMark = {
+  path: 'M50 36H462A14 14 0 0 1 476 50V462A14 14 0 0 1 462 476H50A14 14 0 0 1 36 462V50A14 14 0 0 1 50 36ZM140 101Q140 165 72 165 140 165 140 229 140 165 208 165 140 165 140 101ZM209 232V262H339V232Z',
+  color: '#000000',
+  viewBox: '36 36 440 440',
+};
+
+/**
+ * OpenClaude's block "O", the ANSI-Shadow figlet letter from its startup screen.
+ * The site logo bands it in an ember gradient; a single-color path can only pick one
+ * band, so this uses the middle one, which holds up on light and dark backgrounds.
+ */
+export const openclaudeMark: InlineBrandMark = {
+  path: 'M13 6H49V16H55V46H49V56H13V46H7V16H13ZM19 16V46H43V16Z',
+  color: '#FF7A1A',
+  viewBox: '7 6 48 50',
 };

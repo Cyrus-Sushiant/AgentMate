@@ -10,8 +10,10 @@ import {
 import {
   aiderMark,
   continueMark,
+  freebuffMark,
   gooseMark,
   openaiMark,
+  openclaudeMark,
   piMark,
   xaiMark,
 } from '@/components/brandMarks';
@@ -44,6 +46,9 @@ const BRAND_LOGOS: Record<string, BrandLogo> = {
   aider: aiderMark,
   goose: { ...gooseMark, invertOnDark: true },
   pi: { ...piMark, invertOnDark: true },
+  // The sparkle and prompt bar are holes, so inverting keeps them readable on dark.
+  'freebuff-cli': { ...freebuffMark, invertOnDark: true },
+  openclaude: openclaudeMark,
 };
 
 interface MonogramLogo {
@@ -51,11 +56,9 @@ interface MonogramLogo {
   color: string;
 }
 
-// CLIs without a suitable mark in simple-icons fall back to a colored monogram.
-const MONOGRAM_LOGOS: Record<string, MonogramLogo> = {
-  'freebuff-cli': { letter: 'F', color: '#16A34A' },
-  openclaude: { letter: 'O', color: '#7C3AED' },
-};
+// Fallback for a CLI added without a mark of its own. Every registry CLI has one
+// today, so this is empty until the next one lands.
+const MONOGRAM_LOGOS: Record<string, MonogramLogo> = {};
 
 export interface CliLogoProps {
   cliId: string;
