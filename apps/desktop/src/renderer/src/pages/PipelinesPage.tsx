@@ -112,7 +112,15 @@ function SetupHint({
       </>
     );
   } else if (activity?.error) {
-    body = activity.error;
+    // The raw gh/API failure is long and unreadable in the middle of the page,
+    // so it lives in a tooltip and the page just says the load did not work.
+    body = (
+      <SimpleTooltip label={activity.error} className="max-w-sm" wrapTrigger>
+        <span className="cursor-help underline decoration-dotted underline-offset-4">
+          Could not load runs from GitHub.
+        </span>
+      </SimpleTooltip>
+    );
     failed = true;
   } else if ((activity?.repoCount ?? 0) === 0) {
     body = 'Add a GitHub remote on a project and its Actions runs show up here.';

@@ -219,6 +219,9 @@ const projects = {
   pickFolder: (): Promise<string | null> => ipcRenderer.invoke(IPC.projects.pickFolder),
   /** Opens an image picker and returns the file inlined as a data URL, or null if cancelled. */
   pickIcon: (): Promise<string | null> => ipcRenderer.invoke(IPC.projects.pickIcon),
+  /** Shrinks a dropped or pasted image to icon size and returns it as a data URL. */
+  normalizeIcon: (dataUrl: string): Promise<string> =>
+    ipcRenderer.invoke(IPC.projects.normalizeIcon, dataUrl),
   /** Downloads a site's favicon; null when the site is unreachable or has no icon. */
   fetchFavicon: (siteUrl: string): Promise<FaviconResult | null> =>
     ipcRenderer.invoke(IPC.projects.fetchFavicon, siteUrl),

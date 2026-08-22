@@ -41,6 +41,7 @@ export const IPC = {
     bootstrapPlan: 'projects:bootstrapPlan',
     pickFolder: 'projects:pickFolder',
     pickIcon: 'projects:pickIcon',
+    normalizeIcon: 'projects:normalizeIcon',
     fetchFavicon: 'projects:fetchFavicon',
     updateNotifications: 'projects:updateNotifications',
     listClaudeHooks: 'projects:listClaudeHooks',

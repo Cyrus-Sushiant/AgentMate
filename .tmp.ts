@@ -531,20 +531,11 @@ export interface Project {
    */
   cliId: string | null;
   /**
-   * The project's own icon as a data URL, either picked from disk or grabbed
+   * The project's own icon, stored inline as a data URL so it survives backups
+   * and never depends on a file that moves. Either picked from disk or grabbed
    * from `websiteUrl`'s favicon. Null falls back to the generic folder glyph.
-   *
-   * This is the form the UI works in and the form a backup carries, so an icon
-   * never depends on a file that moves. On disk the image itself lives in
-   * `iconFile` instead, and this is filled back in when projects are read.
    */
   iconDataUrl: string | null;
-  /**
-   * Name of the image file under the app data folder (data/project-icons) that
-   * holds this project's icon. Written and cleaned up by the app; null when the
-   * project has no icon.
-   */
-  iconFile: string | null;
   /** Site this project lives at, and the source its favicon is fetched from. Empty when unset. */
   websiteUrl: string;
   /**

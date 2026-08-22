@@ -1,9 +1,17 @@
 import { readFile } from 'node:fs/promises';
 import { extname } from 'node:path';
+import { nativeImage } from 'electron';
 import type { FaviconResult } from '../shared/apiTypes';
 
-/** Icons live inside projects.json, so anything bigger than this is refused rather than inlined. */
-const MAX_ICON_BYTES = 1024 * 1024;
+/**
+ * Icons are saved as their own files next to the app data, so the limits here
+ * are about keeping a logo a logo rather than about what fits in a JSON file.
+ * Anything bigger gets downscaled instead of refused.
+ */
+const MAX_ICON_DIMENSION = 512;
+const MAX_STORED_ICON_BYTES = 512 * 1024;
+/** A ceiling on what is worth decoding at all. Past this it isn't a logo, it's a photo library. */
+const MAX_SOURCE_BYTES = 40 * 1024 * 1024;
 const REQUEST_TIMEOUT_MS = 8000;
 
 /** Browsers send one, and a fair number of sites serve a bare 403 to anything that doesn't. */
@@ -22,14 +30,126 @@ const MIME_BY_EXTENSION: Record<string, string> = {
   '.avif': 'image/avif',
 };
 
+/** First extension wins, so image/jpeg lands on .jpg rather than .jpeg. */
+const EXTENSION_BY_MIME: Record<string, string> = {};
+for (const [ext, mime] of Object.entries(MIME_BY_EXTENSION)) {
+  if (!EXTENSION_BY_MIME[mime]) EXTENSION_BY_MIME[mime] = ext;
+}
+
 export const ICON_FILE_EXTENSIONS = Object.keys(MIME_BY_EXTENSION).map((ext) => ext.slice(1));
 
 function mimeForPath(pathOrUrl: string): string | null {
   return MIME_BY_EXTENSION[extname(pathOrUrl.split('?')[0]).toLowerCase()] ?? null;
 }
 
+/** Extension an icon of this type gets on disk, `.png` when the type is unfamiliar. */
+export function iconExtensionForMime(mime: string): string {
+  return EXTENSION_BY_MIME[mime.toLowerCase()] ?? '.png';
+}
+
+/** Type to hand back to the renderer for an icon file the app wrote earlier. */
+export function iconMimeForFileName(fileName: string): string {
+  return mimeForPath(fileName) ?? 'image/png';
+}
+
 function toDataUrl(mime: string, bytes: Uint8Array): string {
   return `data:${mime};base64,${Buffer.from(bytes).toString('base64')}`;
+}
+
+export interface IconImage {
+  mime: string;
+  bytes: Buffer;
+}
+
+/** Splits a `data:image/png;base64,...` URL back into its parts; null for anything else. */
+export function parseIconDataUrl(dataUrl: string): IconImage | null {
+  const match = /^data:([^,]*),([\s\S]*)$/.exec(dataUrl.trim());
+  if (!match) return null;
+  // The header can carry parameters of its own, e.g. "image/svg+xml;charset=utf-8;base64".
+  const [type, ...params] = match[1].split(';').map((part) => part.trim().toLowerCase());
+  if (!type.startsWith('image/')) return null;
+  let bytes: Buffer;
+  try {
+    bytes = params.includes('base64')
+      ? Buffer.from(match[2], 'base64')
+      : Buffer.from(decodeURIComponent(match[2]), 'utf-8');
+  } catch {
+    // Percent-escapes that don't decode: not something to throw over.
+    return null;
+  }
+  if (bytes.byteLength === 0) return null;
+  return { mime: type, bytes };
+}
+
+export function iconImageToDataUrl(image: IconImage): string {
+  return toDataUrl(image.mime, image.bytes);
+}
+
+/**
+ * Brings an image down to icon size. A 4000px shot of a logo is a perfectly
+ * reasonable thing to pick, so it gets resized rather than rejected, and the
+ * result comes back as PNG because that is what nativeImage re-encodes to.
+ *
+ * Images that already fit are returned untouched, which is what keeps a small
+ * animated GIF animated (decoding one would flatten it to its first frame).
+ */
+export function prepareIconImage(source: IconImage): IconImage {
+  const { mime, bytes } = source;
+  // SVG is text and scales on its own, so there is nothing to resize.
+  if (mime === 'image/svg+xml') {
+    if (bytes.byteLength > MAX_STORED_ICON_BYTES * 2) {
+      throw new Error('That SVG is too large to use as an icon.');
+    }
+    return source;
+  }
+
+  const image = nativeImage.createFromBuffer(bytes);
+  // Some .ico and .avif files decode nowhere but in a browser. Keeping the
+  // original bytes lets the renderer still show them; only the huge ones are
+  // worth refusing.
+  if (image.isEmpty()) {
+    if (bytes.byteLength > MAX_STORED_ICON_BYTES * 4) {
+      throw new Error('Could not read that image.');
+    }
+    return source;
+  }
+
+  const { width, height } = image.getSize();
+  const fitsBox = width <= MAX_ICON_DIMENSION && height <= MAX_ICON_DIMENSION;
+  if (fitsBox && bytes.byteLength <= MAX_STORED_ICON_BYTES) return source;
+
+  let smallest: Buffer | null = null;
+  for (const box of [MAX_ICON_DIMENSION, 256, 128]) {
+    const scale = Math.min(1, box / Math.max(width, height));
+    const resized =
+      scale < 1
+        ? image.resize({
+            width: Math.max(1, Math.round(width * scale)),
+            height: Math.max(1, Math.round(height * scale)),
+            quality: 'best',
+          })
+        : image;
+    const png = resized.toPNG();
+    if (png.byteLength <= MAX_STORED_ICON_BYTES) return { mime: 'image/png', bytes: png };
+    smallest = png;
+  }
+  // Even 128px came out over budget (a photo, most likely). It is still small
+  // enough to keep, so take it rather than sending the user off to find another file.
+  return { mime: 'image/png', bytes: smallest ?? bytes };
+}
+
+/**
+ * Normalizes an icon that arrived as a data URL, which is how a drag and drop or
+ * a paste reaches the main process. Throws something worth showing when the
+ * payload isn't an image at all.
+ */
+export function normalizeIconDataUrl(dataUrl: string): string {
+  const parsed = parseIconDataUrl(dataUrl);
+  if (!parsed) throw new Error('That does not look like an image.');
+  if (parsed.bytes.byteLength > MAX_SOURCE_BYTES) {
+    throw new Error('That image is too large to read.');
+  }
+  return iconImageToDataUrl(prepareIconImage(parsed));
 }
 
 /**
@@ -122,9 +242,15 @@ async function fetchImageAsDataUrl(url: string): Promise<string | null> {
   const mime = contentType.startsWith('image/') ? contentType : mimeForPath(url);
   if (!mime) return null;
 
-  const bytes = new Uint8Array(await response.arrayBuffer());
-  if (bytes.byteLength === 0 || bytes.byteLength > MAX_ICON_BYTES) return null;
-  return toDataUrl(mime, bytes);
+  const bytes = Buffer.from(await response.arrayBuffer());
+  if (bytes.byteLength === 0 || bytes.byteLength > MAX_SOURCE_BYTES) return null;
+  try {
+    // A site serving a 1024px apple-touch-icon is normal, so shrink it like any
+    // other oversized pick instead of walking on to a worse candidate.
+    return iconImageToDataUrl(prepareIconImage({ mime, bytes }));
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -172,13 +298,15 @@ export async function fetchSiteFavicon(rawUrl: string): Promise<FaviconResult | 
   return null;
 }
 
-/** Reads a picked image off disk into the same inline data URL form as a fetched favicon. */
+/**
+ * Reads a picked image off disk, shrinking it when it is bigger than an icon
+ * needs to be, and hands it back in the data URL form the form works with.
+ */
 export async function readIconFile(filePath: string): Promise<string> {
   const mime = mimeForPath(filePath);
   if (!mime) throw new Error('That file type is not a supported image.');
   const bytes = await readFile(filePath);
-  if (bytes.byteLength > MAX_ICON_BYTES) {
-    throw new Error('Image is larger than 1 MB. Pick a smaller one.');
-  }
-  return toDataUrl(mime, bytes);
+  if (bytes.byteLength === 0) throw new Error('That file is empty.');
+  if (bytes.byteLength > MAX_SOURCE_BYTES) throw new Error('That image is too large to read.');
+  return iconImageToDataUrl(prepareIconImage({ mime, bytes }));
 }

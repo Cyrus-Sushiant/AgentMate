@@ -126,6 +126,9 @@ function buildProject(entry: Record_): Project | null {
       : defaultProjectNotifications(),
     cliId: nullableStr(entry.cliId),
     iconDataUrl: nullableStr(entry.iconDataUrl),
+    // The backup carries the image inline, so the file it lived in on the machine
+    // that exported it means nothing here. The icon store writes a fresh one.
+    iconFile: null,
     websiteUrl: strOr(entry.websiteUrl, ''),
     repoUrl: strOr(entry.repoUrl, ''),
     githubActions: normalizeProjectGithubActions(entry.githubActions),

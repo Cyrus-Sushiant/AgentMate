@@ -39,6 +39,7 @@ import { setMainWindow, setMainWindowFactory } from './mainWindow';
 import { configureSpellChecker, registerSpellcheckHandlers } from './spellcheck';
 import { registerWindowHandlers } from './ipc/window';
 import { seedExampleRepositoryIfEmpty } from './exampleSkillRepo';
+import { migrateInlineProjectIcons } from './store';
 import { startHookServer, stopHookServer } from './notifications/hookServer';
 import { startResetAlertWatcher, stopResetAlertWatcher } from './usage/resetAlerts';
 import { startThresholdAlertWatcher, stopThresholdAlertWatcher } from './usage/thresholdAlerts';
@@ -245,6 +246,7 @@ app.whenReady().then(() => {
   configureSpellChecker();
   registerAllIpcHandlers();
   void seedExampleRepositoryIfEmpty();
+  void migrateInlineProjectIcons();
   void startHookServer();
   setMainWindowFactory(createMainWindow);
   createMainWindow();

@@ -21,7 +21,12 @@ import {
   listClaudeHooks,
   updateClaudeHook,
 } from '../notifications/hookInstaller';
-import { fetchSiteFavicon, ICON_FILE_EXTENSIONS, readIconFile } from '../projectIcons';
+import {
+  fetchSiteFavicon,
+  ICON_FILE_EXTENSIONS,
+  normalizeIconDataUrl,
+  readIconFile,
+} from '../projectIcons';
 import { logActivity, store } from '../store';
 
 /**
@@ -92,6 +97,7 @@ export function registerProjectHandlers(): void {
         notifications: defaultProjectNotifications(),
         cliId: input.cliId ?? null,
         iconDataUrl: input.iconDataUrl ?? null,
+        iconFile: null,
         websiteUrl: input.websiteUrl ?? '',
         repoUrl: input.repoUrl ?? '',
         githubActions: [],
@@ -256,6 +262,10 @@ export function registerProjectHandlers(): void {
     if (result.canceled || result.filePaths.length === 0) return null;
     return readIconFile(result.filePaths[0]);
   });
+
+  ipcMain.handle(IPC.projects.normalizeIcon, (_event, dataUrl: string): string =>
+    normalizeIconDataUrl(dataUrl),
+  );
 
   ipcMain.handle(
     IPC.projects.fetchFavicon,

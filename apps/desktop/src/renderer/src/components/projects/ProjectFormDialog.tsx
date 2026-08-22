@@ -37,8 +37,26 @@ import { cn } from '@/lib/utils';
 /** Combobox needs a non-empty value, so "inherit the app default" travels as this sentinel. */
 const APP_DEFAULT_CLI = '__app-default__';
 
-/** Icons live inline in the project file as data URLs, so an oversized drop is worth refusing. */
-const MAX_ICON_BYTES = 2 * 1024 * 1024;
+/**
+ * Oversized drops are shrunk to icon size in the main process rather than
+ * refused. This is only the point past which a file stops looking like a logo
+ * and starts looking like a mistake.
+ */
+const MAX_ICON_BYTES = 40 * 1024 * 1024;
+
+/**
+ * Anything thrown in the main process reaches the renderer wrapped in Electron's
+ * "Error invoking remote method 'projects:pickIcon': Error: ..." boilerplate,
+ * which is not what belongs in a toast.
+ */
+function iconErrorMessage(error: unknown, fallback: string): string {
+  if (!(error instanceof Error)) return fallback;
+  const message = error.message
+    .replace(/^Error invoking remote method '[^']*':\s*/, '')
+    .replace(/^(Error|TypeError):\s*/, '')
+    .trim();
+  return message || fallback;
+}
 
 export interface ProjectFormValues {
   name: string;
@@ -182,7 +200,7 @@ export function ProjectFormDialog({
       const dataUrl = await window.agentmat.projects.pickIcon();
       if (dataUrl) setIconDataUrl(dataUrl);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Could not read that image.');
+      toast.error(iconErrorMessage(error, 'Could not read that image.'));
     }
   }
 
@@ -195,12 +213,20 @@ export function ProjectFormDialog({
       return;
     }
     if (file.size > MAX_ICON_BYTES) {
-      toast.error('That image is over 2 MB. Pick a smaller one.');
+      toast.error('That image is too large to read.');
       return;
     }
     const reader = new FileReader();
     reader.onload = () => {
-      if (typeof reader.result === 'string') setIconDataUrl(reader.result);
+      if (typeof reader.result !== 'string') return;
+      // Same trip a picked file makes: the main process is where an oversized
+      // image gets scaled down to something worth storing as an icon.
+      void window.agentmat.projects
+        .normalizeIcon(reader.result)
+        .then(setIconDataUrl)
+        .catch((error: unknown) =>
+          toast.error(iconErrorMessage(error, 'Could not read that image.')),
+        );
     };
     reader.onerror = () => toast.error('Could not read that image.');
     reader.readAsDataURL(file);

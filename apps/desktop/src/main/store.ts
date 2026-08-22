@@ -37,6 +37,7 @@ import {
 } from '@agentmat/core';
 import { app } from 'electron';
 import type { RemoteSavedServer } from '../shared/apiTypes';
+import { hydrateProjectIcons, persistProjectIcons } from './projectIconStore';
 
 function dataDir(): string {
   return join(app.getPath('userData'), 'data');
@@ -174,6 +175,7 @@ function withProjectDefaults(project: Project & { runCommand?: string }): Projec
     pinned: project.pinned ?? false,
     cliId: project.cliId ?? null,
     iconDataUrl: project.iconDataUrl ?? null,
+    iconFile: project.iconFile ?? null,
     websiteUrl: project.websiteUrl ?? '',
     repoUrl: project.repoUrl ?? '',
     githubActions: normalizeProjectGithubActions(project.githubActions),
@@ -183,9 +185,10 @@ function withProjectDefaults(project: Project & { runCommand?: string }): Projec
 export const store = {
   getProjects: async (): Promise<Project[]> => {
     const projects = await readJsonFile<Project[]>('projects.json', []);
-    return projects.map(withProjectDefaults);
+    return hydrateProjectIcons(projects.map(withProjectDefaults));
   },
-  setProjects: (projects: Project[]): Promise<void> => writeJsonFile('projects.json', projects),
+  setProjects: async (projects: Project[]): Promise<void> =>
+    writeJsonFile('projects.json', await persistProjectIcons(projects)),
 
   getSettings: async (): Promise<AppSettings> =>
     withSettingsMigrations({
@@ -231,6 +234,21 @@ export const store = {
   setPipelineWatch: (state: PipelineWatchState): Promise<void> =>
     writeJsonFile('pipeline-watch.json', state),
 };
+
+/**
+ * Moves icons that older builds inlined in projects.json out into their own
+ * files under the app data folder. Runs once at startup; every write after that
+ * goes through the icon store anyway, so it finds nothing left to do.
+ */
+export async function migrateInlineProjectIcons(): Promise<void> {
+  try {
+    const projects = await store.getProjects();
+    if (!projects.some((project) => project.iconDataUrl && !project.iconFile)) return;
+    await store.setProjects(projects);
+  } catch {
+    // A disk error here just leaves the icons where they already were.
+  }
+}
 
 /** `${projectId}:${workflowId}` to the newest completed run already processed. */
 export interface PipelineWatchState {
