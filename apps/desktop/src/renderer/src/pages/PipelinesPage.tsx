@@ -75,11 +75,18 @@ function matchesSearch(item: GithubActionsHistoryItem, query: string): boolean {
 function SetupHint({
   activity,
   onSignIn,
+  onRetry,
+  retrying,
 }: {
   activity: GithubActionsActivity | undefined;
   onSignIn: () => void;
+  onRetry: () => void;
+  retrying: boolean;
 }): React.JSX.Element {
   let body: React.ReactNode = 'No workflow runs yet.';
+  // A network hiccup (TLS handshake, DNS, rate limit) is the one failure the user
+  // can fix by simply asking again, so only that case gets a retry button.
+  let failed = false;
   if (activity?.cliAvailable === false) {
     body = (
       <>
@@ -106,6 +113,7 @@ function SetupHint({
     );
   } else if (activity?.error) {
     body = activity.error;
+    failed = true;
   } else if ((activity?.repoCount ?? 0) === 0) {
     body = 'Add a GitHub remote on a project and its Actions runs show up here.';
   }
@@ -116,6 +124,12 @@ function SetupHint({
         <Github className="h-5 w-5" />
       </div>
       <p className="max-w-sm text-sm text-muted-foreground">{body}</p>
+      {failed ? (
+        <Button variant="outline" size="sm" disabled={retrying} onClick={onRetry}>
+          <RefreshCw className={cn('h-3.5 w-3.5', retrying && 'animate-spin')} />
+          {retrying ? 'Retrying...' : 'Try again'}
+        </Button>
+      ) : null}
     </div>
   );
 }
@@ -411,6 +425,10 @@ export default function PipelinesPage(): React.JSX.Element {
     toast.info('Press Enter in the terminal to sign in to GitHub.');
   }
 
+  function handleRefresh(): void {
+    void queryClient.invalidateQueries({ queryKey: queryKeys.githubActionsActivity });
+  }
+
   function handleOpenRun(item: GithubActionsHistoryItem): void {
     const notificationId = item.htmlUrl ? unreadByUrl.get(item.htmlUrl) : undefined;
     if (notificationId) markRead.mutate(notificationId);
@@ -488,9 +506,7 @@ export default function PipelinesPage(): React.JSX.Element {
               size="icon"
               disabled={activityQuery.isFetching}
               aria-label="Refresh runs"
-              onClick={() => {
-                void queryClient.invalidateQueries({ queryKey: queryKeys.githubActionsActivity });
-              }}
+              onClick={handleRefresh}
             >
               <RefreshCw
                 className={cn('h-3.5 w-3.5', activityQuery.isFetching && 'animate-spin')}
@@ -515,7 +531,12 @@ export default function PipelinesPage(): React.JSX.Element {
           ))}
         </ul>
       ) : !ready ? (
-        <SetupHint activity={activity} onSignIn={handleSignIn} />
+        <SetupHint
+          activity={activity}
+          onSignIn={handleSignIn}
+          onRetry={handleRefresh}
+          retrying={activityQuery.isFetching}
+        />
       ) : visible.length === 0 ? (
         <div className="flex flex-col items-center gap-2 rounded-xl border border-dashed border-border px-4 py-16 text-center">
           <p className="text-sm font-medium">No runs match these filters</p>
