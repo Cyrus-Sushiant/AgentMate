@@ -12,6 +12,7 @@ import type {
 import {
   defaultProjectNotifications,
   normalizeCliArgs,
+  normalizeProjectColor,
   normalizeProjectGithubActions,
   normalizeProjectNotifications,
   normalizeProjectRunCommands,
@@ -129,6 +130,8 @@ function buildProject(entry: Record_): Project | null {
     // The backup carries the image inline, so the file it lived in on the machine
     // that exported it means nothing here. The icon store writes a fresh one.
     iconFile: null,
+    iconBgColor: normalizeProjectColor(entry.iconBgColor),
+    iconColor: normalizeProjectColor(entry.iconColor),
     websiteUrl: strOr(entry.websiteUrl, ''),
     repoUrl: strOr(entry.repoUrl, ''),
     githubActions: normalizeProjectGithubActions(entry.githubActions),

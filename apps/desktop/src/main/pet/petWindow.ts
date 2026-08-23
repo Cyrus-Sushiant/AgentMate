@@ -23,6 +23,10 @@ let powerListenersBound = false;
 let topmostTimer: ReturnType<typeof setInterval> | null = null;
 let snoozeUntil: number | null = null;
 let snoozeTimer: ReturnType<typeof setTimeout> | null = null;
+// What the pet renderer last asked for. While the overlay is parked for a drag
+// the request is only remembered, then applied again once the drag is over.
+let clickThroughWanted = true;
+let dragParked = false;
 
 function primaryWorkArea(): PetWorkArea {
   const area = screen.getPrimaryDisplay().workArea;
@@ -88,7 +92,10 @@ function bindDisplayListeners(): void {
 }
 
 function applyClickThrough(target: BrowserWindow, ignore: boolean): void {
-  if (ignore) target.setIgnoreMouseEvents(true, { forward: true });
+  // Forwarding hands the overlay the mouse moves it needs to know when the
+  // cursor is over the character. It costs a global mouse hook, so it goes off
+  // while the overlay is parked and the app is in the middle of a drag.
+  if (ignore) target.setIgnoreMouseEvents(true, { forward: !dragParked });
   else target.setIgnoreMouseEvents(false);
 }
 
@@ -172,6 +179,8 @@ export const petManager = {
   open(): void {
     if (this.isOpen()) {
       if (win) fitToWorkArea(win);
+      // Parked for a drag: leave it off screen until the drag hands it back.
+      if (dragParked) return;
       win?.showInactive();
       reassertTopmost();
       startTopmostKeeper();
@@ -183,6 +192,7 @@ export const petManager = {
   close(): void {
     if (!win) return;
     stopTopmostKeeper();
+    dragParked = false;
     const closing = win;
     win = null;
     if (!closing.isDestroyed()) closing.close();
@@ -247,8 +257,36 @@ export const petManager = {
   },
 
   setClickThrough(ignore: boolean): void {
-    if (!win || win.isDestroyed()) return;
+    clickThroughWanted = ignore;
+    if (!win || win.isDestroyed() || dragParked) return;
     applyClickThrough(win, ignore);
+  },
+
+  /**
+   * Parks the overlay while the app window runs a native drag.
+   *
+   * Windows picks the drop target by asking which window sits under the cursor,
+   * and it does not care that this one is click-through: plain clicks fall
+   * straight through the companion, drops land on it. With the pet on, every
+   * drag in the app (reordering projects, dashboard edit mode) was handed to an
+   * overlay that wants nothing to do with it, so nothing ever moved. Taking the
+   * window off screen for the second or two a drag lasts is the only thing that
+   * keeps it out of the drag entirely.
+   */
+  setDragGuard(active: boolean): void {
+    if (dragParked === active) return;
+    dragParked = active;
+    if (!win || win.isDestroyed()) return;
+    if (active) {
+      stopTopmostKeeper();
+      applyClickThrough(win, true);
+      win.hide();
+      return;
+    }
+    applyClickThrough(win, clickThroughWanted);
+    if (!win.isVisible()) win.showInactive();
+    reassertTopmost();
+    startTopmostKeeper();
   },
 
   workArea(): PetWorkArea {

@@ -545,6 +545,16 @@ export interface Project {
    * project has no icon.
    */
   iconFile: string | null;
+  /**
+   * Colour of the tile the icon sits on, as a `#rrggbb` string. Null keeps the
+   * theme's default tint, so a project only carries a colour once one is picked.
+   */
+  iconBgColor: string | null;
+  /**
+   * Colour of the folder glyph shown when the project has no icon image, as a
+   * `#rrggbb` string. Null keeps the theme's accent.
+   */
+  iconColor: string | null;
   /** Site this project lives at, and the source its favicon is fetched from. Empty when unset. */
   websiteUrl: string;
   /**
@@ -559,6 +569,20 @@ export interface Project {
   pinned: boolean;
   createdAt: string;
   updatedAt: string;
+}
+
+/**
+ * Colours are stored as hex, the one form the pickers produce and every consumer
+ * can drop straight into a style: `#rrggbb` when opaque, `#rrggbbaa` once the
+ * opacity slider has been moved. A fully opaque value keeps the short form so the
+ * two never disagree about the same colour. Anything else (a stray value in a
+ * backup, an older field) reads back as "no colour picked".
+ */
+export function normalizeProjectColor(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const hex = value.trim().toLowerCase();
+  if (!/^#([0-9a-f]{6}|[0-9a-f]{8})$/.test(hex)) return null;
+  return hex.length === 9 && hex.endsWith('ff') ? hex.slice(0, 7) : hex;
 }
 
 export interface InstalledCli {

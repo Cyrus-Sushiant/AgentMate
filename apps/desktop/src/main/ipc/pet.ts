@@ -11,6 +11,10 @@ export function registerPetHandlers(): void {
     petManager.setClickThrough(Boolean(ignore));
   });
 
+  ipcMain.on(IPC.pet.setDragGuard, (_event, active: boolean) => {
+    petManager.setDragGuard(Boolean(active));
+  });
+
   ipcMain.on(IPC.pet.showMainWindow, (_event, route?: unknown) => {
     // Only in-app routes, never an arbitrary URL the renderer could hand over.
     const target = typeof route === 'string' && route.startsWith('/') ? route : undefined;

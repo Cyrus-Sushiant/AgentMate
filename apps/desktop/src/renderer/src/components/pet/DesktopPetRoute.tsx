@@ -245,17 +245,25 @@ export default function DesktopPetRoute(): React.JSX.Element {
     setActor(snapshot(current));
   }, [clickArea, box]);
 
+  // Everything that holds the mouse goes through setHit, so the overlay always
+  // knows whether it is currently taking clicks. Poking the main process
+  // directly here used to leave the two out of step, and a mouse that never
+  // came back over the character left the whole screen swallowing clicks.
   useEffect(() => {
-    if (open) window.agentmat.pet.setClickThrough(false);
-    if (!open) setCardSize({ w: CARD_W, h: CARD_H });
+    if (open) setHit(true);
+    else {
+      setHit(menuRef.current);
+      setCardSize({ w: CARD_W, h: CARD_H });
+    }
   }, [open]);
 
   useEffect(() => {
     if (!menu) {
       setMenuSize({ w: MENU_W, h: MENU_H });
+      setHit(openRef.current);
       return;
     }
-    window.agentmat.pet.setClickThrough(false);
+    setHit(true);
     function onKeyDown(event: KeyboardEvent): void {
       if (event.key === 'Escape') setMenu(null);
     }
@@ -343,6 +351,23 @@ export default function DesktopPetRoute(): React.JSX.Element {
       if (speechTimer.current) clearTimeout(speechTimer.current);
       speechTimer.current = setTimeout(() => setSpeech(null), 8000);
     });
+  }, []);
+
+  // The overlay only covers the primary display's work area, so a cursor that
+  // wanders onto another monitor or over the taskbar stops sending it moves. If
+  // it was holding the mouse at that moment it would hold it for good, and
+  // every click and drag in the app below would land on the pet instead.
+  useEffect(() => {
+    function onLeave(): void {
+      if (dragRef.current || openRef.current || menuRef.current) return;
+      setHit(false);
+    }
+    document.addEventListener('mouseleave', onLeave);
+    window.addEventListener('blur', onLeave);
+    return () => {
+      document.removeEventListener('mouseleave', onLeave);
+      window.removeEventListener('blur', onLeave);
+    };
   }, []);
 
   useEffect(() => {

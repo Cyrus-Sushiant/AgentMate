@@ -300,6 +300,11 @@ export const IPC = {
   },
   pet: {
     setClickThrough: 'pet:setClickThrough',
+    /**
+     * app -> main: a native drag started (or ended) in the app window, so the
+     * companion overlay has to step out of the way until it is over.
+     */
+    setDragGuard: 'pet:setDragGuard',
     getWorkArea: 'pet:getWorkArea',
     onDisplayChanged: 'pet:displayChanged',
     onSettingsChanged: 'pet:settingsChanged',

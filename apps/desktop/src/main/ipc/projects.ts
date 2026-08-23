@@ -10,6 +10,7 @@ import type {
 import {
   defaultProjectNotifications,
   getBootstrapPlan,
+  normalizeProjectColor,
   normalizeProjectRunCommands,
 } from '@agentmat/core';
 import { dialog, ipcMain } from 'electron';
@@ -98,6 +99,8 @@ export function registerProjectHandlers(): void {
         cliId: input.cliId ?? null,
         iconDataUrl: input.iconDataUrl ?? null,
         iconFile: null,
+        iconBgColor: normalizeProjectColor(input.iconBgColor),
+        iconColor: normalizeProjectColor(input.iconColor),
         websiteUrl: input.websiteUrl ?? '',
         repoUrl: input.repoUrl ?? '',
         githubActions: [],
@@ -124,6 +127,16 @@ export function registerProjectHandlers(): void {
         runCommands: updates.runCommands
           ? normalizeProjectRunCommands({ runCommands: updates.runCommands })
           : current.runCommands,
+        // An update that says nothing about the colours leaves them alone; one
+        // that does gets the same hex-only treatment a fresh project gets.
+        iconBgColor:
+          updates.iconBgColor === undefined
+            ? current.iconBgColor
+            : normalizeProjectColor(updates.iconBgColor),
+        iconColor:
+          updates.iconColor === undefined
+            ? current.iconColor
+            : normalizeProjectColor(updates.iconColor),
       }));
     },
   );

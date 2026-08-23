@@ -17,6 +17,7 @@ import { Button } from '@/components/ui/button';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { useAppLoadingOverlay } from '@/hooks/useAppLoadingOverlay';
 import { useGlobalShortcuts } from '@/hooks/useGlobalShortcuts';
+import { usePetDragGuard } from '@/hooks/usePetDragGuard';
 import { cn } from '@/lib/utils';
 import { useAskAiStore } from '@/stores/askAiStore';
 import { usePageHeaderStore } from '@/stores/pageHeaderStore';
@@ -139,6 +140,8 @@ export function AppShell(): React.JSX.Element {
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useGlobalShortcuts();
+  // The desktop companion would otherwise swallow every drop in the app window.
+  usePetDragGuard();
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: 0 });

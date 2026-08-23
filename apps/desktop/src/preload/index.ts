@@ -743,6 +743,7 @@ const usage = {
 
 const pet = {
   setClickThrough: (ignore: boolean): void => ipcRenderer.send(IPC.pet.setClickThrough, ignore),
+  setDragGuard: (active: boolean): void => ipcRenderer.send(IPC.pet.setDragGuard, active),
   getWorkArea: (): Promise<PetWorkArea> => ipcRenderer.invoke(IPC.pet.getWorkArea),
   onDisplayChanged: (callback: (area: PetWorkArea) => void): (() => void) =>
     subscribe(IPC.pet.onDisplayChanged, callback),

@@ -93,6 +93,10 @@ export interface CreateProjectInput {
   cliId?: string | null;
   /** Icon image inlined as a data URL; null (or omitted) leaves the project on the folder glyph. */
   iconDataUrl?: string | null;
+  /** `#rrggbb` tile colour behind the icon; null (or omitted) keeps the theme default. */
+  iconBgColor?: string | null;
+  /** `#rrggbb` colour for the folder glyph shown when there is no icon image. */
+  iconColor?: string | null;
   /** Site this project lives at; the favicon fetch reads it. */
   websiteUrl?: string;
   /** Git repository the code lives in, stored as a link only. */

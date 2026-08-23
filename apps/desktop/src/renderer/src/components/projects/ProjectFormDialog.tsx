@@ -1,12 +1,15 @@
 import type { AgentType, Project, ProjectRunCommand } from '@agentmat/core';
 import { AGENT_TYPES, browsableRepoUrl, CLI_REGISTRY, configuredRunCommands } from '@agentmat/core';
+import * as PopoverPrimitive from '@radix-ui/react-popover';
 import { useEffect, useId, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { cliOptionIcon } from '@/components/cliLogos';
 import {
+  Ban,
   FolderOpen,
   GitBranch,
   Globe,
+  Pencil,
   Plus,
   Sparkles,
   Spinner,
@@ -70,6 +73,10 @@ export interface ProjectFormValues {
   cliId: string | null;
   /** Icon inlined as a data URL, either picked from disk or fetched from the site. */
   iconDataUrl: string | null;
+  /** `#rrggbb` colour for the tile behind the icon; null keeps the theme's tint. */
+  iconBgColor: string | null;
+  /** `#rrggbb` colour for the folder glyph, which only shows while there is no image. */
+  iconColor: string | null;
   websiteUrl: string;
   /** Git repository the code lives in. Stored as a link, nothing is run against it. */
   repoUrl: string;
@@ -132,6 +139,8 @@ export function ProjectFormDialog({
   const [runCommands, setRunCommands] = useState<ProjectRunCommand[]>([emptyRunCommand()]);
   const [cliId, setCliId] = useState<string>(APP_DEFAULT_CLI);
   const [iconDataUrl, setIconDataUrl] = useState<string | null>(null);
+  const [iconBgColor, setIconBgColor] = useState<string | null>(null);
+  const [iconColor, setIconColor] = useState<string | null>(null);
   const [websiteUrl, setWebsiteUrl] = useState('');
   const [repoUrl, setRepoUrl] = useState('');
   const [repoDetected, setRepoDetected] = useState(false);
@@ -157,6 +166,8 @@ export function ProjectFormDialog({
     setRunCommands(draftsFromProject(initial));
     setCliId(initial?.cliId ?? APP_DEFAULT_CLI);
     setIconDataUrl(initial?.iconDataUrl ?? null);
+    setIconBgColor(initial?.iconBgColor ?? null);
+    setIconColor(initial?.iconColor ?? null);
     setWebsiteUrl(initial?.websiteUrl ?? '');
     setRepoUrl(initial?.repoUrl ?? '');
     setRepoDetected(false);
@@ -307,6 +318,8 @@ export function ProjectFormDialog({
         })),
       cliId: cliId === APP_DEFAULT_CLI ? null : cliId,
       iconDataUrl,
+      iconBgColor,
+      iconColor,
       websiteUrl: websiteUrl.trim(),
       // Normalized on the way out so the stored value is always openable, even
       // when it was pasted as "github.com/me/app" or as an ssh remote.
@@ -328,6 +341,8 @@ export function ProjectFormDialog({
         <DialogHeader className="flex-row items-center gap-3 border-b border-border/70 px-6 py-5">
           <ProjectIcon
             iconDataUrl={iconDataUrl}
+            bgColor={iconBgColor}
+            iconColor={iconColor}
             className="h-11 w-11 rounded-xl border border-border/70"
             glyphClassName="h-5 w-5"
           />
@@ -501,6 +516,8 @@ export function ProjectFormDialog({
                   >
                     <ProjectIcon
                       iconDataUrl={iconDataUrl}
+                      bgColor={iconBgColor}
+                      iconColor={iconColor}
                       className="h-full w-full rounded-none bg-transparent text-muted-foreground"
                       glyphClassName="h-6 w-6"
                     />
@@ -535,6 +552,20 @@ export function ProjectFormDialog({
                   </div>
                 </div>
               </Field>
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Field
+                  label="Tile color"
+                  hint="The square the icon sits on. The pencil swatch holds any other color, and the opacity."
+                >
+                  <ColorSwatches value={iconBgColor} onChange={setIconBgColor} />
+                </Field>
+                {!iconDataUrl && (
+                  <Field label="Glyph color" hint="The folder mark, shown until you pick an image.">
+                    <ColorSwatches value={iconColor} onChange={setIconColor} />
+                  </Field>
+                )}
+              </div>
 
               <Field
                 label="Website"
@@ -703,6 +734,190 @@ export function ProjectFormDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/**
+ * Colours offered for the icon tile and its glyph. A short list is easier to
+ * pick from than a full picker, and the pencil swatch is there for anyone who
+ * wants an exact brand colour.
+ */
+const PROJECT_COLORS = [
+  '#3b82f6',
+  '#6366f1',
+  '#8b5cf6',
+  '#ec4899',
+  '#ef4444',
+  '#f97316',
+  '#eab308',
+  '#22c55e',
+  '#14b8a6',
+  '#64748b',
+];
+
+/** The colour without its alpha, which is what the presets and the native picker deal in. */
+function baseColor(value: string): string {
+  return value.slice(0, 7);
+}
+
+/** Opacity of a stored colour as a percentage; a six digit hex is fully opaque. */
+function colorOpacity(value: string | null): number {
+  if (!value || value.length < 9) return 100;
+  return Math.round((Number.parseInt(value.slice(7, 9), 16) / 255) * 100);
+}
+
+/** Puts a percentage back on a colour, dropping the alpha again at fully opaque. */
+function withOpacity(value: string, percent: number): string {
+  const base = baseColor(value);
+  if (percent >= 100) return base;
+  const alpha = Math.round((percent / 100) * 255)
+    .toString(16)
+    .padStart(2, '0');
+  return `${base}${alpha}`;
+}
+
+const SWATCH_CLASS =
+  'flex h-6 w-6 items-center justify-center rounded-full border border-border/70 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring';
+const SWATCH_SELECTED = 'ring-2 ring-ring ring-offset-2 ring-offset-background';
+
+/** Colour the custom picker starts from when the project has none yet. */
+const CUSTOM_FALLBACK = '#3b82f6';
+
+/** Checkerboard behind the preview, so a low opacity reads as see-through and not as a lighter colour. */
+const CHECKER_STYLE: React.CSSProperties = {
+  backgroundImage:
+    'linear-gradient(45deg, hsl(var(--foreground) / 0.16) 25%, transparent 25%), linear-gradient(-45deg, hsl(var(--foreground) / 0.16) 25%, transparent 25%), linear-gradient(45deg, transparent 75%, hsl(var(--foreground) / 0.16) 75%), linear-gradient(-45deg, transparent 75%, hsl(var(--foreground) / 0.16) 75%)',
+  backgroundSize: '8px 8px',
+  backgroundPosition: '0 0, 0 4px, 4px -4px, -4px 0',
+};
+
+/**
+ * The palette row: the presets, "no colour at all", and a swatch that opens the
+ * custom picker. Opacity lives in that picker rather than in the form, so the row
+ * stays a row and everything about one colour is edited in one place.
+ */
+function ColorSwatches({
+  value,
+  onChange,
+}: {
+  value: string | null;
+  onChange: (color: string | null) => void;
+}): React.JSX.Element {
+  const opacityId = useId();
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const base = value === null ? null : baseColor(value);
+  const custom = base !== null && !PROJECT_COLORS.includes(base);
+  const opacity = colorOpacity(value);
+  // The picker edits whatever is set right now, so it can also dial the opacity
+  // of a preset. With nothing set it starts from a colour rather than blank.
+  const current = value ?? CUSTOM_FALLBACK;
+
+  return (
+    <div className="flex flex-wrap items-center gap-1.5">
+      <SimpleTooltip label="Theme default">
+        <button
+          type="button"
+          onClick={() => onChange(null)}
+          aria-label="Theme default"
+          aria-pressed={value === null}
+          className={cn(
+            SWATCH_CLASS,
+            'bg-muted text-muted-foreground',
+            value === null && SWATCH_SELECTED,
+          )}
+        >
+          <Ban className="h-3 w-3" />
+        </button>
+      </SimpleTooltip>
+      {PROJECT_COLORS.map((color) => (
+        <button
+          key={color}
+          type="button"
+          // Switching colour keeps the opacity already dialled in, so the two
+          // controls don't undo each other.
+          onClick={() => onChange(withOpacity(color, opacity))}
+          aria-label={color}
+          aria-pressed={base === color}
+          style={{ backgroundColor: color }}
+          className={cn(SWATCH_CLASS, base === color && SWATCH_SELECTED)}
+        />
+      ))}
+
+      <PopoverPrimitive.Root open={pickerOpen} onOpenChange={setPickerOpen}>
+        <SimpleTooltip label="Custom color and opacity">
+          <PopoverPrimitive.Trigger
+            type="button"
+            aria-label="Custom color and opacity"
+            className={cn(
+              SWATCH_CLASS,
+              'bg-muted text-muted-foreground',
+              custom && SWATCH_SELECTED,
+            )}
+            style={custom ? { backgroundColor: base ?? undefined, color: '#fff' } : undefined}
+          >
+            <Pencil className="h-3 w-3" />
+          </PopoverPrimitive.Trigger>
+        </SimpleTooltip>
+        <PopoverPrimitive.Portal>
+          <PopoverPrimitive.Content
+            align="start"
+            sideOffset={8}
+            // The native colour dialog pulls focus out of the popover; without
+            // this the popover would close under it and drop the pick.
+            onFocusOutside={(event) => event.preventDefault()}
+            className="z-50 w-56 space-y-3 rounded-lg border border-border bg-popover/95 p-3 text-popover-foreground shadow-2xl backdrop-blur-2xl data-[state=closed]:animate-out data-[state=open]:animate-in data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0"
+          >
+            <input
+              type="color"
+              aria-label="Color"
+              // The native picker only speaks six digit hex, so the alpha is
+              // stripped on the way in and put back on the way out.
+              value={baseColor(current)}
+              onChange={(e) => onChange(withOpacity(e.target.value, opacity))}
+              className="h-9 w-full cursor-pointer rounded-md border border-border/70 bg-transparent p-1"
+            />
+
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between gap-2">
+                <Label
+                  htmlFor={opacityId}
+                  className="text-[11px] font-normal text-muted-foreground"
+                >
+                  Opacity
+                </Label>
+                <span className="text-[11px] tabular-nums text-muted-foreground">{opacity}%</span>
+              </div>
+              <input
+                id={opacityId}
+                type="range"
+                min={0}
+                max={100}
+                step={5}
+                value={opacity}
+                style={{ ['--range-pct' as string]: `${opacity}%` }}
+                className="settings-range"
+                onChange={(e) => onChange(withOpacity(current, Number(e.target.value)))}
+              />
+            </div>
+
+            <div className="flex items-center gap-2">
+              <span
+                className="relative h-6 flex-1 overflow-hidden rounded border border-border/70"
+                style={CHECKER_STYLE}
+              >
+                <span
+                  className="absolute inset-0"
+                  style={{ backgroundColor: value ?? undefined }}
+                />
+              </span>
+              <code className="text-[11px] uppercase tabular-nums text-muted-foreground">
+                {value ?? 'default'}
+              </code>
+            </div>
+          </PopoverPrimitive.Content>
+        </PopoverPrimitive.Portal>
+      </PopoverPrimitive.Root>
+    </div>
   );
 }
 

@@ -185,6 +185,8 @@ export function ProjectDetailHeader({
           <div className="flex min-w-0 items-start gap-3 sm:gap-4">
             <ProjectIcon
               iconDataUrl={project.iconDataUrl}
+              bgColor={project.iconBgColor}
+              iconColor={project.iconColor}
               className="h-12 w-12"
               glyphClassName="h-5 w-5"
             />

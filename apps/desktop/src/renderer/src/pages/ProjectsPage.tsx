@@ -738,6 +738,8 @@ function ProjectCard(props: ProjectItemProps): React.JSX.Element {
           <div className="flex min-w-0 items-center gap-3">
             <ProjectIcon
               iconDataUrl={project.iconDataUrl}
+              bgColor={project.iconBgColor}
+              iconColor={project.iconColor}
               className="h-11 w-11"
               glyphClassName="h-5 w-5"
             />
@@ -804,7 +806,11 @@ function ProjectRow(props: ProjectItemProps): React.JSX.Element {
       {...drag}
     >
       <DropIndicator view="list" place={props.dropPlace} />
-      <ProjectIcon iconDataUrl={project.iconDataUrl} />
+      <ProjectIcon
+        iconDataUrl={project.iconDataUrl}
+        bgColor={project.iconBgColor}
+        iconColor={project.iconColor}
+      />
       <div className="min-w-0 flex-1">
         <div className="flex min-w-0 items-center gap-0.5">
           <button
