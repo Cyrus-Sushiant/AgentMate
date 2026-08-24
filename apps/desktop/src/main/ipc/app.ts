@@ -1,6 +1,6 @@
 import { app, ipcMain } from 'electron';
-import { IPC } from '../../shared/ipcChannels';
 import type { UpdateStatus } from '../../shared/apiTypes';
+import { IPC } from '../../shared/ipcChannels';
 import { takePendingRoute } from '../mainWindow';
 import { checkForUpdates, downloadUpdate, pauseDownload, quitAndInstall } from '../updater';
 

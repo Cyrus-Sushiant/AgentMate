@@ -1,12 +1,12 @@
 import { join } from 'node:path';
 import { app, BrowserWindow, ipcMain } from 'electron';
-import { IPC } from '../../shared/ipcChannels';
 import type {
   SpeechModelProgress,
   SpeechModelState,
   TranscribeAudioInput,
   TranscribeAudioResult,
 } from '../../shared/apiTypes';
+import { IPC } from '../../shared/ipcChannels';
 import { store } from '../store';
 
 // Whisper ONNX weights, served from the Hugging Face hub the first time and

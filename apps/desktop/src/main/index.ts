@@ -1,6 +1,8 @@
 import { join } from 'node:path';
 import { app, BrowserWindow, desktopCapturer, session, shell } from 'electron';
 import icon from '../../resources/icon.ico?asset';
+import { seedExampleRepositoryIfEmpty } from './exampleSkillRepo';
+import { shutdownLocalServer } from './grammar/localServer';
 import { registerActivityHandlers } from './ipc/activity';
 import { registerAiHandlers } from './ipc/ai';
 import { registerAppHandlers } from './ipc/app';
@@ -24,33 +26,31 @@ import { registerRemoteHandlers } from './ipc/remote';
 import { registerScheduledTaskHandlers } from './ipc/scheduledTasks';
 import { registerSettingsHandlers } from './ipc/settings';
 import { registerShellHandlers } from './ipc/shell';
-import { registerSpeechHandlers } from './ipc/speech';
 import { registerSkillHandlers } from './ipc/skills';
+import { registerSpeechHandlers } from './ipc/speech';
 import { registerSystemStatsHandlers } from './ipc/systemStats';
 import { registerTemplateHandlers } from './ipc/templates';
 import { killAllTerminalSessions, registerTerminalHandlers } from './ipc/terminal';
 import { registerToolHandlers } from './ipc/tools';
 import { registerTranslateHandlers } from './ipc/translate';
 import { registerUsageHandlers } from './ipc/usage';
-import { widgetManager } from './usage/widgetWindows';
-import { promptBuildWidgetManager } from './promptBuild/widgetWindows';
-import { petManager } from './pet/petWindow';
-import { setMainWindow, setMainWindowFactory } from './mainWindow';
-import { configureSpellChecker, registerSpellcheckHandlers } from './spellcheck';
 import { registerWindowHandlers } from './ipc/window';
-import { seedExampleRepositoryIfEmpty } from './exampleSkillRepo';
-import { migrateInlineProjectIcons } from './store';
-import { startHookServer, stopHookServer } from './notifications/hookServer';
-import { startResetAlertWatcher, stopResetAlertWatcher } from './usage/resetAlerts';
-import { startThresholdAlertWatcher, stopThresholdAlertWatcher } from './usage/thresholdAlerts';
+import { setMainWindow, setMainWindowFactory } from './mainWindow';
 import {
   startNetworkQualityAlertWatcher,
   stopNetworkQualityAlertWatcher,
 } from './network/qualityAlerts';
-import { remoteManager } from './remote/manager';
-import { startHourlyUpdateChecks } from './updater';
+import { startHookServer, stopHookServer } from './notifications/hookServer';
+import { petManager } from './pet/petWindow';
 import { startPipelineWatcher, stopPipelineWatcher } from './pipelines/watcher';
-import { shutdownLocalServer } from './grammar/localServer';
+import { promptBuildWidgetManager } from './promptBuild/widgetWindows';
+import { remoteManager } from './remote/manager';
+import { configureSpellChecker, registerSpellcheckHandlers } from './spellcheck';
+import { migrateInlineProjectIcons } from './store';
+import { startHourlyUpdateChecks } from './updater';
+import { startResetAlertWatcher, stopResetAlertWatcher } from './usage/resetAlerts';
+import { startThresholdAlertWatcher, stopThresholdAlertWatcher } from './usage/thresholdAlerts';
+import { widgetManager } from './usage/widgetWindows';
 
 // Chromium normally deprioritizes timers, rendering, and IPC delivery for a
 // minimized/occluded window (and Windows' own efficiency-mode throttling

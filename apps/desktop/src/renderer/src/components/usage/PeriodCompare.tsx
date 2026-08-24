@@ -1,6 +1,6 @@
 import type { ProviderUsage, WidgetPeriod } from '@agentmat/core';
-import { cn } from '@/lib/utils';
 import { formatCost, formatTokens } from '@/lib/usageFormat';
+import { cn } from '@/lib/utils';
 
 export const WIDGET_PERIODS: { id: WidgetPeriod; label: string; days: number }[] = [
   { id: 'day', label: 'Day', days: 1 },
@@ -29,10 +29,7 @@ export function PeriodChips({
 }): React.JSX.Element {
   return (
     <div
-      className={cn(
-        'inline-flex rounded-full bg-foreground/8 p-0.5',
-        className,
-      )}
+      className={cn('inline-flex rounded-full bg-foreground/8 p-0.5', className)}
       role="tablist"
       aria-label="Usage period"
     >

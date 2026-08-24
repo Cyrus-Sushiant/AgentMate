@@ -1,5 +1,7 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { GrammarIssue } from '@shared/grammar';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { GrammarPanel } from '@/components/grammar/GrammarPanel';
+import { GrammarUnderlines } from '@/components/grammar/GrammarUnderlines';
 import {
   Bold,
   Code,
@@ -20,25 +22,23 @@ import {
   WindowRestore,
 } from '@/components/icons';
 import { SimpleTooltip } from '@/components/ui/tooltip';
-import { GrammarPanel } from '@/components/grammar/GrammarPanel';
-import { GrammarUnderlines } from '@/components/grammar/GrammarUnderlines';
 import { useGrammarCheck } from '@/hooks/useGrammarCheck';
+import { isShortcutLetter } from '@/lib/shortcutKey';
+import { cn } from '@/lib/utils';
 import { MarkdownPreview } from './MarkdownPreview';
 import {
-  RULE_SNIPPET,
-  TABLE_SNIPPET,
   continueList,
+  type EditState,
   indentSelection,
   insertBlock,
   insertCodeBlock,
   insertLink,
+  RULE_SNIPPET,
+  TABLE_SNIPPET,
   toggleBlockPrefix,
   toggleHeading,
   toggleInlineWrap,
-  type EditState,
 } from './markdownCommands';
-import { isShortcutLetter } from '@/lib/shortcutKey';
-import { cn } from '@/lib/utils';
 
 export type MarkdownViewMode = 'write' | 'split' | 'preview';
 

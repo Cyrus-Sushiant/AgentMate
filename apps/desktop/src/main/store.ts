@@ -14,8 +14,8 @@ import type {
   SkillRepository,
 } from '@agentmat/core';
 import {
-  clampDesktopPetScale,
   clampDesktopPetClickArea,
+  clampDesktopPetScale,
   DASHBOARD_CHART_IDS,
   DASHBOARD_STAT_IDS,
   DEFAULT_DESKTOP_PET_ACTION_SPEEDS,
@@ -23,12 +23,12 @@ import {
   defaultUsageResetAlerts,
   defaultUsageThresholdAlerts,
   normalizeCliArgs,
-  normalizeGrammarSettings,
   normalizeCustomDesktopPets,
   normalizeDesktopPetActionSpeeds,
   normalizeDesktopPetCardView,
   normalizeDesktopPetId,
   normalizeDesktopPetName,
+  normalizeGrammarSettings,
   normalizeProjectColor,
   normalizeProjectGithubActions,
   normalizeProjectNotifications,

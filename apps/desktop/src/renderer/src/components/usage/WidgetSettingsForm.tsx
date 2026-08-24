@@ -87,10 +87,7 @@ export function WidgetSettingsForm({
     <div className={cn('space-y-3', className)}>
       <div className="flex items-center justify-between gap-3">
         <Label className="text-xs text-muted-foreground">Period</Label>
-        <PeriodChips
-          value={value.period}
-          onChange={(period) => onChange({ ...value, period })}
-        />
+        <PeriodChips value={value.period} onChange={(period) => onChange({ ...value, period })} />
       </div>
 
       <div className="space-y-1.5">
@@ -109,9 +106,7 @@ export function WidgetSettingsForm({
           max={100}
           step={1}
           value={clampWidgetBlurPercent(value.blurPercent)}
-          onChange={(event) =>
-            onChange({ ...value, blurPercent: Number(event.target.value) })
-          }
+          onChange={(event) => onChange({ ...value, blurPercent: Number(event.target.value) })}
           className="widget-range w-full"
         />
       </div>

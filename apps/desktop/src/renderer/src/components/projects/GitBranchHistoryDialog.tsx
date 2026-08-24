@@ -51,9 +51,7 @@ function buildCommitGraph(commits: GitCommitInfo[]): GraphRow[] {
       }
     }
 
-    const lines = reserved
-      .map((hash, index) => (hash ? index : -1))
-      .filter((index) => index >= 0);
+    const lines = reserved.map((hash, index) => (hash ? index : -1)).filter((index) => index >= 0);
 
     const links: { from: number; to: number }[] = [];
     const parents = commit.parents.filter((parent) => known.has(parent));
@@ -91,7 +89,9 @@ function ActivityChart({ activity }: { activity: GitDayCount[] }): React.JSX.Ele
       <div className="flex items-baseline justify-between gap-2">
         <p className="text-sm font-medium">Activity</p>
         <p className="text-xs text-muted-foreground">
-          {total === 0 ? 'No commits in the last 12 weeks' : `${total} commit${total === 1 ? '' : 's'} in 12 weeks`}
+          {total === 0
+            ? 'No commits in the last 12 weeks'
+            : `${total} commit${total === 1 ? '' : 's'} in 12 weeks`}
         </p>
       </div>
       <div className="flex h-16 items-end gap-px rounded-lg border border-border/80 bg-foreground/[0.03] px-1.5 py-1.5">
@@ -170,7 +170,15 @@ function CommitGraphCell({
         );
       })}
       <circle cx={xFor(row.lane)} cy={mid} r="4.25" fill={color} />
-      <circle cx={xFor(row.lane)} cy={mid} r="4.25" fill="none" stroke={color} strokeWidth="2" opacity="0.35" />
+      <circle
+        cx={xFor(row.lane)}
+        cy={mid}
+        r="4.25"
+        fill="none"
+        stroke={color}
+        strokeWidth="2"
+        opacity="0.35"
+      />
     </svg>
   );
 }
@@ -214,10 +222,7 @@ export function GitBranchHistoryDialog({
           <DialogDescription>
             Chart and commits for{' '}
             <span className="font-mono text-foreground">{branch ?? 'this branch'}</span>
-            {historyQuery.data
-              ? ` · ${historyQuery.data.commits.length} shown`
-              : null}
-            .
+            {historyQuery.data ? ` · ${historyQuery.data.commits.length} shown` : null}.
           </DialogDescription>
         </DialogHeader>
 

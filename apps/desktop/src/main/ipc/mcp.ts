@@ -3,16 +3,16 @@ import { randomUUID } from 'node:crypto';
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { promisify } from 'node:util';
-import { app, dialog, ipcMain } from 'electron';
-import { bundledMcpDirectory, bundledMcpRepository, parseMcpRepositoryIndex } from '@agentmat/core';
 import type {
   McpRepository,
   McpRepositoryIndex,
   McpRepositorySourceType,
   McpServer,
 } from '@agentmat/core';
-import { IPC } from '../../shared/ipcChannels';
+import { bundledMcpDirectory, bundledMcpRepository, parseMcpRepositoryIndex } from '@agentmat/core';
+import { app, dialog, ipcMain } from 'electron';
 import type { InstalledMcpServerRecord } from '../../shared/apiTypes';
+import { IPC } from '../../shared/ipcChannels';
 import { store } from '../store';
 
 const execFileAsync = promisify(execFile);

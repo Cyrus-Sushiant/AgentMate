@@ -242,7 +242,11 @@ function startRappel(actor: Actor, stage: Stage, now: number, config: MotionConf
   actor.climbFrom = actor.y;
   actor.climbTo = bottomY(stage, actor.box);
   actor.climbStartedAt = now;
-  actor.climbMs = scaleMs(Math.max(2200, (actor.climbTo - actor.y) * 5.4), 900, speedMul(config, 'descend'));
+  actor.climbMs = scaleMs(
+    Math.max(2200, (actor.climbTo - actor.y) * 5.4),
+    900,
+    speedMul(config, 'descend'),
+  );
 }
 
 function startParachute(actor: Actor, stage: Stage, now: number, config: MotionConfig): void {
@@ -253,7 +257,11 @@ function startParachute(actor: Actor, stage: Stage, now: number, config: MotionC
   actor.climbFrom = actor.y;
   actor.climbTo = bottomY(stage, actor.box);
   actor.climbStartedAt = now;
-  actor.climbMs = scaleMs(Math.max(3800, (actor.climbTo - actor.y) * 8.2), 1600, speedMul(config, 'parachute'));
+  actor.climbMs = scaleMs(
+    Math.max(3800, (actor.climbTo - actor.y) * 8.2),
+    1600,
+    speedMul(config, 'parachute'),
+  );
 }
 
 function startDescend(actor: Actor, stage: Stage, now: number, config: MotionConfig): void {
@@ -370,7 +378,8 @@ export function stepCompanion(
       actor.vx = approach(actor.vx, 0, dt);
       actor.x += actor.vx * dt;
       if (actor.y > stage.height / 2) actor.y = lerp(actor.y, floor, Math.min(1, dt * 10));
-      else if (actor.y < stage.height / 2 && config.canClimb) actor.y = lerp(actor.y, TOP_Y, Math.min(1, dt * 10));
+      else if (actor.y < stage.height / 2 && config.canClimb)
+        actor.y = lerp(actor.y, TOP_Y, Math.min(1, dt * 10));
       else actor.y = lerp(actor.y, floor, Math.min(1, dt * 10));
 
       if (now >= actor.nextAt) {

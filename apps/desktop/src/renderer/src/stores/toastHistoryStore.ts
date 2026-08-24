@@ -51,7 +51,10 @@ export const useToastHistoryStore = create<ToastHistoryState>()(
           head.description === incoming.description
         ) {
           set({
-            items: [{ ...head, count: head.count + 1, createdAt: now, read: seen }, ...items.slice(1)],
+            items: [
+              { ...head, count: head.count + 1, createdAt: now, read: seen },
+              ...items.slice(1),
+            ],
           });
           return;
         }

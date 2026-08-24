@@ -1,5 +1,10 @@
+import {
+  ALL_AGENTS_WIDGET_ID,
+  type ProviderUsage,
+  type UsageProviderDefinition,
+  type WidgetMode,
+} from '@agentmat/core';
 import { useEffect, useState } from 'react';
-import { ALL_AGENTS_WIDGET_ID, type ProviderUsage, type UsageProviderDefinition, type WidgetMode } from '@agentmat/core';
 import { Pin } from '@/components/icons';
 import { Button } from '@/components/ui/button';
 import {
@@ -16,8 +21,8 @@ import { UsageCardBody } from './UsageCard';
 import {
   DEFAULT_WIDGET_SETTINGS,
   WidgetSettingsForm,
-  widgetGlassVars,
   type WidgetSettingsValue,
+  widgetGlassVars,
 } from './WidgetSettingsForm';
 
 /**

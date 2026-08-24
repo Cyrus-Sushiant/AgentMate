@@ -7,6 +7,7 @@
 
   Manage every AI coding CLI on your machine (Claude Code, Codex, Cursor, Gemini, Grok, OpenCode, and more) from one desktop app: track token usage and cost, bootstrap and launch projects, review diffs, watch GitHub Actions, build and translate prompts, install skills and MCP servers, and remote-control another AgentMate over your local network.
 
+  [![CI](https://github.com/Cyrus-Sushiant/AgentMate/actions/workflows/ci.yml/badge.svg)](https://github.com/Cyrus-Sushiant/AgentMate/actions/workflows/ci.yml)
   ![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-informational)
   ![Built with Electron](https://img.shields.io/badge/built%20with-Electron-47848F)
   ![TypeScript](https://img.shields.io/badge/TypeScript-7-3178C6)
@@ -160,6 +161,16 @@ On Windows you can also just run `run.bat`, which installs dependencies, verifie
 | `pnpm mobile` | Build `protocol`, then launch the Expo dev server for the mobile companion app |
 | `pnpm typecheck` | Type-check every workspace package |
 | `pnpm lint` | Lint every workspace package |
+| `pnpm check` | Run Biome over the whole repo (format, lint, import order) |
+| `pnpm check:fix` | Same as `pnpm check`, but writes the safe fixes |
+| `pnpm check:deprecated-code` | Fail on imports upstream has marked `@deprecated` |
+| `pnpm check:deprecated-deps` | Fail on direct dependencies npm reports as deprecated |
+
+### CI
+
+Every push and pull request runs [`.github/workflows/ci.yml`](.github/workflows/ci.yml): Biome (formatting, lint, import order), the two deprecation gates above, a type-check of every package, and a real build of the desktop app. Running `pnpm check && pnpm check:deprecated-code && pnpm check:deprecated-deps && pnpm typecheck && pnpm build` reproduces it locally.
+
+A deprecated dependency you cannot drop yet goes in [`.github/deprecated-deps-allowlist.json`](.github/deprecated-deps-allowlist.json) with a reason for keeping it. Releases are still built and published by [`.github/workflows/cd.yml`](.github/workflows/cd.yml) when a `v*.*.*` tag is pushed.
 
 ## License
 

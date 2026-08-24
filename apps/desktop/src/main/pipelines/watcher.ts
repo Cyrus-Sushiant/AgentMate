@@ -1,12 +1,12 @@
 import { randomUUID } from 'node:crypto';
-import { BrowserWindow } from 'electron';
 import type { AppNotification, Project } from '@agentmat/core';
+import { BrowserWindow } from 'electron';
 import type { GithubWorkflowRunInfo } from '../../shared/apiTypes';
-import type { PetPipelineMessage, PetPipelineRunRef } from '../../shared/pet';
 import { IPC } from '../../shared/ipcChannels';
+import type { PetPipelineMessage, PetPipelineRunRef } from '../../shared/pet';
 import { petDisplayName } from '../pet/names';
 import { petManager } from '../pet/petWindow';
-import { store, type PipelineWatchState } from '../store';
+import { type PipelineWatchState, store } from '../store';
 import { fetchProjectPipelineStatus, githubRepoForFolder, listWorkflowRuns } from './githubActions';
 
 const TICK_MS = 45_000;
@@ -25,11 +25,7 @@ function broadcastNotificationsChanged(): void {
   }
 }
 
-function petSpeech(
-  kind: 'pass' | 'fail',
-  projectName: string,
-  workflowName: string,
-): string {
+function petSpeech(kind: 'pass' | 'fail', projectName: string, workflowName: string): string {
   if (kind === 'fail') return `${workflowName} on ${projectName} just failed.`;
   return `${workflowName} on ${projectName} passed.`;
 }
@@ -124,10 +120,7 @@ async function processWatchedWorkflow(
   return true;
 }
 
-export async function seedWatchedWorkflow(
-  projectId: string,
-  workflowId: number,
-): Promise<void> {
+export async function seedWatchedWorkflow(projectId: string, workflowId: number): Promise<void> {
   const projects = await store.getProjects();
   const project = projects.find((item) => item.id === projectId);
   if (!project) return;

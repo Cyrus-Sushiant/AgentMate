@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
 import { defaultGrammarSettings, type GrammarSettings } from '@agentmat/core';
 import type { GrammarIssue } from '@shared/grammar';
+import { useQuery } from '@tanstack/react-query';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { alignIssues, issueKey, type TextField } from '@/lib/grammar';
 import { registerFieldGrammar, unregisterFieldGrammar } from '@/lib/grammarRegistry';
 import { queryKeys } from '@/lib/queryKeys';

@@ -1,9 +1,9 @@
 import { randomUUID } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { app } from 'electron';
-import Database from 'better-sqlite3';
 import type { SkillAuditFinding, SkillAuditVerdict } from '@agentmat/core';
+import Database from 'better-sqlite3';
+import { app } from 'electron';
 import type { SkillAuditRecord, SkillAuditSourceKind } from '../shared/apiTypes';
 
 // Same native-module note as promptHistoryDb: better-sqlite3 is rebuilt for
@@ -125,9 +125,7 @@ export const skillAuditDb = {
     const limit = options.limit ?? 200;
     const rows = options.skillId
       ? (getDb()
-          .prepare(
-            'SELECT * FROM skill_audits WHERE skill_id = ? ORDER BY created_at DESC LIMIT ?',
-          )
+          .prepare('SELECT * FROM skill_audits WHERE skill_id = ? ORDER BY created_at DESC LIMIT ?')
           .all(options.skillId, limit) as SkillAuditRow[])
       : (getDb()
           .prepare('SELECT * FROM skill_audits ORDER BY created_at DESC LIMIT ?')

@@ -1,8 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import { mkdir, readFile, unlink, writeFile } from 'node:fs/promises';
 import { basename, extname, join } from 'node:path';
-import { app, dialog } from 'electron';
 import type { CustomDesktopPet } from '@agentmat/core';
+import { app, dialog } from 'electron';
 import { store } from '../store';
 import { petManager } from './petWindow';
 
@@ -20,7 +20,8 @@ function mimeForExt(ext: string): string {
 }
 
 function looksLikeImage(buf: Buffer, ext: string): boolean {
-  if (ext === '.png') return buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e && buf[3] === 0x47;
+  if (ext === '.png')
+    return buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e && buf[3] === 0x47;
   if (ext === '.gif') return buf.toString('ascii', 0, 3) === 'GIF';
   if (ext === '.webp') {
     return buf.toString('ascii', 0, 4) === 'RIFF' && buf.toString('ascii', 8, 12) === 'WEBP';
@@ -55,7 +56,8 @@ export async function importCustomPet(): Promise<CustomDesktopPet | null> {
 
   const buf = await readFile(src);
   if (buf.byteLength > MAX_BYTES) throw new Error('That image is larger than 8 MB.');
-  if (!looksLikeImage(buf, ext)) throw new Error('That file does not look like a PNG, GIF, or WebP.');
+  if (!looksLikeImage(buf, ext))
+    throw new Error('That file does not look like a PNG, GIF, or WebP.');
 
   const id = `custom-${randomUUID()}`;
   const fileName = `${id}${ext}`;
@@ -82,7 +84,8 @@ export async function removeCustomPet(id: string): Promise<void> {
   await store.setSettings({
     ...settings,
     desktopPetCustoms: customs,
-    desktopPetCharacterId: settings.desktopPetCharacterId === id ? 'tide' : settings.desktopPetCharacterId,
+    desktopPetCharacterId:
+      settings.desktopPetCharacterId === id ? 'tide' : settings.desktopPetCharacterId,
   });
   void petManager.syncFromSettings();
 }

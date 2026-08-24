@@ -1,19 +1,19 @@
 import { readFile, writeFile } from 'node:fs/promises';
 import { extname } from 'node:path';
-import { app, dialog, ipcMain } from 'electron';
 import AdmZip from 'adm-zip';
-import { IPC } from '../../shared/ipcChannels';
+import { app, dialog, ipcMain } from 'electron';
 import type { BackupExportResult, BackupImportResult } from '../../shared/apiTypes';
+import { IPC } from '../../shared/ipcChannels';
 import {
   BACKUP_VERSION,
-  parseBackup,
   type BackupData,
   type BackupEnvelope,
+  parseBackup,
 } from '../backup/envelope';
-import { store } from '../store';
 import { petManager } from '../pet/petWindow';
 import { promptHistoryDb } from '../promptHistoryDb';
 import { skillAuditDb } from '../skillAuditDb';
+import { store } from '../store';
 
 const ZIP_ENTRY_NAME = 'backup.json';
 

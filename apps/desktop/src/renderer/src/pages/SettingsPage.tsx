@@ -1,7 +1,12 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import type { AiProvider, ThemeMode } from '@agentmat/core';
+import { CLI_REGISTRY } from '@agentmat/core';
+import type { OllamaConnectionTest } from '@shared/apiTypes';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
+import { CliArgsField } from '@/components/CliArgsField';
+import { cliOptionIcon } from '@/components/cliLogos';
 import {
   Bell,
   Blocks,
@@ -18,8 +23,8 @@ import {
   Monitor,
   Moon,
   NetworkIcon,
-  Paw,
   Pause,
+  Paw,
   Play,
   RefreshCw,
   Save,
@@ -30,9 +35,10 @@ import {
   Upload,
   X,
 } from '@/components/icons';
-import { CLI_REGISTRY } from '@agentmat/core';
-import { CliArgsField } from '@/components/CliArgsField';
-import { cliOptionIcon } from '@/components/cliLogos';
+import { CompanionSettings } from '@/components/pet/CompanionSettings';
+import { ShortcutSettings } from '@/components/settings/ShortcutSettings';
+import { WritingCheckSettings } from '@/components/settings/WritingCheckSettings';
+import { formatUpdateBytes, UpdateProgressTrack, updatePercent } from '@/components/UpdateManager';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -45,23 +51,13 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { queryKeys } from '@/lib/queryKeys';
 import { isShortcutLetter } from '@/lib/shortcutKey';
-import {
-  formatUpdateBytes,
-  UpdateProgressTrack,
-  updatePercent,
-} from '@/components/UpdateManager';
-import { usePageHeader } from '@/stores/pageHeaderStore';
-import { useCliStore } from '@/stores/cliStore';
-import { useThemeStore } from '@/stores/themeStore';
-import { usePingTargetsStore } from '@/stores/pingTargetsStore';
-import { openUpdateDialog, useUpdateStore } from '@/stores/updateStore';
-import { confirmDialog } from '@/stores/confirmStore';
-import type { AiProvider, ThemeMode } from '@agentmat/core';
-import type { OllamaConnectionTest } from '@shared/apiTypes';
 import { cn } from '@/lib/utils';
-import { CompanionSettings } from '@/components/pet/CompanionSettings';
-import { ShortcutSettings } from '@/components/settings/ShortcutSettings';
-import { WritingCheckSettings } from '@/components/settings/WritingCheckSettings';
+import { useCliStore } from '@/stores/cliStore';
+import { confirmDialog } from '@/stores/confirmStore';
+import { usePageHeader } from '@/stores/pageHeaderStore';
+import { usePingTargetsStore } from '@/stores/pingTargetsStore';
+import { useThemeStore } from '@/stores/themeStore';
+import { openUpdateDialog, useUpdateStore } from '@/stores/updateStore';
 
 const PROMPT_BUILDER_PROVIDER_OPTIONS: { value: AiProvider; label: string }[] = [
   { value: 'openai', label: 'OpenAI' },
@@ -89,14 +85,7 @@ const THEME_OPTIONS: { value: ThemeMode; label: string; hint: string; icon: type
   { value: 'system', label: 'System', hint: 'Follow this machine', icon: Monitor },
 ];
 
-const SETTINGS_TABS = [
-  'general',
-  'shortcuts',
-  'companion',
-  'ai',
-  'notifications',
-  'data',
-] as const;
+const SETTINGS_TABS = ['general', 'shortcuts', 'companion', 'ai', 'notifications', 'data'] as const;
 type SettingsTab = (typeof SETTINGS_TABS)[number];
 
 function isSettingsTab(value: string | null): value is SettingsTab {
@@ -109,12 +98,40 @@ const TAB_META: {
   icon: typeof SettingsIcon;
   keywords: string;
 }[] = [
-  { id: 'general', label: 'General', icon: SettingsIcon, keywords: 'appearance theme cli projects folder skills' },
-  { id: 'shortcuts', label: 'Shortcuts', icon: Keyboard, keywords: 'keyboard shortcut shortcuts keybinding hotkey ctrl cmd alt terminal projects palette' },
-  { id: 'companion', label: 'AI Pet', icon: Paw, keywords: 'pet ai pet my ai pet companion desktop character walk mascot climb rope size click area tight wander gif png webp custom add pipeline github actions fail pass notify internet quality ping offline' },
-  { id: 'ai', label: 'AI', icon: MessageSquare, keywords: 'openai gemini ollama api key whisper voice translate writing grammar spelling style languagetool context length num_ctx keep alive test connection local model' },
+  {
+    id: 'general',
+    label: 'General',
+    icon: SettingsIcon,
+    keywords: 'appearance theme cli projects folder skills',
+  },
+  {
+    id: 'shortcuts',
+    label: 'Shortcuts',
+    icon: Keyboard,
+    keywords:
+      'keyboard shortcut shortcuts keybinding hotkey ctrl cmd alt terminal projects palette',
+  },
+  {
+    id: 'companion',
+    label: 'AI Pet',
+    icon: Paw,
+    keywords:
+      'pet ai pet my ai pet companion desktop character walk mascot climb rope size click area tight wander gif png webp custom add pipeline github actions fail pass notify internet quality ping offline',
+  },
+  {
+    id: 'ai',
+    label: 'AI',
+    icon: MessageSquare,
+    keywords:
+      'openai gemini ollama api key whisper voice translate writing grammar spelling style languagetool context length num_ctx keep alive test connection local model',
+  },
   { id: 'notifications', label: 'Notifications', icon: Bell, keywords: 'telegram bot chat notify' },
-  { id: 'data', label: 'Data', icon: HardDrive, keywords: 'backup restore ping network about version update' },
+  {
+    id: 'data',
+    label: 'Data',
+    icon: HardDrive,
+    keywords: 'backup restore ping network about version update',
+  },
 ];
 
 const WRITING_CHECK_KEYWORDS =
@@ -276,7 +293,9 @@ function MiniWindow({ dark, className }: { dark: boolean; className?: string }):
       <div className="flex min-w-0 flex-1 flex-col gap-1 p-1.5">
         <div className={cn('h-1.5 w-7 rounded-full', dark ? 'bg-white/25' : 'bg-black/20')} />
         <div className="h-1.5 w-10 rounded-full bg-[hsl(var(--primary))]" />
-        <div className={cn('mt-0.5 min-h-0 flex-1 rounded-sm', dark ? 'bg-white/8' : 'bg-black/8')} />
+        <div
+          className={cn('mt-0.5 min-h-0 flex-1 rounded-sm', dark ? 'bg-white/8' : 'bg-black/8')}
+        />
       </div>
     </div>
   );
@@ -291,7 +310,15 @@ function HostChips({
 }): React.JSX.Element {
   const [draft, setDraft] = useState('');
   const hosts = useMemo(
-    () => Array.from(new Set(value.split(',').map((host) => host.trim()).filter(Boolean))),
+    () =>
+      Array.from(
+        new Set(
+          value
+            .split(',')
+            .map((host) => host.trim())
+            .filter(Boolean),
+        ),
+      ),
     [value],
   );
 
@@ -466,7 +493,9 @@ export default function SettingsPage(): React.JSX.Element {
       setOllamaBaseUrl(settingsQuery.data.ollamaBaseUrl);
       setOllamaModel(settingsQuery.data.ollamaModel);
       setOllamaContextLength(
-        settingsQuery.data.ollamaContextLength ? String(settingsQuery.data.ollamaContextLength) : '',
+        settingsQuery.data.ollamaContextLength
+          ? String(settingsQuery.data.ollamaContextLength)
+          : '',
       );
       setOllamaKeepAlive(settingsQuery.data.ollamaKeepAlive);
       setGeminiApiKey(settingsQuery.data.geminiApiKey ?? '');
@@ -786,18 +815,32 @@ export default function SettingsPage(): React.JSX.Element {
   }
 
   function showSection(sectionTab: SettingsTab, keywords: string, title: string): boolean {
-    if (query) return matchesQuery(query, title, keywords, TAB_META.find((item) => item.id === sectionTab)?.label);
+    if (query)
+      return matchesQuery(
+        query,
+        title,
+        keywords,
+        TAB_META.find((item) => item.id === sectionTab)?.label,
+      );
     return tab === sectionTab;
   }
 
   const visibleCount = [
     showSection('general', 'appearance theme dark light system look', 'Appearance'),
     showSection('shortcuts', SHORTCUT_KEYWORDS, 'Keyboard shortcuts'),
-    showSection('companion', 'pet ai pet my ai pet companion desktop character walk mascot climb rope size click area tight wander pipeline github actions fail pass internet quality', 'My AI Pet'),
+    showSection(
+      'companion',
+      'pet ai pet my ai pet companion desktop character walk mascot climb rope size click area tight wander pipeline github actions fail pass internet quality',
+      'My AI Pet',
+    ),
     showSection('general', 'default cli provider agent arguments args flags model', 'Default CLI'),
     showSection('general', 'projects folder path directory', 'Projects folder'),
     showSection('general', 'skills repositories sources', 'Skill repositories'),
-    showSection('ai', 'openai gemini ollama api key model prompt builder provider context length num_ctx keep alive test connection', 'Providers'),
+    showSection(
+      'ai',
+      'openai gemini ollama api key model prompt builder provider context length num_ctx keep alive test connection',
+      'Providers',
+    ),
     showSection('ai', 'voice whisper speech microphone transcription', 'Voice input'),
     showSection('ai', WRITING_CHECK_KEYWORDS, 'Writing check'),
     showSection('ai', 'translation retries translate', 'Translation retries'),
@@ -835,14 +878,21 @@ export default function SettingsPage(): React.JSX.Element {
             ) : null}
           </div>
           {!query ? (
-            <Tabs value={tab} onValueChange={(value) => selectTab(value as SettingsTab)} className="lg:hidden">
+            <Tabs
+              value={tab}
+              onValueChange={(value) => selectTab(value as SettingsTab)}
+              className="lg:hidden"
+            >
               <TabsList containerClassName="border-0">
                 {TAB_META.map((item) => (
                   <TabsTrigger key={item.id} value={item.id} className="gap-1.5">
                     <item.icon className="h-3.5 w-3.5" />
                     {item.label}
                     {tabDirty[item.id] ? (
-                      <span className="h-1.5 w-1.5 rounded-full bg-primary" aria-label="Unsaved changes" />
+                      <span
+                        className="h-1.5 w-1.5 rounded-full bg-primary"
+                        aria-label="Unsaved changes"
+                      />
                     ) : null}
                   </TabsTrigger>
                 ))}
@@ -877,7 +927,10 @@ export default function SettingsPage(): React.JSX.Element {
                       <item.icon className={cn('h-3.5 w-3.5', active && 'text-primary')} />
                       <span className="flex-1 text-left">{item.label}</span>
                       {tabDirty[item.id] ? (
-                        <span className="h-1.5 w-1.5 rounded-full bg-primary" aria-label="Unsaved changes" />
+                        <span
+                          className="h-1.5 w-1.5 rounded-full bg-primary"
+                          aria-label="Unsaved changes"
+                        />
                       ) : null}
                     </button>
                   </li>
@@ -936,7 +989,11 @@ export default function SettingsPage(): React.JSX.Element {
                   title="Appearance"
                   description="How AgentMate looks on this machine."
                 >
-                  <div role="group" aria-label="Theme" className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                  <div
+                    role="group"
+                    aria-label="Theme"
+                    className="grid grid-cols-1 gap-2 sm:grid-cols-3"
+                  >
                     {THEME_OPTIONS.map((option) => {
                       const active = theme === option.value;
                       return (
@@ -983,7 +1040,11 @@ export default function SettingsPage(): React.JSX.Element {
                 <CompanionSettings settings={settingsQuery.data} />
               ) : null}
 
-              {showSection('general', 'default cli provider agent arguments args flags model', 'Default CLI') && (
+              {showSection(
+                'general',
+                'default cli provider agent arguments args flags model',
+                'Default CLI',
+              ) && (
                 <SettingsCard
                   icon={TerminalSquare}
                   title="Default CLI"
@@ -1027,7 +1088,11 @@ export default function SettingsPage(): React.JSX.Element {
                       className="min-w-[16rem] flex-1 font-mono text-xs"
                       spellCheck={false}
                     />
-                    <Button variant="outline" size="sm" onClick={() => void handleBrowseProjectsRoot()}>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => void handleBrowseProjectsRoot()}
+                    >
                       <FolderOpen /> Browse…
                     </Button>
                   </div>
@@ -1068,7 +1133,10 @@ export default function SettingsPage(): React.JSX.Element {
                         <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                           OpenAI
                         </p>
-                        <Badge variant={openaiApiKey.trim() ? 'success' : 'secondary'} className="font-normal">
+                        <Badge
+                          variant={openaiApiKey.trim() ? 'success' : 'secondary'}
+                          className="font-normal"
+                        >
                           {openaiApiKey.trim() ? 'Key set' : 'No key'}
                         </Badge>
                       </div>
@@ -1118,7 +1186,10 @@ export default function SettingsPage(): React.JSX.Element {
                         <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                           Gemini
                         </p>
-                        <Badge variant={geminiApiKey.trim() ? 'success' : 'secondary'} className="font-normal">
+                        <Badge
+                          variant={geminiApiKey.trim() ? 'success' : 'secondary'}
+                          className="font-normal"
+                        >
                           {geminiApiKey.trim() ? 'Key set' : 'No key'}
                         </Badge>
                       </div>
@@ -1187,7 +1258,9 @@ export default function SettingsPage(): React.JSX.Element {
                         hint={
                           <>
                             Address of a running{' '}
-                            <ExternalLinkButton href="https://ollama.com">Ollama</ExternalLinkButton>{' '}
+                            <ExternalLinkButton href="https://ollama.com">
+                              Ollama
+                            </ExternalLinkButton>{' '}
                             instance. Leave the default if it runs on this machine.
                           </>
                         }
@@ -1307,7 +1380,11 @@ export default function SettingsPage(): React.JSX.Element {
                 </SettingsCard>
               )}
 
-              {showSection('ai', 'voice whisper speech microphone transcription', 'Voice input') && (
+              {showSection(
+                'ai',
+                'voice whisper speech microphone transcription',
+                'Voice input',
+              ) && (
                 <SettingsCard
                   icon={Microphone}
                   title="Voice input"
@@ -1375,7 +1452,10 @@ export default function SettingsPage(): React.JSX.Element {
                   description="Used by project notification hooks and scheduled task updates."
                   dirty={telegramDirty}
                   action={
-                    <Badge variant={telegramReady ? 'success' : 'secondary'} className="font-normal">
+                    <Badge
+                      variant={telegramReady ? 'success' : 'secondary'}
+                      className="font-normal"
+                    >
                       {telegramReady ? 'Ready' : 'Not configured'}
                     </Badge>
                   }
@@ -1384,8 +1464,10 @@ export default function SettingsPage(): React.JSX.Element {
                     <ol className="list-decimal space-y-1 pl-4 text-sm text-muted-foreground">
                       <li>
                         Create a bot with{' '}
-                        <ExternalLinkButton href="https://t.me/BotFather">@BotFather</ExternalLinkButton> and
-                        paste its token.
+                        <ExternalLinkButton href="https://t.me/BotFather">
+                          @BotFather
+                        </ExternalLinkButton>{' '}
+                        and paste its token.
                       </li>
                       <li>Message the bot once on Telegram, then detect the chat ID.</li>
                     </ol>
@@ -1453,7 +1535,9 @@ export default function SettingsPage(): React.JSX.Element {
                     <Button
                       size="sm"
                       variant="outline"
-                      disabled={sendingTest || (!botToken.trim() && !settingsQuery.data?.telegramBotToken)}
+                      disabled={
+                        sendingTest || (!botToken.trim() && !settingsQuery.data?.telegramBotToken)
+                      }
                       onClick={() => void handleSendTest()}
                     >
                       {sendingTest ? 'Sending…' : 'Send test'}
@@ -1498,7 +1582,10 @@ export default function SettingsPage(): React.JSX.Element {
                             checked={compressBackup}
                             onCheckedChange={setCompressBackup}
                           />
-                          <Label htmlFor="compress-backup" className="font-normal text-muted-foreground">
+                          <Label
+                            htmlFor="compress-backup"
+                            className="font-normal text-muted-foreground"
+                          >
                             Compress as .zip
                           </Label>
                         </div>

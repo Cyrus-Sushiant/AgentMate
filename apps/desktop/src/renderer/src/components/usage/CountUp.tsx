@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
 import { animate, useMotionValue, useMotionValueEvent, useReducedMotion } from 'framer-motion';
+import { useEffect, useRef, useState } from 'react';
 
 /**
  * React Bits Count Up, kept to a number that already lives on the card: the

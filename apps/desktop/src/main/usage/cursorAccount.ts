@@ -1,8 +1,8 @@
 import { copyFileSync, existsSync, mkdtempSync, rmSync } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
-import Database from 'better-sqlite3';
 import type { SubscriptionPlan } from '@agentmat/core';
+import Database from 'better-sqlite3';
 
 // Cursor account detection, the same shape as `claudeAccount.ts`: read the
 // credential the app already stored at login, then use it to ask the vendor for

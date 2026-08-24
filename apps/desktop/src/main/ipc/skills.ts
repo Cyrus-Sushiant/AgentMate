@@ -1,10 +1,17 @@
 import { execFile } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { watch, type FSWatcher } from 'node:fs';
+import { type FSWatcher, watch } from 'node:fs';
 import { mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { basename, dirname, join } from 'node:path';
 import { promisify } from 'node:util';
-import { app, BrowserWindow, dialog, ipcMain } from 'electron';
+import type {
+  AgentType,
+  Skill,
+  SkillAuditFileInput,
+  SkillRepository,
+  SkillRepositoryIndex,
+  SkillRepositorySourceType,
+} from '@agentmat/core';
 import {
   allProjectSkillRemoveDirs,
   isUiProAiTarget,
@@ -18,20 +25,12 @@ import {
   UI_UX_PRO_MAX_PSEUDO_REPOSITORY_ID,
   UI_UX_PRO_MAX_SKILL_ID,
 } from '@agentmat/core';
-import type {
-  AgentType,
-  Skill,
-  SkillRepository,
-  SkillRepositoryIndex,
-  SkillRepositorySourceType,
-} from '@agentmat/core';
-import { IPC } from '../../shared/ipcChannels';
-import type { SkillAuditFileInput } from '@agentmat/core';
+import { app, BrowserWindow, dialog, ipcMain } from 'electron';
 import type {
   AuditSourcePreview,
   AuditSourceSkill,
-  InstallFromSkillsShInput,
   InstalledSkillRecord,
+  InstallFromSkillsShInput,
   LocalSkillFolderPreview,
   RecordUiProInstallInput,
   RunSkillAuditInput,
@@ -46,7 +45,9 @@ import type {
   UiProToolProbe,
   UiProUpdateCheck,
 } from '../../shared/apiTypes';
+import { IPC } from '../../shared/ipcChannels';
 import { cancelHeadlessPrompt } from '../cli/headlessPrompt';
+import { compareVersions, fetchLatestVersion } from '../registryVersions';
 import { skillAuditDb } from '../skillAuditDb';
 import {
   fetchGithubPathFiles,
@@ -59,7 +60,6 @@ import {
   runSkillAudit,
 } from '../skills/auditRunner';
 import { scanSkillFolder } from '../skills/localFolderIndex';
-import { compareVersions, fetchLatestVersion } from '../registryVersions';
 import { store } from '../store';
 
 const SKILLS_SH_VERIFIED_OWNER_SET = new Set(SKILLS_SH_VERIFIED_OWNERS);
@@ -349,7 +349,10 @@ interface AuditSubject {
 }
 
 /** Repository skills are read through the same index the marketplace shows, so what is scanned is what would be installed. */
-async function collectRepositorySkill(repositoryId: string, skillId: string): Promise<AuditSubject> {
+async function collectRepositorySkill(
+  repositoryId: string,
+  skillId: string,
+): Promise<AuditSubject> {
   const repos = await store.getRepositories();
   const repo = repos.find((r) => r.id === repositoryId);
   if (!repo) throw new Error(`Repository ${repositoryId} not found`);
@@ -1076,14 +1079,12 @@ export function registerSkillHandlers(): void {
       skillAuditDb.list(options),
   );
 
-  ipcMain.handle(
-    IPC.skills.latestAuditPerSkill,
-    (): SkillAuditRecord[] => skillAuditDb.latestPerSkill(),
+  ipcMain.handle(IPC.skills.latestAuditPerSkill, (): SkillAuditRecord[] =>
+    skillAuditDb.latestPerSkill(),
   );
 
-  ipcMain.handle(
-    IPC.skills.getAudit,
-    (_event, id: string): SkillAuditRecord | null => skillAuditDb.get(id),
+  ipcMain.handle(IPC.skills.getAudit, (_event, id: string): SkillAuditRecord | null =>
+    skillAuditDb.get(id),
   );
 
   ipcMain.handle(IPC.skills.removeAudit, (_event, id: string): void => skillAuditDb.remove(id));

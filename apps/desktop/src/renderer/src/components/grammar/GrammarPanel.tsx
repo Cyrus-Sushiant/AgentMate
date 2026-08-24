@@ -1,7 +1,7 @@
-import * as PopoverPrimitive from '@radix-ui/react-popover';
-import { useState } from 'react';
 import { isGrammarMistake } from '@agentmat/core';
+import * as PopoverPrimitive from '@radix-ui/react-popover';
 import type { GrammarIssue } from '@shared/grammar';
+import { useState } from 'react';
 import { Ban, Check, RefreshCw, SpellCheck, Spinner, X } from '@/components/icons';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';

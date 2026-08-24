@@ -2,6 +2,7 @@ import type { Project } from '@agentmat/core';
 import { AGENT_TYPE_CLI_ID, AGENT_TYPE_LABELS, configuredRunCommands } from '@agentmat/core';
 import { type ReactNode, useEffect, useRef, useState } from 'react';
 import { CliLogo } from '@/components/cliLogos';
+import { GrammarTextarea } from '@/components/grammar/GrammarTextarea';
 import {
   ArrowLeft,
   Bell,
@@ -37,7 +38,6 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Skeleton } from '@/components/ui/skeleton';
-import { GrammarTextarea } from '@/components/grammar/GrammarTextarea';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { openCliInTerminal } from '@/lib/openCli';
 import { persianTextProps } from '@/lib/rtl';

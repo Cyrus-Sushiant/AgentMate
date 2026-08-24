@@ -1,24 +1,35 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { clampDesktopPetClickArea, clampDesktopPetScale, isAnimatedPetFile, normalizeDesktopPetActionSpeeds, normalizeDesktopPetCardView, normalizeDesktopPetId, normalizeDesktopPetName, petBoxSize, petClickRect, type DesktopPetCardView } from '@agentmat/core';
-import { pipelineRunRoute, type PetPipelineMessage, type PetWorkArea } from '@shared/pet';
-import { ExternalLink } from '@/components/icons';
-import { cn } from '@/lib/utils';
-import { queryKeys } from '@/lib/queryKeys';
-import { chuteFitFor, resolvePet, ropeGripYFor } from './characters';
-import { CARD_H, CARD_W, placePetCard, PetStatsCard } from './PetStatsCard';
-import { MENU_H, MENU_W, placePetMenu, PetMenu } from './PetMenu';
-import { PetChute } from './PetChute';
 import {
+  clampDesktopPetClickArea,
+  clampDesktopPetScale,
+  type DesktopPetCardView,
+  isAnimatedPetFile,
+  normalizeDesktopPetActionSpeeds,
+  normalizeDesktopPetCardView,
+  normalizeDesktopPetId,
+  normalizeDesktopPetName,
+  petBoxSize,
+  petClickRect,
+} from '@agentmat/core';
+import { type PetPipelineMessage, type PetWorkArea, pipelineRunRoute } from '@shared/pet';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { ExternalLink } from '@/components/icons';
+import { queryKeys } from '@/lib/queryKeys';
+import { cn } from '@/lib/utils';
+import { chuteFitFor, resolvePet, ropeGripYFor } from './characters';
+import {
+  type ActionSpeeds,
+  type Actor,
   applyBox,
   clampActor,
   hopActor,
+  type Stage,
   spawnCompanion,
   stepCompanion,
-  type ActionSpeeds,
-  type Actor,
-  type Stage,
 } from './flock';
+import { PetChute } from './PetChute';
+import { MENU_H, MENU_W, PetMenu, placePetMenu } from './PetMenu';
+import { CARD_H, CARD_W, PetStatsCard, placePetCard } from './PetStatsCard';
 
 function speedsFromSettings(value: unknown): ActionSpeeds {
   const pct = normalizeDesktopPetActionSpeeds(value);
@@ -33,7 +44,6 @@ function speedsFromSettings(value: unknown): ActionSpeeds {
 function stageFromArea(area: PetWorkArea): Stage {
   return { width: area.width, height: area.height };
 }
-
 
 function snapshot(actor: Actor): Actor {
   return { ...actor, rope: actor.rope ? { ...actor.rope } : null };
@@ -62,7 +72,10 @@ function speechRectFor(
 ): { x: number; y: number; w: number; h: number; below: boolean } {
   const height = speechHeightFor(message);
   const below = hit.y < 102;
-  const x = Math.min(Math.max(8, hit.x + hit.w / 2 - SPEECH_W / 2), Math.max(8, area.width - SPEECH_W - 8));
+  const x = Math.min(
+    Math.max(8, hit.x + hit.w / 2 - SPEECH_W / 2),
+    Math.max(8, area.width - SPEECH_W - 8),
+  );
   const y = below ? hit.y + hit.h + 8 : Math.max(8, hit.y - height - 10);
   return { x, y, w: SPEECH_W, h: height, below };
 }
@@ -227,7 +240,9 @@ export default function DesktopPetRoute(): React.JSX.Element {
     spriteHRef.current = nextH;
     configRef.current = { ...configRef.current, spriteH: nextH, ropeGripY };
     setDrawn((prev) =>
-      Math.abs(prev.w - nextW) < 0.5 && Math.abs(prev.h - nextH) < 0.5 ? prev : { w: nextW, h: nextH },
+      Math.abs(prev.w - nextW) < 0.5 && Math.abs(prev.h - nextH) < 0.5
+        ? prev
+        : { w: nextW, h: nextH },
     );
   }
 
@@ -463,10 +478,7 @@ export default function DesktopPetRoute(): React.JSX.Element {
     if (!current) return false;
     const hit = hitRectFor(current);
     return (
-      clientX >= hit.x &&
-      clientX <= hit.x + hit.w &&
-      clientY >= hit.y &&
-      clientY <= hit.y + hit.h
+      clientX >= hit.x && clientX <= hit.x + hit.w && clientY >= hit.y && clientY <= hit.y + hit.h
     );
   }
 
@@ -637,17 +649,18 @@ export default function DesktopPetRoute(): React.JSX.Element {
   }
 
   const hit = actor ? hitRectFor(actor) : null;
-  const placement = actor && hit
-    ? placePetCard(
-        hit.x,
-        hit.y,
-        hit.w,
-        hit.h,
-        areaRef.current.width,
-        areaRef.current.height,
-        cardSize.w,
-        cardSize.h,
-      )
+  const placement =
+    actor && hit
+      ? placePetCard(
+          hit.x,
+          hit.y,
+          hit.w,
+          hit.h,
+          areaRef.current.width,
+          areaRef.current.height,
+          cardSize.w,
+          cardSize.h,
+        )
       : null;
 
   const bubble = actor && speech && hit ? speechRectFor(hit, areaRef.current, speech) : null;
@@ -719,12 +732,16 @@ export default function DesktopPetRoute(): React.JSX.Element {
               onLoad={(event) => measureSprite(event.currentTarget)}
               className={cn(
                 'desktop-pet-sprite',
-                !pet.animated && (actor.action === 'walk' || actor.action === 'walk-top') && 'is-walk',
+                !pet.animated &&
+                  (actor.action === 'walk' || actor.action === 'walk-top') &&
+                  'is-walk',
                 !pet.animated && actor.action === 'idle' && 'is-idle',
                 !pet.animated && actor.action === 'hop' && 'is-hop',
                 !pet.animated && actor.action === 'climb' && 'is-climb',
                 !pet.animated && actor.action === 'rappel' && 'is-hang',
-                !pet.animated && (actor.action === 'rope-drop' || actor.action === 'throw') && 'is-wait',
+                !pet.animated &&
+                  (actor.action === 'rope-drop' || actor.action === 'throw') &&
+                  'is-wait',
               )}
             />
             {chute ? <PetChute layer="front" {...chute} /> : null}

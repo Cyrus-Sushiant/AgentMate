@@ -1,5 +1,5 @@
 {
-  "$schema": "https://biomejs.dev/schemas/2.5.7/schema.json",
+  "$schema": "https://biomejs.dev/schemas/2.5.8/schema.json",
   "vcs": { "enabled": true, "clientKind": "git", "useIgnoreFile": true },
   "files": { "ignoreUnknown": false },
   "formatter": {
@@ -68,6 +68,7 @@
         "noConstantBinaryExpressions": "error",
         "noControlCharactersInRegex": "error",
         "noDebugger": "error",
+        "noDeprecatedImports": "error",
         "noDuplicateCase": "error",
         "noDuplicateClassMembers": "error",
         "noDuplicateElseIf": "error",
@@ -164,6 +165,10 @@
           "correctness": { "useExhaustiveDependencies": "warn", "useHookAtTopLevel": "error" }
         }
       }
+    },
+    {
+      "includes": ["scripts/**"],
+      "linter": { "rules": { "suspicious": { "noConsole": "off" } } }
     }
   ],
   "assist": { "enabled": true, "actions": { "source": { "organizeImports": "on" } } }

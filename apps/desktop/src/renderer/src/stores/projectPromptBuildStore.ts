@@ -1,6 +1,6 @@
+import type { PromptType, TargetAI } from '@agentmat/core';
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { PromptType, TargetAI } from '@agentmat/core';
 
 interface ProjectPromptBuildEntry {
   rawInput: string;

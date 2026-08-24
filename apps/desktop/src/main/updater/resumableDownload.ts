@@ -1,6 +1,6 @@
 import { createWriteStream } from 'node:fs';
 import { stat } from 'node:fs/promises';
-import { net, type ClientRequest, type IncomingMessage } from 'electron';
+import { type ClientRequest, type IncomingMessage, net } from 'electron';
 
 /** Give up on a stalled socket after this long with no bytes, then Range-resume. */
 const STALL_MS = 45_000;
@@ -80,9 +80,7 @@ export class ResumableDownload {
         await this.downloadOnce(options, existing);
         const finalSize = await fileSize(options.destPath);
         if (options.expectedSize != null && finalSize < options.expectedSize) {
-          throw new Error(
-            `Download ended early (${finalSize} of ${options.expectedSize} bytes).`,
-          );
+          throw new Error(`Download ended early (${finalSize} of ${options.expectedSize} bytes).`);
         }
         return;
       } catch (error) {
@@ -98,10 +96,7 @@ export class ResumableDownload {
     }
   }
 
-  private downloadOnce(
-    options: ResumableDownloadOptions,
-    startAt: number,
-  ): Promise<void> {
+  private downloadOnce(options: ResumableDownloadOptions, startAt: number): Promise<void> {
     return new Promise((resolve, reject) => {
       let settled = false;
       let stream: ReturnType<typeof createWriteStream> | null = null;
@@ -195,9 +190,7 @@ export class ResumableDownload {
         const armStall = (): void => {
           this.clearStall();
           this.stallTimer = setTimeout(() => {
-            const error = new Error(
-              'Connection stalled. Resuming from the bytes already saved.',
-            );
+            const error = new Error('Connection stalled. Resuming from the bytes already saved.');
             try {
               request.abort();
             } catch {

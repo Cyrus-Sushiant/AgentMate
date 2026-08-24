@@ -1,6 +1,5 @@
 import { resolve, sep } from 'node:path';
 import { ipcMain } from 'electron';
-import { IPC } from '../../shared/ipcChannels';
 import type {
   PackageManagerEcosystem,
   PackageScanResult,
@@ -8,6 +7,7 @@ import type {
   PackageUpdateRequest,
   PackageUpdateResult,
 } from '../../shared/apiTypes';
+import { IPC } from '../../shared/ipcChannels';
 import { PACKAGE_MANAGER_ADAPTERS, scanProjectPackages } from '../packageManagers';
 import { store } from '../store';
 

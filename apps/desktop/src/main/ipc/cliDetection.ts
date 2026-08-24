@@ -1,18 +1,18 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { ipcMain } from 'electron';
-import {
-  CLI_REGISTRY,
-  getCliDefinition,
-  getInstallCommandForCurrentOS,
-  getUpdateCommandForCurrentOS,
-} from '@agentmat/core';
 import type {
   CliDefinition,
   CliUpdateCheckResult,
   InstalledCli,
   SupportedOS,
 } from '@agentmat/core';
+import {
+  CLI_REGISTRY,
+  getCliDefinition,
+  getInstallCommandForCurrentOS,
+  getUpdateCommandForCurrentOS,
+} from '@agentmat/core';
+import { ipcMain } from 'electron';
 import { IPC } from '../../shared/ipcChannels';
 import { compareVersions, fetchLatestVersion } from '../registryVersions';
 

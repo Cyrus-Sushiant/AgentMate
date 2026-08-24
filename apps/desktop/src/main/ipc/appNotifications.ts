@@ -1,5 +1,5 @@
-import { ipcMain } from 'electron';
 import type { AppNotification } from '@agentmat/core';
+import { ipcMain } from 'electron';
 import { IPC } from '../../shared/ipcChannels';
 import { store } from '../store';
 

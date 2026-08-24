@@ -5,11 +5,11 @@ import { SimpleTooltip } from '@/components/ui/tooltip';
 import {
   bindingProblem,
   formatShortcut,
-  sameShortcut,
   SHORTCUT_COMMANDS,
   SHORTCUT_GROUPS,
   type Shortcut,
   type ShortcutCommand,
+  sameShortcut,
   shortcutFromEvent,
   shortcutId,
 } from '@/lib/shortcuts';

@@ -1,6 +1,6 @@
+import type { UpdateDownloadProgress, UpdateStatus } from '@shared/apiTypes';
 import { useEffect, useRef } from 'react';
 import { toast } from 'sonner';
-import type { UpdateDownloadProgress, UpdateStatus } from '@shared/apiTypes';
 import { CloudDownload, Download, Pause, Play, RefreshCw, Wifi } from '@/components/icons';
 import { Button } from '@/components/ui/button';
 import {
@@ -12,11 +12,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
-import {
-  closeUpdateDialog,
-  openUpdateDialog,
-  useUpdateStore,
-} from '@/stores/updateStore';
+import { closeUpdateDialog, openUpdateDialog, useUpdateStore } from '@/stores/updateStore';
 
 export function formatUpdateBytes(bytes: number): string {
   if (!Number.isFinite(bytes) || bytes < 0) return '0 B';
@@ -164,9 +160,7 @@ export function UpdateManager(): React.JSX.Element {
 function UpdateDialogBody({ status }: { status: UpdateStatus }): React.JSX.Element {
   if (status.state === 'available') {
     const hasPartial = status.partialBytes > 0;
-    const sizeLabel = status.info.sizeBytes
-      ? formatUpdateBytes(status.info.sizeBytes)
-      : null;
+    const sizeLabel = status.info.sizeBytes ? formatUpdateBytes(status.info.sizeBytes) : null;
     const percent = updatePercent(status);
     return (
       <>
@@ -216,11 +210,7 @@ function UpdateDialogBody({ status }: { status: UpdateStatus }): React.JSX.Eleme
       <>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            {status.reconnecting ? (
-              <Wifi className="h-4 w-4" />
-            ) : (
-              <Download className="h-4 w-4" />
-            )}
+            {status.reconnecting ? <Wifi className="h-4 w-4" /> : <Download className="h-4 w-4" />}
             {status.reconnecting ? 'Reconnecting' : 'Downloading update'}
           </DialogTitle>
           <DialogDescription>

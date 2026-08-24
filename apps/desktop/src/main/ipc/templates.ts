@@ -1,8 +1,8 @@
 import { randomUUID } from 'node:crypto';
-import { ipcMain } from 'electron';
 import type { PromptTemplate } from '@agentmat/core';
-import { IPC } from '../../shared/ipcChannels';
+import { ipcMain } from 'electron';
 import type { SaveTemplateInput } from '../../shared/apiTypes';
+import { IPC } from '../../shared/ipcChannels';
 import { store } from '../store';
 
 export function registerTemplateHandlers(): void {

@@ -1,16 +1,16 @@
+import type { PromptType, TargetAI } from '@agentmat/core';
+import { cliIdForTargetAI, PROMPT_TYPES, TARGET_AIS } from '@agentmat/core';
+import { useQuery } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { cliOptionIcon } from '@/components/cliLogos';
+import { GrammarTextarea } from '@/components/grammar/GrammarTextarea';
 import { Check, Copy, Languages, Sparkles, Spinner, X } from '@/components/icons';
-import { SimpleTooltip } from '@/components/ui/tooltip';
 import { Button } from '@/components/ui/button';
+import { Combobox } from '@/components/ui/combobox';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { GrammarTextarea } from '@/components/grammar/GrammarTextarea';
-import { Combobox } from '@/components/ui/combobox';
-import { cliOptionIcon } from '@/components/cliLogos';
-import { PROMPT_TYPES, TARGET_AIS, cliIdForTargetAI } from '@agentmat/core';
-import type { PromptType, TargetAI } from '@agentmat/core';
+import { SimpleTooltip } from '@/components/ui/tooltip';
 import {
   commandForEvent,
   useShortcutLabel,
@@ -155,10 +155,7 @@ export default function PromptBuildWidgetRoute(): React.JSX.Element {
           </div>
 
           <div className="flex shrink-0 gap-2">
-            <SimpleTooltip
-              label={generateKeys ?? 'Generate'}
-              wrapTrigger={!hasRequest || isBusy}
-            >
+            <SimpleTooltip label={generateKeys ?? 'Generate'} wrapTrigger={!hasRequest || isBusy}>
               <Button
                 onClick={() => void handleGenerate()}
                 disabled={!hasRequest || isBusy}
@@ -202,7 +199,11 @@ export default function PromptBuildWidgetRoute(): React.JSX.Element {
                   disabled={!generated || isBusy}
                   onClick={() => void onCopy()}
                 >
-                  {copied ? <Check className="h-3 w-3 text-primary" /> : <Copy className="h-3 w-3" />}
+                  {copied ? (
+                    <Check className="h-3 w-3 text-primary" />
+                  ) : (
+                    <Copy className="h-3 w-3" />
+                  )}
                   {copied ? 'Copied' : 'Copy'}
                 </Button>
               </SimpleTooltip>

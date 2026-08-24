@@ -1,25 +1,25 @@
-import { createHash, randomUUID, type Hash } from 'node:crypto';
+import { createHash, type Hash, randomUUID } from 'node:crypto';
 import { createReadStream, existsSync } from 'node:fs';
-import { mkdir, open, rename, rm, stat, type FileHandle } from 'node:fs/promises';
+import { type FileHandle, mkdir, open, rename, rm, stat } from 'node:fs/promises';
 import { basename, join } from 'node:path';
 import { app } from 'electron';
 import { WebSocket } from 'ws';
-import {
-  BIN_FILE_CHUNK,
-  FILE_CHUNK_BYTES,
-  PART_BYTES,
-  decodeFileChunk,
-  encodeFileChunk,
-  formatBytes,
-  transferKeyFromId,
-  type FileChunk,
-  type RemoteControlMessage,
-} from '../../shared/remoteProtocol';
 import type {
   RemoteFileDirection,
   RemoteFileProgress,
   RemoteLogLevel,
 } from '../../shared/apiTypes';
+import {
+  BIN_FILE_CHUNK,
+  decodeFileChunk,
+  encodeFileChunk,
+  FILE_CHUNK_BYTES,
+  type FileChunk,
+  formatBytes,
+  PART_BYTES,
+  type RemoteControlMessage,
+  transferKeyFromId,
+} from '../../shared/remoteProtocol';
 
 /** A part is retried this many times (hash mismatch or ack timeout) before the whole transfer is failed. */
 const MAX_PART_RETRIES = 5;

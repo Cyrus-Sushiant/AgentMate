@@ -1,13 +1,13 @@
-import { createServer, type Server } from 'node:http';
 import { mkdir, writeFile } from 'node:fs/promises';
+import { createServer, type Server } from 'node:http';
 import { join } from 'node:path';
-import { app, BrowserWindow } from 'electron';
 import type { NotificationHookKind } from '@agentmat/core';
 import { NOTIFICATION_HOOK_KINDS } from '@agentmat/core';
-import { IPC } from '../../shared/ipcChannels';
+import { app, BrowserWindow } from 'electron';
 import type { ConfirmationForwardedPayload } from '../../shared/apiTypes';
-import { store } from '../store';
+import { IPC } from '../../shared/ipcChannels';
 import { findSessionIdForProject, writeToSession } from '../ipc/terminal';
+import { store } from '../store';
 import { speakOnPet } from './petNotifier';
 import { pollTelegramUpdates, sendTelegramMessage } from './telegramApi';
 

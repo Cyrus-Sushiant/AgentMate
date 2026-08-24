@@ -4,6 +4,7 @@ import * as PopoverPrimitive from '@radix-ui/react-popover';
 import { useEffect, useId, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { cliOptionIcon } from '@/components/cliLogos';
+import { GrammarTextarea } from '@/components/grammar/GrammarTextarea';
 import {
   Ban,
   FolderOpen,
@@ -33,7 +34,6 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { GrammarTextarea } from '@/components/grammar/GrammarTextarea';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 

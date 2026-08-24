@@ -1,0 +1,4 @@
+{
+  "$comment": "Deprecated dependencies we knowingly keep. scripts/check-deprecated-deps.mjs fails CI on anything deprecated that is not listed here. Use \"name\" to allow every version, or \"name@version\" to allow one, and always say why.",
+  "allow": []
+}

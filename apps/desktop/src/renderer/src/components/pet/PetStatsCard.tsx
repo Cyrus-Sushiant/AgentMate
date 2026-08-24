@@ -1,7 +1,7 @@
 import type { DesktopPetCardView } from '@agentmat/core';
 import { PET_BOX } from '@shared/pet';
-import { formatCost, formatTokens } from '@/lib/usageFormat';
 import { useUsageSummary } from '@/hooks/useUsageSummary';
+import { formatCost, formatTokens } from '@/lib/usageFormat';
 import { cn } from '@/lib/utils';
 import { type PetCharacter } from './characters';
 import { PetNetworkPanel, PetSystemPanel } from './PetStatsPanels';
@@ -12,7 +12,7 @@ const CARD_H = 280;
 const CARD_GAP = 10;
 const CARD_PAD = 10;
 
-export { CARD_W, CARD_H };
+export { CARD_H, CARD_W };
 
 export type CardSide = 'top' | 'bottom' | 'left' | 'right';
 

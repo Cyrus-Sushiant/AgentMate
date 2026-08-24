@@ -1,15 +1,15 @@
-import { useEffect, useState } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { toast } from 'sonner';
 import {
+  type AppSettings,
   GRAMMAR_LANGUAGES,
   GRAMMAR_MOTHER_TONGUES,
+  type GrammarSettings,
   LANGUAGETOOL_DEFAULT_PORT,
   LANGUAGETOOL_DOWNLOAD_URL,
-  type AppSettings,
-  type GrammarSettings,
 } from '@agentmat/core';
 import type { GrammarLocalStatus } from '@shared/grammar';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useEffect, useState } from 'react';
+import { toast } from 'sonner';
 import {
   Ban,
   Download,

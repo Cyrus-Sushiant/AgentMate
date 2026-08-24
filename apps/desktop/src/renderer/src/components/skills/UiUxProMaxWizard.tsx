@@ -1,6 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { toast } from 'sonner';
+import type { UiProInstallMethod } from '@agentmat/core';
 import {
   buildUiProCommandPlan,
   UI_UX_PRO_MAX_AI_TARGETS,
@@ -10,8 +8,10 @@ import {
   UI_UX_PRO_MAX_PYTHON_URL,
   UI_UX_PRO_MAX_SKILL_NAME,
 } from '@agentmat/core';
-import type { UiProInstallMethod } from '@agentmat/core';
 import type { UiProToolProbe } from '@shared/apiTypes';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useEffect, useMemo, useState } from 'react';
+import { toast } from 'sonner';
 import {
   ArrowLeft,
   ArrowRight,

@@ -1,7 +1,7 @@
+import type { RemoteInputEvent } from '@agentmat/protocol';
 import { useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import type { RemoteInputEvent } from '@agentmat/protocol';
 import { colors, radius, spacing } from '../theme';
 
 interface ToolbarProps {

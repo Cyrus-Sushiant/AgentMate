@@ -1,5 +1,6 @@
 import { readdir, readFile, stat } from 'node:fs/promises';
 import { basename, extname, join, posix, sep } from 'node:path';
+import type { SkillAuditFileInput, SkillAuditFinding } from '@agentmat/core';
 import {
   buildSkillAuditPrompt,
   parseSkillAuditReview,
@@ -7,7 +8,6 @@ import {
   scoreSkillFindings,
   sortFindings,
 } from '@agentmat/core';
-import type { SkillAuditFileInput, SkillAuditFinding } from '@agentmat/core';
 import type {
   RunSkillAuditResult,
   SkillAuditRecord,
@@ -397,7 +397,9 @@ export async function fetchGithubSkillFiles(
 
   const entryFile = entries.find((entry) => {
     const path = entry.path.toLowerCase();
-    return path === `${wanted}/${SKILL_ENTRY_FILE}` || path.endsWith(`/${wanted}/${SKILL_ENTRY_FILE}`);
+    return (
+      path === `${wanted}/${SKILL_ENTRY_FILE}` || path.endsWith(`/${wanted}/${SKILL_ENTRY_FILE}`)
+    );
   });
 
   // A skill folder is the common case; a repo that ships the skill as one loose markdown file

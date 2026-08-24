@@ -1,27 +1,27 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { Platform } from 'react-native';
-import * as Clipboard from 'expo-clipboard';
-import type { MediaStream, RTCIceCandidate, RTCPeerConnection } from 'react-native-webrtc';
-import { WebRtc } from './webrtc';
 import {
-  REMOTE_PROTOCOL_VERSION,
+  BIN_SCREEN_TILE,
   binaryKind,
   decodePairingCode,
   decodeScreenTile,
   jpegToDataUri,
-  BIN_SCREEN_TILE,
+  REMOTE_PROTOCOL_VERSION,
   type RemoteControlMessage,
   type RemoteInputEvent,
 } from '@agentmat/protocol';
-import { DEFAULT_TRANSPORT_MODE, RemoteTransportMode, type NegotiationPhase } from './transport';
+import * as Clipboard from 'expo-clipboard';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { Platform } from 'react-native';
+import type { MediaStream, RTCIceCandidate, RTCPeerConnection } from 'react-native-webrtc';
 import {
   loadSavedDevices,
   removeSavedDevice,
   renameSavedDevice,
+  type SavedDevice,
   touchSavedDevice,
   upsertSavedDevice,
-  type SavedDevice,
 } from './savedDevices';
+import { DEFAULT_TRANSPORT_MODE, type NegotiationPhase, RemoteTransportMode } from './transport';
+import { WebRtc } from './webrtc';
 
 export type ConnectionStatus = 'idle' | 'connecting' | 'connected' | 'error';
 

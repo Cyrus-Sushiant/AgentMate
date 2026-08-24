@@ -1162,6 +1162,4 @@ export interface GithubActionsRunErrorInput {
   headBranch?: string;
 }
 
-export type GithubActionsRunErrorResult =
-  | { ok: true; text: string }
-  | { ok: false; error: string };
+export type GithubActionsRunErrorResult = { ok: true; text: string } | { ok: false; error: string };

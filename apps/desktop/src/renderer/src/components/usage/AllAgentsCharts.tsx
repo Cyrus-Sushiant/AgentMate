@@ -1,14 +1,14 @@
-import { useState } from 'react';
-import { motion, useReducedMotion } from 'framer-motion';
 import type { WidgetPeriod } from '@agentmat/core';
+import { motion, useReducedMotion } from 'framer-motion';
+import { useState } from 'react';
+import { SparklineChart } from '@/components/dashboard/SparklineChart';
 import { ChartColumn } from '@/components/icons';
 import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
-import { SparklineChart } from '@/components/dashboard/SparklineChart';
+import { type AgentUsageRow, useUsageSummary } from '@/hooks/useUsageSummary';
 import { useChartColors, useReadableAccent } from '@/lib/chartColors';
 import { formatCost, formatTokens } from '@/lib/usageFormat';
 import { cn } from '@/lib/utils';
-import { useUsageSummary, type AgentUsageRow } from '@/hooks/useUsageSummary';
 import { CountUp } from './CountUp';
 import { PeriodChips, PeriodTotalsCompare, periodDays } from './PeriodCompare';
 
@@ -72,8 +72,7 @@ export function AllAgentsCharts({
   const avgTokens = days > 1 ? tokens / days : null;
   const avgCost = days > 1 && summary.hasCost ? costUsd / days : null;
   const perAgentTokens = summary.okCount > 0 ? tokens / summary.okCount : null;
-  const perAgentCost =
-    summary.hasCost && summary.okCount > 0 ? costUsd / summary.okCount : null;
+  const perAgentCost = summary.hasCost && summary.okCount > 0 ? costUsd / summary.okCount : null;
 
   const body = summary.isPending ? (
     <div className="space-y-3">

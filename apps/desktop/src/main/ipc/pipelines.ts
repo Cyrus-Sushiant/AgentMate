@@ -1,7 +1,6 @@
-import { ipcMain } from 'electron';
 import type { ProjectGithubAction } from '@agentmat/core';
 import { normalizeProjectGithubActions } from '@agentmat/core';
-import { IPC } from '../../shared/ipcChannels';
+import { ipcMain } from 'electron';
 import type {
   GithubActionsActivity,
   GithubActionsRunErrorInput,
@@ -12,7 +11,7 @@ import type {
   GithubWorkflowRefsResult,
   ProjectPipelineStatus,
 } from '../../shared/apiTypes';
-import { store } from '../store';
+import { IPC } from '../../shared/ipcChannels';
 import {
   cancelWorkflowRun,
   dispatchWorkflow,
@@ -26,6 +25,7 @@ import {
   schedulePipelineCheck,
   seedWatchedWorkflow,
 } from '../pipelines/watcher';
+import { store } from '../store';
 
 export function registerPipelineHandlers(): void {
   ipcMain.handle(

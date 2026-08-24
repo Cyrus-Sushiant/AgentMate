@@ -1,11 +1,11 @@
-import { useNavigate } from 'react-router-dom';
 import { getUsageProvider, type ProviderUsage, type WidgetMode } from '@agentmat/core';
+import { useNavigate } from 'react-router-dom';
 import { ExternalLink, X } from '@/components/icons';
+import { ProviderLogo } from '@/components/providerLogos';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { SimpleTooltip } from '@/components/ui/tooltip';
-import { ProviderLogo } from '@/components/providerLogos';
 import { UsageCardBody, UsageCardBodySkeleton } from '@/components/usage/UsageCard';
 
 export interface DashboardUsageCardProps {

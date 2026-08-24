@@ -1,5 +1,5 @@
-import type { AgentType } from '../types/index.js';
 import { AGENT_TYPE_LABELS } from '../cli/agentTypes.js';
+import type { AgentType } from '../types/index.js';
 
 export interface BootstrapFile {
   relativePath: string;

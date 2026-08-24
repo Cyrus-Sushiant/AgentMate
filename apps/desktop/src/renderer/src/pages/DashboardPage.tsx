@@ -1,9 +1,32 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  AGENT_TOOL_REGISTRY,
+  type AgentToolDefinition,
+  ALL_AGENTS_WIDGET_ID,
+  CLI_REGISTRY,
+  type CliDefinition,
+  DASHBOARD_CHART_IDS,
+  DASHBOARD_COLUMN_OPTIONS,
+  DASHBOARD_STAT_IDS,
+  DASHBOARD_USAGE_SUMMARY_IDS,
+  type DashboardColumns,
+  type DashboardStatId,
+  type DashboardUsageSummaryId,
+  getUsageProvider,
+  type InstalledAgentTool,
+  type InstalledCli,
+  type ProviderUsage,
+} from '@agentmat/core';
 import { useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
+import * as CountryFlags from 'country-flag-icons/react/3x2';
+import { motion } from 'framer-motion';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
-import { motion } from 'framer-motion';
-import * as CountryFlags from 'country-flag-icons/react/3x2';
+import { CliLogo } from '@/components/cliLogos';
+import { GithubActionsCard } from '@/components/dashboard/GithubActionsCard';
+import { GithubActivityCard } from '@/components/dashboard/GithubActivityCard';
+import { SparklineChart } from '@/components/dashboard/SparklineChart';
+import { TopResourceAppsDialog } from '@/components/dashboard/TopResourceAppsDialog';
 import {
   ArrowRight,
   Blocks,
@@ -14,6 +37,7 @@ import {
   Cpu,
   ExternalLink,
   FolderKanban,
+  FolderPlus,
   Globe,
   Gpu,
   GripVertical,
@@ -31,43 +55,12 @@ import {
   Sparkles,
   TerminalSquare,
   Trash2,
-  FolderPlus,
   Wrench,
   X,
 } from '@/components/icons';
-import {
-  AGENT_TOOL_REGISTRY,
-  ALL_AGENTS_WIDGET_ID,
-  CLI_REGISTRY,
-  DASHBOARD_CHART_IDS,
-  DASHBOARD_COLUMN_OPTIONS,
-  DASHBOARD_STAT_IDS,
-  DASHBOARD_USAGE_SUMMARY_IDS,
-  getUsageProvider,
-  type AgentToolDefinition,
-  type CliDefinition,
-  type DashboardColumns,
-  type DashboardStatId,
-  type DashboardUsageSummaryId,
-  type InstalledAgentTool,
-  type InstalledCli,
-  type ProviderUsage,
-} from '@agentmat/core';
-import { CliLogo } from '@/components/cliLogos';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { StatTile } from '@/components/ui/stat-tile';
-import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Skeleton } from '@/components/ui/skeleton';
-import { SimpleTooltip } from '@/components/ui/tooltip';
-import {
-  DropdownMenu,
-  DropdownMenuCheckboxItem,
-  DropdownMenuContent,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Dialog,
   DialogContent,
@@ -76,31 +69,38 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { GithubActionsCard } from '@/components/dashboard/GithubActionsCard';
-import { GithubActivityCard } from '@/components/dashboard/GithubActivityCard';
-import { SparklineChart } from '@/components/dashboard/SparklineChart';
-import { TopResourceAppsDialog } from '@/components/dashboard/TopResourceAppsDialog';
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { Skeleton } from '@/components/ui/skeleton';
+import { StatTile } from '@/components/ui/stat-tile';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { SimpleTooltip } from '@/components/ui/tooltip';
+import { AllAgentsCharts } from '@/components/usage/AllAgentsCharts';
+import { DashboardUsageCard } from '@/components/usage/DashboardUsageCard';
 import { useSystemStatsHistory } from '@/hooks/useSystemStatsHistory';
 import { useUsageSummary } from '@/hooks/useUsageSummary';
 import { useChartColors } from '@/lib/chartColors';
-import { cn } from '@/lib/utils';
 import { queryKeys } from '@/lib/queryKeys';
 import { formatCost, formatPercent, formatTokens } from '@/lib/usageFormat';
-import { usePageHeader } from '@/stores/pageHeaderStore';
-import { useTerminalStore } from '@/stores/terminalStore';
-import { DashboardUsageCard } from '@/components/usage/DashboardUsageCard';
-import { AllAgentsCharts } from '@/components/usage/AllAgentsCharts';
+import { cn } from '@/lib/utils';
 import {
-  useDashboardLayoutStore,
-  usageProviderIdOf,
+  type DashboardChartId,
+  type DashboardItemId,
   statIdOf,
   statItemId,
   summaryIdOf,
   summaryItemId,
-  type DashboardChartId,
-  type DashboardItemId,
+  usageProviderIdOf,
+  useDashboardLayoutStore,
 } from '@/stores/dashboardLayoutStore';
+import { usePageHeader } from '@/stores/pageHeaderStore';
+import { useTerminalStore } from '@/stores/terminalStore';
 
 function formatBytesPerSec(value: number): string {
   if (value < 1024) return `${value.toFixed(0)} B/s`;

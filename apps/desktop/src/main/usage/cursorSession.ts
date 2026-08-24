@@ -4,16 +4,16 @@ import {
   type SubscriptionWindow,
   type UsageWindow,
 } from '@agentmat/core';
-import { getCursorAccount } from './cursorAccount';
 import {
   accumulate,
   buildCostSeries,
   buildSeries,
-  startOfLocalDay,
-  toEntry,
   type CursorEntry,
   type CursorUsageEvent,
+  startOfLocalDay,
+  toEntry,
 } from './cursor';
+import { getCursorAccount } from './cursorAccount';
 import { connectUsage } from './shared';
 
 // Cursor usage read through the session the Cursor app already holds, so the

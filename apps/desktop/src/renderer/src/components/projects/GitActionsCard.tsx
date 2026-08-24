@@ -30,9 +30,10 @@ const QUERY_META = { silentLoading: true } as const;
 /** A dispatched run takes a moment to show up in the API, so refresh again shortly after. */
 const SETTLE_MS = 3000;
 
-function runTone(
-  run: GithubWorkflowRunInfo | null | undefined,
-): { label: string; variant: 'success' | 'destructive' | 'warning' | 'outline' } {
+function runTone(run: GithubWorkflowRunInfo | null | undefined): {
+  label: string;
+  variant: 'success' | 'destructive' | 'warning' | 'outline';
+} {
   if (!run) return { label: 'Never run', variant: 'outline' };
   if (run.status !== 'completed') {
     if (run.status === 'queued' || run.status === 'waiting' || run.status === 'pending') {
@@ -85,9 +86,8 @@ export function GitActionsCard({
 
   const status = statusQuery.data;
   const repo = status?.github ? `${status.github.owner}/${status.github.repo}` : '';
-  const effectiveWatched = watchMutation.isPending && watchMutation.variables
-    ? watchMutation.variables
-    : watched;
+  const effectiveWatched =
+    watchMutation.isPending && watchMutation.variables ? watchMutation.variables : watched;
   const watchedIds = new Set(effectiveWatched.map((item) => item.workflowId));
 
   function refreshSoon(): void {

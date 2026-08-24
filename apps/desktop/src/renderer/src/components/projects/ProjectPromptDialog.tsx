@@ -1,8 +1,10 @@
-import { useEffect, useState } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { toast } from 'sonner';
 import type { Project } from '@agentmat/core';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useEffect, useState } from 'react';
+import { toast } from 'sonner';
+import { MonacoEditor } from '@/components/editor/MonacoEditor';
 import { Copy, Save, Trash2 } from '@/components/icons';
+import { Button } from '@/components/ui/button';
 import {
   Dialog,
   DialogContent,
@@ -11,8 +13,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-import { MonacoEditor } from '@/components/editor/MonacoEditor';
 import { queryKeys } from '@/lib/queryKeys';
 
 const PLACEHOLDER_HINT =

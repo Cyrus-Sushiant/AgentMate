@@ -1,4 +1,4 @@
-import { ipcMain, type BrowserWindow } from 'electron';
+import { type BrowserWindow, ipcMain } from 'electron';
 import { IPC } from '../../shared/ipcChannels';
 
 export function registerWindowHandlers(win: BrowserWindow): void {

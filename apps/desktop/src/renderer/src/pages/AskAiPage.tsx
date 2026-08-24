@@ -1,9 +1,9 @@
-import { Trash2 } from '@/components/icons';
-import { Card, CardContent } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import { AskAiChat } from '@/components/askAi/AskAiChat';
-import { usePageHeader } from '@/stores/pageHeaderStore';
+import { Trash2 } from '@/components/icons';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
 import { useAskAiStore } from '@/stores/askAiStore';
+import { usePageHeader } from '@/stores/pageHeaderStore';
 
 export default function AskAiPage(): React.JSX.Element {
   const hasMessages = useAskAiStore((s) => s.messages.length > 0);

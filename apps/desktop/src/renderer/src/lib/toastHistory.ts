@@ -1,5 +1,5 @@
-import { toast, type ExternalToast } from 'sonner';
-import { useToastHistoryStore, type ToastHistoryKind } from '@/stores/toastHistoryStore';
+import { type ExternalToast, toast } from 'sonner';
+import { type ToastHistoryKind, useToastHistoryStore } from '@/stores/toastHistoryStore';
 
 let installed = false;
 let suppressRecord = 0;

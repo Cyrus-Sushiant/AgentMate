@@ -1,3 +1,4 @@
+import type { SkillAuditFinding, SkillAuditSeverity, SkillAuditVerdict } from '@agentmat/core';
 import {
   countFindingsByCategory,
   countFindingsBySeverity,
@@ -6,7 +7,6 @@ import {
   SKILL_AUDIT_VERDICT_LABEL,
   SKILL_RISK_CATEGORIES,
 } from '@agentmat/core';
-import type { SkillAuditFinding, SkillAuditSeverity, SkillAuditVerdict } from '@agentmat/core';
 import { useMemo } from 'react';
 import { CircleCheck, Shield, Sparkles, TriangleAlert } from '@/components/icons';
 import { Badge } from '@/components/ui/badge';

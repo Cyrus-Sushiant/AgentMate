@@ -1,8 +1,25 @@
+import type { PromptType, TargetAI } from '@agentmat/core';
+import {
+  buildPromptGenerationRequest,
+  CLI_REGISTRY,
+  cliIdForTargetAI,
+  DEFAULT_TARGET_AI,
+  generatePrompt,
+  isTargetAI,
+  normalizeTargetAI,
+  PROMPT_TYPES,
+  resolvePromptTargetAI,
+  TARGET_AIS,
+  targetAIForProject,
+} from '@agentmat/core';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useShallow } from 'zustand/react/shallow';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
+import { useShallow } from 'zustand/react/shallow';
+import { cliOptionIcon } from '@/components/cliLogos';
+import { MonacoEditor } from '@/components/editor/MonacoEditor';
+import { GrammarTextarea } from '@/components/grammar/GrammarTextarea';
 import {
   CalendarDays,
   Clock,
@@ -22,29 +39,10 @@ import {
   TerminalSquare,
   Trash2,
 } from '@/components/icons';
-import {
-  CLI_REGISTRY,
-  DEFAULT_TARGET_AI,
-  PROMPT_TYPES,
-  TARGET_AIS,
-  buildPromptGenerationRequest,
-  cliIdForTargetAI,
-  generatePrompt,
-  isTargetAI,
-  normalizeTargetAI,
-  resolvePromptTargetAI,
-  targetAIForProject,
-} from '@agentmat/core';
-import type { PromptType, TargetAI } from '@agentmat/core';
-import { Card, CardContent } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Textarea } from '@/components/ui/textarea';
-import { GrammarTextarea } from '@/components/grammar/GrammarTextarea';
-import { Label } from '@/components/ui/label';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
 import { Combobox } from '@/components/ui/combobox';
-import { cliOptionIcon } from '@/components/cliLogos';
-import { SimpleTooltip } from '@/components/ui/tooltip';
 import {
   Dialog,
   DialogContent,
@@ -54,14 +52,16 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import { MonacoEditor } from '@/components/editor/MonacoEditor';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { SimpleTooltip } from '@/components/ui/tooltip';
+import { useVoiceInput } from '@/hooks/useVoiceInput';
 import { cliLaunchCommand } from '@/lib/openCli';
 import { queryKeys } from '@/lib/queryKeys';
-import { usePageHeader } from '@/stores/pageHeaderStore';
 import { useCliStore } from '@/stores/cliStore';
+import { usePageHeader } from '@/stores/pageHeaderStore';
+import { type PromptBuilderStatus, usePromptBuilderStore } from '@/stores/promptBuilderStore';
 import { useTerminalStore } from '@/stores/terminalStore';
-import { usePromptBuilderStore, type PromptBuilderStatus } from '@/stores/promptBuilderStore';
-import { useVoiceInput } from '@/hooks/useVoiceInput';
 import type { PromptHistoryEntry } from '../../../shared/apiTypes';
 
 interface ScheduleQueueItem {

@@ -1,5 +1,4 @@
 import { ipcMain } from 'electron';
-import { IPC } from '../../shared/ipcChannels';
 import type {
   AiProvider,
   AskAiHistoryMessage,
@@ -7,6 +6,7 @@ import type {
   AskAiResult,
   OllamaConnectionTest,
 } from '../../shared/apiTypes';
+import { IPC } from '../../shared/ipcChannels';
 import { store } from '../store';
 
 /** True for the DOMException fetch throws when its AbortSignal fires. */

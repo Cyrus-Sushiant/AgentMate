@@ -135,8 +135,8 @@ export function AdHocSkillScanner({
       <div className="space-y-1">
         <p className="text-sm font-medium text-foreground">Check any skill</p>
         <p className="text-xs text-muted-foreground">
-          A folder on this machine or a skill published on GitHub. It does not have to be
-          installed, and it does not have to be added as a repository.
+          A folder on this machine or a skill published on GitHub. It does not have to be installed,
+          and it does not have to be added as a repository.
         </p>
       </div>
 
@@ -177,7 +177,8 @@ export function AdHocSkillScanner({
       {!settled && debouncedInput.length > 0 && (
         <p className="flex items-center gap-2 text-xs text-muted-foreground">
           <Spinner className="h-3.5 w-3.5 animate-spin" />
-          {preview?.kind === 'github' || /github|skills\.sh|^[\w.-]+\/[\w.-]+$/i.test(debouncedInput)
+          {preview?.kind === 'github' ||
+          /github|skills\.sh|^[\w.-]+\/[\w.-]+$/i.test(debouncedInput)
             ? 'Reading the repository…'
             : 'Looking at that location…'}
         </p>

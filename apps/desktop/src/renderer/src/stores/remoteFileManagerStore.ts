@@ -1,6 +1,6 @@
-import { create } from 'zustand';
-import { toast } from 'sonner';
 import type { RemoteFileManagerEntry } from '@shared/apiTypes';
+import { toast } from 'sonner';
+import { create } from 'zustand';
 
 interface RemoteFileManagerState {
   /** Absolute path currently browsed on the peer, or null while showing roots (drives/home). */

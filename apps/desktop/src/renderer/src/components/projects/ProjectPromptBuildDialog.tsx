@@ -1,5 +1,9 @@
+import type { PromptType, TargetAI } from '@agentmat/core';
+import { cliIdForTargetAI, PROMPT_TYPES, TARGET_AIS } from '@agentmat/core';
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
+import { cliOptionIcon } from '@/components/cliLogos';
+import { GrammarTextarea } from '@/components/grammar/GrammarTextarea';
 import {
   Check,
   Copy,
@@ -12,15 +16,8 @@ import {
   WindowMaximize,
   WindowRestore,
 } from '@/components/icons';
-import { cn } from '@/lib/utils';
-import { containsPersian } from '@/lib/rtl';
-import {
-  commandForEvent,
-  useShortcutLabel,
-  useShortcutLabelList,
-  useShortcutStore,
-} from '@/stores/shortcutStore';
-import { SimpleTooltip } from '@/components/ui/tooltip';
+import { Button } from '@/components/ui/button';
+import { Combobox } from '@/components/ui/combobox';
 import {
   Dialog,
   DialogContent,
@@ -29,14 +26,17 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { GrammarTextarea } from '@/components/grammar/GrammarTextarea';
-import { Combobox } from '@/components/ui/combobox';
-import { cliOptionIcon } from '@/components/cliLogos';
-import { PROMPT_TYPES, TARGET_AIS, cliIdForTargetAI } from '@agentmat/core';
-import type { PromptType, TargetAI } from '@agentmat/core';
+import { SimpleTooltip } from '@/components/ui/tooltip';
+import { containsPersian } from '@/lib/rtl';
+import { cn } from '@/lib/utils';
+import {
+  commandForEvent,
+  useShortcutLabel,
+  useShortcutLabelList,
+  useShortcutStore,
+} from '@/stores/shortcutStore';
 import { useProjectPromptBuilder } from './useProjectPromptBuilder';
 
 export interface ProjectPromptBuildDialogProps {
@@ -289,9 +289,7 @@ export function ProjectPromptBuildDialog({
               <div className="flex items-center justify-between gap-3">
                 <Label htmlFor="prompt-build-output">Generated prompt</Label>
                 <SimpleTooltip
-                  label={
-                    copied ? 'Copied' : copyKey ? `Copy prompt (${copyKey})` : 'Copy prompt'
-                  }
+                  label={copied ? 'Copied' : copyKey ? `Copy prompt (${copyKey})` : 'Copy prompt'}
                   wrapTrigger={!generated || isBusy}
                 >
                   <Button
@@ -349,7 +347,9 @@ export function ProjectPromptBuildDialog({
               .join(' · ')}
           </p>
           <SimpleTooltip
-            label={generated ? 'Park this on the project’s Overview tab' : 'Generate a prompt first'}
+            label={
+              generated ? 'Park this on the project’s Overview tab' : 'Generate a prompt first'
+            }
             wrapTrigger={!generated}
           >
             <Button

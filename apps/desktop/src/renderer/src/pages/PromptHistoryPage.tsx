@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useEffect, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { toast } from 'sonner';
 import {
@@ -14,11 +14,9 @@ import {
   Trash2,
   X,
 } from '@/components/icons';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
-import { Skeleton } from '@/components/ui/skeleton';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Dialog,
   DialogContent,
@@ -26,11 +24,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Skeleton } from '@/components/ui/skeleton';
 import { queryKeys } from '@/lib/queryKeys';
 import { persianTextProps } from '@/lib/rtl';
 import { cn } from '@/lib/utils';
-import { usePageHeader } from '@/stores/pageHeaderStore';
 import { confirmDialog } from '@/stores/confirmStore';
+import { usePageHeader } from '@/stores/pageHeaderStore';
 import type { PromptHistoryEntry } from '../../../shared/apiTypes';
 
 function TagEditor({ entry }: { entry: PromptHistoryEntry }): React.JSX.Element {
@@ -215,76 +215,76 @@ export default function PromptHistoryPage(): React.JSX.Element {
           {entries.map((entry) => {
             const contentPersian = persianTextProps(entry.content);
             return (
-            <Card key={entry.id} className="glass">
-              <CardHeader>
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    {entry.source === 'translate' ? (
-                      <>
-                        <CardTitle className="text-sm">Translation</CardTitle>
-                        <Badge variant="secondary">
-                          <Languages className="h-3 w-3" /> Translated
+              <Card key={entry.id} className="glass">
+                <CardHeader>
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      {entry.source === 'translate' ? (
+                        <>
+                          <CardTitle className="text-sm">Translation</CardTitle>
+                          <Badge variant="secondary">
+                            <Languages className="h-3 w-3" /> Translated
+                          </Badge>
+                        </>
+                      ) : (
+                        <>
+                          <CardTitle className="text-sm">{entry.promptType}</CardTitle>
+                          <Badge variant="outline">{entry.targetAI}</Badge>
+                          <Badge variant="secondary">
+                            <Sparkles className="h-3 w-3" /> Generated
+                          </Badge>
+                        </>
+                      )}
+                      {projectName(entry.projectId) ? (
+                        <Badge variant="outline">
+                          <Folder className="h-3 w-3" /> {projectName(entry.projectId)}
                         </Badge>
-                      </>
-                    ) : (
-                      <>
-                        <CardTitle className="text-sm">{entry.promptType}</CardTitle>
-                        <Badge variant="outline">{entry.targetAI}</Badge>
-                        <Badge variant="secondary">
-                          <Sparkles className="h-3 w-3" /> Generated
-                        </Badge>
-                      </>
-                    )}
-                    {projectName(entry.projectId) ? (
-                      <Badge variant="outline">
-                        <Folder className="h-3 w-3" /> {projectName(entry.projectId)}
-                      </Badge>
-                    ) : null}
+                      ) : null}
+                    </div>
+                    <span className="shrink-0 text-xs text-muted-foreground">
+                      {new Date(entry.createdAt).toLocaleString()}
+                    </span>
                   </div>
-                  <span className="shrink-0 text-xs text-muted-foreground">
-                    {new Date(entry.createdAt).toLocaleString()}
-                  </span>
-                </div>
-                <CardDescription
-                  dir={contentPersian.dir}
-                  className={cn('line-clamp-3 whitespace-pre-wrap', contentPersian.className)}
-                >
-                  {entry.content}
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <TagEditor entry={entry} />
-                <div className="flex items-center gap-2">
-                  <Button variant="outline" size="sm" onClick={() => setSelectedEntry(entry)}>
-                    <Eye /> View details
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => void handleCopy(entry.content)}
+                  <CardDescription
+                    dir={contentPersian.dir}
+                    className={cn('line-clamp-3 whitespace-pre-wrap', contentPersian.className)}
                   >
-                    <Copy /> Copy
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => {
-                      void confirmDialog({
-                        title: 'Delete this prompt history entry?',
-                        description: 'This cannot be undone.',
-                        confirmLabel: 'Delete',
-                        variant: 'destructive',
-                      }).then((confirmed) => {
-                        if (confirmed) deleteMutation.mutate(entry.id);
-                      });
-                    }}
-                    disabled={deleteMutation.isPending}
-                  >
-                    <Trash2 /> Delete
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
+                    {entry.content}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <TagEditor entry={entry} />
+                  <div className="flex items-center gap-2">
+                    <Button variant="outline" size="sm" onClick={() => setSelectedEntry(entry)}>
+                      <Eye /> View details
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => void handleCopy(entry.content)}
+                    >
+                      <Copy /> Copy
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        void confirmDialog({
+                          title: 'Delete this prompt history entry?',
+                          description: 'This cannot be undone.',
+                          confirmLabel: 'Delete',
+                          variant: 'destructive',
+                        }).then((confirmed) => {
+                          if (confirmed) deleteMutation.mutate(entry.id);
+                        });
+                      }}
+                      disabled={deleteMutation.isPending}
+                    >
+                      <Trash2 /> Delete
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
             );
           })}
         </div>

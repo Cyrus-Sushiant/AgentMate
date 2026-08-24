@@ -16,13 +16,20 @@ import {
   DIFFRAY_TOOL_ID,
   notificationHookChannel,
 } from '@agentmat/core';
-import type { BootstrapResult, GitBranchInfo, GitStatus, GitTagInfo, SkillUpdateInfo } from '@shared/apiTypes';
+import type {
+  BootstrapResult,
+  GitBranchInfo,
+  GitStatus,
+  GitTagInfo,
+  SkillUpdateInfo,
+} from '@shared/apiTypes';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import { CliLogo, cliOptionIcon } from '@/components/cliLogos';
 import { MonacoEditor } from '@/components/editor/MonacoEditor';
+import { GrammarTextarea } from '@/components/grammar/GrammarTextarea';
 import {
   ArrowDown,
   ArrowLeft,
@@ -69,7 +76,10 @@ import {
   type BootstrapDescription,
   BootstrapDescriptionDialog,
 } from '@/components/projects/BootstrapDescriptionDialog';
-import { DiffrayReviewLaunchCard, DiffrayReviewWizard } from '@/components/projects/DiffrayReviewWizard';
+import {
+  DiffrayReviewLaunchCard,
+  DiffrayReviewWizard,
+} from '@/components/projects/DiffrayReviewWizard';
 import { GitActionsCard } from '@/components/projects/GitActionsCard';
 import { GitBranchHistoryDialog } from '@/components/projects/GitBranchHistoryDialog';
 import { GitSetupWizard } from '@/components/projects/GitSetupWizard';
@@ -126,7 +136,6 @@ import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
-import { GrammarTextarea } from '@/components/grammar/GrammarTextarea';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { cliLaunchCommand } from '@/lib/openCli';
 import { queryKeys } from '@/lib/queryKeys';
@@ -873,10 +882,7 @@ export default function ProjectDetailPage(): React.JSX.Element {
                           <div className="flex flex-wrap items-center gap-2">
                             <span className="truncate font-medium">{skill.name}</span>
                             {audit && (
-                              <SkillAuditVerdictBadge
-                                verdict={audit.verdict}
-                                score={audit.score}
-                              />
+                              <SkillAuditVerdictBadge verdict={audit.verdict} score={audit.score} />
                             )}
                           </div>
                           <p className="truncate font-mono text-xs text-muted-foreground">
@@ -1728,13 +1734,17 @@ function splitGitPath(path: string): { dir: string; name: string } {
 
 /** CLI transcripts often arrive with color codes that a dialog cannot render. */
 function displayCliOutput(raw: string): string {
-  return raw
-    .replace(/\u001B\[[?]?\d*(?:;\d+)*[a-zA-Z]/g, '')
-    .replace(/\u001B\][^\u0007\u001B]*(?:\u0007|\u001B\\)/g, '')
-    .replace(/\[(?:\d{1,3};)*\d{1,3}m/g, '')
-    .replace(/\r/g, '')
-    .replace(/\n{3,}/g, '\n\n')
-    .trim();
+  return (
+    raw
+      // biome-ignore lint/suspicious/noControlCharactersInRegex: ESC is what an ANSI escape sequence starts with, matching it is the point
+      .replace(/\u001B\[[?]?\d*(?:;\d+)*[a-zA-Z]/g, '')
+      // biome-ignore lint/suspicious/noControlCharactersInRegex: OSC sequences are delimited by BEL/ESC
+      .replace(/\u001B\][^\u0007\u001B]*(?:\u0007|\u001B\\)/g, '')
+      .replace(/\[(?:\d{1,3};)*\d{1,3}m/g, '')
+      .replace(/\r/g, '')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim()
+  );
 }
 
 function parseSemverTag(
@@ -2165,9 +2175,7 @@ function GitTab({
   );
   const defaultBranchValue = defaultBranchPick || status.defaultBranch || '';
   const canSetDefault =
-    status.hasRemote &&
-    Boolean(defaultBranchValue) &&
-    defaultBranchValue !== status.defaultBranch;
+    status.hasRemote && Boolean(defaultBranchValue) && defaultBranchValue !== status.defaultBranch;
   const listedBranches = [...(status.branches ?? [])].sort((a, b) => {
     if (a.name === status.branch) return -1;
     if (b.name === status.branch) return 1;
@@ -2249,7 +2257,12 @@ function GitTab({
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {diffrayInstalled && (
-            <Button size="sm" variant="outline" onClick={onReviewWithDiffray} disabled={anyOpPending}>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={onReviewWithDiffray}
+              disabled={anyOpPending}
+            >
               <GitPullRequest /> Review with diffray
             </Button>
           )}
@@ -2653,9 +2666,7 @@ function GitTab({
         </div>
       </div>
 
-      {status.hasRemote ? (
-        <GitActionsCard projectId={projectId} watched={watchedActions} />
-      ) : null}
+      {status.hasRemote ? <GitActionsCard projectId={projectId} watched={watchedActions} /> : null}
 
       <GitSetupWizard
         projectId={projectId}
@@ -2903,8 +2914,7 @@ function ApplyVersionDialog({
 
   const result = applyMutation.data;
   const failed = applyMutation.isError || (result && !result.ok && !result.cancelled);
-  const didNothing =
-    !!result?.ok && result.changedFiles.length === 0 && !result.committedByCli;
+  const didNothing = !!result?.ok && result.changedFiles.length === 0 && !result.committedByCli;
   const canRetry = Boolean(failed || result?.cancelled || didNothing || result?.warning);
   const cliOutput = result?.output ? displayCliOutput(result.output) : '';
   const warningText = result?.warning ? displayCliOutput(result.warning) : '';
@@ -3800,7 +3810,9 @@ function NotificationHookCard({
           ? await window.agentmat.notifications.sendPetTest({ message: rendered })
           : await window.agentmat.notifications.sendTest({ message: rendered });
       if (result.ok) {
-        toast.success(channel === 'pet' ? 'Your companion is saying it now.' : 'Sent. Check Telegram.');
+        toast.success(
+          channel === 'pet' ? 'Your companion is saying it now.' : 'Sent. Check Telegram.',
+        );
       } else {
         toast.error(result.error ?? 'Failed to send test message.');
       }

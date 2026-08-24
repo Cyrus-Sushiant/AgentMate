@@ -1,6 +1,6 @@
 import { encodeScreenTile } from '@shared/remoteProtocol';
-import { getCaptureProvider } from './capture';
 import type { CaptureSurface } from './capture';
+import { getCaptureProvider } from './capture';
 
 /**
  * Host-side screen capture.

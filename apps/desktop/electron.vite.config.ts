@@ -1,8 +1,9 @@
 import { resolve } from 'node:path';
-import { defineConfig, externalizeDepsPlugin } from 'electron-vite';
 import react from '@vitejs/plugin-react';
+import { defineConfig } from 'electron-vite';
 
-// externalizeDepsPlugin() alone has been unreliable at keeping `electron`
+// electron-vite externalizes dependencies on its own (build.externalizeDeps
+// defaults to true), but that alone has been unreliable at keeping `electron`
 // itself external on this Vite/electron-vite version (it got inlined,
 // which breaks `app`/`BrowserWindow` since they resolve to the npm
 // install-shim instead of Electron's native runtime hook). Force node
@@ -21,7 +22,6 @@ const forcedExternals = [
 
 export default defineConfig({
   main: {
-    plugins: [externalizeDepsPlugin()],
     build: {
       rollupOptions: {
         external: forcedExternals,
@@ -36,7 +36,6 @@ export default defineConfig({
     },
   },
   preload: {
-    plugins: [externalizeDepsPlugin()],
     build: {
       rollupOptions: {
         external: forcedExternals,

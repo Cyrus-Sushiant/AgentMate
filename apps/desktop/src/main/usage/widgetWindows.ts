@@ -1,17 +1,17 @@
 import { randomUUID } from 'node:crypto';
 import { join } from 'node:path';
-import { BrowserWindow } from 'electron';
-import icon from '../../../resources/icon.ico?asset';
 import {
   clampWidgetBlurPercent,
-  widgetAlwaysOnTop,
-  widgetBackgroundColor,
-  widgetPeriod,
   type DesktopWidgetInstance,
   type OpenWidgetOptions,
   type WidgetMode,
   type WidgetSize,
+  widgetAlwaysOnTop,
+  widgetBackgroundColor,
+  widgetPeriod,
 } from '@agentmat/core';
+import { BrowserWindow } from 'electron';
+import icon from '../../../resources/icon.ico?asset';
 import { store } from '../store';
 
 // One frameless, transparent BrowserWindow per pinned widget. Each loads the

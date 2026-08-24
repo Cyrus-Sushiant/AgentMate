@@ -1,9 +1,9 @@
 import { parentPort, workerData } from 'node:worker_threads';
 import {
-  scanProviderLogs,
   type LocalLogProvider,
   type ScanCache,
   type ScanResult,
+  scanProviderLogs,
 } from './logParsers';
 
 // Worker-thread entry for local-log usage scans. Parsing a few hundred MB of

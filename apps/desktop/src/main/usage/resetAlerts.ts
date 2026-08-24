@@ -5,8 +5,8 @@ import {
   type SubscriptionWindowKey,
   type UsageResetAlertSettings,
 } from '@agentmat/core';
-import { store } from '../store';
 import { sendTelegramMessage } from '../notifications/telegramApi';
+import { store } from '../store';
 import { getProviderUsage } from './index';
 
 // Telegram announcements for rate-limit rollovers.

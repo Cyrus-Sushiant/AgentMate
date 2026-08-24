@@ -14,7 +14,12 @@
     "typecheck": "pnpm -r typecheck",
     "lint": "pnpm -r lint",
     "format": "biome format --write .",
-    "format:check": "biome format ."
+    "format:check": "biome format .",
+    "check": "biome check .",
+    "check:fix": "biome check --write .",
+    "biome:ci": "biome ci .",
+    "check:deprecated-deps": "node scripts/check-deprecated-deps.mjs",
+    "check:deprecated-code": "biome lint --only=suspicious/noDeprecatedImports ."
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.8",

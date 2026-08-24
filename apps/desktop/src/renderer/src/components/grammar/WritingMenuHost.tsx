@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { AppSettings } from '@agentmat/core';
 import type { GrammarIssue } from '@shared/grammar';
-import { Ban, Check, Plus, RefreshCw, ArrowRight, Spinner } from '@/components/icons';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { ArrowRight, Ban, Check, Plus, RefreshCw, Spinner } from '@/components/icons';
 import {
   checkScopeAt,
   isEditableTextField,

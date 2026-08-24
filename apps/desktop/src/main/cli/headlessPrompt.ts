@@ -1,7 +1,7 @@
-import { execFile } from 'node:child_process';
 import type { ChildProcess } from 'node:child_process';
-import { CLI_REGISTRY, getCliArgvFor, getCliDefinition } from '@agentmat/core';
+import { execFile } from 'node:child_process';
 import type { AppSettings, CliDefinition, SupportedOS } from '@agentmat/core';
+import { CLI_REGISTRY, getCliArgvFor, getCliDefinition } from '@agentmat/core';
 import { runCli } from '../packageManagers/execUtils';
 import { store } from '../store';
 
@@ -377,9 +377,13 @@ function trimLog(log: string): string {
 
 /** Color and cursor codes are noise once the answer is shown in a dialog. */
 function stripAnsi(text: string): string {
-  return text
-    .replace(/\u001B\[[?]?\d*(?:;\d+)*[a-zA-Z]/g, '')
-    .replace(/\u001B\][^\u0007\u001B]*(?:\u0007|\u001B\\)/g, '')
-    .replace(/\[(?:\d{1,3};)*\d{1,3}m/g, '')
-    .replace(/\r/g, '');
+  return (
+    text
+      // biome-ignore lint/suspicious/noControlCharactersInRegex: ESC is what an ANSI escape sequence starts with, matching it is the point
+      .replace(/\u001B\[[?]?\d*(?:;\d+)*[a-zA-Z]/g, '')
+      // biome-ignore lint/suspicious/noControlCharactersInRegex: OSC sequences are delimited by BEL/ESC
+      .replace(/\u001B\][^\u0007\u001B]*(?:\u0007|\u001B\\)/g, '')
+      .replace(/\[(?:\d{1,3};)*\d{1,3}m/g, '')
+      .replace(/\r/g, '')
+  );
 }

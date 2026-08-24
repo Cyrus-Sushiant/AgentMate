@@ -1,5 +1,5 @@
-import { BrowserWindow, Notification } from 'electron';
 import { getUsageProvider, type SubscriptionWindowKey } from '@agentmat/core';
+import { BrowserWindow, Notification } from 'electron';
 import icon from '../../../resources/icon.ico?asset';
 import { IPC } from '../../shared/ipcChannels';
 import { store } from '../store';

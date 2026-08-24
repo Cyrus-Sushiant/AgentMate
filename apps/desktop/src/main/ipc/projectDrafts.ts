@@ -1,8 +1,8 @@
 import { randomUUID } from 'node:crypto';
-import { ipcMain } from 'electron';
 import type { ProjectDraft, ProjectDraftStatus } from '@agentmat/core';
-import { IPC } from '../../shared/ipcChannels';
+import { ipcMain } from 'electron';
 import type { CreateProjectDraftInput } from '../../shared/apiTypes';
+import { IPC } from '../../shared/ipcChannels';
 import { store } from '../store';
 
 export function registerProjectDraftHandlers(): void {

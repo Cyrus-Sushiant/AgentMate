@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
 import { useIsFetching, useIsMutating } from '@tanstack/react-query';
+import { useEffect, useRef, useState } from 'react';
 import { useDelayedLoading } from './useDelayedLoading';
 
 /** How long to wait for a first query before calling the boot finished anyway. */

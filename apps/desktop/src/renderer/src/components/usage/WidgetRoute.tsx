@@ -1,28 +1,28 @@
-import { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
 import {
   ALL_AGENTS_WIDGET_ID,
   clampWidgetBlurPercent,
   getUsageProvider,
+  type OpenWidgetOptions,
+  type WidgetMode,
   widgetAlwaysOnTop,
   widgetBackgroundColor,
   widgetPeriod,
-  type OpenWidgetOptions,
-  type WidgetMode,
 } from '@agentmat/core';
+import { useQuery } from '@tanstack/react-query';
+import { useEffect, useState } from 'react';
+import { useParams } from 'react-router-dom';
 import { ChartColumn, Clock, SettingsIcon, Trash2 } from '@/components/icons';
 import { Button } from '@/components/ui/button';
-import { SimpleTooltip } from '@/components/ui/tooltip';
 import { OverflowScroll } from '@/components/ui/overflow-scroll';
+import { SimpleTooltip } from '@/components/ui/tooltip';
 import { AllAgentsCharts } from './AllAgentsCharts';
-import { UsageCardBody, UsageCardBodySkeleton, hasSubscriptionView } from './UsageCard';
+import { hasSubscriptionView, UsageCardBody, UsageCardBodySkeleton } from './UsageCard';
 import {
   DEFAULT_WIDGET_SETTINGS,
-  WidgetSettingsForm,
   settingsToOpenOptions,
-  widgetGlassVars,
+  WidgetSettingsForm,
   type WidgetSettingsValue,
+  widgetGlassVars,
 } from './WidgetSettingsForm';
 
 /**

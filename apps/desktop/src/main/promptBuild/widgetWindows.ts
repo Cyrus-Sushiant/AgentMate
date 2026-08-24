@@ -1,8 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import { join } from 'node:path';
+import type { DesktopPromptBuildWidgetInstance } from '@agentmat/core';
 import { BrowserWindow } from 'electron';
 import icon from '../../../resources/icon.ico?asset';
-import type { DesktopPromptBuildWidgetInstance } from '@agentmat/core';
 import { store } from '../store';
 
 // One frameless, transparent, always-on-top BrowserWindow per pinned Build

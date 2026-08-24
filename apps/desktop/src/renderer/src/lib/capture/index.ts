@@ -1,13 +1,13 @@
 import { ElectronCaptureProvider } from './ElectronCaptureProvider';
 import type { ICaptureProvider } from './types';
 
+export { ElectronCaptureProvider } from './ElectronCaptureProvider';
 export type {
   CaptureCapabilities,
   CaptureOptions,
   CaptureSurface,
   ICaptureProvider,
 } from './types';
-export { ElectronCaptureProvider } from './ElectronCaptureProvider';
 
 let provider: ICaptureProvider | null = null;
 

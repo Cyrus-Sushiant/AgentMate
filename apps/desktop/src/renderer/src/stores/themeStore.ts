@@ -1,5 +1,5 @@
-import { create } from 'zustand';
 import type { ThemeMode } from '@agentmat/core';
+import { create } from 'zustand';
 
 interface ThemeState {
   theme: ThemeMode;

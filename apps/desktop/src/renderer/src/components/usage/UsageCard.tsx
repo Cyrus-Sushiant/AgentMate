@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import type {
   ProviderUsage,
   SubscriptionUsage,
@@ -9,10 +8,11 @@ import type {
   WidgetPeriod,
   WidgetStyle,
 } from '@agentmat/core';
+import { useState } from 'react';
+import { SparklineChart } from '@/components/dashboard/SparklineChart';
 import { ProviderLogo } from '@/components/providerLogos';
 import { Skeleton } from '@/components/ui/skeleton';
 import { SimpleTooltip } from '@/components/ui/tooltip';
-import { SparklineChart } from '@/components/dashboard/SparklineChart';
 import { useReadableAccent } from '@/lib/chartColors';
 import {
   formatCost,

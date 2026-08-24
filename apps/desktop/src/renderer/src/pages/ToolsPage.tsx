@@ -1,8 +1,8 @@
 import {
   AGENT_TOOL_REGISTRY,
+  type AgentToolDefinition,
   LANGUAGETOOL_DOWNLOAD_URL,
   LANGUAGETOOL_TOOL_ID,
-  type AgentToolDefinition,
   type ToolSettingsAction,
   type ToolSettingsValues,
 } from '@agentmat/core';

@@ -4,13 +4,13 @@ import {
   formatShortcut,
   isSafeWhileTyping,
   matchesShortcut,
-  sameShortcut,
   SHORTCUT_COMMANDS,
   type Shortcut,
   type ShortcutCommand,
   type ShortcutCommandId,
   type ShortcutCommandIdOf,
   type ShortcutScope,
+  sameShortcut,
 } from '@/lib/shortcuts';
 
 export type ShortcutOverrides = Partial<Record<ShortcutCommandId, Shortcut[]>>;

@@ -1,16 +1,16 @@
 import { useEffect, useState } from 'react';
+import { SparklineChart } from '@/components/dashboard/SparklineChart';
 import { Monitor, Send, Upload } from '@/components/icons';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
 import {
   MacTrafficLights,
   NativeCaptionButtons,
   type WindowControlsProps,
 } from '@/components/layout/TitleBar';
-import { SparklineChart } from '@/components/dashboard/SparklineChart';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { useChartColors } from '@/lib/chartColors';
-import { subscribeControllerRtc, type ControllerRtcState } from '@/lib/rtcController';
 import { describeRemoteQuality, formatMbps } from '@/lib/remoteQuality';
+import { type ControllerRtcState, subscribeControllerRtc } from '@/lib/rtcController';
 import { useRemoteStore } from '@/stores/remoteStore';
 import { RemoteScreen } from './RemoteScreen';
 

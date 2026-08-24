@@ -10,15 +10,15 @@ import {
   Upload,
   Wifi,
 } from '@/components/icons';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Combobox } from '@/components/ui/combobox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Badge } from '@/components/ui/badge';
-import { useRemoteStore } from '@/stores/remoteStore';
-import { subscribeHostQuality, type HostQualitySnapshot } from '@/lib/rtcHost';
 import { describeHostQuality, formatMbps } from '@/lib/remoteQuality';
+import { type HostQualitySnapshot, subscribeHostQuality } from '@/lib/rtcHost';
+import { useRemoteStore } from '@/stores/remoteStore';
 
 export function HostPanel(): React.JSX.Element {
   const state = useRemoteStore((s) => s.state);

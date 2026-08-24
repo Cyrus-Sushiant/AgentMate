@@ -1,8 +1,8 @@
 import { randomUUID } from 'node:crypto';
+import { type IpcMainInvokeEvent, ipcMain, powerSaveBlocker } from 'electron';
 import * as pty from 'node-pty';
-import { ipcMain, powerSaveBlocker, type IpcMainInvokeEvent } from 'electron';
-import { IPC } from '../../shared/ipcChannels';
 import type { CreateTerminalOptions } from '../../shared/apiTypes';
+import { IPC } from '../../shared/ipcChannels';
 
 const ALLOWED_SHELLS = ['powershell.exe', 'pwsh.exe', 'cmd.exe', 'bash', 'zsh', 'fish'] as const;
 type AllowedShell = (typeof ALLOWED_SHELLS)[number];

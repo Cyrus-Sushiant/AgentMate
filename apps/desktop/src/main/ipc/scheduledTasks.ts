@@ -1,10 +1,10 @@
 import { randomUUID } from 'node:crypto';
-import { ipcMain } from 'electron';
 import type { ScheduledTask, ScheduledTaskStatus } from '@agentmat/core';
-import { IPC } from '../../shared/ipcChannels';
+import { ipcMain } from 'electron';
 import type { CreateScheduledTasksInput } from '../../shared/apiTypes';
-import { store } from '../store';
+import { IPC } from '../../shared/ipcChannels';
 import { editTelegramMessage, sendTelegramMessage } from '../notifications/telegramApi';
+import { store } from '../store';
 
 const STATUS_LABEL: Record<ScheduledTaskStatus, string> = {
   pending: '⏳ Pending',

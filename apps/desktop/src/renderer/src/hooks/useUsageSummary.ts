@@ -1,12 +1,12 @@
-import { useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
 import {
-  USAGE_PROVIDER_REGISTRY,
   getUsageProvider,
   isAutoConnected,
   type ProviderUsage,
+  USAGE_PROVIDER_REGISTRY,
   type UsageProviderConfig,
 } from '@agentmat/core';
+import { useQuery } from '@tanstack/react-query';
+import { useMemo } from 'react';
 import { queryKeys } from '@/lib/queryKeys';
 
 function isDisplayed(id: string, configs: Record<string, UsageProviderConfig>): boolean {

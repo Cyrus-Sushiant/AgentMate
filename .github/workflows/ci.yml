@@ -1,0 +1,78 @@
+name: CI
+
+# Checks every push and pull request: formatting/lint (Biome), no deprecated
+# dependencies or deprecated imports, types, and a real build of the desktop
+# app. Cross-platform packaging is left to the CD workflow, which runs on the
+# actual Windows/macOS/Linux runners when a release tag is pushed.
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: Lint, types, build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: pnpm
+
+      # --frozen-lockfile also fails the build when package.json and
+      # pnpm-lock.yaml have drifted apart.
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # `biome ci` = formatter + linter + import sorting in one pass, without
+      # writing anything. --reporter=github turns findings into inline
+      # annotations on the pull request.
+      - name: Biome (format, lint, import order)
+        if: ${{ !cancelled() }}
+        run: pnpm biome:ci --reporter=github
+
+      # Anything we import that upstream has marked @deprecated. This is the
+      # lint/suspicious/noDeprecatedImports rule on its own, so a failure here
+      # says "deprecated API" rather than "some lint rule".
+      - name: No deprecated code
+        if: ${{ !cancelled() }}
+        run: pnpm check:deprecated-code --reporter=github
+
+      # Direct dependencies the npm registry reports as deprecated. Known
+      # exceptions live in .github/deprecated-deps-allowlist.json.
+      - name: No deprecated dependencies
+        if: ${{ !cancelled() }}
+        run: pnpm check:deprecated-deps
+
+      # Desktop and mobile type-check against @agentmat/core and
+      # @agentmat/protocol declaration output, so those have to be built first.
+      - name: Build workspace packages
+        if: ${{ !cancelled() }}
+        run: pnpm --filter @agentmat/core --filter @agentmat/protocol build
+
+      - name: Typecheck
+        if: ${{ !cancelled() }}
+        run: pnpm -r typecheck
+
+      # better-sqlite3 and node-pty stay external in the bundle, so this needs
+      # no native rebuild. Packaging installers is CD's job.
+      - name: Build desktop app
+        if: ${{ !cancelled() }}
+        run: pnpm --filter @agentmat/desktop build

@@ -1,7 +1,7 @@
+import type { TopResourceApp, TopResourceKind } from '@shared/apiTypes';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { toast } from 'sonner';
-import type { TopResourceApp, TopResourceKind } from '@shared/apiTypes';
 import { StopCircle } from '@/components/icons';
 import { Button } from '@/components/ui/button';
 import {

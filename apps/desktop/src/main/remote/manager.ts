@@ -3,8 +3,8 @@ import { app, BrowserWindow, clipboard, dialog, powerSaveBlocker, screen } from 
 import QRCode from 'qrcode';
 import { WebSocket, WebSocketServer } from 'ws';
 import type {
-  RemoteConnectionInfo,
   RemoteConnectIntent,
+  RemoteConnectionInfo,
   RemoteFileProgress,
   RemoteLogLevel,
   RemotePairingInfo,
@@ -14,8 +14,8 @@ import type {
 } from '../../shared/apiTypes';
 import { IPC } from '../../shared/ipcChannels';
 import {
-  binaryKind,
   BIN_SCREEN_TILE,
+  binaryKind,
   encodePairingCode,
   REMOTE_PROTOCOL_VERSION,
   type RemoteControlMessage,

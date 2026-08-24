@@ -119,7 +119,9 @@ function planRank(plan: SubscriptionPlan): number {
   return 5;
 }
 
-function pickHighestPlan(plans: Array<SubscriptionPlan | null | undefined>): SubscriptionPlan | null {
+function pickHighestPlan(
+  plans: Array<SubscriptionPlan | null | undefined>,
+): SubscriptionPlan | null {
   let best: SubscriptionPlan | null = null;
   for (const plan of plans) {
     if (!plan) continue;
@@ -173,7 +175,10 @@ function resolvePlan(subscriptionType?: string, rateLimitTier?: string): Subscri
   }
   if (type === 'team') return { id: 'team', label: 'Team' };
   if (type === 'enterprise') return { id: 'enterprise', label: 'Enterprise' };
-  return pickHighestPlan([fromTier, { id: type, label: type.charAt(0).toUpperCase() + type.slice(1) }]);
+  return pickHighestPlan([
+    fromTier,
+    { id: type, label: type.charAt(0).toUpperCase() + type.slice(1) },
+  ]);
 }
 
 const KNOWN_PLAN_IDS = new Set(['pro', 'max', 'max5x', 'max20x', 'team', 'enterprise']);

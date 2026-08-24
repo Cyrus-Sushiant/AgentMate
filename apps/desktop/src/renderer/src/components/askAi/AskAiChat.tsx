@@ -1,7 +1,8 @@
+import { useQuery } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
+import { GrammarTextarea } from '@/components/grammar/GrammarTextarea';
 import {
   Bookmark,
   Copy,
@@ -15,14 +16,13 @@ import {
   TriangleAlert,
 } from '@/components/icons';
 import { Button } from '@/components/ui/button';
-import { GrammarTextarea } from '@/components/grammar/GrammarTextarea';
 import { Combobox } from '@/components/ui/combobox';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { queryKeys } from '@/lib/queryKeys';
-import { useAskAiStore, type AskAiMessage } from '@/stores/askAiStore';
 import { cn } from '@/lib/utils';
+import { type AskAiMessage, useAskAiStore } from '@/stores/askAiStore';
 import type { AiProvider } from '../../../../shared/apiTypes';
 import { MarkdownMessage } from './MarkdownMessage';
 

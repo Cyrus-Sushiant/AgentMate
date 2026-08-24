@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { toast } from 'sonner';
 import {
+  type AppSettings,
+  clampDesktopPetClickArea,
+  clampDesktopPetSpeed,
   DESKTOP_PET_CLICK_AREA_MAX,
   DESKTOP_PET_CLICK_AREA_MIN,
   DESKTOP_PET_NAME_MAX,
@@ -9,14 +9,14 @@ import {
   DESKTOP_PET_SCALE_MIN,
   DESKTOP_PET_SPEED_MAX,
   DESKTOP_PET_SPEED_MIN,
-  clampDesktopPetClickArea,
-  clampDesktopPetSpeed,
+  type DesktopPetActionSpeeds,
   isAnimatedPetFile,
   normalizeDesktopPetActionSpeeds,
   normalizeDesktopPetName,
-  type AppSettings,
-  type DesktopPetActionSpeeds,
 } from '@agentmat/core';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useEffect, useRef, useState } from 'react';
+import { toast } from 'sonner';
 import { Paw, Plus, Trash2 } from '@/components/icons';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -27,11 +27,7 @@ import { cn } from '@/lib/utils';
 import { confirmDialog } from '@/stores/confirmStore';
 import { PET_CHARACTERS } from './characters';
 
-export function CompanionSettings({
-  settings,
-}: {
-  settings: AppSettings;
-}): React.JSX.Element {
+export function CompanionSettings({ settings }: { settings: AppSettings }): React.JSX.Element {
   const queryClient = useQueryClient();
   const save = useMutation({
     mutationFn: (patch: Partial<AppSettings>) => window.agentmat.settings.update(patch),
@@ -69,8 +65,12 @@ export function CompanionSettings({
     clampDesktopPetClickArea(settings.desktopPetClickArea),
   );
   const clickAreaTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [speeds, setSpeeds] = useState(() => normalizeDesktopPetActionSpeeds(settings.desktopPetActionSpeeds));
-  const speedTimers = useRef<Partial<Record<keyof DesktopPetActionSpeeds, ReturnType<typeof setTimeout>>>>({});
+  const [speeds, setSpeeds] = useState(() =>
+    normalizeDesktopPetActionSpeeds(settings.desktopPetActionSpeeds),
+  );
+  const speedTimers = useRef<
+    Partial<Record<keyof DesktopPetActionSpeeds, ReturnType<typeof setTimeout>>>
+  >({});
   const [importing, setImporting] = useState(false);
   const [petName, setPetName] = useState(() => settings.desktopPetName ?? '');
   const petNameTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -241,9 +241,7 @@ export function CompanionSettings({
       <Card className="glass">
         <CardHeader>
           <CardTitle>Character</CardTitle>
-          <CardDescription>
-            Pick one, or add your own PNG, GIF, or WebP.
-          </CardDescription>
+          <CardDescription>Pick one, or add your own PNG, GIF, or WebP.</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
@@ -462,7 +460,8 @@ export function CompanionSettings({
         <CardHeader>
           <CardTitle>Alerts</CardTitle>
           <CardDescription>
-            The pet can speak up when a watched GitHub Actions run finishes, or when the internet changes.
+            The pet can speak up when a watched GitHub Actions run finishes, or when the internet
+            changes.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -498,7 +497,8 @@ export function CompanionSettings({
             <div className="min-w-0">
               <Label htmlFor="pet-network-quality">Tell me when internet quality changes</Label>
               <p className="text-xs text-muted-foreground">
-                A short message next to the pet if the connection drops, comes back, or clearly gets better or worse.
+                A short message next to the pet if the connection drops, comes back, or clearly gets
+                better or worse.
               </p>
             </div>
             <Switch
@@ -514,7 +514,10 @@ export function CompanionSettings({
       <Card className="glass">
         <CardHeader>
           <CardTitle>Size</CardTitle>
-          <CardDescription>How large it appears on the desktop, and how much of the picture counts as the character.</CardDescription>
+          <CardDescription>
+            How large it appears on the desktop, and how much of the picture counts as the
+            character.
+          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-5">
           <RangeControl
@@ -628,7 +631,9 @@ function RangeControl({
         </div>
       ) : null}
       <div className="flex items-center gap-2.5">
-        <span className="w-9 shrink-0 text-[11px] leading-none text-muted-foreground">{lowLabel}</span>
+        <span className="w-9 shrink-0 text-[11px] leading-none text-muted-foreground">
+          {lowLabel}
+        </span>
         <input
           id={id}
           type="range"

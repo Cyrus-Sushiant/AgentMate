@@ -4,8 +4,8 @@ import {
   type UsageProviderConfig,
   type UsageWindow,
 } from '@agentmat/core';
-import { connectUsage, errorUsage } from './shared';
 import { fetchCursorUsage } from './cursor';
+import { connectUsage, errorUsage } from './shared';
 
 // Live usage for API-key providers. Each fetcher runs in the main (Node)
 // process, so the renderer CSP never applies. These endpoints mostly expose

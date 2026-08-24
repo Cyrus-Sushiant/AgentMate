@@ -1,14 +1,14 @@
 import { ipcMain } from 'electron';
-import { IPC } from '../../shared/ipcChannels';
 import type {
   DetectChatIdResult,
   NotificationSendResult,
   SendTestNotificationInput,
 } from '../../shared/apiTypes';
-import { store } from '../store';
+import { IPC } from '../../shared/ipcChannels';
 import { speakOnPet } from '../notifications/petNotifier';
 import { detectLatestChatId, sendTelegramMessage } from '../notifications/telegramApi';
 import { petManager } from '../pet/petWindow';
+import { store } from '../store';
 
 export function registerNotificationHandlers(): void {
   ipcMain.handle(
@@ -34,7 +34,10 @@ export function registerNotificationHandlers(): void {
       }
       const snoozedUntil = petManager.snoozeState().until;
       if (snoozedUntil && snoozedUntil > Date.now()) {
-        return { ok: false, error: 'The companion is hidden right now. Bring it back to see this.' };
+        return {
+          ok: false,
+          error: 'The companion is hidden right now. Bring it back to see this.',
+        };
       }
       if (!speakOnPet(settings, 'Preview', input.message)) {
         return { ok: false, error: 'The companion is not on screen right now.' };

@@ -1,8 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { app } from 'electron';
 import Database from 'better-sqlite3';
+import { app } from 'electron';
 import type {
   AddPromptHistoryInput,
   PromptHistoryEntry,

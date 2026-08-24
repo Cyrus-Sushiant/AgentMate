@@ -1,5 +1,5 @@
-import { useEffect, useRef } from 'react';
 import * as monaco from 'monaco-editor';
+import { useEffect, useRef } from 'react';
 import './monacoSetup';
 import { cn } from '@/lib/utils';
 

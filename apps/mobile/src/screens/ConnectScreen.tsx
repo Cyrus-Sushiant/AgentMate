@@ -14,8 +14,8 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { QRScannerModal } from '../components/QRScannerModal';
-import type { useRemoteClient } from '../remote/useRemoteClient';
 import type { SavedDevice } from '../remote/savedDevices';
+import type { useRemoteClient } from '../remote/useRemoteClient';
 import { colors, radius, spacing } from '../theme';
 
 type RemoteClient = ReturnType<typeof useRemoteClient>;

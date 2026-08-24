@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
-import { formatBytes } from '@shared/remoteProtocol';
 import type { RemoteFileManagerEntry } from '@shared/apiTypes';
+import { formatBytes } from '@shared/remoteProtocol';
+import { useEffect, useState } from 'react';
 import {
   ArrowLeft,
   Download,
@@ -17,11 +17,11 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { SimpleTooltip } from '@/components/ui/tooltip';
-import { usePageHeader } from '@/stores/pageHeaderStore';
-import { useRemoteStore } from '@/stores/remoteStore';
-import { useRemoteFileManagerStore } from '@/stores/remoteFileManagerStore';
-import { confirmDialog } from '@/stores/confirmStore';
 import { cn } from '@/lib/utils';
+import { confirmDialog } from '@/stores/confirmStore';
+import { usePageHeader } from '@/stores/pageHeaderStore';
+import { useRemoteFileManagerStore } from '@/stores/remoteFileManagerStore';
+import { useRemoteStore } from '@/stores/remoteStore';
 
 function parentOf(path: string): string | null {
   const normalized = path.replace(/\\/g, '/');

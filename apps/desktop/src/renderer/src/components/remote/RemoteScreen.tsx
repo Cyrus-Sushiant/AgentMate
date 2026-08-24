@@ -1,12 +1,12 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import type { RemoteMouseButton } from '@shared/remoteProtocol';
 import type { RemoteScreenSize } from '@shared/apiTypes';
+import type { RemoteMouseButton } from '@shared/remoteProtocol';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { drawTile } from '@/lib/frameCompositor';
 import {
+  type ControllerRtcState,
   isInputChannelOpen,
   sendControllerInput,
   subscribeControllerRtc,
-  type ControllerRtcState,
 } from '@/lib/rtcController';
 import { cn } from '@/lib/utils';
 

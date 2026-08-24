@@ -9,10 +9,10 @@ import {
   MessageSquare,
   TerminalSquare,
 } from '@/components/icons';
-import { UpdateStatusChip } from '@/components/UpdateManager';
 import { CommandPalette } from '@/components/search/CommandPalette';
 import { TerminalDrawer } from '@/components/terminal/TerminalDrawer';
 import { ToastHistoryPanel } from '@/components/toast/ToastHistoryPanel';
+import { UpdateStatusChip } from '@/components/UpdateManager';
 import { Button } from '@/components/ui/button';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { useAppLoadingOverlay } from '@/hooks/useAppLoadingOverlay';

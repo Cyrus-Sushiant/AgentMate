@@ -1,5 +1,5 @@
 import type { McpRepository } from './types.js';
-import { McpRepositoryIndexSchema, type McpRepositoryIndex } from './types.js';
+import { type McpRepositoryIndex, McpRepositoryIndexSchema } from './types.js';
 
 /**
  * Servers bundled from the Bowora MCP directory (https://bowora.com/mcp) as of 2026-07-19,

@@ -38,8 +38,8 @@ import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card'
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { SimpleTooltip } from '@/components/ui/tooltip';
-import { queryKeys } from '@/lib/queryKeys';
 import { openCliInTerminal } from '@/lib/openCli';
+import { queryKeys } from '@/lib/queryKeys';
 import { persianTextProps } from '@/lib/rtl';
 import { timeAgo } from '@/lib/time';
 import { cn } from '@/lib/utils';
@@ -378,7 +378,11 @@ export default function ProjectsPage(): React.JSX.Element {
       </div>
 
       {projects.length > 0 && agentTypesPresent.length > 1 && (
-        <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Filter by agent">
+        <div
+          className="flex flex-wrap items-center gap-1.5"
+          role="group"
+          aria-label="Filter by agent"
+        >
           <FilterChip active={agentFilter === 'all'} onClick={() => setAgentFilter('all')}>
             All agents
           </FilterChip>
@@ -936,7 +940,8 @@ function ProjectQuickActions({
         aria-label={project.pinned ? 'Unpin project' : 'Pin to top'}
         aria-pressed={project.pinned}
         className={cn(
-          compact && 'opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100',
+          compact &&
+            'opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100',
           project.pinned && 'text-primary opacity-100',
         )}
         onClick={(e) => {
@@ -1023,7 +1028,10 @@ function AgentBadge({ project }: { project: Project }): React.JSX.Element {
           });
         }}
       >
-        <Badge variant="secondary" className="cursor-pointer gap-1.5 hover:border-primary/40 hover:bg-primary/10">
+        <Badge
+          variant="secondary"
+          className="cursor-pointer gap-1.5 hover:border-primary/40 hover:bg-primary/10"
+        >
           {inner}
         </Badge>
       </button>

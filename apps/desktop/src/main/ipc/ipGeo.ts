@@ -1,6 +1,6 @@
 import { ipcMain } from 'electron';
-import { IPC } from '../../shared/ipcChannels';
 import type { IpGeoInfo } from '../../shared/apiTypes';
+import { IPC } from '../../shared/ipcChannels';
 
 const LOOKUP_TIMEOUT_MS = 5000;
 /** A machine's public IP rarely moves mid-session, and every window and widget asks for it. */

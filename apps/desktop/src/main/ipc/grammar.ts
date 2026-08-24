@@ -1,11 +1,11 @@
 import { mkdir } from 'node:fs/promises';
 import { ipcMain, shell } from 'electron';
-import { IPC } from '../../shared/ipcChannels';
 import type {
   GrammarCheckInput,
   GrammarCheckResult,
   GrammarLocalStatus,
 } from '../../shared/grammar';
+import { IPC } from '../../shared/ipcChannels';
 import { checkText } from '../grammar/languageToolClient';
 import {
   getLocalStatus,

@@ -1,5 +1,5 @@
-import * as React from 'react';
 import * as TooltipPrimitive from '@radix-ui/react-tooltip';
+import * as React from 'react';
 import { cn } from '@/lib/utils';
 
 const TooltipProvider = TooltipPrimitive.Provider;
@@ -76,4 +76,4 @@ function SimpleTooltip({
   );
 }
 
-export { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider, SimpleTooltip };
+export { SimpleTooltip, Tooltip, TooltipContent, TooltipProvider, TooltipTrigger };

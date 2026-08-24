@@ -4,10 +4,10 @@ import { copyFile, mkdir, readdir, rename, rm, writeFile } from 'node:fs/promise
 import { homedir } from 'node:os';
 import { basename, join } from 'node:path';
 import { app, BrowserWindow, powerSaveBlocker } from 'electron';
+import type { UpdateInfo as ElectronUpdateInfo, ProgressInfo } from 'electron-updater';
 import { autoUpdater } from 'electron-updater';
-import type { ProgressInfo, UpdateInfo as ElectronUpdateInfo } from 'electron-updater';
-import { IPC } from '../shared/ipcChannels';
 import type { UpdateDownloadProgress, UpdateInfo, UpdateStatus } from '../shared/apiTypes';
+import { IPC } from '../shared/ipcChannels';
 import {
   DownloadAbortedError,
   DownloadFatalError,
@@ -183,8 +183,7 @@ function progressFromBytes(
   const safeTotal = total > 0 ? total : transferred;
   const percent = safeTotal > 0 ? Math.min(100, (transferred / safeTotal) * 100) : 0;
   const remaining = Math.max(0, safeTotal - transferred);
-  const etaSeconds =
-    bytesPerSecond > 8 * 1024 ? Math.round(remaining / bytesPerSecond) : null;
+  const etaSeconds = bytesPerSecond > 8 * 1024 ? Math.round(remaining / bytesPerSecond) : null;
   return {
     percent,
     transferredBytes: transferred,
@@ -313,7 +312,11 @@ async function resolveAsset(info: UpdateInfo): Promise<ResolvedAsset> {
   if (url == null || fileName == null) {
     const electronInfo = bundle?.info;
     const listed = electronInfo?.files?.[0];
-    fileName = listed?.url ? basename(listed.url) : electronInfo?.path ? basename(electronInfo.path) : null;
+    fileName = listed?.url
+      ? basename(listed.url)
+      : electronInfo?.path
+        ? basename(electronInfo.path)
+        : null;
     sha512 = listed?.sha512 ?? electronInfo?.sha512 ?? sha512;
     if (typeof listed?.size === 'number') size = listed.size;
     const config = await internals().configOnDisk.value.catch(() => ({}) as UpdaterDiskConfig);
@@ -458,12 +461,7 @@ async function runDownload(): Promise<void> {
   }
 
   const startedFrom = await fileSize(part);
-  lastProgress = progressFromBytes(
-    startedFrom,
-    asset.size ?? startedFrom,
-    0,
-    startedFrom > 0,
-  );
+  lastProgress = progressFromBytes(startedFrom, asset.size ?? startedFrom, 0, startedFrom > 0);
   broadcast({
     state: 'downloading',
     info,
@@ -585,8 +583,7 @@ export function startHourlyUpdateChecks(): void {
   setInterval(() => {
     // Don't clobber a check/download/restart-confirmation the user is already in.
     const idleStates: UpdateStatus['state'][] = ['idle', 'not-available'];
-    const canRetryError =
-      currentStatus.state === 'error' && currentStatus.resumable !== true;
+    const canRetryError = currentStatus.state === 'error' && currentStatus.resumable !== true;
     if (idleStates.includes(currentStatus.state) || canRetryError) {
       void checkForUpdates(false);
     }

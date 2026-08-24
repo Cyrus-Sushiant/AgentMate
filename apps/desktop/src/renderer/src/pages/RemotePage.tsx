@@ -1,12 +1,12 @@
 import { formatBytes } from '@shared/remoteProtocol';
 import { Broadcast, Link } from '@/components/icons';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { HostPanel } from '@/components/remote/HostPanel';
 import { ControllerPanel } from '@/components/remote/ControllerPanel';
+import { HostPanel } from '@/components/remote/HostPanel';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { cn } from '@/lib/utils';
 import { usePageHeader } from '@/stores/pageHeaderStore';
 import { useRemoteStore } from '@/stores/remoteStore';
-import { cn } from '@/lib/utils';
 
 const LOG_COLOR = {
   info: 'text-muted-foreground',

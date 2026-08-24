@@ -1,6 +1,6 @@
 import { ipcMain } from 'electron';
-import { IPC } from '../../shared/ipcChannels';
 import type { TranslateTextInput } from '../../shared/apiTypes';
+import { IPC } from '../../shared/ipcChannels';
 import { store } from '../store';
 
 function delay(ms: number): Promise<void> {

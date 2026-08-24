@@ -29,10 +29,7 @@ import {
   Trash2,
 } from '@/components/icons';
 import { AdHocSkillScanner } from '@/components/skills/AdHocSkillScanner';
-import {
-  SkillAuditReport,
-  SkillAuditVerdictBadge,
-} from '@/components/skills/SkillAuditReport';
+import { SkillAuditReport, SkillAuditVerdictBadge } from '@/components/skills/SkillAuditReport';
 import {
   SkillSecurityDialog,
   type SkillSecurityTarget,
@@ -1115,7 +1112,8 @@ export default function SkillsPage(): React.JSX.Element {
                 onClick={() => {
                   void confirmDialog({
                     title: 'Clear the security check history?',
-                    description: 'Every saved check is deleted. The skills themselves are not touched.',
+                    description:
+                      'Every saved check is deleted. The skills themselves are not touched.',
                     confirmLabel: 'Clear',
                     variant: 'destructive',
                   }).then((confirmed) => {

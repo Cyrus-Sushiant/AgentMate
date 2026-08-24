@@ -90,7 +90,10 @@ export function parseSkillSourceInput(raw: string): ParsedSkillSource | null {
 
   // skills.sh pages are `/<owner>/<repo>/<skill>`, and sometimes just `/<owner>/<repo>`.
   const skillsSh = value.match(
-    new RegExp(String.raw`^https?:\/\/(?:www\.)?skills\.sh\/${OWNER_REPO}(?:\/([\w.-]+))?\/?$`, 'i'),
+    new RegExp(
+      String.raw`^https?:\/\/(?:www\.)?skills\.sh\/${OWNER_REPO}(?:\/([\w.-]+))?\/?$`,
+      'i',
+    ),
   );
   if (skillsSh) {
     return toGithub(
@@ -103,15 +106,13 @@ export function parseSkillSourceInput(raw: string): ParsedSkillSource | null {
 
   // raw.githubusercontent.com/<owner>/<repo>/<ref>/<path to a file>
   const raw2 = value.match(
-    new RegExp(String.raw`^https?:\/\/raw\.githubusercontent\.com\/${OWNER_REPO}\/([^/]+)\/(.+)$`, 'i'),
+    new RegExp(
+      String.raw`^https?:\/\/raw\.githubusercontent\.com\/${OWNER_REPO}\/([^/]+)\/(.+)$`,
+      'i',
+    ),
   );
   if (raw2) {
-    return toGithub(
-      `${raw2[1]}/${raw2[2]}`,
-      raw2[3],
-      directoryOf(raw2[4]),
-      skillNameFromCommand,
-    );
+    return toGithub(`${raw2[1]}/${raw2[2]}`, raw2[3], directoryOf(raw2[4]), skillNameFromCommand);
   }
 
   // github.com/<owner>/<repo>[/tree|blob/<ref>[/<path>]]
@@ -136,7 +137,8 @@ export function parseSkillSourceInput(raw: string): ParsedSkillSource | null {
 
   // Bare `owner/repo`, the shorthand every GitHub README uses.
   const shorthand = value.match(new RegExp(String.raw`^${OWNER_REPO}$`));
-  if (shorthand) return toGithub(`${shorthand[1]}/${shorthand[2]}`, 'HEAD', '', skillNameFromCommand);
+  if (shorthand)
+    return toGithub(`${shorthand[1]}/${shorthand[2]}`, 'HEAD', '', skillNameFromCommand);
 
   return null;
 }

@@ -1,5 +1,5 @@
-import { ipcMain } from 'electron';
 import type { AppSettings } from '@agentmat/core';
+import { ipcMain } from 'electron';
 import { IPC } from '../../shared/ipcChannels';
 import { clearGrammarCache } from '../grammar/languageToolClient';
 import { stopLocalServer } from '../grammar/localServer';

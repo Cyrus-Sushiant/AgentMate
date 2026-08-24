@@ -1,6 +1,6 @@
 import { ipcMain } from 'electron';
-import { IPC } from '../../shared/ipcChannels';
 import type { AddPromptHistoryInput, PromptHistoryEntry } from '../../shared/apiTypes';
+import { IPC } from '../../shared/ipcChannels';
 import { promptHistoryDb } from '../promptHistoryDb';
 import { logActivity } from '../store';
 

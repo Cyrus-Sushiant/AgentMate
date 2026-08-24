@@ -1,17 +1,16 @@
-import claudeSprite from '@/assets/pet/claude.webp';
-import gremlinSprite from '@/assets/pet/gremlin.webp';
-import opencodeSprite from '@/assets/pet/opencode.webp';
-import tideSprite from '@/assets/pet/tide.png';
-import pipSprite from '@/assets/pet/pip.png';
-import brickSprite from '@/assets/pet/brick.png';
-import emberSprite from '@/assets/pet/ember.png';
-import noriSprite from '@/assets/pet/nori.png';
-import boltSprite from '@/assets/pet/bolt.png';
-import mossSprite from '@/assets/pet/moss.png';
-import cocoaSprite from '@/assets/pet/cocoa.png';
-import hexSprite from '@/assets/pet/hex.png';
-
 import { isCustomPetId } from '@agentmat/core';
+import boltSprite from '@/assets/pet/bolt.png';
+import brickSprite from '@/assets/pet/brick.png';
+import claudeSprite from '@/assets/pet/claude.webp';
+import cocoaSprite from '@/assets/pet/cocoa.png';
+import emberSprite from '@/assets/pet/ember.png';
+import gremlinSprite from '@/assets/pet/gremlin.webp';
+import hexSprite from '@/assets/pet/hex.png';
+import mossSprite from '@/assets/pet/moss.png';
+import noriSprite from '@/assets/pet/nori.png';
+import opencodeSprite from '@/assets/pet/opencode.webp';
+import pipSprite from '@/assets/pet/pip.png';
+import tideSprite from '@/assets/pet/tide.png';
 
 export type PetId = string;
 

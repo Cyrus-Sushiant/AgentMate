@@ -1,6 +1,11 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { ipcMain } from 'electron';
+import type {
+  AgentToolDefinition,
+  InstalledAgentTool,
+  SupportedOS,
+  ToolUpdateCheckResult,
+} from '@agentmat/core';
 import {
   AGENT_TOOL_REGISTRY,
   getAgentToolDefinition,
@@ -14,12 +19,7 @@ import {
   getToolUninstallCommandForCurrentOS,
   getToolUpdateCommandForCurrentOS,
 } from '@agentmat/core';
-import type {
-  AgentToolDefinition,
-  InstalledAgentTool,
-  SupportedOS,
-  ToolUpdateCheckResult,
-} from '@agentmat/core';
+import { ipcMain } from 'electron';
 import { IPC } from '../../shared/ipcChannels';
 import { compareVersions, fetchLatestVersion } from '../registryVersions';
 

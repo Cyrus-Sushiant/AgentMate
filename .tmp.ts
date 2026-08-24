@@ -1,3 +1,6 @@
+import type { CliArgsMap } from '../cli/args.js';
+import type { GrammarSettings } from '../grammar/languagetool.js';
+import type { DesktopPromptBuildWidgetInstance } from '../promptBuilder/types.js';
 import type {
   DesktopWidgetInstance,
   UsageProviderConfig,
@@ -5,9 +8,6 @@ import type {
   UsageThresholdAlertSettings,
   WidgetMode,
 } from '../usage/types.js';
-import type { DesktopPromptBuildWidgetInstance } from '../promptBuilder/types.js';
-import type { CliArgsMap } from '../cli/args.js';
-import type { GrammarSettings } from '../grammar/languagetool.js';
 
 export type ThemeMode = 'light' | 'dark' | 'system';
 
@@ -59,7 +59,11 @@ export function isDesktopPetId(value: unknown): value is DesktopPetId {
 }
 
 export function isCustomPetId(value: unknown): value is string {
-  return typeof value === 'string' && value.startsWith(CUSTOM_PET_ID_PREFIX) && value.length > CUSTOM_PET_ID_PREFIX.length;
+  return (
+    typeof value === 'string' &&
+    value.startsWith(CUSTOM_PET_ID_PREFIX) &&
+    value.length > CUSTOM_PET_ID_PREFIX.length
+  );
 }
 
 export function normalizeCustomDesktopPets(value: unknown): CustomDesktopPet[] {
@@ -69,7 +73,11 @@ export function normalizeCustomDesktopPets(value: unknown): CustomDesktopPet[] {
   for (const item of value) {
     if (!item || typeof item !== 'object') continue;
     const rec = item as Record<string, unknown>;
-    if (!isCustomPetId(rec.id) || typeof rec.name !== 'string' || typeof rec.fileName !== 'string') {
+    if (
+      !isCustomPetId(rec.id) ||
+      typeof rec.name !== 'string' ||
+      typeof rec.fileName !== 'string'
+    ) {
       continue;
     }
     if (seen.has(rec.id)) continue;

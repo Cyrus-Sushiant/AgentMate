@@ -3,9 +3,9 @@ import { MessageSquare } from '@/components/icons';
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
-  DialogDescription,
 } from '@/components/ui/dialog';
 import { useAskAiStore } from '@/stores/askAiStore';
 import { AskAiChat } from './AskAiChat';

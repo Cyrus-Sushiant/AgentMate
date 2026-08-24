@@ -1,10 +1,10 @@
+import * as SplashScreen from 'expo-splash-screen';
 import { useCallback, useEffect } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import * as SplashScreen from 'expo-splash-screen';
+import { useRemoteClient } from './src/remote/useRemoteClient';
 import { ConnectScreen } from './src/screens/ConnectScreen';
 import { RemoteScreen } from './src/screens/RemoteScreen';
-import { useRemoteClient } from './src/remote/useRemoteClient';
 import { colors } from './src/theme';
 
 void SplashScreen.preventAutoHideAsync().catch(() => {

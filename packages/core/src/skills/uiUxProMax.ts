@@ -129,8 +129,7 @@ export function buildUiProCommandPlan(options: UiProCommandOptions): UiProComman
   const agents = options.agents.filter(isUiProAiTarget);
   const prefix = commandPrefix(options.method);
   return {
-    setup:
-      options.method === 'npm-global' ? [`npm install -g ${UI_UX_PRO_MAX_NPM_PACKAGE}`] : [],
+    setup: options.method === 'npm-global' ? [`npm install -g ${UI_UX_PRO_MAX_NPM_PACKAGE}`] : [],
     install: agents.map((agent) => withGlobal(`${prefix} init --ai ${agent}`, options.global)),
   };
 }
@@ -213,10 +212,16 @@ export const UI_UX_PRO_MAX_HIGHLIGHTS: UiProHighlight[] = [
 
 /** The reasoning-rule categories table from the README. */
 export const UI_UX_PRO_MAX_RULE_CATEGORIES: { category: string; examples: string }[] = [
-  { category: 'Tech & SaaS', examples: 'SaaS, Micro SaaS, Developer Tool, AI/Chatbot, Cybersecurity' },
+  {
+    category: 'Tech & SaaS',
+    examples: 'SaaS, Micro SaaS, Developer Tool, AI/Chatbot, Cybersecurity',
+  },
   { category: 'Finance', examples: 'Fintech/Crypto, Banking, Insurance, Invoice & Billing' },
   { category: 'Healthcare', examples: 'Clinic, Pharmacy, Dental, Veterinary, Mental Health' },
-  { category: 'E-commerce', examples: 'General, Luxury, Marketplace, Subscription Box, Food Delivery' },
+  {
+    category: 'E-commerce',
+    examples: 'General, Luxury, Marketplace, Subscription Box, Food Delivery',
+  },
   { category: 'Services', examples: 'Beauty/Spa, Restaurant, Hotel, Legal, Home Services' },
   { category: 'Creative', examples: 'Portfolio, Agency, Photography, Gaming, Music Streaming' },
   { category: 'Lifestyle', examples: 'Habit Tracker, Recipe, Meditation, Weather, Mood Tracker' },

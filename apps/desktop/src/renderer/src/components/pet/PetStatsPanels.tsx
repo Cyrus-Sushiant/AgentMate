@@ -1,5 +1,5 @@
-import { useChartColors } from '@/lib/chartColors';
 import { useSystemStatsHistory } from '@/hooks/useSystemStatsHistory';
+import { useChartColors } from '@/lib/chartColors';
 
 /** Samples shell out to the OS, so the card polls slower than the dashboard. */
 const PET_SAMPLE_INTERVAL_MS = 2500;

@@ -59,12 +59,10 @@ export function SkillDeepReviewOptions({
             <Sparkles className="h-3.5 w-3.5" /> Deep review with an agent CLI
           </span>
           <span className="text-xs text-muted-foreground">
-            Sends the skill's text to an installed CLI for a second opinion. Slower, and it can
-            only make the verdict stricter.
+            Sends the skill's text to an installed CLI for a second opinion. Slower, and it can only
+            make the verdict stricter.
           </span>
-          {enabled && batchHint && (
-            <span className="mt-0.5 text-xs text-warning">{batchHint}</span>
-          )}
+          {enabled && batchHint && <span className="mt-0.5 text-xs text-warning">{batchHint}</span>}
         </span>
         <Switch
           checked={enabled}

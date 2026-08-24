@@ -1,11 +1,11 @@
-import { execFile, spawn, type ChildProcess } from 'node:child_process';
+import { type ChildProcess, execFile, spawn } from 'node:child_process';
 import { readdir, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
-import { LANGUAGETOOL_SERVER_JAR, type GrammarSettings } from '@agentmat/core';
+import { type GrammarSettings, LANGUAGETOOL_SERVER_JAR } from '@agentmat/core';
 import { app, BrowserWindow } from 'electron';
-import { IPC } from '../../shared/ipcChannels';
 import type { GrammarLocalStatus, GrammarServerState } from '../../shared/grammar';
+import { IPC } from '../../shared/ipcChannels';
 
 const execFileAsync = promisify(execFile);
 

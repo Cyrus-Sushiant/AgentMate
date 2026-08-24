@@ -1,7 +1,7 @@
 import { mkdir, readFile, unlink, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { CLI_REGISTRY, NOTIFICATION_HOOK_KINDS } from '@agentmat/core';
 import type { DetectedClaudeHook, NotificationHookKind, Project } from '@agentmat/core';
+import { CLI_REGISTRY, NOTIFICATION_HOOK_KINDS } from '@agentmat/core';
 import { portFilePath } from './hookServer';
 
 const HOOK_FILE_NAME: Record<NotificationHookKind, string> = {

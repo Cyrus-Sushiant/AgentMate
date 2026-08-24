@@ -1,17 +1,17 @@
+import type { RemoteInputEvent, RemoteMouseButton } from '@agentmat/protocol';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Animated,
+  type GestureResponderEvent,
   Image,
+  type LayoutChangeEvent,
   PanResponder,
   StyleSheet,
   View,
-  type GestureResponderEvent,
-  type LayoutChangeEvent,
 } from 'react-native';
 import type { MediaStream } from 'react-native-webrtc';
-import type { RemoteInputEvent, RemoteMouseButton } from '@agentmat/protocol';
-import type { RemoteTile } from '../remote/useRemoteClient';
 import { RemoteTransportMode } from '../remote/transport';
+import type { RemoteTile } from '../remote/useRemoteClient';
 import { WebRtc } from '../remote/webrtc';
 
 // Absent in builds without the native module; the tile fallback renders instead.

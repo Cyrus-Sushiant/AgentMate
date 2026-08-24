@@ -1,8 +1,8 @@
 import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
 import { basename, dirname, join } from 'node:path';
 import { app, dialog, ipcMain } from 'electron';
-import { IPC } from '../../shared/ipcChannels';
 import type { DirectoryEntry } from '../../shared/apiTypes';
+import { IPC } from '../../shared/ipcChannels';
 import { assertPathWithinRoots } from '../pathGuard';
 import { store } from '../store';
 

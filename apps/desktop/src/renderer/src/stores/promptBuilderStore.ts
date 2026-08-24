@@ -1,7 +1,7 @@
+import type { PromptType, TargetAI } from '@agentmat/core';
+import { DEFAULT_TARGET_AI, normalizeTargetAI } from '@agentmat/core';
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { DEFAULT_TARGET_AI, normalizeTargetAI } from '@agentmat/core';
-import type { PromptType, TargetAI } from '@agentmat/core';
 
 export type PromptBuilderStatus = 'draft' | 'scheduled';
 

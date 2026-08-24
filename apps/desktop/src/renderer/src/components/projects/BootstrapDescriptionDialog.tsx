@@ -1,7 +1,9 @@
+import type { Project } from '@agentmat/core';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import type { Project } from '@agentmat/core';
+import { GrammarTextarea } from '@/components/grammar/GrammarTextarea';
 import { ArrowLeft, Languages, Wand2 } from '@/components/icons';
+import { Button } from '@/components/ui/button';
 import {
   Dialog,
   DialogContent,
@@ -10,8 +12,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-import { GrammarTextarea } from '@/components/grammar/GrammarTextarea';
 import { containsPersian } from '@/lib/rtl';
 
 /** What the Bootstrap tab needs to scaffold the project and record the translation. */

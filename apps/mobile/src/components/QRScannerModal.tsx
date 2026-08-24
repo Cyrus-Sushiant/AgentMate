@@ -1,6 +1,6 @@
+import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useRef } from 'react';
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
-import { CameraView, useCameraPermissions } from 'expo-camera';
 import { colors, radius, spacing } from '../theme';
 
 interface QRScannerModalProps {

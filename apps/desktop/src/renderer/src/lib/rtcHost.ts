@@ -6,10 +6,10 @@ import {
   type RemoteInputEvent,
   type RemoteRtcMessage,
 } from '@shared/remoteProtocol';
-import { getCaptureStream, getCaptureSurface, isCursorBaked } from './screenCapture';
-import { preferredCodecOrder } from './rtcCodecs';
 import { QualityGovernor, type QualitySample } from './qualityGovernor';
 import { recordHostSample } from './remoteBench';
+import { preferredCodecOrder } from './rtcCodecs';
+import { getCaptureStream, getCaptureSurface, isCursorBaked } from './screenCapture';
 
 /**
  * Host-side WebRTC streaming: one RTCPeerConnection per connected controller,

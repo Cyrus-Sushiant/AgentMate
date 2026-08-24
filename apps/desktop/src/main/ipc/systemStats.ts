@@ -95,9 +95,10 @@ function cookedPercent(value: unknown): number {
 // last interval, so we do not keep raw deltas (those raced when samples
 // overlapped and showed 0% whenever the timestamp had not moved).
 async function sampleWindowsCpu(): Promise<CpuSample | null> {
-  const parsed = await runPowerShellJson<{ Name?: string; PercentProcessorTime?: number | null }[]>(
-    WIN_CPU_SCRIPT,
-  );
+  const parsed =
+    await runPowerShellJson<{ Name?: string; PercentProcessorTime?: number | null }[]>(
+      WIN_CPU_SCRIPT,
+    );
   const rows = asArray(parsed).filter((row) => typeof row.Name === 'string' && row.Name.length > 0);
   const cores = rows
     .filter((row) => /^\d+$/.test(row.Name ?? ''))
@@ -600,9 +601,10 @@ Get-Process | ForEach-Object {
 `;
 
 async function readWindowsCpuProcesses(): Promise<ProcessCpuSnapshot[]> {
-  const parsed = await runPowerShellJson<
-    { pid: number; name: string; cpuTime: number; memBytes: number }[]
-  >(WIN_CPU_PROCESS_SCRIPT);
+  const parsed =
+    await runPowerShellJson<{ pid: number; name: string; cpuTime: number; memBytes: number }[]>(
+      WIN_CPU_PROCESS_SCRIPT,
+    );
   return asArray(parsed)
     .filter((row) => Number.isFinite(row.pid) && row.name)
     .map((row) => ({
@@ -796,9 +798,10 @@ async function sampleWindowsGpuApps(): Promise<{
   queried: boolean;
 }> {
   if (process.platform !== 'win32') return { rows: [], queried: false };
-  const parsed = await runPowerShellJson<
-    { pid: number; name: string; percent: number; memBytes: number }[]
-  >(WIN_GPU_PROCESS_SCRIPT);
+  const parsed =
+    await runPowerShellJson<{ pid: number; name: string; percent: number; memBytes: number }[]>(
+      WIN_GPU_PROCESS_SCRIPT,
+    );
   if (parsed == null) return { rows: [], queried: false };
   return {
     rows: asArray(parsed).filter((row) => Number.isFinite(row.pid)),
@@ -810,7 +813,10 @@ async function sampleNvidiaGpuApps(): Promise<{
   rows: { pid: number; name: string; percent: number; memBytes?: number }[];
   queried: boolean;
 }> {
-  const byPid = new Map<number, { pid: number; name: string; percent: number; memBytes?: number }>();
+  const byPid = new Map<
+    number,
+    { pid: number; name: string; percent: number; memBytes?: number }
+  >();
   let queried = false;
 
   try {
@@ -871,7 +877,10 @@ async function sampleNvidiaGpuApps(): Promise<{
 function mergeGpuAppRows(
   groups: { pid: number; name: string; percent: number; memBytes?: number }[][],
 ): { pid: number; name: string; percent: number; memBytes?: number }[] {
-  const byPid = new Map<number, { pid: number; name: string; percent: number; memBytes?: number }>();
+  const byPid = new Map<
+    number,
+    { pid: number; name: string; percent: number; memBytes?: number }
+  >();
   for (const group of groups) {
     for (const row of group) {
       const existing = byPid.get(row.pid);
@@ -966,7 +975,9 @@ async function readLinuxDiskProcesses(): Promise<DiskProcessSnapshot[]> {
       results.push({
         pid: Number(name),
         name: statRaw.slice(open + 1, close),
-        ioBytes: (Number.isFinite(readBytes) ? readBytes : 0) + (Number.isFinite(writeBytes) ? writeBytes : 0),
+        ioBytes:
+          (Number.isFinite(readBytes) ? readBytes : 0) +
+          (Number.isFinite(writeBytes) ? writeBytes : 0),
       });
     } catch {
       // Process exited between readdir and read.
@@ -977,9 +988,10 @@ async function readLinuxDiskProcesses(): Promise<DiskProcessSnapshot[]> {
 
 async function sampleTopDiskApps(): Promise<TopResourceAppsResult> {
   if (process.platform === 'win32') {
-    const parsed = await runPowerShellJson<{ pid: number; name: string; rate: number }[]>(
-      WIN_DISK_PROCESS_SCRIPT,
-    );
+    const parsed =
+      await runPowerShellJson<{ pid: number; name: string; rate: number }[]>(
+        WIN_DISK_PROCESS_SCRIPT,
+      );
     if (parsed == null) return { apps: [], available: false };
     const rows = asArray(parsed)
       .filter((row) => Number.isFinite(row.pid) && row.pid > 0)

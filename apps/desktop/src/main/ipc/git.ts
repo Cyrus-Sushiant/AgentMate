@@ -30,17 +30,16 @@ import { IPC } from '../../shared/ipcChannels';
 import { cancelHeadlessPrompt, runHeadlessCliPrompt } from '../cli/headlessPrompt';
 import {
   GITHUB_NAME_PATTERN,
+  type GithubApiRepo,
   markGithubNotificationRead,
   markGithubNotificationsRead,
   readGithubAccount,
   readGithubActivity,
   readGithubNotifications,
   toRepoInfo,
-  type GithubApiRepo,
 } from '../git/githubAccount';
 import { ghApi, ghErrorMessage, isGhCliAvailable, parseGithubRemote } from '../git/githubCli';
 import {
-  TAG_NAME_PATTERN,
   checkoutBranch,
   createBranch,
   currentBranch,
@@ -50,6 +49,7 @@ import {
   gitOrNull,
   isGitRepo,
   listRepoFiles,
+  PUSH_TIMEOUT_MS,
   primaryRemote,
   pushBranchAndTag,
   pushCurrentBranch,
@@ -63,12 +63,12 @@ import {
   runGitOp,
   safeBranchName,
   setDefaultBranch,
-  PUSH_TIMEOUT_MS,
+  TAG_NAME_PATTERN,
 } from '../git/plumbing';
 import {
-  bumpVersion,
   buildReleaseSummary,
   buildVersionBumpPrompt,
+  bumpVersion,
   deriveNextVersion,
   extractTagNotes,
   fallbackTagMessage,

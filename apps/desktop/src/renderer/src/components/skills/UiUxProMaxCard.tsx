@@ -1,6 +1,4 @@
-import { useState } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { toast } from 'sonner';
+import type { UiProInstallMethod } from '@agentmat/core';
 import {
   buildUiProDesignSystemCommand,
   buildUiProUpdatePlan,
@@ -12,8 +10,10 @@ import {
   UI_UX_PRO_MAX_SKILL_ID,
   UI_UX_PRO_MAX_STACK_GROUPS,
 } from '@agentmat/core';
-import type { UiProInstallMethod } from '@agentmat/core';
 import type { UiProUpdateCheck } from '@shared/apiTypes';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useState } from 'react';
+import { toast } from 'sonner';
 import {
   CircleCheck,
   CloudDownload,
@@ -88,7 +88,8 @@ function updateStatus(check: UiProUpdateCheck): {
     return {
       kind: 'update',
       headline: `Update available: ${check.installedVersion} to ${check.latestVersion}`,
-      detail: 'Updating pulls the new CLI, then re-runs uipro update to regenerate the skill files.',
+      detail:
+        'Updating pulls the new CLI, then re-runs uipro update to regenerate the skill files.',
     };
   }
   // A CLI whose --version printed nothing recognizable cannot be compared, so it is offered the
@@ -292,8 +293,8 @@ export function UiUxProMaxCard(): React.JSX.Element {
               <Sparkles className="h-4 w-4 text-primary" /> UI UX Pro Max
             </DialogTitle>
             <DialogDescription>
-              An AI skill that turns a product description into a tailored design system, then
-              holds the assistant to it while it writes the code.
+              An AI skill that turns a product description into a tailored design system, then holds
+              the assistant to it while it writes the code.
             </DialogDescription>
           </DialogHeader>
 
@@ -367,7 +368,11 @@ export function UiUxProMaxCard(): React.JSX.Element {
             <section className="space-y-2">
               <h3 className="text-sm font-medium">Driving the generator directly</h3>
               <p className="break-all rounded-md border border-border bg-muted/30 px-2.5 py-1.5 font-mono text-xs">
-                {buildUiProDesignSystemCommand('.claude/skills', 'beauty spa wellness', 'Serenity Spa')}
+                {buildUiProDesignSystemCommand(
+                  '.claude/skills',
+                  'beauty spa wellness',
+                  'Serenity Spa',
+                )}
               </p>
               <p className="text-xs text-muted-foreground">
                 Add --persist to write design-system/MASTER.md, and --page &lt;name&gt; for a

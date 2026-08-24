@@ -2,19 +2,19 @@ import { existsSync } from 'node:fs';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, join, sep } from 'node:path';
 import { Worker } from 'node:worker_threads';
-import { app } from 'electron';
 import type { ProviderUsage, SubscriptionUsage, UsageWindow } from '@agentmat/core';
+import { app } from 'electron';
 import { getLiveWindows, readClaudeAccount } from './claudeAccount';
-import { estimateSubscriptionWindows } from './subscriptionEstimate';
 import {
-  retentionSinceMs,
-  scanProviderLogs,
   type LocalLogProvider,
+  retentionSinceMs,
   type ScanCache,
   type ScanResult,
+  scanProviderLogs,
 } from './logParsers';
-import type { ScanWorkerInput, ScanWorkerMessage } from './usageScanWorker';
 import { buildUsageFromEntries, makeTokens, type UsageEntry } from './shared';
+import { estimateSubscriptionWindows } from './subscriptionEstimate';
+import type { ScanWorkerInput, ScanWorkerMessage } from './usageScanWorker';
 
 // Main-process driver for the local-log providers. Two things keep this cheap:
 // the actual parsing runs in a worker thread (see usageScanWorker.ts), and the

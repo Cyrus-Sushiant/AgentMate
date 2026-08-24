@@ -1,5 +1,5 @@
-import * as React from 'react';
 import type { GrammarIssue } from '@shared/grammar';
+import * as React from 'react';
 import { Textarea } from '@/components/ui/textarea';
 import { useGrammarCheck } from '@/hooks/useGrammarCheck';
 import { cn } from '@/lib/utils';

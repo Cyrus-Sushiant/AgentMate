@@ -1,4 +1,3 @@
-import { ipcMain } from 'electron';
 import type {
   DesktopWidgetInstance,
   OpenWidgetOptions,
@@ -9,13 +8,14 @@ import type {
   WidgetSize,
   WidgetStyle,
 } from '@agentmat/core';
-import { IPC } from '../../shared/ipcChannels';
+import { ipcMain } from 'electron';
 import type { SetUsageProviderConfigInput } from '../../shared/apiTypes';
+import { IPC } from '../../shared/ipcChannels';
 import { store } from '../store';
 import { clearUsageCache, getAllUsage, getProviderUsage } from '../usage';
-import { widgetManager } from '../usage/widgetWindows';
 import { refreshResetAlerts, sendResetAlertTest } from '../usage/resetAlerts';
 import { sendThresholdAlertTest } from '../usage/thresholdAlerts';
+import { widgetManager } from '../usage/widgetWindows';
 
 export function registerUsageHandlers(): void {
   ipcMain.handle(IPC.usage.list, async (): Promise<ProviderUsage[]> => {

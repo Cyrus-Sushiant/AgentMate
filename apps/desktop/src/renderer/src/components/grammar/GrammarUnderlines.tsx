@@ -1,5 +1,5 @@
-import { useEffect, useLayoutEffect, useRef } from 'react';
 import type { GrammarIssue } from '@shared/grammar';
+import { useEffect, useLayoutEffect, useRef } from 'react';
 import { issueKey, issueStyle, type TextField } from '@/lib/grammar';
 import { cn } from '@/lib/utils';
 

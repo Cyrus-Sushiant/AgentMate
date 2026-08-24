@@ -1,5 +1,5 @@
-import { ipcMain } from 'electron';
 import type { DesktopPromptBuildWidgetInstance } from '@agentmat/core';
+import { ipcMain } from 'electron';
 import { IPC } from '../../shared/ipcChannels';
 import { promptBuildWidgetManager } from '../promptBuild/widgetWindows';
 

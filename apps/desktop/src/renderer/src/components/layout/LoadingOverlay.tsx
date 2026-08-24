@@ -1,7 +1,7 @@
 import { AnimatePresence, motion } from 'framer-motion';
-import { useIsDarkMode } from '@/lib/chartColors';
 import appIconDark from '@/assets/app-icon.png';
 import appIconLight from '@/assets/app-icon-light.png';
+import { useIsDarkMode } from '@/lib/chartColors';
 
 interface LoadingOverlayProps {
   show: boolean;

@@ -295,7 +295,8 @@ const SKILL_AUDIT_RULES: SkillAuditRule[] = [
     severity: 'critical',
     title: 'Reads SSH private keys',
     detail: 'Private keys in ~/.ssh grant access to every host that trusts them.',
-    pattern: /(\.ssh[/\\](id_(rsa|dsa|ecdsa|ed25519)|identity)\b|BEGIN\s+(RSA|OPENSSH|EC)?\s*PRIVATE)/i,
+    pattern:
+      /(\.ssh[/\\](id_(rsa|dsa|ecdsa|ed25519)|identity)\b|BEGIN\s+(RSA|OPENSSH|EC)?\s*PRIVATE)/i,
   },
   {
     id: 'cred-cloud-config',
@@ -321,7 +322,8 @@ const SKILL_AUDIT_RULES: SkillAuditRule[] = [
     title: 'Dumps the whole environment',
     detail:
       'Printing every environment variable pulls in whatever secrets the shell happens to carry.',
-    pattern: /(\bprintenv\b|\benv\s*\|\s*|Get-ChildItem\s+env:|process\.env\s*\)|os\.environ\b\s*\))/i,
+    pattern:
+      /(\bprintenv\b|\benv\s*\|\s*|Get-ChildItem\s+env:|process\.env\s*\)|os\.environ\b\s*\))/i,
   },
   {
     id: 'cred-secret-vars',
@@ -438,7 +440,8 @@ const SKILL_AUDIT_RULES: SkillAuditRule[] = [
     title: 'Installs Python packages from a non-default index',
     detail:
       'A custom index or a direct git install can serve a different package than the public name suggests.',
-    pattern: /\bpip3?\s+install\b[^\n]{0,80}(--(extra-)?index-url|git\+|https?:\/\/|--trusted-host)/i,
+    pattern:
+      /\bpip3?\s+install\b[^\n]{0,80}(--(extra-)?index-url|git\+|https?:\/\/|--trusted-host)/i,
   },
   {
     id: 'sc-global-install',
@@ -454,7 +457,8 @@ const SKILL_AUDIT_RULES: SkillAuditRule[] = [
     category: 'supply-chain',
     severity: 'medium',
     title: 'Relies on install-time scripts',
-    detail: 'postinstall hooks run code as a side effect of installing, before anything is reviewed.',
+    detail:
+      'postinstall hooks run code as a side effect of installing, before anything is reviewed.',
     pattern: /"(pre|post)install"\s*:|--ignore-scripts=false|\bnpm\s+rebuild\b/i,
   },
   {
@@ -513,7 +517,8 @@ const SKILL_AUDIT_RULES: SkillAuditRule[] = [
     title: 'Spawns a shell from code',
     detail:
       'shell=True and os.system pass a string to the shell, so anything interpolated into it becomes a command.',
-    pattern: /(shell\s*=\s*True|os\.system\s*\(|child_process[^\n]{0,20}\bexec\b|Runtime\.getRuntime)/,
+    pattern:
+      /(shell\s*=\s*True|os\.system\s*\(|child_process[^\n]{0,20}\bexec\b|Runtime\.getRuntime)/,
   },
   {
     id: 'rce-reverse-shell',
@@ -540,7 +545,8 @@ const SKILL_AUDIT_RULES: SkillAuditRule[] = [
     category: 'anti-refusal',
     severity: 'critical',
     title: 'Tells the agent to bypass its safety rules',
-    detail: 'A skill that needs guardrails switched off is asking for something the guardrails cover.',
+    detail:
+      'A skill that needs guardrails switched off is asking for something the guardrails cover.',
     pattern:
       /\b(bypass|ignore|disable|turn\s+off|override|circumvent|get\s+around)\b[^\n]{0,40}\b(safety|guardrail|safeguard|content\s+polic|refusal|restriction|filter|moderation|alignment|ethic)/i,
   },
@@ -633,7 +639,8 @@ const SKILL_AUDIT_RULES: SkillAuditRule[] = [
     category: 'memory-poisoning',
     severity: 'high',
     title: 'Asks the agent to remember an instruction permanently',
-    detail: 'Instructions meant to outlive the task are how one bad skill contaminates every project.',
+    detail:
+      'Instructions meant to outlive the task are how one bad skill contaminates every project.',
     // What must persist has to be an instruction. Plenty of skills legitimately describe saving
     // state, context, or documents across sessions, and that is not memory poisoning.
     pattern:
@@ -785,7 +792,8 @@ const SKILL_AUDIT_RULES: SkillAuditRule[] = [
     category: 'hidden-content',
     severity: 'medium',
     title: 'Contains a long encoded blob',
-    detail: 'An unexplained base64 block hides whatever it decodes to from anyone reading the file.',
+    detail:
+      'An unexplained base64 block hides whatever it decodes to from anyone reading the file.',
     pattern: /[A-Za-z0-9+/]{180,}={0,2}/,
   },
   {
@@ -840,8 +848,7 @@ const SKILL_AUDIT_RULES: SkillAuditRule[] = [
     category: 'destructive-action',
     severity: 'medium',
     title: 'Discards local work or rewrites history',
-    detail:
-      'Hard resets, force pushes, and clean -fdx throw away uncommitted work with no undo.',
+    detail: 'Hard resets, force pushes, and clean -fdx throw away uncommitted work with no undo.',
     pattern:
       /git\s+(reset\s+--hard|clean\s+-[a-z]*f[a-z]*d|push\s+(--force(?!-with-lease)|-f)\b|checkout\s+--\s+\.)/i,
   },
@@ -850,7 +857,8 @@ const SKILL_AUDIT_RULES: SkillAuditRule[] = [
     category: 'destructive-action',
     severity: 'medium',
     title: 'Drops or truncates database data',
-    detail: 'Schema-destroying statements do not belong in a skill that was asked for something else.',
+    detail:
+      'Schema-destroying statements do not belong in a skill that was asked for something else.',
     pattern: /\b(DROP\s+(TABLE|DATABASE|SCHEMA)|TRUNCATE\s+TABLE|DELETE\s+FROM\s+\w+\s*;)/i,
   },
   {

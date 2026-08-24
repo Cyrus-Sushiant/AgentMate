@@ -311,12 +311,7 @@ body {
   position: absolute;
   inset: 0;
   border-radius: inherit;
-  background: linear-gradient(
-    105deg,
-    transparent 38%,
-    hsl(0 0% 100% / 0.1) 50%,
-    transparent 62%
-  );
+  background: linear-gradient(105deg, transparent 38%, hsl(0 0% 100% / 0.1) 50%, transparent 62%);
   animation: widget-sheen 9s ease-in-out infinite;
 }
 
@@ -337,11 +332,7 @@ body {
 }
 
 .widget-gradient-text {
-  background: linear-gradient(
-    135deg,
-    hsl(var(--foreground)) 0%,
-    hsl(var(--primary)) 70%
-  );
+  background: linear-gradient(135deg, hsl(var(--foreground)) 0%, hsl(var(--primary)) 70%);
   background-clip: text;
   -webkit-background-clip: text;
   color: transparent;
@@ -718,7 +709,7 @@ body {
   border: 1px solid hsl(38 92% 50% / 0.7);
 }
 .pet-speech::after {
-  content: '';
+  content: "";
   position: absolute;
   left: 1.35rem;
   width: 0;
@@ -930,12 +921,7 @@ body {
   width: 3px;
   margin: 0 auto;
   border-radius: 1px;
-  background: repeating-linear-gradient(
-    to bottom,
-    #e2c48a 0 4px,
-    #8a6230 4px 6px,
-    #c9a05a 6px 7px
-  );
+  background: repeating-linear-gradient(to bottom, #e2c48a 0 4px, #8a6230 4px 6px, #c9a05a 6px 7px);
   box-shadow: 1px 0 0 #4a3318;
 }
 .pet-rope-hook {

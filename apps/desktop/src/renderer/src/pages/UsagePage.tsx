@@ -1,22 +1,22 @@
-import { useMemo, useState } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { motion } from 'framer-motion';
-import { toast } from 'sonner';
 import {
   ALL_AGENTS_WIDGET_ID,
   FABLE_WEEK_LABEL,
-  USAGE_PROVIDER_REGISTRY,
   getUsageProvider,
   isAutoConnected,
   normalizeUsageResetAlerts,
   normalizeUsageThresholdAlerts,
   type ProviderUsage,
   type SubscriptionWindowKey,
+  USAGE_PROVIDER_REGISTRY,
   type UsageProviderConfig,
   type UsageResetAlertSettings,
   type UsageThresholdAlertSettings,
   type WidgetMode,
 } from '@agentmat/core';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { motion } from 'framer-motion';
+import { useMemo, useState } from 'react';
+import { toast } from 'sonner';
 import {
   Bell,
   Bolt,
@@ -33,13 +33,10 @@ import {
   TriangleAlert,
   X,
 } from '@/components/icons';
-import { Card, CardContent } from '@/components/ui/card';
-import { StatTile } from '@/components/ui/stat-tile';
-import { Button } from '@/components/ui/button';
+import { ProviderLogo } from '@/components/providerLogos';
 import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Switch } from '@/components/ui/switch';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
 import {
   Dialog,
   DialogContent,
@@ -47,26 +44,29 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { SimpleTooltip } from '@/components/ui/tooltip';
-import { ProviderLogo } from '@/components/providerLogos';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
+import { StatTile } from '@/components/ui/stat-tile';
+import { Switch } from '@/components/ui/switch';
+import { SimpleTooltip } from '@/components/ui/tooltip';
 import { AllAgentsCharts } from '@/components/usage/AllAgentsCharts';
 import {
+  hasSubscriptionView,
   UsageCardBody,
   UsageCardBodySkeleton,
-  hasSubscriptionView,
 } from '@/components/usage/UsageCard';
 import { WidgetPinDialog } from '@/components/usage/WidgetPinDialog';
 import {
   settingsToOpenOptions,
   type WidgetSettingsValue,
 } from '@/components/usage/WidgetSettingsForm';
-import { cn } from '@/lib/utils';
 import { queryKeys } from '@/lib/queryKeys';
 import { formatCost, formatReset, formatTokens } from '@/lib/usageFormat';
-import { usePageHeader } from '@/stores/pageHeaderStore';
-import { useDashboardLayoutStore } from '@/stores/dashboardLayoutStore';
+import { cn } from '@/lib/utils';
 import { confirmDialog } from '@/stores/confirmStore';
+import { useDashboardLayoutStore } from '@/stores/dashboardLayoutStore';
+import { usePageHeader } from '@/stores/pageHeaderStore';
 
 function isDisplayed(id: string, configs: Record<string, UsageProviderConfig>): boolean {
   const def = getUsageProvider(id);

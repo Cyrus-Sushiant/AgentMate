@@ -6,8 +6,8 @@ import {
   type RemoteInputEvent,
   type RemoteRtcMessage,
 } from '../../shared/remoteProtocol';
-import { listNetworkInterfaces } from '../remote/networkInterfaces';
 import { remoteManager } from '../remote/manager';
+import { listNetworkInterfaces } from '../remote/networkInterfaces';
 
 export function registerRemoteHandlers(): void {
   ipcMain.handle(IPC.remote.getState, (): RemoteState => remoteManager.getState());
