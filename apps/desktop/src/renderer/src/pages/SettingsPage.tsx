@@ -36,6 +36,7 @@ import {
   X,
 } from '@/components/icons';
 import { CompanionSettings } from '@/components/pet/CompanionSettings';
+import { ProxySettings } from '@/components/settings/ProxySettings';
 import { ShortcutSettings } from '@/components/settings/ShortcutSettings';
 import { WritingCheckSettings } from '@/components/settings/WritingCheckSettings';
 import { formatUpdateBytes, UpdateProgressTrack, updatePercent } from '@/components/UpdateManager';
@@ -85,12 +86,23 @@ const THEME_OPTIONS: { value: ThemeMode; label: string; hint: string; icon: type
   { value: 'system', label: 'System', hint: 'Follow this machine', icon: Monitor },
 ];
 
-const SETTINGS_TABS = ['general', 'shortcuts', 'companion', 'ai', 'notifications', 'data'] as const;
+const SETTINGS_TABS = [
+  'general',
+  'shortcuts',
+  'companion',
+  'ai',
+  'notifications',
+  'network',
+  'data',
+] as const;
 type SettingsTab = (typeof SETTINGS_TABS)[number];
 
 function isSettingsTab(value: string | null): value is SettingsTab {
   return SETTINGS_TABS.includes(value as SettingsTab);
 }
+
+const PROXY_KEYWORDS =
+  'proxy http proxy https proxy socks socks5 socks4 system proxy vpn bypass no_proxy corporate firewall connection internet network offline pac auth username password port host';
 
 const TAB_META: {
   id: SettingsTab;
@@ -126,6 +138,12 @@ const TAB_META: {
       'openai gemini ollama api key whisper voice translate writing grammar spelling style languagetool context length num_ctx keep alive test connection local model',
   },
   { id: 'notifications', label: 'Notifications', icon: Bell, keywords: 'telegram bot chat notify' },
+  {
+    id: 'network',
+    label: 'Network',
+    icon: NetworkIcon,
+    keywords: PROXY_KEYWORDS,
+  },
   {
     id: 'data',
     label: 'Data',
@@ -409,6 +427,9 @@ export default function SettingsPage(): React.JSX.Element {
   const [chatId, setChatId] = useState('');
   const [scheduledTasksChatId, setScheduledTasksChatId] = useState('');
   const [telegramDirty, setTelegramDirty] = useState(false);
+  const [proxyDirty, setProxyDirty] = useState(false);
+  const [proxyResetToken, setProxyResetToken] = useState(0);
+  const proxySaveRef = useRef<(() => Promise<void>) | null>(null);
   const [detectingChatId, setDetectingChatId] = useState(false);
   const [sendingTest, setSendingTest] = useState(false);
 
@@ -757,6 +778,7 @@ export default function SettingsPage(): React.JSX.Element {
     companion: false,
     ai: aiDirty || speechDirty || translateRetriesDirty,
     notifications: telegramDirty,
+    network: proxyDirty,
     data: pingTargetsDirty,
   };
   const anyDirty = Object.values(tabDirty).some(Boolean);
@@ -773,6 +795,8 @@ export default function SettingsPage(): React.JSX.Element {
     if (speechDirty) await saveSpeechMutation.mutateAsync();
     if (translateRetriesDirty) await saveTranslateRetriesMutation.mutateAsync();
     if (telegramDirty) await saveTelegramMutation.mutateAsync();
+    // The proxy card keeps its own draft, so it hands its save back through a ref.
+    if (proxyDirty) await proxySaveRef.current?.();
     if (pingTargetsDirty) handleSavePingTargets();
   }
 
@@ -783,6 +807,8 @@ export default function SettingsPage(): React.JSX.Element {
     setTranslateRetriesDirty(false);
     setTelegramDirty(false);
     setPingTargetsDirty(false);
+    // Bumping the token is what tells the proxy card to drop its own draft.
+    setProxyResetToken((token) => token + 1);
   }
 
   const saveAllRef = useRef(handleSaveAll);
@@ -845,6 +871,7 @@ export default function SettingsPage(): React.JSX.Element {
     showSection('ai', WRITING_CHECK_KEYWORDS, 'Writing check'),
     showSection('ai', 'translation retries translate', 'Translation retries'),
     showSection('notifications', 'telegram bot token chat notify', 'Telegram bot'),
+    showSection('network', PROXY_KEYWORDS, 'Proxy'),
     showSection('data', 'ping network hosts dashboard', 'Network ping targets'),
     showSection('data', 'backup restore export import zip', 'Backup & restore'),
     showSection('data', 'about version update check', 'About'),
@@ -1545,6 +1572,15 @@ export default function SettingsPage(): React.JSX.Element {
                   </div>
                 </SettingsCard>
               )}
+
+              {showSection('network', PROXY_KEYWORDS, 'Proxy') && settingsQuery.data ? (
+                <ProxySettings
+                  settings={settingsQuery.data}
+                  onDirtyChange={setProxyDirty}
+                  saveRef={proxySaveRef}
+                  resetToken={proxyResetToken}
+                />
+              ) : null}
 
               {showSection('data', 'ping network hosts dashboard', 'Network ping targets') && (
                 <SettingsCard

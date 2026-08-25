@@ -3,6 +3,7 @@ import type {
   AiProvider,
   ProjectNotificationSettings,
   ProjectRunCommand,
+  ProxyMode,
   SkillAuditFinding,
   SkillAuditVerdict,
   UsageProviderConfig,
@@ -14,6 +15,25 @@ export type { AiProvider };
 export interface SetUsageProviderConfigInput {
   providerId: string;
   config: UsageProviderConfig;
+}
+
+/** Where the app's requests are going right now, for the proxy card in Settings. */
+export interface ProxyStatus {
+  mode: ProxyMode;
+  /** The server in use, or null when requests go straight out. */
+  effectiveServer: string | null;
+  /** What this machine is configured with, whether or not the app is following it. */
+  systemServer: string | null;
+}
+
+/** Outcome of one probe request sent through a candidate proxy. */
+export interface ProxyTestResult {
+  ok: boolean;
+  latencyMs: number | null;
+  /** Address the probe saw the request arrive from, when it could tell us. */
+  ip: string | null;
+  country: string | null;
+  error: string | null;
 }
 
 /** main -> widget window: which widget instance changed. */

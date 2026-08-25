@@ -1,5 +1,6 @@
 import type { CliArgsMap } from '../cli/args.js';
 import type { GrammarSettings } from '../grammar/languagetool.js';
+import type { ProxySettings } from '../network/proxy.js';
 import type { DesktopPromptBuildWidgetInstance } from '../promptBuilder/types.js';
 import type {
   DesktopWidgetInstance,
@@ -362,6 +363,12 @@ export interface AppSettings {
   speechLanguage: string;
   /** LanguageTool-backed grammar, spelling, and style checking in the app's text fields. */
   grammar: GrammarSettings;
+  /**
+   * Where the app's outgoing requests go: straight out, through this machine's
+   * own proxy settings, or through a server typed in by hand. Covers the main
+   * process, the update check, and the CLIs and git commands AgentMate spawns.
+   */
+  proxy: ProxySettings;
   /** Per-provider config for the Token Usage page (enabled flag + optional API key), keyed by provider id. */
   usageProviderConfigs: Record<string, UsageProviderConfig>;
   /** Floating desktop usage widgets the user has pinned; recreated on app launch. */

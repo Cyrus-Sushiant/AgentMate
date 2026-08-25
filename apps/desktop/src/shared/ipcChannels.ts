@@ -189,6 +189,12 @@ export const IPC = {
     // main -> renderer: the local server changed state (starting, up, failed)
     onLocalStatus: 'grammar:onLocalStatus',
   },
+  proxy: {
+    /** Where requests are going right now, plus what this machine itself is set to. */
+    status: 'proxy:status',
+    /** Sends one probe request through a candidate server without saving it. */
+    test: 'proxy:test',
+  },
   window: {
     minimize: 'window:minimize',
     maximizeToggle: 'window:maximizeToggle',

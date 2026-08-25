@@ -21,6 +21,7 @@ import type {
   ProjectNotificationSettings,
   PromptTemplate,
   ProviderUsage,
+  ProxySettings,
   ScheduledTask,
   ScheduledTaskStatus,
   SkillRepository,
@@ -91,6 +92,8 @@ import type {
   PackageUpdateResult,
   ProjectPipelineStatus,
   PromptHistoryEntry,
+  ProxyStatus,
+  ProxyTestResult,
   RecordUiProInstallInput,
   RemoteFileManagerEntry,
   RemoteFileProgress,
@@ -784,6 +787,14 @@ const grammar = {
     subscribe(IPC.grammar.onLocalStatus, callback),
 };
 
+const proxy = {
+  /** Where the app's requests are going right now, plus what this machine is set to. */
+  status: (): Promise<ProxyStatus> => ipcRenderer.invoke(IPC.proxy.status),
+  /** Probes a candidate server without saving it, so a bad one never takes the app offline. */
+  test: (candidate: ProxySettings): Promise<ProxyTestResult> =>
+    ipcRenderer.invoke(IPC.proxy.test, candidate),
+};
+
 const windowControls = {
   minimize: (): Promise<void> => ipcRenderer.invoke(IPC.window.minimize),
   maximizeToggle: (): Promise<void> => ipcRenderer.invoke(IPC.window.maximizeToggle),
@@ -826,6 +837,7 @@ const agentmatApi = {
   shell: shellApi,
   spellcheck,
   grammar,
+  proxy,
   window: windowControls,
   remoteSessionWindow: remoteSessionWindowControls,
   promptHistory,

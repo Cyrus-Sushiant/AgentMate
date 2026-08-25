@@ -62,4 +62,6 @@ export const queryKeys = {
   remoteSavedServers: ['remote-saved-servers'] as const,
   /** Local LanguageTool install and server state, for Settings and the Tools card. */
   grammarLocalStatus: ['grammar-local-status'] as const,
+  /** Which proxy the app is going through, and what this machine itself is set to. */
+  proxyStatus: ['proxy-status'] as const,
 };

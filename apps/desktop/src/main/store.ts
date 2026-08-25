@@ -20,6 +20,7 @@ import {
   DASHBOARD_STAT_IDS,
   DEFAULT_DESKTOP_PET_ACTION_SPEEDS,
   defaultGrammarSettings,
+  defaultProxySettings,
   defaultUsageResetAlerts,
   defaultUsageThresholdAlerts,
   normalizeCliArgs,
@@ -33,6 +34,7 @@ import {
   normalizeProjectGithubActions,
   normalizeProjectNotifications,
   normalizeProjectRunCommands,
+  normalizeProxySettings,
   normalizeUsageResetAlerts,
   normalizeUsageThresholdAlerts,
 } from '@agentmat/core';
@@ -95,6 +97,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   speechModel: 'base',
   speechLanguage: 'auto',
   grammar: defaultGrammarSettings(),
+  proxy: defaultProxySettings(),
   usageProviderConfigs: {},
   usageWidgets: [],
   promptBuildWidgets: [],
@@ -135,6 +138,7 @@ function withSettingsMigrations(settings: AppSettings): AppSettings {
     ...settings,
     cliArgs: normalizeCliArgs(settings.cliArgs),
     grammar: normalizeGrammarSettings(settings.grammar),
+    proxy: normalizeProxySettings(settings.proxy),
     desktopPetCustoms: customs,
     desktopPetCharacterId: normalizeDesktopPetId(
       settings.desktopPetCharacterId,

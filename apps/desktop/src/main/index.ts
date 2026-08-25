@@ -22,6 +22,7 @@ import { registerProjectDraftHandlers } from './ipc/projectDrafts';
 import { registerProjectHandlers } from './ipc/projects';
 import { registerPromptBuildWidgetHandlers } from './ipc/promptBuildWidget';
 import { registerPromptHistoryHandlers } from './ipc/promptHistory';
+import { registerProxyHandlers } from './ipc/proxy';
 import { registerRemoteHandlers } from './ipc/remote';
 import { registerScheduledTaskHandlers } from './ipc/scheduledTasks';
 import { registerSettingsHandlers } from './ipc/settings';
@@ -36,6 +37,11 @@ import { registerTranslateHandlers } from './ipc/translate';
 import { registerUsageHandlers } from './ipc/usage';
 import { registerWindowHandlers } from './ipc/window';
 import { setMainWindow, setMainWindowFactory } from './mainWindow';
+import {
+  applyProxySettingsFromStore,
+  installProxyFetch,
+  registerProxyAuthHandler,
+} from './network/proxy';
 import {
   startNetworkQualityAlertWatcher,
   stopNetworkQualityAlertWatcher,
@@ -74,6 +80,12 @@ app.setName(app.isPackaged ? 'AgentMate' : 'AgentMate Dev');
 // Must match electron-builder.yml's `appId` so the packaged install (which
 // registers that id via its shortcut) and dev runs agree on identity.
 if (process.platform === 'win32') app.setAppUserModelId('com.agentmate.app');
+
+// Both are safe before the app is ready and before the settings file has been
+// read: the fetch shim passes everything through to Node until a proxy is
+// actually configured, and the login handler ignores challenges until then.
+installProxyFetch();
+registerProxyAuthHandler();
 
 function sleepSync(ms: number): void {
   Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
@@ -174,6 +186,7 @@ function registerAllIpcHandlers(): void {
   registerCliDetectionHandlers();
   registerTerminalHandlers();
   registerProjectHandlers();
+  registerProxyHandlers();
   registerSkillHandlers();
   registerMcpHandlers();
   registerToolHandlers();
@@ -204,7 +217,11 @@ function registerAllIpcHandlers(): void {
   registerGrammarHandlers();
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
+  // Ahead of every other startup step, so the first update check, widget
+  // refresh, or usage poll already goes the configured way.
+  await applyProxySettingsFromStore();
+
   const isDev = !!process.env.ELECTRON_RENDERER_URL;
   // Vite's dev server needs an inline HMR/preamble script and a websocket
   // connection back to itself; the packaged app never talks to either, so
