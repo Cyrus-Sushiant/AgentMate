@@ -6,6 +6,7 @@ export const PROMPT_TYPES = [
   'Full Stack',
   'UI Design',
   'UX Review',
+  'Product',
   'API',
   'Database',
   'Testing',

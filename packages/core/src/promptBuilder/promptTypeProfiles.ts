@@ -54,6 +54,23 @@ export const PROMPT_TYPE_PROFILES: Record<PromptType, PromptTypeProfile> = {
     ],
     bestPractices: ['Ground feedback in usability heuristics (Nielsen, etc.)'],
   },
+  Product: {
+    roleLabel: 'senior product manager',
+    focusAreas: [
+      'User problem and target audience',
+      'Scope and priority',
+      'Success metrics',
+      'Edge cases and rollout',
+    ],
+    requirements: [
+      'State the user problem before proposing a solution',
+      'Define acceptance criteria that are testable',
+    ],
+    bestPractices: [
+      'Separate must-have from nice-to-have and say why',
+      'Call out open questions instead of inventing requirements',
+    ],
+  },
   API: {
     roleLabel: 'senior API engineer',
     focusAreas: ['Resource modeling', 'Versioning', 'Error semantics', 'Auth boundaries'],

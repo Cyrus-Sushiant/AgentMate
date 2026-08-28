@@ -113,6 +113,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
+import { CollapsibleText } from '@/components/ui/collapsible-text';
 import { Combobox, type ComboboxOption } from '@/components/ui/combobox';
 import {
   Dialog,
@@ -571,9 +572,7 @@ export default function ProjectDetailPage(): React.JSX.Element {
                   </Button>
                 </div>
                 {project.prompt ? (
-                  <p className="whitespace-pre-wrap rounded-lg border border-border bg-card p-3 text-sm leading-relaxed">
-                    {project.prompt}
-                  </p>
+                  <CollapsibleText text={project.prompt} />
                 ) : (
                   <ProjectEmptyState
                     icon={MessageSquare}

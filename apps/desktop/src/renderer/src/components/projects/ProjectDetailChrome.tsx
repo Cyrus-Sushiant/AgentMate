@@ -30,6 +30,7 @@ import {
 import { ProjectIcon } from '@/components/projects/ProjectIcon';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { CollapsibleText } from '@/components/ui/collapsible-text';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -570,7 +571,6 @@ export function ProjectNotesCard({
     );
   }
 
-  const persian = persianTextProps(notes);
   return (
     <section className="space-y-2">
       <div className="flex items-center justify-between gap-2">
@@ -579,15 +579,7 @@ export function ProjectNotesCard({
           <Pencil /> Edit notes
         </Button>
       </div>
-      <p
-        dir={persian.dir}
-        className={cn(
-          'whitespace-pre-wrap rounded-lg border border-border bg-card p-3 text-sm leading-relaxed',
-          persian.className,
-        )}
-      >
-        {notes}
-      </p>
+      <CollapsibleText text={notes} />
     </section>
   );
 }

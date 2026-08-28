@@ -18,6 +18,7 @@ import {
   faCalendarDays,
   faChartColumn,
   faCheck,
+  faChevronDown,
   faCircleCheck,
   faCircleHalfStroke,
   faCircleInfo,
@@ -133,6 +134,7 @@ export const ArrowUp = makeIcon(faArrowUp);
 export const Blocks = makeIcon(faCubes);
 export const Bookmark = makeIcon(faBookmark);
 export const Check = makeIcon(faCheck);
+export const ChevronDown = makeIcon(faChevronDown);
 export const ChevronsUpDown = makeIcon(faSort);
 export const Copy = makeIcon(faCopy);
 export const Download = makeIcon(faDownload);
