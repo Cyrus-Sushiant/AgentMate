@@ -16,6 +16,7 @@ import {
   WindowMaximize,
   WindowRestore,
 } from '@/components/icons';
+import { ProjectIcon } from '@/components/projects/ProjectIcon';
 import { Button } from '@/components/ui/button';
 import { Combobox } from '@/components/ui/combobox';
 import {
@@ -44,6 +45,10 @@ export interface ProjectPromptBuildDialogProps {
   onOpenChange: (open: boolean) => void;
   projectId: string;
   projectName: string;
+  /** The project's icon, so the dialog wears the same avatar as its card. */
+  iconDataUrl?: string | null;
+  iconBgColor?: string | null;
+  iconColor?: string | null;
 }
 
 const chromeBtnClass =
@@ -54,6 +59,9 @@ export function ProjectPromptBuildDialog({
   onOpenChange,
   projectId,
   projectName,
+  iconDataUrl = null,
+  iconBgColor = null,
+  iconColor = null,
 }: ProjectPromptBuildDialogProps): React.JSX.Element {
   const [isMaximized, setIsMaximized] = useState(false);
   const [isPinning, setIsPinning] = useState(false);
@@ -184,11 +192,21 @@ export function ProjectPromptBuildDialog({
           </button>
         </SimpleTooltip>
 
-        <DialogHeader className="space-y-1 border-b border-border/70 px-5 py-4 pr-28 text-left">
-          <DialogTitle>Build Prompt</DialogTitle>
-          <DialogDescription>
-            Turn a rough request into a prompt for {projectName}.
-          </DialogDescription>
+        <DialogHeader className="border-b border-border/70 px-5 py-4 pr-28 text-left">
+          <div className="flex items-center gap-3">
+            <ProjectIcon
+              iconDataUrl={iconDataUrl}
+              bgColor={iconBgColor}
+              iconColor={iconColor}
+              className="h-9 w-9"
+            />
+            <div className="min-w-0 space-y-1">
+              <DialogTitle>Build Prompt</DialogTitle>
+              <DialogDescription className="truncate">
+                Turn a rough request into a prompt for {projectName}.
+              </DialogDescription>
+            </div>
+          </div>
         </DialogHeader>
 
         <div className="flex min-h-0 flex-1 flex-col">

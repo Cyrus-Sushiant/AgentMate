@@ -112,9 +112,7 @@ export default function ProjectsPage(): React.JSX.Element {
   const [searchParams, setSearchParams] = useSearchParams();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [promptBuildOpen, setPromptBuildOpen] = useState(false);
-  const [promptBuildProject, setPromptBuildProject] = useState<{ id: string; name: string } | null>(
-    null,
-  );
+  const [promptBuildProject, setPromptBuildProject] = useState<Project | null>(null);
   const [reviewOpen, setReviewOpen] = useState(false);
   const [reviewProject, setReviewProject] = useState<Project | null>(null);
   const [search, setSearch] = useState('');
@@ -286,7 +284,7 @@ export default function ProjectsPage(): React.JSX.Element {
       onOpenGit: () => navigate(`/projects/${project.id}?tab=git`),
       onRun: () => handleRun(project),
       onBuildPrompt: () => {
-        setPromptBuildProject({ id: project.id, name: project.name });
+        setPromptBuildProject(project);
         setPromptBuildOpen(true);
       },
       onReview: () => {
@@ -539,6 +537,9 @@ export default function ProjectsPage(): React.JSX.Element {
           onOpenChange={setPromptBuildOpen}
           projectId={promptBuildProject.id}
           projectName={promptBuildProject.name}
+          iconDataUrl={promptBuildProject.iconDataUrl}
+          iconBgColor={promptBuildProject.iconBgColor}
+          iconColor={promptBuildProject.iconColor}
         />
       )}
       {reviewProject && (
