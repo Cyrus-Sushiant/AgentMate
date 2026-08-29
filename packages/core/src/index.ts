@@ -16,6 +16,7 @@ export * from './promptBuilder/promptTypeProfiles.js';
 export * from './promptBuilder/targetAiNotes.js';
 export * from './promptBuilder/templateEngine.js';
 export * from './promptBuilder/types.js';
+export * from './security/codeql.js';
 export * from './security/redact.js';
 export * from './security/report.js';
 export * from './security/sarif.js';

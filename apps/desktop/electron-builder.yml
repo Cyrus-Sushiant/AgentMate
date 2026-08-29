@@ -35,6 +35,7 @@ asarUnpack:
   - '**/node_modules/node-pty/**'
   - '**/node_modules/onnxruntime-node/**'
   - 'out/main/usageScanWorker.mjs'
+  - 'out/main/codeqlExtractWorker.mjs'
   - 'out/main/chunks/**'
 
 win:

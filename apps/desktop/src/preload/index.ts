@@ -7,6 +7,8 @@ import type {
   BlueprintStepId,
   BootstrapPlan,
   CliUpdateCheckResult,
+  CodeqlInstallProgress,
+  CodeqlLocalStatus,
   CustomDesktopPet,
   DesktopPromptBuildWidgetInstance,
   DesktopWidgetInstance,
@@ -46,6 +48,7 @@ import type {
 } from '@agentmat/core';
 import { contextBridge, ipcRenderer } from 'electron';
 import type {
+  ActiveScan,
   AddPromptHistoryInput,
   ApplyVersionInput,
   ApplyVersionResult,
@@ -366,6 +369,8 @@ const security = {
     ipcRenderer.invoke(IPC.security.runScan, projectId, options, runId),
   cancelScan: (runId: string): Promise<boolean> =>
     ipcRenderer.invoke(IPC.security.cancelScan, runId),
+  activeScan: (projectId: string): Promise<ActiveScan | null> =>
+    ipcRenderer.invoke(IPC.security.activeScan, projectId),
   history: (projectId: string): Promise<SecurityScanRecord[]> =>
     ipcRenderer.invoke(IPC.security.history, projectId),
   getScan: (id: string): Promise<SecurityScanRecord | null> =>
@@ -381,6 +386,13 @@ const security = {
     ipcRenderer.invoke(IPC.security.suggestCodeqlLanguage, projectId),
   onScanProgress: (callback: (payload: SecurityScanProgress) => void): (() => void) =>
     subscribe(IPC.security.onScanProgress, callback),
+  codeqlStatus: (): Promise<CodeqlLocalStatus> => ipcRenderer.invoke(IPC.security.codeqlStatus),
+  installCodeql: (): Promise<CodeqlLocalStatus> => ipcRenderer.invoke(IPC.security.installCodeql),
+  cancelCodeqlInstall: (): Promise<void> => ipcRenderer.invoke(IPC.security.cancelCodeqlInstall),
+  removeCodeql: (): Promise<CodeqlLocalStatus> => ipcRenderer.invoke(IPC.security.removeCodeql),
+  openCodeqlFolder: (): Promise<void> => ipcRenderer.invoke(IPC.security.openCodeqlFolder),
+  onCodeqlProgress: (callback: (payload: CodeqlInstallProgress) => void): (() => void) =>
+    subscribe(IPC.security.onCodeqlProgress, callback),
 };
 
 const tools = {

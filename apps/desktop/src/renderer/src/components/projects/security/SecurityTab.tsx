@@ -74,7 +74,9 @@ export function SecurityTab({ project }: { project: Project }): React.JSX.Elemen
     runScan({ scannerIds: selection });
   }
 
-  if (!anyReady && !preflightLoading && !report) {
+  // `running` guards this too: a scan started here keeps going in the main process, and a tool
+  // uninstalled mid-run must not replace a live scan with an empty state.
+  if (!anyReady && !preflightLoading && !report && !running) {
     return (
       <div className="space-y-4">
         <ProjectEmptyState

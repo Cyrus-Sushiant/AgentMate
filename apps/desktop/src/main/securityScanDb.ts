@@ -126,14 +126,22 @@ export const securityScanDb = {
   },
 
   /**
-   * Newest first. Findings are stripped, since the history dropdown only needs the verdict and
-   * the counts and a list of 25 full reports would be megabytes.
+   * Newest first. Findings and scanner logs are stripped: the history dropdown only needs the
+   * verdict, the score and the date, and 25 full reports with their output attached would be
+   * several megabytes over IPC every time the tab opens. Opening one entry loads it in full.
    */
   list(projectId: string, limit = KEEP_PER_PROJECT): SecurityScanRecord[] {
     const rows = getDb()
       .prepare('SELECT * FROM security_scans WHERE project_id = ? ORDER BY created_at DESC LIMIT ?')
       .all(projectId, limit) as SecurityScanRow[];
-    return rows.map((row) => ({ ...rowToRecord(row), findings: [] }));
+    return rows.map((row) => {
+      const record = rowToRecord(row);
+      return {
+        ...record,
+        findings: [],
+        runs: record.runs.map((run) => ({ ...run, log: null })),
+      };
+    });
   },
 
   get(id: string): SecurityScanRecord | null {

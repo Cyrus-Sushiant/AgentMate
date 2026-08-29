@@ -7,6 +7,7 @@ import type {
   SecurityScanRecord,
 } from '@agentmat/core';
 import { SECURITY_SCANNERS } from '@agentmat/core';
+import type { ActiveScan } from '@shared/apiTypes';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
@@ -67,6 +68,60 @@ export function useSecurityScan(projectId: string) {
     ...QUIET,
   });
 
+  /**
+   * A scan keeps running in the main process after you leave the tab, so on mount we ask whether
+   * one is already going and adopt its state rather than showing an idle tab over a live scan.
+   */
+  const activeQuery = useQuery({
+    queryKey: queryKeys.securityActive(projectId),
+    queryFn: () => window.agentmat.security.activeScan(projectId),
+    // Progress events keep this fresh once adopted; the poll is a backstop for the case where
+    // the run finishes while no event listener is attached.
+    refetchInterval: (query) => (query.state.data ? 5000 : false),
+    ...QUIET,
+  });
+
+  const active: ActiveScan | null = activeQuery.data ?? null;
+  const wasActive = useRef(false);
+
+  /**
+   * The main process drops the snapshot only after the run has finished and its record has been
+   * written, so this transition is the reliable point to pull the finished report in. It works
+   * even when the scan completed while this tab was closed entirely.
+   */
+  useEffect(() => {
+    if (active) {
+      wasActive.current = true;
+      return;
+    }
+    if (!wasActive.current) return;
+    wasActive.current = false;
+    setProgress({});
+    void queryClient.invalidateQueries({ queryKey: queryKeys.securityLatest(projectId) });
+    void queryClient.invalidateQueries({ queryKey: queryKeys.securityHistory(projectId) });
+  }, [active, projectId, queryClient]);
+
+  useEffect(() => {
+    if (!active) return;
+    runIdRef.current = active.runId;
+    setRunId(active.runId);
+    setSelectedScanners(active.scannerIds);
+    setProgress((current) => {
+      // Only seed from the snapshot; live events are more current than a poll.
+      if (Object.keys(current).length > 0) return current;
+      const seeded: Record<string, ScannerProgressState> = {};
+      for (const entry of active.scanners) {
+        seeded[entry.scannerId] = {
+          phase: entry.phase,
+          message: entry.message,
+          startedAt: entry.startedAt,
+          lines: entry.lines,
+        };
+      }
+      return seeded;
+    });
+  }, [active]);
+
   const preflight = preflightQuery.data ?? [];
 
   /**
@@ -104,6 +159,13 @@ export function useSecurityScan(projectId: string) {
       if (runIdRef.current && payload.runId !== runIdRef.current) return;
       if (!payload.scannerId) return;
 
+      // Nudge the active-scan snapshot once the last scanner reports, so the poll notices the
+      // run has ended promptly. The saved record is picked up separately, when the snapshot
+      // actually goes away.
+      if (payload.completedScanners >= payload.totalScanners) {
+        void queryClient.invalidateQueries({ queryKey: queryKeys.securityActive(projectId) });
+      }
+
       setProgress((current) => {
         const scannerId = payload.scannerId as string;
         const existing = current[scannerId];
@@ -119,7 +181,7 @@ export function useSecurityScan(projectId: string) {
         };
       });
     });
-  }, [projectId]);
+  }, [projectId, queryClient]);
 
   const runMutation = useMutation({
     mutationFn: async (options: Partial<SecurityScanOptions>): Promise<SecurityScanRecord> => {
@@ -152,6 +214,7 @@ export function useSecurityScan(projectId: string) {
     onSettled: () => {
       setRunId(null);
       runIdRef.current = null;
+      void queryClient.invalidateQueries({ queryKey: queryKeys.securityActive(projectId) });
     },
     ...QUIET,
   });
@@ -191,7 +254,7 @@ export function useSecurityScan(projectId: string) {
     saveConfig,
     selection,
     toggleScanner,
-    running: runMutation.isPending,
+    running: runMutation.isPending || active !== null,
     progress,
     runScan: runMutation.mutate,
     cancel,

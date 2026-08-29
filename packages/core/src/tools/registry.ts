@@ -629,7 +629,7 @@ export const AGENT_TOOL_REGISTRY: AgentToolDefinition[] = [
     id: 'bearer',
     name: 'Bearer',
     description:
-      'Data-flow analysis that follows sensitive data (PII, tokens, credentials) through your code and flags where it leaks. Complements pattern scanners rather than repeating them. No native Windows build, so it runs through Docker there.',
+      'Data-flow analysis that follows sensitive data (PII, tokens, credentials) through your code and flags where it leaks. Complements pattern scanners rather than repeating them. Bearer ships no Windows build at all (no npm, winget or chocolatey package exists either), so on Windows AgentMate runs it through Docker, with your project mounted read-only. Nothing else to install.',
     category: SECURITY_TOOL_CATEGORY,
     tags: ['sast', 'privacy', 'data-flow'],
     author: 'Bearer (Cycode)',
@@ -643,7 +643,7 @@ export const AGENT_TOOL_REGISTRY: AgentToolDefinition[] = [
         'curl -sfL https://raw.githubusercontent.com/Bearer/bearer/main/contrib/install.sh | sh -s -- -b /usr/local/bin',
     },
     manualInstallInstructions:
-      'Bearer has no native Windows build. Use the Docker option on this card instead: the Security tab runs it as a container with your project mounted read-only, which needs nothing else installed.',
+      'Bearer publishes macOS and Linux builds only, and there is no npm, winget or chocolatey package for it. On Windows, run it through Docker: press "Pull Docker image" on this card, then scan from a project’s Security tab. AgentMate starts a container per scan with your project mounted read-only and removes it afterwards, so nothing else needs installing.',
     updateCommand: {
       darwin: 'brew upgrade bearer',
       linux:
@@ -655,14 +655,21 @@ export const AGENT_TOOL_REGISTRY: AgentToolDefinition[] = [
       linux: 'sudo rm -f /usr/local/bin/bearer',
     },
     detectCommand: { command: 'bearer', args: ['version'] },
-    docker: {
-      // Not a long-lived container: the Security tab starts one per scan and removes it after.
-      // This block exists so the card can pull the image ahead of time and report whether it is
-      // already local, since the first pull is around 200 MB.
-      image: 'bearer/bearer:latest-amd64',
-      containerName: 'agentmate-bearer',
-      runArgs: [],
-    },
+    // Deliberately no `docker` block. Bearer is not a server: a scan starts a container, runs
+    // one command and removes it. Declaring a container here would render start/stop/reset
+    // buttons for something that exits the moment it starts, so the only Docker action that
+    // makes sense is pulling the image ahead of the first scan.
+    quickActions: [
+      {
+        id: 'bearer-pull-image',
+        label: 'Pull Docker image',
+        action: {
+          kind: 'command',
+          command: 'docker pull bearer/bearer:latest-amd64',
+          cwd: 'none',
+        },
+      },
+    ],
   },
   {
     id: 'sonarqube',
@@ -707,20 +714,13 @@ export const AGENT_TOOL_REGISTRY: AgentToolDefinition[] = [
     official: true,
     websiteUrl: 'https://codeql.github.com',
     repositoryUrl: 'https://github.com/github/codeql-cli-binaries',
-    installKind: 'shell',
-    installCommand: {
-      darwin: 'brew install --cask codeql',
-    },
+    // Not 'shell': there is no winget, chocolatey or apt package for CodeQL, so on Windows and
+    // Linux there is no command to run. AgentMate downloads the release zip itself instead, and
+    // the card renders its own download/remove buttons rather than the generic Install one.
+    installKind: 'manual',
     manualInstallInstructions:
-      '1. Download the bundle for your platform from https://github.com/github/codeql-cli-binaries/releases/latest\n2. Extract it somewhere permanent, for example C:\\tools\\codeql.\n3. Add that folder to your PATH, then reopen AgentMate and press Refresh on this card.\n\nIf you already have the GitHub CLI, "gh extension install github/gh-codeql" is an alternative, but it installs "gh codeql" rather than a "codeql" binary on PATH, which this card cannot detect.',
-    updateCommand: {
-      darwin: 'brew upgrade --cask codeql',
-    },
+      'Press "Download CodeQL" on this card and AgentMate fetches the official release, checks it against the SHA-256 GitHub publishes beside it, and unpacks it into its own tools folder. Nothing goes on your PATH and nothing needs admin rights.\n\nIf you would rather install it yourself, download the bundle for your platform from https://github.com/github/codeql-cli-binaries/releases/latest, extract it somewhere permanent, and add that folder to your PATH. A codeql already on your PATH is always preferred over the downloaded copy.',
     updateCheck: { type: 'github-release', package: 'github/codeql-cli-binaries' },
-    uninstallCommand: {
-      darwin: 'brew uninstall --cask codeql',
-    },
-    manualUninstallInstructions: 'Delete the folder you extracted and remove it from your PATH.',
     detectCommand: { command: 'codeql', args: ['version', '--format=terse'] },
   },
   {

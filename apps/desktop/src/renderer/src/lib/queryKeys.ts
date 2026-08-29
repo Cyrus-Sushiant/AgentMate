@@ -20,6 +20,8 @@ export const queryKeys = {
   mcpRepositories: ['mcp-repositories'] as const,
   mcpRepositoryIndex: (id: string) => ['mcp-repository-index', id] as const,
   installedMcpServers: (projectId: string) => ['installed-mcp-servers', projectId] as const,
+  codeqlStatus: ['codeql-status'] as const,
+  securityActive: (projectId: string) => ['security', projectId, 'active'] as const,
   securityPreflight: (projectId: string) => ['security', projectId, 'preflight'] as const,
   securityLatest: (projectId: string) => ['security', projectId, 'latest'] as const,
   securityHistory: (projectId: string) => ['security', projectId, 'history'] as const,

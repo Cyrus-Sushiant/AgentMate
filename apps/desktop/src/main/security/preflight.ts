@@ -5,6 +5,7 @@ import {
   SECURITY_SCANNERS,
 } from '@agentmat/core';
 import type { SecurityScannerConfig } from './adapters';
+import { getCodeqlStatus } from './codeqlLocal';
 import { probe } from './exec';
 import { getSonarStatus, validateSonarToken } from './sonarApi';
 
@@ -118,7 +119,25 @@ async function requirementsFor(
     }
 
     case 'codeql': {
-      const requirements = [await checkBinary(scannerId, scanner.toolId)];
+      // CodeQL is the one scanner that can be installed into AgentMate's own tools folder rather
+      // than onto PATH, so the plain PATH probe is not the whole answer here.
+      const codeql = await getCodeqlStatus();
+      const requirements: ScannerRequirement[] = [
+        codeql.installed
+          ? ok(
+              'binary',
+              'CodeQL is installed',
+              codeql.version
+                ? `${codeql.version}${codeql.onPath ? '' : ' (managed by AgentMate)'}`
+                : null,
+            )
+          : unmet(
+              'binary',
+              'CodeQL is installed',
+              'AgentMate can download CodeQL for you from its card on the Agent Tools page.',
+              { kind: 'install-tool', toolId: scanner.toolId },
+            ),
+      ];
       if (!input.codeqlLanguage) {
         requirements.push(
           unmet(

@@ -31,6 +31,10 @@ export default defineConfig({
           // parsing hundreds of MB of CLI transcripts can't block main-process
           // IPC. Loaded by path from main, so it needs its own bundle.
           usageScanWorker: resolve(__dirname, 'src/main/usage/usageScanWorker.ts'),
+          // Same reasoning for unpacking the CodeQL CLI: the archive is around 400 MB and
+          // several thousand files, so extracting it on main would freeze the UI for the
+          // best part of a minute.
+          codeqlExtractWorker: resolve(__dirname, 'src/main/security/codeqlExtractWorker.ts'),
         },
       },
     },

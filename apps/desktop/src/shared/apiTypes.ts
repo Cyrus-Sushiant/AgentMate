@@ -8,6 +8,8 @@ import type {
   ProjectNotificationSettings,
   ProjectRunCommand,
   ProxyMode,
+  ScanPhase,
+  SecurityScannerId,
   SkillAuditFinding,
   SkillAuditVerdict,
   UsageProviderConfig,
@@ -1258,3 +1260,30 @@ export interface GithubActionsRunErrorInput {
 }
 
 export type GithubActionsRunErrorResult = { ok: true; text: string } | { ok: false; error: string };
+
+/**
+ * A security scan in flight, as the main process sees it.
+ *
+ * A scan is owned by the main process, not by whichever view started it: leaving the Security tab
+ * or navigating elsewhere does not stop it. This is what a reopened tab reads to rejoin a run
+ * that is still going, instead of showing an empty tab while scanning continues in the
+ * background.
+ */
+export interface ActiveScannerState {
+  scannerId: SecurityScannerId;
+  phase: ScanPhase;
+  message: string;
+  startedAt: number;
+  /** Tail of this scanner's own output, so the log drawer is populated on rejoin too. */
+  lines: string[];
+}
+
+export interface ActiveScan {
+  runId: string;
+  projectId: string;
+  startedAt: number;
+  scannerIds: SecurityScannerId[];
+  scanners: ActiveScannerState[];
+  completedScanners: number;
+  totalScanners: number;
+}

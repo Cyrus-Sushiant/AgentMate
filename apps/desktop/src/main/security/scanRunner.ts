@@ -18,9 +18,10 @@ import {
   scoreSecurityFindings,
   sortSecurityFindings,
 } from '@agentmat/core';
-import type { WebContents } from 'electron';
-import { app } from 'electron';
+import { app, BrowserWindow } from 'electron';
+import type { ActiveScan } from '../../shared/apiTypes';
 import { IPC } from '../../shared/ipcChannels';
+import { securityScanDb } from '../securityScanDb';
 import { SCANNER_ADAPTERS, type SecurityScannerConfig } from './adapters';
 import type { ScanCancelToken } from './exec';
 import { trimLog } from './exec';
@@ -48,6 +49,16 @@ interface RunState {
   tokens: Set<ScanCancelToken>;
   containers: Set<string>;
   workspaceDir: string;
+}
+
+/** Keyed by project: one scan per project at a time, which is all the UI can start anyway. */
+const activeScans = new Map<string, ActiveScan>();
+
+/** How many output lines to keep per scanner for a rejoining view. */
+const MAX_ACTIVE_LINES = 200;
+
+export function getActiveScan(projectId: string): ActiveScan | null {
+  return activeScans.get(projectId) ?? null;
 }
 
 const runningScans = new Map<string, RunState>();
@@ -139,7 +150,6 @@ function skippedRun(scannerId: SecurityScannerId, reason: string): ScannerRunRes
 export async function runSecurityScan(
   runId: string,
   input: RunScanInput,
-  sender: WebContents,
 ): Promise<SecurityScanRecord> {
   const startedAt = Date.now();
   // A short id keeps the CodeQL database path well clear of the Windows path length limit, since
@@ -160,27 +170,59 @@ export async function runSecurityScan(
   const selected = SECURITY_SCANNERS.filter((s) => input.options.scannerIds.includes(s.id));
   const secrets = [input.config.strixApiKey, input.config.sonarToken];
 
+  const active: ActiveScan = {
+    runId,
+    projectId: input.projectId,
+    startedAt,
+    scannerIds: selected.map((s) => s.id),
+    scanners: [],
+    completedScanners: 0,
+    totalScanners: selected.length,
+  };
+  activeScans.set(input.projectId, active);
+
   const emit = (
     scannerId: SecurityScannerId | null,
     phase: ScanPhase,
     message: string,
     run?: ScannerRunResult,
   ): void => {
-    if (sender.isDestroyed()) return;
+    // A scanner can echo its own environment on failure, so nothing reaches the renderer
+    // without the known secrets stripped out of it first.
+    const safeMessage = maskKnownSecrets(message, secrets).slice(0, 400);
+
+    if (scannerId) {
+      let entry = active.scanners.find((e) => e.scannerId === scannerId);
+      if (!entry) {
+        entry = { scannerId, phase, message: safeMessage, startedAt: Date.now(), lines: [] };
+        active.scanners.push(entry);
+      }
+      entry.phase = phase;
+      entry.message = safeMessage;
+      entry.lines.push(safeMessage);
+      if (entry.lines.length > MAX_ACTIVE_LINES) {
+        entry.lines.splice(0, entry.lines.length - MAX_ACTIVE_LINES);
+      }
+    }
+    active.completedScanners = runs.length;
+
     const progress: SecurityScanProgress = {
       runId,
       projectId: input.projectId,
       scannerId,
       phase,
-      // A scanner can echo its own environment on failure, so nothing reaches the renderer
-      // without the known secrets stripped out of it first.
-      message: maskKnownSecrets(message, secrets).slice(0, 400),
+      message: safeMessage,
       completedScanners: runs.length,
       totalScanners: selected.length,
       elapsedMs: Date.now() - startedAt,
       run,
     };
-    sender.send(IPC.security.onScanProgress, progress);
+    // Broadcast rather than reply to the invoking sender: the view that started the scan may be
+    // long gone, and a window reload would destroy that sender entirely.
+    for (const win of BrowserWindow.getAllWindows()) {
+      if (!win.webContents.isDestroyed())
+        win.webContents.send(IPC.security.onScanProgress, progress);
+    }
   };
 
   try {
@@ -293,7 +335,7 @@ export async function runSecurityScan(
           ? 'partial'
           : 'complete';
 
-    return {
+    const record: SecurityScanRecord = {
       id: runId,
       projectId: input.projectId,
       projectName: input.projectName,
@@ -307,8 +349,17 @@ export async function runSecurityScan(
       options: input.options,
       createdAt: new Date().toISOString(),
     };
+
+    // Saved here rather than by the caller so the record is on disk before the active-scan
+    // snapshot is dropped. A view watching for that snapshot to disappear is then guaranteed to
+    // find the finished report, and a scan whose caller walked away is still recorded.
+    if (record.status !== 'cancelled' || record.findings.length > 0) {
+      securityScanDb.add(record);
+    }
+    return record;
   } finally {
     runningScans.delete(runId);
+    activeScans.delete(input.projectId);
     removeContainers(state);
     clearPreflightCache();
     // CodeQL databases are gigabytes, so the workspace always goes, even on failure.
@@ -317,6 +368,15 @@ export async function runSecurityScan(
       // the startup sweep picks up anything left behind.
     });
   }
+}
+
+/**
+ * Stops every in-flight scan. Called on quit: a scan owns real child processes and, for the
+ * dockerized scanners, real containers, and leaving those behind after the window closes would
+ * keep chewing CPU with nothing to report back to.
+ */
+export function cancelAllSecurityScans(): void {
+  for (const runId of [...runningScans.keys()]) cancelSecurityScan(runId);
 }
 
 export function newScanRunId(): string {

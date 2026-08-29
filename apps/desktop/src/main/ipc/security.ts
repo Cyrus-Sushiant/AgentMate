@@ -1,16 +1,31 @@
+import { mkdir } from 'node:fs/promises';
 import type {
+  CodeqlLocalStatus,
   ScannerPreflight,
   SecurityScannerSettings,
   SecurityScanOptions,
   SecurityScanRecord,
 } from '@agentmat/core';
 import { DEFAULT_SCAN_OPTIONS } from '@agentmat/core';
-import { ipcMain } from 'electron';
+import { ipcMain, shell } from 'electron';
+import type { ActiveScan } from '../../shared/apiTypes';
 import { IPC } from '../../shared/ipcChannels';
 import type { SecurityScannerConfig } from '../security/adapters';
+import {
+  cancelCodeqlInstall,
+  codeqlInstallDir,
+  getCodeqlStatus,
+  installCodeqlLocally,
+  removeManagedCodeql,
+} from '../security/codeqlLocal';
 import { suggestCodeqlLanguage } from '../security/languageDetect';
 import { checkAllPreflight, clearPreflightCache } from '../security/preflight';
-import { cancelSecurityScan, newScanRunId, runSecurityScan } from '../security/scanRunner';
+import {
+  cancelSecurityScan,
+  getActiveScan,
+  newScanRunId,
+  runSecurityScan,
+} from '../security/scanRunner';
 import { securityScanDb } from '../securityScanDb';
 import { store } from '../store';
 
@@ -84,7 +99,7 @@ export function registerSecurityHandlers(): void {
   ipcMain.handle(
     IPC.security.runScan,
     async (
-      event,
+      _event,
       projectId: string,
       requested: Partial<SecurityScanOptions>,
       runId: string,
@@ -93,28 +108,26 @@ export function registerSecurityHandlers(): void {
       const saved = await getScannerSettings(projectId);
       const options = resolveOptions(requested, saved);
 
-      const record = await runSecurityScan(
-        runId || newScanRunId(),
-        {
-          projectId,
-          projectName: project.name,
-          projectPath: project.path,
-          options,
-          config: toConfig(saved),
-        },
-        event.sender,
-      );
-
-      // A cancelled run with nothing in it is not worth keeping in the history dropdown.
-      if (record.status !== 'cancelled' || record.findings.length > 0) {
-        securityScanDb.add(record);
-      }
-      return record;
+      // The runner saves the record itself, so a scan whose caller navigated away is still
+      // written to history.
+      return runSecurityScan(runId || newScanRunId(), {
+        projectId,
+        projectName: project.name,
+        projectPath: project.path,
+        options,
+        config: toConfig(saved),
+      });
     },
   );
 
   ipcMain.handle(IPC.security.cancelScan, (_event, runId: string): boolean =>
     cancelSecurityScan(runId),
+  );
+
+  // Lets a reopened Security tab rejoin a scan that is still running, rather than showing an
+  // empty tab while the main process quietly keeps scanning in the background.
+  ipcMain.handle(IPC.security.activeScan, (_event, projectId: string): ActiveScan | null =>
+    getActiveScan(projectId),
   );
 
   ipcMain.handle(IPC.security.history, (_event, projectId: string): SecurityScanRecord[] =>
@@ -158,4 +171,32 @@ export function registerSecurityHandlers(): void {
       return suggestCodeqlLanguage(project.path);
     },
   );
+
+  // --- CodeQL local install ---
+  // CodeQL has no package manager on Windows or Linux, so AgentMate fetches the release zip
+  // itself rather than leaving the Install button with nothing to run.
+
+  ipcMain.handle(IPC.security.codeqlStatus, (): Promise<CodeqlLocalStatus> => getCodeqlStatus());
+
+  ipcMain.handle(IPC.security.installCodeql, async (): Promise<CodeqlLocalStatus> => {
+    const status = await installCodeqlLocally();
+    clearPreflightCache();
+    return status;
+  });
+
+  ipcMain.handle(IPC.security.cancelCodeqlInstall, (): void => {
+    cancelCodeqlInstall();
+  });
+
+  ipcMain.handle(IPC.security.removeCodeql, async (): Promise<CodeqlLocalStatus> => {
+    await removeManagedCodeql();
+    clearPreflightCache();
+    return getCodeqlStatus();
+  });
+
+  ipcMain.handle(IPC.security.openCodeqlFolder, async (): Promise<void> => {
+    const dir = codeqlInstallDir();
+    await mkdir(dir, { recursive: true });
+    await shell.openPath(dir);
+  });
 }

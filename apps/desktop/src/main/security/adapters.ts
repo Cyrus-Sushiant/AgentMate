@@ -7,6 +7,7 @@ import type {
   SecurityScanOptions,
 } from '@agentmat/core';
 import { parseSarif, parseSonarIssues, parseStrixRun } from '@agentmat/core';
+import { resolveCodeqlCommand } from './codeqlLocal';
 import { type ScanCancelToken, spawnScan } from './exec';
 import { fetchSonarFindings, waitForSonarTask } from './sonarApi';
 
@@ -366,6 +367,15 @@ const codeql: ScannerAdapter = {
       return outcome;
     }
 
+    // Either a codeql the user put on PATH, or the copy AgentMate downloaded into its tools
+    // folder. Resolved per run rather than cached, since the managed copy can be installed or
+    // removed while the app is open.
+    const codeqlCommand = await resolveCodeqlCommand();
+    if (!codeqlCommand) {
+      outcome.error = 'CodeQL is not installed. Install it from the Agent Tools page.';
+      return outcome;
+    }
+
     // Short directory names on purpose: CodeQL nests several levels deep and a long scratch path
     // under AppData gets uncomfortably close to the Windows path limit.
     const dbPath = join(ctx.workDir, 'db');
@@ -385,7 +395,7 @@ const codeql: ScannerAdapter = {
     }
 
     const create = await spawnScan({
-      command: 'codeql',
+      command: codeqlCommand,
       args: createArgs,
       cwd: ctx.workDir,
       timeoutMs: 30 * MINUTE,
@@ -413,7 +423,7 @@ const codeql: ScannerAdapter = {
 
     ctx.emit('analyzing', 'Running CodeQL queries');
     const analyze = await spawnScan({
-      command: 'codeql',
+      command: codeqlCommand,
       args: [
         'database',
         'analyze',

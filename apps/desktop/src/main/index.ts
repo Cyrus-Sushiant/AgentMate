@@ -55,6 +55,7 @@ import { petManager } from './pet/petWindow';
 import { startPipelineWatcher, stopPipelineWatcher } from './pipelines/watcher';
 import { promptBuildWidgetManager } from './promptBuild/widgetWindows';
 import { remoteManager } from './remote/manager';
+import { cancelAllSecurityScans, sweepOrphanScanContainers } from './security/scanRunner';
 import { configureSpellChecker, registerSpellcheckHandlers } from './spellcheck';
 import { migrateInlineProjectIcons, pruneOrphanBlueprints } from './store';
 import { startHourlyUpdateChecks } from './updater';
@@ -205,6 +206,9 @@ function registerAllIpcHandlers(): void {
   registerSkillHandlers();
   registerMcpHandlers();
   registerSecurityHandlers();
+  // A crash or a force-quit can leave a scan's containers running; clear them before any
+  // new scan tries to reuse the same names.
+  sweepOrphanScanContainers();
   registerToolHandlers();
   registerFileSystemHandlers();
   registerSettingsHandlers();
@@ -319,6 +323,7 @@ app.on('window-all-closed', () => {
 
 app.on('before-quit', () => {
   killAllTerminalSessions();
+  cancelAllSecurityScans();
   petManager.close();
   stopHookServer();
   stopResetAlertWatcher();

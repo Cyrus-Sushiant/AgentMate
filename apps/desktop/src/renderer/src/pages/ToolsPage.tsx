@@ -1,9 +1,11 @@
 import {
   AGENT_TOOL_REGISTRY,
   type AgentToolDefinition,
+  CODEQL_TOOL_ID,
   LANGUAGETOOL_DOWNLOAD_URL,
   LANGUAGETOOL_TOOL_ID,
   SECURITY_TOOL_CATEGORY,
+  type SupportedOS,
   type ToolSettingsAction,
   type ToolSettingsValues,
 } from '@agentmat/core';
@@ -26,6 +28,7 @@ import {
   Trash2,
   Wrench,
 } from '@/components/icons';
+import { CodeqlInstallCard } from '@/components/tools/CodeqlInstallCard';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -62,6 +65,34 @@ interface PendingToolUpdate {
  * distinctive half. "Security & Code Scanning" becomes "Security", "Token & Cost Optimization"
  * becomes "Token & Cost".
  */
+/**
+ * Names the install button after whatever actually runs, rather than assuming npm. Every tool
+ * with a Docker option used to be npm-installed, so the button was hardcoded to "Install (npm)",
+ * which became a lie the moment a pip or winget tool gained a Docker option.
+ */
+function installLabel(command: string | undefined): string {
+  if (!command) return 'Install';
+  const first = command.trim().split(/\s+/)[0].toLowerCase();
+  const known: Record<string, string> = {
+    npm: 'npm',
+    pnpm: 'pnpm',
+    pip: 'pip',
+    pip3: 'pip',
+    pipx: 'pipx',
+    brew: 'brew',
+    winget: 'winget',
+    choco: 'choco',
+    scoop: 'scoop',
+    go: 'go',
+    cargo: 'cargo',
+    curl: 'script',
+    wget: 'script',
+    sudo: 'apt',
+  };
+  const manager = known[first];
+  return manager ? `Install (${manager})` : 'Install';
+}
+
 function shortCategoryLabel(category: string): string {
   const first = category.split(' & ')[0];
   return first === 'Token' ? 'Token & Cost' : first;
@@ -97,6 +128,13 @@ export default function ToolsPage(): React.JSX.Element {
   const statusQuery = useQuery({
     queryKey: queryKeys.toolsStatus,
     queryFn: () => window.agentmat.tools.detectAll(),
+  });
+  // CodeQL can live in AgentMate's tools folder rather than on PATH, which the shared
+  // detectAll probe cannot see, so its card asks separately.
+  const codeqlQuery = useQuery({
+    queryKey: queryKeys.codeqlStatus,
+    queryFn: () => window.agentmat.security.codeqlStatus(),
+    meta: { silentLoading: true },
   });
   // LanguageTool isn't on PATH: it lives in the app's tools folder, so its card
   // reads the grammar status instead of the PATH probe every other tool uses.
@@ -464,7 +502,13 @@ export default function ToolsPage(): React.JSX.Element {
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
         {visibleTools.map((tool) => {
           const isLanguageTool = tool.id === LANGUAGETOOL_TOOL_ID;
+          const isCodeql = tool.id === CODEQL_TOOL_ID;
+          // A shell tool with no command for this OS must not offer an Install button that
+          // can only fail; it falls back to its written instructions instead.
+          const osInstallCommand = tool.installCommand?.[window.agentmat.platform as SupportedOS];
+          const canShellInstall = tool.installKind === 'shell' && Boolean(osInstallCommand);
           const languageTool = isLanguageTool ? languageToolQuery.data : undefined;
+          const codeql = isCodeql ? codeqlQuery.data : undefined;
           const status = isLanguageTool
             ? {
                 id: tool.id,
@@ -473,7 +517,15 @@ export default function ToolsPage(): React.JSX.Element {
                 dockerStatus: 'unavailable' as const,
                 lastCheckedAt: '',
               }
-            : statusFor(tool.id);
+            : isCodeql
+              ? {
+                  id: tool.id,
+                  installed: Boolean(codeql?.installed),
+                  version: codeql?.version ?? null,
+                  dockerStatus: 'unavailable' as const,
+                  lastCheckedAt: '',
+                }
+              : statusFor(tool.id);
           return (
             <Card key={tool.id} className="glass flex flex-col hover:border-primary/30">
               <CardHeader>
@@ -487,7 +539,13 @@ export default function ToolsPage(): React.JSX.Element {
                 <div className="flex flex-wrap gap-1.5">
                   {/* "Not detected" is a result, not a starting state, so shimmer
                       the badge until the scan actually says so. */}
-                  {(isLanguageTool ? languageToolQuery.isPending : statusQuery.isPending) ? (
+                  {(
+                    isLanguageTool
+                      ? languageToolQuery.isPending
+                      : isCodeql
+                        ? codeqlQuery.isPending
+                        : statusQuery.isPending
+                  ) ? (
                     <Skeleton className="h-5 w-24 rounded-full" />
                   ) : (
                     <Badge variant={status?.installed ? 'success' : 'secondary'}>
@@ -495,7 +553,9 @@ export default function ToolsPage(): React.JSX.Element {
                         ? (status.version ?? 'Installed')
                         : isLanguageTool
                           ? 'Not in tools folder'
-                          : 'Not detected'}
+                          : isCodeql
+                            ? 'Not downloaded'
+                            : 'Not detected'}
                     </Badge>
                   )}
                   {isLanguageTool && languageTool?.serverState === 'running' ? (
@@ -526,7 +586,9 @@ export default function ToolsPage(): React.JSX.Element {
                 <div className="text-xs text-muted-foreground">{tool.author}</div>
 
                 <div className="flex flex-wrap items-center gap-2">
-                  {isLanguageTool ? (
+                  {isCodeql ? (
+                    <CodeqlInstallCard />
+                  ) : isLanguageTool ? (
                     <>
                       <Button
                         size="sm"
@@ -568,7 +630,7 @@ export default function ToolsPage(): React.JSX.Element {
                         <Wrench /> Writing settings
                       </Button>
                     </>
-                  ) : tool.installKind === 'shell' ? (
+                  ) : canShellInstall ? (
                     status?.installed ? (
                       <Button
                         size="sm"
@@ -579,7 +641,7 @@ export default function ToolsPage(): React.JSX.Element {
                       </Button>
                     ) : (
                       <Button size="sm" onClick={() => void handleInstall(tool)}>
-                        <TerminalSquare /> {tool.docker ? 'Install (npm)' : 'Install'}
+                        <TerminalSquare /> {installLabel(osInstallCommand)}
                       </Button>
                     )
                   ) : tool.installKind === 'interactive' ? (
@@ -591,13 +653,24 @@ export default function ToolsPage(): React.JSX.Element {
                       </Button>
                     </SimpleTooltip>
                   ) : (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => handleCopyManualInstructions(tool)}
+                    <SimpleTooltip
+                      label={
+                        tool.installKind === 'shell'
+                          ? `${tool.name} has no install command for this operating system. Copies its setup notes instead.`
+                          : ''
+                      }
                     >
-                      <TerminalSquare /> Copy setup commands
-                    </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleCopyManualInstructions(tool)}
+                      >
+                        <TerminalSquare />
+                        {tool.installKind === 'shell'
+                          ? 'Setup instructions'
+                          : 'Copy setup commands'}
+                      </Button>
+                    </SimpleTooltip>
                   )}
                   {tool.updateCheck && status?.installed && (
                     <SimpleTooltip

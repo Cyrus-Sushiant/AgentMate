@@ -18,6 +18,7 @@ import { Input } from '@/components/ui/input';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import { FindingRow, SEVERITY_BADGE } from './FindingRow';
+import { ScanLogViewer } from './ScanLogViewer';
 
 /**
  * The report. Deliberately built in the same visual language as the skills audit report
@@ -252,6 +253,8 @@ export function SecurityReport({ record }: { record: SecurityScanRecord }): Reac
           )}
         </>
       )}
+
+      <ScanLogViewer runs={record.runs} />
 
       {record.runs.some((r) => r.status === 'failed' || r.status === 'timed-out') && (
         <div className="space-y-1.5 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2.5">
