@@ -139,6 +139,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { SimpleTooltip } from '@/components/ui/tooltip';
+import { useGitRepoWatch } from '@/hooks/useGitRepoWatch';
 import { cliLaunchCommand } from '@/lib/openCli';
 import { queryKeys } from '@/lib/queryKeys';
 import { persianTextProps } from '@/lib/rtl';
@@ -1845,6 +1846,12 @@ function AiSuggestButton({
 const GIT_OP_META = { silentLoading: true } as const;
 
 /**
+ * The Git tab refetches on its own when the repo changes on disk, so those background
+ * refreshes must not pull up the app-wide overlay either.
+ */
+const GIT_REFRESH_META = { silentLoading: true } as const;
+
+/**
  * A git action button that carries its own progress: the icon swaps for a spinner and
  * the label says what is happening, so the page around it stays readable.
  */
@@ -1950,13 +1957,18 @@ function GitTab({
   const statusQuery = useQuery({
     queryKey: queryKeys.gitStatus(projectId),
     queryFn: () => window.agentmat.git.status(projectId),
+    meta: GIT_REFRESH_META,
   });
 
   const tagsQuery = useQuery({
     queryKey: queryKeys.gitTags(projectId),
     queryFn: () => window.agentmat.git.tags(projectId),
     enabled: statusQuery.data?.isRepo === true,
+    meta: GIT_REFRESH_META,
   });
+
+  // Keeps the tab honest when the repo is driven from somewhere else, e.g. a commit in an editor.
+  useGitRepoWatch(projectId, statusQuery.data?.isRepo === true);
 
   function invalidateStatus(): void {
     void queryClient.invalidateQueries({ queryKey: queryKeys.gitStatus(projectId) });

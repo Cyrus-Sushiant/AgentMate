@@ -65,6 +65,7 @@ import {
   setDefaultBranch,
   TAG_NAME_PATTERN,
 } from '../git/plumbing';
+import { unwatchProjectRepo, watchProjectRepo } from '../git/repoWatcher';
 import {
   buildReleaseSummary,
   buildVersionBumpPrompt,
@@ -134,6 +135,14 @@ async function suggestGitText(
 function registerRepoHandlers(): void {
   ipcMain.handle(IPC.git.status, async (_event, projectId: string): Promise<GitStatus> => {
     return readStatus(await getProjectPath(projectId));
+  });
+
+  ipcMain.handle(IPC.git.watchRepo, async (event, projectId: string): Promise<void> => {
+    watchProjectRepo(projectId, await getProjectPath(projectId), event.sender);
+  });
+
+  ipcMain.handle(IPC.git.unwatchRepo, (event, projectId: string): void => {
+    unwatchProjectRepo(projectId, event.sender);
   });
 
   ipcMain.handle(IPC.git.listFiles, async (_event, projectId: string): Promise<string[]> => {

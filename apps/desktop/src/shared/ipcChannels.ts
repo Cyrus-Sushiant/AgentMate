@@ -406,6 +406,10 @@ export const IPC = {
     createGithubRepo: 'git:createGithubRepo',
     connectRemote: 'git:connectRemote',
     detectRemote: 'git:detectRemote',
+    watchRepo: 'git:watchRepo',
+    unwatchRepo: 'git:unwatchRepo',
+    // main -> renderer: the repo moved on disk (commit, checkout, merge, fetch, stage)
+    onRepoChanged: 'git:onRepoChanged',
   },
   packages: {
     list: 'packages:list',

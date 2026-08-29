@@ -52,6 +52,8 @@ export const queryKeys = {
   gitTags: (projectId: string) => ['git-tags', projectId] as const,
   gitBranchHistory: (projectId: string, branch: string) =>
     ['git-branch-history', projectId, branch] as const,
+  /** Prefix of a project's branch histories, for invalidating every branch at once. */
+  gitBranchHistories: (projectId: string) => ['git-branch-history', projectId] as const,
   githubAccount: ['github-account'] as const,
   githubActivity: ['github-activity'] as const,
   githubNotifications: ['github-notifications'] as const,

@@ -646,6 +646,12 @@ const git = {
   /** Origin's URL for a folder path, as a browsable link. Null when there isn't one. */
   detectRemote: (folderPath: string): Promise<string | null> =>
     ipcRenderer.invoke(IPC.git.detectRemote, folderPath),
+  /** Asks main to watch this project's `.git`, so outside commits reach the open Git tab. */
+  watchRepo: (projectId: string): Promise<void> => ipcRenderer.invoke(IPC.git.watchRepo, projectId),
+  unwatchRepo: (projectId: string): Promise<void> =>
+    ipcRenderer.invoke(IPC.git.unwatchRepo, projectId),
+  onRepoChanged: (callback: (projectId: string) => void): (() => void) =>
+    subscribe(IPC.git.onRepoChanged, callback),
 };
 
 const pipelines = {

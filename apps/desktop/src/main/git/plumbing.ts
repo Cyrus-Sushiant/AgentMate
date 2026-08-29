@@ -198,7 +198,9 @@ export async function readStatus(cwd: string): Promise<GitStatus> {
     detectDefaultBranch(cwd, remote),
     listBranches(cwd, { remote, branch: branchName }),
     gitOrNull(cwd, ['rev-list', '--left-right', '--count', 'HEAD...@{upstream}']),
-    gitOrNull(cwd, ['status', '--porcelain', '-z']),
+    // --no-optional-locks keeps the read from refreshing (and rewriting) the index, which
+    // would otherwise look like a repo change to the watcher and bounce back as another read.
+    gitOrNull(cwd, ['--no-optional-locks', 'status', '--porcelain', '-z']),
   ]);
 
   let ahead = 0;
