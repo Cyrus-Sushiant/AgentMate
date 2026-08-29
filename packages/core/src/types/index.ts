@@ -297,6 +297,18 @@ export const DASHBOARD_USAGE_SUMMARY_IDS = [
 ] as const;
 export type DashboardUsageSummaryId = (typeof DASHBOARD_USAGE_SUMMARY_IDS)[number];
 
+export interface SecurityScannerSettings {
+  sonarToken?: string | null;
+  sonarUrl?: string | null;
+  sonarProjectKey?: string | null;
+  strixModel?: string | null;
+  strixApiKey?: string | null;
+  codeqlLanguage?: string | null;
+  codeqlBuildCommand?: string | null;
+  semgrepConfig?: string | null;
+  trivyScanners?: string[] | null;
+}
+
 export interface AppSettings {
   defaultCliId: string | null;
   /**
@@ -371,6 +383,16 @@ export interface AppSettings {
   proxy: ProxySettings;
   /** Per-provider config for the Token Usage page (enabled flag + optional API key), keyed by provider id. */
   usageProviderConfigs: Record<string, UsageProviderConfig>;
+  /**
+   * Per-project security scanner settings for the Security tab: the SonarQube token and project
+   * key, the Strix model and LLM key, and the CodeQL language. Keyed by project id, because the
+   * language and the Sonar project key are genuinely per-project rather than machine-wide.
+   *
+   * Secrets sit here in plaintext, which is the same convention usageProviderConfigs already
+   * uses. They are passed to scanners through the environment, never argv, and are stripped out
+   * of scan logs and reports before either crosses IPC.
+   */
+  securityScannerConfigs: Record<string, SecurityScannerSettings>;
   /** Floating desktop usage widgets the user has pinned; recreated on app launch. */
   usageWidgets: DesktopWidgetInstance[];
   /** Floating desktop Build Prompt widgets the user has pinned; recreated on app launch. */

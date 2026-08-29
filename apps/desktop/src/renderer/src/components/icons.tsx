@@ -42,7 +42,9 @@ import {
   faEye,
   faEyeSlash,
   faFile,
+  faFileCode,
   faFileLines,
+  faFilter,
   faFloppyDisk,
   faFolder,
   faFolderOpen,
@@ -285,3 +287,7 @@ export const Ban = makeIcon(faBan);
 export const Microphone = makeIcon(faMicrophone);
 export const MicrophoneSlash = makeIcon(faMicrophoneSlash);
 export const Spinner = makeIcon(faSpinner);
+
+// Security scan icons.
+export const FileCode = makeIcon(faFileCode);
+export const Filter = makeIcon(faFilter);

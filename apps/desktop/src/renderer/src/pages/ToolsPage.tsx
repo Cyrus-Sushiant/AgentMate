@@ -3,12 +3,13 @@ import {
   type AgentToolDefinition,
   LANGUAGETOOL_DOWNLOAD_URL,
   LANGUAGETOOL_TOOL_ID,
+  SECURITY_TOOL_CATEGORY,
   type ToolSettingsAction,
   type ToolSettingsValues,
 } from '@agentmat/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import {
   CloudDownload,
@@ -19,6 +20,7 @@ import {
   Globe,
   Play,
   RefreshCw,
+  Shield,
   StopCircle,
   TerminalSquare,
   Trash2,
@@ -40,6 +42,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Switch } from '@/components/ui/switch';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { queryKeys } from '@/lib/queryKeys';
 import { usePageHeader } from '@/stores/pageHeaderStore';
@@ -54,11 +57,31 @@ interface PendingToolUpdate {
   command: string;
 }
 
+/**
+ * Category names read well on a card badge but are too long for a tab, so the tab shows the
+ * distinctive half. "Security & Code Scanning" becomes "Security", "Token & Cost Optimization"
+ * becomes "Token & Cost".
+ */
+function shortCategoryLabel(category: string): string {
+  const first = category.split(' & ')[0];
+  return first === 'Token' ? 'Token & Cost' : first;
+}
+
+function CountPill({ value }: { value: number }): React.JSX.Element | null {
+  if (value <= 0) return null;
+  return (
+    <span className="min-w-4 rounded-full bg-muted px-1.5 text-center text-[10px] font-medium tabular-nums text-muted-foreground group-data-[state=active]:bg-foreground/10 group-data-[state=active]:text-foreground">
+      {value}
+    </span>
+  );
+}
+
 export default function ToolsPage(): React.JSX.Element {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const openSession = useTerminalStore((s) => s.openSession);
 
+  const [searchParams, setSearchParams] = useSearchParams();
   const [selectedProjectId, setSelectedProjectId] = useState('');
   const [settingsTool, setSettingsTool] = useState<AgentToolDefinition | null>(null);
   const [settingsValues, setSettingsValues] = useState<ToolSettingsValues>({});
@@ -327,6 +350,48 @@ export default function ToolsPage(): React.JSX.Element {
     setSettingsTool(null);
   }
 
+  // Derived from the registry rather than hardcoded, so adding a tool with a new category adds
+  // its tab automatically. Security leads because it is the one people come here looking for.
+  const categories = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const tool of AGENT_TOOL_REGISTRY) {
+      counts.set(tool.category, (counts.get(tool.category) ?? 0) + 1);
+    }
+    const rest = [...counts.keys()]
+      .filter((c) => c !== SECURITY_TOOL_CATEGORY)
+      .sort((a, b) => a.localeCompare(b));
+    const ordered = counts.has(SECURITY_TOOL_CATEGORY) ? [SECURITY_TOOL_CATEGORY, ...rest] : rest;
+    return ordered.map((category) => ({ category, count: counts.get(category) ?? 0 }));
+  }, []);
+
+  const tabParam = searchParams.get('tab');
+  const activeCategory =
+    tabParam === 'security'
+      ? SECURITY_TOOL_CATEGORY
+      : categories.some((c) => c.category === tabParam)
+        ? (tabParam as string)
+        : 'all';
+
+  function setActiveCategory(next: string): void {
+    setSearchParams(
+      (params) => {
+        const updated = new URLSearchParams(params);
+        if (next === 'all') updated.delete('tab');
+        else updated.set('tab', next === SECURITY_TOOL_CATEGORY ? 'security' : next);
+        return updated;
+      },
+      { replace: true },
+    );
+  }
+
+  const visibleTools = useMemo(
+    () =>
+      activeCategory === 'all'
+        ? AGENT_TOOL_REGISTRY
+        : AGENT_TOOL_REGISTRY.filter((tool) => tool.category === activeCategory),
+    [activeCategory],
+  );
+
   usePageHeader(
     'Agent Tools',
     'Curated third-party tools that cut agent token spend or improve code quality. Install, configure, and run them from here.',
@@ -373,8 +438,31 @@ export default function ToolsPage(): React.JSX.Element {
         above. Docker and global setup actions don't.
       </p>
 
+      <Tabs
+        value={activeCategory}
+        onValueChange={setActiveCategory}
+        className="flex flex-col gap-4"
+      >
+        <div className="flex items-end gap-3 border-b border-border">
+          <TabsList containerClassName="min-w-0 flex-1 border-b-0">
+            <TabsTrigger value="all" className="group gap-1.5">
+              <Wrench className="h-3.5 w-3.5" />
+              All
+              <CountPill value={AGENT_TOOL_REGISTRY.length} />
+            </TabsTrigger>
+            {categories.map(({ category, count }) => (
+              <TabsTrigger key={category} value={category} className="group gap-1.5">
+                {category === SECURITY_TOOL_CATEGORY ? <Shield className="h-3.5 w-3.5" /> : null}
+                {shortCategoryLabel(category)}
+                <CountPill value={count} />
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </div>
+      </Tabs>
+
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {AGENT_TOOL_REGISTRY.map((tool) => {
+        {visibleTools.map((tool) => {
           const isLanguageTool = tool.id === LANGUAGETOOL_TOOL_ID;
           const languageTool = isLanguageTool ? languageToolQuery.data : undefined;
           const status = isLanguageTool

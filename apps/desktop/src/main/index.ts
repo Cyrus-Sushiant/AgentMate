@@ -28,6 +28,7 @@ import { registerPromptHistoryHandlers } from './ipc/promptHistory';
 import { registerProxyHandlers } from './ipc/proxy';
 import { registerRemoteHandlers } from './ipc/remote';
 import { registerScheduledTaskHandlers } from './ipc/scheduledTasks';
+import { registerSecurityHandlers } from './ipc/security';
 import { registerSettingsHandlers } from './ipc/settings';
 import { registerShellHandlers } from './ipc/shell';
 import { registerSkillHandlers } from './ipc/skills';
@@ -203,6 +204,7 @@ function registerAllIpcHandlers(): void {
   registerProxyHandlers();
   registerSkillHandlers();
   registerMcpHandlers();
+  registerSecurityHandlers();
   registerToolHandlers();
   registerFileSystemHandlers();
   registerSettingsHandlers();

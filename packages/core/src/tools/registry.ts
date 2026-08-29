@@ -21,6 +21,9 @@ import type { AgentToolDefinition } from './types.js';
  * 2026-07-19 (OpenClaw and Hermes: 2026-07-24); re-check upstream before relying on exact flags,
  * they may have changed since.
  */
+/** Shared so the Tools page tab and the six scanner entries can never drift apart. */
+export const SECURITY_TOOL_CATEGORY = 'Security & Code Scanning';
+
 export const AGENT_TOOL_REGISTRY: AgentToolDefinition[] = [
   {
     id: '9router',
@@ -526,6 +529,252 @@ export const AGENT_TOOL_REGISTRY: AgentToolDefinition[] = [
     // has its own download/open-folder buttons instead.
     installKind: 'manual',
     manualInstallInstructions: `1. Download ${LANGUAGETOOL_DOWNLOAD_URL}\n2. Extract it into AgentMate's tools folder (the "Open tools folder" button opens it).\n3. Turn on "Use local LanguageTool" in Settings > AI > Writing check.`,
+  },
+  // --- Security & Code Scanning ---
+  // Commands checked against each project's own docs on 2026-08-29. Semgrep has shipped native
+  // Windows binaries since its Fall 2025 release, so it no longer needs WSL; Bearer still has no
+  // Windows build at all, which is why its win32 path is Docker.
+  {
+    id: 'semgrep',
+    name: 'Semgrep',
+    description:
+      'Pattern-based static analysis for 30+ languages, with a large community ruleset. Fast enough to run on every project and the best first security scan to reach for. Runs the scan from a project\u2019s Security tab. If the card still says "Not detected" right after installing, pip put the executable in a Scripts folder that is not on your PATH; add it, then press Refresh.',
+    category: SECURITY_TOOL_CATEGORY,
+    tags: ['sast', 'static-analysis', 'security'],
+    author: 'Semgrep',
+    official: true,
+    websiteUrl: 'https://semgrep.dev',
+    repositoryUrl: 'https://github.com/semgrep/semgrep',
+    installKind: 'shell',
+    installCommand: {
+      win32: 'pip install semgrep',
+      darwin: 'brew install semgrep',
+      linux: 'pip install semgrep',
+    },
+    updateCommand: {
+      win32: 'pip install --upgrade semgrep',
+      darwin: 'brew upgrade semgrep',
+      linux: 'pip install --upgrade semgrep',
+    },
+    updateCheck: { type: 'pypi', package: 'semgrep' },
+    uninstallCommand: {
+      win32: 'pip uninstall -y semgrep',
+      darwin: 'brew uninstall semgrep',
+      linux: 'pip uninstall -y semgrep',
+    },
+    detectCommand: { command: 'semgrep', args: ['--version'] },
+    settingsFields: [
+      {
+        key: 'ruleset',
+        label: 'Ruleset',
+        type: 'select',
+        options: [
+          { value: 'auto', label: 'Auto (fetches rules from semgrep.dev)' },
+          { value: 'p/security-audit', label: 'Security audit' },
+          { value: 'p/owasp-top-ten', label: 'OWASP Top 10' },
+          { value: 'p/default', label: 'Default' },
+        ],
+        defaultValue: 'auto',
+        description:
+          'Auto downloads rules from semgrep.dev on every scan. Pick a p/ pack to stay offline.',
+      },
+    ],
+    settingsScope: 'global',
+    buildSettingsAction: (values) => ({
+      kind: 'command',
+      command: `semgrep scan --config ${values.ruleset} --metrics=off .`,
+      cwd: 'project',
+    }),
+  },
+  {
+    id: 'trivy',
+    name: 'Trivy',
+    description:
+      'Finds known CVEs in your dependencies, hardcoded secrets, and infrastructure-as-code misconfigurations in one pass. The fastest way to learn a project is shipping a vulnerable package.',
+    category: SECURITY_TOOL_CATEGORY,
+    tags: ['dependencies', 'cve', 'secrets', 'iac'],
+    author: 'Aqua Security',
+    official: true,
+    websiteUrl: 'https://trivy.dev',
+    repositoryUrl: 'https://github.com/aquasecurity/trivy',
+    installKind: 'shell',
+    installCommand: {
+      win32: 'winget install -e --id AquaSecurity.Trivy',
+      darwin: 'brew install trivy',
+      linux:
+        'curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin',
+    },
+    updateCommand: {
+      win32: 'winget upgrade -e --id AquaSecurity.Trivy',
+      darwin: 'brew upgrade trivy',
+      linux:
+        'curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin',
+    },
+    updateCheck: { type: 'github-release', package: 'aquasecurity/trivy' },
+    uninstallCommand: {
+      win32: 'winget uninstall -e --id AquaSecurity.Trivy',
+      darwin: 'brew uninstall trivy',
+      linux: 'sudo rm -f /usr/local/bin/trivy',
+    },
+    detectCommand: { command: 'trivy', args: ['--version'] },
+    quickActions: [
+      {
+        id: 'trivy-db-update',
+        label: 'Update vulnerability DB',
+        action: { kind: 'command', command: 'trivy image --download-db-only', cwd: 'none' },
+      },
+    ],
+  },
+  {
+    id: 'bearer',
+    name: 'Bearer',
+    description:
+      'Data-flow analysis that follows sensitive data (PII, tokens, credentials) through your code and flags where it leaks. Complements pattern scanners rather than repeating them. No native Windows build, so it runs through Docker there.',
+    category: SECURITY_TOOL_CATEGORY,
+    tags: ['sast', 'privacy', 'data-flow'],
+    author: 'Bearer (Cycode)',
+    official: true,
+    websiteUrl: 'https://docs.bearer.com',
+    repositoryUrl: 'https://github.com/bearer/bearer',
+    installKind: 'shell',
+    installCommand: {
+      darwin: 'brew install bearer/tap/bearer',
+      linux:
+        'curl -sfL https://raw.githubusercontent.com/Bearer/bearer/main/contrib/install.sh | sh -s -- -b /usr/local/bin',
+    },
+    manualInstallInstructions:
+      'Bearer has no native Windows build. Use the Docker option on this card instead: the Security tab runs it as a container with your project mounted read-only, which needs nothing else installed.',
+    updateCommand: {
+      darwin: 'brew upgrade bearer',
+      linux:
+        'curl -sfL https://raw.githubusercontent.com/Bearer/bearer/main/contrib/install.sh | sh -s -- -b /usr/local/bin',
+    },
+    updateCheck: { type: 'github-release', package: 'bearer/bearer' },
+    uninstallCommand: {
+      darwin: 'brew uninstall bearer',
+      linux: 'sudo rm -f /usr/local/bin/bearer',
+    },
+    detectCommand: { command: 'bearer', args: ['version'] },
+    docker: {
+      // Not a long-lived container: the Security tab starts one per scan and removes it after.
+      // This block exists so the card can pull the image ahead of time and report whether it is
+      // already local, since the first pull is around 200 MB.
+      image: 'bearer/bearer:latest-amd64',
+      containerName: 'agentmate-bearer',
+      runArgs: [],
+    },
+  },
+  {
+    id: 'sonarqube',
+    name: 'SonarQube Community Build',
+    description:
+      'A self-hosted analysis server that tracks vulnerabilities, security hotspots, and code quality over time. Runs as a Docker container with its own dashboard on port 9000; the Security tab scans into it and pulls the findings back out.',
+    category: SECURITY_TOOL_CATEGORY,
+    tags: ['sast', 'quality', 'self-hosted', 'docker'],
+    author: 'SonarSource',
+    official: true,
+    websiteUrl: 'https://docs.sonarsource.com/sonarqube-community-build/',
+    repositoryUrl: 'https://github.com/SonarSource/sonarqube',
+    // The Docker container is the install; there is nothing to put on PATH.
+    installKind: 'manual',
+    manualInstallInstructions:
+      '1. Press "Docker install" on this card to create the server container.\n2. Wait for http://localhost:9000 to come up (the first boot takes a couple of minutes) and log in with admin / admin.\n3. Change the password, then create a token under My Account > Security.\n4. Paste that token into the SonarQube setup in a project\u2019s Security tab.',
+    updateCheck: { type: 'github-release', package: 'SonarSource/sonarqube' },
+    docker: {
+      image: 'sonarqube:community',
+      containerName: 'agentmate-sonarqube',
+      runArgs: [
+        '-p',
+        '9000:9000',
+        '-v',
+        'agentmate-sonarqube-data:/opt/sonarqube/data',
+        '-v',
+        'agentmate-sonarqube-extensions:/opt/sonarqube/extensions',
+        '-v',
+        'agentmate-sonarqube-logs:/opt/sonarqube/logs',
+      ],
+      dashboardUrl: 'http://localhost:9000',
+    },
+  },
+  {
+    id: 'codeql',
+    name: 'CodeQL CLI',
+    description:
+      'GitHub\u2019s semantic analysis engine. It builds a queryable database of your code and traces untrusted input all the way to dangerous sinks, so it finds real exploitable paths that pattern matchers miss. Slow, and worth it. Free for open source; check the licence terms for private code.',
+    category: SECURITY_TOOL_CATEGORY,
+    tags: ['sast', 'dataflow', 'github'],
+    author: 'GitHub',
+    official: true,
+    websiteUrl: 'https://codeql.github.com',
+    repositoryUrl: 'https://github.com/github/codeql-cli-binaries',
+    installKind: 'shell',
+    installCommand: {
+      darwin: 'brew install --cask codeql',
+    },
+    manualInstallInstructions:
+      '1. Download the bundle for your platform from https://github.com/github/codeql-cli-binaries/releases/latest\n2. Extract it somewhere permanent, for example C:\\tools\\codeql.\n3. Add that folder to your PATH, then reopen AgentMate and press Refresh on this card.\n\nIf you already have the GitHub CLI, "gh extension install github/gh-codeql" is an alternative, but it installs "gh codeql" rather than a "codeql" binary on PATH, which this card cannot detect.',
+    updateCommand: {
+      darwin: 'brew upgrade --cask codeql',
+    },
+    updateCheck: { type: 'github-release', package: 'github/codeql-cli-binaries' },
+    uninstallCommand: {
+      darwin: 'brew uninstall --cask codeql',
+    },
+    manualUninstallInstructions: 'Delete the folder you extracted and remove it from your PATH.',
+    detectCommand: { command: 'codeql', args: ['version', '--format=terse'] },
+  },
+  {
+    id: 'strix',
+    name: 'Strix',
+    description:
+      'An autonomous AI agent that runs your code in a sandbox and proves vulnerabilities with real working exploits, so what it reports has no false positives. Needs Docker and your own LLM API key, and a run costs tokens. If the card still says "Not detected" right after installing, pip put the executable in a Scripts folder that is not on your PATH; add it, then press Refresh.',
+    category: SECURITY_TOOL_CATEGORY,
+    tags: ['pentest', 'ai-agent', 'dast'],
+    author: 'Strix',
+    official: true,
+    websiteUrl: 'https://usestrix.com',
+    repositoryUrl: 'https://github.com/usestrix/strix',
+    installKind: 'shell',
+    installCommand: {
+      win32: 'pip install strix-agent',
+      darwin: 'pip install strix-agent',
+      linux: 'pip install strix-agent',
+    },
+    updateCommand: {
+      win32: 'pip install --upgrade strix-agent',
+      darwin: 'pip install --upgrade strix-agent',
+      linux: 'pip install --upgrade strix-agent',
+    },
+    updateCheck: { type: 'pypi', package: 'strix-agent' },
+    uninstallCommand: {
+      win32: 'pip uninstall -y strix-agent',
+      darwin: 'pip uninstall -y strix-agent',
+      linux: 'pip uninstall -y strix-agent',
+    },
+    detectCommand: { command: 'strix', args: ['--version'] },
+    settingsFields: [
+      {
+        key: 'model',
+        label: 'Model',
+        type: 'text',
+        defaultValue: 'anthropic/claude-sonnet-5',
+        description: 'Passed as STRIX_LLM, in provider/model form.',
+      },
+      {
+        key: 'apiKey',
+        label: 'LLM API key',
+        type: 'text',
+        defaultValue: '',
+        description: 'Passed as LLM_API_KEY. Set this in the project Security tab to store it.',
+      },
+    ],
+    settingsScope: 'global',
+    buildSettingsAction: (values) => ({
+      kind: 'copy-text',
+      content: `STRIX_LLM=${values.model}\nLLM_API_KEY=${values.apiKey}`,
+      instructions:
+        'Set these as environment variables, or store them in a project\u2019s Security tab so AgentMate passes them for you.',
+    }),
   },
 ];
 

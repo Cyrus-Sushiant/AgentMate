@@ -100,6 +100,7 @@ import { ProjectFileBrowser } from '@/components/projects/ProjectFileBrowser';
 import { ProjectFormDialog, type ProjectFormValues } from '@/components/projects/ProjectFormDialog';
 import { ProjectPromptDialog } from '@/components/projects/ProjectPromptDialog';
 import { ProjectPromptHistory } from '@/components/projects/ProjectPromptHistory';
+import { SecurityTab } from '@/components/projects/security/SecurityTab';
 import { useProjectRun } from '@/components/projects/useProjectRun';
 import { SkillAuditVerdictBadge } from '@/components/skills/SkillAuditReport';
 import {
@@ -316,6 +317,15 @@ export default function ProjectDetailPage(): React.JSX.Element {
     queryKey: queryKeys.toolsStatus,
     queryFn: () => window.agentmat.tools.detectAll(),
   });
+
+  // Only for the nav badge. The Security tab owns this key too, so opening the tab reuses the
+  // same cached record rather than reading it twice.
+  const latestSecurityScanQuery = useQuery({
+    queryKey: queryKeys.securityLatest(projectId!),
+    queryFn: () => window.agentmat.security.latest(projectId!),
+    enabled: !!projectId,
+    meta: { silentLoading: true },
+  });
   const diffrayInstalled =
     toolsStatusQuery.data?.find((tool) => tool.id === DIFFRAY_TOOL_ID)?.installed === true;
 
@@ -509,8 +519,19 @@ export default function ProjectDetailPage(): React.JSX.Element {
     if (openDraftCount > 0) badges.overview = { count: openDraftCount };
     if (skillCount > 0) badges.skills = { count: skillCount, attention: skillUpdateCount > 0 };
     if (mcpCount > 0) badges.mcp = { count: mcpCount };
+    // Only the two severities worth interrupting someone over. A repo with 400 low-severity
+    // style notes should not wear a permanent red badge.
+    const counts = latestSecurityScanQuery.data?.counts;
+    const serious = (counts?.critical ?? 0) + (counts?.high ?? 0);
+    if (serious > 0) badges.security = { count: serious, attention: true };
     return badges;
-  }, [installedMcpServersQuery.data, installedSkillsQuery.data, openDraftCount, skillUpdateCount]);
+  }, [
+    installedMcpServersQuery.data,
+    installedSkillsQuery.data,
+    latestSecurityScanQuery.data,
+    openDraftCount,
+    skillUpdateCount,
+  ]);
 
   if (projectsQuery.isLoading) {
     return <ProjectDetailSkeleton />;
@@ -1002,6 +1023,8 @@ export default function ProjectDetailPage(): React.JSX.Element {
               installed={diffrayInstalled}
             />
           )}
+
+          {section === 'security' && <SecurityTab key={project.id} project={project} />}
 
           {section === 'schedule' && <ScheduleTab projectId={project.id} />}
 

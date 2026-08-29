@@ -105,6 +105,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   grammar: defaultGrammarSettings(),
   proxy: defaultProxySettings(),
   usageProviderConfigs: {},
+  securityScannerConfigs: {},
   usageWidgets: [],
   promptBuildWidgets: [],
   usageCardOrder: [],

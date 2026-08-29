@@ -26,8 +26,13 @@ import type {
   PromptTemplate,
   ProviderUsage,
   ProxySettings,
+  ScannerPreflight,
   ScheduledTask,
   ScheduledTaskStatus,
+  SecurityScannerSettings,
+  SecurityScanOptions,
+  SecurityScanProgress,
+  SecurityScanRecord,
   SkillRepository,
   SkillRepositoryIndex,
   SkillRepositorySourceType,
@@ -348,6 +353,34 @@ const mcp = {
     ipcRenderer.invoke(IPC.mcp.remove, params),
   listInstalled: (projectId: string): Promise<InstalledMcpServerRecord[]> =>
     ipcRenderer.invoke(IPC.mcp.listInstalled, projectId),
+};
+
+const security = {
+  preflight: (projectId: string): Promise<ScannerPreflight[]> =>
+    ipcRenderer.invoke(IPC.security.preflight, projectId),
+  runScan: (
+    projectId: string,
+    options: Partial<SecurityScanOptions>,
+    runId: string,
+  ): Promise<SecurityScanRecord> =>
+    ipcRenderer.invoke(IPC.security.runScan, projectId, options, runId),
+  cancelScan: (runId: string): Promise<boolean> =>
+    ipcRenderer.invoke(IPC.security.cancelScan, runId),
+  history: (projectId: string): Promise<SecurityScanRecord[]> =>
+    ipcRenderer.invoke(IPC.security.history, projectId),
+  getScan: (id: string): Promise<SecurityScanRecord | null> =>
+    ipcRenderer.invoke(IPC.security.getScan, id),
+  latest: (projectId: string): Promise<SecurityScanRecord | null> =>
+    ipcRenderer.invoke(IPC.security.latest, projectId),
+  deleteScan: (id: string): Promise<void> => ipcRenderer.invoke(IPC.security.deleteScan, id),
+  getConfig: (projectId: string): Promise<SecurityScannerSettings> =>
+    ipcRenderer.invoke(IPC.security.getConfig, projectId),
+  setConfig: (projectId: string, config: SecurityScannerSettings): Promise<void> =>
+    ipcRenderer.invoke(IPC.security.setConfig, projectId, config),
+  suggestCodeqlLanguage: (projectId: string): Promise<string | null> =>
+    ipcRenderer.invoke(IPC.security.suggestCodeqlLanguage, projectId),
+  onScanProgress: (callback: (payload: SecurityScanProgress) => void): (() => void) =>
+    subscribe(IPC.security.onScanProgress, callback),
 };
 
 const tools = {
@@ -911,6 +944,7 @@ const agentmatApi = {
   projects,
   skills,
   mcp,
+  security,
   tools,
   fs,
   settings,
