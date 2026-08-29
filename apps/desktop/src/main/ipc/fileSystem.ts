@@ -6,7 +6,8 @@ import { IPC } from '../../shared/ipcChannels';
 import { assertPathWithinRoots } from '../pathGuard';
 import { store } from '../store';
 
-async function allowedRoots(): Promise<string[]> {
+/** Every folder the app is allowed to read or write through IPC: its own data, and the projects. */
+export async function allowedRoots(): Promise<string[]> {
   const projects = await store.getProjects();
   return [app.getPath('userData'), ...projects.map((p) => p.folderPath)];
 }

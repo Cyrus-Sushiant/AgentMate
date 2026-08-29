@@ -27,6 +27,7 @@ import {
   Paw,
   Play,
   RefreshCw,
+  Route,
   Save,
   Search,
   SettingsIcon,
@@ -36,6 +37,7 @@ import {
   X,
 } from '@/components/icons';
 import { CompanionSettings } from '@/components/pet/CompanionSettings';
+import { BlueprintPresetSettings } from '@/components/settings/BlueprintPresetSettings';
 import { ProxySettings } from '@/components/settings/ProxySettings';
 import { ShortcutSettings } from '@/components/settings/ShortcutSettings';
 import { WritingCheckSettings } from '@/components/settings/WritingCheckSettings';
@@ -101,6 +103,9 @@ function isSettingsTab(value: string | null): value is SettingsTab {
   return SETTINGS_TABS.includes(value as SettingsTab);
 }
 
+const BLUEPRINT_PRESET_KEYWORDS =
+  'blueprint preset presets snippet snippets default defaults wizard steps idea architecture stack backend frontend ci cd pipeline quality testing product manager phases epics docs';
+
 const PROXY_KEYWORDS =
   'proxy http proxy https proxy socks socks5 socks4 system proxy vpn bypass no_proxy corporate firewall connection internet network offline pac auth username password port host';
 
@@ -114,7 +119,7 @@ const TAB_META: {
     id: 'general',
     label: 'General',
     icon: SettingsIcon,
-    keywords: 'appearance theme cli projects folder skills',
+    keywords: 'appearance theme cli projects folder skills blueprint presets',
   },
   {
     id: 'shortcuts',
@@ -862,6 +867,7 @@ export default function SettingsPage(): React.JSX.Element {
     showSection('general', 'default cli provider agent arguments args flags model', 'Default CLI'),
     showSection('general', 'projects folder path directory', 'Projects folder'),
     showSection('general', 'skills repositories sources', 'Skill repositories'),
+    showSection('general', BLUEPRINT_PRESET_KEYWORDS, 'Blueprint presets'),
     showSection(
       'ai',
       'openai gemini ollama api key model prompt builder provider context length num_ctx keep alive test connection',
@@ -1141,6 +1147,16 @@ export default function SettingsPage(): React.JSX.Element {
                     </Button>
                   }
                 />
+              )}
+
+              {showSection('general', BLUEPRINT_PRESET_KEYWORDS, 'Blueprint presets') && (
+                <SettingsCard
+                  icon={Route}
+                  title="Blueprint presets"
+                  description="Reusable snippets for a project's Blueprint. Clicking one in the wizard appends it to that step."
+                >
+                  <BlueprintPresetSettings />
+                </SettingsCard>
               )}
 
               {showSection(

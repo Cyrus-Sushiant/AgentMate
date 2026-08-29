@@ -28,7 +28,7 @@ import {
   normalizeIconDataUrl,
   readIconFile,
 } from '../projectIcons';
-import { logActivity, store } from '../store';
+import { logActivity, pruneOrphanBlueprints, store } from '../store';
 
 /**
  * The folder the user set as their projects root, if it is still there. A path
@@ -157,6 +157,9 @@ export function registerProjectHandlers(): void {
   ipcMain.handle(IPC.projects.delete, async (_event, projectId: string): Promise<void> => {
     const projects = await store.getProjects();
     await store.setProjects(projects.filter((p) => p.id !== projectId));
+    // The blueprint, its revisions, and its attachment files go with it. Startup
+    // runs the same sweep, so a restored backup can't leave any behind either.
+    await pruneOrphanBlueprints();
   });
 
   /**

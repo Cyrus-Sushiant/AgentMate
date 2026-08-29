@@ -2,8 +2,12 @@ import type {
   ActivityEvent,
   AppNotification,
   AppSettings,
+  BlueprintPreset,
+  BlueprintRevision,
+  BlueprintStepId,
   McpRepository,
   Project,
+  ProjectBlueprint,
   ProjectDraft,
   PromptTemplate,
   ScheduledTask,
@@ -11,16 +15,30 @@ import type {
 } from '@agentmat/core';
 import {
   defaultProjectNotifications,
+  isBlueprintStepId,
+  normalizeBlueprintPreset,
   normalizeCliArgs,
   normalizeProjectColor,
   normalizeProjectGithubActions,
   normalizeProjectNotifications,
   normalizeProjectRunCommands,
+  withBlueprintDefaults,
 } from '@agentmat/core';
-import type { PromptHistoryEntry, SkillAuditRecord } from '../../shared/apiTypes';
+import type {
+  BackupAttachmentBlob,
+  PromptHistoryEntry,
+  SkillAuditRecord,
+} from '../../shared/apiTypes';
 import { DEFAULT_SETTINGS } from '../store';
 
 export const BACKUP_VERSION = 1;
+
+/**
+ * Enforced again on the way in, because an import reads whatever the file says
+ * rather than what this machine wrote. Slack for base64 rounding is deliberate:
+ * this is a sanity bound, not the export policy.
+ */
+const MAX_BACKUP_ATTACHMENT_BYTES = 10 * 1024 * 1024;
 
 export interface BackupData {
   projects?: Project[];
@@ -34,6 +52,11 @@ export interface BackupData {
   promptHistory?: PromptHistoryEntry[];
   skillAudits?: SkillAuditRecord[];
   appNotifications?: AppNotification[];
+  blueprints?: ProjectBlueprint[];
+  blueprintPresets?: BlueprintPreset[];
+  blueprintRevisions?: BlueprintRevision[];
+  /** The bytes behind every attachment the blueprints above still point at. */
+  blueprintAttachments?: BackupAttachmentBlob[];
 }
 
 export interface BackupEnvelope {
@@ -295,6 +318,72 @@ function buildSkillAudit(entry: Record_): SkillAuditRecord | null {
   };
 }
 
+/** App-generated uuid plus extension, and nothing else: this name becomes a path. */
+function safeAttachmentFileName(value: unknown): string | null {
+  const fileName = str(value);
+  if (!fileName || fileName.includes('..')) return null;
+  return /^[A-Za-z0-9._-]+$/.test(fileName) ? fileName : null;
+}
+
+/**
+ * The sections go through the app's own read normalizer rather than a second
+ * hand-rolled one, which is also what guarantees one section per step and drops
+ * an attachment whose file name isn't a name the app could have written.
+ */
+function buildBlueprint(entry: Record_): ProjectBlueprint | null {
+  const id = str(entry.id);
+  const projectId = str(entry.projectId);
+  if (!id || !projectId) return null;
+  return withBlueprintDefaults({ ...entry, id, projectId } as unknown as ProjectBlueprint);
+}
+
+function buildBlueprintPreset(entry: Record_): BlueprintPreset | null {
+  return normalizeBlueprintPreset(entry);
+}
+
+/** Every field lands in a SQL statement, so nothing here is allowed to be missing. */
+function buildBlueprintRevision(entry: Record_): BlueprintRevision | null {
+  const id = str(entry.id);
+  const blueprintId = str(entry.blueprintId);
+  if (!id || !blueprintId) return null;
+  return {
+    id,
+    blueprintId,
+    projectId: strOr(entry.projectId, ''),
+    target: entry.target === 'final-prompt' ? 'final-prompt' : 'section',
+    stepId: isBlueprintStepId(entry.stepId) ? (entry.stepId as BlueprintStepId) : null,
+    text: strOr(entry.text, ''),
+    attachmentNames: strArray(entry.attachmentNames),
+    createdAt: strOr(entry.createdAt, new Date().toISOString()),
+  };
+}
+
+function buildAttachmentBlob(entry: Record_): BackupAttachmentBlob | null {
+  const fileName = safeAttachmentFileName(entry.fileName);
+  if (!fileName) return null;
+  const omitted =
+    entry.omitted === 'too-large' || entry.omitted === 'unreadable' ? entry.omitted : undefined;
+  const dataBase64 = str(entry.dataBase64);
+  if (!dataBase64)
+    return {
+      fileName,
+      mime: strOr(entry.mime, ''),
+      size: num(entry.size, 0),
+      dataBase64: null,
+      omitted: omitted ?? 'unreadable',
+    };
+  // base64 is 4 characters per 3 bytes, so this bounds the decode without doing it.
+  if ((dataBase64.length * 3) / 4 > MAX_BACKUP_ATTACHMENT_BYTES) return null;
+  if (!/^[A-Za-z0-9+/=\s]*$/.test(dataBase64)) return null;
+  return {
+    fileName,
+    mime: strOr(entry.mime, ''),
+    size: num(entry.size, 0),
+    dataBase64,
+    omitted,
+  };
+}
+
 /**
  * Turns whatever was in the chosen file into data that is safe to persist, or an
  * error explaining why it isn't a backup. Nothing is written here: the caller gets
@@ -347,6 +436,18 @@ export function parseBackup(value: unknown): ParsedBackup {
   data.promptHistory = collect('promptHistory', 'prompt history entries', buildPromptHistory);
   data.skillAudits = collect('skillAudits', 'skill audits', buildSkillAudit);
   data.appNotifications = collect('appNotifications', 'notifications', buildAppNotification);
+  data.blueprints = collect('blueprints', 'project blueprints', buildBlueprint);
+  data.blueprintPresets = collect('blueprintPresets', 'blueprint presets', buildBlueprintPreset);
+  data.blueprintRevisions = collect(
+    'blueprintRevisions',
+    'blueprint revisions',
+    buildBlueprintRevision,
+  );
+  data.blueprintAttachments = collect(
+    'blueprintAttachments',
+    'blueprint attachments',
+    buildAttachmentBlob,
+  );
 
   const warnings: string[] = [];
   if (isRecord(raw.settings)) {
@@ -360,6 +461,13 @@ export function parseBackup(value: unknown): ParsedBackup {
   if (data.projects?.some((project) => project.runCommands.length > 0)) {
     warnings.push(
       'This backup set project run commands. Check them on each project before using Run.',
+    );
+  }
+
+  const omittedAttachments = data.blueprintAttachments?.filter((blob) => blob.omitted).length ?? 0;
+  if (omittedAttachments > 0) {
+    warnings.push(
+      `${omittedAttachments} blueprint attachment(s) were too large to include. Their names came back, the files did not.`,
     );
   }
 

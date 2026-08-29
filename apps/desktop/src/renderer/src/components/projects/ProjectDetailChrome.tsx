@@ -22,6 +22,7 @@ import {
   Package,
   Pencil,
   Plug,
+  Route,
   Run,
   TerminalSquare,
   Trash2,
@@ -47,6 +48,7 @@ import { cn } from '@/lib/utils';
 
 export const PROJECT_SECTION_IDS = [
   'overview',
+  'blueprint',
   'prompts',
   'git',
   'review',
@@ -71,6 +73,7 @@ const SECTIONS: {
   group: 'work' | 'setup';
 }[] = [
   { id: 'overview', label: 'Overview', icon: File, group: 'work' },
+  { id: 'blueprint', label: 'Blueprint', icon: Route, group: 'work' },
   { id: 'prompts', label: 'Prompt history', icon: History, group: 'work' },
   { id: 'git', label: 'Git', icon: GitBranch, group: 'work' },
   { id: 'review', label: 'Review', icon: GitPullRequest, group: 'work' },

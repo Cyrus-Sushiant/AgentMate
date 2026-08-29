@@ -6,14 +6,17 @@ import type {
   ActivityEventType,
   AppNotification,
   AppSettings,
+  BlueprintPreset,
   McpRepository,
   Project,
+  ProjectBlueprint,
   ProjectDraft,
   PromptTemplate,
   ScheduledTask,
   SkillRepository,
 } from '@agentmat/core';
 import {
+  blueprintPresetSeed,
   clampDesktopPetClickArea,
   clampDesktopPetScale,
   DASHBOARD_CHART_IDS,
@@ -37,9 +40,12 @@ import {
   normalizeProxySettings,
   normalizeUsageResetAlerts,
   normalizeUsageThresholdAlerts,
+  withBlueprintDefaults,
 } from '@agentmat/core';
 import { app } from 'electron';
 import type { RemoteSavedServer } from '../shared/apiTypes';
+import { referencedAttachmentFiles, removeOrphanAttachments } from './blueprintFileStore';
+import { blueprintRevisionDb } from './blueprintRevisionDb';
 import { hydrateProjectIcons, persistProjectIcons } from './projectIconStore';
 
 function dataDir(): string {
@@ -224,6 +230,28 @@ export const store = {
   setProjectDrafts: (drafts: ProjectDraft[]): Promise<void> =>
     writeJsonFile('project-drafts.json', drafts),
 
+  getBlueprints: async (): Promise<ProjectBlueprint[]> =>
+    (await readJsonFile<ProjectBlueprint[]>('blueprints.json', [])).map(withBlueprintDefaults),
+  setBlueprints: async (blueprints: ProjectBlueprint[]): Promise<void> => {
+    // Record first, files second: the other order leaves a crash between them
+    // having deleted attachments the stored blueprints still point at.
+    await writeJsonFile('blueprints.json', blueprints);
+    await removeOrphanAttachments(referencedAttachmentFiles(blueprints));
+  },
+
+  getBlueprintPresets: async (): Promise<BlueprintPreset[]> => {
+    const stored = await readJsonFile<BlueprintPreset[] | null>('blueprint-presets.json', null);
+    if (stored) return stored;
+    // Absent means a fresh install, which gets the starter set. It is written out
+    // straight away so its ids are stable and editing or deleting one sticks. An
+    // empty array is a user who deleted them all, and that sticks too.
+    const seeded = blueprintPresetSeed(randomUUID);
+    await writeJsonFile('blueprint-presets.json', seeded);
+    return seeded;
+  },
+  setBlueprintPresets: (presets: BlueprintPreset[]): Promise<void> =>
+    writeJsonFile('blueprint-presets.json', presets),
+
   getScheduledTasks: (): Promise<ScheduledTask[]> => readJsonFile('scheduled-tasks.json', []),
   setScheduledTasks: (tasks: ScheduledTask[]): Promise<void> =>
     writeJsonFile('scheduled-tasks.json', tasks),
@@ -254,6 +282,26 @@ export async function migrateInlineProjectIcons(): Promise<void> {
     await store.setProjects(projects);
   } catch {
     // A disk error here just leaves the icons where they already were.
+  }
+}
+
+/**
+ * Drops blueprints whose project is gone, along with their revisions and files.
+ * Runs at startup, which also catches what a restored backup left behind, and
+ * again whenever a project is deleted.
+ */
+export async function pruneOrphanBlueprints(): Promise<void> {
+  try {
+    const [projects, blueprints] = await Promise.all([store.getProjects(), store.getBlueprints()]);
+    const live = new Set(projects.map((project) => project.id));
+    const kept = blueprints.filter((blueprint) => live.has(blueprint.projectId));
+    if (kept.length === blueprints.length) return;
+    for (const blueprint of blueprints) {
+      if (!live.has(blueprint.projectId)) blueprintRevisionDb.removeForProject(blueprint.projectId);
+    }
+    await store.setBlueprints(kept);
+  } catch {
+    // A disk error here just leaves the orphans for the next launch.
   }
 }
 

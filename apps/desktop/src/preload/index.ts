@@ -2,6 +2,9 @@ import type {
   ActivityEvent,
   AppNotification,
   AppSettings,
+  BlueprintPreset,
+  BlueprintRevision,
+  BlueprintStepId,
   BootstrapPlan,
   CliUpdateCheckResult,
   CustomDesktopPet,
@@ -15,6 +18,7 @@ import type {
   McpRepositorySourceType,
   OpenWidgetOptions,
   Project,
+  ProjectBlueprint,
   ProjectDraft,
   ProjectDraftStatus,
   ProjectGithubAction,
@@ -46,6 +50,11 @@ import type {
   AuditSourceSkill,
   BackupExportResult,
   BackupImportResult,
+  BlueprintAgentFileResult,
+  BlueprintAgentFileTarget,
+  BlueprintAttachmentInput,
+  BlueprintAttachmentResult,
+  BlueprintSectionPatch,
   BootstrapResult,
   ConfirmationForwardedPayload,
   ConnectRemoteInput,
@@ -106,6 +115,7 @@ import type {
   RenameBranchInput,
   RunSkillAuditInput,
   RunSkillAuditResult,
+  SaveBlueprintPresetInput,
   SaveTemplateInput,
   SendTestNotificationInput,
   SkillAuditRecord,
@@ -452,6 +462,72 @@ const projectDrafts = {
   updateStatus: (draftId: string, status: ProjectDraftStatus): Promise<void> =>
     ipcRenderer.invoke(IPC.projectDrafts.updateStatus, draftId, status),
   remove: (draftId: string): Promise<void> => ipcRenderer.invoke(IPC.projectDrafts.remove, draftId),
+};
+
+const blueprints = {
+  get: (projectId: string): Promise<ProjectBlueprint> =>
+    ipcRenderer.invoke(IPC.blueprints.get, projectId),
+  updateSection: (
+    projectId: string,
+    stepId: BlueprintStepId,
+    patch: BlueprintSectionPatch,
+  ): Promise<ProjectBlueprint> =>
+    ipcRenderer.invoke(IPC.blueprints.updateSection, projectId, stepId, patch),
+  setFinalPrompt: (projectId: string, text: string): Promise<ProjectBlueprint> =>
+    ipcRenderer.invoke(IPC.blueprints.setFinalPrompt, projectId, text),
+  setDocsFolder: (projectId: string, folder: string): Promise<ProjectBlueprint> =>
+    ipcRenderer.invoke(IPC.blueprints.setDocsFolder, projectId, folder),
+  setConfirmBeforeWriting: (projectId: string, value: boolean): Promise<ProjectBlueprint> =>
+    ipcRenderer.invoke(IPC.blueprints.setConfirmBeforeWriting, projectId, value),
+  /** Null when the picker was cancelled, so the caller can tell that from "nothing changed". */
+  pickAttachments: (
+    projectId: string,
+    stepId: BlueprintStepId,
+  ): Promise<BlueprintAttachmentResult | null> =>
+    ipcRenderer.invoke(IPC.blueprints.pickAttachments, projectId, stepId),
+  addAttachment: (
+    projectId: string,
+    stepId: BlueprintStepId,
+    input: BlueprintAttachmentInput,
+  ): Promise<BlueprintAttachmentResult> =>
+    ipcRenderer.invoke(IPC.blueprints.addAttachment, projectId, stepId, input),
+  renameAttachment: (
+    projectId: string,
+    stepId: BlueprintStepId,
+    attachmentId: string,
+    displayName: string,
+  ): Promise<ProjectBlueprint> =>
+    ipcRenderer.invoke(
+      IPC.blueprints.renameAttachment,
+      projectId,
+      stepId,
+      attachmentId,
+      displayName,
+    ),
+  removeAttachment: (
+    projectId: string,
+    stepId: BlueprintStepId,
+    attachmentId: string,
+  ): Promise<ProjectBlueprint> =>
+    ipcRenderer.invoke(IPC.blueprints.removeAttachment, projectId, stepId, attachmentId),
+  /** Absolute path of one attachment, for handing to the OS through shell.openPath. */
+  attachmentPath: (projectId: string, attachmentId: string): Promise<string | null> =>
+    ipcRenderer.invoke(IPC.blueprints.attachmentPath, projectId, attachmentId),
+  /** `stepId` of null asks for the final prompt's history rather than a section's. */
+  listRevisions: (
+    projectId: string,
+    stepId: BlueprintStepId | null,
+  ): Promise<BlueprintRevision[]> =>
+    ipcRenderer.invoke(IPC.blueprints.listRevisions, projectId, stepId),
+  agentFileTarget: (projectId: string): Promise<BlueprintAgentFileTarget> =>
+    ipcRenderer.invoke(IPC.blueprints.agentFileTarget, projectId),
+  syncAgentFile: (projectId: string): Promise<BlueprintAgentFileResult> =>
+    ipcRenderer.invoke(IPC.blueprints.syncAgentFile, projectId),
+  listPresets: (): Promise<BlueprintPreset[]> => ipcRenderer.invoke(IPC.blueprints.listPresets),
+  savePreset: (input: SaveBlueprintPresetInput): Promise<BlueprintPreset[]> =>
+    ipcRenderer.invoke(IPC.blueprints.savePreset, input),
+  deletePreset: (presetId: string): Promise<BlueprintPreset[]> =>
+    ipcRenderer.invoke(IPC.blueprints.deletePreset, presetId),
 };
 
 const promptBuildWidget = {
@@ -847,6 +923,7 @@ const agentmatApi = {
   system,
   ipGeo,
   projectDrafts,
+  blueprints,
   promptBuildWidget,
   scheduledTasks,
   notifications,

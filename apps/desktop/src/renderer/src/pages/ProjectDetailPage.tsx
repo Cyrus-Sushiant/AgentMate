@@ -76,6 +76,7 @@ import {
   type BootstrapDescription,
   BootstrapDescriptionDialog,
 } from '@/components/projects/BootstrapDescriptionDialog';
+import { BlueprintTab } from '@/components/projects/blueprint/BlueprintTab';
 import {
   DiffrayReviewLaunchCard,
   DiffrayReviewWizard,
@@ -707,6 +708,8 @@ export default function ProjectDetailPage(): React.JSX.Element {
               <ProjectFileBrowser rootPath={project.folderPath} revision={fileBrowserRevision} />
             </div>
           )}
+
+          {section === 'blueprint' && <BlueprintTab project={project} />}
 
           {section === 'prompts' && <ProjectPromptHistory projectId={project.id} />}
 

@@ -1,6 +1,10 @@
 import type {
   AgentType,
   AiProvider,
+  BlueprintAttachment,
+  BlueprintRevisionTarget,
+  BlueprintStepId,
+  ProjectBlueprint,
   ProjectNotificationSettings,
   ProjectRunCommand,
   ProxyMode,
@@ -464,6 +468,77 @@ export interface CreateProjectDraftInput {
   promptType: string;
   targetAI: string;
   content: string;
+}
+
+/**
+ * Partial update for one Blueprint step. A `text` that is present is what marks
+ * the change as an edit worth keeping a revision of; the English cache fields
+ * are written by a generate run and deliberately don't count as one.
+ */
+export interface BlueprintSectionPatch {
+  text?: string;
+  includeInAgentFile?: boolean;
+  textEn?: string | null;
+  textEnHash?: string | null;
+}
+
+/** A pasted or dropped file on its way to the blueprint's file store. */
+export interface BlueprintAttachmentInput {
+  displayName: string;
+  dataUrl: string;
+}
+
+/**
+ * The updated record plus the files this call added. The editor needs the
+ * second part to place each one at the caret; the record on its own would not
+ * say which of the step's files are the new ones.
+ */
+export interface BlueprintAttachmentResult {
+  blueprint: ProjectBlueprint;
+  added: BlueprintAttachment[];
+}
+
+/** Which markdown file the "include in the project's instructions" checkbox writes to. */
+export interface BlueprintAgentFileTarget {
+  /** Absolute path, so the handler doesn't have to resolve it twice. */
+  path: string;
+  /** Project-relative, which is what the checkbox label shows. */
+  relativePath: string;
+  exists: boolean;
+}
+
+export interface BlueprintAgentFileResult {
+  path: string;
+  relativePath: string;
+  /** False when nothing was ticked and there was no block to remove either. */
+  written: boolean;
+}
+
+export interface AddBlueprintRevisionInput {
+  blueprintId: string;
+  projectId: string;
+  target: BlueprintRevisionTarget;
+  stepId?: BlueprintStepId | null;
+  text: string;
+  attachmentNames?: string[];
+}
+
+export interface SaveBlueprintPresetInput {
+  /** Absent for a new preset; present when an existing one is being edited. */
+  id?: string;
+  stepId: BlueprintStepId;
+  label: string;
+  text: string;
+}
+
+/** One attachment file carried inside a backup envelope. */
+export interface BackupAttachmentBlob {
+  fileName: string;
+  mime: string;
+  size: number;
+  /** Null when the file was over the export cap or could not be read. */
+  dataBase64: string | null;
+  omitted?: 'too-large' | 'unreadable';
 }
 
 export interface ScheduledTaskInput {

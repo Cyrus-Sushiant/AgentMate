@@ -70,6 +70,7 @@ import {
   faMinus,
   faMoon,
   faNetworkWired,
+  faPaperclip,
   faPaperPlane,
   faPause,
   faPaw,
@@ -199,6 +200,7 @@ export const Run = makeIcon(faCirclePlay);
 
 // Notification hook icons.
 export const Bell = makeIcon(faBell);
+export const Paperclip = makeIcon(faPaperclip);
 export const Send = makeIcon(faPaperPlane);
 export const CircleCheck = makeIcon(faCircleCheck);
 export const CircleInfo = makeIcon(faCircleInfo);

@@ -1,6 +1,8 @@
 import { join } from 'node:path';
-import { app, BrowserWindow, desktopCapturer, session, shell } from 'electron';
+import { BLUEPRINT_FILE_SCHEME } from '@agentmat/core';
+import { app, BrowserWindow, desktopCapturer, protocol, session, shell } from 'electron';
 import icon from '../../resources/icon.ico?asset';
+import { registerBlueprintFileProtocol } from './blueprintFileStore';
 import { seedExampleRepositoryIfEmpty } from './exampleSkillRepo';
 import { shutdownLocalServer } from './grammar/localServer';
 import { registerActivityHandlers } from './ipc/activity';
@@ -8,6 +10,7 @@ import { registerAiHandlers } from './ipc/ai';
 import { registerAppHandlers } from './ipc/app';
 import { registerAppNotificationHandlers } from './ipc/appNotifications';
 import { registerBackupHandlers } from './ipc/backup';
+import { registerBlueprintHandlers } from './ipc/blueprints';
 import { registerCliDetectionHandlers } from './ipc/cliDetection';
 import { registerFileSystemHandlers } from './ipc/fileSystem';
 import { registerGitHandlers } from './ipc/git';
@@ -52,7 +55,7 @@ import { startPipelineWatcher, stopPipelineWatcher } from './pipelines/watcher';
 import { promptBuildWidgetManager } from './promptBuild/widgetWindows';
 import { remoteManager } from './remote/manager';
 import { configureSpellChecker, registerSpellcheckHandlers } from './spellcheck';
-import { migrateInlineProjectIcons } from './store';
+import { migrateInlineProjectIcons, pruneOrphanBlueprints } from './store';
 import { startHourlyUpdateChecks } from './updater';
 import { startResetAlertWatcher, stopResetAlertWatcher } from './usage/resetAlerts';
 import { startThresholdAlertWatcher, stopThresholdAlertWatcher } from './usage/thresholdAlerts';
@@ -65,6 +68,17 @@ import { widgetManager } from './usage/widgetWindows';
 // minimized, and if the app was launched from a shell running inside one of
 // those terminals, drags the whole app down with it. These switches keep the
 // main window's renderer running at full priority regardless of window state.
+// Has to run before the app is ready, which is why it sits up here with the
+// command-line switches rather than beside the handler that serves it.
+// `stream` is the one that matters: without it an attached video downloads in
+// full before it plays and can't be seeked at all.
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: BLUEPRINT_FILE_SCHEME,
+    privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true },
+  },
+]);
+
 app.commandLine.appendSwitch('disable-background-timer-throttling');
 app.commandLine.appendSwitch('disable-backgrounding-occluded-windows');
 app.commandLine.appendSwitch('disable-renderer-backgrounding');
@@ -209,6 +223,7 @@ function registerAllIpcHandlers(): void {
   registerRemoteHandlers();
   registerUsageHandlers();
   registerBackupHandlers();
+  registerBlueprintHandlers();
   registerPromptBuildWidgetHandlers();
   registerPetHandlers();
   registerPipelineHandlers();
@@ -226,9 +241,13 @@ app.whenReady().then(async () => {
   // Vite's dev server needs an inline HMR/preamble script and a websocket
   // connection back to itself; the packaged app never talks to either, so
   // production stays locked down to 'self' only.
+  // Blueprint attachments are served from the app's own scheme, so it has to be
+  // named in img-src and media-src; media-src would otherwise fall back to
+  // default-src and silently refuse to play an attached video.
+  const files = `${BLUEPRINT_FILE_SCHEME}:`;
   const csp = isDev
-    ? "default-src 'self' http://localhost:5173 ws://localhost:5173; script-src 'self' 'unsafe-inline' http://localhost:5173; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self' http://localhost:5173 ws://localhost:5173; worker-src 'self' blob:;"
-    : "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self'; worker-src 'self' blob:;";
+    ? `default-src 'self' http://localhost:5173 ws://localhost:5173; script-src 'self' 'unsafe-inline' http://localhost:5173; style-src 'self' 'unsafe-inline'; img-src 'self' data: ${files}; media-src 'self' ${files}; font-src 'self' data:; connect-src 'self' http://localhost:5173 ws://localhost:5173; worker-src 'self' blob:;`
+    : `default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: ${files}; media-src 'self' ${files}; font-src 'self' data:; connect-src 'self'; worker-src 'self' blob:;`;
 
   session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
     callback({
@@ -261,9 +280,11 @@ app.whenReady().then(async () => {
   );
 
   configureSpellChecker();
+  registerBlueprintFileProtocol();
   registerAllIpcHandlers();
   void seedExampleRepositoryIfEmpty();
   void migrateInlineProjectIcons();
+  void pruneOrphanBlueprints();
   void startHookServer();
   setMainWindowFactory(createMainWindow);
   createMainWindow();

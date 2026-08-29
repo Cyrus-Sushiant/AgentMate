@@ -38,6 +38,13 @@ export const queryKeys = {
   toolUpdateCheck: (toolId: string, version: string | null) =>
     ['tool-update-check', toolId, version] as const,
   projectDrafts: (projectId: string) => ['project-drafts', projectId] as const,
+  blueprint: (projectId: string) => ['blueprint', projectId] as const,
+  // Nested under the blueprint root so one invalidation after a save refreshes
+  // the record and its history together.
+  blueprintRevisions: (projectId: string, stepId: string | null) =>
+    ['blueprint', projectId, 'revisions', stepId ?? 'final-prompt'] as const,
+  blueprintAgentFile: (projectId: string) => ['blueprint', projectId, 'agent-file'] as const,
+  blueprintPresets: ['blueprint-presets'] as const,
   scheduledTasks: (projectId: string) => ['scheduled-tasks', projectId] as const,
   claudeHooks: (projectId: string) => ['claude-hooks', projectId] as const,
   gitStatus: (projectId: string) => ['git-status', projectId] as const,

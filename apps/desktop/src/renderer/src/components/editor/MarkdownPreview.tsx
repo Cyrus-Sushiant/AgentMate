@@ -1,6 +1,21 @@
-import ReactMarkdown from 'react-markdown';
+import { BLUEPRINT_FILE_SCHEME } from '@agentmat/core';
+import ReactMarkdown, { defaultUrlTransform } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { persianTextProps } from '@/lib/rtl';
 import { cn } from '@/lib/utils';
+
+/** Extensions the app serves and a browser can play in place. */
+const VIDEO_URL = /[.](mp4|webm)([?#]|$)/i;
+
+/**
+ * react-markdown strips any URL whose scheme it does not recognize, which would
+ * quietly blank every attached file. The app serves its own files over its own
+ * scheme, so that one is let through and everything else keeps the default
+ * treatment.
+ */
+function transformUrl(url: string): string {
+  return url.startsWith(`${BLUEPRINT_FILE_SCHEME}:`) ? url : defaultUrlTransform(url);
+}
 
 export interface MarkdownPreviewProps {
   content: string;
@@ -14,15 +29,19 @@ export interface MarkdownPreviewProps {
  * neither.
  */
 export function MarkdownPreview({ content, className }: MarkdownPreviewProps): React.JSX.Element {
+  const persian = persianTextProps(content);
   return (
     <div
+      dir={persian.dir}
       className={cn(
         'space-y-3 text-sm leading-relaxed [&>*:first-child]:mt-0 [&>*:last-child]:mb-0',
+        persian.className,
         className,
       )}
     >
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
+        urlTransform={transformUrl}
         components={{
           h1: ({ children }) => (
             <h1 className="mb-3 mt-6 border-b border-border pb-1.5 text-2xl font-semibold tracking-tight">
@@ -104,13 +123,27 @@ export function MarkdownPreview({ content, className }: MarkdownPreviewProps): R
             </th>
           ),
           td: ({ children }) => <td className="border border-border px-2 py-1">{children}</td>,
-          img: ({ src, alt }) => (
-            <img
-              src={typeof src === 'string' ? src : undefined}
-              alt={alt}
-              className="max-w-full rounded-lg"
-            />
-          ),
+          // Markdown has one media syntax, so an attached video arrives here as
+          // an image and is swapped for a player. Anything the browser can't
+          // play still renders as an image, i.e. visibly broken rather than
+          // silently missing.
+          img: ({ src, alt }) => {
+            const url = typeof src === 'string' ? src : undefined;
+            if (url && VIDEO_URL.test(url)) {
+              return (
+                <video
+                  src={url}
+                  controls
+                  preload="metadata"
+                  aria-label={alt || 'Attached video'}
+                  className="max-w-full rounded-lg"
+                >
+                  <track kind="captions" />
+                </video>
+              );
+            }
+            return <img src={url} alt={alt} className="max-w-full rounded-lg" />;
+          },
         }}
       >
         {content}

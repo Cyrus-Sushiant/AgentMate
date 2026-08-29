@@ -10,6 +10,12 @@ import {
   type BackupEnvelope,
   parseBackup,
 } from '../backup/envelope';
+import {
+  exportAttachments,
+  importAttachments,
+  referencedAttachmentFiles,
+} from '../blueprintFileStore';
+import { blueprintRevisionDb } from '../blueprintRevisionDb';
 import { petManager } from '../pet/petWindow';
 import { promptHistoryDb } from '../promptHistoryDb';
 import { skillAuditDb } from '../skillAuditDb';
@@ -18,6 +24,7 @@ import { store } from '../store';
 const ZIP_ENTRY_NAME = 'backup.json';
 
 async function readCurrentData(): Promise<Required<BackupData>> {
+  const blueprints = await store.getBlueprints();
   return {
     projects: await store.getProjects(),
     settings: await store.getSettings(),
@@ -30,6 +37,12 @@ async function readCurrentData(): Promise<Required<BackupData>> {
     promptHistory: promptHistoryDb.exportAll(),
     skillAudits: skillAuditDb.exportAll(),
     appNotifications: await store.getAppNotifications(),
+    blueprints,
+    blueprintPresets: await store.getBlueprintPresets(),
+    blueprintRevisions: blueprintRevisionDb.exportAll(),
+    // Blueprint attachments are files rather than inline data, so unlike project
+    // icons they have to be read in on purpose to ride along.
+    blueprintAttachments: await exportAttachments(referencedAttachmentFiles(blueprints)),
   };
 }
 
@@ -50,6 +63,12 @@ async function writeData(data: BackupData): Promise<void> {
   if (data.promptHistory) promptHistoryDb.importAll(data.promptHistory);
   if (data.skillAudits) skillAuditDb.importAll(data.skillAudits);
   if (data.appNotifications) await store.setAppNotifications(data.appNotifications);
+  // Files first: storing the blueprints collects every attachment nothing points
+  // at, which the other way round would delete the ones about to be restored.
+  if (data.blueprintAttachments) await importAttachments(data.blueprintAttachments);
+  if (data.blueprints) await store.setBlueprints(data.blueprints);
+  if (data.blueprintPresets) await store.setBlueprintPresets(data.blueprintPresets);
+  if (data.blueprintRevisions) blueprintRevisionDb.importAll(data.blueprintRevisions);
 }
 
 export function registerBackupHandlers(): void {

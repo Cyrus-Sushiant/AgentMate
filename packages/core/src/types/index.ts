@@ -720,3 +720,108 @@ export interface ScheduledTask {
   /** message_id of the Telegram message tracking this task, used to edit it in place on status changes. */
   telegramMessageId?: number | null;
 }
+
+/**
+ * The Blueprint's fixed steps, in the order the wizard walks them. The final
+ * Review step is deliberately not here: it edits blueprint-level fields rather
+ * than a section, and leaving it out is what lets `sections` be exhaustive.
+ */
+export const BLUEPRINT_STEP_IDS = [
+  'idea',
+  'architecture',
+  'backend',
+  'frontend',
+  'cicd',
+  'quality',
+] as const;
+
+export type BlueprintStepId = (typeof BLUEPRINT_STEP_IDS)[number];
+
+export function isBlueprintStepId(value: unknown): value is BlueprintStepId {
+  return BLUEPRINT_STEP_IDS.includes(value as BlueprintStepId);
+}
+
+/** A file the user attached to one step: a mockup, a spec, a screenshot. */
+export interface BlueprintAttachment {
+  id: string;
+  /**
+   * Name of the file under the app data folder (data/blueprint-files). App
+   * generated, never user input, and read back through `basename` so a doctored
+   * blueprints.json can't point outside that folder.
+   */
+  fileName: string;
+  /** What the user calls it. Editable, display only, never touches the filesystem. */
+  displayName: string;
+  mime: string;
+  /** Bytes on disk, kept here so the UI and the backup can decide without stat-ing every file. */
+  size: number;
+  createdAt: string;
+}
+
+export interface BlueprintSection {
+  stepId: BlueprintStepId;
+  /** What the user typed, in whatever language they typed it. The source of truth. */
+  text: string;
+  /** English copy used to build the prompt. Null until a generate run produces it. */
+  textEn: string | null;
+  /**
+   * Hash of `text` at the moment `textEn` was produced, so an unchanged section
+   * skips the network on the next generate. Hashing the source rather than
+   * stamping a time means an edit-then-undo doesn't force a re-translation.
+   */
+  textEnHash: string | null;
+  attachments: BlueprintAttachment[];
+  /** Mirrors this section into the project's agent instruction file (CLAUDE.md, AGENTS.md, ...). */
+  includeInAgentFile: boolean;
+  updatedAt: string;
+}
+
+/** One project's blueprint: the stepped description behind its Product Manager prompt. */
+export interface ProjectBlueprint {
+  id: string;
+  projectId: string;
+  /** Project-relative folder the generated prompt tells the agent to write its plan into. */
+  docsFolder: string;
+  /** Exactly one entry per BLUEPRINT_STEP_IDS, in order. Guaranteed by `withBlueprintDefaults`. */
+  sections: BlueprintSection[];
+  /** The Product Manager prompt, in English, editable. Empty until it has been generated once. */
+  finalPrompt: string;
+  finalPromptUpdatedAt: string | null;
+  /** Have the agent list the phases and epics it intends to write before it writes any files. */
+  confirmBeforeWriting: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** A reusable snippet defined in Settings and pulled into a step with one click. */
+export interface BlueprintPreset {
+  id: string;
+  stepId: BlueprintStepId;
+  /** Chip text, e.g. "React 19 + Vite + Tailwind". */
+  label: string;
+  /** Appended to that step's box when the chip is clicked. */
+  text: string;
+  createdAt: string;
+}
+
+export type BlueprintRevisionTarget = 'section' | 'final-prompt';
+
+/**
+ * One saved state of a section or of the final prompt, written after the edit
+ * lands. Storing the new value rather than the old one is what makes "what did
+ * Backend say on Tuesday" a single row lookup, and leaves the newest row equal
+ * to what's on screen.
+ */
+export interface BlueprintRevision {
+  id: string;
+  blueprintId: string;
+  /** Denormalized so the history query never has to join back to blueprints.json. */
+  projectId: string;
+  target: BlueprintRevisionTarget;
+  /** The step for a section revision; null for the final prompt. */
+  stepId: BlueprintStepId | null;
+  text: string;
+  /** Attachment names as they stood, so a revision reads like a snapshot rather than a diff. */
+  attachmentNames: string[];
+  createdAt: string;
+}

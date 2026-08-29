@@ -1,5 +1,12 @@
 import type { GrammarIssue } from '@shared/grammar';
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import {
+  forwardRef,
+  useEffect,
+  useImperativeHandle,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from 'react';
 import { GrammarPanel } from '@/components/grammar/GrammarPanel';
 import { GrammarUnderlines } from '@/components/grammar/GrammarUnderlines';
 import {
@@ -23,6 +30,7 @@ import {
 } from '@/components/icons';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { useGrammarCheck } from '@/hooks/useGrammarCheck';
+import { containsPersian } from '@/lib/rtl';
 import { isShortcutLetter } from '@/lib/shortcutKey';
 import { cn } from '@/lib/utils';
 import { MarkdownPreview } from './MarkdownPreview';
@@ -41,6 +49,15 @@ import {
 } from './markdownCommands';
 
 export type MarkdownViewMode = 'write' | 'split' | 'preview';
+
+export interface MarkdownEditorHandle {
+  /**
+   * Drops a block of markdown in at the caret, for hosts with their own
+   * toolbar. Used by the Blueprint editor to place an attached file exactly
+   * where the writing was left off, rather than tacking it onto the step.
+   */
+  insertAtCaret: (block: string) => void;
+}
 
 export interface MarkdownEditorProps {
   value: string;
@@ -129,280 +146,327 @@ const VIEW_MODES: {
  * The box is drag-resizable from its bottom edge and can be maximized over the
  * app the way the terminal drawer is, for long writing sessions.
  */
-export function MarkdownEditor({
-  value,
-  onChange,
-  onSave,
-  readOnly = false,
-  defaultHeight = 420,
-  className,
-}: MarkdownEditorProps): React.JSX.Element {
-  const [view, setView] = useState<MarkdownViewMode>('split');
-  const [height, setHeight] = useState(defaultHeight);
-  const [isMaximized, setIsMaximized] = useState(false);
-  const [isResizing, setIsResizing] = useState(false);
-  const containerRef = useRef<HTMLDivElement>(null);
-  // State, not a ref: the writing check and the underline overlay both need to
-  // re-run once the element is there, which a ref assignment doesn't trigger.
-  const [field, setField] = useState<HTMLTextAreaElement | null>(null);
-  const [activeIssue, setActiveIssue] = useState<GrammarIssue | null>(null);
-  const grammar = useGrammarCheck({ value, field, enabled: !readOnly });
-  const previewRef = useRef<HTMLDivElement>(null);
-  // A command's caret position can only be applied once React has flushed the
-  // new value into the textarea, so it waits here until the layout effect.
-  const pendingSelection = useRef<{ start: number; end: number } | null>(null);
+export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorProps>(
+  function MarkdownEditor(
+    { value, onChange, onSave, readOnly = false, defaultHeight = 420, className },
+    ref,
+  ): React.JSX.Element {
+    const [view, setView] = useState<MarkdownViewMode>('split');
+    const [height, setHeight] = useState(defaultHeight);
+    const [isMaximized, setIsMaximized] = useState(false);
+    const [isResizing, setIsResizing] = useState(false);
+    const containerRef = useRef<HTMLDivElement>(null);
+    // State, not a ref: the writing check and the underline overlay both need to
+    // re-run once the element is there, which a ref assignment doesn't trigger.
+    const [field, setField] = useState<HTMLTextAreaElement | null>(null);
+    const [activeIssue, setActiveIssue] = useState<GrammarIssue | null>(null);
+    const grammar = useGrammarCheck({ value, field, enabled: !readOnly });
+    const previewRef = useRef<HTMLDivElement>(null);
+    // A command's caret position can only be applied once React has flushed the
+    // new value into the textarea, so it waits here until the layout effect.
+    const pendingSelection = useRef<{ start: number; end: number } | null>(null);
+    // Where the caret was the last time it was anywhere. Clicking a control
+    // outside the editor blurs the textarea, and without this the host's own
+    // "insert here" would have nowhere to aim.
+    const lastSelection = useRef<{ start: number; end: number } | null>(null);
 
-  useLayoutEffect(() => {
-    const pending = pendingSelection.current;
-    if (!pending || !field) return;
-    pendingSelection.current = null;
-    field.focus();
-    field.setSelectionRange(pending.start, pending.end);
-  }, [value, field]);
+    useLayoutEffect(() => {
+      const pending = pendingSelection.current;
+      if (!pending || !field) return;
+      pendingSelection.current = null;
+      field.focus();
+      field.setSelectionRange(pending.start, pending.end);
+      lastSelection.current = pending;
+    }, [value, field]);
 
-  // Escape is the way out of a full-screen panel, but only while it is one.
-  // Otherwise the key belongs to whatever dialog the editor is sitting in.
-  useEffect(() => {
-    if (!isMaximized) return;
-    function handleEscape(event: KeyboardEvent): void {
-      if (event.key !== 'Escape') return;
-      event.stopPropagation();
-      setIsMaximized(false);
+    useImperativeHandle(
+      ref,
+      () => ({
+        insertAtCaret(block: string): void {
+          const textarea = field;
+          if (!textarea || readOnly) return;
+          // The live caret when the editor still has focus, otherwise the last
+          // place it was. Falling back to the end would send a file the user
+          // meant to put mid-paragraph to the bottom of the step instead.
+          const remembered = lastSelection.current;
+          const at =
+            document.activeElement === textarea
+              ? { start: textarea.selectionStart, end: textarea.selectionEnd }
+              : remembered && remembered.end <= textarea.value.length
+                ? remembered
+                : { start: textarea.value.length, end: textarea.value.length };
+          const next = insertBlock(
+            { value: textarea.value, selectionStart: at.start, selectionEnd: at.end },
+            block,
+          );
+          pendingSelection.current = { start: next.selectionStart, end: next.selectionEnd };
+          lastSelection.current = { start: next.selectionStart, end: next.selectionEnd };
+          onChange(next.value);
+        },
+      }),
+      [field, readOnly, onChange],
+    );
+
+    // Escape is the way out of a full-screen panel, but only while it is one.
+    // Otherwise the key belongs to whatever dialog the editor is sitting in.
+    useEffect(() => {
+      if (!isMaximized) return;
+      function handleEscape(event: KeyboardEvent): void {
+        if (event.key !== 'Escape') return;
+        event.stopPropagation();
+        setIsMaximized(false);
+      }
+      window.addEventListener('keydown', handleEscape, true);
+      return () => window.removeEventListener('keydown', handleEscape, true);
+    }, [isMaximized]);
+
+    /** Drag the bottom edge to set the height, like a terminal pane divider. */
+    function startResize(event: React.PointerEvent<HTMLDivElement>): void {
+      if (isMaximized) return;
+      event.preventDefault();
+      const startY = event.clientY;
+      const startHeight = containerRef.current?.offsetHeight ?? height;
+      setIsResizing(true);
+
+      function handleMove(move: PointerEvent): void {
+        setHeight(Math.max(MIN_HEIGHT, startHeight + move.clientY - startY));
+      }
+      function handleUp(): void {
+        setIsResizing(false);
+        window.removeEventListener('pointermove', handleMove);
+        window.removeEventListener('pointerup', handleUp);
+      }
+      window.addEventListener('pointermove', handleMove);
+      window.addEventListener('pointerup', handleUp);
     }
-    window.addEventListener('keydown', handleEscape, true);
-    return () => window.removeEventListener('keydown', handleEscape, true);
-  }, [isMaximized]);
 
-  /** Drag the bottom edge to set the height, like a terminal pane divider. */
-  function startResize(event: React.PointerEvent<HTMLDivElement>): void {
-    if (isMaximized) return;
-    event.preventDefault();
-    const startY = event.clientY;
-    const startHeight = containerRef.current?.offsetHeight ?? height;
-    setIsResizing(true);
-
-    function handleMove(move: PointerEvent): void {
-      setHeight(Math.max(MIN_HEIGHT, startHeight + move.clientY - startY));
-    }
-    function handleUp(): void {
-      setIsResizing(false);
-      window.removeEventListener('pointermove', handleMove);
-      window.removeEventListener('pointerup', handleUp);
-    }
-    window.addEventListener('pointermove', handleMove);
-    window.addEventListener('pointerup', handleUp);
-  }
-
-  function apply(run: (state: EditState) => EditState | null): boolean {
-    const textarea = field;
-    if (!textarea || readOnly) return false;
-    const next = run({
-      value: textarea.value,
-      selectionStart: textarea.selectionStart,
-      selectionEnd: textarea.selectionEnd,
-    });
-    if (!next) return false;
-    // A command that changed only the selection won't re-run the layout effect
-    // (the value is identical), so move the caret here rather than queue it.
-    if (next.value === textarea.value) {
-      textarea.setSelectionRange(next.selectionStart, next.selectionEnd);
+    function apply(run: (state: EditState) => EditState | null): boolean {
+      const textarea = field;
+      if (!textarea || readOnly) return false;
+      const next = run({
+        value: textarea.value,
+        selectionStart: textarea.selectionStart,
+        selectionEnd: textarea.selectionEnd,
+      });
+      if (!next) return false;
+      // A command that changed only the selection won't re-run the layout effect
+      // (the value is identical), so move the caret here rather than queue it.
+      if (next.value === textarea.value) {
+        textarea.setSelectionRange(next.selectionStart, next.selectionEnd);
+        return true;
+      }
+      pendingSelection.current = { start: next.selectionStart, end: next.selectionEnd };
+      onChange(next.value);
       return true;
     }
-    pendingSelection.current = { start: next.selectionStart, end: next.selectionEnd };
-    onChange(next.value);
-    return true;
-  }
 
-  function handleKeyDown(event: React.KeyboardEvent<HTMLTextAreaElement>): void {
-    const mod = event.ctrlKey || event.metaKey;
+    function handleKeyDown(event: React.KeyboardEvent<HTMLTextAreaElement>): void {
+      const mod = event.ctrlKey || event.metaKey;
 
-    if (mod && isShortcutLetter(event, 's')) {
-      event.preventDefault();
-      onSave?.();
-      return;
+      if (mod && isShortcutLetter(event, 's')) {
+        event.preventDefault();
+        onSave?.();
+        return;
+      }
+      if (mod && isShortcutLetter(event, 'b')) {
+        event.preventDefault();
+        apply((s) => toggleInlineWrap(s, '**'));
+        return;
+      }
+      if (mod && isShortcutLetter(event, 'i')) {
+        event.preventDefault();
+        apply((s) => toggleInlineWrap(s, '*'));
+        return;
+      }
+      if (mod && isShortcutLetter(event, 'k')) {
+        event.preventDefault();
+        apply(insertLink);
+        return;
+      }
+      if (event.key === 'Tab') {
+        event.preventDefault();
+        apply((s) => indentSelection(s, event.shiftKey));
+        return;
+      }
+      if (event.key === 'Enter' && !event.shiftKey && !mod) {
+        // `continueList` returns null off a list line, which leaves the browser's
+        // own newline handling (and its undo stack) untouched.
+        if (apply(continueList)) event.preventDefault();
+      }
     }
-    if (mod && isShortcutLetter(event, 'b')) {
-      event.preventDefault();
-      apply((s) => toggleInlineWrap(s, '**'));
-      return;
-    }
-    if (mod && isShortcutLetter(event, 'i')) {
-      event.preventDefault();
-      apply((s) => toggleInlineWrap(s, '*'));
-      return;
-    }
-    if (mod && isShortcutLetter(event, 'k')) {
-      event.preventDefault();
-      apply(insertLink);
-      return;
-    }
-    if (event.key === 'Tab') {
-      event.preventDefault();
-      apply((s) => indentSelection(s, event.shiftKey));
-      return;
-    }
-    if (event.key === 'Enter' && !event.shiftKey && !mod) {
-      // `continueList` returns null off a list line, which leaves the browser's
-      // own newline handling (and its undo stack) untouched.
-      if (apply(continueList)) event.preventDefault();
-    }
-  }
 
-  /** Keep the preview roughly at the same relative position as the source. */
-  function syncPreviewScroll(): void {
-    const textarea = field;
-    const preview = previewRef.current;
-    if (!textarea || !preview) return;
-    const scrollable = textarea.scrollHeight - textarea.clientHeight;
-    if (scrollable <= 0) return;
-    const ratio = textarea.scrollTop / scrollable;
-    preview.scrollTop = ratio * (preview.scrollHeight - preview.clientHeight);
-  }
+    /** Keep the preview roughly at the same relative position as the source. */
+    function syncPreviewScroll(): void {
+      const textarea = field;
+      const preview = previewRef.current;
+      if (!textarea || !preview) return;
+      const scrollable = textarea.scrollHeight - textarea.clientHeight;
+      if (scrollable <= 0) return;
+      const ratio = textarea.scrollTop / scrollable;
+      preview.scrollTop = ratio * (preview.scrollHeight - preview.clientHeight);
+    }
 
-  const showEditor = view !== 'preview';
-  const showPreview = view !== 'write';
+    const showEditor = view !== 'preview';
+    const showPreview = view !== 'write';
+    const isPersian = containsPersian(value);
 
-  return (
-    <div
-      ref={containerRef}
-      style={isMaximized ? undefined : { height }}
-      className={cn(
-        'flex flex-col overflow-hidden border border-border',
-        isMaximized
-          ? 'fixed inset-x-0 bottom-0 top-11 z-50 rounded-none border-x-0 border-b-0 bg-background'
-          : 'relative rounded-lg',
-        isResizing && 'select-none',
-        className,
-      )}
-    >
-      <div className="flex flex-wrap items-center gap-1 border-b border-border bg-muted/40 px-2 py-1.5">
-        {showEditor &&
-          TOOLBAR_GROUPS.map((group, index) => (
-            <div key={group[0].key} className="flex items-center gap-0.5">
-              {index > 0 && <span className="mx-1 h-4 w-px bg-border" aria-hidden />}
-              {group.map((action) => (
-                <SimpleTooltip key={action.key} label={action.label} wrapTrigger={readOnly}>
+    return (
+      <div
+        ref={containerRef}
+        style={isMaximized ? undefined : { height }}
+        className={cn(
+          'flex flex-col overflow-hidden border border-border',
+          isMaximized
+            ? 'fixed inset-x-0 bottom-0 top-11 z-50 rounded-none border-x-0 border-b-0 bg-background'
+            : 'relative rounded-lg',
+          isResizing && 'select-none',
+          className,
+        )}
+      >
+        <div className="flex flex-wrap items-center gap-1 border-b border-border bg-muted/40 px-2 py-1.5">
+          {showEditor &&
+            TOOLBAR_GROUPS.map((group, index) => (
+              <div key={group[0].key} className="flex items-center gap-0.5">
+                {index > 0 && <span className="mx-1 h-4 w-px bg-border" aria-hidden />}
+                {group.map((action) => (
+                  <SimpleTooltip key={action.key} label={action.label} wrapTrigger={readOnly}>
+                    <button
+                      type="button"
+                      aria-label={action.label}
+                      disabled={readOnly}
+                      // Keeps focus (and the selection) in the textarea when clicked.
+                      onMouseDown={(event) => event.preventDefault()}
+                      onClick={() => apply(action.run)}
+                      className="flex h-7 min-w-7 items-center justify-center rounded px-1.5 text-xs text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-40"
+                    >
+                      {HEADING_LABELS[action.key] ? (
+                        <span className="font-semibold">{HEADING_LABELS[action.key]}</span>
+                      ) : (
+                        <action.icon className="h-3.5 w-3.5" />
+                      )}
+                    </button>
+                  </SimpleTooltip>
+                ))}
+              </div>
+            ))}
+          <div className="ml-auto flex items-center gap-1.5">
+            {showEditor && !readOnly ? (
+              <GrammarPanel
+                field={field}
+                value={value}
+                state={grammar}
+                onActiveIssueChange={setActiveIssue}
+              />
+            ) : null}
+            <div className="flex items-center gap-0.5 rounded-md bg-background p-0.5">
+              {VIEW_MODES.map((mode) => (
+                <SimpleTooltip key={mode.key} label={`${mode.label} mode`}>
                   <button
                     type="button"
-                    aria-label={action.label}
-                    disabled={readOnly}
-                    // Keeps focus (and the selection) in the textarea when clicked.
-                    onMouseDown={(event) => event.preventDefault()}
-                    onClick={() => apply(action.run)}
-                    className="flex h-7 min-w-7 items-center justify-center rounded px-1.5 text-xs text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-40"
-                  >
-                    {HEADING_LABELS[action.key] ? (
-                      <span className="font-semibold">{HEADING_LABELS[action.key]}</span>
-                    ) : (
-                      <action.icon className="h-3.5 w-3.5" />
+                    onClick={() => setView(mode.key)}
+                    className={cn(
+                      'flex h-6 items-center gap-1 rounded px-2 text-xs text-muted-foreground hover:bg-accent',
+                      view === mode.key && 'bg-accent text-foreground',
                     )}
+                  >
+                    <mode.icon className="h-3 w-3" />
+                    {mode.label}
                   </button>
                 </SimpleTooltip>
               ))}
             </div>
-          ))}
-        <div className="ml-auto flex items-center gap-1.5">
-          {showEditor && !readOnly ? (
-            <GrammarPanel
-              field={field}
-              value={value}
-              state={grammar}
-              onActiveIssueChange={setActiveIssue}
-            />
-          ) : null}
-          <div className="flex items-center gap-0.5 rounded-md bg-background p-0.5">
-            {VIEW_MODES.map((mode) => (
-              <SimpleTooltip key={mode.key} label={`${mode.label} mode`}>
-                <button
-                  type="button"
-                  onClick={() => setView(mode.key)}
-                  className={cn(
-                    'flex h-6 items-center gap-1 rounded px-2 text-xs text-muted-foreground hover:bg-accent',
-                    view === mode.key && 'bg-accent text-foreground',
-                  )}
-                >
-                  <mode.icon className="h-3 w-3" />
-                  {mode.label}
-                </button>
-              </SimpleTooltip>
-            ))}
           </div>
+          <SimpleTooltip label={isMaximized ? 'Restore editor (Esc)' : 'Maximize editor'}>
+            <button
+              type="button"
+              aria-label={isMaximized ? 'Restore editor' : 'Maximize editor'}
+              aria-pressed={isMaximized}
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => setIsMaximized((v) => !v)}
+              className="flex h-6 items-center rounded px-1.5 text-muted-foreground hover:bg-accent hover:text-foreground"
+            >
+              {isMaximized ? (
+                <WindowRestore className="h-3.5 w-3.5" />
+              ) : (
+                <WindowMaximize className="h-3.5 w-3.5" />
+              )}
+            </button>
+          </SimpleTooltip>
         </div>
-        <SimpleTooltip label={isMaximized ? 'Restore editor (Esc)' : 'Maximize editor'}>
-          <button
-            type="button"
-            aria-label={isMaximized ? 'Restore editor' : 'Maximize editor'}
-            aria-pressed={isMaximized}
-            onMouseDown={(event) => event.preventDefault()}
-            onClick={() => setIsMaximized((v) => !v)}
-            className="flex h-6 items-center rounded px-1.5 text-muted-foreground hover:bg-accent hover:text-foreground"
-          >
-            {isMaximized ? (
-              <WindowRestore className="h-3.5 w-3.5" />
-            ) : (
-              <WindowMaximize className="h-3.5 w-3.5" />
-            )}
-          </button>
-        </SimpleTooltip>
-      </div>
 
-      <div className="flex min-h-0 flex-1 divide-x divide-border">
-        {showEditor && (
-          <div className={cn('relative min-h-0 flex-1', showPreview ? 'w-1/2' : 'w-full')}>
-            <textarea
-              ref={setField}
-              value={value}
-              readOnly={readOnly}
-              // Markdown here is prose (READMEs, skill docs), so the spellchecker
-              // earns its keep even though it also flags the odd code fence.
-              spellCheck
-              aria-label="Markdown source"
-              onChange={(event) => onChange(event.target.value)}
-              onKeyDown={handleKeyDown}
-              onScroll={showPreview ? syncPreviewScroll : undefined}
-              className="h-full w-full resize-none bg-transparent p-3 font-mono text-[13px] leading-relaxed outline-none"
-            />
-            <GrammarUnderlines
-              field={field}
-              value={value}
-              issues={grammar.issues}
-              activeIssue={activeIssue}
-            />
-          </div>
-        )}
-        {showPreview && (
+        <div className="flex min-h-0 flex-1 divide-x divide-border">
+          {showEditor && (
+            <div className={cn('relative min-h-0 flex-1', showPreview ? 'w-1/2' : 'w-full')}>
+              <textarea
+                ref={setField}
+                value={value}
+                readOnly={readOnly}
+                // Markdown here is prose (READMEs, skill docs), so the spellchecker
+                // earns its keep even though it also flags the odd code fence.
+                spellCheck
+                aria-label="Markdown source"
+                onChange={(event) => onChange(event.target.value)}
+                onKeyDown={handleKeyDown}
+                // Fires on every caret move, not just on a drag-selection, so
+                // this is the one hook that always knows where "here" is.
+                onSelect={(event) => {
+                  const target = event.currentTarget;
+                  lastSelection.current = {
+                    start: target.selectionStart,
+                    end: target.selectionEnd,
+                  };
+                }}
+                onScroll={showPreview ? syncPreviewScroll : undefined}
+                dir={isPersian ? 'rtl' : undefined}
+                className={cn(
+                  'h-full w-full resize-none bg-transparent p-3 font-mono text-[13px] leading-relaxed outline-none',
+                  // Mono is for reading markdown source; Persian has no monospace
+                  // face worth the tradeoff, so it gets the app Persian font.
+                  isPersian && 'font-vazirmatn',
+                )}
+              />
+              <GrammarUnderlines
+                field={field}
+                value={value}
+                issues={grammar.issues}
+                activeIssue={activeIssue}
+              />
+            </div>
+          )}
+          {showPreview && (
+            <div
+              ref={previewRef}
+              className={cn('min-h-0 flex-1 overflow-y-auto p-4', showEditor && 'w-1/2')}
+            >
+              {value.trim() ? (
+                <MarkdownPreview content={value} />
+              ) : (
+                <p className="text-sm text-muted-foreground">Nothing to preview yet.</p>
+              )}
+            </div>
+          )}
+        </div>
+
+        {!isMaximized && (
           <div
-            ref={previewRef}
-            className={cn('min-h-0 flex-1 overflow-y-auto p-4', showEditor && 'w-1/2')}
+            role="separator"
+            aria-label="Resize editor"
+            aria-orientation="horizontal"
+            onPointerDown={startResize}
+            // Double-click snaps back to the height the host asked for.
+            onDoubleClick={() => setHeight(defaultHeight)}
+            className="group flex h-2 shrink-0 cursor-ns-resize items-center justify-center border-t border-border bg-muted/40"
           >
-            {value.trim() ? (
-              <MarkdownPreview content={value} />
-            ) : (
-              <p className="text-sm text-muted-foreground">Nothing to preview yet.</p>
-            )}
+            <span
+              className={cn(
+                'h-0.5 w-8 rounded-full bg-border group-hover:bg-muted-foreground',
+                isResizing && 'bg-muted-foreground',
+              )}
+              aria-hidden
+            />
           </div>
         )}
       </div>
-
-      {!isMaximized && (
-        <div
-          role="separator"
-          aria-label="Resize editor"
-          aria-orientation="horizontal"
-          onPointerDown={startResize}
-          // Double-click snaps back to the height the host asked for.
-          onDoubleClick={() => setHeight(defaultHeight)}
-          className="group flex h-2 shrink-0 cursor-ns-resize items-center justify-center border-t border-border bg-muted/40"
-        >
-          <span
-            className={cn(
-              'h-0.5 w-8 rounded-full bg-border group-hover:bg-muted-foreground',
-              isResizing && 'bg-muted-foreground',
-            )}
-            aria-hidden
-          />
-        </div>
-      )}
-    </div>
-  );
-}
+    );
+  },
+);
