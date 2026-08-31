@@ -41,4 +41,10 @@ export function registerPromptHistoryHandlers(): void {
   ipcMain.handle(IPC.promptHistory.setTags, (_event, id: string, tags: string[]): void =>
     promptHistoryDb.setTags(id, tags),
   );
+
+  ipcMain.handle(
+    IPC.promptHistory.setProject,
+    (_event, id: string, projectId: string | null): void =>
+      promptHistoryDb.setProject(id, projectId),
+  );
 }

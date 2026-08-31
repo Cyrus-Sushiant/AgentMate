@@ -538,7 +538,7 @@ export const AGENT_TOOL_REGISTRY: AgentToolDefinition[] = [
     id: 'semgrep',
     name: 'Semgrep',
     description:
-      'Pattern-based static analysis for 30+ languages, with a large community ruleset. Fast enough to run on every project and the best first security scan to reach for. Runs the scan from a project\u2019s Security tab. If the card still says "Not detected" right after installing, pip put the executable in a Scripts folder that is not on your PATH; add it, then press Refresh.',
+      'Pattern-based static analysis for 30+ languages, with a large community ruleset. Fast enough to run on every project and the best first security scan to reach for. Runs the scan from a project\u2019s Security tab. Installs through pip, which on Windows drops the executable into a Scripts folder that is usually not on PATH; AgentMate looks there itself, so the card picks it up when you press Refresh.',
     category: SECURITY_TOOL_CATEGORY,
     tags: ['sast', 'static-analysis', 'security'],
     author: 'Semgrep',
@@ -727,7 +727,7 @@ export const AGENT_TOOL_REGISTRY: AgentToolDefinition[] = [
     id: 'strix',
     name: 'Strix',
     description:
-      'An autonomous AI agent that runs your code in a sandbox and proves vulnerabilities with real working exploits, so what it reports has no false positives. Needs Docker and your own LLM API key, and a run costs tokens. If the card still says "Not detected" right after installing, pip put the executable in a Scripts folder that is not on your PATH; add it, then press Refresh.',
+      'An autonomous AI agent that runs your code in a sandbox and proves vulnerabilities with real working exploits, so what it reports has no false positives. Needs Docker and your own LLM API key, and a run costs tokens. Installs through pip, which on Windows drops the executable into a Scripts folder that is usually not on PATH; AgentMate looks there itself, so the card picks it up when you press Refresh.',
     category: SECURITY_TOOL_CATEGORY,
     tags: ['pentest', 'ai-agent', 'dast'],
     author: 'Strix',

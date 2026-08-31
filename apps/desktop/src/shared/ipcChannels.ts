@@ -155,6 +155,7 @@ export const IPC = {
     add: 'promptHistory:add',
     remove: 'promptHistory:remove',
     setTags: 'promptHistory:setTags',
+    setProject: 'promptHistory:setProject',
   },
   translate: {
     text: 'translate:text',

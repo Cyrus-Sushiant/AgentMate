@@ -459,6 +459,9 @@ const promptHistory = {
   remove: (id: string): Promise<void> => ipcRenderer.invoke(IPC.promptHistory.remove, id),
   setTags: (id: string, tags: string[]): Promise<void> =>
     ipcRenderer.invoke(IPC.promptHistory.setTags, id, tags),
+  /** Moves an entry to another project, or detaches it when `projectId` is null. */
+  setProject: (id: string, projectId: string | null): Promise<void> =>
+    ipcRenderer.invoke(IPC.promptHistory.setProject, id, projectId),
 };
 
 const translate = {

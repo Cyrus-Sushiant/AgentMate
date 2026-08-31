@@ -171,7 +171,8 @@ const semgrep: ScannerAdapter = {
       outcome.error =
         'Semgrep could not reach its rule registry. Pick a local ruleset (p/security-audit) in the scan options, or check your network.';
     } else if (result.notFound) {
-      outcome.error = 'Semgrep is not on PATH.';
+      outcome.error =
+        'Semgrep could not be found. Install it from the Agent Tools page, then press Refresh there.';
     } else {
       outcome.error = 'Semgrep did not produce a report.';
     }

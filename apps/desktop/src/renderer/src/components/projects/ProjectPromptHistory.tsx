@@ -1,16 +1,28 @@
+import type { Project } from '@agentmat/core';
 import type { PromptHistoryEntry } from '@shared/apiTypes';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { toast } from 'sonner';
-import { Copy, History, Languages, Search, Sparkles, Trash2 } from '@/components/icons';
+import { ArrowRight, Copy, History, Languages, Search, Sparkles, Trash2 } from '@/components/icons';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Combobox } from '@/components/ui/combobox';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { queryKeys } from '@/lib/queryKeys';
 import { persianTextProps } from '@/lib/rtl';
 import { cn } from '@/lib/utils';
 import { confirmDialog } from '@/stores/confirmStore';
+import { ProjectIcon } from './ProjectIcon';
 
 /**
  * The prompt history scoped to one project, currently the translated bootstrap
@@ -20,6 +32,7 @@ import { confirmDialog } from '@/stores/confirmStore';
 export function ProjectPromptHistory({ projectId }: { projectId: string }): React.JSX.Element {
   const queryClient = useQueryClient();
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [movingEntry, setMovingEntry] = useState<PromptHistoryEntry | null>(null);
   const [search, setSearch] = useState('');
   const trimmedSearch = search.trim();
 
@@ -33,12 +46,31 @@ export function ProjectPromptHistory({ projectId }: { projectId: string }): Reac
         : window.agentmat.promptHistory.list(projectId),
   });
 
+  const projectsQuery = useQuery({
+    queryKey: queryKeys.projects,
+    queryFn: () => window.agentmat.projects.list(),
+  });
+  // Every project but this one: moving an entry where it already sits does nothing.
+  const otherProjects = (projectsQuery.data ?? []).filter((p: Project) => p.id !== projectId);
+
   const deleteMutation = useMutation({
     mutationFn: (id: string) => window.agentmat.promptHistory.remove(id),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.promptHistory });
     },
     onError: () => toast.error('Could not delete this entry.'),
+  });
+
+  const moveMutation = useMutation({
+    mutationFn: ({ id, targetProjectId }: { id: string; targetProjectId: string }) =>
+      window.agentmat.promptHistory.setProject(id, targetProjectId),
+    onSuccess: (_result, { targetProjectId }) => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.promptHistory });
+      setMovingEntry(null);
+      const target = projectsQuery.data?.find((p) => p.id === targetProjectId);
+      toast.success(target ? `Moved to ${target.name}.` : 'Moved to the other project.');
+    },
+    onError: () => toast.error('Could not move this entry.'),
   });
 
   async function handleCopy(content: string): Promise<void> {
@@ -158,6 +190,11 @@ export function ProjectPromptHistory({ projectId }: { projectId: string }): Reac
                   >
                     <Copy /> Copy
                   </Button>
+                  {otherProjects.length > 0 ? (
+                    <Button variant="outline" size="sm" onClick={() => setMovingEntry(entry)}>
+                      <ArrowRight /> Move
+                    </Button>
+                  ) : null}
                   <Button
                     variant="ghost"
                     size="sm"
@@ -181,6 +218,94 @@ export function ProjectPromptHistory({ projectId }: { projectId: string }): Reac
           );
         })
       )}
+
+      <MoveEntryDialog
+        key={movingEntry?.id ?? 'none'}
+        entry={movingEntry}
+        projects={otherProjects}
+        pending={moveMutation.isPending}
+        onClose={() => setMovingEntry(null)}
+        onMove={(targetProjectId) => {
+          if (movingEntry) moveMutation.mutate({ id: movingEntry.id, targetProjectId });
+        }}
+      />
     </div>
+  );
+}
+
+/**
+ * Picks the project an entry should be re-filed under. The caller keys this on
+ * the entry id, so every open starts with an empty pick rather than inheriting
+ * whatever was chosen for the previous entry.
+ */
+function MoveEntryDialog({
+  entry,
+  projects,
+  pending,
+  onClose,
+  onMove,
+}: {
+  entry: PromptHistoryEntry | null;
+  projects: Project[];
+  pending: boolean;
+  onClose: () => void;
+  onMove: (targetProjectId: string) => void;
+}): React.JSX.Element {
+  const [selected, setSelected] = useState('');
+
+  return (
+    <Dialog
+      open={entry !== null}
+      onOpenChange={(open) => {
+        if (!open) {
+          setSelected('');
+          onClose();
+        }
+      }}
+    >
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Move to another project</DialogTitle>
+          <DialogDescription>
+            The entry leaves this project's history and shows up under the one you pick. Nothing
+            about the prompt itself changes.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-1.5">
+          <Label>Project</Label>
+          <Combobox
+            options={projects.map((p) => ({
+              value: p.id,
+              label: p.name,
+              keywords: p.tags,
+              icon: (
+                <ProjectIcon
+                  iconDataUrl={p.iconDataUrl}
+                  bgColor={p.iconBgColor}
+                  iconColor={p.iconColor}
+                  className="h-5 w-5 rounded"
+                  glyphClassName="h-3 w-3"
+                />
+              ),
+            }))}
+            value={selected}
+            onChange={setSelected}
+            placeholder="Pick a project…"
+            searchPlaceholder="Search projects…"
+            emptyText="No other projects."
+          />
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={pending}>
+            Cancel
+          </Button>
+          <Button disabled={!selected || pending} onClick={() => onMove(selected)}>
+            {pending ? 'Moving…' : 'Move'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

@@ -124,6 +124,13 @@ export const promptHistoryDb = {
     getDb().prepare('DELETE FROM prompt_history WHERE id = ?').run(id);
   },
 
+  /** Re-files one entry under another project, or under none when `projectId` is null. */
+  setProject(id: string, projectId: string | null): void {
+    getDb()
+      .prepare('UPDATE prompt_history SET project_id = @projectId WHERE id = @id')
+      .run({ id, projectId });
+  },
+
   setTags(id: string, tags: string[]): void {
     getDb()
       .prepare('UPDATE prompt_history SET tags = @tags WHERE id = @id')

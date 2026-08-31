@@ -1,4 +1,5 @@
 import { type ChildProcess, execFile, spawn } from 'node:child_process';
+import { withToolPath } from '../toolPaths';
 
 /**
  * Process plumbing for security scans.
@@ -97,7 +98,16 @@ const NOT_FOUND = /is not recognized as an internal or external command|command 
  * option, because on Windows that option signals cmd.exe and orphans the real process, which is
  * exactly the failure mode this needs to avoid for a 45-minute CodeQL run.
  */
-export function spawnScan(options: SpawnScanOptions): Promise<SpawnScanResult> {
+export async function spawnScan(options: SpawnScanOptions): Promise<SpawnScanResult> {
+  // Scanners installed by pip live in a Scripts folder that is off PATH on Windows, and Semgrep
+  // in particular re-execs `pysemgrep` by name, so the folder has to be on the child's PATH and
+  // not merely resolved into an absolute command.
+  const env = await withToolPath(options.env);
+  // A cancel that lands while PATH is being resolved has no child to kill yet, so honour it here
+  // rather than starting a scanner nobody is waiting for.
+  if (options.token.cancelled) {
+    return { code: null, log: '', timedOut: false, cancelled: true, notFound: false };
+  }
   return new Promise((resolve) => {
     const onWindows = process.platform === 'win32';
 
@@ -111,14 +121,14 @@ export function spawnScan(options: SpawnScanOptions): Promise<SpawnScanResult> {
     const child = onWindows
       ? spawn('cmd.exe', ['/d', '/s', '/c', commandLine], {
           cwd: options.cwd,
-          env: options.env,
+          env,
           windowsHide: true,
           // Node must not re-quote what is already a finished command line.
           windowsVerbatimArguments: true,
         })
       : spawn(options.command, options.args, {
           cwd: options.cwd,
-          env: options.env,
+          env,
         });
 
     options.token.child = child;
@@ -173,17 +183,20 @@ export function spawnScan(options: SpawnScanOptions): Promise<SpawnScanResult> {
 }
 
 /** A short buffered probe, for `--version` and `docker info` style checks. */
-export function probe(
+export async function probe(
   command: string,
   args: string[],
   timeoutMs = 8000,
 ): Promise<{ ok: boolean; stdout: string }> {
+  // Same PATH as spawnScan gives the real run, so preflight cannot pass a scanner the run then
+  // fails to find, or fail one the run would have found.
+  const env = await withToolPath();
   return new Promise((resolve) => {
     const onWindows = process.platform === 'win32';
     execFile(
       onWindows ? 'cmd.exe' : command,
       onWindows ? ['/d', '/s', '/c', command, ...args] : args,
-      { timeout: timeoutMs, windowsHide: true },
+      { timeout: timeoutMs, windowsHide: true, env },
       (error, stdout) => {
         resolve({ ok: !error, stdout: (stdout ?? '').toString().trim() });
       },

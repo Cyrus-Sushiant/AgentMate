@@ -22,12 +22,16 @@ import {
 import { ipcMain } from 'electron';
 import { IPC } from '../../shared/ipcChannels';
 import { compareVersions, fetchLatestVersion } from '../registryVersions';
+import { refreshExtraToolPathDirs, withToolPath } from '../toolPaths';
 
 const execFileAsync = promisify(execFile);
 const DETECT_TIMEOUT_MS = 8000;
 
 async function runProbe(command: string, args: string[]): Promise<string | null> {
   try {
+    // Detection has to look in the same places a run will, or a tool that pip put in a Scripts
+    // folder off PATH reads as "not installed" no matter how many times the user installs it.
+    const env = await withToolPath();
     // See cliDetection.ts: npm-installed CLIs are .cmd shims on Windows, which Node
     // refuses to spawn directly, so route through cmd.exe with a static argv array.
     const { stdout } =
@@ -35,8 +39,13 @@ async function runProbe(command: string, args: string[]): Promise<string | null>
         ? await execFileAsync('cmd.exe', ['/d', '/s', '/c', command, ...args], {
             timeout: DETECT_TIMEOUT_MS,
             windowsHide: true,
+            env,
           })
-        : await execFileAsync(command, args, { timeout: DETECT_TIMEOUT_MS, windowsHide: true });
+        : await execFileAsync(command, args, {
+            timeout: DETECT_TIMEOUT_MS,
+            windowsHide: true,
+            env,
+          });
     return stdout.trim();
   } catch {
     return null;
@@ -83,6 +92,9 @@ async function detectTool(tool: AgentToolDefinition): Promise<InstalledAgentTool
 
 export function registerToolHandlers(): void {
   ipcMain.handle(IPC.tools.detectAll, async (): Promise<InstalledAgentTool[]> => {
+    // A detect pass is also what the user presses after installing something, so this is the
+    // right moment to look for script directories that did not exist a minute ago.
+    refreshExtraToolPathDirs();
     return Promise.all(AGENT_TOOL_REGISTRY.map((tool) => detectTool(tool)));
   });
 
