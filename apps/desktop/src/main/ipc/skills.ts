@@ -29,6 +29,8 @@ import { app, BrowserWindow, dialog, ipcMain } from 'electron';
 import type {
   AuditSourcePreview,
   AuditSourceSkill,
+  FavoriteSkillInput,
+  FavoriteSkillRecord,
   InstalledSkillRecord,
   InstallFromSkillsShInput,
   LocalSkillFolderPreview,
@@ -41,6 +43,7 @@ import type {
   SkillsShDetail,
   SkillsShSearchResult,
   SkillUpdateInfo,
+  SkillUsageReport,
   UiProPrerequisites,
   UiProToolProbe,
   UiProUpdateCheck,
@@ -60,6 +63,7 @@ import {
   runSkillAudit,
 } from '../skills/auditRunner';
 import { scanSkillFolder } from '../skills/localFolderIndex';
+import { getSkillUsage, rescanSkillUsage } from '../skills/usageScanner';
 import { store } from '../store';
 
 const SKILLS_SH_VERIFIED_OWNER_SET = new Set(SKILLS_SH_VERIFIED_OWNERS);
@@ -1039,6 +1043,48 @@ export function registerSkillHandlers(): void {
       ]);
     },
   );
+
+  ipcMain.handle(
+    IPC.skills.listFavorites,
+    (): Promise<FavoriteSkillRecord[]> => store.getFavoriteSkills(),
+  );
+
+  // Starring is idempotent: a second star on the same skill refreshes the stored details (a
+  // description that has since been fetched, say) instead of adding a duplicate row.
+  ipcMain.handle(
+    IPC.skills.addFavorite,
+    async (_event, input: FavoriteSkillInput): Promise<FavoriteSkillRecord[]> => {
+      const skillId = input.skillId?.trim();
+      if (!skillId) throw new Error('A favorite needs a skill id.');
+
+      const favorites = await store.getFavoriteSkills();
+      const existing = favorites.find((f) => f.skillId === skillId);
+      const record: FavoriteSkillRecord = {
+        ...input,
+        skillId,
+        name: input.name?.trim() || skillId,
+        // Re-starring keeps the original date, so the Favorites tab's order stays put.
+        addedAt: existing?.addedAt ?? new Date().toISOString(),
+      };
+      const next = [record, ...favorites.filter((f) => f.skillId !== skillId)];
+      await store.setFavoriteSkills(next);
+      return next;
+    },
+  );
+
+  ipcMain.handle(
+    IPC.skills.removeFavorite,
+    async (_event, skillId: string): Promise<FavoriteSkillRecord[]> => {
+      const favorites = await store.getFavoriteSkills();
+      const next = favorites.filter((f) => f.skillId !== skillId);
+      await store.setFavoriteSkills(next);
+      return next;
+    },
+  );
+
+  ipcMain.handle(IPC.skills.getUsage, (): Promise<SkillUsageReport> => getSkillUsage());
+
+  ipcMain.handle(IPC.skills.rescanUsage, (): Promise<SkillUsageReport> => rescanSkillUsage());
 
   ipcMain.handle(
     IPC.skills.runAudit,

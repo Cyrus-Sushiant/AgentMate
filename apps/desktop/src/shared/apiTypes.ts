@@ -297,6 +297,74 @@ export interface SkillAuditRecord {
   createdAt: string;
 }
 
+/** Where a starred skill came from, so the Favorites tab can offer the right actions. */
+export type FavoriteSkillSource = 'skills-sh' | 'repository' | 'installed' | 'local';
+
+/**
+ * A starred skill. `skillId` is the same id the audit history uses (`owner/repo/name` for a
+ * skills.sh skill, the repository's skill id for a repository one), so a favorite, its last
+ * security verdict and its usage count all line up on one card.
+ */
+export interface FavoriteSkillRecord {
+  skillId: string;
+  name: string;
+  source: FavoriteSkillSource;
+  /** `owner/repo`, the repository name, or the scope a skill is installed in. */
+  sourceLabel: string;
+  description?: string;
+  /** Set for a repository skill, so Favorites can install it without going back to the tab. */
+  repositoryId?: string;
+  /** skills.sh fields, kept so the card can install, open and re-check the skill on its own. */
+  owner?: string;
+  repo?: string;
+  url?: string;
+  installCommand?: string;
+  official?: boolean;
+  addedAt: string;
+}
+
+/** A favorite as the renderer sends it; `addedAt` is stamped by the main process. */
+export type FavoriteSkillInput = Omit<FavoriteSkillRecord, 'addedAt'>;
+
+/** One project (a transcript's working directory) a skill was invoked from. */
+export interface SkillUsageProject {
+  /** Absolute folder path the session ran in. */
+  path: string;
+  /** Folder name, or the matching AgentMate project's name when there is one. */
+  label: string;
+  count: number;
+}
+
+/** How often one skill has been invoked, aggregated across every session transcript. */
+export interface SkillUsageStat {
+  /** The name the agent invoked, e.g. `artifact-design` or `plugin:skill`. */
+  skill: string;
+  count: number;
+  /** Invocations in the last 7 and 30 days, for the "recently used" sort. */
+  count7d: number;
+  count30d: number;
+  firstUsedAt: string;
+  lastUsedAt: string;
+  projects: SkillUsageProject[];
+  /** One count per day of `SkillUsageReport.days`, so a row can draw its own trend. */
+  daily: number[];
+}
+
+/** The Usage tab's whole payload: per-skill counts plus what the scan actually read. */
+export interface SkillUsageReport {
+  stats: SkillUsageStat[];
+  totalInvocations: number;
+  /** The last 30 local dates as `YYYY-MM-DD`, oldest first. */
+  days: string[];
+  /** Invocations per day of `days`, across every skill. */
+  dailyTotals: number[];
+  /** Transcript files read across every Claude Code config dir found. */
+  filesScanned: number;
+  /** The transcript folders that were read, empty when Claude Code has never run here. */
+  sourceRoots: string[];
+  scannedAt: string;
+}
+
 export interface RunSkillAuditResult {
   ok: boolean;
   record: SkillAuditRecord | null;

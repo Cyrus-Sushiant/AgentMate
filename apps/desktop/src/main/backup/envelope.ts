@@ -26,6 +26,7 @@ import {
 } from '@agentmat/core';
 import type {
   BackupAttachmentBlob,
+  FavoriteSkillRecord,
   PromptHistoryEntry,
   SkillAuditRecord,
 } from '../../shared/apiTypes';
@@ -51,6 +52,7 @@ export interface BackupData {
   scheduledTasks?: ScheduledTask[];
   promptHistory?: PromptHistoryEntry[];
   skillAudits?: SkillAuditRecord[];
+  skillFavorites?: FavoriteSkillRecord[];
   appNotifications?: AppNotification[];
   blueprints?: ProjectBlueprint[];
   blueprintPresets?: BlueprintPreset[];
@@ -318,6 +320,31 @@ function buildSkillAudit(entry: Record_): SkillAuditRecord | null {
   };
 }
 
+function buildFavoriteSkill(entry: Record_): FavoriteSkillRecord | null {
+  const skillId = str(entry.skillId);
+  if (!skillId) return null;
+  const optional = <K extends keyof FavoriteSkillRecord>(
+    key: K,
+  ): { [P in K]?: string } | undefined => {
+    const value = str(entry[key]);
+    return value ? ({ [key]: value } as { [P in K]?: string }) : undefined;
+  };
+  return {
+    skillId,
+    name: strOr(entry.name, skillId),
+    source: strOr(entry.source, 'local') as FavoriteSkillRecord['source'],
+    sourceLabel: strOr(entry.sourceLabel, ''),
+    ...optional('description'),
+    ...optional('repositoryId'),
+    ...optional('owner'),
+    ...optional('repo'),
+    ...optional('url'),
+    ...optional('installCommand'),
+    official: entry.official === true,
+    addedAt: strOr(entry.addedAt, new Date().toISOString()),
+  };
+}
+
 /** App-generated uuid plus extension, and nothing else: this name becomes a path. */
 function safeAttachmentFileName(value: unknown): string | null {
   const fileName = str(value);
@@ -435,6 +462,7 @@ export function parseBackup(value: unknown): ParsedBackup {
   data.scheduledTasks = collect('scheduledTasks', 'scheduled tasks', buildScheduledTask);
   data.promptHistory = collect('promptHistory', 'prompt history entries', buildPromptHistory);
   data.skillAudits = collect('skillAudits', 'skill audits', buildSkillAudit);
+  data.skillFavorites = collect('skillFavorites', 'favorite skills', buildFavoriteSkill);
   data.appNotifications = collect('appNotifications', 'notifications', buildAppNotification);
   data.blueprints = collect('blueprints', 'project blueprints', buildBlueprint);
   data.blueprintPresets = collect('blueprintPresets', 'blueprint presets', buildBlueprintPreset);

@@ -17,6 +17,7 @@ import {
   faBug,
   faCalendarDays,
   faChartColumn,
+  faChartSimple,
   faCheck,
   faChevronDown,
   faCircleCheck,
@@ -91,6 +92,7 @@ import {
   faSpellCheck,
   faSpinner,
   faSquareCheck,
+  faStar,
   faStop,
   faStrikethrough,
   faSun,
@@ -291,3 +293,7 @@ export const Spinner = makeIcon(faSpinner);
 // Security scan icons.
 export const FileCode = makeIcon(faFileCode);
 export const Filter = makeIcon(faFilter);
+
+// Skill favorites and usage icons.
+export const Star = makeIcon(faStar);
+export const ChartSimple = makeIcon(faChartSimple);

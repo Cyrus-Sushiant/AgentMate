@@ -91,6 +91,15 @@ export const IPC = {
     checkUiProPrerequisites: 'skills:checkUiProPrerequisites',
     checkUiProUpdate: 'skills:checkUiProUpdate',
     recordUiProInstall: 'skills:recordUiProInstall',
+    // Favorites
+    listFavorites: 'skills:listFavorites',
+    addFavorite: 'skills:addFavorite',
+    removeFavorite: 'skills:removeFavorite',
+    // Usage
+    /** Aggregated Skill invocations read out of the local agent session transcripts. */
+    getUsage: 'skills:getUsage',
+    /** Same, after throwing away the incremental scan cache and re-reading every transcript. */
+    rescanUsage: 'skills:rescanUsage',
     // Security audit
     runAudit: 'skills:runAudit',
     cancelAudit: 'skills:cancelAudit',

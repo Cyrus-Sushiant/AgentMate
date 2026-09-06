@@ -43,7 +43,7 @@ import {
   withBlueprintDefaults,
 } from '@agentmat/core';
 import { app } from 'electron';
-import type { RemoteSavedServer } from '../shared/apiTypes';
+import type { FavoriteSkillRecord, RemoteSavedServer } from '../shared/apiTypes';
 import { referencedAttachmentFiles, removeOrphanAttachments } from './blueprintFileStore';
 import { blueprintRevisionDb } from './blueprintRevisionDb';
 import { hydrateProjectIcons, persistProjectIcons } from './projectIconStore';
@@ -222,6 +222,10 @@ export const store = {
   getRepositories: (): Promise<SkillRepository[]> => readJsonFile('repositories.json', []),
   setRepositories: (repos: SkillRepository[]): Promise<void> =>
     writeJsonFile('repositories.json', repos),
+
+  getFavoriteSkills: (): Promise<FavoriteSkillRecord[]> => readJsonFile('skill-favorites.json', []),
+  setFavoriteSkills: (favorites: FavoriteSkillRecord[]): Promise<void> =>
+    writeJsonFile('skill-favorites.json', favorites),
 
   getMcpRepositories: (): Promise<McpRepository[]> => readJsonFile('mcp-repositories.json', []),
   setMcpRepositories: (repos: McpRepository[]): Promise<void> =>

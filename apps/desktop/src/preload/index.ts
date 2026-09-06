@@ -79,6 +79,8 @@ import type {
   DetectChatIdResult,
   DirectoryEntry,
   FaviconResult,
+  FavoriteSkillInput,
+  FavoriteSkillRecord,
   GitBranchHistory,
   GithubAccount,
   GithubActionsActivity,
@@ -130,6 +132,7 @@ import type {
   SkillsShDetail,
   SkillsShSearchResult,
   SkillUpdateInfo,
+  SkillUsageReport,
   SpeechModelProgress,
   SpeechModelState,
   StartHostInput,
@@ -307,6 +310,17 @@ const skills = {
     ipcRenderer.invoke(IPC.skills.checkUiProUpdate),
   recordUiProInstall: (input: RecordUiProInstallInput): Promise<void> =>
     ipcRenderer.invoke(IPC.skills.recordUiProInstall, input),
+  /** Skills the user has starred, newest first. */
+  listFavorites: (): Promise<FavoriteSkillRecord[]> => ipcRenderer.invoke(IPC.skills.listFavorites),
+  /** Stars a skill, or refreshes the details of one already starred. */
+  addFavorite: (input: FavoriteSkillInput): Promise<FavoriteSkillRecord[]> =>
+    ipcRenderer.invoke(IPC.skills.addFavorite, input),
+  removeFavorite: (skillId: string): Promise<FavoriteSkillRecord[]> =>
+    ipcRenderer.invoke(IPC.skills.removeFavorite, skillId),
+  /** Skill invocations counted from the local agent session transcripts. */
+  getUsage: (): Promise<SkillUsageReport> => ipcRenderer.invoke(IPC.skills.getUsage),
+  /** Re-reads every transcript from scratch instead of only the newly appended bytes. */
+  rescanUsage: (): Promise<SkillUsageReport> => ipcRenderer.invoke(IPC.skills.rescanUsage),
   /** Scans a skill for prompt injection, exfiltration, and the other risk categories. */
   runAudit: (input: RunSkillAuditInput): Promise<RunSkillAuditResult> =>
     ipcRenderer.invoke(IPC.skills.runAudit, input),

@@ -36,6 +36,7 @@ async function readCurrentData(): Promise<Required<BackupData>> {
     scheduledTasks: await store.getScheduledTasks(),
     promptHistory: promptHistoryDb.exportAll(),
     skillAudits: skillAuditDb.exportAll(),
+    skillFavorites: await store.getFavoriteSkills(),
     appNotifications: await store.getAppNotifications(),
     blueprints,
     blueprintPresets: await store.getBlueprintPresets(),
@@ -62,6 +63,7 @@ async function writeData(data: BackupData): Promise<void> {
   if (data.scheduledTasks) await store.setScheduledTasks(data.scheduledTasks);
   if (data.promptHistory) promptHistoryDb.importAll(data.promptHistory);
   if (data.skillAudits) skillAuditDb.importAll(data.skillAudits);
+  if (data.skillFavorites) await store.setFavoriteSkills(data.skillFavorites);
   if (data.appNotifications) await store.setAppNotifications(data.appNotifications);
   // Files first: storing the blueprints collects every attachment nothing points
   // at, which the other way round would delete the ones about to be restored.

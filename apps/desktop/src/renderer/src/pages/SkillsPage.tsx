@@ -14,6 +14,7 @@ import { useLocation } from 'react-router-dom';
 import { toast } from 'sonner';
 import { CatalogCardSkeleton } from '@/components/CatalogCardSkeleton';
 import {
+  ChartSimple,
   CircleCheck,
   Copy,
   Download,
@@ -26,14 +27,18 @@ import {
   Search,
   Shield,
   Sparkles,
+  Star,
   Trash2,
 } from '@/components/icons';
 import { AdHocSkillScanner } from '@/components/skills/AdHocSkillScanner';
 import { SkillAuditReport, SkillAuditVerdictBadge } from '@/components/skills/SkillAuditReport';
+import { SkillFavoriteButton } from '@/components/skills/SkillFavoriteButton';
+import { SkillFavoritesTab } from '@/components/skills/SkillFavoritesTab';
 import {
   SkillSecurityDialog,
   type SkillSecurityTarget,
 } from '@/components/skills/SkillSecurityDialog';
+import { SkillUsageTab } from '@/components/skills/SkillUsageTab';
 import { UiUxProMaxCard } from '@/components/skills/UiUxProMaxCard';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -48,16 +53,18 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { GooeyNav } from '@/components/ui/gooey-nav';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { SimpleTooltip } from '@/components/ui/tooltip';
+import { useSkillFavorites } from '@/hooks/useSkillFavorites';
 import { queryKeys } from '@/lib/queryKeys';
 import { cn } from '@/lib/utils';
 import { confirmDialog } from '@/stores/confirmStore';
 import { usePageHeader } from '@/stores/pageHeaderStore';
 import { useTerminalStore } from '@/stores/terminalStore';
 import type {
+  FavoriteSkillRecord,
   InstalledSkillRecord,
   SkillAuditRecord,
   SkillsShSearchResult,
@@ -71,7 +78,30 @@ const SOURCE_TYPES: { value: SkillRepositorySourceType; label: string }[] = [
 ];
 
 type SkillsShSearchMode = 'bundled' | 'live';
-type SkillsTab = 'directory' | 'featured' | 'marketplace' | 'security';
+type SkillsTab = 'directory' | 'featured' | 'marketplace' | 'favorites' | 'usage' | 'security';
+
+/** Nav order. The gooey nav reports the index it was given, so this is what maps it back. */
+const SKILL_TABS: SkillsTab[] = [
+  'directory',
+  'featured',
+  'marketplace',
+  'favorites',
+  'usage',
+  'security',
+];
+
+/** The count chip on a nav tile. currentColor keeps it readable on the selected tile too. */
+function navCount(count: number): React.JSX.Element | undefined {
+  if (count <= 0) return undefined;
+  return (
+    <span
+      className="min-w-4 rounded-full px-1.5 text-center text-[10px] font-medium tabular-nums"
+      style={{ backgroundColor: 'color-mix(in srgb, currentColor 18%, transparent)' }}
+    >
+      {count}
+    </span>
+  );
+}
 
 /** How a stored audit's source is labelled in the history list. */
 const AUDIT_SOURCE_LABEL: Record<SkillAuditRecord['sourceKind'], string> = {
@@ -170,16 +200,20 @@ function liveResultToDisplayEntry(r: SkillsShSearchResult): SkillsShDisplayEntry
 const SkillsShDirectoryCard = memo(function SkillsShDirectoryCard({
   skill,
   audit,
+  starred,
   onInstall,
   onView,
   onCheckSecurity,
+  onToggleFavorite,
 }: {
   skill: SkillsShDisplayEntry;
   /** Last security check for this skill, when it has one. */
   audit: SkillAuditRecord | undefined;
+  starred: boolean;
   onInstall: (skill: SkillsShDisplayEntry) => void;
   onView: (skill: SkillsShDisplayEntry) => void;
   onCheckSecurity: (skill: SkillsShDisplayEntry) => void;
+  onToggleFavorite: (skill: SkillsShDisplayEntry) => void;
 }): React.JSX.Element {
   return (
     <Card className="flex flex-col hover:border-primary/30">
@@ -193,6 +227,11 @@ const SkillsShDirectoryCard = memo(function SkillsShDirectoryCard({
               </SimpleTooltip>
             )}
           </CardTitle>
+          <SkillFavoriteButton
+            starred={starred}
+            onToggle={() => onToggleFavorite(skill)}
+            className="-mr-2 -mt-1 shrink-0"
+          />
         </div>
         <CardDescription className="line-clamp-3">
           {skill.description ?? 'Click View for the full description.'}
@@ -239,6 +278,8 @@ export default function SkillsPage(): React.JSX.Element {
   const navState = location.state as { repositoryId?: string; query?: string } | null;
   const queryClient = useQueryClient();
   const openTerminalSession = useTerminalStore((s) => s.openSession);
+  const favorites = useSkillFavorites();
+  const toggleFavorite = favorites.toggleFavorite;
 
   const [selectedRepoId, setSelectedRepoId] = useState<string>(
     navState?.repositoryId ?? ALL_REPOSITORIES,
@@ -581,6 +622,29 @@ export default function SkillsPage(): React.JSX.Element {
     enabled: activeTab === 'security',
   });
 
+  // The first scan streams every session transcript, so it only runs once the user is on a tab
+  // that shows the counts. Later scans read the appended bytes and are cheap.
+  const usageQuery = useQuery({
+    queryKey: queryKeys.skillUsage,
+    queryFn: () => window.agentmat.skills.getUsage(),
+    enabled: activeTab === 'usage' || activeTab === 'favorites',
+    staleTime: 60_000,
+  });
+
+  const rescanUsageMutation = useMutation({
+    mutationFn: () => window.agentmat.skills.rescanUsage(),
+    onSuccess: (report) => {
+      queryClient.setQueryData(queryKeys.skillUsage, report);
+      toast.success(`Read ${report.filesScanned} session${report.filesScanned === 1 ? '' : 's'}.`);
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  const usageBySkillName = useMemo(
+    () => new Map((usageQuery.data?.stats ?? []).map((stat) => [stat.skill, stat.count])),
+    [usageQuery.data],
+  );
+
   const removeAuditMutation = useMutation({
     mutationFn: (id: string) => window.agentmat.skills.removeAudit(id),
     onSuccess: () => {
@@ -698,6 +762,57 @@ export default function SkillsPage(): React.JSX.Element {
     setInstallPickerSearch('');
   }, []);
 
+  // The favorite keeps everything the card needs, so the Favorites tab can install, copy and
+  // open a skills.sh skill without the directory being loaded.
+  const handleToggleShFavorite = useCallback(
+    (skill: SkillsShDisplayEntry) => {
+      toggleFavorite({
+        skillId: `${skill.repo}/${skill.name}`,
+        name: skill.name,
+        source: 'skills-sh',
+        sourceLabel: skill.repo,
+        description: skill.description,
+        owner: skill.owner,
+        repo: skill.repo,
+        url: skill.url,
+        installCommand: skill.installCommand,
+        official: skill.official,
+      });
+    },
+    [toggleFavorite],
+  );
+
+  /** Reopens a favorited skill in the install picker it was starred from. */
+  function handleInstallFavorite(favorite: FavoriteSkillRecord): void {
+    if (favorite.source === 'repository' && favorite.repositoryId) {
+      openInstallPicker({
+        kind: 'repo',
+        repositoryId: favorite.repositoryId,
+        skillId: favorite.skillId,
+        skillName: favorite.name,
+      });
+      return;
+    }
+    if (favorite.owner && favorite.repo && favorite.url && favorite.installCommand) {
+      openInstallPicker({
+        kind: 'skillsSh',
+        skill: {
+          id: favorite.skillId,
+          name: favorite.name,
+          owner: favorite.owner,
+          repo: favorite.repo,
+          official: favorite.official ?? false,
+          url: favorite.url,
+          installCommand: favorite.installCommand,
+          installsLabel: '',
+          description: favorite.description,
+        },
+      });
+      return;
+    }
+    toast.error('This favorite has no install source saved.');
+  }
+
   function toggleInstallPickerProject(projectId: string): void {
     setInstallPickerProjectIds((prev) => {
       const next = new Set(prev);
@@ -713,45 +828,43 @@ export default function SkillsPage(): React.JSX.Element {
       : installTarget.skill.name
     : '';
 
-  usePageHeader('Skill Marketplace', 'Install skills from configurable repositories or skills.sh.');
+  usePageHeader(
+    'Skill Marketplace',
+    'Install skills from repositories or skills.sh, star the ones you keep, and see which ones get used.',
+  );
+
+  const favoriteCount = favorites.favorites.length;
+
+  const navItems = useMemo(
+    () => [
+      { label: 'Directory', icon: <Search /> },
+      { label: 'Featured', icon: <Sparkles /> },
+      { label: 'Repositories', icon: <FolderOpen />, badge: navCount(repoCount) },
+      { label: 'Favorites', icon: <Star />, badge: navCount(favoriteCount) },
+      { label: 'Usage', icon: <ChartSimple /> },
+      { label: 'Security', icon: <Shield /> },
+    ],
+    [repoCount, favoriteCount],
+  );
 
   const globalInstalledCount = globalInstalledQuery.data?.length ?? 0;
 
   return (
     <div className="space-y-6 p-6">
-      <Tabs
-        value={activeTab}
-        onValueChange={(value) => setActiveTab(value as SkillsTab)}
-        className="flex flex-col gap-4"
-      >
-        <div className="flex items-end gap-3 border-b border-border">
-          <TabsList containerClassName="min-w-0 flex-1 border-b-0">
-            <TabsTrigger value="directory" className="gap-1.5">
-              <Search className="h-3.5 w-3.5" />
-              Directory
-            </TabsTrigger>
-            <TabsTrigger value="featured" className="gap-1.5">
-              <Sparkles className="h-3.5 w-3.5" />
-              Featured
-            </TabsTrigger>
-            <TabsTrigger value="marketplace" className="group gap-1.5">
-              <FolderOpen className="h-3.5 w-3.5" />
-              Repositories
-              {repoCount > 0 ? (
-                <span className="min-w-4 rounded-full bg-muted px-1.5 text-center text-[10px] font-medium tabular-nums text-muted-foreground group-data-[state=active]:bg-foreground/10 group-data-[state=active]:text-foreground">
-                  {repoCount}
-                </span>
-              ) : null}
-            </TabsTrigger>
-            <TabsTrigger value="security" className="gap-1.5">
-              <Shield className="h-3.5 w-3.5" />
-              Security
-            </TabsTrigger>
-          </TabsList>
+      <div className="flex flex-col gap-5">
+        <div className="flex flex-wrap items-center gap-3">
+          <GooeyNav
+            size="sm"
+            className="min-w-0 max-w-full overflow-x-auto"
+            aria-label="Skill views"
+            items={navItems}
+            value={SKILL_TABS.indexOf(activeTab)}
+            onChange={(index) => setActiveTab(SKILL_TABS[index])}
+          />
           <Button
             variant="outline"
             size="sm"
-            className="mb-1.5 shrink-0"
+            className="ml-auto shrink-0"
             onClick={() => setGlobalSkillsModalOpen(true)}
           >
             <Globe />
@@ -764,419 +877,474 @@ export default function SkillsPage(): React.JSX.Element {
           </Button>
         </div>
 
-        <TabsContent value="featured" className="mt-0 space-y-6">
-          <p className="text-sm text-muted-foreground">
-            Skills that ship their own installer instead of plain files, so AgentMate walks you
-            through their CLI rather than copying a folder.
-          </p>
-          <UiUxProMaxCard />
-        </TabsContent>
-
-        <TabsContent value="marketplace" className="mt-0 space-y-6">
-          <div className="flex flex-wrap items-end gap-3">
-            <div className="space-y-1.5">
-              <Label>Repository</Label>
-              <div className="flex items-center gap-2">
-                <Combobox
-                  className="w-56"
-                  value={selectedRepoId}
-                  onChange={setSelectedRepoId}
-                  placeholder="Choose a repository"
-                  searchPlaceholder="Search repositories…"
-                  options={[
-                    {
-                      value: ALL_REPOSITORIES,
-                      label: `All repositories${repoCount > 0 ? ` (${repoCount})` : ''}`,
-                    },
-                    ...(reposQuery.data?.map((r) => ({ value: r.id, label: r.name })) ?? []),
-                  ]}
-                />
-                {visibleRepos.length > 0 && (
-                  <SimpleTooltip label={showingAllRepos ? 'Refresh all repositories' : 'Refresh'}>
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      disabled={refreshRepoMutation.isPending}
-                      onClick={() => refreshRepoMutation.mutate(visibleRepos.map((r) => r.id))}
-                    >
-                      <RefreshCw
-                        className={cn('h-4 w-4', refreshRepoMutation.isPending && 'animate-spin')}
-                      />
-                    </Button>
-                  </SimpleTooltip>
-                )}
-                {!showingAllRepos && (
-                  <SimpleTooltip label="Remove repository">
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      onClick={() => removeRepoMutation.mutate(selectedRepoId)}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </SimpleTooltip>
-                )}
-              </div>
-            </div>
-
-            <div className="relative min-w-64 flex-1 space-y-1.5">
-              <Label>Search</Label>
-              <div className="relative">
-                <Search className="pointer-events-none absolute left-2.5 top-2.5 z-10 h-4 w-4 text-muted-foreground" />
-                <Input
-                  className="pl-8"
-                  placeholder="Search skills by name, tag, category…"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                />
-              </div>
-            </div>
-
-            <Button onClick={() => setAddRepoOpen(true)}>
-              <Plus /> Add Repository
-            </Button>
+        {activeTab === 'featured' && (
+          <div className="space-y-6">
+            <p className="text-sm text-muted-foreground">
+              Skills that ship their own installer instead of plain files, so AgentMate walks you
+              through their CLI rather than copying a folder.
+            </p>
+            <UiUxProMaxCard />
           </div>
+        )}
 
-          {repoIndexes.failed.length > 0 && (
-            <div className="space-y-1">
-              {repoIndexes.failed.map(({ repo, message }) => (
-                <p key={repo.id} className="text-sm text-destructive">
-                  {repo.name}: {message}
-                </p>
-              ))}
-            </div>
-          )}
-
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {/* The repository index is fetched per repo, so the grid shimmers
-                while it lands instead of sitting empty. */}
-            {(reposQuery.isPending || (visibleRepos.length > 0 && repoIndexes.isPending)) &&
-              Array.from({ length: 6 }, (_, i) => <CatalogCardSkeleton key={i} />)}
-            {visibleMarketplaceSkills.map(({ skill, repo }) => (
-              <Card
-                key={`${repo.id}:${skill.id}`}
-                className="flex flex-col hover:border-primary/30"
-              >
-                <CardHeader>
-                  <div className="flex items-start justify-between gap-2">
-                    <CardTitle>{skill.name}</CardTitle>
-                    <Badge variant="outline">{skill.category}</Badge>
-                  </div>
-                  <CardDescription>{skill.description}</CardDescription>
-                </CardHeader>
-                <CardContent className="mt-auto space-y-3">
-                  <div className="flex flex-wrap gap-1.5">
-                    {skill.tags.map((tag) => (
-                      <Badge key={tag} variant="secondary">
-                        {tag}
-                      </Badge>
-                    ))}
-                    {auditBySkillId.has(skill.id) && (
-                      <SkillAuditVerdictBadge
-                        verdict={auditBySkillId.get(skill.id)!.verdict}
-                        score={auditBySkillId.get(skill.id)!.score}
-                      />
-                    )}
-                  </div>
-                  <div className="text-xs text-muted-foreground">
-                    {/* Which repository a skill came from only matters when several are mixed. */}
-                    {showingAllRepos && (
-                      <button
-                        type="button"
-                        className="underline underline-offset-2 hover:text-foreground"
-                        onClick={() => setSelectedRepoId(repo.id)}
-                      >
-                        {repo.name}
-                      </button>
-                    )}
-                    {showingAllRepos && ' · '}
-                    {skill.author} · v{skill.version}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      size="sm"
-                      onClick={() =>
-                        openInstallPicker({
-                          kind: 'repo',
-                          repositoryId: repo.id,
-                          skillId: skill.id,
-                          skillName: skill.name,
-                        })
-                      }
-                    >
-                      <Download /> Install
-                    </Button>
-                    <SimpleTooltip label="Check this skill for unsafe instructions">
+        {activeTab === 'marketplace' && (
+          <div className="space-y-6">
+            <div className="flex flex-wrap items-end gap-3">
+              <div className="space-y-1.5">
+                <Label>Repository</Label>
+                <div className="flex items-center gap-2">
+                  <Combobox
+                    className="w-56"
+                    value={selectedRepoId}
+                    onChange={setSelectedRepoId}
+                    placeholder="Choose a repository"
+                    searchPlaceholder="Search repositories…"
+                    options={[
+                      {
+                        value: ALL_REPOSITORIES,
+                        label: `All repositories${repoCount > 0 ? ` (${repoCount})` : ''}`,
+                      },
+                      ...(reposQuery.data?.map((r) => ({ value: r.id, label: r.name })) ?? []),
+                    ]}
+                  />
+                  {visibleRepos.length > 0 && (
+                    <SimpleTooltip label={showingAllRepos ? 'Refresh all repositories' : 'Refresh'}>
                       <Button
                         variant="outline"
                         size="icon"
+                        disabled={refreshRepoMutation.isPending}
+                        onClick={() => refreshRepoMutation.mutate(visibleRepos.map((r) => r.id))}
+                      >
+                        <RefreshCw
+                          className={cn('h-4 w-4', refreshRepoMutation.isPending && 'animate-spin')}
+                        />
+                      </Button>
+                    </SimpleTooltip>
+                  )}
+                  {!showingAllRepos && (
+                    <SimpleTooltip label="Remove repository">
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        onClick={() => removeRepoMutation.mutate(selectedRepoId)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </SimpleTooltip>
+                  )}
+                </div>
+              </div>
+
+              <div className="relative min-w-64 flex-1 space-y-1.5">
+                <Label>Search</Label>
+                <div className="relative">
+                  <Search className="pointer-events-none absolute left-2.5 top-2.5 z-10 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    className="pl-8"
+                    placeholder="Search skills by name, tag, category…"
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <Button onClick={() => setAddRepoOpen(true)}>
+                <Plus /> Add Repository
+              </Button>
+            </div>
+
+            {repoIndexes.failed.length > 0 && (
+              <div className="space-y-1">
+                {repoIndexes.failed.map(({ repo, message }) => (
+                  <p key={repo.id} className="text-sm text-destructive">
+                    {repo.name}: {message}
+                  </p>
+                ))}
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {/* The repository index is fetched per repo, so the grid shimmers
+                while it lands instead of sitting empty. */}
+              {(reposQuery.isPending || (visibleRepos.length > 0 && repoIndexes.isPending)) &&
+                Array.from({ length: 6 }, (_, i) => <CatalogCardSkeleton key={i} />)}
+              {visibleMarketplaceSkills.map(({ skill, repo }) => (
+                <Card
+                  key={`${repo.id}:${skill.id}`}
+                  className="flex flex-col hover:border-primary/30"
+                >
+                  <CardHeader>
+                    <div className="flex items-start justify-between gap-2">
+                      <CardTitle>{skill.name}</CardTitle>
+                      <div className="flex shrink-0 items-center gap-1">
+                        <Badge variant="outline">{skill.category}</Badge>
+                        <SkillFavoriteButton
+                          starred={favorites.isFavorite(skill.id)}
+                          onToggle={() =>
+                            toggleFavorite({
+                              skillId: skill.id,
+                              name: skill.name,
+                              source: 'repository',
+                              sourceLabel: repo.name,
+                              description: skill.description,
+                              repositoryId: repo.id,
+                            })
+                          }
+                          className="-mr-2 -mt-1"
+                        />
+                      </div>
+                    </div>
+                    <CardDescription>{skill.description}</CardDescription>
+                  </CardHeader>
+                  <CardContent className="mt-auto space-y-3">
+                    <div className="flex flex-wrap gap-1.5">
+                      {skill.tags.map((tag) => (
+                        <Badge key={tag} variant="secondary">
+                          {tag}
+                        </Badge>
+                      ))}
+                      {auditBySkillId.has(skill.id) && (
+                        <SkillAuditVerdictBadge
+                          verdict={auditBySkillId.get(skill.id)!.verdict}
+                          score={auditBySkillId.get(skill.id)!.score}
+                        />
+                      )}
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      {/* Which repository a skill came from only matters when several are mixed. */}
+                      {showingAllRepos && (
+                        <button
+                          type="button"
+                          className="underline underline-offset-2 hover:text-foreground"
+                          onClick={() => setSelectedRepoId(repo.id)}
+                        >
+                          {repo.name}
+                        </button>
+                      )}
+                      {showingAllRepos && ' · '}
+                      {skill.author} · v{skill.version}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        size="sm"
                         onClick={() =>
-                          setSecuritySubject({
+                          openInstallPicker({
+                            kind: 'repo',
+                            repositoryId: repo.id,
                             skillId: skill.id,
                             skillName: skill.name,
-                            target: {
-                              kind: 'repository',
-                              repositoryId: repo.id,
-                              skillId: skill.id,
-                            },
                           })
                         }
                       >
-                        <Shield className="h-4 w-4" />
+                        <Download /> Install
                       </Button>
-                    </SimpleTooltip>
-                    {skill.documentationUrl && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() =>
-                          void window.agentmat.shell.openExternal(skill.documentationUrl!)
-                        }
-                      >
-                        Docs
-                      </Button>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+                      <SimpleTooltip label="Check this skill for unsafe instructions">
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          onClick={() =>
+                            setSecuritySubject({
+                              skillId: skill.id,
+                              skillName: skill.name,
+                              target: {
+                                kind: 'repository',
+                                repositoryId: repo.id,
+                                skillId: skill.id,
+                              },
+                            })
+                          }
+                        >
+                          <Shield className="h-4 w-4" />
+                        </Button>
+                      </SimpleTooltip>
+                      {skill.documentationUrl && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() =>
+                            void window.agentmat.shell.openExternal(skill.documentationUrl!)
+                          }
+                        >
+                          Docs
+                        </Button>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
 
-          {filteredSkills.length > visibleMarketplaceSkills.length && (
-            <div className="flex justify-center">
-              <Button
-                variant="outline"
-                onClick={() => setMarketplaceVisibleCount((count) => count + SKILL_GRID_PAGE_SIZE)}
+            {filteredSkills.length > visibleMarketplaceSkills.length && (
+              <div className="flex justify-center">
+                <Button
+                  variant="outline"
+                  onClick={() =>
+                    setMarketplaceVisibleCount((count) => count + SKILL_GRID_PAGE_SIZE)
+                  }
+                >
+                  Show more ({filteredSkills.length - visibleMarketplaceSkills.length} remaining)
+                </Button>
+              </div>
+            )}
+
+            {!reposQuery.isPending && !repoIndexes.isPending && filteredSkills.length === 0 && (
+              <p className="text-sm text-muted-foreground">
+                {repoCount === 0
+                  ? 'No repositories yet. Add one to browse its skills here.'
+                  : search.trim()
+                    ? 'No skills match your search.'
+                    : 'No skills in this repository yet.'}
+              </p>
+            )}
+          </div>
+        )}
+
+        {activeTab === 'directory' && (
+          <div className="space-y-6">
+            {/* A div, not a p: the Official badge below renders a div, which a p cannot hold. */}
+            <div className="text-sm text-muted-foreground">
+              {bundledSkillsShDirectory.length} popular skills bundled from{' '}
+              <button
+                type="button"
+                className="underline underline-offset-2 hover:text-foreground"
+                onClick={() => void window.agentmat.shell.openExternal('https://www.skills.sh')}
               >
-                Show more ({filteredSkills.length - visibleMarketplaceSkills.length} remaining)
+                skills.sh
+              </button>{' '}
+              as of {SKILLS_SH_SNAPSHOT_DATE} for offline browsing, switch to{' '}
+              <span className="font-medium text-foreground">Live</span> to search skills.sh's full
+              catalog directly. The{' '}
+              <Badge variant="default" className="align-middle">
+                Official
+              </Badge>{' '}
+              badge mirrors skills.sh's own verified-publisher mark (Anthropic, Vercel, Microsoft,
+              Firebase, Supabase, and other verified owners); everything else is
+              community-published.
+            </div>
+
+            <div className="flex flex-wrap items-end gap-3">
+              <div className="relative min-w-64 flex-1 space-y-1.5">
+                <Label>Search</Label>
+                <div className="relative">
+                  <Search className="pointer-events-none absolute left-2.5 top-2.5 z-10 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    className="pl-8"
+                    placeholder={
+                      shMode === 'live'
+                        ? 'Search skills.sh live (2+ characters)…'
+                        : 'Search by name, owner, or description…'
+                    }
+                    value={shSearch}
+                    onChange={(e) => setShSearch(e.target.value)}
+                  />
+                </div>
+              </div>
+              <div className="flex items-center gap-1 rounded-md border border-border p-0.5">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={shMode === 'bundled' ? 'default' : 'ghost'}
+                  onClick={() => setShMode('bundled')}
+                >
+                  Bundled
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={shMode === 'live' ? 'default' : 'ghost'}
+                  onClick={() => setShMode('live')}
+                >
+                  Live
+                </Button>
+              </div>
+              <Button
+                type="button"
+                variant={shOfficialOnly ? 'default' : 'outline'}
+                onClick={() => setShOfficialOnly((v) => !v)}
+              >
+                <CircleCheck /> Official only
               </Button>
             </div>
-          )}
 
-          {!reposQuery.isPending && !repoIndexes.isPending && filteredSkills.length === 0 && (
-            <p className="text-sm text-muted-foreground">
-              {repoCount === 0
-                ? 'No repositories yet. Add one to browse its skills here.'
-                : search.trim()
-                  ? 'No skills match your search.'
-                  : 'No skills in this repository yet.'}
-            </p>
-          )}
-        </TabsContent>
+            {shMode === 'live' && shDebouncedSearch.trim().length < 2 && (
+              <p className="text-sm text-muted-foreground">
+                Type at least 2 characters to search skills.sh live.
+              </p>
+            )}
 
-        <TabsContent value="directory" className="mt-0 space-y-6">
-          <p className="text-sm text-muted-foreground">
-            {bundledSkillsShDirectory.length} popular skills bundled from{' '}
-            <button
-              type="button"
-              className="underline underline-offset-2 hover:text-foreground"
-              onClick={() => void window.agentmat.shell.openExternal('https://www.skills.sh')}
-            >
-              skills.sh
-            </button>{' '}
-            as of {SKILLS_SH_SNAPSHOT_DATE} for offline browsing, switch to{' '}
-            <span className="font-medium text-foreground">Live</span> to search skills.sh's full
-            catalog directly. The{' '}
-            <Badge variant="default" className="align-middle">
-              Official
-            </Badge>{' '}
-            badge mirrors skills.sh's own verified-publisher mark (Anthropic, Vercel, Microsoft,
-            Firebase, Supabase, and other verified owners); everything else is community-published.
-          </p>
+            {shMode === 'live' && liveShSearchQuery.isFetching && (
+              <p className="text-sm text-muted-foreground">Searching skills.sh…</p>
+            )}
 
-          <div className="flex flex-wrap items-end gap-3">
-            <div className="relative min-w-64 flex-1 space-y-1.5">
-              <Label>Search</Label>
-              <div className="relative">
-                <Search className="pointer-events-none absolute left-2.5 top-2.5 z-10 h-4 w-4 text-muted-foreground" />
-                <Input
-                  className="pl-8"
-                  placeholder={
-                    shMode === 'live'
-                      ? 'Search skills.sh live (2+ characters)…'
-                      : 'Search by name, owner, or description…'
-                  }
-                  value={shSearch}
-                  onChange={(e) => setShSearch(e.target.value)}
+            {shMode === 'live' && liveShSearchQuery.isError && (
+              <p className="text-sm text-destructive">
+                Couldn't reach skills.sh. Check your connection and try again.
+              </p>
+            )}
+
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {visibleShSkills.map((skill) => (
+                <SkillsShDirectoryCard
+                  key={skill.id}
+                  skill={skill}
+                  audit={auditBySkillId.get(`${skill.repo}/${skill.name}`)}
+                  starred={favorites.isFavorite(`${skill.repo}/${skill.name}`)}
+                  onInstall={handleInstallSkillsSh}
+                  onView={setShSelected}
+                  onCheckSecurity={handleCheckSkillsShSecurity}
+                  onToggleFavorite={handleToggleShFavorite}
                 />
+              ))}
+            </div>
+
+            {filteredShSkills.length > visibleShSkills.length && (
+              <div className="flex justify-center">
+                <Button
+                  variant="outline"
+                  onClick={() => setDirectoryVisibleCount((count) => count + SKILL_GRID_PAGE_SIZE)}
+                >
+                  Show more ({filteredShSkills.length - visibleShSkills.length} remaining)
+                </Button>
+              </div>
+            )}
+
+            {filteredShSkills.length === 0 &&
+              !(
+                shMode === 'live' &&
+                (liveShSearchQuery.isFetching || shDebouncedSearch.trim().length < 2)
+              ) && <p className="text-sm text-muted-foreground">No skills match your search.</p>}
+          </div>
+        )}
+
+        {activeTab === 'favorites' && (
+          <div className="space-y-6">
+            <SkillFavoritesTab
+              favorites={favorites}
+              auditBySkillId={auditBySkillId}
+              usageBySkillName={usageBySkillName}
+              onInstall={handleInstallFavorite}
+              onCheckSecurity={setSecuritySubject}
+              onCopyInstallCommand={handleCopyInstallCommand}
+            />
+          </div>
+        )}
+
+        {activeTab === 'usage' && (
+          <div className="space-y-6">
+            <SkillUsageTab
+              report={usageQuery.data}
+              isPending={usageQuery.isPending}
+              isRescanning={rescanUsageMutation.isPending}
+              onRescan={() => rescanUsageMutation.mutate()}
+              favorites={favorites}
+            />
+          </div>
+        )}
+
+        {activeTab === 'security' && (
+          <div className="space-y-6">
+            <AdHocSkillScanner auditBySkillId={auditBySkillId} onCheck={setSecuritySubject} />
+
+            <div className="space-y-3">
+              <p className="text-sm text-muted-foreground">
+                A skill is instructions an agent reads and acts on, so its text is as powerful as
+                code. Anything checked above, or with the shield button on a skill card, is read
+                against these patterns. Every check is kept here.
+              </p>
+              <div className="grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-3">
+                {SKILL_RISK_CATEGORIES.map((category) => (
+                  <div
+                    key={category.id}
+                    className="rounded-lg border border-border bg-card/60 px-3 py-2"
+                  >
+                    <p className="text-sm font-medium text-foreground">{category.label}</p>
+                    <p className="text-xs text-muted-foreground">{category.description}</p>
+                  </div>
+                ))}
               </div>
             </div>
-            <div className="flex items-center gap-1 rounded-md border border-border p-0.5">
-              <Button
-                type="button"
-                size="sm"
-                variant={shMode === 'bundled' ? 'default' : 'ghost'}
-                onClick={() => setShMode('bundled')}
-              >
-                Bundled
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant={shMode === 'live' ? 'default' : 'ghost'}
-                onClick={() => setShMode('live')}
-              >
-                Live
-              </Button>
-            </div>
-            <Button
-              type="button"
-              variant={shOfficialOnly ? 'default' : 'outline'}
-              onClick={() => setShOfficialOnly((v) => !v)}
-            >
-              <CircleCheck /> Official only
-            </Button>
-          </div>
 
-          {shMode === 'live' && shDebouncedSearch.trim().length < 2 && (
-            <p className="text-sm text-muted-foreground">
-              Type at least 2 characters to search skills.sh live.
-            </p>
-          )}
-
-          {shMode === 'live' && liveShSearchQuery.isFetching && (
-            <p className="text-sm text-muted-foreground">Searching skills.sh…</p>
-          )}
-
-          {shMode === 'live' && liveShSearchQuery.isError && (
-            <p className="text-sm text-destructive">
-              Couldn't reach skills.sh. Check your connection and try again.
-            </p>
-          )}
-
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {visibleShSkills.map((skill) => (
-              <SkillsShDirectoryCard
-                key={skill.id}
-                skill={skill}
-                audit={auditBySkillId.get(`${skill.repo}/${skill.name}`)}
-                onInstall={handleInstallSkillsSh}
-                onView={setShSelected}
-                onCheckSecurity={handleCheckSkillsShSecurity}
-              />
-            ))}
-          </div>
-
-          {filteredShSkills.length > visibleShSkills.length && (
-            <div className="flex justify-center">
-              <Button
-                variant="outline"
-                onClick={() => setDirectoryVisibleCount((count) => count + SKILL_GRID_PAGE_SIZE)}
-              >
-                Show more ({filteredShSkills.length - visibleShSkills.length} remaining)
-              </Button>
-            </div>
-          )}
-
-          {filteredShSkills.length === 0 &&
-            !(
-              shMode === 'live' &&
-              (liveShSearchQuery.isFetching || shDebouncedSearch.trim().length < 2)
-            ) && <p className="text-sm text-muted-foreground">No skills match your search.</p>}
-        </TabsContent>
-
-        <TabsContent value="security" className="mt-0 space-y-6">
-          <AdHocSkillScanner auditBySkillId={auditBySkillId} onCheck={setSecuritySubject} />
-
-          <div className="space-y-3">
-            <p className="text-sm text-muted-foreground">
-              A skill is instructions an agent reads and acts on, so its text is as powerful as
-              code. Anything checked above, or with the shield button on a skill card, is read
-              against these patterns. Every check is kept here.
-            </p>
-            <div className="grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-3">
-              {SKILL_RISK_CATEGORIES.map((category) => (
-                <div
-                  key={category.id}
-                  className="rounded-lg border border-border bg-card/60 px-3 py-2"
+            <div className="flex items-center justify-between gap-3 border-t border-border pt-4">
+              <div>
+                <p className="text-sm font-medium text-foreground">Check history</p>
+                <p className="text-xs text-muted-foreground">
+                  {auditHistoryQuery.data?.length ?? 0} check
+                  {(auditHistoryQuery.data?.length ?? 0) === 1 ? '' : 's'} saved on this machine.
+                </p>
+              </div>
+              {(auditHistoryQuery.data?.length ?? 0) > 0 && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    void confirmDialog({
+                      title: 'Clear the security check history?',
+                      description:
+                        'Every saved check is deleted. The skills themselves are not touched.',
+                      confirmLabel: 'Clear',
+                      variant: 'destructive',
+                    }).then((confirmed) => {
+                      if (confirmed) clearAuditsMutation.mutate();
+                    });
+                  }}
                 >
-                  <p className="text-sm font-medium text-foreground">{category.label}</p>
-                  <p className="text-xs text-muted-foreground">{category.description}</p>
+                  <Trash2 /> Clear history
+                </Button>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              {auditHistoryQuery.isPending && (
+                <p className="text-sm text-muted-foreground">Loading checks…</p>
+              )}
+              {auditHistoryQuery.data?.length === 0 && (
+                <p className="text-sm text-muted-foreground">
+                  No skills checked yet. Open the Directory or Repositories tab and use the shield
+                  button on a skill.
+                </p>
+              )}
+              {(auditHistoryQuery.data ?? []).map((audit) => (
+                <div
+                  key={audit.id}
+                  className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-card px-3 py-2"
+                >
+                  <div className="min-w-0 space-y-0.5">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-sm font-medium text-foreground">{audit.skillName}</span>
+                      <SkillAuditVerdictBadge verdict={audit.verdict} score={audit.score} />
+                      <Badge variant="outline">{AUDIT_SOURCE_LABEL[audit.sourceKind]}</Badge>
+                      {audit.deepReview && (
+                        <Badge variant="outline" className="gap-1">
+                          <Sparkles className="h-3 w-3" />
+                          {audit.cliName ?? 'CLI'}
+                        </Badge>
+                      )}
+                    </div>
+                    <p className="truncate text-xs text-muted-foreground">
+                      {audit.findings.length} finding{audit.findings.length === 1 ? '' : 's'} ·{' '}
+                      {audit.sourceLabel} · {new Date(audit.createdAt).toLocaleString()}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <Button variant="outline" size="sm" onClick={() => setAuditDetail(audit)}>
+                      <Eye /> View
+                    </Button>
+                    <SimpleTooltip label="Delete this check">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => removeAuditMutation.mutate(audit.id)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </SimpleTooltip>
+                  </div>
                 </div>
               ))}
             </div>
           </div>
-
-          <div className="flex items-center justify-between gap-3 border-t border-border pt-4">
-            <div>
-              <p className="text-sm font-medium text-foreground">Check history</p>
-              <p className="text-xs text-muted-foreground">
-                {auditHistoryQuery.data?.length ?? 0} check
-                {(auditHistoryQuery.data?.length ?? 0) === 1 ? '' : 's'} saved on this machine.
-              </p>
-            </div>
-            {(auditHistoryQuery.data?.length ?? 0) > 0 && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  void confirmDialog({
-                    title: 'Clear the security check history?',
-                    description:
-                      'Every saved check is deleted. The skills themselves are not touched.',
-                    confirmLabel: 'Clear',
-                    variant: 'destructive',
-                  }).then((confirmed) => {
-                    if (confirmed) clearAuditsMutation.mutate();
-                  });
-                }}
-              >
-                <Trash2 /> Clear history
-              </Button>
-            )}
-          </div>
-
-          <div className="space-y-2">
-            {auditHistoryQuery.isPending && (
-              <p className="text-sm text-muted-foreground">Loading checks…</p>
-            )}
-            {auditHistoryQuery.data?.length === 0 && (
-              <p className="text-sm text-muted-foreground">
-                No skills checked yet. Open the Directory or Repositories tab and use the shield
-                button on a skill.
-              </p>
-            )}
-            {(auditHistoryQuery.data ?? []).map((audit) => (
-              <div
-                key={audit.id}
-                className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-card px-3 py-2"
-              >
-                <div className="min-w-0 space-y-0.5">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-sm font-medium text-foreground">{audit.skillName}</span>
-                    <SkillAuditVerdictBadge verdict={audit.verdict} score={audit.score} />
-                    <Badge variant="outline">{AUDIT_SOURCE_LABEL[audit.sourceKind]}</Badge>
-                    {audit.deepReview && (
-                      <Badge variant="outline" className="gap-1">
-                        <Sparkles className="h-3 w-3" />
-                        {audit.cliName ?? 'CLI'}
-                      </Badge>
-                    )}
-                  </div>
-                  <p className="truncate text-xs text-muted-foreground">
-                    {audit.findings.length} finding{audit.findings.length === 1 ? '' : 's'} ·{' '}
-                    {audit.sourceLabel} · {new Date(audit.createdAt).toLocaleString()}
-                  </p>
-                </div>
-                <div className="flex items-center gap-1">
-                  <Button variant="outline" size="sm" onClick={() => setAuditDetail(audit)}>
-                    <Eye /> View
-                  </Button>
-                  <SimpleTooltip label="Delete this check">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => removeAuditMutation.mutate(audit.id)}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </SimpleTooltip>
-                </div>
-              </div>
-            ))}
-          </div>
-        </TabsContent>
-      </Tabs>
+        )}
+      </div>
 
       <Dialog
         open={addRepoOpen}
@@ -1559,6 +1727,17 @@ export default function SkillsPage(): React.JSX.Element {
                       )}
                     </span>
                     <div className="flex items-center gap-1">
+                      <SkillFavoriteButton
+                        starred={favorites.isFavorite(skill.skillId)}
+                        onToggle={() =>
+                          toggleFavorite({
+                            skillId: skill.skillId,
+                            name: skill.skillId.split('/').pop() ?? skill.skillId,
+                            source: 'installed',
+                            sourceLabel: 'Installed globally',
+                          })
+                        }
+                      />
                       <SimpleTooltip label="Check this skill for unsafe instructions">
                         <Button
                           variant="ghost"
