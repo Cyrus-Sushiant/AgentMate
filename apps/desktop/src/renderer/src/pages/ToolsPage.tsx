@@ -41,11 +41,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { GooeyNav, GooeyNavCount } from '@/components/ui/gooey-nav';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Switch } from '@/components/ui/switch';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { queryKeys } from '@/lib/queryKeys';
 import { usePageHeader } from '@/stores/pageHeaderStore';
@@ -96,15 +96,6 @@ function installLabel(command: string | undefined): string {
 function shortCategoryLabel(category: string): string {
   const first = category.split(' & ')[0];
   return first === 'Token' ? 'Token & Cost' : first;
-}
-
-function CountPill({ value }: { value: number }): React.JSX.Element | null {
-  if (value <= 0) return null;
-  return (
-    <span className="min-w-4 rounded-full bg-muted px-1.5 text-center text-[10px] font-medium tabular-nums text-muted-foreground group-data-[state=active]:bg-foreground/10 group-data-[state=active]:text-foreground">
-      {value}
-    </span>
-  );
 }
 
 export default function ToolsPage(): React.JSX.Element {
@@ -422,6 +413,29 @@ export default function ToolsPage(): React.JSX.Element {
     );
   }
 
+  // The nav reports the index it was given, so these two arrays stay in step: one drives the
+  // tiles, the other maps a click back to the category it filters by.
+  const navValues = useMemo(
+    () => ['all', ...categories.map(({ category }) => category)],
+    [categories],
+  );
+
+  const navItems = useMemo(
+    () => [
+      {
+        label: 'All',
+        icon: <Wrench />,
+        badge: <GooeyNavCount value={AGENT_TOOL_REGISTRY.length} />,
+      },
+      ...categories.map(({ category, count }) => ({
+        label: shortCategoryLabel(category),
+        icon: category === SECURITY_TOOL_CATEGORY ? <Shield /> : undefined,
+        badge: <GooeyNavCount value={count} />,
+      })),
+    ],
+    [categories],
+  );
+
   const visibleTools = useMemo(
     () =>
       activeCategory === 'all'
@@ -476,28 +490,14 @@ export default function ToolsPage(): React.JSX.Element {
         above. Docker and global setup actions don't.
       </p>
 
-      <Tabs
-        value={activeCategory}
-        onValueChange={setActiveCategory}
-        className="flex flex-col gap-4"
-      >
-        <div className="flex items-end gap-3 border-b border-border">
-          <TabsList containerClassName="min-w-0 flex-1 border-b-0">
-            <TabsTrigger value="all" className="group gap-1.5">
-              <Wrench className="h-3.5 w-3.5" />
-              All
-              <CountPill value={AGENT_TOOL_REGISTRY.length} />
-            </TabsTrigger>
-            {categories.map(({ category, count }) => (
-              <TabsTrigger key={category} value={category} className="group gap-1.5">
-                {category === SECURITY_TOOL_CATEGORY ? <Shield className="h-3.5 w-3.5" /> : null}
-                {shortCategoryLabel(category)}
-                <CountPill value={count} />
-              </TabsTrigger>
-            ))}
-          </TabsList>
-        </div>
-      </Tabs>
+      <GooeyNav
+        size="sm"
+        className="max-w-full overflow-x-auto"
+        aria-label="Tool categories"
+        items={navItems}
+        value={Math.max(0, navValues.indexOf(activeCategory))}
+        onChange={(index) => setActiveCategory(navValues[index])}
+      />
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
         {visibleTools.map((tool) => {

@@ -62,6 +62,22 @@ export type GooeyNavItem = string | NavItem;
 
 const toItem = (item: GooeyNavItem): NavItem => (typeof item === 'string' ? { label: item } : item);
 
+/**
+ * A count chip for a nav tile's `badge`. It tints itself from the label color, so it stays
+ * readable on the selected tile and on the bar alike.
+ */
+export function GooeyNavCount({ value }: { value: number }): React.JSX.Element | undefined {
+  if (value <= 0) return undefined;
+  return (
+    <span
+      className="min-w-4 rounded-full px-1.5 text-center text-[10px] font-medium tabular-nums"
+      style={{ backgroundColor: 'color-mix(in srgb, currentColor 18%, transparent)' }}
+    >
+      {value}
+    </span>
+  );
+}
+
 export type GooeyNavProps = Omit<ComponentProps<'nav'>, 'onChange'> & {
   items: GooeyNavItem[];
   /** Controlled index. Leave unset to let the nav track its own selection. */

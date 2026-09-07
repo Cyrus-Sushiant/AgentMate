@@ -53,7 +53,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { GooeyNav } from '@/components/ui/gooey-nav';
+import { GooeyNav, GooeyNavCount } from '@/components/ui/gooey-nav';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { SimpleTooltip } from '@/components/ui/tooltip';
@@ -89,19 +89,6 @@ const SKILL_TABS: SkillsTab[] = [
   'usage',
   'security',
 ];
-
-/** The count chip on a nav tile. currentColor keeps it readable on the selected tile too. */
-function navCount(count: number): React.JSX.Element | undefined {
-  if (count <= 0) return undefined;
-  return (
-    <span
-      className="min-w-4 rounded-full px-1.5 text-center text-[10px] font-medium tabular-nums"
-      style={{ backgroundColor: 'color-mix(in srgb, currentColor 18%, transparent)' }}
-    >
-      {count}
-    </span>
-  );
-}
 
 /** How a stored audit's source is labelled in the history list. */
 const AUDIT_SOURCE_LABEL: Record<SkillAuditRecord['sourceKind'], string> = {
@@ -839,8 +826,8 @@ export default function SkillsPage(): React.JSX.Element {
     () => [
       { label: 'Directory', icon: <Search /> },
       { label: 'Featured', icon: <Sparkles /> },
-      { label: 'Repositories', icon: <FolderOpen />, badge: navCount(repoCount) },
-      { label: 'Favorites', icon: <Star />, badge: navCount(favoriteCount) },
+      { label: 'Repositories', icon: <FolderOpen />, badge: <GooeyNavCount value={repoCount} /> },
+      { label: 'Favorites', icon: <Star />, badge: <GooeyNavCount value={favoriteCount} /> },
       { label: 'Usage', icon: <ChartSimple /> },
       { label: 'Security', icon: <Shield /> },
     ],
