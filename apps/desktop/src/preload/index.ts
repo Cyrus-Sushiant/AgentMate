@@ -139,6 +139,8 @@ import type {
   SuggestGitTextResult,
   SuggestTagResult,
   SystemStatsSample,
+  TagScope,
+  TagScopeRef,
   TopResourceAppsResult,
   TopResourceKind,
   TranscribeAudioInput,
@@ -658,11 +660,20 @@ const git = {
     ipcRenderer.invoke(IPC.git.branchHistory, projectId, branchName),
   commit: (projectId: string, message: string): Promise<GitOpResult> =>
     ipcRenderer.invoke(IPC.git.commit, projectId, message),
-  tags: (projectId: string): Promise<GitTagInfo> => ipcRenderer.invoke(IPC.git.tags, projectId),
+  /** Tag state for the repo, or for one part of it when a scope is given. */
+  tags: (projectId: string, scope?: TagScopeRef): Promise<GitTagInfo> =>
+    ipcRenderer.invoke(IPC.git.tags, projectId, scope),
+  /** The parts of the repo that can be tagged on their own, with the prefix each one uses. */
+  tagScopes: (projectId: string): Promise<TagScope[]> =>
+    ipcRenderer.invoke(IPC.git.tagScopes, projectId),
   createTag: (input: CreateTagInput): Promise<GitOpResult> =>
     ipcRenderer.invoke(IPC.git.createTag, input),
-  suggestTag: (projectId: string, requestId?: string): Promise<SuggestTagResult> =>
-    ipcRenderer.invoke(IPC.git.suggestTag, projectId, requestId),
+  suggestTag: (
+    projectId: string,
+    requestId?: string,
+    scope?: TagScopeRef,
+  ): Promise<SuggestTagResult> =>
+    ipcRenderer.invoke(IPC.git.suggestTag, projectId, requestId, scope),
   /** Kills the CLI process behind an in-flight suggestTag(requestId). */
   cancelSuggestTag: (requestId: string): Promise<boolean> =>
     ipcRenderer.invoke(IPC.git.cancelSuggestTag, requestId),

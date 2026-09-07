@@ -58,6 +58,11 @@ export const queryKeys = {
   gitStatus: (projectId: string) => ['git-status', projectId] as const,
   gitFiles: (projectId: string) => ['git-files', projectId] as const,
   gitTags: (projectId: string) => ['git-tags', projectId] as const,
+  /** Tag state for one part of a monorepo. Nested so invalidating gitTags refreshes it too. */
+  gitTagsForScope: (projectId: string, prefix: string, path: string) =>
+    ['git-tags', projectId, 'scope', prefix, path] as const,
+  /** The parts of a repo that can be tagged on their own. */
+  gitTagScopes: (projectId: string) => ['git-tag-scopes', projectId] as const,
   gitBranchHistory: (projectId: string, branch: string) =>
     ['git-branch-history', projectId, branch] as const,
   /** Prefix of a project's branch histories, for invalidating every branch at once. */

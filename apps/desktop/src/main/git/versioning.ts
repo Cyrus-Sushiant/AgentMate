@@ -59,12 +59,38 @@ function stripMarkdownFences(text: string): string {
     .trim();
 }
 
-/** Keeps the repo's own `v` prefix style rather than whatever the model emitted. */
-export function formatTagForRepo(version: string, latestTag: string | null): string {
+/**
+ * Splits a tag into what comes before the version and the version itself: `v1.2.3` is
+ * `v` plus `1.2.3`, `web-v1.2.3` is `web-v` plus `1.2.3`, `@acme/web@1.2.3` is
+ * `@acme/web@` plus `1.2.3`. Null when the tag holds no version number at all.
+ */
+export function splitTagPrefix(tag: string): { prefix: string; version: string } | null {
+  const match = tag.trim().match(/^(.*?)(\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?)$/);
+  if (!match) return null;
+  return { prefix: match[1], version: match[2] };
+}
+
+/** True when `tag` belongs to `prefix`, meaning the rest of it is a version number. */
+export function tagHasPrefix(tag: string, prefix: string): boolean {
+  if (!tag.startsWith(prefix)) return false;
+  return /^\d+\.\d+\.\d+/.test(tag.slice(prefix.length));
+}
+
+/**
+ * Puts the repo's own prefix back on a bare version number. An explicit `prefix` (the
+ * scope the user picked) wins, so a `web-v` release keeps its prefix even when the model
+ * answered with a plain `1.2.3`. Without one, the `v` style of the latest tag is followed,
+ * which is what a single-package repo wants.
+ */
+export function formatTagForRepo(
+  version: string,
+  latestTag: string | null,
+  prefix?: string,
+): string {
+  const bare = splitTagPrefix(version)?.version ?? version.replace(/^v/, '');
+  if (prefix !== undefined) return `${prefix}${bare}`;
   const wantsPrefix = latestTag ? latestTag.startsWith('v') : true;
-  if (wantsPrefix && !version.startsWith('v')) return `v${version}`;
-  if (!wantsPrefix && version.startsWith('v')) return version.slice(1);
-  return version;
+  return wantsPrefix ? `v${bare}` : bare;
 }
 
 /**
@@ -116,12 +142,16 @@ const SEMVER_IN_TEXT = /v?\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?/;
  * waved it through instead of rejecting it. A TAG line with no digits (`TAG: patch`)
  * returns null so the caller falls back to the commit history.
  */
-export function parseSuggestedTag(text: string, latestTag: string | null): SuggestedTag | null {
+export function parseSuggestedTag(
+  text: string,
+  latestTag: string | null,
+  prefix?: string,
+): SuggestedTag | null {
   const tagLine = text.match(/^\s*TAG:\s*(.+)$/im)?.[1];
   const match = tagLine?.match(SEMVER_IN_TEXT);
   if (!match) return null;
 
-  const tag = formatTagForRepo(match[0], latestTag);
+  const tag = formatTagForRepo(match[0], latestTag, prefix);
   const { reason, message } = extractTagNotes(text);
   return { tag, reason, message };
 }
@@ -180,17 +210,42 @@ export function rejectSuggestedVersion(
   return null;
 }
 
-/** Prompt handed to the agent CLI to roll a new version number through the project's files. */
-export function buildVersionBumpPrompt(tag: string): string {
-  const version = tag.replace(/^v/, '');
+/**
+ * Prompt handed to the agent CLI to roll a new version number through the project's files.
+ * A `scope` fences the bump to one folder of a monorepo: cutting `web-v1.4.0` has to leave
+ * the app's version, and the root manifest, exactly where they were.
+ */
+export function buildVersionBumpPrompt(
+  tag: string,
+  scope?: { path: string; label?: string },
+): string {
+  const version = splitTagPrefix(tag)?.version ?? tag.replace(/^v/, '');
+  const path = scope?.path.trim() ?? '';
+  const part = scope?.label?.trim() || path;
+
   return [
-    `Update this project's version to ${version}.`,
+    path
+      ? `Update the version of the "${part}" part of this repository, which lives in ${path}, to ${version}.`
+      : `Update this project's version to ${version}.`,
     '',
-    '- Set the version field in every manifest this repo actually uses: package.json (including',
-    '  workspace packages), pyproject.toml, Cargo.toml, *.csproj, app.json, build.gradle,',
-    '  Info.plist, and so on.',
+    ...(path
+      ? [
+          `- Only edit files inside ${path}. This is a monorepo and the tag covers that folder alone.`,
+          '- Leave every other package alone, along with the repository root manifest and any shared',
+          '  version constant other parts read. If a version outside that folder looks stale, say so',
+          '  in your summary instead of changing it.',
+          `- Set the version field in every manifest inside ${path}: package.json, pyproject.toml,`,
+          '  Cargo.toml, *.csproj, app.json, build.gradle, Info.plist, and so on.',
+        ]
+      : [
+          '- Set the version field in every manifest this repo actually uses: package.json (including',
+          '  workspace packages), pyproject.toml, Cargo.toml, *.csproj, app.json, build.gradle,',
+          '  Info.plist, and so on.',
+        ]),
     '- Update hard-coded version strings the application itself displays (about screens, footers,',
-    '  constants such as APP_VERSION).',
+    path
+      ? '  constants such as APP_VERSION), as long as they live in that folder.'
+      : '  constants such as APP_VERSION).',
     '- Leave lockfiles alone. Only touch a CHANGELOG if this project clearly keeps one.',
     '- Edit the version fields directly. Do not run `npm version`, `yarn version`, `pnpm version`,',
     '  `cargo release`, or any other command that bumps a version by itself, since those also',

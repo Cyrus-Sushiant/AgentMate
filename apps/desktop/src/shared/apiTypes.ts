@@ -746,6 +746,36 @@ export interface GitTagInfo {
   hasRemote: boolean;
 }
 
+/**
+ * Which part of a repository a tag covers. A plain repo has the one "whole repository"
+ * scope; a monorepo gets one per workspace package, so `web-v1.4.0` can be cut without
+ * touching the app's version.
+ */
+export interface TagScope {
+  /** Stable key for React lists and for remembering the last pick. */
+  id: string;
+  /** What the picker shows, e.g. "web" or "Whole repository". */
+  label: string;
+  /** Goes in front of the version number, e.g. "v", "web-v" or "@acme/web@". */
+  prefix: string;
+  /** Repo-relative folder the scope covers. Empty means the whole repository. */
+  path: string;
+  /** Latest existing tag carrying this prefix, for showing where the part stands. */
+  latestTag: string | null;
+  /** How many tags already use this prefix. Zero means the prefix is only a suggestion. */
+  tagCount: number;
+}
+
+/** The scope a tag operation runs against, as sent from the renderer. */
+export interface TagScopeRef {
+  /** Tag prefix in front of the version, e.g. "v" or "web-v". Empty means bare versions. */
+  prefix: string;
+  /** Repo-relative folder the tag covers. Empty means the whole repository. */
+  path: string;
+  /** Human name of the part, used in prompts and messages. */
+  label?: string;
+}
+
 export interface CreateTagInput {
   projectId: string;
   tag: string;
@@ -757,10 +787,12 @@ export interface CreateTagInput {
 
 export interface ApplyVersionInput {
   projectId: string;
-  /** Tag being prepared, e.g. "v1.7.0"; the manifests get it without the leading "v". */
+  /** Tag being prepared, e.g. "v1.7.0"; the manifests get the version part on its own. */
   tag: string;
   /** Lets git.cancelAiPrompt(requestId) stop the run. */
   requestId?: string;
+  /** Limits the bump to one part of a monorepo. Omitted means the whole repository. */
+  scope?: TagScopeRef;
 }
 
 export interface ApplyVersionResult {
@@ -774,6 +806,8 @@ export interface ApplyVersionResult {
   cliName?: string | null;
   /** Set when files were edited but the CLI still ended badly (timed out, exited non-zero). */
   warning?: string;
+  /** Changed files that sit outside the scope's folder, so the user can undo them. */
+  outOfScopeFiles?: string[];
   error?: string;
   cancelled?: boolean;
 }

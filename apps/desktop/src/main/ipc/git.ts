@@ -25,6 +25,8 @@ import type {
   RenameBranchInput,
   SuggestGitTextResult,
   SuggestTagResult,
+  TagScope,
+  TagScopeRef,
 } from '../../shared/apiTypes';
 import { IPC } from '../../shared/ipcChannels';
 import { cancelHeadlessPrompt, runHeadlessCliPrompt } from '../cli/headlessPrompt';
@@ -66,6 +68,7 @@ import {
   TAG_NAME_PATTERN,
 } from '../git/plumbing';
 import { unwatchProjectRepo, watchProjectRepo } from '../git/repoWatcher';
+import { readTagScopes } from '../git/tagScopes';
 import {
   buildReleaseSummary,
   buildVersionBumpPrompt,
@@ -389,19 +392,26 @@ function registerBranchHandlers(): void {
 }
 
 function registerTagHandlers(): void {
-  ipcMain.handle(IPC.git.tags, async (_event, projectId: string): Promise<GitTagInfo> => {
-    return readTagInfo(await getProjectPath(projectId));
+  ipcMain.handle(
+    IPC.git.tags,
+    async (_event, projectId: string, scope?: TagScopeRef): Promise<GitTagInfo> => {
+      return readTagInfo(await getProjectPath(projectId), scope);
+    },
+  );
+
+  ipcMain.handle(IPC.git.tagScopes, async (_event, projectId: string): Promise<TagScope[]> => {
+    return readTagScopes(await getProjectPath(projectId));
   });
 
   ipcMain.handle(IPC.git.createTag, async (_event, input: CreateTagInput): Promise<GitOpResult> => {
     const cwd = await getProjectPath(input.projectId);
     const tag = input.tag.trim();
     if (!tag) return { ok: false, message: 'Tag name cannot be empty.' };
-    if (!TAG_NAME_PATTERN.test(tag) || tag.includes('..')) {
+    if (!TAG_NAME_PATTERN.test(tag) || tag.includes('..') || tag.includes('@{')) {
       return {
         ok: false,
         message:
-          'Invalid tag name. Use letters, digits, dots, dashes, underscores or slashes (e.g. v1.0.1).',
+          'Invalid tag name. Use letters, digits, dots, dashes, underscores, slashes or @ (e.g. v1.0.1 or web-v1.0.1).',
       };
     }
 
@@ -471,29 +481,44 @@ function registerTagHandlers(): void {
 
   ipcMain.handle(
     IPC.git.suggestTag,
-    async (_event, projectId: string, requestId?: string): Promise<SuggestTagResult> => {
+    async (
+      _event,
+      projectId: string,
+      requestId?: string,
+      scope?: TagScopeRef,
+    ): Promise<SuggestTagResult> => {
       const project = await getProject(projectId);
       const cwd = project.folderPath;
-      const { latestTag, commitsSinceLatestTag } = await readTagInfo(cwd);
+      const scopePath = scope?.path.trim() ?? '';
+      const scopeName = scope?.label?.trim() || scopePath;
+      const { latestTag, commitsSinceLatestTag } = await readTagInfo(cwd, scope);
       if (latestTag && commitsSinceLatestTag === 0) {
         return {
           ok: false,
-          error: `No new commits since ${latestTag}, so there is nothing to tag yet.`,
+          error: scopePath
+            ? `No new commits in ${scopePath} since ${latestTag}, so there is nothing to tag yet.`
+            : `No new commits since ${latestTag}, so there is nothing to tag yet.`,
         };
       }
 
-      const subjects = await readCommitSubjects(cwd, latestTag);
-      const diffStat = latestTag
-        ? ((await gitOrNull(cwd, ['diff', '--shortstat', `${latestTag}..HEAD`])) ?? '').trim()
-        : '';
+      const subjects = await readCommitSubjects(cwd, latestTag, scopePath);
+      const diffArgs = ['diff', '--shortstat', `${latestTag}..HEAD`];
+      if (scopePath) diffArgs.push('--', scopePath);
+      const diffStat = latestTag ? ((await gitOrNull(cwd, diffArgs)) ?? '').trim() : '';
       const summary = buildReleaseSummary(latestTag, subjects, diffStat);
       const prompt =
         'You are picking the next git tag for a release, following semantic versioning: bump the major ' +
         'version for breaking changes, the minor version for new features, the patch version for fixes ' +
         'and chores only. Do not read or edit any files; judge only from the information below.\n\n' +
+        (scopePath
+          ? `This is a monorepo and the release covers only the "${scopeName}" part, which lives in ` +
+            `${scopePath}. The commits below are the ones that touched it, and its tags are named ` +
+            `${scope?.prefix ?? 'v'}<version>. Ignore the versions of every other part.\n\n`
+          : '') +
         (latestTag
-          ? `The repository's latest tag is ${latestTag}. Your answer MUST be a bump of exactly that ` +
-            'version and must be greater than it. Never invent an unrelated version number.\n\n'
+          ? `The ${scopePath ? 'latest tag for this part' : "repository's latest tag"} is ${latestTag}. ` +
+            'Your answer MUST be a bump of exactly that version and must be greater than it. ' +
+            'Never invent an unrelated version number.\n\n'
           : '') +
         'Answer in exactly this format, with no markdown and nothing else:\n' +
         'TAG: <the new tag>\n' +
@@ -516,7 +541,9 @@ function registerTagHandlers(): void {
         };
       }
 
-      const parsed = parseSuggestedTag(result.text, latestTag);
+      // The scope's prefix is put back on whatever the model answered, so a `web-v` release
+      // never comes back as a bare `v1.4.0` that would read as a repo-wide tag.
+      const parsed = parseSuggestedTag(result.text, latestTag, scope?.prefix);
       const notes = extractTagNotes(result.text);
       const latestParts = latestTag ? parseSemver(latestTag) : null;
 
@@ -529,7 +556,7 @@ function registerTagHandlers(): void {
         const derived = bumpKind
           ? bumpVersion(latestParts, bumpKind)
           : deriveNextVersion(latestParts, subjects);
-        tag = formatTagForRepo(derived, latestTag);
+        tag = formatTagForRepo(derived, latestTag, scope?.prefix);
         reason = bumpKind
           ? `${result.cliName} suggested a ${bumpKind} bump; used ${tag}.`
           : `${result.cliName} did not return a version number; used ${tag} from the commit history instead.`;
@@ -550,7 +577,11 @@ function registerTagHandlers(): void {
         const problem = rejectSuggestedVersion(parseSemver(tag), latestParts, latestTag);
         if (problem) {
           const rejected = tag;
-          tag = formatTagForRepo(deriveNextVersion(latestParts, subjects), latestTag);
+          tag = formatTagForRepo(
+            deriveNextVersion(latestParts, subjects),
+            latestTag,
+            scope?.prefix,
+          );
           reason = `${result.cliName} suggested ${rejected}, which ${problem}; used ${tag} from the commit history instead.`;
         }
       }
@@ -585,7 +616,8 @@ function registerTagHandlers(): void {
       const before = await readWorkingTreeFingerprint(cwd);
       const headBefore = (await gitOrNull(cwd, ['rev-parse', 'HEAD']))?.trim() ?? null;
 
-      const result = await runHeadlessCliPrompt(buildVersionBumpPrompt(tag), cwd, {
+      const scope = input.scope?.path.trim() ? input.scope : undefined;
+      const result = await runHeadlessCliPrompt(buildVersionBumpPrompt(tag, scope), cwd, {
         requestId: input.requestId,
         preferredCliId: project.cliId,
         allowWrites: true,
@@ -597,6 +629,14 @@ function registerTagHandlers(): void {
         .filter(([path, edits]) => before.get(path) !== edits)
         .map(([path]) => path)
         .sort();
+
+      // A scoped bump is only correct if it stayed inside its folder. CLIs do wander into a
+      // sibling package or the root manifest, and that is exactly what the user asked us not
+      // to change, so those files are called out separately rather than mixed into the list.
+      const scopeFolder = scope ? `${scope.path.trim().replace(/\/+$/, '')}/` : '';
+      const outOfScopeFiles = scopeFolder
+        ? changedFiles.filter((path) => !path.startsWith(scopeFolder))
+        : [];
 
       // Despite the prompt telling it not to, a CLI occasionally reaches for a tool like
       // `npm version` that commits (and tags) by itself; that leaves no working-tree diff to
@@ -616,6 +656,7 @@ function registerTagHandlers(): void {
         // and print everything they did to stderr.
         output: result.text || result.log || '',
         changedFiles,
+        outOfScopeFiles: outOfScopeFiles.length > 0 ? outOfScopeFiles : undefined,
         committedByCli,
         cliName: result.cliName,
         // A run that wrote files but ended badly is a partial success, not a failure: say

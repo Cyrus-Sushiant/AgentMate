@@ -22,6 +22,8 @@ import type {
   GitStatus,
   GitTagInfo,
   SkillUpdateInfo,
+  TagScope,
+  TagScopeRef,
 } from '@shared/apiTypes';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -1773,32 +1775,39 @@ function displayCliOutput(raw: string): string {
   );
 }
 
-function parseSemverTag(
-  tag: string,
-): { prefix: string; major: number; minor: number; patch: number } | null {
-  const match = tag.trim().match(/^(v?)(\d+)\.(\d+)\.(\d+)/i);
+/**
+ * Splits a tag into what comes before the version and the version itself, so `v1.2.3`,
+ * `web-v1.2.3` and `@acme/web@1.2.3` all give up their `1.2.3`.
+ */
+function splitTag(tag: string): { prefix: string; version: string } | null {
+  const match = tag.trim().match(/^(.*?)(\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?)$/);
   if (!match) return null;
-  return {
-    prefix: match[1] ?? '',
-    major: Number(match[2]),
-    minor: Number(match[3]),
-    patch: Number(match[4]),
-  };
+  return { prefix: match[1], version: match[2] };
 }
 
-function bumpSemverTag(latestTag: string | null, kind: 'major' | 'minor' | 'patch'): string {
-  const parsed = latestTag
-    ? parseSemverTag(latestTag)
-    : { prefix: 'v', major: 0, minor: 0, patch: 0 };
-  const prefix = parsed?.prefix ?? 'v';
+/** Just the version number of a tag, which is what manifests and commit messages want. */
+function tagVersionPart(tag: string): string {
+  return splitTag(tag)?.version ?? tag.replace(/^v/, '');
+}
+
+function parseSemverTag(tag: string): { major: number; minor: number; patch: number } | null {
+  const version = splitTag(tag)?.version;
+  const match = version?.match(/^(\d+)\.(\d+)\.(\d+)/);
+  if (!match) return null;
+  return { major: Number(match[1]), minor: Number(match[2]), patch: Number(match[3]) };
+}
+
+/** The next version number for a bump kind, without any prefix: the caller owns that. */
+function bumpSemverVersion(latestTag: string | null, kind: 'major' | 'minor' | 'patch'): string {
+  const parsed = latestTag ? parseSemverTag(latestTag) : null;
   if (!parsed) {
-    if (kind === 'major') return `${prefix}1.0.0`;
-    if (kind === 'minor') return `${prefix}0.1.0`;
-    return `${prefix}0.0.1`;
+    if (kind === 'major') return '1.0.0';
+    if (kind === 'minor') return '0.1.0';
+    return '0.0.1';
   }
-  if (kind === 'major') return `${prefix}${parsed.major + 1}.0.0`;
-  if (kind === 'minor') return `${prefix}${parsed.major}.${parsed.minor + 1}.0`;
-  return `${prefix}${parsed.major}.${parsed.minor}.${parsed.patch + 1}`;
+  if (kind === 'major') return `${parsed.major + 1}.0.0`;
+  if (kind === 'minor') return `${parsed.major}.${parsed.minor + 1}.0`;
+  return `${parsed.major}.${parsed.minor}.${parsed.patch + 1}`;
 }
 
 function GitIconWell({ children }: { children: React.ReactNode }): React.JSX.Element {
@@ -1966,7 +1975,11 @@ function GitTab({
   const [suggestingCommit, setSuggestingCommit] = useState(false);
   const [prOpen, setPrOpen] = useState(false);
   const [tagOpen, setTagOpen] = useState(false);
-  const [applyVersionTag, setApplyVersionTag] = useState<string | null>(null);
+  // The tag being written into the project's files, plus the part of a monorepo it covers.
+  const [applyVersionTarget, setApplyVersionTarget] = useState<{
+    tag: string;
+    scope: TagScopeRef;
+  } | null>(null);
   const [historyBranch, setHistoryBranch] = useState<string | null>(null);
   const [renameTarget, setRenameTarget] = useState<GitBranchInfo | null>(null);
   const [renameTo, setRenameTo] = useState('');
@@ -2720,22 +2733,23 @@ function GitTab({
         status={status}
         open={tagOpen}
         onOpenChange={setTagOpen}
-        onApplyVersion={(nextTag) => {
+        onApplyVersion={(nextTag, scope) => {
           // Swap dialogs rather than stacking them; the tag dialog keeps its fields for after.
           setTagOpen(false);
-          setApplyVersionTag(nextTag);
+          setApplyVersionTarget({ tag: nextTag, scope });
         }}
       />
 
       <ApplyVersionDialog
         projectId={projectId}
-        tag={applyVersionTag}
-        open={applyVersionTag !== null}
+        tag={applyVersionTarget?.tag ?? null}
+        scope={applyVersionTarget?.scope ?? null}
+        open={applyVersionTarget !== null}
         onOpenChange={(next) => {
-          if (!next) setApplyVersionTag(null);
+          if (!next) setApplyVersionTarget(null);
         }}
         onBackToTag={() => {
-          setApplyVersionTag(null);
+          setApplyVersionTarget(null);
           setTagOpen(true);
         }}
       />
@@ -2880,12 +2894,15 @@ function GitTab({
 function ApplyVersionDialog({
   projectId,
   tag,
+  scope,
   open,
   onOpenChange,
   onBackToTag,
 }: {
   projectId: string;
   tag: string | null;
+  /** The part of a monorepo the tag covers; a path of "" means the whole repository. */
+  scope: TagScopeRef | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onBackToTag: () => void;
@@ -2893,12 +2910,19 @@ function ApplyVersionDialog({
   const queryClient = useQueryClient();
   const requestRef = useRef<string | null>(null);
   const startedForRef = useRef<string | null>(null);
+  const scopePath = scope?.path.trim() ?? '';
+  const scopeName = scope?.label?.trim() || scopePath;
 
   const applyMutation = useMutation({
     mutationFn: (versionTag: string) => {
       const requestId = crypto.randomUUID();
       requestRef.current = requestId;
-      return window.agentmat.git.applyVersion({ projectId, tag: versionTag, requestId });
+      return window.agentmat.git.applyVersion({
+        projectId,
+        tag: versionTag,
+        requestId,
+        scope: scope ?? undefined,
+      });
     },
     onSettled: () => {
       requestRef.current = null;
@@ -2971,7 +2995,17 @@ function ApplyVersionDialog({
         <DialogHeader>
           <DialogTitle>Update version in files</DialogTitle>
           <DialogDescription>
-            Setting this project's version to <span className="font-mono">{tag}</span>.
+            {scopePath ? (
+              <>
+                Setting the version of {scopeName} (<span className="font-mono">{scopePath}</span>)
+                to <span className="font-mono">{tagVersionPart(tag ?? '')}</span>. Nothing outside
+                that folder is touched.
+              </>
+            ) : (
+              <>
+                Setting this project's version to <span className="font-mono">{tag}</span>.
+              </>
+            )}
           </DialogDescription>
         </DialogHeader>
 
@@ -3051,6 +3085,29 @@ function ApplyVersionDialog({
             </div>
           )}
 
+          {/* The whole point of a scoped bump is that the other parts keep their versions, so a
+              stray edit outside the folder gets named rather than buried in the list below. */}
+          {result?.outOfScopeFiles && result.outOfScopeFiles.length > 0 && (
+            <div className="space-y-1.5 rounded-xl border border-warning/30 bg-warning/10 p-3">
+              <p className="flex items-center gap-1.5 text-sm font-medium">
+                <TriangleAlert className="h-3.5 w-3.5 shrink-0 text-warning" /> Changed outside{' '}
+                <span className="font-mono text-xs">{scopePath}</span>
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Your CLI edited {result.outOfScopeFiles.length} file
+                {result.outOfScopeFiles.length === 1 ? '' : 's'} that this tag does not cover. Check
+                them before committing, and revert the ones that should have kept their version.
+              </p>
+              <div className="space-y-1">
+                {result.outOfScopeFiles.map((file) => (
+                  <p key={file} className="truncate font-mono text-xs text-muted-foreground">
+                    {file}
+                  </p>
+                ))}
+              </div>
+            </div>
+          )}
+
           {result && result.changedFiles.length > 0 && (
             <div className="space-y-2">
               <p className="text-xs font-medium text-muted-foreground">
@@ -3094,7 +3151,9 @@ function ApplyVersionDialog({
                     onClick={() =>
                       tag &&
                       commitMutation.mutate(
-                        `chore(release): bump version to ${tag.replace(/^v/, '')}`,
+                        scopeName
+                          ? `chore(release): bump ${scopeName} version to ${tagVersionPart(tag)}`
+                          : `chore(release): bump version to ${tagVersionPart(tag)}`,
                       )
                     }
                   />
@@ -3177,46 +3236,87 @@ function TagVersionDialog({
   status: GitStatus | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  /** Hands the entered tag to the apply-version dialog. */
-  onApplyVersion: (tag: string) => void;
+  /** Hands the entered tag, and the part of the repo it covers, to the apply-version dialog. */
+  onApplyVersion: (tag: string, scope: TagScopeRef) => void;
 }): React.JSX.Element {
   const queryClient = useQueryClient();
-  const [tag, setTag] = useState('');
+  // The tag is edited in two halves: the prefix says which part of the repo is being released,
+  // the version is the number itself. They only ever meet as `tag`.
+  const [prefix, setPrefix] = useState('v');
+  const [version, setVersion] = useState('');
+  const [scopeId, setScopeId] = useState('repo');
   const [message, setMessage] = useState('');
   const [reason, setReason] = useState<string | null>(null);
   const [updatedVersionFor, setUpdatedVersionFor] = useState<string | null>(null);
   const suggestRequestRef = useRef<string | null>(null);
   const keepFieldsRef = useRef(false);
   const confirmingSkipRef = useRef(false);
+  /** Stops the default prefix from overwriting a part the user picked themselves. */
+  const pickedScopeRef = useRef(false);
+
+  const tag = `${prefix.trim()}${version.trim()}`;
+
+  const scopesQuery = useQuery({
+    queryKey: queryKeys.gitTagScopes(projectId),
+    queryFn: () => window.agentmat.git.tagScopes(projectId),
+    enabled: open,
+    meta: GIT_REFRESH_META,
+  });
+  const scopes = scopesQuery.data ?? [];
+  const scope = scopes.find((entry) => entry.id === scopeId) ?? scopes[0] ?? null;
+  const scopePath = scope?.path ?? '';
+  const scopeRef: TagScopeRef = {
+    prefix: prefix.trim(),
+    path: scopePath,
+    label: scope && scope.path ? scope.label : undefined,
+  };
+
+  // Tag state for the part being released: its own latest tag, its own commit count. Keyed on
+  // the prefix as typed, so a hand-written prefix reports on the tags that actually match it.
+  const scopedTagsQuery = useQuery({
+    queryKey: queryKeys.gitTagsForScope(projectId, prefix.trim(), scopePath),
+    queryFn: () => window.agentmat.git.tags(projectId, scopeRef),
+    enabled: open,
+    meta: GIT_REFRESH_META,
+  });
+  const scopedInfo = scopedTagsQuery.data ?? null;
+  const latestTag = scopedInfo?.latestTag ?? null;
+  const commitsSince = scopedInfo?.commitsSinceLatestTag ?? 0;
+  const recentTags = scopedInfo?.recentTags ?? [];
+
+  // Picking a part swaps in the prefix that part's tags use, e.g. "web-v".
+  function handlePickScope(next: TagScope): void {
+    pickedScopeRef.current = true;
+    setScopeId(next.id);
+    setPrefix(next.prefix);
+    setVersion('');
+    setReason(null);
+  }
+
+  // Until the user picks a part, the prefix follows the repo-wide scope, which is "v" for
+  // most repos and bare for the ones that tag "1.2.3".
+  const defaultPrefix = scopes[0]?.prefix;
+  useEffect(() => {
+    if (!open || pickedScopeRef.current || defaultPrefix === undefined) return;
+    setPrefix(defaultPrefix);
+  }, [open, defaultPrefix]);
 
   const hasRemote = tagInfo?.hasRemote ?? false;
   // Gate tagging (and the push that follows it) on a clean tree: a version bump's edits must
   // land in a commit first, otherwise the tag would point at a commit missing those edits.
   const dirtyFileCount = status?.files.length ?? 0;
   const isDirty = dirtyFileCount > 0;
-  const bumpOptions = [
-    {
-      kind: 'patch' as const,
-      label: 'Patch',
-      next: bumpSemverTag(tagInfo?.latestTag ?? null, 'patch'),
-    },
-    {
-      kind: 'minor' as const,
-      label: 'Minor',
-      next: bumpSemverTag(tagInfo?.latestTag ?? null, 'minor'),
-    },
-    {
-      kind: 'major' as const,
-      label: 'Major',
-      next: bumpSemverTag(tagInfo?.latestTag ?? null, 'major'),
-    },
-  ];
+  const bumpOptions = (['patch', 'minor', 'major'] as const).map((kind) => ({
+    kind,
+    label: `${kind[0].toUpperCase()}${kind.slice(1)}`,
+    next: bumpSemverVersion(latestTag, kind),
+  }));
 
   const suggestMutation = useMutation({
     mutationFn: () => {
       const requestId = crypto.randomUUID();
       suggestRequestRef.current = requestId;
-      return window.agentmat.git.suggestTag(projectId, requestId);
+      return window.agentmat.git.suggestTag(projectId, requestId, scopeRef);
     },
     onSettled: () => {
       suggestRequestRef.current = null;
@@ -3224,7 +3324,15 @@ function TagVersionDialog({
     onSuccess: (result) => {
       if (result.cancelled) return;
       if (result.ok && result.tag) {
-        setTag(result.tag);
+        const split = splitTag(result.tag);
+        // The suggestion comes back with the scope's prefix already on it; keep the version
+        // and leave the prefix field alone unless the CLI answered with a different one.
+        if (split) {
+          if (split.prefix) setPrefix(split.prefix);
+          setVersion(split.version);
+        } else {
+          setVersion(result.tag);
+        }
         setReason(result.reason ?? null);
         if (result.message) setMessage(result.message);
         toast.success(`${result.cliName ?? 'Your CLI'} suggested ${result.tag}.`);
@@ -3250,6 +3358,7 @@ function TagVersionDialog({
       if (result.ok) {
         toast.success(result.message);
         void queryClient.invalidateQueries({ queryKey: queryKeys.gitTags(projectId) });
+        void queryClient.invalidateQueries({ queryKey: queryKeys.gitTagScopes(projectId) });
         void queryClient.invalidateQueries({ queryKey: queryKeys.gitStatus(projectId) });
         handleOpenChange(false);
       } else {
@@ -3264,10 +3373,11 @@ function TagVersionDialog({
     // that come from clicking it, so the tag form stays put.
     if (!next && confirmingSkipRef.current) return;
     if (!next && !keepFieldsRef.current) {
-      setTag('');
+      setVersion('');
       setMessage('');
       setReason(null);
       setUpdatedVersionFor(null);
+      pickedScopeRef.current = false;
     }
     keepFieldsRef.current = false;
     onOpenChange(next);
@@ -3278,7 +3388,7 @@ function TagVersionDialog({
     if (!next) return;
     keepFieldsRef.current = true;
     setUpdatedVersionFor(next);
-    onApplyVersion(next);
+    onApplyVersion(next, scopeRef);
   }
 
   function handleCreateTag(): void {
@@ -3291,8 +3401,9 @@ function TagVersionDialog({
     confirmingSkipRef.current = true;
     void confirmDialog({
       title: 'Skip updating version in files?',
-      description:
-        'You have not run Update version in files for this tag. Package manifests and other version strings may still show the old version.',
+      description: scopePath
+        ? `You have not run Update version in files for this tag. The manifests and version strings in ${scopePath} may still show the old version.`
+        : 'You have not run Update version in files for this tag. Package manifests and other version strings may still show the old version.',
       confirmLabel: hasRemote ? 'Create & push anyway' : 'Create anyway',
       cancelLabel: 'Go back',
     }).then((confirmed) => {
@@ -3301,8 +3412,8 @@ function TagVersionDialog({
     });
   }
 
-  function handleBump(nextTag: string): void {
-    setTag(nextTag);
+  function handleBump(nextVersion: string): void {
+    setVersion(nextVersion);
     setReason(null);
   }
 
@@ -3312,26 +3423,66 @@ function TagVersionDialog({
         <DialogHeader>
           <DialogTitle>Tag a version</DialogTitle>
           <DialogDescription>
-            {tagInfo?.latestTag ? (
+            {latestTag ? (
               <>
-                {tagInfo.commitsSinceLatestTag} commit
-                {tagInfo.commitsSinceLatestTag === 1 ? '' : 's'} since{' '}
-                <span className="font-mono">{tagInfo.latestTag}</span>.
+                {commitsSince} commit{commitsSince === 1 ? '' : 's'}
+                {scopePath ? ` in ${scopePath}` : ''} since{' '}
+                <span className="font-mono">{latestTag}</span>.
               </>
+            ) : scopePath ? (
+              `Nothing is tagged as ${prefix.trim() || 'this part'} yet. Pick a first version below.`
             ) : (
               'This repository has no tags yet. Pick a first version below.'
             )}
           </DialogDescription>
         </DialogHeader>
         <OverflowScroll fill className="-mx-1 space-y-4 px-1">
+          {/* Only a monorepo gets the picker: a single-package repo has one scope and no choice
+              to make, so the row would be noise. */}
+          {scopes.length > 1 && (
+            <div className="space-y-1.5">
+              <Label>What to tag</Label>
+              <div className="flex flex-wrap gap-1.5">
+                {scopes.map((entry) => {
+                  const selected = entry.id === scope?.id;
+                  return (
+                    <button
+                      key={entry.id}
+                      type="button"
+                      aria-pressed={selected}
+                      onClick={() => handlePickScope(entry)}
+                      className={cn(
+                        'flex cursor-pointer items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                        selected
+                          ? 'border-primary/50 bg-primary/10 text-foreground'
+                          : 'border-border bg-card/40 text-muted-foreground hover:border-foreground/20 hover:bg-accent hover:text-foreground',
+                      )}
+                    >
+                      <span className="font-medium">{entry.label}</span>
+                      <span className="font-mono text-[10px] opacity-70">{entry.prefix}*</span>
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {scopePath ? (
+                  <>
+                    Tags this part alone. Only files in{' '}
+                    <span className="font-mono">{scopePath}</span> get the new version.
+                  </>
+                ) : (
+                  'Tags the repository as a whole, and versions every package in it.'
+                )}
+              </p>
+            </div>
+          )}
+
           <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 rounded-xl border border-border bg-card/60 px-3 py-3">
             <div className="min-w-0 text-center">
               <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
                 Latest
               </p>
-              <p className="truncate font-mono text-lg font-semibold">
-                {tagInfo?.latestTag ?? 'None'}
-              </p>
+              <p className="truncate font-mono text-lg font-semibold">{latestTag ?? 'None'}</p>
             </div>
             <ArrowRight className="h-4 w-4 text-muted-foreground" />
             <div className="min-w-0 text-center">
@@ -3344,13 +3495,13 @@ function TagVersionDialog({
 
           <div className="grid grid-cols-3 gap-2">
             {bumpOptions.map((option) => {
-              const selected = tag.trim() === option.next;
+              const selected = version.trim() === option.next;
               return (
                 <button
                   key={option.kind}
                   type="button"
                   aria-pressed={selected}
-                  aria-label={`${option.label} bump to ${option.next}`}
+                  aria-label={`${option.label} bump to ${prefix.trim()}${option.next}`}
                   onClick={() => handleBump(option.next)}
                   className={cn(
                     'flex cursor-pointer flex-col items-center gap-0.5 rounded-lg border px-2 py-2 text-center transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
@@ -3360,31 +3511,60 @@ function TagVersionDialog({
                   )}
                 >
                   <span className="text-xs font-medium">{option.label}</span>
-                  <span className="font-mono text-[10px]">{option.next}</span>
+                  <span className="font-mono text-[10px]">
+                    {prefix.trim()}
+                    {option.next}
+                  </span>
                 </button>
               );
             })}
           </div>
 
-          <div className="space-y-1.5">
-            <Label htmlFor="git-tag-name">Tag name</Label>
-            <Input
-              id="git-tag-name"
-              value={tag}
-              onChange={(e) => {
-                setTag(e.target.value);
-                setReason(null);
-              }}
-              placeholder="v1.0.1"
-              className="font-mono"
-            />
-            {reason && (
-              <div className="flex gap-2 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2">
-                <Sparkles className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" />
-                <p className="text-xs text-muted-foreground">{reason}</p>
-              </div>
-            )}
+          <div className="grid grid-cols-[minmax(6rem,10rem)_1fr] gap-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="git-tag-prefix">Prefix</Label>
+              <Input
+                id="git-tag-prefix"
+                value={prefix}
+                onChange={(e) => {
+                  setPrefix(e.target.value);
+                  setReason(null);
+                }}
+                placeholder="v"
+                className="font-mono"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="git-tag-version">Version</Label>
+              <Input
+                id="git-tag-version"
+                value={version}
+                onChange={(e) => {
+                  // Pasting a whole tag into this field should still work, so a prefix
+                  // typed here moves over to the prefix field instead of doubling up.
+                  const split = splitTag(e.target.value);
+                  if (split?.prefix) {
+                    setPrefix(split.prefix);
+                    setVersion(split.version);
+                  } else {
+                    setVersion(e.target.value);
+                  }
+                  setReason(null);
+                }}
+                placeholder="1.0.1"
+                className="font-mono"
+              />
+            </div>
           </div>
+          <p className="text-xs text-muted-foreground">
+            The tag will be <span className="font-mono text-foreground">{tag.trim() || '—'}</span>.
+          </p>
+          {reason && (
+            <div className="flex gap-2 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2">
+              <Sparkles className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" />
+              <p className="text-xs text-muted-foreground">{reason}</p>
+            </div>
+          )}
 
           <div className="space-y-1.5">
             <Label htmlFor="git-tag-message">Tag message (optional)</Label>
@@ -3405,8 +3585,18 @@ function TagVersionDialog({
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-medium">Update version in files</p>
                 <p className="text-xs text-muted-foreground">
-                  Runs your CLI over package.json, other manifests and any version shown in the app.
-                  Commit those edits before tagging.
+                  {scopePath ? (
+                    <>
+                      Runs your CLI over the manifests and version strings inside{' '}
+                      <span className="font-mono">{scopePath}</span> only, so the other parts keep
+                      their versions. Commit those edits before tagging.
+                    </>
+                  ) : (
+                    <>
+                      Runs your CLI over package.json, other manifests and any version shown in the
+                      app. Commit those edits before tagging.
+                    </>
+                  )}
                 </p>
               </div>
             </div>
@@ -3420,14 +3610,16 @@ function TagVersionDialog({
             </Button>
           </div>
 
-          {tagInfo && tagInfo.recentTags.length > 0 && (
+          {recentTags.length > 0 && (
             <div className="space-y-1.5">
-              <p className="text-xs font-medium text-muted-foreground">Recent tags</p>
+              <p className="text-xs font-medium text-muted-foreground">
+                {scopePath ? `Recent ${prefix.trim()} tags` : 'Recent tags'}
+              </p>
               <div className="flex flex-wrap gap-1.5">
-                {tagInfo.recentTags.map((existing) => (
+                {recentTags.map((existing) => (
                   <Badge
                     key={existing}
-                    variant={existing === tagInfo.latestTag ? 'secondary' : 'outline'}
+                    variant={existing === latestTag ? 'secondary' : 'outline'}
                     className="font-mono text-[10px]"
                   >
                     {existing}
@@ -3462,7 +3654,13 @@ function TagVersionDialog({
                 onCancel={handleCancelSuggest}
               />
             ) : (
-              <SimpleTooltip label="Reads the commits since the latest tag with your CLI and proposes the next semantic version">
+              <SimpleTooltip
+                label={
+                  scopePath
+                    ? `Reads the commits that touched ${scopePath} since ${latestTag ?? 'the start'} with your CLI and proposes the next semantic version`
+                    : 'Reads the commits since the latest tag with your CLI and proposes the next semantic version'
+                }
+              >
                 <AiSuggestButton
                   label="Suggest with AI"
                   pendingLabel="Asking your CLI…"
