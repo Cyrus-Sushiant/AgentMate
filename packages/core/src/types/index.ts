@@ -604,6 +604,12 @@ export interface Project {
   githubActions: ProjectGithubAction[];
   /** Pinned projects are sorted first on the Projects page, above the drag-ordered rest. */
   pinned: boolean;
+  /**
+   * Archived projects are kept out of the Projects page and live behind its
+   * Archived toggle instead. Nothing about the project changes, it just stops
+   * competing for space with the ones being worked on. Archiving also unpins.
+   */
+  archived: boolean;
   createdAt: string;
   updatedAt: string;
 }

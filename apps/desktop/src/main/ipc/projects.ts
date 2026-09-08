@@ -105,6 +105,7 @@ export function registerProjectHandlers(): void {
         repoUrl: input.repoUrl ?? '',
         githubActions: [],
         pinned: false,
+        archived: false,
         createdAt: now,
         updatedAt: now,
       };
@@ -182,6 +183,21 @@ export function registerProjectHandlers(): void {
     IPC.projects.setPinned,
     async (_event, projectId: string, pinned: boolean): Promise<Project> => {
       return mutateProject(projectId, (current) => ({ ...current, pinned }));
+    },
+  );
+
+  /**
+   * Archiving drops the pin too: an archived project has no business holding a
+   * slot at the top of the list it comes back to.
+   */
+  ipcMain.handle(
+    IPC.projects.setArchived,
+    async (_event, projectId: string, archived: boolean): Promise<Project> => {
+      return mutateProject(projectId, (current) => ({
+        ...current,
+        archived,
+        pinned: archived ? false : current.pinned,
+      }));
     },
   );
 

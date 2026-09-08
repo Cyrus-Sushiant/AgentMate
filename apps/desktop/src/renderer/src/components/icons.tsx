@@ -14,6 +14,8 @@ import {
   faBolt,
   faBookmark,
   faBox,
+  faBoxArchive,
+  faBoxOpen,
   faBug,
   faCalendarDays,
   faChartColumn,
@@ -232,6 +234,10 @@ export const Upload = makeIcon(faUpload);
 
 // Package manager tab icons.
 export const Package = makeIcon(faBox);
+
+// Project archive icons.
+export const Archive = makeIcon(faBoxArchive);
+export const ArchiveRestore = makeIcon(faBoxOpen);
 
 // Git tab icons.
 export const GitBranch = makeIcon(faCodeBranch);

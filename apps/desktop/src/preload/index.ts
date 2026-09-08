@@ -238,6 +238,9 @@ const projects = {
     ipcRenderer.invoke(IPC.projects.reorder, orderedIds),
   setPinned: (projectId: string, pinned: boolean): Promise<Project> =>
     ipcRenderer.invoke(IPC.projects.setPinned, projectId, pinned),
+  /** Moves a project in or out of the Archived group on the Projects page. */
+  setArchived: (projectId: string, archived: boolean): Promise<Project> =>
+    ipcRenderer.invoke(IPC.projects.setArchived, projectId, archived),
   bootstrap: (projectId: string): Promise<BootstrapResult> =>
     ipcRenderer.invoke(IPC.projects.bootstrap, projectId),
   bootstrapPlan: (projectId: string): Promise<BootstrapPlan> =>

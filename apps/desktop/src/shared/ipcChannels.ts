@@ -55,6 +55,7 @@ export const IPC = {
     delete: 'projects:delete',
     reorder: 'projects:reorder',
     setPinned: 'projects:setPinned',
+    setArchived: 'projects:setArchived',
     bootstrap: 'projects:bootstrap',
     bootstrapPlan: 'projects:bootstrapPlan',
     pickFolder: 'projects:pickFolder',

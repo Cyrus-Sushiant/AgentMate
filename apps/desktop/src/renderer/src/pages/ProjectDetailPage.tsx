@@ -476,6 +476,20 @@ export default function ProjectDetailPage(): React.JSX.Element {
     },
   });
 
+  const archiveMutation = useMutation({
+    mutationFn: (archived: boolean) => window.agentmat.projects.setArchived(projectId!, archived),
+    onSuccess: (updated) => {
+      queryClient.setQueryData<Project[]>(queryKeys.projects, (prev) =>
+        prev?.map((p) => (p.id === updated.id ? updated : p)),
+      );
+      toast.success(
+        updated.archived
+          ? 'Archived. It now lives behind the Archived toggle on the Projects page.'
+          : 'Restored to the Projects page.',
+      );
+    },
+  });
+
   async function handleCopyPath(): Promise<void> {
     if (!project) return;
     await navigator.clipboard.writeText(project.folderPath);
@@ -568,6 +582,7 @@ export default function ProjectDetailPage(): React.JSX.Element {
         onPrompt={() => setPromptOpen(true)}
         onEdit={() => setEditOpen(true)}
         onDelete={handleDelete}
+        onToggleArchive={() => archiveMutation.mutate(!project.archived)}
         onCopyPath={() => void handleCopyPath()}
         onOpenFolder={() => void handleOpenInFileExplorer()}
         onOpenTerminal={handleOpenTerminalHere}

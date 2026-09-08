@@ -173,7 +173,7 @@ function withSettingsMigrations(settings: AppSettings): AppSettings {
 }
 
 /**
- * Older projects.json entries predate notifications, prompt, pinned, cliId, icon,
+ * Older projects.json entries predate notifications, prompt, pinned, archived, cliId, icon,
  * repository, and the runCommands list (they used a single `runCommand` string).
  */
 function withProjectDefaults(project: Project & { runCommand?: string }): Project {
@@ -185,6 +185,7 @@ function withProjectDefaults(project: Project & { runCommand?: string }): Projec
     notifications: normalizeProjectNotifications(project.notifications),
     prompt: project.prompt ?? '',
     pinned: project.pinned ?? false,
+    archived: project.archived ?? false,
     cliId: project.cliId ?? null,
     iconDataUrl: project.iconDataUrl ?? null,
     iconFile: project.iconFile ?? null,

@@ -12,6 +12,8 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import { CliLogo } from '@/components/cliLogos';
 import {
+  Archive,
+  ArchiveRestore,
   Folder,
   FolderKanban,
   FolderPlus,
@@ -118,6 +120,7 @@ export default function ProjectsPage(): React.JSX.Element {
   const [search, setSearch] = useState('');
   const [agentFilter, setAgentFilter] = useState<AgentFilter>('all');
   const [view, setView] = useState<ProjectsView>(readStoredView);
+  const [showArchived, setShowArchived] = useState(false);
   const [draggedId, setDraggedId] = useState<string | null>(null);
   const [dropTarget, setDropTarget] = useState<{ id: string; place: DropPlace } | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
@@ -189,6 +192,19 @@ export default function ProjectsPage(): React.JSX.Element {
     },
   });
 
+  const archiveMutation = useMutation({
+    mutationFn: ({ projectId, archived }: { projectId: string; archived: boolean }) =>
+      window.agentmat.projects.setArchived(projectId, archived),
+    onSuccess: (updated) => {
+      queryClient.setQueryData<Project[]>(queryKeys.projects, (prev) =>
+        prev?.map((p) => (p.id === updated.id ? updated : p)),
+      );
+      toast.success(
+        updated.archived ? `Archived “${updated.name}”.` : `Restored “${updated.name}”.`,
+      );
+    },
+  });
+
   const reorderMutation = useMutation({
     mutationFn: (orderedIds: string[]) => window.agentmat.projects.reorder(orderedIds),
     onSuccess: (updated) => {
@@ -196,7 +212,7 @@ export default function ProjectsPage(): React.JSX.Element {
     },
   });
 
-  usePageHeader('Projects', 'Open a workspace, pin favorites, or start a new one.');
+  usePageHeader('Projects', 'Open a workspace, pin favorites, or archive what you are done with.');
 
   function handleRun(project: Project): void {
     requestRun(project, {
@@ -210,13 +226,19 @@ export default function ProjectsPage(): React.JSX.Element {
   const projects = useMemo(() => projectsQuery.data ?? [], [projectsQuery.data]);
   const query = search.trim().toLowerCase();
 
+  const activeProjects = useMemo(() => projects.filter((p) => !p.archived), [projects]);
+  const archivedProjects = useMemo(() => projects.filter((p) => p.archived), [projects]);
+  // The Archived toggle picks which pile the page is looking at. Search and the
+  // agent filter then run over whichever pile is on screen, never across both.
+  const visible = showArchived ? archivedProjects : activeProjects;
+
   const agentTypesPresent = useMemo(
-    () => AGENT_TYPE_ORDER.filter((type) => projects.some((project) => project.agentType === type)),
-    [projects],
+    () => AGENT_TYPE_ORDER.filter((type) => visible.some((project) => project.agentType === type)),
+    [visible],
   );
 
   const filtered = useMemo(() => {
-    return projects.filter((project) => {
+    return visible.filter((project) => {
       if (agentFilter !== 'all' && project.agentType !== agentFilter) return false;
       if (!query) return true;
       return [project.name, project.description, project.folderPath, ...project.tags]
@@ -224,11 +246,11 @@ export default function ProjectsPage(): React.JSX.Element {
         .toLowerCase()
         .includes(query);
     });
-  }, [projects, query, agentFilter]);
+  }, [visible, query, agentFilter]);
 
   // Reordering is disabled while the visible list is a subset, so a drag
   // couldn't express where a card should land among hidden siblings.
-  const dragEnabled = query.length === 0 && agentFilter === 'all';
+  const dragEnabled = !showArchived && query.length === 0 && agentFilter === 'all';
   const pinnedProjects = useMemo(() => filtered.filter((p) => p.pinned), [filtered]);
   const unpinnedProjects = useMemo(() => filtered.filter((p) => !p.pinned), [filtered]);
   const draggedProject = draggedId ? projects.find((p) => p.id === draggedId) : undefined;
@@ -240,11 +262,24 @@ export default function ProjectsPage(): React.JSX.Element {
     const sourceList = isPinnedGroup ? pinnedProjects : unpinnedProjects;
     if (!sourceList.some((p) => p.id === draggedId)) return;
     const reordered = reorderWithinGroup(sourceList, draggedId, targetId, place);
+    // Dragging is only ever enabled on the active pile, but the saved order is
+    // the whole list, so the archived projects ride along at the end.
     const fullOrder = isPinnedGroup
-      ? [...reordered, ...unpinnedProjects]
-      : [...pinnedProjects, ...reordered];
+      ? [...reordered, ...unpinnedProjects, ...archivedProjects]
+      : [...pinnedProjects, ...reordered, ...archivedProjects];
     queryClient.setQueryData(queryKeys.projects, fullOrder);
     reorderMutation.mutate(fullOrder.map((p) => p.id));
+  }
+
+  // Restoring the last archived project would otherwise strand the page on an
+  // empty view whose own toggle has just disappeared.
+  useEffect(() => {
+    if (showArchived && archivedProjects.length === 0) setShowArchived(false);
+  }, [showArchived, archivedProjects.length]);
+
+  function toggleArchivedView(): void {
+    setShowArchived((current) => !current);
+    setAgentFilter('all');
   }
 
   function clearFilters(): void {
@@ -292,6 +327,8 @@ export default function ProjectsPage(): React.JSX.Element {
         setReviewOpen(true);
       },
       onTogglePin: () => pinMutation.mutate({ projectId: project.id, pinned: !project.pinned }),
+      onToggleArchive: () =>
+        archiveMutation.mutate({ projectId: project.id, archived: !project.archived }),
     };
     return <ProjectItem key={project.id} {...cardProps} />;
   }
@@ -332,15 +369,30 @@ export default function ProjectsPage(): React.JSX.Element {
           )}
         </div>
 
-        {projects.length > 0 && (
+        {visible.length > 0 && (
           <p className="text-xs tabular-nums text-muted-foreground">
-            {filtered.length === projects.length
-              ? `${projects.length} ${projects.length === 1 ? 'project' : 'projects'}`
-              : `${filtered.length} of ${projects.length}`}
+            {filtered.length === visible.length
+              ? `${visible.length} ${visible.length === 1 ? 'project' : 'projects'}`
+              : `${filtered.length} of ${visible.length}`}
           </p>
         )}
 
         <div className="ml-auto flex items-center gap-2">
+          {archivedProjects.length > 0 && (
+            <SimpleTooltip
+              label={showArchived ? 'Back to active projects' : 'Show archived projects'}
+            >
+              <Button
+                variant="outline"
+                aria-pressed={showArchived}
+                className={cn(showArchived && 'border-primary/40 bg-primary/10 text-primary')}
+                onClick={toggleArchivedView}
+              >
+                <Archive className="h-4 w-4" /> Archived
+                <span className="tabular-nums opacity-70">{archivedProjects.length}</span>
+              </Button>
+            </SimpleTooltip>
+          )}
           {projects.length > 0 && (
             <div className="flex h-9 items-center rounded-lg border border-border p-0.5">
               <SimpleTooltip label="Grid view">
@@ -375,7 +427,7 @@ export default function ProjectsPage(): React.JSX.Element {
         </div>
       </div>
 
-      {projects.length > 0 && agentTypesPresent.length > 1 && (
+      {visible.length > 0 && agentTypesPresent.length > 1 && (
         <div
           className="flex flex-wrap items-center gap-1.5"
           role="group"
@@ -500,16 +552,17 @@ export default function ProjectsPage(): React.JSX.Element {
 
           {unpinnedProjects.length > 0 && (
             <section className="space-y-3">
-              {pinnedProjects.length > 0 && (
+              {pinnedProjects.length > 0 || showArchived ? (
                 <div className="flex items-center gap-2">
-                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                    {filtersActive ? 'Matches' : 'All projects'}
+                  <p className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                    {showArchived ? <Archive className="h-3 w-3" /> : null}
+                    {showArchived ? 'Archived' : filtersActive ? 'Matches' : 'All projects'}
                   </p>
                   <span className="text-xs tabular-nums text-muted-foreground/70">
                     {unpinnedProjects.length}
                   </span>
                 </div>
-              )}
+              ) : null}
               <div
                 className={
                   view === 'list'
@@ -598,6 +651,7 @@ interface ProjectItemProps {
   onBuildPrompt: () => void;
   onReview: () => void;
   onTogglePin: () => void;
+  onToggleArchive: () => void;
 }
 
 function ProjectItem(props: ProjectItemProps): React.JSX.Element {
@@ -918,6 +972,7 @@ function ProjectQuickActions({
   onDragStart,
   onDragEnd,
   onTogglePin,
+  onToggleArchive,
   compact,
 }: ProjectItemProps & { compact: boolean }): React.JSX.Element {
   const grip = (
@@ -955,10 +1010,36 @@ function ProjectQuickActions({
     </SimpleTooltip>
   );
 
+  const archiveLabel = project.archived ? 'Restore project' : 'Archive project';
+  const ArchiveIcon = project.archived ? ArchiveRestore : Archive;
+  const archive = (
+    <SimpleTooltip label={archiveLabel}>
+      <Button
+        variant="ghost"
+        size="icon"
+        aria-label={archiveLabel}
+        className={cn(
+          compact &&
+            'opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100',
+          project.archived && 'opacity-100',
+        )}
+        onClick={(e) => {
+          e.stopPropagation();
+          onToggleArchive();
+        }}
+      >
+        <ArchiveIcon className="h-4 w-4" />
+      </Button>
+    </SimpleTooltip>
+  );
+
+  // An archived project has no order to drag and no pin to toggle, so it only
+  // carries the way back out.
   return (
     <div className="flex shrink-0 items-center">
-      {grip}
-      {pin}
+      {project.archived ? null : grip}
+      {project.archived ? null : pin}
+      {archive}
     </div>
   );
 }

@@ -1265,7 +1265,7 @@ export default function DashboardPage(): React.JSX.Element {
           projectsQuery.isPending ? (
             <StatSkeleton className="w-10" />
           ) : (
-            (projectsQuery.data?.length ?? 0)
+            (projectsQuery.data?.filter((project) => !project.archived).length ?? 0)
           )
         }
       />

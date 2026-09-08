@@ -4,6 +4,8 @@ import { type ReactNode, useEffect, useRef, useState } from 'react';
 import { CliLogo } from '@/components/cliLogos';
 import { GrammarTextarea } from '@/components/grammar/GrammarTextarea';
 import {
+  Archive,
+  ArchiveRestore,
   ArrowLeft,
   Bell,
   Blocks,
@@ -162,6 +164,7 @@ export function ProjectDetailHeader({
   onPrompt,
   onEdit,
   onDelete,
+  onToggleArchive,
   onCopyPath,
   onOpenFolder,
   onOpenTerminal,
@@ -172,6 +175,7 @@ export function ProjectDetailHeader({
   onPrompt: () => void;
   onEdit: () => void;
   onDelete: () => void;
+  onToggleArchive: () => void;
   onCopyPath: () => void;
   onOpenFolder: () => void;
   onOpenTerminal: () => void;
@@ -240,6 +244,11 @@ export function ProjectDetailHeader({
                     {agentLabel}
                   </Badge>
                 )}
+                {project.archived ? (
+                  <Badge variant="outline" className="gap-1.5 text-muted-foreground">
+                    <Archive className="h-3 w-3" /> Archived
+                  </Badge>
+                ) : null}
                 {project.tags.map((tag) => (
                   <Badge key={tag} variant="outline">
                     {tag}
@@ -303,6 +312,17 @@ export function ProjectDetailHeader({
                   <TerminalSquare className="h-4 w-4" /> Open terminal
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
+                <DropdownMenuItem onSelect={onToggleArchive}>
+                  {project.archived ? (
+                    <>
+                      <ArchiveRestore className="h-4 w-4" /> Restore project
+                    </>
+                  ) : (
+                    <>
+                      <Archive className="h-4 w-4" /> Archive project
+                    </>
+                  )}
+                </DropdownMenuItem>
                 <DropdownMenuItem
                   className="text-destructive focus:text-destructive"
                   onSelect={onDelete}

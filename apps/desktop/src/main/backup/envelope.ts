@@ -161,6 +161,7 @@ function buildProject(entry: Record_): Project | null {
     repoUrl: strOr(entry.repoUrl, ''),
     githubActions: normalizeProjectGithubActions(entry.githubActions),
     pinned: entry.pinned === true,
+    archived: entry.archived === true,
     createdAt: strOr(entry.createdAt, now),
     updatedAt: strOr(entry.updatedAt, now),
   };

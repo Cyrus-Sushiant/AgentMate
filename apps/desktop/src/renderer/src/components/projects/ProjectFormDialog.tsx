@@ -10,6 +10,7 @@ import {
   FolderOpen,
   GitBranch,
   Globe,
+  GripVertical,
   Pencil,
   Plus,
   Sparkles,
@@ -137,6 +138,8 @@ export function ProjectFormDialog({
   const [agentType, setAgentType] = useState<AgentType>('claude-code');
   const [notes, setNotes] = useState('');
   const [runCommands, setRunCommands] = useState<ProjectRunCommand[]>([emptyRunCommand()]);
+  const [draggedRunId, setDraggedRunId] = useState<string | null>(null);
+  const [runDropId, setRunDropId] = useState<string | null>(null);
   const [cliId, setCliId] = useState<string>(APP_DEFAULT_CLI);
   const [iconDataUrl, setIconDataUrl] = useState<string | null>(null);
   const [iconBgColor, setIconBgColor] = useState<string | null>(null);
@@ -164,6 +167,8 @@ export function ProjectFormDialog({
     setAgentType(initial?.agentType ?? 'claude-code');
     setNotes(initial?.notes ?? '');
     setRunCommands(draftsFromProject(initial));
+    setDraggedRunId(null);
+    setRunDropId(null);
     setCliId(initial?.cliId ?? APP_DEFAULT_CLI);
     setIconDataUrl(initial?.iconDataUrl ?? null);
     setIconBgColor(initial?.iconBgColor ?? null);
@@ -297,6 +302,40 @@ export function ProjectFormDialog({
   }
 
   const canSubmit = name.trim().length > 0 && folderPath.length > 0;
+
+  /**
+   * Order is priority here: the Run button offers these top down, and a project
+   * with a single command runs whatever sits first. Both the drag and the arrow
+   * keys land in this one move.
+   */
+  function reorderRunCommands(sourceId: string, targetIndex: number): void {
+    setRunCommands((prev) => {
+      const from = prev.findIndex((item) => item.id === sourceId);
+      if (from < 0 || targetIndex < 0 || targetIndex >= prev.length || from === targetIndex) {
+        return prev;
+      }
+      const next = [...prev];
+      const [moved] = next.splice(from, 1);
+      next.splice(targetIndex, 0, moved);
+      return next;
+    });
+  }
+
+  function dropRunCommandOn(targetId: string): void {
+    const sourceId = draggedRunId;
+    setDraggedRunId(null);
+    setRunDropId(null);
+    if (!sourceId || sourceId === targetId) return;
+    setRunCommands((prev) => {
+      const from = prev.findIndex((item) => item.id === sourceId);
+      const to = prev.findIndex((item) => item.id === targetId);
+      if (from < 0 || to < 0 || from === to) return prev;
+      const next = [...prev];
+      const [moved] = next.splice(from, 1);
+      next.splice(to, 0, moved);
+      return next;
+    });
+  }
 
   function handleSubmit(): void {
     if (!canSubmit || isSubmitting) return;
@@ -636,16 +675,84 @@ export function ProjectFormDialog({
 
               <Field
                 label="Run commands"
-                hint="What the Run button executes in the project folder. Add one per environment if you need more than one; Run will ask which to use."
+                hint="What the Run button executes in the project folder. Add one per environment if you need more than one; Run lists them in this order, so drag the one you reach for most to the top."
               >
                 <div className="space-y-2">
                   <div className="flex gap-2 text-[0.65rem] font-medium uppercase tracking-wide text-muted-foreground">
+                    <span className="w-11 shrink-0 px-1">Order</span>
                     <span className="w-[7.5rem] shrink-0 px-1">Environment</span>
                     <span className="min-w-0 flex-1 px-1">Command</span>
                     <span className="w-9 shrink-0" />
                   </div>
                   {runCommands.map((row, index) => (
-                    <div key={row.id} className="flex gap-2">
+                    <div
+                      key={row.id}
+                      className={cn(
+                        'flex items-center gap-2 rounded-md border border-transparent transition-colors',
+                        draggedRunId === row.id && 'opacity-40',
+                        runDropId === row.id && draggedRunId !== row.id && 'border-primary/50',
+                      )}
+                      onDragOver={(e) => {
+                        if (!draggedRunId || draggedRunId === row.id) return;
+                        e.preventDefault();
+                        e.dataTransfer.dropEffect = 'move';
+                        setRunDropId(row.id);
+                      }}
+                      onDragLeave={() =>
+                        setRunDropId((current) => (current === row.id ? null : current))
+                      }
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        dropRunCommandOn(row.id);
+                      }}
+                    >
+                      <div className="flex w-11 shrink-0 items-center gap-1">
+                        <span className="w-4 text-right text-xs tabular-nums text-muted-foreground">
+                          {index + 1}
+                        </span>
+                        <SimpleTooltip
+                          label={
+                            runCommands.length > 1
+                              ? 'Drag to reorder, or focus this and use the arrow keys'
+                              : 'Add another command to set an order'
+                          }
+                        >
+                          <span
+                            draggable={runCommands.length > 1}
+                            role="button"
+                            tabIndex={runCommands.length > 1 ? 0 : -1}
+                            aria-label={`Reorder command ${index + 1}`}
+                            onDragStart={(e) => {
+                              e.dataTransfer.effectAllowed = 'move';
+                              // A drag carrying no payload is refused outright by
+                              // some engines, so set one even though the drop
+                              // reads the id off state.
+                              e.dataTransfer.setData('text/plain', row.id);
+                              setDraggedRunId(row.id);
+                            }}
+                            onDragEnd={() => {
+                              setDraggedRunId(null);
+                              setRunDropId(null);
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
+                              e.preventDefault();
+                              reorderRunCommands(
+                                row.id,
+                                e.key === 'ArrowUp' ? index - 1 : index + 1,
+                              );
+                            }}
+                            className={cn(
+                              'flex h-8 w-6 items-center justify-center rounded-md text-muted-foreground/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                              runCommands.length > 1
+                                ? 'cursor-grab hover:bg-accent hover:text-accent-foreground active:cursor-grabbing'
+                                : 'cursor-not-allowed text-muted-foreground/25',
+                            )}
+                          >
+                            <GripVertical className="h-3.5 w-3.5" />
+                          </span>
+                        </SimpleTooltip>
+                      </div>
                       <Input
                         value={row.label}
                         onChange={(e) =>
