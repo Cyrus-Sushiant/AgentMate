@@ -1812,6 +1812,13 @@ function parseSemverTag(tag: string): { major: number; minor: number; patch: num
   return { major: Number(match[1]), minor: Number(match[2]), patch: Number(match[3]) };
 }
 
+/** What each bump kind is for, so the choice reads without knowing semver by heart. */
+const BUMP_HINTS = {
+  patch: 'Fixes only',
+  minor: 'New features',
+  major: 'Breaking changes',
+} as const;
+
 /** The next version number for a bump kind, without any prefix: the caller owns that. */
 function bumpSemverVersion(latestTag: string | null, kind: 'major' | 'minor' | 'patch'): string {
   const parsed = latestTag ? parseSemverTag(latestTag) : null;
@@ -3324,8 +3331,24 @@ function TagVersionDialog({
   const bumpOptions = (['patch', 'minor', 'major'] as const).map((kind) => ({
     kind,
     label: `${kind[0].toUpperCase()}${kind.slice(1)}`,
+    hint: BUMP_HINTS[kind],
     next: bumpSemverVersion(latestTag, kind),
   }));
+
+  // The prefix alone is not a tag. Everything that acts on the tag keys off the version
+  // field, so an empty version can't create a tag literally named "v".
+  const trimmedVersion = version.trim();
+  const looksSemver = /^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/.test(trimmedVersion);
+  // Only the recent tags are in hand, so this catches the common case of re-tagging
+  // something that just shipped. Git still rejects any duplicate this misses.
+  const tagExists = trimmedVersion.length > 0 && recentTags.includes(tag);
+  const versionApplied = trimmedVersion.length > 0 && updatedVersionFor === tag;
+  const blockedReason = isDirty
+    ? 'Commit the changed files above before tagging.'
+    : tagExists
+      ? `${tag} already exists. Pick another version.`
+      : null;
+  const canCreate = trimmedVersion.length > 0 && !isDirty && !tagExists;
 
   const suggestMutation = useMutation({
     mutationFn: () => {
@@ -3399,16 +3422,16 @@ function TagVersionDialog({
   }
 
   function handleApplyVersion(): void {
+    if (!version.trim()) return;
     const next = tag.trim();
-    if (!next) return;
     keepFieldsRef.current = true;
     setUpdatedVersionFor(next);
     onApplyVersion(next, scopeRef);
   }
 
   function handleCreateTag(): void {
+    if (!version.trim()) return;
     const next = tag.trim();
-    if (!next) return;
     if (updatedVersionFor === next) {
       createTagMutation.mutate();
       return;
@@ -3439,11 +3462,21 @@ function TagVersionDialog({
           <DialogTitle>Tag a version</DialogTitle>
           <DialogDescription>
             {latestTag ? (
-              <>
-                {commitsSince} commit{commitsSince === 1 ? '' : 's'}
-                {scopePath ? ` in ${scopePath}` : ''} since{' '}
-                <span className="font-mono">{latestTag}</span>.
-              </>
+              commitsSince > 0 ? (
+                <>
+                  <span className="font-medium text-foreground">
+                    {commitsSince} commit{commitsSince === 1 ? '' : 's'}
+                  </span>
+                  {scopePath ? ` in ${scopePath}` : ''} since{' '}
+                  <span className="font-mono">{latestTag}</span>.
+                </>
+              ) : (
+                <>
+                  Nothing new{scopePath ? ` in ${scopePath}` : ''} since{' '}
+                  <span className="font-mono">{latestTag}</span>. A tag here points at the same
+                  commit.
+                </>
+              )
             ) : scopePath ? (
               `Nothing is tagged as ${prefix.trim() || 'this part'} yet. Pick a first version below.`
             ) : (
@@ -3452,6 +3485,23 @@ function TagVersionDialog({
           </DialogDescription>
         </DialogHeader>
         <OverflowScroll fill className="-mx-1 space-y-4 px-1">
+          {/* The blocker leads: nothing further down can be finished while the tree is dirty. */}
+          {isDirty && (
+            <div
+              role="alert"
+              className="flex gap-2 rounded-xl border border-destructive/40 bg-destructive/5 px-3 py-2.5"
+            >
+              <TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0 text-destructive" />
+              <p className="text-xs text-muted-foreground">
+                <span className="font-medium text-foreground">
+                  {dirtyFileCount} uncommitted file{dirtyFileCount === 1 ? '' : 's'}.
+                </span>{' '}
+                Commit them before tagging, so the tag points at a commit that already carries the
+                version bump.
+              </p>
+            </div>
+          )}
+
           {/* Only a monorepo gets the picker: a single-package repo has one scope and no choice
               to make, so the row would be noise. */}
           {scopes.length > 1 && (
@@ -3492,25 +3542,60 @@ function TagVersionDialog({
             </div>
           )}
 
-          <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 rounded-xl border border-border bg-card/60 px-3 py-3">
-            <div className="min-w-0 text-center">
-              <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
-                Latest
-              </p>
-              <p className="truncate font-mono text-lg font-semibold">{latestTag ?? 'None'}</p>
+          {/* The one place the finished tag is shown, so the fields below never repeat it
+              back. Anything wrong with the tag gets said here too. */}
+          <div
+            className={cn(
+              'overflow-hidden rounded-xl border bg-card/60',
+              tagExists ? 'border-destructive/40' : 'border-border',
+            )}
+          >
+            <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 px-3 py-3">
+              <div className="min-w-0 text-center">
+                <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                  Latest
+                </p>
+                <p className="truncate font-mono text-lg font-semibold">{latestTag ?? 'None'}</p>
+              </div>
+              <ArrowRight className="h-4 w-4 text-muted-foreground" />
+              <div className="min-w-0 text-center">
+                <p
+                  className={cn(
+                    'text-[10px] font-medium uppercase tracking-wider',
+                    tagExists ? 'text-destructive' : 'text-primary',
+                  )}
+                >
+                  Next
+                </p>
+                <p
+                  className={cn(
+                    'truncate font-mono text-lg font-semibold',
+                    tagExists
+                      ? 'text-destructive'
+                      : trimmedVersion
+                        ? 'text-primary'
+                        : 'text-muted-foreground',
+                  )}
+                >
+                  {trimmedVersion ? tag : '—'}
+                </p>
+              </div>
             </div>
-            <ArrowRight className="h-4 w-4 text-muted-foreground" />
-            <div className="min-w-0 text-center">
-              <p className="text-[10px] font-medium uppercase tracking-wider text-primary">Next</p>
-              <p className="truncate font-mono text-lg font-semibold text-primary">
-                {tag.trim() || '—'}
+            {tagExists ? (
+              <p className="border-t border-destructive/30 bg-destructive/5 px-3 py-2 text-[11px] text-destructive">
+                <span className="font-mono">{tag}</span> already exists. Pick another version.
               </p>
-            </div>
+            ) : trimmedVersion && !looksSemver ? (
+              <p className="border-t border-border bg-muted/30 px-3 py-2 text-[11px] text-muted-foreground">
+                Not a <span className="font-mono">major.minor.patch</span> version. It gets created
+                exactly as typed.
+              </p>
+            ) : null}
           </div>
 
           <div className="grid grid-cols-3 gap-2">
             {bumpOptions.map((option) => {
-              const selected = version.trim() === option.next;
+              const selected = trimmedVersion === option.next;
               return (
                 <button
                   key={option.kind}
@@ -3525,11 +3610,15 @@ function TagVersionDialog({
                       : 'border-border bg-card/40 text-muted-foreground hover:border-foreground/20 hover:bg-accent hover:text-foreground',
                   )}
                 >
-                  <span className="text-xs font-medium">{option.label}</span>
+                  <span className="flex items-center gap-1 text-xs font-medium">
+                    {selected && <Check className="h-3 w-3 text-primary" />}
+                    {option.label}
+                  </span>
                   <span className="font-mono text-[10px]">
                     {prefix.trim()}
                     {option.next}
                   </span>
+                  <span className="text-[10px] opacity-70">{option.hint}</span>
                 </button>
               );
             })}
@@ -3553,6 +3642,7 @@ function TagVersionDialog({
               <Label htmlFor="git-tag-version">Version</Label>
               <Input
                 id="git-tag-version"
+                autoFocus
                 value={version}
                 onChange={(e) => {
                   // Pasting a whole tag into this field should still work, so a prefix
@@ -3566,14 +3656,19 @@ function TagVersionDialog({
                   }
                   setReason(null);
                 }}
+                onKeyDown={(e) => {
+                  // Enter finishes the form, the way it would in any other short dialog.
+                  if (e.key !== 'Enter' || !canCreate || createTagMutation.isPending) return;
+                  e.preventDefault();
+                  handleCreateTag();
+                }}
                 placeholder="1.0.1"
+                aria-invalid={tagExists}
                 className="font-mono"
               />
             </div>
           </div>
-          <p className="text-xs text-muted-foreground">
-            The tag will be <span className="font-mono text-foreground">{tag.trim() || '—'}</span>.
-          </p>
+
           {reason && (
             <div className="flex gap-2 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2">
               <Sparkles className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" />
@@ -3581,50 +3676,7 @@ function TagVersionDialog({
             </div>
           )}
 
-          <div className="space-y-1.5">
-            <Label htmlFor="git-tag-message">Tag message (optional)</Label>
-            <GrammarTextarea
-              id="git-tag-message"
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
-              rows={4}
-              placeholder="What this release contains…"
-            />
-          </div>
-
-          <div className="space-y-2.5 rounded-xl border border-border bg-card/60 p-3">
-            <div className="flex items-start gap-3">
-              <GitIconWell>
-                <FileCog className="h-4 w-4" />
-              </GitIconWell>
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-medium">Update version in files</p>
-                <p className="text-xs text-muted-foreground">
-                  {scopePath ? (
-                    <>
-                      Runs your CLI over the manifests and version strings inside{' '}
-                      <span className="font-mono">{scopePath}</span> only, so the other parts keep
-                      their versions. Commit those edits before tagging.
-                    </>
-                  ) : (
-                    <>
-                      Runs your CLI over package.json, other manifests and any version shown in the
-                      app. Commit those edits before tagging.
-                    </>
-                  )}
-                </p>
-              </div>
-            </div>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={!tag.trim() || createTagMutation.isPending}
-              onClick={handleApplyVersion}
-            >
-              <FileCog className="h-3.5 w-3.5" /> Update version in files
-            </Button>
-          </div>
-
+          {/* Sits beside the version fields, where it answers "what have I used already?". */}
           {recentTags.length > 0 && (
             <div className="space-y-1.5">
               <p className="text-xs font-medium text-muted-foreground">
@@ -3644,18 +3696,69 @@ function TagVersionDialog({
             </div>
           )}
 
-          {isDirty && (
-            <div
-              role="alert"
-              className="flex gap-2 rounded-xl border border-destructive/40 bg-destructive/5 px-3 py-2.5"
-            >
-              <TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0 text-destructive" />
-              <p className="text-xs text-muted-foreground">
-                Commit {dirtyFileCount} changed file{dirtyFileCount === 1 ? '' : 's'} before
-                tagging. The tag has to point at a commit that already includes the version bump.
-              </p>
+          <div className="space-y-1.5">
+            <Label htmlFor="git-tag-message">Tag message (optional)</Label>
+            <GrammarTextarea
+              id="git-tag-message"
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              rows={4}
+              placeholder="What this release contains…"
+            />
+          </div>
+
+          {/* Whether this step has run for the tag on screen is the one thing the flow used
+              to leave the user guessing about, so it now says so plainly. */}
+          <div
+            className={cn(
+              'space-y-2.5 rounded-xl border p-3',
+              versionApplied ? 'border-primary/40 bg-primary/5' : 'border-border bg-card/60',
+            )}
+          >
+            <div className="flex items-start gap-3">
+              <GitIconWell>
+                {versionApplied ? <Check className="h-4 w-4" /> : <FileCog className="h-4 w-4" />}
+              </GitIconWell>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-medium">
+                  {versionApplied ? (
+                    <>
+                      Files updated to <span className="font-mono">{tag}</span>
+                    </>
+                  ) : (
+                    'Update version in files'
+                  )}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {versionApplied ? (
+                    'Commit those edits, then create the tag.'
+                  ) : scopePath ? (
+                    <>
+                      Runs your CLI over the manifests and version strings inside{' '}
+                      <span className="font-mono">{scopePath}</span> only, so the other parts keep
+                      their versions. Commit those edits before tagging.
+                    </>
+                  ) : (
+                    <>
+                      Runs your CLI over package.json, other manifests and any version shown in the
+                      app. Commit those edits before tagging.
+                    </>
+                  )}
+                </p>
+              </div>
             </div>
-          )}
+            <SimpleTooltip label={trimmedVersion ? null : 'Pick a version first.'} wrapTrigger>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={!trimmedVersion || createTagMutation.isPending}
+                onClick={handleApplyVersion}
+              >
+                <FileCog className="h-3.5 w-3.5" />{' '}
+                {versionApplied ? 'Run again' : 'Update version in files'}
+              </Button>
+            </SimpleTooltip>
+          </div>
         </OverflowScroll>
         <DialogFooter className="flex-col gap-1.5 sm:flex-col sm:items-stretch">
           <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-between">
@@ -3688,7 +3791,7 @@ function TagVersionDialog({
               </SimpleTooltip>
             )}
             <SimpleTooltip
-              label={isDirty ? 'Commit the changed files above before tagging.' : null}
+              label={trimmedVersion ? blockedReason : 'Pick a version first.'}
               wrapTrigger
             >
               <GitOpButton
@@ -3696,7 +3799,7 @@ function TagVersionDialog({
                 label={hasRemote ? 'Create & push tag' : 'Create tag'}
                 pendingLabel={hasRemote ? 'Creating & pushing…' : 'Creating tag…'}
                 pending={createTagMutation.isPending}
-                disabled={!tag.trim() || isDirty}
+                disabled={!canCreate}
                 onClick={handleCreateTag}
               />
             </SimpleTooltip>
