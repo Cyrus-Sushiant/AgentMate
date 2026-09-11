@@ -57,10 +57,10 @@ function workflowFileName(path: string): string {
 
 export function GitActionsCard({
   projectId,
-  watched,
+  muted,
 }: {
   projectId: string;
-  watched: ProjectGithubAction[];
+  muted: ProjectGithubAction[];
 }): React.JSX.Element {
   const queryClient = useQueryClient();
   const openSession = useTerminalStore((s) => s.openSession);
@@ -74,7 +74,7 @@ export function GitActionsCard({
 
   const watchMutation = useMutation({
     mutationFn: (actions: ProjectGithubAction[]) =>
-      window.agentmat.pipelines.setWatched(projectId, actions),
+      window.agentmat.pipelines.setMuted(projectId, actions),
     onSuccess: (status) => {
       queryClient.setQueryData(queryKeys.pipelineStatus(projectId), status);
       void queryClient.invalidateQueries({ queryKey: queryKeys.projects });
@@ -86,9 +86,10 @@ export function GitActionsCard({
 
   const status = statusQuery.data;
   const repo = status?.github ? `${status.github.owner}/${status.github.repo}` : '';
-  const effectiveWatched =
-    watchMutation.isPending && watchMutation.variables ? watchMutation.variables : watched;
-  const watchedIds = new Set(effectiveWatched.map((item) => item.workflowId));
+  // While the save is in flight the switch should already show where it was dragged to.
+  const effectiveMuted =
+    watchMutation.isPending && watchMutation.variables ? watchMutation.variables : muted;
+  const mutedIds = new Set(effectiveMuted.map((item) => item.workflowId));
 
   function refreshSoon(): void {
     void statusQuery.refetch();
@@ -138,11 +139,11 @@ export function GitActionsCard({
 
   function toggleWatch(workflow: GithubWorkflowInfo, enabled: boolean): void {
     const next = enabled
-      ? [
-          ...effectiveWatched.filter((item) => item.workflowId !== workflow.id),
+      ? effectiveMuted.filter((item) => item.workflowId !== workflow.id)
+      : [
+          ...effectiveMuted.filter((item) => item.workflowId !== workflow.id),
           { workflowId: workflow.id, path: workflow.path, name: workflow.name },
-        ]
-      : effectiveWatched.filter((item) => item.workflowId !== workflow.id);
+        ];
     watchMutation.mutate(next);
   }
 
@@ -156,7 +157,8 @@ export function GitActionsCard({
           <div className="min-w-0">
             <p className="text-sm font-medium">GitHub Actions</p>
             <p className="text-xs text-muted-foreground">
-              Connect workflows to this repo to watch pipeline status. Failures go to Notifications.
+              Every workflow in this repo is watched, and failures go to Notifications. Switch one
+              off to stop hearing about it.
             </p>
           </div>
         </div>
@@ -201,7 +203,7 @@ export function GitActionsCard({
               workflow={workflow}
               repo={repo}
               run={status.runsByWorkflowId[workflow.id]}
-              watched={watchedIds.has(workflow.id)}
+              watched={!mutedIds.has(workflow.id)}
               pending={watchMutation.isPending}
               stopping={cancelMutation.isPending}
               onToggle={(enabled) => toggleWatch(workflow, enabled)}
@@ -245,7 +247,9 @@ function WorkflowRow({
     <div
       className={cn(
         'flex items-center gap-3 rounded-lg border px-3 py-2.5',
-        watched ? 'border-primary/30 bg-primary/5' : 'border-border/70 bg-background/30',
+        watched
+          ? 'border-border/70 bg-background/30'
+          : 'border-dashed border-border/60 bg-background/10',
       )}
     >
       <span
@@ -278,6 +282,7 @@ function WorkflowRow({
           <span className="font-mono">{workflowFileName(workflow.path)}</span>
           {run?.headBranch ? ` · ${run.headBranch}` : ''}
           {run?.updatedAt ? ` · ${timeAgo(run.updatedAt)}` : ''}
+          {watched ? '' : ' · not watched'}
         </p>
       </div>
       {running && run ? (
@@ -341,7 +346,7 @@ function WorkflowRow({
           </Button>
         </SimpleTooltip>
       ) : null}
-      <SimpleTooltip label={watched ? 'Stop watching this pipeline' : 'Watch this pipeline'}>
+      <SimpleTooltip label={watched ? 'Stop watching this pipeline' : 'Watch this pipeline again'}>
         <div className="shrink-0">
           <Switch
             checked={watched}

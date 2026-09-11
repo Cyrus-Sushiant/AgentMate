@@ -204,7 +204,7 @@ export function normalizeDesktopPetActionSpeeds(value: unknown): DesktopPetActio
   };
 }
 
-/** A GitHub Actions workflow the user connected on a project's Git tab. */
+/** A GitHub Actions workflow of a project's repo, as listed on its Git tab. */
 export interface ProjectGithubAction {
   workflowId: number;
   /** Path like `.github/workflows/ci.yml`, used if the numeric id changes. */
@@ -600,8 +600,12 @@ export interface Project {
    * and only ever a label to open: nothing here runs git. Empty when unset.
    */
   repoUrl: string;
-  /** GitHub Actions workflows connected on the Git tab. Empty when none are watched. */
-  githubActions: ProjectGithubAction[];
+  /**
+   * GitHub Actions workflows the user switched off on the Git tab. Every workflow in
+   * the repo is watched by default, so this is the opt-out list: empty means all of
+   * them report failures, and a workflow added to the repo later starts watched too.
+   */
+  githubActionsMuted: ProjectGithubAction[];
   /** Pinned projects are sorted first on the Projects page, above the drag-ordered rest. */
   pinned: boolean;
   /**

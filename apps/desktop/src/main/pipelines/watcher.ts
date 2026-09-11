@@ -7,7 +7,12 @@ import type { PetPipelineMessage, PetPipelineRunRef } from '../../shared/pet';
 import { petDisplayName } from '../pet/names';
 import { petManager } from '../pet/petWindow';
 import { type PipelineWatchState, store } from '../store';
-import { fetchProjectPipelineStatus, githubRepoForFolder, listWorkflowRuns } from './githubActions';
+import {
+  fetchProjectPipelineStatus,
+  githubRepoForFolder,
+  listRepoRunsByWorkflow,
+  listRepoWorkflows,
+} from './githubActions';
 
 const TICK_MS = 45_000;
 const MAX_NOTIFICATIONS = 200;
@@ -83,58 +88,78 @@ async function maybeSpeak(
   petManager.sendPipelineMessage(payload);
 }
 
-async function processWatchedWorkflow(
+function processWatchedWorkflow(
   project: Project,
   workflowId: number,
   workflowName: string,
   owner: string,
   repo: string,
+  runs: GithubWorkflowRunInfo[],
   watch: PipelineWatchState,
-): Promise<boolean> {
+): { changed: boolean; announce: (() => Promise<void>) | null } {
   const key = watchKey(project.id, workflowId);
-  const runs = await listWorkflowRuns(owner, repo, workflowId, 5);
   const completed = runs.filter((run) => run.status === 'completed');
   const lastSeen = watch.lastCompletedRunId[key];
 
   if (lastSeen == null) {
+    // First time this workflow is seen. Remember where it stands so the next tick
+    // only reports what happens from here on.
     const newest = completed[0];
     watch.lastCompletedRunId[key] = newest?.id ?? 0;
-    return true;
+    return { changed: true, announce: null };
   }
 
   const fresh = completed.filter((run) => run.id > lastSeen).sort((a, b) => a.id - b.id);
-  if (fresh.length === 0) return false;
+  if (fresh.length === 0) return { changed: false, announce: null };
 
   watch.lastCompletedRunId[key] = fresh[fresh.length - 1].id;
-  for (const run of fresh) {
-    const name = workflowName || run.name;
-    if (isFailedConclusion(run.conclusion)) {
-      await appendFailureNotification({ project, workflowName: name, run });
-      // The ref rides along so clicking the bubble opens this run on the
-      // Pipelines page instead of just raising the window.
-      await maybeSpeak('fail', project, name, { runId: run.id, repo: `${owner}/${repo}` });
-    } else if (run.conclusion === 'success') {
-      await maybeSpeak('pass', project, name);
-    }
-  }
-  return true;
+  return {
+    changed: true,
+    announce: async () => {
+      for (const run of fresh) {
+        const name = workflowName || run.name;
+        if (isFailedConclusion(run.conclusion)) {
+          await appendFailureNotification({ project, workflowName: name, run });
+          // The ref rides along so clicking the bubble opens this run on the
+          // Pipelines page instead of just raising the window.
+          await maybeSpeak('fail', project, name, { runId: run.id, repo: `${owner}/${repo}` });
+        } else if (run.conclusion === 'success') {
+          await maybeSpeak('pass', project, name);
+        }
+      }
+    },
+  };
 }
 
-export async function seedWatchedWorkflow(projectId: string, workflowId: number): Promise<void> {
-  const projects = await store.getProjects();
-  const project = projects.find((item) => item.id === projectId);
-  if (!project) return;
-  const github = await githubRepoForFolder(project.folderPath);
-  if (!github) return;
-  try {
-    const runs = await listWorkflowRuns(github.owner, github.repo, workflowId, 5);
-    const newest = runs.find((run) => run.status === 'completed');
-    const watch = await store.getPipelineWatch();
-    watch.lastCompletedRunId[watchKey(projectId, workflowId)] = newest?.id ?? 0;
-    await store.setPipelineWatch(watch);
-  } catch {
-    // First poll will seed instead.
+/** The workflows of a project that still report, i.e. everything the user has not switched off. */
+async function watchedWorkflows(
+  project: Project,
+  owner: string,
+  repo: string,
+): Promise<{ workflowId: number; name: string }[]> {
+  const muted = new Set((project.githubActionsMuted ?? []).map((item) => item.workflowId));
+  const workflows = await listRepoWorkflows(owner, repo);
+  return workflows
+    .filter((workflow) => !muted.has(workflow.id))
+    .map((workflow) => ({ workflowId: workflow.id, name: workflow.name }));
+}
+
+/**
+ * Drops what the watcher remembers about these workflows, so the next tick reads their
+ * current state instead of replaying it. Called when a workflow is switched off: while it
+ * is off nothing advances the mark, and switching it back on should not announce every run
+ * that happened in between.
+ */
+export async function forgetWatchedWorkflows(
+  projectId: string,
+  workflowIds: number[],
+): Promise<void> {
+  if (workflowIds.length === 0) return;
+  const watch = await store.getPipelineWatch();
+  for (const workflowId of workflowIds) {
+    delete watch.lastCompletedRunId[watchKey(projectId, workflowId)];
   }
+  await store.setPipelineWatch(watch);
 }
 
 async function tick(): Promise<void> {
@@ -143,29 +168,45 @@ async function tick(): Promise<void> {
   try {
     const projects = await store.getProjects();
     const watch = await store.getPipelineWatch();
+    const announcements: (() => Promise<void>)[] = [];
+    // Two projects can sit in the same repo, and a repo only needs reading once a tick.
+    const runsByRepo = new Map<string, Map<number, GithubWorkflowRunInfo[]>>();
     let dirty = false;
     for (const project of projects) {
-      const watched = project.githubActions ?? [];
-      if (watched.length === 0) continue;
+      if (project.archived) continue;
       const github = await githubRepoForFolder(project.folderPath);
       if (!github) continue;
-      for (const action of watched) {
-        try {
-          const changed = await processWatchedWorkflow(
+      try {
+        const watched = await watchedWorkflows(project, github.owner, github.repo);
+        if (watched.length === 0) continue;
+        // One call covers the whole repo, however many workflows it has.
+        const repoKey = `${github.owner}/${github.repo}`.toLowerCase();
+        let runsByWorkflow = runsByRepo.get(repoKey);
+        if (!runsByWorkflow) {
+          runsByWorkflow = await listRepoRunsByWorkflow(github.owner, github.repo);
+          runsByRepo.set(repoKey, runsByWorkflow);
+        }
+        for (const workflow of watched) {
+          const result = processWatchedWorkflow(
             project,
-            action.workflowId,
-            action.name,
+            workflow.workflowId,
+            workflow.name,
             github.owner,
             github.repo,
+            runsByWorkflow.get(workflow.workflowId) ?? [],
             watch,
           );
-          if (changed) dirty = true;
-        } catch {
-          // Offline or a missing workflow. The next tick retries.
+          if (result.changed) dirty = true;
+          if (result.announce) announcements.push(result.announce);
         }
+      } catch {
+        // Offline, rate limited, or the repo is gone. The next tick retries.
       }
     }
+    // Saving before announcing means a crash here costs a notification rather than
+    // repeating every one of them on the next launch.
     if (dirty) await store.setPipelineWatch(watch);
+    for (const announce of announcements) await announce();
   } finally {
     ticking = false;
   }
@@ -189,8 +230,7 @@ export function schedulePipelineCheck(projectId?: string): void {
   void (async () => {
     if (projectId) {
       const projects = await store.getProjects();
-      const project = projects.find((item) => item.id === projectId);
-      if (!project || (project.githubActions ?? []).length === 0) return;
+      if (!projects.some((item) => item.id === projectId)) return;
     }
     await tick();
   })();

@@ -53,19 +53,36 @@ interface GhRun {
   updated_at: string;
 }
 
+const REPO_LOOKUP_TTL_MS = 10 * 60_000;
+const repoLookupCache = new Map<
+  string,
+  { github: { owner: string; repo: string } | null; at: number }
+>();
+
+/**
+ * The GitHub repo a project folder pushes to, or null when it has no GitHub origin.
+ * Cached because the watcher asks for every project on every tick and an origin remote
+ * almost never changes.
+ */
 export async function githubRepoForFolder(
   folderPath: string,
 ): Promise<{ owner: string; repo: string } | null> {
+  const cached = repoLookupCache.get(folderPath);
+  if (cached && Date.now() - cached.at < REPO_LOOKUP_TTL_MS) return cached.github;
+
+  let github: { owner: string; repo: string } | null = null;
   try {
     const { stdout } = await execFileAsync(
       'git',
       ['-C', folderPath, 'remote', 'get-url', 'origin'],
       { timeout: 8000, windowsHide: true },
     );
-    return parseGithubRemote(stdout.trim());
+    github = parseGithubRemote(stdout.trim());
   } catch {
-    return null;
+    github = null;
   }
+  repoLookupCache.set(folderPath, { github, at: Date.now() });
+  return github;
 }
 
 function toRunStatus(value: string): PipelineRunStatus {
@@ -298,6 +315,50 @@ export async function listWorkflowRuns(
     `repos/${owner}/${repo}/actions/workflows/${workflowId}/runs?per_page=${perPage}`,
   );
   return (payload.workflow_runs ?? []).map(toWorkflowRun);
+}
+
+const WORKFLOW_LIST_TTL_MS = 5 * 60_000;
+const workflowListCache = new Map<string, { workflows: GithubWorkflowInfo[]; at: number }>();
+
+/**
+ * Every workflow the repo has, minus deleted ones. The watcher asks for this on each
+ * tick, so the answer is cached: workflow files change far less often than runs do.
+ */
+export async function listRepoWorkflows(
+  owner: string,
+  repo: string,
+): Promise<GithubWorkflowInfo[]> {
+  const key = `${owner}/${repo}`;
+  const cached = workflowListCache.get(key);
+  if (cached && Date.now() - cached.at < WORKFLOW_LIST_TTL_MS) return cached.workflows;
+
+  const payload = await ghApi<{ workflows?: GhWorkflow[] }>(
+    `repos/${owner}/${repo}/actions/workflows?per_page=100`,
+  );
+  const workflows = (payload.workflows ?? [])
+    .filter((item) => item.state !== 'deleted')
+    .map(toWorkflow);
+  workflowListCache.set(key, { workflows, at: Date.now() });
+  return workflows;
+}
+
+/** The repo's latest runs in one call, grouped by workflow, newest first within each group. */
+export async function listRepoRunsByWorkflow(
+  owner: string,
+  repo: string,
+  perPage = 50,
+): Promise<Map<number, GithubWorkflowRunInfo[]>> {
+  const payload = await ghApi<{ workflow_runs?: GhRun[] }>(
+    `repos/${owner}/${repo}/actions/runs?per_page=${perPage}`,
+  );
+  const byWorkflow = new Map<number, GithubWorkflowRunInfo[]>();
+  for (const run of payload.workflow_runs ?? []) {
+    const mapped = toWorkflowRun(run);
+    const list = byWorkflow.get(mapped.workflowId);
+    if (list) list.push(mapped);
+    else byWorkflow.set(mapped.workflowId, [mapped]);
+  }
+  return byWorkflow;
 }
 
 export async function fetchProjectPipelineStatus(project: Project): Promise<ProjectPipelineStatus> {
@@ -555,7 +616,7 @@ export async function fetchRunFailureText(
   }
 }
 
-export async function setProjectWatchedActions(
+export async function setProjectMutedActions(
   projectId: string,
   actions: ProjectGithubAction[],
 ): Promise<Project> {
@@ -564,7 +625,7 @@ export async function setProjectWatchedActions(
   if (index === -1) throw new Error(`Project ${projectId} not found`);
   const updated: Project = {
     ...projects[index],
-    githubActions: normalizeProjectGithubActions(actions),
+    githubActionsMuted: normalizeProjectGithubActions(actions),
     updatedAt: new Date().toISOString(),
   };
   projects[index] = updated;

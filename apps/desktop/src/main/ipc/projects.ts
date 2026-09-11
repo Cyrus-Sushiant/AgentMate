@@ -103,7 +103,7 @@ export function registerProjectHandlers(): void {
         iconColor: normalizeProjectColor(input.iconColor),
         websiteUrl: input.websiteUrl ?? '',
         repoUrl: input.repoUrl ?? '',
-        githubActions: [],
+        githubActionsMuted: [],
         pinned: false,
         archived: false,
         createdAt: now,

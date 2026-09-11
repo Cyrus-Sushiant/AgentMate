@@ -1024,7 +1024,7 @@ export default function ProjectDetailPage(): React.JSX.Element {
             <GitTab
               projectId={project.id}
               folderPath={project.folderPath}
-              watchedActions={project.githubActions ?? []}
+              mutedActions={project.githubActionsMuted ?? []}
               diffrayInstalled={diffrayInstalled}
               onReviewWithDiffray={() => setSection('review')}
             />
@@ -1977,13 +1977,13 @@ function GitTabSkeleton(): React.JSX.Element {
 function GitTab({
   projectId,
   folderPath,
-  watchedActions,
+  mutedActions,
   diffrayInstalled,
   onReviewWithDiffray,
 }: {
   projectId: string;
   folderPath: string;
-  watchedActions: ProjectGithubAction[];
+  mutedActions: ProjectGithubAction[];
   diffrayInstalled: boolean;
   onReviewWithDiffray: () => void;
 }): React.JSX.Element {
@@ -2738,7 +2738,7 @@ function GitTab({
         </div>
       </div>
 
-      {status.hasRemote ? <GitActionsCard projectId={projectId} watched={watchedActions} /> : null}
+      {status.hasRemote ? <GitActionsCard projectId={projectId} muted={mutedActions} /> : null}
 
       <GitSetupWizard
         projectId={projectId}

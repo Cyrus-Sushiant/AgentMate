@@ -174,11 +174,16 @@ function withSettingsMigrations(settings: AppSettings): AppSettings {
 
 /**
  * Older projects.json entries predate notifications, prompt, pinned, archived, cliId, icon,
- * repository, and the runCommands list (they used a single `runCommand` string).
+ * repository, and the runCommands list (they used a single `runCommand` string). They also
+ * carry `githubActions`, the list of workflows the user had opted in to back when watching
+ * was opt-in. Every workflow is watched now, so that list is dropped on read.
  */
-function withProjectDefaults(project: Project & { runCommand?: string }): Project {
+function withProjectDefaults(
+  project: Project & { runCommand?: string; githubActions?: unknown },
+): Project {
   const rest = { ...project };
   delete rest.runCommand;
+  delete rest.githubActions;
   return {
     ...rest,
     runCommands: normalizeProjectRunCommands(project),
@@ -193,7 +198,7 @@ function withProjectDefaults(project: Project & { runCommand?: string }): Projec
     iconColor: normalizeProjectColor(project.iconColor),
     websiteUrl: project.websiteUrl ?? '',
     repoUrl: project.repoUrl ?? '',
-    githubActions: normalizeProjectGithubActions(project.githubActions),
+    githubActionsMuted: normalizeProjectGithubActions(project.githubActionsMuted),
   };
 }
 

@@ -18,14 +18,13 @@ import {
   fetchDashboardActionsActivity,
   fetchRunFailureText,
   fetchWorkflowRefs,
-  setProjectWatchedActions,
+  setProjectMutedActions,
 } from '../pipelines/githubActions';
 import {
+  forgetWatchedWorkflows,
   refreshProjectPipelineStatus,
   schedulePipelineCheck,
-  seedWatchedWorkflow,
 } from '../pipelines/watcher';
-import { store } from '../store';
 
 export function registerPipelineHandlers(): void {
   ipcMain.handle(
@@ -36,22 +35,21 @@ export function registerPipelineHandlers(): void {
   );
 
   ipcMain.handle(
-    IPC.pipelines.setWatched,
+    IPC.pipelines.setMuted,
     async (
       _event,
       projectId: string,
       actions: ProjectGithubAction[],
     ): Promise<ProjectPipelineStatus> => {
       const id = String(projectId);
-      const current = await store.getProjects().then((list) => list.find((item) => item.id === id));
-      const previousIds = new Set((current?.githubActions ?? []).map((item) => item.workflowId));
       const next = normalizeProjectGithubActions(actions);
-      await setProjectWatchedActions(id, next);
-      for (const action of next) {
-        if (!previousIds.has(action.workflowId)) {
-          await seedWatchedWorkflow(id, action.workflowId);
-        }
-      }
+      await setProjectMutedActions(id, next);
+      // A workflow that is off stops advancing its mark, so clear it now. Turning the
+      // workflow back on then reports from that moment instead of replaying the gap.
+      await forgetWatchedWorkflows(
+        id,
+        next.map((item) => item.workflowId),
+      );
       schedulePipelineCheck(id);
       return refreshProjectPipelineStatus(id);
     },

@@ -733,8 +733,8 @@ const git = {
 const pipelines = {
   status: (projectId: string): Promise<ProjectPipelineStatus> =>
     ipcRenderer.invoke(IPC.pipelines.status, projectId),
-  setWatched: (projectId: string, actions: ProjectGithubAction[]): Promise<ProjectPipelineStatus> =>
-    ipcRenderer.invoke(IPC.pipelines.setWatched, projectId, actions),
+  setMuted: (projectId: string, actions: ProjectGithubAction[]): Promise<ProjectPipelineStatus> =>
+    ipcRenderer.invoke(IPC.pipelines.setMuted, projectId, actions),
   dashboardActivity: (): Promise<GithubActionsActivity> =>
     ipcRenderer.invoke(IPC.pipelines.dashboardActivity),
   runError: (input: GithubActionsRunErrorInput): Promise<GithubActionsRunErrorResult> =>

@@ -159,7 +159,7 @@ function buildProject(entry: Record_): Project | null {
     iconColor: normalizeProjectColor(entry.iconColor),
     websiteUrl: strOr(entry.websiteUrl, ''),
     repoUrl: strOr(entry.repoUrl, ''),
-    githubActions: normalizeProjectGithubActions(entry.githubActions),
+    githubActionsMuted: normalizeProjectGithubActions(entry.githubActionsMuted),
     pinned: entry.pinned === true,
     archived: entry.archived === true,
     createdAt: strOr(entry.createdAt, now),

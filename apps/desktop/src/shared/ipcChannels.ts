@@ -381,7 +381,7 @@ export const IPC = {
   },
   pipelines: {
     status: 'pipelines:status',
-    setWatched: 'pipelines:setWatched',
+    setMuted: 'pipelines:setMuted',
     dashboardActivity: 'pipelines:dashboardActivity',
     runError: 'pipelines:runError',
     refs: 'pipelines:refs',
