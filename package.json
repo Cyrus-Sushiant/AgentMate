@@ -22,7 +22,7 @@
     "check:deprecated-code": "biome lint --only=suspicious/noDeprecatedImports ."
   },
   "devDependencies": {
-    "@biomejs/biome": "^2.5.8",
+    "@biomejs/biome": "^2.5.13",
     "typescript": "^7.0.2"
   },
   "packageManager": "pnpm@11.24.0"
