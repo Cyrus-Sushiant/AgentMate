@@ -1,12 +1,14 @@
 import type { PromptType, TargetAI } from '@agentmat/core';
 import { cliIdForTargetAI, PROMPT_TYPES, TARGET_AIS } from '@agentmat/core';
 import { useEffect, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { cliOptionIcon } from '@/components/cliLogos';
 import { GrammarTextarea } from '@/components/grammar/GrammarTextarea';
 import {
   Check,
   Copy,
+  History,
   Languages,
   Pin,
   Save,
@@ -63,6 +65,7 @@ export function ProjectPromptBuildDialog({
   iconBgColor = null,
   iconColor = null,
 }: ProjectPromptBuildDialogProps): React.JSX.Element {
+  const navigate = useNavigate();
   const [isMaximized, setIsMaximized] = useState(false);
   const [isPinning, setIsPinning] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -126,6 +129,11 @@ export function ProjectPromptBuildDialog({
     setCopied(true);
     if (copiedTimer.current) clearTimeout(copiedTimer.current);
     copiedTimer.current = setTimeout(() => setCopied(false), 1600);
+  }
+
+  function goToHistory(): void {
+    onOpenChange(false);
+    navigate(`/projects/${projectId}?tab=prompts`);
   }
 
   return (
@@ -233,6 +241,14 @@ export function ProjectPromptBuildDialog({
                 }))}
               />
             </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={goToHistory}
+              className="ml-auto text-muted-foreground"
+            >
+              <History /> History
+            </Button>
           </div>
 
           <div className="grid min-h-0 flex-1 grid-cols-1 md:grid-cols-2">
