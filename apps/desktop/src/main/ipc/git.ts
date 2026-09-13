@@ -23,6 +23,7 @@ import type {
   RenameBranchInput,
   SuggestGitTextResult,
   SuggestTagResult,
+  SwapVersionFileInput,
   TagScope,
   TagScopeRef,
 } from '../../shared/apiTypes';
@@ -64,7 +65,6 @@ import {
   readCommitSubjects,
   readStatus,
   readTagInfo,
-  readWorkingTreeFingerprint,
   renameBranch,
   runGitOp,
   safeBranchName,
@@ -86,6 +86,12 @@ import {
   parseSuggestedTag,
   rejectSuggestedVersion,
 } from '../git/versioning';
+import {
+  compareSnapshots,
+  repoRoot,
+  snapshotChangedFiles,
+  swapFileVersion,
+} from '../git/versionReview';
 import { schedulePipelineCheck } from '../pipelines/watcher';
 import { store } from '../store';
 
@@ -197,9 +203,28 @@ function registerRepoHandlers(): void {
 
   ipcMain.handle(
     IPC.git.commit,
-    async (_event, projectId: string, message: string): Promise<GitOpResult> => {
+    async (_event, projectId: string, message: string, paths?: string[]): Promise<GitOpResult> => {
       const cwd = await getProjectPath(projectId);
       if (!message.trim()) return { ok: false, message: 'Commit message cannot be empty.' };
+      if (paths !== undefined) {
+        const picked = paths.filter((path) => typeof path === 'string' && path.trim());
+        if (picked.length === 0) return { ok: false, message: 'There are no files to commit.' };
+        // Only the named files go in, so anything else already sitting in the tree stays out
+        // of the commit. The paths are repo-relative and taken literally, not as globs.
+        return runGitOp(async () => {
+          const root = await repoRoot(cwd);
+          await git(root, ['--literal-pathspecs', 'add', '-A', '--', ...picked]);
+          return git(root, [
+            '--literal-pathspecs',
+            'commit',
+            '-m',
+            message,
+            '--only',
+            '--',
+            ...picked,
+          ]);
+        });
+      }
       return runGitOp(async () => {
         await git(cwd, ['add', '-A']);
         return git(cwd, ['commit', '-m', message]);
@@ -611,12 +636,13 @@ function registerTagHandlers(): void {
       const cwd = project.folderPath;
       const tag = input.tag.trim();
       if (!tag) {
-        return { ok: false, output: '', changedFiles: [], error: 'No version to apply.' };
+        return { ok: false, output: '', changes: [], error: 'No version to apply.' };
       }
 
       // Snapshot first: the CLI's own summary of what it edited can't be trusted, and
-      // diffing the working tree before and after is the only account of it that can.
-      const before = await readWorkingTreeFingerprint(cwd);
+      // comparing file contents before and after is the only account of it that can.
+      const root = (await repoRoot(cwd).catch(() => '')) || cwd;
+      const before = await snapshotChangedFiles(root);
       const headBefore = (await gitOrNull(cwd, ['rev-parse', 'HEAD']))?.trim() ?? null;
 
       const scope = input.scope?.path.trim() ? input.scope : undefined;
@@ -627,19 +653,10 @@ function registerTagHandlers(): void {
         timeoutMs: VERSION_BUMP_TIMEOUT_MS,
       });
 
-      const after = await readWorkingTreeFingerprint(cwd);
-      const changedFiles = [...after.entries()]
-        .filter(([path, edits]) => before.get(path) !== edits)
-        .map(([path]) => path)
-        .sort();
-
       // A scoped bump is only correct if it stayed inside its folder. CLIs do wander into a
-      // sibling package or the root manifest, and that is exactly what the user asked us not
-      // to change, so those files are called out separately rather than mixed into the list.
-      const scopeFolder = scope ? `${scope.path.trim().replace(/\/+$/, '')}/` : '';
-      const outOfScopeFiles = scopeFolder
-        ? changedFiles.filter((path) => !path.startsWith(scopeFolder))
-        : [];
+      // sibling package or the root manifest, so those files get flagged for the user to revert.
+      const after = await snapshotChangedFiles(root);
+      const changes = await compareSnapshots(root, before, after, scope?.path);
 
       // Despite the prompt telling it not to, a CLI occasionally reaches for a tool like
       // `npm version` that commits (and tags) by itself; that leaves no working-tree diff to
@@ -651,15 +668,14 @@ function registerTagHandlers(): void {
       // last act was a tool call with an empty stdout, and a run we stop for running long
       // exits non-zero. Neither says the bump failed, and the working tree above already
       // knows whether it landed. A cancel still reads as a cancel, since the user asked.
-      const landed = (changedFiles.length > 0 || committedByCli) && !result.cancelled;
+      const landed = (changes.length > 0 || committedByCli) && !result.cancelled;
 
       return {
         ok: result.ok || landed,
         // Falls back to the progress log for CLIs that keep stdout for the final message
         // and print everything they did to stderr.
         output: result.text || result.log || '',
-        changedFiles,
-        outOfScopeFiles: outOfScopeFiles.length > 0 ? outOfScopeFiles : undefined,
+        changes,
         committedByCli,
         cliName: result.cliName,
         // A run that wrote files but ended badly is a partial success, not a failure: say
@@ -674,6 +690,18 @@ function registerTagHandlers(): void {
   ipcMain.handle(IPC.git.cancelApplyVersion, (_event, requestId: string): boolean => {
     return cancelHeadlessPrompt(requestId);
   });
+
+  ipcMain.handle(
+    IPC.git.swapVersionFile,
+    async (_event, input: SwapVersionFileInput): Promise<GitOpResult> => {
+      const cwd = await getProjectPath(input.projectId);
+      return runGitOp(async () => {
+        const root = await repoRoot(cwd);
+        await swapFileVersion(root, input.path, input.fromId, input.toId, input.toRawId);
+        return input.toId === null ? `Removed ${input.path}.` : `Updated ${input.path}.`;
+      });
+    },
+  );
 }
 
 function registerGithubHandlers(): void {

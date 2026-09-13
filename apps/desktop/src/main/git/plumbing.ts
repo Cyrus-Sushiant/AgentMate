@@ -598,32 +598,6 @@ export async function readCommitSubjects(
 }
 
 /**
- * Per-path edit sizes against HEAD, plus untracked paths. Comparing two of these across a
- * run is what identifies the files an agent touched. A plain `git status` comparison would
- * miss any file that was already modified beforehand, since its status letters don't change.
- */
-export async function readWorkingTreeFingerprint(cwd: string): Promise<Map<string, string>> {
-  const fingerprint = new Map<string, string>();
-
-  // Fails on a repo with no commits yet, where there is nothing to diff against.
-  const numstat = (await gitOrNull(cwd, ['diff', 'HEAD', '--numstat'])) ?? '';
-  for (const line of numstat.split('\n')) {
-    const parts = line.trim().split('\t');
-    if (parts.length >= 3) fingerprint.set(parts.slice(2).join('\t'), `${parts[0]}/${parts[1]}`);
-  }
-
-  const untracked = (await gitOrNull(cwd, ['ls-files', '--others', '--exclude-standard'])) ?? '';
-  for (const path of untracked
-    .split('\n')
-    .map((p) => p.trim())
-    .filter(Boolean)) {
-    fingerprint.set(path, 'untracked');
-  }
-
-  return fingerprint;
-}
-
-/**
  * Every file git knows about: tracked plus untracked ones that are not ignored. Used by the
  * diffray wizard to offer a whole-codebase review. `-z` keeps paths with spaces or non-ASCII
  * characters intact, which `ls-files` would otherwise escape and quote.

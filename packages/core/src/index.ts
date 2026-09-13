@@ -13,6 +13,7 @@ export * from './mcp/types.js';
 export * from './network/proxy.js';
 export * from './projectBootstrap/templates.js';
 export * from './promptBuilder/promptTypeProfiles.js';
+export * from './promptBuilder/runRecommendation.js';
 export * from './promptBuilder/targetAiNotes.js';
 export * from './promptBuilder/templateEngine.js';
 export * from './promptBuilder/types.js';

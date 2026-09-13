@@ -138,6 +138,7 @@ import type {
   StartHostInput,
   SuggestGitTextResult,
   SuggestTagResult,
+  SwapVersionFileInput,
   SystemStatsSample,
   TagScope,
   TagScopeRef,
@@ -661,8 +662,9 @@ const git = {
     ipcRenderer.invoke(IPC.git.deleteBranch, input),
   branchHistory: (projectId: string, branchName: string): Promise<GitBranchHistory> =>
     ipcRenderer.invoke(IPC.git.branchHistory, projectId, branchName),
-  commit: (projectId: string, message: string): Promise<GitOpResult> =>
-    ipcRenderer.invoke(IPC.git.commit, projectId, message),
+  /** Commits everything, or only `paths` (repo-relative) when given. */
+  commit: (projectId: string, message: string, paths?: string[]): Promise<GitOpResult> =>
+    ipcRenderer.invoke(IPC.git.commit, projectId, message, paths),
   /** Tag state for the repo, or for one part of it when a scope is given. */
   tags: (projectId: string, scope?: TagScopeRef): Promise<GitTagInfo> =>
     ipcRenderer.invoke(IPC.git.tags, projectId, scope),
@@ -685,6 +687,9 @@ const git = {
     ipcRenderer.invoke(IPC.git.applyVersion, input),
   cancelApplyVersion: (requestId: string): Promise<boolean> =>
     ipcRenderer.invoke(IPC.git.cancelApplyVersion, requestId),
+  /** Reverts one file the version bump changed, or puts the bump's edit back. */
+  swapVersionFile: (input: SwapVersionFileInput): Promise<GitOpResult> =>
+    ipcRenderer.invoke(IPC.git.swapVersionFile, input),
   suggestBranchName: (projectId: string, requestId?: string): Promise<SuggestGitTextResult> =>
     ipcRenderer.invoke(IPC.git.suggestBranchName, projectId, requestId),
   /** Kills the CLI process behind an in-flight suggestBranchName(requestId). */

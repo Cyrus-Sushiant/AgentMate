@@ -87,6 +87,7 @@ import {
   faQrcode,
   faQuoteLeft,
   faRobot,
+  faRotateLeft,
   faRoute,
   faSatelliteDish,
   faShieldHalved,
@@ -180,6 +181,7 @@ export const AnglesLeft = makeIcon(faAnglesLeft);
 export const AnglesRight = makeIcon(faAnglesRight);
 export const Languages = makeIcon(faLanguage);
 export const History = makeIcon(faClockRotateLeft);
+export const Undo = makeIcon(faRotateLeft);
 export const WindowMinimize = makeIcon(faWindowMinimize);
 export const WindowMaximize = makeIcon(faWindowMaximize);
 export const WindowRestore = makeIcon(faWindowRestore);

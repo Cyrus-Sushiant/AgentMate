@@ -71,6 +71,7 @@ import {
   TerminalSquare,
   Trash2,
   TriangleAlert,
+  Undo,
   Wand2,
   X,
 } from '@/components/icons';
@@ -104,6 +105,10 @@ import { ProjectPromptDialog } from '@/components/projects/ProjectPromptDialog';
 import { ProjectPromptHistory } from '@/components/projects/ProjectPromptHistory';
 import { SecurityTab } from '@/components/projects/security/SecurityTab';
 import { useProjectRun } from '@/components/projects/useProjectRun';
+import {
+  VersionChangeReview,
+  type VersionFileDecision,
+} from '@/components/projects/VersionChangeReview';
 import { SkillAuditVerdictBadge } from '@/components/skills/SkillAuditReport';
 import {
   DEFAULT_CLI_VALUE,
@@ -1800,6 +1805,33 @@ function splitTag(tag: string): { prefix: string; version: string } | null {
   return { prefix: match[1], version: match[2] };
 }
 
+const TAG_TARGET_STORAGE_PREFIX = 'agentmate:tag-target:';
+
+/** The prefix and part a project was last tagged or bumped with. */
+interface StoredTagTarget {
+  prefix: string;
+  scopeId: string;
+}
+
+function readStoredTagTarget(projectId: string): StoredTagTarget | null {
+  try {
+    const raw = localStorage.getItem(`${TAG_TARGET_STORAGE_PREFIX}${projectId}`);
+    const parsed = raw ? (JSON.parse(raw) as Partial<StoredTagTarget>) : null;
+    if (typeof parsed?.prefix !== 'string' || typeof parsed.scopeId !== 'string') return null;
+    return { prefix: parsed.prefix, scopeId: parsed.scopeId };
+  } catch {
+    return null;
+  }
+}
+
+function storeTagTarget(projectId: string, target: StoredTagTarget): void {
+  try {
+    localStorage.setItem(`${TAG_TARGET_STORAGE_PREFIX}${projectId}`, JSON.stringify(target));
+  } catch {
+    // Private mode and quota errors only cost the remembered prefix.
+  }
+}
+
 /** Just the version number of a tag, which is what manifests and commit messages want. */
 function tagVersionPart(tag: string): string {
   return splitTag(tag)?.version ?? tag.replace(/^v/, '');
@@ -2955,8 +2987,10 @@ function ApplyVersionDialog({
 
   // Tagging is gated on a clean working tree (see TagVersionDialog), so the version bump
   // this dialog just wrote needs to be committed before the user can move on to tagging.
+  // Only the files the user kept go in, so nothing else lying around the tree gets swept up.
   const commitMutation = useMutation({
-    mutationFn: (message: string) => window.agentmat.git.commit(projectId, message),
+    mutationFn: ({ message, paths }: { message: string; paths: string[] }) =>
+      window.agentmat.git.commit(projectId, message, paths),
     onSuccess: (result) => {
       if (result.ok) toast.success(result.message);
       else toast.error(result.message);
@@ -2996,8 +3030,20 @@ function ApplyVersionDialog({
   }
 
   const result = applyMutation.data;
+  const changes = result?.changes ?? [];
+  // Decisions belong to one run's file list; a fresh run starts the review over.
+  const [decisions, setDecisions] = useState<Record<string, VersionFileDecision>>({});
+  useEffect(() => {
+    if (result) setDecisions({});
+  }, [result]);
+  const keptPaths = changes
+    .filter((change) => decisions[change.path] === 'keep')
+    .map((change) => change.path);
+  const undecidedCount = changes.filter((change) => !decisions[change.path]).length;
+  const committed = commitMutation.isSuccess && commitMutation.data.ok;
+
   const failed = applyMutation.isError || (result && !result.ok && !result.cancelled);
-  const didNothing = !!result?.ok && result.changedFiles.length === 0 && !result.committedByCli;
+  const didNothing = !!result?.ok && changes.length === 0 && !result.committedByCli;
   const canRetry = Boolean(failed || result?.cancelled || didNothing || result?.warning);
   const cliOutput = result?.output ? displayCliOutput(result.output) : '';
   const warningText = result?.warning ? displayCliOutput(result.warning) : '';
@@ -3107,84 +3153,70 @@ function ApplyVersionDialog({
             </div>
           )}
 
-          {/* The whole point of a scoped bump is that the other parts keep their versions, so a
-              stray edit outside the folder gets named rather than buried in the list below. */}
-          {result?.outOfScopeFiles && result.outOfScopeFiles.length > 0 && (
-            <div className="space-y-1.5 rounded-xl border border-warning/30 bg-warning/10 p-3">
-              <p className="flex items-center gap-1.5 text-sm font-medium">
-                <TriangleAlert className="h-3.5 w-3.5 shrink-0 text-warning" /> Changed outside{' '}
-                <span className="font-mono text-xs">{scopePath}</span>
-              </p>
-              <p className="text-xs text-muted-foreground">
-                Your CLI edited {result.outOfScopeFiles.length} file
-                {result.outOfScopeFiles.length === 1 ? '' : 's'} that this tag does not cover. Check
-                them before committing, and revert the ones that should have kept their version.
-              </p>
-              <div className="space-y-1">
-                {result.outOfScopeFiles.map((file) => (
-                  <p key={file} className="truncate font-mono text-xs text-muted-foreground">
-                    {file}
-                  </p>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {result && result.changedFiles.length > 0 && (
+          {result && changes.length > 0 && (
             <div className="space-y-2">
-              <p className="text-xs font-medium text-muted-foreground">
-                Files changed ({result.changedFiles.length})
-              </p>
-              <div className="space-y-1">
-                {result.changedFiles.map((file) => {
-                  const { dir, name } = splitGitPath(file);
-                  return (
-                    <div
-                      key={file}
-                      className="flex items-center gap-2 rounded-md border-l-2 border-l-success px-2.5 py-1.5"
-                    >
-                      <CircleCheck className="h-3.5 w-3.5 shrink-0 text-success" />
-                      <p className="min-w-0 truncate font-mono text-xs">
-                        {dir ? <span className="text-muted-foreground">{dir}</span> : null}
-                        <span>{name}</span>
-                      </p>
-                    </div>
-                  );
-                })}
-              </div>
-              {commitMutation.isSuccess && commitMutation.data.ok ? (
+              <VersionChangeReview
+                projectId={projectId}
+                changes={changes}
+                decisions={decisions}
+                onDecisionsChange={setDecisions}
+                locked={committed || commitMutation.isPending}
+                scopePath={scopePath}
+              />
+              {committed ? (
                 <div className="flex items-start gap-2 rounded-xl border border-success/30 bg-success/10 px-3 py-2.5">
                   <CircleCheck className="mt-0.5 h-3.5 w-3.5 shrink-0 text-success" />
                   <p className="text-xs text-muted-foreground">
                     Committed. Tagging is unlocked. Use "Back to tag" to continue.
                   </p>
                 </div>
+              ) : undecidedCount === 0 && keptPaths.length === 0 ? (
+                <div className="flex items-start gap-2 rounded-xl border border-border bg-card/60 px-3 py-2.5">
+                  <Undo className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                  <p className="text-xs text-muted-foreground">
+                    Every change was reverted, so there is nothing to commit. Run it again or go
+                    back to tag.
+                  </p>
+                </div>
               ) : (
                 <div className="flex flex-col gap-2 rounded-xl border border-warning/30 bg-warning/10 px-3 py-2.5 sm:flex-row sm:items-center">
                   <p className="min-w-0 flex-1 text-xs text-muted-foreground">
-                    Tagging is locked until this version bump is committed.
+                    {undecidedCount > 0
+                      ? `Keep or revert ${undecidedCount === 1 ? 'the last file' : `the ${undecidedCount} files left`} to commit. Tagging stays locked until then.`
+                      : 'Tagging is locked until the kept files are committed.'}
                   </p>
-                  <GitOpButton
-                    size="sm"
-                    icon={GitCommit}
-                    label="Commit version bump"
-                    pendingLabel="Committing…"
-                    pending={commitMutation.isPending}
-                    onClick={() =>
-                      tag &&
-                      commitMutation.mutate(
-                        scopeName
-                          ? `chore(release): bump ${scopeName} version to ${tagVersionPart(tag)}`
-                          : `chore(release): bump version to ${tagVersionPart(tag)}`,
-                      )
-                    }
-                  />
+                  <SimpleTooltip
+                    label={undecidedCount > 0 ? 'Review every file first.' : null}
+                    wrapTrigger
+                  >
+                    <GitOpButton
+                      size="sm"
+                      icon={GitCommit}
+                      label={
+                        keptPaths.length > 0
+                          ? `Commit ${keptPaths.length} kept file${keptPaths.length === 1 ? '' : 's'}`
+                          : 'Commit version bump'
+                      }
+                      pendingLabel="Committing…"
+                      pending={commitMutation.isPending}
+                      disabled={undecidedCount > 0 || keptPaths.length === 0}
+                      onClick={() =>
+                        tag &&
+                        commitMutation.mutate({
+                          message: scopeName
+                            ? `chore(release): bump ${scopeName} version to ${tagVersionPart(tag)}`
+                            : `chore(release): bump version to ${tagVersionPart(tag)}`,
+                          paths: keptPaths,
+                        })
+                      }
+                    />
+                  </SimpleTooltip>
                 </div>
               )}
             </div>
           )}
 
-          {result?.ok && result.changedFiles.length === 0 && result.committedByCli && (
+          {result?.ok && changes.length === 0 && result.committedByCli && (
             <div className="flex items-start gap-2 rounded-xl border border-success/30 bg-success/10 px-3 py-2.5">
               <CircleCheck className="mt-0.5 h-3.5 w-3.5 shrink-0 text-success" />
               <p className="text-sm text-muted-foreground">
@@ -3271,10 +3303,13 @@ function TagVersionDialog({
   const [reason, setReason] = useState<string | null>(null);
   const [updatedVersionFor, setUpdatedVersionFor] = useState<string | null>(null);
   const suggestRequestRef = useRef<string | null>(null);
-  const keepFieldsRef = useRef(false);
   const confirmingSkipRef = useRef(false);
-  /** Stops the default prefix from overwriting a part the user picked themselves. */
-  const pickedScopeRef = useRef(false);
+  /**
+   * Set once the prefix has a value worth keeping: one the user typed or picked, or the one
+   * restored for this project. Stops the default from overwriting it, including when the
+   * dialog comes back from "Update version in files".
+   */
+  const prefixChosenRef = useRef(false);
 
   const tag = `${prefix.trim()}${version.trim()}`;
 
@@ -3308,20 +3343,36 @@ function TagVersionDialog({
 
   // Picking a part swaps in the prefix that part's tags use, e.g. "web-v".
   function handlePickScope(next: TagScope): void {
-    pickedScopeRef.current = true;
+    prefixChosenRef.current = true;
     setScopeId(next.id);
     setPrefix(next.prefix);
     setVersion('');
     setReason(null);
   }
 
-  // Until the user picks a part, the prefix follows the repo-wide scope, which is "v" for
-  // most repos and bare for the ones that tag "1.2.3".
+  /** A prefix typed by hand that one of the parts already uses selects that part too. */
+  function handlePrefixInput(next: string): void {
+    prefixChosenRef.current = true;
+    setPrefix(next);
+    const match = scopes.find((entry) => entry.prefix === next.trim());
+    if (match) setScopeId(match.id);
+  }
+
+  // Until the user chooses, the prefix is the one last used for this project, or else the
+  // repo-wide scope's: "v" for most repos and bare for the ones that tag "1.2.3".
+  const scopesLoaded = scopesQuery.data !== undefined;
   const defaultPrefix = scopes[0]?.prefix;
   useEffect(() => {
-    if (!open || pickedScopeRef.current || defaultPrefix === undefined) return;
-    setPrefix(defaultPrefix);
-  }, [open, defaultPrefix]);
+    if (!open || prefixChosenRef.current || !scopesLoaded || defaultPrefix === undefined) return;
+    prefixChosenRef.current = true;
+    const stored = readStoredTagTarget(projectId);
+    if (stored) {
+      setScopeId(stored.scopeId);
+      setPrefix(stored.prefix);
+    } else {
+      setPrefix(defaultPrefix);
+    }
+  }, [open, scopesLoaded, defaultPrefix, projectId]);
 
   const hasRemote = tagInfo?.hasRemote ?? false;
   // Gate tagging (and the push that follows it) on a clean tree: a version bump's edits must
@@ -3339,9 +3390,38 @@ function TagVersionDialog({
   // field, so an empty version can't create a tag literally named "v".
   const trimmedVersion = version.trim();
   const looksSemver = /^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/.test(trimmedVersion);
+  const createTagMutation = useMutation({
+    mutationFn: (nextTag: string) =>
+      window.agentmat.git.createTag({ projectId, tag: nextTag, message, push: hasRemote }),
+    onSuccess: (result, nextTag) => {
+      if (result.ok) {
+        toast.success(result.message);
+        storeTagTarget(projectId, { prefix: splitTag(nextTag)?.prefix ?? prefix.trim(), scopeId });
+        void queryClient.invalidateQueries({ queryKey: queryKeys.gitTags(projectId) });
+        void queryClient.invalidateQueries({ queryKey: queryKeys.gitTagScopes(projectId) });
+        void queryClient.invalidateQueries({ queryKey: queryKeys.gitStatus(projectId) });
+        handleOpenChange(false);
+      } else {
+        toast.error(result.message);
+      }
+    },
+    meta: GIT_OP_META,
+  });
+
+  // A finished create shouldn't vouch for a tag typed the next time the dialog opens.
+  const { reset: resetCreateTag } = createTagMutation;
+  useEffect(() => {
+    if (open) resetCreateTag();
+  }, [open, resetCreateTag]);
+
+  // git writes the tag before the push is done, and the repo watcher refreshes the tag list the
+  // moment it lands. The tag being created is not a duplicate of itself, so it doesn't count.
+  const creatingThisTag =
+    createTagMutation.variables === tag &&
+    (createTagMutation.isPending || createTagMutation.data?.ok === true);
   // Only the recent tags are in hand, so this catches the common case of re-tagging
   // something that just shipped. Git still rejects any duplicate this misses.
-  const tagExists = trimmedVersion.length > 0 && recentTags.includes(tag);
+  const tagExists = trimmedVersion.length > 0 && recentTags.includes(tag) && !creatingThisTag;
   const versionApplied = trimmedVersion.length > 0 && updatedVersionFor === tag;
   const blockedReason = isDirty
     ? 'Commit the changed files above before tagging.'
@@ -3366,7 +3446,10 @@ function TagVersionDialog({
         // The suggestion comes back with the scope's prefix already on it; keep the version
         // and leave the prefix field alone unless the CLI answered with a different one.
         if (split) {
-          if (split.prefix) setPrefix(split.prefix);
+          if (split.prefix) {
+            prefixChosenRef.current = true;
+            setPrefix(split.prefix);
+          }
           setVersion(split.version);
         } else {
           setVersion(result.tag);
@@ -3389,43 +3472,28 @@ function TagVersionDialog({
     void window.agentmat.git.cancelSuggestTag(requestId);
   }
 
-  const createTagMutation = useMutation({
-    mutationFn: () =>
-      window.agentmat.git.createTag({ projectId, tag: tag.trim(), message, push: hasRemote }),
-    onSuccess: (result) => {
-      if (result.ok) {
-        toast.success(result.message);
-        void queryClient.invalidateQueries({ queryKey: queryKeys.gitTags(projectId) });
-        void queryClient.invalidateQueries({ queryKey: queryKeys.gitTagScopes(projectId) });
-        void queryClient.invalidateQueries({ queryKey: queryKeys.gitStatus(projectId) });
-        handleOpenChange(false);
-      } else {
-        toast.error(result.message);
-      }
-    },
-    meta: GIT_OP_META,
-  });
-
+  // Only a dismissal from inside this dialog (Esc, the close button, a finished tag) lands here.
+  // Handing off to "Update version in files" closes it from the parent instead, which is what
+  // keeps the fields, prefix included, for when the user comes back.
   function handleOpenChange(next: boolean): void {
     // The shared confirm dialog sits on top of this one. Ignore dismissals
     // that come from clicking it, so the tag form stays put.
     if (!next && confirmingSkipRef.current) return;
-    if (!next && !keepFieldsRef.current) {
+    if (!next) {
       setVersion('');
       setMessage('');
       setReason(null);
       setUpdatedVersionFor(null);
-      pickedScopeRef.current = false;
+      prefixChosenRef.current = false;
     }
-    keepFieldsRef.current = false;
     onOpenChange(next);
   }
 
   function handleApplyVersion(): void {
     if (!version.trim()) return;
     const next = tag.trim();
-    keepFieldsRef.current = true;
     setUpdatedVersionFor(next);
+    storeTagTarget(projectId, { prefix: prefix.trim(), scopeId });
     onApplyVersion(next, scopeRef);
   }
 
@@ -3433,7 +3501,7 @@ function TagVersionDialog({
     if (!version.trim()) return;
     const next = tag.trim();
     if (updatedVersionFor === next) {
-      createTagMutation.mutate();
+      createTagMutation.mutate(next);
       return;
     }
     confirmingSkipRef.current = true;
@@ -3446,7 +3514,7 @@ function TagVersionDialog({
       cancelLabel: 'Go back',
     }).then((confirmed) => {
       confirmingSkipRef.current = false;
-      if (confirmed) createTagMutation.mutate();
+      if (confirmed) createTagMutation.mutate(next);
     });
   }
 
@@ -3631,7 +3699,7 @@ function TagVersionDialog({
                 id="git-tag-prefix"
                 value={prefix}
                 onChange={(e) => {
-                  setPrefix(e.target.value);
+                  handlePrefixInput(e.target.value);
                   setReason(null);
                 }}
                 placeholder="v"
@@ -3649,7 +3717,7 @@ function TagVersionDialog({
                   // typed here moves over to the prefix field instead of doubling up.
                   const split = splitTag(e.target.value);
                   if (split?.prefix) {
-                    setPrefix(split.prefix);
+                    handlePrefixInput(split.prefix);
                     setVersion(split.version);
                   } else {
                     setVersion(e.target.value);

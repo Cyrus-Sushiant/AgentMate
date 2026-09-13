@@ -795,21 +795,65 @@ export interface ApplyVersionInput {
   scope?: TagScopeRef;
 }
 
+/**
+ * One file the version bump run changed, compared by content before and after the run. The
+ * two object ids are what let the user revert that one file, or put the edit back again.
+ */
+export interface VersionFileChange {
+  /** Repo-relative path with forward slashes. */
+  path: string;
+  kind: 'added' | 'modified' | 'deleted';
+  /** Git blob id of the file before the run, or null when it did not exist. */
+  beforeId: string | null;
+  /** Git blob id of the file after the run, or null when the run deleted it. */
+  afterId: string | null;
+  /**
+   * The exact bytes on disk on each side, line endings untouched, so a swap puts back the very
+   * same file. Null when that side matched HEAD (a checkout recreates it) or did not exist.
+   */
+  beforeRawId: string | null;
+  afterRawId: string | null;
+  additions: number;
+  deletions: number;
+  /** Hunks of the run's own edit, without the diff header. Empty for binary files. */
+  diff: string;
+  /** The diff was cut short because the file changed a lot. */
+  diffTruncated?: boolean;
+  binary?: boolean;
+  /**
+   * The file already had uncommitted edits before the run. The diff shows only what the run
+   * changed, but committing the file also commits those earlier edits.
+   */
+  hadLocalEdits?: boolean;
+  /** Sits outside the folder a scoped bump was limited to. */
+  outOfScope?: boolean;
+}
+
 export interface ApplyVersionResult {
   ok: boolean;
   /** What the CLI reported it did. */
   output: string;
-  /** Working-tree paths that differ from before the run. */
-  changedFiles: string[];
+  /** Files whose content differs from before the run. */
+  changes: VersionFileChange[];
   /** True if HEAD moved during the run, e.g. the CLI ran `npm version` and committed on its own. */
   committedByCli?: boolean;
   cliName?: string | null;
   /** Set when files were edited but the CLI still ended badly (timed out, exited non-zero). */
   warning?: string;
-  /** Changed files that sit outside the scope's folder, so the user can undo them. */
-  outOfScopeFiles?: string[];
   error?: string;
   cancelled?: boolean;
+}
+
+/** Swaps one file between two recorded versions: reverting a run's edit, or restoring it. */
+export interface SwapVersionFileInput {
+  projectId: string;
+  path: string;
+  /** Blob id the file must still have, or null if it must not exist. Guards against lost work. */
+  fromId: string | null;
+  /** Blob id to write into the file, or null to delete it. */
+  toId: string | null;
+  /** Exact bytes to write instead of checking `toId` out, when that side has a raw copy. */
+  toRawId?: string | null;
 }
 
 export interface SuggestTagResult {
