@@ -32,6 +32,9 @@ function installHint(section: PackageManagerSection): string {
   if (section.ecosystem === 'dotnet') {
     return 'dotnet add <project.csproj> package <Name> --version <version>';
   }
+  if (section.ecosystem === 'dart') {
+    return 'flutter pub add <name>:^<version> (dart pub add for plain Dart packages, prefix dev: for dev dependencies)';
+  }
   if (section.manager === 'yarn') return 'yarn add <name>@<version> (add -D for dev dependencies)';
   if (section.manager === 'pnpm') return 'pnpm add <name>@<version> (add -D for dev dependencies)';
   return 'npm install <name>@<version> (add -D for dev dependencies)';

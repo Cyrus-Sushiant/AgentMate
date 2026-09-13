@@ -21,6 +21,8 @@ const NAME_PATTERNS: Record<PackageManagerEcosystem, RegExp> = {
   // Uppercase is allowed because npm names registered before it was banned still exist.
   node: /^(@[A-Za-z0-9-~][A-Za-z0-9-._~]*\/)?[A-Za-z0-9-~][A-Za-z0-9-._~]*$/,
   dotnet: /^[A-Za-z0-9][A-Za-z0-9._-]*$/,
+  // Pub names are Dart identifiers. This one also keeps `:` out, which `pub add` reads as a separator.
+  dart: /^[A-Za-z_][A-Za-z0-9_]*$/,
 };
 /** Semver plus NuGet's four-part and pre-release/build forms. */
 const VERSION_PATTERN = /^[A-Za-z0-9][A-Za-z0-9.+-]*$/;

@@ -1,9 +1,14 @@
 import type { PackageManagerSection } from '../../shared/apiTypes';
+import { dartAdapter } from './dartAdapter';
 import { dotnetAdapter } from './dotnetAdapter';
 import { nodeAdapter } from './nodeAdapter';
 import type { PackageManagerAdapter } from './types';
 
-export const PACKAGE_MANAGER_ADAPTERS: PackageManagerAdapter[] = [nodeAdapter, dotnetAdapter];
+export const PACKAGE_MANAGER_ADAPTERS: PackageManagerAdapter[] = [
+  nodeAdapter,
+  dotnetAdapter,
+  dartAdapter,
+];
 
 export async function scanProjectPackages(folderPath: string): Promise<PackageManagerSection[]> {
   const detected = await Promise.all(

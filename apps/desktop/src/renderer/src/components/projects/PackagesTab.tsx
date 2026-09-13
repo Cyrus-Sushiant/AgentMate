@@ -56,6 +56,7 @@ function packageKey(pkg: PackageInfo): string {
 
 function ecosystemLabel(section: PackageManagerSection): string {
   if (section.ecosystem === 'dotnet') return 'NuGet (.NET)';
+  if (section.ecosystem === 'dart') return 'pub (Dart / Flutter)';
   if (section.manager === 'yarn') return 'Yarn';
   if (section.manager === 'pnpm') return 'pnpm';
   return 'npm';
@@ -246,7 +247,7 @@ function PackageRow({
             </Badge>
           </SimpleTooltip>
         )}
-        {pkg.isOutdated && !pkg.latestVersion && (
+        {!pkg.latestVersion && (
           <Badge variant="outline" className="px-1.5 py-0 text-[10px] leading-4">
             Latest unknown
           </Badge>
@@ -310,7 +311,7 @@ function PackageRow({
             Update
           </Button>
         )}
-        {!tick && !pkg.isOutdated && (
+        {!tick && !pkg.isOutdated && pkg.latestVersion && (
           <span className="flex items-center gap-1 text-xs text-muted-foreground">
             <Check className="h-3 w-3 text-success" /> Current
           </span>
@@ -540,7 +541,7 @@ export function PackagesTab({ projectId }: { projectId: string }): React.JSX.Ele
         <ProjectEmptyState
           icon={Package}
           title="No package manifests in this folder"
-          description="AgentMate looks for package.json, yarn.lock, pnpm-lock.yaml, and .NET project files."
+          description="AgentMate looks for package.json, yarn.lock, pnpm-lock.yaml, pubspec.yaml, and .NET project files."
           action={
             <Button
               variant="outline"

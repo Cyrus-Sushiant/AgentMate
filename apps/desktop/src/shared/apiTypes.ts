@@ -1017,8 +1017,8 @@ export interface ConnectRemoteInput {
   push: boolean;
 }
 
-export type PackageManagerEcosystem = 'node' | 'dotnet';
-export type PackageManagerKind = 'npm' | 'yarn' | 'pnpm' | 'nuget';
+export type PackageManagerEcosystem = 'node' | 'dotnet' | 'dart';
+export type PackageManagerKind = 'npm' | 'yarn' | 'pnpm' | 'nuget' | 'pub';
 
 export interface PackageInfo {
   name: string;
@@ -1029,7 +1029,7 @@ export interface PackageInfo {
   isDev: boolean;
   /** False when only a declared range was found (e.g. node_modules missing). */
   isInstalled: boolean;
-  /** Absolute path to the manifest this package was read from (package.json or a specific .csproj). */
+  /** Absolute path to the manifest this package was read from (package.json, a specific .csproj, or pubspec.yaml). */
   manifestPath: string;
   /** Human-readable name of the sub-project this package belongs to (e.g. its package.json "name", or a relative folder path). */
   projectLabel: string;
