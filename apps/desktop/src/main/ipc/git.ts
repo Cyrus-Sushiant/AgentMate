@@ -1,5 +1,3 @@
-import { execFile } from 'node:child_process';
-import { promisify } from 'node:util';
 import type { Project } from '@agentmat/core';
 import { browsableRepoUrl, stripRemoteCredentials } from '@agentmat/core';
 import { ipcMain } from 'electron';
@@ -40,7 +38,13 @@ import {
   readGithubNotifications,
   toRepoInfo,
 } from '../git/githubAccount';
-import { ghApi, ghErrorMessage, isGhCliAvailable, parseGithubRemote } from '../git/githubCli';
+import {
+  ghApi,
+  ghErrorMessage,
+  isGhCliAvailable,
+  parseGithubRemote,
+  runGh,
+} from '../git/githubCli';
 import {
   checkoutBranch,
   createBranch,
@@ -85,7 +89,6 @@ import {
 import { schedulePipelineCheck } from '../pipelines/watcher';
 import { store } from '../store';
 
-const execFileAsync = promisify(execFile);
 const GH_TIMEOUT_MS = 30000;
 /**
  * The version bump sends the agent hunting through the repo for manifests before it edits
@@ -695,11 +698,7 @@ function registerGithubHandlers(): void {
         try {
           const args = ['pr', 'create', '--title', input.title, '--body', input.body];
           if (input.base) args.push('--base', input.base);
-          const { stdout } = await execFileAsync('gh', args, {
-            cwd,
-            timeout: GH_TIMEOUT_MS,
-            windowsHide: true,
-          });
+          const { stdout } = await runGh(args, { cwd, timeout: GH_TIMEOUT_MS });
           const url = stdout.trim().split('\n').pop() ?? '';
           return { ok: true, url };
         } catch (error) {

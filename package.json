@@ -25,5 +25,5 @@
     "@biomejs/biome": "^2.5.13",
     "typescript": "^7.0.2"
   },
-  "packageManager": "pnpm@11.24.0"
+  "packageManager": "pnpm@12.4.1"
 }

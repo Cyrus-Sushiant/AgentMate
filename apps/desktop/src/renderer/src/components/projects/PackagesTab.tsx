@@ -5,18 +5,35 @@ import { toast } from 'sonner';
 import {
   ArrowRight,
   Check,
+  ChevronDown,
+  Copy,
   Folder,
+  ListUnordered,
   Package,
   RefreshCw,
   Search,
+  Sparkles,
   Spinner,
   TriangleAlert,
   X,
 } from '@/components/icons';
 import { ProjectEmptyState } from '@/components/projects/ProjectDetailChrome';
+import {
+  type BumpKind,
+  buildPackageNames,
+  buildPackageUpdatePrompt,
+  bumpKind,
+} from '@/components/projects/packagesCopy';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import { OverflowScroll } from '@/components/ui/overflow-scroll';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -25,7 +42,6 @@ import { queryKeys } from '@/lib/queryKeys';
 import { cn } from '@/lib/utils';
 
 type PackageFilter = 'all' | 'outdated' | 'dev';
-type BumpKind = 'major' | 'minor' | 'patch';
 type PackageTick = { status: 'running' | 'done' | 'error'; message?: string };
 
 const FILTERS: { id: PackageFilter; label: string }[] = [
@@ -47,29 +63,6 @@ function ecosystemLabel(section: PackageManagerSection): string {
 
 function sectionKey(section: PackageManagerSection): string {
   return `${section.ecosystem}-${section.manager}`;
-}
-
-function parsePackageSemver(
-  version: string,
-): { major: number; minor: number; patch: number } | null {
-  const cleaned = version.trim().replace(/^[~^>=<\s]+/, '');
-  const match = cleaned.match(/^(\d+)(?:\.(\d+))?(?:\.(\d+))?/);
-  if (!match) return null;
-  return {
-    major: Number(match[1]),
-    minor: Number(match[2] ?? 0),
-    patch: Number(match[3] ?? 0),
-  };
-}
-
-function packageBumpKind(current: string, latest: string): BumpKind | null {
-  const from = parsePackageSemver(current);
-  const to = parsePackageSemver(latest);
-  if (!from || !to) return null;
-  if (to.major !== from.major) return 'major';
-  if (to.minor !== from.minor) return 'minor';
-  if (to.patch !== from.patch) return 'patch';
-  return null;
 }
 
 function canUpdatePackage(pkg: PackageInfo): boolean {
@@ -233,9 +226,7 @@ function PackageRow({
   onUpdate: () => void;
 }): React.JSX.Element {
   const bump =
-    pkg.isOutdated && pkg.latestVersion
-      ? packageBumpKind(pkg.currentVersion, pkg.latestVersion)
-      : null;
+    pkg.isOutdated && pkg.latestVersion ? bumpKind(pkg.currentVersion, pkg.latestVersion) : null;
   const selectable = canUpdatePackage(pkg);
   const identity = (
     <div className="min-w-0 flex-1">
@@ -326,6 +317,67 @@ function PackageRow({
         )}
       </div>
     </div>
+  );
+}
+
+/**
+ * Copies either an agent-ready update prompt or just the names. Works on the selected packages
+ * when there is a selection, otherwise on every outdated package in the section.
+ */
+function PackagesCopyMenu({
+  section,
+  selectedPackages,
+}: {
+  section: PackageManagerSection;
+  selectedPackages: PackageInfo[];
+}): React.JSX.Element {
+  const targets =
+    selectedPackages.length > 0
+      ? selectedPackages
+      : section.packages.filter((pkg) => pkg.isOutdated);
+  const scope =
+    selectedPackages.length > 0 ? `${targets.length} selected` : `${targets.length} outdated`;
+
+  async function copy(label: string, text: string): Promise<void> {
+    try {
+      await navigator.clipboard.writeText(text);
+      toast.success(`${label} copied to clipboard.`);
+    } catch {
+      toast.error(`Could not copy the ${label.toLowerCase()}.`);
+    }
+  }
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="outline" size="sm" className="gap-1.5" disabled={targets.length === 0}>
+          <Copy className="h-3.5 w-3.5" />
+          Copy
+          <ChevronDown className="h-3 w-3" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-72">
+        <DropdownMenuLabel>Copy {scope}</DropdownMenuLabel>
+        <DropdownMenuItem
+          onClick={() => void copy('Update prompt', buildPackageUpdatePrompt(section, targets))}
+        >
+          <Sparkles className="h-4 w-4" />
+          <span className="flex flex-col">
+            <span>AI update prompt</span>
+            <span className="text-xs text-muted-foreground">
+              Versions and steps, ready to paste at an agent
+            </span>
+          </span>
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => void copy('Package names', buildPackageNames(targets))}>
+          <ListUnordered className="h-4 w-4" />
+          <span className="flex flex-col">
+            <span>Package names</span>
+            <span className="text-xs text-muted-foreground">Just the names, one per line</span>
+          </span>
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 
@@ -647,18 +699,23 @@ export function PackagesTab({ projectId }: { projectId: string }): React.JSX.Ele
                 </div>
               </div>
               {section.status === 'ok' && section.packages.length > 0 && (
-                <Button
-                  size="sm"
-                  disabled={sectionSelectedCount === 0 || updateMutation.isPending}
-                  onClick={() => runUpdates(section, sectionSelected)}
-                >
-                  {updateMutation.isPending && updatingThisSection ? (
-                    <Spinner className="h-3.5 w-3.5 animate-spin" />
-                  ) : (
-                    <RefreshCw className="h-3.5 w-3.5" />
-                  )}
-                  {sectionSelectedCount > 0 ? `Update ${sectionSelectedCount}` : 'Update selected'}
-                </Button>
+                <div className="flex items-center gap-2">
+                  <PackagesCopyMenu section={section} selectedPackages={sectionSelected} />
+                  <Button
+                    size="sm"
+                    disabled={sectionSelectedCount === 0 || updateMutation.isPending}
+                    onClick={() => runUpdates(section, sectionSelected)}
+                  >
+                    {updateMutation.isPending && updatingThisSection ? (
+                      <Spinner className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <RefreshCw className="h-3.5 w-3.5" />
+                    )}
+                    {sectionSelectedCount > 0
+                      ? `Update ${sectionSelectedCount}`
+                      : 'Update selected'}
+                  </Button>
+                </div>
               )}
             </div>
 

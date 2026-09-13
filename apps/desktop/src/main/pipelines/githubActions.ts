@@ -24,6 +24,7 @@ import {
   ghErrorMessage,
   isGhCliAvailable,
   parseGithubRemote,
+  runGh,
 } from '../git/githubCli';
 import { store } from '../store';
 import { parseWorkflowDispatch, type WorkflowDispatchSpec } from './workflowDispatch';
@@ -505,15 +506,9 @@ function formatAnnotations(items: GhAnnotation[]): string {
 }
 
 async function failedLogs(owner: string, repo: string, runId: number): Promise<string> {
-  const { stdout, stderr } = await execFileAsync(
-    'gh',
+  const { stdout, stderr } = await runGh(
     ['run', 'view', String(runId), '--repo', `${owner}/${repo}`, '--log-failed'],
-    {
-      timeout: 30000,
-      windowsHide: true,
-      maxBuffer: 8 * 1024 * 1024,
-      env: { ...process.env, NO_COLOR: '1' },
-    },
+    { timeout: 30000, maxBuffer: 8 * 1024 * 1024, readOnly: true },
   );
   const text = stripAnsi((stdout || stderr || '').trim());
   if (!text) return '';
@@ -747,11 +742,7 @@ export async function dispatchWorkflow(
   }
 
   try {
-    await execFileAsync('gh', args, {
-      timeout: 30000,
-      windowsHide: true,
-      env: { ...process.env, NO_COLOR: '1' },
-    });
+    await runGh(args, { timeout: 30000 });
     return { ok: true };
   } catch (error) {
     return { ok: false, error: ghErrorMessage(error) };
