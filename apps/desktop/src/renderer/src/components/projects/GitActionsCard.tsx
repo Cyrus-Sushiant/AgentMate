@@ -17,8 +17,10 @@ import { CopyRunErrorButton } from '@/components/pipelines/CopyRunErrorButton';
 import { RunWorkflowDialog } from '@/components/projects/RunWorkflowDialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { RefreshFailureBell, refreshTooltip } from '@/components/ui/refresh-failure-bell';
 import { Switch } from '@/components/ui/switch';
 import { SimpleTooltip } from '@/components/ui/tooltip';
+import { useLastGoodData } from '@/hooks/useLastGoodData';
 import { queryKeys } from '@/lib/queryKeys';
 import { timeAgo } from '@/lib/time';
 import { cn } from '@/lib/utils';
@@ -84,7 +86,15 @@ export function GitActionsCard({
     },
   });
 
-  const status = statusQuery.data;
+  // A failed refresh keeps the workflows that last loaded on screen and flags it on Refresh.
+  const lastGood = useLastGoodData({
+    storageKey: `pipeline-status:${projectId}`,
+    query: statusQuery,
+    failureOf: (result) => result.error,
+    title: 'Could not refresh GitHub Actions',
+  });
+
+  const status = lastGood.data;
   const repo = status?.github ? `${status.github.owner}/${status.github.repo}` : '';
   // While the save is in flight the switch should already show where it was dragged to.
   const effectiveMuted =
@@ -162,15 +172,27 @@ export function GitActionsCard({
             </p>
           </div>
         </div>
-        <Button
-          variant="outline"
-          size="sm"
-          disabled={statusQuery.isFetching}
-          onClick={() => void statusQuery.refetch()}
+        <SimpleTooltip
+          label={
+            lastGood.failure
+              ? refreshTooltip('Refresh', lastGood.failure, lastGood.savedAt)
+              : undefined
+          }
+          className="max-w-sm"
         >
-          <RefreshCw className={cn('h-3.5 w-3.5', statusQuery.isFetching && 'animate-spin')} />
-          Refresh
-        </Button>
+          <span className="relative inline-flex">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={statusQuery.isFetching}
+              onClick={lastGood.refresh}
+            >
+              <RefreshCw className={cn('h-3.5 w-3.5', statusQuery.isFetching && 'animate-spin')} />
+              Refresh
+            </Button>
+            <RefreshFailureBell failure={lastGood.failure} />
+          </span>
+        </SimpleTooltip>
       </div>
 
       {statusQuery.isPending && !status ? (

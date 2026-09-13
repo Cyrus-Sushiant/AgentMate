@@ -32,8 +32,10 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Combobox, type ComboboxOption } from '@/components/ui/combobox';
 import { Input } from '@/components/ui/input';
+import { RefreshFailureBell, refreshTooltip } from '@/components/ui/refresh-failure-bell';
 import { Skeleton } from '@/components/ui/skeleton';
 import { SimpleTooltip } from '@/components/ui/tooltip';
+import { useLastGoodData } from '@/hooks/useLastGoodData';
 import { queryKeys } from '@/lib/queryKeys';
 import { timeAgo } from '@/lib/time';
 import { cn } from '@/lib/utils';
@@ -356,7 +358,15 @@ export default function PipelinesPage(): React.JSX.Element {
     },
   });
 
-  const activity = activityQuery.data;
+  // A failed refresh keeps the last list that loaded on screen and flags it on the refresh button.
+  const lastGood = useLastGoodData({
+    storageKey: 'github-actions-activity',
+    query: activityQuery,
+    failureOf: (result) => (result.ok ? null : result.error || 'GitHub did not return any runs.'),
+    title: 'Could not refresh runs',
+  });
+
+  const activity = lastGood.data;
   const runs = useMemo(() => activity?.runs ?? [], [activity]);
   const notifications: AppNotification[] = notificationsQuery.data ?? [];
   const unreadCount = notifications.filter((item) => !item.read).length;
@@ -431,7 +441,7 @@ export default function PipelinesPage(): React.JSX.Element {
     return () => clearTimeout(timer);
   }, [focusedRunId]);
 
-  const loading = activityQuery.isPending;
+  const loading = activityQuery.isPending && activity === undefined;
   const connected = activity?.ok === true && activity.cliAvailable && activity.authenticated;
   const ready = connected && runs.length > 0;
   const filtersDirty = filter !== 'all' || repo !== '' || search.trim() !== '';
@@ -442,7 +452,7 @@ export default function PipelinesPage(): React.JSX.Element {
   }
 
   function handleRefresh(): void {
-    void queryClient.invalidateQueries({ queryKey: queryKeys.githubActionsActivity });
+    lastGood.refresh();
   }
 
   function handleOpenRun(item: GithubActionsHistoryItem): void {
@@ -516,18 +526,24 @@ export default function PipelinesPage(): React.JSX.Element {
               <Check className="h-3.5 w-3.5" /> Mark all read
             </Button>
           ) : null}
-          <SimpleTooltip label="Refresh runs">
-            <Button
-              variant="ghost"
-              size="icon"
-              disabled={activityQuery.isFetching}
-              aria-label="Refresh runs"
-              onClick={handleRefresh}
-            >
-              <RefreshCw
-                className={cn('h-3.5 w-3.5', activityQuery.isFetching && 'animate-spin')}
-              />
-            </Button>
+          <SimpleTooltip
+            label={refreshTooltip('Refresh runs', lastGood.failure, lastGood.savedAt)}
+            className="max-w-sm"
+          >
+            <span className="relative inline-flex">
+              <Button
+                variant="ghost"
+                size="icon"
+                disabled={activityQuery.isFetching}
+                aria-label={lastGood.failure ? 'Refresh runs, last refresh failed' : 'Refresh runs'}
+                onClick={handleRefresh}
+              >
+                <RefreshCw
+                  className={cn('h-3.5 w-3.5', activityQuery.isFetching && 'animate-spin')}
+                />
+              </Button>
+              <RefreshFailureBell failure={lastGood.failure} />
+            </span>
           </SimpleTooltip>
         </div>
       </div>
