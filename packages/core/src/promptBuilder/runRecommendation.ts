@@ -239,7 +239,9 @@ export function assessTaskComplexity(input: {
   }
 
   const files = new Set(
-    text.match(/[\w./-]+\.(tsx?|jsx?|py|rs|go|java|kt|swift|cs|dart|vue|svelte|css|scss|sql|json|ya?ml)\b/gi) ?? [],
+    text.match(
+      /[\w./-]+\.(tsx?|jsx?|py|rs|go|java|kt|swift|cs|dart|vue|svelte|css|scss|sql|json|ya?ml)\b/gi,
+    ) ?? [],
   ).size;
   if (files >= 3) {
     score += 8;
@@ -454,7 +456,9 @@ export function runProfileForTargetAI(targetAI: string): TargetRunProfile {
   // The example args already name each CLI's real model flag (`--model`, `-m`, ...).
   const exampleFlag = cli?.argsExample?.split(/\s+/)[0];
   const modelFlag =
-    exampleFlag && /^-/.test(exampleFlag) && /model|^-m$/.test(exampleFlag) ? exampleFlag : undefined;
+    exampleFlag && /^-/.test(exampleFlag) && /model|^-m$/.test(exampleFlag)
+      ? exampleFlag
+      : undefined;
   return {
     cliId,
     executable,
@@ -504,11 +508,33 @@ export function recommendRun(input: {
 /** CLI args that apply a choice, e.g. `['--model', 'sonnet', '--effort', 'medium']`. */
 export function runChoiceArgs(profile: TargetRunProfile, choice: RunChoice): string[] {
   const args: string[] = [];
-  if (profile.modelFlag && choice.model.modelArg) args.push(profile.modelFlag, choice.model.modelArg);
+  if (profile.modelFlag && choice.model.modelArg)
+    args.push(profile.modelFlag, choice.model.modelArg);
   if (choice.effort && profile.effortArgs && choice.model.efforts?.includes(choice.effort)) {
     args.push(...profile.effortArgs(choice.effort));
   }
   return args;
+}
+
+/**
+ * Drops run args the user already set in their own CLI arguments, so a configured
+ * `--model` wins and the CLI never sees the same flag twice. Run args always come in
+ * flag/value pairs; for `-c key=value` pairs the key is what has to be unique.
+ */
+export function withoutConfiguredRunArgs(configuredArgs: string, runArgs: string[]): string[] {
+  const configured = configuredArgs.split(/\s+/).filter(Boolean);
+  const kept: string[] = [];
+  for (let i = 0; i + 1 < runArgs.length; i += 2) {
+    const flag = runArgs[i]!;
+    const value = runArgs[i + 1]!;
+    const key = flag === '-c' ? value.split('=')[0]! : flag;
+    const clash =
+      flag === '-c'
+        ? configured.some((arg) => arg.startsWith(`${key}=`))
+        : configured.some((arg) => arg === key || arg.startsWith(`${key}=`));
+    if (!clash) kept.push(flag, value);
+  }
+  return kept;
 }
 
 export type CostLevel = 1 | 2 | 3 | 4 | 5;

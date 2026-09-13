@@ -19,6 +19,10 @@ import {
   WindowRestore,
 } from '@/components/icons';
 import { ProjectIcon } from '@/components/projects/ProjectIcon';
+import {
+  RunRecommendationChip,
+  useRunRecommendation,
+} from '@/components/promptBuilder/RunRecommendation';
 import { Button } from '@/components/ui/button';
 import { Combobox } from '@/components/ui/combobox';
 import {
@@ -92,6 +96,7 @@ export function ProjectPromptBuildDialog({
     onDraftSaved: () => onOpenChange(false),
   });
 
+  const runRecommendation = useRunRecommendation({ rawInput, promptType, targetAI });
   const hasRequest = rawInput.trim().length > 0;
   const isBusy = isGenerating || isTranslating;
   const isPersian = containsPersian(rawInput);
@@ -222,7 +227,7 @@ export function ProjectPromptBuildDialog({
             <div className="flex min-w-0 items-center gap-2">
               <Label className="shrink-0 text-xs text-muted-foreground">Type</Label>
               <Combobox
-                className="h-8 w-[11.5rem]"
+                className="h-8 w-[10rem]"
                 value={promptType}
                 onChange={(v) => setPromptType(v as PromptType)}
                 options={PROMPT_TYPES.map((type) => ({ value: type, label: type }))}
@@ -231,7 +236,7 @@ export function ProjectPromptBuildDialog({
             <div className="flex min-w-0 items-center gap-2">
               <Label className="shrink-0 text-xs text-muted-foreground">Target</Label>
               <Combobox
-                className="h-8 w-[11.5rem]"
+                className="h-8 w-[10rem]"
                 value={targetAI}
                 onChange={(v) => setTargetAI(v as TargetAI)}
                 options={TARGET_AIS.map((ai) => ({
@@ -240,6 +245,10 @@ export function ProjectPromptBuildDialog({
                   icon: cliOptionIcon(cliIdForTargetAI(ai)),
                 }))}
               />
+            </div>
+            <div className="flex min-w-0 items-center gap-2">
+              <Label className="shrink-0 text-xs text-muted-foreground">Run with</Label>
+              <RunRecommendationChip state={runRecommendation} className="max-w-[16rem]" />
             </div>
             <Button
               variant="ghost"

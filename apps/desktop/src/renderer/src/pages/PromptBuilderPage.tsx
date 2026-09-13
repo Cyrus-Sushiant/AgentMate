@@ -5,12 +5,14 @@ import {
   cliIdForTargetAI,
   DEFAULT_TARGET_AI,
   generatePrompt,
+  getCliArgsFor,
   isTargetAI,
   normalizeTargetAI,
   PROMPT_TYPES,
   resolvePromptTargetAI,
   TARGET_AIS,
   targetAIForProject,
+  withoutConfiguredRunArgs,
 } from '@agentmat/core';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -39,6 +41,10 @@ import {
   TerminalSquare,
   Trash2,
 } from '@/components/icons';
+import {
+  RunRecommendationPanel,
+  useRunRecommendation,
+} from '@/components/promptBuilder/RunRecommendation';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -295,6 +301,8 @@ export default function PromptBuilderPage(): React.JSX.Element {
     scheduleQueue.length > 0 &&
     scheduleQueue.every((item) => item.text.trim() && item.runAt);
 
+  const runRecommendation = useRunRecommendation({ rawInput, promptType, targetAI });
+
   const cliForSendTo = useMemo(() => {
     const cliId = defaultCliId ?? cliIdForTargetAI(targetAI);
     return CLI_REGISTRY.find((c) => c.id === cliId) ?? null;
@@ -430,7 +438,16 @@ export default function PromptBuilderPage(): React.JSX.Element {
       `prompt-${Date.now()}.md`,
       generated,
     );
-    const launch = cliLaunchCommand(cliForSendTo.id) ?? cliForSendTo.executableNames[0];
+    const baseLaunch = cliLaunchCommand(cliForSendTo.id) ?? cliForSendTo.executableNames[0];
+    // Model and effort flags only mean something to the CLI they were picked for.
+    const runArgs =
+      cliForSendTo.id === runRecommendation.recommendation.profile.cliId
+        ? withoutConfiguredRunArgs(
+            getCliArgsFor(useCliStore.getState().cliArgs, cliForSendTo.id),
+            runRecommendation.args,
+          )
+        : [];
+    const launch = [baseLaunch, ...runArgs].join(' ');
     const command =
       window.agentmat.platform === 'win32'
         ? `& ${launch} (Get-Content -Raw -LiteralPath "${filePath}")`
@@ -506,6 +523,11 @@ export default function PromptBuilderPage(): React.JSX.Element {
                 />
               </div>
             </div>
+
+            <RunRecommendationPanel
+              state={runRecommendation}
+              className="rounded-lg border border-border bg-background/30 p-3"
+            />
 
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
