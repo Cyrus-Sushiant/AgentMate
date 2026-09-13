@@ -1,0 +1,3 @@
+# pnpm 12 rejects patch files with CRLF line endings, and Windows runners
+# check out with core.autocrlf=true, so keep patches as LF everywhere.
+*.patch text eol=lf
