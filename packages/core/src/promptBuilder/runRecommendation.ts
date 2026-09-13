@@ -1,13 +1,14 @@
+import { z } from 'zod';
 import { cliIdForTargetAI, getCliDefinition } from '../cli/registry.js';
-import type { PromptType } from './types.js';
 
 /**
- * Suggests which model and reasoning effort to run a Prompt Builder request with,
- * so the result is good enough without paying for a bigger model than the task needs.
+ * Suggests which model and reasoning effort to run a generated prompt with, so the result
+ * is good enough without paying for a bigger model than the task needs.
  *
- * Everything here is a local heuristic over the request text and prompt type. It runs
- * on every keystroke, costs nothing, and works offline, which matters more for a hint
- * like this than squeezing out a slightly better guess from another model call.
+ * The sizing itself comes from the user's default AI CLI: once Prompt Builder has produced
+ * a prompt (or a translation), buildRunAssessmentPrompt() asks that CLI to score it against
+ * the target's own model list, and parseRunAssessment() turns its answer into plain data.
+ * Everything else here (model catalog, CLI flags, relative cost) is local.
  */
 
 export type EffortLevel = 'low' | 'medium' | 'high' | 'xhigh' | 'max';
@@ -37,17 +38,25 @@ export interface TaskSignal {
   direction: 'up' | 'down';
 }
 
-export interface TaskAssessment {
+/**
+ * How the default AI CLI sized a generated prompt. Plain data on purpose: it crosses IPC
+ * from the main process, and the renderer rebuilds the profile (which carries functions)
+ * on its own side.
+ */
+export interface RunAssessment {
   /** 0 (trivial) to 100 (hardest). */
   score: number;
   complexity: TaskComplexity;
   signals: TaskSignal[];
-  /** False when there's no request text yet, so the score only reflects the prompt type. */
-  hasRequest: boolean;
+  /** One sentence on what drives the size. */
+  summary: string;
+  /** Model id from the target's profile. */
+  modelId: string;
+  effort: EffortLevel | undefined;
 }
 
 export interface RunModelOption {
-  /** Stable key within a profile. */
+  /** Stable key within a profile, and the id the CLI is asked to answer with. */
   id: string;
   label: string;
   /** Short tier name shown above the model, e.g. "Fast". */
@@ -59,7 +68,10 @@ export interface RunModelOption {
   /** Relative spend of this model against the others, 1 being the cheapest. */
   costWeight: number;
   bestFor: string;
-  /** Highest task score this model is the cheapest good fit for. */
+  /**
+   * Highest task score this model is the cheapest good fit for. Only used to place a
+   * score when the CLI names a model this profile doesn't have.
+   */
   maxScore: number;
   /** Effort levels this model accepts, lowest first. Absent when effort can't be set. */
   efforts?: readonly EffortLevel[];
@@ -88,101 +100,8 @@ export interface RunChoice {
 export interface RunRecommendation {
   targetAI: string;
   profile: TargetRunProfile;
-  assessment: TaskAssessment;
+  assessment: RunAssessment;
   recommended: RunChoice;
-}
-
-// Prompt types that usually mean more reasoning, more files, or more risk.
-const PROMPT_TYPE_WEIGHT: Partial<Record<PromptType, number>> = {
-  Architecture: 25,
-  Security: 25,
-  'AI Agent': 22,
-  Performance: 20,
-  'Full Stack': 15,
-  Database: 15,
-  Electron: 14,
-  Refactoring: 14,
-  'Bug Fix': 12,
-  DevOps: 12,
-  Backend: 12,
-  API: 12,
-  Frontend: 8,
-  React: 8,
-  'Next.js': 8,
-  'Node.js': 8,
-  '.NET': 8,
-  Flutter: 8,
-  Python: 8,
-  Mobile: 10,
-  Testing: 6,
-  'Code Review': 10,
-  Product: 6,
-  'UX Review': 6,
-  'UI Design': 4,
-  Documentation: 0,
-  Custom: 5,
-};
-
-interface KeywordRule {
-  label: string;
-  pattern: RegExp;
-  /** Persian phrases, matched by substring because \b doesn't apply to Persian script. */
-  persian?: string[];
-}
-
-const HEAVY_RULES: KeywordRule[] = [
-  {
-    label: 'System-wide change',
-    pattern:
-      /\b(architect\w*|redesign\w*|rewrite|rebuild|from scratch|whole (app|project|codebase)|entire (app|project|codebase)|across the (app|codebase|project)|monorepo|system-wide)\b/i,
-    persian: ['معماری', 'بازنویسی', 'کل پروژه', 'کل برنامه', 'از صفر'],
-  },
-  {
-    label: 'Migration or schema change',
-    pattern: /\b(migrat\w*|schema|upgrade \w+ to|port(ing)? to)\b/i,
-    persian: ['مهاجرت', 'اسکیما', 'ارتقا'],
-  },
-  {
-    label: 'Security-sensitive',
-    pattern:
-      /\b(auth\w*|login|password|oauth|jwt|permissions?|encrypt\w*|secrets?|vulnerab\w*|xss|csrf|injection)\b/i,
-    persian: ['امنیت', 'احراز هویت', 'رمز عبور', 'لاگین'],
-  },
-  {
-    label: 'Performance or concurrency',
-    pattern:
-      /\b(race condition|concurren\w*|deadlock|threads?|memory leak|optimi[sz]\w*|performance|latency|scal(e|ing|able))\b/i,
-    persian: ['کارایی', 'بهینه', 'سرعت', 'نشت حافظه'],
-  },
-  {
-    label: 'Hard-to-pin-down bug',
-    pattern: /\b(intermittent\w*|flaky|sometimes|randomly|can'?t reproduce|root cause)\b/i,
-    persian: ['گاهی', 'به صورت تصادفی', 'علت اصلی'],
-  },
-  {
-    label: 'Several moving parts',
-    pattern:
-      /\b(end[- ]to[- ]end|integrat\w*|pipeline|sync\w*|real[- ]?time|websockets?|distributed|multiple (services|pages|screens|components))\b/i,
-    persian: ['یکپارچه', 'همگام', 'چند صفحه', 'چند سرویس'],
-  },
-];
-
-const LIGHT_RULE: KeywordRule = {
-  label: 'Small, contained change',
-  pattern:
-    /\b(typos?|rename|wording|label|colou?r|padding|margin|spacing|comment|readme|bump|reformat|lint|small|minor|tiny|quick|simple|one[- ]liner)\b/i,
-  persian: ['تایپو', 'کوچک', 'ساده', 'رنگ', 'متن دکمه', 'جزئی'],
-};
-
-const EXPLORE_RULE: KeywordRule = {
-  label: 'Needs investigation first',
-  pattern: /\b(investigate|explore|compare|evaluate|trade-?offs?|figure out|research)\b/i,
-  persian: ['بررسی', 'تحقیق', 'مقایسه'],
-};
-
-function matches(rule: KeywordRule, text: string): boolean {
-  if (rule.pattern.test(text)) return true;
-  return rule.persian?.some((phrase) => text.includes(phrase)) ?? false;
 }
 
 function clamp(value: number, min: number, max: number): number {
@@ -193,88 +112,6 @@ export function complexityForScore(score: number): TaskComplexity {
   if (score < 30) return 'light';
   if (score < 65) return 'moderate';
   return 'complex';
-}
-
-export function assessTaskComplexity(input: {
-  rawInput: string;
-  promptType: PromptType;
-}): TaskAssessment {
-  const text = input.rawInput.trim();
-  const signals: TaskSignal[] = [];
-  const typeWeight = PROMPT_TYPE_WEIGHT[input.promptType] ?? 5;
-  let score = 20 + typeWeight;
-
-  if (typeWeight >= 20) signals.push({ label: `${input.promptType} work`, direction: 'up' });
-  if (typeWeight === 0) signals.push({ label: `${input.promptType} work`, direction: 'down' });
-
-  if (!text) {
-    const clamped = clamp(score, 0, 100);
-    return {
-      score: clamped,
-      complexity: complexityForScore(clamped),
-      signals,
-      hasRequest: false,
-    };
-  }
-
-  const words = text.split(/\s+/).filter(Boolean).length;
-  if (words < 8) {
-    score -= 8;
-    signals.push({ label: 'Short request', direction: 'down' });
-  } else if (words > 150) {
-    score += 20;
-    signals.push({ label: 'Long, detailed request', direction: 'up' });
-  } else if (words > 60) {
-    score += 10;
-    signals.push({ label: 'Detailed request', direction: 'up' });
-  }
-
-  const steps = text.split(/\r?\n/).filter((line) => /^\s*([-*•]|\d+[.)])\s+/.test(line)).length;
-  if (steps >= 6) {
-    score += 18;
-    signals.push({ label: `${steps} separate steps`, direction: 'up' });
-  } else if (steps >= 3) {
-    score += 10;
-    signals.push({ label: `${steps} separate steps`, direction: 'up' });
-  }
-
-  const files = new Set(
-    text.match(
-      /[\w./-]+\.(tsx?|jsx?|py|rs|go|java|kt|swift|cs|dart|vue|svelte|css|scss|sql|json|ya?ml)\b/gi,
-    ) ?? [],
-  ).size;
-  if (files >= 3) {
-    score += 8;
-    signals.push({ label: `Mentions ${files} files`, direction: 'up' });
-  }
-
-  let heavy = 0;
-  for (const rule of HEAVY_RULES) {
-    if (!matches(rule, text)) continue;
-    heavy += 12;
-    signals.push({ label: rule.label, direction: 'up' });
-  }
-  score += Math.min(heavy, 30);
-
-  if (matches(EXPLORE_RULE, text)) {
-    score += 6;
-    signals.push({ label: EXPLORE_RULE.label, direction: 'up' });
-  }
-
-  // A "small" request that also trips a heavy rule ("small auth fix") is still auth work,
-  // so only discount it when nothing pushed the other way.
-  if (heavy === 0 && matches(LIGHT_RULE, text)) {
-    score -= 12;
-    signals.push({ label: LIGHT_RULE.label, direction: 'down' });
-  }
-
-  const clamped = clamp(Math.round(score), 0, 100);
-  return {
-    score: clamped,
-    complexity: complexityForScore(clamped),
-    signals,
-    hasRequest: true,
-  };
 }
 
 const CLAUDE_EFFORTS: readonly EffortLevel[] = ['low', 'medium', 'high', 'xhigh', 'max'];
@@ -480,29 +317,167 @@ export function defaultEffortFor(model: RunModelOption): EffortLevel | undefined
   return effortForBand(model, 1);
 }
 
-export function recommendRun(input: {
-  rawInput: string;
-  promptType: PromptType;
-  targetAI: string;
-}): RunRecommendation {
-  const assessment = assessTaskComplexity(input);
-  const profile = runProfileForTargetAI(input.targetAI);
-  const index = Math.max(
-    0,
-    profile.models.findIndex((m) => assessment.score <= m.maxScore),
-  );
-  const model = profile.models[index] ?? profile.models[profile.models.length - 1]!;
+function bandFor(profile: TargetRunProfile, model: RunModelOption, score: number): 0 | 1 | 2 {
+  const index = profile.models.indexOf(model);
   const floor = index > 0 ? (profile.models[index - 1]?.maxScore ?? 0) : 0;
-  const span = Math.max(1, model.maxScore - floor);
-  const position = (assessment.score - floor) / span;
-  const band: 0 | 1 | 2 = position < 1 / 3 ? 0 : position < 2 / 3 ? 1 : 2;
+  const position = (score - floor) / Math.max(1, model.maxScore - floor);
+  return position < 1 / 3 ? 0 : position < 2 / 3 ? 1 : 2;
+}
+
+/** The cheapest model whose band covers `score`, for answers that name no usable model. */
+function modelForScore(profile: TargetRunProfile, score: number): RunModelOption {
+  return (
+    profile.models.find((m) => score <= m.maxScore) ?? profile.models[profile.models.length - 1]!
+  );
+}
+
+/** Generated prompts can be long; the size of the task shows well before the end of it. */
+const MAX_ASSESSED_PROMPT_CHARS = 12000;
+
+function describeModels(profile: TargetRunProfile): string {
+  return profile.models
+    .map((m) => {
+      const effort = m.efforts?.length
+        ? `effort levels: ${m.efforts.join(', ')}`
+        : 'no effort setting (use null)';
+      return `- "${m.id}": ${m.label} (${m.tier} tier). ${m.bestFor}. ${effort}.`;
+    })
+    .join('\n');
+}
+
+/**
+ * The instruction sent to the default AI CLI. It asks for JSON only and forbids tools, so a
+ * coding agent answers in one round-trip instead of wandering off to explore a repository.
+ */
+export function buildRunAssessmentPrompt(input: {
+  prompt: string;
+  targetAI: string;
+  promptType?: string;
+}): string {
+  const profile = runProfileForTargetAI(input.targetAI);
+  const text =
+    input.prompt.length > MAX_ASSESSED_PROMPT_CHARS
+      ? `${input.prompt.slice(0, MAX_ASSESSED_PROMPT_CHARS)}\n[prompt truncated]`
+      : input.prompt;
+  const typeLine = input.promptType ? `Prompt type: ${input.promptType}\n` : '';
+
+  return [
+    'You are sizing a software task so the user can run it with the cheapest model and the',
+    'lowest reasoning effort that will still do it well. Do not use any tools, do not read or',
+    'edit files, and do not carry out the task. Only assess it.',
+    '',
+    `Target agent: ${input.targetAI}`,
+    `${typeLine}Models available for this agent, cheapest first:`,
+    describeModels(profile),
+    '',
+    'Scoring guide:',
+    '- 0 to 29: light. One small, well-understood change.',
+    '- 30 to 64: moderate. A normal feature or fix touching a few files.',
+    '- 65 to 100: complex. Cross-cutting, risky, or needs investigation and design first.',
+    'Pick the cheapest model and the lowest effort that would still complete the task reliably.',
+    'Only move up when the task clearly needs it.',
+    '',
+    'Task prompt:',
+    '<<<',
+    text,
+    '>>>',
+    '',
+    'Reply with a single JSON object and nothing else, in English, shaped like this:',
+    '{"score": <whole number from 0 to 100>, "model": "<one model id from the list>", "effort": "<one of that model\'s effort levels, or null>", "summary": "<one sentence on what drives the size>", "reasons": [{"label": "<two to five words>", "direction": "up"}, {"label": "<two to five words>", "direction": "down"}]}',
+    'Give two to four reasons. "up" means the reason calls for a bigger run, "down" a smaller one.',
+  ].join('\n');
+}
+
+const EFFORT_VALUES = ['low', 'medium', 'high', 'xhigh', 'max'] as const;
+
+const AssessmentAnswerSchema = z.object({
+  score: z.coerce.number(),
+  model: z.string().optional(),
+  effort: z.string().nullish(),
+  summary: z.string().optional(),
+  reasons: z
+    .array(
+      z.object({
+        label: z.string(),
+        direction: z.string().optional(),
+      }),
+    )
+    .optional(),
+});
+
+/** Pulls the JSON object out of an answer that may be wrapped in a code fence or prose. */
+function extractJsonObject(text: string): unknown {
+  const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/i)?.[1];
+  const source = fenced ?? text;
+  const start = source.indexOf('{');
+  const end = source.lastIndexOf('}');
+  if (start === -1 || end <= start) return null;
+  try {
+    return JSON.parse(source.slice(start, end + 1));
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Validates the CLI's answer against the target's profile. A model id the profile doesn't
+ * know falls back to the model that fits the score, and an effort that model doesn't accept
+ * falls back to its usual pick, so a slightly-off answer still yields a usable run.
+ * Returns null when there's no score to go on at all.
+ */
+export function parseRunAssessment(text: string, targetAI: string): RunAssessment | null {
+  const parsed = AssessmentAnswerSchema.safeParse(extractJsonObject(text));
+  if (!parsed.success || !Number.isFinite(parsed.data.score)) return null;
+  const answer = parsed.data;
+  const profile = runProfileForTargetAI(targetAI);
+  const score = clamp(Math.round(answer.score), 0, 100);
+
+  const wanted = answer.model?.trim().toLowerCase();
+  const model =
+    profile.models.find((m) => m.id.toLowerCase() === wanted) ??
+    profile.models.find((m) => wanted && m.label.toLowerCase() === wanted) ??
+    modelForScore(profile, score);
+
+  const effortAnswer = answer.effort?.trim().toLowerCase();
+  const effort =
+    effortAnswer &&
+    (EFFORT_VALUES as readonly string[]).includes(effortAnswer) &&
+    model.efforts?.includes(effortAnswer as EffortLevel)
+      ? (effortAnswer as EffortLevel)
+      : effortForBand(model, bandFor(profile, model, score));
+
+  const signals: TaskSignal[] = (answer.reasons ?? [])
+    .map((r) => ({
+      label: r.label.trim().slice(0, 48),
+      direction: r.direction?.trim().toLowerCase() === 'down' ? ('down' as const) : ('up' as const),
+    }))
+    .filter((r) => r.label)
+    .slice(0, 4);
 
   return {
-    targetAI: input.targetAI,
-    profile,
-    assessment,
-    recommended: { model, effort: effortForBand(model, band) },
+    score,
+    complexity: complexityForScore(score),
+    signals,
+    summary: answer.summary?.trim() ?? '',
+    modelId: model.id,
+    effort,
   };
+}
+
+/** Rebuilds the full recommendation (profile included) from an assessment that crossed IPC. */
+export function recommendationFromAssessment(
+  targetAI: string,
+  assessment: RunAssessment,
+): RunRecommendation {
+  const profile = runProfileForTargetAI(targetAI);
+  const model =
+    profile.models.find((m) => m.id === assessment.modelId) ??
+    modelForScore(profile, assessment.score);
+  const effort =
+    assessment.effort && model.efforts?.includes(assessment.effort)
+      ? assessment.effort
+      : effortForBand(model, bandFor(profile, model, assessment.score));
+  return { targetAI, profile, assessment, recommended: { model, effort } };
 }
 
 /** CLI args that apply a choice, e.g. `['--model', 'sonnet', '--effort', 'medium']`. */

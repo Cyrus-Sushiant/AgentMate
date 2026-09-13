@@ -1,5 +1,6 @@
 import type { PromptType, TargetAI } from '@agentmat/core';
 import { cliIdForTargetAI, PROMPT_TYPES, TARGET_AIS } from '@agentmat/core';
+import { useQuery } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -10,15 +11,18 @@ import {
   Copy,
   History,
   Languages,
+  Microphone,
   Pin,
   Save,
   Sparkles,
   Spinner,
+  StopCircle,
   Trash2,
   WindowMaximize,
   WindowRestore,
 } from '@/components/icons';
 import { ProjectIcon } from '@/components/projects/ProjectIcon';
+import type { AnalyzeRunOptions } from '@/components/promptBuilder/RunRecommendation';
 import {
   RunRecommendationChip,
   useRunRecommendation,
@@ -36,6 +40,8 @@ import {
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { SimpleTooltip } from '@/components/ui/tooltip';
+import { useVoiceInput } from '@/hooks/useVoiceInput';
+import { queryKeys } from '@/lib/queryKeys';
 import { containsPersian } from '@/lib/rtl';
 import { cn } from '@/lib/utils';
 import {
@@ -75,6 +81,8 @@ export function ProjectPromptBuildDialog({
   const [copied, setCopied] = useState(false);
   const requestRef = useRef<HTMLTextAreaElement>(null);
   const copiedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // The builder hook reports results before the run hook below exists, so hand off via a ref.
+  const analyzeRunRef = useRef<((options: AnalyzeRunOptions) => void) | null>(null);
   const {
     rawInput,
     setRawInput,
@@ -94,12 +102,50 @@ export function ProjectPromptBuildDialog({
   } = useProjectPromptBuilder(projectId, {
     enabled: open,
     onDraftSaved: () => onOpenChange(false),
+    onResult: (content, source) =>
+      analyzeRunRef.current?.({ prompt: content, isTranslation: source === 'translate' }),
   });
 
-  const runRecommendation = useRunRecommendation({ rawInput, promptType, targetAI });
+  const runRecommendation = useRunRecommendation({ generated, promptType, targetAI });
+  analyzeRunRef.current = runRecommendation.analyze;
+  const cancelRun = runRecommendation.cancel;
   const hasRequest = rawInput.trim().length > 0;
   const isBusy = isGenerating || isTranslating;
   const isPersian = containsPersian(rawInput);
+
+  const settingsQuery = useQuery({
+    queryKey: queryKeys.settings,
+    queryFn: () => window.agentmat.settings.get(),
+    enabled: open,
+  });
+  // Dictation lands after whatever is already typed. The transcription callback outlives the
+  // render that started it, so it reads the latest request through a ref.
+  const rawInputRef = useRef(rawInput);
+  rawInputRef.current = rawInput;
+  const voice = useVoiceInput({
+    language: settingsQuery.data?.speechLanguage ?? 'auto',
+    onText: (text) => {
+      const existing = rawInputRef.current.trim();
+      setRawInput(existing ? `${existing} ${text}` : text);
+    },
+  });
+  const voiceBusy = voice.status === 'requesting' || voice.status === 'transcribing';
+  const voiceLabel =
+    voice.status === 'recording'
+      ? 'Stop and transcribe'
+      : voice.status === 'transcribing'
+        ? voice.downloadPercent !== null
+          ? `Downloading speech model… ${voice.downloadPercent}%`
+          : 'Transcribing…'
+        : voice.status === 'requesting'
+          ? 'Starting microphone…'
+          : 'Dictate your request';
+  const voiceRef = useRef(voice);
+  voiceRef.current = voice;
+
+  useEffect(() => {
+    if (voice.error) toast.error(voice.error);
+  }, [voice.error]);
   const overrides = useShortcutStore((s) => s.overrides);
   const generateKeys = useShortcutLabelList('prompt.generate');
   const generateKey = useShortcutLabel('prompt.generate');
@@ -113,8 +159,14 @@ export function ProjectPromptBuildDialog({
   }, []);
 
   useEffect(() => {
-    if (!open) setIsMaximized(false);
-  }, [open]);
+    if (!open) {
+      setIsMaximized(false);
+      cancelRun();
+      // Never leave the microphone live behind a closed dialog. Stopping still transcribes,
+      // and the text is kept with the rest of this project's draft request.
+      if (voiceRef.current.status === 'recording') voiceRef.current.toggle();
+    }
+  }, [open, cancelRun]);
 
   async function handlePinToDesktop(): Promise<void> {
     setIsPinning(true);
@@ -227,7 +279,7 @@ export function ProjectPromptBuildDialog({
             <div className="flex min-w-0 items-center gap-2">
               <Label className="shrink-0 text-xs text-muted-foreground">Type</Label>
               <Combobox
-                className="h-8 w-[10rem]"
+                className="h-8 w-[11.5rem]"
                 value={promptType}
                 onChange={(v) => setPromptType(v as PromptType)}
                 options={PROMPT_TYPES.map((type) => ({ value: type, label: type }))}
@@ -236,7 +288,7 @@ export function ProjectPromptBuildDialog({
             <div className="flex min-w-0 items-center gap-2">
               <Label className="shrink-0 text-xs text-muted-foreground">Target</Label>
               <Combobox
-                className="h-8 w-[10rem]"
+                className="h-8 w-[11.5rem]"
                 value={targetAI}
                 onChange={(v) => setTargetAI(v as TargetAI)}
                 options={TARGET_AIS.map((ai) => ({
@@ -245,10 +297,6 @@ export function ProjectPromptBuildDialog({
                   icon: cliOptionIcon(cliIdForTargetAI(ai)),
                 }))}
               />
-            </div>
-            <div className="flex min-w-0 items-center gap-2">
-              <Label className="shrink-0 text-xs text-muted-foreground">Run with</Label>
-              <RunRecommendationChip state={runRecommendation} className="max-w-[16rem]" />
             </div>
             <Button
               variant="ghost"
@@ -262,11 +310,43 @@ export function ProjectPromptBuildDialog({
 
           <div className="grid min-h-0 flex-1 grid-cols-1 md:grid-cols-2">
             <div className="flex min-h-0 flex-col gap-2 border-b border-border/70 p-5 md:border-b-0 md:border-r">
-              <div className="flex items-baseline justify-between gap-3">
+              <div className="flex items-center justify-between gap-3">
                 <Label htmlFor="prompt-build-request">Your request</Label>
-                <span className="text-[11px] tabular-nums text-muted-foreground">
-                  {rawInput.length === 0 ? 'Empty' : `${rawInput.length} chars`}
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] tabular-nums text-muted-foreground">
+                    {rawInput.length === 0 ? 'Empty' : `${rawInput.length} chars`}
+                  </span>
+                  {voice.supported && (
+                    <SimpleTooltip label={voiceLabel} wrapTrigger={voiceBusy}>
+                      <Button
+                        type="button"
+                        variant={voice.status === 'recording' ? 'destructive' : 'ghost'}
+                        size="sm"
+                        className="h-7 gap-1.5 px-2 text-xs"
+                        onClick={voice.toggle}
+                        disabled={voiceBusy}
+                        aria-label={voiceLabel}
+                      >
+                        {voiceBusy ? (
+                          <Spinner className="animate-spin" />
+                        ) : voice.status === 'recording' ? (
+                          <StopCircle />
+                        ) : (
+                          <Microphone />
+                        )}
+                        <span>
+                          {voice.status === 'recording'
+                            ? 'Stop'
+                            : voice.status === 'transcribing'
+                              ? voice.downloadPercent !== null
+                                ? `${voice.downloadPercent}%`
+                                : 'Transcribing…'
+                              : 'Dictate'}
+                        </span>
+                      </Button>
+                    </SimpleTooltip>
+                  )}
+                </div>
               </div>
               <div className="relative min-h-0 flex-1">
                 <GrammarTextarea
@@ -330,7 +410,13 @@ export function ProjectPromptBuildDialog({
 
             <div className="relative flex min-h-0 flex-col gap-2 p-5">
               <div className="flex items-center justify-between gap-3">
-                <Label htmlFor="prompt-build-output">Generated prompt</Label>
+                <Label htmlFor="prompt-build-output" className="shrink-0">
+                  Generated prompt
+                </Label>
+                <RunRecommendationChip
+                  state={runRecommendation}
+                  className="ml-auto max-w-[13rem]"
+                />
                 <SimpleTooltip
                   label={copied ? 'Copied' : copyKey ? `Copy prompt (${copyKey})` : 'Copy prompt'}
                   wrapTrigger={!generated || isBusy}
@@ -375,7 +461,10 @@ export function ProjectPromptBuildDialog({
             variant="ghost"
             size="sm"
             disabled={!rawInput && !generated}
-            onClick={handleClear}
+            onClick={() => {
+              cancelRun();
+              handleClear();
+            }}
             className="text-muted-foreground"
           >
             <Trash2 /> Clear

@@ -182,6 +182,8 @@ export const IPC = {
     listOllamaModels: 'ai:listOllamaModels',
     testOllama: 'ai:testOllama',
     listGeminiModels: 'ai:listGeminiModels',
+    assessRun: 'ai:assessRun',
+    cancelAssessRun: 'ai:cancelAssessRun',
   },
   projectDrafts: {
     listByProject: 'projectDrafts:listByProject',

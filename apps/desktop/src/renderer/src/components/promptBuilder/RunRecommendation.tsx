@@ -1,14 +1,16 @@
-import type { EffortLevel, PromptType, RunChoice, RunRecommendation } from '@agentmat/core';
+import type { EffortLevel, RunChoice, RunRecommendation } from '@agentmat/core';
 import {
   defaultEffortFor,
   EFFORT_LABELS,
+  getCliDefinition,
   getModelPrice,
-  recommendRun,
+  recommendationFromAssessment,
   relativeCostLevel,
   runChoiceArgs,
+  runProfileForTargetAI,
 } from '@agentmat/core';
 import * as PopoverPrimitive from '@radix-ui/react-popover';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { CliLogo } from '@/components/cliLogos';
 import {
   ArrowDown,
@@ -18,81 +20,194 @@ import {
   ChevronDown,
   CircleInfo,
   Copy,
+  RefreshCw,
+  Sparkles,
+  Spinner,
+  StopCircle,
+  TriangleAlert,
   Undo,
 } from '@/components/icons';
+import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
+import { useCliStore } from '@/stores/cliStore';
+
+export type RunAnalysisStatus = 'idle' | 'analyzing' | 'ready' | 'error';
+
+interface RunAnalysis {
+  recommendation: RunRecommendation;
+  /** The exact text that was sized, to tell when the generated prompt has moved on. */
+  prompt: string;
+  cliName: string | null;
+}
 
 interface RunOverride {
-  targetAI: string;
   modelId: string;
   effort: EffortLevel | undefined;
 }
 
+export interface AnalyzeRunOptions {
+  /** Text to size. Defaults to the current generated prompt. */
+  prompt?: string;
+  /** Translations aren't shaped by a prompt type, so the CLI isn't told one. */
+  isTranslation?: boolean;
+}
+
 export interface RunRecommendationState {
-  recommendation: RunRecommendation;
-  choice: RunChoice;
+  status: RunAnalysisStatus;
+  targetAI: string;
+  /** Last successful analysis; kept while a re-analysis runs or after it fails. */
+  recommendation: RunRecommendation | null;
+  choice: RunChoice | null;
   /** True when the user picked something other than the recommendation. */
   isCustom: boolean;
+  /** True when the generated prompt or the target changed after the last analysis. */
+  isStale: boolean;
+  error: string | null;
+  /** The CLI that answered last, or the default one we expect to answer. */
+  cliName: string | null;
+  canAnalyze: boolean;
+  analyze: (options?: AnalyzeRunOptions) => void;
+  cancel: () => void;
   selectModel: (modelId: string) => void;
   selectEffort: (effort: EffortLevel) => void;
   reset: () => void;
-  /** CLI args for the current choice, e.g. `--model sonnet --effort medium`. */
+  /** CLI args for the current choice when it's fresh, e.g. `--model sonnet --effort medium`. */
   args: string[];
 }
 
 /**
- * Live model/effort suggestion for a Prompt Builder form. A manual pick sticks while the
- * user keeps typing, but only for the target it was made on, since model names don't
- * carry over between CLIs.
+ * Sizes the generated prompt with the default AI CLI and keeps the resulting model/effort
+ * suggestion. Nothing runs on its own: callers trigger analyze() once Generate or Translate
+ * has produced text, or the user asks for it from the panel.
  */
 export function useRunRecommendation(input: {
-  rawInput: string;
-  promptType: PromptType;
+  generated: string;
+  promptType: string;
   targetAI: string;
 }): RunRecommendationState {
-  const { rawInput, promptType, targetAI } = input;
-  const recommendation = useMemo(
-    () => recommendRun({ rawInput, promptType, targetAI }),
-    [rawInput, promptType, targetAI],
-  );
+  const { generated, promptType, targetAI } = input;
+  const defaultCliId = useCliStore((s) => s.defaultCliId);
+  const [status, setStatus] = useState<RunAnalysisStatus>('idle');
+  const [analysis, setAnalysis] = useState<RunAnalysis | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [override, setOverride] = useState<RunOverride | null>(null);
+  const requestRef = useRef<string | null>(null);
 
-  const overrideModel =
-    override?.targetAI === targetAI
-      ? recommendation.profile.models.find((m) => m.id === override.modelId)
-      : undefined;
-  const choice: RunChoice =
-    override && overrideModel
+  const cancel = useCallback(() => {
+    const requestId = requestRef.current;
+    if (!requestId) return;
+    requestRef.current = null;
+    void window.agentmat.ai.cancelAssessRun(requestId);
+    setStatus((current) => (current === 'analyzing' ? 'idle' : current));
+  }, []);
+
+  // A run left going after the form closes would still bill tokens for an answer nobody sees.
+  useEffect(() => cancel, [cancel]);
+
+  const analyze = useCallback(
+    (options: AnalyzeRunOptions = {}) => {
+      const prompt = (options.prompt ?? generated).trim();
+      if (!prompt) return;
+      if (requestRef.current) void window.agentmat.ai.cancelAssessRun(requestRef.current);
+      const requestId = crypto.randomUUID();
+      requestRef.current = requestId;
+      const target = targetAI;
+      setStatus('analyzing');
+      setError(null);
+
+      window.agentmat.ai
+        .assessRun({
+          prompt,
+          targetAI: target,
+          promptType: options.isTranslation ? undefined : promptType,
+          requestId,
+        })
+        .then((result) => {
+          if (requestRef.current !== requestId) return;
+          requestRef.current = null;
+          if (result.ok && result.assessment) {
+            setAnalysis({
+              recommendation: recommendationFromAssessment(target, result.assessment),
+              prompt,
+              cliName: result.cliName,
+            });
+            setOverride(null);
+            setStatus('ready');
+            return;
+          }
+          if (result.cancelled) {
+            // Any earlier result stays on screen; the panel shows it whenever one exists.
+            setStatus('idle');
+            return;
+          }
+          setError(result.error || 'The AI CLI could not size this prompt.');
+          setStatus('error');
+        })
+        .catch((err: unknown) => {
+          if (requestRef.current !== requestId) return;
+          requestRef.current = null;
+          setError(err instanceof Error ? err.message : 'The AI CLI could not size this prompt.');
+          setStatus('error');
+        });
+    },
+    [generated, promptType, targetAI],
+  );
+
+  const recommendation = analysis?.recommendation ?? null;
+  const overrideModel = override
+    ? recommendation?.profile.models.find((m) => m.id === override.modelId)
+    : undefined;
+  const choice: RunChoice | null = recommendation
+    ? overrideModel
       ? {
           model: overrideModel,
           effort:
-            override.effort && overrideModel.efforts?.includes(override.effort)
+            override?.effort && overrideModel.efforts?.includes(override.effort)
               ? override.effort
               : defaultEffortFor(overrideModel),
         }
-      : recommendation.recommended;
+      : recommendation.recommended
+    : null;
 
   const isCustom =
-    choice.model.id !== recommendation.recommended.model.id ||
-    choice.effort !== recommendation.recommended.effort;
+    !!recommendation &&
+    !!choice &&
+    (choice.model.id !== recommendation.recommended.model.id ||
+      choice.effort !== recommendation.recommended.effort);
+  const isStale =
+    !!analysis &&
+    (analysis.prompt !== generated.trim() || analysis.recommendation.targetAI !== targetAI);
+
+  const defaultCliName = defaultCliId ? (getCliDefinition(defaultCliId)?.name ?? null) : null;
 
   return {
+    status,
+    targetAI,
     recommendation,
     choice,
     isCustom,
+    isStale,
+    error,
+    cliName: analysis?.cliName ?? defaultCliName,
+    canAnalyze: generated.trim().length > 0,
+    analyze,
+    cancel,
     selectModel: (modelId) => {
-      const model = recommendation.profile.models.find((m) => m.id === modelId);
-      if (!model) return;
+      const model = recommendation?.profile.models.find((m) => m.id === modelId);
+      if (!model || !recommendation) return;
       const effort =
         modelId === recommendation.recommended.model.id
           ? recommendation.recommended.effort
           : defaultEffortFor(model);
-      setOverride({ targetAI, modelId, effort });
+      setOverride({ modelId, effort });
     },
-    selectEffort: (effort) => setOverride({ targetAI, modelId: choice.model.id, effort }),
+    selectEffort: (effort) => {
+      if (choice) setOverride({ modelId: choice.model.id, effort });
+    },
     reset: () => setOverride(null),
-    args: runChoiceArgs(recommendation.profile, choice),
+    args: recommendation && choice && !isStale ? runChoiceArgs(recommendation.profile, choice) : [],
   };
 }
 
@@ -131,40 +246,69 @@ function formatPrice(value: number): string {
   return `$${Number.isInteger(value) ? value : value.toFixed(2)}`;
 }
 
+const sectionLabelClass = 'text-[11px] font-medium uppercase tracking-wide text-muted-foreground';
+const quietButtonClass =
+  'inline-flex items-center gap-1 rounded px-1 text-[11px] text-muted-foreground transition-colors hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring';
+
+function readCollapsed(storageKey: string | undefined): boolean {
+  if (!storageKey) return false;
+  try {
+    return localStorage.getItem(storageKey) === '1';
+  } catch {
+    return false;
+  }
+}
+
 export function RunRecommendationPanel({
   state,
   className,
+  collapsibleKey,
 }: {
   state: RunRecommendationState;
   className?: string;
+  /**
+   * Makes the panel foldable down to its header, remembering the choice under this
+   * localStorage key. For layouts where the details would crowd out the prompt editor.
+   */
+  collapsibleKey?: string;
 }): React.JSX.Element {
-  const { recommendation, choice, isCustom, selectModel, selectEffort, reset, args } = state;
-  const { profile, assessment, recommended } = recommendation;
-  const [copied, setCopied] = useState(false);
-  const copiedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const { status, recommendation, targetAI, cliName, canAnalyze, isStale, choice } = state;
+  const [collapsed, setCollapsed] = useState(() => readCollapsed(collapsibleKey));
 
-  useEffect(() => {
-    return () => {
-      if (copiedTimer.current) clearTimeout(copiedTimer.current);
-    };
-  }, []);
-
-  const complexity = COMPLEXITY_COPY[assessment.complexity];
-  const costLevel = relativeCostLevel(profile, choice);
-  const price = choice.model.pricingId ? getModelPrice(choice.model.pricingId) : null;
-  const command = profile.executable ? [profile.executable, ...args].join(' ') : args.join(' ');
-  const showCommand = args.length > 0;
-
-  async function copyCommand(): Promise<void> {
-    await navigator.clipboard.writeText(command);
-    setCopied(true);
-    if (copiedTimer.current) clearTimeout(copiedTimer.current);
-    copiedTimer.current = setTimeout(() => setCopied(false), 1600);
+  function toggleCollapsed(): void {
+    setCollapsed((current) => {
+      const next = !current;
+      try {
+        if (collapsibleKey) localStorage.setItem(collapsibleKey, next ? '1' : '0');
+      } catch {
+        // Remembering the fold is a nicety; the panel still works without storage.
+      }
+      return next;
+    });
   }
+
+  const profile = recommendation?.profile ?? runProfileForTargetAI(targetAI);
+  const cliLabel = cliName ?? 'your default AI CLI';
+  const analyzing = status === 'analyzing';
+  const complexity = recommendation ? COMPLEXITY_COPY[recommendation.assessment.complexity] : null;
+
+  let subtitle: string;
+  if (analyzing) subtitle = `Sizing the generated prompt with ${cliLabel}…`;
+  else if (recommendation && collapsed && choice)
+    subtitle = [
+      choice.model.label,
+      choice.effort && `${EFFORT_LABELS[choice.effort]} effort`,
+      isStale && 'prompt changed since',
+    ]
+      .filter(Boolean)
+      .join(' · ');
+  else if (recommendation) subtitle = `Sized by ${cliLabel} for ${recommendation.targetAI}`;
+  else if (status === 'error' && collapsed) subtitle = 'Sizing failed. Expand to retry.';
+  else subtitle = `Model and effort for ${targetAI}, sized by ${cliLabel}`;
 
   return (
     <div className={cn('space-y-3', className)}>
-      <div className="flex items-start justify-between gap-3">
+      <div className="flex items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-2">
           <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-border bg-background/60">
             {profile.cliId ? (
@@ -175,44 +319,226 @@ export function RunRecommendationPanel({
           </span>
           <div className="min-w-0">
             <div className="text-sm font-medium leading-tight">Recommended run</div>
-            <p className="truncate text-[11px] text-muted-foreground">
-              {assessment.hasRequest
-                ? `Model and effort for ${recommendation.targetAI}, sized to this request`
-                : 'Based on the prompt type until you describe the request'}
-            </p>
+            <p className="truncate text-[11px] text-muted-foreground">{subtitle}</p>
           </div>
         </div>
-        <div className="flex shrink-0 flex-col items-end gap-1">
-          <span className={cn('text-[11px] font-medium', complexity.className)}>
-            {complexity.label}
-          </span>
-          <span
-            className="h-1 w-20 overflow-hidden rounded-full bg-foreground/10"
-            role="meter"
-            aria-label="Task complexity"
-            aria-valuemin={0}
-            aria-valuemax={100}
-            aria-valuenow={assessment.score}
+        {analyzing ? (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 shrink-0 gap-1.5 px-2 text-xs"
+            onClick={state.cancel}
           >
-            <span
-              className="block h-full rounded-full bg-gradient-to-r from-success via-warning to-destructive transition-[width] duration-300"
-              style={{ width: `${Math.max(6, assessment.score)}%` }}
-            />
-          </span>
-        </div>
+            <StopCircle className="h-3 w-3" /> Stop
+          </Button>
+        ) : recommendation && complexity ? (
+          <div className="flex shrink-0 items-start gap-2">
+            <div className="flex flex-col items-end gap-1">
+              <span className={cn('text-[11px] font-medium', complexity.className)}>
+                {complexity.label}
+              </span>
+              <span
+                className="h-1 w-20 overflow-hidden rounded-full bg-foreground/10"
+                role="meter"
+                aria-label="Task complexity"
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={recommendation.assessment.score}
+              >
+                <span
+                  className="block h-full rounded-full bg-gradient-to-r from-success via-warning to-destructive transition-[width] duration-300"
+                  style={{ width: `${Math.max(6, recommendation.assessment.score)}%` }}
+                />
+              </span>
+            </div>
+            <SimpleTooltip label={canAnalyze ? 'Size the prompt again' : 'Nothing to size'}>
+              <button
+                type="button"
+                disabled={!canAnalyze}
+                onClick={() => state.analyze()}
+                className="flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-40"
+              >
+                <RefreshCw className="h-3 w-3" />
+                <span className="sr-only">Size the prompt again</span>
+              </button>
+            </SimpleTooltip>
+          </div>
+        ) : null}
+        {collapsibleKey && (
+          <SimpleTooltip label={collapsed ? 'Show details' : 'Hide details'}>
+            <button
+              type="button"
+              aria-expanded={!collapsed}
+              onClick={toggleCollapsed}
+              className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <ChevronDown
+                className={cn('h-3 w-3 transition-transform', !collapsed && 'rotate-180')}
+              />
+              <span className="sr-only">{collapsed ? 'Show details' : 'Hide details'}</span>
+            </button>
+          </SimpleTooltip>
+        )}
       </div>
+
+      {collapsed ? null : analyzing ? (
+        <RunSkeleton columns={profile.models.length} />
+      ) : status === 'error' && !recommendation ? (
+        <RunError state={state} />
+      ) : recommendation ? (
+        <>
+          {status === 'error' && <RunError state={state} compact />}
+          {isStale && status !== 'error' && (
+            <div className="flex items-center justify-between gap-2 rounded-lg border border-warning/30 bg-warning/10 px-2 py-1.5 text-[11px] text-warning">
+              <span className="flex min-w-0 items-center gap-1.5">
+                <TriangleAlert className="h-3 w-3 shrink-0" />
+                <span className="truncate">
+                  {recommendation.targetAI !== targetAI
+                    ? `Target changed to ${targetAI} since this was sized.`
+                    : 'The generated prompt changed since this was sized.'}
+                </span>
+              </span>
+              <button
+                type="button"
+                disabled={!canAnalyze}
+                onClick={() => state.analyze()}
+                className="shrink-0 rounded px-1 font-medium underline-offset-2 hover:underline disabled:opacity-50"
+              >
+                Size again
+              </button>
+            </div>
+          )}
+          <RunResult state={state} recommendation={recommendation} />
+        </>
+      ) : (
+        <RunEmpty state={state} />
+      )}
+    </div>
+  );
+}
+
+function RunEmpty({ state }: { state: RunRecommendationState }): React.JSX.Element {
+  const cliLabel = state.cliName ?? 'your default AI CLI';
+  return (
+    <div className="flex flex-col items-center gap-2 rounded-lg border border-dashed border-border px-3 py-4 text-center">
+      <Sparkles className="h-4 w-4 text-primary" />
+      <p className="max-w-xs text-[11px] leading-relaxed text-muted-foreground">
+        {state.canAnalyze
+          ? `Ask ${cliLabel} how big this prompt is and which model and effort will do it without overspending.`
+          : `Generate or translate a prompt first. ${cliLabel[0]?.toUpperCase()}${cliLabel.slice(1)} then sizes it and suggests a model and effort.`}
+      </p>
+      <Button
+        size="sm"
+        variant="outline"
+        className="h-7 gap-1.5 px-2.5 text-xs"
+        disabled={!state.canAnalyze}
+        onClick={() => state.analyze()}
+      >
+        <Bolt className="h-3 w-3" /> Size this prompt
+      </Button>
+    </div>
+  );
+}
+
+function RunError({
+  state,
+  compact = false,
+}: {
+  state: RunRecommendationState;
+  compact?: boolean;
+}): React.JSX.Element {
+  return (
+    <div
+      className={cn(
+        'flex gap-2 rounded-lg border border-destructive/30 bg-destructive/10 text-[11px] text-destructive',
+        compact ? 'items-center justify-between px-2 py-1.5' : 'flex-col items-start px-3 py-2.5',
+      )}
+    >
+      <span className={cn('flex min-w-0 gap-1.5', compact ? 'items-center' : 'items-start')}>
+        <TriangleAlert className={cn('h-3 w-3 shrink-0', !compact && 'mt-px')} />
+        <span className={cn(compact && 'truncate')}>{state.error}</span>
+      </span>
+      <button
+        type="button"
+        disabled={!state.canAnalyze}
+        onClick={() => state.analyze()}
+        className="inline-flex shrink-0 items-center gap-1 rounded font-medium underline-offset-2 hover:underline disabled:opacity-50"
+      >
+        <RefreshCw className="h-2.5 w-2.5" /> Try again
+      </button>
+    </div>
+  );
+}
+
+function RunSkeleton({ columns }: { columns: number }): React.JSX.Element {
+  return (
+    <div className="space-y-3">
+      <div className="space-y-1.5">
+        <Skeleton className="h-3 w-12" />
+        <div
+          className="grid gap-1.5"
+          style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}
+        >
+          {Array.from({ length: columns }, (_, i) => (
+            <Skeleton key={i} className="h-[3.9rem] rounded-lg" />
+          ))}
+        </div>
+        <Skeleton className="h-3 w-40" />
+      </div>
+      <div className="space-y-1.5">
+        <Skeleton className="h-3 w-12" />
+        <Skeleton className="h-7 rounded-lg" />
+      </div>
+      <Skeleton className="h-[3.6rem] rounded-lg" />
+    </div>
+  );
+}
+
+function RunResult({
+  state,
+  recommendation,
+}: {
+  state: RunRecommendationState;
+  recommendation: RunRecommendation;
+}): React.JSX.Element | null {
+  const { choice, isCustom, isStale, selectModel, selectEffort, reset, args } = state;
+  const { profile, assessment, recommended } = recommendation;
+  const [copied, setCopied] = useState(false);
+  const copiedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (copiedTimer.current) clearTimeout(copiedTimer.current);
+    };
+  }, []);
+
+  if (!choice) return null;
+
+  const costLevel = relativeCostLevel(profile, choice);
+  const price = choice.model.pricingId ? getModelPrice(choice.model.pricingId) : null;
+  // While stale the hook withholds args (so Send to CLI won't use them), but the command
+  // stays readable here for reference.
+  const commandArgs = args.length > 0 ? args : runChoiceArgs(profile, choice);
+  const command = [profile.executable, ...commandArgs].filter(Boolean).join(' ');
+
+  async function copyCommand(): Promise<void> {
+    await navigator.clipboard.writeText(command);
+    setCopied(true);
+    if (copiedTimer.current) clearTimeout(copiedTimer.current);
+    copiedTimer.current = setTimeout(() => setCopied(false), 1600);
+  }
+
+  return (
+    <div className={cn('space-y-3 transition-opacity', isStale && 'opacity-60')}>
+      {assessment.summary && (
+        <p className="text-xs leading-relaxed text-foreground/90">{assessment.summary}</p>
+      )}
 
       <div className="space-y-1.5">
         <div className="flex items-center justify-between">
-          <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-            Model
-          </span>
+          <span className={sectionLabelClass}>Model</span>
           {isCustom && (
-            <button
-              type="button"
-              onClick={reset}
-              className="inline-flex items-center gap-1 rounded px-1 text-[11px] text-muted-foreground transition-colors hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            >
+            <button type="button" onClick={reset} className={quietButtonClass}>
               <Undo className="h-2.5 w-2.5" /> Use recommended
             </button>
           )}
@@ -249,7 +575,7 @@ export function RunRecommendationPanel({
                     {model.tier}
                   </span>
                   {isRecommended && (
-                    <SimpleTooltip label="Recommended for this request">
+                    <SimpleTooltip label="Recommended for this prompt">
                       <span className="flex h-3.5 w-3.5 items-center justify-center rounded-full bg-primary text-primary-foreground">
                         <Check className="h-2 w-2" />
                       </span>
@@ -266,9 +592,7 @@ export function RunRecommendationPanel({
       </div>
 
       <div className="space-y-1.5">
-        <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-          Effort
-        </span>
+        <span className={sectionLabelClass}>Effort</span>
         {choice.model.efforts?.length ? (
           <div
             role="radiogroup"
@@ -346,7 +670,7 @@ export function RunRecommendationPanel({
             </span>
           )}
         </div>
-        {showCommand && (
+        {commandArgs.length > 0 && (
           <div className="flex items-center gap-1.5">
             <code className="min-w-0 flex-1 truncate rounded-md bg-background/70 px-2 py-1 font-mono text-[11px]">
               {command}
@@ -377,40 +701,77 @@ export function RunRecommendationChip({
   state: RunRecommendationState;
   className?: string;
 }): React.JSX.Element {
-  const { recommendation, choice, isCustom } = state;
-  const costLevel = relativeCostLevel(recommendation.profile, choice);
+  const { status, recommendation, choice, isCustom, isStale } = state;
+
+  let body: React.ReactNode;
+  let tooltip: string;
+  if (status === 'analyzing') {
+    body = (
+      <>
+        <Spinner className="h-3 w-3 shrink-0 animate-spin text-primary" />
+        <span className="truncate text-muted-foreground">Sizing…</span>
+      </>
+    );
+    tooltip = `Sizing the prompt with ${state.cliName ?? 'your default AI CLI'}`;
+  } else if (recommendation && choice) {
+    body = (
+      <>
+        {isStale ? (
+          <TriangleAlert className="h-3 w-3 shrink-0 text-warning" />
+        ) : (
+          <Bolt
+            className={cn('h-3 w-3 shrink-0', isCustom ? 'text-muted-foreground' : 'text-primary')}
+          />
+        )}
+        <span className="truncate font-medium">{choice.model.label}</span>
+        {choice.effort && (
+          <span className="truncate text-muted-foreground">{EFFORT_LABELS[choice.effort]}</span>
+        )}
+        <CostMeter level={relativeCostLevel(recommendation.profile, choice)} className="shrink-0" />
+      </>
+    );
+    tooltip = isStale
+      ? 'The prompt changed since it was sized'
+      : 'Which model and effort to run this with';
+  } else if (status === 'error') {
+    body = (
+      <>
+        <TriangleAlert className="h-3 w-3 shrink-0 text-destructive" />
+        <span className="truncate text-destructive">Sizing failed</span>
+      </>
+    );
+    tooltip = state.error ?? 'Sizing failed';
+  } else {
+    body = (
+      <>
+        <Bolt className="h-3 w-3 shrink-0 text-muted-foreground" />
+        <span className="truncate text-muted-foreground">Size run</span>
+      </>
+    );
+    tooltip = state.canAnalyze
+      ? 'Ask your default AI CLI which model and effort this needs'
+      : 'Generate or translate a prompt, then it gets sized';
+  }
 
   return (
     <PopoverPrimitive.Root>
-      <SimpleTooltip label="Which model and effort to run this with">
+      <SimpleTooltip label={tooltip}>
         <PopoverPrimitive.Trigger asChild>
           <button
             type="button"
             className={cn(
-              'flex h-8 min-w-0 items-center gap-2 rounded-lg border border-input bg-background px-2.5 text-xs transition-colors hover:border-foreground/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 data-[state=open]:border-primary/50',
+              'flex h-7 min-w-0 items-center gap-1.5 rounded-lg border border-input bg-background px-2 text-xs transition-colors hover:border-foreground/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 data-[state=open]:border-primary/50',
               className,
             )}
           >
-            <Bolt
-              className={cn(
-                'h-3 w-3 shrink-0',
-                isCustom ? 'text-muted-foreground' : 'text-primary',
-              )}
-            />
-            <span className="truncate font-medium">{choice.model.label}</span>
-            {choice.effort && (
-              <span className="truncate text-muted-foreground">
-                {EFFORT_LABELS[choice.effort]} effort
-              </span>
-            )}
-            <CostMeter level={costLevel} className="shrink-0" />
+            {body}
             <ChevronDown className="h-2.5 w-2.5 shrink-0 opacity-50" />
           </button>
         </PopoverPrimitive.Trigger>
       </SimpleTooltip>
       <PopoverPrimitive.Portal>
         <PopoverPrimitive.Content
-          align="start"
+          align="end"
           sideOffset={6}
           collisionPadding={12}
           className="z-50 w-[min(27rem,calc(100vw-2rem))] rounded-xl border border-border bg-popover/90 p-3 text-popover-foreground shadow-2xl backdrop-blur-2xl data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0"

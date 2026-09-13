@@ -54,6 +54,8 @@ import type {
   ApplyVersionResult,
   AskAiInput,
   AskAiResult,
+  AssessRunInput,
+  AssessRunResult,
   AuditSourcePreview,
   AuditSourceSkill,
   BackupExportResult,
@@ -500,6 +502,12 @@ const ai = {
   testOllama: (baseUrl?: string): Promise<OllamaConnectionTest> =>
     ipcRenderer.invoke(IPC.ai.testOllama, baseUrl),
   listGeminiModels: (): Promise<string[]> => ipcRenderer.invoke(IPC.ai.listGeminiModels),
+  /** Sizes a generated prompt with the default AI CLI: complexity, model, and effort. */
+  assessRun: (input: AssessRunInput): Promise<AssessRunResult> =>
+    ipcRenderer.invoke(IPC.ai.assessRun, input),
+  /** Stops an assessRun() that was given the same requestId. */
+  cancelAssessRun: (requestId: string): Promise<boolean> =>
+    ipcRenderer.invoke(IPC.ai.cancelAssessRun, requestId),
 };
 
 const speech = {

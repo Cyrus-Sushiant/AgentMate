@@ -301,7 +301,7 @@ export default function PromptBuilderPage(): React.JSX.Element {
     scheduleQueue.length > 0 &&
     scheduleQueue.every((item) => item.text.trim() && item.runAt);
 
-  const runRecommendation = useRunRecommendation({ rawInput, promptType, targetAI });
+  const runRecommendation = useRunRecommendation({ generated, promptType, targetAI });
 
   const cliForSendTo = useMemo(() => {
     const cliId = defaultCliId ?? cliIdForTargetAI(targetAI);
@@ -368,6 +368,7 @@ export default function PromptBuilderPage(): React.JSX.Element {
     }
 
     setGenerated('');
+    runRecommendation.cancel();
     setIsGenerating(true);
     try {
       // Normalize the description to English before it's inserted into the AI request,
@@ -389,6 +390,8 @@ export default function PromptBuilderPage(): React.JSX.Element {
       const content = result.text.trim();
       setGenerated(content);
       void logHistory('generate', content);
+      // Size the fresh prompt with the default AI CLI so the run suggestion matches it.
+      runRecommendation.analyze({ prompt: content });
     } catch (error) {
       toast.error((error as Error).message || 'Prompt generation failed.');
     } finally {
@@ -402,11 +405,13 @@ export default function PromptBuilderPage(): React.JSX.Element {
       return;
     }
     setGenerated('');
+    runRecommendation.cancel();
     setIsTranslating(true);
     try {
       const translated = await window.agentmat.translate.text({ text: rawInput, targetLang });
       setGenerated(translated);
       void logHistory('translate', translated);
+      runRecommendation.analyze({ prompt: translated, isTranslation: true });
     } catch {
       toast.error('Translation failed. Check your internet connection and try again.');
     } finally {
@@ -420,6 +425,7 @@ export default function PromptBuilderPage(): React.JSX.Element {
   }
 
   function handleClear(): void {
+    runRecommendation.cancel();
     setRawInput('');
     setGenerated('');
   }
@@ -441,7 +447,7 @@ export default function PromptBuilderPage(): React.JSX.Element {
     const baseLaunch = cliLaunchCommand(cliForSendTo.id) ?? cliForSendTo.executableNames[0];
     // Model and effort flags only mean something to the CLI they were picked for.
     const runArgs =
-      cliForSendTo.id === runRecommendation.recommendation.profile.cliId
+      cliForSendTo.id === runRecommendation.recommendation?.profile.cliId
         ? withoutConfiguredRunArgs(
             getCliArgsFor(useCliStore.getState().cliArgs, cliForSendTo.id),
             runRecommendation.args,
@@ -523,11 +529,6 @@ export default function PromptBuilderPage(): React.JSX.Element {
                 />
               </div>
             </div>
-
-            <RunRecommendationPanel
-              state={runRecommendation}
-              className="rounded-lg border border-border bg-background/30 p-3"
-            />
 
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
@@ -683,7 +684,7 @@ export default function PromptBuilderPage(): React.JSX.Element {
             </div>
           </div>
 
-          <div className="flex h-full min-h-0 flex-1 flex-col space-y-3">
+          <div className="flex h-full min-h-0 flex-1 flex-col space-y-3 overflow-y-auto">
             <div className="flex items-center justify-between">
               <Label>Generated prompt</Label>
               <SimpleTooltip label="Browse previously generated prompts">
@@ -699,7 +700,11 @@ export default function PromptBuilderPage(): React.JSX.Element {
                 </Button>
               </SimpleTooltip>
             </div>
-            <MonacoEditor value={generated} onChange={setGenerated} className="min-h-0 flex-1" />
+            <MonacoEditor
+              value={generated}
+              onChange={setGenerated}
+              className="min-h-[14rem] flex-1"
+            />
             <div className="flex flex-wrap items-center gap-2">
               <SimpleTooltip label="Copy">
                 <Button
@@ -747,6 +752,11 @@ export default function PromptBuilderPage(): React.JSX.Element {
                 </Button>
               </SimpleTooltip>
             </div>
+            <RunRecommendationPanel
+              state={runRecommendation}
+              collapsibleKey="promptBuilder.runPanelCollapsed"
+              className="shrink-0 rounded-lg border border-border bg-background/30 p-3"
+            />
           </div>
         </CardContent>
       </Card>

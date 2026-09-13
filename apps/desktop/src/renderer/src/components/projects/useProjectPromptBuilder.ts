@@ -20,11 +20,13 @@ export interface UseProjectPromptBuilderOptions {
   /** Skip fetching settings while the dialog/widget isn't visible yet. */
   enabled?: boolean;
   onDraftSaved?: () => void;
+  /** Called with the text Generate or Translate just produced. */
+  onResult?: (content: string, source: 'generate' | 'translate') => void;
 }
 
 export function useProjectPromptBuilder(
   projectId: string,
-  { enabled = true, onDraftSaved }: UseProjectPromptBuilderOptions = {},
+  { enabled = true, onDraftSaved, onResult }: UseProjectPromptBuilderOptions = {},
 ) {
   const queryClient = useQueryClient();
   const stored = useProjectPromptBuildStore((s) => s.entries[projectId]);
@@ -134,6 +136,7 @@ export function useProjectPromptBuilder(
       const content = result.text.trim();
       setGenerated(content);
       void logHistory('generate', content);
+      onResult?.(content, 'generate');
     } catch (error) {
       toast.error((error as Error).message || 'Prompt generation failed.');
     } finally {
@@ -152,6 +155,7 @@ export function useProjectPromptBuilder(
       const translated = await window.agentmat.translate.text({ text: rawInput, targetLang: 'en' });
       setGenerated(translated);
       void logHistory('translate', translated);
+      onResult?.(translated, 'translate');
     } catch {
       toast.error('Translation failed. Check your internet connection and try again.');
     } finally {

@@ -8,6 +8,7 @@ import type {
   ProjectNotificationSettings,
   ProjectRunCommand,
   ProxyMode,
+  RunAssessment,
   ScanPhase,
   SecurityScannerId,
   SkillAuditFinding,
@@ -529,6 +530,26 @@ export interface AskAiResult {
   text: string;
   error?: string;
   /** True when the caller aborted the request, so the UI can stay quiet about it. */
+  cancelled?: boolean;
+}
+
+export interface AssessRunInput {
+  /** The generated prompt (or translation) to size. */
+  prompt: string;
+  /** Target AI label; its model list is what the CLI picks from. */
+  targetAI: string;
+  /** Omitted for translations, which aren't shaped by a prompt type. */
+  promptType?: string;
+  /** Caller-generated id that ai.cancelAssessRun(requestId) can stop this run with. */
+  requestId?: string;
+}
+
+export interface AssessRunResult {
+  ok: boolean;
+  assessment?: RunAssessment;
+  /** Display name of the CLI that answered (or that we tried to use). */
+  cliName: string | null;
+  error?: string;
   cancelled?: boolean;
 }
 

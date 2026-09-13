@@ -1,12 +1,17 @@
+import { tmpdir } from 'node:os';
+import { buildRunAssessmentPrompt, parseRunAssessment } from '@agentmat/core';
 import { ipcMain } from 'electron';
 import type {
   AiProvider,
   AskAiHistoryMessage,
   AskAiInput,
   AskAiResult,
+  AssessRunInput,
+  AssessRunResult,
   OllamaConnectionTest,
 } from '../../shared/apiTypes';
 import { IPC } from '../../shared/ipcChannels';
+import { cancelHeadlessPrompt, runHeadlessCliPrompt } from '../cli/headlessPrompt';
 import { store } from '../store';
 
 /** True for the DOMException fetch throws when its AbortSignal fires. */
@@ -244,6 +249,39 @@ export async function runAiPrompt(
   return askOllama(model, prompt, history, signal);
 }
 
+/** A sizing answer is one short JSON object; a CLI still busy after this has gone astray. */
+const ASSESS_RUN_TIMEOUT_MS = 120000;
+
+/**
+ * Asks the default AI CLI (Settings, then any installed headless-capable CLI) to size a
+ * generated prompt. It runs from the temp dir rather than a project folder: the CLI only
+ * needs the prompt text, and an agent started inside a repo tends to read files first,
+ * which costs time and tokens for no better answer.
+ */
+async function assessRun(input: AssessRunInput): Promise<AssessRunResult> {
+  const result = await runHeadlessCliPrompt(buildRunAssessmentPrompt(input), tmpdir(), {
+    requestId: input.requestId,
+    timeoutMs: ASSESS_RUN_TIMEOUT_MS,
+  });
+  if (!result.ok) {
+    return {
+      ok: false,
+      cliName: result.cliName,
+      error: result.error,
+      cancelled: result.cancelled,
+    };
+  }
+  const assessment = parseRunAssessment(result.text, input.targetAI);
+  if (!assessment) {
+    return {
+      ok: false,
+      cliName: result.cliName,
+      error: `${result.cliName ?? 'The CLI'} answered, but not with a usable assessment. Try again.`,
+    };
+  }
+  return { ok: true, assessment, cliName: result.cliName };
+}
+
 /** In-flight requests that carried a requestId, so the renderer can abort them. */
 const inFlightRequests = new Map<string, AbortController>();
 
@@ -287,4 +325,11 @@ export function registerAiHandlers(): void {
     (_event, baseUrl?: string): Promise<OllamaConnectionTest> => testOllamaConnection(baseUrl),
   );
   ipcMain.handle(IPC.ai.listGeminiModels, (): Promise<string[]> => listGeminiModels());
+  ipcMain.handle(
+    IPC.ai.assessRun,
+    (_event, input: AssessRunInput): Promise<AssessRunResult> => assessRun(input),
+  );
+  ipcMain.handle(IPC.ai.cancelAssessRun, (_event, requestId: string): boolean =>
+    cancelHeadlessPrompt(requestId),
+  );
 }
