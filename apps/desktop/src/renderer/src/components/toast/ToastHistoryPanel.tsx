@@ -177,7 +177,9 @@ export function ToastHistoryPanel(): React.JSX.Element {
             </div>
           </div>
 
-          <ScrollArea className="min-h-0 flex-1">
+          {/* Radix renders the viewport child as display:table, which lets long unbroken
+              text stretch every card past the panel edge. Force it back to block. */}
+          <ScrollArea className="min-h-0 flex-1 [&_[data-radix-scroll-area-viewport]>div]:!block">
             {items.length === 0 ? (
               <div className="flex flex-col items-center gap-3 px-6 py-16 text-center">
                 <div className="flex h-11 w-11 items-center justify-center rounded-full bg-primary/10 text-primary">
@@ -282,7 +284,10 @@ function HistoryRow({
           <div className="min-w-0 flex-1 space-y-0.5">
             <div className="flex items-start justify-between gap-2">
               <p
-                className={cn('text-[13px] font-medium leading-snug', titleProps.className)}
+                className={cn(
+                  'min-w-0 text-[13px] font-medium leading-snug [overflow-wrap:anywhere]',
+                  titleProps.className,
+                )}
                 dir={titleProps.dir}
               >
                 {item.title}
@@ -293,7 +298,10 @@ function HistoryRow({
             </div>
             {item.description ? (
               <p
-                className={cn('text-xs leading-relaxed text-muted-foreground', bodyProps.className)}
+                className={cn(
+                  'text-xs leading-relaxed text-muted-foreground [overflow-wrap:anywhere]',
+                  bodyProps.className,
+                )}
                 dir={bodyProps.dir}
               >
                 {item.description}
