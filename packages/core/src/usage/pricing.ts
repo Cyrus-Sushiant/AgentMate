@@ -83,6 +83,11 @@ export function estimateCost(model: string, tokens: UsageTokens): number | null 
   );
 }
 
+/** Per-1M-token price for `model`, or null when it isn't in the price map. */
+export function getModelPrice(model: string): ModelPrice | null {
+  return priceForModel(model);
+}
+
 /** True when we have a price for `model` (used to decide cost vs. tokens-only UI). */
 export function isModelPriced(model: string): boolean {
   return priceForModel(model) !== null;
