@@ -6,6 +6,8 @@ import type {
   GithubActionsRunErrorInput,
   GithubActionsRunErrorResult,
   GithubPipelineActionResult,
+  GithubRunAnnotationsInput,
+  GithubRunAnnotationsResult,
   GithubRunCancelRequest,
   GithubWorkflowDispatchRequest,
   GithubWorkflowRefsResult,
@@ -16,6 +18,7 @@ import {
   cancelWorkflowRun,
   dispatchWorkflow,
   fetchDashboardActionsActivity,
+  fetchRunAnnotations,
   fetchRunFailureText,
   fetchWorkflowRefs,
   setProjectMutedActions,
@@ -63,6 +66,13 @@ export function registerPipelineHandlers(): void {
     IPC.pipelines.runError,
     (_event, input: GithubActionsRunErrorInput): Promise<GithubActionsRunErrorResult> => {
       return fetchRunFailureText(input);
+    },
+  );
+
+  ipcMain.handle(
+    IPC.pipelines.runAnnotations,
+    (_event, input: GithubRunAnnotationsInput): Promise<GithubRunAnnotationsResult> => {
+      return fetchRunAnnotations(input);
     },
   );
 

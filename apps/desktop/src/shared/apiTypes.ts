@@ -1400,7 +1400,37 @@ export interface GithubActionsHistoryItem {
   htmlUrl: string;
   createdAt: string;
   updatedAt: string;
+  /** Lets the annotations lookup list the run's check runs in one call. */
+  checkSuiteId?: number;
 }
+
+export type GithubRunAnnotationLevel = 'failure' | 'warning' | 'notice';
+
+/** One annotation a job left on a run, like a deprecation warning or a failed step's message. */
+export interface GithubRunAnnotation {
+  level: GithubRunAnnotationLevel;
+  jobName: string;
+  path: string;
+  startLine: number | null;
+  endLine: number | null;
+  title: string;
+  message: string;
+}
+
+export interface GithubRunAnnotationsInput {
+  repo: string;
+  runId: number;
+  checkSuiteId?: number;
+}
+
+export type GithubRunAnnotationsResult =
+  | {
+      ok: true;
+      /** Failures first, then warnings, then notices. */
+      annotations: GithubRunAnnotation[];
+      counts: Record<GithubRunAnnotationLevel, number>;
+    }
+  | { ok: false; error: string };
 
 export interface GithubActionsActivity {
   ok: boolean;

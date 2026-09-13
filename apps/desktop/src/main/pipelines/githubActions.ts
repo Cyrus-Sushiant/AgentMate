@@ -9,6 +9,10 @@ import type {
   GithubActionsRunErrorInput,
   GithubActionsRunErrorResult,
   GithubPipelineActionResult,
+  GithubRunAnnotation,
+  GithubRunAnnotationLevel,
+  GithubRunAnnotationsInput,
+  GithubRunAnnotationsResult,
   GithubRunCancelRequest,
   GithubWorkflowDispatchRequest,
   GithubWorkflowInfo,
@@ -52,6 +56,7 @@ interface GhRun {
   html_url: string;
   created_at: string;
   updated_at: string;
+  check_suite_id?: number;
 }
 
 const REPO_LOOKUP_TTL_MS = 10 * 60_000;
@@ -258,6 +263,7 @@ export async function fetchDashboardActionsActivity(): Promise<GithubActionsActi
         htmlUrl: mapped.htmlUrl,
         createdAt: mapped.createdAt,
         updatedAt: mapped.updatedAt,
+        checkSuiteId: run.check_suite_id,
       });
 
       if (mapped.status !== 'completed') {
@@ -446,9 +452,16 @@ interface GhJob {
 interface GhAnnotation {
   path: string;
   start_line: number;
+  end_line?: number;
   annotation_level: string;
   message: string;
   title?: string;
+}
+
+interface GhCheckRun {
+  id: number;
+  name: string;
+  output?: { annotations_count?: number };
 }
 
 const ERROR_CACHE_MS = 10 * 60_000;
@@ -606,6 +619,97 @@ export async function fetchRunFailureText(
 
     errorCache.set(cacheKey, { text, at: Date.now() });
     return { ok: true, text };
+  } catch (error) {
+    return { ok: false, error: ghErrorMessage(error) };
+  }
+}
+
+/** A finished run's annotations never change, so they are kept until the cache fills up. */
+const ANNOTATION_CACHE_CAP = 500;
+/** Per job. GitHub's own run page does not show more than this either. */
+const ANNOTATIONS_PER_JOB = 50;
+const annotationCache = new Map<string, GithubRunAnnotationsResult & { ok: true }>();
+
+const ANNOTATION_LEVEL_ORDER: Record<GithubRunAnnotationLevel, number> = {
+  failure: 0,
+  warning: 1,
+  notice: 2,
+};
+
+function toAnnotationLevel(value: string): GithubRunAnnotationLevel {
+  if (value === 'failure' || value === 'warning') return value;
+  return 'notice';
+}
+
+/** Every annotation the run's jobs left, for the Pipelines page to list and colour the run by. */
+export async function fetchRunAnnotations(
+  input: GithubRunAnnotationsInput,
+): Promise<GithubRunAnnotationsResult> {
+  const parsed = parseOwnerRepo(input.repo);
+  const runId = Number(input.runId);
+  if (!parsed || !Number.isInteger(runId) || runId <= 0) {
+    return { ok: false, error: 'That workflow run could not be identified.' };
+  }
+
+  const cacheKey = `${parsed.owner}/${parsed.repo}#${runId}`;
+  const cached = annotationCache.get(cacheKey);
+  if (cached) return cached;
+
+  if (!(await isGhCliAvailable())) {
+    return { ok: false, error: 'Install the GitHub CLI and sign in to see annotations.' };
+  }
+
+  try {
+    let checkSuiteId = Number(input.checkSuiteId);
+    if (!Number.isInteger(checkSuiteId) || checkSuiteId <= 0) {
+      const run = await ghApi<GhRun>(`repos/${parsed.owner}/${parsed.repo}/actions/runs/${runId}`);
+      checkSuiteId = Number(run.check_suite_id);
+    }
+    if (!Number.isInteger(checkSuiteId) || checkSuiteId <= 0) {
+      return { ok: false, error: 'GitHub did not say which checks belong to this run.' };
+    }
+
+    // Each job is a check run, and the listing already says how many annotations each one has,
+    // so only jobs that actually left something cost a second call.
+    const suite = await ghApi<{ check_runs?: GhCheckRun[] }>(
+      `repos/${parsed.owner}/${parsed.repo}/check-suites/${checkSuiteId}/check-runs?per_page=100`,
+    );
+    const withAnnotations = (suite.check_runs ?? []).filter(
+      (checkRun) => (checkRun.output?.annotations_count ?? 0) > 0,
+    );
+
+    const lists = await Promise.all(
+      withAnnotations.map(async (checkRun) => {
+        const payload = await ghApi<GhAnnotation[]>(
+          `repos/${parsed.owner}/${parsed.repo}/check-runs/${checkRun.id}/annotations?per_page=${ANNOTATIONS_PER_JOB}`,
+        );
+        return (Array.isArray(payload) ? payload : []).map(
+          (item): GithubRunAnnotation => ({
+            level: toAnnotationLevel(item.annotation_level),
+            jobName: checkRun.name,
+            path: item.path ?? '',
+            startLine: item.start_line || null,
+            endLine: item.end_line || null,
+            title: item.title?.trim() ?? '',
+            message: item.message?.trim() ?? '',
+          }),
+        );
+      }),
+    );
+
+    const annotations = lists
+      .flat()
+      .sort((a, b) => ANNOTATION_LEVEL_ORDER[a.level] - ANNOTATION_LEVEL_ORDER[b.level]);
+    const counts: Record<GithubRunAnnotationLevel, number> = { failure: 0, warning: 0, notice: 0 };
+    for (const item of annotations) counts[item.level] += 1;
+
+    const result = { ok: true as const, annotations, counts };
+    if (annotationCache.size >= ANNOTATION_CACHE_CAP) {
+      const oldest = annotationCache.keys().next().value;
+      if (oldest !== undefined) annotationCache.delete(oldest);
+    }
+    annotationCache.set(cacheKey, result);
+    return result;
   } catch (error) {
     return { ok: false, error: ghErrorMessage(error) };
   }

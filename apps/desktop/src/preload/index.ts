@@ -92,6 +92,8 @@ import type {
   GithubNotifications,
   GithubPipelineActionResult,
   GithubRepoLookup,
+  GithubRunAnnotationsInput,
+  GithubRunAnnotationsResult,
   GithubRunCancelRequest,
   GithubWorkflowDispatchRequest,
   GithubWorkflowRefsResult,
@@ -752,6 +754,9 @@ const pipelines = {
     ipcRenderer.invoke(IPC.pipelines.dashboardActivity),
   runError: (input: GithubActionsRunErrorInput): Promise<GithubActionsRunErrorResult> =>
     ipcRenderer.invoke(IPC.pipelines.runError, input),
+  /** Warnings, notices and failures the run's jobs left behind. */
+  runAnnotations: (input: GithubRunAnnotationsInput): Promise<GithubRunAnnotationsResult> =>
+    ipcRenderer.invoke(IPC.pipelines.runAnnotations, input),
   /** Branches and tags a manual run can be started from. */
   refs: (repo: string): Promise<GithubWorkflowRefsResult> =>
     ipcRenderer.invoke(IPC.pipelines.refs, repo),

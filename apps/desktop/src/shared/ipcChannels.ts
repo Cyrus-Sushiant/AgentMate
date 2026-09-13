@@ -386,6 +386,7 @@ export const IPC = {
     setMuted: 'pipelines:setMuted',
     dashboardActivity: 'pipelines:dashboardActivity',
     runError: 'pipelines:runError',
+    runAnnotations: 'pipelines:runAnnotations',
     refs: 'pipelines:refs',
     dispatch: 'pipelines:dispatch',
     cancelRun: 'pipelines:cancelRun',

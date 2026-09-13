@@ -71,6 +71,8 @@ export const queryKeys = {
   githubActivity: ['github-activity'] as const,
   githubNotifications: ['github-notifications'] as const,
   githubActionsActivity: ['github-actions-activity'] as const,
+  /** Annotations one finished Actions run left behind. */
+  runAnnotations: (repo: string, runId: number) => ['run-annotations', repo, runId] as const,
   pipelineStatus: (projectId: string) => ['pipeline-status', projectId] as const,
   /** Branches and tags of a repo, for picking what a manual workflow run should build. */
   pipelineRefs: (repo: string) => ['pipeline-refs', repo] as const,

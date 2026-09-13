@@ -9,6 +9,8 @@ export interface RunTone {
   outcome: RunOutcome;
   label: string;
   variant: 'success' | 'destructive' | 'warning' | 'outline';
+  /** A run that passed but left warning annotations. It still filters as passed. */
+  warned?: boolean;
 }
 
 type RunLike = Pick<GithubActionsHistoryItem, 'status' | 'conclusion'>;
@@ -38,6 +40,21 @@ export function runTone(item: RunLike): RunTone {
   return { outcome: 'other', label: item.conclusion ?? item.status, variant: 'outline' };
 }
 
+/** Recolours a passed run that left warnings. Failures keep their red, whatever else they left. */
+export function withWarnings(tone: RunTone, warningCount: number): RunTone {
+  if (tone.outcome !== 'passed' || warningCount <= 0) return tone;
+  return { ...tone, label: 'Passed with warnings', variant: 'warning', warned: true };
+}
+
+/** The coloured strip down the left edge of a run card. */
+export function runStripeClass(tone: RunTone): string {
+  if (tone.outcome === 'failed') return 'bg-destructive';
+  if (tone.warned) return 'bg-warning';
+  if (tone.outcome === 'passed') return 'bg-emerald-500';
+  if (tone.outcome === 'running' || tone.outcome === 'queued') return 'bg-amber-500';
+  return 'bg-border';
+}
+
 /** True while GitHub can still be asked to stop the run. */
 export function isLiveRun(item: RunLike): boolean {
   return item.status !== 'completed';
@@ -52,7 +69,7 @@ export function RunStatusIcon({
   className?: string;
 }): React.JSX.Element {
   const icon =
-    tone.outcome === 'failed' ? (
+    tone.outcome === 'failed' || tone.warned ? (
       <TriangleAlert className="h-3.5 w-3.5" />
     ) : tone.outcome === 'running' ? (
       <Play className="h-3.5 w-3.5" />
@@ -70,11 +87,13 @@ export function RunStatusIcon({
         'flex h-8 w-8 shrink-0 items-center justify-center rounded-lg',
         tone.outcome === 'failed'
           ? 'bg-destructive/10 text-destructive'
-          : tone.outcome === 'passed'
-            ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
-            : tone.outcome === 'running' || tone.outcome === 'queued'
-              ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400'
-              : 'bg-foreground/[0.06] text-muted-foreground',
+          : tone.warned
+            ? 'bg-warning/10 text-warning'
+            : tone.outcome === 'passed'
+              ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+              : tone.outcome === 'running' || tone.outcome === 'queued'
+                ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400'
+                : 'bg-foreground/[0.06] text-muted-foreground',
         className,
       )}
     >

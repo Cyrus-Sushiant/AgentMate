@@ -15,10 +15,17 @@ import {
 } from '@/components/icons';
 import { CopyRunErrorButton } from '@/components/pipelines/CopyRunErrorButton';
 import {
+  RunAnnotations,
+  useRunAnnotations,
+  useSeenOnce,
+} from '@/components/pipelines/RunAnnotations';
+import {
   type RunOutcome,
   RunStatusIcon,
   runDuration,
+  runStripeClass,
   runTone,
+  withWarnings,
 } from '@/components/pipelines/runStatus';
 import { StopRunButton } from '@/components/pipelines/StopRunButton';
 import { Badge } from '@/components/ui/badge';
@@ -158,32 +165,26 @@ function RunRow({
   onOpen: () => void;
   onOpenProject: () => void;
 }): React.JSX.Element {
-  const tone = runTone(item);
+  const [seenRef, seen] = useSeenOnce<HTMLLIElement>();
+  const annotationsQuery = useRunAnnotations(item, seen);
+  const annotations = annotationsQuery.data?.ok ? annotationsQuery.data : null;
+  const tone = withWarnings(runTone(item), annotations?.counts.warning ?? 0);
   const failed = tone.outcome === 'failed';
   const duration = runDuration(item);
 
   return (
     <li
-      ref={rowRef}
+      ref={(node) => {
+        rowRef(node);
+        seenRef(node);
+      }}
       className={cn(
         'glass relative overflow-hidden rounded-xl transition-shadow',
         unread && 'ring-1 ring-destructive/35',
         focused && 'ring-2 ring-primary shadow-[0_0_0_4px_hsl(var(--primary)/0.15)]',
       )}
     >
-      <span
-        className={cn(
-          'absolute inset-y-0 left-0 w-1',
-          tone.outcome === 'failed'
-            ? 'bg-destructive'
-            : tone.outcome === 'passed'
-              ? 'bg-emerald-500'
-              : tone.outcome === 'running' || tone.outcome === 'queued'
-                ? 'bg-amber-500'
-                : 'bg-border',
-        )}
-        aria-hidden
-      />
+      <span className={cn('absolute inset-y-0 left-0 w-1', runStripeClass(tone))} aria-hidden />
       <div className="flex items-start gap-1 py-2 pl-2 pr-3">
         <button
           type="button"
@@ -261,6 +262,13 @@ function RunRow({
           ) : null}
         </div>
       </div>
+      {annotations ? (
+        <RunAnnotations
+          run={item}
+          annotations={annotations.annotations}
+          counts={annotations.counts}
+        />
+      ) : null}
     </li>
   );
 }
