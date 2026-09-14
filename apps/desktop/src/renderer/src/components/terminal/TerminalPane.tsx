@@ -74,12 +74,13 @@ export function TerminalPane({ meta, active, onExit }: TerminalPaneProps): React
 
     let ptySessionId: string | null = null;
     let disposed = false;
+    const hasSize = (): boolean => container.clientWidth > 0 && container.clientHeight > 0;
 
     const resizeObserver = new ResizeObserver(() => {
       // A hidden pane (inactive tab, or the whole drawer closed) measures 0x0.
       // Fitting to that would reflow the running program's output to a garbage
       // size, so wait until it is on screen again. Hiding must not disturb the pty.
-      if (container.clientWidth === 0 || container.clientHeight === 0) return;
+      if (!hasSize()) return;
       try {
         fitAddon.fit();
         if (ptySessionId) {
@@ -138,33 +139,73 @@ export function TerminalPane({ meta, active, onExit }: TerminalPaneProps): React
     };
     container.addEventListener('contextmenu', handleContextMenu);
 
-    let unsubscribeData: (() => void) | undefined;
-    let unsubscribeExit: (() => void) | undefined;
+    // The session id is the tab id, which is what lets a pane find its shell again after
+    // the app restarts. Subscribing before the create call means no output is missed:
+    // anything that arrives before the snapshot is painted waits in `pending`.
+    const sessionId = meta.id;
+    let pending: string[] | null = [];
+    let exited = false;
+
+    const unsubscribeData = window.agentmat.terminal.onData((payload) => {
+      if (payload.sessionId !== sessionId) return;
+      if (pending) pending.push(payload.data);
+      else term.write(payload.data);
+    });
+    const unsubscribeExit = window.agentmat.terminal.onExit((payload) => {
+      if (payload.sessionId !== sessionId) return;
+      if (pending) exited = true;
+      else onExitRef.current();
+    });
+
+    if (hasSize()) fitAddon.fit();
 
     void window.agentmat.terminal
       .create({
+        sessionId,
+        attachOnly: meta.restored,
         cwd: meta.cwd,
         shell: meta.shell,
         initialInput: meta.initialInput,
         projectId: meta.projectId,
+        // A hidden pane has no real size yet; leave the shell at whatever it last had.
+        ...(hasSize() ? { cols: term.cols, rows: term.rows } : {}),
       })
-      .then((id) => {
-        if (disposed) {
-          void window.agentmat.terminal.kill(id);
+      .then((result) => {
+        if (disposed) return;
+        if (!result) {
+          // A restored tab whose shell did not survive (the machine restarted, or it was
+          // set to end on quit).
+          onExitRef.current();
           return;
         }
-        ptySessionId = id;
-        if (container.clientWidth > 0 && container.clientHeight > 0) {
-          fitAddon.fit();
-          void window.agentmat.terminal.resize(id, term.cols, term.rows);
+        const release = (): void => {
+          if (disposed) return;
+          ptySessionId = result.sessionId;
+          const buffered = pending ?? [];
+          pending = null;
+          for (const chunk of buffered) term.write(chunk);
+          if (exited) {
+            onExitRef.current();
+            return;
+          }
+          if (hasSize()) {
+            fitAddon.fit();
+            void window.agentmat.terminal.resize(result.sessionId, term.cols, term.rows);
+          }
+        };
+        const { snapshot } = result;
+        if (!snapshot) {
+          release();
+          return;
         }
-
-        unsubscribeData = window.agentmat.terminal.onData((payload) => {
-          if (payload.sessionId === id) term.write(payload.data);
-        });
-        unsubscribeExit = window.agentmat.terminal.onExit((payload) => {
-          if (payload.sessionId === id) onExitRef.current();
-        });
+        // Repaint at the size the snapshot was taken at, then let the fit reflow it.
+        if (snapshot.cols !== term.cols || snapshot.rows !== term.rows) {
+          term.resize(snapshot.cols, snapshot.rows);
+        }
+        term.write(snapshot.data, release);
+      })
+      .catch(() => {
+        if (!disposed) term.write('\r\n\x1b[31mCould not start this terminal.\x1b[0m\r\n');
       });
 
     return () => {
@@ -172,9 +213,10 @@ export function TerminalPane({ meta, active, onExit }: TerminalPaneProps): React
       resizeObserver.disconnect();
       container.removeEventListener('contextmenu', handleContextMenu);
       dataDisposable.dispose();
-      unsubscribeData?.();
-      unsubscribeExit?.();
-      if (ptySessionId) void window.agentmat.terminal.kill(ptySessionId);
+      unsubscribeData();
+      unsubscribeExit();
+      // The shell is deliberately left running: closing a tab ends it through the store,
+      // while an unmount can just as well be a reload that reattaches a moment later.
       term.dispose();
       termRef.current = null;
     };

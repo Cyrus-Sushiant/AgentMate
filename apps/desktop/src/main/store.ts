@@ -126,6 +126,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   desktopPetPipelineOnFail: false,
   desktopPetPipelineOnPass: false,
   desktopPetNetworkQuality: false,
+  keepTerminalsRunning: true,
 };
 
 /**
@@ -169,6 +170,7 @@ function withSettingsMigrations(settings: AppSettings): AppSettings {
       : DASHBOARD_CHART_IDS.filter((id) => id !== 'github-actions'),
     usageResetAlerts: { ...alerts, windows: [...new Set(windows)] },
     usageThresholdAlerts: normalizeUsageThresholdAlerts(settings.usageThresholdAlerts),
+    keepTerminalsRunning: settings.keepTerminalsRunning !== false,
   };
 }
 

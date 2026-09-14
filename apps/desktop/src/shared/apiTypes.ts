@@ -97,6 +97,13 @@ export type UpdateStatus =
     };
 
 export interface CreateTerminalOptions {
+  /**
+   * Stable id for the session. Passing the id of a session that is still running reconnects
+   * to it (and its shell) instead of starting a new one. Omit it to get a fresh id.
+   */
+  sessionId?: string;
+  /** Only reconnect to a running session; resolve null rather than start a new shell. */
+  attachOnly?: boolean;
   cwd?: string;
   shell?: string;
   cols?: number;
@@ -105,6 +112,21 @@ export interface CreateTerminalOptions {
   initialInput?: string;
   /** Associates this session with a project so confirmation-hook replies can be forwarded to it. */
   projectId?: string;
+}
+
+export interface TerminalSnapshot {
+  /** Serialized screen and scrollback, written into a fresh xterm to repaint it. */
+  data: string;
+  cols: number;
+  rows: number;
+}
+
+export interface TerminalAttachResult {
+  sessionId: string;
+  /** False when this reconnected to a shell that was already running. */
+  isNew: boolean;
+  /** What the terminal showed before this reconnect; null for a brand-new shell. */
+  snapshot: TerminalSnapshot | null;
 }
 
 export interface CreateProjectInput {

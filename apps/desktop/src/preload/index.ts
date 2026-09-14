@@ -144,6 +144,7 @@ import type {
   SuggestTagResult,
   SwapVersionFileInput,
   SystemStatsSample,
+  TerminalAttachResult,
   TopResourceAppsResult,
   TopResourceKind,
   TranscribeAudioInput,
@@ -209,7 +210,8 @@ const cli = {
 };
 
 const terminal = {
-  create: (options: CreateTerminalOptions = {}): Promise<string> =>
+  /** Starts a shell, or reconnects to a running one when `sessionId` names it. */
+  create: (options: CreateTerminalOptions = {}): Promise<TerminalAttachResult | null> =>
     ipcRenderer.invoke(IPC.terminal.create, options),
   write: (sessionId: string, data: string): Promise<void> =>
     ipcRenderer.invoke(IPC.terminal.write, sessionId, data),

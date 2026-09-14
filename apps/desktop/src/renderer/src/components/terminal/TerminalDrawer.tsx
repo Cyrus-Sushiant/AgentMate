@@ -249,6 +249,7 @@ export function TerminalDrawer(): React.JSX.Element {
   const activeSessionId = useTerminalStore((s) => s.activeSessionId);
   const setActiveSession = useTerminalStore((s) => s.setActiveSession);
   const closeSession = useTerminalStore((s) => s.closeSession);
+  const forgetSession = useTerminalStore((s) => s.forgetSession);
   const openDefaultSession = useTerminalStore((s) => s.openDefaultSession);
   const closeDrawer = useTerminalStore((s) => s.closeDrawer);
   const toggleShortcut = useShortcutLabel('terminal.toggle');
@@ -306,9 +307,8 @@ export function TerminalDrawer(): React.JSX.Element {
     return () => window.removeEventListener('keydown', onKeyDown, true);
   }, [isMaximized, isOpen]);
 
-  // Closing the drawer only hides it: the panes stay mounted so their ptys keep
-  // running. Unmounting them here would kill every shell (see TerminalPane's
-  // cleanup), which is what closing an individual tab is for.
+  // Closing the drawer only hides it: the panes stay mounted so their output keeps
+  // flowing into xterm. Ending a shell is what closing an individual tab is for.
   return (
     <div
       ref={drawerRef}
@@ -384,7 +384,7 @@ export function TerminalDrawer(): React.JSX.Element {
               <p className="text-sm font-medium text-zinc-100">Open a terminal</p>
               <p className="max-w-sm text-xs leading-relaxed text-zinc-400">
                 Run installs, project commands, and CLIs here. Sessions keep running if you hide
-                this panel.
+                this panel or AgentMate restarts to update.
               </p>
             </div>
             <button
@@ -402,7 +402,7 @@ export function TerminalDrawer(): React.JSX.Element {
               key={session.id}
               meta={session}
               active={isOpen && session.id === activeSessionId}
-              onExit={() => closeSession(session.id)}
+              onExit={() => forgetSession(session.id)}
             />
           ))
         )}

@@ -119,7 +119,7 @@ const TAB_META: {
     id: 'general',
     label: 'General',
     icon: SettingsIcon,
-    keywords: 'appearance theme cli projects folder skills blueprint presets',
+    keywords: 'appearance theme cli terminal sessions projects folder skills blueprint presets',
   },
   {
     id: 'shortcuts',
@@ -458,6 +458,12 @@ export default function SettingsPage(): React.JSX.Element {
       setTelegramDirty(false);
       void queryClient.invalidateQueries({ queryKey: queryKeys.settings });
     },
+  });
+
+  const keepTerminalsMutation = useMutation({
+    mutationFn: (keepTerminalsRunning: boolean) =>
+      window.agentmat.settings.update({ keepTerminalsRunning }),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: queryKeys.settings }),
   });
 
   async function handleDetectChatId(): Promise<void> {
@@ -1102,6 +1108,29 @@ export default function SettingsPage(): React.JSX.Element {
                   </div>
                 </SettingsCard>
               )}
+
+              {showSection(
+                'general',
+                'terminal shell sessions keep running background quit close exit restart update',
+                'Keep terminals running',
+              ) && settingsQuery.data ? (
+                <SettingsCard
+                  icon={TerminalSquare}
+                  title="Keep terminals running"
+                  description="Terminal sessions carry on in the background after you quit AgentMate, and come back with their output the next time you open it. Restarting to install an update always keeps them."
+                  action={
+                    <Switch
+                      checked={
+                        keepTerminalsMutation.isPending
+                          ? keepTerminalsMutation.variables
+                          : settingsQuery.data.keepTerminalsRunning
+                      }
+                      onCheckedChange={(checked) => keepTerminalsMutation.mutate(checked)}
+                      aria-label="Keep terminals running after quitting"
+                    />
+                  }
+                />
+              ) : null}
 
               {showSection('general', 'projects folder path directory', 'Projects folder') && (
                 <SettingsCard

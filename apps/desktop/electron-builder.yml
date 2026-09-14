@@ -31,9 +31,13 @@ extraResources:
 # inside a worker thread reads off the real filesystem rather than through
 # Electron's asar shim, so the worker entry AND the chunk it shares with the
 # main bundle both have to exist unpacked.
+#
+# The terminal host runs the app's exe in plain Node mode, which can't read inside the
+# archive at all, so its entry (and the shared chunks above) must be unpacked too.
 asarUnpack:
   - '**/node_modules/node-pty/**'
   - '**/node_modules/onnxruntime-node/**'
+  - 'out/main/ptyHost.mjs'
   - 'out/main/usageScanWorker.mjs'
   - 'out/main/codeqlExtractWorker.mjs'
   - 'out/main/chunks/**'

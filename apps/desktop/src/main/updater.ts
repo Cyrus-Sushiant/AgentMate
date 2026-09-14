@@ -8,6 +8,7 @@ import type { UpdateInfo as ElectronUpdateInfo, ProgressInfo } from 'electron-up
 import { autoUpdater } from 'electron-updater';
 import type { UpdateDownloadProgress, UpdateInfo, UpdateStatus } from '../shared/apiTypes';
 import { IPC } from '../shared/ipcChannels';
+import { preserveTerminalsOnQuit } from './ipc/terminal';
 import {
   DownloadAbortedError,
   DownloadFatalError,
@@ -572,6 +573,9 @@ export function pauseDownload(): void {
 
 export function quitAndInstall(): void {
   if (!app.isPackaged) return;
+  // The app comes straight back on the new version and reattaches to its terminals, so
+  // they keep running through the install even if the user has them end on a normal quit.
+  preserveTerminalsOnQuit();
   autoUpdater.quitAndInstall();
 }
 

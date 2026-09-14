@@ -449,6 +449,12 @@ export interface AppSettings {
    * back online, or a clear drop or improvement).
    */
   desktopPetNetworkQuality: boolean;
+  /**
+   * When true, terminal sessions keep running in the background after AgentMate quits and
+   * reappear, output included, the next time it opens. Restarts for an update always keep
+   * them, whatever this is set to.
+   */
+  keepTerminalsRunning: boolean;
 }
 
 export type AgentType = 'claude-code' | 'gemini' | 'opencode' | 'codex' | 'cursor' | 'generic';

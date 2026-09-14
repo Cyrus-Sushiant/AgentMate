@@ -35,7 +35,7 @@ import { registerSkillHandlers } from './ipc/skills';
 import { registerSpeechHandlers } from './ipc/speech';
 import { registerSystemStatsHandlers } from './ipc/systemStats';
 import { registerTemplateHandlers } from './ipc/templates';
-import { killAllTerminalSessions, registerTerminalHandlers } from './ipc/terminal';
+import { registerTerminalHandlers, startTerminalBackend, terminalsHoldQuit } from './ipc/terminal';
 import { registerToolHandlers } from './ipc/tools';
 import { registerTranslateHandlers } from './ipc/translate';
 import { registerUsageHandlers } from './ipc/usage';
@@ -288,6 +288,7 @@ app.whenReady().then(async () => {
   configureSpellChecker();
   registerBlueprintFileProtocol();
   registerAllIpcHandlers();
+  startTerminalBackend();
   void seedExampleRepositoryIfEmpty();
   void migrateInlineProjectIcons();
   void pruneOrphanBlueprints();
@@ -316,13 +317,21 @@ app.on('second-instance', () => {
   }
 });
 
+// Terminal sessions are left alone here: on macOS the app keeps running with no window, and
+// reopening one reattaches to the same shells. Quitting decides their fate in before-quit.
 app.on('window-all-closed', () => {
-  killAllTerminalSessions();
   if (process.platform !== 'darwin') app.quit();
 });
 
-app.on('before-quit', () => {
-  killAllTerminalSessions();
+app.on('before-quit', (event) => {
+  // Terminals settle first. If that takes a moment (ending shells in the background host),
+  // this quit is put off and retried, and the teardown below runs on the second pass.
+  const terminalsSettling = terminalsHoldQuit();
+  if (terminalsSettling) {
+    event.preventDefault();
+    void terminalsSettling.finally(() => app.quit());
+    return;
+  }
   cancelAllSecurityScans();
   petManager.close();
   stopHookServer();

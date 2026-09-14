@@ -22,7 +22,19 @@ const forcedExternals = [
 
 export default defineConfig({
   main: {
+    resolve: {
+      alias: {
+        // The package's "module" field points at a file it does not ship.
+        '@xterm/headless': resolve(
+          __dirname,
+          'node_modules/@xterm/headless/lib-headless/xterm-headless.mjs',
+        ),
+      },
+    },
     build: {
+      // Bundled rather than resolved at runtime: the terminal host can run from a copy
+      // outside the install folder that only carries node-pty alongside it.
+      externalizeDeps: { exclude: ['@xterm/headless', '@xterm/addon-serialize'] },
       rollupOptions: {
         external: forcedExternals,
         input: {
@@ -35,6 +47,9 @@ export default defineConfig({
           // several thousand files, so extracting it on main would freeze the UI for the
           // best part of a minute.
           codeqlExtractWorker: resolve(__dirname, 'src/main/security/codeqlExtractWorker.ts'),
+          // The background terminal host. It runs as its own detached process so terminals
+          // survive the app quitting or updating, which means it is started by path.
+          ptyHost: resolve(__dirname, 'src/main/ptyHost/hostEntry.ts'),
         },
       },
     },
