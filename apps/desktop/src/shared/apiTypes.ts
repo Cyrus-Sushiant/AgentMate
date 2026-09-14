@@ -765,36 +765,11 @@ export interface GitTagInfo {
   /** Commits made after `latestTag` (all commits when there is no tag yet). */
   commitsSinceLatestTag: number;
   hasRemote: boolean;
-}
-
-/**
- * Which part of a repository a tag covers. A plain repo has the one "whole repository"
- * scope; a monorepo gets one per workspace package, so `web-v1.4.0` can be cut without
- * touching the app's version.
- */
-export interface TagScope {
-  /** Stable key for React lists and for remembering the last pick. */
-  id: string;
-  /** What the picker shows, e.g. "web" or "Whole repository". */
-  label: string;
-  /** Goes in front of the version number, e.g. "v", "web-v" or "@acme/web@". */
-  prefix: string;
-  /** Repo-relative folder the scope covers. Empty means the whole repository. */
-  path: string;
-  /** Latest existing tag carrying this prefix, for showing where the part stands. */
-  latestTag: string | null;
-  /** How many tags already use this prefix. Zero means the prefix is only a suggestion. */
-  tagCount: number;
-}
-
-/** The scope a tag operation runs against, as sent from the renderer. */
-export interface TagScopeRef {
-  /** Tag prefix in front of the version, e.g. "v" or "web-v". Empty means bare versions. */
-  prefix: string;
-  /** Repo-relative folder the tag covers. Empty means the whole repository. */
-  path: string;
-  /** Human name of the part, used in prompts and messages. */
-  label?: string;
+  /**
+   * Every prefix the repo's tags put in front of a version ("v", "web-v", "" for bare
+   * versions), most recently used first. Only offered as quick picks, never enforced.
+   */
+  prefixes: string[];
 }
 
 export interface CreateTagInput {
@@ -812,8 +787,6 @@ export interface ApplyVersionInput {
   tag: string;
   /** Lets git.cancelAiPrompt(requestId) stop the run. */
   requestId?: string;
-  /** Limits the bump to one part of a monorepo. Omitted means the whole repository. */
-  scope?: TagScopeRef;
 }
 
 /**
@@ -846,8 +819,6 @@ export interface VersionFileChange {
    * changed, but committing the file also commits those earlier edits.
    */
   hadLocalEdits?: boolean;
-  /** Sits outside the folder a scoped bump was limited to. */
-  outOfScope?: boolean;
 }
 
 export interface ApplyVersionResult {

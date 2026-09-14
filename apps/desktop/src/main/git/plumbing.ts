@@ -9,10 +9,9 @@ import type {
   GitOpResult,
   GitStatus,
   GitTagInfo,
-  TagScopeRef,
 } from '../../shared/apiTypes';
 import { ghApi, isGhCliAvailable, parseGithubRemote } from './githubCli';
-import { tagHasPrefix } from './versioning';
+import { splitTagPrefix, tagHasPrefix } from './versioning';
 
 const execFileAsync = promisify(execFile);
 const GIT_TIMEOUT_MS = 30000;
@@ -543,14 +542,22 @@ export async function readChangeSummary(cwd: string): Promise<string> {
  * prefix count as tags and only commits touching that folder count as commits since,
  * which is what lets a monorepo release its web app without the app's tags getting in the way.
  */
-export async function readTagInfo(cwd: string, scope?: TagScopeRef): Promise<GitTagInfo> {
+/**
+ * Tag state for the repo. With a `prefix`, only tags in that series count, so `web-v1.2.0`
+ * and `v3.0.0` don't answer for each other.
+ */
+export async function readTagInfo(cwd: string, prefix?: string): Promise<GitTagInfo> {
   if (!(await isGitRepo(cwd))) {
-    return { latestTag: null, recentTags: [], commitsSinceLatestTag: 0, hasRemote: false };
+    return {
+      latestTag: null,
+      recentTags: [],
+      commitsSinceLatestTag: 0,
+      hasRemote: false,
+      prefixes: [],
+    };
   }
 
-  const prefix = scope?.prefix;
-  const path = scope?.path?.trim();
-  // `<prefix>[0-9]*` keeps `v1.2.3` from answering for the `web-v` scope, and the other way round.
+  // `<prefix>[0-9]*` keeps `v1.2.3` from answering for `web-v`, and the other way round.
   const describeArgs = ['describe', '--tags', '--abbrev=0'];
   if (prefix !== undefined) describeArgs.push('--match', `${prefix}[0-9]*`);
 
@@ -561,35 +568,35 @@ export async function readTagInfo(cwd: string, scope?: TagScopeRef): Promise<Git
   ]);
 
   const latestTag = (latest ?? '').trim() || null;
-  const recentTags = (tagList ?? '')
+  const allTags = (tagList ?? '')
     .split('\n')
     .map((tag) => tag.trim())
-    .filter(Boolean)
+    .filter(Boolean);
+  const recentTags = allTags
     .filter((tag) => prefix === undefined || tagHasPrefix(tag, prefix))
     .slice(0, RECENT_TAG_LIMIT);
+  const prefixes = new Set<string>();
+  for (const tag of allTags) {
+    const split = splitTagPrefix(tag);
+    if (split) prefixes.add(split.prefix);
+  }
 
   const range = latestTag ? `${latestTag}..HEAD` : 'HEAD';
-  const countArgs = ['rev-list', '--count', range];
-  if (path) countArgs.push('--', path);
-  const count = (await gitOrNull(cwd, countArgs)) ?? '';
+  const count = (await gitOrNull(cwd, ['rev-list', '--count', range])) ?? '';
 
   return {
     latestTag,
     recentTags,
     commitsSinceLatestTag: parseInt(count.trim(), 10) || 0,
     hasRemote: (remotes ?? '').trim().length > 0,
+    prefixes: [...prefixes],
   };
 }
 
-/** Commit subjects since `latestTag`, narrowed to one folder when a scope asks for it. */
-export async function readCommitSubjects(
-  cwd: string,
-  latestTag: string | null,
-  path?: string,
-): Promise<string[]> {
+/** Commit subjects since `latestTag`, or the whole history when there is no tag yet. */
+export async function readCommitSubjects(cwd: string, latestTag: string | null): Promise<string[]> {
   const range = latestTag ? `${latestTag}..HEAD` : 'HEAD';
   const args = ['log', range, '--no-merges', '--pretty=format:%s'];
-  if (path?.trim()) args.push('--', path.trim());
   const log = (await gitOrNull(cwd, args)) ?? '';
   return log
     .split('\n')

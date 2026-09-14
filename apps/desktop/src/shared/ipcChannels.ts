@@ -420,7 +420,6 @@ export const IPC = {
     branchHistory: 'git:branchHistory',
     commit: 'git:commit',
     tags: 'git:tags',
-    tagScopes: 'git:tagScopes',
     createTag: 'git:createTag',
     suggestTag: 'git:suggestTag',
     cancelSuggestTag: 'git:cancelSuggestTag',

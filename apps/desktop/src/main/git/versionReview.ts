@@ -211,12 +211,10 @@ export async function compareSnapshots(
   root: string,
   before: TreeSnapshot,
   after: TreeSnapshot,
-  scopePath?: string,
 ): Promise<VersionFileChange[]> {
   const paths = [...new Set([...before.keys(), ...after.keys()])].sort();
   const oneSided = paths.filter((path) => !before.has(path) || !after.has(path));
   const headIds = await readHeadIds(root, oneSided);
-  const scopeFolder = scopePath ? `${scopePath.trim().replace(/\/+$/, '')}/` : '';
 
   // A path the snapshot doesn't list matches HEAD, and has no raw copy: a checkout recreates it.
   function side(snapshot: TreeSnapshot, path: string): { id: string | null; rawId: string | null } {
@@ -240,7 +238,6 @@ export async function compareSnapshots(
       afterRawId,
       ...(await diffBlobs(root, beforeId, afterId)),
       hadLocalEdits: before.has(path) || undefined,
-      outOfScope: (scopeFolder && !path.startsWith(scopeFolder)) || undefined,
     });
   }
   return changes;

@@ -77,8 +77,8 @@ export function tagHasPrefix(tag: string, prefix: string): boolean {
 }
 
 /**
- * Puts the repo's own prefix back on a bare version number. An explicit `prefix` (the
- * scope the user picked) wins, so a `web-v` release keeps its prefix even when the model
+ * Puts the repo's own prefix back on a bare version number. An explicit `prefix` (the one
+ * the user typed) wins, so a `web-v` release keeps its prefix even when the model
  * answered with a plain `1.2.3`. Without one, the `v` style of the latest tag is followed,
  * which is what a single-package repo wants.
  */
@@ -212,40 +212,30 @@ export function rejectSuggestedVersion(
 
 /**
  * Prompt handed to the agent CLI to roll a new version number through the project's files.
- * A `scope` fences the bump to one folder of a monorepo: cutting `web-v1.4.0` has to leave
- * the app's version, and the root manifest, exactly where they were.
+ * Nothing is fenced off: in a monorepo the tag's prefix hints at which package is being
+ * released, and the user keeps or reverts every edited file afterwards.
  */
-export function buildVersionBumpPrompt(
-  tag: string,
-  scope?: { path: string; label?: string },
-): string {
-  const version = splitTagPrefix(tag)?.version ?? tag.replace(/^v/, '');
-  const path = scope?.path.trim() ?? '';
-  const part = scope?.label?.trim() || path;
+export function buildVersionBumpPrompt(tag: string): string {
+  const split = splitTagPrefix(tag);
+  const version = split?.version ?? tag.replace(/^v/, '');
+  const prefix = split?.prefix ?? '';
+  const namesPart = prefix !== '' && prefix.toLowerCase() !== 'v';
 
   return [
-    path
-      ? `Update the version of the "${part}" part of this repository, which lives in ${path}, to ${version}.`
-      : `Update this project's version to ${version}.`,
+    `Update this project's version to ${version}, for the git tag ${tag}.`,
     '',
-    ...(path
+    ...(namesPart
       ? [
-          `- Only edit files inside ${path}. This is a monorepo and the tag covers that folder alone.`,
-          '- Leave every other package alone, along with the repository root manifest and any shared',
-          '  version constant other parts read. If a version outside that folder looks stale, say so',
-          '  in your summary instead of changing it.',
-          `- Set the version field in every manifest inside ${path}: package.json, pyproject.toml,`,
-          '  Cargo.toml, *.csproj, app.json, build.gradle, Info.plist, and so on.',
+          `- If this repository holds several packages or apps, the tag prefix "${prefix}" probably`,
+          '  names the one being released. Bump that one and leave the others as they are. If the',
+          "  prefix doesn't clearly match anything, use your judgment.",
         ]
-      : [
-          '- Set the version field in every manifest this repo actually uses: package.json (including',
-          '  workspace packages), pyproject.toml, Cargo.toml, *.csproj, app.json, build.gradle,',
-          '  Info.plist, and so on.',
-        ]),
+      : []),
+    '- Set the version field in every manifest that should carry it: package.json (including',
+    '  workspace packages), pyproject.toml, Cargo.toml, *.csproj, app.json, build.gradle,',
+    '  Info.plist, and so on.',
     '- Update hard-coded version strings the application itself displays (about screens, footers,',
-    path
-      ? '  constants such as APP_VERSION), as long as they live in that folder.'
-      : '  constants such as APP_VERSION).',
+    '  constants such as APP_VERSION).',
     '- Leave lockfiles alone. Only touch a CHANGELOG if this project clearly keeps one.',
     '- Edit the version fields directly. Do not run `npm version`, `yarn version`, `pnpm version`,',
     '  `cargo release`, or any other command that bumps a version by itself, since those also',

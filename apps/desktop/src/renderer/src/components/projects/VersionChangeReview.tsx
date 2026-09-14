@@ -2,7 +2,7 @@ import type { VersionFileChange } from '@shared/apiTypes';
 import { useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { toast } from 'sonner';
-import { Check, ChevronDown, Spinner, TriangleAlert, Undo } from '@/components/icons';
+import { Check, ChevronDown, Spinner, Undo } from '@/components/icons';
 import { Button } from '@/components/ui/button';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { queryKeys } from '@/lib/queryKeys';
@@ -66,8 +66,8 @@ function DiffBlock({ change }: { change: VersionFileChange }): React.JSX.Element
 
 /**
  * The version bump's edits, one file at a time, each with its diff and a Keep or Revert
- * choice. Detecting the right files is best effort (the CLI can wander, other tools can write
- * during the run), so the user signs off on every file instead of trusting the list.
+ * choice. The CLI is free to edit anything (and other tools can write during the run), so the
+ * user decides which files belong to the release instead of the app guessing up front.
  *
  * Revert happens on disk right away and can be taken back with Keep, since both versions of
  * the file are held in git's object store.
@@ -78,7 +78,6 @@ export function VersionChangeReview({
   decisions,
   onDecisionsChange,
   locked,
-  scopePath,
 }: {
   projectId: string;
   changes: VersionFileChange[];
@@ -88,7 +87,6 @@ export function VersionChangeReview({
   ) => void;
   /** Set once the kept files are committed, when changing a decision no longer means anything. */
   locked: boolean;
-  scopePath: string;
 }): React.JSX.Element {
   const queryClient = useQueryClient();
   const [busyPaths, setBusyPaths] = useState<ReadonlySet<string>>(new Set());
@@ -104,7 +102,6 @@ export function VersionChangeReview({
   const undecided = changes.filter((change) => !decisions[change.path]);
   const keptCount = changes.filter((change) => decisions[change.path] === 'keep').length;
   const revertedCount = changes.filter((change) => decisions[change.path] === 'revert').length;
-  const strayUndecided = undecided.filter((change) => change.outOfScope);
 
   function setBusy(path: string, busy: boolean): void {
     setBusyPaths((prev) => {
@@ -188,30 +185,6 @@ export function VersionChangeReview({
         )}
       </div>
 
-      {/* The whole point of a scoped bump is that other parts keep their versions, so a stray
-          edit outside the folder is named up front with a one-click way out. */}
-      {!locked && strayUndecided.length > 0 && (
-        <div className="flex flex-col gap-2 rounded-xl border border-warning/30 bg-warning/10 px-3 py-2.5 sm:flex-row sm:items-center">
-          <p className="flex min-w-0 flex-1 items-start gap-1.5 text-xs text-muted-foreground">
-            <TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0 text-warning" />
-            <span>
-              {strayUndecided.length} file{strayUndecided.length === 1 ? ' is' : 's are'} outside{' '}
-              <span className="font-mono">{scopePath}</span>, which this tag does not cover.
-            </span>
-          </p>
-          <Button
-            variant="outline"
-            size="sm"
-            className="shrink-0 self-start sm:self-auto"
-            onClick={() => {
-              for (const change of strayUndecided) void decide(change, 'revert');
-            }}
-          >
-            <Undo className="h-3.5 w-3.5" /> Revert {strayUndecided.length === 1 ? 'it' : 'them'}
-          </Button>
-        </div>
-      )}
-
       <div className="space-y-1.5">
         {changes.map((change) => {
           const { dir, name } = splitPath(change.path);
@@ -228,9 +201,7 @@ export function VersionChangeReview({
                   ? 'border-success/40'
                   : decision === 'revert'
                     ? 'border-border opacity-70'
-                    : change.outOfScope
-                      ? 'border-warning/40'
-                      : 'border-border',
+                    : 'border-border',
               )}
             >
               <div className="flex items-center gap-2 px-2 py-1.5">
@@ -273,13 +244,6 @@ export function VersionChangeReview({
                   )}
                 </button>
 
-                {change.outOfScope && (
-                  <SimpleTooltip label={`Outside ${scopePath}. This tag should not change it.`}>
-                    <span className="shrink-0 rounded bg-warning/15 px-1.5 py-0.5 text-[10px] font-medium text-warning">
-                      Outside
-                    </span>
-                  </SimpleTooltip>
-                )}
                 {change.hadLocalEdits && (
                   <SimpleTooltip label="This file already had uncommitted edits before the run. The diff shows only the run's edit, and Revert keeps your earlier edits, but committing it includes them.">
                     <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">

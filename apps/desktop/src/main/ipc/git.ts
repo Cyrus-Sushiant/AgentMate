@@ -24,8 +24,6 @@ import type {
   SuggestGitTextResult,
   SuggestTagResult,
   SwapVersionFileInput,
-  TagScope,
-  TagScopeRef,
 } from '../../shared/apiTypes';
 import { IPC } from '../../shared/ipcChannels';
 import { cancelHeadlessPrompt, runHeadlessCliPrompt } from '../cli/headlessPrompt';
@@ -72,7 +70,6 @@ import {
   TAG_NAME_PATTERN,
 } from '../git/plumbing';
 import { unwatchProjectRepo, watchProjectRepo } from '../git/repoWatcher';
-import { readTagScopes } from '../git/tagScopes';
 import {
   buildReleaseSummary,
   buildVersionBumpPrompt,
@@ -422,14 +419,10 @@ function registerBranchHandlers(): void {
 function registerTagHandlers(): void {
   ipcMain.handle(
     IPC.git.tags,
-    async (_event, projectId: string, scope?: TagScopeRef): Promise<GitTagInfo> => {
-      return readTagInfo(await getProjectPath(projectId), scope);
+    async (_event, projectId: string, prefix?: string): Promise<GitTagInfo> => {
+      return readTagInfo(await getProjectPath(projectId), prefix);
     },
   );
-
-  ipcMain.handle(IPC.git.tagScopes, async (_event, projectId: string): Promise<TagScope[]> => {
-    return readTagScopes(await getProjectPath(projectId));
-  });
 
   ipcMain.handle(IPC.git.createTag, async (_event, input: CreateTagInput): Promise<GitOpResult> => {
     const cwd = await getProjectPath(input.projectId);
@@ -513,38 +506,35 @@ function registerTagHandlers(): void {
       _event,
       projectId: string,
       requestId?: string,
-      scope?: TagScopeRef,
+      prefix?: string,
     ): Promise<SuggestTagResult> => {
       const project = await getProject(projectId);
       const cwd = project.folderPath;
-      const scopePath = scope?.path.trim() ?? '';
-      const scopeName = scope?.label?.trim() || scopePath;
-      const { latestTag, commitsSinceLatestTag } = await readTagInfo(cwd, scope);
+      const { latestTag, commitsSinceLatestTag } = await readTagInfo(cwd, prefix);
       if (latestTag && commitsSinceLatestTag === 0) {
         return {
           ok: false,
-          error: scopePath
-            ? `No new commits in ${scopePath} since ${latestTag}, so there is nothing to tag yet.`
-            : `No new commits since ${latestTag}, so there is nothing to tag yet.`,
+          error: `No new commits since ${latestTag}, so there is nothing to tag yet.`,
         };
       }
 
-      const subjects = await readCommitSubjects(cwd, latestTag, scopePath);
-      const diffArgs = ['diff', '--shortstat', `${latestTag}..HEAD`];
-      if (scopePath) diffArgs.push('--', scopePath);
-      const diffStat = latestTag ? ((await gitOrNull(cwd, diffArgs)) ?? '').trim() : '';
+      const subjects = await readCommitSubjects(cwd, latestTag);
+      const diffStat = latestTag
+        ? ((await gitOrNull(cwd, ['diff', '--shortstat', `${latestTag}..HEAD`])) ?? '').trim()
+        : '';
       const summary = buildReleaseSummary(latestTag, subjects, diffStat);
+      const namedSeries = prefix !== undefined && prefix !== '' && prefix.toLowerCase() !== 'v';
       const prompt =
         'You are picking the next git tag for a release, following semantic versioning: bump the major ' +
         'version for breaking changes, the minor version for new features, the patch version for fixes ' +
         'and chores only. Do not read or edit any files; judge only from the information below.\n\n' +
-        (scopePath
-          ? `This is a monorepo and the release covers only the "${scopeName}" part, which lives in ` +
-            `${scopePath}. The commits below are the ones that touched it, and its tags are named ` +
-            `${scope?.prefix ?? 'v'}<version>. Ignore the versions of every other part.\n\n`
+        (namedSeries
+          ? `Tags in this series are named ${prefix}<version>. If the repository holds several ` +
+            `packages, the prefix probably names the one being released, so weigh the commits ` +
+            'that concern it most.\n\n'
           : '') +
         (latestTag
-          ? `The ${scopePath ? 'latest tag for this part' : "repository's latest tag"} is ${latestTag}. ` +
+          ? `The ${namedSeries ? 'latest tag in this series' : "repository's latest tag"} is ${latestTag}. ` +
             'Your answer MUST be a bump of exactly that version and must be greater than it. ' +
             'Never invent an unrelated version number.\n\n'
           : '') +
@@ -569,9 +559,9 @@ function registerTagHandlers(): void {
         };
       }
 
-      // The scope's prefix is put back on whatever the model answered, so a `web-v` release
-      // never comes back as a bare `v1.4.0` that would read as a repo-wide tag.
-      const parsed = parseSuggestedTag(result.text, latestTag, scope?.prefix);
+      // The typed prefix is put back on whatever the model answered, so a `web-v` release
+      // never comes back as a bare `v1.4.0` or with some other prefix the model made up.
+      const parsed = parseSuggestedTag(result.text, latestTag, prefix);
       const notes = extractTagNotes(result.text);
       const latestParts = latestTag ? parseSemver(latestTag) : null;
 
@@ -584,7 +574,7 @@ function registerTagHandlers(): void {
         const derived = bumpKind
           ? bumpVersion(latestParts, bumpKind)
           : deriveNextVersion(latestParts, subjects);
-        tag = formatTagForRepo(derived, latestTag, scope?.prefix);
+        tag = formatTagForRepo(derived, latestTag, prefix);
         reason = bumpKind
           ? `${result.cliName} suggested a ${bumpKind} bump; used ${tag}.`
           : `${result.cliName} did not return a version number; used ${tag} from the commit history instead.`;
@@ -605,11 +595,7 @@ function registerTagHandlers(): void {
         const problem = rejectSuggestedVersion(parseSemver(tag), latestParts, latestTag);
         if (problem) {
           const rejected = tag;
-          tag = formatTagForRepo(
-            deriveNextVersion(latestParts, subjects),
-            latestTag,
-            scope?.prefix,
-          );
+          tag = formatTagForRepo(deriveNextVersion(latestParts, subjects), latestTag, prefix);
           reason = `${result.cliName} suggested ${rejected}, which ${problem}; used ${tag} from the commit history instead.`;
         }
       }
@@ -645,18 +631,17 @@ function registerTagHandlers(): void {
       const before = await snapshotChangedFiles(root);
       const headBefore = (await gitOrNull(cwd, ['rev-parse', 'HEAD']))?.trim() ?? null;
 
-      const scope = input.scope?.path.trim() ? input.scope : undefined;
-      const result = await runHeadlessCliPrompt(buildVersionBumpPrompt(tag, scope), cwd, {
+      const result = await runHeadlessCliPrompt(buildVersionBumpPrompt(tag), cwd, {
         requestId: input.requestId,
         preferredCliId: project.cliId,
         allowWrites: true,
         timeoutMs: VERSION_BUMP_TIMEOUT_MS,
       });
 
-      // A scoped bump is only correct if it stayed inside its folder. CLIs do wander into a
-      // sibling package or the root manifest, so those files get flagged for the user to revert.
+      // The CLI may edit anything, so every file it touched is listed for the user to keep
+      // or revert, rather than guessing up front which ones belong to this release.
       const after = await snapshotChangedFiles(root);
-      const changes = await compareSnapshots(root, before, after, scope?.path);
+      const changes = await compareSnapshots(root, before, after);
 
       // Despite the prompt telling it not to, a CLI occasionally reaches for a tool like
       // `npm version` that commits (and tags) by itself; that leaves no working-tree diff to
