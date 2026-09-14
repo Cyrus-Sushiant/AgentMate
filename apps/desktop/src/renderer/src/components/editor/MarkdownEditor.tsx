@@ -170,6 +170,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
     // "insert here" would have nowhere to aim.
     const lastSelection = useRef<{ start: number; end: number } | null>(null);
 
+    // biome-ignore lint/correctness/useExhaustiveDependencies: the pending caret can only be placed after the new value has been flushed, so value is the trigger
     useLayoutEffect(() => {
       const pending = pendingSelection.current;
       if (!pending || !field) return;

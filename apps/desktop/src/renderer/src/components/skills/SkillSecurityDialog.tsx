@@ -50,6 +50,7 @@ export function SkillSecurityDialog({
   const [result, setResult] = useState<SkillAuditRecord | null>(null);
 
   // A fresh target starts a fresh dialog: no leftover report from the last skill checked.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: the skill id is the signal to reset, the effect doesn't read it
   useEffect(() => {
     setResult(null);
     setRequestId(null);

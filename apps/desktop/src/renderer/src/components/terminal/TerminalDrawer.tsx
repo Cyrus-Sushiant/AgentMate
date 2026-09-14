@@ -163,6 +163,7 @@ function SessionTabStrip({
     else if (child.right > parent.right) el.scrollLeft += child.right - parent.right;
   }, []);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: tabs were added, removed or switched, so the new children need observing and the active one scrolled into view
   useLayoutEffect(() => {
     const el = listRef.current;
     if (!el) return;

@@ -185,6 +185,7 @@ export default function ProjectDetailPage(): React.JSX.Element {
     );
   }
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: switching sections should bring the workspace back into view
   useEffect(() => {
     workspaceRef.current?.scrollIntoView({ block: 'nearest' });
   }, [section]);

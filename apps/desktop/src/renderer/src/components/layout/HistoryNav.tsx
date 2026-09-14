@@ -24,6 +24,7 @@ export function HistoryNav(): React.JSX.Element {
     return { index: idx, maxIndex: idx };
   });
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: location.key changes on every navigation, which is when the history index has to be re-read
   useEffect(() => {
     const idx = currentIndex();
     setStack((prev) =>

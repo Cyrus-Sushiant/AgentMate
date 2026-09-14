@@ -66,6 +66,7 @@ export function ProjectFileBrowser({
 
   // `currentPath` seeds from a prop, so it has to resync when the project
   // changes or when new files land underneath us.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: revision is the "files changed" signal that sends the browser back to the root
   useEffect(() => {
     setCurrentPath(rootPath);
   }, [rootPath, revision]);

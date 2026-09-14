@@ -143,6 +143,7 @@ export function AppShell(): React.JSX.Element {
   // The desktop companion would otherwise swallow every drop in the app window.
   usePetDragGuard();
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: every route change starts the page at the top
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: 0 });
   }, [location.pathname]);

@@ -541,6 +541,7 @@ export default function SkillsPage(): React.JSX.Element {
     [filteredSkills, marketplaceVisibleCount],
   );
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: a new search or repo filter starts the grid back at the first page
   useEffect(() => {
     setMarketplaceVisibleCount(SKILL_GRID_PAGE_SIZE);
   }, [search, selectedRepoId]);
@@ -554,6 +555,7 @@ export default function SkillsPage(): React.JSX.Element {
     }).map(({ skill }) => skill);
   }, [shDebouncedSearch, shOfficialOnly]);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: any change to the search, filter or mode starts the grid back at the first page
   useEffect(() => {
     setDirectoryVisibleCount(SKILL_GRID_PAGE_SIZE);
   }, [shDebouncedSearch, shOfficialOnly, shMode]);

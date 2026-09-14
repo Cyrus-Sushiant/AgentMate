@@ -109,6 +109,7 @@ export function RemoteViewport({
   );
 
   // A new host screen invalidates any zoom from the previous one.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: the screen size is the signal to reset zoom, the effect doesn't read it
   useEffect(() => {
     applyZoom(1, 0, 0);
   }, [applyZoom, screen?.width, screen?.height]);

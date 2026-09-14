@@ -127,6 +127,7 @@ export function AskAiChat({
       ? []
       : GEMINI_MODEL_OPTIONS;
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: a new message is what should scroll the chat to the bottom
   useEffect(() => {
     scrollEndRef.current?.scrollIntoView({ behavior: variant === 'modal' ? 'auto' : 'smooth' });
   }, [messages, variant]);

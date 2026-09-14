@@ -246,6 +246,7 @@ export default function DesktopPetRoute(): React.JSX.Element {
     );
   }
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: a new character, size or image has to be re-measured; measureSprite is rebuilt every render and would re-run this constantly
   useLayoutEffect(() => {
     spriteHRef.current = spriteH;
     configRef.current = { ...configRef.current, spriteH, ropeGripY };
@@ -253,6 +254,7 @@ export default function DesktopPetRoute(): React.JSX.Element {
     measureSprite(spriteRef.current);
   }, [characterId, spriteH, box, pet?.src, ropeGripY]);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: applyPose reads the new click area and box through configRef, so those are the triggers; applyPose itself only touches refs
   useLayoutEffect(() => {
     const current = actorRef.current;
     if (!current) return;
@@ -264,6 +266,7 @@ export default function DesktopPetRoute(): React.JSX.Element {
   // knows whether it is currently taking clicks. Poking the main process
   // directly here used to leave the two out of step, and a mouse that never
   // came back over the character left the whole screen swallowing clicks.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: setHit only touches a ref and the main process, it is safe to call from a stale closure
   useEffect(() => {
     if (open) setHit(true);
     else {
@@ -272,6 +275,7 @@ export default function DesktopPetRoute(): React.JSX.Element {
     }
   }, [open]);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: setHit only touches a ref and the main process, it is safe to call from a stale closure
   useEffect(() => {
     if (!menu) {
       setMenuSize({ w: MENU_W, h: MENU_H });
@@ -298,6 +302,7 @@ export default function DesktopPetRoute(): React.JSX.Element {
     );
   }, [menu]);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: a different character changes the card's contents, so it has to be measured again
   useLayoutEffect(() => {
     if (!open) return;
     const node = cardRef.current;
@@ -323,6 +328,7 @@ export default function DesktopPetRoute(): React.JSX.Element {
     return () => document.documentElement.removeAttribute('data-widget');
   }, []);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: applyPose only touches refs, so resubscribing every render for it would gain nothing
   useEffect(() => {
     return window.agentmat.pet.onSettingsChanged(() => {
       void (async () => {
@@ -372,6 +378,7 @@ export default function DesktopPetRoute(): React.JSX.Element {
   // wanders onto another monitor or over the taskbar stops sending it moves. If
   // it was holding the mouse at that moment it would hold it for good, and
   // every click and drag in the app below would land on the pet instead.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: setHit only touches a ref and the main process, it is safe to call from a stale closure
   useEffect(() => {
     function onLeave(): void {
       if (dragRef.current || openRef.current || menuRef.current) return;
@@ -392,6 +399,7 @@ export default function DesktopPetRoute(): React.JSX.Element {
     };
   }, []);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: the animation loop runs once per mount and reads everything through refs; applyPose only touches refs too
   useEffect(() => {
     let cancelled = false;
     let frame = 0;

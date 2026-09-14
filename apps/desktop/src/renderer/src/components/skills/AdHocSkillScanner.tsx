@@ -52,6 +52,7 @@ export function AdHocSkillScanner({
   }, [input]);
 
   // A new location starts with a clean slate rather than the last one's verdicts.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: debouncedInput is the signal to clear, the effect doesn't read it
   useEffect(() => {
     setBatchResults(new Map());
   }, [debouncedInput]);
