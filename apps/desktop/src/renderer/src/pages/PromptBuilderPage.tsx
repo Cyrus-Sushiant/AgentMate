@@ -301,7 +301,12 @@ export default function PromptBuilderPage(): React.JSX.Element {
     scheduleQueue.length > 0 &&
     scheduleQueue.every((item) => item.text.trim() && item.runAt);
 
-  const runRecommendation = useRunRecommendation({ generated, promptType, targetAI });
+  const runRecommendation = useRunRecommendation({
+    jobKey: 'prompt-builder',
+    generated,
+    promptType,
+    targetAI,
+  });
 
   const cliForSendTo = useMemo(() => {
     const cliId = defaultCliId ?? cliIdForTargetAI(targetAI);

@@ -22,7 +22,6 @@ import {
   WindowRestore,
 } from '@/components/icons';
 import { ProjectIcon } from '@/components/projects/ProjectIcon';
-import type { AnalyzeRunOptions } from '@/components/promptBuilder/RunRecommendation';
 import {
   RunRecommendationChip,
   useRunRecommendation,
@@ -44,6 +43,7 @@ import { useVoiceInput } from '@/hooks/useVoiceInput';
 import { queryKeys } from '@/lib/queryKeys';
 import { containsPersian } from '@/lib/rtl';
 import { cn } from '@/lib/utils';
+import { projectPromptJobKey, usePromptJobsStore } from '@/stores/promptJobsStore';
 import {
   commandForEvent,
   useShortcutLabel,
@@ -81,8 +81,8 @@ export function ProjectPromptBuildDialog({
   const [copied, setCopied] = useState(false);
   const requestRef = useRef<HTMLTextAreaElement>(null);
   const copiedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // The builder hook reports results before the run hook below exists, so hand off via a ref.
-  const analyzeRunRef = useRef<((options: AnalyzeRunOptions) => void) | null>(null);
+  const jobKey = projectPromptJobKey(projectId);
+  const setJobVisible = usePromptJobsStore((s) => s.setVisible);
   const {
     rawInput,
     setRawInput,
@@ -102,13 +102,11 @@ export function ProjectPromptBuildDialog({
   } = useProjectPromptBuilder(projectId, {
     enabled: open,
     onDraftSaved: () => onOpenChange(false),
-    onResult: (content, source) =>
-      analyzeRunRef.current?.({ prompt: content, isTranslation: source === 'translate' }),
+    sizeResults: true,
+    notifyWhenHidden: projectName,
   });
 
-  const runRecommendation = useRunRecommendation({ generated, promptType, targetAI });
-  analyzeRunRef.current = runRecommendation.analyze;
-  const cancelRun = runRecommendation.cancel;
+  const runRecommendation = useRunRecommendation({ jobKey, generated, promptType, targetAI });
   const hasRequest = rawInput.trim().length > 0;
   const isBusy = isGenerating || isTranslating;
   const isPersian = containsPersian(rawInput);
@@ -158,15 +156,21 @@ export function ProjectPromptBuildDialog({
     };
   }, []);
 
+  // Closing doesn't stop Generate, Translate or sizing; they finish in the background and
+  // the jobs store uses this to decide whether to toast that a result is waiting.
+  useEffect(() => {
+    setJobVisible(jobKey, open);
+    return () => setJobVisible(jobKey, false);
+  }, [jobKey, open, setJobVisible]);
+
   useEffect(() => {
     if (!open) {
       setIsMaximized(false);
-      cancelRun();
       // Never leave the microphone live behind a closed dialog. Stopping still transcribes,
       // and the text is kept with the rest of this project's draft request.
       if (voiceRef.current.status === 'recording') voiceRef.current.toggle();
     }
-  }, [open, cancelRun]);
+  }, [open]);
 
   async function handlePinToDesktop(): Promise<void> {
     setIsPinning(true);
@@ -461,10 +465,7 @@ export function ProjectPromptBuildDialog({
             variant="ghost"
             size="sm"
             disabled={!rawInput && !generated}
-            onClick={() => {
-              cancelRun();
-              handleClear();
-            }}
+            onClick={handleClear}
             className="text-muted-foreground"
           >
             <Trash2 /> Clear

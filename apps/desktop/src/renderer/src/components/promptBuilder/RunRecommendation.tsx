@@ -4,7 +4,6 @@ import {
   EFFORT_LABELS,
   getCliDefinition,
   getModelPrice,
-  recommendationFromAssessment,
   relativeCostLevel,
   runChoiceArgs,
   runProfileForTargetAI,
@@ -32,20 +31,15 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import { useCliStore } from '@/stores/cliStore';
+import type { RunAnalysisStatus, RunOverride } from '@/stores/promptJobsStore';
+import {
+  cancelRunAssessment,
+  EMPTY_RUN_JOB,
+  startRunAssessment,
+  usePromptJobsStore,
+} from '@/stores/promptJobsStore';
 
-export type RunAnalysisStatus = 'idle' | 'analyzing' | 'ready' | 'error';
-
-interface RunAnalysis {
-  recommendation: RunRecommendation;
-  /** The exact text that was sized, to tell when the generated prompt has moved on. */
-  prompt: string;
-  cliName: string | null;
-}
-
-interface RunOverride {
-  modelId: string;
-  effort: EffortLevel | undefined;
-}
+export type { RunAnalysisStatus };
 
 export interface AnalyzeRunOptions {
   /** Text to size. Defaults to the current generated prompt. */
@@ -81,78 +75,34 @@ export interface RunRecommendationState {
  * Sizes the generated prompt with the default AI CLI and keeps the resulting model/effort
  * suggestion. Nothing runs on its own: callers trigger analyze() once Generate or Translate
  * has produced text, or the user asks for it from the panel.
+ *
+ * The run and its result live in the prompt jobs store under `jobKey`, so closing the form or
+ * leaving the page doesn't stop a sizing that's already running.
  */
 export function useRunRecommendation(input: {
+  jobKey: string;
   generated: string;
   promptType: string;
   targetAI: string;
 }): RunRecommendationState {
-  const { generated, promptType, targetAI } = input;
+  const { jobKey, generated, promptType, targetAI } = input;
   const defaultCliId = useCliStore((s) => s.defaultCliId);
-  const [status, setStatus] = useState<RunAnalysisStatus>('idle');
-  const [analysis, setAnalysis] = useState<RunAnalysis | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [override, setOverride] = useState<RunOverride | null>(null);
-  const requestRef = useRef<string | null>(null);
+  const { status, analysis, error, override } = usePromptJobsStore(
+    (s) => s.runs[jobKey] ?? EMPTY_RUN_JOB,
+  );
+  const patchRun = usePromptJobsStore((s) => s.patchRun);
+  const setOverride = (next: RunOverride | null) => patchRun(jobKey, { override: next });
 
-  const cancel = useCallback(() => {
-    const requestId = requestRef.current;
-    if (!requestId) return;
-    requestRef.current = null;
-    void window.agentmat.ai.cancelAssessRun(requestId);
-    setStatus((current) => (current === 'analyzing' ? 'idle' : current));
-  }, []);
-
-  // A run left going after the form closes would still bill tokens for an answer nobody sees.
-  useEffect(() => cancel, [cancel]);
+  const cancel = useCallback(() => cancelRunAssessment(jobKey), [jobKey]);
 
   const analyze = useCallback(
-    (options: AnalyzeRunOptions = {}) => {
-      const prompt = (options.prompt ?? generated).trim();
-      if (!prompt) return;
-      if (requestRef.current) void window.agentmat.ai.cancelAssessRun(requestRef.current);
-      const requestId = crypto.randomUUID();
-      requestRef.current = requestId;
-      const target = targetAI;
-      setStatus('analyzing');
-      setError(null);
-
-      window.agentmat.ai
-        .assessRun({
-          prompt,
-          targetAI: target,
-          promptType: options.isTranslation ? undefined : promptType,
-          requestId,
-        })
-        .then((result) => {
-          if (requestRef.current !== requestId) return;
-          requestRef.current = null;
-          if (result.ok && result.assessment) {
-            setAnalysis({
-              recommendation: recommendationFromAssessment(target, result.assessment),
-              prompt,
-              cliName: result.cliName,
-            });
-            setOverride(null);
-            setStatus('ready');
-            return;
-          }
-          if (result.cancelled) {
-            // Any earlier result stays on screen; the panel shows it whenever one exists.
-            setStatus('idle');
-            return;
-          }
-          setError(result.error || 'The AI CLI could not size this prompt.');
-          setStatus('error');
-        })
-        .catch((err: unknown) => {
-          if (requestRef.current !== requestId) return;
-          requestRef.current = null;
-          setError(err instanceof Error ? err.message : 'The AI CLI could not size this prompt.');
-          setStatus('error');
-        });
-    },
-    [generated, promptType, targetAI],
+    (options: AnalyzeRunOptions = {}) =>
+      startRunAssessment(jobKey, {
+        prompt: options.prompt ?? generated,
+        targetAI,
+        promptType: options.isTranslation ? undefined : promptType,
+      }),
+    [jobKey, generated, promptType, targetAI],
   );
 
   const recommendation = analysis?.recommendation ?? null;
