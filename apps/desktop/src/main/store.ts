@@ -28,6 +28,7 @@ import {
   defaultProxySettings,
   defaultUsageResetAlerts,
   defaultUsageThresholdAlerts,
+  isThemeMode,
   normalizeCliArgs,
   normalizeCommitMessageSettings,
   normalizeCustomDesktopPets,
@@ -136,6 +137,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   desktopPetPipelineOnFail: false,
   desktopPetPipelineOnPass: false,
   desktopPetNetworkQuality: false,
+  desktopPetAgentStatus: false,
   keepTerminalsRunning: true,
   workspaceNotifications: true,
   keepAwake: 'agent',
@@ -183,6 +185,7 @@ function withSettingsMigrations(settings: AppSettings): AppSettings {
     desktopPetNetworkQuality:
       settings.desktopPetNetworkQuality === true ||
       (settings as AppSettings & { networkQualityAlerts?: boolean }).networkQualityAlerts === true,
+    desktopPetAgentStatus: settings.desktopPetAgentStatus === true,
     dashboardIntroducedCharts: Array.isArray(settings.dashboardIntroducedCharts)
       ? settings.dashboardIntroducedCharts.filter((id) => typeof id === 'string')
       : DASHBOARD_CHART_IDS.filter((id) => id !== 'github-actions'),
@@ -192,6 +195,7 @@ function withSettingsMigrations(settings: AppSettings): AppSettings {
     workspaceNotifications: settings.workspaceNotifications !== false,
     keepAwake:
       settings.keepAwake === 'on' || settings.keepAwake === 'off' ? settings.keepAwake : 'agent',
+    theme: isThemeMode(settings.theme) ? settings.theme : 'system',
     workspaceTerminalCustomBackground: settings.workspaceTerminalCustomBackground === true,
     workspaceTerminalBackgroundColor:
       normalizeProjectColor(settings.workspaceTerminalBackgroundColor) ??

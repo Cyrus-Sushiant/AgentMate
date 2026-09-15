@@ -508,6 +508,21 @@ export function CompanionSettings({ settings }: { settings: AppSettings }): Reac
               disabled={pending || !settings.desktopPetEnabled}
             />
           </div>
+          <div className="flex items-center justify-between gap-4">
+            <div className="min-w-0">
+              <Label htmlFor="pet-agent-status">Tell me when a CLI needs input or finishes</Label>
+              <p className="text-xs text-muted-foreground">
+                A short message next to the pet when a workspace terminal is waiting on you or just
+                wrapped up a run, as long as you're not already looking at it.
+              </p>
+            </div>
+            <Switch
+              id="pet-agent-status"
+              checked={settings.desktopPetAgentStatus === true}
+              onCheckedChange={(enabled) => save.mutate({ desktopPetAgentStatus: enabled })}
+              disabled={pending || !settings.desktopPetEnabled}
+            />
+          </div>
         </CardContent>
       </Card>
 

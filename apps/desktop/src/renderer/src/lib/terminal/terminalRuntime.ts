@@ -4,6 +4,7 @@ import type { Terminal } from '@xterm/xterm';
 import { create } from 'zustand';
 import { commandForEvent, useShortcutStore } from '@/stores/shortcutStore';
 import { useTerminalAppearanceStore } from '@/stores/terminalAppearanceStore';
+import { useThemeStore } from '@/stores/themeStore';
 import { onFontsLoaded, whenTerminalFontReady } from './fontReady';
 import { attachFilePaste } from './pasteFiles';
 import {
@@ -14,7 +15,10 @@ import {
 
 function currentTerminalTheme(): ReturnType<typeof resolveWorkspaceTerminalTheme> {
   const { customBackground, backgroundColor } = useTerminalAppearanceStore.getState();
-  return resolveWorkspaceTerminalTheme({ customBackground, backgroundColor });
+  return resolveWorkspaceTerminalTheme(
+    { customBackground, backgroundColor },
+    useThemeStore.getState().theme,
+  );
 }
 
 function applyTerminalTheme(entry: Entry): void {
@@ -99,6 +103,11 @@ function ensureSubscribed(): void {
   // Flipping the Settings toggle or picking a new color repaints every live terminal at once,
   // not just the next one created.
   useTerminalAppearanceStore.subscribe(() => {
+    for (const entry of entries.values()) applyTerminalTheme(entry);
+  });
+  // Same for switching the app theme itself, since vscode-dark/vs2026 change the default
+  // terminal palette too.
+  useThemeStore.subscribe(() => {
     for (const entry of entries.values()) applyTerminalTheme(entry);
   });
   // A font that finishes loading later changes the cell size; refit so rows match it again.

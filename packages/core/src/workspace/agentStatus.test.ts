@@ -4,6 +4,7 @@ import {
   type AgentStatusEvent,
   type AgentStatusState,
   initialAgentStatus,
+  looksLikeNeedsInput,
   mostUrgentStatus,
   reduceAgentStatus,
 } from './agentStatus.js';
@@ -114,5 +115,63 @@ describe('agentStatus hooks', () => {
     expect(mostUrgentStatus(['idle', 'working', 'done'])).toBe('done');
     expect(mostUrgentStatus(['done', 'needs-input'])).toBe('needs-input');
     expect(mostUrgentStatus([])).toBeNull();
+  });
+});
+
+describe('agentStatus guessed needs-input', () => {
+  it('flips idle or working to needs-input', () => {
+    const fromIdle = reduceAgentStatus(initialAgentStatus(true), {
+      type: 'guess-needs-input',
+      at: 1_000,
+    });
+    expect(fromIdle.status).toBe('needs-input');
+    expect(fromIdle.needsInputSince).toBe(1_000);
+    expect(fromIdle.hookDriven).toBe(false);
+
+    const working = run(initialAgentStatus(true), streamOutput(10_000, 10_400));
+    const fromWorking = reduceAgentStatus(working, { type: 'guess-needs-input', at: 10_500 });
+    expect(fromWorking.status).toBe('needs-input');
+    expect(fromWorking.workingSince).toBeNull();
+  });
+
+  it('is a no-op once already needs-input, and never sets hookDriven', () => {
+    const state = reduceAgentStatus(initialAgentStatus(true), {
+      type: 'guess-needs-input',
+      at: 1_000,
+    });
+    const again = reduceAgentStatus(state, { type: 'guess-needs-input', at: 2_000 });
+    expect(again.needsInputSince).toBe(1_000);
+    // Silence still reaches `done` afterward, since a guess never turns on hookDriven.
+    const answered = run(again, [
+      { type: 'input', at: 3_000 },
+      ...streamOutput(3_200, 13_200),
+      { type: 'tick', at: 13_200 + AGENT_STATUS_TIMING.silenceMs },
+    ]);
+    expect(answered.status).toBe('done');
+  });
+
+  it('defers to real hooks once a session is hook-driven', () => {
+    const state = reduceAgentStatus(initialAgentStatus(true), {
+      type: 'hook',
+      event: 'prompt',
+      at: 1_000,
+    });
+    const guessed = reduceAgentStatus(state, { type: 'guess-needs-input', at: 2_000 });
+    expect(guessed.status).toBe('working');
+  });
+});
+
+describe('looksLikeNeedsInput', () => {
+  it('matches common confirmation prompts', () => {
+    expect(looksLikeNeedsInput('Overwrite existing file? (y/n)')).toBe(true);
+    expect(looksLikeNeedsInput('Do you want to proceed?')).toBe(true);
+    expect(looksLikeNeedsInput('This tool needs your permission to continue')).toBe(true);
+    expect(looksLikeNeedsInput('Waiting for your response...')).toBe(true);
+  });
+
+  it('ignores ANSI escapes and ordinary output', () => {
+    expect(looksLikeNeedsInput('\x1b[32mBuild succeeded\x1b[0m')).toBe(false);
+    expect(looksLikeNeedsInput('\x1b[1mDo you want to proceed?\x1b[0m')).toBe(true);
+    expect(looksLikeNeedsInput('installing dependencies...')).toBe(false);
   });
 });

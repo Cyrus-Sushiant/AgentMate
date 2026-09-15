@@ -1,3 +1,4 @@
+import type { ThemeMode } from '@agentmat/core';
 import { FitAddon } from '@xterm/addon-fit';
 import { WebLinksAddon } from '@xterm/addon-web-links';
 import { type ITheme, Terminal } from '@xterm/xterm';
@@ -34,6 +35,67 @@ export const TERMINAL_THEME: ITheme = {
   brightCyan: '#7ee4d4',
   brightWhite: '#f4f7f5',
 };
+
+// VS Code's own default integrated-terminal ANSI colors, used for the vscode-dark theme.
+export const TERMINAL_THEME_VSCODE_DARK: ITheme = {
+  background: '#1e1e1e',
+  foreground: '#cccccc',
+  cursor: '#0078d4',
+  cursorAccent: '#1e1e1e',
+  selectionBackground: '#264f7866',
+  selectionForeground: '#1e1e1e',
+  black: '#000000',
+  red: '#cd3131',
+  green: '#0dbc79',
+  yellow: '#e5e510',
+  blue: '#2472c8',
+  magenta: '#bc3fbc',
+  cyan: '#11a8cd',
+  white: '#e5e5e5',
+  brightBlack: '#666666',
+  brightRed: '#f14c4c',
+  brightGreen: '#23d18b',
+  brightYellow: '#f5f543',
+  brightBlue: '#3b8eea',
+  brightMagenta: '#d670d6',
+  brightCyan: '#29b8db',
+  brightWhite: '#e5e5e5',
+};
+
+// An original palette for the vs2026 theme: blue-gray background, violet cursor/accent,
+// standard-ish ANSI hues so command output colors stay recognizable.
+export const TERMINAL_THEME_VS2026: ITheme = {
+  background: '#181921',
+  foreground: '#e7e9ef',
+  cursor: '#9a5eed',
+  cursorAccent: '#181921',
+  selectionBackground: '#9a5eed40',
+  selectionForeground: '#181921',
+  black: '#1c1e27',
+  red: '#e5484d',
+  green: '#3dd68c',
+  yellow: '#e2b93d',
+  blue: '#5b9df5',
+  magenta: '#c264e8',
+  cyan: '#4fd1c5',
+  white: '#e7e9ef',
+  brightBlack: '#5b5f73',
+  brightRed: '#ff6b70',
+  brightGreen: '#58e6a4',
+  brightYellow: '#f5cf5f',
+  brightBlue: '#7db4ff',
+  brightMagenta: '#d894f0',
+  brightCyan: '#72e5da',
+  brightWhite: '#f5f6fa',
+};
+
+/** The Terminal Drawer's palette for the given app theme. Light/Dark/System are
+ * unchanged: the drawer has always stayed the brand palette regardless of app theme. */
+export function resolveDrawerTerminalTheme(mode: ThemeMode): ITheme {
+  if (mode === 'vscode-dark') return TERMINAL_THEME_VSCODE_DARK;
+  if (mode === 'vs2026') return TERMINAL_THEME_VS2026;
+  return TERMINAL_THEME;
+}
 
 // Matches xterm.js's own built-in theme: how any CLI would look in an unconfigured terminal,
 // used for Workspace panes while `workspaceTerminalCustomBackground` is off.
@@ -120,18 +182,29 @@ export interface WorkspaceTerminalBackground {
   backgroundColor: string;
 }
 
-/** The xterm theme and the flat fill color behind it (for the CSS `--terminal-bg` variable). */
-export function resolveWorkspaceTerminalTheme(settings: WorkspaceTerminalBackground): {
+/** The xterm theme and the flat fill color behind it (for the CSS `--terminal-bg` variable).
+ * A custom background always wins; with none set, Light/Dark/System keep today's plain
+ * "unconfigured terminal" default and vscode-dark/vs2026 get their own authentic palette. */
+export function resolveWorkspaceTerminalTheme(
+  settings: WorkspaceTerminalBackground,
+  mode: ThemeMode,
+): {
   theme: ITheme;
   wellBackground: string;
 } {
-  if (!settings.customBackground) {
-    return { theme: CLI_DEFAULT_THEME, wellBackground: CLI_DEFAULT_THEME.background as string };
+  if (settings.customBackground) {
+    return {
+      theme: customTerminalTheme(settings.backgroundColor),
+      wellBackground: settings.backgroundColor,
+    };
   }
-  return {
-    theme: customTerminalTheme(settings.backgroundColor),
-    wellBackground: settings.backgroundColor,
-  };
+  const theme =
+    mode === 'vscode-dark'
+      ? TERMINAL_THEME_VSCODE_DARK
+      : mode === 'vs2026'
+        ? TERMINAL_THEME_VS2026
+        : CLI_DEFAULT_THEME;
+  return { theme, wellBackground: theme.background as string };
 }
 
 export interface XtermHandle {

@@ -13,6 +13,7 @@ import { UpdateManager } from './components/UpdateManager';
 import { TooltipProvider } from './components/ui/tooltip';
 import WidgetRoute from './components/usage/WidgetRoute';
 import WorkspaceRoute from './components/workspace/WorkspaceRoute';
+import { useIsDarkMode } from './lib/chartColors';
 import { installToastHistoryCapture } from './lib/toastHistory';
 import AskAiPage from './pages/AskAiPage';
 import CliManagerPage from './pages/CliManagerPage';
@@ -35,7 +36,7 @@ import { initDashboardLayout } from './stores/dashboardLayoutStore';
 import { initPingTargets } from './stores/pingTargetsStore';
 import { initRemote } from './stores/remoteStore';
 import { initTerminalAppearance } from './stores/terminalAppearanceStore';
-import { initTheme, useThemeStore } from './stores/themeStore';
+import { initTheme } from './stores/themeStore';
 import { initUpdateStatusListener } from './stores/updateStore';
 
 installToastHistoryCapture();
@@ -47,9 +48,15 @@ const SkillsPage = lazy(() => import('./pages/SkillsPage'));
    background that would defeat the frosted surface. The type accents live in
    index.css under .toaster-glass instead. */
 function AppToaster(): React.JSX.Element {
-  const theme = useThemeStore((s) => s.theme);
+  const isDark = useIsDarkMode();
   return (
-    <Toaster theme={theme} className="toaster-glass" position="bottom-right" gap={12} closeButton />
+    <Toaster
+      theme={isDark ? 'dark' : 'light'}
+      className="toaster-glass"
+      position="bottom-right"
+      gap={12}
+      closeButton
+    />
   );
 }
 

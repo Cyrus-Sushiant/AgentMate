@@ -3,12 +3,13 @@ import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
-import { Run, Tag } from '@/components/icons';
+import { Cpu, Run, Tag } from '@/components/icons';
 import { useProjectRun } from '@/components/projects/useProjectRun';
 import { Button } from '@/components/ui/button';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { queryKeys } from '@/lib/queryKeys';
 import { ProjectVersionDialogs } from '@/pages/ProjectDetailPage';
+import { useRunningClisStore } from '@/stores/runningClisStore';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
 
 /**
@@ -20,6 +21,8 @@ export function WorkspaceHeaderActions(): React.JSX.Element | null {
   const activeProjectId = useWorkspaceStore((s) => s.activeProjectId);
   const { requestRun, runPicker } = useProjectRun();
   const [tagOpen, setTagOpen] = useState(false);
+  const runningClisOpen = useRunningClisStore((s) => s.open);
+  const setRunningClisOpen = useRunningClisStore((s) => s.setOpen);
   const projectsQuery = useQuery<Project[]>({
     queryKey: queryKeys.projects,
     queryFn: () => window.agentmat.projects.list(),
@@ -67,6 +70,16 @@ export function WorkspaceHeaderActions(): React.JSX.Element | null {
           onClick={() => setTagOpen(true)}
         >
           <Tag className="h-4 w-4" />
+        </Button>
+      </SimpleTooltip>
+      <SimpleTooltip label="Running CLIs: CPU and memory for every terminal">
+        <Button
+          variant={runningClisOpen ? 'secondary' : 'ghost'}
+          size="icon"
+          aria-label="Running CLIs"
+          onClick={() => setRunningClisOpen(true)}
+        >
+          <Cpu className="h-4 w-4" />
         </Button>
       </SimpleTooltip>
       {runPicker}

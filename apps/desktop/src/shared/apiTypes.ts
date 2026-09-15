@@ -123,6 +123,42 @@ export interface CreateTerminalOptions {
 
 export type TerminalSurface = 'drawer' | 'workspace';
 
+/** One process inside a terminal's process tree. */
+export interface TerminalProcessUsage {
+  pid: number;
+  name: string;
+  /** Share of all cores, 0-100. */
+  cpuPercent: number;
+  memBytes: number;
+}
+
+/** A running shell and what it and everything it started are using right now. */
+export interface TerminalSessionUsage {
+  sessionId: string;
+  /** The shell's pid. Agent CLIs run as its children. */
+  pid: number;
+  projectId?: string;
+  cliId?: string;
+  surface?: TerminalSurface;
+  /** When the shell started, in ms. Survives app restarts, unlike the tab's own time. */
+  createdAt: number;
+  /** Share of all cores, 0-100, summed over the whole tree. */
+  cpuPercent: number;
+  memBytes: number;
+  processCount: number;
+  /** The busiest processes in the tree, shell included. */
+  processes: TerminalProcessUsage[];
+}
+
+export interface TerminalUsageResult {
+  /** False when this system's process list could not be read; sessions are still listed. */
+  available: boolean;
+  /** False on the first reading, before there is a CPU time delta to compare. */
+  cpuReady: boolean;
+  sampledAt: number;
+  sessions: TerminalSessionUsage[];
+}
+
 /** A workspace terminal tab, as the agent status tracker needs to know it. */
 export interface AgentSessionEntry {
   sessionId: string;

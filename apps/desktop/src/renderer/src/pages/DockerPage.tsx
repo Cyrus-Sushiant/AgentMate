@@ -1,10 +1,12 @@
 import type { DockerContainer } from '@shared/apiTypes';
-import { useQuery } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import { toast } from 'sonner';
 import { DockerContainerRow } from '@/components/docker/DockerContainerRow';
 import { RemoveContainerDialog } from '@/components/docker/RemoveContainerDialog';
 import { useDockerContainerActions } from '@/components/docker/useDockerContainerActions';
-import { Docker, RefreshCw, Search, X } from '@/components/icons';
+import { Docker, RefreshCw, Search, StopCircle, X } from '@/components/icons';
 import { ProjectEmptyState } from '@/components/projects/ProjectDetailChrome';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -57,7 +59,19 @@ function DockerPageSkeleton(): React.JSX.Element {
 }
 
 export default function DockerPage(): React.JSX.Element {
+  const queryClient = useQueryClient();
   const [query, setQuery] = useState('');
+  const [searchParams, setSearchParams] = useSearchParams();
+  /** A container asked for by a deep link (the status bar popover), waiting for the list to load. */
+  const [pendingFocus, setPendingFocus] = useState<string | null>(null);
+  const [focusedContainerId, setFocusedContainerId] = useState<string | null>(null);
+  const rowNodes = useRef(new Map<string, HTMLDivElement>());
+  const bindRow = useCallback((id: string) => {
+    return (node: HTMLDivElement | null): void => {
+      if (node) rowNodes.current.set(id, node);
+      else rowNodes.current.delete(id);
+    };
+  }, []);
 
   const availabilityQuery = useQuery({
     queryKey: queryKeys.dockerAvailability,
@@ -75,6 +89,46 @@ export default function DockerPage(): React.JSX.Element {
   });
 
   const actions = useDockerContainerActions(queryKeys.dockerList);
+  const containers = listQuery.data ?? [];
+
+  // `/docker?container=<id>`, the link the status bar's Docker popover opens. The search box is
+  // cleared so the target can't be hidden by whatever was typed last time, and the query string
+  // is dropped once read so a later refresh doesn't jump around again.
+  useEffect(() => {
+    const id = searchParams.get('container');
+    if (!id) return;
+    setQuery('');
+    setSearchParams({}, { replace: true });
+    setPendingFocus(id);
+    if (available === true) void queryClient.refetchQueries({ queryKey: queryKeys.dockerList });
+  }, [searchParams, setSearchParams, available, queryClient]);
+
+  // The list is in by now, so scroll the requested container into view and ring it. Held off
+  // until the list has actually loaded at least once: an empty `containers` array here can mean
+  // either "not loaded yet" (availability still resolving, or the first fetch in flight) or
+  // "genuinely gone", and clearing pendingFocus on the wrong one would drop the request silently.
+  useEffect(() => {
+    if (!pendingFocus) return;
+    if (available !== true || listQuery.isLoading) return;
+    const match = containers.find((c) => c.id === pendingFocus);
+    setPendingFocus(null);
+    if (!match) {
+      toast.info('That container is no longer listed.');
+      return;
+    }
+    setFocusedContainerId(match.id);
+    const frame = requestAnimationFrame(() => {
+      rowNodes.current.get(match.id)?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [pendingFocus, containers, available, listQuery.isLoading]);
+
+  // The ring is a "here it is" pointer, not a state, so it fades on its own.
+  useEffect(() => {
+    if (focusedContainerId === null) return;
+    const timer = setTimeout(() => setFocusedContainerId(null), 6000);
+    return () => clearTimeout(timer);
+  }, [focusedContainerId]);
 
   if (availabilityQuery.isLoading) {
     return (
@@ -96,7 +150,6 @@ export default function DockerPage(): React.JSX.Element {
     );
   }
 
-  const containers = listQuery.data ?? [];
   const runningCount = containers.filter((c) => c.state === 'running').length;
   const search = query.trim();
   const visible = containers.filter((c) => matchesQuery(c, search));
@@ -174,26 +227,44 @@ export default function DockerPage(): React.JSX.Element {
         <p className="text-sm text-muted-foreground">No containers match "{search}".</p>
       ) : (
         <div className="space-y-4">
-          {groups.map((group) => (
-            <div key={group.label ?? 'ungrouped'} className="space-y-2">
-              {group.label && (
-                <p className="px-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                  {group.label}
-                </p>
-              )}
-              {group.containers.map((container) => (
-                <DockerContainerRow
-                  key={container.id}
-                  container={container}
-                  pending={actions.pendingId === container.id}
-                  onStart={() => actions.start(container.id)}
-                  onStop={() => actions.stop(container.id)}
-                  onRestart={() => actions.restart(container.id)}
-                  onRemove={() => actions.openRemoveDialog(container)}
-                />
-              ))}
-            </div>
-          ))}
+          {groups.map((group) => {
+            const runningContainers = group.containers.filter((c) => c.state === 'running');
+            return (
+              <div key={group.label ?? 'ungrouped'} className="space-y-2">
+                {group.label && (
+                  <div className="flex items-center justify-between gap-2 px-1">
+                    <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                      {group.label}
+                    </p>
+                    {runningContainers.length > 0 && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 gap-1 px-2 text-xs text-muted-foreground hover:text-foreground"
+                        onClick={() => actions.stopMany(runningContainers, group.label ?? undefined)}
+                      >
+                        <StopCircle className="h-3 w-3" />
+                        Stop all
+                      </Button>
+                    )}
+                  </div>
+                )}
+                {group.containers.map((container) => (
+                  <DockerContainerRow
+                    key={container.id}
+                    container={container}
+                    pending={actions.pendingIds.has(container.id)}
+                    focused={focusedContainerId === container.id}
+                    rowRef={bindRow(container.id)}
+                    onStart={() => actions.start(container.id)}
+                    onStop={() => actions.stop(container)}
+                    onRestart={() => actions.restart(container.id)}
+                    onRemove={() => actions.openRemoveDialog(container)}
+                  />
+                ))}
+              </div>
+            );
+          })}
         </div>
       )}
 

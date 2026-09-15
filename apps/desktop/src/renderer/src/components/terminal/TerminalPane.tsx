@@ -3,8 +3,13 @@ import { useEffect, useRef } from 'react';
 import { onFontsLoaded, whenTerminalFontReady } from '@/lib/terminal/fontReady';
 import { attachFilePaste } from '@/lib/terminal/pasteFiles';
 import { sshTerminalAdapter } from '@/lib/terminal/sshAdapter';
-import { attachTerminalContextMenu, createXterm } from '@/lib/terminal/xtermFactory';
+import {
+  attachTerminalContextMenu,
+  createXterm,
+  resolveDrawerTerminalTheme,
+} from '@/lib/terminal/xtermFactory';
 import type { TerminalSessionMeta } from '@/stores/terminalStore';
+import { useThemeStore } from '@/stores/themeStore';
 
 export interface TerminalPaneProps {
   meta: TerminalSessionMeta;
@@ -13,6 +18,7 @@ export interface TerminalPaneProps {
 }
 
 export function TerminalPane({ meta, active, onExit }: TerminalPaneProps): React.JSX.Element {
+  const paneRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<Terminal | null>(null);
   const onExitRef = useRef(onExit);
@@ -29,11 +35,20 @@ export function TerminalPane({ meta, active, onExit }: TerminalPaneProps): React
       meta.kind === 'ssh' && meta.sshServerId
         ? sshTerminalAdapter(meta.sshServerId)
         : window.agentmat.terminal;
+    const initialTheme = resolveDrawerTerminalTheme(useThemeStore.getState().theme);
+    paneRef.current?.style.setProperty('--terminal-bg', initialTheme.background as string);
     const { term, fit: fitAddon } = createXterm({
       sessionId: () => ptySessionId,
       write: (id, data) => void client.write(id, data),
+      theme: initialTheme,
     });
     termRef.current = term;
+
+    const unsubscribeTheme = useThemeStore.subscribe((state) => {
+      const theme = resolveDrawerTerminalTheme(state.theme);
+      term.options.theme = theme;
+      paneRef.current?.style.setProperty('--terminal-bg', theme.background as string);
+    });
 
     const hasSize = (): boolean => container.clientWidth > 0 && container.clientHeight > 0;
 
@@ -156,6 +171,7 @@ export function TerminalPane({ meta, active, onExit }: TerminalPaneProps): React
       stopFontWatch();
       detachContextMenu();
       detachFilePaste();
+      unsubscribeTheme();
       unsubscribeData();
       unsubscribeExit();
       // The shell is deliberately left running: closing a tab ends it through the store,
@@ -175,7 +191,7 @@ export function TerminalPane({ meta, active, onExit }: TerminalPaneProps): React
   // The padding lives on the outer box: xterm's fit measures the element it opened in by its
   // CSS size, and with border-box sizing a padded element would report the padding as room.
   return (
-    <div className={active ? 'terminal-pane absolute inset-0' : 'hidden'}>
+    <div ref={paneRef} className={active ? 'terminal-pane absolute inset-0' : 'hidden'}>
       <div ref={containerRef} className="h-full w-full overflow-hidden" />
     </div>
   );

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useThemeStore } from '@/stores/themeStore';
+import { resolveIsDark, useThemeStore } from '@/stores/themeStore';
 
 // Fixed hex steps (not the `--primary`/`--card` CSS vars) because these
 // colors must hold a validated CVD-safe categorical order when several show
@@ -42,7 +42,7 @@ export function useIsDarkMode(): boolean {
     return () => mediaQuery.removeEventListener('change', handleChange);
   }, []);
 
-  return theme === 'system' ? systemDark : theme === 'dark';
+  return resolveIsDark(theme, systemDark);
 }
 
 export function useChartColors(): { green: string; blue: string; categorical: string[] } {

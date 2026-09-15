@@ -3,8 +3,9 @@ import { useQuery } from '@tanstack/react-query';
 import { DockerContainerRow } from '@/components/docker/DockerContainerRow';
 import { RemoveContainerDialog } from '@/components/docker/RemoveContainerDialog';
 import { useDockerContainerActions } from '@/components/docker/useDockerContainerActions';
-import { Docker } from '@/components/icons';
+import { Docker, StopCircle } from '@/components/icons';
 import { ProjectEmptyState } from '@/components/projects/ProjectDetailChrome';
+import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { queryKeys } from '@/lib/queryKeys';
 
@@ -61,15 +62,30 @@ export function DockerTab({ project }: { project: Project }): React.JSX.Element 
     );
   }
 
+  const runningContainers = containers.filter((c) => c.state === 'running');
+
   return (
     <div className="space-y-2">
+      {runningContainers.length > 1 && (
+        <div className="flex justify-end">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-6 gap-1 px-2 text-xs text-muted-foreground hover:text-foreground"
+            onClick={() => actions.stopMany(runningContainers)}
+          >
+            <StopCircle className="h-3 w-3" />
+            Stop all
+          </Button>
+        </div>
+      )}
       {containers.map((container) => (
         <DockerContainerRow
           key={container.id}
           container={container}
-          pending={actions.pendingId === container.id}
+          pending={actions.pendingIds.has(container.id)}
           onStart={() => actions.start(container.id)}
-          onStop={() => actions.stop(container.id)}
+          onStop={() => actions.stop(container)}
           onRestart={() => actions.restart(container.id)}
           onRemove={() => actions.openRemoveDialog(container)}
         />
