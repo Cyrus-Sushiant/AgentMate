@@ -480,6 +480,15 @@ export const IPC = {
     saveImage: 'terminalClipboard:saveImage',
     readSpecial: 'terminalClipboard:readSpecial',
   },
+  power: {
+    // () -> KeepAwakeStatus
+    keepAwakeStatus: 'power:keepAwakeStatus',
+    // (mode) -> KeepAwakeStatus: stores the choice and applies it
+    setKeepAwake: 'power:setKeepAwake',
+    // main -> renderer: the keep-awake state changed
+    onKeepAwake: 'power:onKeepAwake',
+  },
+
   agents: {
     sync: 'agents:sync',
     setViewing: 'agents:setViewing',

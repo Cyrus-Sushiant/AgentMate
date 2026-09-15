@@ -57,6 +57,7 @@ import {
   faFolderOpen,
   faFolderPlus,
   faFolderTree,
+  faGauge,
   faGaugeHigh,
   faGear,
   faGlobe,
@@ -82,6 +83,7 @@ import {
   faMicrophoneSlash,
   faMinus,
   faMoon,
+  faMugHot,
   faNetworkWired,
   faPaperclip,
   faPaperPlane,
@@ -168,8 +170,10 @@ export const FolderPlus = makeIcon(faFolderPlus);
 export const FolderTree = makeIcon(faFolderTree);
 export const Globe = makeIcon(faGlobe);
 export const LayoutDashboard = makeIcon(faGaugeHigh);
+export const Gauge = makeIcon(faGauge);
 export const Monitor = makeIcon(faDisplay);
 export const Moon = makeIcon(faMoon);
+export const MugHot = makeIcon(faMugHot);
 export const Pencil = makeIcon(faPen);
 export const Plus = makeIcon(faPlus);
 export const RefreshCw = makeIcon(faArrowsRotate);

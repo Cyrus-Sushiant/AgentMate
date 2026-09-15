@@ -45,7 +45,7 @@ import { CommitsSection } from './CommitsSection';
 import { ExplorerSection } from './ExplorerSection';
 import { GitFileRow } from './GitFileRow';
 import { HistorySection } from './HistorySection';
-import { PanelIconButton, PanelSection } from './PanelSection';
+import { PanelIconButton, type PanelTabDef, PanelTabs } from './PanelTabs';
 import { PipelinesSection } from './PipelinesSection';
 import { type GitActions, useGitActions, useWorkspaceGitState } from './useWorkspaceGit';
 
@@ -86,9 +86,8 @@ function SyncControls({
 }): React.JSX.Element | null {
   const queryClient = useQueryClient();
   const [running, setRunning] = useState<SyncKind | null>(null);
-  const fetchedFor = useRef<string | null>(null);
 
-  async function run(kind: SyncKind, quiet = false): Promise<void> {
+  async function run(kind: SyncKind): Promise<void> {
     if (running) return;
     setRunning(kind);
     const git = window.agentmat.git;
@@ -106,7 +105,6 @@ function SyncControls({
       setRunning(null);
     }
     void queryClient.invalidateQueries({ queryKey: queryKeys.gitWorkspaceState(projectId) });
-    if (quiet) return;
     const outcome: Record<SyncKind, [done: string, failed: string]> = {
       fetch: ['Fetched', 'Fetch failed'],
       pull: ['Pulled', 'Pull failed'],
@@ -117,14 +115,6 @@ function SyncControls({
     if (result.ok) toast.success(outcome[kind][0]);
     else toast.error(outcome[kind][1], { description: result.message });
   }
-
-  // Fetch once when a project's panel first shows, so the ahead and behind counts mean something.
-  // biome-ignore lint/correctness/useExhaustiveDependencies: a one-off per project
-  useEffect(() => {
-    if (!state.hasRemote || fetchedFor.current === projectId) return;
-    fetchedFor.current = projectId;
-    void run('fetch', true);
-  }, [projectId, state.hasRemote]);
 
   if (!state.hasRemote) return null;
 
@@ -194,6 +184,60 @@ function SyncControls({
           )}
         />
       </HeaderButton>
+    </div>
+  );
+}
+
+/**
+ * Fetches once per project when its panel first shows, so the ahead and behind counts mean
+ * something before the user asks for anything.
+ */
+function useInitialFetch(projectId: string, hasRemote: boolean | undefined): void {
+  const queryClient = useQueryClient();
+  const fetchedFor = useRef<string | null>(null);
+  useEffect(() => {
+    if (!hasRemote || fetchedFor.current === projectId) return;
+    fetchedFor.current = projectId;
+    void window.agentmat.git.fetch(projectId).then(() => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.gitWorkspaceState(projectId) });
+    });
+  }, [projectId, hasRemote, queryClient]);
+}
+
+/** Branch, tracking state and the one button that matters right now (sync, push, publish). */
+function BranchBar({
+  projectId,
+  state,
+}: {
+  projectId: string;
+  state: WorkspaceGitState;
+}): React.JSX.Element {
+  const setGitPanel = useWorkspaceStore((s) => s.setGitPanel);
+  return (
+    <div className="flex h-9 shrink-0 items-center gap-1 border-b border-border/50 pl-1.5 pr-2">
+      <SimpleTooltip
+        label={
+          state.detached
+            ? `Detached at ${state.head}`
+            : state.upstream
+              ? `Tracking ${state.upstream}. Click to switch branch`
+              : state.hasRemote
+                ? 'This branch is not published yet. Click to switch branch'
+                : 'No remote configured. Click to switch branch'
+        }
+      >
+        <button
+          type="button"
+          onClick={() => setGitPanel({ activeSection: 'branches' })}
+          className="flex min-w-0 flex-1 items-center gap-1.5 rounded px-1 py-0.5 text-left text-xs transition-colors hover:bg-foreground/[0.06]"
+        >
+          <GitBranch className="h-3 w-3 shrink-0 text-primary" />
+          <span className="truncate font-mono font-medium">
+            {state.detached ? `detached ${state.head ?? ''}` : (state.branch ?? 'no branch')}
+          </span>
+        </button>
+      </SimpleTooltip>
+      <SyncControls projectId={projectId} state={state} />
     </div>
   );
 }
@@ -457,6 +501,7 @@ function PanelBody({
 
   return (
     <>
+      <BranchBar projectId={project.id} state={state} />
       {state.operation ? (
         <div className="mx-2.5 mt-2.5 flex items-center gap-2 rounded-lg border border-warning/30 bg-warning/10 px-2.5 py-2 text-xs text-warning">
           <TriangleAlert className="h-3 w-3 shrink-0" />
@@ -512,11 +557,12 @@ export function GitPanel({
   const collapsed = useWorkspaceStore((s) => s.gitPanel.collapsed);
   const setGitPanel = useWorkspaceStore((s) => s.setGitPanel);
   const toggleLabel = useShortcutLabel('workspace.toggleGitPanel');
-  const openSections = useWorkspaceStore((s) => s.gitPanel.openSections);
+  const activeSection = useWorkspaceStore((s) => s.gitPanel.activeSection);
   const queryClient = useQueryClient();
   const [creatingBranch, setCreatingBranch] = useState(false);
   const query = useWorkspaceGitState(project.id, visible);
   const state = query.data;
+  useInitialFetch(project.id, state?.isRepo && state.hasRemote);
   const [resizing, setResizing] = useState(false);
   const count = state
     ? state.staged.length + state.unstaged.length + state.untracked.length + state.conflicts.length
@@ -550,42 +596,122 @@ export function GitPanel({
     handle.addEventListener('pointercancel', onUp);
   }
 
+  const tabs: PanelTabDef[] = [
+    {
+      id: 'changes',
+      title: 'Changes',
+      icon: CodeCompare,
+      count,
+      render: () => <PanelBody project={project} state={state} />,
+    },
+    {
+      id: 'commits',
+      title: 'Commits',
+      icon: GitCommit,
+      count: state?.ahead || undefined,
+      render: () => <CommitsSection project={project} state={state} />,
+    },
+    {
+      id: 'branches',
+      title: 'Branches',
+      icon: GitBranch,
+      actions: state?.isRepo ? (
+        <PanelIconButton label="New branch" onClick={() => setCreatingBranch(true)}>
+          <Plus className="h-2.5 w-2.5" />
+        </PanelIconButton>
+      ) : null,
+      render: () => (
+        <BranchesSection
+          project={project}
+          state={state}
+          creating={creatingBranch}
+          onCreatingChange={setCreatingBranch}
+        />
+      ),
+    },
+    {
+      id: 'explorer',
+      title: 'Explorer',
+      icon: FolderTree,
+      actions: (
+        <PanelIconButton
+          label="Refresh files"
+          onClick={() =>
+            void queryClient.invalidateQueries({ queryKey: ['workspace-explorer', project.id] })
+          }
+        >
+          <RefreshCw className="h-2.5 w-2.5" />
+        </PanelIconButton>
+      ),
+      render: () => <ExplorerSection project={project} state={state} />,
+    },
+    {
+      id: 'history',
+      title: 'Agent sessions',
+      icon: History,
+      actions: (
+        <PanelIconButton
+          label="Refresh sessions"
+          onClick={() =>
+            void queryClient.invalidateQueries({ queryKey: queryKeys.agentHistory(project.id) })
+          }
+        >
+          <RefreshCw className="h-2.5 w-2.5" />
+        </PanelIconButton>
+      ),
+      render: () => <HistorySection project={project} />,
+    },
+    {
+      id: 'pipelines',
+      title: 'Pipelines',
+      icon: Github,
+      render: () => <PipelinesSection project={project} />,
+    },
+  ];
+
   if (collapsed) {
     return (
-      <aside className="flex w-10 shrink-0 flex-col items-center border-l border-border/70 bg-card/30 py-2">
+      <aside className="flex w-10 shrink-0 flex-col items-center gap-0.5 border-l border-border/70 bg-card/30 py-2">
         <SimpleTooltip
-          label={toggleLabel ? `Show changes (${toggleLabel})` : 'Show changes'}
+          label={toggleLabel ? `Show the panel (${toggleLabel})` : 'Show the panel'}
           side="left"
         >
           <button
             type="button"
-            aria-label="Show changes"
+            aria-label="Show the panel"
             onClick={() => setGitPanel({ collapsed: false })}
-            className="relative flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-foreground/10 hover:text-foreground"
+            className="mb-1 flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-foreground/10 hover:text-foreground"
           >
-            <CodeCompare className="h-3.5 w-3.5" />
-            {count > 0 ? (
-              <span className="absolute -right-0.5 -top-0.5 min-w-4 rounded-full bg-primary px-1 text-center text-[9px] font-bold leading-4 text-primary-foreground tabular-nums">
-                {count > 99 ? '99+' : count}
-              </span>
-            ) : null}
+            <AnglesLeft className="h-3 w-3" />
           </button>
         </SimpleTooltip>
-        <button
-          type="button"
-          aria-label="Show changes"
-          onClick={() => setGitPanel({ collapsed: false })}
-          className="mt-1 flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-foreground/10 hover:text-foreground"
-        >
-          <AnglesLeft className="h-3 w-3" />
-        </button>
+        {tabs.map((tab) => (
+          <SimpleTooltip key={tab.id} label={tab.title} side="left">
+            <button
+              type="button"
+              aria-label={tab.title}
+              onClick={() => setGitPanel({ collapsed: false, activeSection: tab.id })}
+              className={cn(
+                'relative flex h-8 w-8 items-center justify-center rounded-md transition-colors hover:bg-foreground/10 hover:text-foreground',
+                tab.id === activeSection ? 'text-primary' : 'text-muted-foreground',
+              )}
+            >
+              <tab.icon className="h-3.5 w-3.5" />
+              {tab.count ? (
+                <span className="absolute -right-0.5 -top-0.5 min-w-4 rounded-full bg-primary px-1 text-center text-[9px] font-bold leading-4 text-primary-foreground tabular-nums">
+                  {tab.count > 99 ? '99+' : tab.count}
+                </span>
+              ) : null}
+            </button>
+          </SimpleTooltip>
+        ))}
       </aside>
     );
   }
 
   return (
     <aside
-      aria-label="Changes"
+      aria-label="Project panel"
       style={{ width }}
       className="relative flex shrink-0 flex-col border-l border-border/70 bg-card/30"
     >
@@ -605,122 +731,17 @@ export function GitPanel({
         />
       </div>
 
-      <header className="flex h-10 shrink-0 items-center gap-2 border-b border-border/60 pl-3 pr-1.5">
-        {state?.isRepo ? (
-          <SimpleTooltip
-            label={
-              state.detached
-                ? `Detached at ${state.head}`
-                : state.upstream
-                  ? `Tracking ${state.upstream}`
-                  : state.hasRemote
-                    ? 'This branch is not published yet'
-                    : 'No remote configured'
-            }
+      <PanelTabs
+        tabs={tabs}
+        trailing={
+          <PanelIconButton
+            label={toggleLabel ? `Hide the panel (${toggleLabel})` : 'Hide the panel'}
+            onClick={() => setGitPanel({ collapsed: true })}
           >
-            <button
-              type="button"
-              onClick={() => setGitPanel({ openSections: { ...openSections, branches: true } })}
-              className="flex min-w-0 flex-1 items-center gap-1.5 rounded px-1 py-0.5 text-left text-xs transition-colors hover:bg-foreground/[0.06]"
-            >
-              <GitBranch className="h-3 w-3 shrink-0 text-primary" />
-              <span className="truncate font-mono font-medium">
-                {state.detached ? `detached ${state.head ?? ''}` : (state.branch ?? 'no branch')}
-              </span>
-            </button>
-          </SimpleTooltip>
-        ) : (
-          <span className="flex-1 text-xs font-semibold">Changes</span>
-        )}
-        {state?.isRepo ? <SyncControls projectId={project.id} state={state} /> : null}
-        <HeaderButton
-          label={toggleLabel ? `Hide changes (${toggleLabel})` : 'Hide changes'}
-          onClick={() => setGitPanel({ collapsed: true })}
-        >
-          <AnglesRight className="h-3 w-3" />
-        </HeaderButton>
-      </header>
-
-      <div className="flex min-h-0 flex-1 flex-col">
-        <PanelSection id="changes" title="Changes" icon={CodeCompare} count={count} weight={3}>
-          <PanelBody project={project} state={state} />
-        </PanelSection>
-        <PanelSection
-          id="commits"
-          title="Commits"
-          icon={GitCommit}
-          count={state?.ahead || undefined}
-          weight={2}
-        >
-          <CommitsSection project={project} state={state} />
-        </PanelSection>
-        <PanelSection
-          id="branches"
-          title="Branches"
-          icon={GitBranch}
-          actions={
-            state?.isRepo ? (
-              <PanelIconButton
-                label="New branch"
-                onClick={() => {
-                  setGitPanel({ openSections: { ...openSections, branches: true } });
-                  setCreatingBranch(true);
-                }}
-              >
-                <Plus className="h-2.5 w-2.5" />
-              </PanelIconButton>
-            ) : null
-          }
-        >
-          <BranchesSection
-            project={project}
-            state={state}
-            creating={creatingBranch}
-            onCreatingChange={setCreatingBranch}
-          />
-        </PanelSection>
-        <PanelSection
-          id="explorer"
-          title="Explorer"
-          icon={FolderTree}
-          weight={2}
-          actions={
-            <PanelIconButton
-              label="Refresh files"
-              onClick={() =>
-                void queryClient.invalidateQueries({ queryKey: ['workspace-explorer', project.id] })
-              }
-            >
-              <RefreshCw className="h-2.5 w-2.5" />
-            </PanelIconButton>
-          }
-        >
-          <ExplorerSection project={project} state={state} />
-        </PanelSection>
-        <PanelSection
-          id="history"
-          title="Agent sessions"
-          icon={History}
-          weight={2}
-          actions={
-            <PanelIconButton
-              label="Refresh sessions"
-              onClick={() =>
-                void queryClient.invalidateQueries({
-                  queryKey: queryKeys.agentHistory(project.id),
-                })
-              }
-            >
-              <RefreshCw className="h-2.5 w-2.5" />
-            </PanelIconButton>
-          }
-        >
-          <HistorySection project={project} />
-        </PanelSection>
-        <PanelSection id="pipelines" title="Pipelines" icon={Github}>
-          <PipelinesSection project={project} />
-        </PanelSection>
-      </div>
+            <AnglesRight className="h-3 w-3" />
+          </PanelIconButton>
+        }
+      />
     </aside>
   );
 }

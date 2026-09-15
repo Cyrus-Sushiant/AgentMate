@@ -65,10 +65,11 @@ function HistoryRow({
 }): React.JSX.Element {
   const activateTab = useWorkspaceStore((s) => s.activateTab);
   const headline = session.title ?? session.firstPrompt ?? 'Untitled conversation';
-  const meta = [
-    timeAgo(new Date(session.updatedAt).toISOString()),
+  const run = [
     session.model ? shortModel(session.model) : null,
+    session.effort ? `${session.effort} effort` : null,
   ].filter(Boolean);
+  const meta = [timeAgo(new Date(session.updatedAt).toISOString()), ...run];
 
   function resume(): void {
     if (openTabId) {
@@ -95,6 +96,12 @@ function HistoryRow({
         <p className="leading-snug text-muted-foreground">
           <span className="text-foreground/80">Last: </span>
           {session.lastPrompt}
+        </p>
+      ) : null}
+      {run.length > 0 ? (
+        <p className="leading-snug text-muted-foreground">
+          <span className="text-foreground/80">Ran on: </span>
+          {run.join(' · ')}
         </p>
       ) : null}
       <p className="text-[10px] text-muted-foreground">
@@ -134,7 +141,7 @@ function HistoryRow({
                   Open
                 </span>
               ) : null}
-              <span className="shrink-0 tabular-nums">{meta.join(' · ')}</span>
+              <span className="truncate tabular-nums">{meta.join(' · ')}</span>
               {session.gitBranch ? (
                 <span className="inline-flex min-w-0 items-center gap-0.5">
                   <GitBranch className="h-2 w-2 shrink-0" />

@@ -138,6 +138,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   desktopPetNetworkQuality: false,
   keepTerminalsRunning: true,
   workspaceNotifications: true,
+  keepAwake: 'agent',
   workspaceTerminalCustomBackground: false,
   workspaceTerminalBackgroundColor: DEFAULT_TERMINAL_BACKGROUND_COLOR,
 };
@@ -189,6 +190,8 @@ function withSettingsMigrations(settings: AppSettings): AppSettings {
     usageThresholdAlerts: normalizeUsageThresholdAlerts(settings.usageThresholdAlerts),
     keepTerminalsRunning: settings.keepTerminalsRunning !== false,
     workspaceNotifications: settings.workspaceNotifications !== false,
+    keepAwake:
+      settings.keepAwake === 'on' || settings.keepAwake === 'off' ? settings.keepAwake : 'agent',
     workspaceTerminalCustomBackground: settings.workspaceTerminalCustomBackground === true,
     workspaceTerminalBackgroundColor:
       normalizeProjectColor(settings.workspaceTerminalBackgroundColor) ??

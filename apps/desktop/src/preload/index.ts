@@ -47,12 +47,14 @@ import type {
   WidgetMode,
   WidgetSize,
   WidgetStyle,
+  KeepAwakeMode,
 } from '@agentmat/core';
 import { contextBridge, ipcRenderer, webUtils } from 'electron';
 import type {
   ActiveScan,
   AddPromptHistoryInput,
   AgentRunInfoMap,
+  KeepAwakeStatus,
   AgentSessionEntry,
   AgentStatusMap,
   ApplyVersionInput,
@@ -279,6 +281,18 @@ const ssh = {
       callback(payload);
     ipcRenderer.on(IPC.ssh.onExit, listener);
     return () => ipcRenderer.removeListener(IPC.ssh.onExit, listener);
+  },
+};
+
+const power = {
+  keepAwakeStatus: (): Promise<KeepAwakeStatus> => ipcRenderer.invoke(IPC.power.keepAwakeStatus),
+  setKeepAwake: (mode: KeepAwakeMode): Promise<KeepAwakeStatus> =>
+    ipcRenderer.invoke(IPC.power.setKeepAwake, mode),
+  onKeepAwake: (callback: (status: KeepAwakeStatus) => void): (() => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, status: KeepAwakeStatus): void =>
+      callback(status);
+    ipcRenderer.on(IPC.power.onKeepAwake, listener);
+    return () => ipcRenderer.removeListener(IPC.power.onKeepAwake, listener);
   },
 };
 
@@ -1155,6 +1169,7 @@ const agentmatApi = {
   terminal,
   ssh,
   agents,
+  power,
   projects,
   skills,
   mcp,

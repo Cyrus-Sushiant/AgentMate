@@ -7,6 +7,7 @@ import { seedExampleRepositoryIfEmpty } from './exampleSkillRepo';
 import { shutdownLocalServer } from './grammar/localServer';
 import { registerActivityHandlers } from './ipc/activity';
 import { registerAgentHandlers } from './ipc/agents';
+import { registerPowerHandlers } from './ipc/power';
 import { registerTerminalClipboardHandlers } from './ipc/terminalClipboard';
 import { registerAiHandlers } from './ipc/ai';
 import { registerAppHandlers } from './ipc/app';
@@ -208,6 +209,7 @@ function registerAllIpcHandlers(): void {
   registerSshHandlers();
   registerAgentHandlers();
   registerTerminalClipboardHandlers();
+  registerPowerHandlers();
   registerProjectHandlers();
   registerProxyHandlers();
   registerSkillHandlers();

@@ -310,6 +310,12 @@ export interface SecurityScannerSettings {
   trivyScanners?: string[] | null;
 }
 
+/**
+ * Sleep policy. 'agent' is the middle ground: the machine stays awake while something is
+ * actually running and sleeps normally the rest of the time.
+ */
+export type KeepAwakeMode = 'on' | 'agent' | 'off';
+
 export interface AppSettings {
   defaultCliId: string | null;
   /**
@@ -469,6 +475,11 @@ export interface AppSettings {
    * looking elsewhere raises a system notification.
    */
   workspaceNotifications: boolean;
+  /**
+   * Whether AgentMate keeps this computer from going to sleep: always, only while an agent
+   * (or a shell) is busy, or never.
+   */
+  keepAwake: KeepAwakeMode;
   /**
    * Off by default: a Workspace terminal pane leaves colors alone, so whatever CLI is running
    * in it (Claude Code's own gray, say) looks the way it would in any ordinary terminal. On
