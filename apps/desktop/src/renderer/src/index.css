@@ -219,6 +219,24 @@ body {
   }
 }
 
+/* The workspace is shown and hidden rather than remounted, so it only fades.
+   A transform or blur here would make every live terminal repaint mid-animation. */
+@keyframes workspace-enter {
+  from {
+    opacity: 0;
+  }
+}
+
+.workspace-enter {
+  animation: workspace-enter 0.18s ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .workspace-enter {
+    animation: none;
+  }
+}
+
 /* Frosted-glass surface for the Token Usage widgets: a translucent card with
    a heavy backdrop blur so it reads as glass both inside the app and floating
    over the desktop. */
@@ -1141,27 +1159,39 @@ body {
   }
 }
 
-/* Terminal drawer: one continuous ink well. xterm's canvas is only as large as
-   the fitted grid, so the well, pane, and viewport must share this fill or the
-   leftover pixels read as a nested black box. */
+/* One continuous ink well. xterm's canvas is only as large as the fitted grid, so
+   the well, pane, and viewport must share this fill or the leftover pixels read as
+   a nested black box. Falls back to the terminal drawer's fixed dark fill; a
+   Workspace terminal pane sets --terminal-bg on its own host to match its theme
+   (the app's own tint, or plain black while it leaves the running CLI's colors alone). */
 .terminal-well {
-  background: #0a1210;
+  background: var(--terminal-bg, #0a1210);
 }
 
 .terminal-pane {
   padding: 8px 12px;
-  background: #0a1210;
+  background: var(--terminal-bg, #0a1210);
 }
 
 .terminal-pane .xterm {
   height: 100%;
   width: 100%;
-  background: #0a1210;
+  background: var(--terminal-bg, #0a1210);
+}
+
+/* The app's body text is set slightly tight (negative letter-spacing), and xterm's hidden
+   character-measuring element inherits it. It then measures each cell a fraction of a pixel
+   narrower than the glyphs it draws, and across a hundred columns the right edge of every row
+   ends up outside the pane. Terminals get plain spacing; xterm sets its own on the rows. */
+.xterm {
+  letter-spacing: normal;
+  font-feature-settings: normal;
+  font-kerning: none;
 }
 
 .terminal-pane .xterm-viewport,
 .terminal-pane .xterm-screen {
-  background: #0a1210;
+  background: var(--terminal-bg, #0a1210);
 }
 
 .terminal-pane .xterm-viewport {

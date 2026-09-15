@@ -167,21 +167,35 @@ export function VersionChangeReview({
             {undecided.length > 0 ? ` · ${undecided.length} to review` : ''}
           </span>
         </p>
+        {/* The CLI bumps every version in the repo, so a release for one part usually means
+            keeping a couple of files and reverting everything else in one go. */}
         {!locked && undecided.length > 1 && (
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-7 px-2 text-xs"
-            onClick={() =>
-              onDecisionsChange((prev) => {
-                const next = { ...prev };
-                for (const change of undecided) next[change.path] = 'keep';
-                return next;
-              })
-            }
-          >
-            <Check className="h-3 w-3" /> Keep the rest
-          </Button>
+          <div className="flex items-center gap-1">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 px-2 text-xs"
+              onClick={() =>
+                onDecisionsChange((prev) => {
+                  const next = { ...prev };
+                  for (const change of undecided) next[change.path] = 'keep';
+                  return next;
+                })
+              }
+            >
+              <Check className="h-3 w-3" /> Keep the rest
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 px-2 text-xs"
+              onClick={() => {
+                for (const change of undecided) void decide(change, 'revert');
+              }}
+            >
+              <Undo className="h-3 w-3" /> Revert the rest
+            </Button>
+          </div>
         )}
       </div>
 

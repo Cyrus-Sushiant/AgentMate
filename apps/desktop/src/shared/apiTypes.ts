@@ -1,9 +1,11 @@
 import type {
+  AgentStatus,
   AgentType,
   AiProvider,
   BlueprintAttachment,
   BlueprintRevisionTarget,
   BlueprintStepId,
+  GitChangeEntry,
   ProjectBlueprint,
   ProjectNotificationSettings,
   ProjectRunCommand,
@@ -112,6 +114,41 @@ export interface CreateTerminalOptions {
   initialInput?: string;
   /** Associates this session with a project so confirmation-hook replies can be forwarded to it. */
   projectId?: string;
+  /** CLI_REGISTRY id of the agent this session was launched to run, if any. */
+  cliId?: string;
+  /** Which part of the app shows this session. */
+  surface?: TerminalSurface;
+}
+
+export type TerminalSurface = 'drawer' | 'workspace';
+
+/** A workspace terminal tab, as the agent status tracker needs to know it. */
+export interface AgentSessionEntry {
+  sessionId: string;
+  projectId: string;
+  cliId?: string;
+  /** The tab's name, used in notifications. */
+  title: string;
+}
+
+/** Session id to what its agent is doing right now. */
+export type AgentStatusMap = Record<string, AgentStatus>;
+
+/** The model and reasoning effort an agent reports it is running on right now. */
+export interface AgentRunInfo {
+  /** Raw model id, e.g. `claude-opus-5`. */
+  model?: string;
+  effort?: string;
+  /** The CLI's own id for the conversation, which the history section matches against. */
+  conversationId?: string;
+}
+
+export type AgentRunInfoMap = Record<string, AgentRunInfo>;
+
+/** Clipboard content a terminal pastes as file paths (a screenshot saved to disk, copied files). */
+export interface TerminalClipboardPaste {
+  kind: 'files';
+  paths: string[];
 }
 
 export interface TerminalSnapshot {
@@ -779,6 +816,45 @@ export interface GitOpResult {
   message: string;
 }
 
+/** A merge, rebase or similar that stopped part way and is waiting on the user. */
+export type GitPendingOperation = 'merge' | 'rebase' | 'cherry-pick' | 'revert';
+
+/** Everything the workspace's changes panel shows, read in one pass. */
+export interface WorkspaceGitState {
+  isRepo: boolean;
+  branch: string | null;
+  detached: boolean;
+  /** Short id of HEAD, or null before the first commit. */
+  head: string | null;
+  upstream: string | null;
+  ahead: number;
+  behind: number;
+  hasRemote: boolean;
+  operation: GitPendingOperation | null;
+  conflicts: GitChangeEntry[];
+  staged: GitChangeEntry[];
+  unstaged: GitChangeEntry[];
+  untracked: GitChangeEntry[];
+  /** More untracked files exist than were listed. */
+  untrackedTruncated: boolean;
+}
+
+export type GitDiffSide = 'staged' | 'unstaged' | 'untracked' | 'conflict';
+
+export interface GitFileDiff {
+  path: string;
+  original: string;
+  modified: string;
+  binary: boolean;
+  /** One side is too big to diff comfortably; the viewer shows a notice instead. */
+  tooLarge: boolean;
+}
+
+export interface GitDiscardResult extends GitOpResult {
+  /** Hands the discarded content back for a short while. */
+  undoToken?: string;
+}
+
 export interface GitTagInfo {
   /** Most recent tag reachable from HEAD, or null when the repo has none yet. */
   latestTag: string | null;
@@ -1217,6 +1293,101 @@ export interface RemoteSavedServer {
   deviceToken: string;
   createdAt: number;
   lastConnectedAt: number;
+}
+
+export type SshAuthMethod = 'password' | 'privateKey';
+
+/** A saved SSH server. Never carries the plaintext password/passphrase; see `SaveSshServerInput`. */
+export interface SshSavedServer {
+  id: string;
+  nickname: string;
+  host: string;
+  port: number;
+  username: string;
+  authMethod: SshAuthMethod;
+  /** Plaintext filesystem path, only set for authMethod 'privateKey'; not itself a secret. */
+  privateKeyPath?: string;
+  /** Whether a password or key passphrase is stored. The secret itself is never sent to the renderer. */
+  hasSecret: boolean;
+  /** SHA256 host key fingerprint recorded on first successful connect (trust-on-first-use). */
+  hostKeyFingerprint?: string;
+  createdAt: number;
+  lastConnectedAt: number | null;
+}
+
+/**
+ * Input to `ssh:saveServer`. `secret` is the plaintext password/passphrase the user just typed;
+ * omit it on an edit to leave the stored secret unchanged, since the real one is never round-tripped
+ * back to the renderer for display.
+ */
+export interface SaveSshServerInput {
+  /** Present on an edit of an existing server. */
+  id?: string;
+  nickname: string;
+  host: string;
+  port: number;
+  username: string;
+  authMethod: SshAuthMethod;
+  privateKeyPath?: string;
+  secret?: string;
+}
+
+export interface CreateSshSessionOptions {
+  sessionId?: string;
+  savedServerId: string;
+  cols?: number;
+  rows?: number;
+}
+
+export interface SshAttachResult {
+  sessionId: string;
+}
+
+export interface SshVaultStatus {
+  hasPasskey: boolean;
+  unlocked: boolean;
+}
+
+/** On-disk record for the optional Servers passkey. Never holds the passkey itself. */
+export interface SshVaultRecord {
+  salt: string;
+  verifier: string;
+}
+
+/** A secret encrypted with the OS keychain (Electron `safeStorage`); the default when no passkey is set. */
+export interface SafeStorageSecretEnvelope {
+  mode: 'safeStorage';
+  ciphertext: string;
+}
+
+/** A secret encrypted with a key derived from the user's Servers passkey (AES-256-GCM). */
+export interface PassphraseSecretEnvelope {
+  mode: 'passphrase';
+  iv: string;
+  authTag: string;
+  ciphertext: string;
+}
+
+export type SecretEnvelope = SafeStorageSecretEnvelope | PassphraseSecretEnvelope;
+
+/**
+ * Main-process-only, on-disk shape of a saved SSH server: `SshSavedServer` plus the actual
+ * encrypted secret. Never sent to the renderer as-is; `ssh:listServers` maps this down to
+ * `SshSavedServer` (dropping `secretEnvelope` in favor of the `hasSecret` boolean).
+ */
+export interface StoredSshServer extends Omit<SshSavedServer, 'hasSecret'> {
+  secretEnvelope?: SecretEnvelope;
+}
+
+export interface SshDataPayload {
+  sessionId: string;
+  data: string;
+}
+
+export interface SshExitPayload {
+  sessionId: string;
+  /** A short, user-facing reason (auth failed, host unreachable, host key changed), if any. */
+  error?: string;
 }
 
 /** Live transport quality for the controller's inbound video, sampled ~1/sec. */

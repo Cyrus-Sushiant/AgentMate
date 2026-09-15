@@ -1,12 +1,14 @@
+import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { createServer, type Server } from 'node:http';
 import { join } from 'node:path';
-import type { NotificationHookKind } from '@agentmat/core';
+import type { AgentHookEvent, NotificationHookKind } from '@agentmat/core';
 import { NOTIFICATION_HOOK_KINDS } from '@agentmat/core';
 import { app, BrowserWindow } from 'electron';
 import type { ConfirmationForwardedPayload } from '../../shared/apiTypes';
 import { IPC } from '../../shared/ipcChannels';
-import { findSessionIdForProject, writeToSession } from '../ipc/terminal';
+import { agentStatus } from '../agents/statusTracker';
+import { findSessionIdForProject, SESSION_ID_PATTERN, writeToSession } from '../ipc/terminal';
 import { store } from '../store';
 import { speakOnPet } from './petNotifier';
 import { pollTelegramUpdates, sendTelegramMessage } from './telegramApi';
@@ -111,20 +113,113 @@ async function runPollLoop(): Promise<void> {
   }
 }
 
+/** Hook payloads are a few hundred bytes; anything far bigger is not from our script. */
+const MAX_BODY_BYTES = 64 * 1024;
+
+/**
+ * Written next to the port so only scripts AgentMate generated (which read the file) can
+ * move a tab's status. Other local processes can reach the port, but not the file.
+ */
+const agentEventToken = randomBytes(24).toString('hex');
+
+function tokenMatches(candidate: unknown): boolean {
+  if (typeof candidate !== 'string') return false;
+  const expected = Buffer.from(agentEventToken);
+  const given = Buffer.from(candidate);
+  return given.length === expected.length && timingSafeEqual(given, expected);
+}
+
+/** Maps a Claude Code hook event to what it means for the tab's status, or null to ignore it. */
+function agentHookEvent(payload: {
+  event?: unknown;
+  notificationType?: unknown;
+  message?: unknown;
+}): AgentHookEvent | null {
+  switch (payload.event) {
+    case 'UserPromptSubmit':
+      return 'prompt';
+    case 'Stop':
+      return 'stop';
+    case 'SessionEnd':
+      return 'session-end';
+    case 'Notification': {
+      // "Still waiting" reminders after a minute idle are not a new question.
+      if (payload.notificationType === 'idle_prompt') return null;
+      if (
+        payload.notificationType === 'permission_prompt' ||
+        payload.notificationType === 'elicitation_dialog' ||
+        payload.notificationType === 'elicitation_url_dialog' ||
+        payload.notificationType === 'agent_needs_input'
+      ) {
+        return 'needs-input';
+      }
+      const message = typeof payload.message === 'string' ? payload.message : '';
+      return /permission|approv|needs your|waiting for your/i.test(message) ? 'needs-input' : null;
+    }
+    default:
+      return null;
+  }
+}
+
+function handleAgentEvent(body: string): void {
+  const parsed = JSON.parse(body) as {
+    token?: unknown;
+    sessionId?: unknown;
+    event?: unknown;
+    notificationType?: unknown;
+    message?: unknown;
+    model?: unknown;
+    effort?: unknown;
+    transcriptPath?: unknown;
+  };
+  if (!tokenMatches(parsed.token)) return;
+  if (typeof parsed.sessionId !== 'string' || !SESSION_ID_PATTERN.test(parsed.sessionId)) return;
+  void agentStatus.runInfo(parsed.sessionId, {
+    model: typeof parsed.model === 'string' ? parsed.model.slice(0, 100) : undefined,
+    effort: typeof parsed.effort === 'string' ? parsed.effort.slice(0, 20) : undefined,
+    transcriptPath:
+      typeof parsed.transcriptPath === 'string' ? parsed.transcriptPath : undefined,
+  });
+  const event = agentHookEvent(parsed);
+  if (!event) return;
+  const message =
+    event === 'needs-input' && typeof parsed.message === 'string'
+      ? parsed.message.slice(0, 200)
+      : undefined;
+  agentStatus.hook(parsed.sessionId, event, message);
+}
+
 export async function startHookServer(): Promise<void> {
   if (server) return;
 
   server = createServer((req, res) => {
-    if (req.method !== 'POST' || req.url !== '/hook') {
+    const route = req.method === 'POST' ? req.url : null;
+    if (route !== '/hook' && route !== '/agent-event') {
       res.writeHead(404).end();
       return;
     }
     let body = '';
+    let tooLarge = false;
     req.on('data', (chunk: Buffer) => {
+      if (tooLarge) return;
       body += chunk.toString('utf-8');
+      if (body.length > MAX_BODY_BYTES) {
+        tooLarge = true;
+        res.writeHead(413).end();
+        req.destroy();
+      }
     });
     req.on('end', () => {
+      if (tooLarge) return;
       res.writeHead(204).end();
+      if (route === '/agent-event') {
+        try {
+          handleAgentEvent(body);
+        } catch {
+          // A malformed event from a stale script; the heuristic still covers the tab.
+        }
+        return;
+      }
       try {
         const parsed = JSON.parse(body) as { projectId?: string; kind?: string };
         const kind = NOTIFICATION_HOOK_KINDS.find((candidate) => candidate === parsed.kind);
@@ -146,7 +241,8 @@ export async function startHookServer(): Promise<void> {
   const address = server.address();
   const port = typeof address === 'object' && address ? address.port : 0;
   await mkdir(dataDir(), { recursive: true });
-  await writeFile(portFilePath(), JSON.stringify({ port }), 'utf-8');
+  // Older generated scripts only read `port`, so adding the token keeps them working.
+  await writeFile(portFilePath(), JSON.stringify({ port, token: agentEventToken }), 'utf-8');
 
   // Establish a baseline offset (short timeout) so the poll loop only reacts
   // to messages sent after startup, not the bot's entire history.

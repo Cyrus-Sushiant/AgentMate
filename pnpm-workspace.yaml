@@ -3,12 +3,14 @@ packages:
   - "apps/*"
 allowBuilds:
   better-sqlite3: true
+  cpu-features: false
   electron-winstaller: true
   esbuild: true
   node-pty: true
   onnxruntime-node: true
   protobufjs: true
   sharp: true
+  ssh2: false
 minimumReleaseAgeExclude:
   - autoprefixer@10.5.4
   - caniuse-lite@1.0.30001806

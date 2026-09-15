@@ -1,7 +1,13 @@
 import { randomUUID } from 'node:crypto';
 import { type IpcMainInvokeEvent, ipcMain, powerSaveBlocker, type WebContents } from 'electron';
-import type { CreateTerminalOptions, TerminalAttachResult } from '../../shared/apiTypes';
+import type {
+  AgentSessionEntry,
+  CreateTerminalOptions,
+  TerminalAttachResult,
+  TerminalSurface,
+} from '../../shared/apiTypes';
 import { IPC } from '../../shared/ipcChannels';
+import { agentStatus } from '../agents/statusTracker';
 import type { HostClient } from '../ptyHost/hostClient';
 import { connectToHost } from '../ptyHost/hostLauncher';
 import type {
@@ -20,12 +26,24 @@ function defaultShell(): AllowedShell {
   return (process.env.SHELL?.split('/').pop() as AllowedShell) ?? 'bash';
 }
 
-const SESSION_ID_PATTERN = /^[A-Za-z0-9_-]{1,128}$/;
+export const SESSION_ID_PATTERN = /^[A-Za-z0-9_-]{1,128}$/;
+
+export interface TerminalSessionInfo {
+  projectId?: string;
+  cliId?: string;
+  surface?: TerminalSurface;
+  createdAt: number;
+}
 
 /** What main knows about each running session, kept for hook replies and the power blocker. */
-const sessions = new Map<string, { projectId?: string; createdAt: number }>();
+const sessions = new Map<string, TerminalSessionInfo>();
 /** The window currently showing each session. Output goes there. */
 const owners = new Map<string, WebContents>();
+/**
+ * Sessions this process has attached to since it connected. A session the host was already
+ * running when the app started is known from its list but sends no output until attached.
+ */
+const attached = new Set<string>();
 
 /**
  * Terminals normally run in the background host (see ptyHost/hostEntry.ts), which keeps
@@ -58,15 +76,18 @@ function syncPowerSaveBlocker(): void {
 }
 
 function forwardData(sessionId: string, data: string): void {
+  agentStatus.output(sessionId, data.length);
   const owner = owners.get(sessionId);
   if (owner && !owner.isDestroyed()) owner.send(IPC.terminal.onData, { sessionId, data });
 }
 
 function forwardExit(sessionId: string, exitCode: number): void {
+  agentStatus.exit(sessionId);
   const owner = owners.get(sessionId);
   if (owner && !owner.isDestroyed()) owner.send(IPC.terminal.onExit, { sessionId, exitCode });
   owners.delete(sessionId);
   sessions.delete(sessionId);
+  attached.delete(sessionId);
   syncPowerSaveBlocker();
 }
 
@@ -99,6 +120,7 @@ async function startBackend(): Promise<void> {
       if (host !== client) return;
       host = null;
       backendReady = null;
+      attached.clear();
       // The shells died with the host. Close their tabs; the next terminal starts a new host.
       for (const sessionId of [...sessions.keys()]) forwardExit(sessionId, 1);
     },
@@ -155,7 +177,13 @@ export function registerTerminalHandlers(): void {
           cwd: options.cwd,
           cols: options.cols,
           rows: options.rows,
-          env: process.env as Record<string, string>,
+          // The ids let a hook script started inside this shell (Claude Code's, say) say
+          // which tab it belongs to. Only a brand-new shell picks them up.
+          env: {
+            ...(process.env as Record<string, string>),
+            AGENTMATE_SESSION_ID: sessionId,
+            AGENTMATE_PROJECT_ID: options.projectId ?? '',
+          },
           initialInput: options.initialInput,
           projectId: options.projectId,
           attachOnly: options.attachOnly,
@@ -169,10 +197,16 @@ export function registerTerminalHandlers(): void {
         owners.delete(sessionId);
         return null;
       }
-      if (!sessions.has(sessionId)) {
-        sessions.set(sessionId, { projectId: options.projectId, createdAt: Date.now() });
-        syncPowerSaveBlocker();
-      }
+      attached.add(sessionId);
+      const known = sessions.get(sessionId);
+      sessions.set(sessionId, {
+        // A session remembered from the host list lacks what only the renderer knows.
+        projectId: options.projectId ?? known?.projectId,
+        cliId: options.cliId ?? known?.cliId,
+        surface: options.surface ?? known?.surface,
+        createdAt: known?.createdAt ?? Date.now(),
+      });
+      if (!known) syncPowerSaveBlocker();
       return { sessionId, isNew: result.isNew, snapshot: result.snapshot };
     },
   );
@@ -184,6 +218,7 @@ export function registerTerminalHandlers(): void {
   ipcMain.handle(
     IPC.terminal.resize,
     (_event, sessionId: string, cols: number, rows: number): void => {
+      agentStatus.resize(sessionId);
       if (host) host.notify({ type: 'resize', payload: { sessionId, cols, rows } });
       else local?.resize(sessionId, cols, rows);
     },
@@ -194,8 +229,39 @@ export function registerTerminalHandlers(): void {
     else local?.kill(sessionId);
     owners.delete(sessionId);
     sessions.delete(sessionId);
+    attached.delete(sessionId);
     syncPowerSaveBlocker();
   });
+}
+
+/**
+ * Starts receiving a running session's output without showing it anywhere, so its agent's
+ * status stays current. Does nothing for a session that is already attached or has ended.
+ */
+export async function attachForTracking(entry: AgentSessionEntry): Promise<void> {
+  const { sessionId } = entry;
+  await ensureBackend();
+  if (attached.has(sessionId) || (!host && local)) return;
+  const result = await createOrAttach({
+    sessionId,
+    shell: defaultShell(),
+    attachOnly: true,
+    projectId: entry.projectId,
+  });
+  if (!result) {
+    // It ended while the app was closed.
+    agentStatus.exit(sessionId);
+    return;
+  }
+  attached.add(sessionId);
+  const known = sessions.get(sessionId);
+  sessions.set(sessionId, {
+    projectId: entry.projectId,
+    cliId: entry.cliId,
+    surface: 'workspace',
+    createdAt: known?.createdAt ?? Date.now(),
+  });
+  if (!known) syncPowerSaveBlocker();
 }
 
 /**
@@ -242,6 +308,9 @@ export function terminalsHoldQuit(): Promise<void> | null {
 
 /** Most recently opened terminal session tagged with this project, if any is still open. */
 export function findSessionIdForProject(projectId: string): string | null {
+  // An agent that is waiting on a question is the one a reply is meant for.
+  const waiting = agentStatus.sessionAwaitingInput(projectId);
+  if (waiting && sessions.has(waiting)) return waiting;
   let best: { id: string; createdAt: number } | null = null;
   for (const [id, session] of sessions) {
     if (session.projectId === projectId && (!best || session.createdAt > best.createdAt)) {
@@ -252,6 +321,7 @@ export function findSessionIdForProject(projectId: string): string | null {
 }
 
 export function writeToSession(sessionId: string, data: string): void {
+  agentStatus.input(sessionId);
   if (host) host.notify({ type: 'write', payload: { sessionId, data } });
   else local?.write(sessionId, data);
 }

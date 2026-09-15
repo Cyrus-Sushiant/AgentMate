@@ -24,24 +24,51 @@ export type ShortcutCommandId =
   | 'search.toggle'
   | 'prompt.generate'
   | 'prompt.translate'
-  | 'prompt.copy';
+  | 'prompt.copy'
+  | 'workspace.newTab'
+  | 'workspace.closeTab'
+  | 'workspace.splitRight'
+  | 'workspace.splitDown'
+  | 'workspace.focusLeft'
+  | 'workspace.focusRight'
+  | 'workspace.focusUp'
+  | 'workspace.focusDown'
+  | 'workspace.nextTab'
+  | 'workspace.prevTab'
+  | 'workspace.zoomPane'
+  | 'workspace.toggleGitPanel'
+  | 'workspace.goToTab'
+  | 'workspace.nextChange'
+  | 'workspace.prevChange'
+  | 'commit.commit'
+  | 'commit.commitAndPush';
 
 /**
  * Where a shortcut is listened for. `global` runs anywhere in the shell;
  * `prompt` only runs while the prompt builder is on screen, and takes
  * precedence there. Two scopes may share a combination, which is how the
  * prompt builder keeps Ctrl+T for translating while the rest of the app uses
- * it for the terminal.
+ * it for the terminal. `workspace` works the same way on the Workspace page,
+ * and `commit` only inside the changes panel's commit message box.
  */
-export type ShortcutScope = 'global' | 'prompt';
+export type ShortcutScope = 'global' | 'prompt' | 'workspace' | 'commit';
 
-export type GlobalShortcutCommandId = Exclude<ShortcutCommandId, `prompt.${string}`>;
+export type GlobalShortcutCommandId = Exclude<
+  ShortcutCommandId,
+  `prompt.${string}` | `workspace.${string}` | `commit.${string}`
+>;
 export type PromptShortcutCommandId = Extract<ShortcutCommandId, `prompt.${string}`>;
+export type WorkspaceShortcutCommandId = Extract<ShortcutCommandId, `workspace.${string}`>;
+export type CommitShortcutCommandId = Extract<ShortcutCommandId, `commit.${string}`>;
 
 /** The ids a given scope can produce, so callers get an exhaustive union. */
 export type ShortcutCommandIdOf<S extends ShortcutScope> = S extends 'prompt'
   ? PromptShortcutCommandId
-  : GlobalShortcutCommandId;
+  : S extends 'workspace'
+    ? WorkspaceShortcutCommandId
+    : S extends 'commit'
+      ? CommitShortcutCommandId
+      : GlobalShortcutCommandId;
 
 export interface ShortcutCommand {
   id: ShortcutCommandId;
@@ -50,6 +77,19 @@ export interface ShortcutCommand {
   group: string;
   scope: ShortcutScope;
   defaults: Shortcut[];
+  /**
+   * The binding stands for a whole row of number keys: it is stored as `Digit1`, and the same
+   * modifiers with 1 to 9 all match, passing the number along (go to tab 3).
+   */
+  digitRow?: boolean;
+}
+
+const DIGIT_CODE = /^Digit([1-9])$/;
+
+/** The number a digit-row binding was pressed with, or null for any other key. */
+export function digitOf(code: string): number | null {
+  const match = DIGIT_CODE.exec(code);
+  return match ? Number(match[1]) : null;
 }
 
 export const SHORTCUT_COMMANDS: ShortcutCommand[] = [
@@ -115,6 +155,150 @@ export const SHORTCUT_COMMANDS: ShortcutCommand[] = [
     scope: 'prompt',
     defaults: [{ code: 'KeyC', mod: true }],
   },
+  {
+    id: 'workspace.newTab',
+    label: 'New tab',
+    description: 'Opens the agent and shell menu in the focused pane.',
+    group: 'Workspace',
+    scope: 'workspace',
+    // Not Ctrl+T: that toggles the general terminal drawer, which stays usable here too.
+    defaults: [{ code: 'KeyT', mod: true, shift: true }],
+  },
+  {
+    id: 'workspace.closeTab',
+    label: 'Close tab',
+    description: 'Closes the active tab in the focused pane and ends its shell.',
+    group: 'Workspace',
+    scope: 'workspace',
+    defaults: [{ code: 'KeyW', mod: true, shift: true }],
+  },
+  {
+    id: 'workspace.splitRight',
+    label: 'Split pane right',
+    description: 'Adds a pane to the right of the focused one.',
+    group: 'Workspace',
+    scope: 'workspace',
+    defaults: [{ code: 'KeyD', mod: true, shift: true }],
+  },
+  {
+    id: 'workspace.splitDown',
+    label: 'Split pane down',
+    description: 'Adds a pane below the focused one.',
+    group: 'Workspace',
+    scope: 'workspace',
+    defaults: [{ code: 'KeyE', mod: true, shift: true }],
+  },
+  {
+    id: 'workspace.focusLeft',
+    label: 'Focus pane on the left',
+    description: 'Moves keyboard focus to the pane on the left.',
+    group: 'Workspace',
+    scope: 'workspace',
+    defaults: [{ code: 'ArrowLeft', mod: true, alt: true }],
+  },
+  {
+    id: 'workspace.focusRight',
+    label: 'Focus pane on the right',
+    description: 'Moves keyboard focus to the pane on the right.',
+    group: 'Workspace',
+    scope: 'workspace',
+    defaults: [{ code: 'ArrowRight', mod: true, alt: true }],
+  },
+  {
+    id: 'workspace.focusUp',
+    label: 'Focus pane above',
+    description: 'Moves keyboard focus to the pane above.',
+    group: 'Workspace',
+    scope: 'workspace',
+    defaults: [{ code: 'ArrowUp', mod: true, alt: true }],
+  },
+  {
+    id: 'workspace.focusDown',
+    label: 'Focus pane below',
+    description: 'Moves keyboard focus to the pane below.',
+    group: 'Workspace',
+    scope: 'workspace',
+    defaults: [{ code: 'ArrowDown', mod: true, alt: true }],
+  },
+  {
+    id: 'workspace.nextTab',
+    label: 'Next tab',
+    description: 'Switches to the next tab in the focused pane.',
+    group: 'Workspace',
+    scope: 'workspace',
+    defaults: [
+      { code: 'Tab', mod: true },
+      { code: 'PageDown', mod: true },
+    ],
+  },
+  {
+    id: 'workspace.prevTab',
+    label: 'Previous tab',
+    description: 'Switches to the previous tab in the focused pane.',
+    group: 'Workspace',
+    scope: 'workspace',
+    defaults: [
+      { code: 'Tab', mod: true, shift: true },
+      { code: 'PageUp', mod: true },
+    ],
+  },
+  {
+    id: 'workspace.zoomPane',
+    label: 'Zoom pane',
+    description: 'Lets the focused pane fill the workspace, or puts it back.',
+    group: 'Workspace',
+    scope: 'workspace',
+    defaults: [{ code: 'Enter', mod: true, shift: true }],
+  },
+  {
+    id: 'workspace.toggleGitPanel',
+    label: 'Toggle changes panel',
+    description: 'Shows or hides the git changes panel on the right.',
+    group: 'Workspace',
+    scope: 'workspace',
+    defaults: [{ code: 'KeyG', mod: true, shift: true }],
+  },
+  {
+    id: 'workspace.goToTab',
+    label: 'Go to tab 1 to 9',
+    description: 'Picks a tab in the focused pane by its position. Press any number key to set the modifiers.',
+    group: 'Workspace',
+    scope: 'workspace',
+    defaults: [{ code: 'Digit1', mod: true }],
+    digitRow: true,
+  },
+  {
+    id: 'workspace.nextChange',
+    label: 'Next change in diff',
+    description: 'Jumps to the next changed block of the diff in the focused pane.',
+    group: 'Workspace',
+    scope: 'workspace',
+    defaults: [{ code: 'F7' }],
+  },
+  {
+    id: 'workspace.prevChange',
+    label: 'Previous change in diff',
+    description: 'Jumps to the previous changed block of the diff in the focused pane.',
+    group: 'Workspace',
+    scope: 'workspace',
+    defaults: [{ code: 'F7', shift: true }],
+  },
+  {
+    id: 'commit.commit',
+    label: 'Commit',
+    description: 'Commits the staged changes (or stages everything first when nothing is staged).',
+    group: 'Changes panel',
+    scope: 'commit',
+    defaults: [{ code: 'Enter', mod: true }],
+  },
+  {
+    id: 'commit.commitAndPush',
+    label: 'Commit and push',
+    description: 'Commits, then pushes the branch.',
+    group: 'Changes panel',
+    scope: 'commit',
+    defaults: [{ code: 'Enter', mod: true, shift: true }],
+  },
 ];
 
 export const SHORTCUT_GROUPS: { name: string; scope: ShortcutScope; hint?: string }[] = [
@@ -124,6 +308,16 @@ export const SHORTCUT_GROUPS: { name: string; scope: ShortcutScope; hint?: strin
     name: 'Prompt builder',
     scope: 'prompt',
     hint: 'Only while the prompt builder is open, where they beat the app-wide shortcuts.',
+  },
+  {
+    name: 'Workspace',
+    scope: 'workspace',
+    hint: 'Only on the Workspace page, where they beat the app-wide shortcuts.',
+  },
+  {
+    name: 'Changes panel',
+    scope: 'commit',
+    hint: 'Only while typing a commit message in the Workspace changes panel.',
   },
 ];
 
@@ -158,10 +352,15 @@ export function shortcutFromEvent(event: KeyEventLike): Shortcut | null {
   return shortcut;
 }
 
-export function matchesShortcut(event: KeyEventLike, shortcut: Shortcut): boolean {
+export function matchesShortcut(
+  event: KeyEventLike,
+  shortcut: Shortcut,
+  digitRow = false,
+): boolean {
   if ((event.ctrlKey || event.metaKey) !== Boolean(shortcut.mod)) return false;
   if (event.shiftKey !== Boolean(shortcut.shift)) return false;
   if (event.altKey !== Boolean(shortcut.alt)) return false;
+  if (digitRow) return digitOf(event.code) !== null;
   if (event.code === shortcut.code) return true;
   const letter = letterOf(shortcut.code);
   return letter !== null && event.key.toLowerCase() === letter;
@@ -249,6 +448,12 @@ export function keyLabel(code: string): string {
 
 export function isMacPlatform(): boolean {
   return typeof window !== 'undefined' && window.agentmat?.platform === 'darwin';
+}
+
+/** A binding as shown for its command: a digit-row one reads "Ctrl+1…9". */
+export function formatCommandShortcut(command: ShortcutCommand, shortcut: Shortcut): string {
+  const text = formatShortcut(shortcut);
+  return command.digitRow ? `${text.slice(0, -1)}1…9` : text;
 }
 
 export function formatShortcut(shortcut: Shortcut): string {

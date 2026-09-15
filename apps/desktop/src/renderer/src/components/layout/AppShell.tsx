@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { AskAiModal } from '@/components/askAi/AskAiModal';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
@@ -15,10 +15,13 @@ import { ToastHistoryPanel } from '@/components/toast/ToastHistoryPanel';
 import { UpdateStatusChip } from '@/components/UpdateManager';
 import { Button } from '@/components/ui/button';
 import { SimpleTooltip } from '@/components/ui/tooltip';
+import { WorkspaceHost } from '@/components/workspace/WorkspaceHost';
 import { useAppLoadingOverlay } from '@/hooks/useAppLoadingOverlay';
 import { useGlobalShortcuts } from '@/hooks/useGlobalShortcuts';
 import { usePetDragGuard } from '@/hooks/usePetDragGuard';
 import { cn } from '@/lib/utils';
+import { isWorkspacePath } from '@/lib/workspace/commands';
+import { initAgentStatus } from '@/stores/agentStatusStore';
 import { useAskAiStore } from '@/stores/askAiStore';
 import { usePageHeaderStore } from '@/stores/pageHeaderStore';
 import { useShortcutLabel } from '@/stores/shortcutStore';
@@ -27,6 +30,7 @@ import { useToastHistoryStore } from '@/stores/toastHistoryStore';
 import { useUiStore } from '@/stores/uiStore';
 import { LoadingOverlay } from './LoadingOverlay';
 import { Sidebar } from './Sidebar';
+import { StatusBar } from './StatusBar';
 import { TitleBar } from './TitleBar';
 
 function TopBar(): React.JSX.Element {
@@ -34,8 +38,8 @@ function TopBar(): React.JSX.Element {
   const toggleDrawer = useTerminalStore((s) => s.toggleDrawer);
   const sessions = useTerminalStore((s) => s.sessions);
   const activeSessionId = useTerminalStore((s) => s.activeSessionId);
-  const sidebarCollapsed = useUiStore((s) => s.sidebarCollapsed);
-  const toggleSidebar = useUiStore((s) => s.toggleSidebar);
+  const sidebarMode = useUiStore((s) => s.sidebarMode);
+  const cycleSidebarMode = useUiStore((s) => s.cycleSidebarMode);
   const activeSession = sessions.find((s) => s.id === activeSessionId);
   const pageTitle = usePageHeaderStore((s) => s.title);
   const pageSubtitle = usePageHeaderStore((s) => s.subtitle);
@@ -51,9 +55,17 @@ function TopBar(): React.JSX.Element {
   return (
     <div className="flex h-14 shrink-0 items-center justify-between gap-3 border-b border-border/80 px-4">
       <div className="flex min-w-0 items-center gap-3">
-        <SimpleTooltip label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}>
-          <Button variant="ghost" size="icon" onClick={toggleSidebar}>
-            {sidebarCollapsed ? (
+        <SimpleTooltip
+          label={
+            sidebarMode === 'expanded'
+              ? 'Collapse sidebar'
+              : sidebarMode === 'collapsed'
+                ? 'Hide sidebar'
+                : 'Show sidebar'
+          }
+        >
+          <Button variant="ghost" size="icon" onClick={cycleSidebarMode}>
+            {sidebarMode === 'hidden' ? (
               <AnglesRight className="h-4 w-4" />
             ) : (
               <AnglesLeft className="h-4 w-4" />
@@ -97,6 +109,8 @@ function TopBar(): React.JSX.Element {
             )}
           </Button>
         </SimpleTooltip>
+        {/* The general terminal (for running the app, installs and so on) stays available on
+            every page, the Workspace included, where it opens over the panes. */}
         <SimpleTooltip
           label={terminalShortcut ? `Toggle terminal (${terminalShortcut})` : 'Toggle terminal'}
         >
@@ -138,8 +152,14 @@ export function AppShell(): React.JSX.Element {
   // in place on the card that's waiting. See the hook for why.
   const showLoading = useAppLoadingOverlay();
   const scrollRef = useRef<HTMLDivElement>(null);
+  const onWorkspace = isWorkspacePath(location.pathname);
+  // The workspace mounts on first visit and then stays, so its terminals survive navigation.
+  const [workspaceVisited, setWorkspaceVisited] = useState(onWorkspace);
+  if (onWorkspace && !workspaceVisited) setWorkspaceVisited(true);
 
   useGlobalShortcuts();
+  // Agent status is followed app-wide, so a workspace agent can notify from any page.
+  useEffect(() => initAgentStatus(), []);
   // The desktop companion would otherwise swallow every drop in the app window.
   usePetDragGuard();
 
@@ -173,7 +193,13 @@ export function AppShell(): React.JSX.Element {
         <div className="relative flex min-w-0 flex-1 flex-col">
           <TopBar />
           <div className="relative flex min-h-0 flex-1 flex-col">
-            <div ref={scrollRef} className={cn('flex min-h-0 flex-1 flex-col overflow-y-auto')}>
+            <div
+              ref={scrollRef}
+              className={cn(
+                'flex min-h-0 flex-1 flex-col overflow-y-auto',
+                onWorkspace && 'hidden',
+              )}
+            >
               {/* Keyed on the path so React remounts the wrapper per route and
                   the CSS enter animation replays. No exit animation and no
                   AnimatePresence gate: the incoming page renders immediately
@@ -187,11 +213,19 @@ export function AppShell(): React.JSX.Element {
                 </ErrorBoundary>
               </div>
             </div>
+            {workspaceVisited && (
+              <ErrorBoundary resetKey="workspace">
+                <WorkspaceHost visible={onWorkspace} />
+              </ErrorBoundary>
+            )}
             <LoadingOverlay show={showLoading} />
             <TerminalDrawer />
           </div>
         </div>
       </div>
+      <ErrorBoundary resetKey="status-bar">
+        <StatusBar />
+      </ErrorBoundary>
     </div>
   );
 }

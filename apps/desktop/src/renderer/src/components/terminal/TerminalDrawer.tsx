@@ -4,6 +4,7 @@ import {
   ArrowRight,
   Folder,
   Plus,
+  Server,
   TerminalSquare,
   WindowMaximize,
   WindowRestore,
@@ -103,6 +104,7 @@ function SessionTab({
                 : 'bg-foreground/25',
             )}
           />
+          {session.kind === 'ssh' && <Server className="h-3 w-3 shrink-0 opacity-70" />}
           <span className="truncate">{session.title}</span>
         </button>
         <button
@@ -241,7 +243,12 @@ function SessionTabStrip({
   );
 }
 
-export function TerminalDrawer(): React.JSX.Element {
+export function TerminalDrawer({
+  hidden = false,
+}: {
+  /** Keeps the drawer mounted but off screen, e.g. on the Workspace page, so its shells keep streaming. */
+  hidden?: boolean;
+}): React.JSX.Element {
   const isOpen = useTerminalStore((s) => s.isOpen);
   const drawerHeight = useTerminalStore((s) => s.drawerHeight);
   const setDrawerHeight = useTerminalStore((s) => s.setDrawerHeight);
@@ -315,10 +322,10 @@ export function TerminalDrawer(): React.JSX.Element {
       className={cn(
         'flex flex-col border-t border-border bg-card/90 backdrop-blur-xl',
         isMaximized ? 'absolute inset-0 z-50 h-auto' : 'absolute inset-x-0 bottom-0 z-20',
-        !isOpen && 'hidden',
+        (!isOpen || hidden) && 'hidden',
         isResizing && 'select-none',
       )}
-      style={isMaximized || !isOpen ? undefined : { height: drawerHeight }}
+      style={isMaximized || !isOpen || hidden ? undefined : { height: drawerHeight }}
     >
       {!isMaximized && (
         <div
@@ -401,7 +408,7 @@ export function TerminalDrawer(): React.JSX.Element {
             <TerminalPane
               key={session.id}
               meta={session}
-              active={isOpen && session.id === activeSessionId}
+              active={isOpen && !hidden && session.id === activeSessionId}
               onExit={() => forgetSession(session.id)}
             />
           ))
@@ -409,7 +416,9 @@ export function TerminalDrawer(): React.JSX.Element {
       </div>
 
       <div className="flex h-6 shrink-0 items-center gap-2 border-t border-white/5 bg-[#0a1210] px-3 font-mono text-[10px] text-zinc-500">
-        <span className="truncate">{shellDisplayName(activeSession?.shell)}</span>
+        <span className="truncate">
+          {activeSession?.kind === 'ssh' ? 'SSH' : shellDisplayName(activeSession?.shell)}
+        </span>
         {activeSession?.cwd ? (
           <>
             <span className="text-zinc-700">·</span>

@@ -22,11 +22,14 @@ import {
   DASHBOARD_CHART_IDS,
   DASHBOARD_STAT_IDS,
   DEFAULT_DESKTOP_PET_ACTION_SPEEDS,
+  DEFAULT_TERMINAL_BACKGROUND_COLOR,
   defaultGrammarSettings,
   defaultProxySettings,
   defaultUsageResetAlerts,
+  DEFAULT_COMMIT_MESSAGE_SETTINGS,
   defaultUsageThresholdAlerts,
   normalizeCliArgs,
+  normalizeCommitMessageSettings,
   normalizeCustomDesktopPets,
   normalizeDesktopPetActionSpeeds,
   normalizeDesktopPetCardView,
@@ -43,7 +46,12 @@ import {
   withBlueprintDefaults,
 } from '@agentmat/core';
 import { app } from 'electron';
-import type { FavoriteSkillRecord, RemoteSavedServer } from '../shared/apiTypes';
+import type {
+  FavoriteSkillRecord,
+  RemoteSavedServer,
+  SshVaultRecord,
+  StoredSshServer,
+} from '../shared/apiTypes';
 import { referencedAttachmentFiles, removeOrphanAttachments } from './blueprintFileStore';
 import { blueprintRevisionDb } from './blueprintRevisionDb';
 import { hydrateProjectIcons, persistProjectIcons } from './projectIconStore';
@@ -74,6 +82,8 @@ async function writeJsonFile<T>(fileName: string, data: T): Promise<void> {
 export const DEFAULT_SETTINGS: AppSettings = {
   defaultCliId: null,
   cliArgs: {},
+  cliOrder: [],
+  commitMessage: { ...DEFAULT_COMMIT_MESSAGE_SETTINGS },
   theme: 'system',
   projectsRootPath: null,
   skillRepositoryIds: [],
@@ -127,6 +137,9 @@ export const DEFAULT_SETTINGS: AppSettings = {
   desktopPetPipelineOnPass: false,
   desktopPetNetworkQuality: false,
   keepTerminalsRunning: true,
+  workspaceNotifications: true,
+  workspaceTerminalCustomBackground: false,
+  workspaceTerminalBackgroundColor: DEFAULT_TERMINAL_BACKGROUND_COLOR,
 };
 
 /**
@@ -145,6 +158,10 @@ function withSettingsMigrations(settings: AppSettings): AppSettings {
   return {
     ...settings,
     cliArgs: normalizeCliArgs(settings.cliArgs),
+    commitMessage: normalizeCommitMessageSettings(settings.commitMessage),
+    cliOrder: Array.isArray(settings.cliOrder)
+      ? [...new Set(settings.cliOrder.filter((id): id is string => typeof id === 'string'))]
+      : [],
     grammar: normalizeGrammarSettings(settings.grammar),
     proxy: normalizeProxySettings(settings.proxy),
     desktopPetCustoms: customs,
@@ -171,6 +188,11 @@ function withSettingsMigrations(settings: AppSettings): AppSettings {
     usageResetAlerts: { ...alerts, windows: [...new Set(windows)] },
     usageThresholdAlerts: normalizeUsageThresholdAlerts(settings.usageThresholdAlerts),
     keepTerminalsRunning: settings.keepTerminalsRunning !== false,
+    workspaceNotifications: settings.workspaceNotifications !== false,
+    workspaceTerminalCustomBackground: settings.workspaceTerminalCustomBackground === true,
+    workspaceTerminalBackgroundColor:
+      normalizeProjectColor(settings.workspaceTerminalBackgroundColor) ??
+      DEFAULT_TERMINAL_BACKGROUND_COLOR,
   };
 }
 
@@ -272,6 +294,14 @@ export const store = {
   getRemoteServers: (): Promise<RemoteSavedServer[]> => readJsonFile('remote-servers.json', []),
   setRemoteServers: (servers: RemoteSavedServer[]): Promise<void> =>
     writeJsonFile('remote-servers.json', servers),
+
+  getSshServers: (): Promise<StoredSshServer[]> => readJsonFile('ssh-servers.json', []),
+  setSshServers: (servers: StoredSshServer[]): Promise<void> =>
+    writeJsonFile('ssh-servers.json', servers),
+
+  getSshVault: (): Promise<SshVaultRecord | null> => readJsonFile('ssh-vault.json', null),
+  setSshVault: (vault: SshVaultRecord | null): Promise<void> =>
+    writeJsonFile('ssh-vault.json', vault),
 
   getAppNotifications: (): Promise<AppNotification[]> => readJsonFile('app-notifications.json', []),
   setAppNotifications: (notifications: AppNotification[]): Promise<void> =>

@@ -12,6 +12,7 @@ import RemoteSessionRoute from './components/remote/RemoteSessionRoute';
 import { UpdateManager } from './components/UpdateManager';
 import { TooltipProvider } from './components/ui/tooltip';
 import WidgetRoute from './components/usage/WidgetRoute';
+import WorkspaceRoute from './components/workspace/WorkspaceRoute';
 import { installToastHistoryCapture } from './lib/toastHistory';
 import AskAiPage from './pages/AskAiPage';
 import CliManagerPage from './pages/CliManagerPage';
@@ -32,6 +33,7 @@ import { initDefaultCli } from './stores/cliStore';
 import { initDashboardLayout } from './stores/dashboardLayoutStore';
 import { initPingTargets } from './stores/pingTargetsStore';
 import { initRemote } from './stores/remoteStore';
+import { initTerminalAppearance } from './stores/terminalAppearanceStore';
 import { initTheme, useThemeStore } from './stores/themeStore';
 import { initUpdateStatusListener } from './stores/updateStore';
 
@@ -72,6 +74,7 @@ export default function App(): React.JSX.Element {
   useEffect(() => {
     void initTheme();
     void initDefaultCli();
+    void initTerminalAppearance();
     void initPingTargets();
     void initDashboardLayout();
     initRemote();
@@ -107,6 +110,8 @@ export default function App(): React.JSX.Element {
                 <Route path="prompt-history" element={<PromptHistoryPage />} />
                 <Route path="projects" element={<ProjectsPage />} />
                 <Route path="projects/:projectId" element={<ProjectDetailPage />} />
+                <Route path="workspace" element={<WorkspaceRoute />} />
+                <Route path="workspace/:projectId" element={<WorkspaceRoute />} />
                 <Route path="pipelines" element={<PipelinesPage />} />
                 <Route path="notifications" element={<Navigate to="/pipelines" replace />} />
                 <Route

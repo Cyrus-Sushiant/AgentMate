@@ -1,13 +1,20 @@
 import type { PromptType, TargetAI } from '@agentmat/core';
-import { cliIdForTargetAI, PROMPT_TYPES, TARGET_AIS } from '@agentmat/core';
+import {
+  cliIdForTargetAI,
+  EFFORT_LABELS,
+  getCliDefinition,
+  PROMPT_TYPES,
+  TARGET_AIS,
+} from '@agentmat/core';
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
-import { cliOptionIcon } from '@/components/cliLogos';
+import { CliLogo, cliOptionIcon } from '@/components/cliLogos';
 import { GrammarTextarea } from '@/components/grammar/GrammarTextarea';
 import {
   Check,
+  ChevronDown,
   Copy,
   History,
   Languages,
@@ -17,6 +24,7 @@ import {
   Sparkles,
   Spinner,
   StopCircle,
+  TerminalSquare,
   Trash2,
   WindowMaximize,
   WindowRestore,
@@ -36,6 +44,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { SimpleTooltip } from '@/components/ui/tooltip';
@@ -43,6 +59,8 @@ import { useVoiceInput } from '@/hooks/useVoiceInput';
 import { queryKeys } from '@/lib/queryKeys';
 import { containsPersian } from '@/lib/rtl';
 import { cn } from '@/lib/utils';
+import { launchPromptTab, projectCliId } from '@/lib/workspace/launch';
+import { useAgentChoices } from '@/components/workspace/useAgentChoices';
 import { projectPromptJobKey, usePromptJobsStore } from '@/stores/promptJobsStore';
 import {
   commandForEvent,
@@ -61,6 +79,8 @@ export interface ProjectPromptBuildDialogProps {
   iconDataUrl?: string | null;
   iconBgColor?: string | null;
   iconColor?: string | null;
+  /** The workspace pane an "Open in agent" launch should land in, when opened from one. */
+  launchGroupId?: string | null;
 }
 
 const chromeBtnClass =
@@ -74,6 +94,7 @@ export function ProjectPromptBuildDialog({
   iconDataUrl = null,
   iconBgColor = null,
   iconColor = null,
+  launchGroupId = null,
 }: ProjectPromptBuildDialogProps): React.JSX.Element {
   const navigate = useNavigate();
   const [isMaximized, setIsMaximized] = useState(false);
@@ -190,6 +211,64 @@ export function ProjectPromptBuildDialog({
     setCopied(true);
     if (copiedTimer.current) clearTimeout(copiedTimer.current);
     copiedTimer.current = setTimeout(() => setCopied(false), 1600);
+  }
+
+  const projectsQuery = useQuery({
+    queryKey: queryKeys.projects,
+    queryFn: () => window.agentmat.projects.list(),
+    enabled: open,
+  });
+  const project = projectsQuery.data?.find((p) => p.id === projectId) ?? null;
+  const agentChoices = useAgentChoices(project);
+  const [launching, setLaunching] = useState(false);
+
+  const defaultCliId = project ? projectCliId(project) : null;
+  const defaultCli = defaultCliId ? getCliDefinition(defaultCliId) : undefined;
+  // A fresh sizing names a model and effort for the target's own CLI.
+  const suggestion =
+    runRecommendation.recommendation &&
+    runRecommendation.choice &&
+    !runRecommendation.isStale &&
+    runRecommendation.recommendation.profile.cliId &&
+    runRecommendation.args.length > 0
+      ? {
+          cliId: runRecommendation.recommendation.profile.cliId,
+          args: runRecommendation.args,
+          label: [
+            runRecommendation.choice.model.label,
+            runRecommendation.choice.effort ? EFFORT_LABELS[runRecommendation.choice.effort] : null,
+          ]
+            .filter(Boolean)
+            .join(' · '),
+        }
+      : null;
+  const suggestionCli = suggestion ? getCliDefinition(suggestion.cliId) : undefined;
+
+  async function openInAgent(launch: {
+    cliId: string;
+    runArgs?: string[];
+    runLabel?: string;
+  }): Promise<void> {
+    if (!project || !generated.trim()) return;
+    setLaunching(true);
+    try {
+      const tabId = await launchPromptTab(
+        project,
+        { ...launch, prompt: generated },
+        launchGroupId ?? undefined,
+      );
+      if (!tabId) return;
+      onOpenChange(false);
+      navigate(`/workspace/${project.id}`);
+      const name = getCliDefinition(launch.cliId)?.name ?? 'the agent';
+      toast.success(`Ready in ${name}`, {
+        description: 'The prompt is typed at the prompt. Press Enter in the tab to run it.',
+      });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Could not open the agent.');
+    } finally {
+      setLaunching(false);
+    }
   }
 
   function goToHistory(): void {
@@ -470,7 +549,7 @@ export function ProjectPromptBuildDialog({
           >
             <Trash2 /> Clear
           </Button>
-          <p className="hidden text-xs text-muted-foreground sm:block">
+          <p className="hidden text-xs text-muted-foreground xl:block">
             {[
               generateKey && `${generateKey} generate`,
               translateKey && `${translateKey} translate`,
@@ -479,20 +558,119 @@ export function ProjectPromptBuildDialog({
               .filter(Boolean)
               .join(' · ')}
           </p>
-          <SimpleTooltip
-            label={
-              generated ? 'Park this on the project’s Overview tab' : 'Generate a prompt first'
-            }
-            wrapTrigger={!generated}
-          >
-            <Button
-              disabled={!generated || saveDraftMutation.isPending}
-              onClick={() => saveDraftMutation.mutate()}
+          <div className="flex items-center gap-2">
+            <SimpleTooltip
+              label={
+                generated ? 'Park this on the project’s Overview tab' : 'Generate a prompt first'
+              }
+              wrapTrigger={!generated}
             >
-              {saveDraftMutation.isPending ? <Spinner className="animate-spin" /> : <Save />}
-              {saveDraftMutation.isPending ? 'Saving…' : 'Save draft'}
-            </Button>
-          </SimpleTooltip>
+              <Button
+                variant="outline"
+                disabled={!generated || saveDraftMutation.isPending}
+                onClick={() => saveDraftMutation.mutate()}
+              >
+                {saveDraftMutation.isPending ? <Spinner className="animate-spin" /> : <Save />}
+                {saveDraftMutation.isPending ? 'Saving…' : 'Save draft'}
+              </Button>
+            </SimpleTooltip>
+
+            <div className="flex">
+              <SimpleTooltip
+                label={
+                  !generated
+                    ? 'Generate a prompt first'
+                    : suggestion
+                      ? `Open ${suggestionCli?.name ?? 'the agent'} on ${suggestion.label} in the workspace with this prompt typed in. Press Enter there to run it.`
+                      : `Open ${defaultCli?.name ?? 'the agent'} in the workspace with this prompt typed in. Press Enter there to run it.`
+                }
+                wrapTrigger={!generated || launching}
+              >
+                <Button
+                  className="rounded-r-none"
+                  disabled={!generated || isBusy || launching || (!suggestion && !defaultCliId)}
+                  onClick={() =>
+                    void openInAgent(
+                      suggestion
+                        ? { cliId: suggestion.cliId, runArgs: suggestion.args, runLabel: suggestion.label }
+                        : { cliId: defaultCliId ?? '' },
+                    )
+                  }
+                >
+                  {launching ? <Spinner className="animate-spin" /> : <TerminalSquare />}
+                  {suggestion ? `Run on ${suggestion.label}` : `Open in ${defaultCli?.name ?? 'agent'}`}
+                </Button>
+              </SimpleTooltip>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    className="w-9 rounded-l-none border-l border-primary-foreground/20 px-0"
+                    disabled={!generated || isBusy || launching}
+                    aria-label="More ways to run this prompt"
+                  >
+                    <ChevronDown className="h-3.5 w-3.5" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" side="top" className="w-72">
+                  {suggestion && suggestionCli ? (
+                    <DropdownMenuItem
+                      onSelect={() =>
+                        void openInAgent({
+                          cliId: suggestion.cliId,
+                          runArgs: suggestion.args,
+                          runLabel: suggestion.label,
+                        })
+                      }
+                    >
+                      <CliLogo cliId={suggestion.cliId} className="h-4 w-4" />
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate">{suggestionCli.name}</span>
+                        <span className="block truncate text-[11px] text-muted-foreground">
+                          Suggested: {suggestion.label}
+                        </span>
+                      </span>
+                    </DropdownMenuItem>
+                  ) : null}
+                  {defaultCli && defaultCliId ? (
+                    <DropdownMenuItem onSelect={() => void openInAgent({ cliId: defaultCliId })}>
+                      <CliLogo cliId={defaultCliId} className="h-4 w-4" />
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate">{defaultCli.name}</span>
+                        <span className="block truncate text-[11px] text-muted-foreground">
+                          Default model and effort
+                        </span>
+                      </span>
+                    </DropdownMenuItem>
+                  ) : null}
+                  {agentChoices.installed.some((c) => c.cli.id !== defaultCliId) ? (
+                    <>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuLabel>Other agents</DropdownMenuLabel>
+                      {agentChoices.installed
+                        .filter((c) => c.cli.id !== defaultCliId)
+                        .map((choice) => (
+                          <DropdownMenuItem
+                            key={choice.cli.id}
+                            onSelect={() => void openInAgent({ cliId: choice.cli.id })}
+                          >
+                            <CliLogo cliId={choice.cli.id} className="h-4 w-4" />
+                            {choice.cli.name}
+                          </DropdownMenuItem>
+                        ))}
+                    </>
+                  ) : null}
+                  {!suggestion && runRecommendation.canAnalyze ? (
+                    <>
+                      <DropdownMenuSeparator />
+                      <p className="px-2 py-1.5 text-[11px] leading-snug text-muted-foreground">
+                        Size the prompt with the chip above to get a suggested model and effort.
+                      </p>
+                    </>
+                  ) : null}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          </div>
         </DialogFooter>
       </DialogContent>
     </Dialog>

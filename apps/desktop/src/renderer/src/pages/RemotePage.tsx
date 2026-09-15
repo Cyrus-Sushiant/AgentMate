@@ -1,12 +1,17 @@
 import { formatBytes } from '@shared/remoteProtocol';
-import { Broadcast, Link } from '@/components/icons';
+import { useState } from 'react';
+import { Broadcast, Link, Server } from '@/components/icons';
 import { ControllerPanel } from '@/components/remote/ControllerPanel';
 import { HostPanel } from '@/components/remote/HostPanel';
+import { SshServersPanel } from '@/components/remote/SshServersPanel';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { GooeyNav } from '@/components/ui/gooey-nav';
 import { cn } from '@/lib/utils';
 import { usePageHeader } from '@/stores/pageHeaderStore';
 import { useRemoteStore } from '@/stores/remoteStore';
+
+const REMOTE_TABS = ['host', 'connect', 'ssh'] as const;
+type RemoteTab = (typeof REMOTE_TABS)[number];
 
 const LOG_COLOR = {
   info: 'text-muted-foreground',
@@ -18,6 +23,7 @@ const LOG_COLOR = {
 export default function RemotePage(): React.JSX.Element {
   const logs = useRemoteStore((s) => s.logs);
   const transfers = useRemoteStore((s) => s.transfers);
+  const [activeTab, setActiveTab] = useState<RemoteTab>('host');
 
   usePageHeader(
     'Remote',
@@ -26,22 +32,21 @@ export default function RemotePage(): React.JSX.Element {
 
   return (
     <div className="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-4 p-6">
-      <Tabs defaultValue="host" className="flex flex-col gap-4">
-        <TabsList containerClassName="self-start">
-          <TabsTrigger value="host" className="gap-1.5">
-            <Broadcast className="h-3.5 w-3.5" /> Host
-          </TabsTrigger>
-          <TabsTrigger value="connect" className="gap-1.5">
-            <Link className="h-3.5 w-3.5" /> Connect
-          </TabsTrigger>
-        </TabsList>
-        <TabsContent value="host" className="mt-0">
-          <HostPanel />
-        </TabsContent>
-        <TabsContent value="connect" className="mt-0">
-          <ControllerPanel />
-        </TabsContent>
-      </Tabs>
+      <GooeyNav
+        size="sm"
+        className="self-start"
+        aria-label="Remote views"
+        items={[
+          { label: 'Host', icon: <Broadcast /> },
+          { label: 'Connect', icon: <Link /> },
+          { label: 'SSH', icon: <Server /> },
+        ]}
+        value={REMOTE_TABS.indexOf(activeTab)}
+        onChange={(index) => setActiveTab(REMOTE_TABS[index])}
+      />
+      {activeTab === 'host' && <HostPanel />}
+      {activeTab === 'connect' && <ControllerPanel />}
+      {activeTab === 'ssh' && <SshServersPanel />}
 
       {transfers.length > 0 && (
         <Card className="glass">

@@ -1,3 +1,4 @@
+import type { SshSavedServer } from '@shared/apiTypes';
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
@@ -11,10 +12,14 @@ export interface TerminalSessionMeta {
   shell?: string;
   initialInput?: string;
   projectId?: string;
+  /** Defaults to 'local'. An 'ssh' session connects to a saved server instead of spawning a shell. */
+  kind?: 'local' | 'ssh';
+  sshServerId?: string;
   /**
    * Brought back from a previous run of the app. Its pane only reconnects to the shell that
    * is still running in the background and closes itself if that shell is gone, so a
-   * restored tab never starts a new shell or replays its install command.
+   * restored tab never starts a new shell or replays its install command. SSH sessions are
+   * never persisted in the first place (see `partialize` below), so this is always false for them.
    */
   restored?: boolean;
 }
@@ -30,6 +35,8 @@ interface TerminalState {
   setDrawerHeight: (height: number) => void;
   openSession: (meta: Omit<TerminalSessionMeta, 'id'> & { id?: string }) => string;
   openDefaultSession: () => string;
+  /** Opens a new tab connected to a saved SSH server. */
+  openSshSession: (server: SshSavedServer) => string;
   /** Closes the tab and ends its shell. */
   closeSession: (id: string) => void;
   /** Drops the tab of a shell that has already ended. */
@@ -83,6 +90,8 @@ export const useTerminalStore = create<TerminalState>()(
           shell: meta.shell,
           initialInput: meta.initialInput,
           projectId: meta.projectId,
+          kind: meta.kind,
+          sshServerId: meta.sshServerId,
         };
         set((state) => ({
           sessions: [...state.sessions, session],
@@ -99,11 +108,14 @@ export const useTerminalStore = create<TerminalState>()(
           shell: next.shell,
         });
       },
+      openSshSession: (server) =>
+        get().openSession({ title: server.nickname, kind: 'ssh', sshServerId: server.id }),
       closeSession: (id) => {
         // Ending the shell lives here rather than in the pane's unmount, because a pane
         // also unmounts when the app reloads or React re-runs its effects, and neither of
         // those should cost the user a running shell.
-        void window.agentmat.terminal.kill(id);
+        const session = get().sessions.find((s) => s.id === id);
+        void (session?.kind === 'ssh' ? window.agentmat.ssh : window.agentmat.terminal).kill(id);
         set((state) => withoutSession(state, id));
       },
       forgetSession: (id) => set((state) => withoutSession(state, id)),
@@ -116,7 +128,11 @@ export const useTerminalStore = create<TerminalState>()(
         drawerHeight: state.drawerHeight,
         activeSessionId: state.activeSessionId,
         // The pre-filled command already ran once; a reconnect must never type it again.
-        sessions: state.sessions.map(({ initialInput: _initialInput, ...rest }) => rest),
+        // SSH sessions are dropped entirely: they don't survive a restart (no background host
+        // to reattach to), so persisting one would only leave a tab that reopens and fails.
+        sessions: state.sessions
+          .filter((s) => s.kind !== 'ssh')
+          .map(({ initialInput: _initialInput, ...rest }) => rest),
       }),
       merge: (persisted, current) => {
         const saved = (persisted ?? {}) as Partial<PersistedTerminalState>;

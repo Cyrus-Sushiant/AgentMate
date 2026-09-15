@@ -1,6 +1,8 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import {
+  digitOf,
+  formatCommandShortcut,
   formatShortcut,
   isSafeWhileTyping,
   matchesShortcut,
@@ -61,7 +63,9 @@ export function useShortcutBindings(id: ShortcutCommandId): Shortcut[] {
 export function useShortcutLabel(id: ShortcutCommandId): string | null {
   const bindings = useShortcutBindings(id);
   const first = bindings[0];
-  return first ? formatShortcut(first) : null;
+  const command = commandById(id);
+  if (!first) return null;
+  return command ? formatCommandShortcut(command, first) : formatShortcut(first);
 }
 
 /** Every binding as one phrase, e.g. "Ctrl+G or Ctrl+Enter". Null when unbound. */
@@ -86,7 +90,9 @@ export function commandForEvent<S extends ShortcutScope = 'global'>(
     if (command.scope !== scope) continue;
     for (const binding of bindingsFor(command.id, overrides)) {
       if (requireModifier && !isSafeWhileTyping(binding)) continue;
-      if (matchesShortcut(event, binding)) return command.id as ShortcutCommandIdOf<S>;
+      if (matchesShortcut(event, binding, command.digitRow)) {
+        return command.id as ShortcutCommandIdOf<S>;
+      }
     }
   }
   return null;
@@ -106,7 +112,12 @@ export function conflictingCommand(
   for (const command of SHORTCUT_COMMANDS) {
     if (command.id === exceptId || command.scope !== scope) continue;
     const taken = bindingsFor(command.id, overrides).some((binding) =>
-      sameShortcut(binding, shortcut),
+      // A number-row binding owns every digit with its modifiers, not just the one stored.
+      command.digitRow || commandById(exceptId)?.digitRow
+        ? digitOf(binding.code) !== null &&
+          digitOf(shortcut.code) !== null &&
+          sameShortcut({ ...binding, code: 'Digit1' }, { ...shortcut, code: 'Digit1' })
+        : sameShortcut(binding, shortcut),
     );
     if (taken) return command;
   }

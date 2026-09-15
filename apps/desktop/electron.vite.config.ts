@@ -17,6 +17,11 @@ const forcedExternals = [
   // Rollup tries to bundle the .node/.dll files.
   '@huggingface/transformers',
   'onnxruntime-node',
+  // ssh2's optional perf accelerator. Its own require() of the prebuilt binary is
+  // unguarded, and the binary is intentionally not built here (see pnpm-workspace.yaml's
+  // allowBuilds), so bundling it fails at build time even though ssh2 already wraps its own
+  // `require('cpu-features')` in a try/catch and runs fine without it at actual runtime.
+  'cpu-features',
   /^node:/,
 ];
 

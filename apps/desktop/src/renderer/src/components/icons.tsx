@@ -22,6 +22,7 @@ import {
   faChartSimple,
   faCheck,
   faChevronDown,
+  faChevronRight,
   faCircleCheck,
   faCircleHalfStroke,
   faCircleInfo,
@@ -35,13 +36,16 @@ import {
   faCode,
   faCodeBranch,
   faCodeCommit,
+  faCodeCompare,
   faCodePullRequest,
   faComments,
+  faCompress,
   faCopy,
   faCubes,
   faDisplay,
   faDownload,
   faEllipsisVertical,
+  faExpand,
   faEye,
   faEyeSlash,
   faFile,
@@ -60,12 +64,16 @@ import {
   faHardDrive,
   faHeading,
   faItalic,
+  faKey,
   faKeyboard,
   faLanguage,
+  faLaptopCode,
   faLink,
   faLinkSlash,
   faListOl,
   faListUl,
+  faLock,
+  faLockOpen,
   faMagnifyingGlass,
   faMedal,
   faMemory,
@@ -90,6 +98,7 @@ import {
   faRotateLeft,
   faRoute,
   faSatelliteDish,
+  faServer,
   faShieldHalved,
   faSort,
   faSpellCheck,
@@ -234,6 +243,12 @@ export const Wifi = makeIcon(faWifi);
 export const Keyboard = makeIcon(faKeyboard);
 export const Upload = makeIcon(faUpload);
 
+// SSH servers icons.
+export const Server = makeIcon(faServer);
+export const Lock = makeIcon(faLock);
+export const LockOpen = makeIcon(faLockOpen);
+export const Key = makeIcon(faKey);
+
 // Package manager tab icons.
 export const Package = makeIcon(faBox);
 
@@ -305,3 +320,11 @@ export const Filter = makeIcon(faFilter);
 // Skill favorites and usage icons.
 export const Star = makeIcon(faStar);
 export const ChartSimple = makeIcon(faChartSimple);
+
+// Workspace icons.
+export const Workspace = makeIcon(faLaptopCode);
+export const ChevronRight = makeIcon(faChevronRight);
+export const CodeCompare = makeIcon(faCodeCompare);
+export const Minus = makeIcon(faMinus);
+export const Expand = makeIcon(faExpand);
+export const Compress = makeIcon(faCompress);

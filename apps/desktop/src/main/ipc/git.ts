@@ -1,5 +1,9 @@
-import type { Project } from '@agentmat/core';
-import { browsableRepoUrl, stripRemoteCredentials } from '@agentmat/core';
+import type { GitChangeEntry, Project } from '@agentmat/core';
+import {
+  browsableRepoUrl,
+  buildCommitMessagePrompt,
+  stripRemoteCredentials,
+} from '@agentmat/core';
 import { ipcMain } from 'electron';
 import type {
   ApplyVersionInput,
@@ -12,6 +16,9 @@ import type {
   CreateTagInput,
   DeleteBranchInput,
   GitBranchHistory,
+  GitDiffSide,
+  GitDiscardResult,
+  GitFileDiff,
   GithubAccount,
   GithubActivity,
   GithubNotifications,
@@ -24,6 +31,7 @@ import type {
   SuggestGitTextResult,
   SuggestTagResult,
   SwapVersionFileInput,
+  WorkspaceGitState,
 } from '../../shared/apiTypes';
 import { IPC } from '../../shared/ipcChannels';
 import { cancelHeadlessPrompt, runHeadlessCliPrompt } from '../cli/headlessPrompt';
@@ -89,6 +97,27 @@ import {
   snapshotChangedFiles,
   swapFileVersion,
 } from '../git/versionReview';
+import {
+  refreshWorkspaceState,
+  unwatchWorkingTree,
+  watchWorkingTree,
+} from '../git/workingTreeWatcher';
+import {
+  abortOperation,
+  assertCommitHash,
+  assertRepoPaths,
+  commitStaged,
+  readCommitFileDiff,
+  readCommitFiles,
+  discardPaths,
+  locateRepo,
+  readFileDiff,
+  readWorkspaceGitState,
+  resolveConflict,
+  stagePaths,
+  undoDiscard,
+  unstagePaths,
+} from '../git/workspaceGit';
 import { schedulePipelineCheck } from '../pipelines/watcher';
 import { store } from '../store';
 
@@ -125,12 +154,14 @@ async function suggestGitText(
   projectId: string,
   buildPrompt: (summary: string) => string,
   requestId?: string,
+  stagedOnly = false,
+  cliId: string | null = null,
 ): Promise<SuggestGitTextResult> {
   const project = await getProject(projectId);
-  const summary = await readChangeSummary(project.folderPath);
+  const summary = await readChangeSummary(project.folderPath, { stagedOnly });
   const result = await runHeadlessCliPrompt(buildPrompt(summary), project.folderPath, {
     requestId,
-    preferredCliId: project.cliId,
+    preferredCliId: cliId ?? project.cliId,
   });
   return {
     ok: result.ok,
@@ -398,15 +429,20 @@ function registerBranchHandlers(): void {
 
   ipcMain.handle(
     IPC.git.suggestCommitMessage,
-    async (_event, projectId: string, requestId?: string): Promise<SuggestGitTextResult> => {
+    async (
+      _event,
+      projectId: string,
+      requestId?: string,
+      scope?: 'staged' | 'all',
+    ): Promise<SuggestGitTextResult> => {
+      // The style, extra rules and writing CLI come from Settings > Commit messages.
+      const { commitMessage } = await store.getSettings();
       return suggestGitText(
         projectId,
-        (summary) =>
-          'Write a concise, conventional-commit style git commit message (a short summary line, ' +
-          'optionally followed by a brief body) describing these changes. Do not read or edit any ' +
-          'files; judge only from the information below. Reply with ONLY the commit message, no code ' +
-          `fences, no extra commentary.\n\n${summary}`,
+        (summary) => buildCommitMessagePrompt(commitMessage, summary),
         requestId,
+        scope === 'staged',
+        commitMessage.cliId,
       );
     },
   );
@@ -528,11 +564,7 @@ function registerTagHandlers(): void {
         'You are picking the next git tag for a release, following semantic versioning: bump the major ' +
         'version for breaking changes, the minor version for new features, the patch version for fixes ' +
         'and chores only. Do not read or edit any files; judge only from the information below.\n\n' +
-        (namedSeries
-          ? `Tags in this series are named ${prefix}<version>. If the repository holds several ` +
-            `packages, the prefix probably names the one being released, so weigh the commits ` +
-            'that concern it most.\n\n'
-          : '') +
+        (namedSeries ? `Tags in this series are named ${prefix}<version>.\n\n` : '') +
         (latestTag
           ? `The ${namedSeries ? 'latest tag in this series' : "repository's latest tag"} is ${latestTag}. ` +
             'Your answer MUST be a bump of exactly that version and must be greater than it. ' +
@@ -827,9 +859,186 @@ function registerGithubHandlers(): void {
   );
 }
 
+/** Resolves a project to its repository, refusing a folder that is not in one. */
+async function requireRepo(
+  projectId: string,
+): Promise<{ root: string; gitDir: string; folder: string }> {
+  const folder = await getProjectPath(projectId);
+  const repo = await locateRepo(folder);
+  if (!repo) throw new Error('This project folder is not a git repository.');
+  return { ...repo, folder };
+}
+
+/**
+ * Runs a change the workspace panel asked for, then pushes the fresh state straight back so
+ * the panel moves the instant git is done rather than when the file events arrive.
+ */
+async function workspaceGitOp(
+  projectId: string,
+  fn: (repo: { root: string; gitDir: string }) => Promise<string>,
+): Promise<GitOpResult> {
+  const resolved: { folder?: string } = {};
+  const result = await runGitOp(async () => {
+    const repo = await requireRepo(projectId);
+    resolved.folder = repo.folder;
+    return fn(repo);
+  });
+  if (resolved.folder) void refreshWorkspaceState(projectId, resolved.folder);
+  return result;
+}
+
+function registerWorkspaceHandlers(): void {
+  ipcMain.handle(
+    IPC.git.workspaceState,
+    async (_event, projectId: string): Promise<WorkspaceGitState> =>
+      readWorkspaceGitState(await getProjectPath(projectId)),
+  );
+
+  ipcMain.handle(IPC.git.watchWorkingTree, async (event, projectId: string): Promise<void> => {
+    watchWorkingTree(projectId, await getProjectPath(projectId), event.sender);
+  });
+
+  ipcMain.handle(IPC.git.unwatchWorkingTree, (event, projectId: string): void => {
+    unwatchWorkingTree(projectId, event.sender);
+  });
+
+  ipcMain.handle(
+    IPC.git.stage,
+    (_event, projectId: string, paths: string[]): Promise<GitOpResult> =>
+      workspaceGitOp(projectId, async ({ root }) => {
+        await stagePaths(root, assertRepoPaths(root, paths));
+        return 'Staged.';
+      }),
+  );
+
+  ipcMain.handle(
+    IPC.git.unstage,
+    (_event, projectId: string, paths: string[]): Promise<GitOpResult> =>
+      workspaceGitOp(projectId, async ({ root }) => {
+        await unstagePaths(root, assertRepoPaths(root, paths));
+        return 'Unstaged.';
+      }),
+  );
+
+  ipcMain.handle(
+    IPC.git.discard,
+    async (
+      _event,
+      projectId: string,
+      paths: string[],
+      side: 'unstaged' | 'untracked',
+    ): Promise<GitDiscardResult> => {
+      let folder: string | null = null;
+      try {
+        const repo = await requireRepo(projectId);
+        folder = repo.folder;
+        if (side !== 'unstaged' && side !== 'untracked') throw new Error('Unknown change type.');
+        const picked = assertRepoPaths(repo.root, paths);
+        // Only throw away what the panel is actually showing as a change on that side, so a
+        // stale or crafted request can never delete an unrelated file.
+        const state = await readWorkspaceGitState(repo.root);
+        const listed = new Set(
+          (side === 'untracked' ? state.untracked : state.unstaged).map((e) => e.path),
+        );
+        const stray = picked.find((path) => !listed.has(path));
+        if (stray) throw new Error(`${stray} has no changes to discard.`);
+        return await discardPaths(repo.root, picked, side);
+      } catch (error) {
+        return { ok: false, message: (error as Error).message };
+      } finally {
+        if (folder) void refreshWorkspaceState(projectId, folder);
+      }
+    },
+  );
+
+  ipcMain.handle(
+    IPC.git.undoDiscard,
+    (_event, projectId: string, token: string): Promise<GitOpResult> =>
+      workspaceGitOp(projectId, async () => {
+        await undoDiscard(token);
+        return 'Restored.';
+      }),
+  );
+
+  ipcMain.handle(
+    IPC.git.resolveConflict,
+    (_event, projectId: string, path: string, pick: 'ours' | 'theirs'): Promise<GitOpResult> =>
+      workspaceGitOp(projectId, async ({ root }) => {
+        if (pick !== 'ours' && pick !== 'theirs') throw new Error('Pick ours or theirs.');
+        const [safe] = assertRepoPaths(root, [path]);
+        await resolveConflict(root, safe, pick);
+        return `Kept ${pick === 'ours' ? 'your' : 'their'} version of ${safe}.`;
+      }),
+  );
+
+  ipcMain.handle(
+    IPC.git.abortOperation,
+    (_event, projectId: string): Promise<GitOpResult> =>
+      workspaceGitOp(projectId, ({ root, gitDir }) => abortOperation(root, gitDir)),
+  );
+
+  ipcMain.handle(
+    IPC.git.commitStaged,
+    async (_event, projectId: string, message: string, push: boolean): Promise<GitOpResult> => {
+      if (!message?.trim()) return { ok: false, message: 'Write a commit message first.' };
+      const result = await workspaceGitOp(projectId, async ({ root }) => {
+        const out = await commitStaged(root, message.trim());
+        if (!push) return out;
+        const branch = await currentBranch(root);
+        if (!branch) throw new Error('Committed, but there is no branch to push.');
+        await pushCurrentBranch(root, branch);
+        return `${out}\nPushed ${branch}.`;
+      });
+      if (result.ok && push) schedulePipelineCheck(projectId);
+      return result;
+    },
+  );
+
+  ipcMain.handle(
+    IPC.git.fileDiff,
+    async (
+      _event,
+      projectId: string,
+      path: string,
+      side: GitDiffSide,
+      origPath?: string,
+    ): Promise<GitFileDiff> => {
+      const { root } = await requireRepo(projectId);
+      const [safe] = assertRepoPaths(root, [path]);
+      const [safeOrig] = origPath ? assertRepoPaths(root, [origPath]) : [undefined];
+      return readFileDiff(root, safe, side, safeOrig);
+    },
+  );
+
+  ipcMain.handle(
+    IPC.git.commitFiles,
+    async (_event, projectId: string, hash: string): Promise<GitChangeEntry[]> => {
+      const { root } = await requireRepo(projectId);
+      return readCommitFiles(root, assertCommitHash(hash));
+    },
+  );
+
+  ipcMain.handle(
+    IPC.git.commitFileDiff,
+    async (
+      _event,
+      projectId: string,
+      hash: string,
+      path: string,
+      origPath?: string,
+    ): Promise<GitFileDiff> => {
+      const { root } = await requireRepo(projectId);
+      const [safe] = assertRepoPaths(root, [path]);
+      const [safeOrig] = origPath ? assertRepoPaths(root, [origPath]) : [undefined];
+      return readCommitFileDiff(root, assertCommitHash(hash), safe, safeOrig);
+    },
+  );
+}
+
 export function registerGitHandlers(): void {
   registerRepoHandlers();
   registerBranchHandlers();
   registerTagHandlers();
   registerGithubHandlers();
+  registerWorkspaceHandlers();
 }

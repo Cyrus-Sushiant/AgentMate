@@ -30,6 +30,7 @@ import {
   TerminalSquare,
   Trash2,
   Wand2,
+  Workspace,
 } from '@/components/icons';
 import { ProjectIcon } from '@/components/projects/ProjectIcon';
 import { Badge } from '@/components/ui/badge';
@@ -168,6 +169,7 @@ export function ProjectDetailHeader({
   onCopyPath,
   onOpenFolder,
   onOpenTerminal,
+  onOpenWorkspace,
 }: {
   project: Project;
   onBack: () => void;
@@ -179,6 +181,7 @@ export function ProjectDetailHeader({
   onCopyPath: () => void;
   onOpenFolder: () => void;
   onOpenTerminal: () => void;
+  onOpenWorkspace: () => void;
 }): React.JSX.Element {
   const agentLabel = AGENT_TYPE_LABELS[project.agentType];
   const agentCliId = AGENT_TYPE_CLI_ID[project.agentType];
@@ -287,6 +290,11 @@ export function ProjectDetailHeader({
                 <Run /> Run
               </Button>
             ) : null}
+            <SimpleTooltip label="Run agents side by side and review their changes">
+              <Button variant="outline" size="sm" onClick={onOpenWorkspace}>
+                <Workspace /> Open workspace
+              </Button>
+            </SimpleTooltip>
             <Button variant="outline" size="sm" onClick={onPrompt}>
               <MessageSquare /> Prompt
             </Button>

@@ -1,39 +1,10 @@
-import { FitAddon } from '@xterm/addon-fit';
-import { type ITheme, Terminal } from '@xterm/xterm';
+import type { Terminal } from '@xterm/xterm';
 import { useEffect, useRef } from 'react';
-import '@xterm/xterm/css/xterm.css';
-import { isShortcutLetter } from '@/lib/shortcutKey';
-import { commandForEvent, useShortcutStore } from '@/stores/shortcutStore';
+import { onFontsLoaded, whenTerminalFontReady } from '@/lib/terminal/fontReady';
+import { attachFilePaste } from '@/lib/terminal/pasteFiles';
+import { sshTerminalAdapter } from '@/lib/terminal/sshAdapter';
+import { attachTerminalContextMenu, createXterm } from '@/lib/terminal/xtermFactory';
 import type { TerminalSessionMeta } from '@/stores/terminalStore';
-
-// Same fill as `.terminal-well` so leftover cells after a fit() don't read as a
-// nested black rectangle inside the panel.
-const TERMINAL_WELL_BG = '#0a1210';
-
-const TERMINAL_THEME: ITheme = {
-  background: TERMINAL_WELL_BG,
-  foreground: '#d4ddd6',
-  cursor: '#00e572',
-  cursorAccent: TERMINAL_WELL_BG,
-  selectionBackground: '#00e57240',
-  selectionForeground: TERMINAL_WELL_BG,
-  black: '#1a1f1c',
-  red: '#f07178',
-  green: '#00e572',
-  yellow: '#e6c07b',
-  blue: '#6bb0ff',
-  magenta: '#c792ea',
-  cyan: '#56d4c1',
-  white: '#d4ddd6',
-  brightBlack: '#6b756f',
-  brightRed: '#ff8b92',
-  brightGreen: '#5eec9a',
-  brightYellow: '#f0d48a',
-  brightBlue: '#8fc4ff',
-  brightMagenta: '#d7a6f5',
-  brightCyan: '#7ee4d4',
-  brightWhite: '#f4f7f5',
-};
 
 export interface TerminalPaneProps {
   meta: TerminalSessionMeta;
@@ -52,92 +23,51 @@ export function TerminalPane({ meta, active, onExit }: TerminalPaneProps): React
     const container = containerRef.current;
     if (!container) return;
 
-    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    const term = new Terminal({
-      convertEol: true,
-      fontSize: 13,
-      lineHeight: 1.35,
-      fontFamily:
-        "'Cascadia Code', 'Cascadia Mono', 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
-      theme: TERMINAL_THEME,
-      cursorBlink: !reduceMotion,
-      cursorStyle: 'bar',
-      cursorWidth: 2,
-      scrollback: 5000,
-      scrollSensitivity: 1.2,
-      smoothScrollDuration: reduceMotion ? 0 : 140,
-    });
-    const fitAddon = new FitAddon();
-    term.loadAddon(fitAddon);
-    term.open(container);
-    termRef.current = term;
-
     let ptySessionId: string | null = null;
     let disposed = false;
+    const client =
+      meta.kind === 'ssh' && meta.sshServerId
+        ? sshTerminalAdapter(meta.sshServerId)
+        : window.agentmat.terminal;
+    const { term, fit: fitAddon } = createXterm({
+      sessionId: () => ptySessionId,
+      write: (id, data) => void client.write(id, data),
+    });
+    termRef.current = term;
+
     const hasSize = (): boolean => container.clientWidth > 0 && container.clientHeight > 0;
 
-    const resizeObserver = new ResizeObserver(() => {
+    const refit = (): void => {
       // A hidden pane (inactive tab, or the whole drawer closed) measures 0x0.
       // Fitting to that would reflow the running program's output to a garbage
       // size, so wait until it is on screen again. Hiding must not disturb the pty.
-      if (!hasSize()) return;
+      if (!hasSize() || !term.element) return;
       try {
         fitAddon.fit();
         if (ptySessionId) {
-          void window.agentmat.terminal.resize(ptySessionId, term.cols, term.rows);
+          void client.resize(ptySessionId, term.cols, term.rows);
         }
       } catch {
         // xterm can still reject a transient measurement mid-layout; ignore
       }
-    });
-    resizeObserver.observe(container);
-
-    const dataDisposable = term.onData((data) => {
-      if (ptySessionId) void window.agentmat.terminal.write(ptySessionId, data);
-    });
-
-    // Ctrl/Cmd+C copies the selection instead of sending SIGINT, matching Windows
-    // Terminal/VS Code conventions. With no selection it falls through to xterm's
-    // default handling so ^C still interrupts the running process.
-    term.attachCustomKeyEventHandler((event) => {
-      if (
-        event.type === 'keydown' &&
-        (event.ctrlKey || event.metaKey) &&
-        !event.shiftKey &&
-        !event.altKey &&
-        isShortcutLetter(event, 'c') &&
-        term.hasSelection()
-      ) {
-        void navigator.clipboard.writeText(term.getSelection());
-        return false;
-      }
-      // Hand app shortcuts (Ctrl+T and friends) back to the window listener
-      // instead of writing them to the pty. Returning false makes xterm ignore
-      // the key entirely, so it keeps bubbling.
-      if (
-        event.type === 'keydown' &&
-        commandForEvent(event, useShortcutStore.getState().overrides, true) !== null
-      ) {
-        return false;
-      }
-      return true;
-    });
-
-    // Right-click copies the selection if there is one, otherwise pastes clipboard
-    // contents into the shell, the standard behavior for Windows/Linux terminals.
-    const handleContextMenu = (event: MouseEvent): void => {
-      event.preventDefault();
-      const selection = term.getSelection();
-      if (selection) {
-        void navigator.clipboard.writeText(selection);
-        term.clearSelection();
-      } else {
-        void navigator.clipboard.readText().then((text) => {
-          if (text && ptySessionId) void window.agentmat.terminal.write(ptySessionId, text);
-        });
-      }
     };
-    container.addEventListener('contextmenu', handleContextMenu);
+    const resizeObserver = new ResizeObserver(refit);
+    resizeObserver.observe(container);
+    const stopFontWatch = onFontsLoaded(refit);
+
+    const detachContextMenu = attachTerminalContextMenu(
+      container,
+      term,
+      () => ptySessionId,
+      (id, data) => void client.write(id, data),
+      () => meta.shell,
+    );
+    // Screenshots and copied files paste as paths, so agent CLIs can pick them up.
+    const detachFilePaste = attachFilePaste(
+      container,
+      () => meta.shell,
+      (text) => term.paste(text),
+    );
 
     // The session id is the tab id, which is what lets a pane find its shell again after
     // the app restarts. Subscribing before the create call means no output is missed:
@@ -146,30 +76,37 @@ export function TerminalPane({ meta, active, onExit }: TerminalPaneProps): React
     let pending: string[] | null = [];
     let exited = false;
 
-    const unsubscribeData = window.agentmat.terminal.onData((payload) => {
+    const unsubscribeData = client.onData((payload) => {
       if (payload.sessionId !== sessionId) return;
       if (pending) pending.push(payload.data);
       else term.write(payload.data);
     });
-    const unsubscribeExit = window.agentmat.terminal.onExit((payload) => {
+    const unsubscribeExit = client.onExit((payload) => {
       if (payload.sessionId !== sessionId) return;
       if (pending) exited = true;
       else onExitRef.current();
     });
 
-    if (hasSize()) fitAddon.fit();
-
-    void window.agentmat.terminal
-      .create({
-        sessionId,
-        attachOnly: meta.restored,
-        cwd: meta.cwd,
-        shell: meta.shell,
-        initialInput: meta.initialInput,
-        projectId: meta.projectId,
-        // A hidden pane has no real size yet; leave the shell at whatever it last had.
-        ...(hasSize() ? { cols: term.cols, rows: term.rows } : {}),
+    // Opening measures the character cell, so it waits for the terminal font; a fallback
+    // font measured first would size the grid wider than what ends up drawn.
+    void whenTerminalFontReady()
+      .then(() => {
+        if (disposed) throw new Error('disposed');
+        term.open(container);
+        if (hasSize()) fitAddon.fit();
       })
+      .then(() =>
+        client.create({
+          sessionId,
+          attachOnly: meta.restored,
+          cwd: meta.cwd,
+          shell: meta.shell,
+          initialInput: meta.initialInput,
+          projectId: meta.projectId,
+          // A hidden pane has no real size yet; leave the shell at whatever it last had.
+          ...(hasSize() ? { cols: term.cols, rows: term.rows } : {}),
+        }),
+      )
       .then((result) => {
         if (disposed) return;
         if (!result) {
@@ -190,7 +127,7 @@ export function TerminalPane({ meta, active, onExit }: TerminalPaneProps): React
           }
           if (hasSize()) {
             fitAddon.fit();
-            void window.agentmat.terminal.resize(result.sessionId, term.cols, term.rows);
+            void client.resize(result.sessionId, term.cols, term.rows);
           }
         };
         const { snapshot } = result;
@@ -204,15 +141,21 @@ export function TerminalPane({ meta, active, onExit }: TerminalPaneProps): React
         }
         term.write(snapshot.data, release);
       })
-      .catch(() => {
-        if (!disposed) term.write('\r\n\x1b[31mCould not start this terminal.\x1b[0m\r\n');
+      .catch((error: unknown) => {
+        if (disposed) return;
+        const message =
+          meta.kind === 'ssh' && error instanceof Error
+            ? error.message
+            : 'Could not start this terminal.';
+        term.write(`\r\n\x1b[31m${message}\x1b[0m\r\n`);
       });
 
     return () => {
       disposed = true;
       resizeObserver.disconnect();
-      container.removeEventListener('contextmenu', handleContextMenu);
-      dataDisposable.dispose();
+      stopFontWatch();
+      detachContextMenu();
+      detachFilePaste();
       unsubscribeData();
       unsubscribeExit();
       // The shell is deliberately left running: closing a tab ends it through the store,
@@ -229,7 +172,11 @@ export function TerminalPane({ meta, active, onExit }: TerminalPaneProps): React
     if (active) termRef.current?.focus();
   }, [active]);
 
+  // The padding lives on the outer box: xterm's fit measures the element it opened in by its
+  // CSS size, and with border-box sizing a padded element would report the padding as room.
   return (
-    <div ref={containerRef} className={active ? 'terminal-pane absolute inset-0' : 'hidden'} />
+    <div className={active ? 'terminal-pane absolute inset-0' : 'hidden'}>
+      <div ref={containerRef} className="h-full w-full overflow-hidden" />
+    </div>
   );
 }

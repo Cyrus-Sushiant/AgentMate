@@ -15,7 +15,7 @@ const OBJECT_ID_PATTERN = /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/;
  * to text and take no input, which is wrong for writing file bytes back and for feeding a
  * long path list that would not fit on a Windows command line.
  */
-function runGit(cwd: string, args: string[], input?: string): Promise<Buffer> {
+export function runGit(cwd: string, args: string[], input?: string): Promise<Buffer> {
   return new Promise((resolvePromise, reject) => {
     const child = spawn('git', ['-C', cwd, ...args], {
       windowsHide: true,

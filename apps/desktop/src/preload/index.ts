@@ -1,5 +1,6 @@
 import type {
   ActivityEvent,
+  AgentHistorySession,
   AppNotification,
   AppSettings,
   BlueprintPreset,
@@ -13,6 +14,7 @@ import type {
   DesktopPromptBuildWidgetInstance,
   DesktopWidgetInstance,
   DetectedClaudeHook,
+  GitChangeEntry,
   InstalledAgentTool,
   InstalledCli,
   McpRepository,
@@ -46,10 +48,13 @@ import type {
   WidgetSize,
   WidgetStyle,
 } from '@agentmat/core';
-import { contextBridge, ipcRenderer } from 'electron';
+import { contextBridge, ipcRenderer, webUtils } from 'electron';
 import type {
   ActiveScan,
   AddPromptHistoryInput,
+  AgentRunInfoMap,
+  AgentSessionEntry,
+  AgentStatusMap,
   ApplyVersionInput,
   ApplyVersionResult,
   AskAiInput,
@@ -75,6 +80,7 @@ import type {
   CreatePullRequestInput,
   CreatePullRequestResult,
   CreateScheduledTasksInput,
+  CreateSshSessionOptions,
   CreateTagInput,
   CreateTerminalOptions,
   DeleteBranchInput,
@@ -84,6 +90,9 @@ import type {
   FavoriteSkillInput,
   FavoriteSkillRecord,
   GitBranchHistory,
+  GitDiffSide,
+  GitDiscardResult,
+  GitFileDiff,
   GithubAccount,
   GithubActionsActivity,
   GithubActionsRunErrorInput,
@@ -130,6 +139,7 @@ import type {
   RunSkillAuditInput,
   RunSkillAuditResult,
   SaveBlueprintPresetInput,
+  SaveSshServerInput,
   SaveTemplateInput,
   SendTestNotificationInput,
   SkillAuditRecord,
@@ -139,12 +149,18 @@ import type {
   SkillUsageReport,
   SpeechModelProgress,
   SpeechModelState,
+  SshAttachResult,
+  SshDataPayload,
+  SshExitPayload,
+  SshSavedServer,
+  SshVaultStatus,
   StartHostInput,
   SuggestGitTextResult,
   SuggestTagResult,
   SwapVersionFileInput,
   SystemStatsSample,
   TerminalAttachResult,
+  TerminalClipboardPaste,
   TopResourceAppsResult,
   TopResourceKind,
   TranscribeAudioInput,
@@ -153,6 +169,7 @@ import type {
   UiProPrerequisites,
   UiProUpdateCheck,
   UpdateStatus,
+  WorkspaceGitState,
 } from '../shared/apiTypes';
 import type { GrammarCheckInput, GrammarCheckResult, GrammarLocalStatus } from '../shared/grammar';
 import { IPC } from '../shared/ipcChannels';
@@ -229,6 +246,73 @@ const terminal = {
       callback(payload);
     ipcRenderer.on(IPC.terminal.onExit, listener);
     return () => ipcRenderer.removeListener(IPC.terminal.onExit, listener);
+  },
+};
+
+const ssh = {
+  listServers: (): Promise<SshSavedServer[]> => ipcRenderer.invoke(IPC.ssh.listServers),
+  saveServer: (input: SaveSshServerInput): Promise<SshSavedServer> =>
+    ipcRenderer.invoke(IPC.ssh.saveServer, input),
+  removeServer: (id: string): Promise<void> => ipcRenderer.invoke(IPC.ssh.removeServer, id),
+  pickPrivateKeyFile: (): Promise<string | null> => ipcRenderer.invoke(IPC.ssh.pickPrivateKeyFile),
+  vaultStatus: (): Promise<SshVaultStatus> => ipcRenderer.invoke(IPC.ssh.vaultStatus),
+  unlockVault: (passphrase: string): Promise<boolean> =>
+    ipcRenderer.invoke(IPC.ssh.unlockVault, passphrase),
+  setPasskey: (passphrase: string | null): Promise<{ ok: boolean; error?: string }> =>
+    ipcRenderer.invoke(IPC.ssh.setPasskey, passphrase),
+  /** Starts a shell for a saved server, or reconnects when `sessionId` names one still running. */
+  create: (options: CreateSshSessionOptions): Promise<SshAttachResult> =>
+    ipcRenderer.invoke(IPC.ssh.create, options),
+  write: (sessionId: string, data: string): Promise<void> =>
+    ipcRenderer.invoke(IPC.ssh.write, sessionId, data),
+  resize: (sessionId: string, cols: number, rows: number): Promise<void> =>
+    ipcRenderer.invoke(IPC.ssh.resize, sessionId, cols, rows),
+  kill: (sessionId: string): Promise<void> => ipcRenderer.invoke(IPC.ssh.kill, sessionId),
+  onData: (callback: (payload: SshDataPayload) => void): (() => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, payload: SshDataPayload): void =>
+      callback(payload);
+    ipcRenderer.on(IPC.ssh.onData, listener);
+    return () => ipcRenderer.removeListener(IPC.ssh.onData, listener);
+  },
+  onExit: (callback: (payload: SshExitPayload) => void): (() => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, payload: SshExitPayload): void =>
+      callback(payload);
+    ipcRenderer.on(IPC.ssh.onExit, listener);
+    return () => ipcRenderer.removeListener(IPC.ssh.onExit, listener);
+  },
+};
+
+const agents = {
+  /** Tells main which workspace tabs exist, so it can follow their agents' status. */
+  sync: (entries: AgentSessionEntry[]): Promise<void> =>
+    ipcRenderer.invoke(IPC.agents.sync, entries),
+  /** The tabs on screen right now; finishing while visible and focused raises no notification. */
+  setViewing: (visible: string[], focused: string | null): Promise<void> =>
+    ipcRenderer.invoke(IPC.agents.setViewing, visible, focused),
+  acknowledge: (sessionId: string): Promise<void> =>
+    ipcRenderer.invoke(IPC.agents.acknowledge, sessionId),
+  list: (): Promise<AgentStatusMap> => ipcRenderer.invoke(IPC.agents.list),
+  /**
+   * A settings file to pass as `--settings` when launching this CLI, which reports its status
+   * back through hooks. Null when the CLI has no such hooks or they cannot run here.
+   */
+  statusHookSettings: (cliId: string): Promise<string | null> =>
+    ipcRenderer.invoke(IPC.agents.statusHookSettings, cliId),
+  /** The model and effort each agent last reported. */
+  runInfos: (): Promise<AgentRunInfoMap> => ipcRenderer.invoke(IPC.agents.runInfos),
+  history: (projectId: string): Promise<AgentHistorySession[]> =>
+    ipcRenderer.invoke(IPC.agents.history, projectId),
+  onRunInfo: (callback: (changes: AgentRunInfoMap) => void): (() => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, changes: AgentRunInfoMap): void =>
+      callback(changes);
+    ipcRenderer.on(IPC.agents.onRunInfo, listener);
+    return () => ipcRenderer.removeListener(IPC.agents.onRunInfo, listener);
+  },
+  onStatus: (callback: (changes: AgentStatusMap) => void): (() => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, changes: AgentStatusMap): void =>
+      callback(changes);
+    ipcRenderer.on(IPC.agents.onStatus, listener);
+    return () => ipcRenderer.removeListener(IPC.agents.onStatus, listener);
   },
 };
 
@@ -470,6 +554,17 @@ const activity = {
 const shellApi = {
   openExternal: (url: string): Promise<void> => ipcRenderer.invoke(IPC.shell.openExternal, url),
   openPath: (path: string): Promise<void> => ipcRenderer.invoke(IPC.shell.openPath, path),
+  /** The file system path of a file dropped into the window. Empty for files not on disk. */
+  pathForFile: (file: File): string => webUtils.getPathForFile(file),
+};
+
+const terminalClipboard = {
+  /** Saves pasted image bytes to a file and returns its path, for pasting into an agent CLI. */
+  saveImage: (bytes: Uint8Array, mime: string): Promise<string> =>
+    ipcRenderer.invoke(IPC.terminalClipboard.saveImage, bytes, mime),
+  /** An image or copied file on the system clipboard, as paths. Null when it holds neither. */
+  readSpecial: (): Promise<TerminalClipboardPaste | null> =>
+    ipcRenderer.invoke(IPC.terminalClipboard.readSpecial),
 };
 
 const promptHistory = {
@@ -698,8 +793,13 @@ const git = {
   /** Kills the CLI process behind an in-flight suggestBranchName(requestId). */
   cancelSuggestBranchName: (requestId: string): Promise<boolean> =>
     ipcRenderer.invoke(IPC.git.cancelSuggestBranchName, requestId),
-  suggestCommitMessage: (projectId: string, requestId?: string): Promise<SuggestGitTextResult> =>
-    ipcRenderer.invoke(IPC.git.suggestCommitMessage, projectId, requestId),
+  /** `scope: 'staged'` describes only what is staged, for a commit of just those changes. */
+  suggestCommitMessage: (
+    projectId: string,
+    requestId?: string,
+    scope?: 'staged' | 'all',
+  ): Promise<SuggestGitTextResult> =>
+    ipcRenderer.invoke(IPC.git.suggestCommitMessage, projectId, requestId, scope),
   /** Kills the CLI process behind an in-flight suggestCommitMessage(requestId). */
   cancelSuggestCommitMessage: (requestId: string): Promise<boolean> =>
     ipcRenderer.invoke(IPC.git.cancelSuggestCommitMessage, requestId),
@@ -736,6 +836,64 @@ const git = {
     ipcRenderer.invoke(IPC.git.unwatchRepo, projectId),
   onRepoChanged: (callback: (projectId: string) => void): (() => void) =>
     subscribe(IPC.git.onRepoChanged, callback),
+  /** Branch, sync counts and every change, grouped the way the workspace panel lists them. */
+  workspaceState: (projectId: string): Promise<WorkspaceGitState> =>
+    ipcRenderer.invoke(IPC.git.workspaceState, projectId),
+  /** Pushes a fresh state through onWorkspaceState whenever files in the project change. */
+  watchWorkingTree: (projectId: string): Promise<void> =>
+    ipcRenderer.invoke(IPC.git.watchWorkingTree, projectId),
+  unwatchWorkingTree: (projectId: string): Promise<void> =>
+    ipcRenderer.invoke(IPC.git.unwatchWorkingTree, projectId),
+  onWorkspaceState: (
+    callback: (projectId: string, state: WorkspaceGitState) => void,
+  ): (() => void) => {
+    const listener = (
+      _event: Electron.IpcRendererEvent,
+      projectId: string,
+      state: WorkspaceGitState,
+    ): void => callback(projectId, state);
+    ipcRenderer.on(IPC.git.onWorkspaceState, listener);
+    return () => ipcRenderer.removeListener(IPC.git.onWorkspaceState, listener);
+  },
+  stage: (projectId: string, paths: string[]): Promise<GitOpResult> =>
+    ipcRenderer.invoke(IPC.git.stage, projectId, paths),
+  unstage: (projectId: string, paths: string[]): Promise<GitOpResult> =>
+    ipcRenderer.invoke(IPC.git.unstage, projectId, paths),
+  /** Throws away working tree changes (or trashes untracked files); the result can be undone. */
+  discard: (
+    projectId: string,
+    paths: string[],
+    side: 'unstaged' | 'untracked',
+  ): Promise<GitDiscardResult> => ipcRenderer.invoke(IPC.git.discard, projectId, paths, side),
+  undoDiscard: (projectId: string, token: string): Promise<GitOpResult> =>
+    ipcRenderer.invoke(IPC.git.undoDiscard, projectId, token),
+  resolveConflict: (
+    projectId: string,
+    path: string,
+    pick: 'ours' | 'theirs',
+  ): Promise<GitOpResult> => ipcRenderer.invoke(IPC.git.resolveConflict, projectId, path, pick),
+  abortOperation: (projectId: string): Promise<GitOpResult> =>
+    ipcRenderer.invoke(IPC.git.abortOperation, projectId),
+  /** Commits only what is staged, optionally pushing the branch right after. */
+  commitStaged: (projectId: string, message: string, push: boolean): Promise<GitOpResult> =>
+    ipcRenderer.invoke(IPC.git.commitStaged, projectId, message, push),
+  fileDiff: (
+    projectId: string,
+    path: string,
+    side: GitDiffSide,
+    origPath?: string,
+  ): Promise<GitFileDiff> => ipcRenderer.invoke(IPC.git.fileDiff, projectId, path, side, origPath),
+  /** The files a commit changed, with line counts. */
+  commitFiles: (projectId: string, hash: string): Promise<GitChangeEntry[]> =>
+    ipcRenderer.invoke(IPC.git.commitFiles, projectId, hash),
+  /** One file as a commit changed it. */
+  commitFileDiff: (
+    projectId: string,
+    hash: string,
+    path: string,
+    origPath?: string,
+  ): Promise<GitFileDiff> =>
+    ipcRenderer.invoke(IPC.git.commitFileDiff, projectId, hash, path, origPath),
 };
 
 const pipelines = {
@@ -995,6 +1153,8 @@ const agentmatApi = {
   app: appInfo,
   cli,
   terminal,
+  ssh,
+  agents,
   projects,
   skills,
   mcp,
@@ -1005,6 +1165,7 @@ const agentmatApi = {
   templates,
   activity,
   shell: shellApi,
+  terminalClipboard,
   spellcheck,
   grammar,
   proxy,
