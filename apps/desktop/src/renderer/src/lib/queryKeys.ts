@@ -56,6 +56,13 @@ export const queryKeys = {
   scheduledTasks: (projectId: string) => ['scheduled-tasks', projectId] as const,
   claudeHooks: (projectId: string) => ['claude-hooks', projectId] as const,
   gitStatus: (projectId: string) => ['git-status', projectId] as const,
+  /** The workspace changes panel's state, pushed live by the working tree watcher. */
+  gitWorkspaceState: (projectId: string) => ['git-workspace-state', projectId] as const,
+  agentHistory: (projectId: string) => ['agent-history', projectId] as const,
+  gitFileDiff: (projectId: string, side: string, path: string) =>
+    ['git-file-diff', projectId, side, path] as const,
+  /** Prefix of every diff of a project, to refresh open diffs after the tree changed. */
+  gitFileDiffs: (projectId: string) => ['git-file-diff', projectId] as const,
   gitFiles: (projectId: string) => ['git-files', projectId] as const,
   gitTags: (projectId: string) => ['git-tags', projectId] as const,
   /** Tag state for one tag series. Nested so invalidating gitTags refreshes it too. */
@@ -82,6 +89,8 @@ export const queryKeys = {
   uiProPrerequisites: ['ui-ux-pro-max-prerequisites'] as const,
   uiProUpdate: ['ui-ux-pro-max-update'] as const,
   remoteSavedServers: ['remote-saved-servers'] as const,
+  sshServers: ['ssh-servers'] as const,
+  sshVaultStatus: ['ssh-vault-status'] as const,
   /** Local LanguageTool install and server state, for Settings and the Tools card. */
   grammarLocalStatus: ['grammar-local-status'] as const,
   /** Which proxy the app is going through, and what this machine itself is set to. */

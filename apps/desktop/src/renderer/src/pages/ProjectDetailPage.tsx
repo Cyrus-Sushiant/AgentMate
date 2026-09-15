@@ -146,6 +146,7 @@ import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { useGitRepoWatch } from '@/hooks/useGitRepoWatch';
+import { sanitizeCommitMessage, splitGitPath } from '@/lib/git';
 import { cliLaunchCommand } from '@/lib/openCli';
 import { queryKeys } from '@/lib/queryKeys';
 import { persianTextProps } from '@/lib/rtl';
@@ -590,6 +591,7 @@ export default function ProjectDetailPage(): React.JSX.Element {
         onCopyPath={() => void handleCopyPath()}
         onOpenFolder={() => void handleOpenInFileExplorer()}
         onOpenTerminal={handleOpenTerminalHere}
+        onOpenWorkspace={() => navigate(`/workspace/${project.id}`)}
       />
 
       <div
@@ -1737,15 +1739,6 @@ function gitBranchOptions(
 }
 
 /** Strips markdown fences/quotes but keeps line breaks, for AI-suggested commit messages. */
-function sanitizeCommitMessage(text: string): string {
-  return text
-    .replace(/```[a-z]*\n?/gi, '')
-    .replace(/```/g, '')
-    .trim()
-    .replace(/^["']|["']$/g, '')
-    .trim();
-}
-
 type GitFileKind = 'untracked' | 'deleted' | 'added' | 'renamed' | 'modified';
 
 function gitFileKind(x: string, y: string): GitFileKind {
@@ -1771,12 +1764,6 @@ function GitStatusBadge({ kind }: { kind: GitFileKind }): React.JSX.Element {
       {kind}
     </Badge>
   );
-}
-
-function splitGitPath(path: string): { dir: string; name: string } {
-  const i = Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\'));
-  if (i < 0) return { dir: '', name: path };
-  return { dir: path.slice(0, i + 1), name: path.slice(i + 1) };
 }
 
 /** CLI transcripts often arrive with color codes that a dialog cannot render. */
@@ -3047,8 +3034,8 @@ function ApplyVersionDialog({
         <DialogHeader>
           <DialogTitle>Update version in files</DialogTitle>
           <DialogDescription>
-            Setting the version for <span className="font-mono">{tag}</span>. Your CLI can edit any
-            file, so keep the edits that belong to this release and revert the rest.
+            Setting the version to <span className="font-mono">{tag}</span> in every file of the
+            repository. Keep the files that belong to this release and revert the rest.
           </DialogDescription>
         </DialogHeader>
 
@@ -3299,20 +3286,32 @@ function TagVersionDialog({
   const recentTags = prefixInfo?.recentTags ?? [];
   const knownPrefixes = tagInfo?.prefixes ?? [];
 
+  /** The only way the prefix changes. It is remembered right away, not just after a tag. */
   function handlePrefixInput(next: string): void {
     prefixChosenRef.current = true;
     setPrefix(next);
+    storeTagPrefix(projectId, next.trim());
   }
 
-  // Until the user chooses, the prefix is the one last used for this project, or else the one
-  // the repo's newest tag uses: "v" for most repos and bare for the ones that tag "1.2.3".
+  // Until the user chooses, the prefix is the one they last used for this project. Without one
+  // it is the plain style ("v", or bare for repos that tag "1.2.3"), never the prefix of
+  // whichever series happened to be tagged last: in a repo with `web-v` and `app-v` tags that
+  // would hand the user the wrong series.
   const tagInfoLoaded = tagInfo !== null;
-  const newestPrefix = tagInfo?.prefixes[0];
+  const plainPrefix = !tagInfo
+    ? 'v'
+    : tagInfo.prefixes.includes('v')
+      ? 'v'
+      : tagInfo.prefixes.includes('')
+        ? ''
+        : tagInfo.prefixes.length === 1
+          ? tagInfo.prefixes[0]
+          : 'v';
   useEffect(() => {
     if (!open || prefixChosenRef.current || !tagInfoLoaded) return;
     prefixChosenRef.current = true;
-    setPrefix(readStoredTagPrefix(projectId) ?? newestPrefix ?? 'v');
-  }, [open, tagInfoLoaded, newestPrefix, projectId]);
+    setPrefix(readStoredTagPrefix(projectId) ?? plainPrefix);
+  }, [open, tagInfoLoaded, plainPrefix, projectId]);
 
   const hasRemote = tagInfo?.hasRemote ?? false;
   // Gate tagging (and the push that follows it) on a clean tree: a version bump's edits must
@@ -3729,7 +3728,7 @@ function TagVersionDialog({
                 <p className="text-xs text-muted-foreground">
                   {versionApplied
                     ? 'Commit those edits, then create the tag.'
-                    : 'Runs your CLI over package.json, other manifests and any version shown in the app. You then keep or revert each changed file and commit the ones you keep before tagging.'}
+                    : 'Runs your CLI over every package.json, other manifest and version string in the repository. You then pick the files to keep, revert the rest, and commit before tagging.'}
                 </p>
               </div>
             </div>

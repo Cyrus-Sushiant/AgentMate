@@ -500,13 +500,17 @@ export async function deleteBranch(
  * the whole thing from being buffered into the main process just to throw all but
  * the first few KB away, and the shortstat gives the model the size it lost.
  */
-export async function readChangeSummary(cwd: string): Promise<string> {
+export async function readChangeSummary(
+  cwd: string,
+  options: { stagedOnly?: boolean } = {},
+): Promise<string> {
   const status = (await gitOrNull(cwd, ['status', '--porcelain'])) ?? '';
 
   // `diff HEAD` covers staged and unstaged at once, but a repo whose first commit
-  // hasn't been made yet has no HEAD to diff against.
+  // hasn't been made yet has no HEAD to diff against. A commit of only what is
+  // staged describes just the index.
   const hasHead = (await gitOrNull(cwd, ['rev-parse', '--verify', 'HEAD'])) !== null;
-  const bases = hasHead ? [['HEAD']] : [['--cached'], []];
+  const bases = options.stagedOnly ? [['--cached']] : hasHead ? [['HEAD']] : [['--cached'], []];
 
   const stats: string[] = [];
   const bodies: string[] = [];

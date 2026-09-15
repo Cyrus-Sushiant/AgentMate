@@ -1,4 +1,5 @@
 import type { CliArgsMap } from '../cli/args.js';
+import type { CommitMessageSettings } from '../git/commitMessage.js';
 import type { GrammarSettings } from '../grammar/languagetool.js';
 import type { ProxySettings } from '../network/proxy.js';
 import type { DesktopPromptBuildWidgetInstance } from '../promptBuilder/types.js';
@@ -317,6 +318,14 @@ export interface AppSettings {
    * suggestions, version bumps, skill audits) and terminal launches.
    */
   cliArgs: CliArgsMap;
+  /**
+   * CLI_REGISTRY ids in the order agents are listed wherever the user picks one to launch
+   * (the Workspace launcher and pane tiles). CLIs missing from it follow in registry order.
+   * Empty keeps the default order, with the project's own agent first.
+   */
+  cliOrder: string[];
+  /** Which CLI writes AI commit messages and the rules it follows. */
+  commitMessage: CommitMessageSettings;
   theme: ThemeMode;
   /** Folder that holds the user's projects; folder pickers open here instead of the OS default. */
   projectsRootPath: string | null;
@@ -455,6 +464,20 @@ export interface AppSettings {
    * them, whatever this is set to.
    */
   keepTerminalsRunning: boolean;
+  /**
+   * When true, an agent in a Workspace tab that finishes or asks a question while you are
+   * looking elsewhere raises a system notification.
+   */
+  workspaceNotifications: boolean;
+  /**
+   * Off by default: a Workspace terminal pane leaves colors alone, so whatever CLI is running
+   * in it (Claude Code's own gray, say) looks the way it would in any ordinary terminal. On
+   * paints `workspaceTerminalBackgroundColor` instead, with foreground and ANSI colors
+   * recomputed to stay readable against it.
+   */
+  workspaceTerminalCustomBackground: boolean;
+  /** Background used for Workspace terminal panes when `workspaceTerminalCustomBackground` is on. */
+  workspaceTerminalBackgroundColor: string;
 }
 
 export type AgentType = 'claude-code' | 'gemini' | 'opencode' | 'codex' | 'cursor' | 'generic';
@@ -631,6 +654,9 @@ export interface Project {
  * two never disagree about the same colour. Anything else (a stray value in a
  * backup, an older field) reads back as "no colour picked".
  */
+/** The app's own tint, offered as the starting point once a custom terminal background is turned on. */
+export const DEFAULT_TERMINAL_BACKGROUND_COLOR = '#0a1210';
+
 export function normalizeProjectColor(value: unknown): string | null {
   if (typeof value !== 'string') return null;
   const hex = value.trim().toLowerCase();

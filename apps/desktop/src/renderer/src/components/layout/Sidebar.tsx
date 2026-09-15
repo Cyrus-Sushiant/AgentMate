@@ -16,11 +16,13 @@ import {
   SettingsIcon,
   Sparkles,
   TerminalSquare,
+  Workspace,
   Wrench,
 } from '@/components/icons';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { queryKeys } from '@/lib/queryKeys';
 import { cn } from '@/lib/utils';
+import { useAgentStatusStore } from '@/stores/agentStatusStore';
 import { useUiStore } from '@/stores/uiStore';
 import { openUpdateDialog, useUpdateStore } from '@/stores/updateStore';
 
@@ -44,6 +46,7 @@ export const NAV_ITEMS: NavItem[] = [
     alsoActiveOn: ['/prompt-history'],
   },
   { to: '/projects', label: 'Projects', icon: FolderKanban },
+  { to: '/workspace', label: 'Workspace', icon: Workspace },
   { to: '/pipelines', label: 'Pipelines', icon: Github },
   { to: '/skills', label: 'Skills', icon: Blocks },
   { to: '/mcp', label: 'MCP Servers', icon: Plug },
@@ -55,7 +58,9 @@ export const NAV_ITEMS: NavItem[] = [
 ];
 
 export function Sidebar(): React.JSX.Element {
-  const collapsed = useUiStore((s) => s.sidebarCollapsed);
+  const sidebarMode = useUiStore((s) => s.sidebarMode);
+  const collapsed = sidebarMode === 'collapsed';
+  const hidden = sidebarMode === 'hidden';
   const { pathname } = useLocation();
   const reduceMotion = useReducedMotion();
   const queryClient = useQueryClient();
@@ -76,6 +81,10 @@ export function Sidebar(): React.JSX.Element {
     });
   }, [queryClient]);
   const unread = unreadQuery.data ?? 0;
+  const workspaceAttention = useAgentStatusStore((s) => {
+    const all = Object.values(s.statuses);
+    return all.includes('needs-input') ? 'needs-input' : all.includes('done') ? 'done' : null;
+  });
   const checkingForUpdates = useUpdateStore((s) => s.status.state === 'checking');
 
   /**
@@ -97,94 +106,113 @@ export function Sidebar(): React.JSX.Element {
   return (
     <aside
       className={cn(
-        'sidebar-gradient flex h-full shrink-0 flex-col border-r border-border/80 px-2.5 py-3 transition-[width] duration-200',
-        collapsed ? 'w-16' : 'w-56',
+        'sidebar-gradient flex h-full shrink-0 flex-col overflow-hidden py-3 transition-[width] duration-200',
+        hidden ? 'w-0 px-0' : cn('border-r border-border/80 px-2.5', collapsed ? 'w-16' : 'w-56'),
       )}
+      aria-hidden={hidden}
     >
-      <LayoutGroup>
-        <nav className="flex flex-1 flex-col gap-0.5">
-          {NAV_ITEMS.map((item) => {
-            const activeByAlias =
-              item.alsoActiveOn?.some((p) => pathname === p || pathname.startsWith(`${p}/`)) ??
-              false;
+      {!hidden && (
+        <>
+          <LayoutGroup>
+            <nav className="flex flex-1 flex-col gap-0.5">
+              {NAV_ITEMS.map((item) => {
+                const activeByAlias =
+                  item.alsoActiveOn?.some((p) => pathname === p || pathname.startsWith(`${p}/`)) ??
+                  false;
 
-            const link = (
-              <NavLink
-                key={item.to}
-                to={item.to}
-                end={item.end}
-                className={({ isActive }) =>
-                  cn(
-                    'group relative flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
-                    collapsed && 'justify-center px-0',
-                    isActive || activeByAlias
-                      ? 'font-semibold text-primary'
-                      : 'text-muted-foreground hover:bg-foreground/[0.06] hover:text-foreground',
-                  )
-                }
-              >
-                {({ isActive }) => {
-                  const active = isActive || activeByAlias;
-                  return (
-                    <>
-                      {active && (
-                        <motion.span
-                          layoutId="sidebar-active"
-                          className="absolute inset-0 rounded-lg bg-primary/12"
-                          transition={pillTransition}
-                        />
-                      )}
-                      {active && !collapsed && (
-                        <span className="absolute left-0 top-1/2 z-10 h-4 w-[3px] -translate-y-1/2 rounded-full bg-primary shadow-[0_0_8px_hsl(var(--primary)/0.7)]" />
-                      )}
-                      <item.icon
-                        className={cn('relative z-10 h-4 w-4 shrink-0', active && 'text-primary')}
-                      />
-                      {!collapsed && <span className="relative z-10">{item.label}</span>}
-                      {item.to === '/pipelines' && unread > 0 ? (
-                        collapsed ? (
-                          <span className="absolute right-1.5 top-1.5 z-10 h-1.5 w-1.5 rounded-full bg-destructive" />
-                        ) : (
-                          <span className="relative z-10 ml-auto rounded-full bg-destructive px-1.5 py-0.5 text-[10px] font-semibold leading-none text-destructive-foreground">
-                            {unread > 99 ? '99+' : unread}
-                          </span>
-                        )
-                      ) : null}
-                    </>
-                  );
-                }}
-              </NavLink>
-            );
+                const link = (
+                  <NavLink
+                    key={item.to}
+                    to={item.to}
+                    end={item.end}
+                    className={({ isActive }) =>
+                      cn(
+                        'group relative flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
+                        collapsed && 'justify-center px-0',
+                        isActive || activeByAlias
+                          ? 'font-semibold text-primary'
+                          : 'text-muted-foreground hover:bg-foreground/[0.06] hover:text-foreground',
+                      )
+                    }
+                  >
+                    {({ isActive }) => {
+                      const active = isActive || activeByAlias;
+                      return (
+                        <>
+                          {active && (
+                            <motion.span
+                              layoutId="sidebar-active"
+                              className="absolute inset-0 rounded-lg bg-primary/12"
+                              transition={pillTransition}
+                            />
+                          )}
+                          {active && !collapsed && (
+                            <span className="absolute left-0 top-1/2 z-10 h-4 w-[3px] -translate-y-1/2 rounded-full bg-primary shadow-[0_0_8px_hsl(var(--primary)/0.7)]" />
+                          )}
+                          <item.icon
+                            className={cn(
+                              'relative z-10 h-4 w-4 shrink-0',
+                              active && 'text-primary',
+                            )}
+                          />
+                          {!collapsed && <span className="relative z-10">{item.label}</span>}
+                          {item.to === '/pipelines' && unread > 0 ? (
+                            collapsed ? (
+                              <span className="absolute right-1.5 top-1.5 z-10 h-1.5 w-1.5 rounded-full bg-destructive" />
+                            ) : (
+                              <span className="relative z-10 ml-auto rounded-full bg-destructive px-1.5 py-0.5 text-[10px] font-semibold leading-none text-destructive-foreground">
+                                {unread > 99 ? '99+' : unread}
+                              </span>
+                            )
+                          ) : null}
+                          {item.to === '/workspace' && workspaceAttention ? (
+                            <span
+                              className={cn(
+                                'z-10 h-1.5 w-1.5 rounded-full',
+                                collapsed ? 'absolute right-1.5 top-1.5' : 'relative ml-auto',
+                                workspaceAttention === 'needs-input'
+                                  ? 'bg-warning shadow-[0_0_6px_hsl(var(--warning))]'
+                                  : 'bg-primary shadow-[0_0_6px_hsl(var(--primary))]',
+                              )}
+                            />
+                          ) : null}
+                        </>
+                      );
+                    }}
+                  </NavLink>
+                );
 
-            return collapsed ? (
-              <SimpleTooltip key={item.to} label={item.label} side="right">
-                {link}
+                return collapsed ? (
+                  <SimpleTooltip key={item.to} label={item.label} side="right">
+                    {link}
+                  </SimpleTooltip>
+                ) : (
+                  link
+                );
+              })}
+            </nav>
+          </LayoutGroup>
+
+          {!collapsed && (
+            <div className="mt-2 border-t border-border/50 pt-2">
+              <SimpleTooltip label="Check for updates" side="top" align="start">
+                <button
+                  type="button"
+                  onClick={() => void checkForUpdates()}
+                  className="w-full select-none rounded-md px-2.5 py-1 text-left text-[11px] text-muted-foreground/55 transition-colors hover:bg-foreground/[0.06] hover:text-muted-foreground"
+                >
+                  AgentMate{' '}
+                  {appVersionQuery.data == null
+                    ? ''
+                    : appVersionQuery.data === 'dev'
+                      ? 'dev'
+                      : `v${appVersionQuery.data}`}
+                  {checkingForUpdates ? ' · checking for updates' : ''}
+                </button>
               </SimpleTooltip>
-            ) : (
-              link
-            );
-          })}
-        </nav>
-      </LayoutGroup>
-
-      {!collapsed && (
-        <div className="mt-2 border-t border-border/50 pt-2">
-          <SimpleTooltip label="Check for updates" side="top" align="start">
-            <button
-              type="button"
-              onClick={() => void checkForUpdates()}
-              className="w-full select-none rounded-md px-2.5 py-1 text-left text-[11px] text-muted-foreground/55 transition-colors hover:bg-foreground/[0.06] hover:text-muted-foreground"
-            >
-              AgentMate{' '}
-              {appVersionQuery.data == null
-                ? ''
-                : appVersionQuery.data === 'dev'
-                  ? 'dev'
-                  : `v${appVersionQuery.data}`}
-              {checkingForUpdates ? ' · checking for updates' : ''}
-            </button>
-          </SimpleTooltip>
-        </div>
+            </div>
+          )}
+        </>
       )}
     </aside>
   );

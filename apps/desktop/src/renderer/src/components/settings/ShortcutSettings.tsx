@@ -4,7 +4,8 @@ import { Button } from '@/components/ui/button';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import {
   bindingProblem,
-  formatShortcut,
+  digitOf,
+  formatCommandShortcut,
   SHORTCUT_COMMANDS,
   SHORTCUT_GROUPS,
   type Shortcut,
@@ -68,7 +69,16 @@ function CommandRow({ command }: { command: ShortcutCommand }): React.JSX.Elemen
   const bindings = bindingsFor(command.id, overrides);
   const customized = overrides[command.id] !== undefined;
 
-  function capture(shortcut: Shortcut): void {
+  function capture(pressed: Shortcut): void {
+    let shortcut = pressed;
+    if (command.digitRow) {
+      if (digitOf(pressed.code) === null) {
+        setError('Hold the modifiers and press a number key from 1 to 9.');
+        return;
+      }
+      // Stored as 1; the same modifiers with any number key match.
+      shortcut = { ...pressed, code: 'Digit1' };
+    }
     const problem = bindingProblem(shortcut);
     if (problem) {
       setError(problem);
@@ -81,7 +91,7 @@ function CommandRow({ command }: { command: ShortcutCommand }): React.JSX.Elemen
     }
     const clash = conflictingCommand(shortcut, command.id, overrides);
     if (clash) {
-      setError(`${formatShortcut(shortcut)} is already used by "${clash.label}".`);
+      setError(`${formatCommandShortcut(command, shortcut)} is already used by "${clash.label}".`);
       return;
     }
     setBindings(command.id, [...bindings, shortcut]);
@@ -111,11 +121,11 @@ function CommandRow({ command }: { command: ShortcutCommand }): React.JSX.Elemen
             key={shortcutId(binding)}
             className="flex h-7 items-center gap-1 rounded-md border border-border bg-background/60 pl-2.5 pr-1 text-[11px] font-medium"
           >
-            {formatShortcut(binding)}
+            {formatCommandShortcut(command, binding)}
             <SimpleTooltip label="Remove">
               <button
                 type="button"
-                aria-label={`Remove ${formatShortcut(binding)}`}
+                aria-label={`Remove ${formatCommandShortcut(command, binding)}`}
                 onClick={() => remove(binding)}
                 className="flex h-5 w-5 cursor-pointer items-center justify-center rounded text-muted-foreground transition-colors hover:bg-destructive/15 hover:text-destructive"
               >

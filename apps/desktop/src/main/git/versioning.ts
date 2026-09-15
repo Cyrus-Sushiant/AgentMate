@@ -212,28 +212,23 @@ export function rejectSuggestedVersion(
 
 /**
  * Prompt handed to the agent CLI to roll a new version number through the project's files.
- * Nothing is fenced off: in a monorepo the tag's prefix hints at which package is being
- * released, and the user keeps or reverts every edited file afterwards.
+ * Nothing is fenced off and the tag's prefix is not used to pick a package: the CLI sets the
+ * version everywhere it lives, and the user keeps or reverts each edited file afterwards.
+ * Guessing the package from a prefix like `web-v` is exactly what went wrong before, since
+ * the folder names rarely match it.
  */
 export function buildVersionBumpPrompt(tag: string): string {
-  const split = splitTagPrefix(tag);
-  const version = split?.version ?? tag.replace(/^v/, '');
-  const prefix = split?.prefix ?? '';
-  const namesPart = prefix !== '' && prefix.toLowerCase() !== 'v';
+  const version = splitTagPrefix(tag)?.version ?? tag.replace(/^v/, '');
 
   return [
-    `Update this project's version to ${version}, for the git tag ${tag}.`,
+    `Update the version to ${version} in every file of this repository that carries one.`,
     '',
-    ...(namesPart
-      ? [
-          `- If this repository holds several packages or apps, the tag prefix "${prefix}" probably`,
-          '  names the one being released. Bump that one and leave the others as they are. If the',
-          "  prefix doesn't clearly match anything, use your judgment.",
-        ]
-      : []),
-    '- Set the version field in every manifest that should carry it: package.json (including',
-    '  workspace packages), pyproject.toml, Cargo.toml, *.csproj, app.json, build.gradle,',
-    '  Info.plist, and so on.',
+    '- Cover the whole repository, every package and app in it. Do not try to work out which',
+    '  part the release is for and do not skip any; the user reviews every edited file afterwards',
+    '  and reverts the ones that should not change.',
+    '- Set the version field in every manifest: package.json (including workspace packages),',
+    '  pyproject.toml, Cargo.toml, *.csproj, app.json, pubspec.yaml, build.gradle, Info.plist,',
+    '  and so on.',
     '- Update hard-coded version strings the application itself displays (about screens, footers,',
     '  constants such as APP_VERSION).',
     '- Leave lockfiles alone. Only touch a CHANGELOG if this project clearly keeps one.',

@@ -1,6 +1,11 @@
 import { useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import type { GlobalShortcutCommandId } from '@/lib/shortcuts';
+import { useLocation, useNavigate } from 'react-router-dom';
+import {
+  digitOf,
+  type GlobalShortcutCommandId,
+  type WorkspaceShortcutCommandId,
+} from '@/lib/shortcuts';
+import { isWorkspacePath, workspaceCommands } from '@/lib/workspace/commands';
 import { useSearchStore } from '@/stores/searchStore';
 import { commandForEvent, useShortcutStore } from '@/stores/shortcutStore';
 import { useTerminalStore } from '@/stores/terminalStore';
@@ -17,6 +22,24 @@ function isDialogOpen(): boolean {
 /** Routing away from under an open dialog would strand it over the new page. */
 const BLOCKED_BY_DIALOG = new Set<GlobalShortcutCommandId>(['nav.projects']);
 
+const WORKSPACE_ACTIONS: Record<WorkspaceShortcutCommandId, (event: KeyboardEvent) => void> = {
+  'workspace.goToTab': (event) => workspaceCommands.goToTab(digitOf(event.code) ?? 1),
+  'workspace.nextChange': () => workspaceCommands.diffChange('next'),
+  'workspace.prevChange': () => workspaceCommands.diffChange('previous'),
+  'workspace.newTab': workspaceCommands.openLauncher,
+  'workspace.closeTab': workspaceCommands.closeActiveTab,
+  'workspace.splitRight': () => workspaceCommands.split('row'),
+  'workspace.splitDown': () => workspaceCommands.split('column'),
+  'workspace.focusLeft': () => workspaceCommands.focusPane('left'),
+  'workspace.focusRight': () => workspaceCommands.focusPane('right'),
+  'workspace.focusUp': () => workspaceCommands.focusPane('up'),
+  'workspace.focusDown': () => workspaceCommands.focusPane('down'),
+  'workspace.nextTab': () => workspaceCommands.cycleTab(1),
+  'workspace.prevTab': () => workspaceCommands.cycleTab(-1),
+  'workspace.zoomPane': workspaceCommands.toggleZoom,
+  'workspace.toggleGitPanel': workspaceCommands.toggleGitPanel,
+};
+
 /**
  * Runs the app-wide shortcuts. Mounted once by the shell.
  *
@@ -28,12 +51,15 @@ const BLOCKED_BY_DIALOG = new Set<GlobalShortcutCommandId>(['nav.projects']);
  */
 export function useGlobalShortcuts(): void {
   const navigate = useNavigate();
+  const { pathname } = useLocation();
+  const onWorkspace = isWorkspacePath(pathname);
   const toggleSearch = useSearchStore((s) => s.toggle);
   const toggleDrawer = useTerminalStore((s) => s.toggleDrawer);
   const openDefaultSession = useTerminalStore((s) => s.openDefaultSession);
 
   useEffect(() => {
     const actions: Record<GlobalShortcutCommandId, () => void> = {
+      // The drawer is the general terminal, so it works the same on every page.
       'terminal.toggle': toggleDrawer,
       'terminal.new': () => void openDefaultSession(),
       'nav.projects': () => navigate('/projects'),
@@ -42,11 +68,21 @@ export function useGlobalShortcuts(): void {
 
     function onKeyDown(event: KeyboardEvent): void {
       if (event.defaultPrevented || event.isComposing) return;
-      const id = commandForEvent(
-        event,
-        useShortcutStore.getState().overrides,
-        isTypingTarget(event.target),
-      );
+      const overrides = useShortcutStore.getState().overrides;
+      const typing = isTypingTarget(event.target);
+
+      if (onWorkspace && !isDialogOpen()) {
+        const workspaceId = commandForEvent(event, overrides, typing, 'workspace');
+        const diffKey =
+          workspaceId === 'workspace.nextChange' || workspaceId === 'workspace.prevChange';
+        if (workspaceId && (!diffKey || workspaceCommands.focusedTabIsDiff())) {
+          event.preventDefault();
+          WORKSPACE_ACTIONS[workspaceId](event);
+          return;
+        }
+      }
+
+      const id = commandForEvent(event, overrides, typing);
       if (!id) return;
       if (BLOCKED_BY_DIALOG.has(id) && isDialogOpen()) return;
       event.preventDefault();
@@ -55,5 +91,5 @@ export function useGlobalShortcuts(): void {
 
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [navigate, openDefaultSession, toggleDrawer, toggleSearch]);
+  }, [navigate, onWorkspace, openDefaultSession, toggleDrawer, toggleSearch]);
 }

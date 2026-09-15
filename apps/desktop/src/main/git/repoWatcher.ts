@@ -34,7 +34,7 @@ const trackedSenders = new WeakSet<WebContents>();
  * `.git` also holds objects, logs and lock files, which change far more often than the
  * status the UI shows. Ignoring them keeps a busy repo from triggering a refresh per write.
  */
-function isTracked(file: string | null): boolean {
+export function isTracked(file: string | null): boolean {
   // Some platforms hand back no filename. Refreshing is cheaper than missing a commit.
   if (!file) return true;
   const relative = file.replaceAll('\\', '/');

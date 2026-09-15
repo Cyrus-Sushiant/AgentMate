@@ -9,12 +9,15 @@ const TooltipTrigger = TooltipPrimitive.Trigger;
 const TooltipContent = React.forwardRef<
   React.ElementRef<typeof TooltipPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof TooltipPrimitive.Content>
->(({ className, sideOffset = 8, collisionPadding = 8, ...props }, ref) => (
+>(({ className, sideOffset = 8, collisionPadding = 8, hideWhenDetached = true, ...props }, ref) => (
   <TooltipPrimitive.Portal>
     <TooltipPrimitive.Content
       ref={ref}
       sideOffset={sideOffset}
       collisionPadding={collisionPadding}
+      // A trigger that disappears without the pointer leaving it (a page kept mounted but
+      // hidden, a navigation by keyboard) never closes its tooltip, so hide it instead.
+      hideWhenDetached={hideWhenDetached}
       className={cn(
         // `max-w` + wrapping keeps long labels (file paths, run commands, error
         // text) from stretching into one unreadable line off the window edge.

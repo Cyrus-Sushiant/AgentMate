@@ -3,7 +3,7 @@ import { useQueries, useQuery } from '@tanstack/react-query';
 import { Command as CommandPrimitive } from 'cmdk';
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Blocks, Folder, History, Search } from '@/components/icons';
+import { Blocks, Folder, History, Search, Workspace } from '@/components/icons';
 import { NAV_ITEMS } from '@/components/layout/Sidebar';
 import { queryKeys } from '@/lib/queryKeys';
 import { cn } from '@/lib/utils';
@@ -159,6 +159,31 @@ export function CommandPalette(): React.JSX.Element {
                       </div>
                     </CommandPrimitive.Item>
                   ))}
+                </CommandPrimitive.Group>
+              )}
+
+              {/* Only once the user types, so an empty palette doesn't list every project twice. */}
+              {query.trim() && (projectsQuery.data?.length ?? 0) > 0 && (
+                <CommandPrimitive.Group
+                  heading="Open workspace"
+                  className="px-1 py-1 text-xs font-medium text-muted-foreground [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5"
+                >
+                  {projectsQuery
+                    .data!.filter((project) => !project.archived)
+                    .map((project) => (
+                      <CommandPrimitive.Item
+                        key={`workspace-${project.id}`}
+                        value={`workspace terminal agent ${project.name} ${project.folderPath}`}
+                        onSelect={() => selectPage(`/workspace/${project.id}`)}
+                        className="flex cursor-pointer select-none items-center gap-2.5 rounded-md px-2 py-2 text-sm outline-none aria-selected:bg-primary/12 aria-selected:text-foreground"
+                      >
+                        <Workspace className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                        <span className="truncate">
+                          <span className="text-muted-foreground">Workspace: </span>
+                          {project.name}
+                        </span>
+                      </CommandPrimitive.Item>
+                    ))}
                 </CommandPrimitive.Group>
               )}
 

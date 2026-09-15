@@ -1,0 +1,88 @@
+import { quoteAllForShell, shellKindFor } from '@agentmat/core';
+import { useLayoutEffect, useRef, useState } from 'react';
+import { terminalRuntime } from '@/lib/terminal/terminalRuntime';
+import { resolveWorkspaceTerminalTheme } from '@/lib/terminal/xtermFactory';
+import { useTerminalAppearanceStore } from '@/stores/terminalAppearanceStore';
+import type { WorkspaceTerminalTab } from '@/stores/workspaceStore';
+
+export interface TerminalSlotProps {
+  projectId: string;
+  tab: WorkspaceTerminalTab;
+  /** Pulls keyboard focus into the terminal when it becomes the focused pane's active tab. */
+  focused: boolean;
+}
+
+function isFileDrag(event: React.DragEvent): boolean {
+  return event.dataTransfer.types.includes('Files');
+}
+
+/** The on-screen spot a workspace terminal renders into. The terminal itself lives in the runtime. */
+export function TerminalSlot({ projectId, tab, focused }: TerminalSlotProps): React.JSX.Element {
+  const slotRef = useRef<HTMLDivElement>(null);
+  const [dropping, setDropping] = useState(false);
+  const customBackground = useTerminalAppearanceStore((s) => s.customBackground);
+  const backgroundColor = useTerminalAppearanceStore((s) => s.backgroundColor);
+  const { wellBackground } = resolveWorkspaceTerminalTheme({ customBackground, backgroundColor });
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: the runtime keys everything by session id; launch settings only matter the first time a session starts
+  useLayoutEffect(() => {
+    const slot = slotRef.current;
+    if (!slot) return;
+    terminalRuntime.mount(
+      {
+        id: tab.id,
+        projectId,
+        cwd: tab.cwd,
+        shell: tab.shell,
+        cliId: tab.cliId,
+        initialInput: tab.launchInput,
+        restored: tab.restored,
+      },
+      slot,
+    );
+    return () => terminalRuntime.unmount(tab.id, slot);
+  }, [tab.id]);
+
+  useLayoutEffect(() => {
+    if (focused) terminalRuntime.focus(tab.id);
+  }, [focused, tab.id]);
+
+  return (
+    <div
+      className="absolute inset-0"
+      onDragOver={(event) => {
+        if (!isFileDrag(event)) return;
+        event.preventDefault();
+        event.dataTransfer.dropEffect = 'copy';
+        setDropping(true);
+      }}
+      onDragLeave={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget as Node)) setDropping(false);
+      }}
+      onDrop={(event) => {
+        setDropping(false);
+        if (!isFileDrag(event)) return;
+        event.preventDefault();
+        // Dropped files become quoted paths at the prompt, the way a native terminal does it.
+        const paths = Array.from(event.dataTransfer.files)
+          .map((file) => window.agentmat.shell.pathForFile(file))
+          .filter(Boolean);
+        if (paths.length === 0) return;
+        const kind = shellKindFor(tab.shell, window.agentmat.platform);
+        terminalRuntime.paste(tab.id, `${quoteAllForShell(paths, kind)} `);
+        terminalRuntime.focus(tab.id);
+      }}
+    >
+      <div
+        ref={slotRef}
+        className="terminal-well absolute inset-0"
+        style={{ '--terminal-bg': wellBackground } as React.CSSProperties}
+      />
+      {dropping ? (
+        <div className="pointer-events-none absolute inset-2 z-10 flex items-center justify-center rounded-lg border-2 border-dashed border-primary/60 bg-primary/[0.07] text-xs font-medium text-primary">
+          Drop to paste the file path
+        </div>
+      ) : null}
+    </div>
+  );
+}

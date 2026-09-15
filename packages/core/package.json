@@ -15,12 +15,14 @@
     "build": "tsc -p tsconfig.json",
     "dev": "tsc -p tsconfig.json --watch --preserveWatchOutput",
     "typecheck": "tsc --noEmit",
-    "lint": "biome lint ./src"
+    "lint": "biome lint ./src",
+    "test": "vitest run"
   },
   "dependencies": {
     "zod": "^4.6.4"
   },
   "devDependencies": {
-    "typescript": "^7.0.2"
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.0"
   }
 }

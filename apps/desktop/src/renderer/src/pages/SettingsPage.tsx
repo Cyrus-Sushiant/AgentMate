@@ -9,11 +9,10 @@ import { CliArgsField } from '@/components/CliArgsField';
 import { cliOptionIcon } from '@/components/cliLogos';
 import {
   Bell,
+  GitCommit,
   Blocks,
   CircleQuestion,
   Download,
-  Eye,
-  EyeOff,
   FolderOpen,
   HardDrive,
   Keyboard,
@@ -38,6 +37,8 @@ import {
 } from '@/components/icons';
 import { CompanionSettings } from '@/components/pet/CompanionSettings';
 import { BlueprintPresetSettings } from '@/components/settings/BlueprintPresetSettings';
+import { CliOrderSettings } from '@/components/settings/CliOrderSettings';
+import { CommitMessageSettingsForm } from '@/components/settings/CommitMessageSettingsCard';
 import { ProxySettings } from '@/components/settings/ProxySettings';
 import { ShortcutSettings } from '@/components/settings/ShortcutSettings';
 import { WritingCheckSettings } from '@/components/settings/WritingCheckSettings';
@@ -48,6 +49,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Combobox } from '@/components/ui/combobox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { SecretInput } from '@/components/ui/secret-input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -59,6 +61,7 @@ import { useCliStore } from '@/stores/cliStore';
 import { confirmDialog } from '@/stores/confirmStore';
 import { usePageHeader } from '@/stores/pageHeaderStore';
 import { usePingTargetsStore } from '@/stores/pingTargetsStore';
+import { useTerminalAppearanceStore } from '@/stores/terminalAppearanceStore';
 import { useThemeStore } from '@/stores/themeStore';
 import { openUpdateDialog, useUpdateStore } from '@/stores/updateStore';
 
@@ -161,7 +164,7 @@ const WRITING_CHECK_KEYWORDS =
   'writing grammar grammarly spelling spellcheck spell check style languagetool language tool proofread punctuation local server offline java tools folder mother tongue picky rules';
 
 const SHORTCUT_KEYWORDS =
-  'keyboard shortcut shortcuts keybinding hotkey ctrl cmd alt terminal projects command palette layout language';
+  'keyboard shortcut shortcuts keybinding hotkey ctrl cmd alt terminal projects command palette layout language workspace pane split tab diff commit push';
 
 function matchesQuery(query: string, ...parts: Array<string | undefined>): boolean {
   if (!query) return true;
@@ -208,44 +211,6 @@ function Field({
       <Label htmlFor={htmlFor}>{label}</Label>
       {children}
       {hint ? <p className="text-xs leading-relaxed text-muted-foreground">{hint}</p> : null}
-    </div>
-  );
-}
-
-function SecretInput({
-  id,
-  value,
-  onChange,
-  placeholder,
-  className,
-}: {
-  id?: string;
-  value: string;
-  onChange: (value: string) => void;
-  placeholder?: string;
-  className?: string;
-}): React.JSX.Element {
-  const [visible, setVisible] = useState(false);
-  return (
-    <div className="relative">
-      <Input
-        id={id}
-        type={visible ? 'text' : 'password'}
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        placeholder={placeholder}
-        autoComplete="off"
-        spellCheck={false}
-        className={cn('pr-9 font-mono', className)}
-      />
-      <button
-        type="button"
-        className="absolute right-1.5 top-1/2 flex h-7 w-7 -translate-y-1/2 cursor-pointer items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-        onClick={() => setVisible((current) => !current)}
-        aria-label={visible ? 'Hide value' : 'Show value'}
-      >
-        {visible ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-      </button>
     </div>
   );
 }
@@ -401,6 +366,10 @@ export default function SettingsPage(): React.JSX.Element {
   const [searchParams, setSearchParams] = useSearchParams();
   const defaultCliId = useCliStore((s) => s.defaultCliId);
   const setDefaultCliId = useCliStore((s) => s.setDefaultCliId);
+  const terminalCustomBackground = useTerminalAppearanceStore((s) => s.customBackground);
+  const setTerminalCustomBackground = useTerminalAppearanceStore((s) => s.setCustomBackground);
+  const terminalBackgroundColor = useTerminalAppearanceStore((s) => s.backgroundColor);
+  const setTerminalBackgroundColor = useTerminalAppearanceStore((s) => s.setBackgroundColor);
   const theme = useThemeStore((s) => s.theme);
   const setTheme = useThemeStore((s) => s.setTheme);
   const pingTargets = usePingTargetsStore((s) => s.pingTargets);
@@ -463,6 +432,12 @@ export default function SettingsPage(): React.JSX.Element {
   const keepTerminalsMutation = useMutation({
     mutationFn: (keepTerminalsRunning: boolean) =>
       window.agentmat.settings.update({ keepTerminalsRunning }),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: queryKeys.settings }),
+  });
+
+  const workspaceNotificationsMutation = useMutation({
+    mutationFn: (workspaceNotifications: boolean) =>
+      window.agentmat.settings.update({ workspaceNotifications }),
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: queryKeys.settings }),
   });
 
@@ -871,6 +846,11 @@ export default function SettingsPage(): React.JSX.Element {
       'My AI Pet',
     ),
     showSection('general', 'default cli provider agent arguments args flags model', 'Default CLI'),
+    showSection(
+      'general',
+      'workspace terminal background color cli claude code codex gray custom theme foreground contrast',
+      'Workspace terminal background',
+    ),
     showSection('general', 'projects folder path directory', 'Projects folder'),
     showSection('general', 'skills repositories sources', 'Skill repositories'),
     showSection('general', BLUEPRINT_PRESET_KEYWORDS, 'Blueprint presets'),
@@ -1065,7 +1045,7 @@ export default function SettingsPage(): React.JSX.Element {
                 <SettingsCard
                   icon={Keyboard}
                   title="Keyboard shortcuts"
-                  description="Rebind the app-wide shortcuts. Changes apply right away."
+                  description="Rebind the app, Workspace and commit box shortcuts. Changes apply right away."
                 >
                   <ShortcutSettings />
                 </SettingsCard>
@@ -1111,6 +1091,36 @@ export default function SettingsPage(): React.JSX.Element {
 
               {showSection(
                 'general',
+                'agent cli order sort arrange workspace launcher tiles number keys',
+                'Agent order',
+              ) && (
+                <SettingsCard
+                  icon={TerminalSquare}
+                  title="Agent order"
+                  description="The order agents are listed in when you start one in the Workspace."
+                >
+                  <div className="max-w-xl">
+                    <CliOrderSettings />
+                  </div>
+                </SettingsCard>
+              )}
+
+              {showSection(
+                'general',
+                'commit message ai generate style conventional instructions git workspace',
+                'Commit messages',
+              ) && (
+                <SettingsCard
+                  icon={GitCommit}
+                  title="Commit messages"
+                  description="How the sparkle button in the Workspace changes panel writes a commit message for you."
+                >
+                  <CommitMessageSettingsForm />
+                </SettingsCard>
+              )}
+
+              {showSection(
+                'general',
                 'terminal shell sessions keep running background quit close exit restart update',
                 'Keep terminals running',
               ) && settingsQuery.data ? (
@@ -1131,6 +1141,63 @@ export default function SettingsPage(): React.JSX.Element {
                   }
                 />
               ) : null}
+
+              {showSection(
+                'general',
+                'workspace agent notifications finished done question input alert claude codex',
+                'Workspace notifications',
+              ) && settingsQuery.data ? (
+                <SettingsCard
+                  icon={Bell}
+                  title="Workspace notifications"
+                  description="Get a system notification when an agent in a Workspace tab finishes or asks you something while you are looking at another tab, page or app."
+                  action={
+                    <Switch
+                      checked={
+                        workspaceNotificationsMutation.isPending
+                          ? workspaceNotificationsMutation.variables
+                          : settingsQuery.data.workspaceNotifications
+                      }
+                      onCheckedChange={(checked) => workspaceNotificationsMutation.mutate(checked)}
+                      aria-label="Notify when a workspace agent finishes or needs input"
+                    />
+                  }
+                />
+              ) : null}
+
+              {showSection(
+                'general',
+                'workspace terminal background color cli claude code codex gray custom theme foreground contrast',
+                'Workspace terminal background',
+              ) && (
+                <SettingsCard
+                  icon={TerminalSquare}
+                  title="Workspace terminal background"
+                  description="Off by default, so a Workspace terminal pane looks the way its CLI would in any ordinary terminal, for example Claude Code's own gray. Turn this on to paint a fixed background instead; the text color adjusts to stay readable on it."
+                  action={
+                    <Switch
+                      checked={terminalCustomBackground}
+                      onCheckedChange={setTerminalCustomBackground}
+                      aria-label="Use a custom Workspace terminal background"
+                    />
+                  }
+                >
+                  {terminalCustomBackground ? (
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="color"
+                        aria-label="Workspace terminal background color"
+                        value={terminalBackgroundColor}
+                        onChange={(event) => setTerminalBackgroundColor(event.target.value)}
+                        className="h-8 w-12 cursor-pointer rounded-md border border-border/70 bg-transparent p-1"
+                      />
+                      <span className="font-mono text-xs text-muted-foreground">
+                        {terminalBackgroundColor}
+                      </span>
+                    </div>
+                  ) : null}
+                </SettingsCard>
+              )}
 
               {showSection('general', 'projects folder path directory', 'Projects folder') && (
                 <SettingsCard

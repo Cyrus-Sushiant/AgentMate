@@ -13,6 +13,7 @@
     "mobile": "pnpm --filter @agentmat/protocol build && pnpm --filter @agentmat/mobile start",
     "typecheck": "pnpm -r typecheck",
     "lint": "pnpm -r lint",
+    "test": "pnpm -r --if-present test",
     "format": "biome format --write .",
     "format:check": "biome format .",
     "check": "biome check .",

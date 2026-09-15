@@ -48,6 +48,21 @@ export const IPC = {
     onData: 'terminal:onData',
     onExit: 'terminal:onExit',
   },
+  ssh: {
+    listServers: 'ssh:listServers',
+    saveServer: 'ssh:saveServer',
+    removeServer: 'ssh:removeServer',
+    pickPrivateKeyFile: 'ssh:pickPrivateKeyFile',
+    vaultStatus: 'ssh:vaultStatus',
+    unlockVault: 'ssh:unlockVault',
+    setPasskey: 'ssh:setPasskey',
+    create: 'ssh:create',
+    write: 'ssh:write',
+    resize: 'ssh:resize',
+    kill: 'ssh:kill',
+    onData: 'ssh:onData',
+    onExit: 'ssh:onExit',
+  },
   projects: {
     list: 'projects:list',
     create: 'projects:create',
@@ -445,6 +460,39 @@ export const IPC = {
     unwatchRepo: 'git:unwatchRepo',
     // main -> renderer: the repo moved on disk (commit, checkout, merge, fetch, stage)
     onRepoChanged: 'git:onRepoChanged',
+    workspaceState: 'git:workspaceState',
+    watchWorkingTree: 'git:watchWorkingTree',
+    unwatchWorkingTree: 'git:unwatchWorkingTree',
+    stage: 'git:stage',
+    unstage: 'git:unstage',
+    discard: 'git:discard',
+    undoDiscard: 'git:undoDiscard',
+    resolveConflict: 'git:resolveConflict',
+    abortOperation: 'git:abortOperation',
+    commitStaged: 'git:commitStaged',
+    fileDiff: 'git:fileDiff',
+    commitFiles: 'git:commitFiles',
+    commitFileDiff: 'git:commitFileDiff',
+    // main -> renderer: (projectId, WorkspaceGitState) whenever a watched working tree changes
+    onWorkspaceState: 'git:onWorkspaceState',
+  },
+  terminalClipboard: {
+    saveImage: 'terminalClipboard:saveImage',
+    readSpecial: 'terminalClipboard:readSpecial',
+  },
+  agents: {
+    sync: 'agents:sync',
+    setViewing: 'agents:setViewing',
+    acknowledge: 'agents:acknowledge',
+    list: 'agents:list',
+    statusHookSettings: 'agents:statusHookSettings',
+    runInfos: 'agents:runInfos',
+    // (projectId) -> AgentHistorySession[]: past Claude Code and Codex conversations in its folder
+    history: 'agents:history',
+    // main -> renderer: AgentRunInfoMap of sessions whose model or effort just changed
+    onRunInfo: 'agents:onRunInfo',
+    // main -> renderer: AgentStatusMap of sessions whose status just changed
+    onStatus: 'agents:onStatus',
   },
   packages: {
     list: 'packages:list',
