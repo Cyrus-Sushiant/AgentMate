@@ -1,12 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import {
-  dialog,
-  type IpcMainInvokeEvent,
-  ipcMain,
-  type WebContents,
-} from 'electron';
+import { dialog, type IpcMainInvokeEvent, ipcMain, type WebContents } from 'electron';
 import type {
   CreateSshSessionOptions,
   SaveSshServerInput,

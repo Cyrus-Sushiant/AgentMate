@@ -82,6 +82,7 @@ import {
   DiffrayReviewLaunchCard,
   DiffrayReviewWizard,
 } from '@/components/projects/DiffrayReviewWizard';
+import { DockerTab } from '@/components/projects/DockerTab';
 import { GitActionsCard } from '@/components/projects/GitActionsCard';
 import { GitBranchHistoryDialog } from '@/components/projects/GitBranchHistoryDialog';
 import { GitSetupWizard } from '@/components/projects/GitSetupWizard';
@@ -1025,6 +1026,8 @@ export default function ProjectDetailPage(): React.JSX.Element {
           )}
 
           {section === 'packages' && <PackagesTab projectId={project.id} />}
+
+          {section === 'docker' && <DockerTab project={project} />}
 
           {section === 'git' && (
             <GitTab
@@ -4278,5 +4281,63 @@ function NotificationHookCard({
         </div>
       </div>
     </div>
+  );
+}
+
+/**
+ * The Tag a version flow on its own, for opening it away from the Git tab (the Workspace
+ * header). Same dialogs, same checks: tagging needs a clean tree, and a version can be written
+ * into the project's files first.
+ */
+export function ProjectVersionDialogs({
+  projectId,
+  open,
+  onOpenChange,
+}: {
+  projectId: string;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}): React.JSX.Element {
+  const [applyVersionTag, setApplyVersionTag] = useState<string | null>(null);
+  const active = open || applyVersionTag !== null;
+  const statusQuery = useQuery({
+    queryKey: queryKeys.gitStatus(projectId),
+    queryFn: () => window.agentmat.git.status(projectId),
+    enabled: active,
+    meta: GIT_REFRESH_META,
+  });
+  const tagsQuery = useQuery({
+    queryKey: queryKeys.gitTags(projectId),
+    queryFn: () => window.agentmat.git.tags(projectId),
+    enabled: active && statusQuery.data?.isRepo === true,
+    meta: GIT_REFRESH_META,
+  });
+
+  return (
+    <>
+      <TagVersionDialog
+        projectId={projectId}
+        tagInfo={tagsQuery.data ?? null}
+        status={statusQuery.data ?? null}
+        open={open}
+        onOpenChange={onOpenChange}
+        onApplyVersion={(nextTag) => {
+          onOpenChange(false);
+          setApplyVersionTag(nextTag);
+        }}
+      />
+      <ApplyVersionDialog
+        projectId={projectId}
+        tag={applyVersionTag}
+        open={applyVersionTag !== null}
+        onOpenChange={(next) => {
+          if (!next) setApplyVersionTag(null);
+        }}
+        onBackToTag={() => {
+          setApplyVersionTag(null);
+          onOpenChange(true);
+        }}
+      />
+    </>
   );
 }

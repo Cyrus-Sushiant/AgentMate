@@ -42,6 +42,7 @@ import {
   faCompress,
   faCopy,
   faCubes,
+  faCubesStacked,
   faDisplay,
   faDownload,
   faEllipsisVertical,
@@ -259,6 +260,7 @@ export const Package = makeIcon(faBox);
 // Project archive icons.
 export const Archive = makeIcon(faBoxArchive);
 export const ArchiveRestore = makeIcon(faBoxOpen);
+export const Docker = makeIcon(faCubesStacked);
 
 // Git tab icons.
 export const GitBranch = makeIcon(faCodeBranch);

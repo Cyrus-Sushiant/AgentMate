@@ -7,8 +7,8 @@ import type {
   TerminalSurface,
 } from '../../shared/apiTypes';
 import { IPC } from '../../shared/ipcChannels';
-import { keepAwake } from '../power/keepAwake';
 import { agentStatus } from '../agents/statusTracker';
+import { keepAwake } from '../power/keepAwake';
 import type { HostClient } from '../ptyHost/hostClient';
 import { connectToHost } from '../ptyHost/hostLauncher';
 import type {

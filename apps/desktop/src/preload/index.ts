@@ -17,6 +17,7 @@ import type {
   GitChangeEntry,
   InstalledAgentTool,
   InstalledCli,
+  KeepAwakeMode,
   McpRepository,
   McpRepositoryIndex,
   McpRepositorySourceType,
@@ -47,14 +48,12 @@ import type {
   WidgetMode,
   WidgetSize,
   WidgetStyle,
-  KeepAwakeMode,
 } from '@agentmat/core';
 import { contextBridge, ipcRenderer, webUtils } from 'electron';
 import type {
   ActiveScan,
   AddPromptHistoryInput,
   AgentRunInfoMap,
-  KeepAwakeStatus,
   AgentSessionEntry,
   AgentStatusMap,
   ApplyVersionInput,
@@ -88,6 +87,9 @@ import type {
   DeleteBranchInput,
   DetectChatIdResult,
   DirectoryEntry,
+  DockerActionResult,
+  DockerContainer,
+  DockerRemoveOptions,
   FaviconResult,
   FavoriteSkillInput,
   FavoriteSkillRecord,
@@ -116,6 +118,7 @@ import type {
   InstalledSkillRecord,
   InstallFromSkillsShInput,
   IpGeoInfo,
+  KeepAwakeStatus,
   KillProcessResult,
   LocalSkillFolderPreview,
   NotificationSendResult,
@@ -533,6 +536,18 @@ const tools = {
     toolId: string,
     action: 'run' | 'start' | 'stop' | 'reset' | 'remove',
   ): Promise<string | null> => ipcRenderer.invoke(IPC.tools.getDockerCommand, toolId, action),
+};
+
+const docker = {
+  availability: (): Promise<boolean> => ipcRenderer.invoke(IPC.docker.availability),
+  list: (): Promise<DockerContainer[]> => ipcRenderer.invoke(IPC.docker.list),
+  listForProject: (folderPath: string): Promise<DockerContainer[]> =>
+    ipcRenderer.invoke(IPC.docker.listForProject, folderPath),
+  start: (id: string): Promise<DockerActionResult> => ipcRenderer.invoke(IPC.docker.start, id),
+  stop: (id: string): Promise<DockerActionResult> => ipcRenderer.invoke(IPC.docker.stop, id),
+  restart: (id: string): Promise<DockerActionResult> => ipcRenderer.invoke(IPC.docker.restart, id),
+  remove: (id: string, options: DockerRemoveOptions): Promise<DockerActionResult> =>
+    ipcRenderer.invoke(IPC.docker.remove, id, options),
 };
 
 const fs = {
@@ -1175,6 +1190,7 @@ const agentmatApi = {
   mcp,
   security,
   tools,
+  docker,
   fs,
   settings,
   templates,
