@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { type IpcMainInvokeEvent, ipcMain, powerSaveBlocker, type WebContents } from 'electron';
+import { type IpcMainInvokeEvent, ipcMain, type WebContents } from 'electron';
 import type {
   AgentSessionEntry,
   CreateTerminalOptions,
@@ -7,6 +7,7 @@ import type {
   TerminalSurface,
 } from '../../shared/apiTypes';
 import { IPC } from '../../shared/ipcChannels';
+import { keepAwake } from '../power/keepAwake';
 import { agentStatus } from '../agents/statusTracker';
 import type { HostClient } from '../ptyHost/hostClient';
 import { connectToHost } from '../ptyHost/hostLauncher';
@@ -58,25 +59,32 @@ let backendReady: Promise<void> | null = null;
 let preserveOnQuit = false;
 let quitSettled = false;
 
-// Windows applies "efficiency mode" power throttling to minimized/backgrounded
-// apps, which can starve a shell running inside a terminal tab (and, if that
-// shell is the dev server the app itself was launched from, take the whole
-// app down with it). A blocker held for as long as any session is open keeps
-// the process out of that throttled state; it's released once the last
-// session closes so the app can still idle normally the rest of the time.
-let powerSaveBlockerId: number | null = null;
+// Windows applies "efficiency mode" power throttling to minimized/backgrounded apps, which
+// can starve a shell running inside a terminal tab (and, if that shell is the dev server the
+// app itself was launched from, take the whole app down with it). A session that is writing
+// output counts as work for the keep-awake policy, whose blocker keeps the app at full speed;
+// terminals left sitting at a prompt do not, so the machine can still sleep.
+const TERMINAL_IDLE_MS = 60_000;
+let terminalIdleTimer: NodeJS.Timeout | null = null;
+
+function noteTerminalOutput(): void {
+  keepAwake.setBusy('terminals', true);
+  if (terminalIdleTimer) clearTimeout(terminalIdleTimer);
+  terminalIdleTimer = setTimeout(() => keepAwake.setBusy('terminals', false), TERMINAL_IDLE_MS);
+}
 
 function syncPowerSaveBlocker(): void {
-  if (sessions.size > 0 && powerSaveBlockerId == null) {
-    powerSaveBlockerId = powerSaveBlocker.start('prevent-app-suspension');
-  } else if (sessions.size === 0 && powerSaveBlockerId != null) {
-    powerSaveBlocker.stop(powerSaveBlockerId);
-    powerSaveBlockerId = null;
+  if (sessions.size > 0) return;
+  if (terminalIdleTimer) {
+    clearTimeout(terminalIdleTimer);
+    terminalIdleTimer = null;
   }
+  keepAwake.setBusy('terminals', false);
 }
 
 function forwardData(sessionId: string, data: string): void {
   agentStatus.output(sessionId, data.length);
+  noteTerminalOutput();
   const owner = owners.get(sessionId);
   if (owner && !owner.isDestroyed()) owner.send(IPC.terminal.onData, { sessionId, data });
 }

@@ -5,7 +5,6 @@ import {
   dialog,
   type IpcMainInvokeEvent,
   ipcMain,
-  powerSaveBlocker,
   type WebContents,
 } from 'electron';
 import type {
@@ -17,6 +16,7 @@ import type {
   StoredSshServer,
 } from '../../shared/apiTypes';
 import { IPC } from '../../shared/ipcChannels';
+import { keepAwake } from '../power/keepAwake';
 import { SshSessionManager } from '../ssh/sessionManager';
 import {
   decryptSecret,
@@ -35,14 +35,8 @@ const sessions = new Map<string, { serverId: string }>();
 /** The window currently showing each session. Output goes there. */
 const owners = new Map<string, WebContents>();
 
-let powerSaveBlockerId: number | null = null;
 function syncPowerSaveBlocker(): void {
-  if (sessions.size > 0 && powerSaveBlockerId == null) {
-    powerSaveBlockerId = powerSaveBlocker.start('prevent-app-suspension');
-  } else if (sessions.size === 0 && powerSaveBlockerId != null) {
-    powerSaveBlocker.stop(powerSaveBlockerId);
-    powerSaveBlockerId = null;
-  }
+  keepAwake.setBusy('ssh', sessions.size > 0);
 }
 
 function forwardData(sessionId: string, data: string): void {

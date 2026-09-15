@@ -18,6 +18,7 @@ import type {
 } from '../../shared/apiTypes';
 import { IPC } from '../../shared/ipcChannels';
 import { focusMainWindow, getMainWindow } from '../mainWindow';
+import { keepAwake } from '../power/keepAwake';
 import { store } from '../store';
 
 /**
@@ -106,6 +107,8 @@ function broadcastLater(id: string, status: AgentStatus): void {
 
 function syncTicker(): void {
   const anyWorking = [...tracked.values()].some((t) => t.state.status === 'working');
+  // What "stay awake while an agent is working" watches.
+  keepAwake.setBusy('agents', anyWorking);
   if (anyWorking && !ticker) {
     ticker = setInterval(() => {
       const at = Date.now();

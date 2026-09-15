@@ -19,6 +19,8 @@ export interface AgentHistorySession {
   cwd: string | null;
   gitBranch: string | null;
   model: string | null;
+  /** The reasoning effort the session ran at, when the CLI records one. */
+  effort: string | null;
   startedAt: number | null;
   updatedAt: number;
   sizeBytes: number;
@@ -122,6 +124,7 @@ export function summarizeClaudeTranscript(
   let gitBranch: string | null = null;
   let startedAt: number | null = null;
   let model: string | null = null;
+  let effort: string | null = null;
   let background = false;
   let customTitle: string | null = null;
   let aiTitle: string | null = null;
@@ -145,6 +148,7 @@ export function summarizeClaudeTranscript(
     }
     if (record.type === 'assistant') {
       model ??= str((record.message as { model?: unknown } | undefined)?.model);
+      effort ??= str(record.perTurnEffort) ?? str(record.effort);
     }
     const text = claudeUserText(record);
     if (text) {
@@ -165,6 +169,7 @@ export function summarizeClaudeTranscript(
       const tailModel = str((record.message as { model?: unknown } | undefined)?.model);
       // Synthetic placeholders are written for interrupted turns; they are not a model.
       if (tailModel && tailModel !== '<synthetic>') model = tailModel;
+      effort = str(record.perTurnEffort) ?? str(record.effort) ?? effort;
     }
     if (record.type === 'user' || record.type === 'assistant') {
       gitBranch = str(record.gitBranch) ?? gitBranch;
@@ -186,6 +191,7 @@ export function summarizeClaudeTranscript(
     cwd,
     gitBranch,
     model: model === '<synthetic>' ? null : model,
+    effort,
     startedAt,
     background,
   };
@@ -219,13 +225,17 @@ export function summarizeCodexRollout(head: string[], tail: string[]): SessionSu
   let firstPrompt: string | null = null;
   let lastPrompt: string | null = null;
   let model: string | null = null;
+  let effort: string | null = null;
   let gitBranch: string | null = null;
 
   const read = (line: string): void => {
     const record = parse(line);
     const payload = record?.payload as Record<string, unknown> | undefined;
     if (!record || !payload) return;
-    if (record.type === 'turn_context') model = str(payload.model) ?? model;
+    if (record.type === 'turn_context') {
+      model = str(payload.model) ?? model;
+      effort = str(payload.effort) ?? str(payload.reasoning_effort) ?? effort;
+    }
     if (record.type === 'session_meta') {
       const git = payload.git as { branch?: unknown } | undefined;
       gitBranch = str(git?.branch) ?? gitBranch;
@@ -250,6 +260,7 @@ export function summarizeCodexRollout(head: string[], tail: string[]): SessionSu
     cwd: meta.cwd,
     gitBranch,
     model,
+    effort,
     startedAt,
     background: meta.background,
   };

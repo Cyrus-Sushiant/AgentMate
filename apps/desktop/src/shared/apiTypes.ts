@@ -1,4 +1,5 @@
 import type {
+  KeepAwakeMode,
   AgentStatus,
   AgentType,
   AiProvider,
@@ -1222,6 +1223,15 @@ export interface SystemStatsSample {
   netRxBytesPerSec: number;
   netTxBytesPerSec: number;
   pings: PingResult[];
+}
+
+/** What the keep-awake policy is doing right now. */
+export interface KeepAwakeStatus {
+  mode: KeepAwakeMode;
+  /** True while the machine is actually being held awake. */
+  blocking: boolean;
+  /** What counts as busy at the moment, e.g. `['agents']`. */
+  busy: string[];
 }
 
 // --- Remote control ------------------------------------------------------------

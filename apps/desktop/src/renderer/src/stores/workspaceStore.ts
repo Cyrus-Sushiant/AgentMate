@@ -66,7 +66,7 @@ export interface WorkspaceFileTab {
 
 export type WorkspaceTab = WorkspaceTerminalTab | WorkspaceDiffTab | WorkspaceFileTab;
 
-/** The collapsible sections of the right-hand panel. */
+/** The tabs of the right-hand panel. */
 export type SidePanelSection =
   | 'changes'
   | 'commits'
@@ -74,6 +74,15 @@ export type SidePanelSection =
   | 'explorer'
   | 'history'
   | 'pipelines';
+
+export const SIDE_PANEL_SECTIONS: SidePanelSection[] = [
+  'changes',
+  'commits',
+  'branches',
+  'explorer',
+  'history',
+  'pipelines',
+];
 
 export interface ProjectWorkspace {
   root: PaneNode;
@@ -95,8 +104,8 @@ interface GitPanelPrefs {
   collapsedSections: Partial<Record<GitPanelSection, boolean>>;
   diffSideBySide: boolean;
   diffIgnoreWhitespace: boolean;
-  /** Which accordion sections are expanded. */
-  openSections: Partial<Record<SidePanelSection, boolean>>;
+  /** Which panel tab is showing. */
+  activeSection: SidePanelSection;
 }
 
 export type NewTerminalTab = Omit<WorkspaceTerminalTab, 'kind' | 'id' | 'createdAt'>;
@@ -231,7 +240,7 @@ export const useWorkspaceStore = create<WorkspaceState>()(
           collapsedSections: {},
           diffSideBySide: true,
           diffIgnoreWhitespace: false,
-          openSections: { changes: true },
+          activeSection: 'changes',
         },
 
         openProject: (projectId) =>
@@ -458,7 +467,14 @@ export const useWorkspaceStore = create<WorkspaceState>()(
             saved.activeProjectId && workspaces[saved.activeProjectId]
               ? saved.activeProjectId
               : (railProjectIds[0] ?? null),
-          gitPanel: { ...current.gitPanel, ...(saved.gitPanel ?? {}) },
+          gitPanel: {
+            ...current.gitPanel,
+            ...(saved.gitPanel ?? {}),
+            // A tab id saved by an older build may no longer exist.
+            activeSection: SIDE_PANEL_SECTIONS.includes(saved.gitPanel?.activeSection as never)
+              ? (saved.gitPanel?.activeSection as SidePanelSection)
+              : 'changes',
+          },
         };
       },
     },

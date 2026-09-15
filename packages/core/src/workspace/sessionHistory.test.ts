@@ -59,7 +59,12 @@ describe('claude transcripts', () => {
       timestamp: '2026-09-01T10:00:05.000Z',
       message: { role: 'user', content: [{ type: 'text', text: 'Add a dark mode' }] },
     }),
-    line({ type: 'assistant', message: { model: 'claude-opus-5' } }),
+    line({
+      type: 'assistant',
+      effort: 'high',
+      perTurnEffort: null,
+      message: { model: 'claude-opus-5' },
+    }),
     line({ type: 'user', message: { content: [{ type: 'tool_result', content: 'ok' }] } }),
     '{"type":"user","message":{"content":"cut off mid',
   ];
@@ -74,6 +79,7 @@ describe('claude transcripts', () => {
       cwd: 'E:\\App',
       gitBranch: 'main',
       model: 'claude-opus-5',
+      effort: 'high',
       startedAt: Date.parse('2026-09-01T10:00:00.000Z'),
       background: false,
     });
@@ -83,12 +89,18 @@ describe('claude transcripts', () => {
     const tail = [
       'partial line"}',
       line({ type: 'ai-title', aiTitle: 'Dark mode' }),
-      line({ type: 'assistant', gitBranch: 'feat/dark', message: { model: 'claude-sonnet-5' } }),
+      line({
+        type: 'assistant',
+        gitBranch: 'feat/dark',
+        effort: 'xhigh',
+        message: { model: 'claude-sonnet-5' },
+      }),
       line({ type: 'last-prompt', lastPrompt: 'Now ship it' }),
     ];
     const summary = summarizeClaudeTranscript('s', head, tail);
     expect(summary?.title).toBe('Dark mode');
     expect(summary?.model).toBe('claude-sonnet-5');
+    expect(summary?.effort).toBe('xhigh');
     expect(summary?.gitBranch).toBe('feat/dark');
     expect(summary?.lastPrompt).toBe('Now ship it');
 
@@ -134,7 +146,7 @@ describe('codex rollouts', () => {
     const summary = summarizeCodexRollout(
       [
         meta,
-        line({ type: 'turn_context', payload: { model: 'gpt-5.5' } }),
+        line({ type: 'turn_context', payload: { model: 'gpt-5.5', effort: 'medium' } }),
         line({ type: 'event_msg', payload: { type: 'user_message', message: 'Fix the tests' } }),
       ],
       [line({ type: 'event_msg', payload: { type: 'user_message', message: 'And lint' } })],
@@ -144,6 +156,7 @@ describe('codex rollouts', () => {
       firstPrompt: 'Fix the tests',
       lastPrompt: 'And lint',
       model: 'gpt-5.5',
+      effort: 'medium',
       gitBranch: 'main',
       startedAt: Date.parse('2026-08-17T22:14:26.483Z'),
     });
