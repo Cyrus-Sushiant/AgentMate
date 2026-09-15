@@ -15,6 +15,7 @@ import { ToastHistoryPanel } from '@/components/toast/ToastHistoryPanel';
 import { UpdateStatusChip } from '@/components/UpdateManager';
 import { Button } from '@/components/ui/button';
 import { SimpleTooltip } from '@/components/ui/tooltip';
+import { WorkspaceHeaderActions } from '@/components/workspace/WorkspaceHeaderActions';
 import { WorkspaceHost } from '@/components/workspace/WorkspaceHost';
 import { useAppLoadingOverlay } from '@/hooks/useAppLoadingOverlay';
 import { useGlobalShortcuts } from '@/hooks/useGlobalShortcuts';
@@ -51,6 +52,7 @@ function TopBar(): React.JSX.Element {
     s.items.some((item) => !item.read && item.kind === 'error'),
   );
   const terminalShortcut = useShortcutLabel('terminal.toggle');
+  const onWorkspace = isWorkspacePath(useLocation().pathname);
 
   return (
     <div className="flex h-14 shrink-0 items-center justify-between gap-3 border-b border-border/80 px-4">
@@ -87,6 +89,7 @@ function TopBar(): React.JSX.Element {
           </span>
         )}
         <UpdateStatusChip />
+        {onWorkspace ? <WorkspaceHeaderActions /> : null}
         <SimpleTooltip label="Recent messages">
           <Button
             variant={toastHistoryOpen ? 'secondary' : 'ghost'}

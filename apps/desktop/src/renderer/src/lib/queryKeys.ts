@@ -95,4 +95,7 @@ export const queryKeys = {
   grammarLocalStatus: ['grammar-local-status'] as const,
   /** Which proxy the app is going through, and what this machine itself is set to. */
   proxyStatus: ['proxy-status'] as const,
+  dockerAvailability: ['docker-availability'] as const,
+  dockerList: ['docker-list'] as const,
+  dockerListForProject: (projectId: string) => ['docker-list', 'project', projectId] as const,
 };

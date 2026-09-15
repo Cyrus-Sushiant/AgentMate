@@ -17,6 +17,7 @@ import { installToastHistoryCapture } from './lib/toastHistory';
 import AskAiPage from './pages/AskAiPage';
 import CliManagerPage from './pages/CliManagerPage';
 import DashboardPage from './pages/DashboardPage';
+import DockerPage from './pages/DockerPage';
 import McpPage from './pages/McpPage';
 import PipelinesPage from './pages/PipelinesPage';
 import ProjectDetailPage from './pages/ProjectDetailPage';
@@ -128,6 +129,7 @@ export default function App(): React.JSX.Element {
                 />
                 <Route path="mcp" element={<McpPage />} />
                 <Route path="tools" element={<ToolsPage />} />
+                <Route path="docker" element={<DockerPage />} />
                 <Route path="usage" element={<UsagePage />} />
                 <Route path="ask-ai" element={<AskAiPage />} />
                 <Route path="remote" element={<RemotePage />} />

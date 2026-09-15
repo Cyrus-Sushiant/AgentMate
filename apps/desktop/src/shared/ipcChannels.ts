@@ -347,6 +347,15 @@ export const IPC = {
     getInteractiveLaunchCommand: 'tools:getInteractiveLaunchCommand',
     getDockerCommand: 'tools:getDockerCommand',
   },
+  docker: {
+    availability: 'docker:availability',
+    list: 'docker:list',
+    listForProject: 'docker:listForProject',
+    start: 'docker:start',
+    stop: 'docker:stop',
+    restart: 'docker:restart',
+    remove: 'docker:remove',
+  },
   usage: {
     list: 'usage:list',
     get: 'usage:get',

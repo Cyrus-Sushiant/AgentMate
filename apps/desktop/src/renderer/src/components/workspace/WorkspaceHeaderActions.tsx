@@ -1,0 +1,76 @@
+import { configuredRunCommands, type Project } from '@agentmat/core';
+import { useQuery } from '@tanstack/react-query';
+import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { toast } from 'sonner';
+import { Run, Tag } from '@/components/icons';
+import { useProjectRun } from '@/components/projects/useProjectRun';
+import { Button } from '@/components/ui/button';
+import { SimpleTooltip } from '@/components/ui/tooltip';
+import { queryKeys } from '@/lib/queryKeys';
+import { ProjectVersionDialogs } from '@/pages/ProjectDetailPage';
+import { useWorkspaceStore } from '@/stores/workspaceStore';
+
+/**
+ * Run and Tag a version for the project open in the Workspace, beside the header's other
+ * buttons. Run uses the general terminal, the same as the project page's Run button.
+ */
+export function WorkspaceHeaderActions(): React.JSX.Element | null {
+  const navigate = useNavigate();
+  const activeProjectId = useWorkspaceStore((s) => s.activeProjectId);
+  const { requestRun, runPicker } = useProjectRun();
+  const [tagOpen, setTagOpen] = useState(false);
+  const projectsQuery = useQuery<Project[]>({
+    queryKey: queryKeys.projects,
+    queryFn: () => window.agentmat.projects.list(),
+  });
+  const project = projectsQuery.data?.find((p) => p.id === activeProjectId);
+  if (!project) return null;
+
+  const commands = configuredRunCommands(project);
+  const runLabel =
+    commands.length === 1
+      ? `Run ${project.name} (${commands[0]?.command})`
+      : commands.length > 1
+        ? `Run ${project.name}: pick a command`
+        : `Set a run command for ${project.name}`;
+
+  return (
+    <>
+      <SimpleTooltip label={runLabel}>
+        <Button
+          variant="ghost"
+          size="icon"
+          aria-label={runLabel}
+          onClick={() =>
+            requestRun(project, {
+              onEmpty: () => {
+                toast.info(`${project.name} has no run command yet`, {
+                  description: 'Add one with Edit project on the project page.',
+                  action: {
+                    label: 'Open project',
+                    onClick: () => navigate(`/projects/${project.id}`),
+                  },
+                });
+              },
+            })
+          }
+        >
+          <Run className="h-4 w-4" />
+        </Button>
+      </SimpleTooltip>
+      <SimpleTooltip label={`Tag a version of ${project.name}`}>
+        <Button
+          variant={tagOpen ? 'secondary' : 'ghost'}
+          size="icon"
+          aria-label="Tag a version"
+          onClick={() => setTagOpen(true)}
+        >
+          <Tag className="h-4 w-4" />
+        </Button>
+      </SimpleTooltip>
+      {runPicker}
+      <ProjectVersionDialogs projectId={project.id} open={tagOpen} onOpenChange={setTagOpen} />
+    </>
+  );
+}

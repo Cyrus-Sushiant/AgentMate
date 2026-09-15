@@ -1,19 +1,24 @@
-import type { AgentStatus, Project } from '@agentmat/core';
+import type { AgentStatus, KeepAwakeMode, Project, SubscriptionWindow } from '@agentmat/core';
+import * as PopoverPrimitive from '@radix-ui/react-popover';
+import type { KeepAwakeStatus } from '@shared/apiTypes';
 import { useQuery } from '@tanstack/react-query';
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { CliLogo } from '@/components/cliLogos';
-import { Cpu, MemoryStick, Wifi } from '@/components/icons';
+import { SparklineChart } from '@/components/dashboard/SparklineChart';
+import { Check, Cpu, Docker, Gauge, MemoryStick, MugHot, Wifi } from '@/components/icons';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { AGENT_STATUS_LABEL, AgentStatusDot } from '@/components/workspace/AgentStatusDot';
 import { useSystemStatsHistory } from '@/hooks/useSystemStatsHistory';
 import { queryKeys } from '@/lib/queryKeys';
+import { formatCountdown } from '@/lib/usageFormat';
 import { cn } from '@/lib/utils';
 import { useAgentStatusStore } from '@/stores/agentStatusStore';
 import { terminalTabLabel, useWorkspaceStore } from '@/stores/workspaceStore';
 
 /** Sampling shells out to the OS, so the status bar asks less often than the dashboard. */
 const SAMPLE_INTERVAL_MS = 4000;
+const HISTORY_SAMPLES = 20;
 
 interface AgentTab {
   id: string;
@@ -28,6 +33,9 @@ function formatBytes(bytes: number): string {
   const gb = bytes / 1024 ** 3;
   return gb >= 10 ? `${gb.toFixed(0)} GB` : `${gb.toFixed(1)} GB`;
 }
+
+const segmentClass =
+  'flex h-full items-center gap-1.5 rounded px-2 transition-colors hover:bg-foreground/[0.07] hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring data-[state=open]:bg-foreground/[0.07] data-[state=open]:text-foreground';
 
 function Segment({
   children,
@@ -45,15 +53,53 @@ function Segment({
       <button
         type="button"
         onClick={onClick}
-        className={cn(
-          'flex h-full items-center gap-1.5 rounded px-2 transition-colors hover:bg-foreground/[0.07] hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring',
-          !onClick && 'cursor-default',
-          className,
-        )}
+        className={cn(segmentClass, !onClick && 'cursor-default', className)}
       >
         {children}
       </button>
     </SimpleTooltip>
+  );
+}
+
+/** A status bar item that opens a panel with the detail behind its number. */
+function PopSegment({
+  label,
+  children,
+  panel,
+  className,
+  width = 'w-72',
+}: {
+  label: string;
+  children: React.ReactNode;
+  panel: React.ReactNode;
+  className?: string;
+  width?: string;
+}): React.JSX.Element {
+  const [open, setOpen] = useState(false);
+  return (
+    <PopoverPrimitive.Root open={open} onOpenChange={setOpen}>
+      <SimpleTooltip label={open ? null : label} side="top" delayDuration={250}>
+        <PopoverPrimitive.Trigger asChild>
+          <button type="button" aria-label={label} className={cn(segmentClass, className)}>
+            {children}
+          </button>
+        </PopoverPrimitive.Trigger>
+      </SimpleTooltip>
+      <PopoverPrimitive.Portal>
+        <PopoverPrimitive.Content
+          side="top"
+          align="center"
+          sideOffset={8}
+          collisionPadding={8}
+          className={cn(
+            'z-50 overflow-hidden rounded-lg border border-border bg-popover/90 p-3 text-popover-foreground shadow-2xl backdrop-blur-2xl data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0',
+            width,
+          )}
+        >
+          {panel}
+        </PopoverPrimitive.Content>
+      </PopoverPrimitive.Portal>
+    </PopoverPrimitive.Root>
   );
 }
 
@@ -70,6 +116,21 @@ function Meter({ percent }: { percent: number }): React.JSX.Element {
         style={{ width: `${Math.min(100, Math.max(0, percent))}%` }}
       />
     </span>
+  );
+}
+
+function PanelTitle({
+  title,
+  detail,
+}: {
+  title: string;
+  detail?: string | null;
+}): React.JSX.Element {
+  return (
+    <div className="mb-2 flex items-baseline justify-between gap-2">
+      <p className="text-xs font-semibold">{title}</p>
+      {detail ? <p className="truncate text-[10px] text-muted-foreground">{detail}</p> : null}
+    </div>
   );
 }
 
@@ -120,29 +181,32 @@ function AgentSegments(): React.JSX.Element {
     status,
     tabs: live.filter((tab) => (statuses[tab.id] ?? 'idle') === status),
   })).filter((group) => group.tabs.length > 0);
-  const idleCount = live.filter((tab) => {
-    const status = statuses[tab.id] ?? 'idle';
-    return status === 'idle';
-  }).length;
-
-  const list = (items: AgentTab[]): React.ReactNode => (
-    <span className="flex flex-col gap-1">
-      {items.slice(0, 8).map((tab) => (
-        <span key={tab.id} className="flex items-center gap-1.5">
-          {tab.cliId ? <CliLogo cliId={tab.cliId} className="h-3 w-3" /> : null}
-          <span className="font-medium">{tab.title}</span>
-          <span className="text-muted-foreground">in {projectName(tab.projectId)}</span>
-        </span>
-      ))}
-      {items.length > 8 ? (
-        <span className="text-muted-foreground">and {items.length - 8} more</span>
-      ) : null}
-    </span>
-  );
+  const idle = live.filter((tab) => (statuses[tab.id] ?? 'idle') === 'idle');
 
   const open = (tab: AgentTab): void => {
     void navigate(`/workspace/${tab.projectId}?session=${encodeURIComponent(tab.id)}`);
   };
+
+  /** Each agent is its own row: clicking one opens that tab. */
+  const list = (items: AgentTab[], status: AgentStatus): React.ReactNode => (
+    <div className="-mx-1 flex flex-col">
+      {items.map((tab) => (
+        <button
+          key={tab.id}
+          type="button"
+          onClick={() => open(tab)}
+          className="flex items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-foreground/[0.07] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+        >
+          <AgentStatusDot status={status} className="shrink-0 scale-90" />
+          {tab.cliId ? <CliLogo cliId={tab.cliId} className="h-3 w-3 shrink-0" /> : null}
+          <span className="min-w-0 flex-1 truncate text-xs font-medium">{tab.title}</span>
+          <span className="shrink-0 truncate text-[10px] text-muted-foreground">
+            {projectName(tab.projectId)}
+          </span>
+        </button>
+      ))}
+    </div>
+  );
 
   const noun = (status: AgentStatus, count: number): string => {
     if (status === 'needs-input') return `${count} waiting on you`;
@@ -153,46 +217,276 @@ function AgentSegments(): React.JSX.Element {
   return (
     <>
       {groups.map((group) => (
-        <Segment
+        <PopSegment
           key={group.status}
-          tooltip={
-            <span className="flex flex-col gap-1.5">
-              <span className="font-semibold">{AGENT_STATUS_LABEL[group.status]}</span>
-              {list(group.tabs)}
-              <span className="text-[10px] text-muted-foreground">Click to open the first one</span>
-            </span>
-          }
-          onClick={() => {
-            const first = group.tabs[0];
-            if (first) open(first);
-          }}
+          label={`${AGENT_STATUS_LABEL[group.status]}: ${noun(group.status, group.tabs.length)}`}
           className={cn(group.status === 'needs-input' && 'text-warning hover:text-warning')}
+          width="w-80"
+          panel={
+            <>
+              <PanelTitle title={AGENT_STATUS_LABEL[group.status]} detail="Click one to open it" />
+              {list(group.tabs, group.status)}
+            </>
+          }
         >
           <AgentStatusDot status={group.status} className="scale-90" />
           {noun(group.status, group.tabs.length)}
-        </Segment>
+        </PopSegment>
       ))}
-      {idleCount > 0 ? (
-        <Segment
-          tooltip={
-            <span className="flex flex-col gap-1.5">
-              <span className="font-semibold">Idle</span>
-              {list(live.filter((tab) => (statuses[tab.id] ?? 'idle') === 'idle'))}
-            </span>
+      {idle.length > 0 ? (
+        <PopSegment
+          label={`${idle.length} idle agent${idle.length === 1 ? '' : 's'}`}
+          width="w-80"
+          panel={
+            <>
+              <PanelTitle title="Idle" detail="Click one to open it" />
+              {list(idle, 'idle')}
+            </>
           }
-          onClick={() => navigate('/workspace')}
         >
           <span className="h-1.5 w-1.5 rounded-full bg-foreground/30" />
-          {idleCount} idle
-        </Segment>
+          {idle.length} idle
+        </PopSegment>
       ) : null}
     </>
   );
 }
 
-function SystemSegments(): React.JSX.Element {
+/**
+ * The soonest rolling limit to roll over, across every provider on a subscription. This is
+ * the "when do my tokens come back" number the Token Usage cards count down to.
+ */
+function QuotaSegment(): React.JSX.Element | null {
   const navigate = useNavigate();
-  const history = useSystemStatsHistory({ intervalMs: SAMPLE_INTERVAL_MS, maxSamples: 15 });
+  const usageQuery = useQuery({
+    queryKey: queryKeys.usageList,
+    queryFn: () => window.agentmat.usage.list(),
+    refetchInterval: 60_000,
+    staleTime: 30_000,
+    meta: { silentLoading: true },
+  });
+
+  const providers = (usageQuery.data ?? []).flatMap((usage) => {
+    const windows = (usage.subscription?.windows ?? []).filter((w) => w.resetAt || w.percent > 0);
+    return windows.length > 0
+      ? [{ providerId: usage.providerId, plan: usage.subscription?.plan?.label ?? null, windows }]
+      : [];
+  });
+  const lead = providers[0];
+  if (!lead) return null;
+
+  const soonest = (windows: SubscriptionWindow[]): SubscriptionWindow | undefined =>
+    [...windows]
+      .filter((w) => w.resetAt)
+      .sort((a, b) => Date.parse(a.resetAt ?? '') - Date.parse(b.resetAt ?? ''))[0];
+  const next = soonest(lead.windows) ?? lead.windows[0];
+  if (!next) return null;
+  const countdown = formatCountdown(next.resetAt);
+
+  return (
+    <PopSegment
+      label="Cloud limits"
+      width="w-80"
+      panel={
+        <>
+          <PanelTitle title="Cloud limits" detail="Click for the full picture" />
+          <div className="-mx-1 flex flex-col">
+            {providers.map((provider) => (
+              <button
+                key={provider.providerId}
+                type="button"
+                onClick={() => navigate('/usage')}
+                className="rounded-md px-2 py-1.5 text-left transition-colors hover:bg-foreground/[0.07] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              >
+                <span className="flex items-baseline justify-between gap-2">
+                  <span className="truncate text-xs font-medium capitalize">
+                    {provider.providerId.replaceAll('-', ' ')}
+                  </span>
+                  {provider.plan ? (
+                    <span className="shrink-0 text-[10px] text-muted-foreground">
+                      {provider.plan}
+                    </span>
+                  ) : null}
+                </span>
+                {provider.windows.map((w) => (
+                  <span key={w.key} className="mt-1 flex items-center gap-2">
+                    <span className="w-20 shrink-0 truncate text-[10px] text-muted-foreground">
+                      {w.label}
+                    </span>
+                    <Meter percent={w.percent} />
+                    <span className="w-8 shrink-0 text-right text-[10px] tabular-nums">
+                      {Math.round(w.percent)}%
+                    </span>
+                    <span className="min-w-0 flex-1 truncate text-right text-[10px] text-muted-foreground">
+                      {formatCountdown(w.resetAt) ?? 'no reset time'}
+                    </span>
+                  </span>
+                ))}
+              </button>
+            ))}
+          </div>
+        </>
+      }
+    >
+      <Gauge className="h-2.5 w-2.5" />
+      <span className="tabular-nums">{Math.round(next.percent)}%</span>
+      {countdown ? (
+        <span className="tabular-nums text-muted-foreground/80">{countdown}</span>
+      ) : null}
+    </PopSegment>
+  );
+}
+
+/** The container count in the bottom bar: hidden entirely when Docker isn't on this machine. */
+function DockerSegment(): React.JSX.Element | null {
+  const navigate = useNavigate();
+  const availabilityQuery = useQuery({
+    queryKey: queryKeys.dockerAvailability,
+    queryFn: () => window.agentmat.docker.availability(),
+    meta: { silentLoading: true },
+  });
+  const available = availabilityQuery.data;
+  const listQuery = useQuery({
+    queryKey: queryKeys.dockerList,
+    queryFn: () => window.agentmat.docker.list(),
+    enabled: available === true,
+    refetchInterval: available === true ? SAMPLE_INTERVAL_MS : false,
+    meta: { silentLoading: true },
+  });
+
+  if (available !== true) return null;
+
+  const containers = listQuery.data ?? [];
+  const running = containers.filter((c) => c.state === 'running');
+
+  return (
+    <PopSegment
+      label={`Docker: ${running.length} container${running.length === 1 ? '' : 's'} running`}
+      width="w-80"
+      panel={
+        <>
+          <PanelTitle title="Docker" detail={`${running.length} of ${containers.length} running`} />
+          {running.length > 0 ? (
+            <div className="-mx-1 flex flex-col">
+              {running.slice(0, 8).map((container) => (
+                <button
+                  key={container.id}
+                  type="button"
+                  onClick={() => navigate('/docker')}
+                  className="flex items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-foreground/[0.07] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                >
+                  <span className="min-w-0 flex-1 truncate text-xs font-medium">
+                    {container.name}
+                  </span>
+                  {container.cpuPercent != null ? (
+                    <>
+                      <Meter percent={container.cpuPercent} />
+                      <span className="w-8 shrink-0 text-right text-[10px] tabular-nums">
+                        {Math.round(container.cpuPercent)}%
+                      </span>
+                    </>
+                  ) : null}
+                </button>
+              ))}
+              {running.length > 8 ? (
+                <p className="px-2 py-1 text-[10px] text-muted-foreground">
+                  and {running.length - 8} more
+                </p>
+              ) : null}
+            </div>
+          ) : (
+            <p className="text-[11px] text-muted-foreground">No containers running right now.</p>
+          )}
+          <button
+            type="button"
+            onClick={() => navigate('/docker')}
+            className="mt-2 w-full border-t border-border/60 pt-2 text-left text-[10px] text-muted-foreground hover:text-foreground"
+          >
+            Open the Docker page
+          </button>
+        </>
+      }
+    >
+      <Docker className="h-2.5 w-2.5" />
+      <span className="tabular-nums">{running.length} running</span>
+    </PopSegment>
+  );
+}
+
+function CoreBars({ percents }: { percents: number[] }): React.JSX.Element {
+  return (
+    <div className="mt-2 grid grid-cols-8 gap-1">
+      {percents.map((percent, index) => (
+        <span key={index} className="relative h-6 overflow-hidden rounded-sm bg-foreground/10">
+          <span
+            className={cn(
+              'absolute inset-x-0 bottom-0 rounded-sm transition-[height] duration-500',
+              percent >= 90 ? 'bg-destructive' : percent >= 70 ? 'bg-warning' : 'bg-primary',
+            )}
+            style={{ height: `${Math.min(100, Math.max(3, percent))}%` }}
+          />
+        </span>
+      ))}
+    </div>
+  );
+}
+
+/** The apps using the most of one resource right now, asked for only while a panel is open. */
+function TopApps({ resource }: { resource: 'cpu' | 'memory' }): React.JSX.Element | null {
+  const top = useQuery({
+    queryKey: queryKeys.topResourceApps(resource),
+    queryFn: () => window.agentmat.system.topApps(resource),
+    refetchInterval: 5000,
+    meta: { silentLoading: true },
+  });
+  const apps = (top.data?.apps ?? []).slice(0, 5);
+  if (top.isPending) {
+    return (
+      <div className="mt-3 space-y-1.5">
+        {Array.from({ length: 3 }, (_, i) => (
+          <span
+            key={i}
+            className="shimmer block h-3 rounded"
+            style={{ width: `${80 - i * 15}%` }}
+          />
+        ))}
+      </div>
+    );
+  }
+  if (apps.length === 0) return null;
+  return (
+    <div className="mt-3 space-y-1">
+      <p className="text-[10px] font-medium text-muted-foreground">
+        {resource === 'cpu' ? 'Busiest apps' : 'Heaviest apps'}
+      </p>
+      {apps.map((app) => (
+        <div key={`${app.name}:${app.pid}`} className="flex items-center gap-2">
+          {app.iconDataUrl ? (
+            <img src={app.iconDataUrl} alt="" className="h-3.5 w-3.5 shrink-0 rounded-sm" />
+          ) : (
+            <span className="h-3.5 w-3.5 shrink-0 rounded-sm bg-foreground/10" />
+          )}
+          <span className="min-w-0 flex-1 truncate text-[11px]">{app.name}</span>
+          {resource === 'memory' && app.memBytes ? (
+            <span className="shrink-0 text-[10px] text-muted-foreground tabular-nums">
+              {formatBytes(app.memBytes)}
+            </span>
+          ) : null}
+          <Meter percent={app.percent} />
+          <span className="w-8 shrink-0 text-right text-[10px] tabular-nums">
+            {Math.round(app.percent)}%
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function SystemSegments(): React.JSX.Element {
+  const history = useSystemStatsHistory({
+    intervalMs: SAMPLE_INTERVAL_MS,
+    maxSamples: HISTORY_SAMPLES,
+  });
   const latest = history.at(-1);
 
   if (!latest) {
@@ -205,6 +499,7 @@ function SystemSegments(): React.JSX.Element {
     );
   }
 
+  const timestamps = history.map((sample) => sample.timestamp);
   const pings = latest.pings ?? [];
   const alive = pings.filter((p) => p.alive);
   const latencies = alive.flatMap((p) => (p.latencyMs == null ? [] : [p.latencyMs]));
@@ -224,31 +519,102 @@ function SystemSegments(): React.JSX.Element {
 
   return (
     <>
-      <Segment
-        tooltip={
-          <span className="flex flex-col">
-            <span className="font-semibold">CPU {Math.round(latest.cpuPercent)}%</span>
-            <span className="text-muted-foreground">
-              {latest.cpuModel} · {latest.cpuCoreCount} threads
-            </span>
-          </span>
+      <PopSegment
+        label="CPU"
+        width="w-80"
+        panel={
+          <>
+            <PanelTitle
+              title={`CPU ${Math.round(latest.cpuPercent)}%`}
+              detail={`${latest.cpuCoreCount} threads`}
+            />
+            <p className="mb-1 truncate text-[10px] text-muted-foreground">{latest.cpuModel}</p>
+            <SparklineChart
+              timestamps={timestamps}
+              series={[
+                {
+                  key: 'cpu',
+                  label: 'CPU',
+                  color: 'hsl(var(--primary))',
+                  values: history.map((s) => s.cpuPercent),
+                },
+              ]}
+              height={64}
+              domainMin={0}
+              domainMax={100}
+              formatValue={(value) => `${Math.round(value)}%`}
+            />
+            {latest.cpuCorePercents.length > 0 ? (
+              <>
+                <p className="mt-2 text-[10px] font-medium text-muted-foreground">Per core</p>
+                <CoreBars percents={latest.cpuCorePercents} />
+              </>
+            ) : null}
+            <TopApps resource="cpu" />
+            {latest.gpus.length > 0 ? (
+              <div className="mt-3 space-y-1">
+                <p className="text-[10px] font-medium text-muted-foreground">GPU</p>
+                {latest.gpus.map((gpu) => (
+                  <div key={gpu.id} className="flex items-center gap-2">
+                    <span className="min-w-0 flex-1 truncate text-[11px]">{gpu.label}</span>
+                    <span className="shrink-0 text-[10px] text-muted-foreground tabular-nums">
+                      {formatBytes(gpu.memUsedBytes)}
+                    </span>
+                    <Meter percent={gpu.percent} />
+                    <span className="w-8 shrink-0 text-right text-[10px] tabular-nums">
+                      {Math.round(gpu.percent)}%
+                    </span>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+          </>
         }
-        onClick={() => navigate('/')}
       >
         <Cpu className="h-2.5 w-2.5" />
         <span className="w-8 text-right tabular-nums">{Math.round(latest.cpuPercent)}%</span>
         <Meter percent={latest.cpuPercent} />
-      </Segment>
-      <Segment
-        tooltip={
-          <span className="flex flex-col">
-            <span className="font-semibold">Memory {Math.round(latest.memPercent)}%</span>
-            <span className="text-muted-foreground">
-              {formatBytes(latest.memUsedBytes)} of {formatBytes(latest.memTotalBytes)} in use
-            </span>
-          </span>
+      </PopSegment>
+
+      <PopSegment
+        label="Memory"
+        width="w-80"
+        panel={
+          <>
+            <PanelTitle
+              title={`Memory ${Math.round(latest.memPercent)}%`}
+              detail={`${formatBytes(latest.memUsedBytes)} of ${formatBytes(latest.memTotalBytes)}`}
+            />
+            <SparklineChart
+              timestamps={timestamps}
+              series={[
+                {
+                  key: 'mem',
+                  label: 'Memory',
+                  color: 'hsl(var(--primary))',
+                  values: history.map((s) => s.memPercent),
+                },
+              ]}
+              height={64}
+              domainMin={0}
+              domainMax={100}
+              formatValue={(value) => `${Math.round(value)}%`}
+            />
+            <dl className="mt-2 grid grid-cols-3 gap-2 text-center">
+              {[
+                ['In use', formatBytes(latest.memUsedBytes)],
+                ['Free', formatBytes(latest.memTotalBytes - latest.memUsedBytes)],
+                ['Total', formatBytes(latest.memTotalBytes)],
+              ].map(([label, value]) => (
+                <div key={label} className="rounded-md bg-foreground/[0.05] px-1.5 py-1">
+                  <dt className="text-[10px] text-muted-foreground">{label}</dt>
+                  <dd className="text-[11px] font-medium tabular-nums">{value}</dd>
+                </div>
+              ))}
+            </dl>
+            <TopApps resource="memory" />
+          </>
         }
-        onClick={() => navigate('/')}
       >
         <MemoryStick className="h-2.5 w-2.5" />
         <span className="tabular-nums">
@@ -256,7 +622,8 @@ function SystemSegments(): React.JSX.Element {
           <span className="text-muted-foreground/60"> / {formatBytes(latest.memTotalBytes)}</span>
         </span>
         <Meter percent={latest.memPercent} />
-      </Segment>
+      </PopSegment>
+
       <Segment
         tooltip={
           <span className="flex flex-col gap-0.5">
@@ -275,7 +642,6 @@ function SystemSegments(): React.JSX.Element {
             ))}
           </span>
         }
-        onClick={() => navigate('/')}
         className={netTone}
       >
         <Wifi className="h-2.5 w-2.5" />
@@ -284,6 +650,89 @@ function SystemSegments(): React.JSX.Element {
         </span>
       </Segment>
     </>
+  );
+}
+
+const KEEP_AWAKE_OPTIONS: { mode: KeepAwakeMode; title: string; detail: string }[] = [
+  { mode: 'on', title: 'On', detail: 'Keep this computer awake continuously' },
+  { mode: 'agent', title: 'Agent', detail: 'Stay awake while an agent or command is running' },
+  { mode: 'off', title: 'Off', detail: 'Allow normal system sleep behavior' },
+];
+
+const KEEP_AWAKE_LABEL: Record<KeepAwakeMode, string> = { on: 'On', agent: 'Agent', off: 'Off' };
+const BUSY_LABEL: Record<string, string> = {
+  agents: 'an agent at work',
+  terminals: 'a command in a terminal',
+  ssh: 'an SSH session',
+};
+
+/** Whether the machine may sleep while AgentMate runs, and what is holding it awake. */
+function KeepAwakeSegment(): React.JSX.Element | null {
+  const [status, setStatus] = useState<KeepAwakeStatus | null>(null);
+
+  useEffect(() => {
+    void window.agentmat.power.keepAwakeStatus().then(setStatus);
+    return window.agentmat.power.onKeepAwake(setStatus);
+  }, []);
+
+  if (!status) return null;
+  const pick = (mode: KeepAwakeMode): void => {
+    setStatus({ ...status, mode });
+    void window.agentmat.power.setKeepAwake(mode).then(setStatus);
+  };
+  const why = status.busy.map((reason) => BUSY_LABEL[reason] ?? reason).join(', ');
+
+  return (
+    <PopSegment
+      label="Keep computer awake"
+      width="w-72"
+      className={status.blocking ? 'text-foreground' : undefined}
+      panel={
+        <>
+          <PanelTitle
+            title="Keep computer awake"
+            detail={status.blocking ? 'Awake now' : 'Sleep allowed'}
+          />
+          <div className="-mx-1 flex flex-col">
+            {KEEP_AWAKE_OPTIONS.map((option) => (
+              <button
+                key={option.mode}
+                type="button"
+                onClick={() => pick(option.mode)}
+                className="flex items-start gap-2 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-foreground/[0.07] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              >
+                <Check
+                  className={cn(
+                    'mt-0.5 h-2.5 w-2.5 shrink-0 text-primary',
+                    status.mode === option.mode ? 'opacity-100' : 'opacity-0',
+                  )}
+                />
+                <span className="min-w-0">
+                  <span className="block text-xs font-medium">{option.title}</span>
+                  <span className="block text-[10px] leading-snug text-muted-foreground">
+                    {option.detail}
+                  </span>
+                </span>
+              </button>
+            ))}
+          </div>
+          {status.mode === 'agent' && why ? (
+            <p className="mt-2 border-t border-border/60 pt-2 text-[10px] text-muted-foreground">
+              Awake for {why}.
+            </p>
+          ) : null}
+        </>
+      }
+    >
+      <MugHot className={cn('h-2.5 w-2.5', status.blocking && 'text-primary')} />
+      <span>{KEEP_AWAKE_LABEL[status.mode]}</span>
+      <span
+        className={cn(
+          'h-1.5 w-1.5 rounded-full',
+          status.blocking ? 'bg-primary' : 'bg-foreground/25',
+        )}
+      />
+    </PopSegment>
   );
 }
 
@@ -298,7 +747,10 @@ export function StatusBar(): React.JSX.Element {
         <AgentSegments />
       </div>
       <div className="flex h-full shrink-0 items-center">
+        <QuotaSegment />
+        <DockerSegment />
         <SystemSegments />
+        <KeepAwakeSegment />
       </div>
     </footer>
   );

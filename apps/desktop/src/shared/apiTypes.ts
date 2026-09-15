@@ -1,5 +1,4 @@
 import type {
-  KeepAwakeMode,
   AgentStatus,
   AgentType,
   AiProvider,
@@ -7,6 +6,7 @@ import type {
   BlueprintRevisionTarget,
   BlueprintStepId,
   GitChangeEntry,
+  KeepAwakeMode,
   ProjectBlueprint,
   ProjectNotificationSettings,
   ProjectRunCommand,
@@ -1657,4 +1657,37 @@ export interface ActiveScan {
   scanners: ActiveScannerState[];
   completedScanners: number;
   totalScanners: number;
+}
+
+export type DockerContainerState =
+  | 'running'
+  | 'exited'
+  | 'paused'
+  | 'restarting'
+  | 'created'
+  | 'dead';
+
+export interface DockerContainer {
+  id: string;
+  name: string;
+  image: string;
+  state: DockerContainerState;
+  /** Docker's own human string, e.g. "Up 2 hours" or "Exited (0) 3 days ago". */
+  status: string;
+  /** The `docker compose` project this container belongs to, when it was started by compose. */
+  composeProject: string | null;
+  /** Null while the container isn't running, or when `docker stats` couldn't be read. */
+  cpuPercent: number | null;
+  memUsedBytes: number | null;
+  memLimitBytes: number | null;
+}
+
+export interface DockerActionResult {
+  ok: boolean;
+  error?: string;
+}
+
+export interface DockerRemoveOptions {
+  removeVolumes: boolean;
+  removeImage: boolean;
 }
