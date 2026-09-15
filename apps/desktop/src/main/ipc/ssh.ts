@@ -30,6 +30,13 @@ const sessions = new Map<string, { serverId: string }>();
 /** The window currently showing each session. Output goes there. */
 const owners = new Map<string, WebContents>();
 
+/**
+ * Lets other main-process code (the SSH AI task runner) watch a session's raw output or learn
+ * it ended, without a second `ssh2` listener or a duplicate session registry.
+ */
+const outputSubscribers = new Map<string, Set<(data: string) => void>>();
+const exitSubscribers = new Map<string, Set<() => void>>();
+
 function syncPowerSaveBlocker(): void {
   keepAwake.setBusy('ssh', sessions.size > 0);
 }
@@ -37,6 +44,7 @@ function syncPowerSaveBlocker(): void {
 function forwardData(sessionId: string, data: string): void {
   const owner = owners.get(sessionId);
   if (owner && !owner.isDestroyed()) owner.send(IPC.ssh.onData, { sessionId, data });
+  for (const listener of outputSubscribers.get(sessionId) ?? []) listener(data);
 }
 
 function forwardExit(sessionId: string, error?: string): void {
@@ -45,6 +53,44 @@ function forwardExit(sessionId: string, error?: string): void {
   owners.delete(sessionId);
   sessions.delete(sessionId);
   syncPowerSaveBlocker();
+  for (const listener of exitSubscribers.get(sessionId) ?? []) listener();
+  outputSubscribers.delete(sessionId);
+  exitSubscribers.delete(sessionId);
+}
+
+/** True while `sessionId` has a live shell channel to write into. */
+export function hasSshSession(sessionId: string): boolean {
+  return sessions.has(sessionId);
+}
+
+/** Sends raw bytes into a session's shell, exactly as if the user had typed them. */
+export function writeToSshSession(sessionId: string, data: string): void {
+  manager.write(sessionId, data);
+}
+
+/** Fires with every chunk of raw output a session produces, until the returned function is called. */
+export function subscribeSshOutput(
+  sessionId: string,
+  listener: (data: string) => void,
+): () => void {
+  let set = outputSubscribers.get(sessionId);
+  if (!set) {
+    set = new Set();
+    outputSubscribers.set(sessionId, set);
+  }
+  set.add(listener);
+  return () => set?.delete(listener);
+}
+
+/** Fires once when a session closes, however that happens (remote exit, kill, or app quit). */
+export function subscribeSshExit(sessionId: string, listener: () => void): () => void {
+  let set = exitSubscribers.get(sessionId);
+  if (!set) {
+    set = new Set();
+    exitSubscribers.set(sessionId, set);
+  }
+  set.add(listener);
+  return () => set?.delete(listener);
 }
 
 function toPublicServer(server: StoredSshServer): SshSavedServer {

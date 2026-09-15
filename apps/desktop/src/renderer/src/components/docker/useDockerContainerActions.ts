@@ -17,7 +17,10 @@ const LIFECYCLE_PAST: Record<LifecycleAction, string> = {
   restart: 'Restarted',
 };
 
-function runLifecycleAction(id: string, action: LifecycleAction): ReturnType<typeof window.agentmat.docker.start> {
+function runLifecycleAction(
+  id: string,
+  action: LifecycleAction,
+): ReturnType<typeof window.agentmat.docker.start> {
   if (action === 'start') return window.agentmat.docker.start(id);
   if (action === 'stop') return window.agentmat.docker.stop(id);
   return window.agentmat.docker.restart(id);
@@ -65,7 +68,8 @@ export function useDockerContainerActions(queryKey: QueryKey): {
   }
 
   const lifecycleMutation = useMutation({
-    mutationFn: ({ id, action }: { id: string; action: LifecycleAction }) => runLifecycleAction(id, action),
+    mutationFn: ({ id, action }: { id: string; action: LifecycleAction }) =>
+      runLifecycleAction(id, action),
     onMutate: ({ id }) => addPending([id]),
     onSuccess: (result) => {
       if (!result.ok) toast.error(result.error ?? 'That action failed.');
@@ -84,9 +88,13 @@ export function useDockerContainerActions(queryKey: QueryKey): {
     onSuccess: (results, { action }) => {
       const failed = results.filter((result) => !result.ok).length;
       if (failed === 0) {
-        toast.success(`${LIFECYCLE_PAST[action]} ${results.length} container${results.length === 1 ? '' : 's'}.`);
+        toast.success(
+          `${LIFECYCLE_PAST[action]} ${results.length} container${results.length === 1 ? '' : 's'}.`,
+        );
       } else {
-        toast.error(`${failed} of ${results.length} containers failed to ${LIFECYCLE_VERB[action]}.`);
+        toast.error(
+          `${failed} of ${results.length} containers failed to ${LIFECYCLE_VERB[action]}.`,
+        );
       }
     },
     onError: () => toast.error('That action failed.'),

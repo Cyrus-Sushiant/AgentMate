@@ -261,7 +261,8 @@ export const SHORTCUT_COMMANDS: ShortcutCommand[] = [
   {
     id: 'workspace.goToTab',
     label: 'Go to tab 1 to 9',
-    description: 'Picks a tab in the focused pane by its position. Press any number key to set the modifiers.',
+    description:
+      'Picks a tab in the focused pane by its position. Press any number key to set the modifiers.',
     group: 'Workspace',
     scope: 'workspace',
     defaults: [{ code: 'Digit1', mod: true }],

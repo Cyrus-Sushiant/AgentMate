@@ -27,6 +27,7 @@ import { initAgentStatus } from '@/stores/agentStatusStore';
 import { useAskAiStore } from '@/stores/askAiStore';
 import { usePageHeaderStore } from '@/stores/pageHeaderStore';
 import { useShortcutLabel } from '@/stores/shortcutStore';
+import { initSshAgentStatus } from '@/stores/sshAgentStore';
 import { useTerminalStore } from '@/stores/terminalStore';
 import { useToastHistoryStore } from '@/stores/toastHistoryStore';
 import { useUiStore } from '@/stores/uiStore';
@@ -164,6 +165,8 @@ export function AppShell(): React.JSX.Element {
   useGlobalShortcuts();
   // Agent status is followed app-wide, so a workspace agent can notify from any page.
   useEffect(() => initAgentStatus(), []);
+  // Ditto for AI-driven SSH tasks: progress must keep updating even off the Workspace page.
+  useEffect(() => initSshAgentStatus(), []);
   // The desktop companion would otherwise swallow every drop in the app window.
   usePetDragGuard();
 

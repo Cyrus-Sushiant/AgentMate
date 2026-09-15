@@ -1436,6 +1436,40 @@ export interface SshExitPayload {
   error?: string;
 }
 
+/**
+ * How much control the user keeps over an AI-driven SSH task before a command actually runs.
+ * `approve-risky` still runs ordinary commands immediately, pausing only when a command matches
+ * a destructive-looking pattern (rm -rf, drop table, shutdown, ...).
+ */
+export type SshAgentMode = 'approve-all' | 'approve-risky' | 'autonomous';
+
+export interface StartSshAgentTaskInput {
+  sessionId: string;
+  /** The task (or series of tasks) in plain language, e.g. "check disk usage, then clear old logs". */
+  prompt: string;
+  mode: SshAgentMode;
+}
+
+export type SshAgentPhase =
+  | 'thinking'
+  | 'proposed'
+  | 'running'
+  | 'needs-input'
+  | 'finished'
+  | 'error'
+  | 'stopped';
+
+export interface SshAgentProgress {
+  sessionId: string;
+  phase: SshAgentPhase;
+  /** How many commands the AI has proposed so far this run, 1-based. */
+  step: number;
+  /** The command that was proposed, is running, or just finished, when relevant to `phase`. */
+  command?: string;
+  /** A question (needs-input), a summary (finished), or an error/stop reason. */
+  message?: string;
+}
+
 /** Live transport quality for the controller's inbound video, sampled ~1/sec. */
 export interface RemoteQualitySample {
   kbps: number;
