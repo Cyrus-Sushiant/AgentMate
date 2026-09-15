@@ -3,6 +3,7 @@ import { useLayoutEffect, useRef, useState } from 'react';
 import { terminalRuntime } from '@/lib/terminal/terminalRuntime';
 import { resolveWorkspaceTerminalTheme } from '@/lib/terminal/xtermFactory';
 import { useTerminalAppearanceStore } from '@/stores/terminalAppearanceStore';
+import { useThemeStore } from '@/stores/themeStore';
 import type { WorkspaceTerminalTab } from '@/stores/workspaceStore';
 
 export interface TerminalSlotProps {
@@ -22,7 +23,11 @@ export function TerminalSlot({ projectId, tab, focused }: TerminalSlotProps): Re
   const [dropping, setDropping] = useState(false);
   const customBackground = useTerminalAppearanceStore((s) => s.customBackground);
   const backgroundColor = useTerminalAppearanceStore((s) => s.backgroundColor);
-  const { wellBackground } = resolveWorkspaceTerminalTheme({ customBackground, backgroundColor });
+  const theme = useThemeStore((s) => s.theme);
+  const { wellBackground } = resolveWorkspaceTerminalTheme(
+    { customBackground, backgroundColor },
+    theme,
+  );
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: the runtime keys everything by session id; launch settings only matter the first time a session starts
   useLayoutEffect(() => {

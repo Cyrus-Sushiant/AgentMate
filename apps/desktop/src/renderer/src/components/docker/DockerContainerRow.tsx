@@ -3,6 +3,7 @@ import { Docker as DockerIcon, Play, RefreshCw, StopCircle, Trash2 } from '@/com
 import { Badge, type BadgeProps } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { SimpleTooltip } from '@/components/ui/tooltip';
+import { cn } from '@/lib/utils';
 
 const STATE_BADGE_VARIANT: Record<DockerContainer['state'], BadgeProps['variant']> = {
   running: 'success',
@@ -47,6 +48,8 @@ function UsageBar({ percent }: { percent: number }): React.JSX.Element {
 export function DockerContainerRow({
   container,
   pending,
+  focused = false,
+  rowRef,
   onStart,
   onStop,
   onRestart,
@@ -54,6 +57,9 @@ export function DockerContainerRow({
 }: {
   container: DockerContainer;
   pending: boolean;
+  /** True when this row was opened via a deep link (e.g. the status bar popover); rings briefly. */
+  focused?: boolean;
+  rowRef?: (node: HTMLDivElement | null) => void;
   onStart: () => void;
   onStop: () => void;
   onRestart: () => void;
@@ -67,7 +73,13 @@ export function DockerContainerRow({
   const showUsage = running && (container.cpuPercent != null || memPercent != null);
 
   return (
-    <div className="flex items-start gap-3 rounded-lg border border-border bg-card/60 px-3 py-2.5">
+    <div
+      ref={rowRef}
+      className={cn(
+        'flex items-start gap-3 rounded-lg border border-border bg-card/60 px-3 py-2.5 transition-shadow',
+        focused && 'ring-2 ring-primary shadow-[0_0_0_4px_hsl(var(--primary)/0.15)]',
+      )}
+    >
       <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
         <DockerIcon className="h-4 w-4" />
       </span>

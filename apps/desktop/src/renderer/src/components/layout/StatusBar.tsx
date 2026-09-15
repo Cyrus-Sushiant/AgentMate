@@ -1,4 +1,10 @@
-import type { AgentStatus, KeepAwakeMode, Project, SubscriptionWindow } from '@agentmat/core';
+import {
+  type AgentStatus,
+  getUsageProvider,
+  type KeepAwakeMode,
+  type Project,
+  type SubscriptionWindow,
+} from '@agentmat/core';
 import * as PopoverPrimitive from '@radix-ui/react-popover';
 import type { KeepAwakeStatus } from '@shared/apiTypes';
 import { useQuery } from '@tanstack/react-query';
@@ -6,7 +12,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { CliLogo } from '@/components/cliLogos';
 import { SparklineChart } from '@/components/dashboard/SparklineChart';
-import { Check, Cpu, Docker, Gauge, MemoryStick, MugHot, Wifi } from '@/components/icons';
+import { Check, Cpu, Docker, MemoryStick, MugHot, TerminalSquare, Wifi } from '@/components/icons';
+import { ProviderLogo } from '@/components/providerLogos';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { AGENT_STATUS_LABEL, AgentStatusDot } from '@/components/workspace/AgentStatusDot';
 import { useSystemStatsHistory } from '@/hooks/useSystemStatsHistory';
@@ -14,6 +21,8 @@ import { queryKeys } from '@/lib/queryKeys';
 import { formatCountdown } from '@/lib/usageFormat';
 import { cn } from '@/lib/utils';
 import { useAgentStatusStore } from '@/stores/agentStatusStore';
+import { useRunningClisStore } from '@/stores/runningClisStore';
+import { useTerminalStore } from '@/stores/terminalStore';
 import { terminalTabLabel, useWorkspaceStore } from '@/stores/workspaceStore';
 
 /** Sampling shells out to the OS, so the status bar asks less often than the dashboard. */
@@ -282,10 +291,11 @@ function QuotaSegment(): React.JSX.Element | null {
   const next = soonest(lead.windows) ?? lead.windows[0];
   if (!next) return null;
   const countdown = formatCountdown(next.resetAt);
+  const providerName = (id: string): string => getUsageProvider(id)?.name ?? id;
 
   return (
     <PopSegment
-      label="Cloud limits"
+      label={`${providerName(lead.providerId)}: ${next.label} limit`}
       width="w-80"
       panel={
         <>
@@ -298,9 +308,12 @@ function QuotaSegment(): React.JSX.Element | null {
                 onClick={() => navigate('/usage')}
                 className="rounded-md px-2 py-1.5 text-left transition-colors hover:bg-foreground/[0.07] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
               >
-                <span className="flex items-baseline justify-between gap-2">
-                  <span className="truncate text-xs font-medium capitalize">
-                    {provider.providerId.replaceAll('-', ' ')}
+                <span className="flex items-center justify-between gap-2">
+                  <span className="flex min-w-0 items-center gap-1.5">
+                    <ProviderLogo providerId={provider.providerId} className="h-3 w-3 shrink-0" />
+                    <span className="truncate text-xs font-medium">
+                      {providerName(provider.providerId)}
+                    </span>
                   </span>
                   {provider.plan ? (
                     <span className="shrink-0 text-[10px] text-muted-foreground">
@@ -328,7 +341,7 @@ function QuotaSegment(): React.JSX.Element | null {
         </>
       }
     >
-      <Gauge className="h-2.5 w-2.5" />
+      <ProviderLogo providerId={lead.providerId} className="h-3 w-3 shrink-0" />
       <span className="tabular-nums">{Math.round(next.percent)}%</span>
       {countdown ? (
         <span className="tabular-nums text-muted-foreground/80">{countdown}</span>
@@ -369,24 +382,27 @@ function DockerSegment(): React.JSX.Element | null {
           {running.length > 0 ? (
             <div className="-mx-1 flex flex-col">
               {running.slice(0, 8).map((container) => (
-                <button
-                  key={container.id}
-                  type="button"
-                  onClick={() => navigate('/docker')}
-                  className="flex items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-foreground/[0.07] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                >
-                  <span className="min-w-0 flex-1 truncate text-xs font-medium">
-                    {container.name}
-                  </span>
-                  {container.cpuPercent != null ? (
-                    <>
-                      <Meter percent={container.cpuPercent} />
-                      <span className="w-8 shrink-0 text-right text-[10px] tabular-nums">
-                        {Math.round(container.cpuPercent)}%
-                      </span>
-                    </>
-                  ) : null}
-                </button>
+                <PopoverPrimitive.Close key={container.id} asChild>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      navigate(`/docker?container=${encodeURIComponent(container.id)}`)
+                    }
+                    className="flex items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-foreground/[0.07] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                  >
+                    <span className="min-w-0 flex-1 truncate text-xs font-medium">
+                      {container.name}
+                    </span>
+                    {container.cpuPercent != null ? (
+                      <>
+                        <Meter percent={container.cpuPercent} />
+                        <span className="w-8 shrink-0 text-right text-[10px] tabular-nums">
+                          {Math.round(container.cpuPercent)}%
+                        </span>
+                      </>
+                    ) : null}
+                  </button>
+                </PopoverPrimitive.Close>
               ))}
               {running.length > 8 ? (
                 <p className="px-2 py-1 text-[10px] text-muted-foreground">
@@ -397,13 +413,15 @@ function DockerSegment(): React.JSX.Element | null {
           ) : (
             <p className="text-[11px] text-muted-foreground">No containers running right now.</p>
           )}
-          <button
-            type="button"
-            onClick={() => navigate('/docker')}
-            className="mt-2 w-full border-t border-border/60 pt-2 text-left text-[10px] text-muted-foreground hover:text-foreground"
-          >
-            Open the Docker page
-          </button>
+          <PopoverPrimitive.Close asChild>
+            <button
+              type="button"
+              onClick={() => navigate('/docker')}
+              className="mt-2 w-full border-t border-border/60 pt-2 text-left text-[10px] text-muted-foreground hover:text-foreground"
+            >
+              Open the Docker page
+            </button>
+          </PopoverPrimitive.Close>
         </>
       }
     >
@@ -736,6 +754,34 @@ function KeepAwakeSegment(): React.JSX.Element | null {
   );
 }
 
+/**
+ * How many terminals are open across the Workspace and the drawer. Counting comes from the
+ * stores alone; the per-terminal CPU and memory are only sampled while the modal is open.
+ */
+function TerminalsSegment(): React.JSX.Element | null {
+  const setOpen = useRunningClisStore((s) => s.setOpen);
+  const workspaceCount = useWorkspaceStore((s) =>
+    Object.values(s.workspaces).reduce(
+      (sum, ws) => sum + Object.values(ws.tabs).filter((tab) => tab.kind === 'terminal').length,
+      0,
+    ),
+  );
+  const drawerCount = useTerminalStore((s) => s.sessions.length);
+  const count = workspaceCount + drawerCount;
+  if (count === 0) return null;
+  return (
+    <Segment
+      tooltip="Running CLIs: CPU and memory for every terminal"
+      onClick={() => setOpen(true)}
+    >
+      <TerminalSquare className="h-2.5 w-2.5" />
+      <span className="tabular-nums">
+        {count} {count === 1 ? 'terminal' : 'terminals'}
+      </span>
+    </Segment>
+  );
+}
+
 /** The strip along the bottom of the window: agents on the left, the machine on the right. */
 export function StatusBar(): React.JSX.Element {
   return (
@@ -747,6 +793,7 @@ export function StatusBar(): React.JSX.Element {
         <AgentSegments />
       </div>
       <div className="flex h-full shrink-0 items-center">
+        <TerminalsSegment />
         <QuotaSegment />
         <DockerSegment />
         <SystemSegments />

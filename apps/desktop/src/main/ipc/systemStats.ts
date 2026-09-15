@@ -16,6 +16,7 @@ import type {
 } from '../../shared/apiTypes';
 import { IPC } from '../../shared/ipcChannels';
 import { store } from '../store';
+import { asArray, runPowerShellJson } from '../system/processTree';
 
 const execFileAsync = promisify(execFile);
 
@@ -434,11 +435,6 @@ interface CpuProcessSampleState {
 
 let lastCpuProcessSample: CpuProcessSampleState | null = null;
 
-function asArray<T>(parsed: T | T[] | null | undefined): T[] {
-  if (parsed == null) return [];
-  return Array.isArray(parsed) ? parsed : [parsed];
-}
-
 function cleanProcessName(raw: string): string {
   const trimmed = raw.trim();
   if (!trimmed) return '';
@@ -569,21 +565,6 @@ async function withAppIcons(apps: TopResourceApp[]): Promise<TopResourceApp[]> {
       return iconDataUrl ? { ...app, iconDataUrl } : app;
     }),
   );
-}
-
-async function runPowerShellJson<T>(script: string): Promise<T | null> {
-  try {
-    const { stdout } = await execFileAsync('powershell', ['-NoProfile', '-Command', script], {
-      timeout: 10_000,
-      windowsHide: true,
-      maxBuffer: 12 * 1024 * 1024,
-    });
-    const trimmed = stdout.trim();
-    if (!trimmed || trimmed === 'null') return null;
-    return JSON.parse(trimmed) as T;
-  } catch {
-    return null;
-  }
 }
 
 const WIN_CPU_PROCESS_SCRIPT = `

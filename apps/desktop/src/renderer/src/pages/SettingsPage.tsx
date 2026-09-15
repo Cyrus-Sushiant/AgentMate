@@ -9,11 +9,12 @@ import { CliArgsField } from '@/components/CliArgsField';
 import { cliOptionIcon } from '@/components/cliLogos';
 import {
   Bell,
-  GitCommit,
   Blocks,
   CircleQuestion,
+  Code,
   Download,
   FolderOpen,
+  GitCommit,
   HardDrive,
   Keyboard,
   Languages,
@@ -26,6 +27,7 @@ import {
   Paw,
   Play,
   RefreshCw,
+  Robot,
   Route,
   Save,
   Search,
@@ -33,6 +35,7 @@ import {
   Sun,
   TerminalSquare,
   Upload,
+  VsInfinity,
   X,
 } from '@/components/icons';
 import { CompanionSettings } from '@/components/pet/CompanionSettings';
@@ -62,7 +65,7 @@ import { confirmDialog } from '@/stores/confirmStore';
 import { usePageHeader } from '@/stores/pageHeaderStore';
 import { usePingTargetsStore } from '@/stores/pingTargetsStore';
 import { useTerminalAppearanceStore } from '@/stores/terminalAppearanceStore';
-import { useThemeStore } from '@/stores/themeStore';
+import { type ResolvedTheme, themeClassName, useThemeStore } from '@/stores/themeStore';
 import { openUpdateDialog, useUpdateStore } from '@/stores/updateStore';
 
 const PROMPT_BUILDER_PROVIDER_OPTIONS: { value: AiProvider; label: string }[] = [
@@ -89,10 +92,13 @@ const THEME_OPTIONS: { value: ThemeMode; label: string; hint: string; icon: type
   { value: 'light', label: 'Light', hint: 'Bright canvas', icon: Sun },
   { value: 'dark', label: 'Dark', hint: 'Near-black canvas', icon: Moon },
   { value: 'system', label: 'System', hint: 'Follow this machine', icon: Monitor },
+  { value: 'vscode-dark', label: 'VS Code Dark', hint: 'Blue accent, editor-inspired', icon: Code },
+  { value: 'vs2026', label: 'VS 2026', hint: 'Violet accent, modern IDE', icon: VsInfinity },
 ];
 
 const SETTINGS_TABS = [
   'general',
+  'agents',
   'shortcuts',
   'companion',
   'ai',
@@ -122,7 +128,14 @@ const TAB_META: {
     id: 'general',
     label: 'General',
     icon: SettingsIcon,
-    keywords: 'appearance theme cli terminal sessions projects folder skills blueprint presets',
+    keywords: 'appearance theme terminal sessions projects folder skills blueprint presets',
+  },
+  {
+    id: 'agents',
+    label: 'Agents',
+    icon: Robot,
+    keywords:
+      'default cli agent order arrange launcher tiles number keys commit message written by style conventional instructions git claude codex',
   },
   {
     id: 'shortcuts',
@@ -260,30 +273,39 @@ function ThemePreview({ mode }: { mode: ThemeMode }): React.JSX.Element {
   if (mode === 'system') {
     return (
       <div className="flex h-16 overflow-hidden rounded-md border border-border">
-        <MiniWindow dark={false} className="w-1/2 rounded-none border-0 border-r border-black/10" />
-        <MiniWindow dark className="w-1/2 rounded-none border-0" />
+        <MiniWindow
+          resolved="light"
+          className="w-1/2 rounded-none border-0 border-r border-black/10"
+        />
+        <MiniWindow resolved="dark" className="w-1/2 rounded-none border-0" />
       </div>
     );
   }
-  return <MiniWindow dark={mode === 'dark'} className="h-16" />;
+  return <MiniWindow resolved={mode} className="h-16" />;
 }
 
-function MiniWindow({ dark, className }: { dark: boolean; className?: string }): React.JSX.Element {
+/** Renders with the exact classes that theme applies to `<html>`, so its swatches read
+ * from the real CSS variables instead of a hand-picked, driftable copy of them. */
+function MiniWindow({
+  resolved,
+  className,
+}: {
+  resolved: ResolvedTheme;
+  className?: string;
+}): React.JSX.Element {
   return (
     <div
       className={cn(
-        'flex overflow-hidden rounded-md border',
-        dark ? 'border-white/10 bg-[#0a0a0a]' : 'border-black/10 bg-[#f4f4f4]',
+        'flex overflow-hidden rounded-md border border-border bg-background',
+        themeClassName(resolved),
         className,
       )}
     >
-      <div className={cn('w-5 shrink-0', dark ? 'bg-[#1c1c1c]' : 'bg-[#e4e4e4]')} />
+      <div className="w-5 shrink-0 bg-card" />
       <div className="flex min-w-0 flex-1 flex-col gap-1 p-1.5">
-        <div className={cn('h-1.5 w-7 rounded-full', dark ? 'bg-white/25' : 'bg-black/20')} />
-        <div className="h-1.5 w-10 rounded-full bg-[hsl(var(--primary))]" />
-        <div
-          className={cn('mt-0.5 min-h-0 flex-1 rounded-sm', dark ? 'bg-white/8' : 'bg-black/8')}
-        />
+        <div className="h-1.5 w-7 rounded-full bg-foreground/25" />
+        <div className="h-1.5 w-10 rounded-full bg-primary" />
+        <div className="mt-0.5 min-h-0 flex-1 rounded-sm bg-foreground/8" />
       </div>
     </div>
   );
@@ -759,6 +781,8 @@ export default function SettingsPage(): React.JSX.Element {
 
   const tabDirty: Record<SettingsTab, boolean> = {
     general: projectsRootDirty,
+    // Default CLI, agent order and commit messages all persist the moment they change.
+    agents: false,
     // Shortcuts persist the moment they change, so there is nothing to save.
     shortcuts: false,
     companion: false,
@@ -845,7 +869,17 @@ export default function SettingsPage(): React.JSX.Element {
       'pet ai pet my ai pet companion desktop character walk mascot climb rope size click area tight wander pipeline github actions fail pass internet quality',
       'My AI Pet',
     ),
-    showSection('general', 'default cli provider agent arguments args flags model', 'Default CLI'),
+    showSection('agents', 'default cli provider agent arguments args flags model', 'Default CLI'),
+    showSection(
+      'agents',
+      'agent cli order sort arrange workspace launcher tiles number keys',
+      'Agent order',
+    ),
+    showSection(
+      'agents',
+      'commit message ai generate style conventional instructions git workspace',
+      'Commit messages',
+    ),
     showSection(
       'general',
       'workspace terminal background color cli claude code codex gray custom theme foreground contrast',
@@ -1002,9 +1036,13 @@ export default function SettingsPage(): React.JSX.Element {
             </div>
           ) : (
             <>
-              {showSection('general', 'appearance theme dark light system look', 'Appearance') && (
+              {showSection(
+                'general',
+                'appearance theme dark light system vscode visual studio vs2026 code look',
+                'Appearance',
+              ) && (
                 <SettingsCard
-                  icon={theme === 'dark' ? Moon : theme === 'light' ? Sun : Monitor}
+                  icon={THEME_OPTIONS.find((option) => option.value === theme)?.icon ?? Monitor}
                   title="Appearance"
                   description="How AgentMate looks on this machine."
                 >
@@ -1060,7 +1098,7 @@ export default function SettingsPage(): React.JSX.Element {
               ) : null}
 
               {showSection(
-                'general',
+                'agents',
                 'default cli provider agent arguments args flags model',
                 'Default CLI',
               ) && (
@@ -1090,7 +1128,7 @@ export default function SettingsPage(): React.JSX.Element {
               )}
 
               {showSection(
-                'general',
+                'agents',
                 'agent cli order sort arrange workspace launcher tiles number keys',
                 'Agent order',
               ) && (
@@ -1106,7 +1144,7 @@ export default function SettingsPage(): React.JSX.Element {
               )}
 
               {showSection(
-                'general',
+                'agents',
                 'commit message ai generate style conventional instructions git workspace',
                 'Commit messages',
               ) && (

@@ -14,6 +14,7 @@ import {
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
 import { SimpleTooltip } from '@/components/ui/tooltip';
+import { formatPercent } from '@/lib/format';
 import { queryKeys } from '@/lib/queryKeys';
 import { cn } from '@/lib/utils';
 import { confirmDialog } from '@/stores/confirmStore';
@@ -47,12 +48,6 @@ const COPY: Record<
     unavailable: "This system doesn't report which apps are using the disk.",
   },
 };
-
-function formatUsagePercent(percent: number): string {
-  if (percent > 0 && percent < 0.1) return '<0.1%';
-  if (percent < 10) return `${percent.toFixed(1)}%`;
-  return `${Math.round(percent)}%`;
-}
 
 function formatMem(bytes: number): string {
   if (bytes < 1024 ** 2) return `${Math.max(1, Math.round(bytes / 1024))} KB`;
@@ -100,7 +95,7 @@ function AppRow({
       ? formatMem(app.memBytes)
       : valueMode === 'rate' && app.rateBytesPerSec != null
         ? formatBytesPerSec(app.rateBytesPerSec)
-        : formatUsagePercent(app.percent);
+        : formatPercent(app.percent);
   const meta = [
     app.processCount > 1 ? `${app.processCount} processes` : `PID ${app.pid}`,
     valueMode !== 'memory' && app.memBytes != null && app.memBytes > 0

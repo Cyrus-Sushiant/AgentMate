@@ -18,6 +18,7 @@ import type {
 } from '../../shared/apiTypes';
 import { IPC } from '../../shared/ipcChannels';
 import { focusMainWindow, getMainWindow } from '../mainWindow';
+import { speakOnPet } from '../notifications/petNotifier';
 import { keepAwake } from '../power/keepAwake';
 import { store } from '../store';
 
@@ -129,9 +130,8 @@ async function flushNotices(): Promise<void> {
   noticeTimer = null;
   const notices = pendingNotices.filter(({ id }) => tracked.has(id) && !isLookingAt(id));
   pendingNotices = [];
-  if (notices.length === 0 || !Notification.isSupported()) return;
+  if (notices.length === 0) return;
   const settings = await store.getSettings().catch(() => null);
-  if (settings && !settings.workspaceNotifications) return;
   const projects = await store.getProjects().catch(() => []);
 
   const needsInput = notices.filter((n) => n.status === 'needs-input');
@@ -142,21 +142,32 @@ async function flushNotices(): Promise<void> {
   const agent = (entry.cliId && getCliDefinition(entry.cliId)?.name) || 'Agent';
   const project = projects.find((p) => p.id === entry.projectId)?.name ?? 'Workspace';
   const others = notices.length - 1;
-  const title = lead.status === 'needs-input' ? `${agent} needs your input` : `${agent} finished`;
-  const where = `${project}: ${entry.title}`;
-  const body = [
-    lead.hookMessage ? `${where}\n${lead.hookMessage}` : where,
-    others > 0 ? `and ${others} more tab${others === 1 ? '' : 's'}` : null,
-  ]
-    .filter(Boolean)
-    .join('\n');
+  const isQuestion = lead.status === 'needs-input';
 
-  const notification = new Notification({ title, body, icon, silent: false });
-  notification.on('click', () => {
-    focusMainWindow(`/workspace/${entry.projectId}?session=${lead.id}`);
-  });
-  notification.show();
-  if (needsInput.length > 0) getMainWindow()?.flashFrame(true);
+  if (Notification.isSupported() && !(settings && settings.workspaceNotifications === false)) {
+    const title = isQuestion ? `${agent} needs your input` : `${agent} finished`;
+    const where = `${project}: ${entry.title}`;
+    const body = [
+      lead.hookMessage ? `${where}\n${lead.hookMessage}` : where,
+      others > 0 ? `and ${others} more tab${others === 1 ? '' : 's'}` : null,
+    ]
+      .filter(Boolean)
+      .join('\n');
+
+    const notification = new Notification({ title, body, icon, silent: false });
+    notification.on('click', () => {
+      focusMainWindow(`/workspace/${entry.projectId}?session=${lead.id}`);
+    });
+    notification.show();
+    if (needsInput.length > 0) getMainWindow()?.flashFrame(true);
+  }
+
+  if (settings?.desktopPetAgentStatus) {
+    const text = isQuestion
+      ? `${agent} needs your input in ${entry.title}.`
+      : `${agent} finished in ${entry.title}.`;
+    speakOnPet(settings, project, text, isQuestion ? 'warn' : 'pass');
+  }
 }
 
 function queueNotice(id: string, status: AgentStatus, hookMessage?: string): void {
@@ -228,6 +239,10 @@ export const agentStatus = {
     if (!tracked.has(id)) return false;
     apply(id, { type: 'hook', event, at: Date.now() }, message);
     return true;
+  },
+  /** Best-effort nudge for CLIs with no hooks: their output looked like a question. */
+  guessNeedsInput(id: string): void {
+    apply(id, { type: 'guess-needs-input', at: Date.now() });
   },
   acknowledge(id: string): void {
     apply(id, { type: 'ack' });

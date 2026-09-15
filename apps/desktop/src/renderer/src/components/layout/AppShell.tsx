@@ -10,6 +10,7 @@ import {
   TerminalSquare,
 } from '@/components/icons';
 import { CommandPalette } from '@/components/search/CommandPalette';
+import { RunningClisDialog } from '@/components/terminal/RunningClisDialog';
 import { TerminalDrawer } from '@/components/terminal/TerminalDrawer';
 import { ToastHistoryPanel } from '@/components/toast/ToastHistoryPanel';
 import { UpdateStatusChip } from '@/components/UpdateManager';
@@ -191,6 +192,7 @@ export function AppShell(): React.JSX.Element {
       <CommandPalette />
       <AskAiModal />
       <ToastHistoryPanel />
+      <RunningClisDialog />
       <div className="flex min-h-0 flex-1 overflow-hidden">
         <Sidebar />
         <div className="relative flex min-w-0 flex-1 flex-col">

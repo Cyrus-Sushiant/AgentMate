@@ -1,6 +1,6 @@
 import * as monaco from 'monaco-editor';
 import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react';
-import './monacoSetup';
+import { resolveMonacoThemeKey } from './monacoSetup';
 import { cn } from '@/lib/utils';
 
 export interface MonacoDiffEditorHandle {
@@ -17,53 +17,17 @@ export interface MonacoDiffEditorProps {
   className?: string;
 }
 
-let themesDefined = false;
-
-/** Monaco themes that sit on the app's own surfaces instead of VS Code's grey. */
-function defineThemes(): void {
-  if (themesDefined) return;
-  themesDefined = true;
-  monaco.editor.defineTheme('agentmate-dark', {
-    base: 'vs-dark',
-    inherit: true,
-    rules: [],
-    colors: {
-      'editor.background': '#0b0d0c',
-      'editorGutter.background': '#0b0d0c',
-      'editor.lineHighlightBackground': '#ffffff08',
-      'editorLineNumber.foreground': '#4b524e',
-      'editorLineNumber.activeForeground': '#9aa39e',
-      'diffEditor.insertedTextBackground': '#00e57222',
-      'diffEditor.removedTextBackground': '#f0717826',
-      'diffEditor.insertedLineBackground': '#00e57212',
-      'diffEditor.removedLineBackground': '#f0717814',
-      'diffEditorGutter.insertedLineBackground': '#00e5721c',
-      'diffEditorGutter.removedLineBackground': '#f071781f',
-      'diffEditor.unchangedRegionBackground': '#121514',
-      'diffEditor.border': '#ffffff10',
-      'scrollbarSlider.background': '#ffffff12',
-      'scrollbarSlider.hoverBackground': '#ffffff22',
-      'scrollbarSlider.activeBackground': '#00e57240',
-    },
-  });
-  monaco.editor.defineTheme('agentmate-light', {
-    base: 'vs',
-    inherit: true,
-    rules: [],
-    colors: {
-      'editor.background': '#fbfbfb',
-      'editorGutter.background': '#fbfbfb',
-      'diffEditor.insertedTextBackground': '#00994d24',
-      'diffEditor.removedTextBackground': '#d9363e24',
-      'diffEditor.insertedLineBackground': '#00994d10',
-      'diffEditor.removedLineBackground': '#d9363e10',
-      'diffEditor.unchangedRegionBackground': '#f0f0f0',
-    },
-  });
-}
-
 function currentTheme(): string {
-  return document.documentElement.classList.contains('dark') ? 'agentmate-dark' : 'agentmate-light';
+  switch (resolveMonacoThemeKey()) {
+    case 'light':
+      return 'agentmate-light';
+    case 'dark':
+      return 'agentmate-dark';
+    case 'vscode-dark':
+      return 'vs-dark';
+    case 'vs2026':
+      return 'agentmate-vs2026';
+  }
 }
 
 /** Monaco's language id for a file, from its extension or exact name. */
@@ -100,7 +64,6 @@ export const MonacoDiffEditor = forwardRef<MonacoDiffEditorHandle, MonacoDiffEdi
     useEffect(() => {
       const container = containerRef.current;
       if (!container) return;
-      defineThemes();
       const editor = monaco.editor.createDiffEditor(container, {
         theme: currentTheme(),
         readOnly: true,

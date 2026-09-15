@@ -11,7 +11,11 @@ import type {
   WidgetMode,
 } from '../usage/types.js';
 
-export type ThemeMode = 'light' | 'dark' | 'system';
+export const THEME_MODES = ['light', 'dark', 'system', 'vscode-dark', 'vs2026'] as const;
+export type ThemeMode = (typeof THEME_MODES)[number];
+export function isThemeMode(value: unknown): value is ThemeMode {
+  return THEME_MODES.includes(value as ThemeMode);
+}
 
 export type AiProvider = 'openai' | 'ollama' | 'gemini';
 
@@ -464,6 +468,11 @@ export interface AppSettings {
    * back online, or a clear drop or improvement).
    */
   desktopPetNetworkQuality: boolean;
+  /**
+   * When true the desktop pet speaks when a workspace CLI needs your input or
+   * finishes a run, as long as you are not already looking at that tab.
+   */
+  desktopPetAgentStatus: boolean;
   /**
    * When true, terminal sessions keep running in the background after AgentMate quits and
    * reappear, output included, the next time it opens. Restarts for an update always keep

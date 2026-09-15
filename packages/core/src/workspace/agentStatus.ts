@@ -2,7 +2,9 @@
  * Works out what an agent in a terminal is doing. Most CLIs give no signal at all, so the
  * base is a heuristic on the output stream: a sustained burst means it is working, a long
  * enough silence means it stopped. CLIs that report through hooks (Claude Code) override
- * that with exact events.
+ * that with exact events. CLIs with no hooks but a recognizable prompt on screen (a
+ * `(y/n)`-style confirmation, a permission request) get a best-effort `guess-needs-input`
+ * nudge instead - see `looksLikeNeedsInput`.
  *
  * Pure and clock-free: every event carries its own timestamp, which keeps it testable and
  * lets the main process drive it from a single ticker.
@@ -18,6 +20,7 @@ export type AgentStatusEvent =
   | { type: 'resize'; at: number }
   | { type: 'tick'; at: number }
   | { type: 'hook'; event: AgentHookEvent; at: number }
+  | { type: 'guess-needs-input'; at: number }
   | { type: 'ack' }
   | { type: 'exit'; at: number };
 
@@ -123,6 +126,40 @@ function onTick(state: AgentStatusState, at: number): AgentStatusState {
   return { ...state, status: done ? 'done' : 'idle', workingSince: null };
 }
 
+/**
+ * A CLI with no hooks printed something that reads like a question ("(y/n)", a permission
+ * request). Unlike `onHook`, this never sets `hookDriven` - it is a one-off nudge, not a
+ * promise that every future state change will arrive as an explicit event, so the output
+ * heuristic (including silence-based `done`) keeps running afterward.
+ */
+function onGuessNeedsInput(state: AgentStatusState, at: number): AgentStatusState {
+  if (state.hookDriven || state.status === 'needs-input') return state;
+  return { ...state, status: 'needs-input', needsInputSince: at, workingSince: null };
+}
+
+/** Common shapes of "waiting on you" prompts, for CLIs with no hook integration. */
+const NEEDS_INPUT_PATTERNS = [
+  /permission|approv/i,
+  /needs your/i,
+  /waiting for (your|user) (input|response|approval)/i,
+  /\(y\/n\)/i,
+  /\[y\/n\]/i,
+  /do you want to (proceed|continue|allow)/i,
+  /overwrite\?/i,
+];
+
+/**
+ * Best-effort: strips ANSI CSI sequences, then checks the text against a short list of
+ * common confirmation-prompt shapes. False negatives are fine (the burst/silence heuristic
+ * still reaches `done` on its own); a false positive just makes the pet speak once for a
+ * line that happens to mention "permission".
+ */
+export function looksLikeNeedsInput(text: string): boolean {
+  // biome-ignore lint/suspicious/noControlCharactersInRegex: stripping the ANSI escape itself
+  const plain = text.replace(/\x1b\[[0-9;?]*[a-zA-Z]/g, '');
+  return NEEDS_INPUT_PATTERNS.some((pattern) => pattern.test(plain));
+}
+
 function onHook(state: AgentStatusState, event: AgentHookEvent, at: number): AgentStatusState {
   const hooked = { ...state, hookDriven: true };
   switch (event) {
@@ -153,6 +190,8 @@ export function reduceAgentStatus(
       return onTick(state, event.at);
     case 'hook':
       return onHook(state, event.event, event.at);
+    case 'guess-needs-input':
+      return onGuessNeedsInput(state, event.at);
     case 'ack':
       return state.status === 'done' ? { ...state, status: 'idle' } : state;
     case 'exit':

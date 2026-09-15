@@ -166,6 +166,7 @@ import type {
   SystemStatsSample,
   TerminalAttachResult,
   TerminalClipboardPaste,
+  TerminalUsageResult,
   TopResourceAppsResult,
   TopResourceKind,
   TranscribeAudioInput,
@@ -240,6 +241,8 @@ const terminal = {
   resize: (sessionId: string, cols: number, rows: number): Promise<void> =>
     ipcRenderer.invoke(IPC.terminal.resize, sessionId, cols, rows),
   kill: (sessionId: string): Promise<void> => ipcRenderer.invoke(IPC.terminal.kill, sessionId),
+  /** Every running shell with the CPU and memory its whole process tree is using. */
+  usage: (): Promise<TerminalUsageResult> => ipcRenderer.invoke(IPC.terminal.usage),
   onData: (callback: (payload: TerminalDataPayload) => void): (() => void) => {
     const listener = (_event: Electron.IpcRendererEvent, payload: TerminalDataPayload): void =>
       callback(payload);

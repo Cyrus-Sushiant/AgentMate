@@ -1,10 +1,18 @@
 import * as monaco from 'monaco-editor';
 import { useEffect, useRef } from 'react';
-import './monacoSetup';
+import { resolveMonacoThemeKey } from './monacoSetup';
 import { cn } from '@/lib/utils';
 
-function isDarkMode(): boolean {
-  return document.documentElement.classList.contains('dark');
+function currentMonacoTheme(): string {
+  switch (resolveMonacoThemeKey()) {
+    case 'light':
+      return 'vs';
+    case 'dark':
+    case 'vscode-dark':
+      return 'vs-dark';
+    case 'vs2026':
+      return 'agentmate-vs2026';
+  }
 }
 
 export interface MonacoEditorProps {
@@ -34,7 +42,7 @@ export function MonacoEditor({
     const editor = monaco.editor.create(containerRef.current, {
       value,
       language,
-      theme: isDarkMode() ? 'vs-dark' : 'vs',
+      theme: currentMonacoTheme(),
       automaticLayout: true,
       minimap: { enabled: false },
       fontSize: 13,
@@ -49,7 +57,7 @@ export function MonacoEditor({
     });
 
     const themeObserver = new MutationObserver(() => {
-      monaco.editor.setTheme(isDarkMode() ? 'vs-dark' : 'vs');
+      monaco.editor.setTheme(currentMonacoTheme());
     });
     themeObserver.observe(document.documentElement, {
       attributes: true,

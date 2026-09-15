@@ -98,4 +98,6 @@ export const queryKeys = {
   dockerAvailability: ['docker-availability'] as const,
   dockerList: ['docker-list'] as const,
   dockerListForProject: (projectId: string) => ['docker-list', 'project', projectId] as const,
+  /** Every running shell with its process tree's CPU and memory, for the Running CLIs modal. */
+  terminalUsage: ['terminal-usage'] as const,
 };

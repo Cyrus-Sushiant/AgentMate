@@ -1,12 +1,15 @@
 import { randomUUID } from 'node:crypto';
+import { looksLikeNeedsInput } from '@agentmat/core';
 import { type IpcMainInvokeEvent, ipcMain, type WebContents } from 'electron';
 import type {
   AgentSessionEntry,
   CreateTerminalOptions,
   TerminalAttachResult,
   TerminalSurface,
+  TerminalUsageResult,
 } from '../../shared/apiTypes';
 import { IPC } from '../../shared/ipcChannels';
+import { supportsStatusHooks } from '../agents/claudeHooks';
 import { agentStatus } from '../agents/statusTracker';
 import { keepAwake } from '../power/keepAwake';
 import type { HostClient } from '../ptyHost/hostClient';
@@ -18,6 +21,7 @@ import type {
 } from '../ptyHost/protocol';
 import { PtySessionManager, type SessionListener } from '../ptyHost/sessionManager';
 import { store } from '../store';
+import { sampleProcessTrees } from '../system/processTree';
 
 const ALLOWED_SHELLS = ['powershell.exe', 'pwsh.exe', 'cmd.exe', 'bash', 'zsh', 'fish'] as const;
 type AllowedShell = (typeof ALLOWED_SHELLS)[number];
@@ -84,6 +88,10 @@ function syncPowerSaveBlocker(): void {
 
 function forwardData(sessionId: string, data: string): void {
   agentStatus.output(sessionId, data.length);
+  const cliId = sessions.get(sessionId)?.cliId;
+  if (cliId && !supportsStatusHooks(cliId) && looksLikeNeedsInput(data)) {
+    agentStatus.guessNeedsInput(sessionId);
+  }
   noteTerminalOutput();
   const owner = owners.get(sessionId);
   if (owner && !owner.isDestroyed()) owner.send(IPC.terminal.onData, { sessionId, data });
@@ -239,6 +247,37 @@ export function registerTerminalHandlers(): void {
     sessions.delete(sessionId);
     attached.delete(sessionId);
     syncPowerSaveBlocker();
+  });
+
+  ipcMain.handle(IPC.terminal.usage, async (): Promise<TerminalUsageResult> => {
+    // Only waits on a backend that is already starting; asking for usage never starts a host.
+    if (backendReady) await backendReady;
+    const running: HostSessionInfo[] = host
+      ? await host.request<HostSessionInfo[]>({ type: 'list' }).catch(() => [])
+      : (local?.list() ?? []);
+    const pids = running.map((info) => info.pid).filter((pid) => Number.isInteger(pid) && pid > 0);
+    const sample = await sampleProcessTrees(pids);
+    return {
+      available: sample.available,
+      cpuReady: sample.cpuReady,
+      sampledAt: Date.now(),
+      sessions: running.map((info) => {
+        const known = sessions.get(info.sessionId);
+        const tree = sample.trees.get(info.pid);
+        return {
+          sessionId: info.sessionId,
+          pid: info.pid,
+          projectId: known?.projectId ?? info.projectId,
+          cliId: known?.cliId,
+          surface: known?.surface,
+          createdAt: info.createdAt,
+          cpuPercent: tree?.cpuPercent ?? 0,
+          memBytes: tree?.memBytes ?? 0,
+          processCount: tree?.processCount ?? 0,
+          processes: tree?.processes ?? [],
+        };
+      }),
+    };
   });
 }
 

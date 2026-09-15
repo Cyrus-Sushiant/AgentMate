@@ -3,10 +3,11 @@ import { useQueries, useQuery } from '@tanstack/react-query';
 import { Command as CommandPrimitive } from 'cmdk';
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Blocks, Folder, History, Search, Workspace } from '@/components/icons';
+import { Blocks, Cpu, Folder, History, Search, Workspace } from '@/components/icons';
 import { NAV_ITEMS } from '@/components/layout/Sidebar';
 import { queryKeys } from '@/lib/queryKeys';
 import { cn } from '@/lib/utils';
+import { useRunningClisStore } from '@/stores/runningClisStore';
 import { useSearchStore } from '@/stores/searchStore';
 import { useToastHistoryStore } from '@/stores/toastHistoryStore';
 
@@ -60,6 +61,11 @@ export function CommandPalette(): React.JSX.Element {
   function selectToastHistory(): void {
     setOpen(false);
     useToastHistoryStore.getState().setOpen(true);
+  }
+
+  function selectRunningClis(): void {
+    setOpen(false);
+    useRunningClisStore.getState().setOpen(true);
   }
 
   function selectProject(id: string): void {
@@ -135,6 +141,14 @@ export function CommandPalette(): React.JSX.Element {
                 >
                   <History className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                   Recent messages
+                </CommandPrimitive.Item>
+                <CommandPrimitive.Item
+                  value="running clis terminals processes cpu memory ram usage"
+                  onSelect={selectRunningClis}
+                  className="flex cursor-pointer select-none items-center gap-2.5 rounded-md px-2 py-2 text-sm outline-none aria-selected:bg-primary/12 aria-selected:text-foreground"
+                >
+                  <Cpu className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                  Running CLIs
                 </CommandPrimitive.Item>
               </CommandPrimitive.Group>
 

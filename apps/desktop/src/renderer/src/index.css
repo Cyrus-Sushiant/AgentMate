@@ -93,6 +93,66 @@
   --ring: 150 100% 45%;
 }
 
+/* VS Code Dark: neutral near-black modeled on VS Code's current default "Dark Modern"
+   theme (editor.background #1e1e1e, Microsoft blue #0078d4 accent). Applied together
+   with .dark, so this only needs to override what differs from it. */
+.dark.theme-vscode-dark {
+  --background: 0 0% 12%;
+  --foreground: 0 0% 80%;
+  --card: 0 0% 16%;
+  --card-foreground: 0 0% 80%;
+  --popover: 0 0% 15%;
+  --popover-foreground: 0 0% 80%;
+  --primary: 206 100% 42%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 0 0% 19%;
+  --secondary-foreground: 0 0% 80%;
+  --muted: 0 0% 19%;
+  --muted-foreground: 0 0% 55%;
+  --accent: 0 0% 22%;
+  --accent-foreground: 0 0% 90%;
+  --destructive: 0 85% 62%;
+  --destructive-foreground: 0 0% 100%;
+  --success: 157 87% 39%;
+  --success-foreground: 0 0% 4%;
+  --warning: 49 100% 40%;
+  --warning-foreground: 30 40% 10%;
+  --border: 0 0% 22%;
+  --input: 0 0% 22%;
+  --ring: 206 100% 42%;
+  --radius: 0.5rem;
+}
+
+/* VS 2026: an original theme in the spirit of a modern Visual Studio dark UI (no
+   specific released product is being matched). Cool blue-gray canvas, a vivid
+   violet-blue accent, and slightly rounder corners than the app's other themes. */
+.dark.theme-vs2026 {
+  --background: 230 16% 11%;
+  --foreground: 220 20% 92%;
+  --card: 228 15% 16%;
+  --card-foreground: 220 20% 92%;
+  --popover: 228 15% 15%;
+  --popover-foreground: 220 20% 92%;
+  --primary: 265 80% 65%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 228 13% 20%;
+  --secondary-foreground: 220 20% 92%;
+  --muted: 228 13% 20%;
+  --muted-foreground: 220 10% 62%;
+  --accent: 228 13% 23%;
+  --accent-foreground: 220 20% 95%;
+  --destructive: 0 75% 60%;
+  --destructive-foreground: 0 0% 100%;
+  --success: 150 70% 45%;
+  --success-foreground: 0 0% 4%;
+  --warning: 40 90% 55%;
+  --warning-foreground: 30 40% 10%;
+  --border: 228 13% 24%;
+  --input: 228 13% 24%;
+  --ring: 265 80% 65%;
+  --radius: 0.75rem;
+}
+
 * {
   border-color: hsl(var(--border));
 }
@@ -163,6 +223,24 @@ body {
 
 .dark .sidebar-gradient {
   background: linear-gradient(180deg, hsl(0 0% 4%) 0%, hsl(160 22% 6%) 50%, hsl(159 45% 12%) 100%);
+}
+
+.dark.theme-vscode-dark .sidebar-gradient {
+  background: linear-gradient(
+    180deg,
+    hsl(0 0% 12%) 0%,
+    hsl(206 25% 16%) 50%,
+    hsl(206 45% 22%) 100%
+  );
+}
+
+.dark.theme-vs2026 .sidebar-gradient {
+  background: linear-gradient(
+    180deg,
+    hsl(230 16% 11%) 0%,
+    hsl(255 22% 17%) 50%,
+    hsl(265 45% 24%) 100%
+  );
 }
 
 /* Placeholder surface for content that is still loading (see ui/skeleton.tsx):
@@ -1228,6 +1306,42 @@ body {
 
 .terminal-pane .xterm-viewport::-webkit-scrollbar-corner {
   background: transparent;
+}
+
+/* Same scrollbar, tinted to each new theme's accent instead of the brand green above.
+   Light/Dark/System are intentionally untouched. */
+.dark.theme-vscode-dark .terminal-pane .xterm-viewport {
+  scrollbar-color: hsl(206 90% 55% / 0.55) transparent;
+}
+
+.dark.theme-vscode-dark .terminal-pane .xterm-viewport::-webkit-scrollbar-thumb {
+  background-color: hsl(206 90% 55% / 0.45);
+}
+
+.dark.theme-vscode-dark .terminal-pane .xterm-viewport::-webkit-scrollbar-thumb:hover {
+  background-color: hsl(206 100% 55% / 0.8);
+  box-shadow: 0 0 10px hsl(206 100% 55% / 0.4);
+}
+
+.dark.theme-vscode-dark .terminal-pane .xterm-viewport::-webkit-scrollbar-thumb:active {
+  background-color: hsl(206 100% 55% / 0.95);
+}
+
+.dark.theme-vs2026 .terminal-pane .xterm-viewport {
+  scrollbar-color: hsl(265 80% 65% / 0.55) transparent;
+}
+
+.dark.theme-vs2026 .terminal-pane .xterm-viewport::-webkit-scrollbar-thumb {
+  background-color: hsl(265 80% 65% / 0.45);
+}
+
+.dark.theme-vs2026 .terminal-pane .xterm-viewport::-webkit-scrollbar-thumb:hover {
+  background-color: hsl(265 85% 68% / 0.8);
+  box-shadow: 0 0 10px hsl(265 85% 68% / 0.4);
+}
+
+.dark.theme-vs2026 .terminal-pane .xterm-viewport::-webkit-scrollbar-thumb:active {
+  background-color: hsl(265 85% 68% / 0.95);
 }
 
 .terminal-pane .xterm-helpers textarea:focus {
