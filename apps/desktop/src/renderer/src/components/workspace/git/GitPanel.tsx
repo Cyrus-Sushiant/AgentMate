@@ -13,6 +13,7 @@ import {
   ChevronRight,
   CircleCheck,
   CodeCompare,
+  FileCode,
   FolderTree,
   GitBranch,
   GitCommit,
@@ -634,14 +635,26 @@ export function GitPanel({
       title: 'Explorer',
       icon: FolderTree,
       actions: (
-        <PanelIconButton
-          label="Refresh files"
-          onClick={() =>
-            void queryClient.invalidateQueries({ queryKey: ['workspace-explorer', project.id] })
-          }
-        >
-          <RefreshCw className="h-2.5 w-2.5" />
-        </PanelIconButton>
+        <>
+          <PanelIconButton
+            label="Open in VS Code"
+            onClick={() =>
+              void window.agentmat.shell
+                .openInEditor(project.folderPath)
+                .catch((error: Error) => toast.error(error.message))
+            }
+          >
+            <FileCode className="h-2.5 w-2.5" />
+          </PanelIconButton>
+          <PanelIconButton
+            label="Refresh files"
+            onClick={() =>
+              void queryClient.invalidateQueries({ queryKey: ['workspace-explorer', project.id] })
+            }
+          >
+            <RefreshCw className="h-2.5 w-2.5" />
+          </PanelIconButton>
+        </>
       ),
       render: () => <ExplorerSection project={project} state={state} />,
     },

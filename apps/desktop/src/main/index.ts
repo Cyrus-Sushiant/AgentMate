@@ -36,6 +36,8 @@ import { registerSettingsHandlers } from './ipc/settings';
 import { registerShellHandlers } from './ipc/shell';
 import { registerSkillHandlers } from './ipc/skills';
 import { registerSpeechHandlers } from './ipc/speech';
+import { stopAllSshTasks } from './agents/sshTaskRunner';
+import { registerSshAgentHandlers } from './ipc/sshAgent';
 import { killAllSshSessions, registerSshHandlers } from './ipc/ssh';
 import { registerSystemStatsHandlers } from './ipc/systemStats';
 import { registerTemplateHandlers } from './ipc/templates';
@@ -208,6 +210,7 @@ function registerAllIpcHandlers(): void {
   registerCliDetectionHandlers();
   registerTerminalHandlers();
   registerSshHandlers();
+  registerSshAgentHandlers();
   registerAgentHandlers();
   registerTerminalClipboardHandlers();
   registerPowerHandlers();
@@ -352,6 +355,7 @@ app.on('before-quit', (event) => {
   stopPipelineWatcher();
   shutdownLocalServer();
   remoteManager.shutdown();
+  stopAllSshTasks();
   killAllSshSessions();
   lockVault();
 });

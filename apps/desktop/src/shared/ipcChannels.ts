@@ -64,6 +64,15 @@ export const IPC = {
     onData: 'ssh:onData',
     onExit: 'ssh:onExit',
   },
+  sshAgent: {
+    start: 'sshAgent:start',
+    approveCommand: 'sshAgent:approveCommand',
+    skipCommand: 'sshAgent:skipCommand',
+    answerNeedsInput: 'sshAgent:answerNeedsInput',
+    stop: 'sshAgent:stop',
+    // main -> renderer: the task's status changed (thinking, proposed a command, running it, ...)
+    onProgress: 'sshAgent:onProgress',
+  },
   projects: {
     list: 'projects:list',
     create: 'projects:create',
@@ -174,6 +183,7 @@ export const IPC = {
   shell: {
     openExternal: 'shell:openExternal',
     openPath: 'shell:openPath',
+    openInEditor: 'shell:openInEditor',
   },
   promptHistory: {
     list: 'promptHistory:list',

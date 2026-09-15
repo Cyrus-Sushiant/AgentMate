@@ -1,9 +1,5 @@
 import type { GitChangeEntry, Project } from '@agentmat/core';
-import {
-  browsableRepoUrl,
-  buildCommitMessagePrompt,
-  stripRemoteCredentials,
-} from '@agentmat/core';
+import { browsableRepoUrl, buildCommitMessagePrompt, stripRemoteCredentials } from '@agentmat/core';
 import { ipcMain } from 'electron';
 import type {
   ApplyVersionInput,
@@ -107,10 +103,10 @@ import {
   assertCommitHash,
   assertRepoPaths,
   commitStaged,
-  readCommitFileDiff,
-  readCommitFiles,
   discardPaths,
   locateRepo,
+  readCommitFileDiff,
+  readCommitFiles,
   readFileDiff,
   readWorkspaceGitState,
   resolveConflict,

@@ -1,5 +1,9 @@
 import { ipcMain } from 'electron';
-import type { DockerActionResult, DockerContainer, DockerRemoveOptions } from '../../shared/apiTypes';
+import type {
+  DockerActionResult,
+  DockerContainer,
+  DockerRemoveOptions,
+} from '../../shared/apiTypes';
 import { IPC } from '../../shared/ipcChannels';
 import {
   isDockerAvailable,

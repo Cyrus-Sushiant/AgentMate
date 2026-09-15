@@ -55,12 +55,12 @@ import {
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { SimpleTooltip } from '@/components/ui/tooltip';
+import { useAgentChoices } from '@/components/workspace/useAgentChoices';
 import { useVoiceInput } from '@/hooks/useVoiceInput';
 import { queryKeys } from '@/lib/queryKeys';
 import { containsPersian } from '@/lib/rtl';
 import { cn } from '@/lib/utils';
 import { launchPromptTab, projectCliId } from '@/lib/workspace/launch';
-import { useAgentChoices } from '@/components/workspace/useAgentChoices';
 import { projectPromptJobKey, usePromptJobsStore } from '@/stores/promptJobsStore';
 import {
   commandForEvent,
@@ -592,13 +592,19 @@ export function ProjectPromptBuildDialog({
                   onClick={() =>
                     void openInAgent(
                       suggestion
-                        ? { cliId: suggestion.cliId, runArgs: suggestion.args, runLabel: suggestion.label }
+                        ? {
+                            cliId: suggestion.cliId,
+                            runArgs: suggestion.args,
+                            runLabel: suggestion.label,
+                          }
                         : { cliId: defaultCliId ?? '' },
                     )
                   }
                 >
                   {launching ? <Spinner className="animate-spin" /> : <TerminalSquare />}
-                  {suggestion ? `Run on ${suggestion.label}` : `Open in ${defaultCli?.name ?? 'agent'}`}
+                  {suggestion
+                    ? `Run on ${suggestion.label}`
+                    : `Open in ${defaultCli?.name ?? 'agent'}`}
                 </Button>
               </SimpleTooltip>
               <DropdownMenu>

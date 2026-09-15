@@ -1,7 +1,7 @@
 import * as monaco from 'monaco-editor';
 import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react';
-import { resolveMonacoThemeKey } from './monacoSetup';
 import { cn } from '@/lib/utils';
+import { resolveMonacoThemeKey } from './monacoSetup';
 
 export interface MonacoDiffEditorHandle {
   goToChange: (direction: 'next' | 'previous') => void;

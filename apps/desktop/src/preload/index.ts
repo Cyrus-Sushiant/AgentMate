@@ -154,12 +154,14 @@ import type {
   SkillUsageReport,
   SpeechModelProgress,
   SpeechModelState,
+  SshAgentProgress,
   SshAttachResult,
   SshDataPayload,
   SshExitPayload,
   SshSavedServer,
   SshVaultStatus,
   StartHostInput,
+  StartSshAgentTaskInput,
   SuggestGitTextResult,
   SuggestTagResult,
   SwapVersionFileInput,
@@ -287,6 +289,25 @@ const ssh = {
       callback(payload);
     ipcRenderer.on(IPC.ssh.onExit, listener);
     return () => ipcRenderer.removeListener(IPC.ssh.onExit, listener);
+  },
+};
+
+const sshAgent = {
+  /** Starts an AI task in an already-connected SSH session; rejects if one is already running there. */
+  start: (input: StartSshAgentTaskInput): Promise<void> =>
+    ipcRenderer.invoke(IPC.sshAgent.start, input),
+  approveCommand: (sessionId: string): Promise<void> =>
+    ipcRenderer.invoke(IPC.sshAgent.approveCommand, sessionId),
+  skipCommand: (sessionId: string): Promise<void> =>
+    ipcRenderer.invoke(IPC.sshAgent.skipCommand, sessionId),
+  answerNeedsInput: (sessionId: string, answer: string): Promise<void> =>
+    ipcRenderer.invoke(IPC.sshAgent.answerNeedsInput, sessionId, answer),
+  stop: (sessionId: string): Promise<void> => ipcRenderer.invoke(IPC.sshAgent.stop, sessionId),
+  onProgress: (callback: (progress: SshAgentProgress) => void): (() => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, progress: SshAgentProgress): void =>
+      callback(progress);
+    ipcRenderer.on(IPC.sshAgent.onProgress, listener);
+    return () => ipcRenderer.removeListener(IPC.sshAgent.onProgress, listener);
   },
 };
 
@@ -586,6 +607,7 @@ const activity = {
 const shellApi = {
   openExternal: (url: string): Promise<void> => ipcRenderer.invoke(IPC.shell.openExternal, url),
   openPath: (path: string): Promise<void> => ipcRenderer.invoke(IPC.shell.openPath, path),
+  openInEditor: (path: string): Promise<void> => ipcRenderer.invoke(IPC.shell.openInEditor, path),
   /** The file system path of a file dropped into the window. Empty for files not on disk. */
   pathForFile: (file: File): string => webUtils.getPathForFile(file),
 };
@@ -1186,6 +1208,7 @@ const agentmatApi = {
   cli,
   terminal,
   ssh,
+  sshAgent,
   agents,
   power,
   projects,

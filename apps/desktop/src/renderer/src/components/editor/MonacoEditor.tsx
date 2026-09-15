@@ -1,7 +1,7 @@
 import * as monaco from 'monaco-editor';
 import { useEffect, useRef } from 'react';
-import { resolveMonacoThemeKey } from './monacoSetup';
 import { cn } from '@/lib/utils';
+import { resolveMonacoThemeKey } from './monacoSetup';
 
 function currentMonacoTheme(): string {
   switch (resolveMonacoThemeKey()) {

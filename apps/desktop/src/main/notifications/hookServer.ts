@@ -177,8 +177,7 @@ function handleAgentEvent(body: string): void {
   void agentStatus.runInfo(parsed.sessionId, {
     model: typeof parsed.model === 'string' ? parsed.model.slice(0, 100) : undefined,
     effort: typeof parsed.effort === 'string' ? parsed.effort.slice(0, 20) : undefined,
-    transcriptPath:
-      typeof parsed.transcriptPath === 'string' ? parsed.transcriptPath : undefined,
+    transcriptPath: typeof parsed.transcriptPath === 'string' ? parsed.transcriptPath : undefined,
   });
   const event = agentHookEvent(parsed);
   if (!event) return;
