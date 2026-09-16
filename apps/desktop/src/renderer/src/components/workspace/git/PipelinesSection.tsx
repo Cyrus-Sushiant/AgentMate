@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 import { Copy, Github, Spinner, Wand2 } from '@/components/icons';
 import { RunStatusIcon, runTone } from '@/components/pipelines/runStatus';
 import { Skeleton } from '@/components/ui/skeleton';
+import { SimpleTooltip } from '@/components/ui/tooltip';
 import { queryKeys } from '@/lib/queryKeys';
 import { timeAgo } from '@/lib/time';
 import { cn } from '@/lib/utils';
@@ -47,7 +48,11 @@ export function PipelinesSection({ project }: { project: Project }): React.JSX.E
   }
 
   const data = status.data;
-  const notice = (title: string, body: string, action?: { label: string; run: () => void }) => (
+  const notice = (
+    title: string,
+    body: React.ReactNode,
+    action?: { label: string; run: () => void },
+  ) => (
     <div className="flex flex-col items-center gap-1.5 px-5 py-5 text-center">
       <Github className="h-4 w-4 text-muted-foreground" />
       <p className="text-xs font-medium">{title}</p>
@@ -65,10 +70,22 @@ export function PipelinesSection({ project }: { project: Project }): React.JSX.E
   );
 
   if (!data || data.error) {
-    return notice('Could not load pipelines', data?.error ?? 'Try again in a moment.', {
-      label: 'Retry',
-      run: () => void status.refetch(),
-    });
+    return notice(
+      'Could not load pipelines',
+      data?.error ? (
+        <SimpleTooltip label={data.error} className="max-w-sm" wrapTrigger>
+          <span className="cursor-help underline decoration-dotted underline-offset-4">
+            Could not connect to GitHub.
+          </span>
+        </SimpleTooltip>
+      ) : (
+        'Try again in a moment.'
+      ),
+      {
+        label: 'Retry',
+        run: () => void status.refetch(),
+      },
+    );
   }
   if (!data.cliAvailable) {
     return notice('GitHub CLI not found', 'Install gh to see workflow runs here.', {
