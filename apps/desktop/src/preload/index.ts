@@ -618,7 +618,8 @@ const terminalClipboard = {
     ipcRenderer.invoke(IPC.terminalClipboard.saveImage, bytes, mime),
   /** What the system clipboard holds for a terminal: text, or paths for copied files and
    * images. Null when it holds nothing a terminal can use. */
-  read: (): Promise<TerminalClipboardPaste | null> => ipcRenderer.invoke(IPC.terminalClipboard.read),
+  read: (): Promise<TerminalClipboardPaste | null> =>
+    ipcRenderer.invoke(IPC.terminalClipboard.read),
 };
 
 const promptHistory = {

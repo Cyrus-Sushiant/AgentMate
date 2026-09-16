@@ -65,7 +65,12 @@ export function buildPromptMarkerScript(
   if (name === 'bash') return bashSnippet();
   if (name === 'zsh') return zshSnippet();
   if (name === 'fish') return fishSnippet();
-  if (name === 'powershell.exe' || name === 'pwsh.exe' || name === 'pwsh' || name === 'powershell') {
+  if (
+    name === 'powershell.exe' ||
+    name === 'pwsh.exe' ||
+    name === 'pwsh' ||
+    name === 'powershell'
+  ) {
     return powershellSnippet();
   }
   if (name === 'cmd.exe' || name === 'cmd') {

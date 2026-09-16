@@ -29,7 +29,9 @@ export function registerShellHandlers(): void {
         await execFileAsync('code', [path]);
       }
     } catch {
-      throw new Error('Could not open VS Code. Make sure it is installed and "code" is on your PATH.');
+      throw new Error(
+        'Could not open VS Code. Make sure it is installed and "code" is on your PATH.',
+      );
     }
   });
 }

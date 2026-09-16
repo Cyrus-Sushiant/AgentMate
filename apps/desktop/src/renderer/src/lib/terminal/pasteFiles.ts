@@ -34,7 +34,10 @@ function shortLabel(path: string): string {
  * (the chip itself just shows an index; the label is there for whatever needs it later). */
 export function pathsToChips(paths: string[], shell: string | undefined): ChipInput[] {
   const kind = shellKindFor(shell, window.agentmat.platform);
-  return paths.map((path) => ({ realText: quoteForShell(path, kind), displayLabel: shortLabel(path) }));
+  return paths.map((path) => ({
+    realText: quoteForShell(path, kind),
+    displayLabel: shortLabel(path),
+  }));
 }
 
 export async function pasteFilesToChips(
