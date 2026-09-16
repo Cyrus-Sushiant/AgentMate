@@ -28,9 +28,9 @@ import type {
   SuggestGitTextResult,
   SuggestTagResult,
   SwapVersionFileInput,
+  WorkspaceGitState,
   WriteVersionHunksInput,
   WriteVersionHunksResult,
-  WorkspaceGitState,
 } from '../../shared/apiTypes';
 import { IPC } from '../../shared/ipcChannels';
 import { cancelHeadlessPrompt, runHeadlessCliPrompt } from '../cli/headlessPrompt';
@@ -112,12 +112,12 @@ import {
   readCommitFileDiff,
   readCommitFiles,
   readFileDiff,
-  writeWorkingFile,
   readWorkspaceGitState,
   resolveConflict,
   stagePaths,
   undoDiscard,
   unstagePaths,
+  writeWorkingFile,
 } from '../git/workspaceGit';
 import { focusMainWindow } from '../mainWindow';
 import { schedulePipelineCheck } from '../pipelines/watcher';

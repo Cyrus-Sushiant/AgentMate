@@ -166,8 +166,6 @@ import type {
   SuggestGitTextResult,
   SuggestTagResult,
   SwapVersionFileInput,
-  WriteVersionHunksInput,
-  WriteVersionHunksResult,
   SystemStatsSample,
   TerminalAttachResult,
   TerminalClipboardPaste,
@@ -181,6 +179,8 @@ import type {
   UiProUpdateCheck,
   UpdateStatus,
   WorkspaceGitState,
+  WriteVersionHunksInput,
+  WriteVersionHunksResult,
 } from '../shared/apiTypes';
 import type { GrammarCheckInput, GrammarCheckResult, GrammarLocalStatus } from '../shared/grammar';
 import { IPC } from '../shared/ipcChannels';
