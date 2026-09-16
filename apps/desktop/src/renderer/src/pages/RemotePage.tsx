@@ -1,8 +1,9 @@
 import { formatBytes } from '@shared/remoteProtocol';
 import { useState } from 'react';
-import { Broadcast, Link, Server } from '@/components/icons';
+import { Broadcast, Link, Monitor, Server } from '@/components/icons';
 import { ControllerPanel } from '@/components/remote/ControllerPanel';
 import { HostPanel } from '@/components/remote/HostPanel';
+import { RdpServersPanel } from '@/components/remote/RdpServersPanel';
 import { SshServersPanel } from '@/components/remote/SshServersPanel';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { GooeyNav } from '@/components/ui/gooey-nav';
@@ -10,7 +11,7 @@ import { cn } from '@/lib/utils';
 import { usePageHeader } from '@/stores/pageHeaderStore';
 import { useRemoteStore } from '@/stores/remoteStore';
 
-const REMOTE_TABS = ['host', 'connect', 'ssh'] as const;
+const REMOTE_TABS = ['host', 'connect', 'ssh', 'rdp'] as const;
 type RemoteTab = (typeof REMOTE_TABS)[number];
 
 const LOG_COLOR = {
@@ -40,6 +41,7 @@ export default function RemotePage(): React.JSX.Element {
           { label: 'Host', icon: <Broadcast /> },
           { label: 'Connect', icon: <Link /> },
           { label: 'SSH', icon: <Server /> },
+          { label: 'Remote Desktop', icon: <Monitor /> },
         ]}
         value={REMOTE_TABS.indexOf(activeTab)}
         onChange={(index) => setActiveTab(REMOTE_TABS[index])}
@@ -47,6 +49,7 @@ export default function RemotePage(): React.JSX.Element {
       {activeTab === 'host' && <HostPanel />}
       {activeTab === 'connect' && <ControllerPanel />}
       {activeTab === 'ssh' && <SshServersPanel />}
+      {activeTab === 'rdp' && <RdpServersPanel />}
 
       {transfers.length > 0 && (
         <Card className="glass">

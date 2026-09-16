@@ -1,4 +1,5 @@
 import { readFile } from 'node:fs/promises';
+import { StringDecoder } from 'node:string_decoder';
 import { Client, type ClientChannel } from 'ssh2';
 import type { SshAuthMethod } from '../../shared/apiTypes';
 
@@ -87,12 +88,19 @@ export class SshSessionManager {
                   return;
                 }
                 this.sessions.set(sessionId, { client, stream });
-                stream.on('data', (chunk: Buffer) =>
-                  listener.onData(sessionId, chunk.toString('utf-8')),
-                );
-                stream.stderr.on('data', (chunk: Buffer) =>
-                  listener.onData(sessionId, chunk.toString('utf-8')),
-                );
+                // A chunk can end partway through a multi-byte character (box drawing, the
+                // symbols agent CLIs draw with). Decoding each chunk on its own turned both
+                // halves into replacement characters; a decoder carries the tail over instead.
+                const stdout = new StringDecoder('utf8');
+                const stderr = new StringDecoder('utf8');
+                stream.on('data', (chunk: Buffer) => {
+                  const text = stdout.write(chunk);
+                  if (text) listener.onData(sessionId, text);
+                });
+                stream.stderr.on('data', (chunk: Buffer) => {
+                  const text = stderr.write(chunk);
+                  if (text) listener.onData(sessionId, text);
+                });
                 stream.on('close', () => {
                   this.sessions.delete(sessionId);
                   client.end();

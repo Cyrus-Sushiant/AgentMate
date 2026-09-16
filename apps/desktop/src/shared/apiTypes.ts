@@ -1465,6 +1465,119 @@ export interface StoredSshServer extends Omit<SshSavedServer, 'hasSecret'> {
   secretEnvelope?: SecretEnvelope;
 }
 
+/** Desktop size an RDP session asks for: follow the window, or a fixed resolution. */
+export type RdpResolution = 'fitWindow' | { width: number; height: number };
+
+export interface RdpServerOptions {
+  resolution: RdpResolution;
+  fullscreenOnConnect: boolean;
+  /** Keep text and images in sync between this computer and the server. */
+  clipboard: boolean;
+  /** Allow copying files both ways through the clipboard channel. */
+  fileTransfer: boolean;
+  /** Network Level Authentication (CredSSP). Windows Server requires it by default. */
+  nla: boolean;
+}
+
+/** A saved Remote Desktop server. The password never leaves the main process for listing. */
+export interface RdpSavedServer {
+  id: string;
+  nickname: string;
+  host: string;
+  port: number;
+  username: string;
+  domain?: string;
+  hasSecret: boolean;
+  /** SHA-256 of the server's TLS certificate, recorded on the first successful connect. */
+  certFingerprint?: string;
+  options: RdpServerOptions;
+  createdAt: number;
+  lastConnectedAt: number | null;
+}
+
+/** Input to `rdp:saveServer`. Leave `secret` out on an edit to keep the stored password. */
+export interface SaveRdpServerInput {
+  id?: string;
+  nickname: string;
+  host: string;
+  port: number;
+  username: string;
+  domain?: string;
+  secret?: string;
+  options: RdpServerOptions;
+}
+
+/** Main-process-only, on-disk shape of a saved RDP server. */
+export interface StoredRdpServer extends Omit<RdpSavedServer, 'hasSecret'> {
+  secretEnvelope?: SecretEnvelope;
+}
+
+/**
+ * Everything a session window needs for one connection attempt. `proxyUrl` carries a token
+ * that works once, for this server only.
+ */
+export interface RdpConnectTicket {
+  sessionId: string;
+  serverId: string;
+  nickname: string;
+  proxyUrl: string;
+  destination: string;
+  username: string;
+  domain?: string;
+  password: string;
+  options: RdpServerOptions;
+}
+
+/** Sent to a session window when the server's certificate is not the one saved last time. */
+export interface RdpCertificatePrompt {
+  sessionId: string;
+  host: string;
+  expectedFingerprint: string;
+  actualFingerprint: string;
+  subject: string;
+  issuer: string;
+  validTo: string;
+}
+
+/** A reason the proxy gave up, sent to the session window before the socket closes. */
+export interface RdpProxyErrorPayload {
+  sessionId: string;
+  message: string;
+}
+
+/**
+ * One file or folder copied on this computer, flattened the way the RDP clipboard channel
+ * describes a copied collection: `path` is the folder it sits in, relative to the copy root,
+ * with `\` separators.
+ */
+export interface RdpFileEntry {
+  name: string;
+  path?: string;
+  size: number;
+  lastModified: number;
+  isDirectory: boolean;
+}
+
+/** Files currently copied on this computer, as seen by `rdp:readClipboardFiles`. */
+export interface RdpClipboardFiles {
+  /** Changes whenever a different set of files is copied. */
+  signature: string;
+  entries: RdpFileEntry[];
+  totalBytes: number;
+  /** Set when the copy is too large to hand over through the clipboard. */
+  tooLarge: boolean;
+}
+
+export interface RdpDownloadTarget {
+  downloadId: string;
+  folder: string;
+}
+
+export interface RdpWindowState {
+  isMaximized: boolean;
+  isFullScreen: boolean;
+}
+
 export interface SshDataPayload {
   sessionId: string;
   data: string;

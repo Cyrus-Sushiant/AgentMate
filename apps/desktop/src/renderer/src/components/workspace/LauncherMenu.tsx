@@ -13,6 +13,7 @@ import {
 import { Skeleton } from '@/components/ui/skeleton';
 import { useLauncherStore, usePromptDialogStore } from '@/lib/workspace/commands';
 import { launchAgentTab, launchShellTab, shellOptions } from '@/lib/workspace/launch';
+import { useCliStore } from '@/stores/cliStore';
 import { useAgentChoices } from './useAgentChoices';
 
 export interface LauncherMenuProps {
@@ -42,9 +43,10 @@ export function LauncherMenu({
   const setOpenFor = useLauncherStore((s) => s.setOpenFor);
   const agents = useAgentChoices(project);
   const shells = shellOptions();
+  const hasSavedArgs = useCliStore((s) => Object.keys(s.cliArgs).length > 0);
 
-  const launchAgent = (cliId: string): void => {
-    launchAgentTab(project, cliId, groupId);
+  const launchAgent = (cliId: string, skipSavedArgs = false): void => {
+    launchAgentTab(project, cliId, groupId, { skipSavedArgs });
   };
 
   return (
@@ -57,10 +59,10 @@ export function LauncherMenu({
         onKeyDown={(event) => {
           const digit = /^Digit([1-9])$/.exec(event.code);
           const choice = digit ? agents.installed[Number(digit[1]) - 1] : undefined;
-          if (!choice || event.ctrlKey || event.metaKey || event.altKey) return;
+          if (!choice || event.ctrlKey || event.metaKey) return;
           event.preventDefault();
           setOpenFor(null);
-          launchAgent(choice.cli.id);
+          launchAgent(choice.cli.id, event.altKey);
         }}
       >
         <DropdownMenuItem
@@ -71,7 +73,14 @@ export function LauncherMenu({
           <span className="font-medium">Build a prompt…</span>
           <span className="ml-auto text-[10px] text-primary/70">then run it</span>
         </DropdownMenuItem>
-        <DropdownMenuLabel>Agents</DropdownMenuLabel>
+        <DropdownMenuLabel className="flex items-center justify-between gap-2">
+          <span>Agents</span>
+          {hasSavedArgs ? (
+            <span className="text-[10px] font-normal text-muted-foreground/70">
+              Alt+click: skip saved args
+            </span>
+          ) : null}
+        </DropdownMenuLabel>
         {agents.loading ? (
           <div className="space-y-1 px-2 py-1">
             <Skeleton className="h-6 w-full" />
@@ -83,7 +92,16 @@ export function LauncherMenu({
           </p>
         ) : (
           agents.installed.map((choice, index) => (
-            <DropdownMenuItem key={choice.cli.id} onSelect={() => launchAgent(choice.cli.id)}>
+            <DropdownMenuItem
+              key={choice.cli.id}
+              onSelect={() => launchAgent(choice.cli.id)}
+              onClick={(event) => {
+                if (!event.altKey) return;
+                event.preventDefault();
+                setOpenFor(null);
+                launchAgent(choice.cli.id, true);
+              }}
+            >
               <CliLogo cliId={choice.cli.id} className="h-4 w-4" />
               <span className="truncate">{choice.cli.name}</span>
               {choice.isDefault ? (

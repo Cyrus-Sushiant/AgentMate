@@ -9,6 +9,7 @@ import { SimpleTooltip } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import { useLauncherStore, usePromptDialogStore } from '@/lib/workspace/commands';
 import { launchAgentTab, launchShellTab, shellOptions } from '@/lib/workspace/launch';
+import { useCliStore } from '@/stores/cliStore';
 import { useAgentChoices } from './useAgentChoices';
 
 export interface PaneLauncherProps {
@@ -30,6 +31,7 @@ export function PaneLauncher({
   const agents = useAgentChoices(project);
   const shells = shellOptions();
   const menuOpen = useLauncherStore((s) => s.openForGroupId !== null);
+  const hasSavedArgs = useCliStore((s) => Object.keys(s.cliArgs).length > 0);
   const visibleAgents = useMemo(
     () => agents.installed.slice(0, hero ? 9 : 6),
     [agents.installed, hero],
@@ -38,7 +40,7 @@ export function PaneLauncher({
   useEffect(() => {
     if (!focused || menuOpen) return;
     function onKeyDown(event: KeyboardEvent): void {
-      if (event.ctrlKey || event.metaKey || event.altKey || event.defaultPrevented) return;
+      if (event.ctrlKey || event.metaKey || event.defaultPrevented) return;
       const target = event.target;
       if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement) return;
       if (document.querySelector('[role="dialog"][data-state="open"]')) return;
@@ -46,7 +48,7 @@ export function PaneLauncher({
       const choice = digit ? visibleAgents[Number(digit[1]) - 1] : undefined;
       if (!choice) return;
       event.preventDefault();
-      launchAgentTab(project, choice.cli.id, groupId);
+      launchAgentTab(project, choice.cli.id, groupId, { skipSavedArgs: event.altKey });
     }
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
@@ -71,8 +73,13 @@ export function PaneLauncher({
           </div>
         ) : null}
 
-        <p className="mb-3 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-          {hero ? 'Start an agent' : 'Open in this pane'}
+        <p className="mb-3 flex items-center justify-between gap-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+          <span>{hero ? 'Start an agent' : 'Open in this pane'}</span>
+          {hasSavedArgs ? (
+            <span className="text-[10px] font-normal normal-case tracking-normal text-muted-foreground/70">
+              Alt+click: skip saved args
+            </span>
+          ) : null}
         </p>
 
         {agents.loading ? (
@@ -105,7 +112,11 @@ export function PaneLauncher({
               <button
                 key={choice.cli.id}
                 type="button"
-                onClick={() => launchAgentTab(project, choice.cli.id, groupId)}
+                onClick={(event) =>
+                  launchAgentTab(project, choice.cli.id, groupId, {
+                    skipSavedArgs: event.altKey,
+                  })
+                }
                 className={cn(
                   'group relative flex items-center gap-3 rounded-xl border text-left transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
                   'hover:-translate-y-px hover:border-primary/40 hover:bg-primary/[0.06] motion-reduce:hover:translate-y-0',

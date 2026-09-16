@@ -71,6 +71,8 @@ export function prepareStatusHooks(cliIds: string[]): void {
  * configured arguments, then the run arguments (a model and effort). Normally the user's own
  * arguments win a clash. With `runArgsWin` the run arguments do instead: they were picked for
  * this one launch, so a `--model` saved in Settings must not quietly replace the pick.
+ * `skipSavedArgs` drops the CLI Manager's saved arguments entirely, for a launch that asked to
+ * start bare.
  */
 function agentCommand(
   cliId: string,
@@ -78,12 +80,13 @@ function agentCommand(
   runArgs: string[] = [],
   leadingArgs: string[] = [],
   runArgsWin = false,
+  skipSavedArgs = false,
 ): string | null {
   const cli = getCliDefinition(cliId);
   if (!cli) return null;
   const kind = shellKindFor(shell, window.agentmat.platform);
   const hookSettings = statusHookSettings.get(cliId);
-  const saved = getCliArgsFor(useCliStore.getState().cliArgs, cliId);
+  const saved = skipSavedArgs ? '' : getCliArgsFor(useCliStore.getState().cliArgs, cliId);
   const configured = runArgsWin ? configuredArgsWithout(saved, runArgs) : saved;
   const extra = (runArgsWin ? runArgs : withoutConfiguredRunArgs(configured, runArgs)).map((arg) =>
     quoteForShell(arg, kind),
@@ -162,11 +165,22 @@ function lastKnownRunArgs(cliId: string): string[] {
   return lastKnown ? runArgsFromReported(cliId, lastKnown) : [];
 }
 
+export interface AgentLaunchOptions {
+  /** Start bare: without the arguments saved for this CLI in the CLI Manager. */
+  skipSavedArgs?: boolean;
+}
+
 /** Opens a tab in the project's workspace that starts an agent CLI. Returns the tab id. */
-export function launchAgentTab(project: Project, cliId: string, groupId?: string): string | null {
+export function launchAgentTab(
+  project: Project,
+  cliId: string,
+  groupId?: string,
+  options?: AgentLaunchOptions,
+): string | null {
   const cli = getCliDefinition(cliId);
   const shell = defaultNewSession().shell;
-  const command = agentCommand(cliId, shell, lastKnownRunArgs(cliId));
+  const skipSavedArgs = options?.skipSavedArgs ?? false;
+  const command = agentCommand(cliId, shell, lastKnownRunArgs(cliId), [], false, skipSavedArgs);
   if (!cli || !command) {
     toast.error('Unknown CLI.');
     return null;
@@ -181,6 +195,7 @@ export function launchAgentTab(project: Project, cliId: string, groupId?: string
       shell,
       cwd: project.folderPath,
       launchInput: `${command}\r`,
+      runLabel: skipSavedArgs ? 'Without saved arguments' : undefined,
     },
     groupId,
   );

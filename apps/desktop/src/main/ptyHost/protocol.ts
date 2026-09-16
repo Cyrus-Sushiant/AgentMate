@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { StringDecoder } from 'node:string_decoder';
 import type { TerminalSnapshot } from '../../shared/apiTypes';
 
 /**
@@ -99,8 +100,12 @@ export type HostMessage =
 /** Splits a byte stream into newline-delimited JSON messages. */
 export function createLineReader(onMessage: (message: unknown) => void, onOverflow: () => void) {
   let buffered = '';
+  // A pipe chunk can end partway through a multi-byte character. Decoding each chunk on its own
+  // turned that character into two or three replacement characters, which pushed the rest of a
+  // terminal line over by as many columns. The decoder holds the partial bytes for the next chunk.
+  const decoder = new StringDecoder('utf8');
   return (chunk: Buffer | string): void => {
-    buffered += typeof chunk === 'string' ? chunk : chunk.toString('utf8');
+    buffered += typeof chunk === 'string' ? chunk : decoder.write(chunk);
     let newline = buffered.indexOf('\n');
     while (newline !== -1) {
       const line = buffered.slice(0, newline);

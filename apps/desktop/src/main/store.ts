@@ -52,6 +52,7 @@ import type {
   LastRunInfoByCli,
   RemoteSavedServer,
   SshVaultRecord,
+  StoredRdpServer,
   StoredSshServer,
 } from '../shared/apiTypes';
 import { referencedAttachmentFiles, removeOrphanAttachments } from './blueprintFileStore';
@@ -306,6 +307,10 @@ export const store = {
   getSshServers: (): Promise<StoredSshServer[]> => readJsonFile('ssh-servers.json', []),
   setSshServers: (servers: StoredSshServer[]): Promise<void> =>
     writeJsonFile('ssh-servers.json', servers),
+
+  getRdpServers: (): Promise<StoredRdpServer[]> => readJsonFile('rdp-servers.json', []),
+  setRdpServers: (servers: StoredRdpServer[]): Promise<void> =>
+    writeJsonFile('rdp-servers.json', servers),
 
   getSshVault: (): Promise<SshVaultRecord | null> => readJsonFile('ssh-vault.json', null),
   setSshVault: (vault: SshVaultRecord | null): Promise<void> =>

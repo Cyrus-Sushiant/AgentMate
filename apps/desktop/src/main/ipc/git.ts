@@ -1,7 +1,6 @@
 import type { GitChangeEntry, Project } from '@agentmat/core';
 import { browsableRepoUrl, buildCommitMessagePrompt, stripRemoteCredentials } from '@agentmat/core';
-import { ipcMain, Notification } from 'electron';
-import icon from '../../../resources/icon.ico?asset';
+import { ipcMain } from 'electron';
 import type {
   ApplyVersionInput,
   ApplyVersionResult,
@@ -119,7 +118,7 @@ import {
   unstagePaths,
   writeWorkingFile,
 } from '../git/workspaceGit';
-import { focusMainWindow } from '../mainWindow';
+import { showOsNotification } from '../notifications/osNotification';
 import { schedulePipelineCheck } from '../pipelines/watcher';
 import { store } from '../store';
 
@@ -709,21 +708,16 @@ function registerTagHandlers(): void {
       // reopens the review, same as the in-app toast the still-open dialog would show.
       if (!applyResult.cancelled) {
         const settings = await store.getSettings();
-        if (Notification.isSupported() && settings.workspaceNotifications !== false) {
-          const notification = new Notification({
+        if (settings.workspaceNotifications !== false) {
+          showOsNotification({
             title: applyResult.ok
               ? `${project.name}: version files updated`
               : `${project.name}: version update failed`,
             body: applyResult.ok
               ? `${changes.length} file${changes.length === 1 ? '' : 's'} changed for ${tag}. Review and commit when ready.`
               : (applyResult.error ?? 'The CLI did not finish.'),
-            icon,
-            silent: false,
+            route: `/workspace/${input.projectId}?tag=1`,
           });
-          notification.on('click', () => {
-            focusMainWindow(`/workspace/${input.projectId}?tag=1`);
-          });
-          notification.show();
         }
       }
 

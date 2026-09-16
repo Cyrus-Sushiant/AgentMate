@@ -3,6 +3,7 @@ import { useEffect, useRef } from 'react';
 import { claimTerminalFocus, releaseTerminalFocus } from '@/lib/terminal/focusClaim';
 import { onFontsLoaded, whenTerminalFontReady } from '@/lib/terminal/fontReady';
 import { attachTerminalPaste } from '@/lib/terminal/pasteFiles';
+import { createResizeSync } from '@/lib/terminal/resizeSync';
 import { sshTerminalAdapter } from '@/lib/terminal/sshAdapter';
 import {
   attachFocusOnClick,
@@ -63,23 +64,20 @@ export function TerminalPane({ meta, active, onExit }: TerminalPaneProps): React
 
     const hasSize = (): boolean => container.clientWidth > 0 && container.clientHeight > 0;
 
-    const refit = (): void => {
+    const resizeSync = createResizeSync({
+      term,
+      fit: fitAddon,
       // A hidden pane (inactive tab, or the whole drawer closed) measures 0x0.
       // Fitting to that would reflow the running program's output to a garbage
       // size, so wait until it is on screen again. Hiding must not disturb the pty.
-      if (!hasSize() || !term.element) return;
-      try {
-        fitAddon.fit();
-        if (ptySessionId) {
-          void client.resize(ptySessionId, term.cols, term.rows);
-        }
-      } catch {
-        // xterm can still reject a transient measurement mid-layout; ignore
-      }
-    };
-    const resizeObserver = new ResizeObserver(refit);
+      canFit: () => hasSize() && term.element !== undefined,
+      resizePty: (cols, rows) => {
+        if (ptySessionId) void client.resize(ptySessionId, cols, rows);
+      },
+    });
+    const resizeObserver = new ResizeObserver(() => resizeSync.schedule());
     resizeObserver.observe(container);
-    const stopFontWatch = onFontsLoaded(refit);
+    const stopFontWatch = onFontsLoaded(() => resizeSync.schedule());
 
     const detachFocusOnClick = attachFocusOnClick(paneRef.current ?? container, term);
     const detachContextMenu = attachTerminalContextMenu(
@@ -143,7 +141,7 @@ export function TerminalPane({ meta, active, onExit }: TerminalPaneProps): React
           onExitRef.current();
           return;
         }
-        const release = (): void => {
+        const release = (fromSnapshot: boolean): void => {
           if (disposed) return;
           ptySessionId = result.sessionId;
           const buffered = pending ?? [];
@@ -153,21 +151,23 @@ export function TerminalPane({ meta, active, onExit }: TerminalPaneProps): React
             onExitRef.current();
             return;
           }
-          if (hasSize()) {
-            fitAddon.fit();
-            void client.resize(result.sessionId, term.cols, term.rows);
+          // A painted snapshot is not what ConPTY believes is on screen, so have it repaint.
+          if (fromSnapshot && meta.kind !== 'ssh' && window.agentmat.platform === 'win32') {
+            resizeSync.repaint();
+          } else {
+            resizeSync.flush();
           }
         };
         const { snapshot } = result;
         if (!snapshot) {
-          release();
+          release(false);
           return;
         }
         // Repaint at the size the snapshot was taken at, then let the fit reflow it.
         if (snapshot.cols !== term.cols || snapshot.rows !== term.rows) {
           term.resize(snapshot.cols, snapshot.rows);
         }
-        term.write(snapshot.data, release);
+        term.write(snapshot.data, () => release(true));
       })
       .catch((error: unknown) => {
         if (disposed) return;
@@ -181,6 +181,7 @@ export function TerminalPane({ meta, active, onExit }: TerminalPaneProps): React
     return () => {
       disposed = true;
       resizeObserver.disconnect();
+      resizeSync.dispose();
       stopFontWatch();
       detachContextMenu();
       detachFilePaste();

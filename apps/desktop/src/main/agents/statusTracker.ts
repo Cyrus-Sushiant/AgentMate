@@ -9,8 +9,7 @@ import {
   initialAgentStatus,
   reduceAgentStatus,
 } from '@agentmat/core';
-import { BrowserWindow, Notification } from 'electron';
-import icon from '../../../resources/icon.ico?asset';
+import { BrowserWindow } from 'electron';
 import type {
   AgentRunInfo,
   AgentRunInfoMap,
@@ -19,7 +18,8 @@ import type {
   LastRunInfoByCli,
 } from '../../shared/apiTypes';
 import { IPC } from '../../shared/ipcChannels';
-import { focusMainWindow, getMainWindow } from '../mainWindow';
+import { getMainWindow } from '../mainWindow';
+import { showOsNotification } from '../notifications/osNotification';
 import { speakOnPet } from '../notifications/petNotifier';
 import { keepAwake } from '../power/keepAwake';
 import { store } from '../store';
@@ -227,7 +227,7 @@ async function flushNotices(): Promise<void> {
   const others = notices.length - 1;
   const isQuestion = lead.status === 'needs-input';
 
-  if (Notification.isSupported() && !(settings && settings.workspaceNotifications === false)) {
+  if (!(settings && settings.workspaceNotifications === false)) {
     const title = isQuestion ? `${agent} needs your input` : `${agent} finished`;
     const where = `${project}: ${entry.title}`;
     const body = [
@@ -237,12 +237,10 @@ async function flushNotices(): Promise<void> {
       .filter(Boolean)
       .join('\n');
 
-    const notification = new Notification({ title, body, icon, silent: false });
-    notification.on('click', () => {
-      focusMainWindow(`/workspace/${entry.projectId}?session=${lead.id}`);
-    });
-    notification.show();
-    if (needsInput.length > 0) getMainWindow()?.flashFrame(true);
+    const route = `/workspace/${entry.projectId}?session=${encodeURIComponent(lead.id)}`;
+    if (showOsNotification({ title, body, route }) && needsInput.length > 0) {
+      getMainWindow()?.flashFrame(true);
+    }
   }
 
   if (settings?.desktopPetAgentStatus) {

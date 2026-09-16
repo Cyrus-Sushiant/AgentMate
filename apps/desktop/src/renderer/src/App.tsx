@@ -43,6 +43,8 @@ installToastHistoryCapture();
 
 /** Skills ships a large offline catalog; keep it out of the main chunk until this route opens. */
 const SkillsPage = lazy(() => import('./pages/SkillsPage'));
+/** Carries the IronRDP WebAssembly engine, which only Remote Desktop session windows need. */
+const RdpSessionRoute = lazy(() => import('./components/rdp/RdpSessionRoute'));
 
 /* Glass toasts: richColors is off on purpose. It paints an opaque per-type
    background that would defeat the frosted surface. The type accents live in
@@ -62,7 +64,10 @@ function AppToaster(): React.JSX.Element {
 
 function isStandalonePath(pathname: string): boolean {
   return (
-    pathname.startsWith('/widget') || pathname === '/desktop-pet' || pathname === '/remote-session'
+    pathname.startsWith('/widget') ||
+    pathname === '/desktop-pet' ||
+    pathname === '/remote-session' ||
+    pathname === '/rdp-session'
   );
 }
 
@@ -122,6 +127,14 @@ export default function App(): React.JSX.Element {
               <Route path="widget/prompt-build/:id" element={<PromptBuildWidgetRoute />} />
               <Route path="desktop-pet" element={<DesktopPetRoute />} />
               <Route path="remote-session" element={<RemoteSessionRoute />} />
+              <Route
+                path="rdp-session"
+                element={
+                  <Suspense fallback={<div className="h-screen w-screen bg-background" />}>
+                    <RdpSessionRoute />
+                  </Suspense>
+                }
+              />
               <Route element={<AppShell />}>
                 <Route index element={<DashboardPage />} />
                 <Route path="cli-manager" element={<CliManagerPage />} />

@@ -25,6 +25,46 @@ const useCommitDrafts = create<{
   generating: Record<string, string | null>;
 }>(() => ({ drafts: {}, generating: {} }));
 
+/** A two-line commit option: what it does on top, what it will touch underneath. */
+function CommitMenuItem({
+  icon,
+  title,
+  description,
+  shortcut,
+  disabled,
+  onSelect,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  description: string;
+  shortcut: string | null;
+  disabled?: boolean;
+  onSelect: () => void;
+}): React.JSX.Element {
+  return (
+    <DropdownMenuItem
+      disabled={disabled}
+      onSelect={onSelect}
+      className="group items-start gap-2.5 px-2 py-2 data-[disabled]:pointer-events-none data-[disabled]:opacity-50"
+    >
+      <span className="mt-px flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-border/70 bg-foreground/[0.04] text-muted-foreground transition-colors group-focus:border-primary/30 group-focus:bg-primary/15 group-focus:text-primary">
+        {icon}
+      </span>
+      <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+        <span className="flex items-center gap-2">
+          <span className="truncate text-[13px] font-medium leading-5">{title}</span>
+          {shortcut ? (
+            <kbd className="ml-auto shrink-0 rounded border border-border/80 bg-foreground/[0.04] px-1.5 font-mono text-[10px] leading-4 text-muted-foreground">
+              {shortcut}
+            </kbd>
+          ) : null}
+        </span>
+        <span className="text-[11px] leading-snug text-muted-foreground">{description}</span>
+      </span>
+    </DropdownMenuItem>
+  );
+}
+
 const MAX_ROWS = 8;
 const LINE_HEIGHT = 20;
 
@@ -51,6 +91,7 @@ export function CommitBox({ projectId, state, actions }: CommitBoxProps): React.
   const blockedByConflicts = state.conflicts.length > 0;
   const canCommit =
     message.trim().length > 0 && !nothingToCommit && !blockedByConflicts && busy === null;
+  const canPush = state.hasRemote && !state.detached && state.branch !== null;
 
   const commitLabel = useShortcutLabel('commit.commit');
   const pushLabel = useShortcutLabel('commit.commitAndPush');
@@ -68,7 +109,8 @@ export function CommitBox({ projectId, state, actions }: CommitBoxProps): React.
   }, [message]);
 
   async function commit(push: boolean): Promise<void> {
-    if (!canCommit) return;
+    // Pushing without a remote or branch would leave a commit behind and then fail.
+    if (!canCommit || (push && !canPush)) return;
     setBusy(push ? 'push' : 'commit');
     try {
       if (stageAllFirst) {
@@ -114,6 +156,17 @@ export function CommitBox({ projectId, state, actions }: CommitBoxProps): React.
   }
 
   const primaryLabel = stageAllFirst ? 'Stage all & commit' : 'Commit';
+
+  const changesLabel = `${pendingCount} ${pendingCount === 1 ? 'change' : 'changes'}`;
+  const stagedLabel = `${stagedCount} staged ${stagedCount === 1 ? 'file' : 'files'}`;
+  const pushTarget = state.upstream ? `push to ${state.upstream}` : `publish ${state.branch}`;
+  const pushDescription = !state.hasRemote
+    ? 'Add a remote to push this repository'
+    : !canPush
+      ? 'Check out a branch to push'
+      : stageAllFirst
+        ? `Stage all ${changesLabel}, commit, then ${pushTarget}`
+        : `Commit ${stagedLabel}, then ${pushTarget}`;
 
   return (
     <div className="space-y-2 border-b border-border/60 px-2.5 pb-3 pt-2.5">
@@ -196,14 +249,26 @@ export function CommitBox({ projectId, state, actions }: CommitBoxProps): React.
               <ChevronDown className="h-3 w-3" />
             </button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-52">
-            <DropdownMenuItem onSelect={() => void commit(true)}>
-              <CloudUpload className="h-3.5 w-3.5" />
-              {stageAllFirst ? 'Stage all, commit & push' : 'Commit & push'}
-              {pushLabel ? (
-                <span className="ml-auto text-[10px] text-muted-foreground">{pushLabel}</span>
-              ) : null}
-            </DropdownMenuItem>
+          <DropdownMenuContent align="end" collisionPadding={8} className="w-64 p-1">
+            <CommitMenuItem
+              icon={<Check className="h-3.5 w-3.5" />}
+              title="Commit"
+              description={
+                stageAllFirst
+                  ? `Stage all ${changesLabel}, then commit locally`
+                  : `Commit ${stagedLabel} locally`
+              }
+              shortcut={commitLabel}
+              onSelect={() => void commit(false)}
+            />
+            <CommitMenuItem
+              icon={<CloudUpload className="h-3.5 w-3.5" />}
+              title="Commit & push"
+              description={pushDescription}
+              shortcut={pushLabel}
+              disabled={!canPush}
+              onSelect={() => void commit(true)}
+            />
           </DropdownMenuContent>
         </DropdownMenu>
       </div>

@@ -10,6 +10,7 @@ import type { ChipInput, ChipPasteController } from './chipPasteMode';
 import { claimTerminalFocus, releaseTerminalFocus } from './focusClaim';
 import { onFontsLoaded, whenTerminalFontReady } from './fontReady';
 import { attachTerminalPaste } from './pasteFiles';
+import { createResizeSync, type ResizeSync } from './resizeSync';
 import {
   attachFocusOnClick,
   attachTerminalContextMenu,
@@ -56,6 +57,8 @@ interface Entry {
   term: Terminal;
   fit: FitAddon;
   chipMode: ChipPasteController | null;
+  /** Every size change goes through this, so xterm and the pty never disagree. */
+  resize: ResizeSync;
   host: HTMLDivElement;
   /** The unpadded element xterm renders into, inside `host`. */
   surface: HTMLDivElement;
@@ -202,7 +205,7 @@ function ensureSubscribed(): void {
   // A font that finishes loading later changes the cell size; refit so rows match it again.
   onFontsLoaded(() => {
     for (const entry of entries.values()) {
-      if (entry.mounted) fitAndResize(entry);
+      if (entry.mounted) entry.resize.schedule();
     }
   });
   window.agentmat.terminal.onData(({ sessionId, data }) => {
@@ -244,18 +247,6 @@ function hasSize(entry: Entry): boolean {
   return entry.surface.clientWidth > 0 && entry.surface.clientHeight > 0;
 }
 
-function fitAndResize(entry: Entry): void {
-  if (!entry.opened || !hasSize(entry)) return;
-  try {
-    entry.fit.fit();
-    if (entry.ready) {
-      void window.agentmat.terminal.resize(entry.spec.id, entry.term.cols, entry.term.rows);
-    }
-  } catch {
-    // xterm can reject a transient measurement mid-layout; the next observation fixes it
-  }
-}
-
 function createEntry(spec: RuntimeSessionSpec): Entry {
   const host = document.createElement('div');
   host.className = 'terminal-pane absolute inset-0';
@@ -279,11 +270,20 @@ function createEntry(spec: RuntimeSessionSpec): Entry {
     theme,
     shell: () => spec.shell,
   });
+  const resize = createResizeSync({
+    term,
+    fit,
+    canFit: () => entry.opened && hasSize(entry),
+    resizePty: (cols, rows) => {
+      if (entry.ready) void window.agentmat.terminal.resize(spec.id, cols, rows);
+    },
+  });
   const entry: Entry = {
     spec,
     term,
     fit,
     chipMode,
+    resize,
     host,
     surface,
     opened: false,
@@ -306,11 +306,14 @@ function createEntry(spec: RuntimeSessionSpec): Entry {
       state.titles[spec.id] === title ? state : { titles: { ...state.titles, [spec.id]: title } },
     );
   });
-  const observer = new ResizeObserver(() => fitAndResize(entry));
+  // A split drag or panel animation reports a new size every frame. Only the size it settles
+  // on goes to the pty; each one in between would make the CLI (and ConPTY) redraw for nothing.
+  const observer = new ResizeObserver(() => resize.schedule());
   observer.observe(host);
   entry.cleanups.push(
     () => titleListener.dispose(),
     () => observer.disconnect(),
+    () => resize.dispose(),
   );
   entries.set(spec.id, entry);
   return entry;
@@ -341,7 +344,7 @@ function start(entry: Entry): void {
         markEnded(spec.id, null);
         return;
       }
-      const release = (): void => {
+      const release = (fromSnapshot: boolean): void => {
         if (entries.get(spec.id) !== entry) return;
         entry.ready = true;
         for (const chunk of entry.pending) entry.term.write(chunk);
@@ -350,24 +353,26 @@ function start(entry: Entry): void {
           markEnded(spec.id, entry.exitCode);
           return;
         }
-        fitAndResize(entry);
+        // A painted snapshot is not what ConPTY believes is on screen, so have it repaint.
+        if (fromSnapshot && window.agentmat.platform === 'win32') entry.resize.repaint();
+        else entry.resize.flush();
         // Layout can still be settling (a split just opened, a panel animating), so check
         // the size once more after it has, and tell the shell if it moved.
         setTimeout(() => {
-          if (entries.get(spec.id) === entry) fitAndResize(entry);
+          if (entries.get(spec.id) === entry) entry.resize.schedule();
         }, 250);
         handOffPrompt(entry);
       };
       const { snapshot } = result;
       if (!snapshot) {
-        release();
+        release(false);
         return;
       }
       // Repaint at the size the snapshot was taken at, then let the fit reflow it.
       if (snapshot.cols !== entry.term.cols || snapshot.rows !== entry.term.rows) {
         entry.term.resize(snapshot.cols, snapshot.rows);
       }
-      entry.term.write(snapshot.data, release);
+      entry.term.write(snapshot.data, () => release(true));
     })
     .catch(() => {
       if (entries.get(spec.id) === entry) {
@@ -405,7 +410,7 @@ export const terminalRuntime = {
     entry.lastVisibleAt = Date.now();
     if (entry.host.parentElement !== slot) slot.appendChild(entry.host);
     if (entry.opened) {
-      fitAndResize(entry);
+      entry.resize.flush();
       return;
     }
     // Opening measures the character cell, so it waits for the terminal font (instant once
@@ -436,7 +441,7 @@ export const terminalRuntime = {
         entry.term.focus();
       }
       if (!entry.started) start(entry);
-      else fitAndResize(entry);
+      else entry.resize.flush();
     });
   },
 

@@ -30,6 +30,7 @@ import { registerProjectHandlers } from './ipc/projects';
 import { registerPromptBuildWidgetHandlers } from './ipc/promptBuildWidget';
 import { registerPromptHistoryHandlers } from './ipc/promptHistory';
 import { registerProxyHandlers } from './ipc/proxy';
+import { closeAllRdpSessions, registerRdpHandlers } from './ipc/rdp';
 import { registerRemoteHandlers } from './ipc/remote';
 import { registerScheduledTaskHandlers } from './ipc/scheduledTasks';
 import { registerSecurityHandlers } from './ipc/security';
@@ -58,6 +59,7 @@ import {
   stopNetworkQualityAlertWatcher,
 } from './network/qualityAlerts';
 import { startHookServer, stopHookServer } from './notifications/hookServer';
+import { registerNotificationActivation } from './notifications/osNotification';
 import { petManager } from './pet/petWindow';
 import { startPipelineWatcher, stopPipelineWatcher } from './pipelines/watcher';
 import { promptBuildWidgetManager } from './promptBuild/widgetWindows';
@@ -210,6 +212,7 @@ function registerAllIpcHandlers(): void {
   registerCliDetectionHandlers();
   registerTerminalHandlers();
   registerSshHandlers();
+  registerRdpHandlers();
   registerSshAgentHandlers();
   registerAgentHandlers();
   registerTerminalClipboardHandlers();
@@ -265,9 +268,13 @@ app.whenReady().then(async () => {
   // named in img-src and media-src; media-src would otherwise fall back to
   // default-src and silently refuse to play an attached video.
   const files = `${BLUEPRINT_FILE_SCHEME}:`;
+  // Remote Desktop runs Devolutions' IronRDP as WebAssembly: compiling it needs
+  // 'wasm-unsafe-eval', the module ships inline so it is fetched from a data: URL, and the
+  // session reaches its server through the loopback-only proxy in main/rdp/proxy.ts.
+  const rdp = { script: "'wasm-unsafe-eval'", connect: 'data: ws://127.0.0.1:*' };
   const csp = isDev
-    ? `default-src 'self' http://localhost:5173 ws://localhost:5173; script-src 'self' 'unsafe-inline' http://localhost:5173; style-src 'self' 'unsafe-inline'; img-src 'self' data: ${files}; media-src 'self' ${files}; font-src 'self' data:; connect-src 'self' http://localhost:5173 ws://localhost:5173; worker-src 'self' blob:;`
-    : `default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: ${files}; media-src 'self' ${files}; font-src 'self' data:; connect-src 'self'; worker-src 'self' blob:;`;
+    ? `default-src 'self' http://localhost:5173 ws://localhost:5173; script-src 'self' 'unsafe-inline' ${rdp.script} http://localhost:5173; style-src 'self' 'unsafe-inline'; img-src 'self' data: ${files}; media-src 'self' ${files}; font-src 'self' data:; connect-src 'self' ${rdp.connect} http://localhost:5173 ws://localhost:5173; worker-src 'self' blob:;`
+    : `default-src 'self'; script-src 'self' ${rdp.script}; style-src 'self' 'unsafe-inline'; img-src 'self' data: ${files}; media-src 'self' ${files}; font-src 'self' data:; connect-src 'self' ${rdp.connect}; worker-src 'self' blob:;`;
 
   session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
     callback({
@@ -309,6 +316,7 @@ app.whenReady().then(async () => {
   void startHookServer();
   setMainWindowFactory(createMainWindow);
   createMainWindow();
+  registerNotificationActivation();
   void widgetManager.restoreAll();
   void promptBuildWidgetManager.restoreAll();
   void petManager.syncFromSettings();
@@ -357,5 +365,6 @@ app.on('before-quit', (event) => {
   remoteManager.shutdown();
   stopAllSshTasks();
   killAllSshSessions();
+  closeAllRdpSessions();
   lockVault();
 });

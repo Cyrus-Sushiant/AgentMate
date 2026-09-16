@@ -1,8 +1,7 @@
 import { getUsageProvider, type SubscriptionWindowKey } from '@agentmat/core';
-import { BrowserWindow, Notification } from 'electron';
-import icon from '../../../resources/icon.ico?asset';
+import { BrowserWindow } from 'electron';
 import { IPC } from '../../shared/ipcChannels';
-import { focusMainWindow } from '../mainWindow';
+import { showOsNotification } from '../notifications/osNotification';
 import { store } from '../store';
 import { getProviderUsage } from './index';
 
@@ -37,16 +36,8 @@ function broadcast(channel: string, payload: unknown): void {
  * brings the app forward on the Token Usage page, scrolled to the provider that fired.
  */
 function notify(title: string, body: string, providerId: string): void {
-  if (Notification.isSupported()) {
-    // Without an explicit icon, Windows/Linux fall back to the launching
-    // executable's own icon (Electron's, in a dev run).
-    const notification = new Notification({ title, body, icon });
-    notification.on('click', () => {
-      focusMainWindow(`/usage?provider=${encodeURIComponent(providerId)}`);
-    });
-    notification.show();
-    return;
-  }
+  const route = `/usage?provider=${encodeURIComponent(providerId)}`;
+  if (showOsNotification({ title, body, route })) return;
   broadcast(IPC.usage.onThresholdAlert, { title, body, providerId });
 }
 

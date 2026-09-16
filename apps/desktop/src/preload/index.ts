@@ -132,6 +132,13 @@ import type {
   PromptHistoryEntry,
   ProxyStatus,
   ProxyTestResult,
+  RdpCertificatePrompt,
+  RdpClipboardFiles,
+  RdpConnectTicket,
+  RdpDownloadTarget,
+  RdpProxyErrorPayload,
+  RdpSavedServer,
+  RdpWindowState,
   RecordUiProInstallInput,
   RemoteFileManagerEntry,
   RemoteFileProgress,
@@ -145,6 +152,7 @@ import type {
   RunSkillAuditInput,
   RunSkillAuditResult,
   SaveBlueprintPresetInput,
+  SaveRdpServerInput,
   SaveSshServerInput,
   SaveTemplateInput,
   SendTestNotificationInput,
@@ -1216,6 +1224,54 @@ const remoteSessionWindowControls = {
   },
 };
 
+const rdp = {
+  listServers: (): Promise<RdpSavedServer[]> => ipcRenderer.invoke(IPC.rdp.listServers),
+  saveServer: (input: SaveRdpServerInput): Promise<RdpSavedServer> =>
+    ipcRenderer.invoke(IPC.rdp.saveServer, input),
+  removeServer: (id: string): Promise<void> => ipcRenderer.invoke(IPC.rdp.removeServer, id),
+  /** Opens a session window for a saved server and returns its session id. */
+  openSession: (serverId: string): Promise<string> =>
+    ipcRenderer.invoke(IPC.rdp.openSession, serverId),
+  getTicket: (sessionId: string): Promise<RdpConnectTicket> =>
+    ipcRenderer.invoke(IPC.rdp.getTicket, sessionId),
+  respondCertificate: (sessionId: string, trust: boolean): Promise<void> =>
+    ipcRenderer.invoke(IPC.rdp.respondCertificate, sessionId, trust),
+  readClipboardFiles: (
+    sessionId: string,
+    previousSignature: string | null,
+  ): Promise<RdpClipboardFiles | 'unchanged' | null> =>
+    ipcRenderer.invoke(IPC.rdp.readClipboardFiles, sessionId, previousSignature),
+  readClipboardFile: (sessionId: string, signature: string, index: number): Promise<Uint8Array> =>
+    ipcRenderer.invoke(IPC.rdp.readClipboardFile, sessionId, signature, index),
+  beginDownload: (sessionId: string): Promise<RdpDownloadTarget | null> =>
+    ipcRenderer.invoke(IPC.rdp.beginDownload, sessionId),
+  prepareDownloadEntry: (
+    downloadId: string,
+    index: number,
+    entry: { name: string; path?: string; isDirectory: boolean },
+  ): Promise<string> => ipcRenderer.invoke(IPC.rdp.prepareDownloadEntry, downloadId, index, entry),
+  writeDownloadChunk: (downloadId: string, index: number, bytes: Uint8Array): Promise<void> =>
+    ipcRenderer.invoke(IPC.rdp.writeDownloadChunk, downloadId, index, bytes),
+  finishDownloadFile: (downloadId: string, index: number, ok: boolean): Promise<void> =>
+    ipcRenderer.invoke(IPC.rdp.finishDownloadFile, downloadId, index, ok),
+  openDownloadFolder: (downloadId: string): Promise<void> =>
+    ipcRenderer.invoke(IPC.rdp.openDownloadFolder, downloadId),
+  onCertificatePrompt: (callback: (prompt: RdpCertificatePrompt) => void): (() => void) =>
+    subscribe(IPC.rdp.onCertificatePrompt, callback),
+  onProxyError: (callback: (payload: RdpProxyErrorPayload) => void): (() => void) =>
+    subscribe(IPC.rdp.onProxyError, callback),
+};
+
+const rdpWindowControls = {
+  minimize: (): Promise<void> => ipcRenderer.invoke(IPC.rdpWindow.minimize),
+  maximizeToggle: (): Promise<void> => ipcRenderer.invoke(IPC.rdpWindow.maximizeToggle),
+  fullscreenToggle: (): Promise<void> => ipcRenderer.invoke(IPC.rdpWindow.fullscreenToggle),
+  close: (): Promise<void> => ipcRenderer.invoke(IPC.rdpWindow.close),
+  getState: (): Promise<RdpWindowState> => ipcRenderer.invoke(IPC.rdpWindow.getState),
+  onStateChange: (callback: (state: RdpWindowState) => void): (() => void) =>
+    subscribe(IPC.rdpWindow.onStateChange, callback),
+};
+
 /** The Windows build (e.g. 26200), which xterm needs to match how ConPTY redraws. Null elsewhere. */
 function windowsBuildNumber(): number | null {
   if (process.platform !== 'win32') return null;
@@ -1230,6 +1286,7 @@ const agentmatApi = {
   cli,
   terminal,
   ssh,
+  rdp,
   sshAgent,
   agents,
   power,
@@ -1250,6 +1307,7 @@ const agentmatApi = {
   proxy,
   window: windowControls,
   remoteSessionWindow: remoteSessionWindowControls,
+  rdpWindow: rdpWindowControls,
   promptHistory,
   translate,
   ai,

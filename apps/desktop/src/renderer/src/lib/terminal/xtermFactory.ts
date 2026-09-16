@@ -264,8 +264,11 @@ export function createXterm({
   localPty = true,
 }: CreateXtermOptions): XtermHandle {
   const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  // No convertEol: every terminal here sits behind a real pty, which already turns a program's
+  // newlines into CR LF where it means to. A bare LF that still gets through means "down one row,
+  // same column" (curses programs move the cursor that way), and converting it sent the cursor
+  // to the start of the line, so the next redraw landed in the wrong place.
   const term = new Terminal({
-    convertEol: true,
     fontSize: 13,
     lineHeight: 1.35,
     fontFamily:

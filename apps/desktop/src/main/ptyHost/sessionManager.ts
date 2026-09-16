@@ -33,6 +33,9 @@ interface Session {
   pty: pty.IPty;
   emulator: HeadlessTerminal;
   serializer: SerializeAddon;
+  /** The size the pty was last given. The emulator catches up to it once its queue drains. */
+  cols: number;
+  rows: number;
   projectId?: string;
   createdAt: number;
   listener: SessionListener | null;
@@ -146,7 +149,6 @@ export class PtySessionManager {
       cols,
       rows,
       scrollback: SNAPSHOT_SCROLLBACK,
-      convertEol: true,
       allowProposedApi: true,
       windowsPty: WINDOWS_PTY,
     });
@@ -159,6 +161,8 @@ export class PtySessionManager {
       pty: ptyProcess,
       emulator,
       serializer,
+      cols,
+      rows,
       projectId: options.projectId,
       createdAt: Date.now(),
       listener,
@@ -221,13 +225,23 @@ export class PtySessionManager {
 
   private resizeSession(session: Session, cols: number, rows: number): void {
     if (cols < 1 || rows < 1) return;
-    if (session.emulator.cols === cols && session.emulator.rows === rows) return;
+    if (session.cols === cols && session.rows === rows) return;
     try {
       session.pty.resize(cols, rows);
-      session.emulator.resize(cols, rows);
     } catch {
       // resizing a pty that has just exited throws on Windows
+      return;
     }
+    session.cols = cols;
+    session.rows = rows;
+    // Output the emulator was handed but has not parsed yet was written for the old size.
+    // Resizing on the spot would lay it out at the new one, and every later snapshot would
+    // carry that damage, so the resize waits behind it. A snapshot requested after this call
+    // queues behind the resize in turn.
+    session.emulator.write('', () => {
+      if (this.sessions.get(session.id) !== session) return;
+      session.emulator.resize(cols, rows);
+    });
   }
 
   private finish(session: Session): void {

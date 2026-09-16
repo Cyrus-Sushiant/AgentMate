@@ -1,9 +1,7 @@
 import type { SshSavedServer } from '@shared/apiTypes';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { toast } from 'sonner';
-import { Key, Link, Lock, LockOpen, Pencil, Plus, Server, Trash2 } from '@/components/icons';
-import { Badge } from '@/components/ui/badge';
+import { Link, Pencil, Plus, Server, Trash2 } from '@/components/icons';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { SimpleTooltip } from '@/components/ui/tooltip';
@@ -11,6 +9,7 @@ import { queryKeys } from '@/lib/queryKeys';
 import { timeAgo } from '@/lib/time';
 import { confirmDialog } from '@/stores/confirmStore';
 import { useTerminalStore } from '@/stores/terminalStore';
+import { ServersVaultControls } from './ServersVaultControls';
 import { SshServerFormDialog } from './SshServerFormDialog';
 import { SshVaultUnlockDialog } from './SshVaultUnlockDialog';
 
@@ -100,12 +99,7 @@ export function SshServersPanel(): React.JSX.Element {
     queryKey: queryKeys.sshServers,
     queryFn: () => window.agentmat.ssh.listServers(),
   });
-  const vaultQuery = useQuery({
-    queryKey: queryKeys.sshVaultStatus,
-    queryFn: () => window.agentmat.ssh.vaultStatus(),
-  });
   const servers = serversQuery.data ?? [];
-  const vault = vaultQuery.data ?? { hasPasskey: false, unlocked: false };
 
   async function refreshServers(): Promise<void> {
     await queryClient.invalidateQueries({ queryKey: queryKeys.sshServers });
@@ -142,22 +136,6 @@ export function SshServersPanel(): React.JSX.Element {
     }
   }
 
-  async function removePasskey(): Promise<void> {
-    const confirmed = await confirmDialog({
-      title: 'Remove the Servers passkey?',
-      description: 'Saved passwords and key passphrases go back to OS-keychain-only protection.',
-      confirmLabel: 'Remove',
-      variant: 'destructive',
-    });
-    if (!confirmed) return;
-    const result = await window.agentmat.ssh.setPasskey(null);
-    if (!result.ok) {
-      toast.error(result.error ?? 'Could not remove the passkey.');
-      return;
-    }
-    await refreshVault();
-  }
-
   return (
     <div className="flex flex-col gap-4">
       <Card className="glass">
@@ -169,56 +147,12 @@ export function SshServersPanel(): React.JSX.Element {
             <CardDescription>Connect over SSH with one click, no terminal typing.</CardDescription>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            {vault.hasPasskey ? (
-              vault.unlocked ? (
-                <>
-                  <Badge variant="success" className="gap-1.5">
-                    <LockOpen className="h-3 w-3" /> Vault unlocked
-                  </Badge>
-                  <SimpleTooltip label="Change the Servers passkey">
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      onClick={() => {
-                        setUnlockMode('set');
-                        setUnlockOpen(true);
-                      }}
-                    >
-                      <Key className="h-3.5 w-3.5" />
-                    </Button>
-                  </SimpleTooltip>
-                  <SimpleTooltip label="Remove the Servers passkey">
-                    <Button size="icon" variant="ghost" onClick={() => void removePasskey()}>
-                      <Lock className="h-3.5 w-3.5" />
-                    </Button>
-                  </SimpleTooltip>
-                </>
-              ) : (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => {
-                    setUnlockMode('unlock');
-                    setUnlockOpen(true);
-                  }}
-                >
-                  <Lock className="h-3.5 w-3.5" /> Unlock vault
-                </Button>
-              )
-            ) : (
-              <SimpleTooltip label="Encrypt saved passwords and key passphrases with a passkey instead of just the OS keychain">
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => {
-                    setUnlockMode('set');
-                    setUnlockOpen(true);
-                  }}
-                >
-                  <Lock className="h-3.5 w-3.5" /> Protect with a passkey
-                </Button>
-              </SimpleTooltip>
-            )}
+            <ServersVaultControls
+              onRequestDialog={(mode) => {
+                setUnlockMode(mode);
+                setUnlockOpen(true);
+              }}
+            />
             <Button size="sm" onClick={openAdd}>
               <Plus className="h-3.5 w-3.5" /> Add server
             </Button>

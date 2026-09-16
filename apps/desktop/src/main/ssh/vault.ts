@@ -11,6 +11,8 @@ import type {
   PassphraseSecretEnvelope,
   SecretEnvelope,
   SshVaultStatus,
+  StoredRdpServer,
+  StoredSshServer,
 } from '../../shared/apiTypes';
 import { store } from '../store';
 
@@ -106,13 +108,14 @@ export async function setPasskey(
     return { ok: false, error: 'Unlock the current passkey first.' };
   }
 
-  const servers = await store.getSshServers();
   const salt = randomBytes(16).toString('base64');
   const nextKey = passphrase ? await deriveKey(passphrase, salt) : null;
 
-  let reencrypted: typeof servers;
-  try {
-    reencrypted = await Promise.all(
+  // SSH and Remote Desktop servers share the one passkey, so both lists move together.
+  async function reencrypt<T extends { secretEnvelope?: SecretEnvelope }>(
+    servers: T[],
+  ): Promise<T[]> {
+    return Promise.all(
       servers.map(async (server) => {
         if (!server.secretEnvelope) return server;
         const plaintext = await decryptSecret(server.secretEnvelope);
@@ -122,11 +125,19 @@ export async function setPasskey(
         return { ...server, secretEnvelope };
       }),
     );
+  }
+
+  let sshServers: StoredSshServer[];
+  let rdpServers: StoredRdpServer[];
+  try {
+    sshServers = await reencrypt(await store.getSshServers());
+    rdpServers = await reencrypt(await store.getRdpServers());
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : String(error) };
   }
 
-  await store.setSshServers(reencrypted);
+  await store.setSshServers(sshServers);
+  await store.setRdpServers(rdpServers);
   await store.setSshVault(nextKey ? { salt, verifier: makeVerifier(nextKey) } : null);
   unlockedKey = nextKey;
   return { ok: true };
