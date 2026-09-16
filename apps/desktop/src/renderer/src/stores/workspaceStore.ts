@@ -112,7 +112,7 @@ export type NewTerminalTab = Omit<WorkspaceTerminalTab, 'kind' | 'id' | 'created
 
 interface WorkspaceState {
   workspaces: Record<string, ProjectWorkspace>;
-  /** Projects open in the rail, in the order they were opened. */
+  /** Projects open in the rail, in the order they were opened or the user dragged them into. */
   railProjectIds: string[];
   activeProjectId: string | null;
   gitPanel: GitPanelPrefs;
@@ -120,6 +120,8 @@ interface WorkspaceState {
   openProject: (projectId: string) => void;
   /** Removes a project from the rail and ends every shell it had open. */
   closeProject: (projectId: string) => void;
+  /** Moves a project to another spot in the rail. `index` is a slot in the rail's current order. */
+  moveRailProject: (projectId: string, index: number) => void;
   addTerminal: (projectId: string, tab: NewTerminalTab, groupId?: string) => string;
   /** Closes a tab. Terminal tabs end their shell. */
   closeTab: (projectId: string, tabId: string) => void;
@@ -271,6 +273,17 @@ export const useWorkspaceStore = create<WorkspaceState>()(
             };
           });
         },
+
+        moveRailProject: (projectId, index) =>
+          set((state) => {
+            const from = state.railProjectIds.indexOf(projectId);
+            if (from === -1) return state;
+            const rest = state.railProjectIds.filter((id) => id !== projectId);
+            // The index counts slots in the rail as it was, with the dragged project still in it.
+            const to = Math.max(0, Math.min(from < index ? index - 1 : index, rest.length));
+            if (to === from) return state;
+            return { railProjectIds: [...rest.slice(0, to), projectId, ...rest.slice(to)] };
+          }),
 
         addTerminal: (projectId, tab, groupId) => {
           const id = crypto.randomUUID();

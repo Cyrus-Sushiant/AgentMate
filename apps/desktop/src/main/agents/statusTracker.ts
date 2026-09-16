@@ -1,3 +1,4 @@
+import { type FSWatcher, watch } from 'node:fs';
 import { open } from 'node:fs/promises';
 import { basename, isAbsolute } from 'node:path';
 import {
@@ -15,6 +16,7 @@ import type {
   AgentRunInfoMap,
   AgentSessionEntry,
   AgentStatusMap,
+  LastRunInfoByCli,
 } from '../../shared/apiTypes';
 import { IPC } from '../../shared/ipcChannels';
 import { focusMainWindow, getMainWindow } from '../mainWindow';
@@ -41,8 +43,30 @@ const TRANSCRIPT_TAIL_BYTES = 512 * 1024;
 const runInfos = new Map<string, AgentRunInfo>();
 
 /**
- * The model of the newest assistant reply in a Claude Code transcript. Reading it each turn is
- * what keeps the tab current after a `/model` switch mid-session.
+ * The model id a `/model` switch in a transcript picked. Claude Code records only the display
+ * name ("Set model to `Opus 5 (1M context)`"), so this turns the usual family names back into
+ * an id and leaves anything else (e.g. "Default") alone.
+ */
+function modelFromSwitchLine(line: string): string | undefined {
+  try {
+    const entry = JSON.parse(line) as { type?: string; message?: { content?: unknown } };
+    const content = entry.message?.content;
+    if (entry.type !== 'user' || typeof content !== 'string') return undefined;
+    const match =
+      /^\s*<local-command-stdout>Set model to (?:.\[1m|`)?(Opus|Sonnet|Haiku|Fable) (\d+(?:\.\d+)*)( \(1M context\))?/i.exec(
+        content,
+      );
+    if (!match) return undefined;
+    const [, family, version, longContext] = match;
+    return `claude-${family.toLowerCase()}-${version.replace(/\./g, '-')}${longContext ? '[1m]' : ''}`;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * The model of the newest assistant reply in a Claude Code transcript, or of a `/model` switch
+ * made after it. Reading it each turn is what keeps the tab current after a switch mid-session.
  */
 async function modelFromTranscript(path: string): Promise<string | undefined> {
   if (!isAbsolute(path) || !path.endsWith('.jsonl')) return undefined;
@@ -56,6 +80,11 @@ async function modelFromTranscript(path: string): Promise<string | undefined> {
     const lines = buffer.toString('utf8').split('\n');
     for (let i = lines.length - 1; i >= 0; i -= 1) {
       const line = lines[i];
+      // A `/model` switch newer than the last reply: the next reply comes from that model.
+      if (line?.includes('Set model to')) {
+        const switched = modelFromSwitchLine(line);
+        if (switched) return switched;
+      }
       if (!line?.includes('"assistant"') || !line.includes('"model"')) continue;
       try {
         const entry = JSON.parse(line) as { type?: string; message?: { model?: unknown } };
@@ -73,6 +102,60 @@ async function modelFromTranscript(path: string): Promise<string | undefined> {
     await handle?.close().catch(() => undefined);
   }
   return undefined;
+}
+
+/** Transcripts being watched, by session id, so a `/model` switch shows before any hook fires. */
+const followed = new Map<string, { path: string; watcher: FSWatcher; timer?: NodeJS.Timeout }>();
+
+function unfollowTranscript(id: string): void {
+  const follow = followed.get(id);
+  if (!follow) return;
+  clearTimeout(follow.timer);
+  follow.watcher.close();
+  followed.delete(id);
+}
+
+/**
+ * Re-reads a session's transcript whenever Claude Code writes to it. The hooks only fire around
+ * prompts, so without this a `/model` switch stayed hidden until the next reply finished.
+ */
+function followTranscript(id: string, path: string): void {
+  if (followed.get(id)?.path === path) return;
+  unfollowTranscript(id);
+  if (!isAbsolute(path) || !path.endsWith('.jsonl')) return;
+  try {
+    const follow: { path: string; watcher: FSWatcher; timer?: NodeJS.Timeout } = {
+      path,
+      watcher: watch(path, { persistent: false }, () => {
+        clearTimeout(follow.timer);
+        follow.timer = setTimeout(() => void agentStatus.runInfo(id, {}), 300);
+      }),
+    };
+    follow.watcher.on('error', () => unfollowTranscript(id));
+    followed.set(id, follow);
+  } catch {
+    // The transcript may not exist yet; the next hook tries again.
+  }
+}
+
+let lastRunInfoWrite: Promise<unknown> = Promise.resolve();
+
+/**
+ * Remembers the model and effort a CLI was last actually run on, across app restarts, so a
+ * fresh tab for that CLI can be opened the same way instead of some other default. Chained
+ * onto the previous write so two hooks landing close together don't race each other's
+ * read-modify-write and drop one.
+ */
+function persistLastRunInfo(cliId: string, model: string, effort?: string): Promise<void> {
+  lastRunInfoWrite = lastRunInfoWrite
+    .catch(() => undefined)
+    .then(async () => {
+      const known = await store.getLastRunInfoByCli();
+      if (known[cliId]?.model === model && known[cliId]?.effort === effort) return;
+      const next: LastRunInfoByCli = { ...known, [cliId]: { model, effort } };
+      await store.setLastRunInfoByCli(next);
+    });
+  return lastRunInfoWrite as Promise<void>;
 }
 
 const TICK_MS = 500;
@@ -201,7 +284,11 @@ export const agentStatus = {
    */
   sync(entries: AgentSessionEntry[]): string[] {
     const wanted = new Set(entries.map((e) => e.sessionId));
-    for (const id of [...tracked.keys()]) if (!wanted.has(id)) tracked.delete(id);
+    for (const id of [...tracked.keys()]) {
+      if (wanted.has(id)) continue;
+      tracked.delete(id);
+      unfollowTranscript(id);
+    }
     const added: string[] = [];
     for (const entry of entries) {
       const existing = tracked.get(entry.sessionId);
@@ -266,10 +353,10 @@ export const agentStatus = {
     input: { model?: string; effort?: string; transcriptPath?: string },
   ): Promise<void> {
     if (!tracked.has(id)) return;
+    if (input.transcriptPath) followTranscript(id, input.transcriptPath);
     const current = runInfos.get(id) ?? {};
-    const fromTranscript = input.transcriptPath
-      ? await modelFromTranscript(input.transcriptPath)
-      : undefined;
+    const transcriptPath = input.transcriptPath ?? followed.get(id)?.path;
+    const fromTranscript = transcriptPath ? await modelFromTranscript(transcriptPath) : undefined;
     const next: AgentRunInfo = {
       model: fromTranscript ?? input.model ?? current.model,
       effort: input.effort ?? current.effort,
@@ -291,6 +378,10 @@ export const agentStatus = {
         win.webContents.send(IPC.agents.onRunInfo, { [id]: next } satisfies AgentRunInfoMap);
       }
     }
+    // So the next fresh launch of this CLI starts on what it was actually last run
+    // on, not a default computed elsewhere in the app.
+    const cliId = tracked.get(id)?.cliId;
+    if (cliId && next.model) void persistLastRunInfo(cliId, next.model, next.effort);
   },
 
   runInfos(): AgentRunInfoMap {

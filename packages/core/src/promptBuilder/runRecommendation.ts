@@ -491,6 +491,42 @@ export function runChoiceArgs(profile: TargetRunProfile, choice: RunChoice): str
   return args;
 }
 
+function matchReportedModel(
+  profile: TargetRunProfile,
+  rawModel: string,
+): RunModelOption | undefined {
+  const lower = rawModel.toLowerCase();
+  return (
+    profile.models.find((m) => m.modelArg && lower === m.modelArg.toLowerCase()) ??
+    profile.models.find((m) => m.modelArg && lower.includes(m.modelArg.toLowerCase())) ??
+    profile.models.find((m) => lower.includes(m.id.toLowerCase()))
+  );
+}
+
+/**
+ * Turns a model and effort a CLI actually reported (say, from a hook after a `/model` switch)
+ * into the flags that would start a fresh run the same way. Lets a new tab for that CLI open
+ * on what the user was last really running it on, instead of a default computed elsewhere.
+ */
+export function runArgsFromReported(
+  cliId: string,
+  reported: { model?: string; effort?: string },
+): string[] {
+  const rawModel = reported.model?.trim();
+  if (!rawModel) return [];
+  const profile = runProfileForTargetAI(cliId);
+  const model = matchReportedModel(profile, rawModel);
+  if (!model) return [];
+  const effortRaw = reported.effort?.trim().toLowerCase();
+  const effort =
+    effortRaw &&
+    (EFFORT_VALUES as readonly string[]).includes(effortRaw) &&
+    model.efforts?.includes(effortRaw as EffortLevel)
+      ? (effortRaw as EffortLevel)
+      : undefined;
+  return runChoiceArgs(profile, { model, effort });
+}
+
 /**
  * Drops run args the user already set in their own CLI arguments, so a configured
  * `--model` wins and the CLI never sees the same flag twice. Run args always come in
@@ -510,6 +546,64 @@ export function withoutConfiguredRunArgs(configuredArgs: string, runArgs: string
     if (!clash) kept.push(flag, value);
   }
   return kept;
+}
+
+/** Short spellings CLIs accept for the long flags run args use. */
+const RUN_FLAG_ALIASES: Record<string, readonly string[]> = {
+  '--model': ['-m'],
+};
+
+/**
+ * The other way round from withoutConfiguredRunArgs(): drops whatever the user's own CLI
+ * arguments set that the run args also set, for launches where the model and effort were picked
+ * on purpose for this one run (say, in a Fix with AI dialog). A `--model haiku` kept in Settings
+ * would otherwise win, and the CLI would start on it instead of the pick. Everything else in the
+ * configured string is left exactly as the user wrote it.
+ */
+export function configuredArgsWithout(configuredArgs: string, runArgs: string[]): string {
+  const flags = new Set<string>();
+  const configKeys = new Set<string>();
+  for (let i = 0; i + 1 < runArgs.length; i += 2) {
+    const flag = runArgs[i]!;
+    if (flag === '-c') configKeys.add(runArgs[i + 1]!.split('=')[0]!);
+    else for (const name of [flag, ...(RUN_FLAG_ALIASES[flag] ?? [])]) flags.add(name);
+  }
+  if (flags.size === 0 && configKeys.size === 0) return configuredArgs;
+
+  const tokens = [...configuredArgs.matchAll(/\S+/g)].map((m) => ({
+    text: m[0],
+    start: m.index,
+    end: m.index + m[0].length,
+  }));
+  const cut: { start: number; end: number }[] = [];
+  for (let i = 0; i < tokens.length; i++) {
+    const token = tokens[i]!;
+    const next = tokens[i + 1];
+    const [name, inlineValue] = token.text.split(/=(.*)/s);
+    if (flags.has(name!)) {
+      // `--model=opus` is one token; `--model opus` takes the value with it.
+      const takesNext = inlineValue === undefined && next && !next.text.startsWith('-');
+      cut.push({ start: token.start, end: takesNext ? next.end : token.end });
+      if (takesNext) i++;
+    } else if (token.text === '-c' && next && configKeys.has(next.text.split('=')[0]!)) {
+      cut.push({ start: token.start, end: next.end });
+      i++;
+    }
+  }
+  if (cut.length === 0) return configuredArgs;
+
+  const kept: string[] = [];
+  let from = 0;
+  for (const range of cut) {
+    kept.push(configuredArgs.slice(from, range.start));
+    from = range.end;
+  }
+  kept.push(configuredArgs.slice(from));
+  // Only the edges of each kept piece are trimmed, so spacing inside a quoted value survives.
+  return kept
+    .map((piece) => piece.trim())
+    .filter(Boolean)
+    .join(' ');
 }
 
 export type CostLevel = 1 | 2 | 3 | 4 | 5;

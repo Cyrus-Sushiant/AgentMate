@@ -182,6 +182,15 @@ export interface AgentRunInfo {
 
 export type AgentRunInfoMap = Record<string, AgentRunInfo>;
 
+/** The model and effort last reported for a CLI, kept across restarts. */
+export interface LastRunInfo {
+  model?: string;
+  effort?: string;
+}
+
+/** CLI id to what it was last actually running on. */
+export type LastRunInfoByCli = Record<string, LastRunInfo>;
+
 /** What a terminal found on the clipboard: text, or paths (copied files, a screenshot saved to
  * disk). Read in the main process, which sees formats the renderer cannot and needs no focus. */
 export type TerminalClipboardPaste =
@@ -954,6 +963,18 @@ export interface VersionFileChange {
    * changed, but committing the file also commits those earlier edits.
    */
   hadLocalEdits?: boolean;
+  /**
+   * The edit split into separate changes, each with a little context, so the user can keep
+   * some and revert others. Only set for a text file with more than one change.
+   */
+  hunks?: VersionHunk[];
+}
+
+export interface VersionHunk {
+  /** Git's `@@ -a,b +c,d @@` line for the change. */
+  header: string;
+  /** Diff lines with a ' ', '-' or '+' in front, line endings removed. */
+  lines: string[];
 }
 
 export interface ApplyVersionResult {
@@ -981,6 +1002,25 @@ export interface SwapVersionFileInput {
   toId: string | null;
   /** Exact bytes to write instead of checking `toId` out, when that side has a raw copy. */
   toRawId?: string | null;
+}
+
+/** Rewrites one file with only some of the run's changes to it applied. */
+export interface WriteVersionHunksInput {
+  projectId: string;
+  path: string;
+  /** Blob id the file must still have. Guards against lost work. */
+  fromId: string;
+  beforeId: string;
+  afterId: string;
+  beforeRawId: string | null;
+  afterRawId: string | null;
+  /** Indexes into VersionFileChange.hunks to leave out; every other change is applied. */
+  revertHunks: number[];
+}
+
+export interface WriteVersionHunksResult extends GitOpResult {
+  /** Blob id the file holds after the write, when it succeeded. */
+  id?: string;
 }
 
 export interface SuggestTagResult {

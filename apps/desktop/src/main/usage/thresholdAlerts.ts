@@ -2,6 +2,7 @@ import { getUsageProvider, type SubscriptionWindowKey } from '@agentmat/core';
 import { BrowserWindow, Notification } from 'electron';
 import icon from '../../../resources/icon.ico?asset';
 import { IPC } from '../../shared/ipcChannels';
+import { focusMainWindow } from '../mainWindow';
 import { store } from '../store';
 import { getProviderUsage } from './index';
 
@@ -31,15 +32,22 @@ function broadcast(channel: string, payload: unknown): void {
   }
 }
 
-/** OS notification when the platform supports one; an in-app toast otherwise. */
-function notify(title: string, body: string): void {
+/**
+ * OS notification when the platform supports one; an in-app toast otherwise. Clicking it
+ * brings the app forward on the Token Usage page, scrolled to the provider that fired.
+ */
+function notify(title: string, body: string, providerId: string): void {
   if (Notification.isSupported()) {
     // Without an explicit icon, Windows/Linux fall back to the launching
     // executable's own icon (Electron's, in a dev run).
-    new Notification({ title, body, icon }).show();
+    const notification = new Notification({ title, body, icon });
+    notification.on('click', () => {
+      focusMainWindow(`/usage?provider=${encodeURIComponent(providerId)}`);
+    });
+    notification.show();
     return;
   }
-  broadcast(IPC.usage.onThresholdAlert, { title, body });
+  broadcast(IPC.usage.onThresholdAlert, { title, body, providerId });
 }
 
 async function tick(): Promise<void> {
@@ -74,6 +82,7 @@ async function tick(): Promise<void> {
     notify(
       `${providerName}: ${window.label} at ${pct}%`,
       `You've used ${pct}% of your ${window.label.toLowerCase()} limit.`,
+      alerts.providerId,
     );
   }
 }
@@ -106,6 +115,7 @@ export async function sendThresholdAlertTest(): Promise<{ ok: boolean; error?: s
   notify(
     `🧪 Test: ${providerName} · ${label}`,
     `This is what an alert looks like at ${alerts.threshold}% usage.`,
+    alerts.providerId,
   );
   return { ok: true };
 }

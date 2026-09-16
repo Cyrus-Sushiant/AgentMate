@@ -275,6 +275,16 @@ async function readWorking(root: string, path: string): Promise<Buffer | null> {
   return readFile(absolute);
 }
 
+/**
+ * Saves an edit made in the diff view. Only an existing regular file is written, the same
+ * kind readWorking shows, so a symlink or a deleted file can't be turned into a new write.
+ */
+export async function writeWorkingFile(root: string, path: string, content: string): Promise<void> {
+  const absolute = join(root, path);
+  if (!(await isFile(absolute))) throw new Error(`${path} is no longer a file on disk.`);
+  await writeFile(absolute, content, 'utf8');
+}
+
 function looksBinary(buffer: Buffer | null): boolean {
   if (!buffer) return false;
   return buffer.subarray(0, 8000).includes(0);

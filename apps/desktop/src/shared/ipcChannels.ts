@@ -461,6 +461,7 @@ export const IPC = {
     applyVersion: 'git:applyVersion',
     cancelApplyVersion: 'git:cancelApplyVersion',
     swapVersionFile: 'git:swapVersionFile',
+    writeVersionHunks: 'git:writeVersionHunks',
     suggestBranchName: 'git:suggestBranchName',
     cancelSuggestBranchName: 'git:cancelSuggestBranchName',
     suggestCommitMessage: 'git:suggestCommitMessage',
@@ -491,6 +492,7 @@ export const IPC = {
     abortOperation: 'git:abortOperation',
     commitStaged: 'git:commitStaged',
     fileDiff: 'git:fileDiff',
+    writeWorkingFile: 'git:writeWorkingFile',
     commitFiles: 'git:commitFiles',
     commitFileDiff: 'git:commitFileDiff',
     // main -> renderer: (projectId, WorkspaceGitState) whenever a watched working tree changes
@@ -516,6 +518,8 @@ export const IPC = {
     list: 'agents:list',
     statusHookSettings: 'agents:statusHookSettings',
     runInfos: 'agents:runInfos',
+    // The model and effort each CLI was last actually running on, kept across restarts
+    lastRunInfoByCli: 'agents:lastRunInfoByCli',
     // (projectId) -> AgentHistorySession[]: past Claude Code and Codex conversations in its folder
     history: 'agents:history',
     // main -> renderer: AgentRunInfoMap of sessions whose model or effort just changed

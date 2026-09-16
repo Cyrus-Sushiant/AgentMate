@@ -1,3 +1,4 @@
+import { release } from 'node:os';
 import { SerializeAddon } from '@xterm/addon-serialize';
 import { Terminal as HeadlessTerminal } from '@xterm/headless';
 import * as pty from 'node-pty';
@@ -14,6 +15,12 @@ import { buildPromptMarkerScript } from './shellIntegration';
  * Every session holds its own emulator, so this is a memory trade-off, not a UI one.
  */
 const SNAPSHOT_SCROLLBACK = 3000;
+
+/** Same ConPTY hint the app's own terminals get, so the snapshot grows and shrinks like they do. */
+const WINDOWS_PTY =
+  process.platform === 'win32'
+    ? { backend: 'conpty' as const, buildNumber: Number(release().split('.')[2]) || undefined }
+    : undefined;
 
 /** Whoever currently shows a session. Output goes to exactly one listener at a time. */
 export interface SessionListener {
@@ -141,6 +148,7 @@ export class PtySessionManager {
       scrollback: SNAPSHOT_SCROLLBACK,
       convertEol: true,
       allowProposedApi: true,
+      windowsPty: WINDOWS_PTY,
     });
     const serializer = new SerializeAddon();
     // The addon's typings name the browser Terminal; the headless one exposes the same API.

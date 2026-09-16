@@ -87,10 +87,21 @@ export default function App(): React.JSX.Element {
     void initDashboardLayout();
     initRemote();
     // Usage threshold alerts prefer an OS notification; main only falls back
-    // to this event when the platform has none to show.
-    const unsubscribeThresholdAlert = window.agentmat.usage.onThresholdAlert(({ title, body }) => {
-      toast.warning(title, { description: body });
-    });
+    // to this event when the platform has none to show. The OS notification's own
+    // click already opens Usage there, so this toast gets the same shortcut.
+    const unsubscribeThresholdAlert = window.agentmat.usage.onThresholdAlert(
+      ({ title, body, providerId }) => {
+        toast.warning(title, {
+          description: body,
+          action: {
+            label: 'View',
+            onClick: () => {
+              window.location.hash = `#/usage?provider=${encodeURIComponent(providerId)}`;
+            },
+          },
+        });
+      },
+    );
     const unsubscribeUpdateStatus = initUpdateStatusListener();
     return () => {
       unsubscribeThresholdAlert();

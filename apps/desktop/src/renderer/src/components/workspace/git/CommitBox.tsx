@@ -15,8 +15,15 @@ import { cn } from '@/lib/utils';
 import { commandForEvent, useShortcutLabel, useShortcutStore } from '@/stores/shortcutStore';
 import type { GitActions } from './useWorkspaceGit';
 
-/** Half-written commit messages per project, kept while the app runs. */
-const useCommitDrafts = create<{ drafts: Record<string, string> }>(() => ({ drafts: {} }));
+/**
+ * Half-written commit messages and in-flight AI requests, kept per project while the app
+ * runs. Living outside the component means switching panel tabs or navigating away and
+ * back doesn't lose track of a generation request that's still running.
+ */
+const useCommitDrafts = create<{
+  drafts: Record<string, string>;
+  generating: Record<string, string | null>;
+}>(() => ({ drafts: {}, generating: {} }));
 
 const MAX_ROWS = 8;
 const LINE_HEIGHT = 20;
@@ -32,7 +39,9 @@ export function CommitBox({ projectId, state, actions }: CommitBoxProps): React.
   const setMessage = (value: string): void =>
     useCommitDrafts.setState((s) => ({ drafts: { ...s.drafts, [projectId]: value } }));
   const [busy, setBusy] = useState<'commit' | 'push' | null>(null);
-  const [generating, setGenerating] = useState<string | null>(null);
+  const generating = useCommitDrafts((s) => s.generating[projectId] ?? null);
+  const setGenerating = (value: string | null): void =>
+    useCommitDrafts.setState((s) => ({ generating: { ...s.generating, [projectId]: value } }));
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const stagedCount = state.staged.length;
@@ -94,7 +103,13 @@ export function CommitBox({ projectId, state, actions }: CommitBoxProps): React.
         toast.error('Could not write a commit message', { description: result.error });
       }
     } finally {
-      setGenerating((current) => (current === requestId ? null : current));
+      // Only clears the flag if this is still the request that set it: a cancel followed
+      // by a fresh generate() shouldn't have the stale request's finally block wipe it out.
+      useCommitDrafts.setState((s) =>
+        s.generating[projectId] === requestId
+          ? { generating: { ...s.generating, [projectId]: null } }
+          : s,
+      );
     }
   }
 

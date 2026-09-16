@@ -1,6 +1,11 @@
 import type { AgentHistorySession } from '@agentmat/core';
 import { ipcMain } from 'electron';
-import type { AgentRunInfoMap, AgentSessionEntry, AgentStatusMap } from '../../shared/apiTypes';
+import type {
+  AgentRunInfoMap,
+  AgentSessionEntry,
+  AgentStatusMap,
+  LastRunInfoByCli,
+} from '../../shared/apiTypes';
 import { IPC } from '../../shared/ipcChannels';
 import { claudeHookSettingsPath, supportsStatusHooks } from '../agents/claudeHooks';
 import { listAgentHistory } from '../agents/sessionHistory';
@@ -46,6 +51,11 @@ export function registerAgentHandlers(): void {
   ipcMain.handle(IPC.agents.list, (): AgentStatusMap => agentStatus.list());
 
   ipcMain.handle(IPC.agents.runInfos, (): AgentRunInfoMap => agentStatus.runInfos());
+
+  ipcMain.handle(
+    IPC.agents.lastRunInfoByCli,
+    (): Promise<LastRunInfoByCli> => store.getLastRunInfoByCli(),
+  );
 
   ipcMain.handle(
     IPC.agents.history,

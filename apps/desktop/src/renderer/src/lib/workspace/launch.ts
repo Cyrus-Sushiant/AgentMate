@@ -2,10 +2,12 @@ import {
   AGENT_TYPE_CLI_ID,
   type AgentHistoryProvider,
   type AgentHistorySession,
+  configuredArgsWithout,
   getCliArgsFor,
   getCliDefinition,
   type Project,
   quoteForShell,
+  runArgsFromReported,
   shellKindFor,
   withoutConfiguredRunArgs,
 } from '@agentmat/core';
@@ -66,21 +68,24 @@ export function prepareStatusHooks(cliIds: string[]): void {
 
 /**
  * The command a workspace tab types to start a CLI: status hooks when available, the user's
- * configured arguments, then any run arguments (a suggested model and effort) the user's own
- * arguments don't already set.
+ * configured arguments, then the run arguments (a model and effort). Normally the user's own
+ * arguments win a clash. With `runArgsWin` the run arguments do instead: they were picked for
+ * this one launch, so a `--model` saved in Settings must not quietly replace the pick.
  */
 function agentCommand(
   cliId: string,
   shell: string | undefined,
   runArgs: string[] = [],
   leadingArgs: string[] = [],
+  runArgsWin = false,
 ): string | null {
   const cli = getCliDefinition(cliId);
   if (!cli) return null;
   const kind = shellKindFor(shell, window.agentmat.platform);
   const hookSettings = statusHookSettings.get(cliId);
-  const configured = getCliArgsFor(useCliStore.getState().cliArgs, cliId);
-  const extra = withoutConfiguredRunArgs(configured, runArgs).map((arg) =>
+  const saved = getCliArgsFor(useCliStore.getState().cliArgs, cliId);
+  const configured = runArgsWin ? configuredArgsWithout(saved, runArgs) : saved;
+  const extra = (runArgsWin ? runArgs : withoutConfiguredRunArgs(configured, runArgs)).map((arg) =>
     quoteForShell(arg, kind),
   );
   return [
@@ -116,7 +121,7 @@ export function launchPromptTab(
 ): string | null {
   const cli = getCliDefinition(launch.cliId);
   const shell = defaultNewSession().shell;
-  const command = agentCommand(launch.cliId, shell, launch.runArgs);
+  const command = agentCommand(launch.cliId, shell, launch.runArgs, [], true);
   if (!cli || !command) {
     toast.error('Unknown CLI.');
     return null;
@@ -147,11 +152,21 @@ export function launchPromptTab(
   return tabId;
 }
 
+/**
+ * The flags that would start `cliId` on whatever it was last actually run on, so a fresh tab
+ * picks that up instead of a default computed elsewhere in the app (e.g. a Prompt Builder
+ * suggestion from a different, unrelated run).
+ */
+function lastKnownRunArgs(cliId: string): string[] {
+  const lastKnown = useCliStore.getState().lastRunInfoByCli[cliId];
+  return lastKnown ? runArgsFromReported(cliId, lastKnown) : [];
+}
+
 /** Opens a tab in the project's workspace that starts an agent CLI. Returns the tab id. */
 export function launchAgentTab(project: Project, cliId: string, groupId?: string): string | null {
   const cli = getCliDefinition(cliId);
   const shell = defaultNewSession().shell;
-  const command = agentCommand(cliId, shell);
+  const command = agentCommand(cliId, shell, lastKnownRunArgs(cliId));
   if (!cli || !command) {
     toast.error('Unknown CLI.');
     return null;

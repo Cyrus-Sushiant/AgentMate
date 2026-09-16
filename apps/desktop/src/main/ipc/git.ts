@@ -1,6 +1,7 @@
 import type { GitChangeEntry, Project } from '@agentmat/core';
 import { browsableRepoUrl, buildCommitMessagePrompt, stripRemoteCredentials } from '@agentmat/core';
-import { ipcMain } from 'electron';
+import { ipcMain, Notification } from 'electron';
+import icon from '../../../resources/icon.ico?asset';
 import type {
   ApplyVersionInput,
   ApplyVersionResult,
@@ -27,6 +28,8 @@ import type {
   SuggestGitTextResult,
   SuggestTagResult,
   SwapVersionFileInput,
+  WriteVersionHunksInput,
+  WriteVersionHunksResult,
   WorkspaceGitState,
 } from '../../shared/apiTypes';
 import { IPC } from '../../shared/ipcChannels';
@@ -92,6 +95,7 @@ import {
   repoRoot,
   snapshotChangedFiles,
   swapFileVersion,
+  writeFileHunks,
 } from '../git/versionReview';
 import {
   refreshWorkspaceState,
@@ -108,12 +112,14 @@ import {
   readCommitFileDiff,
   readCommitFiles,
   readFileDiff,
+  writeWorkingFile,
   readWorkspaceGitState,
   resolveConflict,
   stagePaths,
   undoDiscard,
   unstagePaths,
 } from '../git/workspaceGit';
+import { focusMainWindow } from '../mainWindow';
 import { schedulePipelineCheck } from '../pipelines/watcher';
 import { store } from '../store';
 
@@ -683,7 +689,7 @@ function registerTagHandlers(): void {
       // knows whether it landed. A cancel still reads as a cancel, since the user asked.
       const landed = (changes.length > 0 || committedByCli) && !result.cancelled;
 
-      return {
+      const applyResult: ApplyVersionResult = {
         ok: result.ok || landed,
         // Falls back to the progress log for CLIs that keep stdout for the final message
         // and print everything they did to stderr.
@@ -697,6 +703,31 @@ function registerTagHandlers(): void {
         error: result.ok || landed ? undefined : result.error,
         cancelled: result.cancelled,
       };
+
+      // The run can take minutes, so this says it's done even if the dialog watching it has
+      // since closed or the user moved to another project or page entirely. Clicking it
+      // reopens the review, same as the in-app toast the still-open dialog would show.
+      if (!applyResult.cancelled) {
+        const settings = await store.getSettings();
+        if (Notification.isSupported() && settings.workspaceNotifications !== false) {
+          const notification = new Notification({
+            title: applyResult.ok
+              ? `${project.name}: version files updated`
+              : `${project.name}: version update failed`,
+            body: applyResult.ok
+              ? `${changes.length} file${changes.length === 1 ? '' : 's'} changed for ${tag}. Review and commit when ready.`
+              : (applyResult.error ?? 'The CLI did not finish.'),
+            icon,
+            silent: false,
+          });
+          notification.on('click', () => {
+            focusMainWindow(`/workspace/${input.projectId}?tag=1`);
+          });
+          notification.show();
+        }
+      }
+
+      return applyResult;
     },
   );
 
@@ -713,6 +744,19 @@ function registerTagHandlers(): void {
         await swapFileVersion(root, input.path, input.fromId, input.toId, input.toRawId);
         return input.toId === null ? `Removed ${input.path}.` : `Updated ${input.path}.`;
       });
+    },
+  );
+
+  ipcMain.handle(
+    IPC.git.writeVersionHunks,
+    async (_event, input: WriteVersionHunksInput): Promise<WriteVersionHunksResult> => {
+      const cwd = await getProjectPath(input.projectId);
+      let id: string | undefined;
+      const result = await runGitOp(async () => {
+        id = await writeFileHunks(await repoRoot(cwd), input);
+        return `Updated ${input.path}.`;
+      });
+      return result.ok ? { ...result, id } : result;
     },
   );
 }
@@ -1003,6 +1047,16 @@ function registerWorkspaceHandlers(): void {
       const [safe] = assertRepoPaths(root, [path]);
       const [safeOrig] = origPath ? assertRepoPaths(root, [origPath]) : [undefined];
       return readFileDiff(root, safe, side, safeOrig);
+    },
+  );
+
+  ipcMain.handle(
+    IPC.git.writeWorkingFile,
+    async (_event, projectId: string, path: string, content: string): Promise<void> => {
+      if (typeof content !== 'string') throw new Error('Nothing to save.');
+      const { root } = await requireRepo(projectId);
+      const [safe] = assertRepoPaths(root, [path]);
+      await writeWorkingFile(root, safe, content);
     },
   );
 

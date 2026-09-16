@@ -1,6 +1,5 @@
 import { configuredRunCommands, type Project } from '@agentmat/core';
 import { useQuery } from '@tanstack/react-query';
-import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { Cpu, Run, Tag } from '@/components/icons';
@@ -10,6 +9,7 @@ import { SimpleTooltip } from '@/components/ui/tooltip';
 import { queryKeys } from '@/lib/queryKeys';
 import { ProjectVersionDialogs } from '@/pages/ProjectDetailPage';
 import { useRunningClisStore } from '@/stores/runningClisStore';
+import { useVersionDialogStore } from '@/stores/versionDialogStore';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
 
 /**
@@ -20,7 +20,9 @@ export function WorkspaceHeaderActions(): React.JSX.Element | null {
   const navigate = useNavigate();
   const activeProjectId = useWorkspaceStore((s) => s.activeProjectId);
   const { requestRun, runPicker } = useProjectRun();
-  const [tagOpen, setTagOpen] = useState(false);
+  const tagDialogProjectId = useVersionDialogStore((s) => s.openProjectId);
+  const openVersionDialog = useVersionDialogStore((s) => s.open);
+  const closeVersionDialog = useVersionDialogStore((s) => s.close);
   const runningClisOpen = useRunningClisStore((s) => s.open);
   const setRunningClisOpen = useRunningClisStore((s) => s.setOpen);
   const projectsQuery = useQuery<Project[]>({
@@ -28,6 +30,7 @@ export function WorkspaceHeaderActions(): React.JSX.Element | null {
     queryFn: () => window.agentmat.projects.list(),
   });
   const project = projectsQuery.data?.find((p) => p.id === activeProjectId);
+  const tagOpen = tagDialogProjectId === activeProjectId;
   if (!project) return null;
 
   const commands = configuredRunCommands(project);
@@ -67,7 +70,7 @@ export function WorkspaceHeaderActions(): React.JSX.Element | null {
           variant={tagOpen ? 'secondary' : 'ghost'}
           size="icon"
           aria-label="Tag a version"
-          onClick={() => setTagOpen(true)}
+          onClick={() => openVersionDialog(project.id)}
         >
           <Tag className="h-4 w-4" />
         </Button>
@@ -83,7 +86,11 @@ export function WorkspaceHeaderActions(): React.JSX.Element | null {
         </Button>
       </SimpleTooltip>
       {runPicker}
-      <ProjectVersionDialogs projectId={project.id} open={tagOpen} onOpenChange={setTagOpen} />
+      <ProjectVersionDialogs
+        projectId={project.id}
+        open={tagOpen}
+        onOpenChange={(next) => (next ? openVersionDialog(project.id) : closeVersionDialog())}
+      />
     </>
   );
 }

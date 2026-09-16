@@ -1,7 +1,8 @@
 import type { GitChangeEntry, Project } from '@agentmat/core';
 import type { WorkspaceGitState } from '@shared/apiTypes';
-import { useQuery } from '@tanstack/react-query';
-import { useEffect, useRef } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useEffect, useRef, useState } from 'react';
+import { toast } from 'sonner';
 import {
   MonacoDiffEditor,
   type MonacoDiffEditorHandle,
@@ -14,6 +15,8 @@ import {
   Minus,
   Pin,
   Plus,
+  Save,
+  Spinner,
   SplitView,
   Undo,
 } from '@/components/icons';
@@ -90,7 +93,9 @@ export default function DiffTab({
   /** In the focused pane, so the next and previous change shortcuts drive this diff. */
   focused: boolean;
 }): React.JSX.Element {
+  const queryClient = useQueryClient();
   const editorRef = useRef<MonacoDiffEditorHandle>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const nextChangeLabel = useShortcutLabel('workspace.nextChange');
   const prevChangeLabel = useShortcutLabel('workspace.prevChange');
 
@@ -138,9 +143,73 @@ export default function DiffTab({
   const meta = entry ? changeStatusMeta(entry.status) : null;
   const gone = !tab.commit && state !== undefined && entry === null;
 
+  // The right side of a working tree diff is the file on disk, so it can be edited and saved
+  // right here. Staged content and past commits aren't files, so those stay read-only.
+  const editable =
+    !!entry &&
+    tab.side !== 'staged' &&
+    entry.status !== 'D' &&
+    !!diff.data &&
+    !diff.data.binary &&
+    !diff.data.tooLarge;
+  const [draft, setDraft] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const dirty = editable && draft !== null && draft !== diff.data?.modified;
+
+  // A draft belongs to one file; switching what this tab shows starts clean.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: resets on the tab's identity only
+  useEffect(() => {
+    setDraft(null);
+  }, [tab.path, tab.side, tab.commit]);
+
+  function handleEdit(value: string): void {
+    setDraft(value);
+    // Editing a preview tab keeps it, so the edit isn't lost to the next file clicked.
+    if (tab.preview) openDiff(project.id, tab, { pin: true });
+  }
+
+  async function save(): Promise<void> {
+    if (!dirty || draft === null || saving) return;
+    setSaving(true);
+    try {
+      await window.agentmat.git.writeWorkingFile(project.id, tab.path, draft);
+      queryClient.setQueryData(queryKeys.gitFileDiff(project.id, tab.side, tab.path), {
+        ...diff.data,
+        modified: draft,
+      });
+      setDraft(null);
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.gitFileDiff(project.id, tab.side, tab.path),
+      });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.gitWorkspaceState(project.id) });
+    } catch (error) {
+      toast.error('Could not save the file', {
+        description: error instanceof Error ? error.message : undefined,
+      });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  // Ctrl/Cmd+S saves while focus is anywhere in this tab.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: save reads the latest draft
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if ((event.ctrlKey || event.metaKey) && !event.shiftKey && event.code === 'KeyS') {
+        event.preventDefault();
+        event.stopPropagation();
+        void save();
+      }
+    };
+    el.addEventListener('keydown', onKeyDown, true);
+    return () => el.removeEventListener('keydown', onKeyDown, true);
+  }, [draft, diff.data, saving, editable]);
+
   return (
     // A container, so the toolbar can drop its extras when the pane is narrow.
-    <div className="@container flex h-full min-h-0 flex-col">
+    <div ref={containerRef} className="@container flex h-full min-h-0 flex-col">
       <div className="flex h-9 shrink-0 items-center gap-2 border-b border-border/60 px-3">
         <File className="h-3 w-3 shrink-0 text-muted-foreground" />
         <div className="flex min-w-0 flex-1 items-baseline gap-2">
@@ -167,6 +236,27 @@ export default function DiffTab({
         </div>
 
         <div className="flex shrink-0 items-center gap-0.5">
+          {dirty ? (
+            <span className="mr-1 flex shrink-0 items-center gap-1 text-[11px] text-warning">
+              <span className="h-1.5 w-1.5 rounded-full bg-warning" />
+              <span className="hidden @md:inline">Unsaved</span>
+            </span>
+          ) : null}
+          {editable ? (
+            <button
+              type="button"
+              onClick={() => void save()}
+              disabled={!dirty || saving}
+              className="mr-1 inline-flex h-6 items-center gap-1 rounded-md bg-primary px-2 text-[11px] font-semibold text-primary-foreground transition-all hover:brightness-110 disabled:bg-foreground/[0.08] disabled:text-muted-foreground"
+            >
+              {saving ? (
+                <Spinner className="h-2.5 w-2.5 animate-spin" />
+              ) : (
+                <Save className="h-2.5 w-2.5" />
+              )}
+              Save
+            </button>
+          ) : null}
           <ToolbarButton
             label={prevChangeLabel ? `Previous change (${prevChangeLabel})` : 'Previous change'}
             onClick={() => editorRef.current?.goToChange('previous')}
@@ -306,9 +396,11 @@ export default function DiffTab({
             ref={editorRef}
             path={tab.path}
             original={diff.data.original}
-            modified={diff.data.modified}
+            modified={dirty && draft !== null ? draft : diff.data.modified}
             sideBySide={sideBySide}
             ignoreWhitespace={ignoreWhitespace}
+            editable={editable}
+            onModifiedChange={handleEdit}
           />
         )}
       </div>

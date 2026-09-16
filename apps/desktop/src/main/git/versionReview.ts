@@ -2,11 +2,21 @@ import { spawn } from 'node:child_process';
 import { lstatSync } from 'node:fs';
 import { mkdir, rm, writeFile } from 'node:fs/promises';
 import { dirname, isAbsolute, relative, resolve } from 'node:path';
-import type { VersionFileChange } from '../../shared/apiTypes';
+import {
+  applyLineHunks,
+  type LineHunk,
+  lineHunkPreviews,
+  lineHunksMatch,
+  parseLineHunks,
+  splitLinesKeepEnds,
+} from '@agentmat/core';
+import type { VersionFileChange, WriteVersionHunksInput } from '../../shared/apiTypes';
 
 const GIT_TIMEOUT_MS = 60000;
 /** A version bump is a line or two per file. Past this it is a lockfile nobody reads line by line. */
 const MAX_DIFF_LINES = 400;
+/** Past this many hunks a file is reviewed whole; nobody picks through that many one by one. */
+const MAX_HUNKS = 60;
 /** SHA-1 or SHA-256 object ids, and nothing a command line could read as an option. */
 const OBJECT_ID_PATTERN = /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/;
 
@@ -15,7 +25,7 @@ const OBJECT_ID_PATTERN = /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/;
  * to text and take no input, which is wrong for writing file bytes back and for feeding a
  * long path list that would not fit on a Windows command line.
  */
-export function runGit(cwd: string, args: string[], input?: string): Promise<Buffer> {
+export function runGit(cwd: string, args: string[], input?: string | Buffer): Promise<Buffer> {
   return new Promise((resolvePromise, reject) => {
     const child = spawn('git', ['-C', cwd, ...args], {
       windowsHide: true,
@@ -207,6 +217,82 @@ async function diffBlobs(
  * only one snapshot lists is compared against HEAD for the other side, since that is what
  * "not listed" means.
  */
+/**
+ * The file as it sits on disk for one side of the run: the raw copy when there is one, or
+ * what a checkout would write when that side matched HEAD.
+ */
+async function readWorkingCopy(
+  root: string,
+  path: string,
+  id: string,
+  rawId: string | null,
+): Promise<Buffer> {
+  return rawId
+    ? runGit(root, ['cat-file', 'blob', rawId])
+    : runGit(root, ['cat-file', '--filters', `--path=${path}`, id]);
+}
+
+interface SplitFile {
+  before: string[];
+  after: string[];
+  hunks: LineHunk[];
+}
+
+/**
+ * Both sides of a modified file cut into zero-context hunks, or null when that can't be done
+ * safely. The hunks come from git's diff of the committed form, and are only trusted once
+ * rebuilding the on-disk bytes from them gives back both sides exactly, so a filter that
+ * changes line counts falls back to reviewing the file whole.
+ *
+ * Lines are decoded as latin1, which maps every byte to one character and back, so whatever
+ * the file's encoding the rebuilt bytes are the original ones.
+ */
+async function splitFile(
+  root: string,
+  path: string,
+  sides: Pick<VersionFileChange, 'beforeId' | 'afterId' | 'beforeRawId' | 'afterRawId'>,
+): Promise<SplitFile | null> {
+  const { beforeId, afterId } = sides;
+  if (!beforeId || !afterId) return null;
+  const diff = await gitText(root, [
+    'diff',
+    '--no-color',
+    '--no-ext-diff',
+    '--no-textconv',
+    '-U0',
+    beforeId,
+    afterId,
+  ]).catch(() => '');
+  const hunks = parseLineHunks(diff);
+  if (hunks.length === 0) return null;
+  try {
+    const [beforeBytes, afterBytes] = await Promise.all([
+      readWorkingCopy(root, path, beforeId, sides.beforeRawId),
+      readWorkingCopy(root, path, afterId, sides.afterRawId),
+    ]);
+    const before = splitLinesKeepEnds(beforeBytes.toString('latin1'));
+    const after = splitLinesKeepEnds(afterBytes.toString('latin1'));
+    return lineHunksMatch(before, after, hunks) ? { before, after, hunks } : null;
+  } catch {
+    return null;
+  }
+}
+
+async function hunkPreviews(
+  root: string,
+  change: VersionFileChange,
+): Promise<VersionFileChange['hunks']> {
+  if (change.kind !== 'modified' || change.binary || change.diffTruncated || !change.diff) {
+    return undefined;
+  }
+  const split = await splitFile(root, change.path, change);
+  if (!split || split.hunks.length < 2 || split.hunks.length > MAX_HUNKS) return undefined;
+  return lineHunkPreviews(split.before, split.after, split.hunks).map((lines, index) => ({
+    header: split.hunks[index].header,
+    lines: lines.map((line) => Buffer.from(line, 'latin1').toString('utf8')),
+  }));
+}
+
 export async function compareSnapshots(
   root: string,
   before: TreeSnapshot,
@@ -229,7 +315,7 @@ export async function compareSnapshots(
     const { id: afterId, rawId: afterRawId } = side(after, path);
     if (beforeId === afterId) continue;
 
-    changes.push({
+    const change: VersionFileChange = {
       path,
       kind: beforeId === null ? 'added' : afterId === null ? 'deleted' : 'modified',
       beforeId,
@@ -238,7 +324,9 @@ export async function compareSnapshots(
       afterRawId,
       ...(await diffBlobs(root, beforeId, afterId)),
       hadLocalEdits: before.has(path) || undefined,
-    });
+    };
+    change.hunks = await hunkPreviews(root, change);
+    changes.push(change);
   }
   return changes;
 }
@@ -247,20 +335,23 @@ export async function compareSnapshots(
  * Puts one file back to a recorded version. It refuses when the file no longer holds `fromId`,
  * so an edit made after the run (by the user or anything else) is never silently thrown away.
  */
-export async function swapFileVersion(
+/**
+ * Checks a path and the versions named for it before anything is written, and that the file
+ * still holds `fromId`. Returns the file's absolute path.
+ */
+async function guardFile(
   root: string,
   path: string,
   fromId: string | null,
-  toId: string | null,
-  toRawId?: string | null,
-): Promise<void> {
+  ids: (string | null | undefined)[],
+): Promise<string> {
   const absolute = resolve(root, path);
   const inside = relative(root, absolute);
   if (!path || isAbsolute(path) || inside.startsWith('..') || isAbsolute(inside)) {
     throw new Error('That path is outside the repository.');
   }
-  for (const id of [fromId, toId, toRawId ?? null]) {
-    if (id !== null && !OBJECT_ID_PATTERN.test(id)) throw new Error('Unknown file version.');
+  for (const id of [fromId, ...ids]) {
+    if (id != null && !OBJECT_ID_PATTERN.test(id)) throw new Error('Unknown file version.');
   }
 
   let exists = true;
@@ -273,6 +364,17 @@ export async function swapFileVersion(
   if (currentId !== fromId) {
     throw new Error(`${path} changed again after the run, so it was left as it is.`);
   }
+  return absolute;
+}
+
+export async function swapFileVersion(
+  root: string,
+  path: string,
+  fromId: string | null,
+  toId: string | null,
+  toRawId?: string | null,
+): Promise<void> {
+  const absolute = await guardFile(root, path, fromId, [toId, toRawId]);
 
   if (toId === null) {
     await rm(absolute, { force: true });
@@ -285,4 +387,34 @@ export async function swapFileVersion(
     : await runGit(root, ['cat-file', '--filters', `--path=${path}`, toId]);
   await mkdir(dirname(absolute), { recursive: true });
   await writeFile(absolute, content);
+}
+
+/**
+ * Rewrites a modified file with the run's hunks applied, except the ones in `revertHunks`.
+ * Like swapFileVersion it refuses when the file no longer holds `fromId`. Returns the blob id
+ * the file ends up with, which the next write to it has to name as `fromId`.
+ */
+export async function writeFileHunks(
+  root: string,
+  input: Omit<WriteVersionHunksInput, 'projectId'>,
+): Promise<string> {
+  const { path, fromId } = input;
+  const absolute = await guardFile(root, path, fromId, [
+    input.beforeId,
+    input.afterId,
+    input.beforeRawId,
+    input.afterRawId,
+  ]);
+  const split = await splitFile(root, path, input);
+  if (!split) throw new Error(`${path} can no longer be split into separate changes.`);
+  const revert = new Set(input.revertHunks);
+  for (const index of revert) {
+    if (!Number.isInteger(index) || index < 0 || index >= split.hunks.length) {
+      throw new Error('Unknown change in that file.');
+    }
+  }
+
+  const content = applyLineHunks(split.before, split.after, split.hunks, revert);
+  await writeFile(absolute, Buffer.from(content, 'latin1'));
+  return (await gitText(root, ['hash-object', '--', path])).trim();
 }

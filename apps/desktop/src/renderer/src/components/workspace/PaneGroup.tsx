@@ -1,4 +1,4 @@
-import type { PaneGroupNode, Project } from '@agentmat/core';
+import { agentSessionTitle, type PaneGroupNode, type Project } from '@agentmat/core';
 import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { CliLogo } from '@/components/cliLogos';
 import {
@@ -18,7 +18,12 @@ import { SimpleTooltip } from '@/components/ui/tooltip';
 import { useTerminalSessionStore } from '@/lib/terminal/terminalRuntime';
 import { cn } from '@/lib/utils';
 import { useLauncherStore } from '@/lib/workspace/commands';
-import { modelDisplayName, useAgentRunInfo, useAgentStatus } from '@/stores/agentStatusStore';
+import {
+  isSessionBusy,
+  modelDisplayName,
+  useAgentRunInfo,
+  useAgentStatus,
+} from '@/stores/agentStatusStore';
 import { confirmDialog } from '@/stores/confirmStore';
 import { useShortcutLabel } from '@/stores/shortcutStore';
 import {
@@ -121,13 +126,13 @@ function TabIcon({ tab }: { tab: WorkspaceTab }): React.JSX.Element {
   return <TerminalSquare className="h-3 w-3 text-muted-foreground" />;
 }
 
-function tabLabel(tab: WorkspaceTab): string {
+function tabLabel(tab: WorkspaceTab, agentTitle: string | null): string {
   if (tab.kind === 'diff') {
     const name = tab.path.split('/').pop() ?? tab.path;
     return tab.commit ? `${name} @ ${tab.commit.slice(0, 7)}` : name;
   }
   if (tab.kind === 'file') return tab.path.split(/[\\/]/).pop() ?? tab.path;
-  return terminalTabLabel(tab);
+  return tab.userTitle ?? agentTitle ?? terminalTabLabel(tab);
 }
 
 interface PaneTabProps {
@@ -157,7 +162,15 @@ function PaneTab({
   const status = useAgentStatus(tab.id);
   const runInfo = useAgentRunInfo(tab.id);
   const [editing, setEditing] = useState(false);
-  const label = tabLabel(tab);
+  // An agent tab takes the name the agent gave its task, as Orca does, once that task is done:
+  // renaming the tab while the agent is still working would make it jump around under the user.
+  const agentTitle =
+    tab.kind === 'terminal' && tab.cliId ? agentSessionTitle(liveTitle, tab.title) : null;
+  const [settledTitle, setSettledTitle] = useState(agentTitle);
+  useEffect(() => {
+    if (status !== 'working') setSettledTitle(agentTitle);
+  }, [status, agentTitle]);
+  const label = tabLabel(tab, settledTitle);
   const attention = tab.kind === 'terminal' && !ended ? status : null;
   // What the agent reports it runs on right now, so a /model or /effort switch mid-session
   // shows up here. Before it reports, fall back to what the tab was launched with.
@@ -176,8 +189,9 @@ function PaneTab({
     tab.kind === 'terminal' ? (
       <span className="flex flex-col gap-0.5">
         <span className="font-semibold">{label}</span>
+        {label !== tab.title ? <span>{tab.title}</span> : null}
         {runLine ? <span className="text-primary">{runLine}</span> : null}
-        {liveTitle && liveTitle !== label ? (
+        {liveTitle && liveTitle !== label && liveTitle !== tab.title ? (
           <span className="text-muted-foreground">{liveTitle}</span>
         ) : null}
         {attention && attention !== 'idle' && attention !== 'exited' ? (
@@ -378,10 +392,12 @@ export function PaneGroup({
     return () => el.removeEventListener('wheel', onWheel);
   }, []);
 
+  // Only ask before stopping an agent that is busy. One that was just opened, or has already
+  // finished its task, closes straight away.
   async function requestCloseTab(tabId: string): Promise<void> {
     const tab = workspace.tabs[tabId];
     const ended = tabId in useTerminalSessionStore.getState().ended;
-    if (tab?.kind === 'terminal' && tab.cliId && !ended) {
+    if (tab?.kind === 'terminal' && tab.cliId && !ended && isSessionBusy(tabId)) {
       const ok = await confirmDialog({
         title: `Close ${terminalTabLabel(tab)}?`,
         description: 'The agent running in this tab will be stopped.',
@@ -397,7 +413,8 @@ export function PaneGroup({
     const running = group.tabIds.filter(
       (id) =>
         workspace.tabs[id]?.kind === 'terminal' &&
-        !(id in useTerminalSessionStore.getState().ended),
+        !(id in useTerminalSessionStore.getState().ended) &&
+        isSessionBusy(id),
     );
     if (running.length > 0) {
       const ok = await confirmDialog({

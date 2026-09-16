@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { queryKeys } from '@/lib/queryKeys';
 import { usePageHeader } from '@/stores/pageHeaderStore';
+import { useVersionDialogStore } from '@/stores/versionDialogStore';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
 
 /**
@@ -49,6 +50,16 @@ export default function WorkspaceRoute(): null {
     next.delete('session');
     setSearchParams(next, { replace: true });
   }, [projectId, session, searchParams, setSearchParams, activateTab]);
+
+  // `?tag=1` comes from a "version files updated" notification: reopen that flow.
+  const openTagDialog = searchParams.get('tag');
+  useEffect(() => {
+    if (!projectId || !openTagDialog) return;
+    useVersionDialogStore.getState().open(projectId);
+    const next = new URLSearchParams(searchParams);
+    next.delete('tag');
+    setSearchParams(next, { replace: true });
+  }, [projectId, openTagDialog, searchParams, setSearchParams]);
 
   return null;
 }

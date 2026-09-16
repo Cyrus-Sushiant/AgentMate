@@ -1,7 +1,7 @@
 import type { ThemeMode } from '@agentmat/core';
 import { FitAddon } from '@xterm/addon-fit';
 import { WebLinksAddon } from '@xterm/addon-web-links';
-import { type ITheme, Terminal } from '@xterm/xterm';
+import { type ITerminalOptions, type ITheme, Terminal } from '@xterm/xterm';
 import '@xterm/xterm/css/xterm.css';
 import { isShortcutLetter } from '@/lib/shortcutKey';
 import { type ChipPasteController, createChipPasteController } from '@/lib/terminal/chipPasteMode';
@@ -233,6 +233,21 @@ export interface CreateXtermOptions {
   chipPasteMode?: boolean;
   /** Which shell's quoting rules pasted paths follow. */
   shell?: () => string | undefined;
+  /** The shell runs on this machine, so on Windows it sits behind ConPTY. False for SSH. */
+  localPty?: boolean;
+}
+
+/**
+ * On Windows every local shell talks to the terminal through ConPTY, which keeps its own copy of
+ * the screen and redraws by moving the cursor around it. When the terminal grows taller, xterm on
+ * its own pulls lines back down from the scrollback while ConPTY does not, and from then on every
+ * redraw lands a few rows off, leaving stray letters from old lines in the middle of a CLI's
+ * output. Telling xterm about ConPTY makes it resize the same way.
+ */
+function windowsPtyOption(localPty: boolean): ITerminalOptions['windowsPty'] {
+  const { platform, windowsBuild } = window.agentmat;
+  if (!localPty || platform !== 'win32') return undefined;
+  return { backend: 'conpty', buildNumber: windowsBuild ?? undefined };
 }
 
 /**
@@ -246,6 +261,7 @@ export function createXterm({
   write = (id, data) => void window.agentmat.terminal.write(id, data),
   chipPasteMode = true,
   shell = () => undefined,
+  localPty = true,
 }: CreateXtermOptions): XtermHandle {
   const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   const term = new Terminal({
@@ -261,6 +277,7 @@ export function createXterm({
     scrollback: 5000,
     scrollSensitivity: 1.2,
     smoothScrollDuration: reduceMotion ? 0 : 140,
+    windowsPty: windowsPtyOption(localPty),
   });
   const fit = new FitAddon();
   term.loadAddon(fit);
@@ -310,6 +327,21 @@ export function createXterm({
         paste: (text) => term.paste(text),
         shell,
       });
+      return false;
+    }
+    // xterm sends Shift+Enter as a plain Enter, which submits an agent CLI's prompt. Sending it
+    // as Alt+Enter (ESC CR) instead is what agent CLIs read as "new line", the same sequence
+    // VS Code's terminal is set up to send for them.
+    if (
+      event.key === 'Enter' &&
+      event.shiftKey &&
+      !event.ctrlKey &&
+      !event.altKey &&
+      !event.metaKey &&
+      !event.isComposing
+    ) {
+      event.preventDefault();
+      term.input('\x1b\r');
       return false;
     }
     // Hand app shortcuts (Ctrl+T and friends) back to the window listener

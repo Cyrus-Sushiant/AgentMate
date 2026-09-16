@@ -7,6 +7,7 @@ export * from './cli/agentTypes.js';
 export * from './cli/args.js';
 export * from './cli/registry.js';
 export * from './git/commitMessage.js';
+export * from './git/lineHunks.js';
 export * from './git/remoteUrl.js';
 export * from './git/statusV2.js';
 export * from './grammar/languagetool.js';

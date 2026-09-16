@@ -49,6 +49,7 @@ import {
 import { app } from 'electron';
 import type {
   FavoriteSkillRecord,
+  LastRunInfoByCli,
   RemoteSavedServer,
   SshVaultRecord,
   StoredSshServer,
@@ -318,6 +319,10 @@ export const store = {
     readJsonFile('pipeline-watch.json', { lastCompletedRunId: {} }),
   setPipelineWatch: (state: PipelineWatchState): Promise<void> =>
     writeJsonFile('pipeline-watch.json', state),
+
+  getLastRunInfoByCli: (): Promise<LastRunInfoByCli> => readJsonFile('last-run-info.json', {}),
+  setLastRunInfoByCli: (info: LastRunInfoByCli): Promise<void> =>
+    writeJsonFile('last-run-info.json', info),
 };
 
 /**

@@ -1,4 +1,4 @@
-import type { VersionFileChange } from '@shared/apiTypes';
+import type { VersionFileChange, VersionHunk } from '@shared/apiTypes';
 import { useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { toast } from 'sonner';
@@ -8,8 +8,48 @@ import { SimpleTooltip } from '@/components/ui/tooltip';
 import { queryKeys } from '@/lib/queryKeys';
 import { cn } from '@/lib/utils';
 
-/** What the user said about one changed file. A file with no entry is still waiting for review. */
+/** What the user said about one changed file, or one change inside it. */
 export type VersionFileDecision = 'keep' | 'revert';
+
+/**
+ * The review of one changed file. `choices` has an entry per hunk for a file split into
+ * hunks, or a single entry for a file reviewed whole; a missing entry is still to review, and
+ * its edit stays on disk until then. `diskId` is the blob the file holds now, once a revert
+ * has moved it off the run's result.
+ */
+export interface VersionFileReview {
+  choices: (VersionFileDecision | undefined)[];
+  diskId?: string | null;
+}
+
+export type VersionReviews = Record<string, VersionFileReview>;
+
+/** A file reviewed whole counts as one change. */
+function choiceCount(change: VersionFileChange): number {
+  return change.hunks?.length ?? 1;
+}
+
+function choicesOf(
+  change: VersionFileChange,
+  review: VersionFileReview | undefined,
+): (VersionFileDecision | undefined)[] {
+  return Array.from({ length: choiceCount(change) }, (_, index) => review?.choices[index]);
+}
+
+/**
+ * Where a file stands: undefined while any of its changes is undecided, and 'partial' once
+ * some are kept and the rest reverted. Keep and partial files both go into the commit.
+ */
+export function fileDecision(
+  change: VersionFileChange,
+  review: VersionFileReview | undefined,
+): VersionFileDecision | 'partial' | undefined {
+  const choices = choicesOf(change, review);
+  if (choices.some((choice) => !choice)) return undefined;
+  if (choices.every((choice) => choice === 'keep')) return 'keep';
+  if (choices.every((choice) => choice === 'revert')) return 'revert';
+  return 'partial';
+}
 
 /** Diffs this short open on their own; anything longer waits for a click. */
 const AUTO_EXPAND_LINES = 40;
@@ -34,6 +74,20 @@ function diffLineClass(line: string): string {
   return 'text-muted-foreground';
 }
 
+function DiffLines({ lines }: { lines: string[] }): React.JSX.Element {
+  // Keys come from the line's place in the diff, which never reorders.
+  const keyed = lines.map((text, index) => ({ id: `${index}`, text }));
+  return (
+    <pre className="min-w-max py-1 font-mono text-[11px] leading-5">
+      {keyed.map((line) => (
+        <div key={line.id} className={cn('px-3', diffLineClass(line.text))}>
+          {line.text || ' '}
+        </div>
+      ))}
+    </pre>
+  );
+}
+
 function DiffBlock({ change }: { change: VersionFileChange }): React.JSX.Element {
   if (!change.diff) {
     return (
@@ -42,18 +96,10 @@ function DiffBlock({ change }: { change: VersionFileChange }): React.JSX.Element
       </p>
     );
   }
-  // Keys come from the line's place in the diff, which never reorders.
-  const lines = change.diff.split('\n').map((text, index) => ({ id: `${index}`, text }));
   return (
     <div className="border-t border-border bg-background/40">
       <div className="max-h-72 overflow-auto overscroll-contain">
-        <pre className="min-w-max py-1 font-mono text-[11px] leading-5">
-          {lines.map((line) => (
-            <div key={line.id} className={cn('px-3', diffLineClass(line.text))}>
-              {line.text || ' '}
-            </div>
-          ))}
-        </pre>
+        <DiffLines lines={change.diff.split('\n')} />
       </div>
       {change.diffTruncated && (
         <p className="border-t border-border px-3 py-1.5 text-[11px] text-muted-foreground">
@@ -64,10 +110,113 @@ function DiffBlock({ change }: { change: VersionFileChange }): React.JSX.Element
   );
 }
 
+/** The Keep / Revert pair, used for a whole file and for each change inside one. */
+function ChoiceButtons({
+  choice,
+  label,
+  disabled,
+  busy,
+  small,
+  onChoose,
+}: {
+  choice: VersionFileDecision | undefined;
+  label: string;
+  disabled: boolean;
+  busy: boolean;
+  small?: boolean;
+  onChoose: (next: VersionFileDecision) => void;
+}): React.JSX.Element {
+  const buttonClass = cn(
+    'flex cursor-pointer items-center gap-1 font-medium transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-60',
+    small ? 'px-1.5 py-0.5 text-[10px]' : 'px-2 py-1 text-[11px]',
+  );
+  return (
+    <div
+      role="group"
+      aria-label={label}
+      className="flex shrink-0 overflow-hidden rounded-md border border-border bg-card"
+    >
+      <button
+        type="button"
+        aria-pressed={choice === 'keep'}
+        disabled={disabled || busy}
+        onClick={() => onChoose('keep')}
+        className={cn(
+          buttonClass,
+          choice === 'keep'
+            ? 'bg-success/15 text-success'
+            : 'text-muted-foreground hover:bg-accent hover:text-foreground',
+        )}
+      >
+        <Check className="h-3 w-3" /> Keep
+      </button>
+      <button
+        type="button"
+        aria-pressed={choice === 'revert'}
+        disabled={disabled || busy}
+        onClick={() => onChoose('revert')}
+        className={cn(
+          buttonClass,
+          'border-l border-border',
+          choice === 'revert'
+            ? 'bg-destructive/15 text-destructive'
+            : 'text-muted-foreground hover:bg-accent hover:text-foreground',
+        )}
+      >
+        {busy ? <Spinner className="h-3 w-3 animate-spin" /> : <Undo className="h-3 w-3" />}{' '}
+        {choice === 'revert' ? 'Reverted' : 'Revert'}
+      </button>
+    </div>
+  );
+}
+
+function HunkList({
+  change,
+  hunks,
+  choices,
+  disabled,
+  busy,
+  onChoose,
+}: {
+  change: VersionFileChange;
+  hunks: VersionHunk[];
+  choices: (VersionFileDecision | undefined)[];
+  disabled: boolean;
+  busy: boolean;
+  onChoose: (index: number, next: VersionFileDecision) => void;
+}): React.JSX.Element {
+  return (
+    <div className="max-h-96 divide-y divide-border overflow-y-auto overscroll-contain border-t border-border bg-background/40">
+      {hunks.map((hunk, index) => (
+        <div key={hunk.header} className={cn(choices[index] === 'revert' && 'opacity-60')}>
+          <div className="flex items-center gap-2 bg-primary/5 py-1 pr-2 pl-3">
+            <span className="min-w-0 flex-1 truncate font-mono text-[11px] text-primary/80">
+              Change {index + 1} of {hunks.length}
+              <span className="text-muted-foreground"> · {hunk.header}</span>
+            </span>
+            <ChoiceButtons
+              small
+              choice={choices[index]}
+              label={`Change ${index + 1} in ${change.path}`}
+              disabled={disabled}
+              busy={busy}
+              onChoose={(next) => onChoose(index, next)}
+            />
+          </div>
+          <div className="overflow-x-auto">
+            <DiffLines lines={hunk.lines} />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 /**
  * The version bump's edits, one file at a time, each with its diff and a Keep or Revert
  * choice. The CLI is free to edit anything (and other tools can write during the run), so the
- * user decides which files belong to the release instead of the app guessing up front.
+ * user decides which files belong to the release instead of the app guessing up front. A file
+ * with several separate changes can be split, keeping some of them and reverting the others.
  *
  * Revert happens on disk right away and can be taken back with Keep, since both versions of
  * the file are held in git's object store.
@@ -75,16 +224,14 @@ function DiffBlock({ change }: { change: VersionFileChange }): React.JSX.Element
 export function VersionChangeReview({
   projectId,
   changes,
-  decisions,
-  onDecisionsChange,
+  reviews,
+  onReviewsChange,
   locked,
 }: {
   projectId: string;
   changes: VersionFileChange[];
-  decisions: Record<string, VersionFileDecision>;
-  onDecisionsChange: (
-    update: (prev: Record<string, VersionFileDecision>) => Record<string, VersionFileDecision>,
-  ) => void;
+  reviews: VersionReviews;
+  onReviewsChange: (update: (prev: VersionReviews) => VersionReviews) => void;
   /** Set once the kept files are committed, when changing a decision no longer means anything. */
   locked: boolean;
 }): React.JSX.Element {
@@ -99,9 +246,11 @@ export function VersionChangeReview({
       ),
   );
 
-  const undecided = changes.filter((change) => !decisions[change.path]);
-  const keptCount = changes.filter((change) => decisions[change.path] === 'keep').length;
-  const revertedCount = changes.filter((change) => decisions[change.path] === 'revert').length;
+  const decisions = changes.map((change) => fileDecision(change, reviews[change.path]));
+  const undecided = changes.filter((_, index) => !decisions[index]);
+  const keptCount = decisions.filter((decision) => decision === 'keep').length;
+  const partialCount = decisions.filter((decision) => decision === 'partial').length;
+  const revertedCount = decisions.filter((decision) => decision === 'revert').length;
 
   function setBusy(path: string, busy: boolean): void {
     setBusyPaths((prev) => {
@@ -121,29 +270,56 @@ export function VersionChangeReview({
     });
   }
 
-  async function decide(change: VersionFileChange, next: VersionFileDecision): Promise<void> {
-    const current = decisions[change.path];
-    if (current === next || busyPaths.has(change.path)) return;
+  /**
+   * Writes whatever the new choices mean for the file on disk, then records them. Only a
+   * change moving in or out of "revert" touches the file; keeping an undecided one is a mark,
+   * since its edit is already there.
+   */
+  async function writeChoices(
+    change: VersionFileChange,
+    next: (VersionFileDecision | undefined)[],
+  ): Promise<void> {
+    if (busyPaths.has(change.path)) return;
+    const review = reviews[change.path];
+    const current = choicesOf(change, review);
+    const revertedNow = next.flatMap((choice, index) => (choice === 'revert' ? [index] : []));
+    const revertedBefore = current.flatMap((choice, index) => (choice === 'revert' ? [index] : []));
+    const fromId = review?.diskId !== undefined ? review.diskId : change.afterId;
+    let diskId = review?.diskId;
 
-    // Only moving in or out of "revert" touches the file; keeping an undecided file is a mark.
-    const swap =
-      next === 'revert'
-        ? { fromId: change.afterId, toId: change.beforeId, toRawId: change.beforeRawId }
-        : current === 'revert'
-          ? { fromId: change.beforeId, toId: change.afterId, toRawId: change.afterRawId }
-          : null;
-
-    if (swap) {
+    if (revertedNow.join() !== revertedBefore.join()) {
       setBusy(change.path, true);
       try {
-        const result = await window.agentmat.git.swapVersionFile({
-          projectId,
-          path: change.path,
-          ...swap,
-        });
-        if (!result.ok) {
-          toast.error(result.message);
-          return;
+        if (change.hunks && change.beforeId && change.afterId && fromId) {
+          const result = await window.agentmat.git.writeVersionHunks({
+            projectId,
+            path: change.path,
+            fromId,
+            beforeId: change.beforeId,
+            afterId: change.afterId,
+            beforeRawId: change.beforeRawId,
+            afterRawId: change.afterRawId,
+            revertHunks: revertedNow,
+          });
+          if (!result.ok || !result.id) {
+            toast.error(result.message);
+            return;
+          }
+          diskId = result.id;
+        } else {
+          const toRevert = revertedNow.length > 0;
+          const result = await window.agentmat.git.swapVersionFile({
+            projectId,
+            path: change.path,
+            fromId,
+            toId: toRevert ? change.beforeId : change.afterId,
+            toRawId: toRevert ? change.beforeRawId : change.afterRawId,
+          });
+          if (!result.ok) {
+            toast.error(result.message);
+            return;
+          }
+          diskId = toRevert ? change.beforeId : change.afterId;
         }
       } catch (error) {
         toast.error((error as Error).message);
@@ -153,7 +329,28 @@ export function VersionChangeReview({
         void queryClient.invalidateQueries({ queryKey: queryKeys.gitStatus(projectId) });
       }
     }
-    onDecisionsChange((prev) => ({ ...prev, [change.path]: next }));
+    onReviewsChange((prev) => ({ ...prev, [change.path]: { choices: next, diskId } }));
+  }
+
+  function chooseFile(change: VersionFileChange, next: VersionFileDecision): void {
+    void writeChoices(
+      change,
+      choicesOf(change, undefined).map(() => next),
+    );
+  }
+
+  function chooseHunk(change: VersionFileChange, index: number, next: VersionFileDecision): void {
+    const choices = choicesOf(change, reviews[change.path]);
+    choices[index] = next;
+    void writeChoices(change, choices);
+  }
+
+  /** Settles every change still waiting for review, leaving the ones already decided alone. */
+  function chooseRest(next: VersionFileDecision): void {
+    for (const change of undecided) {
+      const choices = choicesOf(change, reviews[change.path]).map((choice) => choice ?? next);
+      void writeChoices(change, choices);
+    }
   }
 
   return (
@@ -163,7 +360,8 @@ export function VersionChangeReview({
           Review changes ({changes.length})
           <span className="font-normal">
             {' · '}
-            {keptCount} kept · {revertedCount} reverted
+            {keptCount} kept
+            {partialCount > 0 ? ` · ${partialCount} partly kept` : ''} · {revertedCount} reverted
             {undecided.length > 0 ? ` · ${undecided.length} to review` : ''}
           </span>
         </p>
@@ -175,13 +373,7 @@ export function VersionChangeReview({
               variant="ghost"
               size="sm"
               className="h-7 px-2 text-xs"
-              onClick={() =>
-                onDecisionsChange((prev) => {
-                  const next = { ...prev };
-                  for (const change of undecided) next[change.path] = 'keep';
-                  return next;
-                })
-              }
+              onClick={() => chooseRest('keep')}
             >
               <Check className="h-3 w-3" /> Keep the rest
             </Button>
@@ -189,9 +381,7 @@ export function VersionChangeReview({
               variant="ghost"
               size="sm"
               className="h-7 px-2 text-xs"
-              onClick={() => {
-                for (const change of undecided) void decide(change, 'revert');
-              }}
+              onClick={() => chooseRest('revert')}
             >
               <Undo className="h-3 w-3" /> Revert the rest
             </Button>
@@ -200,18 +390,22 @@ export function VersionChangeReview({
       </div>
 
       <div className="space-y-1.5">
-        {changes.map((change) => {
+        {changes.map((change, changeIndex) => {
           const { dir, name } = splitPath(change.path);
-          const decision = decisions[change.path];
+          const decision = decisions[changeIndex];
+          const choices = choicesOf(change, reviews[change.path]);
           const busy = busyPaths.has(change.path);
           const open = expanded.has(change.path);
           const badge = KIND_BADGE[change.kind];
+          const hunks = change.hunks;
+          const keptHunks = choices.filter((choice) => choice === 'keep').length;
+          const decidedHunks = choices.filter(Boolean).length;
           return (
             <div
               key={change.path}
               className={cn(
                 'overflow-hidden rounded-lg border bg-card/60 transition-colors duration-150',
-                decision === 'keep'
+                decision === 'keep' || decision === 'partial'
                   ? 'border-success/40'
                   : decision === 'revert'
                     ? 'border-border opacity-70'
@@ -266,47 +460,44 @@ export function VersionChangeReview({
                   </SimpleTooltip>
                 )}
 
-                <div
-                  role="group"
-                  aria-label={`Decision for ${change.path}`}
-                  className="flex shrink-0 overflow-hidden rounded-md border border-border"
-                >
-                  <button
-                    type="button"
-                    aria-pressed={decision === 'keep'}
-                    disabled={locked || busy}
-                    onClick={() => void decide(change, 'keep')}
-                    className={cn(
-                      'flex cursor-pointer items-center gap-1 px-2 py-1 text-[11px] font-medium transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-60',
-                      decision === 'keep'
-                        ? 'bg-success/15 text-success'
-                        : 'text-muted-foreground hover:bg-accent hover:text-foreground',
-                    )}
-                  >
-                    <Check className="h-3 w-3" /> Keep
-                  </button>
-                  <button
-                    type="button"
-                    aria-pressed={decision === 'revert'}
-                    disabled={locked || busy}
-                    onClick={() => void decide(change, 'revert')}
-                    className={cn(
-                      'flex cursor-pointer items-center gap-1 border-l border-border px-2 py-1 text-[11px] font-medium transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-60',
-                      decision === 'revert'
-                        ? 'bg-destructive/15 text-destructive'
-                        : 'text-muted-foreground hover:bg-accent hover:text-foreground',
-                    )}
-                  >
-                    {busy ? (
-                      <Spinner className="h-3 w-3 animate-spin" />
-                    ) : (
-                      <Undo className="h-3 w-3" />
-                    )}{' '}
-                    {decision === 'revert' ? 'Reverted' : 'Revert'}
-                  </button>
-                </div>
+                {hunks && (
+                  <SimpleTooltip label="This file has separate changes. Open it to keep some and revert the others.">
+                    <span
+                      className={cn(
+                        'shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium',
+                        decision === 'partial'
+                          ? 'bg-success/15 text-success'
+                          : 'bg-muted text-muted-foreground',
+                      )}
+                    >
+                      {decidedHunks > 0
+                        ? `${keptHunks} of ${hunks.length} kept`
+                        : `${hunks.length} changes`}
+                    </span>
+                  </SimpleTooltip>
+                )}
+
+                <ChoiceButtons
+                  choice={decision === 'partial' ? undefined : decision}
+                  label={`Decision for ${change.path}`}
+                  disabled={locked}
+                  busy={busy}
+                  onChoose={(next) => chooseFile(change, next)}
+                />
               </div>
-              {open && <DiffBlock change={change} />}
+              {open &&
+                (hunks ? (
+                  <HunkList
+                    change={change}
+                    hunks={hunks}
+                    choices={choices}
+                    disabled={locked}
+                    busy={busy}
+                    onChoose={(index, next) => chooseHunk(change, index, next)}
+                  />
+                ) : (
+                  <DiffBlock change={change} />
+                ))}
             </div>
           );
         })}

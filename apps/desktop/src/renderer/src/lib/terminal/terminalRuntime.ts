@@ -7,6 +7,7 @@ import { useTerminalAppearanceStore } from '@/stores/terminalAppearanceStore';
 import { useThemeStore } from '@/stores/themeStore';
 import { agentReadyVerdict } from './agentReady';
 import type { ChipInput, ChipPasteController } from './chipPasteMode';
+import { claimTerminalFocus, releaseTerminalFocus } from './focusClaim';
 import { onFontsLoaded, whenTerminalFontReady } from './fontReady';
 import { attachTerminalPaste } from './pasteFiles';
 import {
@@ -69,6 +70,8 @@ interface Entry {
   /** When output last arrived, and how much has arrived, for the prompt hand-off below. */
   lastOutputAt: number;
   outputBytes: number;
+  /** `outputBytes` at the point the program last turned bracketed paste on. */
+  pasteModeOnAt: number;
   /** A prompt is already waiting for this session's CLI to start. */
   handingOff: boolean;
   mounted: boolean;
@@ -84,6 +87,12 @@ interface PendingPrompt {
 
 /** Prompts waiting for the CLI in their session to finish starting, keyed by session id. */
 const pendingPrompts = new Map<string, PendingPrompt>();
+
+/** DECSET 2004, what a program sends to turn bracketed paste on. */
+const PASTE_MODE_ON = '\x1b[?2004h';
+/** OSC 0/1/2 window title changes, ended by BEL or ST. */
+// biome-ignore lint/suspicious/noControlCharactersInRegex: OSC sequences start with ESC and end with BEL or ESC, matching them is the point
+const TITLE_SEQUENCE = /\x1b\][012];[^\x07\x1b]*(?:\x07|\x1b\\)/g;
 
 const PASTE_START = '[200~';
 const PASTE_END = '[201~';
@@ -118,7 +127,6 @@ function handOffPrompt(entry: Entry): void {
   if (entry.handingOff || !pendingPrompts.has(entry.spec.id)) return;
   entry.handingOff = true;
   const startedAt = Date.now();
-  const startBytes = entry.outputBytes;
   const timer = setInterval(() => {
     const stop = (): void => {
       clearInterval(timer);
@@ -132,7 +140,7 @@ function handOffPrompt(entry: Entry): void {
     }
     const now = Date.now();
     const verdict = agentReadyVerdict({
-      bytes: entry.outputBytes - startBytes,
+      bytes: entry.outputBytes - entry.pasteModeOnAt,
       elapsedMs: now - startedAt,
       quietMs: now - entry.lastOutputAt,
       bracketedPaste: entry.term.modes.bracketedPasteMode,
@@ -200,7 +208,11 @@ function ensureSubscribed(): void {
   window.agentmat.terminal.onData(({ sessionId, data }) => {
     const entry = entries.get(sessionId);
     if (!entry) return;
-    entry.lastOutputAt = Date.now();
+    // A spinner in the window title (Codex animates one while it works) is not the CLI
+    // drawing its screen, and counting it would keep the terminal from ever looking quiet.
+    if (data.replace(TITLE_SEQUENCE, '').length > 0) entry.lastOutputAt = Date.now();
+    const pasteOn = data.lastIndexOf(PASTE_MODE_ON);
+    if (pasteOn !== -1) entry.pasteModeOnAt = entry.outputBytes + pasteOn + PASTE_MODE_ON.length;
     entry.outputBytes += data.length;
     if (entry.ready) entry.term.write(data);
     else entry.pending.push(data);
@@ -282,6 +294,7 @@ function createEntry(spec: RuntimeSessionSpec): Entry {
     exitCode: undefined,
     lastOutputAt: Date.now(),
     outputBytes: 0,
+    pasteModeOnAt: 0,
     handingOff: false,
     mounted: false,
     lastVisibleAt: Date.now(),
@@ -364,6 +377,7 @@ function start(entry: Entry): void {
 }
 
 function disposeEntry(entry: Entry): void {
+  releaseTerminalFocus(entry.host);
   for (const cleanup of entry.cleanups) cleanup();
   entry.chipMode?.dispose();
   entry.term.dispose();
@@ -443,6 +457,12 @@ export const terminalRuntime = {
     // A terminal still waiting on its font is not open yet; take focus the moment it is.
     if (entry.opened) entry.term.focus();
     else entry.focusWhenOpen = true;
+    // The menu or dialog that opened it can still pull focus away as it closes.
+    claimTerminalFocus({
+      element: entry.host,
+      canFocus: () => entries.get(id) === entry && entry.opened && entry.mounted && hasSize(entry),
+      focus: () => entry.term.focus(),
+    });
   },
 
   /**

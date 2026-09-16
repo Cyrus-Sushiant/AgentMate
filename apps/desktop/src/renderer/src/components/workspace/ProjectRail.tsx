@@ -10,7 +10,7 @@ import { ProjectIcon } from '@/components/projects/ProjectIcon';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { useTerminalSessionStore } from '@/lib/terminal/terminalRuntime';
 import { cn } from '@/lib/utils';
-import { attentionStatus, useAgentStatusStore } from '@/stores/agentStatusStore';
+import { attentionStatus, isSessionBusy, useAgentStatusStore } from '@/stores/agentStatusStore';
 import { confirmDialog } from '@/stores/confirmStore';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
 import { AgentStatusDot } from './AgentStatusDot';
@@ -98,16 +98,32 @@ function monogramStyle(project: Project): React.CSSProperties {
   };
 }
 
+/** Drag payload type for rail projects, kept apart from tab and file drags. */
+const RAIL_PROJECT_MIME = 'application/x-agentmate-rail-project';
+
+function isRailProjectDrag(event: React.DragEvent): boolean {
+  return event.dataTransfer.types.includes(RAIL_PROJECT_MIME);
+}
+
 function RailItem({
   project,
   active,
   onOpen,
   onClose,
+  dragging,
+  dropIndicator,
+  onDragStart,
+  onDragEnd,
 }: {
   project: Project;
   active: boolean;
   onOpen: () => void;
   onClose: () => void;
+  dragging: boolean;
+  /** Where a project dragged over the rail would land relative to this one. */
+  dropIndicator: 'before' | 'after' | null;
+  onDragStart: () => void;
+  onDragEnd: () => void;
 }): React.JSX.Element {
   const reduceMotion = useReducedMotion();
   const tabIds = useWorkspaceStore(
@@ -126,7 +142,28 @@ function RailItem({
   );
 
   return (
-    <div className="group relative flex w-full justify-center">
+    <div
+      data-rail-project-id={project.id}
+      draggable
+      onDragStart={(event) => {
+        event.dataTransfer.setData(RAIL_PROJECT_MIME, project.id);
+        event.dataTransfer.effectAllowed = 'move';
+        onDragStart();
+      }}
+      onDragEnd={onDragEnd}
+      className={cn(
+        'group relative flex w-full justify-center transition-opacity',
+        dragging && 'opacity-40',
+      )}
+    >
+      {dropIndicator ? (
+        <span
+          className={cn(
+            'pointer-events-none absolute left-1/2 h-[2px] w-8 -translate-x-1/2 rounded-full bg-primary shadow-[0_0_6px_hsl(var(--primary)/0.7)]',
+            dropIndicator === 'before' ? '-top-[6px]' : '-bottom-[6px]',
+          )}
+        />
+      ) : null}
       {active ? (
         <motion.span
           layoutId="workspace-rail-active"
@@ -218,7 +255,11 @@ export function ProjectRail({
   const navigate = useNavigate();
   const railProjectIds = useWorkspaceStore((s) => s.railProjectIds);
   const closeProject = useWorkspaceStore((s) => s.closeProject);
+  const moveRailProject = useWorkspaceStore((s) => s.moveRailProject);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+  /** The rail slot a dragged project would drop into, counted in the current order. */
+  const [insertAt, setInsertAt] = useState<number | null>(null);
   const byId = new Map(projects.map((p) => [p.id, p]));
   const railProjects = railProjectIds.flatMap((id) => byId.get(id) ?? []);
 
@@ -226,7 +267,7 @@ export function ProjectRail({
     const state = useWorkspaceStore.getState();
     const ended = useTerminalSessionStore.getState().ended;
     const running = Object.values(state.workspaces[project.id]?.tabs ?? {}).filter(
-      (tab) => tab.kind === 'terminal' && !(tab.id in ended),
+      (tab) => tab.kind === 'terminal' && !(tab.id in ended) && isSessionBusy(tab.id),
     ).length;
     if (running > 0) {
       const ok = await confirmDialog({
@@ -242,18 +283,77 @@ export function ProjectRail({
     navigate(next ? `/workspace/${next}` : '/workspace', { replace: true });
   }
 
+  function railInsertIndex(event: React.DragEvent<HTMLElement>): number {
+    const items = Array.from(
+      event.currentTarget.querySelectorAll<HTMLElement>('[data-rail-project-id]'),
+    );
+    const index = items.findIndex((item) => {
+      const rect = item.getBoundingClientRect();
+      return event.clientY < rect.top + rect.height / 2;
+    });
+    return index === -1 ? items.length : index;
+  }
+
+  function endDrag(): void {
+    setDraggingId(null);
+    setInsertAt(null);
+  }
+
+  // Dropping a project right next to where it already is would not move it, so no line for that.
+  const draggingIndex = draggingId ? railProjects.findIndex((p) => p.id === draggingId) : -1;
+  const showInsert =
+    insertAt !== null &&
+    draggingIndex !== -1 &&
+    insertAt !== draggingIndex &&
+    insertAt !== draggingIndex + 1;
+
   return (
     <nav
       aria-label="Open workspaces"
+      onDragOver={(event) => {
+        if (!isRailProjectDrag(event)) return;
+        event.preventDefault();
+        event.dataTransfer.dropEffect = 'move';
+        setInsertAt(railInsertIndex(event));
+      }}
+      onDragLeave={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget as Node)) setInsertAt(null);
+      }}
+      onDrop={(event) => {
+        if (!isRailProjectDrag(event)) return;
+        event.preventDefault();
+        const projectId = event.dataTransfer.getData(RAIL_PROJECT_MIME);
+        const index = railInsertIndex(event);
+        endDrag();
+        if (!projectId) return;
+        // The rail skips ids of projects that no longer exist, so map the slot back to the store.
+        const before = railProjects[index];
+        moveRailProject(
+          projectId,
+          before ? railProjectIds.indexOf(before.id) : railProjectIds.length,
+        );
+      }}
       className="flex w-14 shrink-0 flex-col items-center gap-2.5 border-r border-border/70 bg-card/30 py-3"
     >
-      {railProjects.map((project) => (
+      {railProjects.map((project, index) => (
         <RailItem
           key={project.id}
           project={project}
           active={project.id === activeProjectId}
           onOpen={() => navigate(`/workspace/${project.id}`)}
           onClose={() => void requestClose(project)}
+          dragging={project.id === draggingId}
+          dropIndicator={
+            !showInsert
+              ? null
+              : insertAt === index
+                ? 'before'
+                : insertAt === railProjects.length && index === railProjects.length - 1
+                  ? 'after'
+                  : null
+          }
+          onDragStart={() => setDraggingId(project.id)}
+          onDragEnd={endDrag}
         />
       ))}
       <PopoverPrimitive.Root open={pickerOpen} onOpenChange={setPickerOpen}>

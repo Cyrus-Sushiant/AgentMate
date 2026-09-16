@@ -15,7 +15,8 @@ import {
 } from '@agentmat/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import {
   Bell,
@@ -101,6 +102,9 @@ export default function UsagePage(): React.JSX.Element {
   // Off by default so the drag handle doesn't clutter the everyday view, same
   // pattern as the Dashboard's layout-edit mode.
   const [editing, setEditing] = useState(false);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [focusedProviderId, setFocusedProviderId] = useState<string | null>(null);
+  const cardNodes = useRef(new Map<string, HTMLDivElement>());
 
   const settingsQuery = useQuery({
     queryKey: queryKeys.settings,
@@ -127,6 +131,27 @@ export default function UsagePage(): React.JSX.Element {
     [settings],
   );
   const pinDef = pinTarget ? getUsageProvider(pinTarget) : undefined;
+
+  // `/usage?provider=claude`, the route a threshold-alert notification opens. Cleared from the
+  // URL right away so a later refresh doesn't scroll the page again.
+  useEffect(() => {
+    const providerId = searchParams.get('provider');
+    if (!providerId) return;
+    setSearchParams({}, { replace: true });
+    if (!displayedIds.includes(providerId)) return;
+    setFocusedProviderId(providerId);
+    const frame = requestAnimationFrame(() => {
+      cardNodes.current.get(providerId)?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [searchParams, setSearchParams, displayedIds]);
+
+  // The ring is a "here it is" pointer, not a state, so it fades on its own.
+  useEffect(() => {
+    if (!focusedProviderId) return;
+    const timer = setTimeout(() => setFocusedProviderId(null), 6000);
+    return () => clearTimeout(timer);
+  }, [focusedProviderId]);
 
   const usageById = useMemo(() => {
     const map = new Map<string, ProviderUsage>();
@@ -437,11 +462,19 @@ export default function UsagePage(): React.JSX.Element {
           return (
             <motion.div
               key={id}
+              ref={(node) => {
+                if (node) cardNodes.current.set(id, node);
+                else cardNodes.current.delete(id);
+              }}
               layout
               transition={{ type: 'spring', stiffness: 400, damping: 35 }}
             >
               <Card
-                className={cn('glass h-full', dragId === id && 'opacity-50')}
+                className={cn(
+                  'glass h-full transition-shadow duration-300',
+                  dragId === id && 'opacity-50',
+                  focusedProviderId === id && 'ring-2 ring-primary',
+                )}
                 onDragOver={(e) => e.preventDefault()}
                 onDrop={() => handleDrop(id)}
               >

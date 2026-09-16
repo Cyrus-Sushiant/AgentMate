@@ -17,13 +17,14 @@ import {
   notificationHookChannel,
 } from '@agentmat/core';
 import type {
+  ApplyVersionResult,
   BootstrapResult,
   GitBranchInfo,
   GitStatus,
   GitTagInfo,
   SkillUpdateInfo,
 } from '@shared/apiTypes';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useMutationState, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -105,8 +106,9 @@ import { ProjectPromptHistory } from '@/components/projects/ProjectPromptHistory
 import { SecurityTab } from '@/components/projects/security/SecurityTab';
 import { useProjectRun } from '@/components/projects/useProjectRun';
 import {
+  fileDecision,
   VersionChangeReview,
-  type VersionFileDecision,
+  type VersionReviews,
 } from '@/components/projects/VersionChangeReview';
 import { SkillAuditVerdictBadge } from '@/components/skills/SkillAuditReport';
 import {
@@ -158,6 +160,7 @@ import { confirmDialog } from '@/stores/confirmStore';
 import { usePageHeader } from '@/stores/pageHeaderStore';
 import { useShortcutLabel } from '@/stores/shortcutStore';
 import { useTerminalStore } from '@/stores/terminalStore';
+import { useVersionDialogStore } from '@/stores/versionDialogStore';
 
 export default function ProjectDetailPage(): React.JSX.Element {
   const { projectId } = useParams<{ projectId: string }>();
@@ -2943,21 +2946,57 @@ function ApplyVersionDialog({
   onBackToTag: () => void;
 }): React.JSX.Element {
   const queryClient = useQueryClient();
-  const requestRef = useRef<string | null>(null);
   const startedForRef = useRef<string | null>(null);
+  const mutationKey = ['applyVersion', projectId] as const;
 
   const applyMutation = useMutation({
-    mutationFn: (versionTag: string) => {
-      const requestId = crypto.randomUUID();
-      requestRef.current = requestId;
-      return window.agentmat.git.applyVersion({ projectId, tag: versionTag, requestId });
-    },
-    onSettled: () => {
-      requestRef.current = null;
+    mutationKey,
+    // Well past the run's own timeout, so a result reached through a "Review" click on a
+    // notification (fired minutes after the run settles) still finds it in the cache.
+    gcTime: 30 * 60 * 1000,
+    mutationFn: ({ tag: versionTag, requestId }: { tag: string; requestId: string }) =>
+      window.agentmat.git.applyVersion({ projectId, tag: versionTag, requestId }),
+    onSettled: (result) => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.gitStatus(projectId) });
+      // Fires even if this dialog (or the project it belongs to) has since gone off screen,
+      // so a run left to finish in the background still tells the user when it's done.
+      if (!result || result.cancelled) return;
+      const changeCount = result.changes.length;
+      const reviewAction = {
+        label: 'Review',
+        onClick: () => {
+          window.location.hash = `#/workspace/${projectId}`;
+          useVersionDialogStore.getState().open(projectId);
+        },
+      };
+      if (result.ok) {
+        toast.success('Version files updated', {
+          description: `${changeCount} file${changeCount === 1 ? '' : 's'} changed. Review and commit when ready.`,
+          action: reviewAction,
+        });
+      } else {
+        toast.error('Updating version files failed', {
+          description: displayCliOutput(result.error ?? 'Unknown error.'),
+          action: reviewAction,
+        });
+      }
     },
     meta: GIT_OP_META,
   });
+
+  // The newest run for this project, however it was started, so closing this dialog (or
+  // leaving the Workspace entirely) and coming back still finds a run that kept going in
+  // the background instead of losing track of it.
+  const runs = useMutationState({
+    filters: { mutationKey, exact: true },
+    select: (m) => ({
+      status: m.state.status,
+      variables: m.state.variables as { tag: string; requestId: string } | undefined,
+      data: m.state.data as ApplyVersionResult | undefined,
+      error: m.state.error,
+    }),
+  });
+  const currentRun = [...runs].reverse().find((run) => run.variables?.tag === tag);
 
   // Tagging is gated on a clean working tree (see TagVersionDialog), so the version bump
   // this dialog just wrote needs to be committed before the user can move on to tagging.
@@ -2973,10 +3012,14 @@ function ApplyVersionDialog({
     meta: GIT_OP_META,
   });
 
-  const { reset, mutate } = applyMutation;
+  const { mutate } = applyMutation;
 
   // The run starts as soon as the dialog opens: the user already asked for it by clicking
-  // "Update version in files". The ref guards against a re-run on unrelated re-renders.
+  // "Update version in files". The ref guards against a re-run on unrelated re-renders, and
+  // a run already in the cache for this exact tag is resumed instead of duplicated. currentRun
+  // is read but deliberately left out of the deps below, or this would fire again the instant
+  // the run it just started lands in the cache.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: see above
   useEffect(() => {
     if (!open || !tag) {
       startedForRef.current = null;
@@ -2984,14 +3027,13 @@ function ApplyVersionDialog({
     }
     if (startedForRef.current === tag) return;
     startedForRef.current = tag;
-    reset();
-    mutate(tag);
-  }, [open, tag, mutate, reset]);
+    if (currentRun) return;
+    mutate({ tag, requestId: crypto.randomUUID() });
+  }, [open, tag, mutate]);
 
   function handleCancel(): void {
-    const requestId = requestRef.current;
+    const requestId = currentRun?.variables?.requestId;
     if (!requestId) return;
-    requestRef.current = null;
     void window.agentmat.git.cancelApplyVersion(requestId);
   }
 
@@ -2999,58 +3041,60 @@ function ApplyVersionDialog({
     if (!tag) return;
     startedForRef.current = tag;
     commitMutation.reset();
-    reset();
-    mutate(tag);
+    mutate({ tag, requestId: crypto.randomUUID() });
   }
 
-  const result = applyMutation.data;
+  const result = currentRun?.data;
   const changes = result?.changes ?? [];
   // Decisions belong to one run's file list; a fresh run starts the review over.
-  const [decisions, setDecisions] = useState<Record<string, VersionFileDecision>>({});
+  const [reviews, setReviews] = useState<VersionReviews>({});
   useEffect(() => {
-    if (result) setDecisions({});
+    if (result) setReviews({});
   }, [result]);
+  // A file with only some of its changes kept is committed as it now sits on disk.
   const keptPaths = changes
-    .filter((change) => decisions[change.path] === 'keep')
+    .filter((change) => {
+      const decision = fileDecision(change, reviews[change.path]);
+      return decision === 'keep' || decision === 'partial';
+    })
     .map((change) => change.path);
-  const undecidedCount = changes.filter((change) => !decisions[change.path]).length;
+  const undecidedCount = changes.filter(
+    (change) => !fileDecision(change, reviews[change.path]),
+  ).length;
   const committed = commitMutation.isSuccess && commitMutation.data.ok;
 
-  const failed = applyMutation.isError || (result && !result.ok && !result.cancelled);
+  const isApplying = currentRun?.status === 'pending';
+  const failed = currentRun?.status === 'error' || (result && !result.ok && !result.cancelled);
   const didNothing = !!result?.ok && changes.length === 0 && !result.committedByCli;
   const canRetry = Boolean(failed || result?.cancelled || didNothing || result?.warning);
   const cliOutput = result?.output ? displayCliOutput(result.output) : '';
   const warningText = result?.warning ? displayCliOutput(result.warning) : '';
   const errorText = displayCliOutput(
-    result?.error ?? (applyMutation.error as Error | null)?.message ?? 'Unknown error.',
+    result?.error ?? (currentRun?.error as Error | null)?.message ?? 'Unknown error.',
   );
 
   return (
-    <Dialog
-      open={open}
-      onOpenChange={(next) => {
-        if (!next) onBackToTag();
-        else onOpenChange(next);
-      }}
-    >
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl overflow-hidden">
         <DialogHeader>
           <DialogTitle>Update version in files</DialogTitle>
           <DialogDescription>
             Setting the version to <span className="font-mono">{tag}</span> in every file of the
-            repository. Keep the files that belong to this release and revert the rest.
+            repository. Keep what belongs to this release and revert the rest, a whole file or one
+            change inside it at a time.
           </DialogDescription>
         </DialogHeader>
 
         <OverflowScroll fill className="-mx-1 space-y-3 px-1">
-          {applyMutation.isPending && (
+          {isApplying && (
             <div className="flex items-center gap-3 rounded-xl border border-border bg-card/60 px-3 py-3">
               <Spinner className="h-4 w-4 animate-spin text-primary" />
               <div className="min-w-0">
                 <p className="text-sm font-medium">Updating version strings</p>
                 <p className="text-xs text-muted-foreground">
                   Your CLI is searching the repo and editing manifests. This can take several
-                  minutes.
+                  minutes. Feel free to close this and keep working, you'll get a notification when
+                  it's done.
                 </p>
               </div>
             </div>
@@ -3123,8 +3167,8 @@ function ApplyVersionDialog({
               <VersionChangeReview
                 projectId={projectId}
                 changes={changes}
-                decisions={decisions}
-                onDecisionsChange={setDecisions}
+                reviews={reviews}
+                onReviewsChange={setReviews}
                 locked={committed || commitMutation.isPending}
               />
               {committed ? (
@@ -3213,14 +3257,19 @@ function ApplyVersionDialog({
         </OverflowScroll>
 
         <DialogFooter>
-          {applyMutation.isPending ? (
-            <Button
-              variant="outline"
-              onClick={handleCancel}
-              className="border-destructive/40 hover:bg-destructive/10"
-            >
-              <X className="h-4 w-4 text-destructive" /> Cancel
-            </Button>
+          {isApplying ? (
+            <>
+              <Button variant="ghost" onClick={() => onOpenChange(false)}>
+                Close, keep it running
+              </Button>
+              <Button
+                variant="outline"
+                onClick={handleCancel}
+                className="border-destructive/40 hover:bg-destructive/10"
+              >
+                <X className="h-4 w-4 text-destructive" /> Cancel
+              </Button>
+            </>
           ) : (
             <>
               {canRetry ? (
@@ -3317,8 +3366,10 @@ function TagVersionDialog({
   }, [open, tagInfoLoaded, plainPrefix, projectId]);
 
   const hasRemote = tagInfo?.hasRemote ?? false;
-  // Gate tagging (and the push that follows it) on a clean tree: a version bump's edits must
-  // land in a commit first, otherwise the tag would point at a commit missing those edits.
+  // `git tag` and the push after it act on HEAD, not the working tree, so a dirty tree never
+  // stops either one. This is only a heads-up: reverting a file that had edits of its own
+  // before the version bump ran (see VersionChangeReview) leaves it dirty on purpose, and that
+  // used to block tagging entirely even though nothing about the tag itself needed it clean.
   const dirtyFileCount = status?.files.length ?? 0;
   const isDirty = dirtyFileCount > 0;
   const bumpOptions = (['patch', 'minor', 'major'] as const).map((kind) => ({
@@ -3364,12 +3415,8 @@ function TagVersionDialog({
   // something that just shipped. Git still rejects any duplicate this misses.
   const tagExists = trimmedVersion.length > 0 && recentTags.includes(tag) && !creatingThisTag;
   const versionApplied = trimmedVersion.length > 0 && updatedVersionFor === tag;
-  const blockedReason = isDirty
-    ? 'Commit the changed files above before tagging.'
-    : tagExists
-      ? `${tag} already exists. Pick another version.`
-      : null;
-  const canCreate = trimmedVersion.length > 0 && !isDirty && !tagExists;
+  const blockedReason = tagExists ? `${tag} already exists. Pick another version.` : null;
+  const canCreate = trimmedVersion.length > 0 && !tagExists;
 
   const suggestMutation = useMutation({
     mutationFn: () => {
@@ -3490,19 +3537,15 @@ function TagVersionDialog({
           </DialogDescription>
         </DialogHeader>
         <OverflowScroll fill className="-mx-1 space-y-4 px-1">
-          {/* The blocker leads: nothing further down can be finished while the tree is dirty. */}
+          {/* A heads-up, not a blocker: the tag lands on HEAD regardless of the working tree. */}
           {isDirty && (
-            <div
-              role="alert"
-              className="flex gap-2 rounded-xl border border-destructive/40 bg-destructive/5 px-3 py-2.5"
-            >
-              <TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0 text-destructive" />
+            <div className="flex gap-2 rounded-xl border border-warning/30 bg-warning/10 px-3 py-2.5">
+              <TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0 text-warning" />
               <p className="text-xs text-muted-foreground">
                 <span className="font-medium text-foreground">
                   {dirtyFileCount} uncommitted file{dirtyFileCount === 1 ? '' : 's'}.
                 </span>{' '}
-                Commit them before tagging, so the tag points at a commit that already carries the
-                version bump.
+                They won't be part of this tag unless you commit them first.
               </p>
             </div>
           )}
@@ -4298,7 +4341,15 @@ export function ProjectVersionDialogs({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }): React.JSX.Element {
-  const [applyVersionTag, setApplyVersionTag] = useState<string | null>(null);
+  // Scoped to the project it was set for: this component is one shared instance for
+  // whichever project the Workspace header currently shows, so a run left mid-flight for
+  // project A must not resurface as project B's the moment the user switches to it.
+  const [applyVersionTarget, setApplyVersionTarget] = useState<{
+    projectId: string;
+    tag: string;
+  } | null>(null);
+  const applyVersionTag =
+    applyVersionTarget?.projectId === projectId ? applyVersionTarget.tag : null;
   const active = open || applyVersionTag !== null;
   const statusQuery = useQuery({
     queryKey: queryKeys.gitStatus(projectId),
@@ -4319,24 +4370,20 @@ export function ProjectVersionDialogs({
         projectId={projectId}
         tagInfo={tagsQuery.data ?? null}
         status={statusQuery.data ?? null}
-        open={open}
+        open={open && applyVersionTag === null}
         onOpenChange={onOpenChange}
-        onApplyVersion={(nextTag) => {
-          onOpenChange(false);
-          setApplyVersionTag(nextTag);
-        }}
+        onApplyVersion={(nextTag) => setApplyVersionTarget({ projectId, tag: nextTag })}
       />
       <ApplyVersionDialog
         projectId={projectId}
         tag={applyVersionTag}
-        open={applyVersionTag !== null}
-        onOpenChange={(next) => {
-          if (!next) setApplyVersionTag(null);
-        }}
-        onBackToTag={() => {
-          setApplyVersionTag(null);
-          onOpenChange(true);
-        }}
+        // Closing (Escape, an outside click, the X) just hides this: the run it's watching
+        // keeps going regardless, and reopening "Tag a version" for this project finds it
+        // again instead of losing track of it. "Back to tag" is the one action that steps
+        // away from a finished run on purpose.
+        open={open && applyVersionTag !== null}
+        onOpenChange={onOpenChange}
+        onBackToTag={() => setApplyVersionTarget(null)}
       />
     </>
   );

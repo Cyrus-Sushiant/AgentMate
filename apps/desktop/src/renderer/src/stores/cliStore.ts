@@ -1,4 +1,5 @@
 import type { CliArgsMap } from '@agentmat/core';
+import type { LastRunInfoByCli } from '@shared/apiTypes';
 import { create } from 'zustand';
 
 interface CliState {
@@ -7,15 +8,19 @@ interface CliState {
   cliArgs: CliArgsMap;
   /** The user's order for listing agents to launch. Empty means the default order. */
   cliOrder: string[];
+  /** The model and effort each CLI was last actually run on, kept across restarts. */
+  lastRunInfoByCli: LastRunInfoByCli;
   setDefaultCliId: (cliId: string | null) => void;
   setCliArgs: (cliId: string, args: string) => void;
   setCliOrder: (order: string[]) => void;
+  recordLastRun: (cliId: string, model?: string, effort?: string) => void;
 }
 
 export const useCliStore = create<CliState>((set, get) => ({
   defaultCliId: null,
   cliArgs: {},
   cliOrder: [],
+  lastRunInfoByCli: {},
   setDefaultCliId: (cliId) => {
     set({ defaultCliId: cliId });
     void window.agentmat.settings.update({ defaultCliId: cliId });
@@ -32,13 +37,23 @@ export const useCliStore = create<CliState>((set, get) => ({
     set({ cliOrder: order });
     void window.agentmat.settings.update({ cliOrder: order });
   },
+  recordLastRun: (cliId, model, effort) => {
+    if (!model) return;
+    const current = get().lastRunInfoByCli[cliId];
+    if (current?.model === model && current?.effort === effort) return;
+    set({ lastRunInfoByCli: { ...get().lastRunInfoByCli, [cliId]: { model, effort } } });
+  },
 }));
 
 export async function initDefaultCli(): Promise<void> {
-  const settings = await window.agentmat.settings.get();
+  const [settings, lastRunInfoByCli] = await Promise.all([
+    window.agentmat.settings.get(),
+    window.agentmat.agents.lastRunInfoByCli(),
+  ]);
   useCliStore.setState({
     defaultCliId: settings.defaultCliId,
     cliArgs: settings.cliArgs ?? {},
     cliOrder: settings.cliOrder ?? [],
+    lastRunInfoByCli,
   });
 }

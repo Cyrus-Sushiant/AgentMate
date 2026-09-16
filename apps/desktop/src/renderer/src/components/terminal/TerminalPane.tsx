@@ -1,5 +1,6 @@
 import type { Terminal } from '@xterm/xterm';
 import { useEffect, useRef } from 'react';
+import { claimTerminalFocus, releaseTerminalFocus } from '@/lib/terminal/focusClaim';
 import { onFontsLoaded, whenTerminalFontReady } from '@/lib/terminal/fontReady';
 import { attachTerminalPaste } from '@/lib/terminal/pasteFiles';
 import { sshTerminalAdapter } from '@/lib/terminal/sshAdapter';
@@ -50,6 +51,7 @@ export function TerminalPane({ meta, active, onExit }: TerminalPaneProps): React
       // never see it ready and stay on today's raw-path paste behavior.
       chipPasteMode: meta.kind !== 'ssh',
       shell: () => meta.shell,
+      localPty: meta.kind !== 'ssh',
     });
     termRef.current = term;
 
@@ -197,8 +199,17 @@ export function TerminalPane({ meta, active, onExit }: TerminalPaneProps): React
   // Newly opened sessions and tab switches both need to move DOM focus into xterm's hidden
   // textarea. Without it, keystrokes (e.g. Enter to launch, Ctrl+V to paste an install command)
   // go wherever focus already was (often the button that opened this session) instead of the pty.
+  // The terminal may not be open yet (it waits for its font), and whatever opened the session can
+  // still pull focus away as it closes, so this claims focus for a moment instead of focusing once.
   useEffect(() => {
-    if (active) termRef.current?.focus();
+    const pane = paneRef.current;
+    if (!active || !pane) return;
+    claimTerminalFocus({
+      element: pane,
+      canFocus: () => termRef.current?.element !== undefined && pane.clientWidth > 0,
+      focus: () => termRef.current?.focus(),
+    });
+    return () => releaseTerminalFocus(pane);
   }, [active]);
 
   // The padding lives on the outer box: xterm's fit measures the element it opened in by its

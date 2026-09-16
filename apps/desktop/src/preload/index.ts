@@ -120,6 +120,7 @@ import type {
   IpGeoInfo,
   KeepAwakeStatus,
   KillProcessResult,
+  LastRunInfoByCli,
   LocalSkillFolderPreview,
   NotificationSendResult,
   OllamaConnectionTest,
@@ -165,6 +166,8 @@ import type {
   SuggestGitTextResult,
   SuggestTagResult,
   SwapVersionFileInput,
+  WriteVersionHunksInput,
+  WriteVersionHunksResult,
   SystemStatsSample,
   TerminalAttachResult,
   TerminalClipboardPaste,
@@ -341,6 +344,9 @@ const agents = {
     ipcRenderer.invoke(IPC.agents.statusHookSettings, cliId),
   /** The model and effort each agent last reported. */
   runInfos: (): Promise<AgentRunInfoMap> => ipcRenderer.invoke(IPC.agents.runInfos),
+  /** What each CLI was last actually run on, kept across restarts. */
+  lastRunInfoByCli: (): Promise<LastRunInfoByCli> =>
+    ipcRenderer.invoke(IPC.agents.lastRunInfoByCli),
   history: (projectId: string): Promise<AgentHistorySession[]> =>
     ipcRenderer.invoke(IPC.agents.history, projectId),
   onRunInfo: (callback: (changes: AgentRunInfoMap) => void): (() => void) => {
@@ -843,6 +849,9 @@ const git = {
   /** Reverts one file the version bump changed, or puts the bump's edit back. */
   swapVersionFile: (input: SwapVersionFileInput): Promise<GitOpResult> =>
     ipcRenderer.invoke(IPC.git.swapVersionFile, input),
+  /** Rewrites one file the version bump changed with only some of its changes kept. */
+  writeVersionHunks: (input: WriteVersionHunksInput): Promise<WriteVersionHunksResult> =>
+    ipcRenderer.invoke(IPC.git.writeVersionHunks, input),
   suggestBranchName: (projectId: string, requestId?: string): Promise<SuggestGitTextResult> =>
     ipcRenderer.invoke(IPC.git.suggestBranchName, projectId, requestId),
   /** Kills the CLI process behind an in-flight suggestBranchName(requestId). */
@@ -938,6 +947,9 @@ const git = {
     side: GitDiffSide,
     origPath?: string,
   ): Promise<GitFileDiff> => ipcRenderer.invoke(IPC.git.fileDiff, projectId, path, side, origPath),
+  /** Saves an edit to a working tree file from the diff view. `path` is repo-relative. */
+  writeWorkingFile: (projectId: string, path: string, content: string): Promise<void> =>
+    ipcRenderer.invoke(IPC.git.writeWorkingFile, projectId, path, content),
   /** The files a commit changed, with line counts. */
   commitFiles: (projectId: string, hash: string): Promise<GitChangeEntry[]> =>
     ipcRenderer.invoke(IPC.git.commitFiles, projectId, hash),
@@ -1106,8 +1118,9 @@ const usage = {
     ipcRenderer.invoke(IPC.usage.setThresholdAlerts, alerts),
   testThresholdAlert: (): Promise<{ ok: boolean; error?: string }> =>
     ipcRenderer.invoke(IPC.usage.testThresholdAlert),
-  onThresholdAlert: (callback: (payload: { title: string; body: string }) => void): (() => void) =>
-    subscribe(IPC.usage.onThresholdAlert, callback),
+  onThresholdAlert: (
+    callback: (payload: { title: string; body: string; providerId: string }) => void,
+  ): (() => void) => subscribe(IPC.usage.onThresholdAlert, callback),
   listWidgets: (): Promise<DesktopWidgetInstance[]> => ipcRenderer.invoke(IPC.usage.listWidgets),
   getWidget: (id: string): Promise<DesktopWidgetInstance | null> =>
     ipcRenderer.invoke(IPC.usage.getWidget, id),
@@ -1203,8 +1216,16 @@ const remoteSessionWindowControls = {
   },
 };
 
+/** The Windows build (e.g. 26200), which xterm needs to match how ConPTY redraws. Null elsewhere. */
+function windowsBuildNumber(): number | null {
+  if (process.platform !== 'win32') return null;
+  const build = Number(process.getSystemVersion().split('.')[2]);
+  return Number.isFinite(build) && build > 0 ? build : null;
+}
+
 const agentmatApi = {
   platform: process.platform,
+  windowsBuild: windowsBuildNumber(),
   app: appInfo,
   cli,
   terminal,

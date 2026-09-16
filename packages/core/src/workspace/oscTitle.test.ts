@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { cleanTerminalTitle, OscTitleParser } from './oscTitle.js';
+import { agentSessionTitle, cleanTerminalTitle, OscTitleParser } from './oscTitle.js';
 
 describe('OscTitleParser', () => {
   it('reads BEL and ST terminated titles', () => {
@@ -27,5 +27,24 @@ describe('OscTitleParser', () => {
       spinning: true,
     });
     expect(cleanTerminalTitle('/home/me')).toEqual({ title: '/home/me', spinning: false });
+  });
+});
+
+describe('agentSessionTitle', () => {
+  it('keeps a title that describes the task', () => {
+    expect(agentSessionTitle('Fix login bug', 'Claude Code')).toBe('Fix login bug');
+    expect(agentSessionTitle('  Add npm scripts ', 'Codex CLI')).toBe('Add npm scripts');
+  });
+
+  it('ignores the CLI name and what the shell set before it', () => {
+    expect(agentSessionTitle(undefined, 'Claude Code')).toBeNull();
+    expect(agentSessionTitle('', 'Claude Code')).toBeNull();
+    expect(agentSessionTitle('Claude Code', 'Claude Code')).toBeNull();
+    expect(agentSessionTitle('claude', 'Claude Code')).toBeNull();
+    expect(agentSessionTitle('C:\WINDOWS\system32\cmd.exe - claude', 'Claude Code')).toBeNull();
+    expect(agentSessionTitle('/home/me/project', 'Codex CLI')).toBeNull();
+    expect(agentSessionTitle('~/project', 'Codex CLI')).toBeNull();
+    expect(agentSessionTitle('Windows PowerShell', 'Claude Code')).toBeNull();
+    expect(agentSessionTitle('pwsh', 'Claude Code')).toBeNull();
   });
 });

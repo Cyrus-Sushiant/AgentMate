@@ -7,6 +7,7 @@ import type {
 } from '@shared/apiTypes';
 import { create } from 'zustand';
 import { prepareStatusHooks } from '@/lib/workspace/launch';
+import { useCliStore } from './cliStore';
 import { terminalTabLabel, useWorkspaceStore } from './workspaceStore';
 
 interface AgentStatusState {
@@ -42,6 +43,15 @@ export function modelDisplayName(model: string): string {
     .replace(/(\d) (\d)/g, '$1.$2');
 }
 
+/**
+ * The session is in the middle of something closing it would cut short: working, or stopped
+ * on a question. A tab that was just opened, or whose agent already finished, is not.
+ */
+export function isSessionBusy(sessionId: string): boolean {
+  const status = useAgentStatusStore.getState().statuses[sessionId];
+  return status === 'working' || status === 'needs-input';
+}
+
 function sessionEntries(): AgentSessionEntry[] {
   const entries: AgentSessionEntry[] = [];
   for (const [projectId, workspace] of Object.entries(useWorkspaceStore.getState().workspaces)) {
@@ -75,6 +85,14 @@ export function initAgentStatus(): void {
   });
   agents.onRunInfo((changes) => {
     useAgentStatusStore.setState((state) => ({ runInfos: { ...state.runInfos, ...changes } }));
+    // Keeps the "last run" cache current through the session, so a fresh tab opened
+    // right after a `/model` switch already knows about it, not just after a restart.
+    for (const entry of sessionEntries()) {
+      const info = changes[entry.sessionId];
+      if (info?.model && entry.cliId) {
+        useCliStore.getState().recordLastRun(entry.cliId, info.model, info.effort);
+      }
+    }
   });
 
   let lastSignature = '';
