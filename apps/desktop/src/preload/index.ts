@@ -616,9 +616,9 @@ const terminalClipboard = {
   /** Saves pasted image bytes to a file and returns its path, for pasting into an agent CLI. */
   saveImage: (bytes: Uint8Array, mime: string): Promise<string> =>
     ipcRenderer.invoke(IPC.terminalClipboard.saveImage, bytes, mime),
-  /** An image or copied file on the system clipboard, as paths. Null when it holds neither. */
-  readSpecial: (): Promise<TerminalClipboardPaste | null> =>
-    ipcRenderer.invoke(IPC.terminalClipboard.readSpecial),
+  /** What the system clipboard holds for a terminal: text, or paths for copied files and
+   * images. Null when it holds nothing a terminal can use. */
+  read: (): Promise<TerminalClipboardPaste | null> => ipcRenderer.invoke(IPC.terminalClipboard.read),
 };
 
 const promptHistory = {

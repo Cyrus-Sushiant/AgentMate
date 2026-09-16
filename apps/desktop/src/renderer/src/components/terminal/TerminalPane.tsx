@@ -1,9 +1,10 @@
 import type { Terminal } from '@xterm/xterm';
 import { useEffect, useRef } from 'react';
 import { onFontsLoaded, whenTerminalFontReady } from '@/lib/terminal/fontReady';
-import { attachFilePaste } from '@/lib/terminal/pasteFiles';
+import { attachTerminalPaste } from '@/lib/terminal/pasteFiles';
 import { sshTerminalAdapter } from '@/lib/terminal/sshAdapter';
 import {
+  attachFocusOnClick,
   attachTerminalContextMenu,
   createXterm,
   resolveDrawerTerminalTheme,
@@ -37,10 +38,14 @@ export function TerminalPane({ meta, active, onExit }: TerminalPaneProps): React
         : window.agentmat.terminal;
     const initialTheme = resolveDrawerTerminalTheme(useThemeStore.getState().theme);
     paneRef.current?.style.setProperty('--terminal-bg', initialTheme.background as string);
-    const { term, fit: fitAddon } = createXterm({
+    const { term, fit: fitAddon, chipMode } = createXterm({
       sessionId: () => ptySessionId,
       write: (id, data) => void client.write(id, data),
       theme: initialTheme,
+      // No shell-integration marker is ever injected into a remote shell, so SSH panes just
+      // never see it ready and stay on today's raw-path paste behavior.
+      chipPasteMode: meta.kind !== 'ssh',
+      shell: () => meta.shell,
     });
     termRef.current = term;
 
@@ -70,19 +75,21 @@ export function TerminalPane({ meta, active, onExit }: TerminalPaneProps): React
     resizeObserver.observe(container);
     const stopFontWatch = onFontsLoaded(refit);
 
+    const detachFocusOnClick = attachFocusOnClick(paneRef.current ?? container, term);
     const detachContextMenu = attachTerminalContextMenu(
       container,
       term,
       () => ptySessionId,
-      (id, data) => void client.write(id, data),
       () => meta.shell,
+      chipMode,
     );
-    // Screenshots and copied files paste as paths, so agent CLIs can pick them up.
-    const detachFilePaste = attachFilePaste(
-      container,
-      () => meta.shell,
-      (text) => term.paste(text),
-    );
+    // Screenshots and copied files paste as chips when the shell is ready for them, or as
+    // their real quoted paths otherwise, so agent CLIs can pick them up either way.
+    const detachFilePaste = attachTerminalPaste(container, {
+      chipMode,
+      paste: (text) => term.paste(text),
+      shell: () => meta.shell,
+    });
 
     // The session id is the tab id, which is what lets a pane find its shell again after
     // the app restarts. Subscribing before the create call means no output is missed:
@@ -171,6 +178,8 @@ export function TerminalPane({ meta, active, onExit }: TerminalPaneProps): React
       stopFontWatch();
       detachContextMenu();
       detachFilePaste();
+      detachFocusOnClick();
+      chipMode?.dispose();
       unsubscribeTheme();
       unsubscribeData();
       unsubscribeExit();

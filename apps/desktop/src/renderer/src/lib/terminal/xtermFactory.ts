@@ -4,7 +4,8 @@ import { WebLinksAddon } from '@xterm/addon-web-links';
 import { type ITheme, Terminal } from '@xterm/xterm';
 import '@xterm/xterm/css/xterm.css';
 import { isShortcutLetter } from '@/lib/shortcutKey';
-import { pastePathsText, readClipboardPaths } from '@/lib/terminal/pasteFiles';
+import { type ChipPasteController, createChipPasteController } from '@/lib/terminal/chipPasteMode';
+import { pasteClipboardIntoTerminal } from '@/lib/terminal/pasteFiles';
 import { commandForEvent, useShortcutStore } from '@/stores/shortcutStore';
 
 // Same fill as `.terminal-well` so leftover cells after a fit() don't read as a
@@ -210,6 +211,9 @@ export function resolveWorkspaceTerminalTheme(
 export interface XtermHandle {
   term: Terminal;
   fit: FitAddon;
+  /** Null when `chipPasteMode` was disabled (SSH panes: no shell-integration marker is ever
+   * injected into a remote shell, so there'd be nothing for it to do). */
+  chipMode: ChipPasteController | null;
 }
 
 export interface CreateXtermOptions {
@@ -224,6 +228,11 @@ export interface CreateXtermOptions {
   theme?: ITheme;
   /** Defaults to the local pty channel; an SSH pane passes its own client's write instead. */
   write?: (sessionId: string, data: string) => void;
+  /** Shows a pasted file as a short chip instead of its whole path. Defaults to on; SSH panes
+   * pass false since no shell-integration marker is ever injected into a remote shell. */
+  chipPasteMode?: boolean;
+  /** Which shell's quoting rules pasted paths follow. */
+  shell?: () => string | undefined;
 }
 
 /**
@@ -235,6 +244,8 @@ export function createXterm({
   passThrough,
   theme = TERMINAL_THEME,
   write = (id, data) => void window.agentmat.terminal.write(id, data),
+  chipPasteMode = true,
+  shell = () => undefined,
 }: CreateXtermOptions): XtermHandle {
   const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   const term = new Terminal({
@@ -260,9 +271,14 @@ export function createXterm({
     }),
   );
 
-  term.onData((data) => {
+  const toPty = (data: string): void => {
     const id = sessionId();
     if (id) write(id, data);
+  };
+  const chipMode = chipPasteMode ? createChipPasteController(term, toPty) : null;
+  term.onData((data) => {
+    if (chipMode) chipMode.handleData(data);
+    else toPty(data);
   });
 
   // Ctrl/Cmd+C copies the selection instead of sending SIGINT, matching Windows
@@ -280,6 +296,22 @@ export function createXterm({
       void navigator.clipboard.writeText(term.getSelection());
       return false;
     }
+    // Paste is handled here rather than left to the browser. Letting Chromium do it meant a
+    // screenshot pasted as nothing (a textarea only ever receives text) and that a paste
+    // arriving just after the window regained focus, which is exactly how Win+V delivers one,
+    // could be dropped. preventDefault stops the native paste so nothing lands twice.
+    const pasteKey =
+      ((event.ctrlKey || event.metaKey) && !event.altKey && isShortcutLetter(event, 'v')) ||
+      (event.shiftKey && !event.ctrlKey && !event.altKey && event.key === 'Insert');
+    if (pasteKey) {
+      event.preventDefault();
+      void pasteClipboardIntoTerminal({
+        chipMode,
+        paste: (text) => term.paste(text),
+        shell,
+      });
+      return false;
+    }
     // Hand app shortcuts (Ctrl+T and friends) back to the window listener
     // instead of writing them to the pty. Returning false makes xterm ignore
     // the key entirely, so it keeps bubbling.
@@ -289,7 +321,23 @@ export function createXterm({
     return !passThrough?.(event);
   });
 
-  return { term, fit };
+  return { term, fit, chipMode };
+}
+
+/**
+ * Clicking the padding around the screen, or anywhere in the well, focuses the terminal. xterm
+ * only takes focus for clicks on its own screen, so a click just beside it left focus wherever it
+ * was (a button, a panel), and the next Ctrl+V went there instead of to the shell. Returns a
+ * cleanup.
+ */
+export function attachFocusOnClick(element: HTMLElement, term: Terminal): () => void {
+  const handleMouseDown = (event: MouseEvent): void => {
+    // Anything the user can type into or select from keeps the focus it is asking for.
+    if ((event.target as HTMLElement | null)?.closest('input, textarea, select, button, a')) return;
+    term.focus();
+  };
+  element.addEventListener('mousedown', handleMouseDown);
+  return () => element.removeEventListener('mousedown', handleMouseDown);
 }
 
 /**
@@ -300,9 +348,8 @@ export function attachTerminalContextMenu(
   element: HTMLElement,
   term: Terminal,
   sessionId: () => string | null,
-  write: (sessionId: string, data: string) => void = (id, data) =>
-    void window.agentmat.terminal.write(id, data),
   shell: () => string | undefined = () => undefined,
+  chipMode: ChipPasteController | null = null,
 ): () => void {
   const handleContextMenu = (event: MouseEvent): void => {
     event.preventDefault();
@@ -312,16 +359,11 @@ export function attachTerminalContextMenu(
       term.clearSelection();
       return;
     }
-    void navigator.clipboard.readText().then(async (text) => {
-      const id = sessionId();
-      if (!id) return;
-      if (text) {
-        write(id, text);
-        return;
-      }
-      // No text: a screenshot or copied files paste as their paths, for agent CLIs.
-      const paths = await readClipboardPaths();
-      if (paths) write(id, pastePathsText(paths, shell()));
+    if (!sessionId()) return;
+    void pasteClipboardIntoTerminal({
+      chipMode,
+      paste: (text) => term.paste(text),
+      shell,
     });
   };
   element.addEventListener('contextmenu', handleContextMenu);

@@ -7,6 +7,7 @@ import type {
   HostSessionInfo,
   SpawnSessionOptions,
 } from './protocol';
+import { buildPromptMarkerScript } from './shellIntegration';
 
 /**
  * Lines of history kept per session for repainting a terminal after the app reconnects.
@@ -169,7 +170,9 @@ export class PtySessionManager {
       if (session.attaching.length === 0) this.finish(session);
     });
 
-    if (options.initialInput) ptyProcess.write(options.initialInput);
+    const marker = buildPromptMarkerScript(options.shell, process.platform, options.env);
+    const bootstrap = (marker ?? '') + (options.initialInput ?? '');
+    if (bootstrap) ptyProcess.write(bootstrap);
     this.onSessionsChanged();
   }
 

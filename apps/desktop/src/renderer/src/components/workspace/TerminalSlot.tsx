@@ -1,5 +1,5 @@
-import { quoteAllForShell, shellKindFor } from '@agentmat/core';
 import { useLayoutEffect, useRef, useState } from 'react';
+import { pathsToChips } from '@/lib/terminal/pasteFiles';
 import { terminalRuntime } from '@/lib/terminal/terminalRuntime';
 import { resolveWorkspaceTerminalTheme } from '@/lib/terminal/xtermFactory';
 import { useTerminalAppearanceStore } from '@/stores/terminalAppearanceStore';
@@ -71,10 +71,9 @@ export function TerminalSlot({ projectId, tab, focused }: TerminalSlotProps): Re
         // Dropped files become quoted paths at the prompt, the way a native terminal does it.
         const paths = Array.from(event.dataTransfer.files)
           .map((file) => window.agentmat.shell.pathForFile(file))
-          .filter(Boolean);
+          .filter((path): path is string => Boolean(path));
         if (paths.length === 0) return;
-        const kind = shellKindFor(tab.shell, window.agentmat.platform);
-        terminalRuntime.paste(tab.id, `${quoteAllForShell(paths, kind)} `);
+        terminalRuntime.pasteChips(tab.id, pathsToChips(paths, tab.shell));
         terminalRuntime.focus(tab.id);
       }}
     >

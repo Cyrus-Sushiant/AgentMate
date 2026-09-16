@@ -10,6 +10,7 @@ import {
   withoutConfiguredRunArgs,
 } from '@agentmat/core';
 import { toast } from 'sonner';
+import { terminalRuntime } from '@/lib/terminal/terminalRuntime';
 import { useCliStore } from '@/stores/cliStore';
 import { defaultNewSession } from '@/stores/terminalStore';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
@@ -103,53 +104,47 @@ export interface PromptLaunch {
 }
 
 /**
- * Opens an agent tab with a prompt ready to go: the command, prompt included, is typed at the
- * shell but not submitted, so the user reviews it and presses Enter to start. The prompt is
- * read from a file rather than typed, so newlines and quotes in it survive any shell.
+ * Opens an agent tab and starts the CLI right away, with the model and effort it was given.
+ * The prompt is not part of the command: it is pasted into the CLI's own input box once the CLI
+ * has finished starting, exactly as if the user had pasted it, and left unsubmitted so they read
+ * it over and press Enter.
  */
-export async function launchPromptTab(
+export function launchPromptTab(
   project: Project,
   launch: PromptLaunch,
   groupId?: string,
-): Promise<string | null> {
+): string | null {
   const cli = getCliDefinition(launch.cliId);
   const shell = defaultNewSession().shell;
-  const base = agentCommand(launch.cliId, shell, launch.runArgs);
-  if (!cli || !base) {
+  const command = agentCommand(launch.cliId, shell, launch.runArgs);
+  if (!cli || !command) {
     toast.error('Unknown CLI.');
     return null;
   }
-  const filePath = await window.agentmat.fs.writeScratchFile(
-    `prompt-${Date.now()}.md`,
-    launch.prompt,
-  );
-  const kind = shellKindFor(shell, window.agentmat.platform);
-  const quotedPath = quoteForShell(filePath, kind);
-  let command: string;
-  if (kind === 'powershell') {
-    command = `& ${base} (Get-Content -Raw -LiteralPath ${quotedPath})`;
-  } else if (kind === 'fish') {
-    command = `${base} (cat ${quotedPath} | string collect)`;
-  } else if (kind === 'cmd') {
-    toast.error('Command Prompt cannot pass a multi-line prompt. Use PowerShell or a POSIX shell.');
-    return null;
-  } else {
-    command = `${base} "$(cat ${quotedPath})"`;
-  }
   const store = useWorkspaceStore.getState();
   store.openProject(project.id);
-  return store.addTerminal(
+  const tabId = store.addTerminal(
     project.id,
     {
       title: cli.name,
       cliId: launch.cliId,
       shell,
       cwd: project.folderPath,
-      launchInput: command,
+      launchInput: `${command}\r`,
       runLabel: launch.runLabel,
     },
     groupId,
   );
+  // Nothing is typed into a shell that never got the CLI up: the prompt would run as commands.
+  // It goes to the clipboard instead, so the user can paste it once they have sorted the CLI out.
+  void terminalRuntime.deliverPrompt(tabId, launch.prompt).then((delivered) => {
+    if (delivered) return;
+    void navigator.clipboard.writeText(launch.prompt);
+    toast.warning(`${cli.name} did not come up`, {
+      description: 'The prompt is on your clipboard, ready to paste once the CLI is running.',
+    });
+  });
+  return tabId;
 }
 
 /** Opens a tab in the project's workspace that starts an agent CLI. Returns the tab id. */
