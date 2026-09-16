@@ -73,18 +73,20 @@ export function registerTerminalClipboardHandlers(): void {
     },
   );
 
-  // Right-click paste reads the clipboard itself, so it asks here for what text-only
-  // clipboard access cannot see.
-  ipcMain.handle(
-    IPC.terminalClipboard.readSpecial,
-    async (): Promise<TerminalClipboardPaste | null> => {
-      const file = copiedFilePath();
-      if (file) return { kind: 'files', paths: [file] };
-      const image = clipboard.readImage();
-      if (!image.isEmpty()) {
-        return { kind: 'files', paths: [await saveImage(image.toPNG(), 'png')] };
-      }
-      return null;
-    },
-  );
+  // Every terminal paste reads the clipboard here rather than in the renderer. The renderer's
+  // own clipboard API only ever sees text, and only while the document has focus, which is why
+  // pasting a screenshot with Ctrl+V used to do nothing and Ctrl+V right after the window
+  // regained focus (Win+V's flyout, alt-tab) could silently fail.
+  ipcMain.handle(IPC.terminalClipboard.read, async (): Promise<TerminalClipboardPaste | null> => {
+    const file = copiedFilePath();
+    if (file) return { kind: 'files', paths: [file] };
+    // Text copied from a web page can come with an image of itself; the text is what was meant.
+    const text = clipboard.readText();
+    if (text) return { kind: 'text', text };
+    const image = clipboard.readImage();
+    if (!image.isEmpty()) {
+      return { kind: 'files', paths: [await saveImage(image.toPNG(), 'png')] };
+    }
+    return null;
+  });
 }

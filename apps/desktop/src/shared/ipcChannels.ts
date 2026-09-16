@@ -498,7 +498,7 @@ export const IPC = {
   },
   terminalClipboard: {
     saveImage: 'terminalClipboard:saveImage',
-    readSpecial: 'terminalClipboard:readSpecial',
+    read: 'terminalClipboard:read',
   },
   power: {
     // () -> KeepAwakeStatus

@@ -5,9 +5,12 @@ import { create } from 'zustand';
 import { commandForEvent, useShortcutStore } from '@/stores/shortcutStore';
 import { useTerminalAppearanceStore } from '@/stores/terminalAppearanceStore';
 import { useThemeStore } from '@/stores/themeStore';
+import { agentReadyVerdict } from './agentReady';
+import type { ChipInput, ChipPasteController } from './chipPasteMode';
 import { onFontsLoaded, whenTerminalFontReady } from './fontReady';
-import { attachFilePaste } from './pasteFiles';
+import { attachTerminalPaste } from './pasteFiles';
 import {
+  attachFocusOnClick,
   attachTerminalContextMenu,
   createXterm,
   resolveWorkspaceTerminalTheme,
@@ -51,6 +54,7 @@ interface Entry {
   spec: RuntimeSessionSpec;
   term: Terminal;
   fit: FitAddon;
+  chipMode: ChipPasteController | null;
   host: HTMLDivElement;
   /** The unpadded element xterm renders into, inside `host`. */
   surface: HTMLDivElement;
@@ -62,9 +66,86 @@ interface Entry {
   ready: boolean;
   pending: string[];
   exitCode: number | null | undefined;
+  /** When output last arrived, and how much has arrived, for the prompt hand-off below. */
+  lastOutputAt: number;
+  outputBytes: number;
+  /** A prompt is already waiting for this session's CLI to start. */
+  handingOff: boolean;
   mounted: boolean;
   lastVisibleAt: number;
   cleanups: (() => void)[];
+}
+
+interface PendingPrompt {
+  text: string;
+  /** Answered once the prompt lands, or once waiting for the CLI is given up on. */
+  settle: (delivered: boolean) => void;
+}
+
+/** Prompts waiting for the CLI in their session to finish starting, keyed by session id. */
+const pendingPrompts = new Map<string, PendingPrompt>();
+
+const PASTE_START = '[200~';
+const PASTE_END = '[201~';
+
+/**
+ * Sends text to the program in the terminal as one bracketed paste, exactly the shape xterm's
+ * own `paste` produces (newlines as carriage returns, any paste markers in the text dropped so
+ * the block cannot be broken out of). It goes straight to the shell rather than through
+ * `term.paste` because the chip-paste path relays a paste a character at a time, which for a
+ * prompt of a few thousand characters would be a few thousand messages to the main process.
+ */
+function pasteAtOnce(entry: Entry, text: string): void {
+  const body = text
+    .replace(/\r\n/g, '\n')
+    .replace(/\n/g, '\r')
+    .split(PASTE_START)
+    .join('')
+    .split(PASTE_END)
+    .join('');
+  void window.agentmat.terminal.write(entry.spec.id, PASTE_START + body + PASTE_END);
+}
+
+/**
+ * Hands a queued prompt to the CLI the session is starting, once that CLI is up. The prompt is
+ * pasted, never submitted: the user reads it in the CLI's own input box and presses Enter.
+ *
+ * A CLI that never looks ready (it is not installed, or the shell asked something first) gets
+ * nothing. Pasting into a plain shell would run the prompt line by line, so the text goes back
+ * to whoever queued it instead, to put somewhere safe.
+ */
+function handOffPrompt(entry: Entry): void {
+  if (entry.handingOff || !pendingPrompts.has(entry.spec.id)) return;
+  entry.handingOff = true;
+  const startedAt = Date.now();
+  const startBytes = entry.outputBytes;
+  const timer = setInterval(() => {
+    const stop = (): void => {
+      clearInterval(timer);
+      entry.handingOff = false;
+    };
+    // The terminal was disposed under us (the tab closed, or it was evicted while parked).
+    // The prompt stays queued, so a terminal created for the same session still gets it.
+    if (entries.get(entry.spec.id) !== entry) {
+      stop();
+      return;
+    }
+    const now = Date.now();
+    const verdict = agentReadyVerdict({
+      bytes: entry.outputBytes - startBytes,
+      elapsedMs: now - startedAt,
+      quietMs: now - entry.lastOutputAt,
+      bracketedPaste: entry.term.modes.bracketedPasteMode,
+    });
+    if (verdict === 'wait') return;
+    stop();
+    const queued = pendingPrompts.get(entry.spec.id);
+    pendingPrompts.delete(entry.spec.id);
+    if (!queued) return;
+    if (verdict === 'ready') pasteAtOnce(entry, queued.text);
+    queued.settle(verdict === 'ready');
+  }, 100);
+  entry.cleanups.push(() => clearInterval(timer));
 }
 
 /** Parked terminals past this count are disposed, oldest first. Their shells keep running. */
@@ -119,6 +200,8 @@ function ensureSubscribed(): void {
   window.agentmat.terminal.onData(({ sessionId, data }) => {
     const entry = entries.get(sessionId);
     if (!entry) return;
+    entry.lastOutputAt = Date.now();
+    entry.outputBytes += data.length;
     if (entry.ready) entry.term.write(data);
     else entry.pending.push(data);
   });
@@ -172,7 +255,7 @@ function createEntry(spec: RuntimeSessionSpec): Entry {
   host.appendChild(surface);
   const { theme, wellBackground } = currentTerminalTheme();
   host.style.setProperty('--terminal-bg', wellBackground);
-  const { term, fit } = createXterm({
+  const { term, fit, chipMode } = createXterm({
     sessionId: () => (entries.get(spec.id)?.ready ? spec.id : null),
     // Workspace pane, tab and diff keys go to the app, whatever the user bound them to.
     // Diff navigation is left out: a focused terminal is never showing a diff, and the key
@@ -182,11 +265,13 @@ function createEntry(spec: RuntimeSessionSpec): Entry {
       return id !== null && id !== 'workspace.nextChange' && id !== 'workspace.prevChange';
     },
     theme,
+    shell: () => spec.shell,
   });
   const entry: Entry = {
     spec,
     term,
     fit,
+    chipMode,
     host,
     surface,
     opened: false,
@@ -195,6 +280,9 @@ function createEntry(spec: RuntimeSessionSpec): Entry {
     ready: false,
     pending: [],
     exitCode: undefined,
+    lastOutputAt: Date.now(),
+    outputBytes: 0,
+    handingOff: false,
     mounted: false,
     lastVisibleAt: Date.now(),
     cleanups: [],
@@ -255,6 +343,7 @@ function start(entry: Entry): void {
         setTimeout(() => {
           if (entries.get(spec.id) === entry) fitAndResize(entry);
         }, 250);
+        handOffPrompt(entry);
       };
       const { snapshot } = result;
       if (!snapshot) {
@@ -276,6 +365,7 @@ function start(entry: Entry): void {
 
 function disposeEntry(entry: Entry): void {
   for (const cleanup of entry.cleanups) cleanup();
+  entry.chipMode?.dispose();
   entry.term.dispose();
   entry.host.remove();
   entries.delete(entry.spec.id);
@@ -315,15 +405,17 @@ export const terminalRuntime = {
           entry.host,
           entry.term,
           () => spec.id,
-          undefined,
           () => spec.shell,
+          entry.chipMode,
         ),
-        // Screenshots and copied files paste as paths, so agent CLIs can pick them up.
-        attachFilePaste(
-          entry.host,
-          () => spec.shell,
-          (text) => entry.term.paste(text),
-        ),
+        // Screenshots and copied files paste as chips when the shell is ready for them, or as
+        // their real quoted paths otherwise, so agent CLIs can pick them up either way.
+        attachTerminalPaste(entry.host, {
+          chipMode: entry.chipMode,
+          paste: (text) => entry.term.paste(text),
+          shell: () => spec.shell,
+        }),
+        attachFocusOnClick(entry.host, entry.term),
       );
       if (entry.focusWhenOpen) {
         entry.focusWhenOpen = false;
@@ -353,16 +445,44 @@ export const terminalRuntime = {
     else entry.focusWhenOpen = true;
   },
 
+  /**
+   * Gives a session a prompt to hand to the agent CLI it is launching, as soon as that CLI is
+   * ready for input. The session does not have to exist yet: a tab that has never been on screen
+   * has no terminal, so the prompt waits until its shell starts. Resolves false when the CLI
+   * never got there and the prompt was not typed anywhere.
+   */
+  deliverPrompt(id: string, text: string): Promise<boolean> {
+    return new Promise((resolve) => {
+      pendingPrompts.get(id)?.settle(false);
+      pendingPrompts.set(id, { text, settle: resolve });
+      const entry = entries.get(id);
+      if (entry?.ready) handOffPrompt(entry);
+    });
+  },
+
   /** Types text into the session as if the user had, e.g. a dropped file path. */
   paste(id: string, text: string): void {
     const entry = entries.get(id);
     if (entry?.ready) entry.term.paste(text);
   },
 
+  /** Same as `paste`, but as chips when the shell is ready for them (e.g. a dropped file). */
+  pasteChips(id: string, chips: ChipInput[]): void {
+    const entry = entries.get(id);
+    if (!entry?.ready) return;
+    if (entry.chipMode?.insertChips(chips)) {
+      entry.chipMode.insertText(' ');
+      return;
+    }
+    entry.term.paste(`${chips.map((chip) => chip.realText).join(' ')} `);
+  },
+
   /** Drops the terminal for good. Ending the shell itself is the caller's call. */
   dispose(id: string): void {
     const entry = entries.get(id);
     if (entry) disposeEntry(entry);
+    pendingPrompts.get(id)?.settle(false);
+    pendingPrompts.delete(id);
     startedOnce.delete(id);
     forgetUiState(id);
   },

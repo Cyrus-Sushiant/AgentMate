@@ -182,11 +182,11 @@ export interface AgentRunInfo {
 
 export type AgentRunInfoMap = Record<string, AgentRunInfo>;
 
-/** Clipboard content a terminal pastes as file paths (a screenshot saved to disk, copied files). */
-export interface TerminalClipboardPaste {
-  kind: 'files';
-  paths: string[];
-}
+/** What a terminal found on the clipboard: text, or paths (copied files, a screenshot saved to
+ * disk). Read in the main process, which sees formats the renderer cannot and needs no focus. */
+export type TerminalClipboardPaste =
+  | { kind: 'text'; text: string }
+  | { kind: 'files'; paths: string[] };
 
 export interface TerminalSnapshot {
   /** Serialized screen and scrollback, written into a fresh xterm to repaint it. */

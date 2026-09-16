@@ -252,7 +252,7 @@ export function ProjectPromptBuildDialog({
     if (!project || !generated.trim()) return;
     setLaunching(true);
     try {
-      const tabId = await launchPromptTab(
+      const tabId = launchPromptTab(
         project,
         { ...launch, prompt: generated },
         launchGroupId ?? undefined,
@@ -261,8 +261,8 @@ export function ProjectPromptBuildDialog({
       onOpenChange(false);
       navigate(`/workspace/${project.id}`);
       const name = getCliDefinition(launch.cliId)?.name ?? 'the agent';
-      toast.success(`Ready in ${name}`, {
-        description: 'The prompt is typed at the prompt. Press Enter in the tab to run it.',
+      toast.success(`Starting ${name}`, {
+        description: 'The prompt goes in as soon as it is ready. Press Enter in the tab to run it.',
       });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Could not open the agent.');
