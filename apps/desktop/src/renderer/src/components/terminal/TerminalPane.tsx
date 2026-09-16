@@ -38,7 +38,11 @@ export function TerminalPane({ meta, active, onExit }: TerminalPaneProps): React
         : window.agentmat.terminal;
     const initialTheme = resolveDrawerTerminalTheme(useThemeStore.getState().theme);
     paneRef.current?.style.setProperty('--terminal-bg', initialTheme.background as string);
-    const { term, fit: fitAddon, chipMode } = createXterm({
+    const {
+      term,
+      fit: fitAddon,
+      chipMode,
+    } = createXterm({
       sessionId: () => ptySessionId,
       write: (id, data) => void client.write(id, data),
       theme: initialTheme,

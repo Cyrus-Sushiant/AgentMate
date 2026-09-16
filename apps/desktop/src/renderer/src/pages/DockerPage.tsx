@@ -241,7 +241,9 @@ export default function DockerPage(): React.JSX.Element {
                         variant="ghost"
                         size="sm"
                         className="h-6 gap-1 px-2 text-xs text-muted-foreground hover:text-foreground"
-                        onClick={() => actions.stopMany(runningContainers, group.label ?? undefined)}
+                        onClick={() =>
+                          actions.stopMany(runningContainers, group.label ?? undefined)
+                        }
                       >
                         <StopCircle className="h-3 w-3" />
                         Stop all
