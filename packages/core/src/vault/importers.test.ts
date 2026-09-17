@@ -249,3 +249,73 @@ describe('mapImportRows: shared behavior', () => {
     expect(entries[0].title).toHaveLength(200);
   });
 });
+
+describe('mapImportRows: agentmate edge cases', () => {
+  const header = [
+    'type',
+    'title',
+    'username',
+    'password',
+    'urls',
+    'totp',
+    'service',
+    'key_id',
+    'secret',
+    'expires_at',
+    'notes',
+    'tags',
+    'favorite',
+    'fields',
+  ];
+  const row = (type: string, fields: string, title = 'T') => [
+    type,
+    title,
+    '',
+    '',
+    '',
+    '',
+    '',
+    '',
+    '',
+    'not a date',
+    '',
+    '',
+    '',
+    fields,
+  ];
+
+  it('reports bad field JSON, a non-list and unknown types, and names blank titles', () => {
+    const { entries, skipped } = mapImportRows(
+      [
+        header,
+        row('custom', '{broken'),
+        row('custom', '{"a":1}'),
+        row('wallet', ''),
+        row('apiKey', '', ''),
+        row('custom', '[{"value":7}]'),
+      ],
+      'agentmate',
+    );
+    expect(skipped).toEqual([
+      { row: 2, reason: 'The fields column is not valid JSON' },
+      { row: 3, reason: 'The fields column is not a list' },
+      { row: 4, reason: 'Unsupported item type "wallet"' },
+    ]);
+    expect(entries[0]).toMatchObject({ type: 'apiKey', title: 'Untitled', expiresAt: null });
+    expect(entries[1]).toMatchObject({
+      type: 'custom',
+      fields: [{ label: 'Field', value: '7', concealed: true }],
+    });
+  });
+
+  it('keeps a Bitwarden row without a type as a login', () => {
+    const { entries } = mapImportRows(
+      [
+        ['folder', 'favorite', 'type', 'name', 'login_uri', 'login_username', 'login_password'],
+        ['', '', '', 'NoType', 'x.com', 'u', 'p'],
+      ],
+      'bitwarden',
+    );
+    expect(entries[0]).toMatchObject({ type: 'login', title: 'NoType' });
+  });
+});

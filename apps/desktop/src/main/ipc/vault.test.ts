@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { SaveVaultEntryInput } from '@agentmat/core';
@@ -219,5 +219,73 @@ describe('vault IPC handlers', () => {
     expect(await ipc.invoke(IPC.vault.exportCsv, PASSWORD, 'agentmate')).toEqual({ ok: true });
     expect(dialogs.pickExportPath).toHaveBeenLastCalledWith('agentmate');
     expect(await readFile(join(dir, 'export.csv'), 'utf-8')).toContain(`${SENTINEL}-note`);
+  });
+});
+
+describe('vault IPC handlers: account and import flows', () => {
+  const NEXT = 'amber falcon river 77';
+
+  it('changes the master password and resets the vault', async () => {
+    await ipc.invoke(IPC.vault.create, PASSWORD);
+    expect(await ipc.invoke(IPC.vault.changePassword, 'wrong one entirely', NEXT)).toBe(false);
+    expect(await ipc.invoke(IPC.vault.changePassword, PASSWORD, NEXT)).toBe(true);
+    await ipc.invoke(IPC.vault.lock);
+    expect(await ipc.invoke(IPC.vault.unlock, NEXT)).toEqual({ ok: true });
+    await ipc.invoke(IPC.vault.reset);
+    expect((await ipc.invoke<VaultStatus>(IPC.vault.status)).state).toBe('uninitialized');
+  });
+
+  it('previews, remaps, commits and cancels an import picked through the dialog', async () => {
+    await ipc.invoke(IPC.vault.create, PASSWORD);
+    const csv = join(dir, 'other.csv');
+    await writeFile(csv, `Site;Login;Secret\nRouter;admin;${SENTINEL}-rt\n`);
+    vi.mocked(dialogs.pickImportFile).mockResolvedValue(csv);
+    const mapping = { columns: ['title', 'ignore', 'password'] };
+
+    const opened = await ipc.invoke<{ token: string; format: null }>(IPC.vault.importOpen);
+    expect(opened.format).toBeNull();
+    const remapped = await ipc.invoke(IPC.vault.importPreview, opened.token, mapping);
+    expect(JSON.stringify(remapped)).not.toContain(SENTINEL);
+    expect(
+      await codeOf(ipc.invoke(IPC.vault.importPreview, opened.token, { columns: ['bogus'] })),
+    ).toBe('invalid');
+    expect(await ipc.invoke(IPC.vault.importCommit, opened.token, mapping, 'skip')).toMatchObject({
+      added: 1,
+    });
+
+    const again = await ipc.invoke<{ token: string }>(IPC.vault.importOpen);
+    await ipc.invoke(IPC.vault.importCancel, again.token);
+    expect(await codeOf(ipc.invoke(IPC.vault.importCommit, again.token, null, 'skip'))).toBe(
+      'not-found',
+    );
+  });
+
+  it('validates patch, save, id and export arguments', async () => {
+    await ipc.invoke(IPC.vault.create, PASSWORD);
+    const saved = await ipc.invoke<{ id: string }>(IPC.vault.save, {
+      type: 'note',
+      title: 'N',
+      tags: [],
+      favorite: false,
+      notes: 'x',
+    });
+    expect(await codeOf(ipc.invoke(IPC.vault.patch, saved.id, { favorite: 'yes' }))).toBe(
+      'invalid',
+    );
+    expect(await codeOf(ipc.invoke(IPC.vault.patch, saved.id, { tags: 'work' }))).toBe('invalid');
+    expect(await ipc.invoke(IPC.vault.patch, saved.id, { tags: ['work'] })).toMatchObject({
+      tags: ['work'],
+    });
+    expect(await codeOf(ipc.invoke(IPC.vault.save, { type: 'wallet' }))).toBe('invalid');
+    expect(await codeOf(ipc.invoke(IPC.vault.getForEdit, 'x'.repeat(500)))).toBe('invalid');
+    expect(await codeOf(ipc.invoke(IPC.vault.exportCsv, PASSWORD, 'pdf'))).toBe('invalid');
+    expect(await ipc.invoke(IPC.vault.duplicate, saved.id)).toMatchObject({ title: 'N (copy)' });
+    expect(await codeOf(ipc.invoke(IPC.vault.duplicate, 'missing'))).toBe('not-found');
+  });
+
+  it('lets unexpected errors through unchanged', async () => {
+    await ipc.invoke(IPC.vault.create, PASSWORD);
+    vi.mocked(dialogs.pickImportFile).mockRejectedValueOnce(new Error('dialog crashed'));
+    await expect(ipc.invoke(IPC.vault.importOpen)).rejects.toThrow('dialog crashed');
   });
 });

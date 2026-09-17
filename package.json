@@ -20,7 +20,9 @@
     "check:fix": "biome check --write .",
     "biome:ci": "biome ci .",
     "check:deprecated-deps": "node scripts/check-deprecated-deps.mjs",
-    "check:deprecated-code": "biome lint --only=suspicious/noDeprecatedImports ."
+    "check:deprecated-code": "biome lint --only=suspicious/noDeprecatedImports .",
+    "test:coverage": "pnpm -r --if-present test:coverage",
+    "test:e2e": "pnpm --filter @agentmat/core --filter @agentmat/protocol build && pnpm --filter @agentmat/desktop test:e2e"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.13",

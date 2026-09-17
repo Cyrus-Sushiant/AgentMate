@@ -16,12 +16,14 @@
     "dev": "tsc -p tsconfig.json --watch --preserveWatchOutput",
     "typecheck": "tsc --noEmit",
     "lint": "biome lint ./src",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
     "zod": "^4.6.4"
   },
   "devDependencies": {
+    "@vitest/coverage-v8": "^5.0.1",
     "typescript": "^7.0.2",
     "vitest": "^5.0.0"
   }

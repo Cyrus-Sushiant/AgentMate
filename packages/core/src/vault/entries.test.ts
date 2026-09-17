@@ -305,3 +305,91 @@ describe('duplicateEntry', () => {
     expect(entry.title).toBe('GitHub');
   });
 });
+
+describe('applySaveInput: less common paths', () => {
+  const clock = { now: NOW, newId: () => 'k1' };
+
+  it('refuses an id that does not belong to the entry being edited', () => {
+    const existing = applySaveInput(undefined, login(), clock);
+    expect(() => applySaveInput(existing, login({ id: 'someone-else' }), clock)).toThrow(/id/);
+  });
+
+  it('keeps api key fields left out of an edit, and clears the expiry on null', () => {
+    const existing = applySaveInput(
+      undefined,
+      {
+        type: 'apiKey',
+        title: 'Stripe',
+        tags: [],
+        favorite: false,
+        service: 'Stripe',
+        keyId: 'pk_1',
+        secret: 'sk_1',
+        urls: ['dashboard.stripe.com'],
+        expiresAt: 1_900_000_000_000,
+      },
+      clock,
+    );
+    const kept = applySaveInput(
+      existing,
+      { id: existing.id, type: 'apiKey', title: 'Stripe live', tags: [], favorite: true },
+      { now: LATER, newId: () => 'k2' },
+    );
+    expect(kept).toMatchObject({
+      service: 'Stripe',
+      keyId: 'pk_1',
+      secret: 'sk_1',
+      urls: ['https://dashboard.stripe.com'],
+      expiresAt: 1_900_000_000_000,
+    });
+    const cleared = applySaveInput(
+      existing,
+      {
+        id: existing.id,
+        type: 'apiKey',
+        title: 'Stripe',
+        tags: [],
+        favorite: false,
+        expiresAt: null,
+      },
+      clock,
+    );
+    expect(cleared.type === 'apiKey' && cleared.expiresAt).toBeNull();
+  });
+
+  it('keeps login fields left out of an edit', () => {
+    const existing = applySaveInput(undefined, login({ totpSecret: 'JBSW' }), clock);
+    const kept = applySaveInput(
+      existing,
+      { id: existing.id, type: 'login', title: 'GitHub', tags: [], favorite: false },
+      { now: LATER, newId: () => 'k2' },
+    );
+    expect(kept).toMatchObject({
+      username: 'octo',
+      password: 'hunter2-long',
+      totpSecret: 'JBSW',
+      urls: ['https://github.com/login'],
+    });
+  });
+
+  it('starts a login with no password as never changed', () => {
+    const entry = applySaveInput(
+      undefined,
+      { type: 'login', title: 'Bare', tags: [], favorite: false },
+      clock,
+    );
+    expect(entry).toMatchObject({ username: '', password: '', urls: [], passwordUpdatedAt: null });
+  });
+
+  it('reads fields that a type does not have as undefined', () => {
+    const note = applySaveInput(
+      undefined,
+      { type: 'note', title: 'N', tags: [], favorite: false, notes: 'x' },
+      clock,
+    );
+    for (const ref of ['username', 'password', 'totpSecret', 'secret', 'keyId', 'url'] as const) {
+      expect(readEntryField(note, ref)).toBeUndefined();
+    }
+    expect(readEntryField(note, 'notes')).toBe('x');
+  });
+});

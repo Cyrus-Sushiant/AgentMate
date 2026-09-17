@@ -263,6 +263,54 @@ describe('VaultPage detail', () => {
   });
 });
 
+describe('VaultPage actions when main refuses', () => {
+  it('tells you when a copy fails and puts a favorite back when saving it fails', async () => {
+    mock.api.copy.mockRejectedValueOnce(new Error('[vault:locked] The vault is locked.'));
+    mock.api.patch.mockRejectedValueOnce(new Error('disk full'));
+    renderPage();
+    await screen.findByRole('listbox', { name: 'Vault entries' });
+    const row = within(listbox()).getByRole('option', { name: /GitLab/ });
+    fireEvent.click(within(row).getByRole('button', { name: 'Copy password' }));
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith('Could not copy the password', {
+        description: 'The vault is locked.',
+      }),
+    );
+
+    fireEvent.click(row);
+    const detail = await screen.findByRole('region', { name: 'GitLab' });
+    fireEvent.click(within(detail).getByRole('button', { name: 'Add to favorites' }));
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith('Could not update favorites', expect.anything()),
+    );
+    expect(within(detail).getByRole('button', { name: 'Add to favorites' })).toBeTruthy();
+  });
+
+  it('duplicates and selects the copy, and keeps the entry when delete is cancelled', async () => {
+    mock.api.duplicate.mockResolvedValue(summary({ id: 'gh-copy', title: 'GitHub (copy)' }));
+    confirm.confirmDialog.mockResolvedValueOnce(false);
+    renderPage();
+    await screen.findByRole('listbox', { name: 'Vault entries' });
+    fireEvent.click(within(listbox()).getByRole('option', { name: /GitHub/ }));
+    const detail = await screen.findByRole('region', { name: 'GitHub' });
+    fireEvent.click(within(detail).getByRole('button', { name: 'Delete' }));
+    await waitFor(() => expect(confirm.confirmDialog).toHaveBeenCalled());
+    expect(mock.api.remove).not.toHaveBeenCalled();
+
+    fireEvent.click(within(detail).getByRole('button', { name: 'Duplicate' }));
+    await waitFor(() => expect(useVaultStore.getState().selectedId).toBe('gh-copy'));
+    expect(toast.success).toHaveBeenCalledWith('Entry duplicated');
+  });
+
+  it('shows why the vault could not be opened and retries', async () => {
+    mock.api.status.mockRejectedValueOnce(new Error('ipc down'));
+    renderPage();
+    expect(await screen.findByText('The vault could not be opened')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
+    expect(await screen.findByRole('listbox', { name: 'Vault entries' })).toBeTruthy();
+  });
+});
+
 describe('VaultPage shortcuts', () => {
   it('Ctrl+F searches, Ctrl+N adds and Ctrl+L locks', async () => {
     renderPage();

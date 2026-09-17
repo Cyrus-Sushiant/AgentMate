@@ -130,3 +130,42 @@ describe('planImport', () => {
     expect(list).toEqual(before);
   });
 });
+
+describe('duplicates: less common paths', () => {
+  const clock = { now: NOW, newId: () => 'x1' };
+
+  it('never matches an API key with neither service nor key id', () => {
+    const keyless: SaveVaultEntryInput = { type: 'apiKey', title: 'k', tags: [], favorite: false };
+    expect(findDuplicates([applySaveInput(undefined, keyless, clock)], [keyless])).toEqual([]);
+  });
+
+  it('compares custom entries by their field values', () => {
+    const custom = (value: string): SaveVaultEntryInput => ({
+      type: 'custom',
+      title: 'Router',
+      tags: [],
+      favorite: false,
+      fields: [{ label: 'PIN', value, concealed: true }],
+    });
+    const saved = [applySaveInput(undefined, custom('1234'), clock)];
+    expect(findDuplicates(saved, [custom('1234'), custom('9999')])).toEqual([
+      { index: 0, existingId: 'x1', kind: 'identical' },
+      { index: 1, existingId: 'x1', kind: 'conflict' },
+    ]);
+  });
+
+  it('treats missing secrets in an incoming item as empty', () => {
+    const saved = [
+      applySaveInput(
+        undefined,
+        { type: 'login', title: 'L', tags: [], favorite: false, username: 'u', urls: ['a.com'] },
+        clock,
+      ),
+    ];
+    expect(
+      findDuplicates(saved, [
+        { type: 'login', title: 'L', tags: [], favorite: false, username: 'u', urls: ['a.com'] },
+      ]),
+    ).toEqual([{ index: 0, existingId: 'x1', kind: 'identical' }]);
+  });
+});
