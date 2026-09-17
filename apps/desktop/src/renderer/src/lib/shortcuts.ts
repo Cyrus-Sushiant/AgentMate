@@ -334,7 +334,7 @@ const MODIFIER_CODES = new Set([
   'CapsLock',
 ]);
 
-type KeyEventLike = Pick<
+export type KeyEventLike = Pick<
   KeyboardEvent,
   'code' | 'key' | 'ctrlKey' | 'metaKey' | 'shiftKey' | 'altKey'
 >;

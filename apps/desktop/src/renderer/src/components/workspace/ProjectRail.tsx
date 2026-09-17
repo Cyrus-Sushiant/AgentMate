@@ -10,7 +10,7 @@ import { ProjectIcon } from '@/components/projects/ProjectIcon';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { useTerminalSessionStore } from '@/lib/terminal/terminalRuntime';
 import { cn } from '@/lib/utils';
-import { attentionStatus, isSessionBusy, useAgentStatusStore } from '@/stores/agentStatusStore';
+import { attentionStatus, useAgentStatusStore } from '@/stores/agentStatusStore';
 import { confirmDialog } from '@/stores/confirmStore';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
 import { AgentStatusDot } from './AgentStatusDot';
@@ -266,13 +266,13 @@ export function ProjectRail({
   async function requestClose(project: Project): Promise<void> {
     const state = useWorkspaceStore.getState();
     const ended = useTerminalSessionStore.getState().ended;
-    const running = Object.values(state.workspaces[project.id]?.tabs ?? {}).filter(
-      (tab) => tab.kind === 'terminal' && !(tab.id in ended) && isSessionBusy(tab.id),
+    const open = Object.values(state.workspaces[project.id]?.tabs ?? {}).filter(
+      (tab) => tab.kind === 'terminal' && !(tab.id in ended),
     ).length;
-    if (running > 0) {
+    if (open > 0) {
       const ok = await confirmDialog({
         title: `Close the ${project.name} workspace?`,
-        description: `${running} terminal${running === 1 ? '' : 's'} will be stopped.`,
+        description: `${open} terminal${open === 1 ? '' : 's'} will be stopped.`,
         confirmLabel: 'Close workspace',
         variant: 'destructive',
       });

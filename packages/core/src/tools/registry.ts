@@ -5,6 +5,7 @@ import {
   LANGUAGETOOL_TOOL_ID,
   LANGUAGETOOL_WEBSITE_URL,
 } from '../grammar/languagetool.js';
+import { STRIX_DEFAULT_MODEL } from '../models/catalog.js';
 import {
   buildDiffrayProjectConfig,
   DIFFRAY_EXECUTORS,
@@ -757,7 +758,7 @@ export const AGENT_TOOL_REGISTRY: AgentToolDefinition[] = [
         key: 'model',
         label: 'Model',
         type: 'text',
-        defaultValue: 'anthropic/claude-sonnet-5',
+        defaultValue: STRIX_DEFAULT_MODEL,
         description: 'Passed as STRIX_LLM, in provider/model form.',
       },
       {

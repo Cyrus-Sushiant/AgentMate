@@ -77,7 +77,7 @@ export function LauncherMenu({
           <span>Agents</span>
           {hasSavedArgs ? (
             <span className="text-[10px] font-normal text-muted-foreground/70">
-              Alt+click: skip saved args
+              Alt+click: skip saved args and defaults
             </span>
           ) : null}
         </DropdownMenuLabel>

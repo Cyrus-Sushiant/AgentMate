@@ -5,9 +5,10 @@ import {
   configuredArgsWithout,
   getCliArgsFor,
   getCliDefinition,
+  launchDefaultArgs,
   type Project,
+  parseCliArgs,
   quoteForShell,
-  runArgsFromReported,
   shellKindFor,
   withoutConfiguredRunArgs,
 } from '@agentmat/core';
@@ -67,12 +68,13 @@ export function prepareStatusHooks(cliIds: string[]): void {
 }
 
 /**
- * The command a workspace tab types to start a CLI: status hooks when available, the user's
- * configured arguments, then the run arguments (a model and effort). Normally the user's own
+ * The command a workspace tab types to start a CLI: status hooks when available, the launch
+ * defaults from Settings, the user's configured arguments, then the run arguments (a model and
+ * effort). A launch default only fills in what neither of the others already sets. Normally the user's own
  * arguments win a clash. With `runArgsWin` the run arguments do instead: they were picked for
  * this one launch, so a `--model` saved in Settings must not quietly replace the pick.
- * `skipSavedArgs` drops the CLI Manager's saved arguments entirely, for a launch that asked to
- * start bare.
+ * `skipSavedArgs` drops the saved arguments and launch defaults entirely, for a launch that asked
+ * to start bare.
  */
 function agentCommand(
   cliId: string,
@@ -88,13 +90,19 @@ function agentCommand(
   const hookSettings = statusHookSettings.get(cliId);
   const saved = skipSavedArgs ? '' : getCliArgsFor(useCliStore.getState().cliArgs, cliId);
   const configured = runArgsWin ? configuredArgsWithout(saved, runArgs) : saved;
-  const extra = (runArgsWin ? runArgs : withoutConfiguredRunArgs(configured, runArgs)).map((arg) =>
-    quoteForShell(arg, kind),
-  );
+  const run = runArgsWin ? runArgs : withoutConfiguredRunArgs(configured, runArgs);
+  const extra = run.map((arg) => quoteForShell(arg, kind));
+  const defaults = skipSavedArgs
+    ? []
+    : launchDefaultArgs(cliId, useCliStore.getState().cliLaunchDefaults[cliId], [
+        ...parseCliArgs(configured),
+        ...run,
+      ]);
   return [
     cli.executableNames[0],
     ...leadingArgs.map((arg) => quoteForShell(arg, kind)),
     ...(hookSettings ? ['--settings', quoteForShell(hookSettings, kind)] : []),
+    ...defaults.map((arg) => quoteForShell(arg, kind)),
     configured,
     ...extra,
   ]
@@ -155,22 +163,16 @@ export function launchPromptTab(
   return tabId;
 }
 
-/**
- * The flags that would start `cliId` on whatever it was last actually run on, so a fresh tab
- * picks that up instead of a default computed elsewhere in the app (e.g. a Prompt Builder
- * suggestion from a different, unrelated run).
- */
-function lastKnownRunArgs(cliId: string): string[] {
-  const lastKnown = useCliStore.getState().lastRunInfoByCli[cliId];
-  return lastKnown ? runArgsFromReported(cliId, lastKnown) : [];
-}
-
 export interface AgentLaunchOptions {
   /** Start bare: without the arguments saved for this CLI in the CLI Manager. */
   skipSavedArgs?: boolean;
 }
 
-/** Opens a tab in the project's workspace that starts an agent CLI. Returns the tab id. */
+/**
+ * Opens a tab in the project's workspace that starts an agent CLI. Returns the tab id. The model,
+ * effort, and mode come from the CLI's launch defaults in Settings. Whatever is not set there is
+ * left to the CLI's own default (for Claude Code, the last `/model` pick).
+ */
 export function launchAgentTab(
   project: Project,
   cliId: string,
@@ -180,7 +182,7 @@ export function launchAgentTab(
   const cli = getCliDefinition(cliId);
   const shell = defaultNewSession().shell;
   const skipSavedArgs = options?.skipSavedArgs ?? false;
-  const command = agentCommand(cliId, shell, lastKnownRunArgs(cliId), [], false, skipSavedArgs);
+  const command = agentCommand(cliId, shell, [], [], false, skipSavedArgs);
   if (!cli || !command) {
     toast.error('Unknown CLI.');
     return null;
@@ -195,7 +197,7 @@ export function launchAgentTab(
       shell,
       cwd: project.folderPath,
       launchInput: `${command}\r`,
-      runLabel: skipSavedArgs ? 'Without saved arguments' : undefined,
+      runLabel: skipSavedArgs ? 'Without saved settings' : undefined,
     },
     groupId,
   );
@@ -246,8 +248,13 @@ export function launchResumeTab(
   );
 }
 
-/** Opens a plain shell tab in the project folder. Returns the tab id. */
-export function launchShellTab(project: Project, shell?: string, groupId?: string): string {
+/** Opens a plain shell tab in the project folder, or in `cwd` inside it. Returns the tab id. */
+export function launchShellTab(
+  project: Project,
+  shell?: string,
+  groupId?: string,
+  cwd: string = project.folderPath,
+): string {
   const option = shellOptions().find((o) => o.shell === shell) ?? {
     shell: defaultNewSession().shell ?? '',
     label: defaultNewSession().title,
@@ -256,7 +263,7 @@ export function launchShellTab(project: Project, shell?: string, groupId?: strin
   store.openProject(project.id);
   return store.addTerminal(
     project.id,
-    { title: option.label, shell: option.shell || undefined, cwd: project.folderPath },
+    { title: option.label, shell: option.shell || undefined, cwd },
     groupId,
   );
 }

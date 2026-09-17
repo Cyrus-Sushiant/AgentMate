@@ -1,5 +1,11 @@
 import { z } from 'zod';
 import { cliIdForTargetAI, getCliDefinition } from '../cli/registry.js';
+import {
+  type CatalogModel,
+  CLAUDE_MODELS,
+  CODEX_MODELS,
+  GEMINI_CLI_MODELS,
+} from '../models/catalog.js';
 
 /**
  * Suggests which model and reasoning effort to run a generated prompt with, so the result
@@ -114,6 +120,20 @@ export function complexityForScore(score: number): TaskComplexity {
   return 'complex';
 }
 
+/** The names half of a model option, taken from the catalog so a rename is one edit there. */
+function fromCatalog(
+  id: string,
+  model: CatalogModel,
+  priced = true,
+): Pick<RunModelOption, 'id' | 'label' | 'modelArg' | 'pricingId'> {
+  return {
+    id,
+    label: model.label,
+    modelArg: model.cliArg,
+    ...(priced && model.apiId ? { pricingId: model.apiId } : {}),
+  };
+}
+
 const CLAUDE_EFFORTS: readonly EffortLevel[] = ['low', 'medium', 'high', 'xhigh', 'max'];
 const CODEX_EFFORTS: readonly EffortLevel[] = ['low', 'medium', 'high', 'xhigh', 'max'];
 
@@ -127,24 +147,18 @@ const RUN_PROFILES: Record<string, Omit<TargetRunProfile, 'cliId' | 'executable'
     generic: false,
     modelFlag: '--model',
     effortArgs: (level) => ['--effort', level],
-    effortHint: 'Haiku has no effort setting. It is already the quickest, cheapest option.',
+    effortHint: `${CLAUDE_MODELS.haiku.family} has no effort setting. It is already the quickest, cheapest option.`,
     models: [
       {
-        id: 'haiku',
-        label: 'Haiku 4.5',
+        ...fromCatalog('haiku', CLAUDE_MODELS.haiku),
         tier: 'Fast',
-        modelArg: 'haiku',
-        pricingId: 'claude-haiku-4-5',
         costWeight: 1,
         bestFor: 'Small, well-defined edits and quick lookups',
         maxScore: 22,
       },
       {
-        id: 'sonnet',
-        label: 'Sonnet 5',
+        ...fromCatalog('sonnet', CLAUDE_MODELS.sonnet),
         tier: 'Balanced',
-        modelArg: 'sonnet',
-        pricingId: 'claude-sonnet-5',
         costWeight: 3,
         bestFor: 'Everyday features, fixes, and tests',
         maxScore: 60,
@@ -152,11 +166,8 @@ const RUN_PROFILES: Record<string, Omit<TargetRunProfile, 'cliId' | 'executable'
         effortPicks: ['low', 'medium', 'high'],
       },
       {
-        id: 'opus',
-        label: 'Opus 5',
+        ...fromCatalog('opus', CLAUDE_MODELS.opus),
         tier: 'Deep',
-        modelArg: 'opus',
-        pricingId: 'claude-opus-5',
         costWeight: 5,
         bestFor: 'Multi-file refactors and tricky systems work',
         maxScore: 86,
@@ -164,11 +175,8 @@ const RUN_PROFILES: Record<string, Omit<TargetRunProfile, 'cliId' | 'executable'
         effortPicks: ['medium', 'high', 'xhigh'],
       },
       {
-        id: 'fable',
-        label: 'Fable 5.1',
+        ...fromCatalog('fable', CLAUDE_MODELS.fable),
         tier: 'Frontier',
-        modelArg: 'fable',
-        pricingId: 'claude-fable-5',
         costWeight: 10,
         bestFor: 'Long, demanding agent sessions and hard reasoning',
         maxScore: 100,
@@ -184,10 +192,8 @@ const RUN_PROFILES: Record<string, Omit<TargetRunProfile, 'cliId' | 'executable'
     effortHint: 'This model has no effort setting.',
     models: [
       {
-        id: 'luna',
-        label: 'GPT-5.6 Luna',
+        ...fromCatalog('luna', CODEX_MODELS.luna, false),
         tier: 'Fast',
-        modelArg: 'gpt-5.6-luna',
         costWeight: 1,
         bestFor: 'Small, well-defined edits',
         maxScore: 30,
@@ -195,10 +201,8 @@ const RUN_PROFILES: Record<string, Omit<TargetRunProfile, 'cliId' | 'executable'
         effortPicks: ['low', 'low', 'medium'],
       },
       {
-        id: 'terra',
-        label: 'GPT-5.6 Terra',
+        ...fromCatalog('terra', CODEX_MODELS.terra, false),
         tier: 'Balanced',
-        modelArg: 'gpt-5.6-terra',
         costWeight: 3,
         bestFor: 'Everyday features, fixes, and tests',
         maxScore: 65,
@@ -206,10 +210,8 @@ const RUN_PROFILES: Record<string, Omit<TargetRunProfile, 'cliId' | 'executable'
         effortPicks: ['medium', 'medium', 'high'],
       },
       {
-        id: 'sol',
-        label: 'GPT-5.6 Sol',
+        ...fromCatalog('sol', CODEX_MODELS.sol, false),
         tier: 'Deep',
-        modelArg: 'gpt-5.6-sol',
         costWeight: 6,
         bestFor: 'Complex, multi-step engineering work',
         maxScore: 100,
@@ -225,29 +227,22 @@ const RUN_PROFILES: Record<string, Omit<TargetRunProfile, 'cliId' | 'executable'
       'Gemini CLI has no per-run effort flag. Its thinking budget lives in settings.json (thinkingConfig).',
     models: [
       {
-        id: 'flash-2.5',
-        label: 'Gemini 2.5 Flash',
+        ...fromCatalog('flash-2.5', GEMINI_CLI_MODELS.flash25),
         tier: 'Fast',
-        modelArg: 'gemini-2.5-flash',
-        pricingId: 'gemini-2.5-flash',
         costWeight: 1,
         bestFor: 'Small, well-defined edits',
         maxScore: 30,
       },
       {
-        id: 'flash-3',
-        label: 'Gemini 3 Flash',
+        ...fromCatalog('flash-3', GEMINI_CLI_MODELS.flash3, false),
         tier: 'Balanced',
-        modelArg: 'gemini-3-flash-preview',
         costWeight: 2,
         bestFor: 'Everyday features, fixes, and tests',
         maxScore: 65,
       },
       {
-        id: 'pro-3',
-        label: 'Gemini 3 Pro',
+        ...fromCatalog('pro-3', GEMINI_CLI_MODELS.pro3, false),
         tier: 'Deep',
-        modelArg: 'gemini-3-pro-preview',
         costWeight: 6,
         bestFor: 'Complex reasoning and larger changes',
         maxScore: 100,
@@ -262,7 +257,7 @@ const GENERIC_MODELS: readonly RunModelOption[] = [
     label: 'Small model',
     tier: 'Fast',
     costWeight: 1,
-    bestFor: 'A Haiku, Flash, or mini class model for small edits',
+    bestFor: `A ${CLAUDE_MODELS.haiku.family}, Flash, or mini class model for small edits`,
     maxScore: 30,
   },
   {
@@ -270,7 +265,7 @@ const GENERIC_MODELS: readonly RunModelOption[] = [
     label: 'Mid-tier model',
     tier: 'Balanced',
     costWeight: 3,
-    bestFor: 'A Sonnet class model for everyday coding',
+    bestFor: `A ${CLAUDE_MODELS.sonnet.family} class model for everyday coding`,
     maxScore: 65,
   },
   {
@@ -278,7 +273,7 @@ const GENERIC_MODELS: readonly RunModelOption[] = [
     label: 'Frontier model',
     tier: 'Deep',
     costWeight: 6,
-    bestFor: 'An Opus or Pro class model for complex work',
+    bestFor: `An ${CLAUDE_MODELS.opus.family} or Pro class model for complex work`,
     maxScore: 100,
   },
 ];

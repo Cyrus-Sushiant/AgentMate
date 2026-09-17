@@ -84,6 +84,7 @@ import {
   DiffrayReviewWizard,
 } from '@/components/projects/DiffrayReviewWizard';
 import { DockerTab } from '@/components/projects/DockerTab';
+import { EnvironmentsTab } from '@/components/projects/environments/EnvironmentsTab';
 import { GitActionsCard } from '@/components/projects/GitActionsCard';
 import { GitBranchHistoryDialog } from '@/components/projects/GitBranchHistoryDialog';
 import { GitSetupWizard } from '@/components/projects/GitSetupWizard';
@@ -1058,6 +1059,8 @@ export default function ProjectDetailPage(): React.JSX.Element {
           {section === 'schedule' && <ScheduleTab projectId={project.id} />}
 
           {section === 'hooks' && <HooksTab project={project} />}
+
+          {section === 'environments' && <EnvironmentsTab project={project} />}
 
           {section === 'terminal' && (
             <ProjectTerminalSection
@@ -3048,6 +3051,8 @@ function ApplyVersionDialog({
   const changes = result?.changes ?? [];
   // Decisions belong to one run's file list; a fresh run starts the review over.
   const [reviews, setReviews] = useState<VersionReviews>({});
+  // Choices show before they reach disk, and a commit in between would miss them.
+  const [savingReview, setSavingReview] = useState(false);
   useEffect(() => {
     if (result) setReviews({});
   }, [result]);
@@ -3169,6 +3174,7 @@ function ApplyVersionDialog({
                 changes={changes}
                 reviews={reviews}
                 onReviewsChange={setReviews}
+                onSavingChange={setSavingReview}
                 locked={committed || commitMutation.isPending}
               />
               {committed ? (
@@ -3194,7 +3200,13 @@ function ApplyVersionDialog({
                       : 'Tagging is locked until the kept files are committed.'}
                   </p>
                   <SimpleTooltip
-                    label={undecidedCount > 0 ? 'Review every file first.' : null}
+                    label={
+                      undecidedCount > 0
+                        ? 'Review every file first.'
+                        : savingReview
+                          ? 'Saving your picks to disk…'
+                          : null
+                    }
                     wrapTrigger
                   >
                     <GitOpButton
@@ -3207,7 +3219,7 @@ function ApplyVersionDialog({
                       }
                       pendingLabel="Committing…"
                       pending={commitMutation.isPending}
-                      disabled={undecidedCount > 0 || keptPaths.length === 0}
+                      disabled={undecidedCount > 0 || keptPaths.length === 0 || savingReview}
                       onClick={() =>
                         tag &&
                         commitMutation.mutate({

@@ -13,6 +13,8 @@ import { confirmDialog } from '@/stores/confirmStore';
 /**
  * Local and remote branches, with the current one marked. Clicking a branch switches to it;
  * git refuses (and the reason is shown) when uncommitted changes would be overwritten.
+ * Local branches delete locally; a branch that only exists on the remote is deleted there.
+ * The default branch and master can't be deleted from here.
  */
 export function BranchesSection({
   project,
@@ -66,10 +68,13 @@ export function BranchesSection({
   }
 
   async function remove(branch: GitBranchInfo): Promise<void> {
+    const onRemote = !branch.local;
     const ok = await confirmDialog({
-      title: `Delete ${branch.name}?`,
-      description: 'The local branch is deleted. Commits only on it can be lost.',
-      confirmLabel: 'Delete branch',
+      title: onRemote ? `Delete ${branch.name} on the remote?` : `Delete ${branch.name}?`,
+      description: onRemote
+        ? 'The branch is removed from the remote for everyone. Commits only on it can be lost.'
+        : 'The local branch is deleted. Commits only on it can be lost.',
+      confirmLabel: onRemote ? 'Delete remote branch' : 'Delete branch',
       variant: 'destructive',
     });
     if (!ok) return;
@@ -79,7 +84,8 @@ export function BranchesSection({
       branchName: branch.name,
     });
     setBusy(null);
-    if (result.ok) toast.success(`Deleted ${branch.name}`);
+    if (result.ok)
+      toast.success(onRemote ? `Deleted ${branch.name} on the remote` : `Deleted ${branch.name}`);
     else toast.error(`Could not delete ${branch.name}`, { description: result.message });
     refresh();
   }
@@ -160,8 +166,8 @@ export function BranchesSection({
             <span className="shrink-0 text-[10px] text-muted-foreground/70">local only</span>
           ) : null}
         </button>
-        {!current && branch.local && branch.name !== defaultBranch ? (
-          <SimpleTooltip label="Delete branch">
+        {!current && branch.name !== defaultBranch && branch.name !== 'master' ? (
+          <SimpleTooltip label={branch.local ? 'Delete branch' : 'Delete remote branch'}>
             <button
               type="button"
               aria-label={`Delete ${branch.name}`}

@@ -51,8 +51,9 @@ function CommitMenuItem({
         {icon}
       </span>
       <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-        <span className="flex items-center gap-2">
-          <span className="truncate text-[13px] font-medium leading-5">{title}</span>
+        {/* Wraps the shortcut under the title rather than cutting the title off. */}
+        <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+          <span className="whitespace-nowrap text-[13px] font-medium leading-5">{title}</span>
           {shortcut ? (
             <kbd className="ml-auto shrink-0 rounded border border-border/80 bg-foreground/[0.04] px-1.5 font-mono text-[10px] leading-4 text-muted-foreground">
               {shortcut}
@@ -249,7 +250,7 @@ export function CommitBox({ projectId, state, actions }: CommitBoxProps): React.
               <ChevronDown className="h-3 w-3" />
             </button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" collisionPadding={8} className="w-64 p-1">
+          <DropdownMenuContent align="end" collisionPadding={8} className="w-[19rem] p-1">
             <CommitMenuItem
               icon={<Check className="h-3.5 w-3.5" />}
               title="Commit"

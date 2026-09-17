@@ -2,7 +2,7 @@ import { configuredRunCommands, type Project } from '@agentmat/core';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
-import { Cpu, Run, Tag } from '@/components/icons';
+import { Cpu, FolderOpen, Run, Tag } from '@/components/icons';
 import { useProjectRun } from '@/components/projects/useProjectRun';
 import { Button } from '@/components/ui/button';
 import { SimpleTooltip } from '@/components/ui/tooltip';
@@ -73,6 +73,16 @@ export function WorkspaceHeaderActions(): React.JSX.Element | null {
           onClick={() => openVersionDialog(project.id)}
         >
           <Tag className="h-4 w-4" />
+        </Button>
+      </SimpleTooltip>
+      <SimpleTooltip label={`Open ${project.name}'s project details`}>
+        <Button
+          variant="ghost"
+          size="icon"
+          aria-label="Project details"
+          onClick={() => navigate(`/projects/${project.id}`)}
+        >
+          <FolderOpen className="h-4 w-4" />
         </Button>
       </SimpleTooltip>
       <SimpleTooltip label="Running CLIs: CPU and memory for every terminal">

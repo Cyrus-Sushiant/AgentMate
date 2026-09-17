@@ -258,7 +258,7 @@ function createEntry(spec: RuntimeSessionSpec): Entry {
   host.appendChild(surface);
   const { theme, wellBackground } = currentTerminalTheme();
   host.style.setProperty('--terminal-bg', wellBackground);
-  const { term, fit, chipMode } = createXterm({
+  const { term, fit, chipMode, imagePreview } = createXterm({
     sessionId: () => (entries.get(spec.id)?.ready ? spec.id : null),
     // Workspace pane, tab and diff keys go to the app, whatever the user bound them to.
     // Diff navigation is left out: a focused terminal is never showing a diff, and the key
@@ -312,6 +312,7 @@ function createEntry(spec: RuntimeSessionSpec): Entry {
   observer.observe(host);
   entry.cleanups.push(
     () => titleListener.dispose(),
+    () => imagePreview.dispose(),
     () => observer.disconnect(),
     () => resize.dispose(),
   );

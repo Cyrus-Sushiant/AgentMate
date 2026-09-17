@@ -9,6 +9,7 @@ import { autoUpdater } from 'electron-updater';
 import type { UpdateDownloadProgress, UpdateInfo, UpdateStatus } from '../shared/apiTypes';
 import { IPC } from '../shared/ipcChannels';
 import { preserveTerminalsOnQuit } from './ipc/terminal';
+import { allowQuit } from './quitGuard';
 import {
   DownloadAbortedError,
   DownloadFatalError,
@@ -576,6 +577,8 @@ export function quitAndInstall(): void {
   // The app comes straight back on the new version and reattaches to its terminals, so
   // they keep running through the install even if the user has them end on a normal quit.
   preserveTerminalsOnQuit();
+  // The user already chose to restart for the update, so open sessions don't ask again.
+  allowQuit();
   autoUpdater.quitAndInstall();
 }
 

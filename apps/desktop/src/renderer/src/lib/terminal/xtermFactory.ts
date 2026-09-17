@@ -5,6 +5,7 @@ import { type ITerminalOptions, type ITheme, Terminal } from '@xterm/xterm';
 import '@xterm/xterm/css/xterm.css';
 import { isShortcutLetter } from '@/lib/shortcutKey';
 import { type ChipPasteController, createChipPasteController } from '@/lib/terminal/chipPasteMode';
+import { createImageChipPreview, type ImageChipPreview } from '@/lib/terminal/imageChipPreview';
 import { pasteClipboardIntoTerminal } from '@/lib/terminal/pasteFiles';
 import { commandForEvent, useShortcutStore } from '@/stores/shortcutStore';
 
@@ -214,6 +215,8 @@ export interface XtermHandle {
   /** Null when `chipPasteMode` was disabled (SSH panes: no shell-integration marker is ever
    * injected into a remote shell, so there'd be nothing for it to do). */
   chipMode: ChipPasteController | null;
+  /** Hovering an agent CLI's `[Image #N]` label previews the image that was pasted for it. */
+  imagePreview: ImageChipPreview;
 }
 
 export interface CreateXtermOptions {
@@ -274,6 +277,11 @@ export function createXterm({
     fontFamily:
       "'Cascadia Code', 'Cascadia Mono', 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
     theme,
+    // Programs pick their own truecolor pairs, which the theme can't touch. Claude Code's sticky
+    // prompt header (gray text on a gray bar) came out barely readable. xterm lightens or darkens
+    // any foreground that falls below this ratio against its cell background, the same default
+    // VS Code's terminal uses.
+    minimumContrastRatio: 4.5,
     cursorBlink: !reduceMotion,
     cursorStyle: 'bar',
     cursorWidth: 2,
@@ -296,7 +304,9 @@ export function createXterm({
     if (id) write(id, data);
   };
   const chipMode = chipPasteMode ? createChipPasteController(term, toPty) : null;
+  const imagePreview = createImageChipPreview(term);
   term.onData((data) => {
+    imagePreview.noteOutgoing(data);
     if (chipMode) chipMode.handleData(data);
     else toPty(data);
   });
@@ -356,7 +366,7 @@ export function createXterm({
     return !passThrough?.(event);
   });
 
-  return { term, fit, chipMode };
+  return { term, fit, chipMode, imagePreview };
 }
 
 /**
@@ -376,8 +386,27 @@ export function attachFocusOnClick(element: HTMLElement, term: Terminal): () => 
 }
 
 /**
+ * True when xterm already sent this click to the running program as a mouse report. It does
+ * that whenever the program has turned mouse tracking on, unless the selection is being forced
+ * (Shift, or Option on a Mac when that is enabled), and only for clicks on the terminal itself.
+ */
+function clickWentToProgram(event: MouseEvent, term: Terminal): boolean {
+  if (term.modes.mouseTrackingMode === 'none') return false;
+  if (!(event.target instanceof Node) || !term.element?.contains(event.target)) return false;
+  const forcesSelection =
+    window.agentmat.platform === 'darwin'
+      ? event.altKey && term.options.macOptionClickForcesSelection === true
+      : event.shiftKey;
+  return !forcesSelection;
+}
+
+/**
  * Right-click copies the selection if there is one, otherwise pastes clipboard contents
  * into the shell, the standard behavior for Windows/Linux terminals. Returns a cleanup.
+ *
+ * A program that asked for mouse events gets the right-click instead, as in Windows Terminal.
+ * Claude Code's full-screen mode does, and pastes the clipboard itself when it sees one, so
+ * pasting here as well put the text in twice. Shift+right-click still pastes from here.
  */
 export function attachTerminalContextMenu(
   element: HTMLElement,
@@ -388,6 +417,7 @@ export function attachTerminalContextMenu(
 ): () => void {
   const handleContextMenu = (event: MouseEvent): void => {
     event.preventDefault();
+    if (clickWentToProgram(event, term)) return;
     const selection = term.getSelection();
     if (selection) {
       void navigator.clipboard.writeText(selection);

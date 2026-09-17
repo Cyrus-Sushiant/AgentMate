@@ -1,3 +1,5 @@
+import { CLAUDE_WEEKLY_METERED_MODEL } from '../models/catalog.js';
+
 // Shared types for the Token Usage feature (CodexBar-style). These describe the
 // provider catalog, the normalized usage snapshot every data source returns, and
 // the desktop-widget instances the user pins to their screen.
@@ -101,8 +103,11 @@ export interface SubscriptionPlan {
 /** Which rate-limit window a `SubscriptionWindow` describes. */
 export type SubscriptionWindowKey = 'session' | 'week' | 'week-fable' | 'month';
 
-/** Label for the weekly bucket that meters Fable on top of the shared one. */
-export const FABLE_WEEK_LABEL = 'Weekly (Fable)';
+/**
+ * Label for the weekly bucket that meters Claude's top model on top of the shared one. The model
+ * name comes from the catalog, so it follows when that model changes.
+ */
+export const FABLE_WEEK_LABEL = `Weekly (${CLAUDE_WEEKLY_METERED_MODEL.family})`;
 
 /**
  * True when the plan meters Fable in its own weekly window, on top of the

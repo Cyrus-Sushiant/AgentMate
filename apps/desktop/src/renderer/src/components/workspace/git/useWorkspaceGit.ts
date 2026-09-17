@@ -1,9 +1,11 @@
-import type { GitChangeEntry } from '@agentmat/core';
-import type { WorkspaceGitState } from '@shared/apiTypes';
+import type { GitChangeEntry, Project } from '@agentmat/core';
+import type { GitApplyLinesInput, GitDiscardResult, WorkspaceGitState } from '@shared/apiTypes';
 import { type QueryClient, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo } from 'react';
 import { toast } from 'sonner';
+import { projectFilePath, repoFileAbsolutePath } from '@/lib/git';
 import { queryKeys } from '@/lib/queryKeys';
+import { useWorkspaceStore } from '@/stores/workspaceStore';
 
 /**
  * The workspace changes panel's state for a project. While `watching`, main watches the
@@ -42,6 +44,27 @@ export function useWorkspaceGitState(projectId: string, watching: boolean) {
   return query;
 }
 
+/**
+ * Opens a changed file in an editor tab next to the terminals. A binary file, or one that sits
+ * in the repository but outside the project folder (the app only reads inside projects), goes
+ * to its default app instead.
+ */
+export function openChangedFile(
+  project: Project,
+  projectPrefix: string,
+  repoPath: string,
+  binary?: boolean,
+): void {
+  const inProject = binary ? null : projectFilePath(project.folderPath, projectPrefix, repoPath);
+  if (inProject) {
+    useWorkspaceStore.getState().openFile(project.id, inProject, { pin: true });
+    return;
+  }
+  void window.agentmat.shell.openPath(
+    repoFileAbsolutePath(project.folderPath, projectPrefix, repoPath),
+  );
+}
+
 function without(entries: GitChangeEntry[], paths: Set<string>): GitChangeEntry[] {
   return entries.filter((entry) => !paths.has(entry.path));
 }
@@ -61,6 +84,8 @@ export interface GitActions {
   stage: (paths: string[]) => Promise<void>;
   unstage: (paths: string[]) => Promise<void>;
   discard: (paths: string[], side: 'unstaged' | 'untracked') => Promise<void>;
+  /** Stages, unstages or discards only some lines of one file. */
+  applyLines: (input: Omit<GitApplyLinesInput, 'projectId'>) => Promise<void>;
   resolve: (path: string, pick: 'ours' | 'theirs') => Promise<void>;
   abort: () => Promise<void>;
   commit: (message: string, push: boolean) => Promise<boolean>;
@@ -72,6 +97,21 @@ export function useGitActions(projectId: string): GitActions {
     const git = window.agentmat.git;
     const resync = (): void => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.gitWorkspaceState(projectId) });
+    };
+    const undoableToast = (result: GitDiscardResult): void => {
+      const token = result.undoToken;
+      toast.success(result.message, {
+        action: token
+          ? {
+              label: 'Undo',
+              onClick: () => {
+                void git.undoDiscard(projectId, token).then((undo) => {
+                  if (!undo.ok) toast.error('Could not undo', { description: undo.message });
+                });
+              },
+            }
+          : undefined,
+      });
     };
 
     return {
@@ -149,19 +189,25 @@ export function useGitActions(projectId: string): GitActions {
           resync();
           return;
         }
-        const token = result.undoToken;
-        toast.success(result.message, {
-          action: token
-            ? {
-                label: 'Undo',
-                onClick: () => {
-                  void git.undoDiscard(projectId, token).then((undo) => {
-                    if (!undo.ok) toast.error('Could not undo', { description: undo.message });
-                  });
-                },
-              }
-            : undefined,
-        });
+        undoableToast(result);
+      },
+
+      // No optimistic move: staging part of a file leaves it in both sections, and main pushes
+      // the real state straight after.
+      applyLines: async (input) => {
+        const result = await git.applyLines({ ...input, projectId });
+        if (!result.ok) {
+          const title =
+            input.action === 'stage'
+              ? 'Could not stage those lines'
+              : input.action === 'unstage'
+                ? 'Could not unstage those lines'
+                : 'Could not discard those lines';
+          toast.error(title, { description: result.message });
+          resync();
+          return;
+        }
+        if (input.action === 'discard') undoableToast(result);
       },
 
       resolve: async (path, pick) => {

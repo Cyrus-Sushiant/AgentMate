@@ -15,6 +15,8 @@ import { registerBackupHandlers } from './ipc/backup';
 import { registerBlueprintHandlers } from './ipc/blueprints';
 import { registerCliDetectionHandlers } from './ipc/cliDetection';
 import { registerDockerHandlers } from './ipc/docker';
+import { registerEnvironmentHandlers } from './ipc/environments';
+import { registerExplorerHandlers } from './ipc/explorer';
 import { registerFileSystemHandlers } from './ipc/fileSystem';
 import { registerGitHandlers } from './ipc/git';
 import { registerGrammarHandlers } from './ipc/grammar';
@@ -63,11 +65,16 @@ import { registerNotificationActivation } from './notifications/osNotification';
 import { petManager } from './pet/petWindow';
 import { startPipelineWatcher, stopPipelineWatcher } from './pipelines/watcher';
 import { promptBuildWidgetManager } from './promptBuild/widgetWindows';
+import { allowQuit, guardQuit, registerQuitGuardHandlers } from './quitGuard';
 import { remoteManager } from './remote/manager';
 import { cancelAllSecurityScans, sweepOrphanScanContainers } from './security/scanRunner';
 import { configureSpellChecker, registerSpellcheckHandlers } from './spellcheck';
 import { lockVault } from './ssh/vault';
-import { migrateInlineProjectIcons, pruneOrphanBlueprints } from './store';
+import {
+  migrateInlineProjectIcons,
+  pruneOrphanBlueprints,
+  pruneOrphanEnvironments,
+} from './store';
 import { startHourlyUpdateChecks } from './updater';
 import { startResetAlertWatcher, stopResetAlertWatcher } from './usage/resetAlerts';
 import { startThresholdAlertWatcher, stopThresholdAlertWatcher } from './usage/thresholdAlerts';
@@ -171,6 +178,14 @@ function createMainWindow(): BrowserWindow {
   registerWindowHandlers(win);
   remoteManager.init(win);
 
+  // On Windows and Linux closing this window closes the app, so ask first while CLIs, SSH or
+  // Remote Desktop sessions are open. macOS keeps running without it and asks on Cmd+Q instead.
+  win.on('close', (event) => {
+    if (process.platform !== 'darwin') guardQuit(event);
+  });
+  // Logging off or shutting down must not get stuck behind the question.
+  win.on('session-end', () => allowQuit());
+
   // Closing the main window tears down the floating usage widgets too, so the
   // app can fully quit on Windows/Linux instead of lingering with only
   // taskbar-less widget windows (they're persisted and restored next launch).
@@ -209,10 +224,12 @@ function createMainWindow(): BrowserWindow {
 
 function registerAllIpcHandlers(): void {
   registerAppHandlers();
+  registerQuitGuardHandlers();
   registerCliDetectionHandlers();
   registerTerminalHandlers();
   registerSshHandlers();
   registerRdpHandlers();
+  registerEnvironmentHandlers();
   registerSshAgentHandlers();
   registerAgentHandlers();
   registerTerminalClipboardHandlers();
@@ -228,6 +245,7 @@ function registerAllIpcHandlers(): void {
   registerToolHandlers();
   registerDockerHandlers();
   registerFileSystemHandlers();
+  registerExplorerHandlers();
   registerSettingsHandlers();
   registerTemplateHandlers();
   registerActivityHandlers();
@@ -313,6 +331,7 @@ app.whenReady().then(async () => {
   void seedExampleRepositoryIfEmpty();
   void migrateInlineProjectIcons();
   void pruneOrphanBlueprints();
+  void pruneOrphanEnvironments();
   void startHookServer();
   setMainWindowFactory(createMainWindow);
   createMainWindow();
@@ -346,6 +365,8 @@ app.on('window-all-closed', () => {
 });
 
 app.on('before-quit', (event) => {
+  // Asks before anything is torn down, and only once per quit the user agrees to.
+  if (!guardQuit(event)) return;
   // Terminals settle first. If that takes a moment (ending shells in the background host),
   // this quit is put off and retried, and the teardown below runs on the second pass.
   const terminalsSettling = terminalsHoldQuit();

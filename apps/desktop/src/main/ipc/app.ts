@@ -2,6 +2,7 @@ import { app, ipcMain } from 'electron';
 import type { UpdateStatus } from '../../shared/apiTypes';
 import { IPC } from '../../shared/ipcChannels';
 import { takePendingRoute } from '../mainWindow';
+import { allowQuit } from '../quitGuard';
 import { checkForUpdates, downloadUpdate, pauseDownload, quitAndInstall } from '../updater';
 import { preserveTerminalsOnQuit } from './terminal';
 
@@ -24,6 +25,7 @@ export function registerAppHandlers(): void {
   // the exception on purpose: a relaunch reattaches to them, so they keep running.
   ipcMain.handle(IPC.app.relaunch, (): void => {
     preserveTerminalsOnQuit();
+    allowQuit();
     app.relaunch();
     app.quit();
   });

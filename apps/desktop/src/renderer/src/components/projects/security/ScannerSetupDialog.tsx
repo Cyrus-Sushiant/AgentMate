@@ -4,6 +4,7 @@ import {
   codeqlLanguageNeedsBuild,
   getSecurityScanner,
   SEMGREP_RULESETS,
+  STRIX_DEFAULT_MODEL,
 } from '@agentmat/core';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
@@ -168,9 +169,9 @@ export function ScannerSetupDialog({
               <div className="space-y-1.5">
                 <Label>Model</Label>
                 <Input
-                  value={draft.strixModel ?? 'anthropic/claude-sonnet-5'}
+                  value={draft.strixModel ?? STRIX_DEFAULT_MODEL}
                   onChange={(event) => patch({ strixModel: event.target.value })}
-                  placeholder="anthropic/claude-sonnet-5"
+                  placeholder={STRIX_DEFAULT_MODEL}
                 />
               </div>
               <div className="space-y-1.5">

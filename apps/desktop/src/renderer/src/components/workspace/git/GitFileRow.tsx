@@ -1,6 +1,6 @@
 import type { GitChangeEntry } from '@agentmat/core';
 import type { GitDiffSide } from '@shared/apiTypes';
-import { ExternalLink, Minus, Plus, Trash2, Undo } from '@/components/icons';
+import { FileCode, Minus, Plus, Trash2, Undo } from '@/components/icons';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { changeStatusMeta, splitGitPath } from '@/lib/git';
 import { cn } from '@/lib/utils';
@@ -182,7 +182,7 @@ export function GitFileRow({
         ) : null}
         {!deleted ? (
           <RowAction label="Open file" onClick={onOpenFile}>
-            <ExternalLink className="h-2.5 w-2.5" />
+            <FileCode className="h-2.5 w-2.5" />
           </RowAction>
         ) : null}
         {onDiscard ? (

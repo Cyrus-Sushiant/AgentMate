@@ -1,3 +1,4 @@
+import { DIFFRAY_DOC_MODELS, DIFFRAY_EXECUTOR_MODELS } from '../models/catalog.js';
 import type { AgentType } from '../types/index.js';
 import type { ToolSettingsAction, ToolSettingsValues } from './types.js';
 
@@ -66,25 +67,14 @@ export const DIFFRAY_SEVERITIES = ['critical', 'high', 'medium', 'low'] as const
 
 export type DiffraySeverity = (typeof DIFFRAY_SEVERITIES)[number];
 
+const EXECUTOR_DEFAULT = { value: '', label: 'Executor default' };
+
+/** Model choices per executor, the executor's own default first. Names come from the catalog. */
 export const DIFFRAY_MODELS: Record<DiffrayExecutorId, { value: string; label: string }[]> = {
-  'claude-cli': [
-    { value: '', label: 'Executor default' },
-    { value: 'haiku', label: 'Haiku (fast)' },
-    { value: 'sonnet', label: 'Sonnet (balanced)' },
-    { value: 'opus', label: 'Opus (thorough)' },
-  ],
-  'cursor-agent-cli': [
-    { value: '', label: 'Executor default' },
-    { value: 'auto', label: 'Auto' },
-    { value: 'sonnet-4.5', label: 'Sonnet 4.5' },
-    { value: 'opus-4.5', label: 'Opus 4.5' },
-  ],
-  'opencode-cli': [
-    { value: '', label: 'Executor default' },
-    { value: 'opencode/gpt-5-nano', label: 'GPT-5 nano' },
-    { value: 'opencode/grok-code', label: 'Grok code' },
-  ],
-  'codex-cli': [{ value: '', label: 'Executor default' }],
+  'claude-cli': [EXECUTOR_DEFAULT, ...DIFFRAY_EXECUTOR_MODELS['claude-cli']],
+  'cursor-agent-cli': [EXECUTOR_DEFAULT, ...DIFFRAY_EXECUTOR_MODELS['cursor-agent-cli']],
+  'opencode-cli': [EXECUTOR_DEFAULT, ...DIFFRAY_EXECUTOR_MODELS['opencode-cli']],
+  'codex-cli': [EXECUTOR_DEFAULT, ...DIFFRAY_EXECUTOR_MODELS['codex-cli']],
 };
 
 export interface DiffrayModelTradeoff {
@@ -103,7 +93,7 @@ export interface DiffrayModelTradeoff {
 /** The performance vs quality table from diffray's docs, shown as a hint on the engine step. */
 export const DIFFRAY_MODEL_TRADEOFFS: DiffrayModelTradeoff[] = [
   {
-    model: 'haiku',
+    model: DIFFRAY_DOC_MODELS.haiku,
     speed: 'fast',
     quality: 'Good',
     cost: 1,
@@ -111,7 +101,7 @@ export const DIFFRAY_MODEL_TRADEOFFS: DiffrayModelTradeoff[] = [
     bestFor: 'Daily development, large PRs',
   },
   {
-    model: 'sonnet',
+    model: DIFFRAY_DOC_MODELS.sonnet,
     speed: 'moderate',
     quality: 'Excellent',
     cost: 2,
@@ -119,7 +109,7 @@ export const DIFFRAY_MODEL_TRADEOFFS: DiffrayModelTradeoff[] = [
     bestFor: 'Most use cases, balanced approach',
   },
   {
-    model: 'opus',
+    model: DIFFRAY_DOC_MODELS.opus,
     speed: 'fast',
     quality: 'Outstanding',
     cost: 3,
@@ -128,7 +118,7 @@ export const DIFFRAY_MODEL_TRADEOFFS: DiffrayModelTradeoff[] = [
     recommended: true,
   },
   {
-    model: 'gpt-5.2',
+    model: DIFFRAY_DOC_MODELS.codex,
     speed: 'fast',
     quality: 'Very Good',
     cost: 2,
@@ -136,7 +126,7 @@ export const DIFFRAY_MODEL_TRADEOFFS: DiffrayModelTradeoff[] = [
     bestFor: 'General purpose, cost-effective',
   },
   {
-    model: 'opencode/gpt-5-nano',
+    model: DIFFRAY_DOC_MODELS.opencodeNano,
     speed: 'fast',
     quality: 'Good',
     cost: 1,

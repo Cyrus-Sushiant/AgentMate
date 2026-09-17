@@ -28,7 +28,7 @@ import {
   normalizeIconDataUrl,
   readIconFile,
 } from '../projectIcons';
-import { logActivity, pruneOrphanBlueprints, store } from '../store';
+import { logActivity, pruneOrphanBlueprints, pruneOrphanEnvironments, store } from '../store';
 
 /**
  * The folder the user set as their projects root, if it is still there. A path
@@ -161,6 +161,7 @@ export function registerProjectHandlers(): void {
     // The blueprint, its revisions, and its attachment files go with it. Startup
     // runs the same sweep, so a restored backup can't leave any behind either.
     await pruneOrphanBlueprints();
+    await pruneOrphanEnvironments();
   });
 
   /**

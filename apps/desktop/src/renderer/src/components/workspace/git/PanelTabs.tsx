@@ -11,6 +11,11 @@ export interface PanelTabDef {
   count?: number;
   /** Buttons for this tab, shown at the end of the strip while it is the open one. */
   actions?: React.ReactNode;
+  /**
+   * Puts the actions on their own line under the strip, with this heading beside them, for a
+   * tab with too many buttons to share the strip with the tab icons.
+   */
+  toolbarTitle?: string;
   render: () => React.ReactNode;
 }
 
@@ -102,11 +107,19 @@ export function PanelTabs({
             />
           ))}
         </div>
-        {active?.actions ? (
+        {active?.actions && active.toolbarTitle === undefined ? (
           <span className="flex shrink-0 items-center gap-0.5">{active.actions}</span>
         ) : null}
         {trailing ? <span className="flex shrink-0 items-center gap-0.5">{trailing}</span> : null}
       </div>
+      {active?.actions && active.toolbarTitle !== undefined ? (
+        <div className="flex h-7 shrink-0 items-center gap-1 border-b border-border/60 pl-3 pr-1.5">
+          <span className="min-w-0 flex-1 truncate text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+            {active.toolbarTitle}
+          </span>
+          <span className="flex shrink-0 items-center gap-0.5">{active.actions}</span>
+        </div>
+      ) : null}
       <div
         role="tabpanel"
         id={`panel-panel-${active?.id}`}

@@ -23,13 +23,17 @@ import {
   DASHBOARD_STAT_IDS,
   DEFAULT_COMMIT_MESSAGE_SETTINGS,
   DEFAULT_DESKTOP_PET_ACTION_SPEEDS,
+  DEFAULT_GEMINI_API_MODEL,
+  DEFAULT_OPENAI_API_MODEL,
   DEFAULT_TERMINAL_BACKGROUND_COLOR,
+  DEFAULT_WHISPER_MODEL,
   defaultGrammarSettings,
   defaultProxySettings,
   defaultUsageResetAlerts,
   defaultUsageThresholdAlerts,
   isThemeMode,
   normalizeCliArgs,
+  normalizeCliLaunchDefaults,
   normalizeCommitMessageSettings,
   normalizeCustomDesktopPets,
   normalizeDesktopPetActionSpeeds,
@@ -52,6 +56,7 @@ import type {
   LastRunInfoByCli,
   RemoteSavedServer,
   SshVaultRecord,
+  StoredProjectEnvironment,
   StoredRdpServer,
   StoredSshServer,
 } from '../shared/apiTypes';
@@ -85,6 +90,7 @@ async function writeJsonFile<T>(fileName: string, data: T): Promise<void> {
 export const DEFAULT_SETTINGS: AppSettings = {
   defaultCliId: null,
   cliArgs: {},
+  cliLaunchDefaults: {},
   cliOrder: [],
   commitMessage: { ...DEFAULT_COMMIT_MESSAGE_SETTINGS },
   theme: 'system',
@@ -95,13 +101,13 @@ export const DEFAULT_SETTINGS: AppSettings = {
   telegramChatId: null,
   telegramScheduledTasksChatId: null,
   openaiApiKey: null,
-  openaiModel: 'gpt-4o-mini',
+  openaiModel: DEFAULT_OPENAI_API_MODEL,
   ollamaBaseUrl: 'http://localhost:11434',
   ollamaModel: '',
   ollamaContextLength: null,
   ollamaKeepAlive: '5m',
   geminiApiKey: null,
-  geminiModel: 'gemini-2.0-flash',
+  geminiModel: DEFAULT_GEMINI_API_MODEL,
   promptBuilderProvider: 'openai',
   dashboardChartOrder: [],
   dashboardChartCards: [...DASHBOARD_CHART_IDS],
@@ -113,7 +119,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   dashboardLayout: [],
   dashboardIntroducedCharts: DASHBOARD_CHART_IDS.filter((id) => id !== 'github-actions'),
   translateMaxRetries: 3,
-  speechModel: 'base',
+  speechModel: DEFAULT_WHISPER_MODEL,
   speechLanguage: 'auto',
   grammar: defaultGrammarSettings(),
   proxy: defaultProxySettings(),
@@ -163,6 +169,7 @@ function withSettingsMigrations(settings: AppSettings): AppSettings {
   return {
     ...settings,
     cliArgs: normalizeCliArgs(settings.cliArgs),
+    cliLaunchDefaults: normalizeCliLaunchDefaults(settings.cliLaunchDefaults),
     commitMessage: normalizeCommitMessageSettings(settings.commitMessage),
     cliOrder: Array.isArray(settings.cliOrder)
       ? [...new Set(settings.cliOrder.filter((id): id is string => typeof id === 'string'))]
@@ -312,6 +319,11 @@ export const store = {
   setRdpServers: (servers: StoredRdpServer[]): Promise<void> =>
     writeJsonFile('rdp-servers.json', servers),
 
+  getProjectEnvironments: (): Promise<StoredProjectEnvironment[]> =>
+    readJsonFile('project-environments.json', []),
+  setProjectEnvironments: (environments: StoredProjectEnvironment[]): Promise<void> =>
+    writeJsonFile('project-environments.json', environments),
+
   getSshVault: (): Promise<SshVaultRecord | null> => readJsonFile('ssh-vault.json', null),
   setSshVault: (vault: SshVaultRecord | null): Promise<void> =>
     writeJsonFile('ssh-vault.json', vault),
@@ -360,6 +372,22 @@ export async function pruneOrphanBlueprints(): Promise<void> {
       if (!live.has(blueprint.projectId)) blueprintRevisionDb.removeForProject(blueprint.projectId);
     }
     await store.setBlueprints(kept);
+  } catch {
+    // A disk error here just leaves the orphans for the next launch.
+  }
+}
+
+/** Drops saved environments whose project is gone. Runs at startup and on project delete. */
+export async function pruneOrphanEnvironments(): Promise<void> {
+  try {
+    const [projects, environments] = await Promise.all([
+      store.getProjects(),
+      store.getProjectEnvironments(),
+    ]);
+    const live = new Set(projects.map((project) => project.id));
+    const kept = environments.filter((environment) => live.has(environment.projectId));
+    if (kept.length === environments.length) return;
+    await store.setProjectEnvironments(kept);
   } catch {
     // A disk error here just leaves the orphans for the next launch.
   }

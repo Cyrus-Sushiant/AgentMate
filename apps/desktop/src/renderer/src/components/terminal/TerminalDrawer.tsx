@@ -359,7 +359,7 @@ export function TerminalDrawer({
         )}
         {sessions.length === 0 && <div className="flex-1" />}
         <div className="mb-0.5 flex shrink-0 items-center gap-0.5">
-          {activeSession?.kind === 'ssh' && (
+          {activeSession && (
             <IconButton label="Ask AI to run a task here" onClick={() => setAskAiOpen(true)}>
               <Robot className="h-3.5 w-3.5" />
             </IconButton>
@@ -390,7 +390,7 @@ export function TerminalDrawer({
         </div>
       </div>
 
-      {activeSession?.kind === 'ssh' && <SshAgentStatusBar sessionId={activeSession.id} />}
+      {activeSession && <SshAgentStatusBar sessionId={activeSession.id} />}
 
       <div className="terminal-well relative min-h-0 flex-1 overflow-hidden">
         {sessions.length === 0 ? (
@@ -451,8 +451,13 @@ export function TerminalDrawer({
         ) : null}
       </div>
 
-      {activeSession?.kind === 'ssh' && (
-        <SshAskAiDialog sessionId={activeSession.id} open={askAiOpen} onOpenChange={setAskAiOpen} />
+      {activeSession && (
+        <SshAskAiDialog
+          sessionId={activeSession.id}
+          target={activeSession.kind === 'ssh' ? 'ssh' : 'local'}
+          open={askAiOpen}
+          onOpenChange={setAskAiOpen}
+        />
       )}
     </div>
   );

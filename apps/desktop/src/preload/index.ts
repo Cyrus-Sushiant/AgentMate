@@ -64,8 +64,11 @@ import type {
   AssessRunResult,
   AuditSourcePreview,
   AuditSourceSkill,
+  BackupExportOptions,
   BackupExportResult,
   BackupImportResult,
+  BackupOpenResult,
+  BackupRestoreOptions,
   BlueprintAgentFileResult,
   BlueprintAgentFileTarget,
   BlueprintAttachmentInput,
@@ -90,9 +93,18 @@ import type {
   DockerActionResult,
   DockerContainer,
   DockerRemoveOptions,
+  EnvCredentialSecrets,
+  EnvFolderFile,
+  EnvImportPick,
+  EnvImportResult,
+  EnvWriteResult,
+  ExplorerDeleteResult,
+  ExplorerGitignoreResult,
+  ExplorerTransferResult,
   FaviconResult,
   FavoriteSkillInput,
   FavoriteSkillRecord,
+  GitApplyLinesInput,
   GitBranchHistory,
   GitDiffSide,
   GitDiscardResult,
@@ -124,10 +136,12 @@ import type {
   LocalSkillFolderPreview,
   NotificationSendResult,
   OllamaConnectionTest,
+  OpenSessionSummary,
   PackageScanResult,
   PackageUpdateProgress,
   PackageUpdateRequest,
   PackageUpdateResult,
+  ProjectEnvironment,
   ProjectPipelineStatus,
   PromptHistoryEntry,
   ProxyStatus,
@@ -152,6 +166,9 @@ import type {
   RunSkillAuditInput,
   RunSkillAuditResult,
   SaveBlueprintPresetInput,
+  SaveEnvCredentialInput,
+  SaveEnvFileInput,
+  SaveEnvironmentInput,
   SaveRdpServerInput,
   SaveSshServerInput,
   SaveTemplateInput,
@@ -226,12 +243,24 @@ const appInfo = {
     ipcRenderer.on(IPC.app.onNavigate, listener);
     return () => ipcRenderer.removeListener(IPC.app.onNavigate, listener);
   },
+  /** main asking whether to close the app while CLIs, SSH or Remote Desktop sessions are open. */
+  onConfirmQuit: (callback: (summary: OpenSessionSummary) => void): (() => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, summary: OpenSessionSummary): void =>
+      callback(summary);
+    ipcRenderer.on(IPC.app.onConfirmQuit, listener);
+    return () => ipcRenderer.removeListener(IPC.app.onConfirmQuit, listener);
+  },
+  answerQuit: (confirmed: boolean): Promise<void> =>
+    ipcRenderer.invoke(IPC.app.answerQuit, confirmed),
 };
 
 const backup = {
-  export: (compress: boolean): Promise<BackupExportResult> =>
-    ipcRenderer.invoke(IPC.backup.export, compress),
-  import: (): Promise<BackupImportResult> => ipcRenderer.invoke(IPC.backup.import),
+  export: (compress: boolean, options: BackupExportOptions = {}): Promise<BackupExportResult> =>
+    ipcRenderer.invoke(IPC.backup.export, compress, options),
+  /** Picks and checks a backup file. Nothing is restored until `restore` is called. */
+  open: (): Promise<BackupOpenResult> => ipcRenderer.invoke(IPC.backup.open),
+  restore: (token: string, options: BackupRestoreOptions): Promise<BackupImportResult> =>
+    ipcRenderer.invoke(IPC.backup.restore, token, options),
 };
 
 const cli = {
@@ -313,6 +342,9 @@ const sshAgent = {
     ipcRenderer.invoke(IPC.sshAgent.skipCommand, sessionId),
   answerNeedsInput: (sessionId: string, answer: string): Promise<void> =>
     ipcRenderer.invoke(IPC.sshAgent.answerNeedsInput, sessionId, answer),
+  /** True types the server's saved password into the prompt the running command opened. */
+  answerPassword: (sessionId: string, approved: boolean): Promise<void> =>
+    ipcRenderer.invoke(IPC.sshAgent.answerPassword, sessionId, approved),
   stop: (sessionId: string): Promise<void> => ipcRenderer.invoke(IPC.sshAgent.stop, sessionId),
   onProgress: (callback: (progress: SshAgentProgress) => void): (() => void) => {
     const listener = (_event: Electron.IpcRendererEvent, progress: SshAgentProgress): void =>
@@ -600,6 +632,47 @@ const fs = {
     ipcRenderer.invoke(IPC.fs.saveFileAs, defaultFileName, content),
 };
 
+/** File operations from the workspace explorer. Every path must sit inside the project folder. */
+const explorer = {
+  createFile: (projectId: string, parentDir: string, name: string): Promise<string> =>
+    ipcRenderer.invoke(IPC.explorer.createFile, projectId, parentDir, name),
+  createFolder: (projectId: string, parentDir: string, name: string): Promise<string> =>
+    ipcRenderer.invoke(IPC.explorer.createFolder, projectId, parentDir, name),
+  rename: (projectId: string, path: string, newName: string): Promise<string> =>
+    ipcRenderer.invoke(IPC.explorer.rename, projectId, path, newName),
+  delete: (
+    projectId: string,
+    paths: string[],
+    options: { permanent: boolean },
+  ): Promise<ExplorerDeleteResult> =>
+    ipcRenderer.invoke(IPC.explorer.delete, projectId, paths, options),
+  copy: (
+    projectId: string,
+    sources: string[],
+    targetDir: string,
+  ): Promise<ExplorerTransferResult> =>
+    ipcRenderer.invoke(IPC.explorer.copy, projectId, sources, targetDir),
+  move: (
+    projectId: string,
+    sources: string[],
+    targetDir: string,
+    options: { overwrite: boolean },
+  ): Promise<ExplorerTransferResult> =>
+    ipcRenderer.invoke(IPC.explorer.move, projectId, sources, targetDir, options),
+  revealInOs: (projectId: string, path: string): Promise<void> =>
+    ipcRenderer.invoke(IPC.explorer.revealInOs, projectId, path),
+  addToGitignore: (
+    projectId: string,
+    path: string,
+    pattern: 'path' | 'extension',
+  ): Promise<ExplorerGitignoreResult> =>
+    ipcRenderer.invoke(IPC.explorer.addToGitignore, projectId, path, pattern),
+  untrack: (projectId: string, path: string): Promise<void> =>
+    ipcRenderer.invoke(IPC.explorer.untrack, projectId, path),
+  ignoredPaths: (projectId: string, paths: string[]): Promise<string[]> =>
+    ipcRenderer.invoke(IPC.explorer.ignoredPaths, projectId, paths),
+};
+
 const settings = {
   get: (): Promise<AppSettings> => ipcRenderer.invoke(IPC.settings.get),
   update: (updates: Partial<AppSettings>): Promise<AppSettings> =>
@@ -634,6 +707,10 @@ const terminalClipboard = {
    * images. Null when it holds nothing a terminal can use. */
   read: (): Promise<TerminalClipboardPaste | null> =>
     ipcRenderer.invoke(IPC.terminalClipboard.read),
+  /** A data URL of an image file, scaled down for a hover preview unless `fullSize`. Null when
+   * it can't be shown. */
+  previewImage: (path: string, fullSize = false): Promise<string | null> =>
+    ipcRenderer.invoke(IPC.terminalClipboard.previewImage, path, fullSize),
 };
 
 const promptHistory = {
@@ -939,6 +1016,9 @@ const git = {
   ): Promise<GitDiscardResult> => ipcRenderer.invoke(IPC.git.discard, projectId, paths, side),
   undoDiscard: (projectId: string, token: string): Promise<GitOpResult> =>
     ipcRenderer.invoke(IPC.git.undoDiscard, projectId, token),
+  /** Stages, unstages or discards only some lines of a file. A discard can be undone. */
+  applyLines: (input: GitApplyLinesInput): Promise<GitDiscardResult> =>
+    ipcRenderer.invoke(IPC.git.applyLines, input),
   resolveConflict: (
     projectId: string,
     path: string,
@@ -1224,6 +1304,43 @@ const remoteSessionWindowControls = {
   },
 };
 
+/** Per-project environments (production, staging, ...) with their env files and credentials. */
+const environments = {
+  list: (projectId: string): Promise<ProjectEnvironment[]> =>
+    ipcRenderer.invoke(IPC.environments.list, projectId),
+  save: (input: SaveEnvironmentInput): Promise<ProjectEnvironment> =>
+    ipcRenderer.invoke(IPC.environments.save, input),
+  remove: (id: string): Promise<void> => ipcRenderer.invoke(IPC.environments.remove, id),
+  reorder: (projectId: string, orderedIds: string[]): Promise<void> =>
+    ipcRenderer.invoke(IPC.environments.reorder, projectId, orderedIds),
+  saveFile: (input: SaveEnvFileInput): Promise<ProjectEnvironment> =>
+    ipcRenderer.invoke(IPC.environments.saveFile, input),
+  removeFile: (environmentId: string, fileId: string): Promise<void> =>
+    ipcRenderer.invoke(IPC.environments.removeFile, environmentId, fileId),
+  readFile: (environmentId: string, fileId: string): Promise<string> =>
+    ipcRenderer.invoke(IPC.environments.readFile, environmentId, fileId),
+  copyFile: (environmentId: string, fileId: string): Promise<void> =>
+    ipcRenderer.invoke(IPC.environments.copyFile, environmentId, fileId),
+  saveCredential: (input: SaveEnvCredentialInput): Promise<ProjectEnvironment> =>
+    ipcRenderer.invoke(IPC.environments.saveCredential, input),
+  removeCredential: (environmentId: string, credentialId: string): Promise<void> =>
+    ipcRenderer.invoke(IPC.environments.removeCredential, environmentId, credentialId),
+  revealCredential: (environmentId: string, credentialId: string): Promise<EnvCredentialSecrets> =>
+    ipcRenderer.invoke(IPC.environments.revealCredential, environmentId, credentialId),
+  copyCredentialSecret: (environmentId: string, credentialId: string): Promise<void> =>
+    ipcRenderer.invoke(IPC.environments.copyCredentialSecret, environmentId, credentialId),
+  scanFolder: (projectId: string): Promise<EnvFolderFile[]> =>
+    ipcRenderer.invoke(IPC.environments.scanFolder, projectId),
+  importFromFolder: (projectId: string, picks: EnvImportPick[]): Promise<EnvImportResult> =>
+    ipcRenderer.invoke(IPC.environments.importFromFolder, projectId, picks),
+  writeToFolder: (
+    environmentId: string,
+    fileId: string,
+    overwrite: boolean,
+  ): Promise<EnvWriteResult> =>
+    ipcRenderer.invoke(IPC.environments.writeToFolder, environmentId, fileId, overwrite),
+};
+
 const rdp = {
   listServers: (): Promise<RdpSavedServer[]> => ipcRenderer.invoke(IPC.rdp.listServers),
   saveServer: (input: SaveRdpServerInput): Promise<RdpSavedServer> =>
@@ -1286,6 +1403,7 @@ const agentmatApi = {
   cli,
   terminal,
   ssh,
+  environments,
   rdp,
   sshAgent,
   agents,
@@ -1297,6 +1415,7 @@ const agentmatApi = {
   tools,
   docker,
   fs,
+  explorer,
   settings,
   templates,
   activity,

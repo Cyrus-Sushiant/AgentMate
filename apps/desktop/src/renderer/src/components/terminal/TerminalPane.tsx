@@ -44,6 +44,7 @@ export function TerminalPane({ meta, active, onExit }: TerminalPaneProps): React
       term,
       fit: fitAddon,
       chipMode,
+      imagePreview,
     } = createXterm({
       sessionId: () => ptySessionId,
       write: (id, data) => void client.write(id, data),
@@ -187,6 +188,7 @@ export function TerminalPane({ meta, active, onExit }: TerminalPaneProps): React
       detachFilePaste();
       detachFocusOnClick();
       chipMode?.dispose();
+      imagePreview.dispose();
       unsubscribeTheme();
       unsubscribeData();
       unsubscribeExit();

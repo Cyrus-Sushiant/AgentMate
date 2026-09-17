@@ -1,4 +1,5 @@
 import { join } from 'node:path';
+import { DEFAULT_WHISPER_MODEL, WHISPER_MODELS } from '@agentmat/core';
 import { app, BrowserWindow, ipcMain } from 'electron';
 import type {
   SpeechModelProgress,
@@ -11,17 +12,13 @@ import { store } from '../store';
 
 // Whisper ONNX weights, served from the Hugging Face hub the first time and
 // then cached to disk. onnx-community publishes the quantized variants
-// transformers.js expects; `base` is the accuracy/size sweet spot for short
-// dictation (~150MB), `tiny` is the lighter fallback.
-const MODEL_IDS: Record<string, string> = {
-  tiny: 'onnx-community/whisper-tiny',
-  base: 'onnx-community/whisper-base',
-  small: 'onnx-community/whisper-small',
-};
-const DEFAULT_MODEL_KEY = 'base';
-
+// transformers.js expects. The list itself lives in the model catalog.
 function resolveModelId(modelKey: string | undefined): string {
-  return MODEL_IDS[modelKey ?? ''] ?? MODEL_IDS[DEFAULT_MODEL_KEY];
+  const model =
+    WHISPER_MODELS.find((m) => m.key === modelKey) ??
+    WHISPER_MODELS.find((m) => m.key === DEFAULT_WHISPER_MODEL) ??
+    WHISPER_MODELS[0]!;
+  return model.hubId;
 }
 
 // transformers.js is ESM-only for its Node build and pulls in the native

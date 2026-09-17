@@ -5,6 +5,7 @@ import {
   type AgentHookEvent,
   type AgentStatus,
   type AgentStatusState,
+  CLAUDE_FAMILIES,
   getCliDefinition,
   initialAgentStatus,
   reduceAgentStatus,
@@ -42,6 +43,12 @@ const TRANSCRIPT_TAIL_BYTES = 512 * 1024;
 
 const runInfos = new Map<string, AgentRunInfo>();
 
+/** "Set model to `Opus 5 (1M context)`", for every Claude family the model catalog knows. */
+const MODEL_SWITCH_LINE = new RegExp(
+  `^\\s*<local-command-stdout>Set model to (?:.\\[1m|\`)?(${CLAUDE_FAMILIES.join('|')}) (\\d+(?:\\.\\d+)*)( \\(1M context\\))?`,
+  'i',
+);
+
 /**
  * The model id a `/model` switch in a transcript picked. Claude Code records only the display
  * name ("Set model to `Opus 5 (1M context)`"), so this turns the usual family names back into
@@ -52,10 +59,7 @@ function modelFromSwitchLine(line: string): string | undefined {
     const entry = JSON.parse(line) as { type?: string; message?: { content?: unknown } };
     const content = entry.message?.content;
     if (entry.type !== 'user' || typeof content !== 'string') return undefined;
-    const match =
-      /^\s*<local-command-stdout>Set model to (?:.\[1m|`)?(Opus|Sonnet|Haiku|Fable) (\d+(?:\.\d+)*)( \(1M context\))?/i.exec(
-        content,
-      );
+    const match = MODEL_SWITCH_LINE.exec(content);
     if (!match) return undefined;
     const [, family, version, longContext] = match;
     return `claude-${family.toLowerCase()}-${version.replace(/\./g, '-')}${longContext ? '[1m]' : ''}`;

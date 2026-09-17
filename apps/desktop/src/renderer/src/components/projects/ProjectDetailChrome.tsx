@@ -21,6 +21,7 @@ import {
   GitPullRequest,
   Globe,
   History,
+  Key,
   MessageSquare,
   Package,
   Pencil,
@@ -66,6 +67,7 @@ export const PROJECT_SECTION_IDS = [
   'skills',
   'mcp',
   'hooks',
+  'environments',
   'config',
 ] as const;
 
@@ -93,6 +95,7 @@ const SECTIONS: {
   { id: 'skills', label: 'Skills', icon: Blocks, group: 'setup' },
   { id: 'mcp', label: 'MCP', icon: Plug, group: 'setup' },
   { id: 'hooks', label: 'Hooks', icon: Bell, group: 'setup' },
+  { id: 'environments', label: 'Environments', icon: Key, group: 'setup' },
   { id: 'config', label: 'Config', icon: FileCog, group: 'setup' },
 ];
 

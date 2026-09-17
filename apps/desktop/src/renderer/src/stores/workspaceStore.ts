@@ -7,9 +7,11 @@ import {
   findGroup,
   findGroupOfTab,
   firstGroup,
+  isSameOrInside,
   moveTab,
   normalizeLayout,
   type PaneNode,
+  remapPath,
   removeGroup,
   removeTab,
   replaceTabId,
@@ -153,6 +155,10 @@ interface WorkspaceState {
   ) => void;
   /** Opens a project file in an editor tab, with the same preview behavior as diffs. */
   openFile: (projectId: string, path: string, options?: { pin?: boolean }) => void;
+  /** Points file tabs at a renamed or moved path, keeping each tab (and its unsaved edits). */
+  retargetFileTabs: (projectId: string, from: string, to: string) => void;
+  /** Closes the file tabs showing a deleted path or anything inside a deleted folder. */
+  closeFileTabsUnder: (projectId: string, paths: string[]) => void;
   setGitPanel: (patch: Partial<GitPanelPrefs>) => void;
 }
 
@@ -425,6 +431,35 @@ export const useWorkspaceStore = create<WorkspaceState>()(
               options.pin === true,
             ),
           ),
+
+        retargetFileTabs: (projectId, from, to) =>
+          update(projectId, (ws) => {
+            let changed = false;
+            const tabs = { ...ws.tabs };
+            for (const tab of Object.values(ws.tabs)) {
+              if (tab.kind !== 'file') continue;
+              const path = remapPath(tab.path, from, to);
+              if (path === null || path === tab.path) continue;
+              tabs[tab.id] = { ...tab, path };
+              changed = true;
+            }
+            return changed ? { ...ws, tabs } : ws;
+          }),
+
+        closeFileTabsUnder: (projectId, paths) =>
+          update(projectId, (ws) => {
+            const closing = Object.values(ws.tabs).filter(
+              (tab) => tab.kind === 'file' && paths.some((path) => isSameOrInside(tab.path, path)),
+            );
+            if (closing.length === 0) return ws;
+            const tabs = { ...ws.tabs };
+            let root = ws.root;
+            for (const tab of closing) {
+              delete tabs[tab.id];
+              root = removeTab(root, tab.id).root;
+            }
+            return { ...ws, root, tabs };
+          }),
 
         setGitPanel: (patch) => set((state) => ({ gitPanel: { ...state.gitPanel, ...patch } })),
       };

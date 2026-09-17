@@ -1,4 +1,5 @@
 import { AGENT_TYPE_LABELS } from '../cli/agentTypes.js';
+import { CODEX_CONFIG_EXAMPLE_MODEL } from '../models/catalog.js';
 import type { AgentType } from '../types/index.js';
 
 export interface BootstrapFile {
@@ -333,7 +334,7 @@ Docs: https://developers.openai.com/codex/config-advanced
 # Credentials, provider auth and profile selection can only be set at user level.
 # Docs: https://developers.openai.com/codex/config-advanced
 
-# model = "gpt-5-codex"
+# model = "${CODEX_CONFIG_EXAMPLE_MODEL}"
 # approval_policy = "on-request"
 # sandbox_mode = "workspace-write"
 `,

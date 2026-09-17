@@ -469,6 +469,9 @@ export async function deleteBranch(
   if (defaultBranch === sanitized) {
     throw new Error('Change the default branch before deleting this one.');
   }
+  if (sanitized === 'master') {
+    throw new Error('The master branch cannot be deleted.');
+  }
 
   const branches = await listBranches(cwd, { remote, branch: current });
   const info = branches.find((branch) => branch.name === sanitized);

@@ -22,6 +22,13 @@ export interface ComboboxProps {
   disabled?: boolean;
   /** Shows an "x" in place of the chevron once a value is selected, so it can be reset to empty. */
   clearable?: boolean;
+  /**
+   * Offers what was typed in the search box as a value of its own, for lists that can't be
+   * complete (model names, say). A value that matches no option is shown as typed.
+   */
+  allowCustom?: boolean;
+  /** Label for the typed-value row, given the typed text. */
+  customLabel?: (text: string) => string;
 }
 
 export function Combobox({
@@ -34,12 +41,28 @@ export function Combobox({
   className,
   disabled,
   clearable,
+  allowCustom,
+  customLabel = (text) => `Use "${text}"`,
 }: ComboboxProps): React.JSX.Element {
   const [open, setOpen] = React.useState(false);
-  const selected = options.find((o) => o.value === value);
+  const [search, setSearch] = React.useState('');
+  const selected =
+    options.find((o) => o.value === value) ??
+    (allowCustom && value ? { value, label: value } : undefined);
+  const typed = search.trim();
+  const showCustom =
+    allowCustom &&
+    typed.length > 0 &&
+    !options.some((o) => o.value.toLowerCase() === typed.toLowerCase());
 
   return (
-    <PopoverPrimitive.Root open={open} onOpenChange={setOpen}>
+    <PopoverPrimitive.Root
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next);
+        if (!next) setSearch('');
+      }}
+    >
       <PopoverPrimitive.Trigger asChild>
         <button
           type="button"
@@ -86,6 +109,8 @@ export function Combobox({
               <Search className="h-3.5 w-3.5 shrink-0 opacity-50" />
               <CommandPrimitive.Input
                 autoFocus
+                value={search}
+                onValueChange={setSearch}
                 placeholder={searchPlaceholder}
                 className="h-9 w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground"
               />
@@ -94,6 +119,21 @@ export function Combobox({
               <CommandPrimitive.Empty className="py-6 text-center text-sm text-muted-foreground">
                 {emptyText}
               </CommandPrimitive.Empty>
+              {showCustom ? (
+                <CommandPrimitive.Item
+                  // Always matches the filter, since its value is the search text itself.
+                  value={typed}
+                  onSelect={() => {
+                    onChange(typed);
+                    setOpen(false);
+                    setSearch('');
+                  }}
+                  className="flex cursor-pointer select-none items-center gap-2 rounded-md px-2 py-1.5 text-sm outline-none aria-selected:bg-primary/12 aria-selected:text-foreground"
+                >
+                  <Check className="h-3.5 w-3.5 shrink-0 opacity-0" />
+                  <span className="truncate font-mono text-xs">{customLabel(typed)}</span>
+                </CommandPrimitive.Item>
+              ) : null}
               {options.map((option) => (
                 <CommandPrimitive.Item
                   key={option.value}
@@ -101,6 +141,7 @@ export function Combobox({
                   onSelect={() => {
                     onChange(option.value);
                     setOpen(false);
+                    setSearch('');
                   }}
                   className="flex cursor-pointer select-none items-center gap-2 rounded-md px-2 py-1.5 text-sm outline-none aria-selected:bg-primary/12 aria-selected:text-foreground data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50"
                 >

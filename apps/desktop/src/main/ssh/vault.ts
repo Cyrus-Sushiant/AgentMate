@@ -1,57 +1,24 @@
-import {
-  createCipheriv,
-  createDecipheriv,
-  randomBytes,
-  scrypt as scryptCallback,
-  timingSafeEqual,
-} from 'node:crypto';
-import { promisify } from 'node:util';
+import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { safeStorage } from 'electron';
 import type {
   PassphraseSecretEnvelope,
   SecretEnvelope,
   SshVaultStatus,
+  StoredProjectEnvironment,
   StoredRdpServer,
   StoredSshServer,
 } from '../../shared/apiTypes';
+import { decryptWithKey, deriveKey, encryptWithKey } from '../crypto/aesGcm';
 import { store } from '../store';
 
-const scrypt = promisify(scryptCallback);
-
-const KEY_LENGTH = 32;
-const IV_LENGTH = 12;
 /** Encrypted under a just-derived key and stashed alongside the salt, so a wrong passkey is
  *  rejected right away instead of producing garbage the first time a server tries to connect. */
 const VERIFIER_PLAINTEXT = 'agentmate-ssh-vault';
 
+const LOCKED_MESSAGE = 'The vault is locked. Unlock it with your passkey first.';
+
 /** Cached for the running app session only; cleared on `before-quit`. Never persisted. */
 let unlockedKey: Buffer | null = null;
-
-async function deriveKey(passphrase: string, salt: string): Promise<Buffer> {
-  return (await scrypt(passphrase, salt, KEY_LENGTH)) as Buffer;
-}
-
-function encryptWithKey(plaintext: string, key: Buffer): PassphraseSecretEnvelope {
-  const iv = randomBytes(IV_LENGTH);
-  const cipher = createCipheriv('aes-256-gcm', key, iv);
-  const ciphertext = Buffer.concat([cipher.update(plaintext, 'utf-8'), cipher.final()]);
-  return {
-    mode: 'passphrase',
-    iv: iv.toString('base64'),
-    authTag: cipher.getAuthTag().toString('base64'),
-    ciphertext: ciphertext.toString('base64'),
-  };
-}
-
-function decryptWithKey(envelope: PassphraseSecretEnvelope, key: Buffer): string {
-  const decipher = createDecipheriv('aes-256-gcm', key, Buffer.from(envelope.iv, 'base64'));
-  decipher.setAuthTag(Buffer.from(envelope.authTag, 'base64'));
-  const plain = Buffer.concat([
-    decipher.update(Buffer.from(envelope.ciphertext, 'base64')),
-    decipher.final(),
-  ]);
-  return plain.toString('utf-8');
-}
 
 function verifyKey(key: Buffer, verifier: string): boolean {
   try {
@@ -111,39 +78,65 @@ export async function setPasskey(
   const salt = randomBytes(16).toString('base64');
   const nextKey = passphrase ? await deriveKey(passphrase, salt) : null;
 
-  // SSH and Remote Desktop servers share the one passkey, so both lists move together.
+  async function move(envelope: SecretEnvelope): Promise<SecretEnvelope>;
+  async function move(envelope: SecretEnvelope | undefined): Promise<SecretEnvelope | undefined>;
+  async function move(envelope: SecretEnvelope | undefined): Promise<SecretEnvelope | undefined> {
+    if (!envelope) return undefined;
+    const plaintext = await decryptSecret(envelope);
+    return nextKey ? encryptWithKey(plaintext, nextKey) : encryptWithSafeStorage(plaintext);
+  }
+
+  // SSH servers, Remote Desktop servers and project environments share the one passkey, so
+  // every list moves together.
   async function reencrypt<T extends { secretEnvelope?: SecretEnvelope }>(
     servers: T[],
   ): Promise<T[]> {
     return Promise.all(
-      servers.map(async (server) => {
-        if (!server.secretEnvelope) return server;
-        const plaintext = await decryptSecret(server.secretEnvelope);
-        const secretEnvelope = nextKey
-          ? encryptWithKey(plaintext, nextKey)
-          : await encryptWithSafeStorage(plaintext);
-        return { ...server, secretEnvelope };
-      }),
+      servers.map(async (server) =>
+        server.secretEnvelope
+          ? { ...server, secretEnvelope: await move(server.secretEnvelope) }
+          : server,
+      ),
     );
   }
 
   let sshServers: StoredSshServer[];
   let rdpServers: StoredRdpServer[];
+  let environments: StoredProjectEnvironment[];
   try {
     sshServers = await reencrypt(await store.getSshServers());
     rdpServers = await reencrypt(await store.getRdpServers());
+    environments = await Promise.all(
+      (await store.getProjectEnvironments()).map(async (environment) => ({
+        ...environment,
+        files: await Promise.all(
+          environment.files.map(async (file) => ({
+            ...file,
+            contentEnvelope: await move(file.contentEnvelope),
+          })),
+        ),
+        credentials: await Promise.all(
+          environment.credentials.map(async (credential) => ({
+            ...credential,
+            secretEnvelope: await move(credential.secretEnvelope),
+            notesEnvelope: await move(credential.notesEnvelope),
+          })),
+        ),
+      })),
+    );
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : String(error) };
   }
 
   await store.setSshServers(sshServers);
   await store.setRdpServers(rdpServers);
+  await store.setProjectEnvironments(environments);
   await store.setSshVault(nextKey ? { salt, verifier: makeVerifier(nextKey) } : null);
   unlockedKey = nextKey;
   return { ok: true };
 }
 
-async function encryptWithSafeStorage(plaintext: string): Promise<SecretEnvelope> {
+function encryptWithSafeStorage(plaintext: string): SecretEnvelope {
   if (!safeStorage.isEncryptionAvailable()) {
     throw new Error(
       'Secure storage is not available on this system. Set a Servers passkey to encrypt credentials.',
@@ -159,14 +152,19 @@ async function encryptWithSafeStorage(plaintext: string): Promise<SecretEnvelope
 export async function encryptSecret(plaintext: string): Promise<SecretEnvelope> {
   if (unlockedKey) return encryptWithKey(plaintext, unlockedKey);
   const vault = await store.getSshVault();
-  if (vault) throw new Error('Servers vault is locked. Unlock it with your passkey first.');
+  if (vault) throw new Error(LOCKED_MESSAGE);
   return encryptWithSafeStorage(plaintext);
+}
+
+/** Whether reading this secret needs the passkey, which is locked right now. */
+export function isLockedEnvelope(envelope: SecretEnvelope | undefined): boolean {
+  return envelope?.mode === 'passphrase' && unlockedKey == null;
 }
 
 export async function decryptSecret(envelope: SecretEnvelope): Promise<string> {
   if (envelope.mode === 'safeStorage') {
     return safeStorage.decryptString(Buffer.from(envelope.ciphertext, 'base64'));
   }
-  if (!unlockedKey) throw new Error('Servers vault is locked. Unlock it with your passkey first.');
+  if (!unlockedKey) throw new Error(LOCKED_MESSAGE);
   return decryptWithKey(envelope, unlockedKey);
 }

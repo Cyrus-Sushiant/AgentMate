@@ -1,5 +1,5 @@
 import type { GitChangeEntry, Project } from '@agentmat/core';
-import { findGroup } from '@agentmat/core';
+import { baseName, findGroup } from '@agentmat/core';
 import type { GitDiffSide, GitOpResult, WorkspaceGitState } from '@shared/apiTypes';
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
@@ -13,7 +13,10 @@ import {
   ChevronRight,
   CircleCheck,
   CodeCompare,
+  CollapseAll,
   FileCode,
+  FilePlus,
+  FolderPlus,
   FolderTree,
   GitBranch,
   GitCommit,
@@ -44,11 +47,17 @@ import { BranchesSection } from './BranchesSection';
 import { CommitBox } from './CommitBox';
 import { CommitsSection } from './CommitsSection';
 import { ExplorerSection } from './ExplorerSection';
+import { collapseAll, startCreateAtFocus } from './explorer/actions';
 import { GitFileRow } from './GitFileRow';
 import { HistorySection } from './HistorySection';
 import { PanelIconButton, type PanelTabDef, PanelTabs } from './PanelTabs';
 import { PipelinesSection } from './PipelinesSection';
-import { type GitActions, useGitActions, useWorkspaceGitState } from './useWorkspaceGit';
+import {
+  type GitActions,
+  openChangedFile,
+  useGitActions,
+  useWorkspaceGitState,
+} from './useWorkspaceGit';
 
 function HeaderButton({
   label,
@@ -346,11 +355,8 @@ function ChangeSections({
       );
   }
 
-  function openFile(path: string): void {
-    const separator = project.folderPath.includes('\\') ? '\\' : '/';
-    void window.agentmat.shell.openPath(
-      `${project.folderPath.replace(/[\\/]$/, '')}${separator}${path.replaceAll('/', separator)}`,
-    );
+  function openFile(entry: GitChangeEntry): void {
+    openChangedFile(project, state.projectPrefix, entry.path, entry.binary);
   }
 
   return (
@@ -422,7 +428,7 @@ function ChangeSections({
                           { pin },
                         )
                       }
-                      onOpenFile={() => openFile(entry.path)}
+                      onOpenFile={() => openFile(entry)}
                       onStage={
                         section.side === 'staged'
                           ? undefined
@@ -634,8 +640,18 @@ export function GitPanel({
       id: 'explorer',
       title: 'Explorer',
       icon: FolderTree,
+      toolbarTitle: baseName(project.folderPath) || project.name,
       actions: (
         <>
+          <PanelIconButton label="New File…" onClick={() => startCreateAtFocus(project, 'newFile')}>
+            <FilePlus className="h-2.5 w-2.5" />
+          </PanelIconButton>
+          <PanelIconButton
+            label="New Folder…"
+            onClick={() => startCreateAtFocus(project, 'newFolder')}
+          >
+            <FolderPlus className="h-2.5 w-2.5" />
+          </PanelIconButton>
           <PanelIconButton
             label="Open in VS Code"
             onClick={() =>
@@ -653,6 +669,9 @@ export function GitPanel({
             }
           >
             <RefreshCw className="h-2.5 w-2.5" />
+          </PanelIconButton>
+          <PanelIconButton label="Collapse Folders" onClick={() => collapseAll(project.id)}>
+            <CollapseAll className="h-2.5 w-2.5" />
           </PanelIconButton>
         </>
       ),

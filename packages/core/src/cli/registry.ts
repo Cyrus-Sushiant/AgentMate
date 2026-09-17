@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { CLI_MODEL_EXAMPLES } from '../models/catalog.js';
 
 export const SupportedOSSchema = z.enum(['win32', 'darwin', 'linux']);
 export type SupportedOS = z.infer<typeof SupportedOSSchema>;
@@ -81,7 +82,7 @@ export const CLI_REGISTRY: CliDefinition[] = [
     promptCommand: { command: 'claude', args: ['-p'] },
     promptInputMode: 'stdin',
     promptWriteArgs: ['--permission-mode', 'acceptEdits'],
-    argsExample: '--model sonnet',
+    argsExample: `--model ${CLI_MODEL_EXAMPLES['claude-code']}`,
     installCommand: {
       win32: 'npm install -g @anthropic-ai/claude-code',
       darwin: 'npm install -g @anthropic-ai/claude-code',
@@ -102,7 +103,7 @@ export const CLI_REGISTRY: CliDefinition[] = [
     promptCommand: { command: 'gemini', args: ['-p'] },
     promptInputMode: 'stdin',
     promptWriteArgs: ['--yolo'],
-    argsExample: '-m gemini-2.5-pro',
+    argsExample: `-m ${CLI_MODEL_EXAMPLES['gemini-cli']}`,
     installCommand: {
       win32: 'npm install -g @google/gemini-cli',
       darwin: 'npm install -g @google/gemini-cli',
@@ -125,7 +126,7 @@ export const CLI_REGISTRY: CliDefinition[] = [
     promptInputMode: 'stdin',
     // `--auto` is a `run` flag, so it must follow `run` in argv (see headlessPrompt write-arg order).
     promptWriteArgs: ['--auto'],
-    argsExample: '--model anthropic/claude-sonnet-4-5',
+    argsExample: `--model ${CLI_MODEL_EXAMPLES['opencode']}`,
     installCommand: {
       win32: 'npm install -g opencode-ai@latest',
       darwin: 'npm install -g opencode-ai@latest',
@@ -149,7 +150,7 @@ export const CLI_REGISTRY: CliDefinition[] = [
     promptCommand: { command: 'openclaude', args: ['-p'] },
     promptInputMode: 'stdin',
     promptWriteArgs: ['--permission-mode', 'acceptEdits'],
-    argsExample: '--model sonnet',
+    argsExample: `--model ${CLI_MODEL_EXAMPLES['openclaude']}`,
     installCommand: {
       win32: 'npm install -g @gitlawb/openclaude@latest',
       darwin: 'npm install -g @gitlawb/openclaude@latest',
@@ -173,7 +174,7 @@ export const CLI_REGISTRY: CliDefinition[] = [
     // ("unexpected argument '--full-auto'"). The exec equivalent is the sandbox policy, and
     // exec never prompts for approvals anyway.
     promptWriteArgs: ['--sandbox', 'workspace-write'],
-    argsExample: '--model gpt-5-codex',
+    argsExample: `--model ${CLI_MODEL_EXAMPLES['codex-cli']}`,
     installCommand: {
       win32: 'npm install -g @openai/codex',
       darwin: 'npm install -g @openai/codex',
@@ -197,7 +198,7 @@ export const CLI_REGISTRY: CliDefinition[] = [
     // missing value).
     promptCommand: { command: 'grok', args: ['-p'] },
     promptWriteArgs: ['--permission-mode', 'acceptEdits'],
-    argsExample: '--model grok-4',
+    argsExample: `--model ${CLI_MODEL_EXAMPLES['grok-cli']}`,
     installCommand: {
       win32: 'npm install -g @xai-official/grok',
       darwin: 'npm install -g @xai-official/grok',
@@ -218,7 +219,7 @@ export const CLI_REGISTRY: CliDefinition[] = [
     versionCommand: { command: 'cursor-agent', args: ['--version'] },
     promptCommand: { command: 'cursor-agent', args: ['-p'] },
     promptWriteArgs: ['--force'],
-    argsExample: '--model sonnet-4-thinking',
+    argsExample: `--model ${CLI_MODEL_EXAMPLES['cursor-cli']}`,
     installCommand: {
       win32: "irm 'https://cursor.com/install?win32=true' | iex",
       darwin: 'curl https://cursor.com/install -fsS | bash',
@@ -249,7 +250,7 @@ export const CLI_REGISTRY: CliDefinition[] = [
     promptCommand: { command: 'copilot', args: ['-s'] },
     promptInputMode: 'stdin',
     promptWriteArgs: ['--allow-all-tools'],
-    argsExample: '--model claude-sonnet-4.5',
+    argsExample: `--model ${CLI_MODEL_EXAMPLES['copilot-cli']}`,
     installCommand: {
       win32: 'npm install -g @github/copilot',
       darwin: 'npm install -g @github/copilot',
@@ -289,7 +290,7 @@ export const CLI_REGISTRY: CliDefinition[] = [
     promptCommand: { command: 'qwen', args: ['-p'] },
     promptInputMode: 'stdin',
     promptWriteArgs: ['--yolo'],
-    argsExample: '-m qwen3-coder-plus',
+    argsExample: `-m ${CLI_MODEL_EXAMPLES['qwen-cli']}`,
     installCommand: {
       win32: 'npm install -g @qwen-code/qwen-code',
       darwin: 'npm install -g @qwen-code/qwen-code',
@@ -307,7 +308,7 @@ export const CLI_REGISTRY: CliDefinition[] = [
     executableNames: ['aider'],
     detectCommand: { command: 'aider', args: ['--version'] },
     versionCommand: { command: 'aider', args: ['--version'] },
-    argsExample: '--model sonnet',
+    argsExample: `--model ${CLI_MODEL_EXAMPLES['aider']}`,
     installCommand: {
       win32: 'pipx install aider-chat',
       darwin: 'pipx install aider-chat',
@@ -357,7 +358,7 @@ export const CLI_REGISTRY: CliDefinition[] = [
     detectCommand: { command: 'cline', args: ['--version'] },
     versionCommand: { command: 'cline', args: ['--version'] },
     promptCommand: { command: 'cline', args: ['-y'] },
-    argsExample: '--model claude-sonnet-4-5',
+    argsExample: `--model ${CLI_MODEL_EXAMPLES['cline-cli']}`,
     installCommand: {
       win32: 'npm install -g cline',
       darwin: 'npm install -g cline',
@@ -376,7 +377,7 @@ export const CLI_REGISTRY: CliDefinition[] = [
     detectCommand: { command: 'cn', args: ['--version'] },
     versionCommand: { command: 'cn', args: ['--version'] },
     promptCommand: { command: 'cn', args: ['-p'] },
-    argsExample: '--model owner/package',
+    argsExample: `--model ${CLI_MODEL_EXAMPLES['continue-cli']}`,
     installCommand: {
       win32: 'npm install -g @continuedev/cli',
       darwin: 'npm install -g @continuedev/cli',
@@ -401,7 +402,7 @@ export const CLI_REGISTRY: CliDefinition[] = [
     promptInputMode: 'stdin',
     // No promptWriteArgs: pi has no permission popups, so its write/edit/bash tools run
     // as-is, and the project trust prompt never appears in non-interactive mode.
-    argsExample: '--model sonnet',
+    argsExample: `--model ${CLI_MODEL_EXAMPLES['pi']}`,
     // `--ignore-scripts` is what pi's own install docs recommend; it needs no lifecycle scripts.
     installCommand: {
       win32: 'npm install -g --ignore-scripts @earendil-works/pi-coding-agent',

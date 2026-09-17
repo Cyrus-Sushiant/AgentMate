@@ -8,8 +8,8 @@ import { queryKeys } from '@/lib/queryKeys';
 import { confirmDialog } from '@/stores/confirmStore';
 
 /**
- * The Servers passkey badge and buttons. SSH and Remote Desktop servers share one passkey,
- * so both tabs show the same controls; each tab owns its unlock dialog.
+ * The vault passkey badge and buttons. SSH servers, Remote Desktop servers and project
+ * environments share one passkey, so each place shows the same controls and owns its unlock dialog.
  */
 export function ServersVaultControls({
   onRequestDialog,
@@ -25,9 +25,9 @@ export function ServersVaultControls({
 
   async function removePasskey(): Promise<void> {
     const confirmed = await confirmDialog({
-      title: 'Remove the Servers passkey?',
+      title: 'Remove the vault passkey?',
       description:
-        'Saved passwords and key passphrases for SSH and Remote Desktop go back to OS-keychain-only protection.',
+        'Saved SSH and Remote Desktop passwords and project environment secrets go back to OS-keychain-only protection.',
       confirmLabel: 'Remove',
       variant: 'destructive',
     });
@@ -42,7 +42,7 @@ export function ServersVaultControls({
 
   if (!vault.hasPasskey) {
     return (
-      <SimpleTooltip label="Encrypt saved passwords and key passphrases with a passkey instead of just the OS keychain">
+      <SimpleTooltip label="Encrypt saved server passwords and project environment secrets with a passkey instead of just the OS keychain">
         <Button size="sm" variant="ghost" onClick={() => onRequestDialog('set')}>
           <Lock className="h-3.5 w-3.5" /> Protect with a passkey
         </Button>
@@ -63,12 +63,12 @@ export function ServersVaultControls({
       <Badge variant="success" className="gap-1.5">
         <LockOpen className="h-3 w-3" /> Vault unlocked
       </Badge>
-      <SimpleTooltip label="Change the Servers passkey">
+      <SimpleTooltip label="Change the vault passkey">
         <Button size="icon" variant="ghost" onClick={() => onRequestDialog('set')}>
           <Key className="h-3.5 w-3.5" />
         </Button>
       </SimpleTooltip>
-      <SimpleTooltip label="Remove the Servers passkey">
+      <SimpleTooltip label="Remove the vault passkey">
         <Button size="icon" variant="ghost" onClick={() => void removePasskey()}>
           <Lock className="h-3.5 w-3.5" />
         </Button>

@@ -161,7 +161,7 @@ export function registerRdpHandlers(): void {
     const server = (await store.getRdpServers()).find((s) => s.id === serverId);
     if (!server) throw new Error('This saved server no longer exists.');
     if (server.secretEnvelope?.mode === 'passphrase' && !(await getVaultStatus()).unlocked) {
-      throw new Error('Servers vault is locked. Unlock it with your passkey first.');
+      throw new Error('The vault is locked. Unlock it with your passkey first.');
     }
 
     const sessionId = randomUUID();
@@ -309,6 +309,11 @@ export function registerRdpHandlers(): void {
   ipcMain.handle(IPC.rdp.openDownloadFolder, async (event, downloadId: string): Promise<void> => {
     await shell.openPath(downloadFolder(downloadId, event.sender.id));
   });
+}
+
+/** How many Remote Desktop sessions are open, for the confirmation shown before the app closes. */
+export function openRdpSessionCount(): number {
+  return sessions.size;
 }
 
 /** Called from `before-quit`. */

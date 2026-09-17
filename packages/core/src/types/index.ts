@@ -1,4 +1,5 @@
 import type { CliArgsMap } from '../cli/args.js';
+import type { CliLaunchDefaultsMap } from '../cli/launchDefaults.js';
 import type { CommitMessageSettings } from '../git/commitMessage.js';
 import type { GrammarSettings } from '../grammar/languagetool.js';
 import type { ProxySettings } from '../network/proxy.js';
@@ -328,6 +329,11 @@ export interface AppSettings {
    * suggestions, version bumps, skill audits) and terminal launches.
    */
   cliArgs: CliArgsMap;
+  /**
+   * Model, effort, and permission mode per CLI id, added only when AgentMate opens that CLI in a
+   * terminal. A field left unset adds no flag, so the CLI keeps its own default.
+   */
+  cliLaunchDefaults: CliLaunchDefaultsMap;
   /**
    * CLI_REGISTRY ids in the order agents are listed wherever the user picks one to launch
    * (the Workspace launcher and pane tiles). CLIs missing from it follow in registry order.

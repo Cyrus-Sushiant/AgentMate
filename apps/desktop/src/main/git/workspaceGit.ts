@@ -1,18 +1,28 @@
 import { randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
-import { lstat, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { lstat, mkdir, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { dirname, isAbsolute, join, relative, resolve } from 'node:path';
-import { type GitChangeEntry, parseNumstatZ, parseStatusV2, withNumstat } from '@agentmat/core';
+import {
+  applyLineEdits,
+  editsInLineRanges,
+  type GitChangeEntry,
+  lineEditCount,
+  parseNumstatZ,
+  parseStatusV2,
+  withNumstat,
+} from '@agentmat/core';
 import { shell } from 'electron';
 import type {
+  GitApplyLinesInput,
   GitDiffSide,
   GitDiscardResult,
   GitFileDiff,
+  GitLineRanges,
   GitPendingOperation,
   WorkspaceGitState,
 } from '../../shared/apiTypes';
 import { gitOrNull } from './plumbing';
-import { runGit } from './versionReview';
+import { runGit, splitFile } from './versionReview';
 
 /** Past this many untracked files the list is cut; a missing .gitignore should not flood the panel. */
 const MAX_UNTRACKED = 2000;
@@ -39,6 +49,7 @@ export const EMPTY_WORKSPACE_GIT_STATE: WorkspaceGitState = {
   unstaged: [],
   untracked: [],
   untrackedTruncated: false,
+  projectPrefix: '',
 };
 
 interface RepoLocation {
@@ -71,7 +82,7 @@ export async function readWorkspaceGitState(cwd: string): Promise<WorkspaceGitSt
   const repo = await locateRepo(cwd);
   if (!repo) return EMPTY_WORKSPACE_GIT_STATE;
   const { root } = repo;
-  const [status, unstagedStat, stagedStat, remotes] = await Promise.all([
+  const [status, unstagedStat, stagedStat, remotes, realFolder] = await Promise.all([
     // --no-optional-locks keeps the read from rewriting the index, which the watcher would
     // otherwise see as a change and answer with another read.
     gitOrNull(root, [
@@ -85,7 +96,9 @@ export async function readWorkspaceGitState(cwd: string): Promise<WorkspaceGitSt
     gitOrNull(root, ['--no-optional-locks', 'diff', '--numstat', '-z']),
     gitOrNull(root, ['--no-optional-locks', 'diff', '--cached', '--numstat', '-z']),
     gitOrNull(root, ['remote']),
+    realpath(cwd).catch(() => resolve(cwd)),
   ]);
+  const prefix = relative(root, realFolder);
   const parsed = parseStatusV2(status ?? '');
   return {
     isRepo: true,
@@ -102,6 +115,8 @@ export async function readWorkspaceGitState(cwd: string): Promise<WorkspaceGitSt
     unstaged: withNumstat(parsed.unstaged, parseNumstatZ(unstagedStat ?? '')),
     untracked: parsed.untracked.slice(0, MAX_UNTRACKED),
     untrackedTruncated: parsed.untracked.length > MAX_UNTRACKED,
+    projectPrefix:
+      prefix.startsWith('..') || isAbsolute(prefix) ? '' : prefix.replaceAll('\\', '/'),
   };
 }
 
@@ -207,14 +222,19 @@ export async function discardPaths(
     await withPathspecs(root, ['restore', '--worktree'], paths);
   }
 
-  const token = randomUUID();
-  discardBackups.set(token, { root, files, expiresAt: now + UNDO_TTL_MS });
   const count = paths.length;
   return {
     ok: true,
     message: `Discarded changes in ${count} file${count === 1 ? '' : 's'}.`,
-    undoToken: token,
+    undoToken: rememberDiscard(root, files, now),
   };
+}
+
+/** Holds on to the bytes a discard replaced, and returns the token that puts them back. */
+function rememberDiscard(root: string, files: DiscardBackup['files'], now: number): string {
+  const token = randomUUID();
+  discardBackups.set(token, { root, files, expiresAt: now + UNDO_TTL_MS });
+  return token;
 }
 
 export async function undoDiscard(token: string): Promise<void> {
@@ -381,5 +401,198 @@ export async function readFileDiff(
   const binary = looksBinary(original) || looksBinary(modified);
   const text = (buffer: Buffer | null): string =>
     tooLarge || binary || !buffer ? '' : buffer.toString('utf8');
-  return { path, original: text(original), modified: text(modified), binary, tooLarge };
+  const ids = tooLarge || binary ? {} : await diffSideIds(root, path, side, origPath, false);
+  return { path, original: text(original), modified: text(modified), binary, tooLarge, ...ids };
+}
+
+/** The blob a spec like `HEAD:path` or `:0:path` names, or null when there is none. */
+async function resolveBlobId(root: string, spec: string): Promise<string | null> {
+  const id = ((await gitOrNull(root, ['rev-parse', '--verify', '--quiet', spec])) ?? '').trim();
+  return OBJECT_ID_PATTERN.test(id) ? id : null;
+}
+
+/** The id of an empty file, written to the object store so it reads back like any other blob. */
+async function emptyBlobId(root: string): Promise<string> {
+  return (await runGit(root, ['hash-object', '-w', '--stdin'], '')).toString('utf8').trim();
+}
+
+/**
+ * The id a working tree file would get if it were staged now (filters applied), or with `raw`
+ * the id of its exact bytes. With `write` the blob also goes into the object store.
+ */
+async function hashWorking(
+  root: string,
+  path: string,
+  options: { write: boolean; raw?: boolean },
+): Promise<string | null> {
+  if (!(await isFile(join(root, path)))) return null;
+  const args = ['hash-object'];
+  if (options.write) args.push('-w');
+  if (options.raw) args.push('--no-filters');
+  const id = (await runGit(root, [...args, '--', path])).toString('utf8').trim();
+  return OBJECT_ID_PATTERN.test(id) ? id : null;
+}
+
+/** Stored-form blob ids of both sides of a diff, matching what readFileDiff shows. */
+async function diffSideIds(
+  root: string,
+  path: string,
+  side: GitDiffSide,
+  origPath: string | undefined,
+  write: boolean,
+): Promise<{ originalId?: string; modifiedId?: string }> {
+  let originalId: string | null = null;
+  let modifiedId: string | null = null;
+  switch (side) {
+    case 'staged':
+      originalId =
+        (await resolveBlobId(root, `HEAD:${origPath ?? path}`)) ?? (await emptyBlobId(root));
+      modifiedId = await resolveBlobId(root, `:0:${path}`);
+      break;
+    case 'unstaged':
+      originalId =
+        (await resolveBlobId(root, `:0:${path}`)) ?? (await resolveBlobId(root, `HEAD:${path}`));
+      modifiedId = await hashWorking(root, path, { write });
+      break;
+    case 'untracked':
+      originalId = await emptyBlobId(root);
+      modifiedId = await hashWorking(root, path, { write });
+      break;
+    case 'conflict':
+      return {};
+  }
+  return originalId && modifiedId ? { originalId, modifiedId } : {};
+}
+
+const MAX_LINE_RANGES = 10_000;
+
+/** Checks line ranges that came from the renderer: 1-based pairs, each in order. */
+export function assertLineRanges(value: unknown): GitLineRanges {
+  const list = (ranges: unknown): [number, number][] => {
+    if (!Array.isArray(ranges) || ranges.length > MAX_LINE_RANGES) {
+      throw new Error('Those lines could not be read.');
+    }
+    return ranges.map((range) => {
+      const [from, to] = Array.isArray(range) ? range : [];
+      if (!Number.isInteger(from) || !Number.isInteger(to) || from < 1 || to < from) {
+        throw new Error('Those lines could not be read.');
+      }
+      return [from, to];
+    });
+  };
+  const ranges = (value ?? {}) as Partial<GitLineRanges>;
+  return { original: list(ranges.original), modified: list(ranges.modified) };
+}
+
+/** The mode of a path's index entry, when it is a plain file that can be split into lines. */
+async function indexMode(root: string, path: string): Promise<string | null> {
+  const out = await runGit(root, ['--literal-pathspecs', 'ls-files', '--stage', '-z', '--', path]);
+  const mode = /^(\d{6}) /.exec(out.toString('utf8'))?.[1] ?? null;
+  return mode === '100644' || mode === '100755' ? mode : null;
+}
+
+/** Puts new content in the index for one path, leaving the working file alone. */
+async function writeIndexEntry(
+  root: string,
+  path: string,
+  mode: string,
+  content: string,
+): Promise<void> {
+  const stored = await runGit(
+    root,
+    ['hash-object', '-w', '--no-filters', '--stdin'],
+    Buffer.from(content, 'latin1'),
+  );
+  const id = stored.toString('utf8').trim();
+  if (!OBJECT_ID_PATTERN.test(id)) throw new Error(`Could not store the new content of ${path}.`);
+  await runGit(root, ['update-index', '--add', '--cacheinfo', mode, id, path]);
+}
+
+/** The mode a new file gets when part of it is staged. */
+async function untrackedMode(root: string, path: string): Promise<string> {
+  if (process.platform === 'win32') return '100644';
+  return ((await lstat(join(root, path))).mode & 0o111) !== 0 ? '100755' : '100644';
+}
+
+/**
+ * Stages, unstages or discards only the picked lines of one file. The ids the diff was read with
+ * have to still match, so line numbers from a file that has moved on are never applied to it.
+ *
+ * Stage and unstage build a new index entry, so they split the stored (filtered) form of both
+ * sides. Discard rewrites the working file, so it splits what a checkout would write against the
+ * exact bytes on disk, and keeps those bytes for undo the way a whole-file discard does.
+ */
+export async function applyLineChange(
+  root: string,
+  request: Omit<GitApplyLinesInput, 'projectId'>,
+): Promise<GitDiscardResult> {
+  const { path, side, action, origPath } = request;
+  const ids = await diffSideIds(root, path, side, origPath, true);
+  if (
+    !ids.originalId ||
+    !ids.modifiedId ||
+    ids.originalId !== request.originalId ||
+    ids.modifiedId !== request.modifiedId
+  ) {
+    throw new Error(`${path} changed after the diff was shown. Try again.`);
+  }
+  const discard = action === 'discard';
+  const afterRawId = discard
+    ? await hashWorking(root, path, { write: true, raw: true })
+    : ids.modifiedId;
+  if (!afterRawId) throw new Error(`${path} is no longer a file on disk.`);
+
+  const split = await splitFile(root, path, {
+    beforeId: ids.originalId,
+    afterId: ids.modifiedId,
+    beforeRawId: discard ? null : ids.originalId,
+    afterRawId,
+  });
+  if (!split) {
+    throw new Error(`${path} can't be split into separate lines. Use the whole file instead.`);
+  }
+  const { before, after, hunks } = split;
+  const total = hunks.reduce((sum, hunk) => sum + lineEditCount(hunk), 0);
+  const picked = editsInLineRanges(hunks, request.ranges);
+  if (picked.size === 0) throw new Error('The selected lines have no changes.');
+  const every = picked.size === total;
+  const lines = `${picked.size} line${picked.size === 1 ? '' : 's'}`;
+
+  if (action === 'stage') {
+    if (every) {
+      await stagePaths(root, [path]);
+      return { ok: true, message: 'Staged.' };
+    }
+    const mode =
+      side === 'untracked' ? await untrackedMode(root, path) : await indexMode(root, path);
+    if (!mode) throw new Error(`${path} can't be staged line by line. Stage the whole file.`);
+    const leave = new Set(Array.from({ length: total }, (_, index) => index));
+    for (const index of picked) leave.delete(index);
+    await writeIndexEntry(root, path, mode, applyLineEdits(before, after, hunks, leave));
+    return { ok: true, message: `Staged ${lines}.` };
+  }
+
+  if (action === 'unstage') {
+    // Taking every line out of a new file leaves nothing of it worth keeping in the index.
+    if (every && !(await resolveBlobId(root, `HEAD:${origPath ?? path}`))) {
+      await unstagePaths(root, [path]);
+      return { ok: true, message: 'Unstaged.' };
+    }
+    const mode = await indexMode(root, path);
+    if (!mode) throw new Error(`${path} can't be unstaged line by line. Unstage the whole file.`);
+    await writeIndexEntry(root, path, mode, applyLineEdits(before, after, hunks, picked));
+    return { ok: true, message: `Unstaged ${lines}.` };
+  }
+
+  if (every && side === 'untracked') return discardPaths(root, [path], 'untracked');
+  const now = Date.now();
+  pruneBackups(now);
+  const files = [{ path, blobId: await backupBlob(root, path) }];
+  const content = applyLineEdits(before, after, hunks, picked);
+  await writeFile(join(root, path), Buffer.from(content, 'latin1'));
+  return {
+    ok: true,
+    message: `Discarded ${lines}.`,
+    undoToken: rememberDiscard(root, files, now),
+  };
 }

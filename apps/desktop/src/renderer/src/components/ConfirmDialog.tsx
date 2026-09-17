@@ -18,7 +18,9 @@ export function ConfirmDialogHost(): React.JSX.Element {
       <DialogContent>
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
-          {description && <DialogDescription>{description}</DialogDescription>}
+          {description && (
+            <DialogDescription className="whitespace-pre-line">{description}</DialogDescription>
+          )}
         </DialogHeader>
         <DialogFooter>
           <Button variant="outline" onClick={() => resolveConfirm(false)}>

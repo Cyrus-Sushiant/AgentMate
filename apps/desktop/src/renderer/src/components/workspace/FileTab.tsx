@@ -7,14 +7,16 @@ import { MonacoEditor } from '@/components/editor/MonacoEditor';
 import { ExternalLink, File, RefreshCw, Save, Spinner } from '@/components/icons';
 import { Skeleton } from '@/components/ui/skeleton';
 import { SimpleTooltip } from '@/components/ui/tooltip';
+import { queryKeys } from '@/lib/queryKeys';
 import { cn } from '@/lib/utils';
+import { setFileDirty } from '@/stores/explorerStore';
 import type { WorkspaceFileTab } from '@/stores/workspaceStore';
 
 /** Files past this open read-only: Monaco copes, but editing a multi-megabyte file here is a trap. */
 const MAX_EDITABLE_CHARS = 2_000_000;
 
 export function fileQueryKey(path: string): readonly unknown[] {
-  return ['workspace-file', path];
+  return queryKeys.workspaceFile(path);
 }
 
 /** A project file in an editor tab: Ctrl+S saves, and a clean file follows changes on disk. */
@@ -37,6 +39,12 @@ export default function FileTab({
   const containerRef = useRef<HTMLDivElement>(null);
   const dirty = draft !== null && draft !== file.data;
   const tooLarge = (file.data?.length ?? 0) > MAX_EDITABLE_CHARS;
+
+  // The explorer warns before deleting a file that has unsaved edits here.
+  useEffect(() => {
+    setFileDirty(tab.path, dirty);
+    return () => setFileDirty(tab.path, false);
+  }, [tab.path, dirty]);
 
   const relative = tab.path.startsWith(project.folderPath)
     ? tab.path.slice(project.folderPath.length).replace(/^[\\/]/, '')

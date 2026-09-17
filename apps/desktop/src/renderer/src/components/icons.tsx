@@ -49,6 +49,7 @@ import {
   faEye,
   faEyeSlash,
   faFile,
+  faFileCirclePlus,
   faFileCode,
   faFileLines,
   faFilter,
@@ -106,6 +107,7 @@ import {
   faSpellCheck,
   faSpinner,
   faSquareCheck,
+  faSquareMinus,
   faStar,
   faStop,
   faStrikethrough,
@@ -334,6 +336,8 @@ export const Spinner = makeIcon(faSpinner);
 
 // Security scan icons.
 export const FileCode = makeIcon(faFileCode);
+export const FilePlus = makeIcon(faFileCirclePlus);
+export const CollapseAll = makeIcon(faSquareMinus);
 export const Filter = makeIcon(faFilter);
 
 // Skill favorites and usage icons.

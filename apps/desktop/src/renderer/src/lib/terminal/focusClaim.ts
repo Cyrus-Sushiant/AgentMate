@@ -4,8 +4,9 @@
  * and once it closes it hands focus to the page, or to whatever had it before, often another
  * terminal. The user then had to click into the new terminal before typing.
  *
- * So for a short while after a terminal asks for focus, it takes focus back whenever focus has
- * landed nowhere useful. Any click ends that early, since wherever the user clicks is on purpose.
+ * So for a short while after a terminal asks for focus, it takes focus back whenever focus is
+ * anywhere else, including the Run button that was just clicked or the trigger a closing menu
+ * returns focus to. Any click or Tab ends that early, since that is the user moving on purpose.
  */
 
 export interface FocusClaimTarget {
@@ -25,10 +26,8 @@ let current: { target: FocusClaimTarget; until: number; frame: number; started: 
 
 function focusIsLost(target: FocusClaimTarget): boolean {
   const active = document.activeElement;
-  if (!active || active === document.body || !active.isConnected) return true;
-  if (target.element.contains(active)) return false;
-  // Another terminal's input, e.g. the one a closing dialog put focus back into.
-  return active.classList.contains('xterm-helper-textarea');
+  if (!active || !active.isConnected) return true;
+  return !target.element.contains(active);
 }
 
 function endClaim(): void {
@@ -36,6 +35,11 @@ function endClaim(): void {
   cancelAnimationFrame(current.frame);
   current = null;
   window.removeEventListener('pointerdown', endClaim, true);
+  window.removeEventListener('keydown', endClaimOnTab, true);
+}
+
+function endClaimOnTab(event: KeyboardEvent): void {
+  if (event.key === 'Tab') endClaim();
 }
 
 export function claimTerminalFocus(target: FocusClaimTarget): void {
@@ -45,6 +49,7 @@ export function claimTerminalFocus(target: FocusClaimTarget): void {
   const claim = { target, until: Date.now() + OPEN_WAIT_MS, frame: 0, started: false };
   current = claim;
   window.addEventListener('pointerdown', endClaim, true);
+  window.addEventListener('keydown', endClaimOnTab, true);
   const tick = (): void => {
     if (current !== claim) return;
     const now = Date.now();

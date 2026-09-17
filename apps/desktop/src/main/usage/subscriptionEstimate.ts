@@ -1,4 +1,5 @@
 import {
+  CLAUDE_WEEKLY_METERED_MODEL,
   estimateCost,
   FABLE_WEEK_LABEL,
   metersFableWeekly,
@@ -78,7 +79,7 @@ function budgetsFor(plan: SubscriptionPlan | null): PlanBudget {
 
 /** Entries billed against the Fable bucket, matched the way pricing matches ids. */
 function isFableModel(model: string): boolean {
-  return model.toLowerCase().includes('fable');
+  return model.toLowerCase().includes(CLAUDE_WEEKLY_METERED_MODEL.family.toLowerCase());
 }
 
 function floorToHour(ms: number): number {

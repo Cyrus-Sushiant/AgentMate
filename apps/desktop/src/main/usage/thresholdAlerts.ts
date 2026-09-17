@@ -1,4 +1,4 @@
-import { getUsageProvider, type SubscriptionWindowKey } from '@agentmat/core';
+import { FABLE_WEEK_LABEL, getUsageProvider, type SubscriptionWindowKey } from '@agentmat/core';
 import { BrowserWindow } from 'electron';
 import { IPC } from '../../shared/ipcChannels';
 import { showOsNotification } from '../notifications/osNotification';
@@ -18,7 +18,7 @@ const TICK_MS = 60_000;
 const WINDOW_LABELS: Record<SubscriptionWindowKey, string> = {
   session: 'Session (5h)',
   week: 'Weekly',
-  'week-fable': 'Weekly (Fable)',
+  'week-fable': FABLE_WEEK_LABEL,
   month: 'Monthly',
 };
 

@@ -1,31 +1,117 @@
 /**
- * A one-line snippet typed into a freshly spawned shell so it reports, on its own, whenever a
- * fresh prompt is ready for input. The terminal renderer listens for that marker (an OSC 7750
- * sequence) to know it can safely take over the current input line, e.g. to show a pasted file
- * as a short chip instead of its whole path. Each snippet chains onto whatever prompt hook the
- * shell (or the user's own dotfiles, or a prompt framework like Starship) already has, rather
- * than replacing it, so a custom prompt keeps working exactly as it did before.
+ * Makes a freshly spawned shell report, on its own, whenever a fresh prompt is ready for input.
+ * The terminal renderer listens for that marker (an OSC 7750 sequence) to know it can safely take
+ * over the current input line, e.g. to show a pasted file as a short chip instead of its whole
+ * path. Each hook chains onto whatever prompt hook the shell (or the user's own dotfiles, or a
+ * prompt framework like Starship) already has, rather than replacing it, so a custom prompt keeps
+ * working exactly as it did before.
+ *
+ * The hook goes in through the shell's launch arguments or environment, never by typing it into
+ * the shell. Typed input gets echoed back, so the user would see the whole snippet printed at the
+ * top of every new terminal.
  */
 
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
 const MARKER = '\\033]7750;AgentMate:PromptReady:1\\007';
+
+export interface ShellLaunch {
+  args: string[];
+  /** Variables to set on top of the shell's normal environment. */
+  env: Record<string, string>;
+}
 
 function basename(shell: string): string {
   return shell.toLowerCase().replace(/\\/g, '/').split('/').pop() ?? '';
 }
 
-function bashSnippet(): string {
-  return `PROMPT_COMMAND="\${PROMPT_COMMAND:+$PROMPT_COMMAND$'\\n'}printf '${MARKER}'"\r`;
+let integrationDir: string | null = null;
+
+/**
+ * A private folder (mode 0700, unique name) for the rc files bash and zsh are pointed at. A fixed
+ * path under a shared /tmp could be created first by another user, who would then get to run code
+ * in every terminal. Made again if something cleans the temp folder while the host is running.
+ */
+function writeIntegrationFile(name: string, content: string): string {
+  if (!integrationDir || !existsSync(integrationDir)) {
+    integrationDir = mkdtempSync(join(tmpdir(), 'agentmate-shell-'));
+    const dir = integrationDir;
+    process.once('exit', () => {
+      try {
+        rmSync(dir, { recursive: true, force: true });
+      } catch {
+        // best effort, it's a temp folder
+      }
+    });
+  }
+  const path = join(integrationDir, name);
+  writeFileSync(path, content, { mode: 0o600 });
+  return path;
 }
 
-function zshSnippet(): string {
-  return (
-    '(( ${+precmd_functions} )) || typeset -ga precmd_functions; ' +
-    `agentmate_precmd() { printf '${MARKER}' }; precmd_functions+=(agentmate_precmd)\r`
+const BASH_HOOK = `PROMPT_COMMAND="\${PROMPT_COMMAND:+$PROMPT_COMMAND$'\\n'}printf '${MARKER}'"`;
+
+/** An interactive non-login bash reads only ~/.bashrc, so the rc file does that first. */
+function bashLaunch(): ShellLaunch {
+  const rcfile = writeIntegrationFile(
+    'bashrc',
+    `if [ -f ~/.bashrc ]; then . ~/.bashrc; fi\n${BASH_HOOK}\n`,
   );
+  return { args: ['--rcfile', rcfile], env: {} };
 }
 
-function fishSnippet(): string {
-  return `function __agentmate_marker --on-event fish_prompt; printf '${MARKER}'; end\r`;
+/**
+ * zsh has no --rcfile, so ZDOTDIR points it at a folder whose .zshenv and .zshrc load the user's
+ * real ones. ZDOTDIR is swapped back to the user's value while their files run (and left there once
+ * .zshrc is done), so anything that reads it, including a .zshenv that moves it, sees what it
+ * would outside AgentMate.
+ */
+function zshLaunch(env: Record<string, string> | undefined): ShellLaunch {
+  writeIntegrationFile(
+    '.zshenv',
+    [
+      '__agentmate_zdotdir=$ZDOTDIR',
+      'ZDOTDIR=${AGENTMATE_USER_ZDOTDIR:-$HOME}',
+      '[[ -f $ZDOTDIR/.zshenv ]] && . $ZDOTDIR/.zshenv',
+      'AGENTMATE_USER_ZDOTDIR=$ZDOTDIR',
+      'ZDOTDIR=$__agentmate_zdotdir',
+      'unset __agentmate_zdotdir',
+      '',
+    ].join('\n'),
+  );
+  writeIntegrationFile(
+    '.zshrc',
+    [
+      'ZDOTDIR=$AGENTMATE_USER_ZDOTDIR',
+      'unset AGENTMATE_USER_ZDOTDIR',
+      '[[ -f $ZDOTDIR/.zshrc ]] && . $ZDOTDIR/.zshrc',
+      '(( ${+precmd_functions} )) || typeset -ga precmd_functions',
+      `agentmate_precmd() { printf '${MARKER}' }`,
+      'precmd_functions+=(agentmate_precmd)',
+      '',
+    ].join('\n'),
+  );
+  const userZdotdir = env?.ZDOTDIR ?? process.env.ZDOTDIR;
+  return {
+    args: [],
+    env: {
+      ZDOTDIR: integrationDir as string,
+      ...(userZdotdir ? { AGENTMATE_USER_ZDOTDIR: userZdotdir } : {}),
+    },
+  };
+}
+
+/** fish runs --init-command after its own config, right before the first prompt. */
+function fishLaunch(): ShellLaunch {
+  return {
+    args: [
+      '--init-command',
+      `function __agentmate_marker --on-event fish_prompt; printf '${MARKER}'; end`,
+    ],
+    env: {},
+  };
 }
 
 // The marker is written as a side effect and the original prompt's own return value is passed
@@ -34,48 +120,57 @@ function fishSnippet(): string {
 // wide and desyncs every redraw. Appending the marker to the returned string instead puts it
 // in the string PSReadLine re-renders on each redraw, so it fires again at whatever column the
 // cursor happens to be at. Writing it here fires it once, when the prompt is really drawn.
-function powershellSnippet(): string {
-  return (
-    '$global:__agentmatePrevPrompt = $function:prompt; ' +
-    'function prompt { ' +
-    'Write-Host -NoNewline "$([char]27)]7750;AgentMate:PromptReady:1$([char]7)"; ' +
-    '& $global:__agentmatePrevPrompt ' +
-    '}\r'
-  );
+//
+// -Command runs after the user's profile, so $function:prompt is already their own. The script
+// has no double quotes on purpose: it travels as one Windows command line argument, and quotes
+// inside it get mangled differently by each PowerShell version.
+const POWERSHELL_HOOK =
+  '$global:__agentmatePrevPrompt = $function:prompt; ' +
+  'function prompt { ' +
+  "Write-Host -NoNewline ([char]27 + ']7750;AgentMate:PromptReady:1' + [char]7); " +
+  '& $global:__agentmatePrevPrompt ' +
+  '}';
+
+function powershellLaunch(): ShellLaunch {
+  return { args: ['-NoLogo', '-NoExit', '-Command', POWERSHELL_HOOK], env: {} };
 }
 
-/** No raw ESC/BEL bytes here: `$E` is cmd's own macro, expanded when the prompt is drawn, not
- * when this line is "typed" into the shell. Terminated with ST (`$E\`) since cmd has no BEL
- * macro. Existing `PROMPT` (the user's own, or cmd's `$P$G` default) is kept, just prefixed. */
-function cmdSnippet(existingPrompt: string): string {
-  return `set PROMPT=$E]7750;AgentMate:PromptReady:1$E\\${existingPrompt}\r`;
+/** cmd reads PROMPT from its environment. `$E` is cmd's own escape macro, expanded when the prompt
+ * is drawn. Terminated with ST (`$E\`) since cmd has no BEL macro. Existing `PROMPT` (the user's
+ * own, or cmd's `$P$G` default) is kept, just prefixed. */
+function cmdLaunch(env: Record<string, string> | undefined): ShellLaunch {
+  const existing = env?.PROMPT ?? process.env.PROMPT ?? '$P$G';
+  return { args: [], env: { PROMPT: `$E]7750;AgentMate:PromptReady:1$E\\${existing}` } };
 }
 
 /**
- * The snippet for this shell, or null when the shell has no reliable prompt hook (plain `sh`) or
- * isn't recognized. Null means the shell simply never emits the marker, which is a safe no-op:
- * whatever depends on it just stays off, exactly like it does for an SSH session today.
+ * How to start this shell so it emits the marker. A shell with no reliable prompt hook (plain
+ * `sh`) or one that isn't recognized starts as is and simply never emits it, which is a safe
+ * no-op: whatever depends on the marker just stays off, exactly like it does for an SSH session.
  */
-export function buildPromptMarkerScript(
+export function buildShellLaunch(
   shell: string,
   platform: NodeJS.Platform,
   env: Record<string, string> | undefined,
-): string | null {
+): ShellLaunch {
   const name = basename(shell);
-  if (name === 'bash') return bashSnippet();
-  if (name === 'zsh') return zshSnippet();
-  if (name === 'fish') return fishSnippet();
+  try {
+    if (name === 'bash') return bashLaunch();
+    if (name === 'zsh') return zshLaunch(env);
+  } catch {
+    // Couldn't write the rc files. Start the shell plain rather than not at all.
+    return { args: [], env: {} };
+  }
+  if (name === 'fish') return fishLaunch();
   if (
     name === 'powershell.exe' ||
     name === 'pwsh.exe' ||
     name === 'pwsh' ||
     name === 'powershell'
   ) {
-    return powershellSnippet();
+    return powershellLaunch();
   }
-  if (name === 'cmd.exe' || name === 'cmd') {
-    return cmdSnippet(env?.PROMPT ?? process.env.PROMPT ?? '$P$G');
-  }
-  if (platform === 'win32' && name === '') return powershellSnippet();
-  return null;
+  if (name === 'cmd.exe' || name === 'cmd') return cmdLaunch(env);
+  if (platform === 'win32' && name === '') return powershellLaunch();
+  return { args: [], env: {} };
 }

@@ -1,4 +1,12 @@
 export const queryKeys = {
+  /** A project file open in an editor tab. */
+  workspaceFile: (path: string) => ['workspace-file', path] as const,
+  /** Prefix of every explorer listing for a project, so one invalidate refreshes the whole tree. */
+  workspaceExplorer: (projectId: string) => ['workspace-explorer', projectId] as const,
+  workspaceExplorerDir: (projectId: string, dir: string) =>
+    ['workspace-explorer', projectId, dir] as const,
+  workspaceExplorerIgnored: (projectId: string, dir: string) =>
+    ['workspace-explorer', projectId, dir, 'ignored'] as const,
   cliStatus: ['cli-status'] as const,
   projects: ['projects'] as const,
   project: (id: string) => ['projects', id] as const,
@@ -92,6 +100,7 @@ export const queryKeys = {
   sshServers: ['ssh-servers'] as const,
   sshVaultStatus: ['ssh-vault-status'] as const,
   rdpServers: ['rdp-servers'] as const,
+  projectEnvironments: (projectId: string) => ['project-environments', projectId] as const,
   /** Local LanguageTool install and server state, for Settings and the Tools card. */
   grammarLocalStatus: ['grammar-local-status'] as const,
   /** Which proxy the app is going through, and what this machine itself is set to. */

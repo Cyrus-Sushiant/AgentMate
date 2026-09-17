@@ -11,6 +11,7 @@ import type {
   CreatePullRequestResult,
   CreateTagInput,
   DeleteBranchInput,
+  GitApplyLinesInput,
   GitBranchHistory,
   GitDiffSide,
   GitDiscardResult,
@@ -103,7 +104,9 @@ import {
 } from '../git/workingTreeWatcher';
 import {
   abortOperation,
+  applyLineChange,
   assertCommitHash,
+  assertLineRanges,
   assertRepoPaths,
   commitStaged,
   discardPaths,
@@ -981,6 +984,44 @@ function registerWorkspaceHandlers(): void {
         return { ok: false, message: (error as Error).message };
       } finally {
         if (folder) void refreshWorkspaceState(projectId, folder);
+      }
+    },
+  );
+
+  ipcMain.handle(
+    IPC.git.applyLines,
+    async (_event, input: GitApplyLinesInput): Promise<GitDiscardResult> => {
+      let folder: string | null = null;
+      try {
+        const repo = await requireRepo(input?.projectId);
+        folder = repo.folder;
+        const { side, action } = input;
+        const fits =
+          action === 'unstage'
+            ? side === 'staged'
+            : (action === 'stage' || action === 'discard') &&
+              (side === 'unstaged' || side === 'untracked');
+        if (!fits) throw new Error('That change cannot be made to those lines.');
+        if (typeof input.originalId !== 'string' || typeof input.modifiedId !== 'string') {
+          throw new Error('Unknown file version.');
+        }
+        const [path] = assertRepoPaths(repo.root, [input.path]);
+        const [origPath] = input.origPath
+          ? assertRepoPaths(repo.root, [input.origPath])
+          : [undefined];
+        return await applyLineChange(repo.root, {
+          path,
+          origPath,
+          side,
+          action,
+          ranges: assertLineRanges(input.ranges),
+          originalId: input.originalId,
+          modifiedId: input.modifiedId,
+        });
+      } catch (error) {
+        return { ok: false, message: (error as Error).message };
+      } finally {
+        if (folder) void refreshWorkspaceState(input.projectId, folder);
       }
     },
   );

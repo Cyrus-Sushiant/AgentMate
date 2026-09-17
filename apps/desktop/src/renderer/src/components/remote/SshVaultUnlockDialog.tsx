@@ -82,12 +82,12 @@ export function SshVaultUnlockDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Lock className="h-4 w-4 text-primary" />
-            {mode === 'unlock' ? 'Unlock saved servers' : 'Protect saved servers with a passkey'}
+            {mode === 'unlock' ? 'Unlock the vault' : 'Protect the vault with a passkey'}
           </DialogTitle>
           <DialogDescription>
             {mode === 'unlock'
-              ? 'Enter your Servers passkey to connect or add servers this session.'
-              : "Encrypts every server's password and key passphrase with this passkey instead of just the OS keychain. If you forget it, those secrets cannot be recovered."}
+              ? 'Enter your vault passkey to use saved servers and project environments this session.'
+              : 'Encrypts saved server passwords, key passphrases and project environment secrets with this passkey instead of just the OS keychain. If you forget it, those secrets cannot be recovered.'}
           </DialogDescription>
         </DialogHeader>
         <div className="flex flex-col gap-3">

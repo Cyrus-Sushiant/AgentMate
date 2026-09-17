@@ -2,6 +2,7 @@ import { createReadStream } from 'node:fs';
 import { readdir, stat } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
+import { CODEX_LOG_FALLBACK_MODEL } from '@agentmat/core';
 
 // Parsing for the local-log usage providers (Claude Code, Codex). Deliberately
 // free of any `electron` / `@agentmat/core` import so this module can be loaded
@@ -279,7 +280,7 @@ function parseCodexLine(line: string, state: FileScanState): void {
     if (input + cached + output > 0) {
       state.entries.push({
         at,
-        model: state.model ?? 'gpt-5',
+        model: state.model ?? CODEX_LOG_FALLBACK_MODEL,
         // Codex's input_tokens already includes cached; split so we don't
         // double-count in the total.
         input: Math.max(0, input - cached),

@@ -1,8 +1,16 @@
+import { randomUUID } from 'node:crypto';
 import { readFile, writeFile } from 'node:fs/promises';
 import { extname } from 'node:path';
 import AdmZip from 'adm-zip';
 import { app, dialog, ipcMain } from 'electron';
-import type { BackupExportResult, BackupImportResult } from '../../shared/apiTypes';
+import type {
+  BackupExportOptions,
+  BackupExportResult,
+  BackupImportResult,
+  BackupOpenResult,
+  BackupRestoreOptions,
+  StoredProjectEnvironment,
+} from '../../shared/apiTypes';
 import { IPC } from '../../shared/ipcChannels';
 import {
   BACKUP_VERSION,
@@ -10,6 +18,13 @@ import {
   type BackupEnvelope,
   parseBackup,
 } from '../backup/envelope';
+import {
+  type EncryptedEnvironmentsSection,
+  readEnvironmentsSection,
+  sealEnvironments,
+  toStoredEnvironments,
+  unsealEnvironments,
+} from '../backup/environmentsCipher';
 import {
   exportAttachments,
   importAttachments,
@@ -22,6 +37,19 @@ import { skillAuditDb } from '../skillAuditDb';
 import { store } from '../store';
 
 const ZIP_ENTRY_NAME = 'backup.json';
+
+interface PendingRestore {
+  token: string;
+  data: BackupData;
+  warnings: string[];
+  environments: EncryptedEnvironmentsSection | null;
+}
+
+/**
+ * The backup picked by `backup:open`, held until `backup:restore` confirms it. Keeping it here
+ * means the file is read and checked once, and the renderer never gets to name a path to restore.
+ */
+let pendingRestore: PendingRestore | null = null;
 
 async function readCurrentData(): Promise<Required<BackupData>> {
   const blueprints = await store.getBlueprints();
@@ -76,7 +104,24 @@ async function writeData(data: BackupData): Promise<void> {
 export function registerBackupHandlers(): void {
   ipcMain.handle(
     IPC.backup.export,
-    async (_event, compress: boolean): Promise<BackupExportResult> => {
+    async (
+      _event,
+      compress: boolean,
+      options: BackupExportOptions = {},
+    ): Promise<BackupExportResult> => {
+      // Before the save dialog, so a locked vault is reported without a file picked for nothing.
+      let environments: EncryptedEnvironmentsSection | undefined;
+      if (options.environmentsPassword) {
+        try {
+          environments = await sealEnvironments(options.environmentsPassword);
+        } catch (error) {
+          return {
+            ok: false,
+            error: `Could not include project environments: ${error instanceof Error ? error.message : 'unknown error'}`,
+          };
+        }
+      }
+
       const dateStamp = new Date().toISOString().slice(0, 10);
       const result = await dialog.showSaveDialog({
         defaultPath: compress
@@ -92,7 +137,7 @@ export function registerBackupHandlers(): void {
         version: BACKUP_VERSION,
         exportedAt: new Date().toISOString(),
         appVersion: app.isPackaged ? app.getVersion() : 'dev',
-        data: await readCurrentData(),
+        data: { ...(await readCurrentData()), projectEnvironments: environments },
       };
       const json = JSON.stringify(envelope, null, 2);
 
@@ -116,7 +161,7 @@ export function registerBackupHandlers(): void {
     },
   );
 
-  ipcMain.handle(IPC.backup.import, async (): Promise<BackupImportResult> => {
+  ipcMain.handle(IPC.backup.open, async (): Promise<BackupOpenResult> => {
     const result = await dialog.showOpenDialog({
       properties: ['openFile'],
       filters: [{ name: 'AgentMate Backup', extensions: ['json', 'zip'] }],
@@ -141,19 +186,71 @@ export function registerBackupHandlers(): void {
     const backup = parseBackup(parsed);
     if (!backup.ok) return { ok: false, error: backup.error };
 
-    const snapshot = await readCurrentData();
-    try {
-      await writeData(backup.data);
-    } catch (error) {
-      // Put back what was there before rather than leaving a half-written store.
-      await writeData(snapshot).catch(() => undefined);
-      return {
-        ok: false,
-        error: `Could not restore that backup: ${error instanceof Error ? error.message : 'unknown error'}. Your existing data was left in place.`,
-      };
+    const rawData = (parsed as { data: Record<string, unknown> }).data;
+    const environments = readEnvironmentsSection(rawData.projectEnvironments);
+    const warnings = [...backup.warnings];
+    if (rawData.projectEnvironments !== undefined && !environments) {
+      warnings.push('The project environments in this backup could not be read and were skipped.');
     }
 
-    void petManager.syncFromSettings();
-    return { ok: true, warnings: backup.warnings };
+    pendingRestore = { token: randomUUID(), data: backup.data, warnings, environments };
+    return {
+      ok: true,
+      token: pendingRestore.token,
+      environments: environments ? { count: environments.count } : undefined,
+    };
   });
+
+  ipcMain.handle(
+    IPC.backup.restore,
+    async (_event, token: string, options: BackupRestoreOptions): Promise<BackupImportResult> => {
+      const pending = pendingRestore;
+      if (!pending || pending.token !== token) {
+        return { ok: false, error: 'Choose the backup file again.' };
+      }
+      const warnings = [...pending.warnings];
+
+      // Everything that can fail on the environments happens before anything is written:
+      // a wrong password, or a locked vault that can't encrypt them for this computer.
+      let environments: StoredProjectEnvironment[] | null = null;
+      if (pending.environments && options.environmentsPassword) {
+        const rows = await unsealEnvironments(pending.environments, options.environmentsPassword);
+        if (!rows) return { ok: false, wrongPassword: true };
+        const projectIds = new Set(
+          (pending.data.projects ?? (await store.getProjects())).map((project) => project.id),
+        );
+        try {
+          const built = await toStoredEnvironments(rows, projectIds);
+          environments = built.environments;
+          if (built.skipped > 0) {
+            warnings.push(`Skipped ${built.skipped} unreadable project environment entries.`);
+          }
+        } catch (error) {
+          return {
+            ok: false,
+            error: `Could not restore project environments: ${error instanceof Error ? error.message : 'unknown error'}. Nothing was changed.`,
+          };
+        }
+      }
+
+      const snapshot = await readCurrentData();
+      const environmentsSnapshot = await store.getProjectEnvironments();
+      try {
+        await writeData(pending.data);
+        if (environments) await store.setProjectEnvironments(environments);
+      } catch (error) {
+        // Put back what was there before rather than leaving a half-written store.
+        await writeData(snapshot).catch(() => undefined);
+        await store.setProjectEnvironments(environmentsSnapshot).catch(() => undefined);
+        return {
+          ok: false,
+          error: `Could not restore that backup: ${error instanceof Error ? error.message : 'unknown error'}. Your existing data was left in place.`,
+        };
+      }
+
+      pendingRestore = null;
+      void petManager.syncFromSettings();
+      return { ok: true, warnings };
+    },
+  );
 }

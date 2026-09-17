@@ -5,6 +5,8 @@ import type {
   BlueprintAttachment,
   BlueprintRevisionTarget,
   BlueprintStepId,
+  EffortLevel,
+  EnvironmentKind,
   GitChangeEntry,
   KeepAwakeMode,
   ProjectBlueprint,
@@ -68,6 +70,16 @@ export interface UpdateDownloadProgress {
   etaSeconds: number | null;
   /** True when this session continued from bytes already on disk. */
   resumed: boolean;
+}
+
+/** What is still open when the user closes the app, sent with IPC.app.onConfirmQuit. */
+export interface OpenSessionSummary {
+  /** Terminal tabs running an agent CLI. Plain shells are not counted. */
+  clis: number;
+  ssh: number;
+  rdp: number;
+  /** True when the CLIs carry on in the background terminal host after the app closes. */
+  clisKeepRunning: boolean;
 }
 
 /** Pushed to the renderer over IPC.app.onUpdateStatus as the main-process auto-updater progresses. */
@@ -265,6 +277,33 @@ export interface DirectoryEntry {
   name: string;
   path: string;
   isDirectory: boolean;
+}
+
+/** What a delete from the workspace explorer left behind. */
+export interface ExplorerDeleteResult {
+  /** Paths the system trash would not take. They are still on disk. */
+  failed: string[];
+}
+
+export interface ExplorerMove {
+  from: string;
+  to: string;
+}
+
+/** The outcome of pasting or dropping entries into a folder. */
+export interface ExplorerTransferResult {
+  moves: ExplorerMove[];
+  /** Names already taken in the target folder. Nothing was moved when this is not empty. */
+  conflicts: string[];
+}
+
+export interface ExplorerGitignoreResult {
+  /** The line that is now in the repository's root .gitignore. */
+  line: string;
+  /** False when the line was already there. */
+  added: boolean;
+  /** Git still tracks the path, so ignoring it changes nothing until it is untracked. */
+  tracked: boolean;
 }
 
 export interface InstalledSkillRecord {
@@ -557,9 +596,34 @@ export interface BackupExportResult {
   error?: string;
 }
 
+export interface BackupExportOptions {
+  /**
+   * When set, project environments and credentials go into the backup, encrypted with this
+   * password. Left out, they stay on this computer only.
+   */
+  environmentsPassword?: string;
+}
+
+/** First step of a restore: the file was picked and checked, nothing has been written yet. */
+export interface BackupOpenResult {
+  ok: boolean;
+  error?: string;
+  /** Hands the checked backup to `backup:restore`. Only valid for this app session. */
+  token?: string;
+  /** Present when the backup carries password-protected project environments. */
+  environments?: { count: number };
+}
+
+export interface BackupRestoreOptions {
+  /** The backup password for its environments, or null to restore everything else. */
+  environmentsPassword: string | null;
+}
+
 export interface BackupImportResult {
   ok: boolean;
   error?: string;
+  /** The environments password did not open the backup. Nothing was written, so ask again. */
+  wrongPassword?: boolean;
   /**
    * Things the user should look at after a successful restore: rows that could not
    * be read, and settings the backup carried that affect what gets executed.
@@ -883,6 +947,11 @@ export interface WorkspaceGitState {
   untracked: GitChangeEntry[];
   /** More untracked files exist than were listed. */
   untrackedTruncated: boolean;
+  /**
+   * Where the project folder sits inside the repository, with forward slashes. Empty when the
+   * project is the repository root. Status paths are relative to the root, not the project.
+   */
+  projectPrefix: string;
 }
 
 export type GitDiffSide = 'staged' | 'unstaged' | 'untracked' | 'conflict';
@@ -894,6 +963,34 @@ export interface GitFileDiff {
   binary: boolean;
   /** One side is too big to diff comfortably; the viewer shows a notice instead. */
   tooLarge: boolean;
+  /**
+   * Blob ids of both sides as git stores them (empty blob for a side that doesn't exist). A line
+   * action hands them back, so it never lands on a file that moved since the diff was read.
+   */
+  originalId?: string;
+  modifiedId?: string;
+}
+
+/** What a line action does: stage or discard working tree lines, or unstage staged ones. */
+export type GitLineAction = 'stage' | 'unstage' | 'discard';
+
+/** 1-based, inclusive line ranges picked in the diff, on the old side and on the new side. */
+export interface GitLineRanges {
+  original: [number, number][];
+  modified: [number, number][];
+}
+
+export interface GitApplyLinesInput {
+  projectId: string;
+  /** Repo-relative. */
+  path: string;
+  side: 'staged' | 'unstaged' | 'untracked';
+  action: GitLineAction;
+  ranges: GitLineRanges;
+  /** The ids from the GitFileDiff the lines were picked in. */
+  originalId: string;
+  modifiedId: string;
+  origPath?: string;
 }
 
 export interface GitDiscardResult extends GitOpResult {
@@ -964,8 +1061,8 @@ export interface VersionFileChange {
    */
   hadLocalEdits?: boolean;
   /**
-   * The edit split into separate changes, each with a little context, so the user can keep
-   * some and revert others. Only set for a text file with more than one change.
+   * The edit split into hunks of changed lines, each with a little context, so the user can
+   * keep some lines and revert others. Only set for a text file with more than one changed line.
    */
   hunks?: VersionHunk[];
 }
@@ -973,8 +1070,24 @@ export interface VersionFileChange {
 export interface VersionHunk {
   /** Git's `@@ -a,b +c,d @@` line for the change. */
   header: string;
-  /** Diff lines with a ' ', '-' or '+' in front, line endings removed. */
-  lines: string[];
+  /** 1-based line numbers of the first `lead` line in the old and the new file. */
+  oldLine: number;
+  newLine: number;
+  /** Unchanged lines just before the change, line endings removed. */
+  lead: string[];
+  /**
+   * The changed lines in order. Edits are numbered across the whole file, hunk by hunk, and
+   * that number is what WriteVersionHunksInput.revertEdits refers to.
+   */
+  edits: VersionLineEdit[];
+  /** Unchanged lines just after the change. */
+  trail: string[];
+}
+
+/** One changed line: the line the run replaced, the line it wrote, or both. */
+export interface VersionLineEdit {
+  removed?: string;
+  added?: string;
 }
 
 export interface ApplyVersionResult {
@@ -1014,8 +1127,8 @@ export interface WriteVersionHunksInput {
   afterId: string;
   beforeRawId: string | null;
   afterRawId: string | null;
-  /** Indexes into VersionFileChange.hunks to leave out; every other change is applied. */
-  revertHunks: number[];
+  /** Line edits to leave out, numbered across the file's hunks; every other edit is applied. */
+  revertEdits: number[];
 }
 
 export interface WriteVersionHunksResult extends GitOpResult {
@@ -1512,6 +1625,115 @@ export interface StoredRdpServer extends Omit<RdpSavedServer, 'hasSecret'> {
   secretEnvelope?: SecretEnvelope;
 }
 
+/** An env file saved for one environment. The contents stay in the main process until asked for. */
+export interface EnvFileSummary {
+  id: string;
+  /** A bare `.env*` name such as `.env.production`, written as is into the project folder. */
+  fileName: string;
+  keyCount: number;
+  updatedAt: number;
+}
+
+/** A saved login or key that isn't a file: a database, dashboard, server and so on. */
+export interface EnvCredentialSummary {
+  id: string;
+  label: string;
+  username: string;
+  url: string;
+  hasSecret: boolean;
+  hasNotes: boolean;
+  updatedAt: number;
+}
+
+/** One stage of a project (production, staging, ...) and the secrets saved for it. */
+export interface ProjectEnvironment {
+  id: string;
+  projectId: string;
+  name: string;
+  kind: EnvironmentKind;
+  order: number;
+  files: EnvFileSummary[];
+  credentials: EnvCredentialSummary[];
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface SaveEnvironmentInput {
+  id?: string;
+  projectId: string;
+  name: string;
+  kind: EnvironmentKind;
+}
+
+export interface SaveEnvFileInput {
+  environmentId: string;
+  id?: string;
+  fileName: string;
+  content: string;
+}
+
+/** Leave `secret` or `notes` undefined on an edit to keep what is stored; an empty string clears it. */
+export interface SaveEnvCredentialInput {
+  environmentId: string;
+  id?: string;
+  label: string;
+  username: string;
+  url: string;
+  secret?: string;
+  notes?: string;
+}
+
+export interface EnvCredentialSecrets {
+  secret: string;
+  notes: string;
+}
+
+/** A `.env*` file found in the root of a project folder. */
+export interface EnvFolderFile {
+  fileName: string;
+  size: number;
+  guessedKind: EnvironmentKind;
+  isTemplate: boolean;
+  tooLarge: boolean;
+  /** Id of the environment that already has a file with this name, if any. */
+  savedInEnvironmentId?: string;
+}
+
+/** Where one imported file goes: an existing environment, or a new one made on the way. */
+export interface EnvImportPick {
+  fileName: string;
+  environmentId?: string;
+  newEnvironment?: { name: string; kind: EnvironmentKind };
+}
+
+export interface EnvImportResult {
+  imported: number;
+  errors: string[];
+}
+
+export interface EnvWriteResult {
+  status: 'written' | 'exists';
+  path: string;
+  /** The project is a git repo and the file is not ignored, so it could get committed. */
+  notIgnored?: boolean;
+}
+
+export interface StoredEnvFile extends EnvFileSummary {
+  contentEnvelope: SecretEnvelope;
+}
+
+export interface StoredEnvCredential extends Omit<EnvCredentialSummary, 'hasSecret' | 'hasNotes'> {
+  secretEnvelope?: SecretEnvelope;
+  notesEnvelope?: SecretEnvelope;
+}
+
+/** Main-process-only, on-disk shape of a project environment. */
+export interface StoredProjectEnvironment
+  extends Omit<ProjectEnvironment, 'files' | 'credentials'> {
+  files: StoredEnvFile[];
+  credentials: StoredEnvCredential[];
+}
+
 /**
  * Everything a session window needs for one connection attempt. `proxyUrl` carries a token
  * that works once, for this server only.
@@ -1590,7 +1812,8 @@ export interface SshExitPayload {
 }
 
 /**
- * How much control the user keeps over an AI-driven SSH task before a command actually runs.
+ * How much control the user keeps over an AI-driven terminal task (SSH or local) before a
+ * command actually runs.
  * `approve-risky` still runs ordinary commands immediately, pausing only when a command matches
  * a destructive-looking pattern (rm -rf, drop table, shutdown, ...).
  */
@@ -1598,9 +1821,23 @@ export type SshAgentMode = 'approve-all' | 'approve-risky' | 'autonomous';
 
 export interface StartSshAgentTaskInput {
   sessionId: string;
+  /**
+   * Which kind of terminal `sessionId` is. Defaults to `ssh`; `local` drives a shell on this
+   * machine (PowerShell, cmd, bash, zsh, or fish) the same way.
+   */
+  target?: 'ssh' | 'local';
   /** The task (or series of tasks) in plain language, e.g. "check disk usage, then clear old logs". */
   prompt: string;
   mode: SshAgentMode;
+  /**
+   * Agent CLI that decides each step (e.g. `claude-code`). Null or absent uses the AI provider
+   * from Settings (OpenAI, Gemini, or Ollama) instead.
+   */
+  cliId?: string | null;
+  /** Model id from that CLI's run profile (`opus`, `terra`, ...). Absent keeps the CLI's own default. */
+  modelId?: string | null;
+  /** Reasoning effort, when the chosen model has one. */
+  effort?: EffortLevel | null;
 }
 
 export type SshAgentPhase =
@@ -1608,6 +1845,7 @@ export type SshAgentPhase =
   | 'proposed'
   | 'running'
   | 'needs-input'
+  | 'needs-password'
   | 'finished'
   | 'error'
   | 'stopped';
@@ -1621,6 +1859,11 @@ export interface SshAgentProgress {
   command?: string;
   /** A question (needs-input), a summary (finished), or an error/stop reason. */
   message?: string;
+  /**
+   * Only on `needs-password`: whether this server has a saved login password AgentMate can type
+   * into the prompt. The password itself never leaves the main process.
+   */
+  hasSavedPassword?: boolean;
 }
 
 /** Live transport quality for the controller's inbound video, sampled ~1/sec. */

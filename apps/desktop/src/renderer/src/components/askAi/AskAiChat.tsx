@@ -1,3 +1,4 @@
+import { GEMINI_API_MODELS, OPENAI_API_MODELS } from '@agentmat/core';
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -26,22 +27,8 @@ import { type AskAiMessage, useAskAiStore } from '@/stores/askAiStore';
 import type { AiProvider } from '../../../../shared/apiTypes';
 import { MarkdownMessage } from './MarkdownMessage';
 
-const OPENAI_MODEL_OPTIONS = [
-  { value: 'gpt-4o-mini', label: 'gpt-4o-mini' },
-  { value: 'gpt-4o', label: 'gpt-4o' },
-  { value: 'gpt-4.1', label: 'gpt-4.1' },
-  { value: 'gpt-4.1-mini', label: 'gpt-4.1-mini' },
-  { value: 'o4-mini', label: 'o4-mini' },
-  { value: 'gpt-3.5-turbo', label: 'gpt-3.5-turbo' },
-];
-
-const GEMINI_MODEL_OPTIONS = [
-  { value: 'gemini-2.0-flash', label: 'gemini-2.0-flash' },
-  { value: 'gemini-2.5-flash', label: 'gemini-2.5-flash' },
-  { value: 'gemini-2.5-pro', label: 'gemini-2.5-pro' },
-  { value: 'gemini-1.5-flash', label: 'gemini-1.5-flash' },
-  { value: 'gemini-1.5-pro', label: 'gemini-1.5-pro' },
-];
+const OPENAI_MODEL_OPTIONS = [...OPENAI_API_MODELS];
+const GEMINI_MODEL_OPTIONS = [...GEMINI_API_MODELS];
 
 const PROVIDER_LABEL: Record<AiProvider, string> = {
   openai: 'OpenAI',

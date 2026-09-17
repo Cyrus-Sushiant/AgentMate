@@ -11,10 +11,15 @@ export const IPC = {
     onNavigate: 'app:navigate',
     /** The renderer collecting a route that arrived while the window was still loading. */
     pendingNavigate: 'app:pendingNavigate',
+    /** main -> the app window: sessions are still open, ask before closing the app. */
+    onConfirmQuit: 'app:confirmQuit',
+    /** The renderer's answer to onConfirmQuit. */
+    answerQuit: 'app:answerQuit',
   },
   backup: {
     export: 'backup:export',
-    import: 'backup:import',
+    open: 'backup:open',
+    restore: 'backup:restore',
   },
   blueprints: {
     get: 'blueprints:get',
@@ -64,6 +69,23 @@ export const IPC = {
     onData: 'ssh:onData',
     onExit: 'ssh:onExit',
   },
+  environments: {
+    list: 'environments:list',
+    save: 'environments:save',
+    remove: 'environments:remove',
+    reorder: 'environments:reorder',
+    saveFile: 'environments:saveFile',
+    removeFile: 'environments:removeFile',
+    readFile: 'environments:readFile',
+    copyFile: 'environments:copyFile',
+    saveCredential: 'environments:saveCredential',
+    removeCredential: 'environments:removeCredential',
+    revealCredential: 'environments:revealCredential',
+    copyCredentialSecret: 'environments:copyCredentialSecret',
+    scanFolder: 'environments:scanFolder',
+    importFromFolder: 'environments:importFromFolder',
+    writeToFolder: 'environments:writeToFolder',
+  },
   rdp: {
     listServers: 'rdp:listServers',
     saveServer: 'rdp:saveServer',
@@ -94,6 +116,7 @@ export const IPC = {
     approveCommand: 'sshAgent:approveCommand',
     skipCommand: 'sshAgent:skipCommand',
     answerNeedsInput: 'sshAgent:answerNeedsInput',
+    answerPassword: 'sshAgent:answerPassword',
     stop: 'sshAgent:stop',
     // main -> renderer: the task's status changed (thinking, proposed a command, running it, ...)
     onProgress: 'sshAgent:onProgress',
@@ -184,6 +207,18 @@ export const IPC = {
     listDirectory: 'fs:listDirectory',
     writeScratchFile: 'fs:writeScratchFile',
     saveFileAs: 'fs:saveFileAs',
+  },
+  explorer: {
+    createFile: 'explorer:createFile',
+    createFolder: 'explorer:createFolder',
+    rename: 'explorer:rename',
+    delete: 'explorer:delete',
+    copy: 'explorer:copy',
+    move: 'explorer:move',
+    revealInOs: 'explorer:revealInOs',
+    addToGitignore: 'explorer:addToGitignore',
+    untrack: 'explorer:untrack',
+    ignoredPaths: 'explorer:ignoredPaths',
   },
   settings: {
     get: 'settings:get',
@@ -513,6 +548,7 @@ export const IPC = {
     unstage: 'git:unstage',
     discard: 'git:discard',
     undoDiscard: 'git:undoDiscard',
+    applyLines: 'git:applyLines',
     resolveConflict: 'git:resolveConflict',
     abortOperation: 'git:abortOperation',
     commitStaged: 'git:commitStaged',
@@ -526,6 +562,7 @@ export const IPC = {
   terminalClipboard: {
     saveImage: 'terminalClipboard:saveImage',
     read: 'terminalClipboard:read',
+    previewImage: 'terminalClipboard:previewImage',
   },
   power: {
     // () -> KeepAwakeStatus

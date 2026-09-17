@@ -1,5 +1,11 @@
 import type { AiProvider, ThemeMode } from '@agentmat/core';
-import { CLI_REGISTRY } from '@agentmat/core';
+import {
+  CLI_REGISTRY,
+  DEFAULT_GEMINI_API_MODEL,
+  DEFAULT_OPENAI_API_MODEL,
+  DEFAULT_WHISPER_MODEL,
+  WHISPER_MODELS,
+} from '@agentmat/core';
 import type { OllamaConnectionTest } from '@shared/apiTypes';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
@@ -39,7 +45,9 @@ import {
   X,
 } from '@/components/icons';
 import { CompanionSettings } from '@/components/pet/CompanionSettings';
+import { BackupEnvironmentsPasswordDialog } from '@/components/settings/BackupEnvironmentsPasswordDialog';
 import { BlueprintPresetSettings } from '@/components/settings/BlueprintPresetSettings';
+import { CliLaunchDefaultsSettings } from '@/components/settings/CliLaunchDefaultsSettings';
 import { CliOrderSettings } from '@/components/settings/CliOrderSettings';
 import { CommitMessageSettingsForm } from '@/components/settings/CommitMessageSettingsCard';
 import { ProxySettings } from '@/components/settings/ProxySettings';
@@ -112,6 +120,9 @@ function isSettingsTab(value: string | null): value is SettingsTab {
   return SETTINGS_TABS.includes(value as SettingsTab);
 }
 
+const LAUNCH_DEFAULTS_KEYWORDS =
+  'launch defaults default model effort reasoning permission mode auto mode plan accept edits bypass yolo full access sandbox approval open cli start';
+
 const BLUEPRINT_PRESET_KEYWORDS =
   'blueprint preset presets snippet snippets default defaults wizard steps idea architecture stack backend frontend ci cd pipeline quality testing product manager phases epics docs';
 
@@ -135,7 +146,7 @@ const TAB_META: {
     label: 'Agents',
     icon: Robot,
     keywords:
-      'default cli agent order arrange launcher tiles number keys commit message written by style conventional instructions git claude codex',
+      'default cli agent order arrange launcher tiles number keys commit message written by style conventional instructions git claude codex model effort permission mode auto yolo',
   },
   {
     id: 'shortcuts',
@@ -581,13 +592,13 @@ export default function SettingsPage(): React.JSX.Element {
     mutationFn: () =>
       window.agentmat.settings.update({
         openaiApiKey: openaiApiKey.trim() || null,
-        openaiModel: openaiModel.trim() || 'gpt-4o-mini',
+        openaiModel: openaiModel.trim() || DEFAULT_OPENAI_API_MODEL,
         ollamaBaseUrl: ollamaBaseUrl.trim() || 'http://localhost:11434',
         ollamaModel: ollamaModel.trim(),
         ollamaContextLength: parsedOllamaContext,
         ollamaKeepAlive: ollamaKeepAlive.trim() || '5m',
         geminiApiKey: geminiApiKey.trim() || null,
-        geminiModel: geminiModel.trim() || 'gemini-2.0-flash',
+        geminiModel: geminiModel.trim() || DEFAULT_GEMINI_API_MODEL,
         promptBuilderProvider,
       }),
     onSuccess: () => {
@@ -671,7 +682,7 @@ export default function SettingsPage(): React.JSX.Element {
     },
   });
 
-  const [speechModel, setSpeechModel] = useState('base');
+  const [speechModel, setSpeechModel] = useState(DEFAULT_WHISPER_MODEL);
   const [speechLanguage, setSpeechLanguage] = useState('auto');
   const [speechDirty, setSpeechDirty] = useState(false);
 
@@ -694,16 +705,67 @@ export default function SettingsPage(): React.JSX.Element {
   const [exportingBackup, setExportingBackup] = useState(false);
   const [importingBackup, setImportingBackup] = useState(false);
   const [compressBackup, setCompressBackup] = useState(false);
+  const [backupEnvironments, setBackupEnvironments] = useState(false);
+  const [backupPassword, setBackupPassword] = useState('');
+  const [backupPasswordConfirm, setBackupPasswordConfirm] = useState('');
+  const [pendingRestore, setPendingRestore] = useState<{
+    token: string;
+    environmentCount: number;
+  } | null>(null);
+
+  const backupPasswordProblem = !backupEnvironments
+    ? null
+    : backupPassword.length < 8
+      ? 'Use at least 8 characters.'
+      : backupPassword !== backupPasswordConfirm
+        ? 'The passwords do not match.'
+        : null;
 
   async function handleExportBackup(): Promise<void> {
+    if (backupPasswordProblem) {
+      toast.error(backupPasswordProblem);
+      return;
+    }
     setExportingBackup(true);
     try {
-      const result = await window.agentmat.backup.export(compressBackup);
-      if (result.ok && result.path) toast.success(`Backup saved to ${result.path}`);
-      else if (result.error) toast.error(result.error);
+      const result = await window.agentmat.backup.export(compressBackup, {
+        environmentsPassword: backupEnvironments ? backupPassword : undefined,
+      });
+      if (result.ok && result.path) {
+        toast.success(`Backup saved to ${result.path}`);
+        setBackupPassword('');
+        setBackupPasswordConfirm('');
+      } else if (result.error) toast.error(result.error);
     } finally {
       setExportingBackup(false);
     }
+  }
+
+  async function afterRestore(warnings: string[]): Promise<void> {
+    // Rows that could not be read, plus any setting the backup carried that
+    // decides what the app will execute later.
+    for (const warning of warnings) toast.warning(warning);
+    const restart = await confirmDialog({
+      title: 'Backup restored',
+      description: 'AgentMate needs to restart to load the restored data.',
+      confirmLabel: 'Restart now',
+      cancelLabel: 'Later',
+    });
+    if (restart) void window.agentmat.app.relaunch();
+  }
+
+  async function restoreBackup(
+    token: string,
+    environmentsPassword: string | null,
+  ): Promise<'done' | 'wrong-password'> {
+    const result = await window.agentmat.backup.restore(token, { environmentsPassword });
+    if (result.wrongPassword) return 'wrong-password';
+    if (!result.ok) {
+      if (result.error) toast.error(result.error);
+      return 'done';
+    }
+    void afterRestore(result.warnings ?? []);
+    return 'done';
   }
 
   async function handleImportBackup(): Promise<void> {
@@ -718,21 +780,17 @@ export default function SettingsPage(): React.JSX.Element {
 
     setImportingBackup(true);
     try {
-      const result = await window.agentmat.backup.import();
-      if (!result.ok) {
-        if (result.error) toast.error(result.error);
+      const opened = await window.agentmat.backup.open();
+      if (!opened.ok || !opened.token) {
+        if (opened.error) toast.error(opened.error);
         return;
       }
-      // Rows that could not be read, plus any setting the backup carried that
-      // decides what the app will execute later.
-      for (const warning of result.warnings ?? []) toast.warning(warning);
-      const restart = await confirmDialog({
-        title: 'Backup restored',
-        description: 'AgentMate needs to restart to load the restored data.',
-        confirmLabel: 'Restart now',
-        cancelLabel: 'Later',
-      });
-      if (restart) void window.agentmat.app.relaunch();
+      if (opened.environments) {
+        // The password dialog takes it from here.
+        setPendingRestore({ token: opened.token, environmentCount: opened.environments.count });
+        return;
+      }
+      await restoreBackup(opened.token, null);
     } finally {
       setImportingBackup(false);
     }
@@ -870,6 +928,7 @@ export default function SettingsPage(): React.JSX.Element {
       'My AI Pet',
     ),
     showSection('agents', 'default cli provider agent arguments args flags model', 'Default CLI'),
+    showSection('agents', LAUNCH_DEFAULTS_KEYWORDS, 'Launch defaults'),
     showSection(
       'agents',
       'agent cli order sort arrange workspace launcher tiles number keys',
@@ -899,7 +958,11 @@ export default function SettingsPage(): React.JSX.Element {
     showSection('notifications', 'telegram bot token chat notify', 'Telegram bot'),
     showSection('network', PROXY_KEYWORDS, 'Proxy'),
     showSection('data', 'ping network hosts dashboard', 'Network ping targets'),
-    showSection('data', 'backup restore export import zip', 'Backup & restore'),
+    showSection(
+      'data',
+      'backup restore export import zip environments secrets password',
+      'Backup & restore',
+    ),
     showSection('data', 'about version update check', 'About'),
   ].filter(Boolean).length;
 
@@ -1127,6 +1190,18 @@ export default function SettingsPage(): React.JSX.Element {
                 </SettingsCard>
               )}
 
+              {showSection('agents', LAUNCH_DEFAULTS_KEYWORDS, 'Launch defaults') && (
+                <SettingsCard
+                  icon={Play}
+                  title="Launch defaults"
+                  description="The model, effort, and mode each agent starts with. Anything left on Not set is up to the CLI."
+                >
+                  <div className="max-w-3xl">
+                    <CliLaunchDefaultsSettings />
+                  </div>
+                </SettingsCard>
+              )}
+
               {showSection(
                 'agents',
                 'agent cli order sort arrange workspace launcher tiles number keys',
@@ -1350,7 +1425,7 @@ export default function SettingsPage(): React.JSX.Element {
                               setOpenaiModel(event.target.value);
                               setAiDirty(true);
                             }}
-                            placeholder="gpt-4o-mini"
+                            placeholder={DEFAULT_OPENAI_API_MODEL}
                             className="font-mono"
                             spellCheck={false}
                           />
@@ -1403,7 +1478,7 @@ export default function SettingsPage(): React.JSX.Element {
                               setGeminiModel(event.target.value);
                               setAiDirty(true);
                             }}
-                            placeholder="gemini-2.0-flash"
+                            placeholder={DEFAULT_GEMINI_API_MODEL}
                             className="font-mono"
                             spellCheck={false}
                           />
@@ -1576,11 +1651,7 @@ export default function SettingsPage(): React.JSX.Element {
                           setSpeechModel(value);
                           setSpeechDirty(true);
                         }}
-                        options={[
-                          { value: 'tiny', label: 'Tiny (fastest, ~75 MB)' },
-                          { value: 'base', label: 'Base (balanced, ~145 MB)' },
-                          { value: 'small', label: 'Small (most accurate, ~490 MB)' },
-                        ]}
+                        options={WHISPER_MODELS.map((m) => ({ value: m.key, label: m.label }))}
                       />
                     </Field>
                     <Field label="Spoken language">
@@ -1749,11 +1820,15 @@ export default function SettingsPage(): React.JSX.Element {
                 </SettingsCard>
               )}
 
-              {showSection('data', 'backup restore export import zip', 'Backup & restore') && (
+              {showSection(
+                'data',
+                'backup restore export import zip environments secrets password',
+                'Backup & restore',
+              ) && (
                 <SettingsCard
                   icon={HardDrive}
                   title="Backup & restore"
-                  description="Exports include projects, settings, templates, and saved keys. Keep the file private. Restoring replaces everything on this machine."
+                  description="Exports include projects, settings, templates, and saved keys, plus project environments when you set a password. Keep the file private. Restoring replaces everything on this machine."
                 >
                   <div className="space-y-4">
                     <div className="grid gap-3 sm:grid-cols-2">
@@ -1775,11 +1850,45 @@ export default function SettingsPage(): React.JSX.Element {
                             Compress as .zip
                           </Label>
                         </div>
+                        <div className="mt-3 flex items-center gap-2">
+                          <Switch
+                            id="backup-environments"
+                            checked={backupEnvironments}
+                            onCheckedChange={setBackupEnvironments}
+                          />
+                          <Label
+                            htmlFor="backup-environments"
+                            className="font-normal text-muted-foreground"
+                          >
+                            Include project environments
+                          </Label>
+                        </div>
+                        {backupEnvironments && (
+                          <div className="mt-3 space-y-2">
+                            <SecretInput
+                              value={backupPassword}
+                              onChange={setBackupPassword}
+                              placeholder="Backup password"
+                            />
+                            <SecretInput
+                              value={backupPasswordConfirm}
+                              onChange={setBackupPasswordConfirm}
+                              placeholder="Confirm password"
+                            />
+                            <p className="text-xs leading-relaxed text-muted-foreground">
+                              Env files and credentials are encrypted with this password. You need
+                              it to restore them, and it cannot be recovered.
+                            </p>
+                            {backupPassword && backupPasswordProblem && (
+                              <p className="text-xs text-destructive">{backupPasswordProblem}</p>
+                            )}
+                          </div>
+                        )}
                         <Button
                           variant="outline"
                           size="sm"
                           className="mt-3"
-                          disabled={exportingBackup}
+                          disabled={exportingBackup || backupPasswordProblem !== null}
                           onClick={() => void handleExportBackup()}
                         >
                           <Download className="h-4 w-4" />
@@ -1804,6 +1913,18 @@ export default function SettingsPage(): React.JSX.Element {
                       </div>
                     </div>
                   </div>
+                  <BackupEnvironmentsPasswordDialog
+                    open={pendingRestore !== null}
+                    onOpenChange={(open) => {
+                      if (!open) setPendingRestore(null);
+                    }}
+                    environmentCount={pendingRestore?.environmentCount ?? 0}
+                    onRestore={(password) =>
+                      pendingRestore
+                        ? restoreBackup(pendingRestore.token, password)
+                        : Promise.resolve('done')
+                    }
+                  />
                 </SettingsCard>
               )}
 

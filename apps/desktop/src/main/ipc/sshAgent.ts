@@ -3,6 +3,7 @@ import type { SshAgentProgress, StartSshAgentTaskInput } from '../../shared/apiT
 import { IPC } from '../../shared/ipcChannels';
 import {
   answerSshTaskInput,
+  answerSshTaskPassword,
   approveSshTaskCommand,
   skipSshTaskCommand,
   startSshTask,
@@ -25,7 +26,14 @@ export function registerSshAgentHandlers(): void {
     IPC.sshAgent.start,
     (event: IpcMainInvokeEvent, input: StartSshAgentTaskInput): void => {
       owners.set(input.sessionId, event.sender);
-      startSshTask(input.sessionId, input.prompt, input.mode, forwardProgress);
+      startSshTask(input, forwardProgress);
+    },
+  );
+
+  ipcMain.handle(
+    IPC.sshAgent.answerPassword,
+    (_event, sessionId: string, approved: boolean): void => {
+      answerSshTaskPassword(sessionId, approved);
     },
   );
 

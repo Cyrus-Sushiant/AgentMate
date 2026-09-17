@@ -8,7 +8,9 @@ import { WritingMenuHost } from './components/grammar/WritingMenuHost';
 import { AppShell } from './components/layout/AppShell';
 import DesktopPetRoute from './components/pet/DesktopPetRoute';
 import PromptBuildWidgetRoute from './components/projects/PromptBuildWidgetRoute';
+import { QuitConfirmation } from './components/QuitConfirmation';
 import RemoteSessionRoute from './components/remote/RemoteSessionRoute';
+import { ImageViewerHost } from './components/terminal/ImageViewerHost';
 import { UpdateManager } from './components/UpdateManager';
 import { TooltipProvider } from './components/ui/tooltip';
 import WidgetRoute from './components/usage/WidgetRoute';
@@ -78,6 +80,8 @@ function AppChrome(): React.JSX.Element | null {
     <>
       <AppToaster />
       <ConfirmDialogHost />
+      <QuitConfirmation />
+      <ImageViewerHost />
       <UpdateManager />
     </>
   );

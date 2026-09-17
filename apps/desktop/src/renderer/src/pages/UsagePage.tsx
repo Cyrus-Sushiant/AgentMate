@@ -1,5 +1,6 @@
 import {
   ALL_AGENTS_WIDGET_ID,
+  CLAUDE_WEEKLY_METERED_MODEL,
   FABLE_WEEK_LABEL,
   getUsageProvider,
   isAutoConnected,
@@ -659,7 +660,7 @@ const RESET_WINDOW_OPTIONS: { key: SubscriptionWindowKey; label: string; hint: s
   {
     key: 'week-fable',
     label: FABLE_WEEK_LABEL,
-    hint: 'Only above Pro, where Fable has its own weekly bucket',
+    hint: `Only above Pro, where ${CLAUDE_WEEKLY_METERED_MODEL.family} has its own weekly bucket`,
   },
 ];
 

@@ -1,18 +1,30 @@
-import { getCliArgsFor, getCliDefinition } from '@agentmat/core';
+import {
+  getCliArgsFor,
+  getCliDefinition,
+  launchDefaultArgs,
+  parseCliArgs,
+  quoteForShell,
+  shellKindFor,
+} from '@agentmat/core';
 import { toast } from 'sonner';
 import { useCliStore } from '@/stores/cliStore';
-import { useTerminalStore } from '@/stores/terminalStore';
+import { defaultNewSession, useTerminalStore } from '@/stores/terminalStore';
 
 /**
- * The command that starts this CLI, with the user's configured arguments already
- * attached ("claude --model sonnet"). Callers that pass a prompt of their own append
- * it after this, so the flags stay ahead of the prompt.
+ * The command that starts this CLI, with its launch defaults and the user's configured
+ * arguments already attached ("claude --permission-mode auto --model sonnet"). Callers that
+ * pass a prompt of their own append it after this, so the flags stay ahead of the prompt.
  */
 export function cliLaunchCommand(cliId: string): string | null {
   const cli = getCliDefinition(cliId);
   if (!cli) return null;
-  const args = getCliArgsFor(useCliStore.getState().cliArgs, cliId);
-  return args ? `${cli.executableNames[0]} ${args}` : cli.executableNames[0];
+  const { cliArgs, cliLaunchDefaults } = useCliStore.getState();
+  const args = getCliArgsFor(cliArgs, cliId);
+  const kind = shellKindFor(defaultNewSession().shell, window.agentmat.platform);
+  const defaults = launchDefaultArgs(cliId, cliLaunchDefaults[cliId], parseCliArgs(args)).map(
+    (arg) => quoteForShell(arg, kind),
+  );
+  return [cli.executableNames[0], ...defaults, args].filter(Boolean).join(' ');
 }
 
 /** Opens a terminal session that starts this CLI so the user can work in it. */

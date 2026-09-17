@@ -3,8 +3,9 @@ import { lstatSync } from 'node:fs';
 import { mkdir, rm, writeFile } from 'node:fs/promises';
 import { dirname, isAbsolute, relative, resolve } from 'node:path';
 import {
-  applyLineHunks,
+  applyLineEdits,
   type LineHunk,
+  lineEditCount,
   lineHunkPreviews,
   lineHunksMatch,
   parseLineHunks,
@@ -15,8 +16,8 @@ import type { VersionFileChange, WriteVersionHunksInput } from '../../shared/api
 const GIT_TIMEOUT_MS = 60000;
 /** A version bump is a line or two per file. Past this it is a lockfile nobody reads line by line. */
 const MAX_DIFF_LINES = 400;
-/** Past this many hunks a file is reviewed whole; nobody picks through that many one by one. */
-const MAX_HUNKS = 60;
+/** Past this many changed lines a file is reviewed whole; nobody picks through that many. */
+const MAX_EDITS = 200;
 /** SHA-1 or SHA-256 object ids, and nothing a command line could read as an option. */
 const OBJECT_ID_PATTERN = /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/;
 
@@ -232,7 +233,7 @@ async function readWorkingCopy(
     : runGit(root, ['cat-file', '--filters', `--path=${path}`, id]);
 }
 
-interface SplitFile {
+export interface SplitFile {
   before: string[];
   after: string[];
   hunks: LineHunk[];
@@ -247,7 +248,7 @@ interface SplitFile {
  * Lines are decoded as latin1, which maps every byte to one character and back, so whatever
  * the file's encoding the rebuilt bytes are the original ones.
  */
-async function splitFile(
+export async function splitFile(
   root: string,
   path: string,
   sides: Pick<VersionFileChange, 'beforeId' | 'afterId' | 'beforeRawId' | 'afterRawId'>,
@@ -286,10 +287,20 @@ async function hunkPreviews(
     return undefined;
   }
   const split = await splitFile(root, change.path, change);
-  if (!split || split.hunks.length < 2 || split.hunks.length > MAX_HUNKS) return undefined;
-  return lineHunkPreviews(split.before, split.after, split.hunks).map((lines, index) => ({
+  if (!split) return undefined;
+  const editCount = split.hunks.reduce((sum, hunk) => sum + lineEditCount(hunk), 0);
+  if (editCount < 2 || editCount > MAX_EDITS) return undefined;
+  const text = (line: string): string => Buffer.from(line, 'latin1').toString('utf8');
+  return lineHunkPreviews(split.before, split.after, split.hunks).map((preview, index) => ({
     header: split.hunks[index].header,
-    lines: lines.map((line) => Buffer.from(line, 'latin1').toString('utf8')),
+    oldLine: preview.oldLine,
+    newLine: preview.newLine,
+    lead: preview.lead.map(text),
+    edits: preview.edits.map(({ removed, added }) => ({
+      removed: removed === undefined ? undefined : text(removed),
+      added: added === undefined ? undefined : text(added),
+    })),
+    trail: preview.trail.map(text),
   }));
 }
 
@@ -390,7 +401,7 @@ export async function swapFileVersion(
 }
 
 /**
- * Rewrites a modified file with the run's hunks applied, except the ones in `revertHunks`.
+ * Rewrites a modified file with the run's line edits applied, except the ones in `revertEdits`.
  * Like swapFileVersion it refuses when the file no longer holds `fromId`. Returns the blob id
  * the file ends up with, which the next write to it has to name as `fromId`.
  */
@@ -407,14 +418,15 @@ export async function writeFileHunks(
   ]);
   const split = await splitFile(root, path, input);
   if (!split) throw new Error(`${path} can no longer be split into separate changes.`);
-  const revert = new Set(input.revertHunks);
+  const editCount = split.hunks.reduce((sum, hunk) => sum + lineEditCount(hunk), 0);
+  const revert = new Set(input.revertEdits);
   for (const index of revert) {
-    if (!Number.isInteger(index) || index < 0 || index >= split.hunks.length) {
+    if (!Number.isInteger(index) || index < 0 || index >= editCount) {
       throw new Error('Unknown change in that file.');
     }
   }
 
-  const content = applyLineHunks(split.before, split.after, split.hunks, revert);
+  const content = applyLineEdits(split.before, split.after, split.hunks, revert);
   await writeFile(absolute, Buffer.from(content, 'latin1'));
   return (await gitText(root, ['hash-object', '--', path])).trim();
 }

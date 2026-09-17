@@ -93,6 +93,23 @@ export function subscribeSshExit(sessionId: string, listener: () => void): () =>
   return () => set?.delete(listener);
 }
 
+/**
+ * The login password saved for the server a live session belongs to, or null when there isn't
+ * one (key auth, nothing saved, or a locked vault). Used to answer a sudo prompt the user has
+ * approved; the value must never be sent to the renderer or an AI.
+ */
+export async function getSshSessionPassword(sessionId: string): Promise<string | null> {
+  const info = sessions.get(sessionId);
+  if (!info) return null;
+  const server = (await store.getSshServers()).find((s) => s.id === info.serverId);
+  if (!server?.secretEnvelope || server.authMethod !== 'password') return null;
+  try {
+    return await decryptSecret(server.secretEnvelope);
+  } catch {
+    return null;
+  }
+}
+
 function toPublicServer(server: StoredSshServer): SshSavedServer {
   const { secretEnvelope: _secretEnvelope, ...rest } = server;
   return { ...rest, hasSecret: server.secretEnvelope != null };
@@ -274,6 +291,11 @@ export function registerSshHandlers(): void {
     sessions.delete(sessionId);
     syncPowerSaveBlocker();
   });
+}
+
+/** How many SSH connections are open, for the confirmation shown before the app closes. */
+export function openSshSessionCount(): number {
+  return sessions.size;
 }
 
 /** Called from `before-quit`; SSH sessions never outlive the app (no host process for them). */

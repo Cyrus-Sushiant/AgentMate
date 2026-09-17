@@ -8,7 +8,7 @@ import type {
   HostSessionInfo,
   SpawnSessionOptions,
 } from './protocol';
-import { buildPromptMarkerScript } from './shellIntegration';
+import { buildShellLaunch } from './shellIntegration';
 
 /**
  * Lines of history kept per session for repainting a terminal after the app reconnects.
@@ -136,12 +136,13 @@ export class PtySessionManager {
   private spawn(options: SpawnSessionOptions, listener: SessionListener): void {
     const cols = options.cols ?? 80;
     const rows = options.rows ?? 24;
-    const ptyProcess = pty.spawn(options.shell, [], {
+    const launch = buildShellLaunch(options.shell, process.platform, options.env);
+    const ptyProcess = pty.spawn(options.shell, launch.args, {
       name: 'xterm-256color',
       cols,
       rows,
       cwd: options.cwd ?? process.env.HOME ?? process.env.USERPROFILE,
-      env: shellEnv(options.env),
+      env: { ...shellEnv(options.env), ...launch.env },
     });
     // Mirrors the options the app's own xterm uses, so what gets serialized reads back the
     // same way it was drawn the first time.
@@ -182,9 +183,7 @@ export class PtySessionManager {
       if (session.attaching.length === 0) this.finish(session);
     });
 
-    const marker = buildPromptMarkerScript(options.shell, process.platform, options.env);
-    const bootstrap = (marker ?? '') + (options.initialInput ?? '');
-    if (bootstrap) ptyProcess.write(bootstrap);
+    if (options.initialInput) ptyProcess.write(options.initialInput);
     this.onSessionsChanged();
   }
 

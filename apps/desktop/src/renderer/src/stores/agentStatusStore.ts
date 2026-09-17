@@ -1,4 +1,4 @@
-import type { AgentStatus } from '@agentmat/core';
+import { type AgentStatus, catalogModelForApiId } from '@agentmat/core';
 import type {
   AgentRunInfo,
   AgentRunInfoMap,
@@ -32,6 +32,8 @@ export function useAgentRunInfo(sessionId: string): AgentRunInfo | undefined {
 
 /** A model id as people say it: `claude-opus-5-20260101` becomes "Opus 5". */
 export function modelDisplayName(model: string): string {
+  const known = catalogModelForApiId(model);
+  if (known) return /\[1m\]$/i.test(model.trim()) ? `${known.label} (1M)` : known.label;
   const trimmed = model
     .replace(/^claude-/i, '')
     .replace(/-\d{8}$/, '')

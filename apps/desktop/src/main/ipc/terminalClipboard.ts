@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
-import { mkdir, readdir, rm, stat, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
-import { app, clipboard, ipcMain } from 'electron';
+import { mkdir, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { extname, join } from 'node:path';
+import { app, clipboard, ipcMain, nativeImage } from 'electron';
 import type { TerminalClipboardPaste } from '../../shared/apiTypes';
 import { IPC } from '../../shared/ipcChannels';
 
@@ -46,6 +46,46 @@ async function saveImage(bytes: Uint8Array, extension: string): Promise<string> 
   return path;
 }
 
+/** Longest side of the preview shown when hovering an image chip in a terminal. */
+const PREVIEW_MAX_SIDE = 480;
+
+const MIME_BY_EXTENSION: Record<string, string> = {
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.gif': 'image/gif',
+  '.webp': 'image/webp',
+  '.bmp': 'image/bmp',
+};
+
+/**
+ * A data URL of an image file, or null when the file is gone or isn't an image. For a hover
+ * preview PNG and JPEG are scaled down first (the only formats nativeImage decodes everywhere);
+ * anything else, and the full-size view, goes out as it is, within the paste size limit.
+ */
+async function previewImage(path: string, fullSize: boolean): Promise<string | null> {
+  const mime = MIME_BY_EXTENSION[extname(path).toLowerCase()];
+  if (!mime) return null;
+  const info = await stat(path).catch(() => null);
+  if (!info?.isFile() || info.size > MAX_IMAGE_BYTES) return null;
+  if (!fullSize && (mime === 'image/png' || mime === 'image/jpeg')) {
+    const image = nativeImage.createFromPath(path);
+    if (image.isEmpty()) return null;
+    const { width, height } = image.getSize();
+    const scale = Math.min(1, PREVIEW_MAX_SIDE / Math.max(width, height));
+    if (scale === 1) return image.toDataURL();
+    return image
+      .resize({
+        width: Math.round(width * scale),
+        height: Math.round(height * scale),
+        quality: 'good',
+      })
+      .toDataURL();
+  }
+  const bytes = await readFile(path).catch(() => null);
+  return bytes ? `data:${mime};base64,${bytes.toString('base64')}` : null;
+}
+
 /** A file path Windows Explorer put on the clipboard, if it copied exactly one file. */
 function copiedFilePath(): string | null {
   if (process.platform !== 'win32') return null;
@@ -71,6 +111,10 @@ export function registerTerminalClipboardHandlers(): void {
       if (!extension) throw new Error('Only images can be pasted as files.');
       return saveImage(bytes, extension);
     },
+  );
+
+  ipcMain.handle(IPC.terminalClipboard.previewImage, (_event, path: unknown, fullSize: unknown) =>
+    typeof path === 'string' ? previewImage(path, fullSize === true) : null,
   );
 
   // Every terminal paste reads the clipboard here rather than in the renderer. The renderer's

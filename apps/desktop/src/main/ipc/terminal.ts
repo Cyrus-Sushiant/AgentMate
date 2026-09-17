@@ -37,11 +37,26 @@ export interface TerminalSessionInfo {
   projectId?: string;
   cliId?: string;
   surface?: TerminalSurface;
+  /** Unknown for a session only seen in the host's list and not attached yet. */
+  shell?: AllowedShell;
   createdAt: number;
 }
 
 /** What main knows about each running session, kept for hook replies and the power blocker. */
 const sessions = new Map<string, TerminalSessionInfo>();
+/**
+ * Lets other main-process code (the AI task runner) watch a session's raw output or learn it
+ * ended, the same way it does for SSH sessions.
+ */
+const outputSubscribers = new Map<string, Set<(data: string) => void>>();
+const exitSubscribers = new Map<string, Set<() => void>>();
+
+function notifyExitSubscribers(sessionId: string): void {
+  const listeners = exitSubscribers.get(sessionId);
+  outputSubscribers.delete(sessionId);
+  exitSubscribers.delete(sessionId);
+  for (const listener of listeners ?? []) listener();
+}
 /** The window currently showing each session. Output goes there. */
 const owners = new Map<string, WebContents>();
 /**
@@ -95,6 +110,7 @@ function forwardData(sessionId: string, data: string): void {
   noteTerminalOutput();
   const owner = owners.get(sessionId);
   if (owner && !owner.isDestroyed()) owner.send(IPC.terminal.onData, { sessionId, data });
+  for (const listener of outputSubscribers.get(sessionId) ?? []) listener(data);
 }
 
 function forwardExit(sessionId: string, exitCode: number): void {
@@ -105,6 +121,7 @@ function forwardExit(sessionId: string, exitCode: number): void {
   sessions.delete(sessionId);
   attached.delete(sessionId);
   syncPowerSaveBlocker();
+  notifyExitSubscribers(sessionId);
 }
 
 const localListener: SessionListener = { onData: forwardData, onExit: forwardExit };
@@ -220,6 +237,8 @@ export function registerTerminalHandlers(): void {
         projectId: options.projectId ?? known?.projectId,
         cliId: options.cliId ?? known?.cliId,
         surface: options.surface ?? known?.surface,
+        // A reattach passes the tab's own shell, so this is right for restored tabs too.
+        shell,
         createdAt: known?.createdAt ?? Date.now(),
       });
       if (!known) syncPowerSaveBlocker();
@@ -247,6 +266,7 @@ export function registerTerminalHandlers(): void {
     sessions.delete(sessionId);
     attached.delete(sessionId);
     syncPowerSaveBlocker();
+    notifyExitSubscribers(sessionId);
   });
 
   ipcMain.handle(IPC.terminal.usage, async (): Promise<TerminalUsageResult> => {
@@ -319,6 +339,24 @@ export function preserveTerminalsOnQuit(): void {
   preserveOnQuit = true;
 }
 
+/** Agent CLI tabs this process is showing, for the confirmation shown before the app closes. */
+export function openCliSessionCount(): number {
+  let count = 0;
+  for (const [sessionId, session] of sessions) {
+    if (session.cliId && attached.has(sessionId)) count += 1;
+  }
+  return count;
+}
+
+/** Whether terminals carry on in the background host after a normal quit. */
+export async function terminalsKeepRunningAfterQuit(): Promise<boolean> {
+  if (local || !host) return false;
+  return store
+    .getSettings()
+    .then((settings) => settings.keepTerminalsRunning)
+    .catch(() => true);
+}
+
 /**
  * Called from `before-quit`. Returns a promise when the quit has to wait (the host may need
  * a moment to end the shells if the setting says so), or null when it can go ahead. On a
@@ -365,6 +403,41 @@ export function findSessionIdForProject(projectId: string): string | null {
     }
   }
   return best?.id ?? null;
+}
+
+/** True while `sessionId` is a local shell this process is attached to and can drive. */
+export function hasAttachedTerminalSession(sessionId: string): boolean {
+  return attached.has(sessionId) && sessions.has(sessionId);
+}
+
+/** The shell a session runs, falling back to the platform default when it was never recorded. */
+export function terminalSessionShell(sessionId: string): AllowedShell {
+  return sessions.get(sessionId)?.shell ?? defaultShell();
+}
+
+/** Fires with every chunk of raw output a session produces, until the returned function is called. */
+export function subscribeTerminalOutput(
+  sessionId: string,
+  listener: (data: string) => void,
+): () => void {
+  let set = outputSubscribers.get(sessionId);
+  if (!set) {
+    set = new Set();
+    outputSubscribers.set(sessionId, set);
+  }
+  set.add(listener);
+  return () => set?.delete(listener);
+}
+
+/** Fires once when a session ends, however that happens (shell exit, closed tab, lost host). */
+export function subscribeTerminalExit(sessionId: string, listener: () => void): () => void {
+  let set = exitSubscribers.get(sessionId);
+  if (!set) {
+    set = new Set();
+    exitSubscribers.set(sessionId, set);
+  }
+  set.add(listener);
+  return () => set?.delete(listener);
 }
 
 export function writeToSession(sessionId: string, data: string): void {

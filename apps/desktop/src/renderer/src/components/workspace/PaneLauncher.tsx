@@ -77,7 +77,7 @@ export function PaneLauncher({
           <span>{hero ? 'Start an agent' : 'Open in this pane'}</span>
           {hasSavedArgs ? (
             <span className="text-[10px] font-normal normal-case tracking-normal text-muted-foreground/70">
-              Alt+click: skip saved args
+              Alt+click: skip saved args and defaults
             </span>
           ) : null}
         </p>

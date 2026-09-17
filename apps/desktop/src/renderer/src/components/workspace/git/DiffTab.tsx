@@ -4,14 +4,15 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import {
+  type DiffLineAction,
   MonacoDiffEditor,
   type MonacoDiffEditorHandle,
 } from '@/components/editor/MonacoDiffEditor';
 import {
   ArrowDown,
   ArrowUp,
-  ExternalLink,
   File,
+  FileCode,
   Minus,
   Pin,
   Plus,
@@ -28,7 +29,7 @@ import { cn } from '@/lib/utils';
 import { DIFF_CHANGE_EVENT } from '@/lib/workspace/commands';
 import { useShortcutLabel } from '@/stores/shortcutStore';
 import { useWorkspaceStore, type WorkspaceDiffTab } from '@/stores/workspaceStore';
-import { useGitActions } from './useWorkspaceGit';
+import { openChangedFile, useGitActions } from './useWorkspaceGit';
 
 function ToolbarButton({
   label,
@@ -155,6 +156,55 @@ export default function DiffTab({
   const [draft, setDraft] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const dirty = editable && draft !== null && draft !== diff.data?.modified;
+
+  // Stage, unstage or discard single blocks and selected lines, the way VS Code does. A past
+  // commit and a conflict only take whole-file actions.
+  const originalId = diff.data?.originalId;
+  const modifiedId = diff.data?.modifiedId;
+  const lineSide = tab.side === 'conflict' ? null : tab.side;
+  let lineActions: DiffLineAction[] | undefined;
+  if (entry && !tab.commit && lineSide && originalId && modifiedId) {
+    const run =
+      (action: 'stage' | 'unstage' | 'discard') =>
+      (ranges: { original: [number, number][]; modified: [number, number][] }): void =>
+        void actions.applyLines({
+          path: tab.path,
+          origPath: tab.origPath,
+          side: lineSide,
+          action,
+          ranges,
+          originalId,
+          modifiedId,
+        });
+    lineActions =
+      lineSide === 'staged'
+        ? [
+            {
+              id: 'unstage',
+              label: 'Unstage',
+              menuLabel: 'Unstage Selected Lines',
+              icon: Minus,
+              run: run('unstage'),
+            },
+          ]
+        : [
+            {
+              id: 'discard',
+              label: 'Discard',
+              menuLabel: 'Discard Selected Lines',
+              icon: Undo,
+              tone: 'danger',
+              run: run('discard'),
+            },
+            {
+              id: 'stage',
+              label: 'Stage',
+              menuLabel: 'Stage Selected Lines',
+              icon: Plus,
+              run: run('stage'),
+            },
+          ];
+  }
 
   // A draft belongs to one file; switching what this tab shows starts clean.
   // biome-ignore lint/correctness/useExhaustiveDependencies: resets on the tab's identity only
@@ -297,12 +347,10 @@ export default function DiffTab({
               <ToolbarButton
                 label="Open file"
                 onClick={() =>
-                  void window.agentmat.shell.openPath(
-                    `${project.folderPath.replace(/[\\/]$/, '')}/${tab.path}`,
-                  )
+                  openChangedFile(project, state?.projectPrefix ?? '', tab.path, entry.binary)
                 }
               >
-                <ExternalLink className="h-2.5 w-2.5" />
+                <FileCode className="h-2.5 w-2.5" />
               </ToolbarButton>
             ) : null}
           </span>
@@ -401,6 +449,8 @@ export default function DiffTab({
             ignoreWhitespace={ignoreWhitespace}
             editable={editable}
             onModifiedChange={handleEdit}
+            lineActions={lineActions}
+            lineActionsBlocked={dirty ? 'Save your edits first' : undefined}
           />
         )}
       </div>

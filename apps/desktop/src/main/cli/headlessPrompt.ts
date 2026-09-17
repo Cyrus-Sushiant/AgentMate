@@ -1,7 +1,13 @@
 import type { ChildProcess } from 'node:child_process';
 import { execFile } from 'node:child_process';
 import type { AppSettings, CliDefinition, SupportedOS } from '@agentmat/core';
-import { CLI_REGISTRY, getCliArgvFor, getCliDefinition } from '@agentmat/core';
+import {
+  CLI_REGISTRY,
+  configuredArgsWithout,
+  getCliArgsFor,
+  getCliDefinition,
+  parseCliArgs,
+} from '@agentmat/core';
 import { runCli } from '../packageManagers/execUtils';
 import { store } from '../store';
 
@@ -158,7 +164,12 @@ function supportsHeadlessPrompt(cli: CliDefinition): boolean {
 async function resolveHeadlessCli(
   settings: AppSettings,
   preferredCliId?: string | null,
+  strict?: boolean,
 ): Promise<CliDefinition | null> {
+  if (strict) {
+    const cli = preferredCliId ? getCliDefinition(preferredCliId) : undefined;
+    return cli && supportsHeadlessPrompt(cli) && (await isOnPath(cli)) ? cli : null;
+  }
   const candidateIds = [preferredCliId, settings.defaultCliId].filter((id): id is string => !!id);
 
   const tried = new Set<string>();
@@ -228,6 +239,16 @@ export interface HeadlessPromptOptions {
    * (searching for manifests, editing several of them) needs considerably more.
    */
   timeoutMs?: number;
+  /**
+   * Use `preferredCliId` or nothing. For runs where the user picked the CLI (and a model for
+   * it), answering with a different CLI would be a surprise, and the model flags wouldn't fit.
+   */
+  strictCli?: boolean;
+  /**
+   * Model and effort flags picked for this one run, e.g. `['--model', 'opus']`. They replace
+   * the same flags in the user's saved CLI arguments rather than being added next to them.
+   */
+  runArgs?: string[];
 }
 
 /**
@@ -250,9 +271,19 @@ export async function runHeadlessCliPrompt(
   if (options.requestId && cancelledBeforeStart.delete(options.requestId)) return cancelledResult;
 
   const settings = await store.getSettings();
-  const cli = await resolveHeadlessCli(settings, options.preferredCliId);
+  const cli = await resolveHeadlessCli(settings, options.preferredCliId, options.strictCli);
   // Resolving the CLI can take seconds; the user may have cancelled in the meantime.
   if (options.requestId && cancelledBeforeStart.delete(options.requestId)) return cancelledResult;
+
+  if (!cli?.promptCommand && options.strictCli) {
+    const name = options.preferredCliId ? getCliDefinition(options.preferredCliId)?.name : null;
+    return {
+      ok: false,
+      text: '',
+      cliName: name ?? null,
+      error: `${name ?? 'The chosen CLI'} is not installed or can't answer non-interactive prompts.`,
+    };
+  }
 
   if (!cli?.promptCommand) {
     return {
@@ -277,7 +308,12 @@ export async function runHeadlessCliPrompt(
   // `--model` belongs for `opencode run` or `codex exec`. Arg-mode CLIs get them first:
   // there the prompt is the value of the last flag (`-p PROMPT`), so anything appended
   // after that flag would be read as the prompt instead.
-  const userArgs = getCliArgvFor(settings.cliArgs, cli.id);
+  // Run args only make sense for the CLI they were built for.
+  const runArgs = cli.id === options.preferredCliId ? (options.runArgs ?? []) : [];
+  const userArgs = [
+    ...parseCliArgs(configuredArgsWithout(getCliArgsFor(settings.cliArgs, cli.id), runArgs)),
+    ...runArgs,
+  ];
   const baseArgs =
     cli.promptInputMode === 'stdin'
       ? [...cli.promptCommand.args, ...writeArgs, ...userArgs]
