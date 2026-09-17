@@ -383,7 +383,11 @@ export function launchDefaultParts(
   }
 
   // An effort the chosen model can't take (Haiku has none) is left off rather than sent to fail.
-  const known = options.models.find((m) => m.value === model);
+  // The model that really runs is the one already in the arguments, when they set one.
+  const takenModel = options.modelFlag
+    ? findTakenFlag(takenArgs, modelFlagKeys(options.modelFlag))?.value
+    : undefined;
+  const known = options.models.find((m) => m.value === (takenModel ?? model));
   const effortFits =
     defaults.effort &&
     options.efforts.includes(defaults.effort) &&

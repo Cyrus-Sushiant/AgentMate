@@ -8,6 +8,7 @@ import { cn } from '@/lib/utils';
 import { useSearchStore } from '@/stores/searchStore';
 import { useShortcutLabel } from '@/stores/shortcutStore';
 import { HistoryNav } from './HistoryNav';
+import { NotificationBell } from './NotificationBell';
 
 function TrafficLight({
   color,
@@ -177,7 +178,10 @@ export function TitleBar(): React.JSX.Element {
         </div>
       </div>
 
-      {!isMac && <NativeCaptionButtons {...controlProps} />}
+      <div className={cn('flex items-center gap-1 [-webkit-app-region:no-drag]', isMac && 'pr-3')}>
+        <NotificationBell />
+        {!isMac && <NativeCaptionButtons {...controlProps} />}
+      </div>
     </div>
   );
 }

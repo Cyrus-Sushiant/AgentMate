@@ -2,11 +2,10 @@ import type { ChildProcess } from 'node:child_process';
 import { execFile } from 'node:child_process';
 import type { AppSettings, CliDefinition, SupportedOS } from '@agentmat/core';
 import {
+  buildHeadlessCliArgs,
   CLI_REGISTRY,
-  configuredArgsWithout,
   getCliArgsFor,
   getCliDefinition,
-  parseCliArgs,
 } from '@agentmat/core';
 import { runCli } from '../packageManagers/execUtils';
 import { store } from '../store';
@@ -299,25 +298,16 @@ export async function runHeadlessCliPrompt(
   // Stdin bypasses cmd.exe's command line entirely, so a CLI confirmed to read the
   // prompt that way needs neither the %VAR% stripping nor the length truncation below,
   // both of which only exist because cmd.exe reparses whatever lands in argv.
-  // Arg-mode CLIs need write flags before the prompt-taking flag (`-p PROMPT`), or the
-  // flag would be swallowed as the prompt. Stdin-mode CLIs have no prompt in argv, and
-  // some (OpenCode's `run --auto`) require write flags after the subcommand instead.
-  const writeArgs = options.allowWrites ? (cli.promptWriteArgs ?? []) : [];
-  // The user's own flags for this CLI (Settings / CLI Manager), e.g. "--model sonnet".
-  // Stdin-mode CLIs take them last, after any subcommand, which is where a flag like
-  // `--model` belongs for `opencode run` or `codex exec`. Arg-mode CLIs get them first:
-  // there the prompt is the value of the last flag (`-p PROMPT`), so anything appended
-  // after that flag would be read as the prompt instead.
+  // The user's CLI settings (saved arguments, launch default model and effort) go into every
+  // background run, placed where each CLI expects them; see buildHeadlessCliArgs().
   // Run args only make sense for the CLI they were built for.
-  const runArgs = cli.id === options.preferredCliId ? (options.runArgs ?? []) : [];
-  const userArgs = [
-    ...parseCliArgs(configuredArgsWithout(getCliArgsFor(settings.cliArgs, cli.id), runArgs)),
-    ...runArgs,
-  ];
-  const baseArgs =
-    cli.promptInputMode === 'stdin'
-      ? [...cli.promptCommand.args, ...writeArgs, ...userArgs]
-      : [...userArgs, ...writeArgs, ...cli.promptCommand.args];
+  const baseArgs = buildHeadlessCliArgs({
+    cli,
+    savedArgs: getCliArgsFor(settings.cliArgs, cli.id),
+    launchDefaults: settings.cliLaunchDefaults[cli.id],
+    runArgs: cli.id === options.preferredCliId ? (options.runArgs ?? []) : [],
+    allowWrites: options.allowWrites,
+  });
 
   const timeoutMs = options.timeoutMs ?? HEADLESS_TIMEOUT_MS;
   const outcome =

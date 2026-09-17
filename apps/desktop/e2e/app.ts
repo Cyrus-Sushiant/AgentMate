@@ -26,9 +26,14 @@ export interface LaunchedApp {
   close(): Promise<void>;
 }
 
+/** What the fake `claude` answers a headless (`-p`) run with. */
+export const FAKE_CLAUDE_ANSWER = 'feat: e2e change';
+
 /**
- * A `claude` that only records how it was started. Found first on PATH, so the app's own CLI
+ * A `claude` that records how it was started. Found first on PATH, so the app's own CLI
  * detection sees Claude Code as installed and a workspace tab starts this instead of the real one.
+ * A headless run (`-p`, prompt on stdin) gets its prompt read to the end and a short answer, the
+ * way the real CLI behaves, so background tasks finish normally.
  */
 function writeFakeClaude(binDir: string, logFile: string): void {
   mkdirSync(binDir, { recursive: true });
@@ -39,6 +44,9 @@ function writeFakeClaude(binDir: string, logFile: string): void {
         '@echo off',
         'if "%~1"=="--version" goto version',
         `>>"${logFile}" echo(%*`,
+        'if not "%~1"=="-p" exit /b 0',
+        'more >nul',
+        `echo ${FAKE_CLAUDE_ANSWER}`,
         'exit /b 0',
         ':version',
         'echo 9.9.9 (Claude Code)',
@@ -53,6 +61,7 @@ function writeFakeClaude(binDir: string, logFile: string): void {
         '#!/bin/sh',
         'if [ "$1" = "--version" ]; then echo "9.9.9 (Claude Code)"; exit 0; fi',
         `echo "$*" >> '${logFile}'`,
+        `if [ "$1" = "-p" ]; then cat >/dev/null; echo "${FAKE_CLAUDE_ANSWER}"; fi`,
         '',
       ].join('\n'),
     );
@@ -140,8 +149,19 @@ function killLeftovers(root: string): void {
 
 /** Creates a project for the temp folder and opens its workspace. Returns the project id. */
 export async function openWorkspace(launched: LaunchedApp): Promise<string> {
+  const id = await createProject(launched);
+  // A project made through IPC is not in the cached list yet, so reload onto its workspace.
+  await launched.page.evaluate((projectId) => {
+    location.hash = `#/workspace/${projectId}`;
+  }, id);
+  await launched.page.reload();
+  return id;
+}
+
+/** Creates a project for the temp folder without navigating anywhere. Returns the project id. */
+export async function createProject(launched: LaunchedApp): Promise<string> {
   const { page, projectDir } = launched;
-  const id = await page.evaluate(async (folderPath) => {
+  return page.evaluate(async (folderPath) => {
     const api = (
       window as unknown as {
         agentmat: { projects: { create(input: unknown): Promise<{ id: string }> } };
@@ -158,10 +178,19 @@ export async function openWorkspace(launched: LaunchedApp): Promise<string> {
     });
     return project.id;
   }, projectDir);
-  // A project made through IPC is not in the cached list yet, so reload onto its workspace.
-  await page.evaluate((projectId) => {
-    location.hash = `#/workspace/${projectId}`;
-  }, id);
-  await page.reload();
-  return id;
+}
+
+/** Makes the project folder a git repo with one commit and one uncommitted change. */
+export function initGitRepo(launched: LaunchedApp): void {
+  const git = (args: string): void => {
+    execSync(`git -c user.name=e2e -c user.email=e2e@example.com ${args}`, {
+      cwd: launched.projectDir,
+      stdio: 'ignore',
+    });
+  };
+  git('init -q');
+  writeFileSync(join(launched.projectDir, 'package.json'), '{ "version": "1.0.0" }\n');
+  git('add -A');
+  git('commit -q -m "chore: initial"');
+  writeFileSync(join(launched.projectDir, 'feature.txt'), 'a change to describe\n');
 }

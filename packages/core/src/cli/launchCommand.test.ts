@@ -122,6 +122,17 @@ describe('buildAgentLaunchCommand', () => {
     ).toBe('claude --model haiku');
   });
 
+  it('leaves a launch default effort off when the saved model has none', () => {
+    expect(
+      buildAgentLaunchCommand({
+        cliId: 'claude-code',
+        shellKind: 'posix',
+        savedArgs: '--model haiku',
+        launchDefaults: { effort: 'high' },
+      }),
+    ).toBe('claude --model haiku');
+  });
+
   it('returns null for a CLI it does not know', () => {
     expect(buildAgentLaunchCommand({ cliId: 'nope', shellKind: 'posix' })).toBeNull();
   });

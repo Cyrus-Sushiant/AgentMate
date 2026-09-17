@@ -191,7 +191,7 @@ const MISSING_CACHE_TTL_MS = 20 * 1000;
 let detectCache: { value: InstalledCli[]; at: number } | null = null;
 let detectInFlight: Promise<InstalledCli[]> | null = null;
 
-function detectAllClis(force: boolean): Promise<InstalledCli[]> {
+export function detectAllClis(force: boolean): Promise<InstalledCli[]> {
   if (!force && detectCache) {
     const ttl = detectCache.value.every((cli) => cli.installed)
       ? DETECT_CACHE_TTL_MS

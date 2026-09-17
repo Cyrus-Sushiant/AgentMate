@@ -90,13 +90,15 @@ async function detectTool(tool: AgentToolDefinition): Promise<InstalledAgentTool
   };
 }
 
+export function detectAllTools(): Promise<InstalledAgentTool[]> {
+  // A detect pass is also what the user presses after installing something, so this is the
+  // right moment to look for script directories that did not exist a minute ago.
+  refreshExtraToolPathDirs();
+  return Promise.all(AGENT_TOOL_REGISTRY.map((tool) => detectTool(tool)));
+}
+
 export function registerToolHandlers(): void {
-  ipcMain.handle(IPC.tools.detectAll, async (): Promise<InstalledAgentTool[]> => {
-    // A detect pass is also what the user presses after installing something, so this is the
-    // right moment to look for script directories that did not exist a minute ago.
-    refreshExtraToolPathDirs();
-    return Promise.all(AGENT_TOOL_REGISTRY.map((tool) => detectTool(tool)));
-  });
+  ipcMain.handle(IPC.tools.detectAll, (): Promise<InstalledAgentTool[]> => detectAllTools());
 
   ipcMain.handle(IPC.tools.getInstallCommand, (_event, toolId: string): string | null => {
     const tool = getAgentToolDefinition(toolId);

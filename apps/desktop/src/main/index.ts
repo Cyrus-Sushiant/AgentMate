@@ -77,6 +77,7 @@ import {
   pruneOrphanEnvironments,
   store,
 } from './store';
+import { startToolUpdateWatcher, stopToolUpdateWatcher } from './toolUpdates/watcher';
 import { startHourlyUpdateChecks } from './updater';
 import { startResetAlertWatcher, stopResetAlertWatcher } from './usage/resetAlerts';
 import { startThresholdAlertWatcher, stopThresholdAlertWatcher } from './usage/thresholdAlerts';
@@ -349,6 +350,7 @@ app.whenReady().then(async () => {
   startThresholdAlertWatcher();
   startNetworkQualityAlertWatcher();
   startPipelineWatcher();
+  startToolUpdateWatcher();
   startHourlyUpdateChecks();
 
   app.on('activate', () => {
@@ -388,6 +390,7 @@ app.on('before-quit', (event) => {
   stopThresholdAlertWatcher();
   stopNetworkQualityAlertWatcher();
   stopPipelineWatcher();
+  stopToolUpdateWatcher();
   shutdownLocalServer();
   remoteManager.shutdown();
   stopAllSshTasks();

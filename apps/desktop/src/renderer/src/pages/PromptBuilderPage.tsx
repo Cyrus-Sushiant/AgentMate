@@ -5,14 +5,12 @@ import {
   cliIdForTargetAI,
   DEFAULT_TARGET_AI,
   generatePrompt,
-  getCliArgsFor,
   isTargetAI,
   normalizeTargetAI,
   PROMPT_TYPES,
   resolvePromptTargetAI,
   TARGET_AIS,
   targetAIForProject,
-  withoutConfiguredRunArgs,
 } from '@agentmat/core';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -449,16 +447,12 @@ export default function PromptBuilderPage(): React.JSX.Element {
       `prompt-${Date.now()}.md`,
       generated,
     );
-    const baseLaunch = cliLaunchCommand(cliForSendTo.id) ?? cliForSendTo.executableNames[0];
     // Model and effort flags only mean something to the CLI they were picked for.
     const runArgs =
       cliForSendTo.id === runRecommendation.recommendation?.profile.cliId
-        ? withoutConfiguredRunArgs(
-            getCliArgsFor(useCliStore.getState().cliArgs, cliForSendTo.id),
-            runRecommendation.args,
-          )
+        ? runRecommendation.args
         : [];
-    const launch = [baseLaunch, ...runArgs].join(' ');
+    const launch = cliLaunchCommand(cliForSendTo.id, runArgs) ?? cliForSendTo.executableNames[0];
     const command =
       window.agentmat.platform === 'win32'
         ? `& ${launch} (Get-Content -Raw -LiteralPath "${filePath}")`

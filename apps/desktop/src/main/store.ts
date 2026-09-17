@@ -153,6 +153,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   keepTerminalsRunning: true,
   workspaceNotifications: true,
   keepAwake: 'agent',
+  checkToolUpdatesEnabled: true,
   workspaceTerminalCustomBackground: false,
   workspaceTerminalBackgroundColor: DEFAULT_TERMINAL_BACKGROUND_COLOR,
   vaultAutoLockMinutes: DEFAULT_VAULT_AUTO_LOCK_MINUTES,
@@ -209,6 +210,7 @@ function withSettingsMigrations(settings: AppSettings): AppSettings {
     usageThresholdAlerts: normalizeUsageThresholdAlerts(settings.usageThresholdAlerts),
     keepTerminalsRunning: settings.keepTerminalsRunning !== false,
     workspaceNotifications: settings.workspaceNotifications !== false,
+    checkToolUpdatesEnabled: settings.checkToolUpdatesEnabled !== false,
     keepAwake:
       settings.keepAwake === 'on' || settings.keepAwake === 'off' ? settings.keepAwake : 'agent',
     theme: isThemeMode(settings.theme) ? settings.theme : 'system',
@@ -349,6 +351,11 @@ export const store = {
   setPipelineWatch: (state: PipelineWatchState): Promise<void> =>
     writeJsonFile('pipeline-watch.json', state),
 
+  getToolUpdateWatch: (): Promise<ToolUpdateWatchState> =>
+    readJsonFile('tool-update-watch.json', { lastCheckedAt: null }),
+  setToolUpdateWatch: (state: ToolUpdateWatchState): Promise<void> =>
+    writeJsonFile('tool-update-watch.json', state),
+
   getLastRunInfoByCli: (): Promise<LastRunInfoByCli> => readJsonFile('last-run-info.json', {}),
   setLastRunInfoByCli: (info: LastRunInfoByCli): Promise<void> =>
     writeJsonFile('last-run-info.json', info),
@@ -408,6 +415,11 @@ export async function pruneOrphanEnvironments(): Promise<void> {
 /** `${projectId}:${workflowId}` to the newest completed run already processed. */
 export interface PipelineWatchState {
   lastCompletedRunId: Record<string, number>;
+}
+
+/** When the CLI/tool update watcher last ran, so it only checks about once a day. */
+export interface ToolUpdateWatchState {
+  lastCheckedAt: string | null;
 }
 
 export async function logActivity(

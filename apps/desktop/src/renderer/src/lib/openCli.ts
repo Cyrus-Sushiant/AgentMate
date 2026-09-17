@@ -12,14 +12,17 @@ import { defaultNewSession, useTerminalStore } from '@/stores/terminalStore';
  * The command that starts this CLI, with its launch defaults and the user's configured
  * arguments already attached ("claude --permission-mode auto --model sonnet"). Callers that
  * pass a prompt of their own append it after this, so the flags stay ahead of the prompt.
+ * `runArgs` (a suggested model and effort) fill in only what the saved arguments don't set, and
+ * replace the launch defaults they overlap, so no flag is ever sent twice.
  */
-export function cliLaunchCommand(cliId: string): string | null {
+export function cliLaunchCommand(cliId: string, runArgs: readonly string[] = []): string | null {
   const { cliArgs, cliLaunchDefaults } = useCliStore.getState();
   return buildAgentLaunchCommand({
     cliId,
     shellKind: shellKindFor(defaultNewSession().shell, window.agentmat.platform),
     savedArgs: getCliArgsFor(cliArgs, cliId),
     launchDefaults: cliLaunchDefaults[cliId],
+    runArgs,
   });
 }
 

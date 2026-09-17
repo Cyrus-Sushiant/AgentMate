@@ -36,6 +36,13 @@ export async function fetchLatestVersion(source: UpdateCheckSource): Promise<str
   }
 }
 
+/** Where a notification's "what's new" link should point for a given update source. */
+export function releaseUrl(source: UpdateCheckSource): string {
+  if (source.type === 'npm') return `https://www.npmjs.com/package/${source.package}`;
+  if (source.type === 'pypi') return `https://pypi.org/project/${source.package}/`;
+  return `https://github.com/${source.package}/releases/latest`;
+}
+
 /** Compares dot/dash-separated numeric version segments; positive when `a` is newer than `b`. */
 export function compareVersions(a: string, b: string): number {
   const partsA = a.split(/[.-]/).map((part) => parseInt(part, 10));

@@ -72,7 +72,9 @@ export function CliLaunchDefaultsSettings(): React.JSX.Element {
   return (
     <div className="space-y-2">
       <p className="text-xs leading-relaxed text-muted-foreground">
-        Used for Workspace tabs and terminals. Alt+click a launcher to start without them.
+        Used for Workspace tabs and terminals. The model and effort also apply when AgentMate asks
+        the CLI something in the background, like a commit message or a version bump. Alt+click a
+        launcher to start without them.
       </p>
       <div className="overflow-hidden rounded-lg border border-border/70">
         {primary.length ? (

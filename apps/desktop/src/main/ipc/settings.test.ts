@@ -140,3 +140,26 @@ describe('settings to launch command', () => {
     expect(claudeCommand(settings)).toBe('claude --model opus --effort high');
   });
 });
+
+describe('checkToolUpdatesEnabled', () => {
+  it('defaults to on for a fresh install', async () => {
+    const settings = await ipc<AppSettings>(IPC.settings.get);
+    expect(settings.checkToolUpdatesEnabled).toBe(true);
+  });
+
+  it('stays on when a pre-existing settings file predates the flag', async () => {
+    await writeData('settings.json', { theme: 'dark' });
+    const settings = await ipc<AppSettings>(IPC.settings.get);
+    expect(settings.checkToolUpdatesEnabled).toBe(true);
+  });
+
+  it('persists turning it off, and back on', async () => {
+    const off = await ipc<AppSettings>(IPC.settings.update, { checkToolUpdatesEnabled: false });
+    expect(off.checkToolUpdatesEnabled).toBe(false);
+    expect((await readSettingsFile()).checkToolUpdatesEnabled).toBe(false);
+
+    const on = await ipc<AppSettings>(IPC.settings.update, { checkToolUpdatesEnabled: true });
+    expect(on.checkToolUpdatesEnabled).toBe(true);
+    expect((await readSettingsFile()).checkToolUpdatesEnabled).toBe(true);
+  });
+});

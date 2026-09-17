@@ -1,0 +1,134 @@
+import { readdirSync, readFileSync } from 'node:fs';
+import { join, relative, sep } from 'node:path';
+import { describe, expect, it } from 'vitest';
+
+/**
+ * Every place AgentMate starts an AI CLI has to use the settings the user gave that CLI (the
+ * Arguments box and Launch defaults). That only holds while every launch goes through one of two
+ * builders from @agentmat/core:
+ *
+ *   - buildAgentLaunchCommand(): terminal tabs and "open in terminal" (lib/workspace/launch.ts,
+ *     lib/openCli.ts in the renderer)
+ *   - buildHeadlessCliArgs(): background tasks such as commit messages, tag suggestions, version
+ *     bumps, run sizing, skill reviews, and SSH tasks (main/cli/headlessPrompt.ts)
+ *
+ * These checks read the source and fail when new code reaches around them. If one fails, route the
+ * new launch through runHeadlessCliPrompt() or cliLaunchCommand()/launchAgentTab() instead of
+ * adding the file to the list below.
+ */
+
+const SRC = __dirname;
+
+function sourceFiles(dir: string): string[] {
+  return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+    const path = join(dir, entry.name);
+    if (entry.isDirectory()) {
+      return entry.name === 'node_modules' || entry.name.startsWith('out') ? [] : sourceFiles(path);
+    }
+    const isSource = /\.(ts|tsx)$/.test(entry.name) && !/\.test\.tsx?$/.test(entry.name);
+    return isSource && !path.includes(`${sep}testing${sep}`) ? [path] : [];
+  });
+}
+
+const files = sourceFiles(SRC).map((path) => ({
+  path: relative(SRC, path).split(sep).join('/'),
+  text: readFileSync(path, 'utf-8'),
+}));
+
+function filesMatching(area: 'main' | 'renderer', pattern: RegExp): string[] {
+  return files
+    .filter((file) => file.path.startsWith(`${area}/`) && pattern.test(file.text))
+    .map((file) => file.path)
+    .sort();
+}
+
+describe('AI CLI launches use the user CLI settings', () => {
+  it('has source files to check', () => {
+    expect(files.some((file) => file.path === 'main/cli/headlessPrompt.ts')).toBe(true);
+    expect(files.some((file) => file.path === 'renderer/src/lib/workspace/launch.ts')).toBe(true);
+  });
+
+  it('starts background CLI runs only through runHeadlessCliPrompt', () => {
+    // promptCommand is how a CLI is run without a terminal. Anything else reading it is a second
+    // runner that would skip the user's settings.
+    expect(filesMatching('main', /\.promptCommand\b/)).toEqual(['main/cli/headlessPrompt.ts']);
+  });
+
+  it('builds background CLI arguments from both the Arguments box and Launch defaults', () => {
+    const runner = files.find((file) => file.path === 'main/cli/headlessPrompt.ts')?.text ?? '';
+    expect(runner).toMatch(/buildHeadlessCliArgs\(\{/);
+    expect(runner).toMatch(/savedArgs:\s*getCliArgsFor\(settings\.cliArgs,\s*cli\.id\)/);
+    expect(runner).toMatch(/launchDefaults:\s*settings\.cliLaunchDefaults\[cli\.id\]/);
+  });
+
+  it('reads saved CLI settings in the main process only where launches are built', () => {
+    expect(filesMatching('main', /\bcliArgs\b/)).toEqual([
+      'main/backup/envelope.ts',
+      'main/cli/headlessPrompt.ts',
+      'main/store.ts',
+    ]);
+    expect(filesMatching('main', /\bcliLaunchDefaults\b/)).toEqual([
+      'main/cli/headlessPrompt.ts',
+      'main/store.ts',
+    ]);
+  });
+
+  it('runs no registry CLI from the main process outside detection and the headless runner', () => {
+    const spawnsAndKnowsClis = filesMatching('main', /\b(execFile|spawn)\s*\(/).filter((path) =>
+      /\b(CLI_REGISTRY|getCliDefinition|executableNames|versionCommand)\b/.test(
+        files.find((file) => file.path === path)?.text ?? '',
+      ),
+    );
+    expect(spawnsAndKnowsClis).toEqual(['main/cli/headlessPrompt.ts', 'main/ipc/cliDetection.ts']);
+  });
+
+  it('builds terminal launch commands in the renderer only through the core builder', () => {
+    // The low-level pieces put together a command that can miss a setting or send a flag twice.
+    expect(
+      filesMatching('renderer', /\b(launchDefaultArgs|withoutConfiguredRunArgs|getCliArgvFor)\b/),
+    ).toEqual([]);
+    expect(filesMatching('renderer', /\bbuildAgentLaunchCommand\b/)).toEqual([
+      'renderer/src/lib/openCli.ts',
+      'renderer/src/lib/workspace/launch.ts',
+    ]);
+  });
+
+  it('reads saved CLI settings in the renderer only to launch or edit them', () => {
+    expect(filesMatching('renderer', /\bcliLaunchDefaults\b/)).toEqual([
+      'renderer/src/components/settings/CliLaunchDefaultsSettings.tsx',
+      'renderer/src/lib/openCli.ts',
+      'renderer/src/lib/workspace/launch.ts',
+      'renderer/src/stores/cliStore.ts',
+    ]);
+    expect(filesMatching('renderer', /\bcliArgs\b/)).toEqual([
+      'renderer/src/components/CliArgsField.tsx',
+      'renderer/src/components/settings/CliLaunchDefaultsSettings.tsx',
+      // These two only check whether any are saved, for the "Alt+click skips them" hint.
+      'renderer/src/components/workspace/LauncherMenu.tsx',
+      'renderer/src/components/workspace/PaneLauncher.tsx',
+      'renderer/src/lib/openCli.ts',
+      'renderer/src/lib/workspace/launch.ts',
+      'renderer/src/stores/cliStore.ts',
+    ]);
+  });
+
+  it('types a CLI executable into a terminal only as a fallback to cliLaunchCommand', () => {
+    const typesExecutable = files.filter(
+      (file) =>
+        file.path.startsWith('renderer/') &&
+        /executableNames\[0\]/.test(file.text) &&
+        /\b(openSession|initialInput|launchInput)\b/.test(file.text),
+    );
+    for (const file of typesExecutable) {
+      const uses = file.text.match(/.*executableNames\[0\].*/g) ?? [];
+      for (const line of uses) {
+        expect(
+          /cliLaunchCommand\(|buildAgentLaunchCommand\(|cli\.executableNames\[0\],$/.test(
+            line.trim(),
+          ),
+          `${file.path}: "${line.trim()}" starts a CLI without the user settings`,
+        ).toBe(true);
+      }
+    }
+  });
+});

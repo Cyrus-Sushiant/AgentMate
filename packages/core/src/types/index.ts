@@ -237,9 +237,9 @@ export function normalizeProjectGithubActions(value: unknown): ProjectGithubActi
   return actions;
 }
 
-export type AppNotificationKind = 'pipeline-failure';
+export type AppNotificationKind = 'pipeline-failure' | 'tool-update-available';
 
-/** In-app inbox item, currently pipeline failures from watched GitHub Actions. */
+/** In-app inbox item: pipeline failures from watched GitHub Actions, or a CLI/tool update. */
 export interface AppNotification {
   id: string;
   kind: AppNotificationKind;
@@ -495,6 +495,11 @@ export interface AppSettings {
    * (or a shell) is busy, or never.
    */
   keepAwake: KeepAwakeMode;
+  /**
+   * When true, AgentMate checks once a day whether a newer version of an installed CLI or tool
+   * has been published, and drops a bell notification in the app when one has.
+   */
+  checkToolUpdatesEnabled: boolean;
   /**
    * Off by default: a Workspace terminal pane leaves colors alone, so whatever CLI is running
    * in it (Claude Code's own gray, say) looks the way it would in any ordinary terminal. On
