@@ -7,7 +7,9 @@ import type {
   BlueprintStepId,
   EffortLevel,
   EnvironmentKind,
+  GenericMapping,
   GitChangeEntry,
+  ImportSkip,
   KeepAwakeMode,
   ProjectBlueprint,
   ProjectNotificationSettings,
@@ -19,6 +21,8 @@ import type {
   SkillAuditFinding,
   SkillAuditVerdict,
   UsageProviderConfig,
+  VaultEntryType,
+  VaultImportFormat,
 } from '@agentmat/core';
 
 export type { AiProvider };
@@ -602,6 +606,11 @@ export interface BackupExportOptions {
    * password. Left out, they stay on this computer only.
    */
   environmentsPassword?: string;
+  /**
+   * The Vault goes in by default when there is one. It stays encrypted with its own master
+   * password, so it needs no backup password. False leaves it out.
+   */
+  includeVault?: boolean;
 }
 
 /** First step of a restore: the file was picked and checked, nothing has been written yet. */
@@ -612,11 +621,15 @@ export interface BackupOpenResult {
   token?: string;
   /** Present when the backup carries password-protected project environments. */
   environments?: { count: number };
+  /** Present when the backup carries a Vault. */
+  vault?: { present: true };
 }
 
 export interface BackupRestoreOptions {
   /** The backup password for its environments, or null to restore everything else. */
   environmentsPassword: string | null;
+  /** Replaces this computer's Vault with the one in the backup. The old one is kept aside. */
+  restoreVault?: boolean;
 }
 
 export interface BackupImportResult {
@@ -2157,3 +2170,67 @@ export interface DockerRemoveOptions {
   removeVolumes: boolean;
   removeImage: boolean;
 }
+
+/* Vault ----------------------------------------------------------------------------------- */
+
+export type VaultState = 'uninitialized' | 'locked' | 'unlocked';
+
+export type VaultLockReason = 'manual' | 'idle' | 'system' | 'quit' | 'reset' | 'restore';
+
+export interface VaultStatus {
+  state: VaultState;
+  /** Milliseconds until another unlock attempt is accepted. */
+  retryAfterMs: number;
+  autoLockMinutes: number;
+  clipboardClearSeconds: number;
+}
+
+export type VaultUnlockResult =
+  | { ok: true }
+  | { ok: false; reason: 'wrong-password' | 'throttled' | 'busy'; retryAfterMs: number };
+
+export interface VaultStateEvent {
+  state: VaultState;
+  reason?: VaultLockReason;
+}
+
+export interface VaultCopyResult {
+  /** When the clipboard will be cleared (epoch ms), or null when clearing is off. */
+  clearsAt: number | null;
+}
+
+export interface VaultClipboardEvent {
+  cleared: boolean;
+}
+
+export interface VaultImportSampleRow {
+  type: VaultEntryType;
+  title: string;
+  username: string;
+  host: string;
+}
+
+/** What the import dialog shows. Never includes passwords or notes from the file. */
+export interface VaultImportPreview {
+  token: string;
+  fileName: string;
+  format: VaultImportFormat | null;
+  headers: string[];
+  mapping: GenericMapping;
+  rowCount: number;
+  importable: number;
+  duplicates: { identical: number; conflict: number };
+  skipped: ImportSkip[];
+  sample: VaultImportSampleRow[];
+}
+
+export interface VaultImportResult {
+  added: number;
+  replaced: number;
+  skipped: number;
+  invalid: ImportSkip[];
+}
+
+export type VaultExportResult =
+  | { ok: true }
+  | { ok: false; reason: 'wrong-password' | 'cancelled' };

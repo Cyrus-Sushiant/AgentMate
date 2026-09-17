@@ -6,6 +6,7 @@ import { stopLocalServer } from '../grammar/localServer';
 import { applyProxySettings } from '../network/proxy';
 import { petManager } from '../pet/petWindow';
 import { store } from '../store';
+import { getVaultService } from '../vault';
 
 export function registerSettingsHandlers(): void {
   ipcMain.handle(IPC.settings.get, (): Promise<AppSettings> => store.getSettings());
@@ -17,6 +18,9 @@ export function registerSettingsHandlers(): void {
       const next = { ...current, ...updates };
       await store.setSettings(next);
       void petManager.syncFromSettings();
+      if (Object.keys(updates).some((key) => key.startsWith('vault'))) {
+        getVaultService().applySettings(next);
+      }
 
       // Waited on rather than fired off, so the settings call only resolves
       // once the new route is the one the next request will take.

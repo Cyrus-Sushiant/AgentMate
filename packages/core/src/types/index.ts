@@ -504,6 +504,12 @@ export interface AppSettings {
   workspaceTerminalCustomBackground: boolean;
   /** Background used for Workspace terminal panes when `workspaceTerminalCustomBackground` is on. */
   workspaceTerminalBackgroundColor: string;
+  /** Minutes without vault activity before the Vault locks itself. 0 means never. */
+  vaultAutoLockMinutes: number;
+  /** Seconds before a password copied from the Vault is cleared from the clipboard. 0 means never. */
+  vaultClipboardClearSeconds: number;
+  /** Locks the Vault when the computer locks its screen or goes to sleep. */
+  vaultLockOnSystemLock: boolean;
 }
 
 export type AgentType = 'claude-code' | 'gemini' | 'opencode' | 'codex' | 'cursor' | 'generic';

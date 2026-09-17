@@ -25,6 +25,7 @@ import {
   toStoredEnvironments,
   unsealEnvironments,
 } from '../backup/environmentsCipher';
+import { currentVaultSection, readVaultSection, restoreVaultSection } from '../backup/vaultSection';
 import {
   exportAttachments,
   importAttachments,
@@ -35,6 +36,8 @@ import { petManager } from '../pet/petWindow';
 import { promptHistoryDb } from '../promptHistoryDb';
 import { skillAuditDb } from '../skillAuditDb';
 import { store } from '../store';
+import { electronVaultFiles, getVaultService } from '../vault';
+import type { VaultFileV1 } from '../vault/format';
 
 const ZIP_ENTRY_NAME = 'backup.json';
 
@@ -43,6 +46,7 @@ interface PendingRestore {
   data: BackupData;
   warnings: string[];
   environments: EncryptedEnvironmentsSection | null;
+  vault: VaultFileV1 | null;
 }
 
 /**
@@ -137,7 +141,14 @@ export function registerBackupHandlers(): void {
         version: BACKUP_VERSION,
         exportedAt: new Date().toISOString(),
         appVersion: app.isPackaged ? app.getVersion() : 'dev',
-        data: { ...(await readCurrentData()), projectEnvironments: environments },
+        data: {
+          ...(await readCurrentData()),
+          projectEnvironments: environments,
+          vault:
+            options.includeVault === false
+              ? undefined
+              : ((await currentVaultSection(electronVaultFiles)) ?? undefined),
+        },
       };
       const json = JSON.stringify(envelope, null, 2);
 
@@ -193,11 +204,17 @@ export function registerBackupHandlers(): void {
       warnings.push('The project environments in this backup could not be read and were skipped.');
     }
 
-    pendingRestore = { token: randomUUID(), data: backup.data, warnings, environments };
+    const vault = readVaultSection(rawData.vault);
+    if (rawData.vault !== undefined && !vault) {
+      warnings.push('The Vault in this backup could not be read and was skipped.');
+    }
+
+    pendingRestore = { token: randomUUID(), data: backup.data, warnings, environments, vault };
     return {
       ok: true,
       token: pendingRestore.token,
       environments: environments ? { count: environments.count } : undefined,
+      vault: vault ? { present: true } : undefined,
     };
   });
 
@@ -246,6 +263,23 @@ export function registerBackupHandlers(): void {
           ok: false,
           error: `Could not restore that backup: ${error instanceof Error ? error.message : 'unknown error'}. Your existing data was left in place.`,
         };
+      }
+
+      // Last, and on its own: everything else is already in place, and a vault that fails to
+      // restore leaves this computer's vault where it was.
+      if (pending.vault && options.restoreVault) {
+        try {
+          await restoreVaultSection(
+            pending.vault,
+            electronVaultFiles,
+            () => getVaultService().lock('restore'),
+            new Date(),
+          );
+        } catch (error) {
+          warnings.push(
+            `The Vault could not be restored: ${error instanceof Error ? error.message : 'unknown error'}. Your existing Vault was kept.`,
+          );
+        }
       }
 
       pendingRestore = null;

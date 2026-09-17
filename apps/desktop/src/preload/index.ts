@@ -14,6 +14,8 @@ import type {
   DesktopPromptBuildWidgetInstance,
   DesktopWidgetInstance,
   DetectedClaudeHook,
+  DuplicatePolicy,
+  GenericMapping,
   GitChangeEntry,
   InstalledAgentTool,
   InstalledCli,
@@ -31,6 +33,7 @@ import type {
   PromptTemplate,
   ProviderUsage,
   ProxySettings,
+  SaveVaultEntryInput,
   ScannerPreflight,
   ScheduledTask,
   ScheduledTaskStatus,
@@ -50,6 +53,10 @@ import type {
   UsageProviderConfig,
   UsageResetAlertSettings,
   UsageThresholdAlertSettings,
+  VaultEntry,
+  VaultEntrySummary,
+  VaultExportFormat,
+  VaultFieldRef,
   WidgetMode,
   WidgetSize,
   WidgetStyle,
@@ -208,6 +215,14 @@ import type {
   UiProPrerequisites,
   UiProUpdateCheck,
   UpdateStatus,
+  VaultClipboardEvent,
+  VaultCopyResult,
+  VaultExportResult,
+  VaultImportPreview,
+  VaultImportResult,
+  VaultStateEvent,
+  VaultStatus,
+  VaultUnlockResult,
   WorkspaceGitState,
   WriteVersionHunksInput,
   WriteVersionHunksResult,
@@ -1418,6 +1433,50 @@ function windowsBuildNumber(): number | null {
   return Number.isFinite(build) && build > 0 ? build : null;
 }
 
+const vault = {
+  status: (): Promise<VaultStatus> => ipcRenderer.invoke(IPC.vault.status),
+  create: (password: string): Promise<void> => ipcRenderer.invoke(IPC.vault.create, password),
+  unlock: (password: string): Promise<VaultUnlockResult> =>
+    ipcRenderer.invoke(IPC.vault.unlock, password),
+  lock: (): Promise<void> => ipcRenderer.invoke(IPC.vault.lock),
+  changePassword: (current: string, next: string): Promise<boolean> =>
+    ipcRenderer.invoke(IPC.vault.changePassword, current, next),
+  reset: (): Promise<void> => ipcRenderer.invoke(IPC.vault.reset),
+  list: (): Promise<VaultEntrySummary[]> => ipcRenderer.invoke(IPC.vault.list),
+  getForEdit: (id: string): Promise<VaultEntry> => ipcRenderer.invoke(IPC.vault.getForEdit, id),
+  reveal: (id: string, field: VaultFieldRef): Promise<string> =>
+    ipcRenderer.invoke(IPC.vault.reveal, id, field),
+  copy: (id: string, field: VaultFieldRef): Promise<VaultCopyResult> =>
+    ipcRenderer.invoke(IPC.vault.copy, id, field),
+  save: (input: SaveVaultEntryInput): Promise<VaultEntrySummary> =>
+    ipcRenderer.invoke(IPC.vault.save, input),
+  remove: (ids: string[]): Promise<number> => ipcRenderer.invoke(IPC.vault.remove, ids),
+  patch: (
+    id: string,
+    change: { favorite?: boolean; tags?: string[] },
+  ): Promise<VaultEntrySummary> => ipcRenderer.invoke(IPC.vault.patch, id, change),
+  duplicate: (id: string): Promise<VaultEntrySummary> =>
+    ipcRenderer.invoke(IPC.vault.duplicate, id),
+  touch: (): Promise<void> => ipcRenderer.invoke(IPC.vault.touch),
+  importOpen: (): Promise<VaultImportPreview | null> => ipcRenderer.invoke(IPC.vault.importOpen),
+  importPreview: (token: string, mapping: GenericMapping | null): Promise<VaultImportPreview> =>
+    ipcRenderer.invoke(IPC.vault.importPreview, token, mapping),
+  importCommit: (
+    token: string,
+    mapping: GenericMapping | null,
+    policy: DuplicatePolicy,
+  ): Promise<VaultImportResult> =>
+    ipcRenderer.invoke(IPC.vault.importCommit, token, mapping, policy),
+  importCancel: (token: string): Promise<void> => ipcRenderer.invoke(IPC.vault.importCancel, token),
+  exportCsv: (password: string, format: VaultExportFormat): Promise<VaultExportResult> =>
+    ipcRenderer.invoke(IPC.vault.exportCsv, password, format),
+  onStateChanged: (cb: (event: VaultStateEvent) => void): (() => void) =>
+    subscribe(IPC.vault.onStateChanged, cb),
+  onEntriesChanged: (cb: () => void): (() => void) => subscribe(IPC.vault.onEntriesChanged, cb),
+  onClipboardSettled: (cb: (event: VaultClipboardEvent) => void): (() => void) =>
+    subscribe(IPC.vault.onClipboardSettled, cb),
+};
+
 const agentmatApi = {
   platform: process.platform,
   windowsBuild: windowsBuildNumber(),
@@ -1426,6 +1485,7 @@ const agentmatApi = {
   terminal,
   ssh,
   environments,
+  vault,
   rdp,
   sshAgent,
   agents,

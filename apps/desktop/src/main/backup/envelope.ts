@@ -31,6 +31,7 @@ import type {
   SkillAuditRecord,
 } from '../../shared/apiTypes';
 import { DEFAULT_SETTINGS } from '../store';
+import type { VaultFileV1 } from '../vault/format';
 import type { EncryptedEnvironmentsSection } from './environmentsCipher';
 
 export const BACKUP_VERSION = 1;
@@ -68,9 +69,10 @@ export interface BackupEnvelope {
   appVersion: string;
   /**
    * `projectEnvironments` sits beside the other sections but is read on its own, because it
-   * needs the backup password before it can be checked (see `environmentsCipher.ts`).
+   * needs the backup password before it can be checked (see `environmentsCipher.ts`). `vault`
+   * is read on its own too: it is the encrypted vault.json, checked in `vaultSection.ts`.
    */
-  data: BackupData & { projectEnvironments?: EncryptedEnvironmentsSection };
+  data: BackupData & { projectEnvironments?: EncryptedEnvironmentsSection; vault?: VaultFileV1 };
 }
 
 export type ParsedBackup =

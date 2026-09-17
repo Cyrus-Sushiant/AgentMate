@@ -26,6 +26,8 @@ import {
   DEFAULT_GEMINI_API_MODEL,
   DEFAULT_OPENAI_API_MODEL,
   DEFAULT_TERMINAL_BACKGROUND_COLOR,
+  DEFAULT_VAULT_AUTO_LOCK_MINUTES,
+  DEFAULT_VAULT_CLIPBOARD_CLEAR_SECONDS,
   DEFAULT_WHISPER_MODEL,
   defaultGrammarSettings,
   defaultProxySettings,
@@ -48,6 +50,8 @@ import {
   normalizeProxySettings,
   normalizeUsageResetAlerts,
   normalizeUsageThresholdAlerts,
+  normalizeVaultAutoLockMinutes,
+  normalizeVaultClipboardClearSeconds,
   withBlueprintDefaults,
 } from '@agentmat/core';
 import { app } from 'electron';
@@ -151,6 +155,9 @@ export const DEFAULT_SETTINGS: AppSettings = {
   keepAwake: 'agent',
   workspaceTerminalCustomBackground: false,
   workspaceTerminalBackgroundColor: DEFAULT_TERMINAL_BACKGROUND_COLOR,
+  vaultAutoLockMinutes: DEFAULT_VAULT_AUTO_LOCK_MINUTES,
+  vaultClipboardClearSeconds: DEFAULT_VAULT_CLIPBOARD_CLEAR_SECONDS,
+  vaultLockOnSystemLock: true,
 };
 
 /**
@@ -209,6 +216,11 @@ function withSettingsMigrations(settings: AppSettings): AppSettings {
     workspaceTerminalBackgroundColor:
       normalizeProjectColor(settings.workspaceTerminalBackgroundColor) ??
       DEFAULT_TERMINAL_BACKGROUND_COLOR,
+    vaultAutoLockMinutes: normalizeVaultAutoLockMinutes(settings.vaultAutoLockMinutes),
+    vaultClipboardClearSeconds: normalizeVaultClipboardClearSeconds(
+      settings.vaultClipboardClearSeconds,
+    ),
+    vaultLockOnSystemLock: settings.vaultLockOnSystemLock !== false,
   };
 }
 

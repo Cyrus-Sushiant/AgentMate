@@ -27,9 +27,15 @@ export function deriveKey(
   return scrypt(passphrase, salt, options);
 }
 
-export function encryptWithKey(plaintext: string, key: Buffer): PassphraseSecretEnvelope {
+/** `aad` is authenticated but not encrypted: decrypting fails unless the same bytes are given. */
+export function encryptWithKey(
+  plaintext: string,
+  key: Buffer,
+  aad?: Buffer,
+): PassphraseSecretEnvelope {
   const iv = randomBytes(IV_LENGTH);
   const cipher = createCipheriv('aes-256-gcm', key, iv);
+  if (aad) cipher.setAAD(aad);
   const ciphertext = Buffer.concat([cipher.update(plaintext, 'utf-8'), cipher.final()]);
   return {
     mode: 'passphrase',
@@ -40,8 +46,13 @@ export function encryptWithKey(plaintext: string, key: Buffer): PassphraseSecret
 }
 
 /** Throws when the key is wrong or the data was changed, since the GCM auth tag won't match. */
-export function decryptWithKey(envelope: PassphraseSecretEnvelope, key: Buffer): string {
+export function decryptWithKey(
+  envelope: Omit<PassphraseSecretEnvelope, 'mode'> & { mode?: string },
+  key: Buffer,
+  aad?: Buffer,
+): string {
   const decipher = createDecipheriv('aes-256-gcm', key, Buffer.from(envelope.iv, 'base64'));
+  if (aad) decipher.setAAD(aad);
   decipher.setAuthTag(Buffer.from(envelope.authTag, 'base64'));
   const plain = Buffer.concat([
     decipher.update(Buffer.from(envelope.ciphertext, 'base64')),

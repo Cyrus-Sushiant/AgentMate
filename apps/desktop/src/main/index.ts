@@ -71,11 +71,17 @@ import { remoteManager } from './remote/manager';
 import { cancelAllSecurityScans, sweepOrphanScanContainers } from './security/scanRunner';
 import { configureSpellChecker, registerSpellcheckHandlers } from './spellcheck';
 import { lockVault } from './ssh/vault';
-import { migrateInlineProjectIcons, pruneOrphanBlueprints, pruneOrphanEnvironments } from './store';
+import {
+  migrateInlineProjectIcons,
+  pruneOrphanBlueprints,
+  pruneOrphanEnvironments,
+  store,
+} from './store';
 import { startHourlyUpdateChecks } from './updater';
 import { startResetAlertWatcher, stopResetAlertWatcher } from './usage/resetAlerts';
 import { startThresholdAlertWatcher, stopThresholdAlertWatcher } from './usage/thresholdAlerts';
 import { widgetManager } from './usage/widgetWindows';
+import { getVaultService, registerVaultIpc, startVault } from './vault';
 
 // Chromium normally deprioritizes timers, rendering, and IPC delivery for a
 // minimized/occluded window (and Windows' own efficiency-mode throttling
@@ -266,6 +272,7 @@ function registerAllIpcHandlers(): void {
   registerPetHandlers();
   registerPipelineHandlers();
   registerTestHandlers();
+  registerVaultIpc();
   registerAppNotificationHandlers();
   registerSpellcheckHandlers();
   registerGrammarHandlers();
@@ -325,6 +332,7 @@ app.whenReady().then(async () => {
   configureSpellChecker();
   registerBlueprintFileProtocol();
   registerAllIpcHandlers();
+  void store.getSettings().then(startVault);
   startTerminalBackend();
   void seedExampleRepositoryIfEmpty();
   void migrateInlineProjectIcons();
@@ -386,4 +394,5 @@ app.on('before-quit', (event) => {
   killAllSshSessions();
   closeAllRdpSessions();
   lockVault();
+  void getVaultService().shutdown();
 });
