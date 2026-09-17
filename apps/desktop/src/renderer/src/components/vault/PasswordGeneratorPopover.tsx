@@ -6,7 +6,7 @@ import {
   type PasswordOptions,
 } from '@agentmat/core';
 import { useId, useState } from 'react';
-import { RefreshCw, Wand2 } from '@/components/icons';
+import { Dice, RefreshCw } from '@/components/icons';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
@@ -63,7 +63,7 @@ export function PasswordGeneratorPopover({
             className="h-7 w-7 text-muted-foreground hover:text-foreground"
             aria-label="Generate a password"
           >
-            <Wand2 className="h-3.5 w-3.5" />
+            <Dice className="h-3.5 w-3.5" />
           </Button>
         </PopoverTrigger>
       </SimpleTooltip>

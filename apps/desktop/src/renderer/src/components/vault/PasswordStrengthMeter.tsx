@@ -66,7 +66,8 @@ export function PasswordStrengthMeter({
           {bits !== undefined && ` · ${Math.round(result.bits)} bits`}
         </span>
       </div>
-      {showWarning && result.warnings[0] && (
+      {/* Past "Fair" a pattern warning would only contradict the label. */}
+      {showWarning && result.score < 3 && result.warnings[0] && (
         <p className="text-xs text-muted-foreground">{result.warnings[0]}</p>
       )}
     </div>

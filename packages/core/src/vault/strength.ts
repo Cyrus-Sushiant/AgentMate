@@ -67,16 +67,20 @@ export function estimateStrength(password: string, context: string[] = []): Stre
   // Code-unit offsets from the regex and string searches below map to code point indexes here.
   const indexOfUnit = (unit: number) => [...password.slice(0, unit)].length;
 
+  // Every repeat or step counts for less, but only a run of three or more earns a warning: any
+  // random password has the odd "ab" or "zz" in it.
+  let repeatRun = 1;
+  let stepRun = 1;
   for (let i = 1; i < chars.length; i++) {
     const prev = chars[i - 1].codePointAt(0) ?? 0;
     const current = chars[i].codePointAt(0) ?? 0;
-    if (current === prev) {
-      weights[i] = PATTERN_WEIGHT;
-      warnings.add('Repeated characters are easy to guess.');
-    } else if (Math.abs(current - prev) === 1 && /[\p{L}\p{N}]/u.test(chars[i])) {
-      weights[i] = PATTERN_WEIGHT;
-      warnings.add('Runs like "abcd" or "1234" are easy to guess.');
-    }
+    const repeat = current === prev;
+    const step = !repeat && Math.abs(current - prev) === 1 && /[\p{L}\p{N}]/u.test(chars[i]);
+    repeatRun = repeat ? repeatRun + 1 : 1;
+    stepRun = step ? stepRun + 1 : 1;
+    if (repeat || step) weights[i] = PATTERN_WEIGHT;
+    if (repeatRun >= 3) warnings.add('Repeated characters are easy to guess.');
+    if (stepRun >= 3) warnings.add('Runs like "abcd" or "1234" are easy to guess.');
   }
 
   for (const row of KEYBOARD_ROWS) {

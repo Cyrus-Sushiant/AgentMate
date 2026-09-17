@@ -183,6 +183,22 @@ describe('VaultPage list', () => {
     expect((search as HTMLInputElement).value).toBe('');
   });
 
+  it('stops showing an entry the search has filtered out', async () => {
+    renderPage();
+    await screen.findByRole('listbox', { name: 'Vault entries' });
+    fireEvent.click(within(listbox()).getByRole('option', { name: /GitHub/ }));
+    expect(await screen.findByRole('region', { name: 'GitHub' })).toBeTruthy();
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Search the vault' }), {
+      target: { value: 'wi-fi' },
+    });
+    expect(screen.queryByRole('region', { name: 'GitHub' })).toBeNull();
+    expect(screen.getByText('Pick an entry to see its details')).toBeTruthy();
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Search the vault' }), {
+      target: { value: '' },
+    });
+    expect(screen.getByRole('region', { name: 'GitHub' })).toBeTruthy();
+  });
+
   it('copies a password straight from the row without selecting it', async () => {
     renderPage();
     await screen.findByRole('listbox', { name: 'Vault entries' });

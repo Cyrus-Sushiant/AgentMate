@@ -42,6 +42,7 @@ import {
   faCompress,
   faCopy,
   faCubes,
+  faDice,
   faDisplay,
   faDownload,
   faEllipsisVertical,
@@ -356,4 +357,5 @@ export const Minus = makeIcon(faMinus);
 export const Expand = makeIcon(faExpand);
 export const Compress = makeIcon(faCompress);
 export const Vault = makeIcon(faVault);
+export const Dice = makeIcon(faDice);
 export const Sliders = makeIcon(faSliders);

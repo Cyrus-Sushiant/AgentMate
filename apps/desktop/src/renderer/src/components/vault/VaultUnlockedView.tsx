@@ -146,7 +146,10 @@ export function VaultUnlockedView(): React.JSX.Element {
   }, [hits, searching, favoritesOnly]);
 
   const ordered = useMemo<VaultSearchHit[]>(() => groups.flatMap((group) => group.hits), [groups]);
-  const selected: VaultEntrySummary | undefined = entries.find((entry) => entry.id === selectedId);
+  // Only what the list shows can be selected, so the detail pane never describes a hidden entry.
+  const selected: VaultEntrySummary | undefined = ordered.find(
+    (hit) => hit.summary.id === selectedId,
+  )?.summary;
 
   const openEntry = useCallback(
     (target: VaultEntryDialogTarget) => setDialog({ kind: 'entry', target }),

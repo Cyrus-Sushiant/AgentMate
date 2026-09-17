@@ -47,6 +47,14 @@ describe('estimateStrength', () => {
     expect(estimateStrength('aaaaaaaaaaaa').warnings.length).toBeGreaterThan(0);
   });
 
+  it('does not warn about a lone pair of neighbouring or repeated characters', () => {
+    const result = estimateStrength('gxI8];1F{F_TInXm.si^ab');
+    expect(result.warnings).toEqual([]);
+    expect(estimateStrength('Qp7!zz#Lm2$w').warnings).toEqual([]);
+    expect(estimateStrength('Qp7!zzz#Lm2$w').warnings.join(' ')).toMatch(/Repeated/);
+    expect(estimateStrength('Qp7!xyz#Lm2$w').warnings.join(' ')).toMatch(/Runs like/);
+  });
+
   it('warns about years and dates', () => {
     const plain = estimateStrength('tiger-lamp-K');
     const withYear = estimateStrength('tiger-lamp-K1987');

@@ -96,4 +96,10 @@ describe('PasswordStrengthMeter', () => {
     expect(meter.getAttribute('aria-valuetext')).toBe('Very weak');
     expect(screen.getByText(/most common/i)).toBeTruthy();
   });
+
+  it('keeps quiet about patterns once a password is strong', () => {
+    renderWithVaultProviders(<PasswordStrengthMeter password="kX9#mP2$qL7!vB4&zT8*1234" />);
+    expect(screen.getByRole('meter').getAttribute('aria-valuenow')).toBe('4');
+    expect(screen.queryByText(/easy to guess/)).toBeNull();
+  });
 });

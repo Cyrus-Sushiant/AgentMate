@@ -34,7 +34,7 @@ export const SecretInput = forwardRef<
         autoComplete="off"
         spellCheck={false}
         {...rest}
-        className={cn(trailing ? 'pr-16' : 'pr-9', 'font-mono', className)}
+        className={cn(trailing ? 'pr-16' : 'pr-9', 'font-mono placeholder:font-sans', className)}
       />
       <div className="absolute right-1.5 top-1/2 flex -translate-y-1/2 items-center gap-0.5">
         {trailing}
