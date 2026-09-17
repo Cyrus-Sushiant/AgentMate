@@ -54,7 +54,7 @@ export function PasswordGeneratorPopover({
 
   return (
     <Popover open={open} onOpenChange={handleOpenChange}>
-      <SimpleTooltip label={open ? null : 'Generate a password'}>
+      <SimpleTooltip label="Generate a password">
         <PopoverTrigger asChild>
           <Button
             type="button"
