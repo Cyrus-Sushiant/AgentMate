@@ -55,8 +55,12 @@ export function PaneLauncher({
   }, [focused, menuOpen, visibleAgents, project, groupId]);
 
   return (
-    <div className="flex h-full w-full items-center justify-center overflow-y-auto p-6">
-      <div className={cn('flex w-full flex-col items-center', hero ? 'max-w-2xl' : 'max-w-md')}>
+    // m-auto rather than items-center/justify-center: flex centering overflows above the
+    // scroll origin when the pane is shorter than the content, which cuts off the header.
+    <div className="flex h-full w-full overflow-y-auto p-6">
+      <div
+        className={cn('m-auto flex w-full flex-col items-center', hero ? 'max-w-2xl' : 'max-w-md')}
+      >
         {hero ? (
           <div className="mb-7 flex flex-col items-center text-center">
             <ProjectIcon
