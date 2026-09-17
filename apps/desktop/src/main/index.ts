@@ -70,11 +70,7 @@ import { remoteManager } from './remote/manager';
 import { cancelAllSecurityScans, sweepOrphanScanContainers } from './security/scanRunner';
 import { configureSpellChecker, registerSpellcheckHandlers } from './spellcheck';
 import { lockVault } from './ssh/vault';
-import {
-  migrateInlineProjectIcons,
-  pruneOrphanBlueprints,
-  pruneOrphanEnvironments,
-} from './store';
+import { migrateInlineProjectIcons, pruneOrphanBlueprints, pruneOrphanEnvironments } from './store';
 import { startHourlyUpdateChecks } from './updater';
 import { startResetAlertWatcher, stopResetAlertWatcher } from './usage/resetAlerts';
 import { startThresholdAlertWatcher, stopThresholdAlertWatcher } from './usage/thresholdAlerts';
