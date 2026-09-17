@@ -1,0 +1,6 @@
+﻿folder,favorite,type,name,notes,fields,reprompt,login_uri,login_username,login_password,login_totp
+Work,1,login,GitHub,2FA on phone,"Recovery email: ops@example.com
+PIN: 4455",0,"https://github.com,https://gist.github.com",octocat,bw-pass-1,otpauth://totp/GitHub:octocat?secret=JBSWY3DPEHPK3PXP&issuer=GitHub
+,,note,Wi-Fi codes,Guest: hello-guest,,0,,,,
+Personal,0,card,Visa,,,0,,,,
+,,login,,,,0,https://no-name.example/login,nobody,bw-pass-2,

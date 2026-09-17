@@ -1,0 +1,6 @@
+name,url,username,password,note
+github.com,https://github.com/login,octocat,gh-pass-1!,
+,https://accounts.google.com/,me@gmail.com,g-pass-2,"backup codes:
+1111 2222"
+Bank,https://bank.example/,,bank-pass-3,
+,,,,

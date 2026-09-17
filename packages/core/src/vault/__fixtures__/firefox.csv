@@ -1,0 +1,3 @@
+url,username,password,httpRealm,formActionOrigin,guid,timeCreated,timeLastUsed,timePasswordChanged
+https://www.mozilla.org,fox,ff-pass-1,,https://www.mozilla.org,{abc},1700000000000,1700000000000,1700000000000
+https://intranet.example,admin,ff-pass-2,Intranet Realm,,{def},1700000000000,1700000000000,1700000000000
