@@ -13,19 +13,36 @@ import { runAiPrompt } from '../ipc/ai';
 import {
   getSshSessionPassword,
   hasSshSession,
+  setSshDisplayCaptured,
   subscribeSshExit,
   subscribeSshOutput,
+  writeToSshDisplay,
   writeToSshSession,
 } from '../ipc/ssh';
 import {
   hasAttachedTerminalSession,
+  setTerminalDisplayCaptured,
   subscribeTerminalExit,
   subscribeTerminalOutput,
   terminalSessionShell,
   writeToSession,
+  writeToTerminalDisplay,
 } from '../ipc/terminal';
 import { speakOnPet } from '../notifications/petNotifier';
 import { store } from '../store';
+import {
+  allowSudoPasswordPrompt,
+  CommandDisplay,
+  type DisplaySink,
+  endsWithPasswordPrompt,
+  isRiskyCommand,
+  type MarkedCommand,
+  markedCommandLine,
+  PROMPT_READY,
+  parseModelReply,
+  type ShellFamily,
+  shellFamily,
+} from './shellCommand';
 
 /** Refuses to loop forever if the AI never says FINISHED. */
 const MAX_STEPS = 40;
@@ -34,63 +51,6 @@ const MAX_RUNTIME_MS = 30 * 60 * 1000;
 const COMMAND_TIMEOUT_MS = 5 * 60 * 1000;
 /** How much of the transcript is kept in the prompt sent to the AI each step. */
 const TRANSCRIPT_TAIL_CHARS = 6000;
-
-/**
- * Commands that look destructive enough to pause for approval even in `approve-risky` mode.
- * False negatives are fine (the user can still stop the run); a false positive just costs one
- * extra click.
- */
-const RISKY_PATTERNS = [
-  /\brm\s+(-\w*r\w*f\w*|-\w*f\w*r\w*)\b/i,
-  /\bmkfs(\.\w+)?\b/i,
-  /\bdd\s+if=/i,
-  /:\(\)\s*\{\s*:\s*\|\s*:\s*&\s*\}\s*;\s*:/,
-  /\bdrop\s+(table|database)\b/i,
-  /\b(shutdown|reboot|poweroff|halt)\b/i,
-  /\bchmod\s+-R\s+777\s+\//i,
-  />\s*\/dev\/(sd|nvme|hd|xvd)/i,
-  /\bdocker\s+system\s+prune\b/i,
-  /\biptables\s+-F\b/i,
-  /\bkill\s+-9\s+1\b/i,
-  /\buserdel\b/i,
-  /\bcurl[^|]*\|\s*(sudo\s+)?(sh|bash)\b/i,
-  /\bwget[^|]*\|\s*(sudo\s+)?(sh|bash)\b/i,
-  // Local Windows shells.
-  /\bRemove-Item\b[^|;]*-Recurse\b/i,
-  /\b(rd|rmdir)\s+\/s\b/i,
-  /\bdel\s+[^|&]*\/s\b/i,
-  /\bformat(-Volume)?\s+[a-z]:/i,
-  /\b(Stop|Restart)-Computer\b/i,
-  /\bdiskpart\b/i,
-  /\b(iex|Invoke-Expression)\b/i,
-  // Work that only lives on this machine.
-  /\bgit\s+(reset\s+--hard|clean\s+-\w*f|push\s+[^|;&]*(--force|-f)\b)/i,
-];
-
-function isRiskyCommand(command: string): boolean {
-  return RISKY_PATTERNS.some((pattern) => pattern.test(command));
-}
-
-type ParsedReply =
-  | { kind: 'run'; command: string }
-  | { kind: 'finished'; message: string }
-  | { kind: 'needs-input'; message: string };
-
-function parseModelReply(text: string): ParsedReply | null {
-  const runMatch = text.match(/^\s*RUN:\s*(.+)$/im);
-  if (runMatch) {
-    const command = runMatch[1]
-      .trim()
-      .replace(/^`+|`+$/g, '')
-      .trim();
-    if (command) return { kind: 'run', command };
-  }
-  const finishedMatch = text.match(/^\s*FINISHED:?\s*(.*)$/im);
-  if (finishedMatch) return { kind: 'finished', message: finishedMatch[1].trim() };
-  const needsInputMatch = text.match(/^\s*NEEDS_INPUT:\s*(.+)$/im);
-  if (needsInputMatch) return { kind: 'needs-input', message: needsInputMatch[1].trim() };
-  return null;
-}
 
 /**
  * An agent CLI would otherwise happily use its own tools, which run on the user's machine rather
@@ -106,10 +66,8 @@ function cliPreamble(target: ShellTarget): string {
   );
 }
 
-type ShellFamily = 'posix' | 'fish' | 'powershell' | 'cmd';
-
 /** The terminal a run drives: an SSH channel, or a shell running on this machine. */
-interface ShellTarget {
+interface ShellTarget extends DisplaySink {
   kind: 'ssh' | 'local';
   /** How the prompt describes the shell to the AI. */
   description: string;
@@ -121,49 +79,13 @@ interface ShellTarget {
   subscribeExit: (listener: () => void) => () => void;
   /** The saved login password for a sudo prompt. Always null for a local shell. */
   getPassword: () => Promise<string | null>;
-  /** The command, followed by whatever makes the shell print `marker:<exit code>` once it ends. */
-  commandLine: (command: string, marker: string) => string;
+  /** The line to type for a command, wrapped so the shell reports when it starts and ends. */
+  commandLine: (command: string, id: string) => MarkedCommand;
   /**
    * A local shell announces every fresh prompt (see ptyHost/shellIntegration.ts), which ends a
    * command whose line never printed the marker, e.g. one the shell refused to parse.
    */
   detectsPrompt: boolean;
-}
-
-// biome-ignore lint/suspicious/noControlCharactersInRegex: ESC/BEL frame the OSC prompt marker
-const PROMPT_READY = /\]7750;AgentMate:PromptReady:1(?:|\\)/;
-
-function shellFamily(shell: string): ShellFamily {
-  const name = shell.toLowerCase().replace(/\.exe$/, '');
-  if (name === 'powershell' || name === 'pwsh') return 'powershell';
-  if (name === 'cmd') return 'cmd';
-  if (name === 'fish') return 'fish';
-  return 'posix';
-}
-
-/** `enter` is what the shell treats as pressing Enter: `\r` for a local pty, `\n` over SSH. */
-function markedCommandLine(
-  family: ShellFamily,
-  command: string,
-  marker: string,
-  enter: string,
-): string {
-  switch (family) {
-    case 'powershell':
-      // $? has to be read before anything else runs, since every statement resets it.
-      return (
-        `${command}; $__agentmateExit = if ($?) { 0 } elseif ($LASTEXITCODE) { $LASTEXITCODE } else { 1 }; ` +
-        `Write-Host "\`n${marker}:$__agentmateExit"${enter}`
-      );
-    case 'cmd':
-      // `call` delays the expansion until the command has run; plain %errorlevel% would be
-      // filled in when the line is read.
-      return `${command} & echo. & call echo ${marker}:%^errorlevel%${enter}`;
-    case 'fish':
-      return `${command}; printf '\\n${marker}:%s\\n' $status${enter}`;
-    default:
-      return `${command}; printf '\\n${marker}:%s\\n' "$?"${enter}`;
-  }
 }
 
 const SHELL_LABELS: Record<ShellFamily, string> = {
@@ -189,7 +111,9 @@ function sshTarget(sessionId: string): ShellTarget {
     subscribeOutput: (listener) => subscribeSshOutput(sessionId, listener),
     subscribeExit: (listener) => subscribeSshExit(sessionId, listener),
     getPassword: () => getSshSessionPassword(sessionId),
-    commandLine: (command, marker) => markedCommandLine('posix', command, marker, '\n'),
+    commandLine: (command, id) => markedCommandLine('posix', command, id, '\n', true),
+    captureDisplay: (captured) => setSshDisplayCaptured(sessionId, captured),
+    display: (data) => writeToSshDisplay(sessionId, data),
     detectsPrompt: false,
   };
 }
@@ -209,30 +133,14 @@ function localTarget(sessionId: string): ShellTarget {
     subscribeOutput: (listener) => subscribeTerminalOutput(sessionId, listener),
     subscribeExit: (listener) => subscribeTerminalExit(sessionId, listener),
     getPassword: async () => null,
-    commandLine: (command, marker) => markedCommandLine(family, command, marker, '\r'),
+    // ConPTY repaints the screen itself and can pass an escape sequence through ahead of the
+    // text printed around it, so on Windows the markers stay plain text.
+    commandLine: (command, id) =>
+      markedCommandLine(family, command, id, '\r', process.platform !== 'win32'),
+    captureDisplay: (captured) => setTerminalDisplayCaptured(sessionId, captured),
+    display: (data) => writeToTerminalDisplay(sessionId, data),
     detectsPrompt: true,
   };
-}
-
-/**
- * The output ends on a password prompt: sudo's own (`[sudo] password for bob:`), `su`, `passwd`,
- * or anything else that ends on `Password:`. Only the trailing line is checked, so a log line that
- * merely mentions a password earlier in the output doesn't count.
- */
-const PASSWORD_PROMPT = /password(?: for [^\n:]+)?:\s*$/i;
-
-function endsWithPasswordPrompt(output: string): boolean {
-  const lastLine = stripAnsi(output).split('\n').pop() ?? '';
-  return lastLine.length <= 200 && PASSWORD_PROMPT.test(lastLine);
-}
-
-function stripAnsi(text: string): string {
-  return (
-    text
-      // biome-ignore lint/suspicious/noControlCharactersInRegex: ESC starts every ANSI escape sequence
-      .replace(/\[[?]?\d*(?:;\d+)*[a-zA-Z]/g, '')
-      .replace(/\r/g, '')
-  );
 }
 
 function buildPrompt(run: RunState): string {
@@ -251,7 +159,9 @@ NEEDS_INPUT: <a short question for the user>
 
 Rules:
 - Exactly one command per reply. Do not chain unrelated steps with && unless they are trivially part of the same action.
-- Prefer non-interactive flags (-y, --yes, --non-interactive) so a command never hangs waiting on a TTY prompt.
+- Prefer flags that skip confirmations (-y, --yes) so a command never hangs waiting on a TTY prompt.
+- When a command needs root, use plain sudo. Never pass sudo -n or -S, and never use NEEDS_INPUT to ask for a password: when sudo prompts for one, AgentMate answers it for the user.
+- Let commands print their normal progress. Do not silence them with -qq or > /dev/null, since the user is watching the output.
 - Do not repeat a command that already ran successfully in the transcript below.
 - If the transcript shows the task is already done, reply FINISHED.
 
@@ -321,6 +231,10 @@ async function handlePasswordPrompt(run: RunState, command: string): Promise<voi
   const password = await target.getPassword();
   if (run.aborted) return;
   const asker = target.kind === 'ssh' ? 'The server' : 'The command';
+  // Listening starts before the bar appears, so an answer can never arrive with nobody waiting.
+  const answer = new Promise<boolean>((resolve) => {
+    run.pendingPassword = resolve;
+  });
   emit(run, 'needs-password', {
     command,
     hasSavedPassword: password !== null,
@@ -332,9 +246,7 @@ async function handlePasswordPrompt(run: RunState, command: string): Promise<voi
   });
   const settings = await store.getSettings();
   speakOnPet(settings, target.label, `${asker} is asking for a password.`, 'warn');
-  const approved = await new Promise<boolean>((resolve) => {
-    run.pendingPassword = resolve;
-  });
+  const approved = await answer;
   if (run.aborted) return;
   if (approved && password !== null) target.write(`${password}\n`);
   emit(run, 'running', { command });
@@ -359,10 +271,16 @@ interface CommandResult {
   timedOut: boolean;
 }
 
-function waitForCompletion(run: RunState, command: string, marker: string): Promise<CommandResult> {
+/** Types `command` into the shell and resolves once it ends. */
+function runCommand(run: RunState, command: string): Promise<CommandResult> {
   return new Promise((resolve) => {
+    const id = randomUUID().replace(/-/g, '');
+    const marked = run.target.commandLine(command, id);
+    const { start } = marked;
+    const display = start
+      ? new CommandDisplay(run.target, command, { ...marked, start }, id)
+      : null;
     let buffer = '';
-    const doneRegex = new RegExp(`${marker}:(\\d+)`);
     let settled = false;
     /** Output before this index has already been checked for a password prompt. */
     let promptScanFrom = 0;
@@ -370,10 +288,13 @@ function waitForCompletion(run: RunState, command: string, marker: string): Prom
     let timer = startTimer();
     const unsubscribeOutput = run.target.subscribeOutput((data) => {
       buffer += data;
-      const match = buffer.match(doneRegex);
+      display?.push(data);
+      const match = buffer.match(marked.done);
       if (match?.index !== undefined) {
+        // The AI gets the output alone, without the shell's echo of the typed line.
+        const startAt = start ? buffer.indexOf(start) : -1;
         finish({
-          output: buffer.slice(0, match.index),
+          output: buffer.slice(startAt < 0 ? 0 : startAt + (start?.length ?? 0), match.index),
           exitCode: Number(match[1]),
           timedOut: false,
         });
@@ -412,10 +333,13 @@ function waitForCompletion(run: RunState, command: string, marker: string): Prom
       clearTimeout(timer);
       unsubscribeOutput();
       unsubscribeExit();
+      display?.release();
       // The user may have typed the password in the terminal instead of answering the bar.
       settlePendingPassword(run);
       resolve(result);
     }
+
+    run.target.write(marked.line);
   });
 }
 
@@ -510,7 +434,7 @@ async function runLoop(run: RunState): Promise<void> {
         continue;
       }
 
-      const { command } = parsed;
+      const command = allowSudoPasswordPrompt(parsed.command);
       const risky = isRiskyCommand(command);
       const shouldPause = run.mode === 'approve-all' || (run.mode === 'approve-risky' && risky);
 
@@ -528,10 +452,7 @@ async function runLoop(run: RunState): Promise<void> {
       }
 
       emit(run, 'running', { command });
-      const marker = `__AGENTMATE_DONE_${randomUUID().replace(/-/g, '')}__`;
-      const resultPromise = waitForCompletion(run, command, marker);
-      run.target.write(run.target.commandLine(command, marker));
-      const result = await resultPromise;
+      const result = await runCommand(run, command);
       if (run.aborted) return;
       appendCompletedCommand(run, command, result);
     }

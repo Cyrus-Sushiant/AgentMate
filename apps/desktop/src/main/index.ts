@@ -46,6 +46,7 @@ import { registerSystemStatsHandlers } from './ipc/systemStats';
 import { registerTemplateHandlers } from './ipc/templates';
 import { registerTerminalHandlers, startTerminalBackend, terminalsHoldQuit } from './ipc/terminal';
 import { registerTerminalClipboardHandlers } from './ipc/terminalClipboard';
+import { registerTestHandlers } from './ipc/tests';
 import { registerToolHandlers } from './ipc/tools';
 import { registerTranslateHandlers } from './ipc/translate';
 import { registerUsageHandlers } from './ipc/usage';
@@ -264,6 +265,7 @@ function registerAllIpcHandlers(): void {
   registerPromptBuildWidgetHandlers();
   registerPetHandlers();
   registerPipelineHandlers();
+  registerTestHandlers();
   registerAppNotificationHandlers();
   registerSpellcheckHandlers();
   registerGrammarHandlers();

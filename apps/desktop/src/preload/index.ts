@@ -41,6 +41,11 @@ import type {
   SkillRepository,
   SkillRepositoryIndex,
   SkillRepositorySourceType,
+  TestDiscovery,
+  TestRunEvent,
+  TestRunSnapshot,
+  TestRunSummary,
+  TestTarget,
   ToolUpdateCheckResult,
   UsageProviderConfig,
   UsageResetAlertSettings,
@@ -1074,6 +1079,23 @@ const pipelines = {
     ipcRenderer.invoke(IPC.pipelines.cancelRun, input),
 };
 
+const tests = {
+  /** Reads the project's files for test frameworks and the tests they declare. */
+  discover: (projectId: string): Promise<TestDiscovery> =>
+    ipcRenderer.invoke(IPC.tests.discover, projectId),
+  /** Starts a background run. No targets runs every test project. */
+  run: (projectId: string, targets: TestTarget[]): Promise<TestRunSummary> =>
+    ipcRenderer.invoke(IPC.tests.run, projectId, targets),
+  cancel: (projectId: string): Promise<boolean> => ipcRenderer.invoke(IPC.tests.cancel, projectId),
+  lastRun: (projectId: string): Promise<TestRunSnapshot | null> =>
+    ipcRenderer.invoke(IPC.tests.lastRun, projectId),
+  /** The command a target would run with, as a person would type it. */
+  command: (projectId: string, target: TestTarget): Promise<string | null> =>
+    ipcRenderer.invoke(IPC.tests.command, projectId, target),
+  onRunEvent: (callback: (event: TestRunEvent) => void): (() => void) =>
+    subscribe(IPC.tests.onRunEvent, callback),
+};
+
 const appNotifications = {
   list: (): Promise<AppNotification[]> => ipcRenderer.invoke(IPC.appNotifications.list),
   unreadCount: (): Promise<number> => ipcRenderer.invoke(IPC.appNotifications.unreadCount),
@@ -1440,6 +1462,7 @@ const agentmatApi = {
   notifications,
   git,
   pipelines,
+  tests,
   appNotifications,
   packages,
   remote,

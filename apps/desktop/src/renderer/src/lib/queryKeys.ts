@@ -87,6 +87,8 @@ export const queryKeys = {
   /** Annotations one finished Actions run left behind. */
   runAnnotations: (repo: string, runId: number) => ['run-annotations', repo, runId] as const,
   pipelineStatus: (projectId: string) => ['pipeline-status', projectId] as const,
+  /** Test frameworks and tests found in a project, for the workspace Tests panel. */
+  testsDiscovery: (projectId: string) => ['tests-discovery', projectId] as const,
   /** Branches and tags of a repo, for picking what a manual workflow run should build. */
   pipelineRefs: (repo: string) => ['pipeline-refs', repo] as const,
   appNotifications: ['app-notifications'] as const,

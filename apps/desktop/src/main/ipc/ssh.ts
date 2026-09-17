@@ -36,14 +36,20 @@ const owners = new Map<string, WebContents>();
  */
 const outputSubscribers = new Map<string, Set<(data: string) => void>>();
 const exitSubscribers = new Map<string, Set<() => void>>();
+/** Sessions whose output the AI task runner draws itself, through `writeToSshDisplay`. */
+const capturedDisplays = new Set<string>();
 
 function syncPowerSaveBlocker(): void {
   keepAwake.setBusy('ssh', sessions.size > 0);
 }
 
-function forwardData(sessionId: string, data: string): void {
+function sendToOwner(sessionId: string, data: string): void {
   const owner = owners.get(sessionId);
   if (owner && !owner.isDestroyed()) owner.send(IPC.ssh.onData, { sessionId, data });
+}
+
+function forwardData(sessionId: string, data: string): void {
+  if (!capturedDisplays.has(sessionId)) sendToOwner(sessionId, data);
   for (const listener of outputSubscribers.get(sessionId) ?? []) listener(data);
 }
 
@@ -52,6 +58,7 @@ function forwardExit(sessionId: string, error?: string): void {
   if (owner && !owner.isDestroyed()) owner.send(IPC.ssh.onExit, { sessionId, error });
   owners.delete(sessionId);
   sessions.delete(sessionId);
+  capturedDisplays.delete(sessionId);
   syncPowerSaveBlocker();
   for (const listener of exitSubscribers.get(sessionId) ?? []) listener();
   outputSubscribers.delete(sessionId);
@@ -80,6 +87,21 @@ export function subscribeSshOutput(
   }
   set.add(listener);
   return () => set?.delete(listener);
+}
+
+/**
+ * While captured, output still reaches subscribers but no longer goes to the terminal pane on its
+ * own. The AI task runner uses this to keep its bookkeeping (the marker it types after each
+ * command) out of sight, drawing what the user should see with `writeToSshDisplay` instead.
+ */
+export function setSshDisplayCaptured(sessionId: string, captured: boolean): void {
+  if (captured) capturedDisplays.add(sessionId);
+  else capturedDisplays.delete(sessionId);
+}
+
+/** Draws text in a session's terminal pane without sending anything to the server. */
+export function writeToSshDisplay(sessionId: string, data: string): void {
+  if (data) sendToOwner(sessionId, data);
 }
 
 /** Fires once when a session closes, however that happens (remote exit, kill, or app quit). */

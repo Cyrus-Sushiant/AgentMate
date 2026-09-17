@@ -53,6 +53,7 @@ import {
   faFileCode,
   faFileLines,
   faFilter,
+  faFlask,
   faFloppyDisk,
   faFolder,
   faFolderOpen,
@@ -339,6 +340,7 @@ export const FileCode = makeIcon(faFileCode);
 export const FilePlus = makeIcon(faFileCirclePlus);
 export const CollapseAll = makeIcon(faSquareMinus);
 export const Filter = makeIcon(faFilter);
+export const Flask = makeIcon(faFlask);
 
 // Skill favorites and usage icons.
 export const Star = makeIcon(faStar);

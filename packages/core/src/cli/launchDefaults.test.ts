@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import { configuredArgsWithout } from '../promptBuilder/runRecommendation.js';
+import { parseCliArgs } from './args.js';
 import {
   cliLaunchOptions,
   launchDefaultArgs,
@@ -121,5 +123,37 @@ describe('savedArgSettings', () => {
   it('finds nothing in arguments that set none of them', () => {
     expect(savedArgSettings('claude-code', [])).toEqual([]);
     expect(savedArgSettings('claude-code', ['--verbose', '--add-dir', 'x'])).toEqual([]);
+  });
+});
+
+describe('removing a saved flag from the Arguments box', () => {
+  // What the "Remove it" button in Launch defaults does with what savedArgSettings() found.
+  const remove = (cliId: string, saved: string, kind: string): string => {
+    const arg = savedArgSettings(cliId, parseCliArgs(saved)).find((a) => a.kind === kind);
+    if (!arg?.value) throw new Error(`no ${kind} with a value in "${saved}"`);
+    return configuredArgsWithout(saved, [arg.flag, arg.value]);
+  };
+
+  it('removes every spelling of the model flag and keeps the rest as written', () => {
+    expect(remove('claude-code', '--model haiku', 'model')).toBe('');
+    expect(remove('claude-code', '--verbose --model=haiku --add-dir "a  b"', 'model')).toBe(
+      '--verbose --add-dir "a  b"',
+    );
+    expect(remove('claude-code', '-m sonnet --verbose', 'model')).toBe('--verbose');
+  });
+
+  it('removes an effort or mode without touching the model', () => {
+    expect(remove('claude-code', '--model opus --effort low', 'effort')).toBe('--model opus');
+    expect(remove('claude-code', '--permission-mode plan --model opus', 'mode')).toBe(
+      '--model opus',
+    );
+    expect(remove('codex-cli', '-c model_reasoning_effort=high -c foo=bar', 'effort')).toBe(
+      '-c foo=bar',
+    );
+  });
+
+  it('leaves nothing behind that savedArgSettings would still find', () => {
+    const left = remove('claude-code', '--model=haiku --verbose', 'model');
+    expect(savedArgSettings('claude-code', parseCliArgs(left))).toEqual([]);
   });
 });

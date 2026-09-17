@@ -1,0 +1,85 @@
+{
+  "numTotalTestSuites": 3,
+  "numPassedTestSuites": 0,
+  "numFailedTestSuites": 3,
+  "numPendingTestSuites": 0,
+  "numTotalTests": 4,
+  "numPassedTests": 2,
+  "numFailedTests": 1,
+  "numPendingTests": 1,
+  "numTodoTests": 0,
+  "snapshot": {
+    "added": 0,
+    "failure": false,
+    "filesAdded": 0,
+    "filesRemoved": 0,
+    "filesRemovedList": [],
+    "filesUnmatched": 0,
+    "filesUpdated": 0,
+    "matched": 0,
+    "total": 0,
+    "unchecked": 0,
+    "uncheckedKeysByFile": [],
+    "unmatched": 0,
+    "updated": 0,
+    "didUpdate": false
+  },
+  "startTime": 1789649520424,
+  "success": false,
+  "testResults": [
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": ["math"],
+          "fullName": "math adds",
+          "status": "passed",
+          "title": "adds",
+          "duration": 1.3196000000000367,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": ["math", "nested"],
+          "fullName": "math nested fails on purpose",
+          "status": "failed",
+          "title": "fails on purpose",
+          "duration": 5.691899999999919,
+          "failureMessages": [
+            "AssertionError: expected { a: 1 } to deeply equal { a: 2 }\n    at C:/work/js/src/math.test.js:10:24\n    at file:///C:/work/js/node_modules/vitest/dist/chunks/run.C5UmxDPh.js:1628:35\n    at file:///C:/work/js/node_modules/vitest/dist/chunks/run.C5UmxDPh.js:2783:26\n    at file:///C:/work/js/node_modules/vitest/dist/chunks/run.C5UmxDPh.js:3319:20\n    at new Promise (<anonymous>)\n    at runWithCancel (file:///C:/work/js/node_modules/vitest/dist/chunks/run.C5UmxDPh.js:3314:10)\n    at file:///C:/work/js/node_modules/vitest/dist/chunks/run.C5UmxDPh.js:3299:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///C:/work/js/node_modules/vitest/dist/chunks/run.C5UmxDPh.js:3257:10)\n    at file:///C:/work/js/node_modules/vitest/dist/chunks/run.C5UmxDPh.js:3876:64"
+          ],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": ["math"],
+          "fullName": "math skipped one",
+          "status": "skipped",
+          "title": "skipped one",
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "top level",
+          "status": "passed",
+          "title": "top level",
+          "duration": 0.1449999999999818,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        }
+      ],
+      "startTime": 1789649520990,
+      "endTime": 1789649520998.145,
+      "status": "failed",
+      "message": "",
+      "name": "C:/work/js/src/math.test.js"
+    }
+  ]
+}

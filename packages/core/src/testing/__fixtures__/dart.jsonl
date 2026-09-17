@@ -1,0 +1,19 @@
+{"protocolVersion":"0.1.1","runnerVersion":"1.32.0","pid":1576,"type":"start","time":0}
+{"suite":{"id":0,"platform":"vm","path":"test\\math_test.dart"},"type":"suite","time":0}
+{"test":{"id":1,"name":"loading test\\math_test.dart","suiteID":0,"groupIDs":[],"metadata":{"skip":false,"skipReason":null},"line":null,"column":null,"url":null},"type":"testStart","time":2}
+{"count":1,"time":9,"type":"allSuites"}
+{"testID":1,"result":"success","skipped":false,"hidden":true,"type":"testDone","time":1478}
+{"group":{"id":2,"suiteID":0,"parentID":null,"name":"","metadata":{"skip":false,"skipReason":null},"testCount":4,"line":null,"column":null,"url":null},"type":"group","time":1480}
+{"group":{"id":3,"suiteID":0,"parentID":2,"name":"math","metadata":{"skip":false,"skipReason":null},"testCount":3,"line":4,"column":3,"url":"file:///C:/work/dart/test/math_test.dart"},"type":"group","time":1480}
+{"test":{"id":4,"name":"math adds","suiteID":0,"groupIDs":[2,3],"metadata":{"skip":false,"skipReason":null},"line":5,"column":5,"url":"file:///C:/work/dart/test/math_test.dart"},"type":"testStart","time":1481}
+{"testID":4,"result":"success","skipped":false,"hidden":false,"type":"testDone","time":1492}
+{"group":{"id":5,"suiteID":0,"parentID":3,"name":"math nested","metadata":{"skip":false,"skipReason":null},"testCount":1,"line":9,"column":5,"url":"file:///C:/work/dart/test/math_test.dart"},"type":"group","time":1493}
+{"test":{"id":6,"name":"math nested fails on purpose","suiteID":0,"groupIDs":[2,3,5],"metadata":{"skip":false,"skipReason":null},"line":10,"column":7,"url":"file:///C:/work/dart/test/math_test.dart"},"type":"testStart","time":1493}
+{"testID":6,"error":"Expected: {'a': 2}\n  Actual: {'a': 1}\n   Which: at location ['a'] is <1> instead of <2>\n","stackTrace":"package:matcher           expect\ntest\\math_test.dart 11:9  main.<fn>.<fn>.<fn>\n","isFailure":true,"type":"error","time":1506}
+{"testID":6,"result":"failure","skipped":false,"hidden":false,"type":"testDone","time":1507}
+{"test":{"id":7,"name":"math skipped one","suiteID":0,"groupIDs":[2,3],"metadata":{"skip":true,"skipReason":"later"},"line":15,"column":5,"url":"file:///C:/work/dart/test/math_test.dart"},"type":"testStart","time":1507}
+{"testID":7,"messageType":"skip","message":"Skip: later","type":"print","time":1508}
+{"testID":7,"result":"success","skipped":true,"hidden":false,"type":"testDone","time":1508}
+{"test":{"id":8,"name":"top level","suiteID":0,"groupIDs":[2],"metadata":{"skip":false,"skipReason":null},"line":18,"column":3,"url":"file:///C:/work/dart/test/math_test.dart"},"type":"testStart","time":1508}
+{"testID":8,"result":"success","skipped":false,"hidden":false,"type":"testDone","time":1509}
+{"success":false,"type":"done","time":1514}

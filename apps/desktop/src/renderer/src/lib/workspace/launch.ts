@@ -2,15 +2,11 @@ import {
   AGENT_TYPE_CLI_ID,
   type AgentHistoryProvider,
   type AgentHistorySession,
-  configuredArgsWithout,
+  buildAgentLaunchCommand,
   getCliArgsFor,
   getCliDefinition,
-  launchDefaultArgs,
   type Project,
-  parseCliArgs,
-  quoteForShell,
   shellKindFor,
-  withoutConfiguredRunArgs,
 } from '@agentmat/core';
 import { toast } from 'sonner';
 import { terminalRuntime } from '@/lib/terminal/terminalRuntime';
@@ -84,30 +80,18 @@ function agentCommand(
   runArgsWin = false,
   skipSavedArgs = false,
 ): string | null {
-  const cli = getCliDefinition(cliId);
-  if (!cli) return null;
-  const kind = shellKindFor(shell, window.agentmat.platform);
-  const hookSettings = statusHookSettings.get(cliId);
-  const saved = skipSavedArgs ? '' : getCliArgsFor(useCliStore.getState().cliArgs, cliId);
-  const configured = runArgsWin ? configuredArgsWithout(saved, runArgs) : saved;
-  const run = runArgsWin ? runArgs : withoutConfiguredRunArgs(configured, runArgs);
-  const extra = run.map((arg) => quoteForShell(arg, kind));
-  const defaults = skipSavedArgs
-    ? []
-    : launchDefaultArgs(cliId, useCliStore.getState().cliLaunchDefaults[cliId], [
-        ...parseCliArgs(configured),
-        ...run,
-      ]);
-  return [
-    cli.executableNames[0],
-    ...leadingArgs.map((arg) => quoteForShell(arg, kind)),
-    ...(hookSettings ? ['--settings', quoteForShell(hookSettings, kind)] : []),
-    ...defaults.map((arg) => quoteForShell(arg, kind)),
-    configured,
-    ...extra,
-  ]
-    .filter(Boolean)
-    .join(' ');
+  const { cliArgs, cliLaunchDefaults } = useCliStore.getState();
+  return buildAgentLaunchCommand({
+    cliId,
+    shellKind: shellKindFor(shell, window.agentmat.platform),
+    savedArgs: getCliArgsFor(cliArgs, cliId),
+    launchDefaults: cliLaunchDefaults[cliId],
+    runArgs,
+    leadingArgs,
+    hookSettingsPath: statusHookSettings.get(cliId),
+    runArgsWin,
+    skipSavedArgs,
+  });
 }
 
 export interface PromptLaunch {

@@ -3,10 +3,10 @@ import { FitAddon } from '@xterm/addon-fit';
 import { WebLinksAddon } from '@xterm/addon-web-links';
 import { type ITerminalOptions, type ITheme, Terminal } from '@xterm/xterm';
 import '@xterm/xterm/css/xterm.css';
-import { isShortcutLetter } from '@/lib/shortcutKey';
 import { type ChipPasteController, createChipPasteController } from '@/lib/terminal/chipPasteMode';
 import { createImageChipPreview, type ImageChipPreview } from '@/lib/terminal/imageChipPreview';
 import { pasteClipboardIntoTerminal } from '@/lib/terminal/pasteFiles';
+import { isTerminalCopyKey, isTerminalPasteKey } from '@/lib/terminal/terminalKeys';
 import { commandForEvent, useShortcutStore } from '@/stores/shortcutStore';
 
 // Same fill as `.terminal-well` so leftover cells after a fit() don't read as a
@@ -316,13 +316,7 @@ export function createXterm({
   // default handling so ^C still interrupts the running process.
   term.attachCustomKeyEventHandler((event) => {
     if (event.type !== 'keydown') return true;
-    if (
-      (event.ctrlKey || event.metaKey) &&
-      !event.shiftKey &&
-      !event.altKey &&
-      isShortcutLetter(event, 'c') &&
-      term.hasSelection()
-    ) {
+    if (isTerminalCopyKey(event) && term.hasSelection()) {
       void navigator.clipboard.writeText(term.getSelection());
       return false;
     }
@@ -330,10 +324,7 @@ export function createXterm({
     // screenshot pasted as nothing (a textarea only ever receives text) and that a paste
     // arriving just after the window regained focus, which is exactly how Win+V delivers one,
     // could be dropped. preventDefault stops the native paste so nothing lands twice.
-    const pasteKey =
-      ((event.ctrlKey || event.metaKey) && !event.altKey && isShortcutLetter(event, 'v')) ||
-      (event.shiftKey && !event.ctrlKey && !event.altKey && event.key === 'Insert');
-    if (pasteKey) {
+    if (isTerminalPasteKey(event)) {
       event.preventDefault();
       void pasteClipboardIntoTerminal({
         chipMode,

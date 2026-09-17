@@ -12,3 +12,9 @@ build/
 *.tsbuildinfo
 .vite/
 coverage/
+
+# Desktop e2e build and Playwright output
+apps/desktop/out-e2e/
+apps/desktop/src/renderer/out-e2e/
+apps/desktop/test-results/
+apps/desktop/playwright-report/

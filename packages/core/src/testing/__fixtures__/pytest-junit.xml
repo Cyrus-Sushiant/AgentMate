@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="2" skipped="1" tests="5" time="0.101" timestamp="2026-09-17T16:22:49.951347+03:30" hostname="BUILD-HOST"><testcase classname="tests.test_math" name="test_adds" file="tests\test_math.py" line="3" time="0.001" /><testcase classname="tests.test_math.TestNested" name="test_fails_on_purpose" file="tests\test_math.py" line="8" time="0.001"><failure message="AssertionError: assert {'a': 1} == {'a': 2}&#10;  &#10;  Differing items:&#10;  {'a': 1} != {'a': 2}&#10;  Use -v to get more diff">self = &lt;test_math.TestNested object at 0x000002A67A344550&gt;
+
+    def test_fails_on_purpose(self):
+&gt;       assert {"a": 1} == {"a": 2}
+E       AssertionError: assert {'a': 1} == {'a': 2}
+E         
+E         Differing items:
+E         {'a': 1} != {'a': 2}
+E         Use -v to get more diff
+
+tests\test_math.py:10: AssertionError</failure></testcase><testcase classname="tests.test_math.TestNested" name="test_skipped" file="tests\test_math.py" line="11" time="0.000"><skipped type="pytest.skip" message="later">C:\work\py\tests\test_math.py:12: later</skipped></testcase><testcase classname="tests.test_math" name="test_param[1]" file="tests\test_math.py" line="16" time="0.001" /><testcase classname="tests.test_math" name="test_param[2]" file="tests\test_math.py" line="16" time="0.001"><failure message="assert 2 &lt; 2">n = 2
+
+    @pytest.mark.parametrize("n", [1, 2])
+    def test_param(n):
+&gt;       assert n &lt; 2
+E       assert 2 &lt; 2
+
+tests\test_math.py:19: AssertionError</failure></testcase></testsuite></testsuites>

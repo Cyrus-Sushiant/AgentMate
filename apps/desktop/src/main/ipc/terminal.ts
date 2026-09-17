@@ -64,6 +64,8 @@ const owners = new Map<string, WebContents>();
  * running when the app started is known from its list but sends no output until attached.
  */
 const attached = new Set<string>();
+/** Sessions whose output the AI task runner draws itself, through `writeToTerminalDisplay`. */
+const capturedDisplays = new Set<string>();
 
 /**
  * Terminals normally run in the background host (see ptyHost/hostEntry.ts), which keeps
@@ -101,6 +103,11 @@ function syncPowerSaveBlocker(): void {
   keepAwake.setBusy('terminals', false);
 }
 
+function sendToOwner(sessionId: string, data: string): void {
+  const owner = owners.get(sessionId);
+  if (owner && !owner.isDestroyed()) owner.send(IPC.terminal.onData, { sessionId, data });
+}
+
 function forwardData(sessionId: string, data: string): void {
   agentStatus.output(sessionId, data.length);
   const cliId = sessions.get(sessionId)?.cliId;
@@ -108,8 +115,7 @@ function forwardData(sessionId: string, data: string): void {
     agentStatus.guessNeedsInput(sessionId);
   }
   noteTerminalOutput();
-  const owner = owners.get(sessionId);
-  if (owner && !owner.isDestroyed()) owner.send(IPC.terminal.onData, { sessionId, data });
+  if (!capturedDisplays.has(sessionId)) sendToOwner(sessionId, data);
   for (const listener of outputSubscribers.get(sessionId) ?? []) listener(data);
 }
 
@@ -120,6 +126,7 @@ function forwardExit(sessionId: string, exitCode: number): void {
   owners.delete(sessionId);
   sessions.delete(sessionId);
   attached.delete(sessionId);
+  capturedDisplays.delete(sessionId);
   syncPowerSaveBlocker();
   notifyExitSubscribers(sessionId);
 }
@@ -427,6 +434,17 @@ export function subscribeTerminalOutput(
   }
   set.add(listener);
   return () => set?.delete(listener);
+}
+
+/** Same as `setSshDisplayCaptured`, for a local shell. */
+export function setTerminalDisplayCaptured(sessionId: string, captured: boolean): void {
+  if (captured) capturedDisplays.add(sessionId);
+  else capturedDisplays.delete(sessionId);
+}
+
+/** Draws text in a session's terminal pane without sending anything to the shell. */
+export function writeToTerminalDisplay(sessionId: string, data: string): void {
+  if (data) sendToOwner(sessionId, data);
 }
 
 /** Fires once when a session ends, however that happens (shell exit, closed tab, lost host). */

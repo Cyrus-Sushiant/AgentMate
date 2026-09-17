@@ -1,0 +1,15 @@
+{"protocolVersion":"0.1.1","runnerVersion":null,"pid":61656,"type":"start","time":0}
+{"suite":{"id":0,"platform":"vm","path":"C:/work/flutter_fx/test/widget_test.dart"},"type":"suite","time":0}
+{"test":{"id":1,"name":"loading C:/work/flutter_fx/test/widget_test.dart","suiteID":0,"groupIDs":[],"metadata":{"skip":false,"skipReason":null},"line":null,"column":null,"url":null},"type":"testStart","time":2}
+{"count":1,"time":9,"type":"allSuites"}
+
+[{"event":"test.startedProcess","params":{"vmServiceUri":null}}]
+{"testID":1,"result":"success","skipped":false,"hidden":true,"type":"testDone","time":18411}
+{"group":{"id":2,"suiteID":0,"parentID":null,"name":"","metadata":{"skip":false,"skipReason":null},"testCount":2,"line":null,"column":null,"url":null},"type":"group","time":18413}
+{"group":{"id":3,"suiteID":0,"parentID":2,"name":"counter","metadata":{"skip":false,"skipReason":null},"testCount":2,"line":5,"column":3,"url":"file:///C:/work/flutter_fx/test/widget_test.dart"},"type":"group","time":18414}
+{"test":{"id":4,"name":"counter renders text","suiteID":0,"groupIDs":[2,3],"metadata":{"skip":false,"skipReason":null},"line":174,"column":5,"url":"package:flutter_test/src/widget_tester.dart","root_line":6,"root_column":5,"root_url":"file:///C:/work/flutter_fx/test/widget_test.dart"},"type":"testStart","time":18414}
+{"testID":4,"result":"success","skipped":false,"hidden":false,"type":"testDone","time":18846}
+{"test":{"id":5,"name":"counter fails on purpose","suiteID":0,"groupIDs":[2,3],"metadata":{"skip":false,"skipReason":null},"line":11,"column":5,"url":"file:///C:/work/flutter_fx/test/widget_test.dart"},"type":"testStart","time":18846}
+{"testID":5,"error":"Expected: <2>\n  Actual: <1>\n","stackTrace":"package:matcher                                     expect\npackage:flutter_test/src/widget_tester.dart 473:18  expect\ntest\\widget_test.dart 12:7                          main.<fn>.<fn>\n","isFailure":true,"type":"error","time":18871}
+{"testID":5,"result":"failure","skipped":false,"hidden":false,"type":"testDone","time":18871}
+{"success":false,"type":"done","time":18895}

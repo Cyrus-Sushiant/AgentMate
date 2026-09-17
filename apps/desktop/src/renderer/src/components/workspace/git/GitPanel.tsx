@@ -16,6 +16,7 @@ import {
   CollapseAll,
   FileCode,
   FilePlus,
+  Flask,
   FolderPlus,
   FolderTree,
   GitBranch,
@@ -36,6 +37,7 @@ import { queryKeys } from '@/lib/queryKeys';
 import { cn } from '@/lib/utils';
 import { confirmDialog } from '@/stores/confirmStore';
 import { useShortcutLabel } from '@/stores/shortcutStore';
+import { ensureTestRunSubscription } from '@/stores/testsStore';
 import {
   GIT_PANEL_DEFAULT_WIDTH,
   GIT_PANEL_MAX_WIDTH,
@@ -43,6 +45,7 @@ import {
   type GitPanelSection,
   useWorkspaceStore,
 } from '@/stores/workspaceStore';
+import { TestsSection, TestsTabActions, useTestsFailedCount } from '../tests/TestsSection';
 import { BranchesSection } from './BranchesSection';
 import { CommitBox } from './CommitBox';
 import { CommitsSection } from './CommitsSection';
@@ -571,6 +574,9 @@ export function GitPanel({
   const state = query.data;
   useInitialFetch(project.id, state?.isRepo && state.hasRemote);
   const [resizing, setResizing] = useState(false);
+  const failedTests = useTestsFailedCount(project.id);
+  // Runs keep reporting while the Tests tab is closed, so the badge stays true.
+  useEffect(() => ensureTestRunSubscription(), []);
   const count = state
     ? state.staged.length + state.unstaged.length + state.untracked.length + state.conflicts.length
     : 0;
@@ -698,6 +704,16 @@ export function GitPanel({
       title: 'Pipelines',
       icon: Github,
       render: () => <PipelinesSection project={project} />,
+    },
+    {
+      id: 'tests',
+      title: 'Tests',
+      icon: Flask,
+      count: failedTests || undefined,
+      // Its own row under the tab icons, so the run buttons are not crowded in with them.
+      toolbarTitle: 'Tests',
+      actions: <TestsTabActions project={project} />,
+      render: () => <TestsSection project={project} />,
     },
   ];
 

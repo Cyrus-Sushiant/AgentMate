@@ -476,6 +476,16 @@ export const IPC = {
      */
     showMainWindow: 'pet:showMainWindow',
   },
+  /** The workspace Tests panel: discover a project's tests, run them, and follow the run. */
+  tests: {
+    discover: 'tests:discover',
+    run: 'tests:run',
+    cancel: 'tests:cancel',
+    lastRun: 'tests:lastRun',
+    command: 'tests:command',
+    /** main -> every renderer: TestRunEvent as a run starts, prints, reports results and ends. */
+    onRunEvent: 'tests:onRunEvent',
+  },
   pipelines: {
     status: 'pipelines:status',
     setMuted: 'pipelines:setMuted',

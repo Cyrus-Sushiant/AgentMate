@@ -1,0 +1,26 @@
+test_adds (tests.test_unit.MathCase.test_adds) ... ok
+test_errors (tests.test_unit.MathCase.test_errors) ... ERROR
+test_fails (tests.test_unit.MathCase.test_fails) ... FAIL
+test_skipped (tests.test_unit.MathCase.test_skipped) ... skipped 'later'
+
+======================================================================
+ERROR: test_errors (tests.test_unit.MathCase.test_errors)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\work\py\tests\test_unit.py", line 16, in test_errors
+    raise RuntimeError("boom")
+RuntimeError: boom
+
+======================================================================
+FAIL: test_fails (tests.test_unit.MathCase.test_fails)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\work\py\tests\test_unit.py", line 9, in test_fails
+    self.assertEqual(1, 2)
+    ~~~~~~~~~~~~~~~~^^^^^^
+AssertionError: 1 != 2
+
+----------------------------------------------------------------------
+Ran 4 tests in 0.001s
+
+FAILED (failures=1, errors=1, skipped=1)

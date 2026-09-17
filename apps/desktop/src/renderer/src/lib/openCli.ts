@@ -1,9 +1,7 @@
 import {
+  buildAgentLaunchCommand,
   getCliArgsFor,
   getCliDefinition,
-  launchDefaultArgs,
-  parseCliArgs,
-  quoteForShell,
   shellKindFor,
 } from '@agentmat/core';
 import { toast } from 'sonner';
@@ -16,15 +14,13 @@ import { defaultNewSession, useTerminalStore } from '@/stores/terminalStore';
  * pass a prompt of their own append it after this, so the flags stay ahead of the prompt.
  */
 export function cliLaunchCommand(cliId: string): string | null {
-  const cli = getCliDefinition(cliId);
-  if (!cli) return null;
   const { cliArgs, cliLaunchDefaults } = useCliStore.getState();
-  const args = getCliArgsFor(cliArgs, cliId);
-  const kind = shellKindFor(defaultNewSession().shell, window.agentmat.platform);
-  const defaults = launchDefaultArgs(cliId, cliLaunchDefaults[cliId], parseCliArgs(args)).map(
-    (arg) => quoteForShell(arg, kind),
-  );
-  return [cli.executableNames[0], ...defaults, args].filter(Boolean).join(' ');
+  return buildAgentLaunchCommand({
+    cliId,
+    shellKind: shellKindFor(defaultNewSession().shell, window.agentmat.platform),
+    savedArgs: getCliArgsFor(cliArgs, cliId),
+    launchDefaults: cliLaunchDefaults[cliId],
+  });
 }
 
 /** Opens a terminal session that starts this CLI so the user can work in it. */

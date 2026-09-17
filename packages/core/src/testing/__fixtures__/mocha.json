@@ -1,0 +1,106 @@
+{
+  "stats": {
+    "suites": 2,
+    "tests": 4,
+    "passes": 2,
+    "pending": 1,
+    "failures": 1,
+    "start": "2026-09-17T12:52:09.450Z",
+    "end": "2026-09-17T12:52:09.454Z",
+    "duration": 4
+  },
+  "tests": [
+    {
+      "title": "top level",
+      "fullTitle": "top level",
+      "file": "C:\\work\\js\\mocha\\math.spec.cjs",
+      "duration": 0,
+      "currentRetry": 0,
+      "speed": "fast",
+      "err": {}
+    },
+    {
+      "title": "adds",
+      "fullTitle": "math adds",
+      "file": "C:\\work\\js\\mocha\\math.spec.cjs",
+      "duration": 0,
+      "currentRetry": 0,
+      "speed": "fast",
+      "err": {}
+    },
+    {
+      "title": "skipped one",
+      "fullTitle": "math skipped one",
+      "file": "C:\\work\\js\\mocha\\math.spec.cjs",
+      "currentRetry": 0,
+      "err": {}
+    },
+    {
+      "title": "fails on purpose",
+      "fullTitle": "math nested fails on purpose",
+      "file": "C:\\work\\js\\mocha\\math.spec.cjs",
+      "duration": 1,
+      "currentRetry": 0,
+      "err": {
+        "stack": "AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:\n+ actual - expected\n\n  {\n+   a: 1\n-   a: 2\n  }\n\n    at Context.<anonymous> (mocha\\math.spec.cjs:5:43)\n    at callFn (file:///C:/work/js/node_modules/mocha/lib/runnable.js:360:23)\n    at Test.run (file:///C:/work/js/node_modules/mocha/lib/runnable.js:348:7)\n    at Runner.runTest (file:///C:/work/js/node_modules/mocha/lib/runner.js:809:10)\n    at file:///C:/work/js/node_modules/mocha/lib/runner.js:959:12\n    at next (file:///C:/work/js/node_modules/mocha/lib/runner.js:724:14)\n    at file:///C:/work/js/node_modules/mocha/lib/runner.js:734:7\n    at next (file:///C:/work/js/node_modules/mocha/lib/runner.js:595:14)\n    at Immediate._onImmediate (file:///C:/work/js/node_modules/mocha/lib/runner.js:702:5)\n    at process.processImmediate (node:internal/timers:534:21)",
+        "message": "Expected values to be strictly deep-equal:\n+ actual - expected\n\n  {\n+   a: 1\n-   a: 2\n  }\n",
+        "generatedMessage": true,
+        "name": "AssertionError",
+        "code": "ERR_ASSERTION",
+        "actual": "{\n  \"a\": 1\n}",
+        "expected": "{\n  \"a\": 2\n}",
+        "operator": "deepStrictEqual",
+        "diff": "simple"
+      }
+    }
+  ],
+  "pending": [
+    {
+      "title": "skipped one",
+      "fullTitle": "math skipped one",
+      "file": "C:\\work\\js\\mocha\\math.spec.cjs",
+      "currentRetry": 0,
+      "err": {}
+    }
+  ],
+  "failures": [
+    {
+      "title": "fails on purpose",
+      "fullTitle": "math nested fails on purpose",
+      "file": "C:\\work\\js\\mocha\\math.spec.cjs",
+      "duration": 1,
+      "currentRetry": 0,
+      "err": {
+        "stack": "AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:\n+ actual - expected\n\n  {\n+   a: 1\n-   a: 2\n  }\n\n    at Context.<anonymous> (mocha\\math.spec.cjs:5:43)\n    at callFn (file:///C:/work/js/node_modules/mocha/lib/runnable.js:360:23)\n    at Test.run (file:///C:/work/js/node_modules/mocha/lib/runnable.js:348:7)\n    at Runner.runTest (file:///C:/work/js/node_modules/mocha/lib/runner.js:809:10)\n    at file:///C:/work/js/node_modules/mocha/lib/runner.js:959:12\n    at next (file:///C:/work/js/node_modules/mocha/lib/runner.js:724:14)\n    at file:///C:/work/js/node_modules/mocha/lib/runner.js:734:7\n    at next (file:///C:/work/js/node_modules/mocha/lib/runner.js:595:14)\n    at Immediate._onImmediate (file:///C:/work/js/node_modules/mocha/lib/runner.js:702:5)\n    at process.processImmediate (node:internal/timers:534:21)",
+        "message": "Expected values to be strictly deep-equal:\n+ actual - expected\n\n  {\n+   a: 1\n-   a: 2\n  }\n",
+        "generatedMessage": true,
+        "name": "AssertionError",
+        "code": "ERR_ASSERTION",
+        "actual": "{\n  \"a\": 1\n}",
+        "expected": "{\n  \"a\": 2\n}",
+        "operator": "deepStrictEqual",
+        "diff": "simple"
+      }
+    }
+  ],
+  "passes": [
+    {
+      "title": "top level",
+      "fullTitle": "top level",
+      "file": "C:\\work\\js\\mocha\\math.spec.cjs",
+      "duration": 0,
+      "currentRetry": 0,
+      "speed": "fast",
+      "err": {}
+    },
+    {
+      "title": "adds",
+      "fullTitle": "math adds",
+      "file": "C:\\work\\js\\mocha\\math.spec.cjs",
+      "duration": 0,
+      "currentRetry": 0,
+      "speed": "fast",
+      "err": {}
+    }
+  ]
+}

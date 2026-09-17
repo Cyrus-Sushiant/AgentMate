@@ -75,7 +75,8 @@ export type SidePanelSection =
   | 'branches'
   | 'explorer'
   | 'history'
-  | 'pipelines';
+  | 'pipelines'
+  | 'tests';
 
 export const SIDE_PANEL_SECTIONS: SidePanelSection[] = [
   'changes',
@@ -84,6 +85,7 @@ export const SIDE_PANEL_SECTIONS: SidePanelSection[] = [
   'explorer',
   'history',
   'pipelines',
+  'tests',
 ];
 
 export interface ProjectWorkspace {
