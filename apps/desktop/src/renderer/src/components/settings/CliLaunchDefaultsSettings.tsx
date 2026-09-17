@@ -4,11 +4,14 @@ import {
   type CliLaunchMode,
   type CliLaunchOptions,
   cliLaunchOptions,
+  configuredArgsWithout,
   EFFORT_LABELS,
   type EffortLevel,
   type LaunchDefaultPart,
   launchDefaultParts,
   parseCliArgs,
+  type SavedArgSetting,
+  savedArgSettings,
 } from '@agentmat/core';
 import { useQuery } from '@tanstack/react-query';
 import { useId, useState } from 'react';
@@ -128,17 +131,28 @@ function LaunchDefaultsRow({
   const value = useCliStore((s) => s.cliLaunchDefaults[cli.id]);
   const savedArgLine = useCliStore((s) => s.cliArgs[cli.id]);
   const setDefault = useCliStore((s) => s.setCliLaunchDefault);
+  const setCliArgs = useCliStore((s) => s.setCliArgs);
   const clearDefault = useCliStore((s) => s.clearCliLaunchDefault);
   const panelId = useId();
 
   const current: CliLaunchDefault = value ?? {};
   const parts = launchDefaultParts(cli.id, current, parseCliArgs(savedArgLine));
+  // What the Arguments box sets on its own. Shown here too, or a `--model haiku` saved there
+  // would start every tab on Haiku while this section says the model is "Not set".
+  const fromArgs = savedArgSettings(cli.id, parseCliArgs(savedArgLine));
   const mode = options.modes.find((m) => m.id === current.mode);
   const isSet = Boolean(current.model || current.effort || mode);
   const sent = (kind: LaunchDefaultPart['kind']): boolean =>
     parts.some((part) => part.kind === kind && part.applied);
+  const argFor = (kind: SavedArgSetting['kind']): SavedArgSetting | undefined =>
+    fromArgs.find((arg) => arg.kind === kind);
+  const unsetFromArgs = fromArgs.filter((arg) => !parts.some((part) => part.kind === arg.kind));
 
   const update = (patch: Partial<CliLaunchDefault>): void => setDefault(cli.id, patch);
+  const removeFromArgs = (arg: SavedArgSetting): void => {
+    if (arg.value === undefined) return;
+    setCliArgs(cli.id, configuredArgsWithout(savedArgLine ?? '', [arg.flag, arg.value]));
+  };
 
   return (
     <div className="border-b border-border/50 last:border-b-0">
@@ -159,7 +173,7 @@ function LaunchDefaultsRow({
           {cli.name}
         </span>
         <span className="ml-auto flex min-w-0 flex-wrap items-center justify-end gap-1">
-          {isSet ? (
+          {isSet || unsetFromArgs.length ? (
             <>
               {current.model ? (
                 <SummaryChip skipped={!sent('model')}>
@@ -174,6 +188,13 @@ function LaunchDefaultsRow({
                   {mode.label}
                 </SummaryChip>
               ) : null}
+              {unsetFromArgs.map((arg) => (
+                <SummaryChip key={arg.kind} fromArgs>
+                  {arg.kind === 'model' && arg.value
+                    ? modelLabel(options, arg.value)
+                    : savedArgText(arg)}
+                </SummaryChip>
+              ))}
             </>
           ) : (
             <span className="text-[11px] text-muted-foreground/70">
@@ -201,6 +222,8 @@ function LaunchDefaultsRow({
                 options={options}
                 value={current.model}
                 part={parts.find((p) => p.kind === 'model')}
+                fromArgs={argFor('model')}
+                onRemoveFromArgs={removeFromArgs}
                 onChange={(model) => update({ model })}
               />
             ) : null}
@@ -210,6 +233,8 @@ function LaunchDefaultsRow({
                 model={current.model}
                 value={current.effort}
                 part={parts.find((p) => p.kind === 'effort')}
+                fromArgs={argFor('effort')}
+                onRemoveFromArgs={removeFromArgs}
                 onChange={(effort) => update({ effort })}
               />
             ) : null}
@@ -220,12 +245,18 @@ function LaunchDefaultsRow({
               modes={options.modes}
               value={current.mode}
               part={parts.find((p) => p.kind === 'mode')}
+              fromArgs={argFor('mode')}
+              onRemoveFromArgs={removeFromArgs}
               onChange={(next) => update({ mode: next })}
             />
           ) : null}
 
           <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border/40 pt-3">
-            <CommandPreview executable={cli.executableNames[0] ?? cli.id} parts={parts} />
+            <CommandPreview
+              executable={cli.executableNames[0] ?? cli.id}
+              parts={parts}
+              savedArgs={savedArgLine}
+            />
             <Button
               variant="ghost"
               size="sm"
@@ -246,15 +277,19 @@ function SummaryChip({
   children,
   risky,
   skipped,
+  fromArgs,
 }: {
   children: React.ReactNode;
   risky?: boolean;
   skipped?: boolean;
+  /** Set by the Arguments box rather than here, drawn dashed so it reads differently. */
+  fromArgs?: boolean;
 }): React.JSX.Element {
   return (
     <span
       className={cn(
         'inline-flex h-5 max-w-40 items-center gap-1 truncate rounded-full border px-2 text-[11px]',
+        fromArgs && 'border-dashed',
         skipped
           ? 'border-border/50 text-muted-foreground/60 line-through'
           : risky
@@ -296,17 +331,55 @@ function OverriddenNote({
   );
 }
 
+function savedArgText(arg: SavedArgSetting): string {
+  return arg.value === undefined ? arg.flag : `${arg.flag} ${arg.value}`;
+}
+
+/**
+ * For a field left on Not set here that the CLI's saved arguments set anyway, so "Not set" never
+ * hides a flag that still goes out with every launch.
+ */
+function FromArgsNote({
+  arg,
+  onRemove,
+}: {
+  arg: SavedArgSetting;
+  onRemove: (arg: SavedArgSetting) => void;
+}): React.JSX.Element {
+  return (
+    <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] leading-relaxed text-warning">
+      <span>
+        Still sent: the saved arguments include{' '}
+        <code className="rounded bg-warning/10 px-1 font-mono">{savedArgText(arg)}</code>.
+      </span>
+      {arg.value !== undefined ? (
+        <button
+          type="button"
+          onClick={() => onRemove(arg)}
+          className="font-medium underline underline-offset-2 hover:text-foreground"
+        >
+          Remove it
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
 function ModelField({
   cli,
   options,
   value,
   part,
+  fromArgs,
+  onRemoveFromArgs,
   onChange,
 }: {
   cli: CliDefinition;
   options: CliLaunchOptions;
   value: string | undefined;
   part: LaunchDefaultPart | undefined;
+  fromArgs: SavedArgSetting | undefined;
+  onRemoveFromArgs: (arg: SavedArgSetting) => void;
   onChange: (model: string | undefined) => void;
 }): React.JSX.Element {
   const hasList = options.models.length > 0;
@@ -334,6 +407,8 @@ function ModelField({
       />
       {part && !part.applied ? (
         <OverriddenNote part={part} />
+      ) : !value && fromArgs ? (
+        <FromArgsNote arg={fromArgs} onRemove={onRemoveFromArgs} />
       ) : (
         <p className="text-[11px] leading-relaxed text-muted-foreground">
           {value
@@ -352,12 +427,16 @@ function EffortField({
   model,
   value,
   part,
+  fromArgs,
+  onRemoveFromArgs,
   onChange,
 }: {
   options: CliLaunchOptions;
   model: string | undefined;
   value: EffortLevel | undefined;
   part: LaunchDefaultPart | undefined;
+  fromArgs: SavedArgSetting | undefined;
+  onRemoveFromArgs: (arg: SavedArgSetting) => void;
   onChange: (effort: EffortLevel | undefined) => void;
 }): React.JSX.Element {
   const knownModel = options.models.find((m) => m.value === model);
@@ -408,6 +487,8 @@ function EffortField({
       </div>
       {part && !part.applied ? (
         <OverriddenNote part={part} />
+      ) : !value && fromArgs ? (
+        <FromArgsNote arg={fromArgs} onRemove={onRemoveFromArgs} />
       ) : (
         <p className="text-[11px] leading-relaxed text-muted-foreground">
           {noEffort && knownModel
@@ -427,11 +508,15 @@ function ModeField({
   modes,
   value,
   part,
+  fromArgs,
+  onRemoveFromArgs,
   onChange,
 }: {
   modes: readonly CliLaunchMode[];
   value: string | undefined;
   part: LaunchDefaultPart | undefined;
+  fromArgs: SavedArgSetting | undefined;
+  onRemoveFromArgs: (arg: SavedArgSetting) => void;
   onChange: (mode: string | undefined) => void;
 }): React.JSX.Element {
   const selected = modes.find((m) => m.id === value);
@@ -495,6 +580,7 @@ function ModeField({
         })}
       </div>
       {part && !part.applied ? <OverriddenNote part={part} /> : null}
+      {!selected && fromArgs ? <FromArgsNote arg={fromArgs} onRemove={onRemoveFromArgs} /> : null}
       {selected?.risky && part?.applied ? (
         <div className="flex items-start gap-2 rounded-md border border-warning/30 bg-warning/[0.07] px-2.5 py-2 text-[11px] leading-relaxed text-warning">
           <TriangleAlert className="mt-0.5 h-3 w-3 shrink-0" />
@@ -511,15 +597,17 @@ function ModeField({
 function CommandPreview({
   executable,
   parts,
+  savedArgs,
 }: {
   executable: string;
   parts: LaunchDefaultPart[];
+  savedArgs: string | undefined;
 }): React.JSX.Element {
   return (
-    <SimpleTooltip label="What the terminal types to start this agent, before any saved arguments.">
+    <SimpleTooltip label="What the terminal types to start this agent: these defaults, then the saved arguments.">
       <code className="min-w-0 max-w-full truncate rounded-md bg-foreground/[0.05] px-2 py-1 font-mono text-[11px] text-muted-foreground">
         <span className="text-foreground/90">{executable}</span>
-        {parts.length === 0 ? (
+        {parts.length === 0 && !savedArgs ? (
           <span className="font-sans text-muted-foreground/70"> (no flags added)</span>
         ) : null}
         {parts.map((part) => (
@@ -531,6 +619,7 @@ function CommandPreview({
             {part.args.join(' ')}
           </span>
         ))}
+        {savedArgs ? <span className="text-foreground/90"> {savedArgs}</span> : null}
       </code>
     </SimpleTooltip>
   );

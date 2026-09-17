@@ -344,6 +344,14 @@ function setsAny(taken: readonly string[], keys: readonly string[]): boolean {
   );
 }
 
+function modelFlagKeys(modelFlag: string): string[] {
+  return modelFlag === '--model' ? ['--model', '-m'] : [modelFlag];
+}
+
+function effortFlagKeys(effortArgs: readonly string[]): string[] {
+  return [...flagKeys(effortArgs), ...(effortArgs[0] === '--reasoning-effort' ? ['--effort'] : [])];
+}
+
 export interface LaunchDefaultPart {
   kind: 'model' | 'effort' | 'mode';
   args: string[];
@@ -367,11 +375,10 @@ export function launchDefaultParts(
 
   const model = defaults.model?.trim();
   if (model && options.modelFlag) {
-    const flags = options.modelFlag === '--model' ? ['--model', '-m'] : [options.modelFlag];
     parts.push({
       kind: 'model',
       args: [options.modelFlag, model],
-      applied: !setsAny(takenArgs, flags),
+      applied: !setsAny(takenArgs, modelFlagKeys(options.modelFlag)),
     });
   }
 
@@ -383,8 +390,7 @@ export function launchDefaultParts(
     (!known || known.efforts?.includes(defaults.effort));
   if (effortFits && options.effortArgs && defaults.effort) {
     const args = options.effortArgs(defaults.effort);
-    const keys = [...flagKeys(args), ...(args[0] === '--reasoning-effort' ? ['--effort'] : [])];
-    parts.push({ kind: 'effort', args, applied: !setsAny(takenArgs, keys) });
+    parts.push({ kind: 'effort', args, applied: !setsAny(takenArgs, effortFlagKeys(args)) });
   }
 
   const mode = options.modes.find((m) => m.id === defaults.mode);
@@ -407,6 +413,59 @@ export function launchDefaultArgs(
   return launchDefaultParts(cliId, defaults, takenArgs)
     .filter((part) => part.applied)
     .flatMap((part) => part.args);
+}
+
+export interface SavedArgSetting {
+  kind: LaunchDefaultPart['kind'];
+  /** The flag as the user wrote it, e.g. "--model" or "-c". */
+  flag: string;
+  /**
+   * The value right after the flag, e.g. "haiku", or "model_reasoning_effort=high" for `-c`.
+   * Absent for a flag that takes no value, like "--yolo".
+   */
+  value?: string;
+}
+
+function findTakenFlag(
+  takenArgs: readonly string[],
+  keys: readonly string[],
+): Omit<SavedArgSetting, 'kind'> | undefined {
+  for (let i = 0; i < takenArgs.length; i++) {
+    const arg = takenArgs[i]!;
+    const next = takenArgs[i + 1];
+    for (const key of keys) {
+      if (key.endsWith('=')) {
+        if (arg === '-c' && next?.startsWith(key)) return { flag: '-c', value: next };
+      } else if (arg === key) {
+        return next !== undefined && !next.startsWith('-')
+          ? { flag: key, value: next }
+          : { flag: key };
+      } else if (arg.startsWith(`${key}=`)) {
+        return { flag: key, value: arg.slice(key.length + 1) };
+      }
+    }
+  }
+  return undefined;
+}
+
+/**
+ * The model, effort, and mode a CLI's saved arguments already set on their own. Launch defaults
+ * show these, so a `--model haiku` typed into the Arguments box can't start the CLI on Haiku
+ * while the Model picker says "Not set".
+ */
+export function savedArgSettings(cliId: string, takenArgs: readonly string[]): SavedArgSetting[] {
+  const options = cliLaunchOptions(cliId);
+  if (!options || takenArgs.length === 0) return [];
+  const sample = options.efforts[0];
+  const checks: [SavedArgSetting['kind'], readonly string[]][] = [
+    ['model', options.modelFlag ? modelFlagKeys(options.modelFlag) : []],
+    ['effort', sample && options.effortArgs ? effortFlagKeys(options.effortArgs(sample)) : []],
+    ['mode', options.modeFlags],
+  ];
+  return checks.flatMap(([kind, keys]) => {
+    const found = findTakenFlag(takenArgs, keys);
+    return found ? [{ kind, ...found }] : [];
+  });
 }
 
 /**

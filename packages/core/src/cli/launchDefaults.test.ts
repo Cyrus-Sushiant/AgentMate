@@ -4,6 +4,7 @@ import {
   launchDefaultArgs,
   launchDefaultParts,
   normalizeCliLaunchDefaults,
+  savedArgSettings,
 } from './launchDefaults.js';
 
 describe('launchDefaultArgs', () => {
@@ -87,5 +88,38 @@ describe('normalizeCliLaunchDefaults', () => {
       }),
     ).toEqual({ 'claude-code': { model: 'opus', mode: 'auto' } });
     expect(normalizeCliLaunchDefaults(null)).toEqual({});
+  });
+});
+
+describe('savedArgSettings', () => {
+  it('finds a model, effort, and mode set by the saved arguments', () => {
+    expect(
+      savedArgSettings('claude-code', [
+        '--model',
+        'haiku',
+        '--effort=low',
+        '--permission-mode',
+        'plan',
+      ]),
+    ).toEqual([
+      { kind: 'model', flag: '--model', value: 'haiku' },
+      { kind: 'effort', flag: '--effort', value: 'low' },
+      { kind: 'mode', flag: '--permission-mode', value: 'plan' },
+    ]);
+    expect(savedArgSettings('claude-code', ['-m', 'sonnet'])).toEqual([
+      { kind: 'model', flag: '-m', value: 'sonnet' },
+    ]);
+  });
+
+  it('reads config-style and value-less flags', () => {
+    expect(savedArgSettings('codex-cli', ['-c', 'model_reasoning_effort=high', '--yolo'])).toEqual([
+      { kind: 'effort', flag: '-c', value: 'model_reasoning_effort=high' },
+      { kind: 'mode', flag: '--yolo' },
+    ]);
+  });
+
+  it('finds nothing in arguments that set none of them', () => {
+    expect(savedArgSettings('claude-code', [])).toEqual([]);
+    expect(savedArgSettings('claude-code', ['--verbose', '--add-dir', 'x'])).toEqual([]);
   });
 });
