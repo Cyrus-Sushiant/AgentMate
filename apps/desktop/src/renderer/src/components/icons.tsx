@@ -104,6 +104,7 @@ import {
   faSatelliteDish,
   faServer,
   faShieldHalved,
+  faSliders,
   faSort,
   faSpellCheck,
   faSpinner,
@@ -122,6 +123,7 @@ import {
   faTrashCan,
   faTriangleExclamation,
   faUpload,
+  faVault,
   faWandMagic,
   faWandMagicSparkles,
   faWifi,
@@ -353,3 +355,5 @@ export const CodeCompare = makeIcon(faCodeCompare);
 export const Minus = makeIcon(faMinus);
 export const Expand = makeIcon(faExpand);
 export const Compress = makeIcon(faCompress);
+export const Vault = makeIcon(faVault);
+export const Sliders = makeIcon(faSliders);

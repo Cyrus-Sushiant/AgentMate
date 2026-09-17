@@ -41,6 +41,7 @@ import {
   Sun,
   TerminalSquare,
   Upload,
+  Vault,
   VsInfinity,
   X,
 } from '@/components/icons';
@@ -65,6 +66,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { SimpleTooltip } from '@/components/ui/tooltip';
+import { VaultSettings } from '@/components/vault/VaultSettings';
 import { queryKeys } from '@/lib/queryKeys';
 import { isShortcutLetter } from '@/lib/shortcutKey';
 import { cn } from '@/lib/utils';
@@ -112,6 +114,7 @@ const SETTINGS_TABS = [
   'ai',
   'notifications',
   'network',
+  'vault',
   'data',
 ] as const;
 type SettingsTab = (typeof SETTINGS_TABS)[number];
@@ -125,6 +128,9 @@ const LAUNCH_DEFAULTS_KEYWORDS =
 
 const BLUEPRINT_PRESET_KEYWORDS =
   'blueprint preset presets snippet snippets default defaults wizard steps idea architecture stack backend frontend ci cd pipeline quality testing product manager phases epics docs';
+
+const VAULT_KEYWORDS =
+  'vault password passwords manager credentials auto-lock lock idle clipboard clear master password reset sleep';
 
 const PROXY_KEYWORDS =
   'proxy http proxy https proxy socks socks5 socks4 system proxy vpn bypass no_proxy corporate firewall connection internet network offline pac auth username password port host';
@@ -175,6 +181,12 @@ const TAB_META: {
     label: 'Network',
     icon: NetworkIcon,
     keywords: PROXY_KEYWORDS,
+  },
+  {
+    id: 'vault',
+    label: 'Vault',
+    icon: Vault,
+    keywords: VAULT_KEYWORDS,
   },
   {
     id: 'data',
@@ -474,6 +486,12 @@ export default function SettingsPage(): React.JSX.Element {
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: queryKeys.settings }),
   });
 
+  const checkToolUpdatesMutation = useMutation({
+    mutationFn: (checkToolUpdatesEnabled: boolean) =>
+      window.agentmat.settings.update({ checkToolUpdatesEnabled }),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: queryKeys.settings }),
+  });
+
   async function handleDetectChatId(): Promise<void> {
     if (!botToken.trim()) {
       toast.error('Enter your bot token first.');
@@ -706,6 +724,7 @@ export default function SettingsPage(): React.JSX.Element {
   const [importingBackup, setImportingBackup] = useState(false);
   const [compressBackup, setCompressBackup] = useState(false);
   const [backupEnvironments, setBackupEnvironments] = useState(false);
+  const [backupVault, setBackupVault] = useState(true);
   const [backupPassword, setBackupPassword] = useState('');
   const [backupPasswordConfirm, setBackupPasswordConfirm] = useState('');
   const [pendingRestore, setPendingRestore] = useState<{
@@ -730,6 +749,7 @@ export default function SettingsPage(): React.JSX.Element {
     try {
       const result = await window.agentmat.backup.export(compressBackup, {
         environmentsPassword: backupEnvironments ? backupPassword : undefined,
+        includeVault: backupVault,
       });
       if (result.ok && result.path) {
         toast.success(`Backup saved to ${result.path}`);
@@ -740,6 +760,8 @@ export default function SettingsPage(): React.JSX.Element {
       setExportingBackup(false);
     }
   }
+
+  const restoreVaultRef = useRef(false);
 
   async function afterRestore(warnings: string[]): Promise<void> {
     // Rows that could not be read, plus any setting the backup carried that
@@ -758,7 +780,10 @@ export default function SettingsPage(): React.JSX.Element {
     token: string,
     environmentsPassword: string | null,
   ): Promise<'done' | 'wrong-password'> {
-    const result = await window.agentmat.backup.restore(token, { environmentsPassword });
+    const result = await window.agentmat.backup.restore(token, {
+      environmentsPassword,
+      restoreVault: restoreVaultRef.current,
+    });
     if (result.wrongPassword) return 'wrong-password';
     if (!result.ok) {
       if (result.error) toast.error(result.error);
@@ -785,6 +810,15 @@ export default function SettingsPage(): React.JSX.Element {
         if (opened.error) toast.error(opened.error);
         return;
       }
+      restoreVaultRef.current = opened.vault
+        ? await confirmDialog({
+            title: 'Restore the Vault too?',
+            description:
+              "The backup includes a Vault. Restoring it replaces this computer's Vault, which is set aside in AgentMate's data folder. Unlock it afterwards with the master password it had when the backup was made.",
+            confirmLabel: 'Restore the Vault',
+            cancelLabel: 'Keep my current Vault',
+          })
+        : false;
       if (opened.environments) {
         // The password dialog takes it from here.
         setPendingRestore({ token: opened.token, environmentCount: opened.environments.count });
@@ -847,6 +881,8 @@ export default function SettingsPage(): React.JSX.Element {
     ai: aiDirty || speechDirty || translateRetriesDirty,
     notifications: telegramDirty,
     network: proxyDirty,
+    // Vault settings persist the moment they change.
+    vault: false,
     data: pingTargetsDirty,
   };
   const anyDirty = Object.values(tabDirty).some(Boolean);
@@ -957,6 +993,7 @@ export default function SettingsPage(): React.JSX.Element {
     showSection('ai', 'translation retries translate', 'Translation retries'),
     showSection('notifications', 'telegram bot token chat notify', 'Telegram bot'),
     showSection('network', PROXY_KEYWORDS, 'Proxy'),
+    showSection('vault', VAULT_KEYWORDS, 'Vault'),
     showSection('data', 'ping network hosts dashboard', 'Network ping targets'),
     showSection(
       'data',
@@ -1273,6 +1310,29 @@ export default function SettingsPage(): React.JSX.Element {
                       }
                       onCheckedChange={(checked) => workspaceNotificationsMutation.mutate(checked)}
                       aria-label="Notify when a workspace agent finishes or needs input"
+                    />
+                  }
+                />
+              ) : null}
+
+              {showSection(
+                'general',
+                'cli tool update check automatic daily notification bell version',
+                'Check for CLI and tool updates',
+              ) && settingsQuery.data ? (
+                <SettingsCard
+                  icon={Bell}
+                  title="Check for CLI and tool updates"
+                  description="Once a day, check every installed CLI and tool for a newer version and ring the notification bell when one is found."
+                  action={
+                    <Switch
+                      checked={
+                        checkToolUpdatesMutation.isPending
+                          ? checkToolUpdatesMutation.variables
+                          : settingsQuery.data.checkToolUpdatesEnabled
+                      }
+                      onCheckedChange={(checked) => checkToolUpdatesMutation.mutate(checked)}
+                      aria-label="Automatically check for CLI and tool updates"
                     />
                   }
                 />
@@ -1803,6 +1863,10 @@ export default function SettingsPage(): React.JSX.Element {
                 />
               ) : null}
 
+              {showSection('vault', VAULT_KEYWORDS, 'Vault') && settingsQuery.data ? (
+                <VaultSettings settings={settingsQuery.data} />
+              ) : null}
+
               {showSection('data', 'ping network hosts dashboard', 'Network ping targets') && (
                 <SettingsCard
                   icon={NetworkIcon}
@@ -1822,7 +1886,7 @@ export default function SettingsPage(): React.JSX.Element {
 
               {showSection(
                 'data',
-                'backup restore export import zip environments secrets password',
+                'backup restore export import zip environments secrets password vault',
                 'Backup & restore',
               ) && (
                 <SettingsCard
@@ -1861,6 +1925,19 @@ export default function SettingsPage(): React.JSX.Element {
                             className="font-normal text-muted-foreground"
                           >
                             Include project environments
+                          </Label>
+                        </div>
+                        <div className="mt-3 flex items-center gap-2">
+                          <Switch
+                            id="backup-vault"
+                            checked={backupVault}
+                            onCheckedChange={setBackupVault}
+                          />
+                          <Label
+                            htmlFor="backup-vault"
+                            className="font-normal text-muted-foreground"
+                          >
+                            Include the Vault (stays encrypted with its master password)
                           </Label>
                         </div>
                         {backupEnvironments && (

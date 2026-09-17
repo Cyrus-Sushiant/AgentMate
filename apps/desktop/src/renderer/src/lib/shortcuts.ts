@@ -41,7 +41,13 @@ export type ShortcutCommandId =
   | 'workspace.nextChange'
   | 'workspace.prevChange'
   | 'commit.commit'
-  | 'commit.commitAndPush';
+  | 'commit.commitAndPush'
+  | 'vault.search'
+  | 'vault.new'
+  | 'vault.edit'
+  | 'vault.lock'
+  | 'vault.copyPassword'
+  | 'vault.copyUsername';
 
 /**
  * Where a shortcut is listened for. `global` runs anywhere in the shell;
@@ -49,17 +55,19 @@ export type ShortcutCommandId =
  * precedence there. Two scopes may share a combination, which is how the
  * prompt builder keeps Ctrl+T for translating while the rest of the app uses
  * it for the terminal. `workspace` works the same way on the Workspace page,
- * and `commit` only inside the changes panel's commit message box.
+ * and `commit` only inside the changes panel's commit message box. `vault` runs on the Vault
+ * page while it is unlocked.
  */
-export type ShortcutScope = 'global' | 'prompt' | 'workspace' | 'commit';
+export type ShortcutScope = 'global' | 'prompt' | 'workspace' | 'commit' | 'vault';
 
 export type GlobalShortcutCommandId = Exclude<
   ShortcutCommandId,
-  `prompt.${string}` | `workspace.${string}` | `commit.${string}`
+  `prompt.${string}` | `workspace.${string}` | `commit.${string}` | `vault.${string}`
 >;
 export type PromptShortcutCommandId = Extract<ShortcutCommandId, `prompt.${string}`>;
 export type WorkspaceShortcutCommandId = Extract<ShortcutCommandId, `workspace.${string}`>;
 export type CommitShortcutCommandId = Extract<ShortcutCommandId, `commit.${string}`>;
+export type VaultShortcutCommandId = Extract<ShortcutCommandId, `vault.${string}`>;
 
 /** The ids a given scope can produce, so callers get an exhaustive union. */
 export type ShortcutCommandIdOf<S extends ShortcutScope> = S extends 'prompt'
@@ -68,7 +76,9 @@ export type ShortcutCommandIdOf<S extends ShortcutScope> = S extends 'prompt'
     ? WorkspaceShortcutCommandId
     : S extends 'commit'
       ? CommitShortcutCommandId
-      : GlobalShortcutCommandId;
+      : S extends 'vault'
+        ? VaultShortcutCommandId
+        : GlobalShortcutCommandId;
 
 export interface ShortcutCommand {
   id: ShortcutCommandId;
@@ -300,6 +310,54 @@ export const SHORTCUT_COMMANDS: ShortcutCommand[] = [
     scope: 'commit',
     defaults: [{ code: 'Enter', mod: true, shift: true }],
   },
+  {
+    id: 'vault.search',
+    label: 'Search the vault',
+    description: 'Puts the cursor in the Vault search box.',
+    group: 'Vault',
+    scope: 'vault',
+    defaults: [{ code: 'KeyF', mod: true }],
+  },
+  {
+    id: 'vault.new',
+    label: 'New entry',
+    description: 'Opens the editor for a new login, API key, note or custom entry.',
+    group: 'Vault',
+    scope: 'vault',
+    defaults: [{ code: 'KeyN', mod: true }],
+  },
+  {
+    id: 'vault.edit',
+    label: 'Edit entry',
+    description: 'Opens the selected entry in the editor.',
+    group: 'Vault',
+    scope: 'vault',
+    defaults: [{ code: 'KeyE', mod: true }],
+  },
+  {
+    id: 'vault.lock',
+    label: 'Lock the vault',
+    description: 'Locks the vault right away.',
+    group: 'Vault',
+    scope: 'vault',
+    defaults: [{ code: 'KeyL', mod: true }],
+  },
+  {
+    id: 'vault.copyPassword',
+    label: 'Copy password',
+    description: "Copies the selected entry's password, or its secret for an API key.",
+    group: 'Vault',
+    scope: 'vault',
+    defaults: [{ code: 'KeyC', mod: true, shift: true }],
+  },
+  {
+    id: 'vault.copyUsername',
+    label: 'Copy username',
+    description: "Copies the selected login's username.",
+    group: 'Vault',
+    scope: 'vault',
+    defaults: [{ code: 'KeyB', mod: true, shift: true }],
+  },
 ];
 
 export const SHORTCUT_GROUPS: { name: string; scope: ShortcutScope; hint?: string }[] = [
@@ -319,6 +377,11 @@ export const SHORTCUT_GROUPS: { name: string; scope: ShortcutScope; hint?: strin
     name: 'Changes panel',
     scope: 'commit',
     hint: 'Only while typing a commit message in the Workspace changes panel.',
+  },
+  {
+    name: 'Vault',
+    scope: 'vault',
+    hint: 'Only on the Vault page while it is unlocked.',
   },
 ];
 

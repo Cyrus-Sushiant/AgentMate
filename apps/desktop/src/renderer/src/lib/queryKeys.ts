@@ -112,4 +112,9 @@ export const queryKeys = {
   dockerListForProject: (projectId: string) => ['docker-list', 'project', projectId] as const,
   /** Every running shell with its process tree's CPU and memory, for the Running CLIs modal. */
   terminalUsage: ['terminal-usage'] as const,
+  vaultStatus: ['vault', 'status'] as const,
+  /** Prefix of everything decrypted from the vault, removed as a whole when it locks. */
+  vaultData: ['vault', 'data'] as const,
+  vaultEntries: ['vault', 'data', 'entries'] as const,
+  vaultEntry: (id: string) => ['vault', 'data', 'entry', id] as const,
 };

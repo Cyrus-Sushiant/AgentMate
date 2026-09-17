@@ -21,6 +21,7 @@ import { WorkspaceHost } from '@/components/workspace/WorkspaceHost';
 import { useAppLoadingOverlay } from '@/hooks/useAppLoadingOverlay';
 import { useGlobalShortcuts } from '@/hooks/useGlobalShortcuts';
 import { usePetDragGuard } from '@/hooks/usePetDragGuard';
+import { useVaultEvents } from '@/hooks/useVaultEvents';
 import { cn } from '@/lib/utils';
 import { isWorkspacePath } from '@/lib/workspace/commands';
 import { initAgentStatus } from '@/stores/agentStatusStore';
@@ -163,6 +164,7 @@ export function AppShell(): React.JSX.Element {
   if (onWorkspace && !workspaceVisited) setWorkspaceVisited(true);
 
   useGlobalShortcuts();
+  useVaultEvents();
   // Agent status is followed app-wide, so a workspace agent can notify from any page.
   useEffect(() => initAgentStatus(), []);
   // Ditto for AI-driven SSH tasks: progress must keep updating even off the Workspace page.

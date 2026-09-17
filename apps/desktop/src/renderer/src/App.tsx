@@ -32,6 +32,7 @@ import RemotePage from './pages/RemotePage';
 import SettingsPage from './pages/SettingsPage';
 import ToolsPage from './pages/ToolsPage';
 import UsagePage from './pages/UsagePage';
+import VaultPage from './pages/VaultPage';
 import { queryClient } from './queryClient';
 import { initDefaultCli } from './stores/cliStore';
 import { initDashboardLayout } from './stores/dashboardLayoutStore';
@@ -165,6 +166,7 @@ export default function App(): React.JSX.Element {
                 <Route path="mcp" element={<McpPage />} />
                 <Route path="tools" element={<ToolsPage />} />
                 <Route path="docker" element={<DockerPage />} />
+                <Route path="vault" element={<VaultPage />} />
                 <Route path="usage" element={<UsagePage />} />
                 <Route path="ask-ai" element={<AskAiPage />} />
                 <Route path="remote" element={<RemotePage />} />

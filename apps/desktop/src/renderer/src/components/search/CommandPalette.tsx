@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Blocks, Cpu, Folder, History, Search, Workspace } from '@/components/icons';
 import { NAV_ITEMS } from '@/components/layout/Sidebar';
+import { VaultPaletteGroup } from '@/components/vault/VaultPaletteGroup';
 import { queryKeys } from '@/lib/queryKeys';
 import { cn } from '@/lib/utils';
 import { useRunningClisStore } from '@/stores/runningClisStore';
@@ -151,6 +152,8 @@ export function CommandPalette(): React.JSX.Element {
                   Running CLIs
                 </CommandPrimitive.Item>
               </CommandPrimitive.Group>
+
+              <VaultPaletteGroup enabled={open} onDone={() => setOpen(false)} />
 
               {(projectsQuery.data?.length ?? 0) > 0 && (
                 <CommandPrimitive.Group

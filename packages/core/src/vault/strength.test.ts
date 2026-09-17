@@ -35,7 +35,7 @@ describe('estimateStrength', () => {
     (password) => {
       const result = estimateStrength(password);
       expect(result.score).toBe(0);
-      expect(result.warnings.join(' ')).toMatch(/common/i);
+      expect(result.warnings[0]).toMatch(/common/i);
     },
   );
 

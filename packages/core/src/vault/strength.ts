@@ -24,6 +24,8 @@ export function scoreForBits(bits: number): StrengthScore {
 
 const KEYBOARD_ROWS = ['qwertyuiop', 'asdfghjkl;', 'zxcvbnm,./', '1234567890'];
 
+const COMMON_WARNING = 'This is one of the most common passwords.';
+
 /** How much a character that follows a repeat, sequence or pattern still counts. */
 const PATTERN_WEIGHT = 0.2;
 
@@ -59,7 +61,7 @@ export function estimateStrength(password: string, context: string[] = []): Stre
   const chars = [...password];
   if (chars.length === 0) return { bits: 0, score: 0, label: STRENGTH_LABELS[0], warnings: [] };
 
-  const warnings = new Set<string>();
+  let warnings = new Set<string>();
   const weights = chars.map(() => 1);
   const lower = password.toLowerCase();
   // Code-unit offsets from the regex and string searches below map to code point indexes here.
@@ -119,7 +121,8 @@ export function estimateStrength(password: string, context: string[] = []): Stre
 
   if (COMMON_PASSWORDS.has(lower) || COMMON_PASSWORDS.has(stripDecorations(lower))) {
     bits = Math.min(bits, 10);
-    warnings.add('This is one of the most common passwords.');
+    // Listed first: it matters more than any pattern found inside it.
+    warnings = new Set([COMMON_WARNING, ...warnings]);
   }
 
   const score = scoreForBits(bits);

@@ -1,0 +1,382 @@
+import {
+  parseVaultQuery,
+  searchEntries,
+  type VaultEntrySummary,
+  type VaultSearchHit,
+} from '@agentmat/core';
+import { useQuery } from '@tanstack/react-query';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { Vault } from '@/components/icons';
+import { Skeleton } from '@/components/ui/skeleton';
+import { queryKeys } from '@/lib/queryKeys';
+import type { VaultShortcutCommandId } from '@/lib/shortcuts';
+import { cn } from '@/lib/utils';
+import { commandForEvent, useShortcutLabel, useShortcutStore } from '@/stores/shortcutStore';
+import { useVaultStore } from '@/stores/vaultStore';
+import { ChangeMasterPasswordDialog } from './ChangeMasterPasswordDialog';
+import { primarySecret } from './entryTypes';
+import { useVaultActions } from './useVaultActions';
+import { VaultDetailPane } from './VaultDetailPane';
+import { VaultEntryDialog, type VaultEntryDialogTarget } from './VaultEntryDialog';
+import { vaultOptionId } from './VaultEntryRow';
+import { VaultExportDialog } from './VaultExportDialog';
+import { VaultImportDialog } from './VaultImportDialog';
+import { type VaultListGroup, VaultListPane } from './VaultListPane';
+
+type VaultDialogState =
+  | { kind: 'entry'; target: VaultEntryDialogTarget }
+  | { kind: 'import' }
+  | { kind: 'export' }
+  | { kind: 'password' }
+  | null;
+
+function isTypingTarget(target: EventTarget | null): boolean {
+  if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement) return true;
+  return target instanceof HTMLElement && target.isContentEditable;
+}
+
+function isDialogOpen(): boolean {
+  return document.querySelector('[role="dialog"][data-state="open"]') !== null;
+}
+
+function ListSkeleton(): React.JSX.Element {
+  return (
+    <div className="space-y-2 p-3">
+      {Array.from({ length: 6 }, (_, i) => (
+        <div key={i} className="flex items-center gap-3 px-2.5 py-2">
+          <Skeleton className="h-9 w-9 rounded-lg" />
+          <div className="flex-1 space-y-1.5">
+            <Skeleton className="h-3.5 w-2/3" />
+            <Skeleton className="h-3 w-1/3" />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function EmptyDetail(): React.JSX.Element {
+  const shortcuts = [
+    ['Search', useShortcutLabel('vault.search')],
+    ['New entry', useShortcutLabel('vault.new')],
+    ['Copy password', useShortcutLabel('vault.copyPassword')],
+    ['Lock', useShortcutLabel('vault.lock')],
+  ].filter((pair): pair is [string, string] => Boolean(pair[1]));
+  return (
+    <div className="flex flex-1 flex-col items-center justify-center gap-5 p-8 text-center">
+      <div className="flex h-14 w-14 items-center justify-center rounded-full border border-primary/25 bg-primary/5">
+        <Vault className="h-5 w-5 text-primary/80" />
+      </div>
+      <div className="space-y-1">
+        <p className="text-sm font-medium">Pick an entry to see its details</p>
+        <p className="text-xs text-muted-foreground">
+          Passwords stay hidden until you ask for them.
+        </p>
+      </div>
+      {shortcuts.length > 0 && (
+        <dl className="grid grid-cols-[auto_auto] gap-x-4 gap-y-1.5 text-xs">
+          {shortcuts.map(([label, keys]) => (
+            <div key={label} className="contents">
+              <dt className="text-right text-muted-foreground">{label}</dt>
+              <dd className="text-left">
+                <kbd className="rounded border border-border bg-muted/50 px-1.5 py-0.5 font-sans text-[11px]">
+                  {keys}
+                </kbd>
+              </dd>
+            </div>
+          ))}
+        </dl>
+      )}
+    </div>
+  );
+}
+
+export function VaultUnlockedView(): React.JSX.Element {
+  const entriesQuery = useQuery({
+    queryKey: queryKeys.vaultEntries,
+    queryFn: () => window.agentmat.vault.list(),
+    meta: { silentLoading: true },
+  });
+  const actions = useVaultActions();
+  const searchRef = useRef<HTMLInputElement>(null);
+  const [dialog, setDialog] = useState<VaultDialogState>(null);
+  const [detailOpen, setDetailOpen] = useState(false);
+
+  const query = useVaultStore((s) => s.query);
+  const setQuery = useVaultStore((s) => s.setQuery);
+  const typeFilter = useVaultStore((s) => s.typeFilter);
+  const tagFilters = useVaultStore((s) => s.tagFilters);
+  const favoritesOnly = useVaultStore((s) => s.favoritesOnly);
+  const sort = useVaultStore((s) => s.sort);
+  const selectedId = useVaultStore((s) => s.selectedId);
+  const select = useVaultStore((s) => s.select);
+  const toggleTag = useVaultStore((s) => s.toggleTag);
+
+  const entries = entriesQuery.data ?? [];
+  const knownTags = useMemo(
+    () =>
+      [...new Set(entries.flatMap((entry) => entry.tags))].sort((a, b) =>
+        a.localeCompare(b, undefined, { sensitivity: 'base' }),
+      ),
+    [entries],
+  );
+  const searching = parseVaultQuery(query).terms.length > 0;
+
+  const hits = useMemo(
+    () =>
+      searchEntries(entries, query, {
+        types: typeFilter === 'all' ? undefined : [typeFilter],
+        tags: tagFilters,
+        favoritesOnly,
+        sort,
+      }),
+    [entries, query, typeFilter, tagFilters, favoritesOnly, sort],
+  );
+
+  // Favorites are pinned on top while browsing. A search is ranked as one list instead.
+  const groups = useMemo<VaultListGroup[]>(() => {
+    if (searching || favoritesOnly) return [{ label: null, hits }];
+    const favorites = hits.filter((hit) => hit.summary.favorite);
+    if (favorites.length === 0) return [{ label: null, hits }];
+    const rest = hits.filter((hit) => !hit.summary.favorite);
+    const result: VaultListGroup[] = [{ label: 'Favorites', hits: favorites }];
+    if (rest.length) result.push({ label: 'All entries', hits: rest });
+    return result;
+  }, [hits, searching, favoritesOnly]);
+
+  const ordered = useMemo<VaultSearchHit[]>(() => groups.flatMap((group) => group.hits), [groups]);
+  const selected: VaultEntrySummary | undefined = entries.find((entry) => entry.id === selectedId);
+
+  const openEntry = useCallback(
+    (target: VaultEntryDialogTarget) => setDialog({ kind: 'entry', target }),
+    [],
+  );
+
+  const moveSelection = useCallback(
+    (delta: number, edge?: 'first' | 'last') => {
+      if (ordered.length === 0) return;
+      let index: number;
+      if (edge === 'first') index = 0;
+      else if (edge === 'last') index = ordered.length - 1;
+      else {
+        const at = ordered.findIndex((hit) => hit.summary.id === selectedId);
+        index = at === -1 ? (delta > 0 ? 0 : ordered.length - 1) : at + delta;
+        index = Math.max(0, Math.min(ordered.length - 1, index));
+      }
+      const id = ordered[index].summary.id;
+      select(id);
+      document.getElementById(vaultOptionId(id))?.scrollIntoView({ block: 'nearest' });
+    },
+    [ordered, selectedId, select],
+  );
+
+  function onSearchKeyDown(event: React.KeyboardEvent<HTMLInputElement>): void {
+    switch (event.key) {
+      case 'ArrowDown':
+        event.preventDefault();
+        moveSelection(1);
+        break;
+      case 'ArrowUp':
+        event.preventDefault();
+        moveSelection(-1);
+        break;
+      case 'Enter':
+        if (event.ctrlKey || event.metaKey) return;
+        event.preventDefault();
+        if (!ordered.some((hit) => hit.summary.id === selectedId)) moveSelection(0, 'first');
+        else setDetailOpen(true);
+        break;
+      case 'Escape':
+        if (query) {
+          event.preventDefault();
+          event.stopPropagation();
+          setQuery('');
+        } else {
+          searchRef.current?.blur();
+        }
+        break;
+    }
+  }
+
+  // Keys on the list itself, once it has focus.
+  function onListKeyDown(event: React.KeyboardEvent<HTMLDivElement>): void {
+    if (
+      isTypingTarget(event.target) ||
+      !(event.target as HTMLElement).closest('[role="listbox"]')
+    ) {
+      return;
+    }
+    const keys: Record<string, () => void> = {
+      ArrowDown: () => moveSelection(1),
+      ArrowUp: () => moveSelection(-1),
+      Home: () => moveSelection(0, 'first'),
+      End: () => moveSelection(0, 'last'),
+      Enter: () => selected && setDetailOpen(true),
+      Delete: () => selected && void actions.remove(selected),
+    };
+    const run = keys[event.key];
+    if (!run) return;
+    event.preventDefault();
+    run();
+  }
+
+  // The Vault page's own shortcuts. They step aside for open dialogs and for the terminal drawer,
+  // which uses Ctrl+L and Ctrl+Shift+C itself.
+  useEffect(() => {
+    const run: Record<VaultShortcutCommandId, () => void> = {
+      'vault.search': () => {
+        searchRef.current?.focus();
+        searchRef.current?.select();
+      },
+      'vault.new': () => openEntry({ mode: 'new' }),
+      'vault.edit': () => selected && openEntry({ mode: 'edit', id: selected.id }),
+      'vault.lock': () => void actions.lock(),
+      'vault.copyPassword': () => {
+        const secret = selected && primarySecret(selected);
+        if (selected && secret) void actions.copy(selected.id, secret.ref, secret.label);
+      },
+      'vault.copyUsername': () => {
+        if (selected?.type === 'login' && selected.username) {
+          void actions.copy(selected.id, 'username', 'Username');
+        }
+      },
+    };
+    function onKeyDown(event: KeyboardEvent): void {
+      if (event.defaultPrevented || event.isComposing || isDialogOpen()) return;
+      if (event.target instanceof Element && event.target.closest('.xterm')) return;
+      const id = commandForEvent(
+        event,
+        useShortcutStore.getState().overrides,
+        isTypingTarget(event.target),
+        'vault',
+      );
+      if (!id) return;
+      event.preventDefault();
+      run[id]();
+    }
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [actions, openEntry, selected]);
+
+  // Anything that isn't a click or key in the page still counts as "using the vault" for auto-lock.
+  useEffect(() => {
+    let last = 0;
+    function onActivity(): void {
+      const now = Date.now();
+      if (now - last < 30_000) return;
+      last = now;
+      void window.agentmat.vault.touch();
+    }
+    window.addEventListener('pointerdown', onActivity);
+    window.addEventListener('keydown', onActivity);
+    return () => {
+      window.removeEventListener('pointerdown', onActivity);
+      window.removeEventListener('keydown', onActivity);
+    };
+  }, []);
+
+  // `/vault` with `{ entryId }` state, from the command palette: select it and clear the state so
+  // a reload or going back doesn't jump there again.
+  const location = useLocation();
+  const navigate = useNavigate();
+  const deepLinkId = (location.state as { entryId?: string } | null)?.entryId;
+  useEffect(() => {
+    if (!deepLinkId || !entriesQuery.data) return;
+    if (entriesQuery.data.some((entry) => entry.id === deepLinkId)) {
+      useVaultStore.getState().clearFilters();
+      select(deepLinkId);
+      setDetailOpen(true);
+    }
+    navigate(location.pathname, { replace: true, state: null });
+  }, [deepLinkId, entriesQuery.data, select, navigate, location.pathname]);
+
+  const closeDialog = useCallback(() => setDialog(null), []);
+
+  return (
+    <div className="@container/vault relative flex-1">
+      <div className="absolute inset-0 flex">
+        <div
+          className={cn(
+            'flex min-h-0 w-full shrink-0 flex-col border-border/70 @3xl/vault:w-80 @3xl/vault:border-r @6xl/vault:w-96',
+            detailOpen && selected && 'hidden @3xl/vault:flex',
+          )}
+          onKeyDown={onListKeyDown}
+        >
+          {entriesQuery.isLoading ? (
+            <ListSkeleton />
+          ) : (
+            <VaultListPane
+              ref={searchRef}
+              className="flex-1"
+              entries={entries}
+              groups={groups}
+              visibleCount={ordered.length}
+              searching={searching}
+              knownTags={knownTags}
+              selectedId={selectedId}
+              actions={actions}
+              onSelect={(id) => {
+                select(id);
+                setDetailOpen(true);
+              }}
+              onSearchKeyDown={onSearchKeyDown}
+              onNew={(title) => openEntry({ mode: 'new', title })}
+              onImport={() => setDialog({ kind: 'import' })}
+              onExport={() => setDialog({ kind: 'export' })}
+              onChangePassword={() => setDialog({ kind: 'password' })}
+            />
+          )}
+        </div>
+
+        <div
+          className={cn(
+            'min-w-0 flex-1 flex-col',
+            detailOpen && selected ? 'flex' : 'hidden @3xl/vault:flex',
+          )}
+        >
+          {selected ? (
+            <VaultDetailPane
+              key={selected.id}
+              entry={selected}
+              actions={actions}
+              onEdit={() => openEntry({ mode: 'edit', id: selected.id })}
+              onTagClick={(tag) => {
+                if (!useVaultStore.getState().tagFilters.includes(tag)) toggleTag(tag);
+                setDetailOpen(false);
+              }}
+              onBack={() => setDetailOpen(false)}
+            />
+          ) : (
+            <EmptyDetail />
+          )}
+        </div>
+      </div>
+
+      {dialog?.kind === 'entry' && (
+        <VaultEntryDialog
+          key={
+            dialog.target.mode === 'edit' ? dialog.target.id : `new-${dialog.target.title ?? ''}`
+          }
+          open
+          onOpenChange={(open) => !open && closeDialog()}
+          target={dialog.target}
+          knownTags={knownTags}
+          onSaved={(summary) => {
+            select(summary.id);
+            setDetailOpen(true);
+          }}
+        />
+      )}
+      {dialog?.kind === 'import' && (
+        <VaultImportDialog open onOpenChange={(open) => !open && closeDialog()} />
+      )}
+      {dialog?.kind === 'export' && (
+        <VaultExportDialog open onOpenChange={(open) => !open && closeDialog()} />
+      )}
+      {dialog?.kind === 'password' && (
+        <ChangeMasterPasswordDialog open onOpenChange={(open) => !open && closeDialog()} />
+      )}
+    </div>
+  );
+}

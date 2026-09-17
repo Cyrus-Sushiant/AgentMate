@@ -17,6 +17,7 @@ import {
   SettingsIcon,
   Sparkles,
   TerminalSquare,
+  Vault,
   Workspace,
   Wrench,
 } from '@/components/icons';
@@ -56,6 +57,7 @@ export const NAV_ITEMS: NavItem[] = [
   { to: '/cli-manager', label: 'AI CLI Manager', icon: TerminalSquare },
   { to: '/ask-ai', label: 'Ask AI', icon: MessageSquare },
   { to: '/remote', label: 'Remote', icon: Broadcast },
+  { to: '/vault', label: 'Vault', icon: Vault },
   { to: '/settings', label: 'Settings', icon: SettingsIcon },
 ];
 
