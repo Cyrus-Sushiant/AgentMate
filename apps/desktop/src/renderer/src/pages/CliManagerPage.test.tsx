@@ -1,0 +1,284 @@
+import { CLI_REGISTRY, type InstalledCli } from '@agentmat/core';
+import { screen, waitFor, within } from '@testing-library/react';
+import { describe, expect, it, vi } from 'vitest';
+import { useTerminalStore } from '@/stores/terminalStore';
+import { renderWithProviders } from '../../../test/renderer/renderWithProviders';
+
+/**
+ * The CLI Manager is a catalogue with side effects: it decides which of the registry's CLIs are
+ * on this machine, and every button either opens a terminal with a command in it or writes a
+ * setting. Both of those are asserted through the bridge rather than the component.
+ */
+
+const toast = vi.hoisted(() =>
+  Object.assign(vi.fn(), {
+    success: vi.fn(),
+    error: vi.fn(),
+    info: vi.fn(),
+    warning: vi.fn(),
+    loading: vi.fn(),
+    dismiss: vi.fn(),
+  }),
+);
+vi.mock('sonner', () => ({ toast }));
+
+const { default: CliManagerPage } = await import('./CliManagerPage');
+
+function detected(overrides: Partial<InstalledCli> & { id: string }): InstalledCli {
+  return {
+    installed: true,
+    version: '1.0.0',
+    executablePath: '/usr/local/bin/x',
+    lastCheckedAt: '2026-01-01T10:00:00.000Z',
+    ...overrides,
+  };
+}
+
+const claudeInstalled = detected({ id: 'claude-code', version: '1.2.3' });
+
+/**
+ * The card one CLI's name heads. The title and the card's buttons sit in different boxes, so the
+ * card is the first ancestor that holds an action button of its own, which is what lets a test
+ * click "Install" on the intended CLI rather than on whichever one comes first in the grid.
+ */
+function cliCard(name: string): HTMLElement {
+  const title = screen.getByRole('heading', { name });
+  let element: HTMLElement | null = title.parentElement;
+  while (element) {
+    const own = within(element)
+      .queryAllByRole('button')
+      .filter((button) => !button.contains(title));
+    if (own.length > 0) return element;
+    element = element.parentElement;
+  }
+  throw new Error(`No card found around "${name}"`);
+}
+
+function renderPage(bridge: Record<string, unknown> = {}) {
+  return renderWithProviders(<CliManagerPage />, { route: '/cli-manager', bridge });
+}
+
+describe('CliManagerPage detection', () => {
+  it('renders with nothing detected and offers the full catalogue instead', async () => {
+    renderPage();
+
+    expect(
+      await screen.findByText(/No AI CLIs installed yet\. Click "Show all CLIs"/),
+    ).toBeTruthy();
+    // Every registry entry counts as missing when the scan found none of them.
+    expect(
+      screen.getByRole('button', { name: `Show all CLIs (${CLI_REGISTRY.length} not installed)` }),
+    ).toBeTruthy();
+  });
+
+  it('falls back to the same empty state when detection itself fails', async () => {
+    renderPage({ 'cli.detectAll': () => Promise.reject(new Error('spawn ENOENT')) });
+
+    expect(await screen.findByText(/No AI CLIs installed yet/)).toBeTruthy();
+    expect(screen.getByRole('button', { name: /Check all for updates/ })).toBeTruthy();
+  });
+
+  it('lists an installed CLI with its version and hides the ones that are missing', async () => {
+    renderPage({ 'cli.detectAll': [claudeInstalled] });
+
+    await screen.findByRole('heading', { name: 'Claude Code CLI' });
+    const card = cliCard('Claude Code CLI');
+    expect(within(card).getByText('1.2.3')).toBeTruthy();
+    expect(within(card).getByText("Anthropic's agentic coding CLI.")).toBeTruthy();
+
+    expect(screen.queryByRole('heading', { name: 'Gemini CLI' })).toBeNull();
+    expect(screen.queryByText(/No AI CLIs installed yet/)).toBeNull();
+    expect(
+      screen.getByRole('button', {
+        name: `Show all CLIs (${CLI_REGISTRY.length - 1} not installed)`,
+      }),
+    ).toBeTruthy();
+  });
+
+  it('reveals the missing CLIs on demand and hides them again', async () => {
+    const { user } = renderPage({ 'cli.detectAll': [claudeInstalled] });
+    await screen.findByRole('heading', { name: 'Claude Code CLI' });
+
+    await user.click(screen.getByRole('button', { name: /^Show all CLIs/ }));
+
+    const gemini = cliCard('Gemini CLI');
+    expect(within(gemini).getByText('Not installed')).toBeTruthy();
+    expect(within(gemini).getByRole('button', { name: /Install/ })).toBeTruthy();
+
+    await user.click(screen.getByRole('button', { name: 'Hide not installed' }));
+    expect(screen.queryByRole('heading', { name: 'Gemini CLI' })).toBeNull();
+  });
+
+  it('re-scans without the main process cache when asked to refresh', async () => {
+    const { user, bridge } = renderPage({ 'cli.detectAll': [claudeInstalled] });
+    await screen.findByRole('heading', { name: 'Claude Code CLI' });
+
+    await user.click(screen.getByRole('button', { name: /Refresh/ }));
+
+    expect(toast.info).toHaveBeenCalledWith('Re-scanning installed CLIs…');
+    await waitFor(() => expect(bridge.$fn('cli.detectAll')).toHaveBeenCalledWith(true));
+  });
+});
+
+describe('CliManagerPage install', () => {
+  it('puts the install command in a terminal for the user to confirm', async () => {
+    const { user, bridge } = renderPage({
+      'cli.detectAll': [claudeInstalled],
+      'cli.getInstallCommand': async () => 'npm install -g @google/gemini-cli',
+    });
+    await screen.findByRole('heading', { name: 'Claude Code CLI' });
+    await user.click(screen.getByRole('button', { name: /^Show all CLIs/ }));
+
+    await user.click(within(cliCard('Gemini CLI')).getByRole('button', { name: /Install/ }));
+
+    await waitFor(() =>
+      expect(bridge.$fn('cli.getInstallCommand')).toHaveBeenCalledWith('gemini-cli'),
+    );
+    // Nothing is run for the user: the command is typed into a session they still have to accept.
+    const session = useTerminalStore
+      .getState()
+      .sessions.find((one) => one.title === 'Install Gemini CLI');
+    expect(session?.initialInput).toBe('npm install -g @google/gemini-cli');
+    expect(toast.info).toHaveBeenCalledWith('Press Enter in the terminal to install Gemini CLI.');
+  });
+
+  it('says so instead of opening an empty terminal when this OS has no install command', async () => {
+    // The blank answer is what an unsupported platform returns.
+    const { user } = renderPage({ 'cli.detectAll': [claudeInstalled] });
+    await screen.findByRole('heading', { name: 'Claude Code CLI' });
+    await user.click(screen.getByRole('button', { name: /^Show all CLIs/ }));
+
+    await user.click(within(cliCard('Gemini CLI')).getByRole('button', { name: /Install/ }));
+
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith(
+        'No install command available for Gemini CLI on this OS.',
+      ),
+    );
+    expect(useTerminalStore.getState().sessions).toHaveLength(0);
+  });
+});
+
+describe('CliManagerPage settings', () => {
+  it('saves the arguments typed for a CLI and previews the command they build', async () => {
+    const { user, bridge } = renderPage({ 'cli.detectAll': [claudeInstalled] });
+    await screen.findByRole('heading', { name: 'Claude Code CLI' });
+    const card = cliCard('Claude Code CLI');
+
+    const args = within(card).getByRole('textbox');
+    await user.type(args, '--model sonnet');
+    // Saved on blur, not per keystroke, so a half-typed flag never reaches a run.
+    expect(() => bridge.$fn('settings.update')).toThrow();
+
+    await user.tab();
+
+    await waitFor(() =>
+      expect(bridge.$fn('settings.update')).toHaveBeenCalledWith({
+        cliArgs: { 'claude-code': '--model sonnet' },
+      }),
+    );
+    expect(within(card).getByText('claude --model sonnet')).toBeTruthy();
+  });
+
+  it('remembers which CLI is the default one', async () => {
+    const { user, bridge } = renderPage({ 'cli.detectAll': [claudeInstalled] });
+    await screen.findByRole('heading', { name: 'Claude Code CLI' });
+    const card = cliCard('Claude Code CLI');
+
+    await user.click(within(card).getByRole('button', { name: 'Set as default' }));
+
+    expect(bridge.$fn('settings.update')).toHaveBeenCalledWith({ defaultCliId: 'claude-code' });
+    expect(within(card).getByRole('button', { name: 'Default CLI' })).toBeTruthy();
+
+    // Clicking again unsets it rather than leaving the user with no way back.
+    await user.click(within(card).getByRole('button', { name: 'Default CLI' }));
+    expect(bridge.$fn('settings.update')).toHaveBeenLastCalledWith({ defaultCliId: null });
+  });
+});
+
+describe('CliManagerPage updates', () => {
+  it('has nothing to check when no CLI is installed', async () => {
+    const { user } = renderPage();
+    await screen.findByText(/No AI CLIs installed yet/);
+
+    await user.click(screen.getByRole('button', { name: /Check all for updates/ }));
+
+    await waitFor(() => expect(toast.info).toHaveBeenCalledWith('No installed CLIs to check.'));
+  });
+
+  it('reports that everything is current when no update is out', async () => {
+    const { user } = renderPage({
+      'cli.detectAll': [claudeInstalled],
+      'cli.checkForUpdate': async () => ({
+        cliId: 'claude-code',
+        supported: true,
+        currentVersion: '1.2.3',
+        latestVersion: '1.2.3',
+        updateAvailable: false,
+      }),
+    });
+    await screen.findByRole('heading', { name: 'Claude Code CLI' });
+
+    await user.click(screen.getByRole('button', { name: /Check all for updates/ }));
+
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith('All CLIs are up to date.'));
+  });
+
+  it('offers the update command for confirmation when a newer version exists', async () => {
+    const { user, bridge } = renderPage({
+      'cli.detectAll': [claudeInstalled],
+      'cli.checkForUpdate': async () => ({
+        cliId: 'claude-code',
+        supported: true,
+        currentVersion: '1.2.3',
+        latestVersion: '2.0.0',
+        updateAvailable: true,
+      }),
+      'cli.getUpdateCommand': async () => 'npm install -g @anthropic-ai/claude-code',
+    });
+    await screen.findByRole('heading', { name: 'Claude Code CLI' });
+
+    await user.click(screen.getByRole('button', { name: /Check all for updates/ }));
+
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByText('Update Claude Code CLI?')).toBeTruthy();
+    expect(within(dialog).getByText(/1\.2\.3/)).toBeTruthy();
+    expect(within(dialog).getByText(/2\.0\.0/)).toBeTruthy();
+    expect(within(dialog).getByText('npm install -g @anthropic-ai/claude-code')).toBeTruthy();
+    expect(bridge.$fn('cli.checkForUpdate')).toHaveBeenCalledWith('claude-code', '1.2.3');
+
+    await user.click(within(dialog).getByRole('button', { name: 'Update' }));
+
+    expect(toast.info).toHaveBeenCalledWith(
+      'Press Enter in the terminal to update Claude Code CLI.',
+    );
+    const session = useTerminalStore
+      .getState()
+      .sessions.find((one) => one.title === 'Update Claude Code CLI');
+    expect(session?.initialInput).toBe('npm install -g @anthropic-ai/claude-code');
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+  });
+
+  it('counts the CLIs it could not check rather than claiming they are current', async () => {
+    const { user } = renderPage({
+      'cli.detectAll': [claudeInstalled, detected({ id: 'aider', version: '0.9.0' })],
+      'cli.checkForUpdate': async (cliId: unknown) => ({
+        cliId: String(cliId),
+        // Only one of the two has somewhere to look the latest version up.
+        supported: cliId === 'claude-code',
+        currentVersion: null,
+        latestVersion: cliId === 'claude-code' ? '1.2.3' : null,
+        updateAvailable: false,
+      }),
+    });
+    await screen.findByRole('heading', { name: 'Claude Code CLI' });
+
+    await user.click(screen.getByRole('button', { name: /Check all for updates/ }));
+
+    await waitFor(() =>
+      expect(toast.success).toHaveBeenCalledWith(
+        'All checkable CLIs are up to date (1 could not be checked).',
+      ),
+    );
+  });
+});

@@ -167,12 +167,45 @@ On Windows you can also just run `run.bat`, which installs dependencies, verifie
 | `pnpm check:fix` | Same as `pnpm check`, but writes the safe fixes |
 | `pnpm check:deprecated-code` | Fail on imports upstream has marked `@deprecated` |
 | `pnpm check:deprecated-deps` | Fail on direct dependencies npm reports as deprecated |
+| `pnpm test` | Run every package's test suite |
+| `pnpm test:unit` | Unit, integration and component tests (core, protocol, desktop) |
+| `pnpm test:coverage` | The same with coverage, then print a summary table |
+| `pnpm test:mobile` | The mobile app's Jest suite |
+| `pnpm test:e2e` | Build the desktop app and drive it end to end through Playwright |
+
+### Testing
+
+Tests live next to the code they cover (`foo.ts` has `foo.test.ts` beside it). End-to-end specs are the exception: they live in `apps/desktop/e2e/*.e2e.ts`.
+
+| Layer | Where | Runner |
+|---|---|---|
+| Unit | `packages/core`, `packages/protocol`, pure modules in `apps/desktop` | Vitest (node) |
+| Integration | `apps/desktop/src/main/**`, IPC handlers, stores and hooks | Vitest (node and jsdom) |
+| Component | `apps/desktop/src/renderer/**` | Vitest (jsdom) plus Testing Library |
+| End to end | `apps/desktop/e2e` | Playwright, driving the built Electron app |
+| Mobile | `apps/mobile` | Jest (`jest-expo`) plus React Native Testing Library |
+
+The desktop suite is split into two Vitest projects, configured in `apps/desktop/vitest.config.mts`:
+
+- **main** runs in Node with `electron` replaced by a fake (`src/test/main/electronMock.ts`) and `better-sqlite3` by a `node:sqlite` wrapper (`src/test/main/sqliteShim.ts`). The wrapper matters because `pnpm dev` rebuilds better-sqlite3 for Electron's ABI, after which plain Node can no longer load it. Run one project on its own with `pnpm --filter @agentmat/desktop test:main`.
+- **renderer** runs in jsdom with the browser APIs Radix and the charts need, and with Monaco, Iron Remote Desktop and Framer Motion stubbed. A file that needs to replace `window` itself can opt out with a `// @vitest-environment node` first line.
+
+Shared helpers sit in `apps/desktop/src/test/`:
+
+- `main/ipcHarness.ts` registers an IPC module against the fake `ipcMain` and calls its channels: `useTempUserData()`, `invoke(channel, ...)`, `expectChannelsCovered(IPC.namespace)` (which fails when a registered channel has no test).
+- `main/fixtures.ts` builds temp trees, real git repositories and local HTTP servers.
+- `renderer/agentmatBridge.ts` fakes `window.agentmat`, the preload bridge. Answers are dotted paths (`{ 'projects.list': [project] }`), unconfigured calls resolve to undefined, and events are fired with `bridge.$emit('agents.onStatus', payload)`.
+- `renderer/renderWithProviders.tsx` renders with the query client, tooltips and router that `App.tsx` provides.
+
+End-to-end runs build the app into `out-e2e/` so a running `electron-vite dev` keeps `out/`. Each test gets its own profile through `AGENTMATE_USER_DATA_DIR`, and `AGENTMATE_E2E=1` turns off the startup work that would reach outside it (the Docker scan sweep, update checks) and the quit confirmation. That combination is what lets the suite run while the real AgentMate is open. Set `AGENTMATE_E2E_SKIP_BUILD=1` to reuse the last build while iterating, and `AGENTMATE_E2E_NO_SANDBOX=1` where Chromium's sandbox is unavailable. Failures leave a trace in `apps/desktop/test-results`, viewable with `pnpm --filter @agentmat/desktop exec playwright show-trace <path>`.
+
+Tests need Node 22.13 or newer, because the SQLite stand-in uses `node:sqlite`.
 
 ### CI
 
-Every push and pull request runs [`.github/workflows/ci.yml`](.github/workflows/ci.yml): Biome (formatting, lint, import order), the two deprecation gates above, a type-check of every package, and a real build of the desktop app. Running `pnpm check && pnpm check:deprecated-code && pnpm check:deprecated-deps && pnpm typecheck && pnpm build` reproduces it locally.
+Every push and pull request runs [`.github/workflows/ci.yml`](.github/workflows/ci.yml): Biome (formatting, lint, import order), the two deprecation gates above, a type-check of every package, a real build of the desktop app, and the test suites in [`.github/workflows/test.yml`](.github/workflows/test.yml). That reusable workflow has three jobs: unit and integration with coverage, the mobile Jest suite, and the end-to-end matrix on Linux, Windows and macOS. `All checks passed` is the single status to require in branch protection. Running `pnpm check && pnpm check:deprecated-code && pnpm check:deprecated-deps && pnpm typecheck && pnpm build && pnpm test:unit` reproduces most of it locally.
 
-A deprecated dependency you cannot drop yet goes in [`.github/deprecated-deps-allowlist.json`](.github/deprecated-deps-allowlist.json) with a reason for keeping it. Releases are still built and published by [`.github/workflows/cd.yml`](.github/workflows/cd.yml) when a `v*.*.*` tag is pushed.
+A deprecated dependency you cannot drop yet goes in [`.github/deprecated-deps-allowlist.json`](.github/deprecated-deps-allowlist.json) with a reason for keeping it. Releases are built and published by [`.github/workflows/cd.yml`](.github/workflows/cd.yml) when a `v*.*.*` tag is pushed, and it runs the same test workflow first, so a failing test cannot ship.
 
 ## License
 

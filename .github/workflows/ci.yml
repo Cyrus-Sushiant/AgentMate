@@ -1,8 +1,9 @@
 name: CI
 
 # Checks every push and pull request: formatting/lint (Biome), no deprecated
-# dependencies or deprecated imports, types, and a real build of the desktop
-# app. Cross-platform packaging is left to the CD workflow, which runs on the
+# dependencies or deprecated imports, types, a real build of the desktop app,
+# and the test suites (unit, integration, mobile and end-to-end, in test.yml).
+# Cross-platform packaging is left to the CD workflow, which runs on the
 # actual Windows/macOS/Linux runners when a release tag is pushed.
 
 on:
@@ -77,93 +78,18 @@ jobs:
         if: ${{ !cancelled() }}
         run: pnpm --filter @agentmat/desktop build
 
-  test:
-    name: Unit, integration and component tests
+  tests:
+    name: Tests
+    uses: ./.github/workflows/test.yml
+
+  # One status to require in branch protection: the matrix job names change whenever the OS list
+  # does, and a skipped job would otherwise count as success.
+  all-green:
+    name: All checks passed
+    if: ${{ always() }}
+    needs: [check, tests]
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v6
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v7
-        with:
-          node-version: "22"
-          cache: pnpm
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      # The desktop tests import @agentmat/core through its built output.
-      - name: Build workspace packages
-        run: pnpm --filter @agentmat/core --filter @agentmat/protocol build
-
-      # Runs every Vitest suite and fails when the Vault code drops below its coverage
-      # thresholds (see the vitest configs in packages/core and apps/desktop).
-      - name: Tests with coverage
-        run: pnpm test:coverage
-
-      - name: Upload coverage
-        if: ${{ !cancelled() }}
-        uses: actions/upload-artifact@v7
-        with:
-          name: coverage
-          path: |
-            packages/core/coverage
-            apps/desktop/coverage
-          if-no-files-found: ignore
-
-  e2e:
-    name: End-to-end tests (${{ matrix.os }})
-    # Linux on every push and pull request. Windows only when run by hand, to save minutes.
-    strategy:
-      fail-fast: false
-      matrix:
-        os: ${{ github.event_name == 'workflow_dispatch' && fromJSON('["ubuntu-latest", "windows-latest"]') || fromJSON('["ubuntu-latest"]') }}
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 30
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v6
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v7
-        with:
-          node-version: "22"
-          cache: pnpm
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Install Electron system libraries
-        if: runner.os == 'Linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y xvfb libnss3 libatk-bridge2.0-0 libgtk-3-0 libgbm1 libasound2t64
-
-      # better-sqlite3 has to match Electron's ABI for the built app to start.
-      - name: Rebuild native modules for Electron
-        run: pnpm --filter @agentmat/desktop rebuild:native
-
-      - name: Vault end-to-end tests (Linux)
-        if: runner.os == 'Linux'
-        env:
-          ELECTRON_DISABLE_SANDBOX: "1"
-        run: xvfb-run -a pnpm test:e2e vault.e2e.ts
-
-      - name: Vault end-to-end tests (Windows)
-        if: runner.os == 'Windows'
-        run: pnpm test:e2e vault.e2e.ts
-
-      - name: Upload traces
-        if: ${{ failure() }}
-        uses: actions/upload-artifact@v7
-        with:
-          name: e2e-results-${{ matrix.os }}
-          path: apps/desktop/test-results
-          if-no-files-found: ignore
+      - name: Fail if anything failed or was cancelled
+        if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}
+        run: exit 1

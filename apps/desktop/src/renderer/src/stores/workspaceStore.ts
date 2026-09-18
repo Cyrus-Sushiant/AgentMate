@@ -108,6 +108,10 @@ interface GitPanelPrefs {
   collapsedSections: Partial<Record<GitPanelSection, boolean>>;
   diffSideBySide: boolean;
   diffIgnoreWhitespace: boolean;
+  /** Show the added/removed line totals above the changed files. */
+  showLineStats: boolean;
+  /** Whether those totals are broken down per group. */
+  lineStatsExpanded: boolean;
   /** Which panel tab is showing. */
   activeSection: SidePanelSection;
 }
@@ -250,6 +254,8 @@ export const useWorkspaceStore = create<WorkspaceState>()(
           collapsedSections: {},
           diffSideBySide: true,
           diffIgnoreWhitespace: false,
+          showLineStats: true,
+          lineStatsExpanded: false,
           activeSection: 'changes',
         },
 

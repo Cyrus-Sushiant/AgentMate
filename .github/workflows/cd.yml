@@ -26,8 +26,15 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Everything CI runs, before a single installer is built. A release is the one place where a
+  # failing test must never be shipped past.
+  tests:
+    name: Tests
+    uses: ./.github/workflows/test.yml
+
   build:
     name: Build (${{ matrix.os }})
+    needs: tests
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -160,6 +167,7 @@ jobs:
 
   build-android:
     name: Build Android APK
+    needs: tests
     runs-on: ubuntu-latest
     steps:
       - name: Checkout

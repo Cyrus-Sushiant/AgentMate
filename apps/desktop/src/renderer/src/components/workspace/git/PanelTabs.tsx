@@ -137,23 +137,30 @@ export function PanelIconButton({
   onClick,
   children,
   disabled,
+  active,
 }: {
   label: string;
   onClick: () => void;
   children: React.ReactNode;
   disabled?: boolean;
+  /** For a button that turns something on and off, so its state reads at a glance. */
+  active?: boolean;
 }): React.JSX.Element {
   return (
     <SimpleTooltip label={label} wrapTrigger={disabled} side="bottom">
       <button
         type="button"
         aria-label={label}
+        {...(active === undefined ? {} : { 'aria-pressed': active })}
         onClick={(event) => {
           event.stopPropagation();
           onClick();
         }}
         disabled={disabled}
-        className="flex h-6 w-6 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-foreground/10 hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
+        className={cn(
+          'flex h-6 w-6 items-center justify-center rounded transition-colors hover:bg-foreground/10 hover:text-foreground disabled:pointer-events-none disabled:opacity-40',
+          active ? 'bg-primary/12 text-primary' : 'text-muted-foreground',
+        )}
       >
         {children}
       </button>

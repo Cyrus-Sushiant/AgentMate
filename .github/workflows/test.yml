@@ -1,0 +1,211 @@
+name: Tests
+
+# Unit, integration, mobile and end-to-end tests. Called by CI on every push and pull request,
+# and by CD before anything is built for a release, so a broken test cannot ship.
+
+on:
+  workflow_call:
+    inputs:
+      e2e:
+        description: Run the Electron end-to-end matrix
+        type: boolean
+        default: true
+  workflow_dispatch:
+    inputs:
+      e2e:
+        description: Run the Electron end-to-end matrix
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  unit:
+    name: Unit and integration
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # Some tests build a real repository in a temp folder and commit to it, which git refuses
+      # to do without an identity.
+      - name: Git identity for fixtures
+        run: |
+          git config --global user.name "AgentMate CI"
+          git config --global user.email "ci@agentmate.invalid"
+          git config --global init.defaultBranch main
+
+      # The desktop tests import @agentmat/core and @agentmat/protocol from their build output.
+      - name: Build workspace packages
+        run: pnpm build:packages
+
+      - name: Core and protocol
+        run: pnpm --filter @agentmat/core --filter @agentmat/protocol test:coverage
+
+      - name: Desktop main and renderer
+        if: ${{ !cancelled() }}
+        run: pnpm --filter @agentmat/desktop test:coverage
+
+      - name: Coverage summary
+        if: ${{ !cancelled() }}
+        run: node scripts/coverage-summary.mjs >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload coverage
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage-unit
+          retention-days: 14
+          if-no-files-found: ignore
+          path: |
+            packages/core/coverage
+            packages/core/test-results
+            packages/protocol/coverage
+            packages/protocol/test-results
+            apps/desktop/coverage
+            apps/desktop/test-results
+
+  mobile:
+    name: Mobile
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Jest
+        run: pnpm --filter @agentmat/mobile test:ci
+
+      - name: Coverage summary
+        if: ${{ !cancelled() }}
+        run: node scripts/coverage-summary.mjs apps/mobile >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload coverage
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage-mobile
+          retention-days: 14
+          if-no-files-found: ignore
+          path: apps/mobile/coverage
+
+  e2e:
+    name: E2E (${{ matrix.os }})
+    if: ${{ inputs.e2e }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    env:
+      # One cache location on every OS, so the Electron zip can be restored between runs.
+      electron_config_cache: ${{ github.workspace }}/.cache/electron
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Display and Electron libraries (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb libnss3 libgbm1 libasound2t64 libxss1 libxtst6
+          # Ubuntu blocks the unprivileged user namespaces Chromium's sandbox needs, which makes
+          # Electron refuse to start. The fixture can fall back to --no-sandbox if this fails.
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: pnpm
+
+      - name: Cache Electron binary
+        uses: actions/cache@v6
+        with:
+          path: .cache/electron
+          key: electron-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            electron-${{ runner.os }}-${{ runner.arch }}-
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # electron is not in allowBuilds, so its postinstall never fetched the runtime. The CDN is
+      # occasionally flaky, hence the retries.
+      - name: Install Electron binary
+        shell: bash
+        run: |
+          for attempt in 1 2 3; do
+            pnpm --filter @agentmat/desktop exec install-electron && exit 0
+            echo "attempt $attempt failed, retrying in 15s"
+            sleep 15
+          done
+          exit 1
+
+      - name: Build workspace packages
+        run: pnpm build:packages
+
+      # better-sqlite3 has to match Electron's ABI to load inside the app.
+      - name: Rebuild native modules for Electron
+        run: pnpm --filter @agentmat/desktop rebuild:native
+
+      - name: Git identity for fixtures
+        shell: bash
+        run: |
+          git config --global user.name "AgentMate CI"
+          git config --global user.email "ci@agentmate.invalid"
+
+      # Electron needs a display server. Playwright itself needs no browser download here,
+      # because the _electron launcher drives the app's own runtime.
+      - name: Playwright (Linux)
+        if: runner.os == 'Linux'
+        # Hosted runners have no usable Chromium sandbox even after the sysctl above, so the
+        # launcher drops it here rather than having Electron refuse to start.
+        env:
+          AGENTMATE_E2E_NO_SANDBOX: "1"
+        run: xvfb-run --auto-servernum --server-args="-screen 0 1920x1080x24" pnpm --filter @agentmat/desktop test:e2e
+
+      - name: Playwright
+        if: runner.os != 'Linux'
+        run: pnpm --filter @agentmat/desktop test:e2e
+
+      - name: Upload report and traces
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: e2e-${{ matrix.os }}
+          retention-days: 14
+          if-no-files-found: ignore
+          path: |
+            apps/desktop/playwright-report
+            apps/desktop/test-results

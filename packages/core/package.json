@@ -14,16 +14,18 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "dev": "tsc -p tsconfig.json --watch --preserveWatchOutput",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.test.json",
     "lint": "biome lint ./src",
     "test": "vitest run",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "zod": "^4.6.4"
   },
   "devDependencies": {
-    "@vitest/coverage-v8": "^5.0.1",
+    "@types/node": "^26.2.0",
+    "@vitest/coverage-v8": "^5.0.0",
     "typescript": "^7.0.2",
     "vitest": "^5.0.0"
   }

@@ -1,3 +1,5 @@
+// First, before anything can read userData: it may point this run at another profile.
+import './testMode';
 import { join } from 'node:path';
 import { BLUEPRINT_FILE_SCHEME } from '@agentmat/core';
 import { app, BrowserWindow, desktopCapturer, protocol, session, shell } from 'electron';
@@ -77,6 +79,7 @@ import {
   pruneOrphanEnvironments,
   store,
 } from './store';
+import { isE2E } from './testMode';
 import { startToolUpdateWatcher, stopToolUpdateWatcher } from './toolUpdates/watcher';
 import { startHourlyUpdateChecks } from './updater';
 import { startResetAlertWatcher, stopResetAlertWatcher } from './usage/resetAlerts';
@@ -244,8 +247,9 @@ function registerAllIpcHandlers(): void {
   registerMcpHandlers();
   registerSecurityHandlers();
   // A crash or a force-quit can leave a scan's containers running; clear them before any
-  // new scan tries to reuse the same names.
-  sweepOrphanScanContainers();
+  // new scan tries to reuse the same names. Docker is machine-wide, so an e2e run leaves the
+  // containers of whatever else is on this machine alone.
+  if (!isE2E) sweepOrphanScanContainers();
   registerToolHandlers();
   registerDockerHandlers();
   registerFileSystemHandlers();
@@ -341,6 +345,8 @@ app.whenReady().then(async () => {
   void pruneOrphanEnvironments();
   void startHookServer();
   setMainWindowFactory(createMainWindow);
+  // Nothing answers a confirmation dialog in a test, so closing must not ask.
+  if (isE2E) allowQuit();
   createMainWindow();
   registerNotificationActivation();
   void widgetManager.restoreAll();

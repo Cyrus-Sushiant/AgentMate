@@ -2,6 +2,7 @@ packages:
   - "packages/*"
   - "apps/*"
 allowBuilds:
+  '@parcel/watcher': false
   better-sqlite3: true
   cpu-features: false
   electron-winstaller: true
@@ -11,6 +12,7 @@ allowBuilds:
   protobufjs: true
   sharp: true
   ssh2: false
+  unrs-resolver: false
 minimumReleaseAgeExclude:
   - autoprefixer@10.5.4
   - caniuse-lite@1.0.30001806

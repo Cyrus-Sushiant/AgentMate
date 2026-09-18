@@ -1,0 +1,406 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { TerminalAttachResult, TerminalUsageResult } from '../../shared/apiTypes';
+import { IPC } from '../../shared/ipcChannels';
+import { withPlatform } from '../../test/main/fixtures';
+import {
+  expectChannelsCovered,
+  fakeWebContents,
+  invoke,
+  invokeFrom,
+  loadIpc,
+  useTempUserData,
+} from '../../test/main/ipcHarness';
+
+/**
+ * The terminal IPC as the renderer drives it. The pty host is the process boundary here, so it is
+ * the only thing stubbed: `connectToHost` hands back a fake client that records what main asked
+ * of it, and the in-process fallback manager stands in for node-pty (which is built for Electron's
+ * ABI and will not load under plain node anyway).
+ */
+
+interface HostMessage {
+  type: string;
+  payload?: Record<string, unknown>;
+}
+
+const host = vi.hoisted(() => {
+  const state = {
+    /** False makes connectToHost resolve null, which is how terminals fall back in-process. */
+    available: true,
+    connectCalls: 0,
+    requests: [] as HostMessage[],
+    notifications: [] as HostMessage[],
+    sessions: [] as { sessionId: string; pid: number; projectId?: string; createdAt: number }[],
+    /** What the host answers a createOrAttach with. Throwing stands in for a host-side failure. */
+    createOrAttach: (_payload: Record<string, unknown>): unknown => ({
+      isNew: true,
+      snapshot: null,
+    }),
+    events: null as null | {
+      onData: (sessionId: string, data: string) => void;
+      onExit: (sessionId: string, exitCode: number) => void;
+      onDisconnect: () => void;
+    },
+  };
+
+  // One stable client object, so a per-test change of behavior does not need a new backend.
+  const client = {
+    setEvents(events: NonNullable<typeof state.events>): void {
+      state.events = events;
+    },
+    async request(message: HostMessage): Promise<unknown> {
+      state.requests.push(message);
+      if (message.type === 'list') return state.sessions;
+      if (message.type === 'createOrAttach') {
+        return state.createOrAttach(message.payload ?? {});
+      }
+      return undefined;
+    },
+    notify(message: HostMessage): void {
+      state.notifications.push(message);
+    },
+    close(): void {
+      return undefined;
+    },
+    async closeAfterFlush(): Promise<void> {
+      return undefined;
+    },
+  };
+
+  const local = {
+    created: [] as Record<string, unknown>[],
+    writes: [] as { sessionId: string; data: string }[],
+    resizes: [] as { sessionId: string; cols: number; rows: number }[],
+    killed: [] as string[],
+  };
+
+  return { state, client, local };
+});
+
+vi.mock('../ptyHost/hostLauncher', () => ({
+  connectToHost: async () => {
+    host.state.connectCalls += 1;
+    if (!host.state.available) return null;
+    return { client: host.client, hello: { protocolVersion: 1, appVersion: 'test', pid: 1 } };
+  },
+}));
+
+vi.mock('../ptyHost/sessionManager', () => ({
+  PtySessionManager: class {
+    createOrAttach(payload: Record<string, unknown>): unknown {
+      host.local.created.push(payload);
+      return { isNew: true, snapshot: null };
+    }
+    write(sessionId: string, data: string): void {
+      host.local.writes.push({ sessionId, data });
+    }
+    resize(sessionId: string, cols: number, rows: number): void {
+      host.local.resizes.push({ sessionId, cols, rows });
+    }
+    kill(sessionId: string): void {
+      host.local.killed.push(sessionId);
+    }
+    killAll(): void {
+      return undefined;
+    }
+    list(): unknown[] {
+      return [];
+    }
+  },
+}));
+
+// Reading the OS process table is its own process boundary, and a real reading would make the
+// usage assertions depend on what else is running on the machine.
+vi.mock('../system/processTree', () => ({
+  sampleProcessTrees: async (pids: number[]) => ({
+    available: true,
+    cpuReady: true,
+    trees: new Map(
+      pids.map((pid) => [
+        pid,
+        { cpuPercent: 12.5, memBytes: 1024, processCount: 2, processes: [] },
+      ]),
+    ),
+  }),
+}));
+
+useTempUserData();
+
+// onData and onExit are pushed from main to the renderer, so nothing registers them as handlers.
+// They are covered through the fake webContents instead, in "output and exit" below.
+expectChannelsCovered(IPC.terminal, [IPC.terminal.onData, IPC.terminal.onExit]);
+
+/** The createOrAttach payload main sent to the host for the most recent create. */
+function lastCreatePayload(): Record<string, unknown> {
+  const request = [...host.state.requests].reverse().find((one) => one.type === 'createOrAttach');
+  if (!request?.payload) throw new Error('no createOrAttach was sent to the host');
+  return request.payload;
+}
+
+beforeEach(async () => {
+  host.state.available = true;
+  host.state.events = null;
+  host.state.requests = [];
+  host.state.notifications = [];
+  host.state.sessions = [];
+  host.state.createOrAttach = () => ({ isNew: true, snapshot: null });
+  host.local.created = [];
+  host.local.writes = [];
+  host.local.resizes = [];
+  host.local.killed = [];
+  await loadIpc(
+    () => import('./terminal'),
+    (module) => module.registerTerminalHandlers(),
+  );
+});
+
+describe('terminal:create', () => {
+  it('starts a session and passes the ids the hook scripts read back', async () => {
+    const sender = fakeWebContents();
+    const result = await invokeFrom<TerminalAttachResult>(sender, IPC.terminal.create, {
+      sessionId: 'tab-1',
+      cwd: 'C:\\projects\\demo',
+      cols: 120,
+      rows: 40,
+      projectId: 'project-1',
+      cliId: 'claude-code',
+      surface: 'workspace',
+    });
+    expect(result).toEqual({ sessionId: 'tab-1', isNew: true, snapshot: null });
+
+    const payload = lastCreatePayload();
+    expect(payload).toMatchObject({
+      sessionId: 'tab-1',
+      cwd: 'C:\\projects\\demo',
+      cols: 120,
+      rows: 40,
+      projectId: 'project-1',
+    });
+    expect(payload.env).toMatchObject({
+      AGENTMATE_SESSION_ID: 'tab-1',
+      AGENTMATE_PROJECT_ID: 'project-1',
+    });
+  });
+
+  it('only accepts a shell from the allowlist', async () => {
+    await invoke(IPC.terminal.create, { sessionId: 'allowed', shell: 'bash' });
+    expect(lastCreatePayload().shell).toBe('bash');
+
+    // Anything else, including something a compromised renderer might try to smuggle in,
+    // is replaced by the platform default rather than passed through.
+    await withPlatform('win32', () =>
+      invoke(IPC.terminal.create, { sessionId: 'smuggled', shell: 'cmd.exe /c calc.exe' }),
+    );
+    expect(lastCreatePayload().shell).toBe('powershell.exe');
+
+    vi.stubEnv('SHELL', '/usr/bin/zsh');
+    await withPlatform('linux', () =>
+      invoke(IPC.terminal.create, { sessionId: 'posix', shell: '/bin/sh' }),
+    );
+    expect(lastCreatePayload().shell).toBe('zsh');
+  });
+
+  it('replaces a session id that is not a plain identifier', async () => {
+    const result = await invoke<TerminalAttachResult>(IPC.terminal.create, {
+      sessionId: '../../etc/passwd',
+    });
+    expect(result.sessionId).not.toBe('../../etc/passwd');
+    expect(result.sessionId).toMatch(/^[0-9a-f-]{36}$/);
+    expect(lastCreatePayload().sessionId).toBe(result.sessionId);
+  });
+
+  it('makes up an id when the renderer gives none', async () => {
+    const result = await invoke<TerminalAttachResult>(IPC.terminal.create, {});
+    expect(result.sessionId).toMatch(/^[0-9a-f-]{36}$/);
+  });
+
+  it('returns null when the session the tab wanted to reattach to has ended', async () => {
+    host.state.createOrAttach = () => null;
+    expect(
+      await invoke<TerminalAttachResult | null>(IPC.terminal.create, {
+        sessionId: 'gone',
+        attachOnly: true,
+      }),
+    ).toBeNull();
+  });
+
+  it('leaves the previous window owning the session when a reattach fails', async () => {
+    const first = fakeWebContents();
+    await invokeFrom(first, IPC.terminal.create, { sessionId: 'owned' });
+
+    const second = fakeWebContents();
+    host.state.createOrAttach = () => {
+      throw new Error('host went away');
+    };
+    await expect(invokeFrom(second, IPC.terminal.create, { sessionId: 'owned' })).rejects.toThrow(
+      'host went away',
+    );
+
+    // Output still goes to the window that actually has the session on screen.
+    host.state.events?.onData('owned', 'still mine');
+    expect(first.sentOn(IPC.terminal.onData)).toEqual([
+      [{ sessionId: 'owned', data: 'still mine' }],
+    ]);
+    expect(second.sentOn(IPC.terminal.onData)).toEqual([]);
+  });
+});
+
+describe('terminal output and exit', () => {
+  it('sends output to the window that created the session, and nowhere else', async () => {
+    const owner = fakeWebContents();
+    const bystander = fakeWebContents();
+    await invokeFrom(owner, IPC.terminal.create, { sessionId: 'out-1' });
+    await invokeFrom(bystander, IPC.terminal.create, { sessionId: 'out-2' });
+
+    host.state.events?.onData('out-1', 'hello\r\n');
+    expect(owner.sentOn(IPC.terminal.onData)).toEqual([
+      [{ sessionId: 'out-1', data: 'hello\r\n' }],
+    ]);
+    expect(bystander.sentOn(IPC.terminal.onData)).toEqual([]);
+  });
+
+  it('follows the session when another window takes it over', async () => {
+    const first = fakeWebContents();
+    const second = fakeWebContents();
+    await invokeFrom(first, IPC.terminal.create, { sessionId: 'moved' });
+    await invokeFrom(second, IPC.terminal.create, { sessionId: 'moved' });
+
+    host.state.events?.onData('moved', 'after the move');
+    expect(first.sentOn(IPC.terminal.onData)).toEqual([]);
+    expect(second.sentOn(IPC.terminal.onData)).toEqual([
+      [{ sessionId: 'moved', data: 'after the move' }],
+    ]);
+  });
+
+  it('tells the owner when the shell exits, and stops sending after that', async () => {
+    const owner = fakeWebContents();
+    await invokeFrom(owner, IPC.terminal.create, { sessionId: 'exiting' });
+
+    host.state.events?.onExit('exiting', 3);
+    expect(owner.sentOn(IPC.terminal.onExit)).toEqual([[{ sessionId: 'exiting', exitCode: 3 }]]);
+
+    host.state.events?.onData('exiting', 'too late');
+    expect(owner.sentOn(IPC.terminal.onData)).toEqual([]);
+  });
+});
+
+describe('terminal:write, resize and kill', () => {
+  it('forwards keystrokes to the host', async () => {
+    await invoke(IPC.terminal.create, { sessionId: 'typing' });
+    await invoke(IPC.terminal.write, 'typing', 'ls -la\r');
+    expect(host.state.notifications).toContainEqual({
+      type: 'write',
+      payload: { sessionId: 'typing', data: 'ls -la\r' },
+    });
+  });
+
+  it('forwards a resize', async () => {
+    await invoke(IPC.terminal.create, { sessionId: 'sizing' });
+    await invoke(IPC.terminal.resize, 'sizing', 100, 30);
+    expect(host.state.notifications).toContainEqual({
+      type: 'resize',
+      payload: { sessionId: 'sizing', cols: 100, rows: 30 },
+    });
+  });
+
+  it('kills the session and forgets the window that owned it', async () => {
+    const owner = fakeWebContents();
+    await invokeFrom(owner, IPC.terminal.create, { sessionId: 'doomed' });
+    await invoke(IPC.terminal.kill, 'doomed');
+
+    expect(host.state.notifications).toContainEqual({
+      type: 'kill',
+      payload: { sessionId: 'doomed' },
+    });
+    host.state.events?.onData('doomed', 'ignored');
+    expect(owner.sentOn(IPC.terminal.onData)).toEqual([]);
+  });
+
+  it('passes a keystroke for a session that just ended on, without recreating it', async () => {
+    // The renderer can race a kill against a keystroke, so this has to be harmless.
+    await invoke(IPC.terminal.create, { sessionId: 'raced' });
+    await invoke(IPC.terminal.kill, 'raced');
+    await invoke(IPC.terminal.write, 'raced', 'x');
+    expect(host.state.notifications).toContainEqual({
+      type: 'write',
+      payload: { sessionId: 'raced', data: 'x' },
+    });
+    expect(host.state.requests.filter((one) => one.type === 'createOrAttach')).toHaveLength(1);
+  });
+});
+
+describe('terminal:usage', () => {
+  it('joins what the host is running with what main knows about each tab', async () => {
+    const sender = fakeWebContents();
+    await invokeFrom(sender, IPC.terminal.create, {
+      sessionId: 'usage-1',
+      projectId: 'project-1',
+      cliId: 'claude-code',
+      surface: 'workspace',
+    });
+    host.state.sessions = [
+      { sessionId: 'usage-1', pid: 4242, projectId: 'project-1', createdAt: 1000 },
+      // A shell the host was already running before the app started: main knows nothing else.
+      { sessionId: 'orphan', pid: 4343, projectId: 'project-2', createdAt: 900 },
+    ];
+
+    const usage = await invoke<TerminalUsageResult>(IPC.terminal.usage);
+    expect(usage.available).toBe(true);
+    expect(usage.cpuReady).toBe(true);
+    expect(usage.sessions).toHaveLength(2);
+    expect(usage.sessions[0]).toMatchObject({
+      sessionId: 'usage-1',
+      pid: 4242,
+      projectId: 'project-1',
+      cliId: 'claude-code',
+      surface: 'workspace',
+      cpuPercent: 12.5,
+      memBytes: 1024,
+      processCount: 2,
+    });
+    expect(usage.sessions[1]).toMatchObject({ sessionId: 'orphan', projectId: 'project-2' });
+    expect(usage.sessions[1].cliId).toBeUndefined();
+  });
+
+  it('reports nothing before the first terminal, without starting the host for it', async () => {
+    const usage = await invoke<TerminalUsageResult>(IPC.terminal.usage);
+    expect(usage.sessions).toEqual([]);
+    expect(host.state.requests).toEqual([]);
+  });
+
+  it('falls back to zeros for a session the host reports without a usable pid', async () => {
+    await invoke(IPC.terminal.create, { sessionId: 'started' });
+    host.state.sessions = [{ sessionId: 'no-pid', pid: 0, createdAt: 1 }];
+    const usage = await invoke<TerminalUsageResult>(IPC.terminal.usage);
+    expect(usage.sessions[0]).toMatchObject({ sessionId: 'no-pid', cpuPercent: 0, memBytes: 0 });
+  });
+});
+
+describe('losing the host', () => {
+  it('closes every open tab when the host connection drops', async () => {
+    const owner = fakeWebContents();
+    await invokeFrom(owner, IPC.terminal.create, { sessionId: 'dropped' });
+
+    host.state.events?.onDisconnect();
+    expect(owner.sentOn(IPC.terminal.onExit)).toEqual([[{ sessionId: 'dropped', exitCode: 1 }]]);
+  });
+
+  it('runs terminals in this process when the host cannot be started', async () => {
+    // The backend is picked the first time a terminal is asked for, so this comes first.
+    host.state.available = false;
+    const owner = fakeWebContents();
+    const result = await invokeFrom<TerminalAttachResult>(owner, IPC.terminal.create, {
+      sessionId: 'in-process',
+      shell: 'bash',
+    });
+    expect(result).toMatchObject({ sessionId: 'in-process', isNew: true });
+    expect(host.local.created.at(-1)).toMatchObject({ sessionId: 'in-process', shell: 'bash' });
+
+    await invoke(IPC.terminal.write, 'in-process', 'echo hi\r');
+    await invoke(IPC.terminal.resize, 'in-process', 80, 24);
+    await invoke(IPC.terminal.kill, 'in-process');
+    expect(host.local.writes).toContainEqual({ sessionId: 'in-process', data: 'echo hi\r' });
+    expect(host.local.resizes).toContainEqual({ sessionId: 'in-process', cols: 80, rows: 24 });
+    expect(host.local.killed).toContain('in-process');
+  });
+});

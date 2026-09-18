@@ -92,11 +92,21 @@ export async function launchApp(seed: {
 
   const pathKey = Object.keys(process.env).find((key) => key.toLowerCase() === 'path') ?? 'PATH';
   const app = await electron.launch({
-    args: [join(E2E_OUT_DIR, 'main', 'index.mjs'), `--user-data-dir=${userDataDir}`],
+    args: [
+      join(E2E_OUT_DIR, 'main', 'index.mjs'),
+      `--user-data-dir=${userDataDir}`,
+      // Ubuntu runners block the unprivileged user namespaces Chromium's sandbox needs.
+      ...(process.env.AGENTMATE_E2E_NO_SANDBOX === '1' ? ['--no-sandbox'] : []),
+    ],
     env: {
       ...(process.env as Record<string, string>),
       [pathKey]: `${binDir}${delimiter}${process.env[pathKey] ?? ''}`,
       ELECTRON_RENDERER_URL: '',
+      // src/main/testMode.ts reads these before anything touches userData: the profile moves,
+      // the single-instance lock and terminal host pipe move with it, and the startup work that
+      // reaches outside the profile (the docker scan sweep, update checks) stays off.
+      AGENTMATE_USER_DATA_DIR: userDataDir,
+      AGENTMATE_E2E: '1',
     },
   });
   const page = await app.firstWindow();
@@ -118,11 +128,23 @@ export async function launchApp(seed: {
             .filter(Boolean)
         : [],
     close: async () => {
-      // A normal close asks "quit while agents are running?" once a CLI tab is open, so exit
-      // outright and then stop the terminal host and shells it leaves behind.
-      const exited = new Promise<void>((resolve) => app.process().once('exit', () => resolve()));
-      await app.evaluate(({ app: electronApp }) => electronApp.exit(0)).catch(() => undefined);
-      await Promise.race([exited, new Promise((resolve) => setTimeout(resolve, 10_000))]);
+      // Closed through Playwright's own API, or it keeps a handle on the app and the worker sits
+      // at teardown until it times out. AGENTMATE_E2E lets the quit guard through, so this no
+      // longer waits for the "quit while agents are running?" confirmation.
+      //
+      // The child process is taken before closing: afterwards Playwright has dropped its own
+      // handle and app.process() throws.
+      const child = app.process();
+      const exited = new Promise<void>((resolve) => child.once('exit', () => resolve()));
+      await Promise.race([
+        app.close().catch(() => undefined),
+        new Promise((resolve) => setTimeout(resolve, 15_000)),
+      ]);
+      // Anything that ignored the close is killed outright, so nothing holds the temp folder open.
+      if (child.exitCode === null && !child.killed) {
+        child.kill();
+        await Promise.race([exited, new Promise((resolve) => setTimeout(resolve, 5_000))]);
+      }
       killLeftovers(root);
       try {
         rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 500 });
@@ -135,7 +157,15 @@ export async function launchApp(seed: {
 
 /** A terminal host or shell that outlived the app would keep the temp folder locked. */
 function killLeftovers(root: string): void {
-  if (process.platform !== 'win32') return;
+  if (process.platform !== 'win32') {
+    // The terminal host is detached, so it survives the app it was started by.
+    try {
+      execSync(`pkill -f ${JSON.stringify(root)}`, { stdio: 'ignore' });
+    } catch {
+      // pkill exits non-zero when nothing matched, which is the normal case.
+    }
+    return;
+  }
   const needle = root.replace(/'/g, "''");
   try {
     execSync(

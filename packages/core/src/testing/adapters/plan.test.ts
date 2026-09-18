@@ -429,9 +429,9 @@ describe('compiled language runners', () => {
 
 describe('formatCommand', () => {
   it('quotes arguments with spaces or shell characters for display', () => {
-    expect(
-      formatCommand({ command: 'go', args: ['test', '-run', '^(?:A|B)$', './my pkg'], cwd: '' }),
-    ).toBe("go test -run '^(?:A|B)$' './my pkg'");
+    expect(formatCommand({ command: 'go', args: ['test', '-run', '^(?:A|B)$', './my pkg'] })).toBe(
+      "go test -run '^(?:A|B)$' './my pkg'",
+    );
   });
 });
 

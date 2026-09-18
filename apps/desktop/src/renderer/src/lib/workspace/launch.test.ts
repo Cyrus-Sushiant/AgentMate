@@ -1,3 +1,4 @@
+// @vitest-environment node
 import type { Project } from '@agentmat/core';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 

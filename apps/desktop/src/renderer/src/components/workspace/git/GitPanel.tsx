@@ -10,6 +10,7 @@ import {
   AnglesRight,
   ArrowDown,
   ArrowUp,
+  ChartSimple,
   ChevronRight,
   CircleCheck,
   CodeCompare,
@@ -47,6 +48,7 @@ import {
 } from '@/stores/workspaceStore';
 import { TestsSection, TestsTabActions, useTestsFailedCount } from '../tests/TestsSection';
 import { BranchesSection } from './BranchesSection';
+import { ChangesSummary } from './ChangesSummary';
 import { CommitBox } from './CommitBox';
 import { CommitsSection } from './CommitsSection';
 import { ExplorerSection } from './ExplorerSection';
@@ -474,6 +476,7 @@ function PanelBody({
 }): React.JSX.Element {
   const navigate = useNavigate();
   const actions = useGitActions(project.id);
+  const showLineStats = useWorkspaceStore((s) => s.gitPanel.showLineStats);
 
   if (!state) {
     return (
@@ -536,6 +539,7 @@ function PanelBody({
       {total > 0 || state.conflicts.length > 0 ? (
         <CommitBox projectId={project.id} state={state} actions={actions} />
       ) : null}
+      {showLineStats ? <ChangesSummary state={state} /> : null}
       <div className="min-h-0 flex-1 overflow-y-auto" data-git-panel>
         {total === 0 ? (
           <div className="flex h-full flex-col items-center justify-center gap-2 px-6 pb-10 text-center">
@@ -575,6 +579,7 @@ export function GitPanel({
   useInitialFetch(project.id, state?.isRepo && state.hasRemote);
   const [resizing, setResizing] = useState(false);
   const failedTests = useTestsFailedCount(project.id);
+  const showLineStats = useWorkspaceStore((s) => s.gitPanel.showLineStats);
   // Runs keep reporting while the Tests tab is closed, so the badge stays true.
   useEffect(() => ensureTestRunSubscription(), []);
   const count = state
@@ -615,6 +620,15 @@ export function GitPanel({
       title: 'Changes',
       icon: CodeCompare,
       count,
+      actions: (
+        <PanelIconButton
+          label={showLineStats ? 'Hide line totals' : 'Show line totals'}
+          active={showLineStats}
+          onClick={() => setGitPanel({ showLineStats: !showLineStats })}
+        >
+          <ChartSimple className="h-2.5 w-2.5" />
+        </PanelIconButton>
+      ),
       render: () => <PanelBody project={project} state={state} />,
     },
     {

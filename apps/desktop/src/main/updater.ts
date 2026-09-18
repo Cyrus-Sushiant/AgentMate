@@ -10,6 +10,7 @@ import type { UpdateDownloadProgress, UpdateInfo, UpdateStatus } from '../shared
 import { IPC } from '../shared/ipcChannels';
 import { preserveTerminalsOnQuit } from './ipc/terminal';
 import { allowQuit } from './quitGuard';
+import { isE2E } from './testMode';
 import {
   DownloadAbortedError,
   DownloadFatalError,
@@ -584,7 +585,7 @@ export function quitAndInstall(): void {
 
 /** Runs an initial check on startup, then re-checks hourly while packaged. */
 export function startHourlyUpdateChecks(): void {
-  if (!app.isPackaged) return;
+  if (!app.isPackaged || isE2E) return;
   wireEvents();
   void checkForUpdates(false);
   setInterval(() => {

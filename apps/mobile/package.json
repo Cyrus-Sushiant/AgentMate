@@ -18,8 +18,12 @@
     "react-native-webrtc": "^124.0.8"
   },
   "devDependencies": {
+    "@jest/globals": "^30.5.1",
+    "@testing-library/react-native": "^14.0.1",
     "@types/react": "~19.2.18",
     "event-target-shim": "6.0.2",
+    "jest": "^30.5.1",
+    "jest-expo": "~57.0.5",
     "typescript": "~7.0.2"
   },
   "scripts": {
@@ -28,6 +32,22 @@
     "ios": "expo run:ios",
     "web": "expo start --web",
     "typecheck": "tsc --noEmit",
-    "lint": "biome lint ./src ./App.tsx ./index.ts"
+    "lint": "biome lint ./src ./App.tsx ./index.ts",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:ci": "jest --ci --coverage --reporters=default --reporters=github-actions"
+  },
+  "jest": {
+    "preset": "jest-expo",
+    "setupFilesAfterEnv": ["<rootDir>/jest.setup.ts"],
+    "testMatch": ["<rootDir>/src/**/*.test.{ts,tsx}", "<rootDir>/App.test.tsx"],
+    "moduleNameMapper": {
+      "^@agentmat/protocol$": "<rootDir>/../../packages/protocol/src/index.ts"
+    },
+    "transformIgnorePatterns": [
+      "node_modules/(?!(?:\\.pnpm/[^/]+/node_modules/)?(?:(?:jest-)?react-native|@react-native(?:-community)?|expo(?:nent)?|@expo(?:nent)?/.*|expo-.*|react-native-webrtc|react-native-safe-area-context|@react-native-async-storage/.*))"
+    ],
+    "collectCoverageFrom": ["src/**/*.{ts,tsx}", "App.tsx", "!src/theme/**"],
+    "coverageReporters": ["text-summary", "json-summary", "lcov"]
   }
 }
