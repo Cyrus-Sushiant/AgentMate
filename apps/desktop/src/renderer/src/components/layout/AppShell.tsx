@@ -2,13 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { AskAiModal } from '@/components/askAi/AskAiModal';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
-import {
-  AnglesLeft,
-  AnglesRight,
-  Bell,
-  MessageSquare,
-  TerminalSquare,
-} from '@/components/icons';
+import { AnglesLeft, AnglesRight, Bell, MessageSquare, TerminalSquare } from '@/components/icons';
 import { CommandPalette } from '@/components/search/CommandPalette';
 import { RunningClisDialog } from '@/components/terminal/RunningClisDialog';
 import { TerminalDrawer } from '@/components/terminal/TerminalDrawer';

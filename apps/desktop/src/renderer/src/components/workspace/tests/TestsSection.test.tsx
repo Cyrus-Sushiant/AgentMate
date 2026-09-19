@@ -597,7 +597,8 @@ describe('TestsSection', () => {
         },
       ],
     });
-    expect(within(row('case 2')).getByLabelText('Failed')).toBeTruthy();
+    // Results reach the panel in short batches, not one render per event.
+    await waitFor(() => expect(within(row('case 2')).getByLabelText('Failed')).toBeTruthy());
   });
 
   it('opens a test file in the editor', async () => {

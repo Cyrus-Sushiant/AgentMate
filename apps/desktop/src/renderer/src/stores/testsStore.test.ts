@@ -1,6 +1,12 @@
 import type { TestResult, TestRunEvent, TestRunSummary } from '@agentmat/core';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { applyRunEvent, failedResults, type ProjectTestRun, useTestsStore } from './testsStore';
+import {
+  applyRunEvent,
+  coalesceEvents,
+  failedResults,
+  type ProjectTestRun,
+  useTestsStore,
+} from './testsStore';
 
 const summary = (patch: Partial<TestRunSummary> = {}): TestRunSummary => ({
   runId: 'r1',
@@ -156,5 +162,27 @@ describe('useTestsStore', () => {
       output: '',
     });
     expect(useTestsStore.getState().runs.p1.summary?.runId).toBe('r9');
+  });
+});
+
+describe('coalesceEvents', () => {
+  const result = (id: string) => ({
+    id,
+    testProjectId: 'p',
+    path: [id],
+    status: 'passed' as const,
+  });
+
+  it('folds neighbouring results and output of one run into single events', () => {
+    const events = coalesceEvents([
+      { type: 'results', runId: 'r', projectId: 'a', results: [result('1')] },
+      { type: 'results', runId: 'r', projectId: 'a', results: [result('2')] },
+      { type: 'output', runId: 'r', projectId: 'a', text: 'x' },
+      { type: 'output', runId: 'r', projectId: 'a', text: 'y' },
+    ]);
+    expect(events).toHaveLength(2);
+    expect(events[0]).toMatchObject({ type: 'results' });
+    expect((events[0] as { results: unknown[] }).results).toHaveLength(2);
+    expect(events[1]).toMatchObject({ type: 'output', text: 'xy' });
   });
 });

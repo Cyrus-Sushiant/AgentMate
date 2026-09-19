@@ -54,8 +54,31 @@ const ACTION_BUTTON =
 /** Past this many tests, files start folded so the list stays scannable. */
 const FOLD_FILES_OVER = 300;
 
-function useProjectRun(projectId: string): ProjectTestRun {
-  return useTestsStore((s) => s.runs[projectId]) ?? EMPTY_RUN;
+/**
+ * The run without its output text. Output changes on nearly every event, and only the output pane
+ * reads it, so the tree and the buttons must not re-render for it.
+ */
+function useProjectRun(projectId: string): Omit<ProjectTestRun, 'output'> {
+  const summary = useTestsStore((s) => s.runs[projectId]?.summary) ?? EMPTY_RUN.summary;
+  const results = useTestsStore((s) => s.runs[projectId]?.results) ?? EMPTY_RUN.results;
+  return useMemo(() => ({ summary, results }), [summary, results]);
+}
+
+function useHasOutput(projectId: string): boolean {
+  return useTestsStore((s) => Boolean(s.runs[projectId]?.output));
+}
+
+function OutputPane({ projectId }: { projectId: string }) {
+  const output = useTestsStore((s) => s.runs[projectId]?.output ?? '');
+  if (!output) return null;
+  return (
+    <pre
+      aria-label="Test output"
+      className="max-h-[40%] shrink-0 overflow-auto whitespace-pre-wrap break-words border-t border-border/60 bg-background/60 px-3 py-2 font-mono text-[10.5px] leading-relaxed text-muted-foreground"
+    >
+      {output}
+    </pre>
+  );
 }
 
 /** Failed tests and failed files in the project's latest run, for the tab badge. */
@@ -290,6 +313,7 @@ function visibleRows(
 export function TestsSection({ project }: { project: Project }): React.JSX.Element {
   const discovery = useDiscovery(project.id);
   const run = useProjectRun(project.id);
+  const hasOutput = useHasOutput(project.id);
   const hydrate = useTestsStore((s) => s.hydrate);
   const [filter, setFilter] = useState<Filter>('all');
   const [query, setQuery] = useState('');
@@ -529,7 +553,7 @@ export function TestsSection({ project }: { project: Project }): React.JSX.Eleme
               </>
             )}
           </div>
-          {!running && (failures.length > 0 || run.output) ? (
+          {!running && (failures.length > 0 || hasOutput) ? (
             <div
               role="group"
               aria-label="Test run actions"
@@ -557,7 +581,7 @@ export function TestsSection({ project }: { project: Project }): React.JSX.Eleme
                   Fix all with AI
                 </button>
               ) : null}
-              {run.output ? (
+              {hasOutput ? (
                 <button
                   type="button"
                   aria-label={showOutput ? 'Hide output' : 'Show output'}
@@ -742,14 +766,7 @@ export function TestsSection({ project }: { project: Project }): React.JSX.Eleme
         </div>
       </div>
 
-      {showOutput && run.output ? (
-        <pre
-          aria-label="Test output"
-          className="max-h-[40%] shrink-0 overflow-auto whitespace-pre-wrap break-words border-t border-border/60 bg-background/60 px-3 py-2 font-mono text-[10.5px] leading-relaxed text-muted-foreground"
-        >
-          {run.output}
-        </pre>
-      ) : null}
+      {showOutput ? <OutputPane projectId={project.id} /> : null}
 
       {fixing ? (
         <FixWithAiDialog

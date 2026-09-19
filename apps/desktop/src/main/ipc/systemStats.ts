@@ -78,46 +78,11 @@ function sampleCpuCorePercentsFromOs(): number[] {
   return snapshots.map((snapshot, i) => percentFromDelta(previous[i], snapshot));
 }
 
-const WIN_CPU_SCRIPT = `
-$ErrorActionPreference = 'SilentlyContinue'
-Get-CimInstance Win32_PerfFormattedData_PerfOS_Processor |
-  Select-Object Name, PercentProcessorTime |
-  ConvertTo-Json -Compress
-`;
-
-function cookedPercent(value: unknown): number {
-  const n = Number(value);
-  return Number.isFinite(n) ? clampPercent(n) : 0;
-}
-
-// Windows 11 24H2+ Task Manager uses % Processor Time
-// (Win32_PerfFormattedData_PerfOS_Processor), not Processor Utility and not
-// Node's os.cpus() idle ticks. Cooked WMI values are already 0-100 for the
-// last interval, so we do not keep raw deltas (those raced when samples
-// overlapped and showed 0% whenever the timestamp had not moved).
-async function sampleWindowsCpu(): Promise<CpuSample | null> {
-  const parsed =
-    await runPowerShellJson<{ Name?: string; PercentProcessorTime?: number | null }[]>(
-      WIN_CPU_SCRIPT,
-    );
-  const rows = asArray(parsed).filter((row) => typeof row.Name === 'string' && row.Name.length > 0);
-  const cores = rows
-    .filter((row) => /^\d+$/.test(row.Name ?? ''))
-    .sort((a, b) => Number(a.Name) - Number(b.Name));
-  if (cores.length === 0) return null;
-  const cpuCorePercents = cores.map((row) => cookedPercent(row.PercentProcessorTime));
-  const totalRow = rows.find((row) => row.Name?.toLowerCase() === '_total');
-  const cpuPercent = totalRow
-    ? cookedPercent(totalRow.PercentProcessorTime)
-    : averagePercents(cpuCorePercents);
-  return { cpuPercent, cpuCorePercents };
-}
-
+// Read from the kernel's tick counters and averaged over the time since the last sample. This used
+// to start PowerShell and query WMI on every sample on Windows: that process burst counted as load
+// on its own, it read a one second window (so a short spike showed as 100%), and under real load
+// the query itself came back late. os.cpus() costs nothing and matches the Task Manager average.
 async function sampleCpu(): Promise<CpuSample> {
-  if (process.platform === 'win32') {
-    const win = await sampleWindowsCpu();
-    if (win) return win;
-  }
   const cpuCorePercents = sampleCpuCorePercentsFromOs();
   return { cpuPercent: averagePercents(cpuCorePercents), cpuCorePercents };
 }
@@ -1041,6 +1006,34 @@ async function killProcess(pid: number): Promise<KillProcessResult> {
   }
 }
 
+/**
+ * Disk and GPU readings each start a PowerShell process on Windows, which costs real CPU and time.
+ * The bar samples every few seconds, so these are reused for a while and never run twice at once.
+ */
+const SLOW_PROBE_TTL_MS = 10_000;
+
+function cachedProbe<T>(probe: () => Promise<T>): () => Promise<T> {
+  let value: T | undefined;
+  let at = 0;
+  let inFlight: Promise<T> | null = null;
+  return () => {
+    if (value !== undefined && Date.now() - at < SLOW_PROBE_TTL_MS) return Promise.resolve(value);
+    inFlight ??= probe()
+      .then((fresh) => {
+        value = fresh;
+        at = Date.now();
+        return fresh;
+      })
+      .finally(() => {
+        inFlight = null;
+      });
+    return inFlight;
+  };
+}
+
+const sampleDisksCached = cachedProbe(sampleDisks);
+const sampleGpusCached = cachedProbe(sampleGpus);
+
 export function registerSystemStatsHandlers(): void {
   ipcMain.handle(IPC.system.topApps, async (_event, resource: TopResourceKind) => {
     if (resource === 'gpu') return sampleTopGpuApps();
@@ -1060,8 +1053,8 @@ export function registerSystemStatsHandlers(): void {
     const [net, pings, disks, gpus, cpu] = await Promise.all([
       sampleNetworkRates(),
       Promise.all(hosts.map((host) => pingHost(host))),
-      sampleDisks(),
-      sampleGpus(),
+      sampleDisksCached(),
+      sampleGpusCached(),
       sampleCpu(),
     ]);
     return {
