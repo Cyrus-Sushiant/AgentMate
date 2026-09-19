@@ -2,6 +2,7 @@ import { join } from 'node:path';
 import { BrowserWindow, ipcMain } from 'electron';
 import icon from '../../../resources/icon.ico?asset';
 import { IPC } from '../../shared/ipcChannels';
+import { keepWindowsHidden } from '../testMode';
 
 /**
  * The active remote-control session gets its own real, resizable/maximizable/
@@ -61,7 +62,9 @@ function createSessionWindow(): BrowserWindow {
     },
   });
 
-  window.once('ready-to-show', () => window.show());
+  window.once('ready-to-show', () => {
+    if (!keepWindowsHidden) window.show();
+  });
   window.on('maximize', () =>
     window.webContents.send(IPC.remoteSessionWindow.onMaximizedChange, true),
   );

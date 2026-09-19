@@ -141,7 +141,7 @@ test('lists the project tests and runs them all in the background', async () => 
 
   expect(vitestArgs(projectDir)[0].slice(0, 3)).toEqual([
     'run',
-    '--reporter=default',
+    '--reporter=verbose',
     '--reporter=json',
   ]);
 

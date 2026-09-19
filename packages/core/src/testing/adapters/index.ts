@@ -66,6 +66,7 @@ export function createStreamParser(project: TestProject): StreamParser | null {
 /** Flags the panel adds only so it can read results; a person rerunning a test does not need them. */
 const MACHINE_FLAGS = new Set([
   '--reporter=default',
+  '--reporter=verbose',
   '--reporter=json',
   '--reporter=list,json',
   '--json',

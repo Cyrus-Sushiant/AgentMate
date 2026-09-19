@@ -79,7 +79,7 @@ import {
   pruneOrphanEnvironments,
   store,
 } from './store';
-import { isE2E } from './testMode';
+import { isE2E, keepWindowsHidden } from './testMode';
 import { startToolUpdateWatcher, stopToolUpdateWatcher } from './toolUpdates/watcher';
 import { startHourlyUpdateChecks } from './updater';
 import { startResetAlertWatcher, stopResetAlertWatcher } from './usage/resetAlerts';
@@ -180,7 +180,9 @@ function createMainWindow(): BrowserWindow {
     },
   });
 
-  win.once('ready-to-show', () => win.show());
+  win.once('ready-to-show', () => {
+    if (!keepWindowsHidden) win.show();
+  });
   setMainWindow(win);
   registerWindowHandlers(win);
   remoteManager.init(win);

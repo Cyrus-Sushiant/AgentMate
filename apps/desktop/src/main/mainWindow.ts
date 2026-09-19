@@ -1,5 +1,6 @@
 import type { BrowserWindow } from 'electron';
 import { IPC } from '../shared/ipcChannels';
+import { keepWindowsHidden } from './testMode';
 
 let mainWindow: BrowserWindow | null = null;
 let factory: (() => BrowserWindow) | null = null;
@@ -33,7 +34,7 @@ export function focusMainWindow(route?: string): void {
   const win = getMainWindow() ?? factory?.() ?? null;
   if (!win || win.isDestroyed()) return;
   if (win.isMinimized()) win.restore();
-  if (!win.isVisible()) win.show();
+  if (!win.isVisible() && !keepWindowsHidden) win.show();
   win.focus();
   if (route) sendNavigate(win, route);
 }

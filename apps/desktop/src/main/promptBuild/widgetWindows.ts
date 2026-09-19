@@ -4,6 +4,7 @@ import type { DesktopPromptBuildWidgetInstance } from '@agentmat/core';
 import { BrowserWindow } from 'electron';
 import icon from '../../../resources/icon.ico?asset';
 import { store } from '../store';
+import { keepWindowsHidden } from '../testMode';
 
 // One frameless, transparent, always-on-top BrowserWindow per pinned Build
 // Prompt widget. Each loads the existing renderer bundle at the
@@ -70,7 +71,9 @@ function createWidgetWindow(instance: DesktopPromptBuildWidgetInstance): Browser
   });
 
   win.setAlwaysOnTop(true, 'floating');
-  win.once('ready-to-show', () => win.show());
+  win.once('ready-to-show', () => {
+    if (!keepWindowsHidden) win.show();
+  });
 
   // Persist position after the user drags the widget (debounced).
   let moveTimer: NodeJS.Timeout | null = null;

@@ -13,6 +13,7 @@ import {
 import { BrowserWindow } from 'electron';
 import icon from '../../../resources/icon.ico?asset';
 import { store } from '../store';
+import { keepWindowsHidden } from '../testMode';
 
 // One frameless, transparent BrowserWindow per pinned widget. Each loads the
 // existing renderer bundle at the `#/widget/<id>` hash route, so no extra Vite
@@ -118,7 +119,9 @@ function createWidgetWindow(instance: DesktopWidgetInstance): BrowserWindow {
   });
 
   applyAlwaysOnTop(win, alwaysOnTop);
-  win.once('ready-to-show', () => win.show());
+  win.once('ready-to-show', () => {
+    if (!keepWindowsHidden) win.show();
+  });
 
   // Persist position after the user drags the widget (debounced).
   let moveTimer: NodeJS.Timeout | null = null;

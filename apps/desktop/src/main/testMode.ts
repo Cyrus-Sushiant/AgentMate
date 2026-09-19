@@ -22,3 +22,9 @@ if (isE2E && process.platform === 'linux') {
     if (!safeStorage.isEncryptionAvailable()) safeStorage.setUsePlainTextEncryption(true);
   });
 }
+
+/**
+ * Windows stay hidden during e2e runs so a test run doesn't pop apps up over whatever the
+ * developer is doing. Set AGENTMATE_E2E_SHOW=1 to watch a run.
+ */
+export const keepWindowsHidden = isE2E && process.env.AGENTMATE_E2E_SHOW !== '1';

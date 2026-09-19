@@ -15,9 +15,10 @@ import {
   parseJson,
   reportPath,
   splitStack,
+  stripAnsi,
   unique,
 } from './shared.js';
-import type { ResolvedTarget, TestAdapter } from './types.js';
+import type { ResolvedTarget, StreamParser, TestAdapter } from './types.js';
 
 const fullName = (ref: TestRef): string => ref.path.join(' ');
 
@@ -55,7 +56,7 @@ export const vitestAdapter: TestAdapter = {
       args: [
         ...prefix,
         'run',
-        '--reporter=default',
+        '--reporter=verbose',
         '--reporter=json',
         `--outputFile.json=${report}`,
         ...files,
@@ -66,6 +67,7 @@ export const vitestAdapter: TestAdapter = {
     };
   },
   parseReport: parseJestLikeReport,
+  stream: () => vitestStream(),
 };
 
 export const jestAdapter: TestAdapter = {
@@ -91,6 +93,32 @@ export const jestAdapter: TestAdapter = {
   },
   parseReport: parseJestLikeReport,
 };
+
+/**
+ * The JSON report only exists once the run ends, so every test would sit at "running" until then.
+ * The verbose reporter prints one line per finished test ("✓ src/a.test.ts > suite > test 2ms"),
+ * which lets each result land as it happens. The report still arrives last and fills in messages.
+ */
+const VITEST_LINE =
+  /^\s*([✓✔×✗✘↓⤳])\s+(?:\|[^|]*\|\s+)?(\S+?\.[cm]?[jt]sx?) > (.+?)(?:\s+\d+(?:\.\d+)?m?s)?\s*$/;
+
+function vitestStream(): StreamParser {
+  return {
+    push(line) {
+      const match = VITEST_LINE.exec(stripAnsi(line));
+      if (!match) return [];
+      const [, mark, file, names] = match;
+      const status =
+        mark === '✓' || mark === '✔'
+          ? 'passed'
+          : mark === '↓' || mark === '⤳'
+            ? 'skipped'
+            : 'failed';
+      return [{ file, path: names.split(' > '), status }];
+    },
+    finish: () => [],
+  };
+}
 
 /** Vitest's JSON reporter writes the same shape Jest does. */
 function parseJestLikeReport(text: string): ParsedTestResult[] {

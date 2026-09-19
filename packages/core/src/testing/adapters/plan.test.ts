@@ -54,7 +54,7 @@ describe('JavaScript runners', () => {
       command: '..\\..\\node_modules\\.bin\\vitest.cmd',
       args: [
         'run',
-        '--reporter=default',
+        '--reporter=verbose',
         '--reporter=json',
         '--outputFile.json=C:\\tmp\\run1\\vitest.json',
       ],

@@ -3,6 +3,7 @@ import { BrowserWindow, type IpcMainInvokeEvent, ipcMain } from 'electron';
 import icon from '../../../resources/icon.ico?asset';
 import type { RdpWindowState } from '../../shared/apiTypes';
 import { IPC } from '../../shared/ipcChannels';
+import { keepWindowsHidden } from '../testMode';
 
 /**
  * Each Remote Desktop session gets its own window, like Windows' Remote Desktop Connection:
@@ -75,7 +76,7 @@ export function openRdpWindow(options: OpenRdpWindowOptions): BrowserWindow {
   });
 
   window.once('ready-to-show', () => {
-    window.show();
+    if (!keepWindowsHidden) window.show();
     if (options.fullScreen) window.setFullScreen(true);
   });
   // The page sets its own title from React; keep the server's name on the taskbar instead.

@@ -11,6 +11,7 @@ import { openRdpSessionCount } from './ipc/rdp';
 import { openSshSessionCount } from './ipc/ssh';
 import { openCliSessionCount, terminalsKeepRunningAfterQuit } from './ipc/terminal';
 import { getMainWindow } from './mainWindow';
+import { keepWindowsHidden } from './testMode';
 
 /**
  * Closing the app while an agent CLI, an SSH connection or a Remote Desktop session is open
@@ -61,7 +62,7 @@ async function askNatively(summary: OpenSessionSummary): Promise<boolean> {
 
 function askInWindow(win: BrowserWindow, summary: OpenSessionSummary): Promise<boolean> {
   if (win.isMinimized()) win.restore();
-  if (!win.isVisible()) win.show();
+  if (!win.isVisible() && !keepWindowsHidden) win.show();
   win.focus();
   return new Promise((resolve) => {
     // A window that goes away mid-question can't answer; treat it as a no.

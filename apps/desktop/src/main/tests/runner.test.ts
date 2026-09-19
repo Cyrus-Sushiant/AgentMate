@@ -115,9 +115,9 @@ describe('TestRunManager', () => {
       summary: { running: false, cancelled: false, passed: 1, failed: 1, skipped: 0, errors: [] },
     });
     if (done.type === 'done')
-      expect(done.summary.commands[0]).toMatch(/vitest(\.cmd)? run --reporter=default/);
+      expect(done.summary.commands[0]).toMatch(/vitest(\.cmd)? run --reporter=verbose/);
 
-    expect(loggedArgs()[0].slice(0, 3)).toEqual(['run', '--reporter=default', '--reporter=json']);
+    expect(loggedArgs()[0].slice(0, 3)).toEqual(['run', '--reporter=verbose', '--reporter=json']);
     const snapshot = manager.lastRun('p1');
     expect(snapshot?.results).toHaveLength(2);
     expect(snapshot?.summary.failed).toBe(1);

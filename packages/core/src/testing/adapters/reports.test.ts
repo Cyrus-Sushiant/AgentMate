@@ -462,3 +462,23 @@ Failed asserting that 1 matches expected 2.
     }
   });
 });
+
+describe('vitest stream', () => {
+  it('reports each test from the verbose reporter as it finishes', () => {
+    const { results } = stream(
+      'vitest',
+      [
+        ' RUN  v3.0.0 /repo',
+        ' ✓ src/math.test.ts > math > adds 2ms',
+        ' × src/math.test.ts > math > breaks 3ms',
+        ' ↓ |unit| src/math.test.ts > math > later',
+        ' Test Files  1 failed (1)',
+      ].join('\n'),
+    );
+    expect(results.map((r) => [r.file, r.path.join(' > '), r.status])).toEqual([
+      ['src/math.test.ts', 'math > adds', 'passed'],
+      ['src/math.test.ts', 'math > breaks', 'failed'],
+      ['src/math.test.ts', 'math > later', 'skipped'],
+    ]);
+  });
+});
