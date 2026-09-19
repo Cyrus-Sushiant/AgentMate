@@ -1,5 +1,8 @@
+import type { Project } from '@agentmat/core';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
+import { useQuery } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   CircleCheck,
   CircleInfo,
@@ -10,9 +13,12 @@ import {
   TriangleAlert,
   X,
 } from '@/components/icons';
+import { ProjectIcon } from '@/components/projects/ProjectIcon';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { openMessageLink } from '@/lib/messageLink';
+import { queryKeys } from '@/lib/queryKeys';
 import { persianTextProps } from '@/lib/rtl';
 import { timeAgo } from '@/lib/time';
 import { replayToast } from '@/lib/toastHistory';
@@ -112,6 +118,16 @@ export function ToastHistoryPanel(): React.JSX.Element {
 
   const groups = useMemo(() => groupedItems(filtered), [filtered]);
 
+  const navigate = useNavigate();
+  const projectsQuery = useQuery({
+    queryKey: queryKeys.projects,
+    queryFn: () => window.agentmat.projects.list(),
+  });
+  const projectsById = useMemo(
+    () => new Map((projectsQuery.data ?? []).map((project) => [project.id, project])),
+    [projectsQuery.data],
+  );
+
   return (
     <DialogPrimitive.Root
       open={open}
@@ -205,7 +221,17 @@ export function ToastHistoryPanel(): React.JSX.Element {
                     </h3>
                     <ol className="space-y-1.5">
                       {group.items.map((item) => (
-                        <HistoryRow key={item.id} item={item} onRemove={() => remove(item.id)} />
+                        <HistoryRow
+                          key={item.id}
+                          item={item}
+                          project={item.projectId ? projectsById.get(item.projectId) : undefined}
+                          onOpen={() => {
+                            if (!item.link) return;
+                            setOpen(false);
+                            openMessageLink(item.link, navigate);
+                          }}
+                          onRemove={() => remove(item.id)}
+                        />
                       ))}
                     </ol>
                   </section>
@@ -253,34 +279,68 @@ export function ToastHistoryPanel(): React.JSX.Element {
 
 function HistoryRow({
   item,
+  project,
+  onOpen,
   onRemove,
 }: {
   item: ToastHistoryItem;
+  project: Project | undefined;
+  onOpen: () => void;
   onRemove: () => void;
 }): React.JSX.Element {
   const style = KIND_STYLE[item.kind];
   const Icon = style.icon;
   const titleProps = persianTextProps(item.title);
   const bodyProps = persianTextProps(item.description);
+  const openable = item.link !== undefined;
 
   return (
     <li>
+      {/* A row with a link is a button as a whole; the buttons inside it stop the click
+          from bubbling so "Show again" and "Remove" keep their own jobs. */}
       <div
+        role={openable ? 'button' : undefined}
+        tabIndex={openable ? 0 : undefined}
+        aria-label={openable ? `Open: ${item.title}` : undefined}
+        onClick={openable ? onOpen : undefined}
+        onKeyDown={
+          openable
+            ? (event) => {
+                if (event.target !== event.currentTarget) return;
+                if (event.key === 'Enter' || event.key === ' ') {
+                  event.preventDefault();
+                  onOpen();
+                }
+              }
+            : undefined
+        }
         className={cn(
           'group relative overflow-hidden rounded-xl border border-border/70 bg-background/40 p-3 transition-colors hover:bg-background/70',
+          openable &&
+            'cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
         )}
       >
         <span className={cn('absolute inset-y-0 left-0 w-0.5', style.edge)} aria-hidden />
         <div className="flex items-start gap-2.5 pl-1.5">
-          <span
-            className={cn(
-              'mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full',
-              style.wrap,
-              style.iconColor,
-            )}
-          >
-            <Icon className="h-3.5 w-3.5" />
-          </span>
+          {project ? (
+            <ProjectIcon
+              iconDataUrl={project.iconDataUrl}
+              bgColor={project.iconBgColor}
+              iconColor={project.iconColor}
+              className="mt-0.5 h-7 w-7 rounded-full"
+              glyphClassName="h-3.5 w-3.5"
+            />
+          ) : (
+            <span
+              className={cn(
+                'mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full',
+                style.wrap,
+                style.iconColor,
+              )}
+            >
+              <Icon className="h-3.5 w-3.5" />
+            </span>
+          )}
           <div className="min-w-0 flex-1 space-y-0.5">
             <div className="flex items-start justify-between gap-2">
               <p
@@ -308,20 +368,42 @@ function HistoryRow({
               </p>
             ) : null}
             <div className="flex flex-wrap items-center gap-2 pt-1">
+              {item.tag ? (
+                <span
+                  className={cn(
+                    'rounded-full px-1.5 py-0.5 text-[10px] font-semibold leading-none',
+                    style.wrap,
+                    style.iconColor,
+                  )}
+                >
+                  {item.tag}
+                </span>
+              ) : null}
+              {item.projectName ? (
+                <span className="truncate text-[11px] font-medium text-muted-foreground/80">
+                  {item.projectName}
+                </span>
+              ) : null}
               {item.count > 1 ? (
                 <span className="text-[10px] font-medium text-muted-foreground">×{item.count}</span>
               ) : null}
               <button
                 type="button"
                 className="text-[11px] font-medium text-muted-foreground hover:text-foreground"
-                onClick={() => replayToast(item.kind, item.title, item.description)}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  replayToast(item.kind, item.title, item.description);
+                }}
               >
                 Show again
               </button>
               <button
                 type="button"
                 className="ml-auto text-[11px] text-muted-foreground opacity-0 hover:text-destructive group-hover:opacity-100 focus-visible:opacity-100"
-                onClick={onRemove}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onRemove();
+                }}
                 aria-label="Remove from history"
               >
                 Remove

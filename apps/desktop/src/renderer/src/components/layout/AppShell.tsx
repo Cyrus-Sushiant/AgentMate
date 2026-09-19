@@ -19,6 +19,7 @@ import { SimpleTooltip } from '@/components/ui/tooltip';
 import { WorkspaceHeaderActions } from '@/components/workspace/WorkspaceHeaderActions';
 import { WorkspaceHost } from '@/components/workspace/WorkspaceHost';
 import { useAppLoadingOverlay } from '@/hooks/useAppLoadingOverlay';
+import { useAppNotificationMessages } from '@/hooks/useAppNotificationMessages';
 import { useGlobalShortcuts } from '@/hooks/useGlobalShortcuts';
 import { usePetDragGuard } from '@/hooks/usePetDragGuard';
 import { useVaultEvents } from '@/hooks/useVaultEvents';
@@ -33,7 +34,6 @@ import { useTerminalStore } from '@/stores/terminalStore';
 import { useToastHistoryStore } from '@/stores/toastHistoryStore';
 import { useUiStore } from '@/stores/uiStore';
 import { LoadingOverlay } from './LoadingOverlay';
-import { NotificationBell } from './NotificationBell';
 import { Sidebar } from './Sidebar';
 import { StatusBar } from './StatusBar';
 import { TitleBar } from './TitleBar';
@@ -116,7 +116,6 @@ function TopBar(): React.JSX.Element {
             )}
           </Button>
         </SimpleTooltip>
-        <NotificationBell />
         {/* The general terminal (for running the app, installs and so on) stays available on
             every page, the Workspace included, where it opens over the panes. */}
         <SimpleTooltip
@@ -167,6 +166,8 @@ export function AppShell(): React.JSX.Element {
 
   useGlobalShortcuts();
   useVaultEvents();
+  // Pipeline results and CLI updates surface as messages, and stay in Recent messages.
+  useAppNotificationMessages();
   // Agent status is followed app-wide, so a workspace agent can notify from any page.
   useEffect(() => initAgentStatus(), []);
   // Ditto for AI-driven SSH tasks: progress must keep updating even off the Workspace page.

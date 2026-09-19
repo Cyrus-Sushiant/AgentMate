@@ -1,5 +1,12 @@
 import { type ExternalToast, toast } from 'sonner';
-import { type ToastHistoryKind, useToastHistoryStore } from '@/stores/toastHistoryStore';
+import {
+  type ToastHistoryItem,
+  type ToastHistoryKind,
+  type ToastHistoryLink,
+  useToastHistoryStore,
+} from '@/stores/toastHistoryStore';
+
+type ToastHistoryItemInput = Omit<ToastHistoryItem, 'id' | 'createdAt' | 'read' | 'count'>;
 
 let installed = false;
 let suppressRecord = 0;
@@ -50,6 +57,29 @@ export function replayToast(kind: ToastHistoryKind, title: string, description: 
   } finally {
     suppressRecord -= 1;
   }
+}
+
+/**
+ * Flash a toast that carries a link (an "Open" button) and keep it in history with the
+ * same link, so the row in Recent messages opens it too. The auto-capture is held off
+ * for the call so the message lands in history once, with its link.
+ */
+export function showLinkedToast(
+  message: Omit<ToastHistoryItemInput, 'link'> & { link: ToastHistoryLink },
+  onOpen: () => void,
+): void {
+  const { kind, title, description } = message;
+  suppressRecord += 1;
+  try {
+    const fn = kind === 'message' ? toast.message : toast[kind];
+    fn(title, {
+      description: description || undefined,
+      action: { label: 'Open', onClick: onOpen },
+    });
+  } finally {
+    suppressRecord -= 1;
+  }
+  useToastHistoryStore.getState().add(message);
 }
 
 /** Hook sonner's typed toast helpers so every flash is kept in history. */

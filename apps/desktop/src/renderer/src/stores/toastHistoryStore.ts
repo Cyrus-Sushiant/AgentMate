@@ -3,6 +3,14 @@ import { persist } from 'zustand/middleware';
 
 export type ToastHistoryKind = 'success' | 'error' | 'warning' | 'info' | 'message';
 
+/** Where clicking a message goes: a page inside the app, or an outside URL. */
+export interface ToastHistoryLink {
+  route?: string;
+  url?: string;
+  /** The inbox entry behind the message, so opening it can mark that read too. */
+  notificationId?: string;
+}
+
 export interface ToastHistoryItem {
   id: string;
   kind: ToastHistoryKind;
@@ -11,6 +19,12 @@ export interface ToastHistoryItem {
   createdAt: string;
   read: boolean;
   count: number;
+  link?: ToastHistoryLink;
+  /** Lets the row show that project's icon. */
+  projectId?: string | null;
+  projectName?: string;
+  /** Short outcome label such as "Failed" or "Passed". */
+  tag?: string;
 }
 
 const MAX_ITEMS = 80;
@@ -48,7 +62,9 @@ export const useToastHistoryStore = create<ToastHistoryState>()(
           head &&
           head.kind === incoming.kind &&
           head.title === incoming.title &&
-          head.description === incoming.description
+          head.description === incoming.description &&
+          head.link?.route === incoming.link?.route &&
+          head.link?.url === incoming.link?.url
         ) {
           set({
             items: [
