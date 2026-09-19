@@ -377,6 +377,42 @@ describe('renameTab', () => {
   });
 });
 
+describe('setAutoContinue', () => {
+  it('turns each option on and off without touching the other', () => {
+    const { tabId } = withTerminal();
+    store().setAutoContinue('p1', tabId, { afterLimitReset: true });
+    store().setAutoContinue('p1', tabId, { afterNetworkError: true });
+    expect(workspace().tabs[tabId]).toMatchObject({
+      autoContinue: { afterLimitReset: true, afterNetworkError: true },
+    });
+
+    store().setAutoContinue('p1', tabId, { afterLimitReset: false });
+    expect(workspace().tabs[tabId]).toMatchObject({
+      autoContinue: { afterLimitReset: false, afterNetworkError: true },
+    });
+  });
+
+  it('keeps the options when the tab is restarted', () => {
+    const { tabId } = withTerminal();
+    store().setAutoContinue('p1', tabId, { afterNetworkError: true });
+    store().restartTab('p1', tabId);
+    const [freshId] = allTabIds(workspace().root);
+    expect(freshId).not.toBe(tabId);
+    expect(workspace().tabs[freshId]).toMatchObject({
+      autoContinue: { afterNetworkError: true },
+    });
+  });
+
+  it('leaves a file tab alone', () => {
+    store().openProject('p1');
+    store().openFile('p1', 'E:\\proj\\a.ts');
+    const [tabId] = Object.keys(workspace().tabs);
+    const before = workspace();
+    store().setAutoContinue('p1', tabId, { afterLimitReset: true });
+    expect(workspace()).toStrictEqual(before);
+  });
+});
+
 describe('toggleZoom', () => {
   it('blows a pane up and puts it back, focusing it either way', () => {
     const { groupId } = withTerminal();

@@ -1,3 +1,4 @@
+import { BrowserWindow } from 'electron';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { TerminalAttachResult, TerminalUsageResult } from '../../shared/apiTypes';
 import { IPC } from '../../shared/ipcChannels';
@@ -148,11 +149,13 @@ beforeEach(async () => {
   host.local.writes = [];
   host.local.resizes = [];
   host.local.killed = [];
-  await loadIpc(
+  terminal = await loadIpc(
     () => import('./terminal'),
     (module) => module.registerTerminalHandlers(),
   );
 });
+
+let terminal: typeof import('./terminal');
 
 describe('terminal:create', () => {
   it('starts a session and passes the ids the hook scripts read back', async () => {
@@ -402,5 +405,92 @@ describe('losing the host', () => {
     expect(host.local.writes).toContainEqual({ sessionId: 'in-process', data: 'echo hi\r' });
     expect(host.local.resizes).toContainEqual({ sessionId: 'in-process', cols: 80, rows: 24 });
     expect(host.local.killed).toContain('in-process');
+  });
+});
+
+describe('auto-continue', () => {
+  /** What main typed into a session through the host, in order. */
+  function writesTo(sessionId: string): string[] {
+    return host.state.notifications
+      .filter((one) => one.type === 'write' && one.payload?.sessionId === sessionId)
+      .map((one) => String(one.payload?.data));
+  }
+
+  /** Opens an agent tab and turns auto-continue on for it, the way the workspace does. */
+  async function agentTab(sessionId: string): Promise<void> {
+    await invoke(IPC.terminal.create, { sessionId, cliId: 'claude-code' });
+    terminal.autoContinue.sync([
+      {
+        sessionId,
+        projectId: 'p1',
+        cliId: 'claude-code',
+        title: 'Claude Code',
+        autoContinue: { afterLimitReset: true, afterNetworkError: true },
+      },
+    ]);
+  }
+
+  it('types continue into the shell once the usage limit has reset', async () => {
+    vi.useFakeTimers({ now: Date.UTC(2026, 8, 19, 10, 0) });
+    await agentTab('limited');
+    host.state.events?.onData('limited', '5-hour limit reached ∙ resets 3pm (UTC)\r\n');
+    expect(terminal.autoContinue.list().limited).toMatchObject({
+      kind: 'limit',
+      fireAt: Date.UTC(2026, 8, 19, 15, 1, 30),
+    });
+
+    await vi.advanceTimersByTimeAsync(5 * 60 * 60_000);
+    expect(writesTo('limited')).toEqual([]);
+    await vi.advanceTimersByTimeAsync(2 * 60_000);
+    expect(writesTo('limited')).toEqual(['\x1b', 'continue', '\r']);
+  });
+
+  it('tells every window what is scheduled', async () => {
+    const window = new BrowserWindow() as unknown as {
+      webContents: { sentOn(channel: string): unknown[][] };
+    };
+    await agentTab('announced');
+    host.state.events?.onData('announced', 'API Error: Connection error.');
+    const [[changes]] = window.webContents.sentOn(IPC.agents.onAutoContinue) as [
+      [Record<string, { kind: string }>],
+    ];
+    expect(changes.announced).toMatchObject({ kind: 'network' });
+  });
+
+  it('drops the scheduled continue when the user presses Enter in the tab', async () => {
+    await agentTab('taken-over');
+    host.state.events?.onData('taken-over', 'API Error: Connection error.');
+    await invoke(IPC.terminal.write, 'taken-over', 'y');
+    expect(terminal.autoContinue.list()['taken-over']).toBeTruthy();
+    await invoke(IPC.terminal.write, 'taken-over', '\r');
+    expect(terminal.autoContinue.list()['taken-over']).toBeUndefined();
+  });
+
+  it('ignores an old error the CLI repaints after a resize', async () => {
+    await agentTab('resized');
+    await invoke(IPC.terminal.resize, 'resized', 100, 30);
+    host.state.events?.onData('resized', 'API Error: Connection error.');
+    expect(terminal.autoContinue.list().resized).toBeUndefined();
+  });
+
+  it('forgets a tab when it is closed or its shell exits', async () => {
+    await agentTab('closed');
+    host.state.events?.onData('closed', 'API Error: Connection error.');
+    await invoke(IPC.terminal.kill, 'closed');
+    expect(terminal.autoContinue.list().closed).toBeUndefined();
+
+    await agentTab('exited');
+    host.state.events?.onData('exited', 'API Error: Connection error.');
+    host.state.events?.onExit('exited', 0);
+    expect(terminal.autoContinue.list().exited).toBeUndefined();
+  });
+
+  it('leaves a tab alone that did not turn it on', async () => {
+    await invoke(IPC.terminal.create, { sessionId: 'plain', cliId: 'claude-code' });
+    terminal.autoContinue.sync([
+      { sessionId: 'plain', projectId: 'p1', cliId: 'claude-code', title: 'Claude Code' },
+    ]);
+    host.state.events?.onData('plain', 'API Error: Connection error.');
+    expect(terminal.autoContinue.list()).toEqual({});
   });
 });

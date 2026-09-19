@@ -85,7 +85,10 @@ async function openServerTab(replies: string[]): Promise<Page> {
     location.hash = '#/remote';
   });
   await page.getByRole('button', { name: 'SSH', exact: true }).click();
-  await page.getByRole('button', { name: 'Connect' }).first().click();
+  // The Remote page has a "Connect" tab of its own, so this has to be the server's own button.
+  const savedServer = page.getByRole('listitem').filter({ hasText: 'E2E server' });
+  await expect(savedServer).toBeVisible({ timeout: 30_000 });
+  await savedServer.getByRole('button', { name: 'Connect' }).click();
   await expect(terminalRows(page)).toContainText(SHELL_PROMPT, { timeout: 30_000 });
   return page;
 }

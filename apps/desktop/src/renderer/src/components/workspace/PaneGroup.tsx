@@ -13,6 +13,15 @@ import {
   TerminalSquare,
   X,
 } from '@/components/icons';
+import {
+  ContextMenu,
+  ContextMenuCheckboxItem,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuLabel,
+  ContextMenuSeparator,
+  ContextMenuTrigger,
+} from '@/components/ui/context-menu';
 import { Skeleton } from '@/components/ui/skeleton';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { useTerminalSessionStore } from '@/lib/terminal/terminalRuntime';
@@ -23,6 +32,7 @@ import {
   modelDisplayName,
   useAgentRunInfo,
   useAgentStatus,
+  useAutoContinuePending,
 } from '@/stores/agentStatusStore';
 import { confirmDialog } from '@/stores/confirmStore';
 import { useShortcutLabel } from '@/stores/shortcutStore';
@@ -33,7 +43,7 @@ import {
   type WorkspaceTab,
 } from '@/stores/workspaceStore';
 import { AGENT_STATUS_LABEL, AgentStatusDot } from './AgentStatusDot';
-import { AutoContinueMenu } from './AutoContinueMenu';
+import { AutoContinueMenu, autoContinuePendingLine } from './AutoContinueMenu';
 import { LauncherMenu } from './LauncherMenu';
 import { PaneLauncher } from './PaneLauncher';
 import { TerminalSlot } from './TerminalSlot';
@@ -156,6 +166,8 @@ function PaneTab({
   onClose,
 }: PaneTabProps): React.JSX.Element {
   const renameTab = useWorkspaceStore((s) => s.renameTab);
+  const setAutoContinue = useWorkspaceStore((s) => s.setAutoContinue);
+  const autoContinuePending = useAutoContinuePending(tab.id);
   const openDiff = useWorkspaceStore((s) => s.openDiff);
   const openFile = useWorkspaceStore((s) => s.openFile);
   const liveTitle = useTerminalSessionStore((s) => s.titles[tab.id]);
@@ -163,6 +175,7 @@ function PaneTab({
   const status = useAgentStatus(tab.id);
   const runInfo = useAgentRunInfo(tab.id);
   const [editing, setEditing] = useState(false);
+  const renameRequested = useRef(false);
   // An agent tab takes the name the agent gave its task, as Orca does, once that task is done:
   // renaming the tab while the agent is still working would make it jump around under the user.
   const agentTitle =
@@ -204,99 +217,170 @@ function PaneTab({
       tab.path
     );
 
-  return (
+  const tabElement = (
     <SimpleTooltip label={editing ? null : tooltip} delayDuration={600}>
-      <div
-        role="tab"
-        aria-selected={active}
-        tabIndex={active ? 0 : -1}
-        draggable={!editing}
-        data-tab-id={tab.id}
-        onDragStart={(event) => {
-          const payload: DraggedTab = { projectId, tabId: tab.id, groupId };
-          event.dataTransfer.setData(TAB_MIME, JSON.stringify(payload));
-          event.dataTransfer.effectAllowed = 'move';
-        }}
-        onClick={onSelect}
-        onKeyDown={(event) => {
-          if (event.key === 'Enter' || event.key === ' ') {
-            event.preventDefault();
-            onSelect();
-          }
-        }}
-        onMouseDown={(event) => {
-          if (event.button === 1) event.preventDefault();
-        }}
-        onAuxClick={(event) => {
-          if (event.button === 1) {
-            event.preventDefault();
-            onClose();
-          }
-        }}
-        onDoubleClick={() => {
-          if (tab.kind === 'terminal') setEditing(true);
-          else if (tab.kind === 'diff' && tab.preview) openDiff(projectId, tab, { pin: true });
-          else if (tab.kind === 'file' && tab.preview) openFile(projectId, tab.path, { pin: true });
-        }}
-        className={cn(
-          'group relative flex h-7 min-w-[4.5rem] max-w-[13rem] shrink cursor-pointer select-none items-center gap-1.5 rounded-md pl-2 pr-1 text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-          attention === 'needs-input'
-            ? 'bg-warning/12 text-foreground ring-1 ring-inset ring-warning/30'
-            : active
-              ? 'bg-foreground/[0.08] text-foreground'
-              : 'text-muted-foreground hover:bg-foreground/[0.05] hover:text-foreground',
-        )}
-      >
-        {active && groupFocused ? (
-          <span className="absolute inset-x-2 -bottom-[5px] h-[2px] rounded-full bg-primary shadow-[0_0_8px_hsl(var(--primary)/0.7)]" />
-        ) : null}
-        <TabIcon tab={tab} />
-        {editing && tab.kind === 'terminal' ? (
-          <input
-            autoFocus
-            defaultValue={label}
-            aria-label="Tab name"
-            onClick={(event) => event.stopPropagation()}
-            onBlur={(event) => {
-              renameTab(projectId, tab.id, event.currentTarget.value);
-              setEditing(false);
-            }}
-            onKeyDown={(event) => {
-              event.stopPropagation();
-              if (event.key === 'Enter') event.currentTarget.blur();
-              if (event.key === 'Escape') setEditing(false);
-            }}
-            className="h-5 min-w-0 flex-1 rounded border border-primary/40 bg-background px-1 text-xs outline-none"
-          />
-        ) : (
-          <span
-            className={cn(
-              'min-w-0 flex-1 truncate',
-              (tab.kind === 'diff' || tab.kind === 'file') && tab.preview && 'italic',
-              ended && 'text-muted-foreground line-through decoration-foreground/30',
-            )}
-          >
-            {label}
-          </span>
-        )}
-        <AgentStatusDot status={attention} />
-        <button
-          type="button"
-          aria-label={`Close ${label}`}
-          tabIndex={-1}
-          onClick={(event) => {
-            event.stopPropagation();
-            onClose();
+      <ContextMenuTrigger asChild disabled={tab.kind !== 'terminal'}>
+        <div
+          role="tab"
+          aria-selected={active}
+          tabIndex={active ? 0 : -1}
+          draggable={!editing}
+          data-tab-id={tab.id}
+          onDragStart={(event) => {
+            const payload: DraggedTab = { projectId, tabId: tab.id, groupId };
+            event.dataTransfer.setData(TAB_MIME, JSON.stringify(payload));
+            event.dataTransfer.effectAllowed = 'move';
+          }}
+          onClick={onSelect}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter' || event.key === ' ') {
+              event.preventDefault();
+              onSelect();
+            }
+          }}
+          onMouseDown={(event) => {
+            if (event.button === 1) event.preventDefault();
+          }}
+          onAuxClick={(event) => {
+            if (event.button === 1) {
+              event.preventDefault();
+              onClose();
+            }
+          }}
+          onDoubleClick={() => {
+            if (tab.kind === 'terminal') setEditing(true);
+            else if (tab.kind === 'diff' && tab.preview) openDiff(projectId, tab, { pin: true });
+            else if (tab.kind === 'file' && tab.preview)
+              openFile(projectId, tab.path, { pin: true });
           }}
           className={cn(
-            'flex h-4 w-4 shrink-0 items-center justify-center rounded-sm text-muted-foreground transition-opacity hover:bg-foreground/15 hover:text-foreground',
-            active ? 'opacity-70' : 'opacity-0 group-hover:opacity-70',
+            'group relative flex h-7 min-w-[4.5rem] max-w-[13rem] shrink cursor-pointer select-none items-center gap-1.5 rounded-md pl-2 pr-1 text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+            attention === 'needs-input'
+              ? 'bg-warning/12 text-foreground ring-1 ring-inset ring-warning/30'
+              : active
+                ? 'bg-foreground/[0.08] text-foreground'
+                : 'text-muted-foreground hover:bg-foreground/[0.05] hover:text-foreground',
           )}
         >
-          <X className="h-2.5 w-2.5" />
-        </button>
-      </div>
+          {active && groupFocused ? (
+            <span className="absolute inset-x-2 -bottom-[5px] h-[2px] rounded-full bg-primary shadow-[0_0_8px_hsl(var(--primary)/0.7)]" />
+          ) : null}
+          <TabIcon tab={tab} />
+          {editing && tab.kind === 'terminal' ? (
+            <input
+              autoFocus
+              defaultValue={label}
+              aria-label="Tab name"
+              onClick={(event) => event.stopPropagation()}
+              onBlur={(event) => {
+                renameTab(projectId, tab.id, event.currentTarget.value);
+                setEditing(false);
+              }}
+              onKeyDown={(event) => {
+                event.stopPropagation();
+                if (event.key === 'Enter') event.currentTarget.blur();
+                if (event.key === 'Escape') setEditing(false);
+              }}
+              className="h-5 min-w-0 flex-1 rounded border border-primary/40 bg-background px-1 text-xs outline-none"
+            />
+          ) : (
+            <span
+              className={cn(
+                'min-w-0 flex-1 truncate',
+                (tab.kind === 'diff' || tab.kind === 'file') && tab.preview && 'italic',
+                ended && 'text-muted-foreground line-through decoration-foreground/30',
+              )}
+            >
+              {label}
+            </span>
+          )}
+          <AgentStatusDot status={attention} />
+          <button
+            type="button"
+            aria-label={`Close ${label}`}
+            tabIndex={-1}
+            onClick={(event) => {
+              event.stopPropagation();
+              onClose();
+            }}
+            className={cn(
+              'flex h-4 w-4 shrink-0 items-center justify-center rounded-sm text-muted-foreground transition-opacity hover:bg-foreground/15 hover:text-foreground',
+              active ? 'opacity-70' : 'opacity-0 group-hover:opacity-70',
+            )}
+          >
+            <X className="h-2.5 w-2.5" />
+          </button>
+        </div>
+      </ContextMenuTrigger>
     </SimpleTooltip>
+  );
+
+  if (tab.kind !== 'terminal') return tabElement;
+  const isAgent = Boolean(tab.cliId) && !ended;
+  return (
+    <ContextMenu>
+      {tabElement}
+      <ContextMenuContent
+        className="w-64"
+        onCloseAutoFocus={(event) => {
+          event.preventDefault();
+          // The menu keeps focus trapped until it has finished closing, which would blur the
+          // name field straight away, so Rename only starts once it is fully gone.
+          if (renameRequested.current) {
+            renameRequested.current = false;
+            setEditing(true);
+          }
+        }}
+      >
+        <ContextMenuItem
+          onSelect={() => {
+            renameRequested.current = true;
+          }}
+        >
+          Rename
+        </ContextMenuItem>
+        {isAgent ? (
+          <>
+            <ContextMenuSeparator />
+            <ContextMenuLabel>Auto-continue</ContextMenuLabel>
+            <ContextMenuCheckboxItem
+              checked={Boolean(tab.autoContinue?.afterLimitReset)}
+              onSelect={(event) => event.preventDefault()}
+              onCheckedChange={(checked) =>
+                setAutoContinue(projectId, tab.id, { afterLimitReset: checked })
+              }
+            >
+              After the usage limit resets
+            </ContextMenuCheckboxItem>
+            <ContextMenuCheckboxItem
+              checked={Boolean(tab.autoContinue?.afterNetworkError)}
+              onSelect={(event) => event.preventDefault()}
+              onCheckedChange={(checked) =>
+                setAutoContinue(projectId, tab.id, { afterNetworkError: checked })
+              }
+            >
+              After a network error
+            </ContextMenuCheckboxItem>
+            {autoContinuePending ? (
+              <>
+                <p className="px-2 py-1 text-[11px] text-muted-foreground">
+                  {autoContinuePendingLine(autoContinuePending)}
+                </p>
+                <ContextMenuItem
+                  onSelect={() => void window.agentmat.agents.cancelAutoContinue(tab.id)}
+                >
+                  Cancel scheduled continue
+                </ContextMenuItem>
+              </>
+            ) : null}
+          </>
+        ) : null}
+        <ContextMenuSeparator />
+        <ContextMenuItem tone="danger" onSelect={onClose}>
+          Close
+        </ContextMenuItem>
+      </ContextMenuContent>
+    </ContextMenu>
   );
 }
 
