@@ -2,7 +2,8 @@ name: CI
 
 # Checks every push and pull request: formatting/lint (Biome), no deprecated
 # dependencies or deprecated imports, types, a real build of the desktop app,
-# and the test suites (unit, integration, mobile and end-to-end, in test.yml).
+# and the test suites (unit, integration and mobile always, end-to-end only when
+# tagged with [e2e]; see the tests job below).
 # Cross-platform packaging is left to the CD workflow, which runs on the
 # actual Windows/macOS/Linux runners when a release tag is pushed.
 
@@ -11,7 +12,14 @@ on:
     branches:
       - master
   pull_request:
+    # `edited` so adding [e2e] to the title of an open pull request starts the E2E matrix.
+    types: [opened, synchronize, reopened, edited]
   workflow_dispatch:
+    inputs:
+      e2e:
+        description: Run the Electron end-to-end matrix
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -78,9 +86,14 @@ jobs:
         if: ${{ !cancelled() }}
         run: pnpm --filter @agentmat/desktop build
 
+  # The E2E matrix is slow (three OSes), so it only runs when asked for with the [e2e] tag: in a
+  # commit message of the push, or in the pull request title. A manual run can tick the e2e box
+  # instead. Unit tests always run.
   tests:
     name: Tests
     uses: ./.github/workflows/test.yml
+    with:
+      e2e: ${{ (github.event_name == 'push' && contains(join(github.event.commits.*.message, ' '), '[e2e]')) || (github.event_name == 'pull_request' && contains(github.event.pull_request.title, '[e2e]')) || (github.event_name == 'workflow_dispatch' && inputs.e2e) }}
 
   # One status to require in branch protection: the matrix job names change whenever the OS list
   # does, and a skipped job would otherwise count as success.
