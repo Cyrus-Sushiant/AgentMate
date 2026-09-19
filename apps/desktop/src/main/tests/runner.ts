@@ -42,6 +42,16 @@ const MAX_OUTPUT_CHARS = 200_000;
 /** cmd.exe refuses lines past 8191 characters; leave room for the shim's own expansion. */
 const MAX_WINDOWS_COMMAND_CHARS = 7_000;
 
+/**
+ * The app's own environment, minus NODE_ENV. Jest and Vitest only set NODE_ENV=test when it is
+ * unset, so passing on the app's "development" or "production" changes how the tests run. React
+ * Native's Animated, for one, stops re-rendering on setValue outside of "test".
+ */
+function testEnv(): NodeJS.ProcessEnv {
+  const { NODE_ENV: _, ...env } = process.env;
+  return env;
+}
+
 export interface TestRunManagerDeps {
   emit: (event: TestRunEvent) => void;
   spawn?: typeof spawnStreaming;
@@ -276,7 +286,7 @@ export class TestRunManager {
             command: plan.command,
             args: plan.args,
             cwd: join(input.folderPath, plan.cwd),
-            env: { ...process.env, PYTHONUNBUFFERED: '1', ...plan.env },
+            env: { ...testEnv(), PYTHONUNBUFFERED: '1', ...plan.env },
             timeoutMs: this.deps.timeoutMs,
             token: run.token,
             onLine: (line) => {

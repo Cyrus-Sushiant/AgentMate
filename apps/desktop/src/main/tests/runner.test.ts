@@ -145,6 +145,26 @@ describe('TestRunManager', () => {
     );
   }, 60_000);
 
+  it("keeps the app's NODE_ENV away from the test runner", async () => {
+    // Jest and Vitest only default to "test" when NODE_ENV is unset.
+    const saved = process.env.NODE_ENV;
+    process.env.NODE_ENV = 'production';
+    try {
+      const { discovery, manager } = await setup();
+      manager.start({
+        projectId: 'p1',
+        folderPath: root,
+        discovery,
+        targets: [{ testProjectId: 'vitest:web' }],
+      });
+      await manager.whenIdle('p1');
+      expect(manager.lastRun('p1')?.output).toContain('NODE_ENV=(unset)');
+    } finally {
+      if (saved === undefined) delete process.env.NODE_ENV;
+      else process.env.NODE_ENV = saved;
+    }
+  }, 60_000);
+
   it.skipIf(!onWindows)(
     'falls back to the whole file when a test name cannot pass through cmd.exe',
     async () => {

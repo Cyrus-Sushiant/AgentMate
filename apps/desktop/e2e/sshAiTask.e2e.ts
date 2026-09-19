@@ -131,6 +131,8 @@ test('runs commands with clean output and answers sudo with the saved password',
   await expect(bar).toContainText('Running');
 
   await expect(bar).toContainText('Checked the server.', { timeout: 60_000 });
+  // The bar can update before xterm paints the last rows, so wait for them before reading.
+  await expect.poll(() => terminalText(page)).toMatch(/^tick1\ntick2$/m);
 
   const text = await terminalText(page);
   expect(text).toContain(`${SHELL_PROMPT} grep CODENAME /etc/os-release`);
@@ -168,6 +170,7 @@ test('lets the user type the sudo password themselves', async () => {
   await page.keyboard.press('Enter');
 
   await expect(bar).toContainText('Confirmed root.', { timeout: 60_000 });
+  await expect.poll(() => terminalText(page)).toMatch(/^root$/m);
   const text = await terminalText(page);
   expect(text).toMatch(/^root$/m);
   expect(text).not.toContain(SSH_PASSWORD);
@@ -179,6 +182,7 @@ test('shows a failing command with its error and passes the exit code on', async
   await startTask(page, 'Look for /does-not-exist');
 
   await expect(agentBar(page)).toContainText('It is missing.', { timeout: 60_000 });
+  await expect(terminalRows(page)).toContainText('No such file or directory');
   const text = await terminalText(page);
   expect(text).toContain(`${SHELL_PROMPT} ls /does-not-exist`);
   expect(text).toContain("ls: cannot access '/does-not-exist': No such file or directory");

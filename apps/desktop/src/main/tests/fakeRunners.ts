@@ -18,6 +18,7 @@ fs.appendFileSync(process.env.FAKE_ARGS_LOG, JSON.stringify(args) + '\\n');
 const mode = process.env.FAKE_VITEST_MODE || 'report';
 const out = (args.find((a) => a.startsWith('--outputFile.json=')) || '').slice('--outputFile.json='.length);
 console.log(' RUN  v0.0.0 fake');
+console.log('NODE_ENV=' + (process.env.NODE_ENV || '(unset)'));
 if (mode === 'crash') {
   console.error('SyntaxError: Unexpected token (3:4)');
   process.exit(1);
