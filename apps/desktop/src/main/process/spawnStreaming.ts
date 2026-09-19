@@ -12,6 +12,8 @@ import { withToolPath } from '../toolPaths';
  */
 
 const MAX_LOG_CHARS = 20_000;
+/** How long a POSIX child gets to act on SIGTERM before the group is killed outright. */
+const SIGKILL_AFTER_MS = 5_000;
 
 /** Color and cursor codes are noise once the output is shown in a log panel. */
 export function stripAnsi(text: string): string {
@@ -59,7 +61,29 @@ export function killProcessTree(child: ChildProcess): void {
     });
     return;
   }
-  child.kill('SIGTERM');
+  if (!child.pid) return;
+  // The child leads its own process group (it is spawned detached), so a negative pid signals the
+  // whole group. Signalling the child alone would leave its own children running.
+  try {
+    process.kill(-child.pid, 'SIGTERM');
+  } catch {
+    // No group, or it is already gone: the direct child is all there is to stop.
+    try {
+      child.kill('SIGTERM');
+    } catch {
+      // Already exited.
+    }
+  }
+  const pid = child.pid;
+  const escalate = setTimeout(() => {
+    if (child.exitCode !== null || child.signalCode !== null) return;
+    try {
+      process.kill(-pid, 'SIGKILL');
+    } catch {
+      // Gone after all.
+    }
+  }, SIGKILL_AFTER_MS);
+  escalate.unref?.();
 }
 
 export interface CancelToken {
@@ -137,12 +161,14 @@ export async function spawnStreaming(
       : spawn(options.command, options.args, {
           cwd: options.cwd,
           env,
+          // Its own process group, so cancelling can take down the tools it starts in turn
+          // (a test runner's workers, a scanner's Python helpers) and not just the child itself.
+          detached: true,
         });
 
     options.token.child = child;
 
     let log = '';
-    let pending = '';
     let timedOut = false;
     let settled = false;
 
@@ -151,25 +177,39 @@ export async function spawnStreaming(
       killProcessTree(child);
     }, options.timeoutMs);
 
-    const consume = (chunk: Buffer | string): void => {
-      const text = stripAnsi(chunk.toString());
-      log = trimLog(log + text);
-      if (!options.onLine) return;
-      pending += text;
-      const lines = pending.split('\n');
-      pending = lines.pop() ?? '';
-      for (const line of lines) options.onLine(line);
+    /**
+     * stdout and stderr are separate pipes and interleave freely, so each keeps its own half-read
+     * line. Sharing one buffer glues a stderr line onto whatever stdout had not finished writing.
+     */
+    const reader = () => {
+      let pending = '';
+      return {
+        push(chunk: Buffer | string): void {
+          const text = stripAnsi(chunk.toString());
+          log = trimLog(log + text);
+          if (!options.onLine) return;
+          pending += text;
+          const lines = pending.split('\n');
+          pending = lines.pop() ?? '';
+          for (const line of lines) options.onLine(line);
+        },
+        rest: (): string => pending,
+      };
     };
+    const out = reader();
+    const err = reader();
 
-    child.stdout?.on('data', consume);
-    child.stderr?.on('data', consume);
+    child.stdout?.on('data', (chunk: Buffer | string) => out.push(chunk));
+    child.stderr?.on('data', (chunk: Buffer | string) => err.push(chunk));
 
     const finish = (code: number | null, notFound: boolean): void => {
       if (settled) return;
       settled = true;
       clearTimeout(timer);
       options.token.child = null;
-      if (pending && options.onLine) options.onLine(pending);
+      for (const rest of [out.rest(), err.rest()]) {
+        if (rest && options.onLine) options.onLine(rest);
+      }
       resolve({
         code,
         log,

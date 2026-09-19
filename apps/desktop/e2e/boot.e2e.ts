@@ -22,10 +22,11 @@ test('the window opens with the bridge and the app version in place', async () =
 
   await expect(page.locator('body')).toBeVisible();
 
-  // An unpackaged run reports Electron's own version rather than the app's, so this only checks
-  // that a version is there. The app version is asserted from package.json instead.
+  // An unpackaged run has no app version of its own: Windows reports Electron's, Linux reports
+  // "0.0". So this only checks that something is there, and the real version comes from
+  // package.json below.
   const version = await app.evaluate(({ app: electronApp }) => electronApp.getVersion());
-  expect(version).toMatch(/^\d+\.\d+\.\d+/);
+  expect(version).toMatch(/^\d+\.\d+/);
   const manifest = JSON.parse(readFileSync(join(__dirname, '..', 'package.json'), 'utf-8')) as {
     version: string;
   };

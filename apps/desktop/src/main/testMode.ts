@@ -1,5 +1,5 @@
 import { resolve } from 'node:path';
-import { app } from 'electron';
+import { app, safeStorage } from 'electron';
 
 /**
  * Set by the end-to-end suite. Turns off the startup work that reaches outside the app's own
@@ -13,4 +13,12 @@ export const isE2E = process.env.AGENTMATE_E2E === '1';
 const userDataOverride = process.env.AGENTMATE_USER_DATA_DIR?.trim();
 if (userDataOverride) {
   app.setPath('userData', resolve(userDataOverride));
+}
+
+// CI Linux runners have no keyring, so safeStorage would refuse to encrypt and saving a server
+// password would fail. Tests fall back to Electron's in-memory key there instead.
+if (isE2E && process.platform === 'linux') {
+  void app.whenReady().then(() => {
+    if (!safeStorage.isEncryptionAvailable()) safeStorage.setUsePlainTextEncryption(true);
+  });
 }

@@ -44,13 +44,23 @@ export async function probe(
   const env = await withToolPath();
   return new Promise((resolve) => {
     const onWindows = process.platform === 'win32';
-    execFile(
-      onWindows ? 'cmd.exe' : command,
-      onWindows ? ['/d', '/s', '/c', command, ...args] : args,
-      { timeout: timeoutMs, windowsHide: true, env },
-      (error, stdout) => {
-        resolve({ ok: !error, stdout: (stdout ?? '').toString().trim() });
-      },
-    );
+    // A blank command reaches execFile as an empty file name, which throws rather than failing
+    // the way a missing tool does. Preflight runs these without catching, so it must not throw.
+    if (!command.trim()) {
+      resolve({ ok: false, stdout: '' });
+      return;
+    }
+    try {
+      execFile(
+        onWindows ? 'cmd.exe' : command,
+        onWindows ? ['/d', '/s', '/c', command, ...args] : args,
+        { timeout: timeoutMs, windowsHide: true, env },
+        (error, stdout) => {
+          resolve({ ok: !error, stdout: (stdout ?? '').toString().trim() });
+        },
+      );
+    } catch {
+      resolve({ ok: false, stdout: '' });
+    }
   });
 }

@@ -77,6 +77,30 @@ describe('spawnStreaming', () => {
     expect(result.log).toContain('indented line');
   });
 
+  it('keeps stdout and stderr lines apart when they arrive interleaved', async () => {
+    const path = await script(
+      'interleave.js',
+      [
+        "process.stdout.write('half a line');",
+        'setTimeout(() => {',
+        String.raw`  process.stderr.write('a whole stderr line\n');`,
+        String.raw`  setTimeout(() => process.stdout.write(' and its other half\n'), 300);`,
+        '}, 300);',
+      ].join('\n'),
+    );
+    const lines: string[] = [];
+    await spawnStreaming({
+      command: 'node',
+      args: [path],
+      cwd: dir,
+      timeoutMs: 20_000,
+      token: { cancelled: false, child: null },
+      onLine: (line) => lines.push(line),
+    });
+    expect(lines).toContain('a whole stderr line');
+    expect(lines).toContain('half a line and its other half');
+  });
+
   it('passes extra environment variables through', async () => {
     const path = await script(
       'env.js',

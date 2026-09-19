@@ -183,7 +183,9 @@ test('copies an issue for a failing test', async () => {
   await page.getByRole('button', { name: 'Copy issue' }).click();
   await expect(page.getByText('Issue copied')).toBeVisible({ timeout: 20_000 });
 
-  const copied = await page.evaluate(() => (window as unknown as { copied?: string[] }).copied ?? []);
+  const copied = await page.evaluate(
+    () => (window as unknown as { copied?: string[] }).copied ?? [],
+  );
   expect(copied).toHaveLength(1);
   const text = copied[0];
   expect(text).toContain('Failing test: math > breaks');
