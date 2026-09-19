@@ -1,9 +1,10 @@
-import { type AgentStatus, catalogModelForApiId } from '@agentmat/core';
+import { type AgentStatus, type AutoContinuePending, catalogModelForApiId } from '@agentmat/core';
 import type {
   AgentRunInfo,
   AgentRunInfoMap,
   AgentSessionEntry,
   AgentStatusMap,
+  AutoContinuePendingMap,
 } from '@shared/apiTypes';
 import { create } from 'zustand';
 import { prepareStatusHooks } from '@/lib/workspace/launch';
@@ -14,12 +15,15 @@ interface AgentStatusState {
   statuses: AgentStatusMap;
   /** The model and effort each agent last reported, for tab tooltips. */
   runInfos: AgentRunInfoMap;
+  /** The "continue" each tab has scheduled after a usage limit or a network error. */
+  autoContinue: AutoContinuePendingMap;
 }
 
 /** What each workspace tab's agent is doing, as main last reported it. Not persisted. */
 export const useAgentStatusStore = create<AgentStatusState>(() => ({
   statuses: {},
   runInfos: {},
+  autoContinue: {},
 }));
 
 export function useAgentStatus(sessionId: string): AgentStatus {
@@ -28,6 +32,10 @@ export function useAgentStatus(sessionId: string): AgentStatus {
 
 export function useAgentRunInfo(sessionId: string): AgentRunInfo | undefined {
   return useAgentStatusStore((s) => s.runInfos[sessionId]);
+}
+
+export function useAutoContinuePending(sessionId: string): AutoContinuePending | null {
+  return useAgentStatusStore((s) => s.autoContinue[sessionId] ?? null);
 }
 
 /** A model id as people say it: `claude-opus-5-20260101` becomes "Opus 5". */
@@ -64,6 +72,7 @@ function sessionEntries(): AgentSessionEntry[] {
         projectId,
         cliId: tab.cliId,
         title: terminalTabLabel(tab),
+        autoContinue: tab.autoContinue,
       });
     }
   }
@@ -84,6 +93,11 @@ export function initAgentStatus(): void {
 
   agents.onStatus((changes) => {
     useAgentStatusStore.setState((state) => ({ statuses: { ...state.statuses, ...changes } }));
+  });
+  agents.onAutoContinue((changes) => {
+    useAgentStatusStore.setState((state) => ({
+      autoContinue: { ...state.autoContinue, ...changes },
+    }));
   });
   agents.onRunInfo((changes) => {
     useAgentStatusStore.setState((state) => ({ runInfos: { ...state.runInfos, ...changes } }));
@@ -106,8 +120,12 @@ export function initAgentStatus(): void {
     if (signature === lastSignature) return;
     lastSignature = signature;
     void agents.sync(entries).then(async () => {
-      const [statuses, runInfos] = await Promise.all([agents.list(), agents.runInfos()]);
-      useAgentStatusStore.setState({ statuses, runInfos });
+      const [statuses, runInfos, autoContinue] = await Promise.all([
+        agents.list(),
+        agents.runInfos(),
+        agents.autoContinuePending(),
+      ]);
+      useAgentStatusStore.setState({ statuses, runInfos, autoContinue });
     });
   };
   sync();

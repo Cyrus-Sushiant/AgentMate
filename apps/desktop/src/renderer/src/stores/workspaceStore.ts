@@ -1,4 +1,5 @@
 import {
+  type AutoContinueOptions,
   activateTab,
   addTab,
   allGroups,
@@ -41,6 +42,8 @@ export interface WorkspaceTerminalTab {
   launchInput?: string;
   /** The model and effort the tab was launched with, when chosen at launch ("Opus 5 · High"). */
   runLabel?: string;
+  /** Types "continue" for the agent after a usage limit resets or a network error. */
+  autoContinue?: AutoContinueOptions;
   restored?: boolean;
 }
 
@@ -149,6 +152,7 @@ interface WorkspaceState {
   moveTab: (projectId: string, tabId: string, groupId: string, index?: number) => void;
   setSplitRatio: (projectId: string, splitId: string, ratio: number) => void;
   renameTab: (projectId: string, tabId: string, title: string) => void;
+  setAutoContinue: (projectId: string, tabId: string, options: AutoContinueOptions) => void;
   toggleZoom: (projectId: string, groupId: string) => void;
   /**
    * Shows a file's diff. An already open tab for it comes forward; otherwise it replaces the
@@ -399,6 +403,14 @@ export const useWorkspaceStore = create<WorkspaceState>()(
             if (tab?.kind !== 'terminal') return ws;
             const userTitle = title.trim() || undefined;
             return { ...ws, tabs: { ...ws.tabs, [tabId]: { ...tab, userTitle } } };
+          }),
+
+        setAutoContinue: (projectId, tabId, options) =>
+          update(projectId, (ws) => {
+            const tab = ws.tabs[tabId];
+            if (tab?.kind !== 'terminal') return ws;
+            const autoContinue = { ...tab.autoContinue, ...options };
+            return { ...ws, tabs: { ...ws.tabs, [tabId]: { ...tab, autoContinue } } };
           }),
 
         toggleZoom: (projectId, groupId) =>

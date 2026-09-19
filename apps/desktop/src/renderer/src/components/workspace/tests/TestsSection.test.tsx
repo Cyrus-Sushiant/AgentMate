@@ -337,6 +337,20 @@ describe('TestsSection', () => {
     expect(toast.success).toHaveBeenCalledWith('Issue copied');
   });
 
+  it('says so when the clipboard refuses the copy', async () => {
+    writeText.mockRejectedValueOnce(new Error('Document is not focused'));
+    renderSection();
+    await screen.findByText('adds', { selector: '[data-test-name]' });
+    startRun();
+    finishWithFailure();
+    fireEvent.click(screen.getByRole('button', { name: 'Copy issue' }));
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith('Could not copy the issue', {
+        description: 'Document is not focused',
+      }),
+    );
+  });
+
   it('opens Fix with AI with a prompt about the failing test', async () => {
     renderSection();
     await screen.findByText('adds', { selector: '[data-test-name]' });
@@ -399,6 +413,67 @@ describe('TestsSection', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Fix all failures with AI' }));
     const prompt = (await screen.findByLabelText('Fix prompt')) as HTMLTextAreaElement;
     expect(prompt.value).toContain('2 tests are failing in this repository:');
+  });
+
+  it('keeps the run counts and the run buttons on separate rows, with short labels', async () => {
+    renderSection();
+    await screen.findByText('adds', { selector: '[data-test-name]' });
+    startRun();
+    finishWithFailure();
+    send({
+      type: 'started',
+      runId: 'r2',
+      projectId: 'p1',
+      summary: summary({ runId: 'r2' }),
+      queued: [],
+    });
+    send({ type: 'output', runId: 'r2', projectId: 'p1', text: '$ pnpm exec vitest run\n' });
+    send({
+      type: 'results',
+      runId: 'r2',
+      projectId: 'p1',
+      results: [
+        {
+          id: ids.adds,
+          testProjectId: 'vitest:',
+          file: 'src/math.test.ts',
+          path: ['math', 'adds'],
+          status: 'failed',
+          message: 'one',
+        },
+        {
+          id: ids.breaks,
+          testProjectId: 'vitest:',
+          file: 'src/math.test.ts',
+          path: ['math', 'breaks'],
+          status: 'failed',
+          message: 'two',
+        },
+      ],
+    });
+    send({
+      type: 'done',
+      runId: 'r2',
+      projectId: 'p1',
+      summary: summary({ runId: 'r2', running: false, failed: 2 }),
+    });
+
+    const actions = screen.getByRole('group', { name: 'Test run actions' });
+    const counts = screen.getByRole('group', { name: 'Test run counts' });
+    for (const name of ['Run failed tests', 'Fix all failures with AI', 'Show output']) {
+      expect(within(actions).getByRole('button', { name })).toBeTruthy();
+      expect(within(counts).queryByRole('button', { name })).toBeNull();
+    }
+    expect(within(counts).getByText('2 failed')).toBeTruthy();
+    expect(actions.textContent).not.toContain('failed tests');
+    // Short visible text so nothing wraps in a narrow panel; the full name stays for screen readers.
+    expect(within(actions).getByRole('button', { name: 'Run failed tests' }).textContent).toBe(
+      'Run failed',
+    );
+    expect(
+      within(actions).getByRole('button', { name: 'Fix all failures with AI' }).textContent,
+    ).toBe('Fix all with AI');
+    expect(within(actions).getByRole('button', { name: 'Show output' }).textContent).toBe('Output');
   });
 
   it('reruns only the failed tests', async () => {

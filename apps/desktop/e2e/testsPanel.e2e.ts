@@ -166,13 +166,27 @@ test('runs a single test by its exact name', async () => {
 
 test('copies an issue for a failing test', async () => {
   launched = await startWithVitest();
-  const { app, page } = launched;
+  const { page } = launched;
   await runAllAndWait(page);
+  // What the browser hands the system clipboard only lands while the window really has focus,
+  // which a test run cannot count on, so this records what the app writes instead.
+  await page.evaluate(() => {
+    const original = navigator.clipboard.writeText.bind(navigator.clipboard);
+    navigator.clipboard.writeText = async (text: string) => {
+      (window as unknown as { copied?: string[] }).copied = [
+        ...((window as unknown as { copied?: string[] }).copied ?? []),
+        text,
+      ];
+      await original(text).catch(() => undefined);
+    };
+  });
   await page.getByRole('button', { name: 'Copy issue' }).click();
-  await expect
-    .poll(() => app.evaluate(({ clipboard }) => clipboard.readText()), { timeout: 20_000 })
-    .toContain('Failing test: math > breaks');
-  const text = await app.evaluate(({ clipboard }) => clipboard.readText());
+  await expect(page.getByText('Issue copied')).toBeVisible({ timeout: 20_000 });
+
+  const copied = await page.evaluate(() => (window as unknown as { copied?: string[] }).copied ?? []);
+  expect(copied).toHaveLength(1);
+  const text = copied[0];
+  expect(text).toContain('Failing test: math > breaks');
   expect(text).toContain('File: src/math.test.ts:3');
   expect(text).toContain("src/math.test.ts -t '^(?:math(?: | > )breaks)$'");
   expect(text).toMatch(/Run it: .*vitest.* run /);

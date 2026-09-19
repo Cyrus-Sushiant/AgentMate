@@ -63,6 +63,7 @@ export * from './vault/strength.js';
 export * from './vault/summary.js';
 export * from './vault/url.js';
 export * from './workspace/agentStatus.js';
+export * from './workspace/autoContinue.js';
 export * from './workspace/fileOps.js';
 export * from './workspace/layoutTree.js';
 export * from './workspace/oscTitle.js';

@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { looksLikeNeedsInput } from '@agentmat/core';
-import { type IpcMainInvokeEvent, ipcMain, type WebContents } from 'electron';
+import { BrowserWindow, type IpcMainInvokeEvent, ipcMain, type WebContents } from 'electron';
 import type {
   AgentSessionEntry,
   CreateTerminalOptions,
@@ -9,6 +9,7 @@ import type {
   TerminalUsageResult,
 } from '../../shared/apiTypes';
 import { IPC } from '../../shared/ipcChannels';
+import { createAutoContinue } from '../agents/autoContinue';
 import { supportsStatusHooks } from '../agents/claudeHooks';
 import { agentStatus } from '../agents/statusTracker';
 import { keepAwake } from '../power/keepAwake';
@@ -103,6 +104,18 @@ function syncPowerSaveBlocker(): void {
   keepAwake.setBusy('terminals', false);
 }
 
+/** Types "continue" into agent tabs that opted in, after a usage limit or a network error. */
+export const autoContinue = createAutoContinue({
+  write: writeToShell,
+  statusOf: (sessionId) => agentStatus.list()[sessionId],
+  broadcast: (changes) => {
+    for (const win of BrowserWindow.getAllWindows()) {
+      if (!win.webContents.isDestroyed()) win.webContents.send(IPC.agents.onAutoContinue, changes);
+    }
+  },
+  setBusy: (busy) => keepAwake.setBusy('auto-continue', busy),
+});
+
 function sendToOwner(sessionId: string, data: string): void {
   const owner = owners.get(sessionId);
   if (owner && !owner.isDestroyed()) owner.send(IPC.terminal.onData, { sessionId, data });
@@ -114,6 +127,7 @@ function forwardData(sessionId: string, data: string): void {
   if (cliId && !supportsStatusHooks(cliId) && looksLikeNeedsInput(data)) {
     agentStatus.guessNeedsInput(sessionId);
   }
+  autoContinue.output(sessionId, data);
   noteTerminalOutput();
   if (!capturedDisplays.has(sessionId)) sendToOwner(sessionId, data);
   for (const listener of outputSubscribers.get(sessionId) ?? []) listener(data);
@@ -121,6 +135,7 @@ function forwardData(sessionId: string, data: string): void {
 
 function forwardExit(sessionId: string, exitCode: number): void {
   agentStatus.exit(sessionId);
+  autoContinue.exit(sessionId);
   const owner = owners.get(sessionId);
   if (owner && !owner.isDestroyed()) owner.send(IPC.terminal.onExit, { sessionId, exitCode });
   owners.delete(sessionId);
@@ -261,6 +276,7 @@ export function registerTerminalHandlers(): void {
     IPC.terminal.resize,
     (_event, sessionId: string, cols: number, rows: number): void => {
       agentStatus.resize(sessionId);
+      autoContinue.resize(sessionId);
       if (host) host.notify({ type: 'resize', payload: { sessionId, cols, rows } });
       else local?.resize(sessionId, cols, rows);
     },
@@ -269,6 +285,7 @@ export function registerTerminalHandlers(): void {
   ipcMain.handle(IPC.terminal.kill, (_event, sessionId: string): void => {
     if (host) host.notify({ type: 'kill', payload: { sessionId } });
     else local?.kill(sessionId);
+    autoContinue.exit(sessionId);
     owners.delete(sessionId);
     sessions.delete(sessionId);
     attached.delete(sessionId);
@@ -459,6 +476,12 @@ export function subscribeTerminalExit(sessionId: string, listener: () => void): 
 }
 
 export function writeToSession(sessionId: string, data: string): void {
+  autoContinue.userInput(sessionId, data);
+  writeToShell(sessionId, data);
+}
+
+/** Sends input to a session's shell. Unlike `writeToSession`, it is not the user typing. */
+function writeToShell(sessionId: string, data: string): void {
   agentStatus.input(sessionId);
   if (host) host.notify({ type: 'write', payload: { sessionId, data } });
   else local?.write(sessionId, data);

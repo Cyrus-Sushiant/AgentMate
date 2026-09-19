@@ -39,23 +39,26 @@ function isFailedConclusion(conclusion: GithubWorkflowRunInfo['conclusion']): bo
   return conclusion === 'failure' || conclusion === 'timed_out';
 }
 
-async function appendFailureNotification(input: {
+async function appendRunNotification(input: {
   project: Project;
   workflowName: string;
   run: GithubWorkflowRunInfo;
+  passed: boolean;
 }): Promise<void> {
   const items = await store.getAppNotifications();
   if (items.some((item) => item.htmlUrl === input.run.htmlUrl)) return;
   const notification: AppNotification = {
     id: randomUUID(),
-    kind: 'pipeline-failure',
-    title: `${input.workflowName} failed`,
+    kind: input.passed ? 'pipeline-success' : 'pipeline-failure',
+    title: `${input.workflowName} ${input.passed ? 'passed' : 'failed'}`,
     body: `${input.project.name} · ${input.run.headBranch || 'unknown branch'} · run #${input.run.runNumber}`,
     projectId: input.project.id,
     projectName: input.project.name,
     htmlUrl: input.run.htmlUrl,
     createdAt: new Date().toISOString(),
-    read: false,
+    // A green run is good news to look back on, not something to clear, so it
+    // stays out of the unread badge.
+    read: input.passed,
   };
   items.unshift(notification);
   await store.setAppNotifications(items.slice(0, MAX_NOTIFICATIONS));
@@ -119,11 +122,12 @@ function processWatchedWorkflow(
       for (const run of fresh) {
         const name = workflowName || run.name;
         if (isFailedConclusion(run.conclusion)) {
-          await appendFailureNotification({ project, workflowName: name, run });
+          await appendRunNotification({ project, workflowName: name, run, passed: false });
           // The ref rides along so clicking the bubble opens this run on the
           // Pipelines page instead of just raising the window.
           await maybeSpeak('fail', project, name, { runId: run.id, repo: `${owner}/${repo}` });
         } else if (run.conclusion === 'success') {
+          await appendRunNotification({ project, workflowName: name, run, passed: true });
           await maybeSpeak('pass', project, name);
         }
       }

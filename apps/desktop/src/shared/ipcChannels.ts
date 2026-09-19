@@ -624,6 +624,12 @@ export const IPC = {
     onRunInfo: 'agents:onRunInfo',
     // main -> renderer: AgentStatusMap of sessions whose status just changed
     onStatus: 'agents:onStatus',
+    // () -> AutoContinuePendingMap: every "continue" scheduled after a limit or network error
+    autoContinuePending: 'agents:autoContinuePending',
+    // (sessionId) -> void: drops the continue scheduled for that tab
+    cancelAutoContinue: 'agents:cancelAutoContinue',
+    // main -> renderer: AutoContinuePendingMap of tabs whose scheduled continue changed
+    onAutoContinue: 'agents:onAutoContinue',
   },
   packages: {
     list: 'packages:list',

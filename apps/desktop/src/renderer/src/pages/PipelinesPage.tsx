@@ -183,7 +183,7 @@ function RunRow({
       className={cn(
         'glass relative overflow-hidden rounded-xl transition-shadow',
         unread && 'ring-1 ring-destructive/35',
-        focused && 'ring-2 ring-primary shadow-[0_0_0_4px_hsl(var(--primary)/0.15)]',
+        focused && 'run-blink ring-2 ring-primary shadow-[0_0_0_4px_hsl(var(--primary)/0.15)]',
       )}
     >
       <span className={cn('absolute inset-y-0 left-0 w-1', runStripeClass(tone))} aria-hidden />

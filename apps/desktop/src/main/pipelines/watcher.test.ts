@@ -283,15 +283,20 @@ describe('announcing a finished run', () => {
     expect(pet.messages[0].kind).toBe('fail');
   });
 
-  it('speaks for a pass but leaves the inbox alone', async () => {
+  it('speaks for a pass and files it in the inbox already read', async () => {
     github.listRepoRunsByWorkflow.mockResolvedValue(
       new Map([[100, [run({ id: 10, conclusion: 'success' })]]]),
     );
 
     await tickOnce();
 
-    // A green run is worth a word from the pet but not a notification to clear later.
-    expect(state.notifications).toEqual([]);
+    // A green run is logged for later but stays out of the unread badge.
+    expect(state.notifications).toHaveLength(1);
+    expect(state.notifications[0]).toMatchObject({
+      kind: 'pipeline-success',
+      title: 'CI passed',
+      read: true,
+    });
     expect(pet.messages).toHaveLength(1);
     expect(pet.messages[0]).toMatchObject({ kind: 'pass', text: 'CI on Demo passed.' });
     expect(pet.messages[0].run).toBeUndefined();
@@ -331,7 +336,12 @@ describe('announcing a finished run', () => {
     await tickOnce();
 
     expect(pet.messages.map((message) => message.kind)).toEqual(['pass', 'fail']);
-    expect(state.notifications.map((item) => item.htmlUrl)).toEqual(['https://example.invalid/12']);
+    // Oldest first in, so the newest ends up on top of the inbox.
+    expect(state.notifications.map((item) => item.kind)).toEqual([
+      'pipeline-failure',
+      'pipeline-success',
+    ]);
+    expect(state.notifications[0].htmlUrl).toBe('https://example.invalid/12');
     expect(state.watch.lastCompletedRunId['proj-1:100']).toBe(12);
   });
 

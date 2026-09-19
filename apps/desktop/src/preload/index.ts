@@ -76,6 +76,7 @@ import type {
   AssessRunResult,
   AuditSourcePreview,
   AuditSourceSkill,
+  AutoContinuePendingMap,
   BackupExportOptions,
   BackupExportResult,
   BackupImportResult,
@@ -420,6 +421,17 @@ const agents = {
       callback(changes);
     ipcRenderer.on(IPC.agents.onStatus, listener);
     return () => ipcRenderer.removeListener(IPC.agents.onStatus, listener);
+  },
+  /** Every "continue" scheduled for a tab after a usage limit or a network error. */
+  autoContinuePending: (): Promise<AutoContinuePendingMap> =>
+    ipcRenderer.invoke(IPC.agents.autoContinuePending),
+  cancelAutoContinue: (sessionId: string): Promise<void> =>
+    ipcRenderer.invoke(IPC.agents.cancelAutoContinue, sessionId),
+  onAutoContinue: (callback: (changes: AutoContinuePendingMap) => void): (() => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, changes: AutoContinuePendingMap): void =>
+      callback(changes);
+    ipcRenderer.on(IPC.agents.onAutoContinue, listener);
+    return () => ipcRenderer.removeListener(IPC.agents.onAutoContinue, listener);
   },
 };
 

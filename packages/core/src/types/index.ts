@@ -237,9 +237,12 @@ export function normalizeProjectGithubActions(value: unknown): ProjectGithubActi
   return actions;
 }
 
-export type AppNotificationKind = 'pipeline-failure' | 'tool-update-available';
+export type AppNotificationKind =
+  | 'pipeline-failure'
+  | 'pipeline-success'
+  | 'tool-update-available';
 
-/** In-app inbox item: pipeline failures from watched GitHub Actions, or a CLI/tool update. */
+/** In-app inbox item: pipeline results from watched GitHub Actions, or a CLI/tool update. */
 export interface AppNotification {
   id: string;
   kind: AppNotificationKind;

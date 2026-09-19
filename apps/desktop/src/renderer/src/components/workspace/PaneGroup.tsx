@@ -33,6 +33,7 @@ import {
   type WorkspaceTab,
 } from '@/stores/workspaceStore';
 import { AGENT_STATUS_LABEL, AgentStatusDot } from './AgentStatusDot';
+import { AutoContinueMenu } from './AutoContinueMenu';
 import { LauncherMenu } from './LauncherMenu';
 import { PaneLauncher } from './PaneLauncher';
 import { TerminalSlot } from './TerminalSlot';
@@ -536,6 +537,9 @@ export function PaneGroup({
         </div>
 
         <div className="flex shrink-0 items-center gap-0.5">
+          {activeTab?.kind === 'terminal' && activeTab.cliId && exitCode === undefined ? (
+            <AutoContinueMenu projectId={projectId} tab={activeTab} />
+          ) : null}
           <PaneIconButton
             label={splitRightLabel ? `Split right (${splitRightLabel})` : 'Split right'}
             onClick={() => setLauncherFor(splitGroup(projectId, group.id, 'row'))}

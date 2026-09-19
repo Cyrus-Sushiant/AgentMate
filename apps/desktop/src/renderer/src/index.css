@@ -1368,6 +1368,29 @@ body {
   }
 }
 
+/* Blink for the run a notification just pointed at: a few quick pulses of the
+   primary glow, then the steady ring takes over until the focus fades. */
+@keyframes run-blink {
+  0%,
+  100% {
+    box-shadow: 0 0 0 2px hsl(var(--primary) / 0.9), 0 0 0 4px hsl(var(--primary) / 0.15);
+  }
+  50% {
+    box-shadow: 0 0 0 3px hsl(var(--primary)), 0 0 0 9px hsl(var(--primary) / 0.4),
+      0 0 28px hsl(var(--primary) / 0.55);
+  }
+}
+
+.run-blink {
+  animation: run-blink 0.7s ease-in-out 4;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .run-blink {
+    animation: none;
+  }
+}
+
 /* Windows 11 caption glyphs (minimize / maximize / restore / close) use the
    system's Segoe icon fonts so the buttons look native. */
 .caption-glyph {

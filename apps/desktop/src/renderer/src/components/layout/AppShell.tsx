@@ -33,6 +33,7 @@ import { useTerminalStore } from '@/stores/terminalStore';
 import { useToastHistoryStore } from '@/stores/toastHistoryStore';
 import { useUiStore } from '@/stores/uiStore';
 import { LoadingOverlay } from './LoadingOverlay';
+import { NotificationBell } from './NotificationBell';
 import { Sidebar } from './Sidebar';
 import { StatusBar } from './StatusBar';
 import { TitleBar } from './TitleBar';
@@ -115,6 +116,7 @@ function TopBar(): React.JSX.Element {
             )}
           </Button>
         </SimpleTooltip>
+        <NotificationBell />
         {/* The general terminal (for running the app, installs and so on) stays available on
             every page, the Workspace included, where it opens over the panes. */}
         <SimpleTooltip

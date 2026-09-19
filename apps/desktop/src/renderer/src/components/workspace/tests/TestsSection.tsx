@@ -47,6 +47,10 @@ import { PanelIconButton } from '../git/PanelTabs';
 type Filter = 'all' | 'failed' | 'passed' | 'skipped';
 
 const EMPTY_RUN: ProjectTestRun = { summary: null, results: {}, output: '' };
+/** One look for every button in the run summary, so none of them wraps or shouts. */
+const ACTION_BUTTON =
+  'inline-flex h-6 shrink-0 items-center gap-1 whitespace-nowrap rounded-md px-2 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-foreground/10 hover:text-foreground';
+
 /** Past this many tests, files start folded so the list stays scannable. */
 const FOLD_FILES_OVER = 300;
 
@@ -426,13 +430,19 @@ export function TestsSection({ project }: { project: Project }): React.JSX.Eleme
           })
           .catch(() => null)
       : null;
-    await navigator.clipboard.writeText(
-      formatTestIssue(result, {
-        frameworkLabel: frameworkLabelOf(result.testProjectId),
-        command: command ?? undefined,
-      }),
-    );
-    toast.success('Issue copied');
+    const issue = formatTestIssue(result, {
+      frameworkLabel: frameworkLabelOf(result.testProjectId),
+      command: command ?? undefined,
+    });
+    try {
+      await navigator.clipboard.writeText(issue);
+      toast.success('Issue copied');
+    } catch (error) {
+      // The browser clipboard only works while the window has focus; say so rather than go quiet.
+      toast.error('Could not copy the issue', {
+        description: error instanceof Error ? error.message : String(error),
+      });
+    }
   }
 
   /** Opens the dialog straight away and fills the prompt once the rerun command is known. */
@@ -483,66 +493,86 @@ export function TestsSection({ project }: { project: Project }): React.JSX.Eleme
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       {summary ? (
-        <div className="flex shrink-0 flex-wrap items-center gap-x-2 gap-y-1 border-b border-border/60 px-3 py-1.5 text-[11px]">
-          {running ? (
-            <span className="flex items-center gap-1.5 text-muted-foreground">
-              <Spinner className="h-3 w-3 animate-spin text-amber-500" />
-              {inFlight > 0
-                ? `Running ${inFlight} ${inFlight === 1 ? 'test' : 'tests'}…`
-                : 'Running tests…'}
-            </span>
-          ) : (
-            <>
-              {counts.failed > 0 ? (
-                <span className="font-semibold text-destructive">{counts.failed} failed</span>
+        <div className="shrink-0 border-b border-border/60 px-3 py-1.5">
+          {/* Counts first, buttons under them: the panel is narrow and one row makes both wrap. */}
+          <div
+            role="group"
+            aria-label="Test run counts"
+            className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px]"
+          >
+            {running ? (
+              <span className="flex items-center gap-1.5 text-muted-foreground">
+                <Spinner className="h-3 w-3 animate-spin text-amber-500 motion-reduce:animate-none" />
+                {inFlight > 0
+                  ? `Running ${inFlight} ${inFlight === 1 ? 'test' : 'tests'}…`
+                  : 'Running tests…'}
+              </span>
+            ) : (
+              <>
+                {counts.failed > 0 ? (
+                  <span className="font-semibold text-destructive">{counts.failed} failed</span>
+                ) : null}
+                {counts.passed > 0 ? (
+                  <span className="font-medium text-emerald-600 dark:text-emerald-400">
+                    {counts.passed} passed
+                  </span>
+                ) : null}
+                {counts.skipped > 0 ? (
+                  <span className="text-muted-foreground">{counts.skipped} skipped</span>
+                ) : null}
+                {summary.cancelled ? <span className="text-muted-foreground">Stopped</span> : null}
+                {summary.finishedAt ? (
+                  <span className="text-muted-foreground tabular-nums">
+                    {formatDuration(summary.finishedAt - summary.startedAt)}
+                  </span>
+                ) : null}
+              </>
+            )}
+          </div>
+          {!running && (failures.length > 0 || run.output) ? (
+            <div
+              role="group"
+              aria-label="Test run actions"
+              className="mt-1 flex flex-wrap items-center gap-1"
+            >
+              {failures.length > 0 ? (
+                <button
+                  type="button"
+                  aria-label="Run failed tests"
+                  onClick={() => void startRun(project.id, failedTargets(failures))}
+                  className={ACTION_BUTTON}
+                >
+                  <Play className="h-2.5 w-2.5 shrink-0" />
+                  Run failed
+                </button>
               ) : null}
-              {counts.passed > 0 ? (
-                <span className="font-medium text-emerald-600 dark:text-emerald-400">
-                  {counts.passed} passed
-                </span>
+              {failedTests.length > 1 ? (
+                <button
+                  type="button"
+                  aria-label="Fix all failures with AI"
+                  onClick={() => fixResults(failedTests, [])}
+                  className={cn(ACTION_BUTTON, 'bg-primary/10 text-primary hover:bg-primary/16')}
+                >
+                  <Wand2 className="h-2.5 w-2.5 shrink-0" />
+                  Fix all with AI
+                </button>
               ) : null}
-              {counts.skipped > 0 ? (
-                <span className="text-muted-foreground">{counts.skipped} skipped</span>
+              {run.output ? (
+                <button
+                  type="button"
+                  aria-label={showOutput ? 'Hide output' : 'Show output'}
+                  aria-pressed={showOutput}
+                  onClick={() => setShowOutput((value) => !value)}
+                  className={cn(
+                    ACTION_BUTTON,
+                    showOutput && 'bg-foreground/[0.08] text-foreground',
+                  )}
+                >
+                  Output
+                </button>
               ) : null}
-              {summary.cancelled ? <span className="text-muted-foreground">Stopped</span> : null}
-              {summary.finishedAt ? (
-                <span className="text-muted-foreground">
-                  {formatDuration(summary.finishedAt - summary.startedAt)}
-                </span>
-              ) : null}
-            </>
-          )}
-          <span className="ml-auto flex items-center gap-1">
-            {!running && failures.length > 0 ? (
-              <button
-                type="button"
-                onClick={() => void startRun(project.id, failedTargets(failures))}
-                className="inline-flex h-5 items-center gap-1 rounded px-1.5 font-medium text-muted-foreground hover:bg-foreground/10 hover:text-foreground"
-              >
-                <Play className="h-2.5 w-2.5" />
-                Run failed tests
-              </button>
-            ) : null}
-            {!running && failedTests.length > 1 ? (
-              <button
-                type="button"
-                onClick={() => fixResults(failedTests, [])}
-                className="inline-flex h-5 items-center gap-1 rounded bg-primary/12 px-1.5 font-semibold text-primary hover:bg-primary/20"
-              >
-                <Wand2 className="h-2.5 w-2.5" />
-                Fix all failures with AI
-              </button>
-            ) : null}
-            {run.output ? (
-              <button
-                type="button"
-                onClick={() => setShowOutput((value) => !value)}
-                className="inline-flex h-5 items-center rounded px-1.5 font-medium text-muted-foreground hover:bg-foreground/10 hover:text-foreground"
-              >
-                {showOutput ? 'Hide output' : 'Show output'}
-              </button>
-            ) : null}
-          </span>
+            </div>
+          ) : null}
         </div>
       ) : null}
 

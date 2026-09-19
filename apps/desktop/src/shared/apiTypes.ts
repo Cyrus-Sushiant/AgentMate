@@ -2,6 +2,8 @@ import type {
   AgentStatus,
   AgentType,
   AiProvider,
+  AutoContinueOptions,
+  AutoContinuePending,
   BlueprintAttachment,
   BlueprintRevisionTarget,
   BlueprintStepId,
@@ -182,7 +184,12 @@ export interface AgentSessionEntry {
   cliId?: string;
   /** The tab's name, used in notifications. */
   title: string;
+  /** Whether to type "continue" for this tab after a usage limit or a network error. */
+  autoContinue?: AutoContinueOptions;
 }
+
+/** Session id to the continue scheduled for it; null when one was just sent or dropped. */
+export type AutoContinuePendingMap = Record<string, AutoContinuePending | null>;
 
 /** Session id to what its agent is doing right now. */
 export type AgentStatusMap = Record<string, AgentStatus>;

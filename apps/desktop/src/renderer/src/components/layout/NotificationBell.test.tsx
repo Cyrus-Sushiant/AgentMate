@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
 
-import type { AppNotification } from '@agentmat/core';
+import type { AppNotification, Project } from '@agentmat/core';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { MemoryRouter, useLocation } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { installDomShims } from '@/components/vault/testing/mockVaultApi';
@@ -27,11 +28,20 @@ function notification(overrides: Partial<AppNotification> = {}): AppNotification
 
 let onChangedCallback: (() => void) | null = null;
 
-function installApi(items: AppNotification[]): void {
+const PROJECT = {
+  id: 'p1',
+  name: 'Curalink',
+  iconDataUrl: 'data:image/png;base64,AAAA',
+  iconBgColor: null,
+  iconColor: null,
+} as unknown as Project;
+
+function installApi(items: AppNotification[], projects: Project[] = []): void {
   Object.assign(window, {
     agentmat: {
       platform: 'win32',
       shell: { openExternal: vi.fn(async () => undefined) },
+      projects: { list: vi.fn(async () => projects) },
       appNotifications: {
         list: vi.fn(async () => items),
         unreadCount: vi.fn(async () => items.filter((item) => !item.read).length),
@@ -51,15 +61,23 @@ function installApi(items: AppNotification[]): void {
   });
 }
 
-function renderBell(items: AppNotification[]): void {
-  installApi(items);
+function LocationProbe(): React.JSX.Element {
+  const { pathname, search } = useLocation();
+  return <span data-testid="location">{`${pathname}${search}`}</span>;
+}
+
+function renderBell(items: AppNotification[], projects: Project[] = []): void {
+  installApi(items, projects);
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(
-    <QueryClientProvider client={client}>
-      <TooltipProvider>
-        <NotificationBell />
-      </TooltipProvider>
-    </QueryClientProvider>,
+    <MemoryRouter>
+      <QueryClientProvider client={client}>
+        <TooltipProvider>
+          <NotificationBell />
+          <LocationProbe />
+        </TooltipProvider>
+      </QueryClientProvider>
+    </MemoryRouter>,
   );
 }
 
@@ -98,6 +116,76 @@ describe('NotificationBell', () => {
     within(panel).getByText('Claude Code CLI update available');
     within(panel).getByText('1.0.0 → 1.1.0');
     within(panel).getByRole('button', { name: 'Mark all read' });
+  });
+
+  it("shows the project's icon and name on a project notification", async () => {
+    renderBell(
+      [
+        notification({
+          id: 'n1',
+          kind: 'pipeline-failure',
+          title: 'Build failed',
+          projectId: 'p1',
+          projectName: 'Curalink',
+        }),
+      ],
+      [PROJECT],
+    );
+    fireEvent.click(await screen.findByRole('button', { name: 'Notifications' }));
+
+    const panel = await screen.findByRole('dialog', { name: 'Notifications' });
+    await waitFor(() =>
+      expect(panel.querySelector('img[src="data:image/png;base64,AAAA"]')).not.toBeNull(),
+    );
+    within(panel).getByText('Curalink');
+  });
+
+  it('labels runs Failed or Passed', async () => {
+    renderBell([
+      notification({ id: 'f', kind: 'pipeline-failure', title: 'CI failed', projectName: 'Demo' }),
+      notification({
+        id: 'p',
+        kind: 'pipeline-success',
+        title: 'CI passed',
+        projectName: 'Demo',
+        read: true,
+      }),
+    ]);
+    fireEvent.click(await screen.findByRole('button', { name: 'Notifications' }));
+
+    const panel = await screen.findByRole('dialog', { name: 'Notifications' });
+    within(panel).getByText('Failed');
+    within(panel).getByText('Passed');
+  });
+
+  it('opens a pipeline run on the Pipelines page instead of GitHub', async () => {
+    renderBell([
+      notification({
+        kind: 'pipeline-failure',
+        title: 'CI failed',
+        htmlUrl: 'https://github.com/acme/demo/actions/runs/123',
+      }),
+    ]);
+    fireEvent.click(await screen.findByRole('button', { name: 'Notifications' }));
+    fireEvent.click(await screen.findByText('CI failed'));
+
+    await waitFor(() =>
+      expect(screen.getByTestId('location').textContent).toBe(
+        '/pipelines?run=123&repo=acme%2Fdemo',
+      ),
+    );
+    expect(window.agentmat.shell.openExternal).not.toHaveBeenCalled();
+    await waitFor(() =>
+      expect(window.agentmat.appNotifications.markRead).toHaveBeenCalledWith('n1'),
+    );
+  });
+
+  it('falls back to a kind glyph when the notification has no project', async () => {
+    renderBell([notification()]);
+    fireEvent.click(await screen.findByRole('button', { name: 'Notifications' }));
+
+    const panel = await screen.findByRole('dialog', { name: 'Notifications' });
+    expect(panel.querySelector('img')).toBeNull();
   });
 
   it('shows an empty state when there are no notifications', async () => {
