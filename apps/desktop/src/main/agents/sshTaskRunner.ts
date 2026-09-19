@@ -29,6 +29,7 @@ import {
   writeToTerminalDisplay,
 } from '../ipc/terminal';
 import { speakOnPet } from '../notifications/petNotifier';
+import { stripAnsi } from '../process/spawnStreaming';
 import { store } from '../store';
 import {
   allowSudoPasswordPrompt,
@@ -344,9 +345,11 @@ function runCommand(run: RunState, command: string): Promise<CommandResult> {
 }
 
 function appendCompletedCommand(run: RunState, command: string, result: CommandResult): void {
+  // Aliases like `grep --color=auto` color the output, and the AI only needs the plain text.
+  const text = stripAnsi(result.output).replace(/\r\n?/g, '\n');
   const output = result.timedOut
-    ? `${result.output}\n[No output captured within the timeout; the command may still be running]`
-    : result.output;
+    ? `${text}\n[No output captured within the timeout; the command may still be running]`
+    : text;
   const exitNote = result.exitCode !== null ? ` [exit code ${result.exitCode}]` : '';
   run.transcript += `\n$ ${command}${exitNote}\n${output}\n`;
 }

@@ -96,10 +96,15 @@ export function WorkspaceHeaderActions(): React.JSX.Element | null {
         </Button>
       </SimpleTooltip>
       {runPicker}
+      {/* Keyed by project so each one gets its own form, suggestion and tag run. One shared
+          instance let a project's pending answer or finished tag land in the next project. */}
       <ProjectVersionDialogs
+        key={project.id}
         projectId={project.id}
         open={tagOpen}
-        onOpenChange={(next) => (next ? openVersionDialog(project.id) : closeVersionDialog())}
+        onOpenChange={(next) =>
+          next ? openVersionDialog(project.id) : closeVersionDialog(project.id)
+        }
       />
     </>
   );

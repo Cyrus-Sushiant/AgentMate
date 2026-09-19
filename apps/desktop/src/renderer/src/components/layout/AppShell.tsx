@@ -5,7 +5,7 @@ import { ErrorBoundary } from '@/components/ErrorBoundary';
 import {
   AnglesLeft,
   AnglesRight,
-  History,
+  Bell,
   MessageSquare,
   TerminalSquare,
 } from '@/components/icons';
@@ -94,28 +94,6 @@ function TopBar(): React.JSX.Element {
         )}
         <UpdateStatusChip />
         {onWorkspace ? <WorkspaceHeaderActions /> : null}
-        <SimpleTooltip label="Recent messages">
-          <Button
-            variant={toastHistoryOpen ? 'secondary' : 'ghost'}
-            size="icon"
-            aria-pressed={toastHistoryOpen}
-            aria-label="Recent messages"
-            onClick={() => openToastHistory(!toastHistoryOpen)}
-            className="relative"
-          >
-            <History className="h-4 w-4" />
-            {toastUnread > 0 && (
-              <span
-                className={cn(
-                  'absolute right-1 top-1 h-1.5 w-1.5 rounded-full',
-                  toastUnreadError
-                    ? 'bg-destructive shadow-[0_0_6px_hsl(var(--destructive))]'
-                    : 'bg-primary shadow-[0_0_6px_hsl(var(--primary))]',
-                )}
-              />
-            )}
-          </Button>
-        </SimpleTooltip>
         {/* The general terminal (for running the app, installs and so on) stays available on
             every page, the Workspace included, where it opens over the panes. */}
         <SimpleTooltip
@@ -137,6 +115,28 @@ function TopBar(): React.JSX.Element {
                   isTerminalOpen
                     ? 'bg-primary shadow-[0_0_6px_hsl(var(--primary))]'
                     : 'bg-primary/70',
+                )}
+              />
+            )}
+          </Button>
+        </SimpleTooltip>
+        <SimpleTooltip label="Recent messages">
+          <Button
+            variant={toastHistoryOpen ? 'secondary' : 'ghost'}
+            size="icon"
+            aria-pressed={toastHistoryOpen}
+            aria-label="Recent messages"
+            onClick={() => openToastHistory(!toastHistoryOpen)}
+            className="relative"
+          >
+            <Bell className="h-4 w-4" />
+            {toastUnread > 0 && (
+              <span
+                className={cn(
+                  'absolute right-1 top-1 h-1.5 w-1.5 rounded-full',
+                  toastUnreadError
+                    ? 'bg-destructive shadow-[0_0_6px_hsl(var(--destructive))]'
+                    : 'bg-primary shadow-[0_0_6px_hsl(var(--primary))]',
                 )}
               />
             )}

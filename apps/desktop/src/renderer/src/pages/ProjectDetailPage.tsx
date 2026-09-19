@@ -1035,6 +1035,9 @@ export default function ProjectDetailPage(): React.JSX.Element {
 
           {section === 'git' && (
             <GitTab
+              // The route reuses this page when moving between projects; without a key the tag
+              // dialogs would carry one project's fields and running suggestion into the next.
+              key={project.id}
               projectId={project.id}
               folderPath={project.folderPath}
               mutedActions={project.githubActionsMuted ?? []}
@@ -3468,6 +3471,18 @@ function TagVersionDialog({
     void window.agentmat.git.cancelSuggestTag(requestId);
   }
 
+  // This dialog belongs to one project and is replaced when the user switches to another. A
+  // suggestion still running then would answer into a form nobody can see, so stop it.
+  useEffect(
+    () => () => {
+      const requestId = suggestRequestRef.current;
+      if (!requestId) return;
+      suggestRequestRef.current = null;
+      void window.agentmat.git.cancelSuggestTag(requestId);
+    },
+    [],
+  );
+
   // Only a dismissal from inside this dialog (Esc, the close button, a finished tag) lands here.
   // Handing off to "Update version in files" closes it from the parent instead, which is what
   // keeps the fields, prefix included, for when the user comes back.
@@ -4353,15 +4368,10 @@ export function ProjectVersionDialogs({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }): React.JSX.Element {
-  // Scoped to the project it was set for: this component is one shared instance for
-  // whichever project the Workspace header currently shows, so a run left mid-flight for
-  // project A must not resurface as project B's the moment the user switches to it.
-  const [applyVersionTarget, setApplyVersionTarget] = useState<{
-    projectId: string;
-    tag: string;
-  } | null>(null);
-  const applyVersionTag =
-    applyVersionTarget?.projectId === projectId ? applyVersionTarget.tag : null;
+  // Lives in the store, per project: the Workspace header remounts this for each project,
+  // and a run left going for project A has to be found again when the user comes back to it.
+  const applyVersionTag = useVersionDialogStore((s) => s.applyTags[projectId] ?? null);
+  const setApplyTag = useVersionDialogStore((s) => s.setApplyTag);
   const active = open || applyVersionTag !== null;
   const statusQuery = useQuery({
     queryKey: queryKeys.gitStatus(projectId),
@@ -4384,7 +4394,7 @@ export function ProjectVersionDialogs({
         status={statusQuery.data ?? null}
         open={open && applyVersionTag === null}
         onOpenChange={onOpenChange}
-        onApplyVersion={(nextTag) => setApplyVersionTarget({ projectId, tag: nextTag })}
+        onApplyVersion={(nextTag) => setApplyTag(projectId, nextTag)}
       />
       <ApplyVersionDialog
         projectId={projectId}
@@ -4395,7 +4405,7 @@ export function ProjectVersionDialogs({
         // away from a finished run on purpose.
         open={open && applyVersionTag !== null}
         onOpenChange={onOpenChange}
-        onBackToTag={() => setApplyVersionTarget(null)}
+        onBackToTag={() => setApplyTag(projectId, null)}
       />
     </>
   );

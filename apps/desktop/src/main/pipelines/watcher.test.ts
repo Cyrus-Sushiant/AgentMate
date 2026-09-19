@@ -623,3 +623,61 @@ describe('refreshProjectPipelineStatus', () => {
     );
   });
 });
+
+describe('schedulePipelineCheck', () => {
+  it('runs again when asked while a tick is already going', async () => {
+    // Two projects tagged at once: each push asks for a check. The second request lands while
+    // the first check is still reading GitHub, from before the second tag's run existed.
+    state.projects = [
+      project({ id: 'proj-1', folderPath: '/work/one' }),
+      project({ id: 'proj-2', folderPath: '/work/two' }),
+    ];
+    github.githubRepoForFolder.mockImplementation(async (folder: string) =>
+      folder === '/work/one' ? { owner: 'acme', repo: 'one' } : { owner: 'acme', repo: 'two' },
+    );
+    let releaseFirst!: (runs: Map<number, GithubWorkflowRunInfo[]>) => void;
+    github.listRepoRunsByWorkflow.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          releaseFirst = resolve;
+        }),
+    );
+
+    watcher.schedulePipelineCheck('proj-1');
+    await settle();
+    watcher.schedulePipelineCheck('proj-2');
+    await settle();
+    // Still stuck on the first repo of the first check.
+    expect(github.listRepoRunsByWorkflow).toHaveBeenCalledTimes(1);
+
+    releaseFirst(new Map());
+    await settle(80);
+
+    // The first check finishes both repos, then the queued one reads both again.
+    const repos = github.listRepoRunsByWorkflow.mock.calls.map((call) => call[1]);
+    expect(repos).toEqual(['one', 'two', 'one', 'two']);
+  });
+
+  it('folds several requests made during one tick into a single rerun', async () => {
+    state.projects = [project()];
+    let releaseFirst!: (runs: Map<number, GithubWorkflowRunInfo[]>) => void;
+    github.listRepoRunsByWorkflow.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          releaseFirst = resolve;
+        }),
+    );
+
+    watcher.schedulePipelineCheck();
+    await settle();
+    watcher.schedulePipelineCheck();
+    watcher.schedulePipelineCheck();
+    watcher.schedulePipelineCheck();
+    await settle();
+
+    releaseFirst(new Map());
+    await settle(80);
+
+    expect(github.listRepoRunsByWorkflow).toHaveBeenCalledTimes(2);
+  });
+});

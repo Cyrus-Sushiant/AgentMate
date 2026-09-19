@@ -19,6 +19,12 @@ const MAX_NOTIFICATIONS = 200;
 
 let timer: NodeJS.Timeout | null = null;
 let ticking = false;
+/**
+ * Set when a check is asked for while a tick is already running. Two projects tagged at the
+ * same time each ask for one, and the second read the repos before the tag landed, so
+ * dropping it would leave that project's new run unseen until the next interval.
+ */
+let tickAgain = false;
 
 function watchKey(projectId: string, workflowId: number): string {
   return `${projectId}:${workflowId}`;
@@ -167,53 +173,63 @@ export async function forgetWatchedWorkflows(
 }
 
 async function tick(): Promise<void> {
-  if (ticking) return;
+  if (ticking) {
+    tickAgain = true;
+    return;
+  }
   ticking = true;
   try {
-    const projects = await store.getProjects();
-    const watch = await store.getPipelineWatch();
-    const announcements: (() => Promise<void>)[] = [];
-    // Two projects can sit in the same repo, and a repo only needs reading once a tick.
-    const runsByRepo = new Map<string, Map<number, GithubWorkflowRunInfo[]>>();
-    let dirty = false;
-    for (const project of projects) {
-      if (project.archived) continue;
-      const github = await githubRepoForFolder(project.folderPath);
-      if (!github) continue;
-      try {
-        const watched = await watchedWorkflows(project, github.owner, github.repo);
-        if (watched.length === 0) continue;
-        // One call covers the whole repo, however many workflows it has.
-        const repoKey = `${github.owner}/${github.repo}`.toLowerCase();
-        let runsByWorkflow = runsByRepo.get(repoKey);
-        if (!runsByWorkflow) {
-          runsByWorkflow = await listRepoRunsByWorkflow(github.owner, github.repo);
-          runsByRepo.set(repoKey, runsByWorkflow);
-        }
-        for (const workflow of watched) {
-          const result = processWatchedWorkflow(
-            project,
-            workflow.workflowId,
-            workflow.name,
-            github.owner,
-            github.repo,
-            runsByWorkflow.get(workflow.workflowId) ?? [],
-            watch,
-          );
-          if (result.changed) dirty = true;
-          if (result.announce) announcements.push(result.announce);
-        }
-      } catch {
-        // Offline, rate limited, or the repo is gone. The next tick retries.
-      }
-    }
-    // Saving before announcing means a crash here costs a notification rather than
-    // repeating every one of them on the next launch.
-    if (dirty) await store.setPipelineWatch(watch);
-    for (const announce of announcements) await announce();
+    do {
+      tickAgain = false;
+      await tickOnce();
+    } while (tickAgain);
   } finally {
     ticking = false;
   }
+}
+
+async function tickOnce(): Promise<void> {
+  const projects = await store.getProjects();
+  const watch = await store.getPipelineWatch();
+  const announcements: (() => Promise<void>)[] = [];
+  // Two projects can sit in the same repo, and a repo only needs reading once a tick.
+  const runsByRepo = new Map<string, Map<number, GithubWorkflowRunInfo[]>>();
+  let dirty = false;
+  for (const project of projects) {
+    if (project.archived) continue;
+    const github = await githubRepoForFolder(project.folderPath);
+    if (!github) continue;
+    try {
+      const watched = await watchedWorkflows(project, github.owner, github.repo);
+      if (watched.length === 0) continue;
+      // One call covers the whole repo, however many workflows it has.
+      const repoKey = `${github.owner}/${github.repo}`.toLowerCase();
+      let runsByWorkflow = runsByRepo.get(repoKey);
+      if (!runsByWorkflow) {
+        runsByWorkflow = await listRepoRunsByWorkflow(github.owner, github.repo);
+        runsByRepo.set(repoKey, runsByWorkflow);
+      }
+      for (const workflow of watched) {
+        const result = processWatchedWorkflow(
+          project,
+          workflow.workflowId,
+          workflow.name,
+          github.owner,
+          github.repo,
+          runsByWorkflow.get(workflow.workflowId) ?? [],
+          watch,
+        );
+        if (result.changed) dirty = true;
+        if (result.announce) announcements.push(result.announce);
+      }
+    } catch {
+      // Offline, rate limited, or the repo is gone. The next tick retries.
+    }
+  }
+  // Saving before announcing means a crash here costs a notification rather than
+  // repeating every one of them on the next launch.
+  if (dirty) await store.setPipelineWatch(watch);
+  for (const announce of announcements) await announce();
 }
 
 export function startPipelineWatcher(): void {

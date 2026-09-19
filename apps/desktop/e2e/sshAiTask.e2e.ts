@@ -90,12 +90,15 @@ async function openServerTab(replies: string[]): Promise<Page> {
   await expect(savedServer).toBeVisible({ timeout: 30_000 });
   await savedServer.getByRole('button', { name: 'Connect' }).click();
   await expect(terminalRows(page)).toContainText(SHELL_PROMPT, { timeout: 30_000 });
+  // The docked drawer only shows a few rows, so earlier commands would scroll out of view.
+  await page.getByRole('button', { name: 'Maximize terminal' }).click();
   return page;
 }
 
 async function startTask(page: Page, prompt: string): Promise<void> {
   await page.getByRole('button', { name: 'Ask AI to run a task here' }).click();
-  const dialog = page.getByRole('dialog');
+  // The CLI picker's popover is a dialog too, so match the task dialog by name.
+  const dialog = page.getByRole('dialog', { name: 'Ask AI to run a task here' });
   await dialog.getByRole('textbox').fill(prompt);
   const cli = dialog.getByRole('combobox').first();
   await expect(cli).toBeEnabled({ timeout: 30_000 });
@@ -146,7 +149,7 @@ test('runs commands with clean output and answers sudo with the saved password',
   const transcript = ollama?.prompts.at(-1) ?? '';
   expect(transcript).toContain('$ sudo id -u [exit code 0]');
   expect(transcript).toContain(
-    '$ grep CODENAME /etc/os-release [exit code 0]\nUBUNTU_CODENAME=jammy',
+    '$ grep CODENAME /etc/os-release [exit code 0]\nVERSION_CODENAME=jammy\nUBUNTU_CODENAME=jammy',
   );
   expect(ollama?.prompts.join('\n')).not.toContain(SSH_PASSWORD);
 });
@@ -159,7 +162,8 @@ test('lets the user type the sudo password themselves', async () => {
   await expect(bar).toContainText('is asking for a password', { timeout: 60_000 });
   await bar.getByRole('button', { name: "I'll type it" }).click();
 
-  await terminalRows(page).click();
+  // The xterm screen sits over the rows and takes the pointer events.
+  await page.locator('.terminal-pane .xterm-screen').click();
   await page.keyboard.type(SSH_PASSWORD);
   await page.keyboard.press('Enter');
 

@@ -3,8 +3,19 @@ import { create } from 'zustand';
 interface VersionDialogState {
   /** The project whose "Tag a version" flow is showing, or null when it's closed. */
   openProjectId: string | null;
+  /**
+   * The tag each project is writing into its files, by project id. Kept per project so two
+   * projects can each have a version bump going at once, and switching between them never
+   * shows one project's run in the other's dialog.
+   */
+  applyTags: Record<string, string>;
   open: (projectId: string) => void;
-  close: () => void;
+  /**
+   * Closes the flow for `projectId` only. A run that finishes for one project (a tag created
+   * in the background, say) must not close the dialog the user has since opened for another.
+   */
+  close: (projectId: string) => void;
+  setApplyTag: (projectId: string, tag: string | null) => void;
 }
 
 /**
@@ -14,6 +25,15 @@ interface VersionDialogState {
  */
 export const useVersionDialogStore = create<VersionDialogState>((set) => ({
   openProjectId: null,
+  applyTags: {},
   open: (projectId) => set({ openProjectId: projectId }),
-  close: () => set({ openProjectId: null }),
+  close: (projectId) =>
+    set((state) => (state.openProjectId === projectId ? { openProjectId: null } : state)),
+  setApplyTag: (projectId, tag) =>
+    set((state) => {
+      const applyTags = { ...state.applyTags };
+      if (tag === null) delete applyTags[projectId];
+      else applyTags[projectId] = tag;
+      return { applyTags };
+    }),
 }));

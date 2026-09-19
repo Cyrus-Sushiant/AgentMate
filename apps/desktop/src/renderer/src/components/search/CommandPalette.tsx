@@ -3,7 +3,7 @@ import { useQueries, useQuery } from '@tanstack/react-query';
 import { Command as CommandPrimitive } from 'cmdk';
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Blocks, Cpu, Folder, History, Search, Workspace } from '@/components/icons';
+import { Bell, Blocks, Cpu, Folder, History, Search, Workspace } from '@/components/icons';
 import { NAV_ITEMS } from '@/components/layout/Sidebar';
 import { VaultPaletteGroup } from '@/components/vault/VaultPaletteGroup';
 import { queryKeys } from '@/lib/queryKeys';
@@ -140,7 +140,7 @@ export function CommandPalette(): React.JSX.Element {
                   onSelect={selectToastHistory}
                   className="flex cursor-pointer select-none items-center gap-2.5 rounded-md px-2 py-2 text-sm outline-none aria-selected:bg-primary/12 aria-selected:text-foreground"
                 >
-                  <History className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                  <Bell className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                   Recent messages
                 </CommandPrimitive.Item>
                 <CommandPrimitive.Item

@@ -4,10 +4,10 @@ import { useQuery } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
+  Bell,
   CircleCheck,
   CircleInfo,
   CircleX,
-  History,
   Search,
   Trash2,
   TriangleAlert,
@@ -199,7 +199,7 @@ export function ToastHistoryPanel(): React.JSX.Element {
             {items.length === 0 ? (
               <div className="flex flex-col items-center gap-3 px-6 py-16 text-center">
                 <div className="flex h-11 w-11 items-center justify-center rounded-full bg-primary/10 text-primary">
-                  <History className="h-5 w-5" />
+                  <Bell className="h-5 w-5" />
                 </div>
                 <div className="space-y-1">
                   <p className="text-sm font-medium">No messages yet</p>
