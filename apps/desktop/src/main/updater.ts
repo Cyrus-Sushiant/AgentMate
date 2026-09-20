@@ -3,11 +3,12 @@ import { createReadStream } from 'node:fs';
 import { copyFile, mkdir, readdir, rename, rm, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { basename, join } from 'node:path';
-import { app, BrowserWindow, powerSaveBlocker } from 'electron';
+import { app, powerSaveBlocker } from 'electron';
 import type { UpdateInfo as ElectronUpdateInfo, ProgressInfo } from 'electron-updater';
 import { autoUpdater } from 'electron-updater';
 import type { UpdateDownloadProgress, UpdateInfo, UpdateStatus } from '../shared/apiTypes';
 import { IPC } from '../shared/ipcChannels';
+import { broadcastToWindows } from './ipc/send';
 import { preserveTerminalsOnQuit } from './ipc/terminal';
 import { allowQuit } from './quitGuard';
 import { isE2E } from './testMode';
@@ -144,11 +145,7 @@ function toUpdateInfo(info: ElectronUpdateInfo): UpdateInfo {
 
 function broadcast(status: UpdateStatus): void {
   currentStatus = status;
-  for (const win of BrowserWindow.getAllWindows()) {
-    if (!win.webContents.isDestroyed()) {
-      win.webContents.send(IPC.app.onUpdateStatus, status);
-    }
-  }
+  broadcastToWindows(IPC.app.onUpdateStatus, status);
 }
 
 function settlePending(status: UpdateStatus): void {

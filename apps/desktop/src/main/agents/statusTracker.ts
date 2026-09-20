@@ -10,7 +10,6 @@ import {
   initialAgentStatus,
   reduceAgentStatus,
 } from '@agentmat/core';
-import { BrowserWindow } from 'electron';
 import type {
   AgentRunInfo,
   AgentRunInfoMap,
@@ -19,6 +18,7 @@ import type {
   LastRunInfoByCli,
 } from '../../shared/apiTypes';
 import { IPC } from '../../shared/ipcChannels';
+import { broadcastToWindows } from '../ipc/send';
 import { getMainWindow } from '../mainWindow';
 import { showOsNotification } from '../notifications/osNotification';
 import { speakOnPet } from '../notifications/petNotifier';
@@ -187,9 +187,7 @@ function broadcastLater(id: string, status: AgentStatus): void {
     const payload = pendingBroadcast;
     pendingBroadcast = null;
     if (!payload) return;
-    for (const win of BrowserWindow.getAllWindows()) {
-      if (!win.webContents.isDestroyed()) win.webContents.send(IPC.agents.onStatus, payload);
-    }
+    broadcastToWindows(IPC.agents.onStatus, payload);
   }, BROADCAST_MS);
 }
 
@@ -375,11 +373,7 @@ export const agentStatus = {
       return;
     }
     runInfos.set(id, next);
-    for (const win of BrowserWindow.getAllWindows()) {
-      if (!win.webContents.isDestroyed()) {
-        win.webContents.send(IPC.agents.onRunInfo, { [id]: next } satisfies AgentRunInfoMap);
-      }
-    }
+    broadcastToWindows(IPC.agents.onRunInfo, { [id]: next } satisfies AgentRunInfoMap);
     // So the next fresh launch of this CLI starts on what it was actually last run
     // on, not a default computed elsewhere in the app.
     const cliId = tracked.get(id)?.cliId;

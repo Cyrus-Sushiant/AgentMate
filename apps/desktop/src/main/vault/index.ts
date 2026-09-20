@@ -3,6 +3,7 @@ import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { app, clipboard, dialog, ipcMain, powerMonitor } from 'electron';
 import { IPC } from '../../shared/ipcChannels';
+import { sendToWindow } from '../ipc/send';
 import { registerVaultHandlers } from '../ipc/vault';
 import { getMainWindow } from '../mainWindow';
 import type { VaultFileV1 } from './format';
@@ -63,7 +64,7 @@ const electronPower: PowerPort = {
 };
 
 function sendToMainWindow(channel: string, payload?: unknown): void {
-  getMainWindow()?.webContents.send(channel, payload);
+  sendToWindow(getMainWindow(), channel, payload);
 }
 
 let service: VaultService | null = null;

@@ -8,6 +8,7 @@ import {
   QUIT_CONFIRM_TITLE,
 } from '../shared/quitConfirmation';
 import { openRdpSessionCount } from './ipc/rdp';
+import { sendToWindow } from './ipc/send';
 import { openSshSessionCount } from './ipc/ssh';
 import { openCliSessionCount, terminalsKeepRunningAfterQuit } from './ipc/terminal';
 import { getMainWindow } from './mainWindow';
@@ -72,7 +73,7 @@ function askInWindow(win: BrowserWindow, summary: OpenSessionSummary): Promise<b
       win.removeListener('closed', onClosed);
       resolve(confirmed);
     };
-    win.webContents.send(IPC.app.onConfirmQuit, summary);
+    sendToWindow(win, IPC.app.onConfirmQuit, summary);
   });
 }
 

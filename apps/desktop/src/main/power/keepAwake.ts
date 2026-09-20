@@ -1,7 +1,8 @@
 import type { KeepAwakeMode } from '@agentmat/core';
-import { BrowserWindow, powerSaveBlocker } from 'electron';
+import { powerSaveBlocker } from 'electron';
 import type { KeepAwakeStatus } from '../../shared/apiTypes';
 import { IPC } from '../../shared/ipcChannels';
+import { broadcastToWindows } from '../ipc/send';
 
 /**
  * Whether this machine is allowed to fall asleep. Windows also throttles a backgrounded app
@@ -32,9 +33,7 @@ function apply(): void {
     return;
   }
   const payload = keepAwake.status();
-  for (const win of BrowserWindow.getAllWindows()) {
-    if (!win.webContents.isDestroyed()) win.webContents.send(IPC.power.onKeepAwake, payload);
-  }
+  broadcastToWindows(IPC.power.onKeepAwake, payload);
 }
 
 export const keepAwake = {

@@ -18,9 +18,10 @@ import {
   scoreSecurityFindings,
   sortSecurityFindings,
 } from '@agentmat/core';
-import { app, BrowserWindow } from 'electron';
+import { app } from 'electron';
 import type { ActiveScan } from '../../shared/apiTypes';
 import { IPC } from '../../shared/ipcChannels';
+import { broadcastToWindows } from '../ipc/send';
 import { securityScanDb } from '../securityScanDb';
 import { SCANNER_ADAPTERS, type SecurityScannerConfig } from './adapters';
 import type { ScanCancelToken } from './exec';
@@ -219,10 +220,7 @@ export async function runSecurityScan(
     };
     // Broadcast rather than reply to the invoking sender: the view that started the scan may be
     // long gone, and a window reload would destroy that sender entirely.
-    for (const win of BrowserWindow.getAllWindows()) {
-      if (!win.webContents.isDestroyed())
-        win.webContents.send(IPC.security.onScanProgress, progress);
-    }
+    broadcastToWindows(IPC.security.onScanProgress, progress);
   };
 
   try {

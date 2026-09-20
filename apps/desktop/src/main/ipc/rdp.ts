@@ -27,6 +27,7 @@ import { formatDestination } from '../rdp/rdcleanpath';
 import { closeAllRdpWindows, openRdpWindow } from '../rdp/sessionWindows';
 import { decryptSecret, encryptSecret, getVaultStatus } from '../ssh/vault';
 import { store } from '../store';
+import { sendToContents } from './send';
 
 interface RdpSession {
   sessionId: string;
@@ -75,7 +76,7 @@ function sessionFor(event: IpcMainInvokeEvent, sessionId: string): RdpSession {
 }
 
 function send(session: RdpSession, channel: string, payload: unknown): void {
-  if (!session.owner.isDestroyed()) session.owner.send(channel, payload);
+  sendToContents(session.owner, channel, payload);
 }
 
 const proxy = new RdpProxy({

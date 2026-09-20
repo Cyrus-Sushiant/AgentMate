@@ -7,11 +7,12 @@ import type {
   TestRunSummary,
   TestTarget,
 } from '@agentmat/core';
-import { BrowserWindow, ipcMain } from 'electron';
+import { ipcMain } from 'electron';
 import { IPC } from '../../shared/ipcChannels';
 import { store } from '../store';
 import { discoverWorkspaceTests } from '../tests/discovery';
 import { TestRunManager } from '../tests/runner';
+import { broadcastToWindows } from './send';
 
 /**
  * IPC for the workspace Tests panel. Discovery is cached per project so a run resolves the same
@@ -23,9 +24,7 @@ const discoveries = new Map<string, { folderPath: string; discovery: TestDiscove
 
 const manager = new TestRunManager({
   emit: (event: TestRunEvent) => {
-    for (const win of BrowserWindow.getAllWindows()) {
-      if (!win.webContents.isDestroyed()) win.webContents.send(IPC.tests.onRunEvent, event);
-    }
+    broadcastToWindows(IPC.tests.onRunEvent, event);
   },
 });
 

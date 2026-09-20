@@ -1,8 +1,9 @@
 import { createHash } from 'node:crypto';
 import { type FSWatcher, watch } from 'node:fs';
-import { BrowserWindow, type WebContents } from 'electron';
+import { type WebContents } from 'electron';
 import type { WorkspaceGitState } from '../../shared/apiTypes';
 import { IPC } from '../../shared/ipcChannels';
+import { broadcastToWindows, sendToContents } from '../ipc/send';
 import { isTracked } from './repoWatcher';
 import { locateRepo, readWorkspaceGitState } from './workspaceGit';
 
@@ -71,7 +72,7 @@ function isRelevant(file: string | null): boolean {
 
 function send(entry: TreeWatch, state: WorkspaceGitState): void {
   for (const sender of entry.subscribers) {
-    if (!sender.isDestroyed()) sender.send(IPC.git.onWorkspaceState, entry.projectId, state);
+    sendToContents(sender, IPC.git.onWorkspaceState, entry.projectId, state);
   }
 }
 
@@ -180,8 +181,8 @@ export function watchWorkingTree(projectId: string, folderPath: string, sender: 
   if (existing) {
     existing.subscribers.add(sender);
     // A second window joining gets the current state straight away.
-    if (existing.lastState && !sender.isDestroyed()) {
-      sender.send(IPC.git.onWorkspaceState, projectId, existing.lastState);
+    if (existing.lastState) {
+      sendToContents(sender, IPC.git.onWorkspaceState, projectId, existing.lastState);
     }
     return;
   }
@@ -224,9 +225,5 @@ export async function refreshWorkspaceState(projectId: string, folderPath: strin
   }
   const state = await readWorkspaceGitState(folderPath).catch(() => null);
   if (!state) return;
-  for (const win of BrowserWindow.getAllWindows()) {
-    if (!win.webContents.isDestroyed()) {
-      win.webContents.send(IPC.git.onWorkspaceState, projectId, state);
-    }
-  }
+  broadcastToWindows(IPC.git.onWorkspaceState, projectId, state);
 }

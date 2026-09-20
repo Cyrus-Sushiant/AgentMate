@@ -21,6 +21,7 @@ import {
   unlockVault,
 } from '../ssh/vault';
 import { store } from '../store';
+import { sendToContents } from './send';
 
 const SESSION_ID_PATTERN = /^[A-Za-z0-9_-]{1,128}$/;
 
@@ -44,8 +45,7 @@ function syncPowerSaveBlocker(): void {
 }
 
 function sendToOwner(sessionId: string, data: string): void {
-  const owner = owners.get(sessionId);
-  if (owner && !owner.isDestroyed()) owner.send(IPC.ssh.onData, { sessionId, data });
+  sendToContents(owners.get(sessionId), IPC.ssh.onData, { sessionId, data });
 }
 
 function forwardData(sessionId: string, data: string): void {
@@ -54,8 +54,7 @@ function forwardData(sessionId: string, data: string): void {
 }
 
 function forwardExit(sessionId: string, error?: string): void {
-  const owner = owners.get(sessionId);
-  if (owner && !owner.isDestroyed()) owner.send(IPC.ssh.onExit, { sessionId, error });
+  sendToContents(owners.get(sessionId), IPC.ssh.onExit, { sessionId, error });
   owners.delete(sessionId);
   sessions.delete(sessionId);
   capturedDisplays.delete(sessionId);

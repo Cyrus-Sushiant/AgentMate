@@ -1,7 +1,8 @@
 import { type FSWatcher, watch } from 'node:fs';
 import { join } from 'node:path';
-import { BrowserWindow, type WebContents } from 'electron';
+import { type WebContents } from 'electron';
 import { IPC } from '../../shared/ipcChannels';
+import { broadcastToWindows } from '../ipc/send';
 
 /**
  * Commits, merges and rebases write a burst of files, so collapse the burst into one
@@ -44,9 +45,7 @@ export function isTracked(file: string | null): boolean {
 }
 
 function broadcast(projectId: string): void {
-  for (const win of BrowserWindow.getAllWindows()) {
-    if (!win.webContents.isDestroyed()) win.webContents.send(IPC.git.onRepoChanged, projectId);
-  }
+  broadcastToWindows(IPC.git.onRepoChanged, projectId);
 }
 
 function closeWatch(projectId: string): void {

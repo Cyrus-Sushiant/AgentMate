@@ -4,10 +4,11 @@ import { createServer, type Server } from 'node:http';
 import { join } from 'node:path';
 import type { AgentHookEvent, NotificationHookKind } from '@agentmat/core';
 import { NOTIFICATION_HOOK_KINDS } from '@agentmat/core';
-import { app, BrowserWindow } from 'electron';
+import { app } from 'electron';
 import type { ConfirmationForwardedPayload } from '../../shared/apiTypes';
 import { IPC } from '../../shared/ipcChannels';
 import { agentStatus } from '../agents/statusTracker';
+import { broadcastToWindows } from '../ipc/send';
 import { findSessionIdForProject, SESSION_ID_PATTERN, writeToSession } from '../ipc/terminal';
 import { store } from '../store';
 import { speakOnPet } from './petNotifier';
@@ -62,11 +63,7 @@ async function handleHookRequest(projectId: string, kind: NotificationHookKind):
 }
 
 function notifyRenderer(payload: ConfirmationForwardedPayload): void {
-  for (const win of BrowserWindow.getAllWindows()) {
-    if (!win.webContents.isDestroyed()) {
-      win.webContents.send(IPC.notifications.onConfirmationForwarded, payload);
-    }
-  }
+  broadcastToWindows(IPC.notifications.onConfirmationForwarded, payload);
 }
 
 async function runPollLoop(): Promise<void> {

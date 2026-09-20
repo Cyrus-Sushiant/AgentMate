@@ -1,5 +1,6 @@
 import { type BrowserWindow, ipcMain } from 'electron';
 import { IPC } from '../../shared/ipcChannels';
+import { sendToWindow } from './send';
 
 export function registerWindowHandlers(win: BrowserWindow): void {
   // The main window can be rebuilt (macOS dock activate, or the pet asking for
@@ -22,6 +23,6 @@ export function registerWindowHandlers(win: BrowserWindow): void {
   ipcMain.handle(IPC.window.close, () => win.close());
   ipcMain.handle(IPC.window.isMaximized, () => win.isMaximized());
 
-  win.on('maximize', () => win.webContents.send(IPC.window.onMaximizedChange, true));
-  win.on('unmaximize', () => win.webContents.send(IPC.window.onMaximizedChange, false));
+  win.on('maximize', () => sendToWindow(win, IPC.window.onMaximizedChange, true));
+  win.on('unmaximize', () => sendToWindow(win, IPC.window.onMaximizedChange, false));
 }

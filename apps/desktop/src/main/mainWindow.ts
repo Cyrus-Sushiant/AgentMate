@@ -1,5 +1,6 @@
 import type { BrowserWindow } from 'electron';
 import { IPC } from '../shared/ipcChannels';
+import { sendToWindow } from './ipc/send';
 import { keepWindowsHidden } from './testMode';
 
 let mainWindow: BrowserWindow | null = null;
@@ -49,7 +50,7 @@ function sendNavigate(win: BrowserWindow, route: string): void {
     pendingRoute = route;
     return;
   }
-  win.webContents.send(IPC.app.onNavigate, route);
+  sendToWindow(win, IPC.app.onNavigate, route);
 }
 
 /** Hands over a route parked during startup, once. */

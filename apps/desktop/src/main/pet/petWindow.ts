@@ -8,6 +8,7 @@ import {
   type PetSnoozeState,
   type PetWorkArea,
 } from '../../shared/pet';
+import { broadcastToWindows, sendToWindow } from '../ipc/send';
 import { store } from '../store';
 
 // Windows does not keep a topmost window on top forever. Another app going
@@ -49,7 +50,7 @@ function fitToWorkArea(target: BrowserWindow): PetWorkArea {
 
 function broadcastWorkArea(): void {
   if (!win || win.isDestroyed()) return;
-  win.webContents.send(IPC.pet.onDisplayChanged, fitToWorkArea(win));
+  sendToWindow(win, IPC.pet.onDisplayChanged, fitToWorkArea(win));
   // Resolution and monitor changes are one of the moments the pet slips behind
   // other windows, so re-stamp right away rather than waiting for the timer.
   reassertTopmost();
@@ -101,9 +102,7 @@ function applyClickThrough(target: BrowserWindow, ignore: boolean): void {
 
 function broadcastSnooze(): void {
   const state: PetSnoozeState = { until: snoozeUntil };
-  for (const target of BrowserWindow.getAllWindows()) {
-    if (!target.webContents.isDestroyed()) target.webContents.send(IPC.pet.onSnoozeChanged, state);
-  }
+  broadcastToWindows(IPC.pet.onSnoozeChanged, state);
 }
 
 function stopSnoozeTimer(): void {
@@ -247,13 +246,12 @@ export const petManager = {
   },
 
   notifySettings(): void {
-    if (!win || win.isDestroyed()) return;
-    win.webContents.send(IPC.pet.onSettingsChanged);
+    sendToWindow(win, IPC.pet.onSettingsChanged);
   },
 
   sendPipelineMessage(payload: PetPipelineMessage): void {
     if (!this.isOpen()) return;
-    win?.webContents.send(IPC.pet.onPipelineMessage, payload);
+    sendToWindow(win, IPC.pet.onPipelineMessage, payload);
   },
 
   setClickThrough(ignore: boolean): void {

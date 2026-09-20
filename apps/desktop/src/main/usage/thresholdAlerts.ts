@@ -1,6 +1,6 @@
 import { FABLE_WEEK_LABEL, getUsageProvider, type SubscriptionWindowKey } from '@agentmat/core';
-import { BrowserWindow } from 'electron';
 import { IPC } from '../../shared/ipcChannels';
+import { broadcastToWindows } from '../ipc/send';
 import { showOsNotification } from '../notifications/osNotification';
 import { store } from '../store';
 import { getProviderUsage } from './index';
@@ -26,9 +26,7 @@ let timer: NodeJS.Timeout | null = null;
 const fired = new Map<SubscriptionWindowKey, string | null>();
 
 function broadcast(channel: string, payload: unknown): void {
-  for (const win of BrowserWindow.getAllWindows()) {
-    if (!win.webContents.isDestroyed()) win.webContents.send(channel, payload);
-  }
+  broadcastToWindows(channel, payload);
 }
 
 /**

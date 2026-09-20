@@ -10,6 +10,7 @@ import type {
 import { IPC } from '../../shared/ipcChannels';
 import { PACKAGE_MANAGER_ADAPTERS, scanProjectPackages } from '../packageManagers';
 import { store } from '../store';
+import { sendToContents } from './send';
 
 /**
  * Package names and versions end up as arguments to npm/yarn/pnpm/dotnet, so
@@ -109,9 +110,7 @@ export function registerPackageManagerHandlers(): void {
           // An update can run for minutes; closing or reloading the window
           // mid-run would otherwise throw from inside the adapter's callback
           // and abort the install partway through.
-          if (!event.sender.isDestroyed()) {
-            event.sender.send(IPC.packages.onUpdateProgress, progress);
-          }
+          sendToContents(event.sender, IPC.packages.onUpdateProgress, progress);
         });
         ok = ok && result.ok;
         results.push(...result.results);

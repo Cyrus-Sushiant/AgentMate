@@ -14,9 +14,9 @@ import {
   codeqlDownloadUrl,
   parseChecksumFile,
 } from '@agentmat/core';
-import { BrowserWindow } from 'electron';
 import { IPC } from '../../shared/ipcChannels';
 import { toolsDir } from '../grammar/localServer';
+import { broadcastToWindows } from '../ipc/send';
 import { DownloadAbortedError, ResumableDownload } from '../updater/resumableDownload';
 import type { ExtractWorkerMessage } from './codeqlExtractWorker';
 import { probe } from './exec';
@@ -57,11 +57,7 @@ function emit(progress: CodeqlInstallProgress): void {
   currentProgress = progress;
   // Broadcast rather than reply to one sender: the Tools page and a project's Security tab can
   // both be showing this, and an install outlives whichever one started it.
-  for (const win of BrowserWindow.getAllWindows()) {
-    if (!win.webContents.isDestroyed()) {
-      win.webContents.send(IPC.security.onCodeqlProgress, progress);
-    }
-  }
+  broadcastToWindows(IPC.security.onCodeqlProgress, progress);
 }
 
 async function readVersion(binary: string): Promise<string | null> {

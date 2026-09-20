@@ -22,6 +22,7 @@ import {
   type RemoteInputEvent,
   type RemoteRtcMessage,
 } from '../../shared/remoteProtocol';
+import { sendToWindow } from '../ipc/send';
 import { store } from '../store';
 import { FileManagerOps } from './fileManagerOps';
 import { FileTransferManager } from './fileTransfer';
@@ -971,8 +972,7 @@ class RemoteManager {
    */
   private send(channel: string, payload?: unknown): void {
     for (const target of [this.mainWindow, sessionWindow.get()]) {
-      if (!target || target.isDestroyed() || target.webContents.isDestroyed()) continue;
-      target.webContents.send(channel, payload);
+      sendToWindow(target, channel, payload);
     }
   }
 

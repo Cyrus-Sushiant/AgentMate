@@ -1,8 +1,8 @@
 import type { AppNotification, UpdateCheckSource } from '@agentmat/core';
 import { AGENT_TOOL_REGISTRY, CLI_REGISTRY } from '@agentmat/core';
-import { BrowserWindow } from 'electron';
 import { IPC } from '../../shared/ipcChannels';
 import { detectAllClis } from '../ipc/cliDetection';
+import { broadcastToWindows } from '../ipc/send';
 import { detectAllTools } from '../ipc/tools';
 import { compareVersions, fetchLatestVersion, releaseUrl } from '../registryVersions';
 import { store } from '../store';
@@ -23,9 +23,7 @@ interface UpdatableEntry {
 }
 
 function broadcastNotificationsChanged(): void {
-  for (const win of BrowserWindow.getAllWindows()) {
-    if (!win.webContents.isDestroyed()) win.webContents.send(IPC.appNotifications.onChanged);
-  }
+  broadcastToWindows(IPC.appNotifications.onChanged);
 }
 
 async function appendUpdateNotification(

@@ -12,6 +12,7 @@ import {
 } from '@agentmat/core';
 import { BrowserWindow } from 'electron';
 import icon from '../../../resources/icon.ico?asset';
+import { sendToWindow } from '../ipc/send';
 import { store } from '../store';
 import { keepWindowsHidden } from '../testMode';
 
@@ -150,7 +151,7 @@ function createWidgetWindow(instance: DesktopWidgetInstance): BrowserWindow {
 }
 
 function notifyUpdated(id: string): void {
-  windows.get(id)?.webContents.send('usage:widgetUpdated', { id });
+  sendToWindow(windows.get(id), 'usage:widgetUpdated', { id });
 }
 
 export const widgetManager = {

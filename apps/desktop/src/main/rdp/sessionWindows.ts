@@ -3,6 +3,7 @@ import { BrowserWindow, type IpcMainInvokeEvent, ipcMain } from 'electron';
 import icon from '../../../resources/icon.ico?asset';
 import type { RdpWindowState } from '../../shared/apiTypes';
 import { IPC } from '../../shared/ipcChannels';
+import { sendToWindow } from '../ipc/send';
 import { keepWindowsHidden } from '../testMode';
 
 /**
@@ -83,8 +84,7 @@ export function openRdpWindow(options: OpenRdpWindowOptions): BrowserWindow {
   window.on('page-title-updated', (event) => event.preventDefault());
 
   const sendState = (): void => {
-    if (!window.isDestroyed())
-      window.webContents.send(IPC.rdpWindow.onStateChange, stateOf(window));
+    if (!window.isDestroyed()) sendToWindow(window, IPC.rdpWindow.onStateChange, stateOf(window));
   };
   window.on('maximize', sendState);
   window.on('unmaximize', sendState);

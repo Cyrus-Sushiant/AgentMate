@@ -1,9 +1,9 @@
 import { randomUUID } from 'node:crypto';
 import type { AppNotification, Project } from '@agentmat/core';
-import { BrowserWindow } from 'electron';
 import type { GithubWorkflowRunInfo } from '../../shared/apiTypes';
 import { IPC } from '../../shared/ipcChannels';
 import type { PetPipelineMessage, PetPipelineRunRef } from '../../shared/pet';
+import { broadcastToWindows } from '../ipc/send';
 import { petDisplayName } from '../pet/names';
 import { petManager } from '../pet/petWindow';
 import { type PipelineWatchState, store } from '../store';
@@ -31,9 +31,7 @@ function watchKey(projectId: string, workflowId: number): string {
 }
 
 function broadcastNotificationsChanged(): void {
-  for (const win of BrowserWindow.getAllWindows()) {
-    if (!win.webContents.isDestroyed()) win.webContents.send(IPC.appNotifications.onChanged);
-  }
+  broadcastToWindows(IPC.appNotifications.onChanged);
 }
 
 function petSpeech(kind: 'pass' | 'fail', projectName: string, workflowName: string): string {

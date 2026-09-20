@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { looksLikeNeedsInput } from '@agentmat/core';
-import { BrowserWindow, type IpcMainInvokeEvent, ipcMain, type WebContents } from 'electron';
+import { type IpcMainInvokeEvent, ipcMain, type WebContents } from 'electron';
 import type {
   AgentSessionEntry,
   CreateTerminalOptions,
@@ -23,6 +23,7 @@ import type {
 import { PtySessionManager, type SessionListener } from '../ptyHost/sessionManager';
 import { store } from '../store';
 import { sampleProcessTrees } from '../system/processTree';
+import { broadcastToWindows, sendToContents } from './send';
 
 const ALLOWED_SHELLS = ['powershell.exe', 'pwsh.exe', 'cmd.exe', 'bash', 'zsh', 'fish'] as const;
 type AllowedShell = (typeof ALLOWED_SHELLS)[number];
@@ -109,16 +110,13 @@ export const autoContinue = createAutoContinue({
   write: writeToShell,
   statusOf: (sessionId) => agentStatus.list()[sessionId],
   broadcast: (changes) => {
-    for (const win of BrowserWindow.getAllWindows()) {
-      if (!win.webContents.isDestroyed()) win.webContents.send(IPC.agents.onAutoContinue, changes);
-    }
+    broadcastToWindows(IPC.agents.onAutoContinue, changes);
   },
   setBusy: (busy) => keepAwake.setBusy('auto-continue', busy),
 });
 
 function sendToOwner(sessionId: string, data: string): void {
-  const owner = owners.get(sessionId);
-  if (owner && !owner.isDestroyed()) owner.send(IPC.terminal.onData, { sessionId, data });
+  sendToContents(owners.get(sessionId), IPC.terminal.onData, { sessionId, data });
 }
 
 function forwardData(sessionId: string, data: string): void {
@@ -136,8 +134,7 @@ function forwardData(sessionId: string, data: string): void {
 function forwardExit(sessionId: string, exitCode: number): void {
   agentStatus.exit(sessionId);
   autoContinue.exit(sessionId);
-  const owner = owners.get(sessionId);
-  if (owner && !owner.isDestroyed()) owner.send(IPC.terminal.onExit, { sessionId, exitCode });
+  sendToContents(owners.get(sessionId), IPC.terminal.onExit, { sessionId, exitCode });
   owners.delete(sessionId);
   sessions.delete(sessionId);
   attached.delete(sessionId);

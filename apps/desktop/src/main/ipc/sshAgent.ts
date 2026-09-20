@@ -9,13 +9,13 @@ import {
   startSshTask,
   stopSshTask,
 } from '../agents/sshTaskRunner';
+import { sendToContents } from './send';
 
 /** The window that started each session's task, so progress events go back to it. */
 const owners = new Map<string, WebContents>();
 
 function forwardProgress(progress: SshAgentProgress): void {
-  const owner = owners.get(progress.sessionId);
-  if (owner && !owner.isDestroyed()) owner.send(IPC.sshAgent.onProgress, progress);
+  sendToContents(owners.get(progress.sessionId), IPC.sshAgent.onProgress, progress);
   if (progress.phase === 'finished' || progress.phase === 'error' || progress.phase === 'stopped') {
     owners.delete(progress.sessionId);
   }

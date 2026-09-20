@@ -2,6 +2,7 @@ import { join } from 'node:path';
 import { BrowserWindow, ipcMain } from 'electron';
 import icon from '../../../resources/icon.ico?asset';
 import { IPC } from '../../shared/ipcChannels';
+import { sendToWindow } from '../ipc/send';
 import { keepWindowsHidden } from '../testMode';
 
 /**
@@ -66,10 +67,10 @@ function createSessionWindow(): BrowserWindow {
     if (!keepWindowsHidden) window.show();
   });
   window.on('maximize', () =>
-    window.webContents.send(IPC.remoteSessionWindow.onMaximizedChange, true),
+    sendToWindow(window, IPC.remoteSessionWindow.onMaximizedChange, true),
   );
   window.on('unmaximize', () =>
-    window.webContents.send(IPC.remoteSessionWindow.onMaximizedChange, false),
+    sendToWindow(window, IPC.remoteSessionWindow.onMaximizedChange, false),
   );
 
   // Closing the session window ends the remote-control session, matching how

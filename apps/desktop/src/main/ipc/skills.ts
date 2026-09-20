@@ -25,7 +25,7 @@ import {
   UI_UX_PRO_MAX_PSEUDO_REPOSITORY_ID,
   UI_UX_PRO_MAX_SKILL_ID,
 } from '@agentmat/core';
-import { app, BrowserWindow, dialog, ipcMain } from 'electron';
+import { app, dialog, ipcMain } from 'electron';
 import type {
   AuditSourcePreview,
   AuditSourceSkill,
@@ -65,6 +65,7 @@ import {
 import { scanSkillFolder } from '../skills/localFolderIndex';
 import { getSkillUsage, rescanSkillUsage } from '../skills/usageScanner';
 import { store } from '../store';
+import { broadcastToWindows } from './send';
 
 const SKILLS_SH_VERIFIED_OWNER_SET = new Set(SKILLS_SH_VERIFIED_OWNERS);
 
@@ -294,11 +295,7 @@ const localRepoWatchers = new Map<string, FSWatcher>();
 const localRepoRefreshTimers = new Map<string, NodeJS.Timeout>();
 
 function broadcastRepositoryChanged(repositoryId: string): void {
-  for (const win of BrowserWindow.getAllWindows()) {
-    if (!win.webContents.isDestroyed()) {
-      win.webContents.send(IPC.skills.onRepositoryChanged, repositoryId);
-    }
-  }
+  broadcastToWindows(IPC.skills.onRepositoryChanged, repositoryId);
 }
 
 /**

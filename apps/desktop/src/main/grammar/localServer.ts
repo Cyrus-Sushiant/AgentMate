@@ -3,9 +3,10 @@ import { readdir, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { type GrammarSettings, LANGUAGETOOL_SERVER_JAR } from '@agentmat/core';
-import { app, BrowserWindow } from 'electron';
+import { app } from 'electron';
 import type { GrammarLocalStatus, GrammarServerState } from '../../shared/grammar';
 import { IPC } from '../../shared/ipcChannels';
+import { broadcastToWindows } from '../ipc/send';
 
 const execFileAsync = promisify(execFile);
 
@@ -153,9 +154,7 @@ let javaVersionCache: string | null = null;
 let javaProbed = false;
 
 function broadcast(status: GrammarLocalStatus): void {
-  for (const win of BrowserWindow.getAllWindows()) {
-    win.webContents.send(IPC.grammar.onLocalStatus, status);
-  }
+  broadcastToWindows(IPC.grammar.onLocalStatus, status);
 }
 
 async function currentState(port: number): Promise<GrammarServerState> {

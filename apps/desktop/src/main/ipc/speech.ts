@@ -1,6 +1,6 @@
 import { join } from 'node:path';
 import { DEFAULT_WHISPER_MODEL, WHISPER_MODELS } from '@agentmat/core';
-import { app, BrowserWindow, ipcMain } from 'electron';
+import { app, ipcMain } from 'electron';
 import type {
   SpeechModelProgress,
   SpeechModelState,
@@ -9,6 +9,7 @@ import type {
 } from '../../shared/apiTypes';
 import { IPC } from '../../shared/ipcChannels';
 import { store } from '../store';
+import { broadcastToWindows } from './send';
 
 // Whisper ONNX weights, served from the Hugging Face hub the first time and
 // then cached to disk. onnx-community publishes the quantized variants
@@ -54,9 +55,7 @@ let pipelinePromise: Promise<AsrPipeline> | null = null;
 let loadedModelId: string | null = null;
 
 function broadcastProgress(progress: SpeechModelProgress): void {
-  for (const win of BrowserWindow.getAllWindows()) {
-    win.webContents.send(IPC.speech.onModelProgress, progress);
-  }
+  broadcastToWindows(IPC.speech.onModelProgress, progress);
 }
 
 async function getPipeline(modelId: string): Promise<AsrPipeline> {
