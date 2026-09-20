@@ -69,20 +69,27 @@ function HeaderButton({
   onClick,
   children,
   disabled,
+  active,
 }: {
   label: string;
   onClick: () => void;
   children: React.ReactNode;
   disabled?: boolean;
+  /** For a button that turns something on and off, so its state reads at a glance. */
+  active?: boolean;
 }): React.JSX.Element {
   return (
     <SimpleTooltip label={label} wrapTrigger={disabled}>
       <button
         type="button"
         aria-label={label}
+        {...(active === undefined ? {} : { 'aria-pressed': active })}
         onClick={onClick}
         disabled={disabled}
-        className="flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-foreground/10 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-40"
+        className={cn(
+          'flex h-6 w-6 items-center justify-center rounded-md transition-colors hover:bg-foreground/10 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-40',
+          active ? 'bg-primary/12 text-primary' : 'text-muted-foreground',
+        )}
       >
         {children}
       </button>
@@ -228,6 +235,7 @@ function BranchBar({
   state: WorkspaceGitState;
 }): React.JSX.Element {
   const setGitPanel = useWorkspaceStore((s) => s.setGitPanel);
+  const showLineStats = useWorkspaceStore((s) => s.gitPanel.showLineStats);
   return (
     <div className="flex h-9 shrink-0 items-center gap-1 border-b border-border/50 pl-1.5 pr-2">
       <SimpleTooltip
@@ -253,6 +261,13 @@ function BranchBar({
         </button>
       </SimpleTooltip>
       <SyncControls projectId={projectId} state={state} />
+      <HeaderButton
+        label={showLineStats ? 'Hide line totals' : 'Show line totals'}
+        active={showLineStats}
+        onClick={() => setGitPanel({ showLineStats: !showLineStats })}
+      >
+        <ChartSimple className="h-3 w-3" />
+      </HeaderButton>
     </div>
   );
 }
@@ -579,7 +594,6 @@ export function GitPanel({
   useInitialFetch(project.id, state?.isRepo && state.hasRemote);
   const [resizing, setResizing] = useState(false);
   const failedTests = useTestsFailedCount(project.id);
-  const showLineStats = useWorkspaceStore((s) => s.gitPanel.showLineStats);
   // Runs keep reporting while the Tests tab is closed, so the badge stays true.
   useEffect(() => ensureTestRunSubscription(), []);
   const count = state
@@ -620,15 +634,6 @@ export function GitPanel({
       title: 'Changes',
       icon: CodeCompare,
       count,
-      actions: (
-        <PanelIconButton
-          label={showLineStats ? 'Hide line totals' : 'Show line totals'}
-          active={showLineStats}
-          onClick={() => setGitPanel({ showLineStats: !showLineStats })}
-        >
-          <ChartSimple className="h-2.5 w-2.5" />
-        </PanelIconButton>
-      ),
       render: () => <PanelBody project={project} state={state} />,
     },
     {

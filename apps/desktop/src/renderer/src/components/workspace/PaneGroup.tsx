@@ -217,101 +217,106 @@ function PaneTab({
       tab.path
     );
 
-  const tabElement = (
-    <SimpleTooltip label={editing ? null : tooltip} delayDuration={600}>
-      <ContextMenuTrigger asChild disabled={tab.kind !== 'terminal'}>
-        <div
-          role="tab"
-          aria-selected={active}
-          tabIndex={active ? 0 : -1}
-          draggable={!editing}
-          data-tab-id={tab.id}
-          onDragStart={(event) => {
-            const payload: DraggedTab = { projectId, tabId: tab.id, groupId };
-            event.dataTransfer.setData(TAB_MIME, JSON.stringify(payload));
-            event.dataTransfer.effectAllowed = 'move';
+  const tabBody = (
+    <div
+      role="tab"
+      aria-selected={active}
+      tabIndex={active ? 0 : -1}
+      draggable={!editing}
+      data-tab-id={tab.id}
+      onDragStart={(event) => {
+        const payload: DraggedTab = { projectId, tabId: tab.id, groupId };
+        event.dataTransfer.setData(TAB_MIME, JSON.stringify(payload));
+        event.dataTransfer.effectAllowed = 'move';
+      }}
+      onClick={onSelect}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          onSelect();
+        }
+      }}
+      onMouseDown={(event) => {
+        if (event.button === 1) event.preventDefault();
+      }}
+      onAuxClick={(event) => {
+        if (event.button === 1) {
+          event.preventDefault();
+          onClose();
+        }
+      }}
+      onDoubleClick={() => {
+        if (tab.kind === 'terminal') setEditing(true);
+        else if (tab.kind === 'diff' && tab.preview) openDiff(projectId, tab, { pin: true });
+        else if (tab.kind === 'file' && tab.preview) openFile(projectId, tab.path, { pin: true });
+      }}
+      className={cn(
+        'group relative flex h-7 min-w-[4.5rem] max-w-[13rem] shrink cursor-pointer select-none items-center gap-1.5 rounded-md pl-2 pr-1 text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+        attention === 'needs-input'
+          ? 'bg-warning/12 text-foreground ring-1 ring-inset ring-warning/30'
+          : active
+            ? 'bg-foreground/[0.08] text-foreground'
+            : 'text-muted-foreground hover:bg-foreground/[0.05] hover:text-foreground',
+      )}
+    >
+      {active && groupFocused ? (
+        <span className="absolute inset-x-2 -bottom-[5px] h-[2px] rounded-full bg-primary shadow-[0_0_8px_hsl(var(--primary)/0.7)]" />
+      ) : null}
+      <TabIcon tab={tab} />
+      {editing && tab.kind === 'terminal' ? (
+        <input
+          autoFocus
+          defaultValue={label}
+          aria-label="Tab name"
+          onClick={(event) => event.stopPropagation()}
+          onBlur={(event) => {
+            renameTab(projectId, tab.id, event.currentTarget.value);
+            setEditing(false);
           }}
-          onClick={onSelect}
           onKeyDown={(event) => {
-            if (event.key === 'Enter' || event.key === ' ') {
-              event.preventDefault();
-              onSelect();
-            }
+            event.stopPropagation();
+            if (event.key === 'Enter') event.currentTarget.blur();
+            if (event.key === 'Escape') setEditing(false);
           }}
-          onMouseDown={(event) => {
-            if (event.button === 1) event.preventDefault();
-          }}
-          onAuxClick={(event) => {
-            if (event.button === 1) {
-              event.preventDefault();
-              onClose();
-            }
-          }}
-          onDoubleClick={() => {
-            if (tab.kind === 'terminal') setEditing(true);
-            else if (tab.kind === 'diff' && tab.preview) openDiff(projectId, tab, { pin: true });
-            else if (tab.kind === 'file' && tab.preview)
-              openFile(projectId, tab.path, { pin: true });
-          }}
+          className="h-5 min-w-0 flex-1 rounded border border-primary/40 bg-background px-1 text-xs outline-none"
+        />
+      ) : (
+        <span
           className={cn(
-            'group relative flex h-7 min-w-[4.5rem] max-w-[13rem] shrink cursor-pointer select-none items-center gap-1.5 rounded-md pl-2 pr-1 text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-            attention === 'needs-input'
-              ? 'bg-warning/12 text-foreground ring-1 ring-inset ring-warning/30'
-              : active
-                ? 'bg-foreground/[0.08] text-foreground'
-                : 'text-muted-foreground hover:bg-foreground/[0.05] hover:text-foreground',
+            'min-w-0 flex-1 truncate',
+            (tab.kind === 'diff' || tab.kind === 'file') && tab.preview && 'italic',
+            ended && 'text-muted-foreground line-through decoration-foreground/30',
           )}
         >
-          {active && groupFocused ? (
-            <span className="absolute inset-x-2 -bottom-[5px] h-[2px] rounded-full bg-primary shadow-[0_0_8px_hsl(var(--primary)/0.7)]" />
-          ) : null}
-          <TabIcon tab={tab} />
-          {editing && tab.kind === 'terminal' ? (
-            <input
-              autoFocus
-              defaultValue={label}
-              aria-label="Tab name"
-              onClick={(event) => event.stopPropagation()}
-              onBlur={(event) => {
-                renameTab(projectId, tab.id, event.currentTarget.value);
-                setEditing(false);
-              }}
-              onKeyDown={(event) => {
-                event.stopPropagation();
-                if (event.key === 'Enter') event.currentTarget.blur();
-                if (event.key === 'Escape') setEditing(false);
-              }}
-              className="h-5 min-w-0 flex-1 rounded border border-primary/40 bg-background px-1 text-xs outline-none"
-            />
-          ) : (
-            <span
-              className={cn(
-                'min-w-0 flex-1 truncate',
-                (tab.kind === 'diff' || tab.kind === 'file') && tab.preview && 'italic',
-                ended && 'text-muted-foreground line-through decoration-foreground/30',
-              )}
-            >
-              {label}
-            </span>
-          )}
-          <AgentStatusDot status={attention} />
-          <button
-            type="button"
-            aria-label={`Close ${label}`}
-            tabIndex={-1}
-            onClick={(event) => {
-              event.stopPropagation();
-              onClose();
-            }}
-            className={cn(
-              'flex h-4 w-4 shrink-0 items-center justify-center rounded-sm text-muted-foreground transition-opacity hover:bg-foreground/15 hover:text-foreground',
-              active ? 'opacity-70' : 'opacity-0 group-hover:opacity-70',
-            )}
-          >
-            <X className="h-2.5 w-2.5" />
-          </button>
-        </div>
-      </ContextMenuTrigger>
+          {label}
+        </span>
+      )}
+      <AgentStatusDot status={attention} />
+      <button
+        type="button"
+        aria-label={`Close ${label}`}
+        tabIndex={-1}
+        onClick={(event) => {
+          event.stopPropagation();
+          onClose();
+        }}
+        className={cn(
+          'flex h-4 w-4 shrink-0 items-center justify-center rounded-sm text-muted-foreground transition-opacity hover:bg-foreground/15 hover:text-foreground',
+          active ? 'opacity-70' : 'opacity-0 group-hover:opacity-70',
+        )}
+      >
+        <X className="h-2.5 w-2.5" />
+      </button>
+    </div>
+  );
+
+  const tabElement = (
+    <SimpleTooltip label={editing ? null : tooltip} delayDuration={600}>
+      {tab.kind === 'terminal' ? (
+        <ContextMenuTrigger asChild>{tabBody}</ContextMenuTrigger>
+      ) : (
+        tabBody
+      )}
     </SimpleTooltip>
   );
 
