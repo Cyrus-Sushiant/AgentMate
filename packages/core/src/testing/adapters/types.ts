@@ -37,6 +37,8 @@ export interface RunPlan {
   env?: Record<string, string>;
   /** Absolute report files to read once the run ends. */
   reportFiles?: string[];
+  /** Helper files the runner writes before starting, at absolute paths. */
+  files?: { path: string; content: string }[];
   reportSearch?: ReportSearch[];
 }
 

@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
-import { mkdir, mkdtemp, readdir, readFile, rm, stat } from 'node:fs/promises';
+import { mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { isAbsolute, join } from 'node:path';
 import {
@@ -256,6 +256,7 @@ export class TestRunManager {
         await mkdir(reportDir, { recursive: true });
         const resolved = resolveTarget(node, target);
         const plan = this.plan(project, resolved, input.folderPath, reportDir);
+        for (const file of plan.files ?? []) await writeFile(file.path, file.content);
         // Runners that filter by name (Vitest, Jest) still list the tests they left out, as
         // skipped. Only what was picked, and anything nested under it, may change status.
         const picked = new Set(

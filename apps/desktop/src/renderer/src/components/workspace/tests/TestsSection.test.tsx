@@ -291,6 +291,37 @@ describe('TestsSection', () => {
     expect(screen.queryByRole('button', { name: 'Stop tests' })).toBeNull();
   });
 
+  it('counts the run up while it goes and stops the clock when it is over', async () => {
+    renderSection();
+    await screen.findByText('adds', { selector: '[data-test-name]' });
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(100_000);
+      send({
+        type: 'started',
+        runId: 'r1',
+        projectId: 'p1',
+        summary: summary({ startedAt: 100_000 }),
+        queued: [ids.adds],
+      });
+      expect(screen.getByLabelText('Elapsed time').textContent).toBe('0:00');
+
+      act(() => vi.advanceTimersByTime(65_000));
+      expect(screen.getByLabelText('Elapsed time').textContent).toBe('1:05');
+
+      send({
+        type: 'done',
+        runId: 'r1',
+        projectId: 'p1',
+        summary: summary({ startedAt: 100_000, running: false, finishedAt: 190_000 }),
+      });
+      act(() => vi.advanceTimersByTime(210_000));
+      expect(screen.getByLabelText('Elapsed time').textContent).toBe('1:30');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('stops a run that is going', async () => {
     renderSection();
     await screen.findByText('adds', { selector: '[data-test-name]' });

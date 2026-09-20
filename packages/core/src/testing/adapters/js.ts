@@ -70,17 +70,66 @@ export const vitestAdapter: TestAdapter = {
   stream: () => vitestStream(),
 };
 
+const JEST_MARK = '@@agentmate-jest ';
+
+/**
+ * Jest only writes its JSON report when every file is done, and its text output has no reliable
+ * per-test lines. This reporter prints each test file's results the moment that file finishes.
+ */
+const JEST_REPORTER = `class AgentMateReporter {
+  onTestResult(_test, result) {
+    try {
+      const entry = {
+        name: result.testFilePath,
+        status: result.numFailingTests > 0 ? 'failed' : 'passed',
+        message: result.failureMessage || '',
+        assertionResults: result.testResults.map((t) => ({
+          title: t.title,
+          ancestorTitles: t.ancestorTitles,
+          status: t.status,
+          duration: t.duration,
+          failureMessages: t.failureMessages,
+          location: t.location,
+        })),
+      };
+      process.stdout.write(${JSON.stringify(JEST_MARK)} + JSON.stringify(entry) + '\\n');
+    } catch {}
+  }
+}
+module.exports = AgentMateReporter;
+`;
+
+function jestStream(): StreamParser {
+  return {
+    push(line) {
+      const at = line.indexOf(JEST_MARK);
+      if (at < 0) return [];
+      try {
+        const entry = parseJson(line.slice(at + JEST_MARK.length));
+        return parseJestLikeReport(JSON.stringify({ testResults: [entry] }));
+      } catch {
+        return [];
+      }
+    },
+    finish: () => [],
+    display: (line) => (line.includes(JEST_MARK) ? null : line),
+  };
+}
+
 export const jestAdapter: TestAdapter = {
   framework: 'jest',
   plan(project, target, ctx) {
     const { command, prefix } = nodeRunner(project, 'jest', ctx);
     const report = reportPath(ctx, 'jest.json');
+    const reporter = reportPath(ctx, 'agentmate-jest-reporter.cjs');
     const { files, names } = selectionArgs(project, target);
     return {
       command,
       args: [
         ...prefix,
         '--watchAll=false',
+        '--reporters=default',
+        `--reporters=${reporter}`,
         '--json',
         `--outputFile=${report}`,
         '--testLocationInResults',
@@ -89,9 +138,11 @@ export const jestAdapter: TestAdapter = {
       ],
       cwd: project.root,
       reportFiles: [report],
+      files: [{ path: reporter, content: JEST_REPORTER }],
     };
   },
   parseReport: parseJestLikeReport,
+  stream: () => jestStream(),
 };
 
 /**
@@ -163,11 +214,75 @@ function jsStatus(status: string | undefined): ParsedTestResult['status'] {
   return 'skipped';
 }
 
+const PLAYWRIGHT_MARK = '@@agentmate-playwright ';
+
+/**
+ * Playwright writes its JSON report only once the whole run is over, and a suite that drives a real
+ * app can take many minutes. This reporter prints a line for every test the moment it ends, so the
+ * panel can tick results off as they come in.
+ */
+const PLAYWRIGHT_REPORTER = `class AgentMateReporter {
+  onTestEnd(test, result) {
+    try {
+      const error = result.error || {};
+      const entry = {
+        file: test.location && test.location.file,
+        line: test.location && test.location.line,
+        // titlePath() is ['', project, file, ...titles].
+        path: test.titlePath().slice(3),
+        status: result.status,
+        expected: test.expectedStatus,
+        duration: result.duration,
+        message: error.message || '',
+        stack: error.stack || '',
+      };
+      process.stdout.write(${JSON.stringify(PLAYWRIGHT_MARK)} + JSON.stringify(entry) + '\\n');
+    } catch {}
+  }
+}
+module.exports = AgentMateReporter;
+`;
+
+function playwrightStream(): StreamParser {
+  return {
+    push(line) {
+      const at = line.indexOf(PLAYWRIGHT_MARK);
+      if (at < 0) return [];
+      const entry = asRecord(parseJson(line.slice(at + PLAYWRIGHT_MARK.length)));
+      const path = asArray(entry.path).filter(
+        (title): title is string => typeof title === 'string',
+      );
+      if (path.length === 0) return [];
+      const status = asString(entry.status);
+      return [
+        compact({
+          file: asString(entry.file),
+          path,
+          line: asNumber(entry.line),
+          // A test marked `fail` is expected to fail, so only an unexpected outcome is a failure.
+          status:
+            status === 'skipped'
+              ? ('skipped' as const)
+              : status === asString(entry.expected)
+                ? ('passed' as const)
+                : ('failed' as const),
+          durationMs: asNumber(entry.duration),
+          message: cleanText(asString(entry.message)),
+          stack: splitStack(asString(entry.stack)).stack,
+        }),
+      ];
+    },
+    finish: () => [],
+    display: (line) => (line.includes(PLAYWRIGHT_MARK) ? null : line),
+  };
+}
+
 export const playwrightAdapter: TestAdapter = {
   framework: 'playwright',
   plan(project, target, ctx) {
     const { command, prefix } = nodeRunner(project, 'playwright', ctx);
     const report = reportPath(ctx, 'playwright.json');
+    const reporter = reportPath(ctx, 'agentmate-playwright-reporter.cjs');
     const config = project.meta?.config;
     const selection: string[] = [];
     const unlined: string[] = [];
@@ -187,7 +302,7 @@ export const playwrightAdapter: TestAdapter = {
       args: [
         ...prefix,
         'test',
-        '--reporter=list,json',
+        `--reporter=list,json,${reporter}`,
         ...(config && !/^playwright\.config\.[cm]?[jt]s$/.test(config) ? ['--config', config] : []),
         ...unique(selection),
         ...(unlined.length > 0 && unlined.length === target.tests.length
@@ -197,8 +312,10 @@ export const playwrightAdapter: TestAdapter = {
       cwd: project.root,
       env: { PLAYWRIGHT_JSON_OUTPUT_NAME: report },
       reportFiles: [report],
+      files: [{ path: reporter, content: PLAYWRIGHT_REPORTER }],
     };
   },
+  stream: () => playwrightStream(),
   parseReport(text) {
     const report = asRecord(parseJson(text));
     const rootDir = asString(asRecord(report.config).rootDir);

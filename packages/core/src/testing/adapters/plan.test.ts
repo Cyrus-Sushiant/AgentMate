@@ -113,9 +113,17 @@ describe('JavaScript runners', () => {
       posix(['node_modules/.bin/jest']),
     );
     expect(plan).toEqual({
+      files: [
+        {
+          path: '/tmp/run1/agentmate-jest-reporter.cjs',
+          content: expect.stringContaining('onTestResult'),
+        },
+      ],
       command: './node_modules/.bin/jest',
       args: [
         '--watchAll=false',
+        '--reporters=default',
+        '--reporters=/tmp/run1/agentmate-jest-reporter.cjs',
         '--json',
         '--outputFile=/tmp/run1/jest.json',
         '--testLocationInResults',
@@ -142,7 +150,7 @@ describe('JavaScript runners', () => {
       command: 'node_modules\\.bin\\playwright.cmd',
       args: [
         'test',
-        '--reporter=list,json',
+        '--reporter=list,json,C:\\tmp\\run1\\agentmate-playwright-reporter.cjs',
         '--config',
         'e2e/playwright.config.ts',
         'e2e/launch.e2e.ts:26',
@@ -151,6 +159,12 @@ describe('JavaScript runners', () => {
       cwd: 'apps/desktop',
       env: { PLAYWRIGHT_JSON_OUTPUT_NAME: 'C:\\tmp\\run1\\playwright.json' },
       reportFiles: ['C:\\tmp\\run1\\playwright.json'],
+      files: [
+        {
+          path: 'C:\\tmp\\run1\\agentmate-playwright-reporter.cjs',
+          content: expect.stringContaining('onTestEnd'),
+        },
+      ],
     });
   });
 
@@ -162,7 +176,7 @@ describe('JavaScript runners', () => {
     );
     expect(plan.args).toEqual([
       'test',
-      '--reporter=list,json',
+      '--reporter=list,json,/tmp/run1/agentmate-playwright-reporter.cjs',
       'tests/a.spec.ts',
       '-g',
       '(?:logs in)$',

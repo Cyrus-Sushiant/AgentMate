@@ -9,6 +9,7 @@ import {
   type TestNode,
   type TestResult,
   type TestRunError,
+  type TestRunSummary,
   type TestStatus,
   type TestTarget,
 } from '@agentmat/core';
@@ -265,7 +266,41 @@ function formatDuration(ms: number | undefined): string | null {
   if (ms === undefined) return null;
   if (ms < 1) return '<1 ms';
   if (ms < 1000) return `${Math.round(ms)} ms`;
-  return `${(ms / 1000).toFixed(ms < 10_000 ? 1 : 0)} s`;
+  if (ms < 60_000) return `${(ms / 1000).toFixed(ms < 10_000 ? 1 : 0)} s`;
+  return formatClock(ms);
+}
+
+/** Stopwatch text for how long a run has been going: m:ss, and h:mm:ss once it passes an hour. */
+function formatClock(ms: number): string {
+  const total = Math.max(0, Math.floor(ms / 1000));
+  const seconds = String(total % 60).padStart(2, '0');
+  const minutes = Math.floor(total / 60) % 60;
+  const hours = Math.floor(total / 3600);
+  return hours > 0
+    ? `${hours}:${String(minutes).padStart(2, '0')}:${seconds}`
+    : `${minutes}:${seconds}`;
+}
+
+/**
+ * How long the run has been going, ticking once a second. A long suite can take many minutes, and
+ * a clock that moves is the clearest sign the run is alive. It stops at the run's own finish time.
+ */
+function useElapsed(summary: TestRunSummary | null): number | null {
+  const startedAt = summary?.startedAt;
+  // A run that is over always stops the clock, even if it never reported a finish time.
+  const finishedAt =
+    summary && !summary.running ? (summary.finishedAt ?? summary.startedAt) : undefined;
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    if (startedAt === undefined || finishedAt !== undefined) return;
+    setNow(Date.now());
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, [startedAt, finishedAt]);
+
+  if (startedAt === undefined) return null;
+  return Math.max(0, (finishedAt ?? now) - startedAt);
 }
 
 interface VisibleRow {
@@ -348,6 +383,7 @@ export function TestsSection({ project }: { project: Project }): React.JSX.Eleme
     [discovery.data, results],
   );
   const statuses = useMemo(() => aggregateStatuses(tree, results), [tree, results]);
+  const elapsed = useElapsed(run.summary);
 
   // Big suites start with files folded; the choice is made once per discovery.
   useEffect(() => {
@@ -531,27 +567,27 @@ export function TestsSection({ project }: { project: Project }): React.JSX.Eleme
                   ? `Running ${inFlight} ${inFlight === 1 ? 'test' : 'tests'}…`
                   : 'Running tests…'}
               </span>
-            ) : (
-              <>
-                {counts.failed > 0 ? (
-                  <span className="font-semibold text-destructive">{counts.failed} failed</span>
-                ) : null}
-                {counts.passed > 0 ? (
-                  <span className="font-medium text-emerald-600 dark:text-emerald-400">
-                    {counts.passed} passed
-                  </span>
-                ) : null}
-                {counts.skipped > 0 ? (
-                  <span className="text-muted-foreground">{counts.skipped} skipped</span>
-                ) : null}
-                {summary.cancelled ? <span className="text-muted-foreground">Stopped</span> : null}
-                {summary.finishedAt ? (
-                  <span className="text-muted-foreground tabular-nums">
-                    {formatDuration(summary.finishedAt - summary.startedAt)}
-                  </span>
-                ) : null}
-              </>
-            )}
+            ) : null}
+            {/* The counts stay up during the run so results can be watched arriving. */}
+            {counts.failed > 0 ? (
+              <span className="font-semibold text-destructive">{counts.failed} failed</span>
+            ) : null}
+            {counts.passed > 0 ? (
+              <span className="font-medium text-emerald-600 dark:text-emerald-400">
+                {counts.passed} passed
+              </span>
+            ) : null}
+            {counts.skipped > 0 ? (
+              <span className="text-muted-foreground">{counts.skipped} skipped</span>
+            ) : null}
+            {!running && summary.cancelled ? (
+              <span className="text-muted-foreground">Stopped</span>
+            ) : null}
+            {elapsed !== null ? (
+              <span aria-label="Elapsed time" className="text-muted-foreground tabular-nums">
+                {running ? formatClock(elapsed) : formatDuration(elapsed)}
+              </span>
+            ) : null}
           </div>
           {!running && (failures.length > 0 || hasOutput) ? (
             <div

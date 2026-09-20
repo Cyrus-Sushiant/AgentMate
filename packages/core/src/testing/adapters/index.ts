@@ -67,6 +67,7 @@ export function createStreamParser(project: TestProject): StreamParser | null {
 const MACHINE_FLAGS = new Set([
   '--reporter=default',
   '--reporter=verbose',
+  '--reporters=default',
   '--reporter=json',
   '--reporter=list,json',
   '--json',

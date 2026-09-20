@@ -482,3 +482,101 @@ describe('vitest stream', () => {
     ]);
   });
 });
+
+describe('jest stream', () => {
+  it('reports a test file as soon as its results line arrives', () => {
+    const entry = {
+      name: '/repo/src/a.test.ts',
+      assertionResults: [
+        {
+          title: 'adds',
+          ancestorTitles: ['math'],
+          status: 'passed',
+          duration: 2,
+          failureMessages: [],
+        },
+        { title: 'breaks', ancestorTitles: ['math'], status: 'failed', failureMessages: ['boom'] },
+      ],
+    };
+    const { results, parser } = stream(
+      'jest',
+      `noise
+@@agentmate-jest ${JSON.stringify(entry)}
+more noise`,
+    );
+    expect(results.map((r) => [r.path.join(' > '), r.status])).toEqual([
+      ['math > adds', 'passed'],
+      ['math > breaks', 'failed'],
+    ]);
+    expect(parser.display?.('@@agentmate-jest {}')).toBeNull();
+    expect(parser.display?.('PASS src/a.test.ts')).toBe('PASS src/a.test.ts');
+  });
+});
+
+describe('playwright stream', () => {
+  const line = (entry: Record<string, unknown>) =>
+    `@@agentmate-playwright ${JSON.stringify(entry)}`;
+
+  it('reports each test as it ends, with its file, line and failure', () => {
+    const { results } = stream(
+      'playwright',
+      [
+        'Running 3 tests using 1 worker',
+        line({
+          file: 'E:\repo\apps\desktop\e2e\boot.e2e.ts',
+          line: 12,
+          path: ['boot', 'opens the window'],
+          status: 'passed',
+          expected: 'passed',
+          duration: 1200,
+        }),
+        '  ok 1 e2e\boot.e2e.ts:12:3 › boot › opens the window (1.2s)',
+        line({
+          file: 'E:\repo\apps\desktop\e2e\boot.e2e.ts',
+          line: 20,
+          path: ['boot', 'reports no page error'],
+          status: 'failed',
+          expected: 'passed',
+          duration: 900,
+          message: 'Error: boom',
+          stack: 'Error: boom\n    at boot.e2e.ts:20:5',
+        }),
+        line({
+          file: 'E:\repo\apps\desktop\e2e\boot.e2e.ts',
+          line: 30,
+          path: ['boot', 'left out'],
+          status: 'skipped',
+          expected: 'skipped',
+          duration: 0,
+        }),
+      ].join('\n'),
+    );
+    expect(results.map((result) => [result.path.join(' > '), result.status, result.line])).toEqual([
+      ['boot > opens the window', 'passed', 12],
+      ['boot > reports no page error', 'failed', 20],
+      ['boot > left out', 'skipped', 30],
+    ]);
+    expect(results[0].file).toBe('E:\repo\apps\desktop\e2e\boot.e2e.ts');
+    expect(results[1].message).toBe('Error: boom');
+    expect(results[1].stack).toBe('    at boot.e2e.ts:20:5');
+  });
+
+  it('passes a test that was expected to fail, and hides its own lines from the output', () => {
+    const { results, parser } = stream(
+      'playwright',
+      line({
+        file: '/repo/e2e/a.e2e.ts',
+        line: 3,
+        path: ['known break'],
+        status: 'failed',
+        expected: 'failed',
+        duration: 5,
+      }),
+    );
+    expect(results.map((result) => result.status)).toEqual(['passed']);
+    expect(parser.display?.('@@agentmate-playwright {}')).toBeNull();
+    expect(parser.display?.('  ok 1 e2e/a.e2e.ts:3:1 › known break')).toBe(
+      '  ok 1 e2e/a.e2e.ts:3:1 › known break',
+    );
+  });
+});
