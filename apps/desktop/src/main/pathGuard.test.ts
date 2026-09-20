@@ -1,8 +1,25 @@
-import { existsSync, mkdirSync, symlinkSync, writeFileSync } from 'node:fs';
+import { mkdirSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { tempDir } from '../test/main/fixtures';
 import { assertPathWithinRoots } from './pathGuard';
+
+/**
+ * The guard walks up the path calling realpath until something resolves. On Windows an unmounted
+ * drive letter makes even the root fail; on Linux the root always resolves, so that last step is
+ * only reachable by making realpath refuse everything.
+ */
+const realpath = vi.hoisted(() => ({ refuseEverything: false }));
+vi.mock('node:fs/promises', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('node:fs/promises')>();
+  return {
+    ...actual,
+    realpath: (...args: Parameters<typeof actual.realpath>) =>
+      realpath.refuseEverything
+        ? Promise.reject(Object.assign(new Error('ENOENT'), { code: 'ENOENT' }))
+        : actual.realpath(...args),
+  };
+});
 
 /**
  * Every filesystem IPC handler funnels a renderer-supplied path through this guard, so a hole
@@ -28,14 +45,6 @@ const canLink = ((): boolean => {
     return false;
   }
 })();
-
-/** A drive letter that is not mounted, for the "nothing on the path exists" branch. */
-function unmountedDrive(): string | null {
-  for (const letter of 'QRSTUVWXY') {
-    if (!existsSync(`${letter}:\\`)) return `${letter}:\\`;
-  }
-  return null;
-}
 
 describe('assertPathWithinRoots', () => {
   it('accepts the root itself', async () => {
@@ -159,22 +168,21 @@ describe('assertPathWithinRoots', () => {
     },
   );
 
-  const missingRoot =
-    process.platform === 'win32' ? unmountedDrive() : '/agentmate-missing-root-9f3c2a';
-
-  it.skipIf(!missingRoot)(
-    'falls back to the textual path when no ancestor exists at all',
-    async () => {
-      const missing = missingRoot as string;
-      const root = join(missing, 'allowed');
-      // realpath fails the whole way up to the filesystem root here, so containment is decided
-      // on the resolved strings. Nothing exists, so nothing can be smuggled through a link.
+  it('falls back to the textual path when no ancestor resolves at all', async () => {
+    // What an unmounted drive letter looks like on Windows: realpath fails the whole way up to
+    // the filesystem root, so containment is decided on the resolved strings. Nothing exists,
+    // so nothing can be smuggled through a link either.
+    const root = resolve(tempDir(), 'allowed');
+    realpath.refuseEverything = true;
+    try {
       await expect(assertPathWithinRoots(join(root, 'deep', 'file.txt'), [root])).resolves.toBe(
         resolve(join(root, 'deep', 'file.txt')),
       );
       await expect(
-        assertPathWithinRoots(join(missing, 'other', 'file.txt'), [root]),
+        assertPathWithinRoots(join(root, '..', 'other', 'file.txt'), [root]),
       ).rejects.toThrow(/outside of the allowed directories/);
-    },
-  );
+    } finally {
+      realpath.refuseEverything = false;
+    }
+  });
 });

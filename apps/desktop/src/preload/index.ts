@@ -1438,8 +1438,11 @@ const rdpWindowControls = {
     subscribe(IPC.rdpWindow.onStateChange, callback),
 };
 
-/** The Windows build (e.g. 26200), which xterm needs to match how ConPTY redraws. Null elsewhere. */
-function windowsBuildNumber(): number | null {
+/**
+ * The Windows build (e.g. 26200), which xterm needs to match how ConPTY redraws. Null elsewhere.
+ * Exported so the tests can run it on both platforms; the renderer reads `windowsBuild` instead.
+ */
+export function windowsBuildNumber(): number | null {
   if (process.platform !== 'win32') return null;
   const build = Number(process.getSystemVersion().split('.')[2]);
   return Number.isFinite(build) && build > 0 ? build : null;

@@ -27,6 +27,7 @@ function collectChannels(node: unknown): void {
 collectChannels(IPC);
 
 let bridge: Bridge;
+let windowsBuildNumber: () => number | null;
 let exposedName: unknown;
 let ipcRenderer: {
   invoke: { mock: { calls: unknown[][] }; mockClear: () => void };
@@ -45,7 +46,7 @@ beforeAll(async () => {
     contextBridge: { exposeInMainWorld: { mock: { calls: unknown[][] } } };
     ipcRenderer: typeof ipcRenderer;
   };
-  await import('./index');
+  windowsBuildNumber = (await import('./index')).windowsBuildNumber;
   const exposed = electron.contextBridge.exposeInMainWorld.mock.calls.at(-1);
   exposedName = exposed?.[0];
   bridge = exposed?.[1] as Bridge;
@@ -203,5 +204,52 @@ describe('arguments reach the main process unchanged', () => {
       call();
       expect(ipcRenderer.invoke.mock.calls.at(-1)).toEqual([channel, ...args]);
     }
+  });
+});
+
+describe('the Windows build number', () => {
+  // xterm renders differently depending on how this build of ConPTY redraws, so the renderer
+  // reads it while deciding what to do. Faking the platform around a synchronous call keeps the
+  // module graph alone: swapping process.platform across an import breaks path resolution.
+  function on(platform: string, systemVersion: string): number | null {
+    const real = Object.getOwnPropertyDescriptor(process, 'platform');
+    Object.defineProperty(process, 'platform', { value: platform, configurable: true });
+    (process as NodeJS.Process & { getSystemVersion?: () => string }).getSystemVersion = () =>
+      systemVersion;
+    try {
+      return windowsBuildNumber();
+    } finally {
+      if (real) Object.defineProperty(process, 'platform', real);
+    }
+  }
+
+  it('is the third part of the system version on Windows', () => {
+    expect(on('win32', '10.0.26200')).toBe(26200);
+  });
+
+  it('is null when the system version carries no build part', () => {
+    expect(on('win32', '10.0')).toBeNull();
+  });
+
+  it('is null rather than zero when the build part is not a real build', () => {
+    expect(on('win32', '10.0.0')).toBeNull();
+  });
+
+  it('is null off Windows, where the number would mean nothing', () => {
+    expect(on('linux', '6.8.0')).toBeNull();
+  });
+});
+
+describe('optional arguments', () => {
+  it('reach the main process as the value the handler expects, not as undefined', () => {
+    // These two default on the preload side, so a renderer that calls them bare still sends
+    // something the handler can read.
+    ipcRenderer.invoke.mockClear();
+    (bridge.skills as { pickLocalRepository: () => unknown }).pickLocalRepository();
+    expect(ipcRenderer.invoke.mock.calls.at(-1)).toEqual([IPC.skills.pickLocalRepository, null]);
+
+    ipcRenderer.invoke.mockClear();
+    (bridge.skills as { listAudits: () => unknown }).listAudits();
+    expect(ipcRenderer.invoke.mock.calls.at(-1)).toEqual([IPC.skills.listAudits, {}]);
   });
 });
