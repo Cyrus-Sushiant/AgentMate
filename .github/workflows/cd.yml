@@ -7,6 +7,10 @@ name: CD
 # Triggers:
 #   - Pushing a tag like "v1.2.3" builds and releases automatically.
 #   - Manual "Run workflow" dispatch also works; supply the tag to release as.
+#
+# Unit, integration and mobile tests always run first. The end-to-end matrix is
+# opt-in, same as in CI: tag [e2e] in the commit the release tag points at, or
+# tick the box on a manual run.
 
 on:
   push:
@@ -17,6 +21,10 @@ on:
       tag:
         description: "Release tag to publish to (e.g. v0.1.0). Required for manual runs."
         required: true
+      e2e:
+        description: Run the Electron end-to-end matrix
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -28,9 +36,15 @@ concurrency:
 jobs:
   # Everything CI runs, before a single installer is built. A release is the one place where a
   # failing test must never be shipped past.
+  #
+  # The E2E matrix is slow (three OSes) and gated the same way as in CI, since a release usually
+  # tags a commit that already went through CI: put [e2e] in the message of the commit the tag
+  # points at, or tick the e2e box on a manual run.
   tests:
     name: Tests
     uses: ./.github/workflows/test.yml
+    with:
+      e2e: ${{ (github.event_name == 'push' && contains(github.event.head_commit.message, '[e2e]')) || (github.event_name == 'workflow_dispatch' && inputs.e2e) }}
 
   build:
     name: Build (${{ matrix.os }})
