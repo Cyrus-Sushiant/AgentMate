@@ -3,9 +3,9 @@
 
   # AgentMate
 
-  **A control center for your AI coding agents.**
+  **An Agentic Development Environment (ADE) for AI coding agents.**
 
-  Manage every AI coding CLI on your machine (Claude Code, Codex, Cursor, Gemini, Grok, OpenCode, and more) from one desktop app: track token usage and cost, bootstrap and launch projects, review diffs, watch GitHub Actions, build and translate prompts, install skills and MCP servers, and remote-control another AgentMate over your local network.
+  AgentMate is where you run the work, not just where you watch it. Open a workspace, split it into panes, and put Claude Code, Codex, Cursor, Gemini, Grok, OpenCode or a plain shell in each one. The git panel, the diff viewer, the file editor, the test runner and the pipelines sit right next to the agents, so a change goes from prompt to review to commit to tag without leaving the app. Around that sit the things a session needs: token usage and cost, CLI installs, skills and MCP servers, security scans, Docker, environments and secrets, SSH and RDP, and an encrypted vault.
 
   [![CI](https://github.com/Cyrus-Sushiant/AgentMate/actions/workflows/ci.yml/badge.svg)](https://github.com/Cyrus-Sushiant/AgentMate/actions/workflows/ci.yml)
   ![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-informational)
@@ -45,26 +45,73 @@
   </tr>
 </table>
 
+## Why "ADE"
+
+An IDE is built around a person typing code. An ADE is built around agents writing it and a person steering. That changes what the app has to do:
+
+- **Several agents at once, side by side.** A workspace is a pane tree, not a single editor. Each pane holds a CLI or a shell, and AgentMate tracks what every agent is doing (working, needs input, done) so you know which pane to look at.
+- **The loop has to close in one place.** Reading the diff, staging hunks, running the tests, reading the failure, sending it back to the agent, committing, tagging, watching the pipeline: all of it lives in the same window as the agent that wrote the code.
+- **Agents cost money and burn quota.** Tokens, cost and rate limits are first-class, not an afterthought, and an agent tab can wait out a limit and continue on its own.
+- **Agents read instructions and run commands.** So skills get scanned before an agent reads them, secrets live in an encrypted vault instead of a `.env` in the repo, and risky SSH commands stop for approval.
+
 ## Features
 
-- **Dashboard**: CLIs, usage, GitHub activity, GitHub Actions, and system health (CPU, GPU, memory, network) at a glance. Rearrange the cards, and see which apps are using the most resources.
-- **Token Usage**: track tokens, cost, and rate-limit quotas across 60+ providers. Local-log scanning for Claude Code and Codex (no API key needed). Combined all-agents charts, plus floating glass desktop widgets you can resize, restyle, and pin always on top.
-- **Projects**: bootstrap a repo, keep notes, run git (status, branches, tags, GitHub Actions), update packages (npm, pnpm, Yarn, NuGet), schedule prompts, and attach skills, MCP servers, and hooks. Launch each project's run command from its card. Multi-agent code review with Diffray (bugs, security, performance, consistency) using Claude Code, Cursor Agent, OpenCode, or Codex: review the working tree, a branch, the last N commits, changed files, or the whole source tree, and save the findings as JSON.
-- **Release flow**: bump the version in your files with a headless CLI run, then commit, tag, and push from the app. Branch history shows the tags on each commit, and AgentMate warns you before tagging a version you never bumped.
-- **Notifications**: GitHub Actions failures from the repos you connected, in one list.
-- **AI CLI Manager**: detects every AI coding CLI installed on the machine and installs or updates missing ones with one click (Claude Code, Gemini, OpenCode, Codex, Grok, Cursor, Qwen, Aider, Goose, Cline, Continue, Pi, and more).
+### The workspace
+
+- **Multi-pane workspace**: split the window into as many panes as you want and drop a CLI, a shell, a file or a diff into each. Tabs drag between panes, layouts are saved per project, and a project rail switches between the repos you have open.
+- **Agent status**: every agent tab reports whether it is working, waiting on you, or finished, read from its output and from Claude Code hooks where they exist. The sidebar, the tab strip and the status bar all show it, and clicking a status jumps to that pane.
+- **Auto-continue**: turn it on for a tab and AgentMate types `continue` for you once a usage limit resets or a network error clears, so a long run survives a window boundary or a dropped connection.
+- **Right-hand panel**: Changes, Commits, Branches, Explorer, History, Pipelines and Tests as tabs next to the agents. Stage, unstage, discard, commit, create branches, browse the tree, open a file in the editor or in VS Code, and watch the GitHub Actions run that the commit kicked off.
+- **Editor and diffs**: files and diffs open as tabs in the pane, with Monaco for editing and hunk-level selection when you only want part of a change.
+- **Running CLIs**: one dialog lists every terminal the app owns (workspace, drawer, SSH) with live CPU and memory per process tree, plus filtering, sorting, and end or restart actions.
+- **Prompt hand-off**: launch an agent tab and AgentMate waits for the CLI to draw a real prompt, then delivers your text as a bracketed paste. Dropped files and images paste as a short chip on the input line while the shell still gets the real quoted path.
+- **Keep awake**: a policy under Settings decides whether the machine stays awake always, only while an agent is actually producing output, or never.
+
+### Projects
+
+- **Project workspace**: bootstrap a repo, keep notes, pin and reorder projects, archive the ones you are done with, and launch a project's run commands from its card.
+- **Git and releases**: status, branches, tags, and branch history with the tags on each commit. Bump the version in your files with a headless CLI run, review the bump file by file (or hunk by hunk), then commit, tag and push from the app. AgentMate warns before you tag a version you never bumped, and monorepo workspaces get scoped tag prefixes.
+- **Review**: multi-agent code review with Diffray (bugs, security, performance, consistency) using Claude Code, Cursor Agent, OpenCode or Codex. Review the working tree, a branch, the last N commits, changed files, or the whole source tree, and save the findings as JSON.
+- **Security**: scan the project with Semgrep, Trivy, Bearer, SonarQube, CodeQL or Strix. See [Project security scanning](#project-security-scanning).
+- **Tests**: detect the test setup (Vitest, Jest, Playwright, Mocha, pytest, unittest, Go, cargo, .NET, Dart, Flutter, PHPUnit, RSpec, Gradle, Maven) and run it from the workspace. Results stream in while the run is still going, with a live elapsed clock, a filterable tree of files and cases, the raw output, and a "fix with AI" hand-off that sends the failures to an agent.
+- **Packages**: see and update dependencies for npm, pnpm, Yarn, NuGet and Dart/Flutter pub, with an outdated-only view.
+- **Environments**: keep development, test, staging, production and custom environments per project, each with its own env files and credentials, encrypted on this machine behind the vault's master password. Import existing `.env` files, copy values out when you need them, and keep the whole thing out of the repo.
+- **Docker**: a Docker tab per project and a Docker page for the machine, grouped by compose project. Start, stop, restart, remove, bulk-stop, and jump to a container from the status bar.
+- **Setup**: attach skills, MCP servers and hooks, edit the agent config files, and schedule prompts.
+
+### Agents and prompts
+
+- **AI CLI Manager**: detects every AI coding CLI on the machine and installs or updates the missing ones with one click (Claude Code, Gemini, OpenCode, OpenClaude, Codex, Grok, Cursor, GitHub Copilot CLI, FreeBuff, Qwen, Aider, Goose, Cline, Continue, Pi).
+- **CLI arguments and launch defaults**: save the flags, model and reasoning effort each CLI should launch with. The background calls AgentMate makes for you (commit messages, branch names, tag suggestions, version bumps, run sizing, skill deep reviews) build their command line the same way, so they use the model you picked.
 - **Blueprint**: a stepped builder on every project that turns an idea into a Product Manager prompt. Fill in the idea, the architecture, the backend, the frontend, CI/CD, and quality one step at a time, pull in reusable snippets you defined once in Settings, and write each step as markdown with a live preview. Drop a screenshot, a recording, or a PDF straight into the writing and it lands where the caret is, so a description can sit above it and the next point below it. The last step writes a single English prompt that tells an agent to plan the project into your docs folder: phases, epics, a task backlog, milestones, and risks. Write in Persian if you like, it is translated before the prompt is generated. Every step is kept and editable, every save is a version you can read and restore, and any step you tick is mirrored into the project's CLAUDE.md or AGENTS.md.
-- **Prompt Builder**: describe what you want, and AgentMate structures it into a prompt for the agent of your choice. Generate, translate, and copy from the keyboard.
-- **Prompt History**: every prompt you've generated or translated, searchable, with tags and proper Persian / RTL rendering.
+- **Prompt Builder**: describe what you want, and AgentMate structures it into a prompt for the agent of your choice. Generate, translate and copy from the keyboard, dictate with local Whisper speech-to-text instead of typing, and get a model and reasoning-effort recommendation for the run before you start it.
+- **Prompt History**: every prompt you have generated or translated, searchable, with tags and proper Persian / RTL rendering.
 - **Writing check**: grammar, spelling, and style checking in the app's text boxes, powered by LanguageTool. Issues are underlined as you type, right-click one for its fix (or to check the text on the spot), and the counter in the corner opens the full list with one-click fixes. Uses LanguageTool's public API by default; drop the LanguageTool download into the app's tools folder and AgentMate runs the server itself, so nothing you write leaves the machine.
-- **Skill Marketplace**: install agent skills from configurable repositories or skills.sh, including into a project's agent folders.
+- **Ask AI**: a persistent assistant conversation, one keystroke away.
+
+### Skills, MCP, and tools
+
+- **Skill Marketplace**: install agent skills from configurable repositories or skills.sh, including into a project's agent folders, with favorites, usage tracking, and update detection.
 - **Skill Security**: check what a skill actually does before you let an agent read it. A static scan over 14 risk categories, an optional deep review by an installed agent CLI, and a saved history of every check. See [Skill security](#skill-security).
 - **MCP Marketplace**: install MCP servers into a project from configurable repositories.
-- **Agent Tools**: curated third-party tools that cut agent token spend or improve code quality, including Diffray and LanguageTool for offline writing checks.
-- **Ask AI**: a persistent assistant conversation, one keystroke away.
-- **Remote**: control another AgentMate over your local network, AnyDesk-style, over WebSockets, including from the companion mobile app.
-- **AI Pet**: an optional desktop companion. Click it for a token report, double-click to bring AgentMate to the front, drag it around, and let it tell you when a pipeline fails, the network drops, or an agent finishes a project it has a hook for. Right-click for a menu (open the app, stop it wandering, snooze it for 15 minutes to 3 hours, or send it away), and it reappears on its own when the snooze ends. Built-in characters, or add your own GIF / PNG / WebP.
-- **Settings**: tabbed General, Shortcuts, AI Pet, AI, Notifications, Network, and Data. Rebind the global shortcuts (terminal, navigation, command palette, prompt builder), back up and restore your data, and install updates from GitHub Releases. Update downloads run in chunks and can be paused and resumed, so a dropped connection doesn't cost you the bytes you already have.
+- **Agent Tools**: curated third-party tools that cut agent token spend or improve code quality, including Diffray, the security scanners, and LanguageTool for offline writing checks.
+
+### Money, machine, and remote
+
+- **Token Usage**: track tokens, cost, and rate-limit quotas across 60+ providers. Local-log scanning for Claude Code and Codex (no API key needed). Combined all-agents charts, threshold alerts, plus floating glass desktop widgets you can resize, restyle, and pin always on top.
+- **Dashboard**: CLIs, usage, GitHub activity, GitHub Actions, and system health (CPU per core, GPU, memory, network) at a glance. Rearrange the cards, run a speed test, and see which apps are using the most resources.
+- **Status bar**: agent statuses, cloud limits, Docker containers, CPU and memory, and the keep-awake state, each an interactive popover that takes you to the thing it is about.
+- **Pipelines**: a page for GitHub Actions across the repos you connected. Run and stop workflows by hand, read run annotations without leaving the app, and hand a failed run to an agent with "Fix with AI".
+- **Notifications**: GitHub Actions failures, background CLI activity, and tool updates, folded into one recent-messages list, with optional Telegram delivery.
+- **Vault**: passwords, API keys, and private notes, encrypted on this computer behind a master password. Ranked search, type tabs, tags and favorites, a password generator, custom fields, CSV import with column matching and duplicate handling, export behind the master password, auto-lock, clipboard clearing on a countdown, and locking with the computer. The same vault backs the SSH, RDP, and environment credentials, and every decrypted value leaves the app's cache the moment it locks.
+- **Remote**: control another AgentMate over your local network, AnyDesk-style, over WebSockets, including from the companion mobile app, with a remote file manager and resumable transfers.
+- **SSH**: saved servers in the vault, terminal sessions in the drawer, and an AI task runner that prompts an agent in a RUN / FINISHED / NEEDS_INPUT loop, executes the commands in the live session, and stops for your approval on anything risky.
+- **RDP**: saved Remote Desktop servers and full sessions in their own window, built on Devolutions Iron Remote Desktop.
+
+### The rest
+
+- **AI Pet**: an optional desktop companion. Click it for a token report, double-click to bring AgentMate to the front, drag it around, and let it tell you when a pipeline fails, the network drops, an agent changes status, or a project finishes. Right-click for a menu (open the app, stop it wandering, snooze it for 15 minutes to 3 hours, or send it away), and it reappears on its own when the snooze ends. Built-in characters, custom nicknames, or add your own GIF / PNG / WebP.
+- **Settings**: tabbed General, Agents, Shortcuts, AI Pet, AI, Notifications, Network, Vault, and Data. Five themes including VS Code Dark and VS 2026, rebindable global and workspace shortcuts, backup and restore, and updates from GitHub Releases. Update downloads run in chunks and can be paused and resumed, so a dropped connection doesn't cost you the bytes you already have.
 - **Proxy**: one setting under Settings > Network decides how the whole app reaches the internet: straight out, through this machine's own proxy (PAC scripts included), or through an HTTP, HTTPS, or SOCKS server you type in, with a username and password if it wants one. It covers the AI providers, the skill and package registries, Telegram, update checks, and the CLIs and git commands AgentMate runs for you. Test connection checks a server before you save it and reports the address the internet saw you from.
 - **Also in the app**: a command palette (Ctrl+K / Cmd+K), a tabbed terminal drawer (Ctrl+backtick), and a searchable history of toasts.
 
@@ -113,15 +160,32 @@ Turn it on and the skill's files also go to an installed agent CLI, either the d
 
 A check reads up to 40 files per skill, 400 KB per file, and 2 MB in total, so a skill that ships a large binary or a vendored tree still finishes. The static scan runs entirely on your machine, and a deep review goes out only through a CLI you already have installed, which talks to its own provider the way it always does. Every check is stored in a local SQLite database, shows up under **Skills → Security** with its verdict, source, and findings, is included in backups, and can be cleared from that page.
 
+## Project security scanning
+
+Skill security checks the instructions you hand an agent. The project Security tab checks the code the agent wrote.
+
+| Scanner | What it covers |
+|---|---|
+| Semgrep | Pattern-based static analysis across many languages |
+| Trivy | Dependencies, container images, IaC, and secrets |
+| Bearer | Data flow and privacy risks in application code |
+| SonarQube | Quality and security rules against a SonarQube server |
+| CodeQL | Deep semantic analysis via GitHub's query packs |
+| Strix | Agentic security testing |
+
+AgentMate checks the prerequisites before a run and walks you through whatever is missing. Every scanner's output is normalized into one report, so severity, scoring, and filtering work the same whichever one you ran. Findings are redacted before they are stored, per-scanner logs are kept with the run, and a scan keeps going in the main process if you navigate away, so a reopened tab rejoins it instead of starting over. CodeQL is downloaded, verified, and unpacked into AgentMate's own tools folder when it is not already on PATH. Any finding can be copied to an agent as a prompt.
+
 ## Tech stack
 
 | Layer | Stack |
 |---|---|
-| Desktop app | Electron, React 19, TypeScript 7, Vite (`electron-vite`), Tailwind CSS, Radix UI, TanStack Query |
+| Desktop app | Electron, React 19, TypeScript 7, Vite (`electron-vite`), Tailwind CSS, Radix UI, TanStack Query, Zustand |
+| Editor and terminal | Monaco, xterm.js, node-pty |
 | Mobile companion | Expo / React Native, WebRTC |
 | Shared packages | `@agentmat/core` (business logic), `@agentmat/protocol` (shared types/wire protocol) |
-| Local storage | better-sqlite3 |
-| Terminal | node-pty + xterm.js |
+| Local storage | better-sqlite3, plus an encrypted vault file for secrets |
+| Remote | `ws` for the local-network protocol, `ssh2` for SSH, Devolutions Iron Remote Desktop for RDP |
+| Speech | `@huggingface/transformers` running Whisper locally |
 | Updates | electron-updater (GitHub Releases) |
 | Tooling | pnpm workspaces, Biome |
 
@@ -137,6 +201,8 @@ AgentMate/
 │   └── protocol/    Shared types and wire protocol (@agentmat/protocol)
 └── patches/         pnpm patches for third-party packages
 ```
+
+`packages/core` holds the logic that does not need Electron, grouped by feature: `blueprint`, `cli`, `env`, `git`, `grammar`, `mcp`, `models`, `network`, `projectBootstrap`, `promptBuilder`, `security`, `skills`, `system`, `testing`, `tools`, `usage`, `vault`, and `workspace`.
 
 ## Getting started
 
@@ -197,13 +263,13 @@ Shared helpers sit in `apps/desktop/src/test/`:
 - `renderer/agentmatBridge.ts` fakes `window.agentmat`, the preload bridge. Answers are dotted paths (`{ 'projects.list': [project] }`), unconfigured calls resolve to undefined, and events are fired with `bridge.$emit('agents.onStatus', payload)`.
 - `renderer/renderWithProviders.tsx` renders with the query client, tooltips and router that `App.tsx` provides.
 
-End-to-end runs build the app into `out-e2e/` so a running `electron-vite dev` keeps `out/`. Each test gets its own profile through `AGENTMATE_USER_DATA_DIR`, and `AGENTMATE_E2E=1` turns off the startup work that would reach outside it (the Docker scan sweep, update checks) and the quit confirmation. That combination is what lets the suite run while the real AgentMate is open. Set `AGENTMATE_E2E_SKIP_BUILD=1` to reuse the last build while iterating, and `AGENTMATE_E2E_NO_SANDBOX=1` where Chromium's sandbox is unavailable. Failures leave a trace in `apps/desktop/test-results`, viewable with `pnpm --filter @agentmat/desktop exec playwright show-trace <path>`.
+End-to-end runs build the app into `out-e2e/` so a running `electron-vite dev` keeps `out/`. Each test gets its own profile through `AGENTMATE_USER_DATA_DIR`, and `AGENTMATE_E2E=1` turns off the startup work that would reach outside it (the Docker scan sweep, update checks) and the quit confirmation. The main, widget, RDP and remote session windows stay hidden during a run so they don't pop up over your work; set `AGENTMATE_E2E_SHOW=1` to watch one instead. That combination is what lets the suite run while the real AgentMate is open. Set `AGENTMATE_E2E_SKIP_BUILD=1` to reuse the last build while iterating, and `AGENTMATE_E2E_NO_SANDBOX=1` where Chromium's sandbox is unavailable. Failures leave a trace in `apps/desktop/test-results`, viewable with `pnpm --filter @agentmat/desktop exec playwright show-trace <path>`.
 
 Tests need Node 22.13 or newer, because the SQLite stand-in uses `node:sqlite`.
 
 ### CI
 
-Every push and pull request runs [`.github/workflows/ci.yml`](.github/workflows/ci.yml): Biome (formatting, lint, import order), the two deprecation gates above, a type-check of every package, a real build of the desktop app, and the test suites in [`.github/workflows/test.yml`](.github/workflows/test.yml). That reusable workflow has three jobs: unit and integration with coverage, the mobile Jest suite, and the end-to-end matrix on Linux, Windows and macOS. `All checks passed` is the single status to require in branch protection. Running `pnpm check && pnpm check:deprecated-code && pnpm check:deprecated-deps && pnpm typecheck && pnpm build && pnpm test:unit` reproduces most of it locally.
+Every push and pull request runs [`.github/workflows/ci.yml`](.github/workflows/ci.yml): Biome (formatting, lint, import order), the two deprecation gates above, a type-check of every package, a real build of the desktop app, and the test suites in [`.github/workflows/test.yml`](.github/workflows/test.yml). That reusable workflow has three jobs: unit and integration with coverage, the mobile Jest suite, and the end-to-end matrix on Linux, Windows and macOS. The E2E matrix is the slow one, so it runs when the commit message carries `[e2e]` or when you ask for it on a manual dispatch. `All checks passed` is the single status to require in branch protection. Running `pnpm check && pnpm check:deprecated-code && pnpm check:deprecated-deps && pnpm typecheck && pnpm build && pnpm test:unit` reproduces most of it locally.
 
 A deprecated dependency you cannot drop yet goes in [`.github/deprecated-deps-allowlist.json`](.github/deprecated-deps-allowlist.json) with a reason for keeping it. Releases are built and published by [`.github/workflows/cd.yml`](.github/workflows/cd.yml) when a `v*.*.*` tag is pushed, and it runs the same test workflow first, so a failing test cannot ship.
 
