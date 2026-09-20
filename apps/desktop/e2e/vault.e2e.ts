@@ -265,7 +265,8 @@ test('imports a Bitwarden CSV export', async () => {
   await page.getByRole('button', { name: 'Import from CSV' }).click();
   const dialog = page.getByRole('dialog', { name: 'Import passwords' });
   await dialog.getByRole('button', { name: 'Choose CSV file' }).click();
-  await expect(dialog.getByText('Bitwarden')).toBeVisible();
+  // Exactly, or the chosen file's own name ("bitwarden_export.csv") matches the format badge too.
+  await expect(dialog.getByText('Bitwarden', { exact: true })).toBeVisible();
   await expect(dialog.getByText(/1 row can't be imported/)).toBeVisible();
   await dialog.getByRole('button', { name: 'Import 2 entries' }).click();
   await expect(dialog.getByText('Imported 2 entries')).toBeVisible();

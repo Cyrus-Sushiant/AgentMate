@@ -21,6 +21,16 @@ import { E2E_OUT_DIR } from './paths';
 let launched: LaunchedApp | undefined;
 let relaunched: ElectronApplication | undefined;
 
+/**
+ * Bindings are written the way the platform writes them (see formatShortcut): Ctrl+Shift+J on
+ * Windows and Linux, the glyphs on macOS. The keys pressed below stay the same either way, since
+ * the app takes Ctrl and Command as the same modifier.
+ */
+const MAC = process.platform === 'darwin';
+const CTRL_P = MAC ? '⌘P' : 'Ctrl+P';
+const CTRL_K = MAC ? '⌘K' : 'Ctrl+K';
+const CTRL_SHIFT_J = MAC ? '⌘⇧J' : 'Ctrl+Shift+J';
+
 test.afterEach(async () => {
   await relaunched?.close().catch(() => undefined);
   relaunched = undefined;
@@ -97,9 +107,9 @@ test('the theme and a rebound shortcut both survive a restart', async () => {
     page.getByRole('textbox', { name: 'Press the keys for the new shortcut' }),
   ).toBeVisible();
   await page.keyboard.press('Control+Shift+J');
-  await expect(page.getByRole('button', { name: 'Remove Ctrl+Shift+J' })).toBeVisible();
+  await expect(page.getByRole('button', { name: `Remove ${CTRL_SHIFT_J}` })).toBeVisible();
   // The default is kept, this is an extra binding rather than a replacement.
-  await expect(page.getByRole('button', { name: 'Remove Ctrl+P', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: `Remove ${CTRL_P}`, exact: true })).toBeVisible();
 
   const page2 = await relaunch(current);
 
@@ -113,7 +123,7 @@ test('the theme and a rebound shortcut both survive a restart', async () => {
   ).toHaveAttribute('aria-pressed', 'true');
 
   await openSettings(page2, 'shortcuts');
-  await expect(page2.getByRole('button', { name: 'Remove Ctrl+Shift+J' })).toBeVisible();
+  await expect(page2.getByRole('button', { name: `Remove ${CTRL_SHIFT_J}` })).toBeVisible();
 
   // And it still does what it was bound to do.
   await page2.getByRole('link', { name: 'Vault' }).click();
@@ -128,14 +138,14 @@ test('a binding already taken by another command is refused', async () => {
 
   await openSettings(page, 'shortcuts');
   // Only the command palette has Ctrl+K to start with.
-  await expect(page.getByRole('button', { name: 'Remove Ctrl+K' })).toHaveCount(1);
+  await expect(page.getByRole('button', { name: `Remove ${CTRL_K}` })).toHaveCount(1);
 
   await page.getByRole('button', { name: 'Add a shortcut for Go to Projects' }).click();
   // Ctrl+K belongs to the command palette, in the same scope.
   await page.keyboard.press('Control+K');
-  await expect(page.getByText('Ctrl+K is already used by "Command palette".')).toBeVisible();
+  await expect(page.getByText(`${CTRL_K} is already used by "Command palette".`)).toBeVisible();
   // Nothing was added, so the combination still has exactly one owner.
-  await expect(page.getByRole('button', { name: 'Remove Ctrl+K' })).toHaveCount(1);
+  await expect(page.getByRole('button', { name: `Remove ${CTRL_K}` })).toHaveCount(1);
   await expect(
     page.getByRole('textbox', { name: 'Press the keys for the new shortcut' }),
   ).toBeVisible();

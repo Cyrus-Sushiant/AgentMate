@@ -18,11 +18,13 @@ function docker(args: string[], timeout = 30_000): string {
   return execFileSync('docker', args, { encoding: 'utf-8', timeout, stdio: 'pipe' }).trim();
 }
 
-/** False when there is no Docker to start the test server with, so the SSH tests skip. */
+/**
+ * False when Docker can't start the test server, so the SSH tests skip. The server image is Ubuntu,
+ * so a daemon in Windows container mode (what the Windows CI runners ship with) counts as missing.
+ */
 export function dockerAvailable(): boolean {
   try {
-    docker(['info', '--format', '{{.ServerVersion}}'], 15_000);
-    return true;
+    return docker(['info', '--format', '{{.OSType}}'], 15_000).toLowerCase() === 'linux';
   } catch {
     return false;
   }

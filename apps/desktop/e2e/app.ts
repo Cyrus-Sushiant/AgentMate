@@ -1,6 +1,8 @@
-import { execSync } from 'node:child_process';
+import { type ChildProcess, execSync } from 'node:child_process';
 import {
+  appendFileSync,
   chmodSync,
+  copyFileSync,
   existsSync,
   mkdirSync,
   mkdtempSync,
@@ -9,9 +11,9 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { delimiter, join } from 'node:path';
+import { basename, delimiter, join } from 'node:path';
 import { type ElectronApplication, _electron as electron, type Page } from '@playwright/test';
-import { E2E_OUT_DIR } from './paths';
+import { E2E_OUT_DIR, MAIN_LOG_DIR } from './paths';
 
 export interface LaunchedApp {
   app: ElectronApplication;
@@ -23,6 +25,8 @@ export interface LaunchedApp {
   settingsOnDisk(): Record<string, unknown>;
   /** Every argument line the fake `claude` was started with, version probes left out. */
   claudeLaunches(): string[];
+  /** Everything the app has printed on stdout/stderr so far. */
+  mainLog(): string;
   close(): Promise<void>;
 }
 
@@ -69,6 +73,28 @@ function writeFakeClaude(binDir: string, logFile: string): void {
   }
 }
 
+/** Streams the app's own output to a file named after this run's temp folder. */
+function captureMainOutput(app: ElectronApplication, root: string): string | null {
+  let child: ChildProcess;
+  try {
+    child = app.process();
+  } catch {
+    return null;
+  }
+  mkdirSync(MAIN_LOG_DIR, { recursive: true });
+  const logFile = join(MAIN_LOG_DIR, `${basename(root)}.log`);
+  const write = (chunk: Buffer): void => {
+    try {
+      appendFileSync(logFile, chunk);
+    } catch {
+      // The folder can be swept between tests; losing a log must never fail a run.
+    }
+  };
+  child.stdout?.on('data', write);
+  child.stderr?.on('data', write);
+  return logFile;
+}
+
 export async function launchApp(seed: {
   settings?: Record<string, unknown>;
 }): Promise<LaunchedApp> {
@@ -109,6 +135,7 @@ export async function launchApp(seed: {
       AGENTMATE_E2E: '1',
     },
   });
+  const mainLogFile = captureMainOutput(app, root);
   const page = await app.firstWindow();
   await page.waitForFunction(() => Boolean((window as { agentmat?: unknown }).agentmat));
 
@@ -127,25 +154,36 @@ export async function launchApp(seed: {
             .map((line) => line.trim())
             .filter(Boolean)
         : [],
+    mainLog: () =>
+      mainLogFile && existsSync(mainLogFile) ? readFileSync(mainLogFile, 'utf-8') : '',
     close: async () => {
       // Closed through Playwright's own API, or it keeps a handle on the app and the worker sits
       // at teardown until it times out. AGENTMATE_E2E lets the quit guard through, so this no
       // longer waits for the "quit while agents are running?" confirmation.
       //
       // The child process is taken before closing: afterwards Playwright has dropped its own
-      // handle and app.process() throws.
-      const child = app.process();
-      const exited = new Promise<void>((resolve) => child.once('exit', () => resolve()));
+      // handle and app.process() throws. A test that restarts the app has already stopped this
+      // one itself, so the handle can be gone before close() is ever reached.
+      let child: ChildProcess | null;
+      try {
+        child = app.process();
+      } catch {
+        child = null;
+      }
+      const exited = child
+        ? new Promise<void>((resolve) => child?.once('exit', () => resolve()))
+        : Promise.resolve();
       await Promise.race([
         app.close().catch(() => undefined),
         new Promise((resolve) => setTimeout(resolve, 15_000)),
       ]);
       // Anything that ignored the close is killed outright, so nothing holds the temp folder open.
-      if (child.exitCode === null && !child.killed) {
+      if (child && child.exitCode === null && !child.killed) {
         child.kill();
         await Promise.race([exited, new Promise((resolve) => setTimeout(resolve, 5_000))]);
       }
       killLeftovers(root);
+      keepHostLog(userDataDir, root);
       try {
         rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 500 });
       } catch {
@@ -153,6 +191,18 @@ export async function launchApp(seed: {
       }
     },
   };
+}
+
+/** The terminal host's own log, which otherwise goes with the profile it lives in. */
+function keepHostLog(userDataDir: string, root: string): void {
+  const source = join(userDataDir, 'pty-host', 'host.log');
+  if (!existsSync(source)) return;
+  try {
+    mkdirSync(MAIN_LOG_DIR, { recursive: true });
+    copyFileSync(source, join(MAIN_LOG_DIR, `${basename(root)}-pty-host.log`));
+  } catch {
+    // Best effort, same as the main log.
+  }
 }
 
 /** A terminal host or shell that outlived the app would keep the temp folder locked. */

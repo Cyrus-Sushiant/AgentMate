@@ -16,6 +16,9 @@ import { buildShellLaunch } from './shellIntegration';
  */
 const SNAPSHOT_SCROLLBACK = 3000;
 
+/** A shell gone sooner than this never reached a prompt, which is worth a line in the log. */
+const IMMEDIATE_EXIT_MS = 1000;
+
 /** Same ConPTY hint the app's own terminals get, so the snapshot grows and shrinks like they do. */
 const WINDOWS_PTY =
   process.platform === 'win32'
@@ -67,7 +70,12 @@ function shellEnv(env: Record<string, string> | undefined): Record<string, strin
 export class PtySessionManager {
   private readonly sessions = new Map<string, Session>();
 
-  constructor(private readonly onSessionsChanged: () => void = () => undefined) {}
+  constructor(
+    private readonly onSessionsChanged: () => void = () => undefined,
+    /** Where notes about a shell that misbehaved go. The host writes its own log file; the
+     * in-process fallback has main's console. */
+    private readonly log: (message: string) => void = () => undefined,
+  ) {}
 
   get size(): number {
     return this.sessions.size;
@@ -179,6 +187,11 @@ export class PtySessionManager {
     });
     ptyProcess.onExit(({ exitCode }) => {
       session.exitCode = exitCode;
+      // A shell that dies this fast never started: a missing binary, or a pty backend that
+      // cannot run its helper. The pane just goes blank, so say so somewhere.
+      if (Date.now() - session.createdAt < IMMEDIATE_EXIT_MS) {
+        this.log(`${options.shell} exited immediately with code ${exitCode}`);
+      }
       // An attach in progress reports the exit itself once its snapshot is out.
       if (session.attaching.length === 0) this.finish(session);
     });

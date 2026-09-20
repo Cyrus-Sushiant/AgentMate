@@ -67,7 +67,10 @@ const clients = new Set<Socket>();
 let idleTimer: NodeJS.Timeout | null = null;
 let server: Server | null = null;
 
-const manager = new PtySessionManager(() => scheduleIdleCheck(IDLE_EXIT_MS));
+const manager = new PtySessionManager(
+  () => scheduleIdleCheck(IDLE_EXIT_MS),
+  (message) => log(`[pty] ${message}`),
+);
 
 function scheduleIdleCheck(delay: number): void {
   if (idleTimer) clearTimeout(idleTimer);

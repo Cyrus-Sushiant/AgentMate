@@ -1,7 +1,7 @@
 import { execSync } from 'node:child_process';
 import { cpSync, existsSync, renameSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
-import { APP_ROOT, E2E_OUT_DIR } from './paths';
+import { APP_ROOT, E2E_OUT_DIR, MAIN_LOG_DIR } from './paths';
 
 /**
  * Builds the app into its own folder so a running `electron-vite dev` (which owns `out/`) is left
@@ -37,6 +37,8 @@ function moveDirectory(from: string, to: string): void {
 }
 
 export default function globalSetup(): void {
+  // Playwright only sweeps its own output folder, so last run's app logs are cleared here.
+  rmSync(MAIN_LOG_DIR, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
   if (process.env.AGENTMATE_E2E_SKIP_BUILD === '1' && existsSync(join(E2E_OUT_DIR, 'main'))) {
     return;
   }

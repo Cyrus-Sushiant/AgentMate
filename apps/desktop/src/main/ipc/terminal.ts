@@ -152,6 +152,14 @@ function rememberSessions(list: HostSessionInfo[]): void {
   syncPowerSaveBlocker();
 }
 
+/** The fallback manager, with its notes going to main's own log. */
+function newLocalManager(): PtySessionManager {
+  return new PtySessionManager(undefined, (message) => {
+    // biome-ignore lint/suspicious/noConsole: the only record of a shell that never ran
+    console.warn(`[pty] ${message}`);
+  });
+}
+
 async function startBackend(): Promise<void> {
   let connected: Awaited<ReturnType<typeof connectToHost>> = null;
   try {
@@ -161,7 +169,7 @@ async function startBackend(): Promise<void> {
     console.warn('[terminal] background host unavailable, running terminals in-process', error);
   }
   if (!connected) {
-    local ??= new PtySessionManager();
+    local ??= newLocalManager();
     return;
   }
   const client = connected.client;
@@ -198,7 +206,7 @@ async function createOrAttach(
   if (host) {
     return host.request<CreateOrAttachResult | null>({ type: 'createOrAttach', payload });
   }
-  local ??= new PtySessionManager();
+  local ??= newLocalManager();
   return local.createOrAttach(payload, localListener);
 }
 
@@ -241,6 +249,10 @@ export function registerTerminalHandlers(): void {
           attachOnly: options.attachOnly,
         });
       } catch (error) {
+        // The pane only says "Could not start this terminal." Without this line nothing anywhere
+        // records why, which is all a bug report has to go on when a shell refuses to start.
+        // biome-ignore lint/suspicious/noConsole: the only record of a terminal that won't open
+        console.warn(`[terminal] could not start ${shell}`, error);
         if (previousOwner) owners.set(sessionId, previousOwner);
         else owners.delete(sessionId);
         throw error;
