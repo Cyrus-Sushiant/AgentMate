@@ -144,7 +144,7 @@ function detectJs(manifests: string[], text: (path: string) => string, add: Add)
     if ('@playwright/test' in deps || playwrightConfig) {
       const meta: Record<string, string> = {};
       if (playwrightConfig) {
-        const body = text(playwrightConfig);
+        const body = testSettings(text(playwrightConfig));
         meta.config = relativeTo(playwrightConfig, root);
         const testDir = stringOption(body, 'testDir');
         meta.testDir = relativeTo(joinRel(dirOf(playwrightConfig), testDir ?? ''), root);
@@ -160,7 +160,7 @@ function detectJs(manifests: string[], text: (path: string) => string, add: Add)
       const meta: Record<string, string> = {};
       const config = vitestConfig ?? configsOf(root, /^vite\.config\./)[0];
       if (config) {
-        const body = text(config);
+        const body = testSettings(text(config));
         const include = stringList(body, 'include');
         const exclude = stringList(body, 'exclude');
         if (vitestConfig || include) meta.config = relativeTo(config, root);
@@ -173,7 +173,9 @@ function detectJs(manifests: string[], text: (path: string) => string, add: Add)
     const jestConfig = configsOf(root, /^jest\.config\./)[0];
     if ('jest' in deps || jestConfig || isRecord(pkg.jest)) {
       const meta: Record<string, string> = {};
-      const testMatch = jestConfig ? stringList(text(jestConfig), 'testMatch') : undefined;
+      const testMatch = jestConfig
+        ? stringList(testSettings(text(jestConfig)), 'testMatch')
+        : undefined;
       if (jestConfig) meta.config = relativeTo(jestConfig, root);
       if (testMatch) meta.testMatch = testMatch.join('\n');
       add('jest', root, meta);
@@ -253,10 +255,89 @@ function stringOption(body: string, key: string): string | undefined {
   return new RegExp(`\\b${key}\\s*:\\s*(['"\`])([^'"\`]*)\\1`).exec(body)?.[2];
 }
 
-/** `key: ['a', 'b']` in a config file, when every entry is a plain string literal. */
+/**
+ * Every `key: ['a', 'b']` in a config file, folded into one list. A config that splits its suites
+ * over `projects: [...]` or `defineWorkspace([...])` gives each of them its own patterns, and the
+ * panel wants the union: all of them run together.
+ */
 function stringList(body: string, key: string): string[] | undefined {
-  const list = new RegExp(`\\b${key}\\s*:\\s*\\[([^\\]]*)\\]`).exec(body)?.[1];
-  if (list === undefined) return undefined;
-  const values = [...list.matchAll(/(['"`])([^'"`]*)\1/g)].map((match) => match[2]);
-  return values.length > 0 ? values : undefined;
+  const values: string[] = [];
+  for (const match of body.matchAll(new RegExp(`\\b${key}\\s*:\\s*\\[([^\\]]*)\\]`, 'g'))) {
+    for (const entry of match[1].matchAll(/(['"`])([^'"`]*)\1/g)) values.push(entry[2]);
+  }
+  return values.length > 0 ? [...new Set(values)] : undefined;
+}
+
+/**
+ * Settings blocks that carry their own `include` and `exclude` about something other than which
+ * files hold tests. `coverage` is the one that hurts: it lists source globs, and nearly always
+ * excludes the test files themselves, which would leave the project owning nothing at all.
+ */
+const NON_TEST_BLOCKS = [
+  'coverage',
+  'optimizeDeps',
+  'deps',
+  'typecheck',
+  'build',
+  'server',
+  'resolve',
+];
+
+/** The config text with those blocks cut out, so only the test selection is left to read. */
+function testSettings(body: string): string {
+  return NON_TEST_BLOCKS.reduce(dropBlock, body);
+}
+
+function dropBlock(body: string, key: string): string {
+  const pattern = new RegExp(`\\b${key}\\s*:\\s*\\{`, 'g');
+  let kept = '';
+  let from = 0;
+  for (let match = pattern.exec(body); match; match = pattern.exec(body)) {
+    const end = closingBrace(body, match.index + match[0].length - 1);
+    if (end < 0) continue;
+    kept += body.slice(from, match.index);
+    from = end + 1;
+    pattern.lastIndex = from;
+  }
+  return kept + body.slice(from);
+}
+
+/**
+ * The `}` that closes the `{` at `open`, or -1 when it is never closed. Strings and comments are
+ * stepped over, since a glob like `'**\/*.{ts,tsx}'` has braces of its own.
+ */
+function closingBrace(body: string, open: number): number {
+  let depth = 0;
+  for (let i = open; i < body.length; i += 1) {
+    const char = body[i];
+    if (char === "'" || char === '"' || char === '`') {
+      i = endOfString(body, i);
+      continue;
+    }
+    if (char === '/' && (body[i + 1] === '/' || body[i + 1] === '*')) {
+      i = endOfComment(body, i);
+      continue;
+    }
+    if (char === '{') depth += 1;
+    else if (char === '}' && (depth -= 1) === 0) return i;
+  }
+  return -1;
+}
+
+function endOfString(body: string, start: number): number {
+  const quote = body[start];
+  for (let i = start + 1; i < body.length; i += 1) {
+    if (body[i] === '\\') i += 1;
+    else if (body[i] === quote) return i;
+  }
+  return body.length;
+}
+
+function endOfComment(body: string, start: number): number {
+  if (body[start + 1] === '/') {
+    const end = body.indexOf('\n', start);
+    return end < 0 ? body.length : end;
+  }
+  const end = body.indexOf('*/', start + 2);
+  return end < 0 ? body.length : end + 1;
 }

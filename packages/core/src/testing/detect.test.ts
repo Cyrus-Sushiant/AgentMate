@@ -101,6 +101,31 @@ describe('detectTestProjects', () => {
     expect(project.meta).toEqual({ config: 'vitest.config.mts', include: 'src/**/*.test.ts' });
   });
 
+  it('gathers the patterns of every Vitest project and leaves the coverage settings alone', () => {
+    const [project] = detect({
+      'package.json': '{"devDependencies":{"vitest":"5"}}',
+      'vitest.config.mts': `export default defineConfig({
+        test: {
+          projects: [
+            { test: { name: 'main', include: ['src/main/**/*.test.ts'] } },
+            { test: { name: 'renderer', include: ['src/renderer/**/*.test.{ts,tsx}'] } },
+          ],
+          exclude: ['src/legacy/**'],
+          coverage: {
+            include: ['src/**/*.ts'],
+            // The test files themselves are never worth covering.
+            exclude: ['**/*.test.{ts,tsx}', 'src/test/**'],
+          },
+        },
+      });`,
+    });
+    expect(project.meta).toEqual({
+      config: 'vitest.config.mts',
+      include: 'src/main/**/*.test.ts\nsrc/renderer/**/*.test.{ts,tsx}',
+      exclude: 'src/legacy/**',
+    });
+  });
+
   it('keeps each package of a monorepo separate', () => {
     expect(
       ids({
