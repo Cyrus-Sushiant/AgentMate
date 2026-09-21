@@ -50,7 +50,9 @@ export function androidVersionForApi(api: number | null): string | null {
 export function parseSystemImageId(id: string): SystemImageId | null {
   const parts = id.split(';');
   if (parts.length < 4 || parts[0] !== 'system-images') return null;
-  const api = /^android-(\d+)$/.exec(parts[1]);
+  // `android-34` from the classic tools, `android-37.0` from the newer ones. A preview channel
+  // is `android-canary-20260909`, which has no API number at all rather than a guessable one.
+  const api = /^android-(\d+)(?:\.\d+)?$/.exec(parts[1]);
   return {
     api: api ? Number(api[1]) : null,
     tag: parts[2],
@@ -59,54 +61,123 @@ export function parseSystemImageId(id: string): SystemImageId | null {
   };
 }
 
+/**
+ * A readable name for a system image tag.
+ *
+ * The vocabulary keeps growing (16 KB page sizes, tablet variants, XR), and two rows that read
+ * the same are two rows nobody can choose between. So this names what it knows exactly and falls
+ * back to the raw tag, which is unique, rather than collapsing an unknown into a near-match.
+ */
 function tagLabel(tag: string): string {
-  if (tag.includes('playstore')) return 'Google Play';
-  if (tag === 'google_apis') return 'Google APIs';
-  if (tag === 'default') return 'AOSP';
-  if (tag === 'android-tv') return 'Android TV';
-  if (tag === 'android-wear') return 'Wear OS';
-  if (tag === 'android-automotive') return 'Automotive';
-  return tag;
+  const known: Record<string, string> = {
+    default: 'AOSP',
+    google_apis: 'Google APIs',
+    google_apis_playstore: 'Google Play',
+    google_apis_ps16k: 'Google APIs, 16 KB pages',
+    google_apis_playstore_ps16k: 'Google Play, 16 KB pages',
+    google_apis_tablet: 'Google APIs, tablet',
+    google_apis_playstore_tablet: 'Google Play, tablet',
+    aosp_atd: 'AOSP ATD',
+    google_atd: 'Google ATD',
+    'android-tv': 'Android TV',
+    'google-tv': 'Google TV',
+    'google-tv-ps16k': 'Google TV, 16 KB pages',
+    'android-wear': 'Wear OS',
+    'android-wear-cn': 'Wear OS, China',
+    'android-wear-signed': 'Wear OS, signed',
+    'android-desktop': 'Android Desktop',
+    'android-automotive': 'Automotive',
+    'android-automotive-playstore': 'Automotive, Play',
+    'android-automotive-distant-display-playstore': 'Automotive distant display, Play',
+    'google-xr': 'Android XR',
+    'android-xr-preview-playstore': 'Android XR preview, Play',
+  };
+  return known[tag] ?? tag;
+}
+
+/** The API segment as written, so `37.0` and `37.1` do not both read as 37. */
+function apiLabel(id: string, api: number | null): string | null {
+  const segment = id.split(';')[1]?.replace(/^android-/, '');
+  if (!segment) return api === null ? null : String(api);
+  return segment;
 }
 
 export function describeSystemImage(image: SystemImage): string {
   const version = androidVersionForApi(image.api);
+  const label = apiLabel(image.id, image.api);
   const head =
     image.api === null
-      ? 'Preview'
-      : version
+      ? // Hundreds of preview builds all reading "Preview" is a list nobody can pick from, so
+        // the channel that distinguishes them goes in the label.
+        label
+        ? `Preview ${label}`
+        : 'Preview'
+      : // The marketing name only fits a plain API level; `37.0` keeps its minor instead, since
+        // 37.0 and 37.1 are genuinely different images.
+        version && label === String(image.api)
         ? `Android ${version} (API ${image.api})`
-        : `API ${image.api}`;
+        : `API ${label}`;
   return `${head} · ${tagLabel(image.tag)} · ${image.abi}`;
 }
 
-/** Newest API first, then Play Store images ahead of plain ones, then by abi for a stable order. */
+/**
+ * Newest API first, then Play Store images ahead of plain ones, then by abi for a stable order.
+ *
+ * Previews have no API number and sort last. They outnumber the stable releases several times
+ * over, so putting them first buries everything anyone actually wants.
+ */
 export function sortSystemImages(images: SystemImage[]): SystemImage[] {
   return [...images].sort((a, b) => {
-    if (a.api !== b.api)
-      return (b.api ?? Number.MAX_SAFE_INTEGER) - (a.api ?? Number.MAX_SAFE_INTEGER);
+    if (a.api !== b.api) return (b.api ?? -1) - (a.api ?? -1);
     if (a.playStore !== b.playStore) return a.playStore ? -1 : 1;
-    return a.abi.localeCompare(b.abi);
+    if (a.abi !== b.abi) return a.abi.localeCompare(b.abi);
+    // Two previews differ only by channel, which is part of the id.
+    return a.id.localeCompare(b.id);
   });
 }
 
+/** Colour codes, which the newer tools wrap every row in. */
+// biome-ignore lint/suspicious/noControlCharactersInRegex: an ANSI escape is a control character.
+const ANSI = /\u001b\[[0-9;]*m/g;
+
+/**
+ * Splits one table row into cells.
+ *
+ * The classic tools separate columns with pipes. The newer ones deprecate `sdkmanager`, hand off
+ * to the Android CLI, and print the same table aligned with runs of spaces instead, so both are
+ * read here rather than guessing which tool is installed.
+ */
+function cellsOf(line: string): string[] {
+  if (line.includes('|')) return line.split('|').map((cell) => cell.trim());
+  return line.split(/\s{2,}/).map((cell) => cell.trim());
+}
+
 function rowToImage(line: string): SystemImage | null {
-  // "  id | version | description | location", with the location column absent in the available
-  // section. A rule row is all dashes and pipes.
-  if (!line.includes('|')) return null;
-  const cells = line.split('|').map((cell) => cell.trim());
-  const id = cells[0];
-  if (!id || /^-+$/.test(id)) return null;
+  const clean = line.replace(ANSI, '').trim();
+  if (!clean) return null;
+
+  const cells = cellsOf(clean).filter((cell) => cell !== '');
+  const path = cells[0];
+  // A rule row under the header is all dashes.
+  if (!path || /^-+$/.test(path)) return null;
+
+  // The Android CLI writes `system-images/android-34/google_apis/x86_64`, but every command that
+  // takes a package wants the semicolon form, so that is what callers get.
+  const id = path.startsWith('system-images/') ? path.replace(/\//g, ';') : path;
   const parsed = parseSystemImageId(id);
   if (!parsed) return null;
+
+  // An upgradable row reads "4.0.0 -> 7.0.0 <description>". The installed version is the one
+  // before the arrow; reading the arrow itself as the version would be worse than useless.
+  const rest = cells.slice(1).filter((cell) => cell !== '->');
   return {
     id,
     api: parsed.api,
     tag: parsed.tag,
     abi: parsed.abi,
     playStore: parsed.playStore,
-    version: cells[1] ?? '',
-    description: cells[2] ?? '',
+    version: rest[0] ?? '',
+    description: rest.at(-1) ?? '',
   };
 }
 
@@ -119,7 +190,8 @@ export function parseSdkManagerList(stdout: string): {
   let target: SystemImage[] | null = null;
 
   for (const raw of stdout.split(/\r?\n/)) {
-    const line = raw.trim();
+    // Headers get the colour treatment too on the newer tools.
+    const line = raw.replace(ANSI, '').trim();
     if (/^installed packages:/i.test(line)) {
       target = installed;
       continue;

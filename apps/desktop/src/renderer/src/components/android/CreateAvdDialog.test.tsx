@@ -94,7 +94,10 @@ describe('CreateAvdDialog', () => {
   });
 
   it('offers images to install instead of a command to copy', async () => {
-    setup({ 'android.listSystemImages': [], 'android.availableSystemImages': AVAILABLE });
+    setup({
+      'android.listSystemImages': [],
+      'android.availableSystemImages': { images: AVAILABLE, error: null },
+    });
 
     // A command to paste elsewhere is a dead end; the point is to fix it from here.
     expect(await screen.findByText(/No system images are installed/i)).toBeInTheDocument();
@@ -150,7 +153,7 @@ const AVAILABLE = [
 describe('installing a system image from the dialog', () => {
   const noImages = {
     'android.listSystemImages': [],
-    'android.availableSystemImages': AVAILABLE,
+    'android.availableSystemImages': { images: AVAILABLE, error: null },
     'android.installSystemImage': { ok: true },
   };
 
@@ -229,8 +232,39 @@ describe('installing a system image from the dialog', () => {
   });
 
   it('says plainly when there is nothing to offer', async () => {
-    setup({ 'android.listSystemImages': [], 'android.availableSystemImages': [] });
+    setup({
+      'android.listSystemImages': [],
+      'android.availableSystemImages': { images: [], error: 'sdkmanager could not run.' },
+    });
 
-    expect(await screen.findByText(/could not reach the package list/i)).toBeInTheDocument();
+    // What the SDK actually said, plus a way to ask again, rather than one vague sentence.
+    expect(await screen.findByText('sdkmanager could not run.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /try again/i })).toBeInTheDocument();
+  });
+});
+
+describe('while the installed images are still loading', () => {
+  it('says it is looking rather than "No results found"', async () => {
+    renderWithProviders(
+      <CreateAvdDialog
+        open
+        onOpenChange={vi.fn()}
+        existingNames={[]}
+        onCreated={vi.fn()}
+        tools={TOOLS}
+      />,
+      {
+        bridge: {
+          // Never resolves, so the dialog stays in its loading state.
+          'android.listSystemImages': () => new Promise(() => undefined),
+          'android.listDeviceProfiles': ['pixel_7'],
+        },
+      },
+    );
+
+    // An empty dropdown reading "No results found" looks like there is nothing to install, when
+    // the truth is the list has not arrived yet.
+    expect(await screen.findByText(/Reading the installed images/i)).toBeInTheDocument();
+    expect(screen.queryByText('No results found')).not.toBeInTheDocument();
   });
 });

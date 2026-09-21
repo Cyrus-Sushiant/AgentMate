@@ -20,6 +20,7 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Skeleton } from '@/components/ui/skeleton';
 import { queryKeys } from '@/lib/queryKeys';
 import { InstallSystemImage } from './InstallSystemImage';
 
@@ -194,7 +195,14 @@ export function CreateAvdDialog({
 
             <div className="space-y-1.5">
               <Label>System image</Label>
-              {noImages ? (
+              {imagesQuery.isLoading ? (
+                // An empty Combobox says "No results found", which reads as "there is nothing to
+                // install" rather than "the list has not arrived yet".
+                <div className="glass flex items-center gap-2 rounded-xl p-3">
+                  <Skeleton className="h-4 w-4 rounded-full" />
+                  <p className="text-xs text-muted-foreground">Reading the installed images…</p>
+                </div>
+              ) : noImages ? (
                 <InstallSystemImage onInstalled={() => void imagesQuery.refetch()} />
               ) : (
                 <Combobox

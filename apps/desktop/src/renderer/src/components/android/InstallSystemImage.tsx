@@ -1,7 +1,7 @@
 import { describeSystemImage, type SystemImage } from '@agentmat/core';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
-import { Download, ExternalLink } from '@/components/icons';
+import { Download, ExternalLink, RefreshCw } from '@/components/icons';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Combobox } from '@/components/ui/combobox';
@@ -39,7 +39,19 @@ export function InstallSystemImage({ onInstalled }: InstallSystemImageProps): Re
     queryFn: () => window.agentmat.android.availableSystemImages(),
     meta: { silentLoading: true },
   });
-  const available = availableQuery.data ?? [];
+  const available = availableQuery.data?.images ?? [];
+  /** What the SDK said when it could not answer, which beats guessing at the cause here. */
+  const listError = availableQuery.data?.error ?? null;
+
+  /**
+   * A retry asks with the force flag, which is what makes the main process look again instead of
+   * handing back what it cached. Deliberately not `refetch()`: that reuses the query function as
+   * it was when the query was made, so a flag flipped just beforehand would not be in it yet.
+   */
+  const retry = useMutation({
+    mutationFn: () => window.agentmat.android.availableSystemImages(true),
+    onSuccess: (data) => queryClient.setQueryData(queryKeys.androidAvailableImages, data),
+  });
 
   // Default to the newest, which is what most people want and saves a click.
   useEffect(() => {
@@ -96,12 +108,32 @@ export function InstallSystemImage({ onInstalled }: InstallSystemImageProps): Re
 
   if (available.length === 0) {
     return (
-      <div className="glass space-y-2 rounded-xl p-3">
+      <div className="glass space-y-3 rounded-xl p-3">
         <p className="text-sm">No system images are installed.</p>
-        <p className="text-xs text-muted-foreground">
-          AgentMate could not reach the package list to offer any. Check the connection, or install
-          one from Android Studio's SDK Manager.
-        </p>
+        {listError ? (
+          <>
+            <p className="text-xs text-muted-foreground">
+              AgentMate asked the SDK for the list of images and got this back:
+            </p>
+            <p className="break-words font-mono text-xs text-destructive">{listError}</p>
+          </>
+        ) : (
+          <p className="text-xs text-muted-foreground">
+            The SDK answered but did not offer any images to install. You can install one from
+            Android Studio's SDK Manager instead.
+          </p>
+        )}
+        <Button
+          variant="outline"
+          size="sm"
+          className="w-full"
+          disabled={retry.isPending}
+          aria-busy={retry.isPending}
+          onClick={() => retry.mutate()}
+        >
+          <RefreshCw className={`h-3.5 w-3.5 ${retry.isPending ? 'animate-spin' : ''}`} />
+          {retry.isPending ? 'Asking again' : 'Try again'}
+        </Button>
       </div>
     );
   }

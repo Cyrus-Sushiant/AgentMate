@@ -15,6 +15,7 @@ const state = vi.hoisted(() => ({
   stdin: [] as string[],
   exitCode: 0,
   listOutput: '',
+  listError: null as string | null,
 }));
 
 /** Stands in for the real runner, with the same contract: a line, a parsed progress line where
@@ -26,6 +27,7 @@ vi.mock('./exec', async () => {
     AndroidToolMissingError: class extends Error {},
     runSdkManager: (_sdk: unknown, args: string[]) => {
       state.calls.push({ args });
+      if (state.listError) return Promise.reject(new Error(state.listError));
       return Promise.resolve(state.listOutput);
     },
     runSdkManagerStreaming: (
@@ -75,6 +77,7 @@ beforeEach(() => {
   state.stdin.length = 0;
   state.exitCode = 0;
   state.listOutput = LIST;
+  state.listError = null;
   vi.resetModules();
 });
 
@@ -82,8 +85,9 @@ describe('listAvailableSystemImages', () => {
   it('offers the images that are not installed yet, newest API first', async () => {
     const { listAvailableSystemImages } = await import('./systemImages');
 
-    const images = await listAvailableSystemImages(sdk);
+    const { images, error } = await listAvailableSystemImages(sdk);
 
+    expect(error).toBeNull();
     expect(images.map((image) => image.api)).toEqual([35, 34]);
     // Build tools are in the same list and are not something this dialog can use.
     expect(images.every((image) => image.id.startsWith('system-images;'))).toBe(true);
@@ -97,7 +101,7 @@ describe('listAvailableSystemImages', () => {
     expect(state.calls[0].args).toContain('--list');
   });
 
-  it('caches, and looks again when asked to', async () => {
+  it('caches a good answer, and looks again when asked to', async () => {
     const { listAvailableSystemImages } = await import('./systemImages');
 
     await listAvailableSystemImages(sdk);
@@ -109,11 +113,36 @@ describe('listAvailableSystemImages', () => {
     expect(state.calls).toHaveLength(2);
   });
 
-  it('comes back empty rather than throwing when sdkmanager cannot run', async () => {
+  it('says why it came back empty instead of looking like there is nothing to install', async () => {
     const { listAvailableSystemImages } = await import('./systemImages');
-    state.listOutput = '';
+    state.listError = 'sdkmanager needs a Java runtime and could not find one.';
 
-    await expect(listAvailableSystemImages(sdk)).resolves.toEqual([]);
+    const { images, error } = await listAvailableSystemImages(sdk);
+
+    // One vague sentence for every possible failure is what made this impossible to debug.
+    expect(images).toEqual([]);
+    expect(error).toContain('Java');
+  });
+
+  it('separates "nothing offered" from "could not ask"', async () => {
+    const { listAvailableSystemImages } = await import('./systemImages');
+    state.listOutput = ['Installed packages:', '  platform-tools | 35.0.1 | x | y', ''].join('\n');
+
+    const { images, error } = await listAvailableSystemImages(sdk);
+
+    // sdkmanager answered; it just had no images to offer. That is not an error.
+    expect(images).toEqual([]);
+    expect(error).toBeNull();
+  });
+
+  it('does not cache a failure, so a retry actually tries again', async () => {
+    const { listAvailableSystemImages } = await import('./systemImages');
+    state.listError = 'network is down';
+
+    await listAvailableSystemImages(sdk);
+    await listAvailableSystemImages(sdk);
+
+    expect(state.calls).toHaveLength(2);
   });
 });
 

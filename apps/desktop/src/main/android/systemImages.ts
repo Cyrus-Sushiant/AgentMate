@@ -23,6 +23,16 @@ export function isSystemImageId(id: string): boolean {
   return SYSTEM_IMAGE_ID.test(id);
 }
 
+/**
+ * What `sdkmanager --list` had to say. The error is carried rather than swallowed: "nothing to
+ * offer" and "could not ask" look identical to a user otherwise, and only one of them is worth
+ * retrying.
+ */
+export interface AvailableImages {
+  images: SystemImage[];
+  error: string | null;
+}
+
 const CACHE_TTL_MS = 10 * 60_000;
 let cached: { at: number; images: SystemImage[] } | null = null;
 
@@ -33,8 +43,10 @@ export function clearAvailableSystemImages(): void {
 export async function listAvailableSystemImages(
   sdk: ResolvedAndroidSdk,
   force = false,
-): Promise<SystemImage[]> {
-  if (!force && cached && Date.now() - cached.at < CACHE_TTL_MS) return cached.images;
+): Promise<AvailableImages> {
+  if (!force && cached && Date.now() - cached.at < CACHE_TTL_MS) {
+    return { images: cached.images, error: null };
+  }
   try {
     // The full list, not `--list_installed`: the whole point here is what is not installed yet.
     const stdout = await runSdkManager(sdk, ['--list'], {
@@ -42,10 +54,14 @@ export async function listAvailableSystemImages(
       maxBuffer: 32 * 1024 * 1024,
     });
     const images = sortSystemImages(parseSdkManagerList(stdout).available);
+    // Only a good answer is cached, so a retry after a failure really does try again.
     cached = { at: Date.now(), images };
-    return images;
-  } catch {
-    return [];
+    return { images, error: null };
+  } catch (error) {
+    return {
+      images: [],
+      error: error instanceof Error ? error.message : String(error),
+    };
   }
 }
 

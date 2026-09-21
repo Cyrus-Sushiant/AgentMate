@@ -705,7 +705,9 @@ const android = {
   wipeData: (name: string): Promise<AndroidActionResult> =>
     ipcRenderer.invoke(IPC.android.wipeData, name),
   listSystemImages: (): Promise<SystemImage[]> => ipcRenderer.invoke(IPC.android.listSystemImages),
-  availableSystemImages: (force?: boolean): Promise<SystemImage[]> =>
+  availableSystemImages: (
+    force?: boolean,
+  ): Promise<{ images: SystemImage[]; error: string | null }> =>
     ipcRenderer.invoke(IPC.android.availableSystemImages, force ?? false),
   installSystemImage: (packageId: string): Promise<AndroidActionResult> =>
     ipcRenderer.invoke(IPC.android.installSystemImage, packageId),

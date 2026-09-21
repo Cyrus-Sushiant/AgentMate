@@ -1,0 +1,14 @@
+WARNING: The SDK Manager CLI tool (sdkmanager) is deprecated. Android CLI will be used instead.
+The 'android' binary can also be found in the cmdline-tools directory, and 'android sdk' is the replacement for 'sdkmanager'.
+
+Installed packages:
+[32m  build-tools/35.0.0                          35.0.0                    Android SDK Build-Tools 35        [39m[0m
+[32m  platform-tools                              37.0.0                    Android SDK Platform-Tools        [39m[0m
+[33m  system-images/android-37.0/google_apis_playstore_ps16k/x86_64         4.0.0           ->        7.0.0    16 KB Page Size Google Play Intel x86_64 Atom System Image[39m[0m
+[32m  system-images/android-34/google_apis/x86_64  12.0.0                    Google APIs Intel x86_64 Atom System Image[39m[0m
+
+Available packages:
+  system-images/android-36/google_apis/arm64-v8a            3.0.0                     Google APIs ARM 64 v8a System Image                
+  system-images/android-canary-20260909/google_apis_ps16k/x86_64   16.0.0             16 KB Page Size Google APIs Intel x86_64 Atom System Image   
+  build-tools/37.0.0                          37.0.0                    Android SDK Build-Tools 37        
+

@@ -40,7 +40,11 @@ import {
   watchAndroidUsage,
 } from '../android/runtime';
 import { getAndroidSdk, refreshAndroidSdk, requireTool } from '../android/sdk';
-import { installSystemImage, listAvailableSystemImages } from '../android/systemImages';
+import {
+  type AvailableImages,
+  installSystemImage,
+  listAvailableSystemImages,
+} from '../android/systemImages';
 import { store } from '../store';
 
 /**
@@ -224,7 +228,7 @@ export function registerAndroidHandlers(): void {
 
   ipcMain.handle(
     IPC.android.availableSystemImages,
-    async (_event, force?: boolean): Promise<SystemImage[]> =>
+    async (_event, force?: boolean): Promise<AvailableImages> =>
       listAvailableSystemImages(await getAndroidSdk(), force === true),
   );
 
