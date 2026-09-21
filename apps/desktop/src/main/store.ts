@@ -159,6 +159,10 @@ export const DEFAULT_SETTINGS: AppSettings = {
   vaultAutoLockMinutes: DEFAULT_VAULT_AUTO_LOCK_MINUTES,
   vaultClipboardClearSeconds: DEFAULT_VAULT_CLIPBOARD_CLEAR_SECONDS,
   vaultLockOnSystemLock: true,
+  androidSdkPath: null,
+  androidEmulatorLaunchFlags: '',
+  androidStopEmulatorsOnQuit: false,
+  androidCapturePath: null,
 };
 
 /**
@@ -168,6 +172,25 @@ export const DEFAULT_SETTINGS: AppSettings = {
  * Normalizing first is what keeps a half-written block (no `windows` array, say)
  * from reaching either process as something that throws on first access.
  */
+/**
+ * A user-typed path reaches a command line, so anything that is not a non-empty string becomes
+ * null and detection takes over again. Blank is the same as unset on purpose: clearing the field
+ * in Settings is how you go back to auto-detection.
+ */
+function normalizeOptionalPath(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  return trimmed === '' ? null : trimmed;
+}
+
+/** Capped so one stray paste cannot build a command line the OS refuses to run. */
+const MAX_EMULATOR_LAUNCH_FLAGS = 500;
+
+function normalizeEmulatorLaunchFlags(value: unknown): string {
+  if (typeof value !== 'string') return '';
+  return value.trim().slice(0, MAX_EMULATOR_LAUNCH_FLAGS);
+}
+
 function withSettingsMigrations(settings: AppSettings): AppSettings {
   const alerts = normalizeUsageResetAlerts(settings.usageResetAlerts);
   const windows = alerts.windows.map((key) =>
@@ -176,6 +199,10 @@ function withSettingsMigrations(settings: AppSettings): AppSettings {
   const customs = normalizeCustomDesktopPets(settings.desktopPetCustoms);
   return {
     ...settings,
+    androidSdkPath: normalizeOptionalPath(settings.androidSdkPath),
+    androidCapturePath: normalizeOptionalPath(settings.androidCapturePath),
+    androidEmulatorLaunchFlags: normalizeEmulatorLaunchFlags(settings.androidEmulatorLaunchFlags),
+    androidStopEmulatorsOnQuit: settings.androidStopEmulatorsOnQuit === true,
     cliArgs: normalizeCliArgs(settings.cliArgs),
     cliLaunchDefaults: normalizeCliLaunchDefaults(settings.cliLaunchDefaults),
     commitMessage: normalizeCommitMessageSettings(settings.commitMessage),

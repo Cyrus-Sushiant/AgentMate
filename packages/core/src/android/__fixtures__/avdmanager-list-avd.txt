@@ -1,0 +1,20 @@
+Available Android Virtual Devices:
+    Name: Pixel_7_API_34
+  Device: pixel_7 (Google)
+    Path: C:\Users\dev\.android\avd\Pixel_7_API_34.avd
+  Target: Google APIs
+          Based on: Android 14.0 ("UpsideDownCake") Tag/ABI: google_apis/x86_64
+    Skin: pixel_7
+  Sdcard: 512 MB
+---------
+    Name: Pixel_Tablet_API_33
+  Device: pixel_tablet (Google)
+    Path: /home/dev/.android/avd/Pixel_Tablet_API_33.avd
+  Target: Google Play
+          Based on: Android 13.0 ("Tiramisu") Tag/ABI: google_apis_playstore/arm64-v8a
+    Skin: pixel_tablet
+
+The following Android Virtual Devices could not be loaded:
+    Name: Broken_One
+    Path: /home/dev/.android/avd/Broken_One.avd
+   Error: Missing system image for Google APIs arm64-v8a Broken_One.

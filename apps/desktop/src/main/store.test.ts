@@ -262,6 +262,55 @@ describe('settings migrations', () => {
   });
 });
 
+describe('the Android SDK settings', () => {
+  it('defaults to auto-detection with emulators left running', async () => {
+    const { store } = await loadStore();
+
+    const settings = await store.getSettings();
+
+    // Null means "work it out from ANDROID_HOME and the usual install paths".
+    expect(settings.androidSdkPath).toBeNull();
+    expect(settings.androidEmulatorLaunchFlags).toBe('');
+    // An emulator is a window the user can close themselves, so quitting AgentMate leaves it be.
+    expect(settings.androidStopEmulatorsOnQuit).toBe(false);
+    expect(settings.androidCapturePath).toBeNull();
+  });
+
+  it('trims a blank SDK path back to null so detection takes over again', async () => {
+    userData.writeData('settings.json', { androidSdkPath: '   ', androidCapturePath: '' });
+    const { store } = await loadStore();
+
+    const settings = await store.getSettings();
+
+    expect(settings.androidSdkPath).toBeNull();
+    expect(settings.androidCapturePath).toBeNull();
+  });
+
+  it('keeps a real SDK path and trims the whitespace around it', async () => {
+    userData.writeData('settings.json', { androidSdkPath: '  C:/Android/Sdk  ' });
+    const { store } = await loadStore();
+
+    expect((await store.getSettings()).androidSdkPath).toBe('C:/Android/Sdk');
+  });
+
+  it('refuses a non-string SDK path rather than passing it to a command line', async () => {
+    userData.writeData('settings.json', { androidSdkPath: 42, androidStopEmulatorsOnQuit: 'yes' });
+    const { store } = await loadStore();
+
+    const settings = await store.getSettings();
+
+    expect(settings.androidSdkPath).toBeNull();
+    expect(settings.androidStopEmulatorsOnQuit).toBe(false);
+  });
+
+  it('caps the launch flags so one bad paste cannot build an enormous command line', async () => {
+    userData.writeData('settings.json', { androidEmulatorLaunchFlags: '-x '.repeat(400) });
+    const { store } = await loadStore();
+
+    expect((await store.getSettings()).androidEmulatorLaunchFlags.length).toBeLessThanOrEqual(500);
+  });
+});
+
 describe('project defaults on read', () => {
   it('turns the old single runCommand string into the run commands list', async () => {
     userData.writeData('projects.json', [

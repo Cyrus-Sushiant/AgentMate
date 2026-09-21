@@ -5,12 +5,14 @@ import { BLUEPRINT_FILE_SCHEME } from '@agentmat/core';
 import { app, BrowserWindow, desktopCapturer, protocol, session, shell } from 'electron';
 import icon from '../../resources/icon.ico?asset';
 import { stopAllSshTasks } from './agents/sshTaskRunner';
+import { stopEmulatorsOnQuit } from './android/runtime';
 import { registerBlueprintFileProtocol } from './blueprintFileStore';
 import { seedExampleRepositoryIfEmpty } from './exampleSkillRepo';
 import { shutdownLocalServer } from './grammar/localServer';
 import { registerActivityHandlers } from './ipc/activity';
 import { registerAgentHandlers } from './ipc/agents';
 import { registerAiHandlers } from './ipc/ai';
+import { registerAndroidHandlers } from './ipc/android';
 import { registerAppHandlers } from './ipc/app';
 import { registerAppNotificationHandlers } from './ipc/appNotifications';
 import { registerBackupHandlers } from './ipc/backup';
@@ -253,6 +255,7 @@ function registerAllIpcHandlers(): void {
   // containers of whatever else is on this machine alone.
   if (!isE2E) sweepOrphanScanContainers();
   registerToolHandlers();
+  registerAndroidHandlers();
   registerDockerHandlers();
   registerFileSystemHandlers();
   registerExplorerHandlers();
@@ -392,6 +395,11 @@ app.on('before-quit', (event) => {
     return;
   }
   cancelAllSecurityScans();
+  // Not awaited: emulators are left running by default, and a half-booted one must never be
+  // able to hold the shutdown open.
+  void store
+    .getSettings()
+    .then((settings) => stopEmulatorsOnQuit(settings.androidStopEmulatorsOnQuit === true));
   petManager.close();
   stopHookServer();
   stopResetAlertWatcher();

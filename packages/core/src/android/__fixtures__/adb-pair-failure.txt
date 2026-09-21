@@ -1,0 +1,1 @@
+Failed: Wrong password or connection was dropped

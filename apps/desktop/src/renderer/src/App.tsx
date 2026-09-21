@@ -17,6 +17,7 @@ import WidgetRoute from './components/usage/WidgetRoute';
 import WorkspaceRoute from './components/workspace/WorkspaceRoute';
 import { useIsDarkMode } from './lib/chartColors';
 import { installToastHistoryCapture } from './lib/toastHistory';
+import AndroidPage from './pages/AndroidPage';
 import AskAiPage from './pages/AskAiPage';
 import CliManagerPage from './pages/CliManagerPage';
 import DashboardPage from './pages/DashboardPage';
@@ -166,6 +167,7 @@ export default function App(): React.JSX.Element {
                 <Route path="mcp" element={<McpPage />} />
                 <Route path="tools" element={<ToolsPage />} />
                 <Route path="docker" element={<DockerPage />} />
+                <Route path="android" element={<AndroidPage />} />
                 <Route path="vault" element={<VaultPage />} />
                 <Route path="usage" element={<UsagePage />} />
                 <Route path="ask-ai" element={<AskAiPage />} />

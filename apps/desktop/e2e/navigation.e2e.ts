@@ -72,6 +72,14 @@ const DESTINATIONS: Destination[] = [
       page.getByLabel('Search containers').or(page.getByText("Docker isn't available")),
   },
   {
+    // The Android SDK may or may not be installed on the machine running the suite, and the page
+    // says so either way. Both outcomes are this page and nothing else.
+    label: 'Android',
+    hash: '#/android',
+    landmark: (page) =>
+      page.getByRole('button', { name: 'Refresh' }).or(page.getByText('Android SDK not found')),
+  },
+  {
     label: 'AI CLI Manager',
     hash: '#/cli-manager',
     landmark: (page) => page.getByRole('button', { name: /^Check(ing)? (all for )?updates/ }),

@@ -39,6 +39,7 @@ vi.mock('./pages/SkillsPage', () => stub('Skills'));
 vi.mock('./pages/McpPage', () => stub('MCP'));
 vi.mock('./pages/ToolsPage', () => stub('Tools'));
 vi.mock('./pages/DockerPage', () => stub('Docker'));
+vi.mock('./pages/AndroidPage', () => stub('Android'));
 vi.mock('./pages/VaultPage', () => stub('Vault'));
 vi.mock('./pages/UsagePage', () => stub('Usage'));
 vi.mock('./pages/AskAiPage', () => stub('Ask AI'));
@@ -150,6 +151,7 @@ describe('App routes inside the shell', () => {
     ['/mcp', 'MCP'],
     ['/tools', 'Tools'],
     ['/docker', 'Docker'],
+    ['/android', 'Android'],
     ['/vault', 'Vault'],
     ['/usage', 'Usage'],
     ['/ask-ai', 'Ask AI'],

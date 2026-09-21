@@ -18,11 +18,13 @@ import {
   faBoxOpen,
   faBug,
   faCalendarDays,
+  faCamera,
   faChartColumn,
   faChartSimple,
   faCheck,
   faChevronDown,
   faChevronRight,
+  faChevronUp,
   faCircleCheck,
   faCircleHalfStroke,
   faCircleInfo,
@@ -85,6 +87,7 @@ import {
   faMicrophone,
   faMicrophoneSlash,
   faMinus,
+  faMobileScreenButton,
   faMoon,
   faMugHot,
   faNetworkWired,
@@ -100,6 +103,7 @@ import {
   faQrcode,
   faQuoteLeft,
   faRobot,
+  faRotate,
   faRotateLeft,
   faRoute,
   faSatelliteDish,
@@ -117,6 +121,7 @@ import {
   faSun,
   faTable,
   faTableColumns,
+  faTabletScreenButton,
   faTag,
   faTerminal,
   faThumbtack,
@@ -125,6 +130,7 @@ import {
   faTriangleExclamation,
   faUpload,
   faVault,
+  faVideo,
   faWandMagic,
   faWandMagicSparkles,
   faWifi,
@@ -160,6 +166,7 @@ export const Blocks = makeIcon(faCubes);
 export const Bookmark = makeIcon(faBookmark);
 export const Check = makeIcon(faCheck);
 export const ChevronDown = makeIcon(faChevronDown);
+export const ChevronUp = makeIcon(faChevronUp);
 export const ChevronsUpDown = makeIcon(faSort);
 export const Copy = makeIcon(faCopy);
 export const Download = makeIcon(faDownload);
@@ -265,6 +272,30 @@ export const Package = makeIcon(faBox);
 // Project archive icons.
 export const Archive = makeIcon(faBoxArchive);
 export const ArchiveRestore = makeIcon(faBoxOpen);
+
+// Android device cards.
+export const Smartphone = makeIcon(faMobileScreenButton);
+export const Tablet = makeIcon(faTabletScreenButton);
+export const RotateCw = makeIcon(faRotate);
+export const Camera = makeIcon(faCamera);
+export const Video = makeIcon(faVideo);
+
+/** Android's robot mark, inlined so we don't need the brands icon package. */
+export const Android = React.forwardRef<SVGSVGElement, IconProps>(
+  ({ className, ...props }, ref) => (
+    <svg
+      ref={ref}
+      viewBox="0 0 24 24"
+      fill="currentColor"
+      aria-hidden
+      className={className}
+      {...props}
+    >
+      <path d="M17.523 15.341a.998.998 0 110-1.996.998.998 0 010 1.996m-11.046 0a.998.998 0 110-1.996.998.998 0 010 1.996m11.405-6.02l1.997-3.46a.416.416 0 00-.152-.567.416.416 0 00-.568.152l-2.022 3.503A12.293 12.293 0 0012 7.836c-1.87 0-3.626.386-5.137 1.113L4.841 5.446a.416.416 0 00-.568-.152.416.416 0 00-.152.567l1.997 3.46C2.688 11.15.492 14.55 0 18.596h24c-.492-4.046-2.688-7.447-6.118-9.275" />
+    </svg>
+  ),
+);
+Android.displayName = 'Android';
 
 /** Docker's whale mark, inlined so we don't need the brands icon package. */
 export const Docker = React.forwardRef<SVGSVGElement, IconProps>(({ className, ...props }, ref) => (

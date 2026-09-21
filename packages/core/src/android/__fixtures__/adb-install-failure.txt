@@ -1,0 +1,2 @@
+Performing Streamed Install
+adb: failed to install app-debug.apk: Failure [INSTALL_FAILED_UPDATE_INCOMPATIBLE: Existing package com.example signatures do not match newer version]

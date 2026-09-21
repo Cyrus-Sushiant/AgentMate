@@ -1,8 +1,15 @@
 import type {
   ActivityEvent,
   AgentHistorySession,
+  AndroidActionResult,
+  AndroidCapture,
+  AndroidEvent,
+  AndroidSdkStatus,
+  AndroidSnapshot,
   AppNotification,
   AppSettings,
+  AvdAdvanced,
+  AvdEdit,
   BlueprintPreset,
   BlueprintRevision,
   BlueprintStepId,
@@ -10,6 +17,7 @@ import type {
   CliUpdateCheckResult,
   CodeqlInstallProgress,
   CodeqlLocalStatus,
+  CreateAvdSpec,
   CustomDesktopPet,
   DesktopPromptBuildWidgetInstance,
   DesktopWidgetInstance,
@@ -44,6 +52,7 @@ import type {
   SkillRepository,
   SkillRepositoryIndex,
   SkillRepositorySourceType,
+  SystemImage,
   TestDiscovery,
   TestRunEvent,
   TestRunSnapshot,
@@ -650,6 +659,60 @@ const docker = {
   restart: (id: string): Promise<DockerActionResult> => ipcRenderer.invoke(IPC.docker.restart, id),
   remove: (id: string, options: DockerRemoveOptions): Promise<DockerActionResult> =>
     ipcRenderer.invoke(IPC.docker.remove, id, options),
+};
+
+const android = {
+  sdk: (): Promise<AndroidSdkStatus> => ipcRenderer.invoke(IPC.android.sdk),
+  setSdkPath: (path: string | null): Promise<AndroidSdkStatus> =>
+    ipcRenderer.invoke(IPC.android.setSdkPath, path),
+  pickSdkPath: (): Promise<string | null> => ipcRenderer.invoke(IPC.android.pickSdkPath),
+  refresh: (): Promise<AndroidSnapshot> => ipcRenderer.invoke(IPC.android.refresh),
+  start: (
+    avdName: string,
+    options?: { coldBoot?: boolean; wipeData?: boolean },
+  ): Promise<AndroidActionResult> => ipcRenderer.invoke(IPC.android.start, avdName, options ?? {}),
+  stop: (serial: string): Promise<AndroidActionResult> =>
+    ipcRenderer.invoke(IPC.android.stop, serial),
+  cancelBoot: (avdName: string): Promise<AndroidActionResult> =>
+    ipcRenderer.invoke(IPC.android.cancelBoot, avdName),
+  watchUsage: (enabled: boolean): Promise<void> =>
+    ipcRenderer.invoke(IPC.android.watchUsage, enabled),
+  rotate: (serial: string): Promise<void> => ipcRenderer.invoke(IPC.android.rotate, serial),
+  screenshot: (serial: string, label: string): Promise<AndroidCapture> =>
+    ipcRenderer.invoke(IPC.android.screenshot, serial, label),
+  startRecording: (serial: string, label: string): Promise<{ id: string }> =>
+    ipcRenderer.invoke(IPC.android.startRecording, serial, label),
+  stopRecording: (id: string): Promise<AndroidCapture> =>
+    ipcRenderer.invoke(IPC.android.stopRecording, id),
+  installApk: (serial: string, paths: string[]): Promise<AndroidActionResult> =>
+    ipcRenderer.invoke(IPC.android.installApk, serial, paths),
+  pickApk: (): Promise<string[]> => ipcRenderer.invoke(IPC.android.pickApk),
+  adbPath: (): Promise<string> => ipcRenderer.invoke(IPC.android.adbPath),
+  revealCapture: (path: string): Promise<void> =>
+    ipcRenderer.invoke(IPC.android.revealCapture, path),
+  openCapturesFolder: (): Promise<void> => ipcRenderer.invoke(IPC.android.openCapturesFolder),
+  createAvd: (spec: CreateAvdSpec): Promise<AndroidActionResult> =>
+    ipcRenderer.invoke(IPC.android.createAvd, spec),
+  deleteAvd: (name: string): Promise<AndroidActionResult> =>
+    ipcRenderer.invoke(IPC.android.deleteAvd, name),
+  editAvd: (name: string, edit: AvdEdit): Promise<AndroidActionResult> =>
+    ipcRenderer.invoke(IPC.android.editAvd, name, edit),
+  avdConfig: (name: string): Promise<AvdAdvanced> =>
+    ipcRenderer.invoke(IPC.android.avdConfig, name),
+  wipeData: (name: string): Promise<AndroidActionResult> =>
+    ipcRenderer.invoke(IPC.android.wipeData, name),
+  listSystemImages: (): Promise<SystemImage[]> => ipcRenderer.invoke(IPC.android.listSystemImages),
+  listDeviceProfiles: (): Promise<string[]> => ipcRenderer.invoke(IPC.android.listDeviceProfiles),
+  pair: (hostPort: string, code: string): Promise<AndroidActionResult> =>
+    ipcRenderer.invoke(IPC.android.pair, hostPort, code),
+  connect: (hostPort: string): Promise<AndroidActionResult> =>
+    ipcRenderer.invoke(IPC.android.connect, hostPort),
+  disconnect: (serial: string): Promise<AndroidActionResult> =>
+    ipcRenderer.invoke(IPC.android.disconnect, serial),
+  enableWireless: (serial: string): Promise<AndroidActionResult & { hostPort?: string }> =>
+    ipcRenderer.invoke(IPC.android.enableWireless, serial),
+  onEvent: (callback: (event: AndroidEvent) => void): (() => void) =>
+    subscribe(IPC.android.onEvent, callback),
 };
 
 const fs = {
@@ -1510,6 +1573,7 @@ const agentmatApi = {
   mcp,
   security,
   tools,
+  android,
   docker,
   fs,
   explorer,

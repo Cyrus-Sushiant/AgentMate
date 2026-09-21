@@ -97,6 +97,8 @@ function captureMainOutput(app: ElectronApplication, root: string): string | nul
 
 export async function launchApp(seed: {
   settings?: Record<string, unknown>;
+  /** Extra environment for the app, for tests that drive a fake tool through one. */
+  env?: Record<string, string>;
 }): Promise<LaunchedApp> {
   const root = mkdtempSync(join(tmpdir(), 'agentmate-e2e-'));
   const userDataDir = join(root, 'user-data');
@@ -133,6 +135,7 @@ export async function launchApp(seed: {
       // reaches outside the profile (the docker scan sweep, update checks) stays off.
       AGENTMATE_USER_DATA_DIR: userDataDir,
       AGENTMATE_E2E: '1',
+      ...seed.env,
     },
   });
   const mainLogFile = captureMainOutput(app, root);

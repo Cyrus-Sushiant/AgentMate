@@ -107,6 +107,11 @@ export const queryKeys = {
   grammarLocalStatus: ['grammar-local-status'] as const,
   /** Which proxy the app is going through, and what this machine itself is set to. */
   proxyStatus: ['proxy-status'] as const,
+  androidSdk: ['android-sdk'] as const,
+  androidSnapshot: ['android-snapshot'] as const,
+  androidSystemImages: ['android-system-images'] as const,
+  androidDeviceProfiles: ['android-device-profiles'] as const,
+  androidAvdConfig: (name: string) => ['android-avd-config', name] as const,
   dockerAvailability: ['docker-availability'] as const,
   dockerList: ['docker-list'] as const,
   dockerListForProject: (projectId: string) => ['docker-list', 'project', projectId] as const,

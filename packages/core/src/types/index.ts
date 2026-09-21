@@ -515,6 +515,23 @@ export interface AppSettings {
   vaultClipboardClearSeconds: number;
   /** Locks the Vault when the computer locks its screen or goes to sleep. */
   vaultLockOnSystemLock: boolean;
+  /**
+   * Android SDK root. Null auto-detects from ANDROID_HOME, ANDROID_SDK_ROOT and the usual
+   * per-OS install paths. Set it when detection picks the wrong SDK or finds none.
+   */
+  androidSdkPath: string | null;
+  /**
+   * Extra flags added to every `emulator -avd` launch, typed as a command line
+   * (for example "-gpu host -no-boot-anim"). They are appended last, so they win.
+   */
+  androidEmulatorLaunchFlags: string;
+  /**
+   * Send `adb emu kill` to the emulators AgentMate started when the app quits. Off by default:
+   * an emulator is a window the user can close themselves, and it is slow to boot again.
+   */
+  androidStopEmulatorsOnQuit: boolean;
+  /** Where Android screenshots and recordings are written. Null uses Pictures and Videos. */
+  androidCapturePath: string | null;
 }
 
 export type AgentType = 'claude-code' | 'gemini' | 'opencode' | 'codex' | 'cursor' | 'generic';

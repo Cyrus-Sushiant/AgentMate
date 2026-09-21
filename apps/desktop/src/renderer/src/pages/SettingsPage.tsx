@@ -46,6 +46,7 @@ import {
   X,
 } from '@/components/icons';
 import { CompanionSettings } from '@/components/pet/CompanionSettings';
+import { AndroidSdkSettings } from '@/components/settings/AndroidSdkSettings';
 import { BackupEnvironmentsPasswordDialog } from '@/components/settings/BackupEnvironmentsPasswordDialog';
 import { BlueprintPresetSettings } from '@/components/settings/BlueprintPresetSettings';
 import { CliLaunchDefaultsSettings } from '@/components/settings/CliLaunchDefaultsSettings';
@@ -1730,6 +1731,14 @@ export default function SettingsPage(): React.JSX.Element {
 
               {showSection('ai', WRITING_CHECK_KEYWORDS, 'Writing check') && settingsQuery.data ? (
                 <WritingCheckSettings settings={settingsQuery.data} />
+              ) : null}
+
+              {showSection(
+                'general',
+                'android sdk adb emulator avd avdmanager sdkmanager platform-tools path',
+                'Android SDK',
+              ) && settingsQuery.data ? (
+                <AndroidSdkSettings settings={settingsQuery.data} />
               ) : null}
 
               {showSection('ai', 'translation retries translate', 'Translation retries') && (

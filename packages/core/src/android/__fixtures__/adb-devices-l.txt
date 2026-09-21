@@ -1,0 +1,6 @@
+List of devices attached
+emulator-5554          device product:sdk_gphone64_x86_64 model:sdk_gphone64_x86_64 device:emu64xa transport_id:3
+R58M20ABCDE            device usb:1-4 product:a52qnaxx model:SM_A525F device:a52q transport_id:5
+192.168.1.20:5555      device product:redfin model:Pixel_5 device:redfin transport_id:7
+2B141FDH2000XX         unauthorized usb:1-7 transport_id:9
+emulator-5556          offline transport_id:11

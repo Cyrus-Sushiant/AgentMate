@@ -5,6 +5,7 @@ import { NavLink, useLocation } from 'react-router-dom';
 import { toast } from 'sonner';
 import type { IconProps } from '@/components/icons';
 import {
+  Android,
   Blocks,
   Broadcast,
   ChartColumn,
@@ -54,6 +55,7 @@ export const NAV_ITEMS: NavItem[] = [
   { to: '/mcp', label: 'MCP Servers', icon: Plug },
   { to: '/tools', label: 'Agent Tools', icon: Wrench },
   { to: '/docker', label: 'Docker', icon: Docker },
+  { to: '/android', label: 'Android', icon: Android },
   { to: '/cli-manager', label: 'AI CLI Manager', icon: TerminalSquare },
   { to: '/ask-ai', label: 'Ask AI', icon: MessageSquare },
   { to: '/remote', label: 'Remote', icon: Broadcast },

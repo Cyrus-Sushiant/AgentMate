@@ -1,5 +1,6 @@
 import {
   type AgentStatus,
+  bootStageLabel,
   getUsageProvider,
   type KeepAwakeMode,
   type Project,
@@ -12,7 +13,16 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { CliLogo } from '@/components/cliLogos';
 import { SparklineChart } from '@/components/dashboard/SparklineChart';
-import { Check, Cpu, Docker, MemoryStick, MugHot, TerminalSquare, Wifi } from '@/components/icons';
+import {
+  Android,
+  Check,
+  Cpu,
+  Docker,
+  MemoryStick,
+  MugHot,
+  TerminalSquare,
+  Wifi,
+} from '@/components/icons';
 import { ProviderLogo } from '@/components/providerLogos';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { AGENT_STATUS_LABEL, AgentStatusDot } from '@/components/workspace/AgentStatusDot';
@@ -431,6 +441,149 @@ function DockerSegment(): React.JSX.Element | null {
   );
 }
 
+/**
+ * Running emulators in the bottom bar, so what is up is visible from any page. Hidden entirely
+ * when there is no Android SDK on this machine, the way Docker's entry is.
+ *
+ * Usage is sampled only while the panel is open. The bar is always on screen, and the sampler
+ * behind those numbers is a process-tree scan that costs real time on Windows.
+ */
+function AndroidSegment(): React.JSX.Element | null {
+  const navigate = useNavigate();
+  const [open, setOpen] = useState(false);
+
+  const sdkQuery = useQuery({
+    queryKey: queryKeys.androidSdk,
+    queryFn: () => window.agentmat.android.sdk(),
+    meta: { silentLoading: true },
+  });
+  const available = sdkQuery.data?.status === 'found';
+
+  const snapshotQuery = useQuery({
+    queryKey: queryKeys.androidSnapshot,
+    queryFn: () => window.agentmat.android.refresh(),
+    enabled: available,
+    refetchInterval: available ? SAMPLE_INTERVAL_MS : false,
+    meta: { silentLoading: true },
+  });
+
+  useEffect(() => {
+    if (!open) return;
+    void window.agentmat.android.watchUsage(true);
+    return () => {
+      void window.agentmat.android.watchUsage(false);
+    };
+  }, [open]);
+
+  if (!available) return null;
+
+  const emulators = snapshotQuery.data?.emulators ?? [];
+  const running = emulators.filter((emulator) => emulator.state === 'running');
+  const booting = emulators.filter((emulator) =>
+    ['launching', 'connecting', 'booting', 'finishing'].includes(emulator.state),
+  );
+
+  const go = (serial: string | null): void => {
+    void navigate(serial ? `/android?device=${encodeURIComponent(serial)}` : '/android');
+  };
+
+  return (
+    <PopoverPrimitive.Root open={open} onOpenChange={setOpen}>
+      <SimpleTooltip
+        label={open ? null : `Android: ${running.length} running`}
+        side="top"
+        delayDuration={250}
+      >
+        <PopoverPrimitive.Trigger asChild>
+          <button
+            type="button"
+            aria-label={`Android: ${running.length} emulator${running.length === 1 ? '' : 's'} running`}
+            className={segmentClass}
+          >
+            <Android className="h-2.5 w-2.5" />
+            <span className="tabular-nums">{running.length} running</span>
+            {booting.length > 0 ? (
+              <span className="shimmer h-1.5 w-1.5 rounded-full bg-primary/60" />
+            ) : null}
+          </button>
+        </PopoverPrimitive.Trigger>
+      </SimpleTooltip>
+      <PopoverPrimitive.Portal>
+        <PopoverPrimitive.Content
+          side="top"
+          align="center"
+          sideOffset={8}
+          collisionPadding={8}
+          className="z-50 w-80 overflow-hidden rounded-lg border border-border bg-popover/90 p-3 text-popover-foreground shadow-2xl backdrop-blur-2xl data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0"
+        >
+          <PanelTitle title="Android" detail={`${running.length} of ${emulators.length} running`} />
+          {running.length + booting.length > 0 ? (
+            <div className="-mx-1 flex flex-col">
+              {[...running, ...booting].slice(0, 8).map((emulator) => (
+                <PopoverPrimitive.Close key={emulator.avd.name} asChild>
+                  <button
+                    type="button"
+                    onClick={() => go(emulator.serial)}
+                    className="flex items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-foreground/[0.07] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                  >
+                    <span className="min-w-0 flex-1 truncate text-xs font-medium">
+                      {emulator.avd.displayName}
+                    </span>
+                    {emulator.state !== 'running' ? (
+                      <span className="shrink-0 text-[10px] text-muted-foreground">
+                        {bootStageLabel(emulator.state)}
+                      </span>
+                    ) : emulator.usage ? (
+                      <>
+                        <span className="shrink-0 text-[10px] tabular-nums text-muted-foreground">
+                          {formatBytes(emulator.usage.memoryBytes)}
+                        </span>
+                        {emulator.usage.cpuReady ? (
+                          <>
+                            <Meter percent={emulator.usage.cpuPercent} />
+                            <span className="w-8 shrink-0 text-right text-[10px] tabular-nums">
+                              {Math.round(emulator.usage.cpuPercent)}%
+                            </span>
+                          </>
+                        ) : (
+                          // CPU is a delta between two samples, so the first tick has no rate.
+                          <span className="w-[4.25rem] shrink-0 text-right text-[10px] text-muted-foreground">
+                            measuring
+                          </span>
+                        )}
+                      </>
+                    ) : (
+                      <span className="w-[4.25rem] shrink-0 text-right text-[10px] text-muted-foreground">
+                        measuring
+                      </span>
+                    )}
+                  </button>
+                </PopoverPrimitive.Close>
+              ))}
+              {running.length + booting.length > 8 ? (
+                <p className="px-2 py-1 text-[10px] text-muted-foreground">
+                  and {running.length + booting.length - 8} more
+                </p>
+              ) : null}
+            </div>
+          ) : (
+            <p className="text-[11px] text-muted-foreground">No emulators running right now.</p>
+          )}
+          <PopoverPrimitive.Close asChild>
+            <button
+              type="button"
+              onClick={() => go(null)}
+              className="mt-2 w-full border-t border-border/60 pt-2 text-left text-[10px] text-muted-foreground hover:text-foreground"
+            >
+              Open the Android page
+            </button>
+          </PopoverPrimitive.Close>
+        </PopoverPrimitive.Content>
+      </PopoverPrimitive.Portal>
+    </PopoverPrimitive.Root>
+  );
+}
+
 function CoreBars({ percents }: { percents: number[] }): React.JSX.Element {
   return (
     <div className="mt-2 grid grid-cols-8 gap-1">
@@ -796,6 +949,7 @@ export function StatusBar(): React.JSX.Element {
         <TerminalsSegment />
         <QuotaSegment />
         <DockerSegment />
+        <AndroidSegment />
         <SystemSegments />
         <KeepAwakeSegment />
       </div>
