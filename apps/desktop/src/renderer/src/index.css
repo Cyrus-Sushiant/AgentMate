@@ -1004,6 +1004,47 @@ body {
   stroke-linejoin: round;
 }
 
+/* 3D gear: shaded canopy panels and a lit cord, for a pet uploaded as a render
+   rather than pixel art. Same geometry, softer edges and a light source at the
+   upper left. */
+.pet-chute-panel {
+  stroke: #2a1a12;
+  stroke-width: 0.6;
+  stroke-opacity: 0.32;
+  stroke-linejoin: round;
+}
+.pet-chute-dome-rim {
+  fill: none;
+  stroke: #2a1a12;
+  stroke-width: 1.2;
+  stroke-opacity: 0.5;
+  stroke-linejoin: round;
+}
+.pet-chute-riser-lit {
+  stroke-width: 1.8;
+  stroke-linecap: round;
+}
+.pet-chute-strap-shadow {
+  fill: none;
+  stroke: #1a0f08;
+  stroke-width: 4.4;
+  stroke-opacity: 0.35;
+  stroke-linecap: round;
+}
+.pet-chute-strap-lit {
+  fill: none;
+  stroke-width: 2.6;
+  stroke-linecap: round;
+}
+.pet-chute-clip-lit {
+  stroke: #2a1a12;
+  stroke-width: 0.8;
+  stroke-opacity: 0.6;
+}
+.pet-chute.is-3d {
+  filter: drop-shadow(0 2px 3px hsl(0 0% 0% / 0.35));
+}
+
 .pet-rope {
   position: absolute;
   z-index: 1;
@@ -1039,6 +1080,41 @@ body {
   width: 12px;
   border-radius: 1px 1px 3px 3px;
   background: #d7b44a;
+}
+
+.pet-rope.is-3d {
+  width: 14px;
+  margin-left: -7px;
+  filter: drop-shadow(1px 0 2px hsl(0 0% 0% / 0.4));
+}
+.pet-rope.is-3d .pet-rope-cord {
+  width: 6px;
+  border-radius: 3px;
+  background:
+    repeating-linear-gradient(
+      114deg,
+      hsl(40 60% 96% / 0.32) 0 2px,
+      hsl(0 0% 0% / 0) 2px 4px,
+      hsl(20 40% 8% / 0.26) 4px 6px
+    ),
+    linear-gradient(
+      90deg,
+      #33220f 0%,
+      #7c5526 16%,
+      #d8b271 40%,
+      #f4e2ba 50%,
+      #c49a58 64%,
+      #6b4a22 86%,
+      #2b1c0c 100%
+    );
+  box-shadow: none;
+}
+.pet-rope.is-3d .pet-rope-hook {
+  border-color: #6b5116;
+  background: radial-gradient(circle at 34% 30%, #fff4cf 0%, #e0bb55 42%, #6b5116 100%);
+}
+.pet-rope.is-3d .pet-rope-hook.is-end {
+  background: radial-gradient(circle at 34% 28%, #fff4cf 0%, #d7b44a 45%, #7a5a1a 100%);
 }
 
 .pet-token-card {

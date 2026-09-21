@@ -222,6 +222,7 @@ describe('settings migrations', () => {
       checkToolUpdatesEnabled: false,
       desktopPetCanMove: false,
       desktopPetCanParachute: 'yes',
+      desktopPetGear3d: 1,
       vaultLockOnSystemLock: false,
     });
     const { store } = await loadStore();
@@ -234,7 +235,21 @@ describe('settings migrations', () => {
     expect(settings.desktopPetCanMove).toBe(false);
     // Anything that is not literally true stays off, so a stray string cannot enable it.
     expect(settings.desktopPetCanParachute).toBe(false);
+    expect(settings.desktopPetGear3d).toBe(false);
     expect(settings.vaultLockOnSystemLock).toBe(false);
+  });
+
+  it('remembers the 3D rope and parachute once it is switched on', async () => {
+    userData.writeData('settings.json', { desktopPetGear3d: true });
+    const { store } = await loadStore();
+
+    expect((await store.getSettings()).desktopPetGear3d).toBe(true);
+  });
+
+  it('leaves the 3D rope and parachute off on a fresh profile', async () => {
+    const { store } = await loadStore();
+
+    expect((await store.getSettings()).desktopPetGear3d).toBe(false);
   });
 
   it('drops duplicate and non-string entries from the CLI order', async () => {

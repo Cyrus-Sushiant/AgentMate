@@ -454,6 +454,12 @@ export interface AppSettings {
   desktopPetCanClimb: boolean;
   /** When true it floats down under a parachute instead of rappelling. */
   desktopPetCanParachute: boolean;
+  /**
+   * When true the rope and the parachute are drawn with depth (shaded gores, a
+   * lit cord) instead of the flat pixel look, so they sit with a pet uploaded
+   * as a 3D render.
+   */
+  desktopPetGear3d: boolean;
   /** Walk, climb, rappel, and parachute speed as a percent of the default (40-200). */
   desktopPetActionSpeeds: DesktopPetActionSpeeds;
   /** Display size as a percent of the default (50–160). */

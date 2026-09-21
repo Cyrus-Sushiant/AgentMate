@@ -59,6 +59,7 @@ export function CompanionSettings({ settings }: { settings: AppSettings }): Reac
   const canMove = settings.desktopPetCanMove !== false;
   const canClimb = settings.desktopPetCanClimb !== false;
   const canParachute = settings.desktopPetCanParachute === true;
+  const gear3d = settings.desktopPetGear3d === true;
   const [scale, setScale] = useState(settings.desktopPetScale);
   const scaleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [clickArea, setClickArea] = useState(() =>
@@ -407,6 +408,21 @@ export function CompanionSettings({ settings }: { settings: AppSettings }): Reac
               id="pet-chute"
               checked={canParachute}
               onCheckedChange={(enabled) => save.mutate({ desktopPetCanParachute: enabled })}
+              disabled={pending || !canClimb}
+            />
+          </div>
+          <div className="flex items-center justify-between gap-4">
+            <div className="min-w-0">
+              <Label htmlFor="pet-gear-3d">3D rope and parachute</Label>
+              <p className="text-xs text-muted-foreground">
+                For a pet you uploaded as a 3D render. The rope and the canopy get shading and depth
+                instead of the flat pixel look.
+              </p>
+            </div>
+            <Switch
+              id="pet-gear-3d"
+              checked={gear3d}
+              onCheckedChange={(enabled) => save.mutate({ desktopPetGear3d: enabled })}
               disabled={pending || !canClimb}
             />
           </div>

@@ -103,6 +103,7 @@ export default function DesktopPetRoute(): React.JSX.Element {
   const canMove = settingsQuery.data?.desktopPetCanMove !== false;
   const canClimb = settingsQuery.data?.desktopPetCanClimb !== false;
   const canParachute = settingsQuery.data?.desktopPetCanParachute === true;
+  const gear3d = settingsQuery.data?.desktopPetGear3d === true;
   const actionSpeeds = speedsFromSettings(settingsQuery.data?.desktopPetActionSpeeds);
   const scale = clampDesktopPetScale(settingsQuery.data?.desktopPetScale);
   const clickArea = clampDesktopPetClickArea(settingsQuery.data?.desktopPetClickArea);
@@ -696,7 +697,7 @@ export default function DesktopPetRoute(): React.JSX.Element {
       {actor?.rope ? (
         <div
           ref={ropeRef}
-          className="pet-rope"
+          className={cn('pet-rope', gear3d && 'is-3d')}
           style={{
             left: actor.rope.x,
             top: Math.min(actor.rope.fromY, actor.rope.toY),
@@ -724,7 +725,7 @@ export default function DesktopPetRoute(): React.JSX.Element {
           style={{ left: actor.x, top: actor.y, width: actor.box, height: actor.box }}
         >
           <div className={cn('pet-rig', actor.action === 'parachute' && 'is-chute')}>
-            {chute ? <PetChute layer="back" {...chute} /> : null}
+            {chute ? <PetChute layer="back" depth={gear3d} {...chute} /> : null}
             <span className="desktop-pet-shadow" aria-hidden />
             <img
               ref={spriteRef}
@@ -752,7 +753,7 @@ export default function DesktopPetRoute(): React.JSX.Element {
                   'is-wait',
               )}
             />
-            {chute ? <PetChute layer="front" {...chute} /> : null}
+            {chute ? <PetChute layer="front" depth={gear3d} {...chute} /> : null}
           </div>
         </div>
       ) : null}
