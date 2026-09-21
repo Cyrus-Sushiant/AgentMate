@@ -19,6 +19,8 @@ export interface ExplorerProjectState {
   pendingFocus: string | null;
   /** The folder a drag is hovering, or the project root. */
   dropTarget: string | null;
+  /** What is typed in the search box above the tree. Null while the box is closed. */
+  search: string | null;
 }
 
 export interface ExplorerClipboard {
@@ -43,6 +45,7 @@ const EMPTY: ExplorerProjectState = {
   editing: null,
   pendingFocus: null,
   dropTarget: null,
+  search: null,
 };
 
 export const useExplorerStore = create<ExplorerState>(() => ({
@@ -66,6 +69,13 @@ export function patchExplorer(
     const next = typeof patch === 'function' ? patch(current) : patch;
     return { projects: { ...state.projects, [projectId]: { ...current, ...next } } };
   });
+}
+
+/** Opens the search box, or closes it and drops what was typed. */
+export function toggleExplorerSearch(projectId: string, open?: boolean): void {
+  patchExplorer(projectId, (current) => ({
+    search: (open ?? current.search === null) ? (current.search ?? '') : null,
+  }));
 }
 
 export function setFolderOpen(projectId: string, path: string, open: boolean): void {

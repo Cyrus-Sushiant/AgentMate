@@ -16,6 +16,27 @@ describe('queryKeys', () => {
     expect(queryKeys.gitStatus('p1')).toEqual(['git-status', 'p1']);
   });
 
+  it('hangs an image under the file and the diff it belongs to', () => {
+    // Both are refreshed by the same invalidations as their text counterparts, and only those.
+    expect(
+      startsWith(
+        queryKeys.workspaceImage('E:\\a\\logo.png'),
+        queryKeys.workspaceFile('E:\\a\\logo.png'),
+      ),
+    ).toBe(true);
+    expect(
+      startsWith(queryKeys.gitFileImage('p1', 'unstaged', 'a.png'), queryKeys.gitFileDiffs('p1')),
+    ).toBe(true);
+    expect(
+      startsWith(
+        queryKeys.gitFileImage('p1', 'unstaged', 'a.png'),
+        queryKeys.gitFileDiff('p1', 'unstaged', 'a.png'),
+      ),
+    ).toBe(true);
+    // The path sits where the diff viewer reads it from, for the placeholder it keeps on screen.
+    expect(queryKeys.gitFileImage('p1', 'unstaged', 'a.png')[3]).toBe('a.png');
+  });
+
   it('nests a project is explorer listings under one root', () => {
     const root = queryKeys.workspaceExplorer('p1');
     expect(startsWith(queryKeys.workspaceExplorerDir('p1', 'src'), root)).toBe(true);

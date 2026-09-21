@@ -1,4 +1,5 @@
 import { agentSessionTitle, type PaneGroupNode, type Project } from '@agentmat/core';
+import { isImagePath } from '@shared/imageFiles';
 import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { CliLogo } from '@/components/cliLogos';
 import {
@@ -7,6 +8,7 @@ import {
   Expand,
   File as FileIcon,
   GitCommit,
+  ImageIcon,
   Plus,
   RefreshCw,
   SplitView,
@@ -132,7 +134,13 @@ function TabIcon({ tab }: { tab: WorkspaceTab }): React.JSX.Element {
       <CodeCompare className="h-3 w-3 text-muted-foreground" />
     );
   }
-  if (tab.kind === 'file') return <FileIcon className="h-3 w-3 text-muted-foreground" />;
+  if (tab.kind === 'file') {
+    return isImagePath(tab.path) ? (
+      <ImageIcon className="h-3 w-3 text-muted-foreground" />
+    ) : (
+      <FileIcon className="h-3 w-3 text-muted-foreground" />
+    );
+  }
   if (tab.cliId) return <CliLogo cliId={tab.cliId} className="h-3.5 w-3.5" />;
   return <TerminalSquare className="h-3 w-3 text-muted-foreground" />;
 }
@@ -167,6 +175,7 @@ function PaneTab({
 }: PaneTabProps): React.JSX.Element {
   const renameTab = useWorkspaceStore((s) => s.renameTab);
   const setAutoContinue = useWorkspaceStore((s) => s.setAutoContinue);
+  const setAgentTitle = useWorkspaceStore((s) => s.setAgentTitle);
   const autoContinuePending = useAutoContinuePending(tab.id);
   const openDiff = useWorkspaceStore((s) => s.openDiff);
   const openFile = useWorkspaceStore((s) => s.openFile);
@@ -182,8 +191,13 @@ function PaneTab({
     tab.kind === 'terminal' && tab.cliId ? agentSessionTitle(liveTitle, tab.title) : null;
   const [settledTitle, setSettledTitle] = useState(agentTitle);
   useEffect(() => {
-    if (status !== 'working') setSettledTitle(agentTitle);
-  }, [status, agentTitle]);
+    if (status === 'working') return;
+    setSettledTitle(agentTitle);
+    // The live title only lives as long as this run of the app, so keep it on the tab too.
+    // Without that, a restart (or the CLI clearing its own title) drops the tab back to the
+    // CLI's name, and every agent tab ends up called the same thing.
+    if (agentTitle) setAgentTitle(projectId, tab.id, agentTitle);
+  }, [status, agentTitle, projectId, tab.id, setAgentTitle]);
   const label = tabLabel(tab, settledTitle);
   const attention = tab.kind === 'terminal' && !ended ? status : null;
   // What the agent reports it runs on right now, so a /model or /effort switch mid-session

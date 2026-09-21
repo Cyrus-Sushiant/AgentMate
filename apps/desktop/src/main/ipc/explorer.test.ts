@@ -407,6 +407,23 @@ describe('explorer:untrack', () => {
   });
 });
 
+describe('explorer:listFiles', () => {
+  it('lists the project files for the search box', async () => {
+    const index = await invoke<{ root: string; files: string[] }>(
+      IPC.explorer.listFiles,
+      PROJECT_ID,
+    );
+    expect(index.root).toBe(repo.dir);
+    expect(index.files).toContain('src/nested/keep.txt');
+  });
+
+  it('refuses a project id it does not know', async () => {
+    await expect(invoke(IPC.explorer.listFiles, 'nope')).rejects.toThrow(
+      'That project no longer exists.',
+    );
+  });
+});
+
 describe('explorer:ignoredPaths', () => {
   it('reports which of the given paths git ignores', async () => {
     mkdirSync(at('build'), { recursive: true });

@@ -229,6 +229,7 @@ export const IPC = {
   },
   fs: {
     readFile: 'fs:readFile',
+    readImage: 'fs:readImage',
     writeFile: 'fs:writeFile',
     listDirectory: 'fs:listDirectory',
     writeScratchFile: 'fs:writeScratchFile',
@@ -245,6 +246,7 @@ export const IPC = {
     addToGitignore: 'explorer:addToGitignore',
     untrack: 'explorer:untrack',
     ignoredPaths: 'explorer:ignoredPaths',
+    listFiles: 'explorer:listFiles',
   },
   settings: {
     get: 'settings:get',
@@ -478,6 +480,8 @@ export const IPC = {
     avdConfig: 'android:avdConfig',
     wipeData: 'android:wipeData',
     listSystemImages: 'android:listSystemImages',
+    availableSystemImages: 'android:availableSystemImages',
+    installSystemImage: 'android:installSystemImage',
     listDeviceProfiles: 'android:listDeviceProfiles',
     pair: 'android:pair',
     connect: 'android:connect',
@@ -625,6 +629,8 @@ export const IPC = {
     writeWorkingFile: 'git:writeWorkingFile',
     commitFiles: 'git:commitFiles',
     commitFileDiff: 'git:commitFileDiff',
+    fileImage: 'git:fileImage',
+    commitFileImage: 'git:commitFileImage',
     // main -> renderer: (projectId, WorkspaceGitState) whenever a watched working tree changes
     onWorkspaceState: 'git:onWorkspaceState',
   },

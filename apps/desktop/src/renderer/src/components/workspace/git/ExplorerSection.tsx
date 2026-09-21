@@ -7,9 +7,10 @@ import {
   relativeTo,
 } from '@agentmat/core';
 import type { DirectoryEntry, WorkspaceGitState } from '@shared/apiTypes';
+import { isImagePath } from '@shared/imageFiles';
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ChevronRight, File, FilePlus, Folder, FolderOpen } from '@/components/icons';
+import { ChevronRight, File, FilePlus, Folder, FolderOpen, ImageIcon } from '@/components/icons';
 import { ContextMenu, ContextMenuTrigger } from '@/components/ui/context-menu';
 import { Skeleton } from '@/components/ui/skeleton';
 import { changeStatusMeta } from '@/lib/git';
@@ -20,6 +21,7 @@ import {
   patchExplorer,
   selectRows,
   setFolderOpen,
+  toggleExplorerSearch,
   useExplorerStore,
 } from '@/stores/explorerStore';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
@@ -38,6 +40,7 @@ import {
 } from './explorer/actions';
 import { EntryNameInput } from './explorer/EntryNameInput';
 import { ExplorerMenu, type ExplorerMenuTarget } from './explorer/ExplorerMenu';
+import { ExplorerSearch } from './explorer/ExplorerSearch';
 import { explorerCommandFor, isCopyDrag, isToggleSelectClick } from './explorer/keys';
 
 /** Folders that are huge and generated; shown, but dimmed, and never expanded on their own. */
@@ -434,6 +437,8 @@ function Entry({
             ) : (
               <Folder className="h-3 w-3 shrink-0 text-primary/60" />
             )
+          ) : isImagePath(entry.path) ? (
+            <ImageIcon className="h-3 w-3 shrink-0 text-muted-foreground" />
           ) : (
             <File className="h-3 w-3 shrink-0 text-muted-foreground" />
           )}
@@ -500,6 +505,7 @@ export function ExplorerSection({
     isDirectory: true,
   });
   const rootDropTarget = useExplorerStore((s) => s.projects[project.id]?.dropTarget === root);
+  const search = useExplorerStore((s) => s.projects[project.id]?.search ?? null);
   const creating = useExplorerStore((s) => {
     const editing = s.projects[project.id]?.editing;
     return editing !== null && editing !== undefined && editing.kind !== 'rename';
@@ -685,66 +691,94 @@ export function ExplorerSection({
         handled();
         revealInOs(project, path ?? root);
         return;
+      case 'find':
+        handled();
+        toggleExplorerSearch(project.id, true);
+        return;
     }
   }
 
+  /** Closes the search box and puts the keyboard back on the tree. */
+  function closeSearch(): void {
+    toggleExplorerSearch(project.id, false);
+    const { focused } = explorerProject(project.id);
+    if (focused) patchExplorer(project.id, { pendingFocus: focused });
+    else rowsOf(treeRef.current)[0]?.focus({ preventScroll: true });
+  }
+
   return (
-    <ContextMenu
-      modal={false}
-      onOpenChange={(open) => {
-        if (open) return;
-        // Give keyboard focus back to the row, unless the chosen item moved it (a rename box,
-        // a dialog).
-        setTimeout(() => {
-          const { editing, focused } = explorerProject(project.id);
-          if (!editing && focused && document.activeElement === document.body) {
-            patchExplorer(project.id, { pendingFocus: focused });
-          }
-        }, 0);
-      }}
-    >
-      <ContextMenuTrigger asChild>
-        <div
-          ref={treeRef}
-          role="tree"
-          aria-label="Project files"
-          aria-multiselectable
-          tabIndex={-1}
-          onKeyDown={onKeyDown}
-          onContextMenu={(event) => {
-            const target = event.target as HTMLElement;
-            // The name box keeps the text field's own right-click behavior.
-            if (target.closest('input')) {
-              event.preventDefault();
-              return;
+    <div className="flex min-h-0 flex-1 flex-col">
+      {search !== null ? (
+        <ExplorerSearch
+          project={project}
+          query={search}
+          statusByPath={context.statusByPath}
+          projectPrefix={context.projectPrefix}
+          activePath={activePath}
+          onClose={closeSearch}
+        />
+      ) : null}
+      <ContextMenu
+        modal={false}
+        onOpenChange={(open) => {
+          if (open) return;
+          // Give keyboard focus back to the row, unless the chosen item moved it (a rename box,
+          // a dialog).
+          setTimeout(() => {
+            const { editing, focused } = explorerProject(project.id);
+            if (!editing && focused && document.activeElement === document.body) {
+              patchExplorer(project.id, { pendingFocus: focused });
             }
-            const row = target.closest<HTMLElement>('[data-explorer-row]');
-            if (!row) {
-              setMenuTarget({ path: null, isDirectory: true });
-              return;
-            }
-            const path = rowPath(row);
-            const { selected } = explorerProject(project.id);
-            if (selected.includes(path)) patchExplorer(project.id, { focused: path });
-            else selectRows(project.id, [path]);
-            setMenuTarget({ path, isDirectory: rowIsDirectory(row) });
-          }}
-          onClick={(event) => {
-            // A click on the empty space below the rows clears the selection.
-            if (event.target === event.currentTarget) selectRows(project.id, [], { focused: null });
-          }}
-          {...rootDrop}
-          className={cn(
-            'min-h-0 flex-1 overflow-y-auto py-1 outline-none',
-            rootDropTarget && 'bg-primary/[0.06] ring-1 ring-inset ring-primary/40',
-          )}
-        >
-          <Directory context={context} path={root} depth={0} ignored={false} />
-          {!creating ? <EmptyHint context={context} /> : null}
-        </div>
-      </ContextMenuTrigger>
-      <ExplorerMenu project={project} target={menuTarget} isRepo={context.isRepo} />
-    </ContextMenu>
+          }, 0);
+        }}
+      >
+        <ContextMenuTrigger asChild>
+          <div
+            ref={treeRef}
+            role="tree"
+            aria-label="Project files"
+            aria-multiselectable
+            tabIndex={-1}
+            onKeyDown={onKeyDown}
+            onContextMenu={(event) => {
+              const target = event.target as HTMLElement;
+              // The name box keeps the text field's own right-click behavior.
+              if (target.closest('input')) {
+                event.preventDefault();
+                return;
+              }
+              const row = target.closest<HTMLElement>('[data-explorer-row]');
+              if (!row) {
+                setMenuTarget({ path: null, isDirectory: true });
+                return;
+              }
+              const path = rowPath(row);
+              const { selected } = explorerProject(project.id);
+              if (selected.includes(path)) patchExplorer(project.id, { focused: path });
+              else selectRows(project.id, [path]);
+              setMenuTarget({ path, isDirectory: rowIsDirectory(row) });
+            }}
+            onClick={(event) => {
+              // A click on the empty space below the rows clears the selection.
+              if (event.target === event.currentTarget)
+                selectRows(project.id, [], { focused: null });
+            }}
+            {...rootDrop}
+            className={cn(
+              'min-h-0 flex-1 overflow-y-auto py-1 outline-none',
+              rootDropTarget && 'bg-primary/[0.06] ring-1 ring-inset ring-primary/40',
+              // Results take the tree's place while something is typed. The tree stays mounted
+              // so it keeps its scroll position and its folders stay loaded.
+              search && 'hidden',
+            )}
+          >
+            <Directory context={context} path={root} depth={0} ignored={false} />
+            {!creating ? <EmptyHint context={context} /> : null}
+          </div>
+        </ContextMenuTrigger>
+        <ExplorerMenu project={project} target={menuTarget} isRepo={context.isRepo} />
+      </ContextMenu>
+    </div>
   );
 }
 

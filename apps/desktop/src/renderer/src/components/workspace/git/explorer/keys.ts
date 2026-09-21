@@ -17,7 +17,8 @@ export type ExplorerCommand =
   | 'selectAll'
   | 'copyPath'
   | 'copyRelativePath'
-  | 'reveal';
+  | 'reveal'
+  | 'find';
 
 type Bindings = Record<ExplorerCommand, Shortcut[]>;
 
@@ -38,6 +39,7 @@ const WINDOWS_LINUX: Bindings = {
   copyPath: [{ code: 'KeyC', shift: true, alt: true }],
   copyRelativePath: [{ code: 'KeyC', mod: true, shift: true, alt: true }],
   reveal: [{ code: 'KeyR', shift: true, alt: true }],
+  find: [{ code: 'KeyF', mod: true }],
 };
 
 const MAC: Bindings = {
@@ -52,6 +54,7 @@ const MAC: Bindings = {
   copyPath: [{ code: 'KeyC', mod: true, alt: true }],
   copyRelativePath: [{ code: 'KeyC', mod: true, alt: true, shift: true }],
   reveal: [{ code: 'KeyR', mod: true, alt: true }],
+  find: [{ code: 'KeyF', mod: true }],
 };
 
 function bindings(): Bindings {

@@ -1,5 +1,6 @@
-import { execFile } from 'node:child_process';
+import { execFile, spawn } from 'node:child_process';
 import { promisify } from 'node:util';
+import { isLicensePrompt, parseSdkManagerProgress, type SdkManagerProgress } from '@agentmat/core';
 import { type AndroidTool, AndroidToolMissingError, type ResolvedAndroidSdk } from './sdk';
 import { toolSpawn } from './spawnTool';
 
@@ -161,4 +162,71 @@ export function runSdkManager(
   options?: RunOptions,
 ): Promise<string> {
   return run(sdk, 'sdkmanager', args, JAVA_TOOL_TIMEOUT_MS, options);
+}
+
+export interface SdkManagerStreamHandlers {
+  onLine?(line: string): void;
+  onProgress?(progress: SdkManagerProgress): void;
+  /** Answer for a licence question, written to stdin. Returning nothing leaves it unanswered. */
+  onPrompt?(line: string): string | undefined;
+}
+
+/**
+ * sdkmanager for a job that takes minutes and talks back while it runs.
+ *
+ * `execFile` is no good here: the output only arrives at the end, and a licence question would
+ * sit on stdin until the timeout killed it. This reads as it goes and can answer.
+ *
+ * sdkmanager repaints its progress bar with a carriage return rather than a newline, so the
+ * stream is split on both or nothing would surface until the download finished.
+ */
+export function runSdkManagerStreaming(
+  sdk: ResolvedAndroidSdk,
+  args: string[],
+  handlers: SdkManagerStreamHandlers,
+): Promise<void> {
+  const binary = sdk.paths.sdkmanager;
+  if (!binary) throw new AndroidToolMissingError('sdkmanager', 'cmdline-tools;latest');
+  const { file, argv, verbatim } = toolSpawn(binary, args);
+
+  return new Promise<void>((resolve, reject) => {
+    const child = spawn(file, argv, {
+      windowsHide: true,
+      windowsVerbatimArguments: verbatim,
+      env: toolEnv(sdk),
+    });
+
+    let buffer = '';
+    const consume = (chunk: Buffer): void => {
+      buffer += chunk.toString('utf-8');
+      const parts = buffer.split(/\r\n|\r|\n/);
+      // Whatever follows the last break is a partial line, unless it is a prompt: sdkmanager
+      // leaves the cursor on "Accept? (y/N): " with no break at all.
+      buffer = parts.pop() ?? '';
+      for (const line of parts) handle(line);
+      if (buffer && isLicensePrompt(buffer)) {
+        handle(buffer);
+        buffer = '';
+      }
+    };
+
+    const handle = (line: string): void => {
+      handlers.onLine?.(line);
+      const progress = parseSdkManagerProgress(line);
+      if (progress) handlers.onProgress?.(progress);
+      if (isLicensePrompt(line)) {
+        const answer = handlers.onPrompt?.(line);
+        if (answer) child.stdin?.write(answer);
+      }
+    };
+
+    child.stdout?.on('data', consume);
+    child.stderr?.on('data', consume);
+    child.on('error', (error) => reject(new AndroidCommandError('sdkmanager', error.message)));
+    child.on('close', (code) => {
+      if (buffer.trim()) handle(buffer);
+      if (code === 0) resolve();
+      else reject(new AndroidCommandError('sdkmanager', `sdkmanager exited with ${code}.`));
+    });
+  });
 }

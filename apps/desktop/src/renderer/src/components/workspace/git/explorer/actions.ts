@@ -57,6 +57,12 @@ function revealRow(project: Project, path: string): void {
   }
 }
 
+/** Opens the folders down to `path`, then selects and focuses its row. */
+export function revealInTree(project: Project, path: string): void {
+  revealRow(project, path);
+  selectRows(project.id, [path], { focus: true });
+}
+
 /** The entries already listed in a folder, from the tree's cache. */
 export function cachedListing(projectId: string, dir: string): DirectoryEntry[] {
   return (

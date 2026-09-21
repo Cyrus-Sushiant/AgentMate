@@ -1,5 +1,6 @@
 import type { GitChangeEntry, Project } from '@agentmat/core';
 import type { WorkspaceGitState } from '@shared/apiTypes';
+import { isImagePath } from '@shared/imageFiles';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
@@ -29,6 +30,7 @@ import { cn } from '@/lib/utils';
 import { DIFF_CHANGE_EVENT } from '@/lib/workspace/commands';
 import { useShortcutLabel } from '@/stores/shortcutStore';
 import { useWorkspaceStore, type WorkspaceDiffTab } from '@/stores/workspaceStore';
+import { ImageDiffView } from './ImageDiffView';
 import { openChangedFile, useGitActions } from './useWorkspaceGit';
 
 function ToolbarButton({
@@ -429,6 +431,8 @@ export default function DiffTab({
               />
             ))}
           </div>
+        ) : (diff.data.binary || diff.data.tooLarge) && isImagePath(tab.path) ? (
+          <ImageDiffView project={project} tab={tab} />
         ) : diff.data.binary || diff.data.tooLarge ? (
           <div className="flex h-full flex-col items-center justify-center gap-1.5 text-center">
             <File className="h-5 w-5 text-muted-foreground" />

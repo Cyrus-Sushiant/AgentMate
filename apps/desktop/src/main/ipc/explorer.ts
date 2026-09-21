@@ -23,11 +23,13 @@ import {
 import { ipcMain, shell } from 'electron';
 import type {
   ExplorerDeleteResult,
+  ExplorerFileIndex,
   ExplorerGitignoreResult,
   ExplorerMove,
   ExplorerTransferResult,
 } from '../../shared/apiTypes';
 import { IPC } from '../../shared/ipcChannels';
+import { indexProjectFiles } from '../explorer/fileIndex';
 import { git, gitOrNull } from '../git/plumbing';
 import { runGit } from '../git/versionReview';
 import { refreshWorkspaceState } from '../git/workingTreeWatcher';
@@ -391,6 +393,13 @@ export function registerExplorerHandlers(): void {
         located.rel,
       ]);
       refresh(projectId, folder);
+    },
+  );
+
+  ipcMain.handle(
+    IPC.explorer.listFiles,
+    async (_event, projectId: string): Promise<ExplorerFileIndex> => {
+      return indexProjectFiles(await projectFolder(projectId));
     },
   );
 

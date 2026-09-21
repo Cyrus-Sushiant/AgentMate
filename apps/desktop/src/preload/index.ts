@@ -121,6 +121,7 @@ import type {
   EnvImportResult,
   EnvWriteResult,
   ExplorerDeleteResult,
+  ExplorerFileIndex,
   ExplorerGitignoreResult,
   ExplorerTransferResult,
   FaviconResult,
@@ -144,10 +145,12 @@ import type {
   GithubRunCancelRequest,
   GithubWorkflowDispatchRequest,
   GithubWorkflowRefsResult,
+  GitImageDiff,
   GitInitInput,
   GitOpResult,
   GitStatus,
   GitTagInfo,
+  ImageFileData,
   InstalledMcpServerRecord,
   InstalledSkillRecord,
   InstallFromSkillsShInput,
@@ -702,6 +705,10 @@ const android = {
   wipeData: (name: string): Promise<AndroidActionResult> =>
     ipcRenderer.invoke(IPC.android.wipeData, name),
   listSystemImages: (): Promise<SystemImage[]> => ipcRenderer.invoke(IPC.android.listSystemImages),
+  availableSystemImages: (force?: boolean): Promise<SystemImage[]> =>
+    ipcRenderer.invoke(IPC.android.availableSystemImages, force ?? false),
+  installSystemImage: (packageId: string): Promise<AndroidActionResult> =>
+    ipcRenderer.invoke(IPC.android.installSystemImage, packageId),
   listDeviceProfiles: (): Promise<string[]> => ipcRenderer.invoke(IPC.android.listDeviceProfiles),
   pair: (hostPort: string, code: string): Promise<AndroidActionResult> =>
     ipcRenderer.invoke(IPC.android.pair, hostPort, code),
@@ -717,6 +724,8 @@ const android = {
 
 const fs = {
   readFile: (path: string): Promise<string> => ipcRenderer.invoke(IPC.fs.readFile, path),
+  /** An image file as a data URL, for the workspace viewer. Rejects for anything else. */
+  readImage: (path: string): Promise<ImageFileData> => ipcRenderer.invoke(IPC.fs.readImage, path),
   writeFile: (path: string, content: string): Promise<void> =>
     ipcRenderer.invoke(IPC.fs.writeFile, path, content),
   listDirectory: (path: string): Promise<DirectoryEntry[]> =>
@@ -766,6 +775,9 @@ const explorer = {
     ipcRenderer.invoke(IPC.explorer.untrack, projectId, path),
   ignoredPaths: (projectId: string, paths: string[]): Promise<string[]> =>
     ipcRenderer.invoke(IPC.explorer.ignoredPaths, projectId, paths),
+  /** Every file in the project, for the explorer's search box. */
+  listFiles: (projectId: string): Promise<ExplorerFileIndex> =>
+    ipcRenderer.invoke(IPC.explorer.listFiles, projectId),
 };
 
 const settings = {
@@ -1130,6 +1142,14 @@ const git = {
     side: GitDiffSide,
     origPath?: string,
   ): Promise<GitFileDiff> => ipcRenderer.invoke(IPC.git.fileDiff, projectId, path, side, origPath),
+  /** Both sides of a changed image, for the viewer that stands in for a binary diff. */
+  fileImage: (
+    projectId: string,
+    path: string,
+    side: GitDiffSide,
+    origPath?: string,
+  ): Promise<GitImageDiff> =>
+    ipcRenderer.invoke(IPC.git.fileImage, projectId, path, side, origPath),
   /** Saves an edit to a working tree file from the diff view. `path` is repo-relative. */
   writeWorkingFile: (projectId: string, path: string, content: string): Promise<void> =>
     ipcRenderer.invoke(IPC.git.writeWorkingFile, projectId, path, content),
@@ -1144,6 +1164,14 @@ const git = {
     origPath?: string,
   ): Promise<GitFileDiff> =>
     ipcRenderer.invoke(IPC.git.commitFileDiff, projectId, hash, path, origPath),
+  /** An image as a commit changed it. */
+  commitFileImage: (
+    projectId: string,
+    hash: string,
+    path: string,
+    origPath?: string,
+  ): Promise<GitImageDiff> =>
+    ipcRenderer.invoke(IPC.git.commitFileImage, projectId, hash, path, origPath),
 };
 
 const pipelines = {

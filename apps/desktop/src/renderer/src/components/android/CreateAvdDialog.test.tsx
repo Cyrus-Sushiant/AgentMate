@@ -93,12 +93,13 @@ describe('CreateAvdDialog', () => {
     );
   });
 
-  it('says how to install an image instead of offering an empty dropdown', async () => {
-    setup({ 'android.listSystemImages': [] });
+  it('offers images to install instead of a command to copy', async () => {
+    setup({ 'android.listSystemImages': [], 'android.availableSystemImages': AVAILABLE });
 
-    expect(await screen.findByText('No system images are installed.')).toBeInTheDocument();
-    expect(screen.getByText(/sdkmanager "system-images/)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Create' })).toBeDisabled();
+    // A command to paste elsewhere is a dead end; the point is to fix it from here.
+    expect(await screen.findByText(/No system images are installed/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/image to download/i)).toBeInTheDocument();
+    expect(screen.queryByText(/sdkmanager "system-images/)).not.toBeInTheDocument();
   });
 });
 
@@ -122,5 +123,114 @@ describe('when the SDK has no command-line tools', () => {
 
     await screen.findByRole('button', { name: /how to install/i });
     expect(screen.queryByLabelText('Name')).not.toBeInTheDocument();
+  });
+});
+
+const AVAILABLE = [
+  {
+    id: 'system-images;android-35;google_apis;x86_64',
+    api: 35,
+    tag: 'google_apis',
+    abi: 'x86_64',
+    playStore: false,
+    version: '4',
+    description: '',
+  },
+  {
+    id: 'system-images;android-34;google_apis_playstore;x86_64',
+    api: 34,
+    tag: 'google_apis_playstore',
+    abi: 'x86_64',
+    playStore: true,
+    version: '9',
+    description: '',
+  },
+];
+
+describe('installing a system image from the dialog', () => {
+  const noImages = {
+    'android.listSystemImages': [],
+    'android.availableSystemImages': AVAILABLE,
+    'android.installSystemImage': { ok: true },
+  };
+
+  it('will not download until the licence is accepted', async () => {
+    const { user } = setup(noImages);
+
+    await screen.findByLabelText(/image to download/i);
+    // Accepting a licence on someone's behalf is not ours to do.
+    expect(screen.getByRole('button', { name: /download and install/i })).toBeDisabled();
+
+    await user.click(screen.getByLabelText(/accept the Android SDK licence/i));
+    expect(screen.getByRole('button', { name: /download and install/i })).toBeEnabled();
+  });
+
+  it('installs the image that was picked', async () => {
+    const { bridge, user } = setup(noImages);
+
+    await screen.findByLabelText(/image to download/i);
+    await user.click(screen.getByLabelText(/accept the Android SDK licence/i));
+    await user.click(screen.getByRole('button', { name: /download and install/i }));
+
+    await waitFor(() =>
+      expect(bridge.$fn('android.installSystemImage')).toHaveBeenCalledWith(
+        'system-images;android-35;google_apis;x86_64',
+      ),
+    );
+  });
+
+  it('shows the download moving rather than a frozen dialog', async () => {
+    const { bridge, user } = setup({
+      ...noImages,
+      // Never resolves, so the dialog stays in its downloading state.
+      'android.installSystemImage': () => new Promise(() => undefined),
+    });
+
+    await screen.findByLabelText(/image to download/i);
+    await user.click(screen.getByLabelText(/accept the Android SDK licence/i));
+    await user.click(screen.getByRole('button', { name: /download and install/i }));
+
+    bridge.$emit('android.onEvent', {
+      kind: 'task',
+      id: 'install:system-images;android-35;google_apis;x86_64',
+      label: 'Downloading x86_64.zip',
+      progress: 42,
+      done: false,
+    });
+
+    const bar = await screen.findByRole('progressbar', { name: /installing/i });
+    expect(bar).toHaveAttribute('aria-valuenow', '42');
+    expect(screen.getByText('Downloading x86_64.zip')).toBeInTheDocument();
+  });
+
+  it('moves on to the form once the image is there', async () => {
+    const { bridge, user } = setup(noImages);
+
+    await screen.findByLabelText(/image to download/i);
+    await user.click(screen.getByLabelText(/accept the Android SDK licence/i));
+    await user.click(screen.getByRole('button', { name: /download and install/i }));
+
+    // The installed list is what the form picks from, so it has to be asked again.
+    await waitFor(() => expect(bridge.$fn('android.listSystemImages')).toHaveBeenCalledTimes(2));
+  });
+
+  it('says so when the download fails, and lets it be retried', async () => {
+    const { user } = setup({
+      ...noImages,
+      'android.installSystemImage': { ok: false, message: 'Could not reach the server.' },
+    });
+
+    await screen.findByLabelText(/image to download/i);
+    await user.click(screen.getByLabelText(/accept the Android SDK licence/i));
+    await user.click(screen.getByRole('button', { name: /download and install/i }));
+
+    expect(await screen.findByText('Could not reach the server.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /download and install/i })).toBeEnabled();
+  });
+
+  it('says plainly when there is nothing to offer', async () => {
+    setup({ 'android.listSystemImages': [], 'android.availableSystemImages': [] });
+
+    expect(await screen.findByText(/could not reach the package list/i)).toBeInTheDocument();
   });
 });

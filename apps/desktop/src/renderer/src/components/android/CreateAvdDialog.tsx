@@ -21,6 +21,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { queryKeys } from '@/lib/queryKeys';
+import { InstallSystemImage } from './InstallSystemImage';
 
 /**
  * Creating a virtual device.
@@ -28,8 +29,8 @@ import { queryKeys } from '@/lib/queryKeys';
  * Two things here are worth the extra code. The name is validated as it is typed and the id it
  * will actually be saved under is shown underneath, because avdmanager rejects spaces and Studio
  * does not, so "Pixel 7 test" silently becoming Pixel_7_test is a surprise worth heading off.
- * And when no system images are installed the step says so with the command that fixes it,
- * rather than offering an empty dropdown and a Create button that cannot work.
+ * And when no system images are installed the step offers the ones that can be downloaded and
+ * installs the chosen one from here, rather than printing a command to run somewhere else.
  */
 
 /** Where to get the package that is missing, since the SDK Manager route is the usual one. */
@@ -194,16 +195,7 @@ export function CreateAvdDialog({
             <div className="space-y-1.5">
               <Label>System image</Label>
               {noImages ? (
-                <div className="glass space-y-2 rounded-xl p-3">
-                  <p className="text-sm">No system images are installed.</p>
-                  <p className="text-xs text-muted-foreground">
-                    Install one with{' '}
-                    <span className="font-mono">
-                      sdkmanager "system-images;android-34;google_apis;x86_64"
-                    </span>
-                    , then reopen this dialog.
-                  </p>
-                </div>
+                <InstallSystemImage onInstalled={() => void imagesQuery.refetch()} />
               ) : (
                 <Combobox
                   options={imageOptions}

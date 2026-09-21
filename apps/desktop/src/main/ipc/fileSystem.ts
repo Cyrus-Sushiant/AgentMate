@@ -1,10 +1,17 @@
-import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readdir, readFile, stat, writeFile } from 'node:fs/promises';
 import { basename, dirname, join } from 'node:path';
 import { app, dialog, ipcMain } from 'electron';
-import type { DirectoryEntry } from '../../shared/apiTypes';
+import type { DirectoryEntry, ImageFileData } from '../../shared/apiTypes';
+import { imageMimeType } from '../../shared/imageFiles';
 import { IPC } from '../../shared/ipcChannels';
 import { assertPathWithinRoots } from '../pathGuard';
 import { store } from '../store';
+
+/**
+ * Past this an image is left to the default app rather than carried into the renderer as a
+ * data URL, which costs about a third again in size on the way over.
+ */
+const MAX_IMAGE_BYTES = 16 * 1024 * 1024;
 
 /** Every folder the app is allowed to read or write through IPC: its own data, and the projects. */
 export async function allowedRoots(): Promise<string[]> {
@@ -16,6 +23,18 @@ export function registerFileSystemHandlers(): void {
   ipcMain.handle(IPC.fs.readFile, async (_event, path: string): Promise<string> => {
     const safePath = await assertPathWithinRoots(path, await allowedRoots());
     return readFile(safePath, 'utf-8');
+  });
+
+  ipcMain.handle(IPC.fs.readImage, async (_event, path: string): Promise<ImageFileData> => {
+    const safePath = await assertPathWithinRoots(path, await allowedRoots());
+    const mime = imageMimeType(safePath);
+    if (!mime) throw new Error('That file is not an image this viewer can show.');
+    const info = await stat(safePath);
+    if (info.size > MAX_IMAGE_BYTES) {
+      throw new Error('This image is too large to show here. Open it in its default app instead.');
+    }
+    const bytes = await readFile(safePath);
+    return { dataUrl: `data:${mime};base64,${bytes.toString('base64')}`, bytes: bytes.length };
   });
 
   ipcMain.handle(IPC.fs.writeFile, async (_event, path: string, content: string): Promise<void> => {

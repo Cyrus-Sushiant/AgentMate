@@ -1,8 +1,8 @@
-import { writeFileSync } from 'node:fs';
+import { rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { hasGit, initGitRepo } from '../../test/main/fixtures';
-import { readWorkspaceGitState } from './workspaceGit';
+import { readCommitFileImageDiff, readFileImageDiff, readWorkspaceGitState } from './workspaceGit';
 
 /**
  * The changes panel's totals only add up if every side carries line counts. Git hands them over
@@ -70,5 +70,111 @@ describe.runIf(git)('readWorkspaceGitState line counts', () => {
     const state = await readWorkspaceGitState(repo.dir);
     expect(state.staged[0]).toMatchObject({ path: 'app.ts', additions: 30, deletions: 30 });
     expect(state.unstaged[0]).toMatchObject({ path: 'app.ts', additions: 1, deletions: 0 });
+  });
+});
+
+/**
+ * The image viewer that stands in for a binary diff. Git hands pictures over as blobs, so what
+ * matters here is that both sides come back byte for byte: a checkout filter that turned an LF
+ * into a CRLF on the way would leave the viewer showing a broken picture.
+ */
+
+/** Two 1x1 PNGs, red and blue. Real files, so git files them as binary the way it would ours. */
+const RED = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC',
+  'base64',
+);
+const BLUE = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGNgYPgPAAEDAQAIicLsAAAAAElFTkSuQmCC',
+  'base64',
+);
+
+const asDataUrl = (bytes: Buffer): string => `data:image/png;base64,${bytes.toString('base64')}`;
+
+/** A repository whose one commit holds a red logo.png. */
+function repoWithImage(): ReturnType<typeof initGitRepo> {
+  const repo = initGitRepo({ 'README.md': '# test\n' });
+  writeFileSync(join(repo.dir, 'logo.png'), RED);
+  repo.commitAll('add the logo');
+  return repo;
+}
+
+describe.runIf(git)('readFileImageDiff', () => {
+  it('hands both sides of an edited picture over untouched', async () => {
+    const repo = repoWithImage();
+    writeFileSync(join(repo.dir, 'logo.png'), BLUE);
+
+    const diff = await readFileImageDiff(repo.dir, 'logo.png', 'unstaged');
+    expect(diff.tooLarge).toBe(false);
+    expect(diff.original).toEqual({ dataUrl: asDataUrl(RED), bytes: RED.length });
+    expect(diff.modified).toEqual({ dataUrl: asDataUrl(BLUE), bytes: BLUE.length });
+  });
+
+  it('reads the staged side from the index, not from disk', async () => {
+    const repo = repoWithImage();
+    writeFileSync(join(repo.dir, 'logo.png'), BLUE);
+    repo.git('add', 'logo.png');
+    // A third version on disk that was never staged must not show up on either staged side.
+    writeFileSync(join(repo.dir, 'logo.png'), Buffer.concat([BLUE, Buffer.from([0, 1, 2])]));
+
+    const staged = await readFileImageDiff(repo.dir, 'logo.png', 'staged');
+    expect(staged.original?.dataUrl).toBe(asDataUrl(RED));
+    expect(staged.modified?.dataUrl).toBe(asDataUrl(BLUE));
+  });
+
+  it('gives a brand new file a modified side only', async () => {
+    const repo = repoWithImage();
+    writeFileSync(join(repo.dir, 'fresh.png'), BLUE);
+
+    const diff = await readFileImageDiff(repo.dir, 'fresh.png', 'untracked');
+    expect(diff.original).toBeNull();
+    expect(diff.modified?.bytes).toBe(BLUE.length);
+  });
+
+  it('gives a deleted file an original side only', async () => {
+    const repo = repoWithImage();
+    rmSync(join(repo.dir, 'logo.png'));
+
+    const diff = await readFileImageDiff(repo.dir, 'logo.png', 'unstaged');
+    expect(diff.original?.dataUrl).toBe(asDataUrl(RED));
+    expect(diff.modified).toBeNull();
+  });
+
+  it('follows a staged rename back to the name the picture had', async () => {
+    const repo = repoWithImage();
+    repo.git('mv', 'logo.png', 'brand.png');
+
+    const diff = await readFileImageDiff(repo.dir, 'brand.png', 'staged', 'logo.png');
+    expect(diff.original?.dataUrl).toBe(asDataUrl(RED));
+    expect(diff.modified?.dataUrl).toBe(asDataUrl(RED));
+  });
+
+  it('refuses a path that is not an image', async () => {
+    const repo = repoWithImage();
+    await expect(readFileImageDiff(repo.dir, 'README.md', 'unstaged')).rejects.toThrow(
+      'not an image',
+    );
+  });
+});
+
+describe.runIf(git)('readCommitFileImageDiff', () => {
+  it('shows a picture as one commit changed it', async () => {
+    const repo = repoWithImage();
+    writeFileSync(join(repo.dir, 'logo.png'), BLUE);
+    repo.commitAll('repaint the logo');
+    const hash = repo.git('rev-parse', 'HEAD').trim();
+
+    const diff = await readCommitFileImageDiff(repo.dir, hash, 'logo.png');
+    expect(diff.original?.dataUrl).toBe(asDataUrl(RED));
+    expect(diff.modified?.dataUrl).toBe(asDataUrl(BLUE));
+  });
+
+  it('leaves the original empty for the commit that added the picture', async () => {
+    const repo = repoWithImage();
+    const hash = repo.git('rev-parse', 'HEAD').trim();
+
+    const diff = await readCommitFileImageDiff(repo.dir, hash, 'logo.png');
+    expect(diff.original).toBeNull();
+    expect(diff.modified?.dataUrl).toBe(asDataUrl(RED));
   });
 });

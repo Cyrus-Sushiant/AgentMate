@@ -20,6 +20,12 @@
 
 <table>
   <tr>
+    <td colspan="2"><img src=".github/assets/screenshot-workspace.png" alt="Workspace" /></td>
+  </tr>
+  <tr>
+    <td colspan="2" align="center"><em>The workspace: an agent in one pane, a diff open in the next, the git panel beside both</em></td>
+  </tr>
+  <tr>
     <td width="50%"><img src=".github/assets/screenshot-projects.png" alt="Projects" /></td>
     <td width="50%"><img src=".github/assets/screenshot-usage.png" alt="Token Usage" /></td>
   </tr>

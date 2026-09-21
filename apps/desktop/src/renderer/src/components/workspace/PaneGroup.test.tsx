@@ -53,6 +53,18 @@ describe('PaneGroup', () => {
     expect(screen.getByRole('tab', { name: /index\.ts/ })).toBeInTheDocument();
   });
 
+  it('marks an image tab with a picture icon, and a code file with a file icon', () => {
+    // Both pinned, so the picture opens beside the code file instead of replacing the preview.
+    useWorkspaceStore.getState().openFile('p1', 'C:\work\app\src\index.ts', { pin: true });
+    useWorkspaceStore.getState().openFile('p1', 'C:\work\app\assets\logo.png', { pin: true });
+    renderWithProviders(<Harness />);
+
+    const imageTab = screen.getByRole('tab', { name: /logo\.png/ });
+    expect(imageTab.querySelector('[data-icon="image"]')).toBeInTheDocument();
+    const codeTab = screen.getByRole('tab', { name: /index\.ts/ });
+    expect(codeTab.querySelector('[data-icon="file"]')).toBeInTheDocument();
+  });
+
   it('opens the tab menu on a terminal tab', async () => {
     const { user } = renderWithProviders(<Harness />);
     await user.pointer({

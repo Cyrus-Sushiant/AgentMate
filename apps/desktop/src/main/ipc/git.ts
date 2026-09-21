@@ -20,6 +20,7 @@ import type {
   GithubActivity,
   GithubNotifications,
   GithubRepoLookup,
+  GitImageDiff,
   GitInitInput,
   GitOpResult,
   GitStatus,
@@ -112,8 +113,10 @@ import {
   discardPaths,
   locateRepo,
   readCommitFileDiff,
+  readCommitFileImageDiff,
   readCommitFiles,
   readFileDiff,
+  readFileImageDiff,
   readWorkspaceGitState,
   resolveConflict,
   stagePaths,
@@ -1086,6 +1089,22 @@ function registerWorkspaceHandlers(): void {
   );
 
   ipcMain.handle(
+    IPC.git.fileImage,
+    async (
+      _event,
+      projectId: string,
+      path: string,
+      side: GitDiffSide,
+      origPath?: string,
+    ): Promise<GitImageDiff> => {
+      const { root } = await requireRepo(projectId);
+      const [safe] = assertRepoPaths(root, [path]);
+      const [safeOrig] = origPath ? assertRepoPaths(root, [origPath]) : [undefined];
+      return readFileImageDiff(root, safe, side, safeOrig);
+    },
+  );
+
+  ipcMain.handle(
     IPC.git.writeWorkingFile,
     async (_event, projectId: string, path: string, content: string): Promise<void> => {
       if (typeof content !== 'string') throw new Error('Nothing to save.');
@@ -1100,6 +1119,22 @@ function registerWorkspaceHandlers(): void {
     async (_event, projectId: string, hash: string): Promise<GitChangeEntry[]> => {
       const { root } = await requireRepo(projectId);
       return readCommitFiles(root, assertCommitHash(hash));
+    },
+  );
+
+  ipcMain.handle(
+    IPC.git.commitFileImage,
+    async (
+      _event,
+      projectId: string,
+      hash: string,
+      path: string,
+      origPath?: string,
+    ): Promise<GitImageDiff> => {
+      const { root } = await requireRepo(projectId);
+      const [safe] = assertRepoPaths(root, [path]);
+      const [safeOrig] = origPath ? assertRepoPaths(root, [origPath]) : [undefined];
+      return readCommitFileImageDiff(root, assertCommitHash(hash), safe, safeOrig);
     },
   );
 

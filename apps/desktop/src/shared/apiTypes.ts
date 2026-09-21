@@ -290,6 +290,16 @@ export interface DirectoryEntry {
   isDirectory: boolean;
 }
 
+/** Every file in a project, for the explorer's search box. */
+export interface ExplorerFileIndex {
+  /** The project folder the paths are relative to, as the main process resolved it. */
+  root: string;
+  /** Paths relative to `root`, with forward slashes. */
+  files: string[];
+  /** The project has more files than the index holds, so a search can miss one. */
+  truncated: boolean;
+}
+
 /** What a delete from the workspace explorer left behind. */
 export interface ExplorerDeleteResult {
   /** Paths the system trash would not take. They are still on disk. */
@@ -975,6 +985,24 @@ export interface WorkspaceGitState {
 }
 
 export type GitDiffSide = 'staged' | 'unstaged' | 'untracked' | 'conflict';
+
+/** An image read for the workspace viewer: its bytes as a data URL, plus the size on disk. */
+export interface ImageFileData {
+  dataUrl: string;
+  bytes: number;
+}
+
+/**
+ * Both sides of a changed image, for the viewer the changes panel shows in place of a text
+ * diff. A side the change does not have (a new or a deleted file) is null.
+ */
+export interface GitImageDiff {
+  path: string;
+  original: ImageFileData | null;
+  modified: ImageFileData | null;
+  /** A side is past the size the viewer loads; it says so instead of showing the picture. */
+  tooLarge: boolean;
+}
 
 export interface GitFileDiff {
   path: string;

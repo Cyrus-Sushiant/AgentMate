@@ -40,6 +40,7 @@ import {
   watchAndroidUsage,
 } from '../android/runtime';
 import { getAndroidSdk, refreshAndroidSdk, requireTool } from '../android/sdk';
+import { installSystemImage, listAvailableSystemImages } from '../android/systemImages';
 import { store } from '../store';
 
 /**
@@ -219,6 +220,39 @@ export function registerAndroidHandlers(): void {
   ipcMain.handle(
     IPC.android.listSystemImages,
     async (): Promise<SystemImage[]> => listSystemImages(await getAndroidSdk()),
+  );
+
+  ipcMain.handle(
+    IPC.android.availableSystemImages,
+    async (_event, force?: boolean): Promise<SystemImage[]> =>
+      listAvailableSystemImages(await getAndroidSdk(), force === true),
+  );
+
+  ipcMain.handle(
+    IPC.android.installSystemImage,
+    async (_event, packageId: string): Promise<AndroidActionResult> => {
+      const id = String(packageId ?? '');
+      // One task id for the whole download, so the dialog can follow just this one.
+      const taskId = `install:${id}`;
+      emitAndroidEvent({ kind: 'task', id: taskId, label: 'Starting', progress: 0, done: false });
+      const result = await installSystemImage(await getAndroidSdk(), id, (progress) => {
+        emitAndroidEvent({
+          kind: 'task',
+          id: taskId,
+          label: progress.label || 'Installing',
+          progress: progress.percent,
+          done: false,
+        });
+      });
+      emitAndroidEvent({
+        kind: 'task',
+        id: taskId,
+        label: result.ok ? 'Installed' : (result.message ?? 'Failed'),
+        progress: result.ok ? 100 : null,
+        done: true,
+      });
+      return result;
+    },
   );
 
   ipcMain.handle(

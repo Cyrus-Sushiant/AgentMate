@@ -1,5 +1,6 @@
 import type { GitChangeEntry, Project } from '@agentmat/core';
 import type { GitApplyLinesInput, GitDiscardResult, WorkspaceGitState } from '@shared/apiTypes';
+import { isImagePath } from '@shared/imageFiles';
 import { type QueryClient, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo } from 'react';
 import { toast } from 'sonner';
@@ -45,9 +46,9 @@ export function useWorkspaceGitState(projectId: string, watching: boolean) {
 }
 
 /**
- * Opens a changed file in an editor tab next to the terminals. A binary file, or one that sits
- * in the repository but outside the project folder (the app only reads inside projects), goes
- * to its default app instead.
+ * Opens a changed file in a tab next to the terminals: an image in the viewer, anything else in
+ * the editor. Another binary file, or one that sits in the repository but outside the project
+ * folder (the app only reads inside projects), goes to its default app instead.
  */
 export function openChangedFile(
   project: Project,
@@ -55,7 +56,8 @@ export function openChangedFile(
   repoPath: string,
   binary?: boolean,
 ): void {
-  const inProject = binary ? null : projectFilePath(project.folderPath, projectPrefix, repoPath);
+  const readable = !binary || isImagePath(repoPath);
+  const inProject = readable ? projectFilePath(project.folderPath, projectPrefix, repoPath) : null;
   if (inProject) {
     useWorkspaceStore.getState().openFile(project.id, inProject, { pin: true });
     return;

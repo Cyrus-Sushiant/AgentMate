@@ -68,6 +68,7 @@ import {
   faGripVertical,
   faHardDrive,
   faHeading,
+  faImage,
   faInfinity,
   faItalic,
   faKey,
@@ -81,6 +82,8 @@ import {
   faLock,
   faLockOpen,
   faMagnifyingGlass,
+  faMagnifyingGlassMinus,
+  faMagnifyingGlassPlus,
   faMedal,
   faMemory,
   faMicrochip,
@@ -387,6 +390,9 @@ export const CodeCompare = makeIcon(faCodeCompare);
 export const Minus = makeIcon(faMinus);
 export const Expand = makeIcon(faExpand);
 export const Compress = makeIcon(faCompress);
+export const ImageIcon = makeIcon(faImage);
+export const ZoomIn = makeIcon(faMagnifyingGlassPlus);
+export const ZoomOut = makeIcon(faMagnifyingGlassMinus);
 export const Vault = makeIcon(faVault);
 export const Dice = makeIcon(faDice);
 export const Sliders = makeIcon(faSliders);

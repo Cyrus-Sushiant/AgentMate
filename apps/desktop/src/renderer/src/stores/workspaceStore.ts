@@ -34,6 +34,11 @@ export interface WorkspaceTerminalTab {
   title: string;
   /** A name the user gave the tab. Wins over `title` and the program's own title. */
   userTitle?: string;
+  /**
+   * The last task name the agent set as the window title. Kept on the tab so the name survives
+   * an app restart, or the program resetting its title, instead of dropping back to the CLI name.
+   */
+  agentTitle?: string;
   cliId?: string;
   shell?: string;
   cwd: string;
@@ -152,6 +157,8 @@ interface WorkspaceState {
   moveTab: (projectId: string, tabId: string, groupId: string, index?: number) => void;
   setSplitRatio: (projectId: string, splitId: string, ratio: number) => void;
   renameTab: (projectId: string, tabId: string, title: string) => void;
+  /** Remembers the task name an agent set as its window title, so the tab keeps it later. */
+  setAgentTitle: (projectId: string, tabId: string, title: string) => void;
   setAutoContinue: (projectId: string, tabId: string, options: AutoContinueOptions) => void;
   toggleZoom: (projectId: string, groupId: string) => void;
   /**
@@ -336,6 +343,8 @@ export const useWorkspaceStore = create<WorkspaceState>()(
               ...old,
               id,
               createdAt: Date.now(),
+              // A restart means a new session, so the old task name should not stick around.
+              agentTitle: undefined,
               restored: false,
             };
             return {
@@ -403,6 +412,14 @@ export const useWorkspaceStore = create<WorkspaceState>()(
             if (tab?.kind !== 'terminal') return ws;
             const userTitle = title.trim() || undefined;
             return { ...ws, tabs: { ...ws.tabs, [tabId]: { ...tab, userTitle } } };
+          }),
+
+        setAgentTitle: (projectId, tabId, title) =>
+          update(projectId, (ws) => {
+            const tab = ws.tabs[tabId];
+            const agentTitle = title.trim();
+            if (tab?.kind !== 'terminal' || !agentTitle || tab.agentTitle === agentTitle) return ws;
+            return { ...ws, tabs: { ...ws.tabs, [tabId]: { ...tab, agentTitle } } };
           }),
 
         setAutoContinue: (projectId, tabId, options) =>
@@ -549,7 +566,10 @@ export const useWorkspaceStore = create<WorkspaceState>()(
   ),
 );
 
-/** The name a terminal tab shows: the one the user gave it, else the one it was launched with. */
+/**
+ * The name a terminal tab shows: the one the user gave it, else the last task name its agent
+ * set, else the one it was launched with.
+ */
 export function terminalTabLabel(tab: WorkspaceTerminalTab): string {
-  return tab.userTitle ?? tab.title;
+  return tab.userTitle ?? tab.agentTitle ?? tab.title;
 }

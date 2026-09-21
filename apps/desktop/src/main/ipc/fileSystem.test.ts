@@ -1,7 +1,7 @@
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { beforeEach, describe, expect, it } from 'vitest';
-import type { DirectoryEntry } from '../../shared/apiTypes';
+import type { DirectoryEntry, ImageFileData } from '../../shared/apiTypes';
 import { IPC } from '../../shared/ipcChannels';
 import { queueDialog } from '../../test/main/electronMock';
 import { tempDir, writeTree } from '../../test/main/fixtures';
@@ -63,6 +63,38 @@ describe('fs:readFile', () => {
   it('reads the app data folder, which is an allowed root too', async () => {
     expect(await invoke<string>(IPC.fs.readFile, userData.dataFile('projects.json'))).toContain(
       'Demo',
+    );
+  });
+});
+
+describe('fs:readImage', () => {
+  it('hands an image over as a data URL, with its size on disk', async () => {
+    const png = Buffer.from('89504e470d0a1a0a', 'hex');
+    writeFileSync(join(project.dir, 'logo.png'), png);
+    const image = await invoke<ImageFileData>(IPC.fs.readImage, join(project.dir, 'logo.png'));
+    expect(image.dataUrl).toBe(`data:image/png;base64,${png.toString('base64')}`);
+    expect(image.bytes).toBe(png.length);
+  });
+
+  it('refuses a file that is not an image', async () => {
+    await expect(invoke(IPC.fs.readImage, join(project.dir, 'README.md'))).rejects.toThrow(
+      'not an image',
+    );
+  });
+
+  it('refuses an image past the size the viewer carries over', async () => {
+    // 17 MB of zeros: over the 16 MB cap, and the guard reads the size rather than the file.
+    writeFileSync(join(project.dir, 'huge.png'), Buffer.alloc(17 * 1024 * 1024));
+    await expect(invoke(IPC.fs.readImage, join(project.dir, 'huge.png'))).rejects.toThrow(
+      'too large to show here',
+    );
+  });
+
+  it('refuses an image outside every allowed root', async () => {
+    const outside = tempDir('agentmate-fs-outside-image-');
+    writeFileSync(join(outside, 'secret.png'), Buffer.from([0]));
+    await expect(invoke(IPC.fs.readImage, join(outside, 'secret.png'))).rejects.toThrow(
+      'outside of the allowed directories',
     );
   });
 });

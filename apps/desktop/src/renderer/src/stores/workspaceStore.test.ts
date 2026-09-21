@@ -377,6 +377,39 @@ describe('renameTab', () => {
   });
 });
 
+describe('setAgentTitle', () => {
+  it('keeps the name the agent gave its task', () => {
+    const { tabId } = withTerminal();
+    store().setAgentTitle('p1', tabId, 'Fix the login bug');
+    const tab = workspace().tabs[tabId];
+    expect(tab.kind === 'terminal' && terminalTabLabel(tab)).toBe('Fix the login bug');
+  });
+
+  it('lets the name the user typed win', () => {
+    const { tabId } = withTerminal();
+    store().renameTab('p1', tabId, 'Backend');
+    store().setAgentTitle('p1', tabId, 'Fix the login bug');
+    const tab = workspace().tabs[tabId];
+    expect(tab.kind === 'terminal' && terminalTabLabel(tab)).toBe('Backend');
+  });
+
+  it('ignores an empty title so the tab keeps the name it had', () => {
+    const { tabId } = withTerminal();
+    store().setAgentTitle('p1', tabId, 'Fix the login bug');
+    store().setAgentTitle('p1', tabId, '  ');
+    const tab = workspace().tabs[tabId];
+    expect(tab.kind === 'terminal' && terminalTabLabel(tab)).toBe('Fix the login bug');
+  });
+
+  it('drops the old task name when the tab restarts', () => {
+    const { tabId } = withTerminal();
+    store().setAgentTitle('p1', tabId, 'Fix the login bug');
+    store().restartTab('p1', tabId);
+    const tab = Object.values(workspace().tabs)[0];
+    expect(tab?.kind === 'terminal' && terminalTabLabel(tab)).toBe('PowerShell');
+  });
+});
+
 describe('setAutoContinue', () => {
   it('turns each option on and off without touching the other', () => {
     const { tabId } = withTerminal();

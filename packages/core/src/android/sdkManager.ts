@@ -135,3 +135,27 @@ export function parseSdkManagerList(stdout: string): {
 
   return { installed, available };
 }
+
+/** One repainted progress line from sdkmanager: `[=====     ] 42% Downloading ...`. */
+export interface SdkManagerProgress {
+  percent: number;
+  label: string;
+}
+
+const PROGRESS_LINE = /^\[[=\s]*\]\s*(\d{1,3})%\s*(.*)$/;
+
+export function parseSdkManagerProgress(line: string): SdkManagerProgress | null {
+  const match = PROGRESS_LINE.exec(line.trim());
+  if (!match) return null;
+  const percent = Number(match[1]);
+  if (!Number.isFinite(percent) || percent < 0 || percent > 100) return null;
+  return { percent, label: match[2].trim() };
+}
+
+/**
+ * sdkmanager stops and waits on stdin at a licence question. Recognising it is what keeps an
+ * install from looking like a hang, and what tells the caller when to send the answer.
+ */
+export function isLicensePrompt(line: string): boolean {
+  return /\(y\/N\)\s*[?:]/i.test(line.trim());
+}

@@ -53,6 +53,7 @@ import { CommitBox } from './CommitBox';
 import { CommitsSection } from './CommitsSection';
 import { ExplorerSection } from './ExplorerSection';
 import { collapseAll, startCreateAtFocus } from './explorer/actions';
+import { ExplorerSearchToggle } from './explorer/ExplorerSearchToggle';
 import { GitFileRow } from './GitFileRow';
 import { HistorySection } from './HistorySection';
 import { PanelIconButton, type PanelTabDef, PanelTabs } from './PanelTabs';
@@ -668,6 +669,7 @@ export function GitPanel({
       toolbarTitle: baseName(project.folderPath) || project.name,
       actions: (
         <>
+          <ExplorerSearchToggle projectId={project.id} />
           <PanelIconButton label="New File…" onClick={() => startCreateAtFocus(project, 'newFile')}>
             <FilePlus className="h-2.5 w-2.5" />
           </PanelIconButton>

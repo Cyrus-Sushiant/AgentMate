@@ -1,12 +1,17 @@
 export const queryKeys = {
   /** A project file open in an editor tab. */
   workspaceFile: (path: string) => ['workspace-file', path] as const,
+  /** An image file open in a viewer tab. Nested under its file key, so a rename clears both. */
+  workspaceImage: (path: string) => ['workspace-file', path, 'image'] as const,
   /** Prefix of every explorer listing for a project, so one invalidate refreshes the whole tree. */
   workspaceExplorer: (projectId: string) => ['workspace-explorer', projectId] as const,
   workspaceExplorerDir: (projectId: string, dir: string) =>
     ['workspace-explorer', projectId, dir] as const,
   workspaceExplorerIgnored: (projectId: string, dir: string) =>
     ['workspace-explorer', projectId, dir, 'ignored'] as const,
+  /** Every file in the project, for the explorer's search box. */
+  workspaceExplorerFiles: (projectId: string) =>
+    ['workspace-explorer', projectId, 'files'] as const,
   cliStatus: ['cli-status'] as const,
   projects: ['projects'] as const,
   project: (id: string) => ['projects', id] as const,
@@ -69,6 +74,9 @@ export const queryKeys = {
   agentHistory: (projectId: string) => ['agent-history', projectId] as const,
   gitFileDiff: (projectId: string, side: string, path: string) =>
     ['git-file-diff', projectId, side, path] as const,
+  /** Both sides of a changed image. Under the diff prefix, so the watcher refreshes it too. */
+  gitFileImage: (projectId: string, side: string, path: string) =>
+    ['git-file-diff', projectId, side, path, 'image'] as const,
   /** Prefix of every diff of a project, to refresh open diffs after the tree changed. */
   gitFileDiffs: (projectId: string) => ['git-file-diff', projectId] as const,
   gitFiles: (projectId: string) => ['git-files', projectId] as const,
@@ -110,6 +118,7 @@ export const queryKeys = {
   androidSdk: ['android-sdk'] as const,
   androidSnapshot: ['android-snapshot'] as const,
   androidSystemImages: ['android-system-images'] as const,
+  androidAvailableImages: ['android-available-images'] as const,
   androidDeviceProfiles: ['android-device-profiles'] as const,
   androidAvdConfig: (name: string) => ['android-avd-config', name] as const,
   dockerAvailability: ['docker-availability'] as const,
