@@ -448,6 +448,11 @@ export interface AppSettings {
    * character keeps its own name.
    */
   desktopPetName: string;
+  /**
+   * Characters whose sprite is drawn facing the other way, so the pet is
+   * mirrored to face the direction it walks.
+   */
+  desktopPetFlippedIds: string[];
   /** When false the companion stays put (idle pose) instead of wandering. */
   desktopPetCanMove: boolean;
   /** When false it never climbs a rope to the top of the screen. */

@@ -168,6 +168,15 @@ function emptyActor(id: PetId, box: number): Actor {
   };
 }
 
+/**
+ * Whether the sprite is drawn mirrored. Sprites face right by default, and a
+ * flipped character is one whose artwork faces left, so the mirror runs the
+ * other way for it.
+ */
+export function mirrorsSprite(facing: Facing, flipped: boolean): boolean {
+  return (facing === 'left') !== flipped;
+}
+
 export function spawnCompanion(stage: Stage, id: PetId, box: number, canMove: boolean): Actor {
   const actor = emptyActor(id, box);
   actor.x = clamp(stage.width / 2 - box / 2, 0, maxX(stage, box));

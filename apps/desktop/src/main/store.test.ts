@@ -252,6 +252,13 @@ describe('settings migrations', () => {
     expect((await store.getSettings()).desktopPetGear3d).toBe(false);
   });
 
+  it('keeps the flipped pet list to unique character ids', async () => {
+    userData.writeData('settings.json', { desktopPetFlippedIds: ['nori', 'nori', 3, 'hex'] });
+    const { store } = await loadStore();
+
+    expect((await store.getSettings()).desktopPetFlippedIds).toEqual(['nori', 'hex']);
+  });
+
   it('drops duplicate and non-string entries from the CLI order', async () => {
     userData.writeData('settings.json', { cliOrder: ['claude', 'claude', 7, 'codex'] });
     const { store } = await loadStore();

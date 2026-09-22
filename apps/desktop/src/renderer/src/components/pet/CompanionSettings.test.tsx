@@ -5,9 +5,8 @@ import { describe, expect, it, vi } from 'vitest';
 import { renderWithProviders } from '../../../../test/renderer/renderWithProviders';
 
 /**
- * The pet's own settings card. These tests stay on the 3D switch: it is the one control that
- * changes how the rope and the parachute are drawn, and an upload of a 3D pet is the reason
- * someone reaches for it.
+ * The pet's own settings card. These tests cover the 3D switch, which changes how the rope and
+ * the parachute are drawn, and the walking direction switch, which is saved per character.
  */
 
 const toast = vi.hoisted(() =>
@@ -91,5 +90,45 @@ describe('CompanionSettings, 3D gear', () => {
     renderWithProviders(<CompanionSettings settings={petSettings()} />, { bridge: petQueries });
 
     expect(await screen.findByText(/uploaded as a 3D render/i)).toBeInTheDocument();
+  });
+});
+
+const FLIP = /Flip walking direction/i;
+
+describe('CompanionSettings, walking direction', () => {
+  it('flips the current character and keeps the others already flipped', async () => {
+    const { bridge, user } = renderWithProviders(
+      <CompanionSettings settings={petSettings({ desktopPetFlippedIds: ['hex'] })} />,
+      { bridge: petQueries },
+    );
+
+    const toggle = await screen.findByRole('switch', { name: FLIP });
+    expect(toggle).toHaveAttribute('aria-checked', 'false');
+
+    await user.click(toggle);
+
+    await waitFor(() =>
+      expect(bridge.$fn('settings.update')).toHaveBeenCalledWith({
+        desktopPetFlippedIds: ['hex', 'tide'],
+      }),
+    );
+  });
+
+  it('un-flips only the current character', async () => {
+    const { bridge, user } = renderWithProviders(
+      <CompanionSettings settings={petSettings({ desktopPetFlippedIds: ['tide', 'hex'] })} />,
+      { bridge: petQueries },
+    );
+
+    const toggle = await screen.findByRole('switch', { name: FLIP });
+    expect(toggle).toHaveAttribute('aria-checked', 'true');
+
+    await user.click(toggle);
+
+    await waitFor(() =>
+      expect(bridge.$fn('settings.update')).toHaveBeenCalledWith({
+        desktopPetFlippedIds: ['hex'],
+      }),
+    );
   });
 });

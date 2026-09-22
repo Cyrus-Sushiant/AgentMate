@@ -139,6 +139,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   desktopPetCharacterId: 'tide',
   desktopPetCustoms: [],
   desktopPetName: '',
+  desktopPetFlippedIds: [],
   desktopPetCanMove: true,
   desktopPetCanClimb: true,
   desktopPetCanParachute: false,
@@ -218,6 +219,13 @@ function withSettingsMigrations(settings: AppSettings): AppSettings {
       customs.map((pet) => pet.id),
     ),
     desktopPetName: normalizeDesktopPetName(settings.desktopPetName),
+    desktopPetFlippedIds: Array.isArray(settings.desktopPetFlippedIds)
+      ? [
+          ...new Set(
+            settings.desktopPetFlippedIds.filter((id): id is string => typeof id === 'string'),
+          ),
+        ]
+      : [],
     desktopPetCanMove: settings.desktopPetCanMove !== false,
     desktopPetCanClimb: settings.desktopPetCanClimb !== false,
     desktopPetCanParachute: settings.desktopPetCanParachute === true,

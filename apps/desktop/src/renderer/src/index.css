@@ -880,10 +880,10 @@ body {
   transform: scaleX(-1);
 }
 .desktop-pet-body.is-turning {
-  animation: pet-turn 0.56s ease-in-out both;
+  animation: pet-turn-from-left 0.56s ease-in-out both;
 }
 .desktop-pet-body.is-left.is-turning {
-  animation-name: pet-turn-from-left;
+  animation-name: pet-turn;
 }
 .desktop-pet-shadow {
   position: absolute;

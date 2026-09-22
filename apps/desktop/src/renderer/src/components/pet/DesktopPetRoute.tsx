@@ -23,6 +23,7 @@ import {
   applyBox,
   clampActor,
   hopActor,
+  mirrorsSprite,
   type Stage,
   spawnCompanion,
   stepCompanion,
@@ -101,6 +102,8 @@ export default function DesktopPetRoute(): React.JSX.Element {
     customs.map((pet) => pet.id),
   );
   const canMove = settingsQuery.data?.desktopPetCanMove !== false;
+  // Some sprites are drawn facing left, so the mirror has to run the other way.
+  const flipped = settingsQuery.data?.desktopPetFlippedIds?.includes(characterId) === true;
   const canClimb = settingsQuery.data?.desktopPetCanClimb !== false;
   const canParachute = settingsQuery.data?.desktopPetCanParachute === true;
   const gear3d = settingsQuery.data?.desktopPetGear3d === true;
@@ -717,7 +720,7 @@ export default function DesktopPetRoute(): React.JSX.Element {
           data-pet-hit="sprite"
           className={cn(
             'desktop-pet-body',
-            actor.facing === 'left' && 'is-left',
+            mirrorsSprite(actor.facing, flipped) && 'is-left',
             actor.action === 'turn' && 'is-turning',
             actor.action === 'parachute' && 'is-chute',
             dragging && 'is-dragging',

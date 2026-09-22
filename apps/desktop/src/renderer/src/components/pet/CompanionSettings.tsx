@@ -60,6 +60,8 @@ export function CompanionSettings({ settings }: { settings: AppSettings }): Reac
   const canClimb = settings.desktopPetCanClimb !== false;
   const canParachute = settings.desktopPetCanParachute === true;
   const gear3d = settings.desktopPetGear3d === true;
+  const flippedIds = settings.desktopPetFlippedIds ?? [];
+  const flipped = flippedIds.includes(settings.desktopPetCharacterId);
   const [scale, setScale] = useState(settings.desktopPetScale);
   const scaleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [clickArea, setClickArea] = useState(() =>
@@ -356,6 +358,27 @@ export function CompanionSettings({ settings }: { settings: AppSettings }): Reac
               className="max-w-xs"
               onChange={(event) => commitPetName(event.target.value)}
               onBlur={flushPetName}
+            />
+          </div>
+
+          <div className="mt-4 flex items-center justify-between gap-4 border-t border-border pt-4">
+            <div className="min-w-0">
+              <Label htmlFor="pet-flip">Flip walking direction</Label>
+              <p className="text-xs text-muted-foreground">
+                Turn this on if {characterName} walks backwards. Saved for this character only.
+              </p>
+            </div>
+            <Switch
+              id="pet-flip"
+              checked={flipped}
+              onCheckedChange={(enabled) =>
+                save.mutate({
+                  desktopPetFlippedIds: enabled
+                    ? [...flippedIds, settings.desktopPetCharacterId]
+                    : flippedIds.filter((id) => id !== settings.desktopPetCharacterId),
+                })
+              }
+              disabled={pending}
             />
           </div>
         </CardContent>
