@@ -242,6 +242,40 @@ jobs:
         run: |
           sed -i 's/^android {/android {\n    splits {\n        abi {\n            reset()\n            enable true\n            universalApk true\n            include "armeabi-v7a", "arm64-v8a", "x86", "x86_64"\n        }\n    }/' apps/mobile/android/app/build.gradle
 
+      # The wrapper properties that expo prebuild writes ship with a 10s
+      # network timeout, which is not enough to start the ~150 MB
+      # distribution download when services.gradle.org is slow to answer:
+      # the wrapper gives up mid-connect and the release build dies. Same
+      # story as the splits above, the file is regenerated on every run, so
+      # the timeout is widened here instead of being committed.
+      - name: Widen the Gradle wrapper network timeout
+        shell: bash
+        run: |
+          props=apps/mobile/android/gradle/wrapper/gradle-wrapper.properties
+          { grep -v '^networkTimeout=' "$props"; echo 'networkTimeout=120000'; } > "$props.tmp"
+          mv "$props.tmp" "$props"
+          cat "$props"
+
+      # The runner starts with an empty Gradle home, so the distribution is
+      # fetched on every run, and the wrapper has no retry of its own: one
+      # bad connection and the whole release fails. Fetching it in a step of
+      # its own means a transient failure costs a retry instead of a rerun.
+      - name: Download the Gradle distribution
+        working-directory: apps/mobile/android
+        shell: bash
+        run: |
+          for attempt in 1 2 3; do
+            if ./gradlew --version; then
+              exit 0
+            fi
+            if [ "$attempt" -lt 3 ]; then
+              echo "Gradle distribution download failed (attempt $attempt of 3), retrying in 15s"
+              sleep 15
+            fi
+          done
+          echo "Could not download the Gradle distribution after 3 attempts"
+          exit 1
+
       - name: Build release APK
         working-directory: apps/mobile/android
         run: ./gradlew assembleRelease
