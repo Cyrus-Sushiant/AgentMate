@@ -161,7 +161,7 @@ import { confirmDialog } from '@/stores/confirmStore';
 import { usePageHeader } from '@/stores/pageHeaderStore';
 import { useShortcutLabel } from '@/stores/shortcutStore';
 import { useTerminalStore } from '@/stores/terminalStore';
-import { useVersionDialogStore } from '@/stores/versionDialogStore';
+import { EMPTY_TAG_DRAFT, useVersionDialogStore } from '@/stores/versionDialogStore';
 
 export default function ProjectDetailPage(): React.JSX.Element {
   const { projectId } = useParams<{ projectId: string }>();
@@ -3320,21 +3320,27 @@ function TagVersionDialog({
   onApplyVersion: (tag: string) => void;
 }): React.JSX.Element {
   const queryClient = useQueryClient();
-  // The tag is edited in two halves: the prefix names the tag series ("v", "web-v", ...),
-  // the version is the number itself. They only ever meet as `tag`.
-  const [prefix, setPrefix] = useState('v');
-  const [version, setVersion] = useState('');
-  const [message, setMessage] = useState('');
-  const [reason, setReason] = useState<string | null>(null);
-  const [updatedVersionFor, setUpdatedVersionFor] = useState<string | null>(null);
+  /**
+   * The form lives in the store, not in this component, because this component is unmounted
+   * far more often than the flow is finished: handing off to "Update version in files" and
+   * coming back, switching Workspace projects while a run goes on, or following the run's
+   * completion toast from the project page to the Workspace all throw it away. Anything typed
+   * here (an AI suggestion most of all) has to still be there when the user gets back.
+   *
+   * The tag is edited in two halves: the prefix names the tag series ("v", "web-v", ...),
+   * the version is the number itself. They only ever meet as `tag`.
+   */
+  const draft = useVersionDialogStore((s) => s.drafts[projectId] ?? EMPTY_TAG_DRAFT);
+  const patchDraft = useVersionDialogStore((s) => s.patchDraft);
+  const clearDraft = useVersionDialogStore((s) => s.clearDraft);
+  const { version, message, reason, updatedVersionFor } = draft;
+  // A prefix of null means nothing has been chosen yet, and the effect below fills it in.
+  const prefix = draft.prefix ?? 'v';
+  const setVersion = (next: string): void => patchDraft(projectId, { version: next });
+  const setMessage = (next: string): void => patchDraft(projectId, { message: next });
+  const setReason = (next: string | null): void => patchDraft(projectId, { reason: next });
   const suggestRequestRef = useRef<string | null>(null);
   const confirmingSkipRef = useRef(false);
-  /**
-   * Set once the prefix has a value worth keeping: one the user typed or picked, or the one
-   * restored for this project. Stops the default from overwriting it, including when the
-   * dialog comes back from "Update version in files".
-   */
-  const prefixChosenRef = useRef(false);
 
   const trimmedPrefix = prefix.trim();
   const tag = `${trimmedPrefix}${version.trim()}`;
@@ -3355,8 +3361,7 @@ function TagVersionDialog({
 
   /** The only way the prefix changes. It is remembered right away, not just after a tag. */
   function handlePrefixInput(next: string): void {
-    prefixChosenRef.current = true;
-    setPrefix(next);
+    patchDraft(projectId, { prefix: next });
     storeTagPrefix(projectId, next.trim());
   }
 
@@ -3374,11 +3379,14 @@ function TagVersionDialog({
         : tagInfo.prefixes.length === 1
           ? tagInfo.prefixes[0]
           : 'v';
+  // Nothing to restore once the draft holds a prefix: one the user typed or picked, or the one
+  // this effect already put there. That is what keeps the field intact when the dialog comes
+  // back from "Update version in files".
+  const prefixChosen = draft.prefix !== null;
   useEffect(() => {
-    if (!open || prefixChosenRef.current || !tagInfoLoaded) return;
-    prefixChosenRef.current = true;
-    setPrefix(readStoredTagPrefix(projectId) ?? plainPrefix);
-  }, [open, tagInfoLoaded, plainPrefix, projectId]);
+    if (!open || prefixChosen || !tagInfoLoaded) return;
+    patchDraft(projectId, { prefix: readStoredTagPrefix(projectId) ?? plainPrefix });
+  }, [open, prefixChosen, tagInfoLoaded, plainPrefix, projectId, patchDraft]);
 
   const hasRemote = tagInfo?.hasRemote ?? false;
   // `git tag` and the push after it act on HEAD, not the working tree, so a dirty tree never
@@ -3448,13 +3456,11 @@ function TagVersionDialog({
         const split = splitTag(result.tag);
         // The suggestion comes back with the typed prefix already on it, so only the version
         // is taken. The prefix field is the user's and a suggestion never rewrites it.
-        if (split) {
-          setVersion(split.version);
-        } else {
-          setVersion(result.tag);
-        }
-        setReason(result.reason ?? null);
-        if (result.message) setMessage(result.message);
+        patchDraft(projectId, {
+          version: split ? split.version : result.tag,
+          reason: result.reason ?? null,
+          ...(result.message ? { message: result.message } : {}),
+        });
         toast.success(`${result.cliName ?? 'Your CLI'} suggested ${result.tag}.`);
       } else {
         toast.error(result.error ?? 'The CLI could not work out a version.');
@@ -3483,27 +3489,22 @@ function TagVersionDialog({
     [],
   );
 
-  // Only a dismissal from inside this dialog (Esc, the close button, a finished tag) lands here.
-  // Handing off to "Update version in files" closes it from the parent instead, which is what
-  // keeps the fields, prefix included, for when the user comes back.
+  // Only a dismissal from inside this dialog (Esc, the close button, a finished tag) lands here,
+  // and that is the one thing that throws the form away. Handing off to "Update version in
+  // files" closes the dialog from the parent instead, so the draft is still there, prefix
+  // included, whenever and wherever the user picks the flow back up.
   function handleOpenChange(next: boolean): void {
     // The shared confirm dialog sits on top of this one. Ignore dismissals
     // that come from clicking it, so the tag form stays put.
     if (!next && confirmingSkipRef.current) return;
-    if (!next) {
-      setVersion('');
-      setMessage('');
-      setReason(null);
-      setUpdatedVersionFor(null);
-      prefixChosenRef.current = false;
-    }
+    if (!next) clearDraft(projectId);
     onOpenChange(next);
   }
 
   function handleApplyVersion(): void {
     if (!version.trim()) return;
     const next = tag.trim();
-    setUpdatedVersionFor(next);
+    patchDraft(projectId, { updatedVersionFor: next });
     storeTagPrefix(projectId, trimmedPrefix);
     onApplyVersion(next);
   }
