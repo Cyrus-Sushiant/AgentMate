@@ -308,6 +308,27 @@ describe('TestRunManager', () => {
     expect(manager.lastRun('p1')?.summary.cancelled).toBe(true);
   }, 60_000);
 
+  it('keeps the tests it picked in the snapshot, so a panel opening mid-run can show them', async () => {
+    process.env.FAKE_VITEST_MODE = 'slow';
+    const { discovery, manager } = await setup();
+    manager.start({
+      projectId: 'p1',
+      folderPath: root,
+      discovery,
+      targets: [{ testProjectId: 'vitest:web' }],
+    });
+    await waitFor(() => existsSync(pidFile) && readFileSync(pidFile, 'utf-8').length > 0);
+    const snapshot = manager.lastRun('p1');
+    expect(snapshot?.summary.running).toBe(true);
+    expect(snapshot?.queued).toEqual([
+      'vitest:web::web/src/math.test.ts::math > adds',
+      'vitest:web::web/src/math.test.ts::math > breaks',
+    ]);
+    manager.cancel('p1');
+    await manager.whenIdle('p1');
+    await waitFor(() => !isAlive(Number(readFileSync(pidFile, 'utf-8'))));
+  }, 60_000);
+
   it('stops a run that goes past the timeout and says so', async () => {
     process.env.FAKE_VITEST_MODE = 'slow';
     const { events, discovery, manager } = await setup({ timeoutMs: 2_000 });

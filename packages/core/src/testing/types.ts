@@ -148,4 +148,9 @@ export interface TestRunSnapshot {
   summary: TestRunSummary;
   results: TestResult[];
   output: string;
+  /**
+   * The tests this run picked, so a panel that reopens mid-run can show the ones still waiting as
+   * running again. Results only cover what the runner has reported so far.
+   */
+  queued: string[];
 }

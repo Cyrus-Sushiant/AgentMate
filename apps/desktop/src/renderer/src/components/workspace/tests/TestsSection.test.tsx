@@ -291,6 +291,40 @@ describe('TestsSection', () => {
     expect(screen.queryByRole('button', { name: 'Stop tests' })).toBeNull();
   });
 
+  it('still shows the run going after the tab is closed and opened again', async () => {
+    const view = renderSection();
+    await screen.findByText('adds', { selector: '[data-test-name]' });
+    startRun();
+    expect(screen.getByText(/Running 3 tests/)).toBeTruthy();
+
+    // The run carries on in the background while another tab is open, and one test finishes.
+    api.lastRun.mockResolvedValue({
+      summary: summary(),
+      results: [
+        {
+          id: ids.adds,
+          testProjectId: 'vitest:',
+          file: 'src/math.test.ts',
+          path: ['math', 'adds'],
+          status: 'passed',
+          durationMs: 4,
+        },
+      ],
+      output: '$ pnpm exec vitest run',
+      queued: [ids.adds, ids.breaks, ids.trims],
+    } satisfies TestRunSnapshot);
+    view.unmount();
+    renderSection();
+    await screen.findByText('adds', { selector: '[data-test-name]' });
+
+    // Coming back must not leave the tests still going looking as if they had never run.
+    await waitFor(() => expect(within(row('adds')).getByLabelText('Passed')).toBeTruthy());
+    expect(within(row('breaks')).getByLabelText('Running')).toBeTruthy();
+    expect(within(row('trims')).getByLabelText('Running')).toBeTruthy();
+    expect(screen.getByText(/Running 2 tests/)).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Stop tests' })).toBeTruthy();
+  });
+
   it('counts the run up while it goes and stops the clock when it is over', async () => {
     renderSection();
     await screen.findByText('adds', { selector: '[data-test-name]' });
@@ -599,6 +633,7 @@ describe('TestsSection', () => {
         },
       ],
       output: '$ pnpm exec vitest run\nFAIL',
+      queued: [],
     };
     api.lastRun.mockResolvedValue(snapshot);
     renderSection();

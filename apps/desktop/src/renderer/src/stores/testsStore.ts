@@ -16,6 +16,13 @@ export interface ProjectTestRun {
   previous?: Record<string, TestResult>;
 }
 
+/** A test that is waiting on the run, keeping whatever the panel already knows about it. */
+function queuedResult(id: string, old: TestResult | undefined): TestResult {
+  return old
+    ? { ...old, status: 'queued', message: undefined, stack: undefined, durationMs: undefined }
+    : { id, testProjectId: id.split('::')[0], path: [], status: 'queued' };
+}
+
 export function applyRunEvent(
   run: ProjectTestRun | undefined,
   event: TestRunEvent,
@@ -27,9 +34,7 @@ export function applyRunEvent(
     for (const id of event.queued) {
       const old = results[id];
       if (old) previous[id] = old;
-      results[id] = old
-        ? { ...old, status: 'queued', message: undefined, stack: undefined, durationMs: undefined }
-        : { id, testProjectId: id.split('::')[0], path: [], status: 'queued' };
+      results[id] = queuedResult(id, old);
     }
     return { summary: event.summary, results, output: '', previous };
   }
@@ -106,7 +111,8 @@ export const useTestsStore = create<TestsState>((set) => ({
     }),
   hydrate: (projectId, snapshot) =>
     set((state) => {
-      const live = state.runs[projectId]?.summary;
+      const current = state.runs[projectId];
+      const live = current?.summary;
       if (
         live &&
         (live.running || live.startedAt >= snapshot.summary.startedAt) &&
@@ -114,13 +120,29 @@ export const useTestsStore = create<TestsState>((set) => ({
       ) {
         return state;
       }
+      const results: Record<string, TestResult> = Object.fromEntries(
+        snapshot.results.map((result) => [result.id, result]),
+      );
+      // A snapshot only carries what the runner has reported. Without this, reopening the panel
+      // during a run would leave every test still waiting looking as if it had never run.
+      if (snapshot.summary.running) {
+        for (const id of snapshot.queued) {
+          if (results[id]) continue;
+          const old = current?.results[id];
+          results[id] =
+            old?.status === 'running' || old?.status === 'queued' ? old : queuedResult(id, old);
+        }
+      }
+      const sameRun = live?.runId === snapshot.summary.runId;
       return {
         runs: {
           ...state.runs,
           [projectId]: {
             summary: snapshot.summary,
-            results: Object.fromEntries(snapshot.results.map((result) => [result.id, result])),
+            results,
             output: snapshot.output,
+            // Keep what the tests showed before this run so a cancel can still put it back.
+            ...(sameRun && current?.previous ? { previous: current.previous } : {}),
           },
         },
       };

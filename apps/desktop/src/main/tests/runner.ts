@@ -72,6 +72,8 @@ interface ActiveRun {
   summary: TestRunSummary;
   results: Map<string, TestResult>;
   output: string;
+  /** Every test the run picked, kept so a panel that reopens mid-run knows what is still waiting. */
+  queued: string[];
   token: CancelToken;
   done: Promise<void>;
 }
@@ -121,6 +123,7 @@ export class TestRunManager {
       summary,
       results: new Map(),
       output: '',
+      queued: [],
       token: { cancelled: false, child: null },
       done: Promise.resolve(),
     };
@@ -133,6 +136,7 @@ export class TestRunManager {
         testNodeId(node.id, ref.file, ref.path),
       );
     });
+    run.queued = queued;
     this.deps.emit({
       type: 'started',
       runId: summary.runId,
@@ -154,7 +158,12 @@ export class TestRunManager {
   lastRun(projectId: string): TestRunSnapshot | null {
     const run = this.runs.get(projectId);
     if (!run) return null;
-    return { summary: { ...run.summary }, results: [...run.results.values()], output: run.output };
+    return {
+      summary: { ...run.summary },
+      results: [...run.results.values()],
+      output: run.output,
+      queued: [...run.queued],
+    };
   }
 
   /** Resolves once the project's current run (if any) has finished. */

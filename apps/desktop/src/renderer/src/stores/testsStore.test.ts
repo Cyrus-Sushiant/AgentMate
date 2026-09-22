@@ -133,6 +133,7 @@ describe('useTestsStore', () => {
       summary: summary({ projectId: 'p2', running: false, failed: 1 }),
       results: [result('x', 'failed')],
       output: 'o',
+      queued: [],
     });
     store.applyEvent({
       type: 'started',
@@ -160,8 +161,71 @@ describe('useTestsStore', () => {
       summary: summary({ runId: 'r8', running: false }),
       results: [],
       output: '',
+      queued: [],
     });
     expect(useTestsStore.getState().runs.p1.summary?.runId).toBe('r9');
+  });
+
+  it('keeps the tests that are still waiting when a live run is hydrated again', () => {
+    const store = useTestsStore.getState();
+    store.applyEvent({
+      type: 'started',
+      runId: 'r1',
+      projectId: 'p1',
+      summary: summary(),
+      queued: ['a', 'b'],
+    });
+    // The panel closed and opened again mid-run: main only knows about the results so far.
+    store.hydrate('p1', {
+      summary: summary(),
+      results: [result('a', 'passed')],
+      output: 'o',
+      queued: ['a', 'b'],
+    });
+    const run = useTestsStore.getState().runs.p1;
+    expect(run.results.a.status).toBe('passed');
+    expect(run.results.b.status).toBe('queued');
+    expect(run.output).toBe('o');
+  });
+
+  it('keeps what a waiting test showed before, so a cancel after hydrating puts it back', () => {
+    const store = useTestsStore.getState();
+    store.hydrate('p1', {
+      summary: summary({ runId: 'r0', running: false }),
+      results: [result('b', 'failed')],
+      output: '',
+      queued: [],
+    });
+    store.applyEvent({
+      type: 'started',
+      runId: 'r1',
+      projectId: 'p1',
+      summary: summary(),
+      queued: ['a', 'b'],
+    });
+    store.hydrate('p1', { summary: summary(), results: [], output: '', queued: ['a', 'b'] });
+    store.applyEvent({
+      type: 'done',
+      runId: 'r1',
+      projectId: 'p1',
+      summary: summary({ running: false, cancelled: true }),
+    });
+    const run = useTestsStore.getState().runs.p1;
+    expect(run.results.a).toBeUndefined();
+    expect(run.results.b.status).toBe('failed');
+  });
+
+  it('leaves a finished run alone, queued ids and all', () => {
+    const store = useTestsStore.getState();
+    store.hydrate('p1', {
+      summary: summary({ running: false, passed: 1 }),
+      results: [result('a', 'passed')],
+      output: '',
+      queued: ['a', 'b'],
+    });
+    const run = useTestsStore.getState().runs.p1;
+    expect(run.results.b).toBeUndefined();
+    expect(Object.keys(run.results)).toEqual(['a']);
   });
 });
 
