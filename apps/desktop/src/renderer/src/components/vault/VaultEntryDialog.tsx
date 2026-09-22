@@ -28,6 +28,7 @@ import { SimpleTooltip } from '@/components/ui/tooltip';
 import { queryKeys } from '@/lib/queryKeys';
 import { cn } from '@/lib/utils';
 import { confirmDialog } from '@/stores/confirmStore';
+import { EntryAvatar } from './EntryAvatar';
 import { ENTRY_TYPE_META, ENTRY_TYPE_ORDER } from './entryTypes';
 import { PasswordGeneratorPopover } from './PasswordGeneratorPopover';
 import { PasswordStrengthMeter } from './PasswordStrengthMeter';
@@ -60,6 +61,8 @@ interface Draft {
   secret: string;
   expiresOn: string;
   fields: DraftField[];
+  /** Favicon data URL for the first website, or null for the letter tile. */
+  icon: string | null;
 }
 
 let fieldKey = 0;
@@ -81,6 +84,7 @@ function emptyDraft(type: VaultEntryType = 'login', title = ''): Draft {
     secret: '',
     expiresOn: '',
     fields: [],
+    icon: null,
   };
 }
 
@@ -93,6 +97,7 @@ function draftFromEntry(entry: VaultEntry): Draft {
     ...emptyDraft(entry.type, entry.title),
     tags: entry.tags,
     favorite: entry.favorite,
+    icon: entry.icon ?? null,
   };
   draft.notes = entry.notes;
   if (entry.type === 'login') {
@@ -128,6 +133,12 @@ function buildInput(draft: Draft, original: Draft | null, id?: string): SaveVaul
     tags: draft.tags,
     favorite: draft.favorite,
     notes: changed(draft.notes, original?.notes),
+    // null tells main to drop a stored icon; undefined leaves it alone.
+    icon: original
+      ? draft.icon === original.icon
+        ? undefined
+        : draft.icon
+      : (draft.icon ?? undefined),
   };
   const urls = draft.urls.map((url) => url.trim()).filter(Boolean);
   switch (draft.type) {
@@ -218,6 +229,9 @@ export function VaultEntryDialog({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const loadedFor = useRef<string | null>(null);
+  const [fetchingIcon, setFetchingIcon] = useState(false);
+  // The address the last automatic fetch went to, so leaving the field again doesn't refetch it.
+  const iconTriedFor = useRef<string | null>(null);
 
   useEffect(() => {
     if (!editId || !entryQuery.data || loadedFor.current === editId) return;
@@ -271,6 +285,43 @@ export function VaultEntryDialog({
       setSaving(false);
     }
   }
+
+  /**
+   * Downloads the first website's favicon. The automatic try on leaving the field stays quiet,
+   * since plenty of sites have no icon; pressing the button asks for an answer either way.
+   */
+  async function fetchIcon(silent: boolean): Promise<void> {
+    const url = draft.urls[0]?.trim() ?? '';
+    if (!url || fetchingIcon) return;
+    iconTriedFor.current = url;
+    setFetchingIcon(true);
+    try {
+      const icon = await window.agentmat.vault.fetchIcon(url);
+      if (!icon) {
+        if (!silent) toast.error("Couldn't find an icon on that site.");
+        return;
+      }
+      setDraft((current) => ({ ...current, icon }));
+    } catch (err) {
+      if (!silent) toast.error(vaultErrorMessage(err));
+    } finally {
+      setFetchingIcon(false);
+    }
+  }
+
+  function handleWebsiteBlur(): void {
+    const url = draft.urls[0]?.trim() ?? '';
+    if (draft.icon || !url || iconTriedFor.current === url) return;
+    void fetchIcon(true);
+  }
+
+  const iconControls = {
+    hasIcon: draft.icon !== null,
+    fetching: fetchingIcon,
+    onFetch: () => void fetchIcon(false),
+    onRemove: () => set('icon', null),
+    onFirstBlur: handleWebsiteBlur,
+  };
 
   function updateField(key: string, patch: Partial<DraftField>): void {
     set(
@@ -342,15 +393,25 @@ export function VaultEntryDialog({
 
             <div className="space-y-1.5">
               <Label htmlFor={ids.title}>Title</Label>
-              <Input
-                id={ids.title}
-                value={draft.title}
-                onChange={(e) => set('title', e.target.value)}
-                placeholder={
-                  draft.type === 'apiKey' ? 'e.g. Stripe production' : 'e.g. GitHub, bank, router'
-                }
-                autoFocus
-              />
+              <div className="flex items-center gap-2">
+                <EntryAvatar
+                  entry={{
+                    title: draft.title || '?',
+                    host: '',
+                    type: draft.type,
+                    icon: draft.icon ?? undefined,
+                  }}
+                />
+                <Input
+                  id={ids.title}
+                  value={draft.title}
+                  onChange={(e) => set('title', e.target.value)}
+                  placeholder={
+                    draft.type === 'apiKey' ? 'e.g. Stripe production' : 'e.g. GitHub, bank, router'
+                  }
+                  autoFocus
+                />
+              </div>
             </div>
 
             {draft.type === 'login' && (
@@ -381,6 +442,7 @@ export function VaultEntryDialog({
                   firstId={ids.website}
                   urls={draft.urls}
                   onChange={(urls) => set('urls', urls)}
+                  icon={iconControls}
                 />
                 {showTotp || draft.totpSecret ? (
                   <div className="space-y-1.5">
@@ -441,6 +503,7 @@ export function VaultEntryDialog({
                     firstId={ids.website}
                     urls={draft.urls}
                     onChange={(urls) => set('urls', urls)}
+                    icon={iconControls}
                     single
                   />
                   <div className="space-y-1.5">
@@ -597,18 +660,30 @@ export function VaultEntryDialog({
   );
 }
 
+interface IconControls {
+  hasIcon: boolean;
+  fetching: boolean;
+  onFetch: () => void;
+  onRemove: () => void;
+  onFirstBlur: () => void;
+}
+
 function UrlFields({
   firstId,
   urls,
   onChange,
+  icon,
   single = false,
 }: {
   firstId: string;
   urls: string[];
   onChange: (urls: string[]) => void;
+  icon: IconControls;
   single?: boolean;
 }): React.JSX.Element {
   const shown = single ? urls.slice(0, 1) : urls;
+  const linkClass =
+    'inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline disabled:pointer-events-none disabled:opacity-50';
   return (
     <div className="space-y-1.5">
       <Label htmlFor={firstId}>Website</Label>
@@ -621,6 +696,7 @@ function UrlFields({
             placeholder="example.com/login"
             spellCheck={false}
             onChange={(e) => onChange(urls.map((u, i) => (i === index ? e.target.value : u)))}
+            onBlur={index === 0 ? icon.onFirstBlur : undefined}
           />
           {index > 0 && (
             <SimpleTooltip label="Remove website">
@@ -638,15 +714,28 @@ function UrlFields({
           )}
         </div>
       ))}
-      {!single && (
-        <button
-          type="button"
-          className="text-xs font-medium text-primary hover:underline"
-          onClick={() => onChange([...urls, ''])}
-        >
-          Add another website
-        </button>
-      )}
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+        {!single && (
+          <button type="button" className={linkClass} onClick={() => onChange([...urls, ''])}>
+            Add another website
+          </button>
+        )}
+        {icon.hasIcon ? (
+          <button type="button" className={linkClass} onClick={icon.onRemove}>
+            Remove site icon
+          </button>
+        ) : (
+          <button
+            type="button"
+            className={linkClass}
+            disabled={!urls[0]?.trim() || icon.fetching}
+            onClick={icon.onFetch}
+          >
+            {icon.fetching && <Spinner className="h-3 w-3 animate-spin" />}
+            Use site icon
+          </button>
+        )}
+      </div>
     </div>
   );
 }

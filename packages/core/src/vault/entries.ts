@@ -17,6 +17,8 @@ export const VAULT_LIMITS = {
   fieldLabel: 100,
   secret: 64 * 1024,
   notes: 64 * 1024,
+  /** A 64px site icon as a data URL. Small on purpose: it lives inside the encrypted payload. */
+  icon: 48 * 1024,
 } as const;
 
 const id = z.string().min(1).max(VAULT_LIMITS.id);
@@ -24,6 +26,10 @@ const timestamp = z.number().int().nonnegative();
 const shortText = z.string().max(VAULT_LIMITS.shortText);
 const secret = z.string().max(VAULT_LIMITS.secret);
 const urls = z.array(z.string().min(1).max(VAULT_LIMITS.url)).max(VAULT_LIMITS.urls);
+const icon = z
+  .string()
+  .max(VAULT_LIMITS.icon)
+  .regex(/^data:image\/[a-z0-9.+-]+[;,]/i);
 
 const baseShape = {
   id,
@@ -34,6 +40,8 @@ const baseShape = {
   createdAt: timestamp,
   updatedAt: timestamp,
   lastUsedAt: timestamp.nullable(),
+  /** The site's favicon, fetched once from the editor and kept here so listing never goes online. */
+  icon: icon.optional(),
 };
 
 export const VaultCustomFieldSchema = z.object({
@@ -92,6 +100,8 @@ const saveBaseShape = {
   tags: z.array(z.string().max(VAULT_LIMITS.tagLength)).max(VAULT_LIMITS.tags * 2),
   favorite: z.boolean(),
   notes: z.string().max(VAULT_LIMITS.notes).optional(),
+  /** Undefined keeps the stored icon, null removes it. */
+  icon: icon.nullable().optional(),
 };
 
 export const SaveVaultEntryInputSchema = z.discriminatedUnion('type', [
@@ -188,6 +198,7 @@ export function applySaveInput(
   if (existing && input.id && input.id !== existing.id) {
     throw new Error('The entry id does not match.');
   }
+  const icon = input.icon === undefined ? existing?.icon : (input.icon ?? undefined);
   const base = {
     id: existing?.id ?? clock.newId(),
     title: input.title.trim(),
@@ -197,6 +208,7 @@ export function applySaveInput(
     createdAt: existing?.createdAt ?? clock.now,
     updatedAt: clock.now,
     lastUsedAt: existing?.lastUsedAt ?? null,
+    ...(icon ? { icon } : {}),
   };
 
   let entry: VaultEntry;

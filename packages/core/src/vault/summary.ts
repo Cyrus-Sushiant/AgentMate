@@ -28,6 +28,8 @@ export interface VaultEntrySummary {
   keyId: string;
   urls: string[];
   host: string;
+  /** Favicon data URL, when one was saved with the entry. */
+  icon?: string;
   hasPassword: boolean;
   hasTotp: boolean;
   hasSecret: boolean;
@@ -53,6 +55,7 @@ export function toEntrySummary(entry: VaultEntry): VaultEntrySummary {
     keyId: entry.type === 'apiKey' ? entry.keyId : '',
     urls,
     host: hostOf(urls[0] ?? ''),
+    ...(entry.icon ? { icon: entry.icon } : {}),
     hasPassword: entry.type === 'login' && entry.password !== '',
     hasTotp: entry.type === 'login' && entry.totpSecret !== '',
     hasSecret: entry.type === 'apiKey' && entry.secret !== '',

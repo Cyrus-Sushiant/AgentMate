@@ -6,6 +6,7 @@ import { IPC } from '../../shared/ipcChannels';
 import { sendToWindow } from '../ipc/send';
 import { registerVaultHandlers } from '../ipc/vault';
 import { getMainWindow } from '../mainWindow';
+import { fetchVaultIcon } from '../projectIcons';
 import type { VaultFileV1 } from './format';
 import type { PowerPort, VaultFilePort } from './ports';
 import { VaultService } from './service';
@@ -88,6 +89,7 @@ export function registerVaultIpc(): void {
   registerVaultHandlers({
     ipc: ipcMain,
     service: getVaultService(),
+    fetchIcon: fetchVaultIcon,
     guard: (event) => {
       const win = getMainWindow();
       return (

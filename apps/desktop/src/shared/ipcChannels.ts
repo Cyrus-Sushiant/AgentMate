@@ -107,6 +107,7 @@ export const IPC = {
     importCommit: 'vault:importCommit',
     importCancel: 'vault:importCancel',
     exportCsv: 'vault:exportCsv',
+    fetchIcon: 'vault:fetchIcon',
     // main -> renderer
     onStateChanged: 'vault:onStateChanged',
     onEntriesChanged: 'vault:onEntriesChanged',

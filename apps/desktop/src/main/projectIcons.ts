@@ -298,6 +298,37 @@ export async function fetchSiteFavicon(rawUrl: string): Promise<FaviconResult | 
   return null;
 }
 
+/** Vault icons live inside the encrypted payload, so they are kept far smaller than project icons. */
+const VAULT_ICON_DIMENSION = 64;
+const VAULT_ICON_MAX_BYTES = 48 * 1024;
+
+/**
+ * The favicon for a vault entry, shrunk to a 64px PNG. Null when the site has no
+ * icon, or only one that can't be decoded and is too big to keep as it is.
+ */
+export async function fetchVaultIcon(rawUrl: string): Promise<string | null> {
+  const favicon = await fetchSiteFavicon(rawUrl);
+  const parsed = favicon ? parseIconDataUrl(favicon.dataUrl) : null;
+  if (!favicon || !parsed) return null;
+  const fits = favicon.dataUrl.length <= VAULT_ICON_MAX_BYTES;
+  if (parsed.mime === 'image/svg+xml') return fits ? favicon.dataUrl : null;
+
+  const image = nativeImage.createFromBuffer(parsed.bytes);
+  if (image.isEmpty()) return fits ? favicon.dataUrl : null;
+  const { width, height } = image.getSize();
+  const scale = Math.min(1, VAULT_ICON_DIMENSION / Math.max(width, height));
+  if (scale === 1 && fits) return favicon.dataUrl;
+  const png = image
+    .resize({
+      width: Math.max(1, Math.round(width * scale)),
+      height: Math.max(1, Math.round(height * scale)),
+      quality: 'best',
+    })
+    .toPNG();
+  const dataUrl = toDataUrl('image/png', png);
+  return dataUrl.length <= VAULT_ICON_MAX_BYTES ? dataUrl : null;
+}
+
 /**
  * Reads a picked image off disk, shrinking it when it is bigger than an icon
  * needs to be, and hands it back in the data URL form the form works with.

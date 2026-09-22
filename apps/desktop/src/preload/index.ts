@@ -1566,6 +1566,9 @@ const vault = {
   duplicate: (id: string): Promise<VaultEntrySummary> =>
     ipcRenderer.invoke(IPC.vault.duplicate, id),
   touch: (): Promise<void> => ipcRenderer.invoke(IPC.vault.touch),
+  /** A site's favicon as a small data URL for an entry; null when it has none. */
+  fetchIcon: (siteUrl: string): Promise<string | null> =>
+    ipcRenderer.invoke(IPC.vault.fetchIcon, siteUrl),
   importOpen: (): Promise<VaultImportPreview | null> => ipcRenderer.invoke(IPC.vault.importOpen),
   importPreview: (token: string, mapping: GenericMapping | null): Promise<VaultImportPreview> =>
     ipcRenderer.invoke(IPC.vault.importPreview, token, mapping),

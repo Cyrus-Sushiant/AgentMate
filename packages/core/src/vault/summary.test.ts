@@ -5,6 +5,16 @@ import { toEntrySummary } from './summary.js';
 const NOW = 1_700_000_000_000;
 
 describe('toEntrySummary', () => {
+  it('passes a saved site icon through so the list can show it', () => {
+    const iconUrl = 'data:image/png;base64,iVBORw0KGgo=';
+    const entry = applySaveInput(
+      undefined,
+      { type: 'note', title: 'Router', tags: [], favorite: false, icon: iconUrl },
+      { now: NOW, newId: () => 'e1' },
+    );
+    expect(toEntrySummary(entry).icon).toBe(iconUrl);
+  });
+
   it('exposes what the list needs and flags for the secrets', () => {
     const entry = applySaveInput(
       undefined,

@@ -30,7 +30,8 @@ type InvokeName =
   | 'importPreview'
   | 'importCommit'
   | 'importCancel'
-  | 'exportCsv';
+  | 'exportCsv'
+  | 'fetchIcon';
 
 export interface VaultApiMock {
   api: Record<InvokeName, Fn> & {
@@ -73,6 +74,7 @@ export function createVaultApiMock(initial: Partial<VaultStatus> = {}): VaultApi
     patch: vi.fn(),
     duplicate: vi.fn(),
     touch: vi.fn(async () => undefined),
+    fetchIcon: vi.fn(async (_siteUrl: string): Promise<string | null> => null),
     importOpen: vi.fn(async () => null),
     importPreview: vi.fn(),
     importCommit: vi.fn(),

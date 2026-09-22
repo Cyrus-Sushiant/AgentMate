@@ -3,15 +3,15 @@ import { cn } from '@/lib/utils';
 import { ENTRY_TYPE_META } from './entryTypes';
 
 /**
- * A letter tile tinted by site (or title), so the same account keeps its color everywhere.
- * Letters rather than favicons: the app never fetches remote images, and a favicon request
- * would tell every site which accounts you keep.
+ * The entry's saved favicon, or a letter tile tinted by site (or title) so the same account
+ * keeps its color everywhere. The favicon is only ever downloaded from the editor and then
+ * stored in the vault, so drawing the list never contacts a site.
  */
 export function EntryAvatar({
   entry,
   size = 'md',
 }: {
-  entry: Pick<VaultEntrySummary, 'title' | 'host' | 'type'>;
+  entry: Pick<VaultEntrySummary, 'title' | 'host' | 'type' | 'icon'>;
   size?: 'sm' | 'md' | 'lg';
 }): React.JSX.Element {
   const hue = avatarHue(entry.host || entry.title.toLowerCase());
@@ -24,14 +24,28 @@ export function EntryAvatar({
         size === 'lg' && 'h-12 w-12 text-lg',
         size === 'md' && 'h-9 w-9 text-sm',
         size === 'sm' && 'h-6 w-6 rounded-md text-[11px]',
+        entry.icon && 'bg-background ring-1 ring-inset ring-border',
       )}
-      style={{
-        backgroundColor: `hsl(${hue} 70% 50% / 0.16)`,
-        color: `hsl(${hue} 65% 42%)`,
-        boxShadow: `inset 0 0 0 1px hsl(${hue} 70% 50% / 0.28)`,
-      }}
+      style={
+        entry.icon
+          ? undefined
+          : {
+              backgroundColor: `hsl(${hue} 70% 50% / 0.16)`,
+              color: `hsl(${hue} 65% 42%)`,
+              boxShadow: `inset 0 0 0 1px hsl(${hue} 70% 50% / 0.28)`,
+            }
+      }
     >
-      {avatarLetter(entry.title)}
+      {entry.icon ? (
+        <img
+          src={entry.icon}
+          alt=""
+          draggable={false}
+          className={cn('object-contain', size === 'sm' ? 'h-4 w-4' : 'h-3/5 w-3/5')}
+        />
+      ) : (
+        avatarLetter(entry.title)
+      )}
       {entry.type !== 'login' && size !== 'sm' && (
         <span
           className={cn(

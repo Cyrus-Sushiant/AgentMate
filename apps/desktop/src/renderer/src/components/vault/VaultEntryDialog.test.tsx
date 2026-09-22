@@ -249,3 +249,46 @@ describe('VaultEntryDialog: editing', () => {
     expect(onOpenChange).not.toHaveBeenCalledWith(false);
   });
 });
+
+describe('VaultEntryDialog: site icon', () => {
+  const ICON = 'data:image/png;base64,iVBORw0KGgo=';
+
+  it('fetches the favicon once when the website field is left and saves it with the entry', async () => {
+    mock.api.fetchIcon.mockResolvedValue(ICON);
+    renderDialog({ mode: 'new' });
+    type('Title', 'GitHub');
+    type('Website', 'github.com');
+    fireEvent.blur(field('Website'));
+    await waitFor(() =>
+      expect(within(dialog()).getByRole('button', { name: 'Remove site icon' })).toBeTruthy(),
+    );
+    fireEvent.blur(field('Website'));
+    expect(mock.api.fetchIcon).toHaveBeenCalledTimes(1);
+    expect(mock.api.fetchIcon).toHaveBeenCalledWith('github.com');
+
+    fireEvent.click(save());
+    await waitFor(() => expect(mock.api.save).toHaveBeenCalled());
+    expect(mock.api.save.mock.calls[0][0]).toMatchObject({ icon: ICON });
+  });
+
+  it('stays quiet when the automatic fetch finds nothing, but says so when asked', async () => {
+    mock.api.fetchIcon.mockResolvedValue(null);
+    renderDialog({ mode: 'new' });
+    type('Website', 'no-icon.example');
+    fireEvent.blur(field('Website'));
+    await waitFor(() => expect(mock.api.fetchIcon).toHaveBeenCalledTimes(1));
+    expect(toast.error).not.toHaveBeenCalled();
+
+    fireEvent.click(within(dialog()).getByRole('button', { name: 'Use site icon' }));
+    await waitFor(() => expect(toast.error).toHaveBeenCalled());
+  });
+
+  it('sends null to drop a stored icon', async () => {
+    mock.api.getForEdit.mockResolvedValue({ ...storedLogin, icon: ICON });
+    renderDialog({ mode: 'edit', id: 'gh' });
+    fireEvent.click(await within(dialog()).findByRole('button', { name: 'Remove site icon' }));
+    fireEvent.click(save());
+    await waitFor(() => expect(mock.api.save).toHaveBeenCalled());
+    expect(mock.api.save.mock.calls[0][0]).toMatchObject({ icon: null });
+  });
+});

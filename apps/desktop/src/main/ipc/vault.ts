@@ -37,6 +37,8 @@ export interface VaultHandlerDeps {
   ipc: VaultIpcRegistry;
   service: VaultService;
   dialogs: VaultDialogs;
+  /** Downloads a site's favicon as a small data URL, or null when there isn't one. */
+  fetchIcon: (siteUrl: string) => Promise<string | null>;
   /** True only for the app's main window. Widgets and the pet share the preload but get nothing. */
   guard: (event: IpcMainInvokeEvent) => boolean;
 }
@@ -94,7 +96,13 @@ function patchChange(value: unknown): { favorite?: boolean; tags?: string[] } {
   return change;
 }
 
-export function registerVaultHandlers({ ipc, service, dialogs, guard }: VaultHandlerDeps): void {
+export function registerVaultHandlers({
+  ipc,
+  service,
+  dialogs,
+  fetchIcon,
+  guard,
+}: VaultHandlerDeps): void {
   const handle = (channel: string, run: (...args: unknown[]) => unknown) => {
     ipc.handle(channel, async (event: IpcMainInvokeEvent, ...args: unknown[]) => {
       if (!guard(event)) {
@@ -142,6 +150,7 @@ export function registerVaultHandlers({ ipc, service, dialogs, guard }: VaultHan
   );
   handle(IPC.vault.duplicate, (id) => service.duplicate(text(id, 'Entry id', VAULT_LIMITS.id)));
   handle(IPC.vault.touch, () => service.touch());
+  handle(IPC.vault.fetchIcon, (url) => fetchIcon(text(url, 'Website', VAULT_LIMITS.url)));
 
   handle(IPC.vault.importOpen, async (): Promise<VaultImportPreview | null> => {
     const path = await dialogs.pickImportFile();

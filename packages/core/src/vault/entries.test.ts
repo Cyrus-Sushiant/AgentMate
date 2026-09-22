@@ -125,6 +125,29 @@ describe('applySaveInput', () => {
     ).toThrow();
   });
 
+  it('stores a site icon, keeps it when the input leaves it out and removes it on null', () => {
+    const iconUrl = 'data:image/png;base64,iVBORw0KGgo=';
+    const created = applySaveInput(undefined, login({ icon: iconUrl }), { now: NOW, newId: ids() });
+    expect(created.icon).toBe(iconUrl);
+
+    const kept = applySaveInput(created, login({ id: created.id }), { now: LATER, newId: ids() });
+    expect(kept.icon).toBe(iconUrl);
+
+    const removed = applySaveInput(kept, login({ id: kept.id, icon: null }), {
+      now: LATER,
+      newId: ids(),
+    });
+    expect(removed).not.toHaveProperty('icon');
+  });
+
+  it('refuses an icon that is not an image data URL or is too large', () => {
+    const save = (icon: string) =>
+      applySaveInput(undefined, login({ icon }), { now: NOW, newId: ids() });
+    expect(() => save('https://github.com/favicon.ico')).toThrow();
+    expect(() => save('data:text/html,<script>')).toThrow();
+    expect(() => save(`data:image/png;base64,${'A'.repeat(VAULT_LIMITS.icon)}`)).toThrow();
+  });
+
   it('keeps stored secrets when the input leaves them undefined', () => {
     const existing = applySaveInput(undefined, login(), { now: NOW, newId: ids() });
     const updated = applySaveInput(

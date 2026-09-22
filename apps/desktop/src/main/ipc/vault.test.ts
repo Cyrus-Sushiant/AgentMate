@@ -80,6 +80,7 @@ beforeEach(async () => {
     ipc,
     service,
     dialogs,
+    fetchIcon: vi.fn(async () => null),
     guard: (event) => event.sender === ipc.mainSender,
   });
 });
