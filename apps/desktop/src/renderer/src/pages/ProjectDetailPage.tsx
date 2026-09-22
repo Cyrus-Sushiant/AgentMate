@@ -171,6 +171,7 @@ export default function ProjectDetailPage(): React.JSX.Element {
   const openSession = useTerminalStore((s) => s.openSession);
   const { requestRun, runPicker } = useProjectRun();
   const [editOpen, setEditOpen] = useState(false);
+  const [editFocusRun, setEditFocusRun] = useState(false);
   const [promptOpen, setPromptOpen] = useState(false);
   const workspaceRef = useRef<HTMLDivElement>(null);
 
@@ -198,6 +199,22 @@ export default function ProjectDetailPage(): React.JSX.Element {
     queryKey: queryKeys.projects,
     queryFn: () => window.agentmat.projects.list(),
   });
+
+  // `?edit=run` (from the Workspace Run button's menu) opens Edit project on the run commands.
+  const editParam = searchParams.get('edit');
+  useEffect(() => {
+    if (editParam !== 'run') return;
+    setEditFocusRun(true);
+    setEditOpen(true);
+    setSearchParams(
+      (prev) => {
+        const params = new URLSearchParams(prev);
+        params.delete('edit');
+        return params;
+      },
+      { replace: true },
+    );
+  }, [editParam, setSearchParams]);
   const project = projectsQuery.data?.find((p) => p.id === projectId);
 
   usePageHeader(project?.name ?? '', project ? AGENT_TYPE_LABELS[project.agentType] : undefined);
@@ -366,6 +383,7 @@ export default function ProjectDetailPage(): React.JSX.Element {
     onSuccess: () => {
       toast.success('Project updated.');
       setEditOpen(false);
+      setEditFocusRun(false);
       void queryClient.invalidateQueries({ queryKey: queryKeys.projects });
     },
   });
@@ -1076,7 +1094,10 @@ export default function ProjectDetailPage(): React.JSX.Element {
                 })
               }
               onRun={handleRun}
-              onSetRun={() => setEditOpen(true)}
+              onSetRun={() => {
+                setEditFocusRun(true);
+                setEditOpen(true);
+              }}
             />
           )}
 
@@ -1096,7 +1117,11 @@ export default function ProjectDetailPage(): React.JSX.Element {
 
       <ProjectFormDialog
         open={editOpen}
-        onOpenChange={setEditOpen}
+        onOpenChange={(open) => {
+          setEditOpen(open);
+          if (!open) setEditFocusRun(false);
+        }}
+        focusRunCommands={editFocusRun}
         initial={project}
         onSubmit={(values) => updateMutation.mutate(values)}
         isSubmitting={updateMutation.isPending}

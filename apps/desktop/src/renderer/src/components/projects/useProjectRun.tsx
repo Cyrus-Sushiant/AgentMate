@@ -7,6 +7,8 @@ import { useTerminalStore } from '@/stores/terminalStore';
 
 export function useProjectRun(): {
   requestRun: (project: Project, options?: { onEmpty?: () => void }) => void;
+  /** Runs one specific command, skipping the picker. */
+  runCommand: (project: Project, command: ProjectRunCommand) => void;
   runPicker: React.JSX.Element;
 } {
   const openSession = useTerminalStore((s) => s.openSession);
@@ -38,6 +40,7 @@ export function useProjectRun(): {
 
   return {
     requestRun,
+    runCommand: execute,
     runPicker: (
       <RunCommandPickerDialog
         project={project}

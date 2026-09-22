@@ -11,8 +11,10 @@ vi.mock('@/lib/terminal/terminalRuntime', () => ({
   terminalRuntime: { dispose: vi.fn(), mount: vi.fn(), unmount: vi.fn(), focus: vi.fn() },
 }));
 
+const run = vi.hoisted(() => ({ runCommand: vi.fn() }));
+
 vi.mock('@/components/projects/useProjectRun', () => ({
-  useProjectRun: () => ({ requestRun: vi.fn(), runPicker: null }),
+  useProjectRun: () => ({ requestRun: vi.fn(), runCommand: run.runCommand, runPicker: null }),
 }));
 
 /**
@@ -70,10 +72,10 @@ beforeEach(() => {
   dialogs.onOpenChange = {};
 });
 
-async function renderHeader() {
+async function renderHeader(projects: Project[] = [project('a'), project('b')]) {
   useWorkspaceStore.getState().openProject('a');
   const view = renderWithProviders(<WorkspaceHeaderActions />, {
-    bridge: { 'projects.list': [project('a'), project('b')] },
+    bridge: { 'projects.list': projects },
   });
   await screen.findByRole('button', { name: 'Tag a version' });
   return view;
@@ -107,5 +109,31 @@ describe('WorkspaceHeaderActions tag a version', () => {
 
     expect(useVersionDialogStore.getState().openProjectId).toBe('b');
     expect(screen.getByRole('dialog', { name: 'Tag a version of b' })).toBeInTheDocument();
+  });
+});
+
+describe('WorkspaceHeaderActions run menu', () => {
+  it('lists the run commands on right-click and runs the one picked', async () => {
+    const dev = { id: 'dev', label: 'Dev', command: 'pnpm dev' };
+    const prod = { id: 'prod', label: '', command: 'pnpm start' };
+    const { user } = await renderHeader([{ ...project('a'), runCommands: [dev, prod] }]);
+
+    await user.pointer({
+      keys: '[MouseRight]',
+      target: screen.getByRole('button', { name: 'Run A: pick a command' }),
+    });
+    expect(await screen.findByRole('menuitem', { name: /Edit run commands/ })).toBeInTheDocument();
+    await user.click(screen.getByRole('menuitem', { name: /pnpm start/ }));
+
+    expect(run.runCommand).toHaveBeenCalledWith(expect.objectContaining({ id: 'a' }), prod);
+  });
+
+  it('offers to add a run command when the project has none', async () => {
+    const { user } = await renderHeader();
+    await user.pointer({
+      keys: '[MouseRight]',
+      target: screen.getByRole('button', { name: 'Set a run command for A' }),
+    });
+    expect(await screen.findByRole('menuitem', { name: /Add a run command/ })).toBeInTheDocument();
   });
 });

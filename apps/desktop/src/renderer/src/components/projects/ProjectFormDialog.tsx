@@ -89,6 +89,8 @@ export interface ProjectFormDialogProps {
   initial?: Project;
   onSubmit: (values: ProjectFormValues) => void;
   isSubmitting?: boolean;
+  /** Opens on the Agent tab with the run commands scrolled into view. */
+  focusRunCommands?: boolean;
 }
 
 function splitTags(raw: string): string[] {
@@ -127,6 +129,7 @@ export function ProjectFormDialog({
   initial,
   onSubmit,
   isSubmitting,
+  focusRunCommands = false,
 }: ProjectFormDialogProps): React.JSX.Element {
   const ids = useId();
   const [tab, setTab] = useState('basics');
@@ -154,11 +157,12 @@ export function ProjectFormDialog({
   const autoFetchedUrl = useRef<string | null>(null);
   // Same idea for the repository lookup: one git call per folder, not one per blur.
   const detectedRepoPath = useRef<string | null>(null);
+  const runCommandsRef = useRef<HTMLDivElement>(null);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: this fills the form when the dialog opens, and detectRepoUrl is rebuilt on every render
   useEffect(() => {
     if (!open) return;
-    setTab('basics');
+    setTab(focusRunCommands ? 'agent' : 'basics');
     setName(initial?.name ?? '');
     setFolderPath(initial?.folderPath ?? '');
     setDescription(initial?.description ?? '');
@@ -183,6 +187,17 @@ export function ProjectFormDialog({
     // An existing project may predate this field, so look its folder up too.
     void detectRepoUrl(initial?.folderPath ?? '', initial?.repoUrl ?? '');
   }, [open, initial]);
+
+  // Wait a frame so the Agent tab has mounted its content before scrolling to it.
+  useEffect(() => {
+    if (!open || !focusRunCommands) return;
+    const frame = requestAnimationFrame(() => {
+      const rows = runCommandsRef.current;
+      rows?.scrollIntoView({ block: 'center' });
+      rows?.querySelector<HTMLInputElement>('input')?.focus({ preventScroll: true });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [open, focusRunCommands]);
 
   /**
    * Fills the repository field from the folder's origin remote. `current` is passed
@@ -677,7 +692,7 @@ export function ProjectFormDialog({
                 label="Run commands"
                 hint="What the Run button executes in the project folder. Add one per environment if you need more than one; Run lists them in this order, so drag the one you reach for most to the top."
               >
-                <div className="space-y-2">
+                <div ref={runCommandsRef} className="space-y-2">
                   <div className="flex gap-2 text-[0.65rem] font-medium uppercase tracking-wide text-muted-foreground">
                     <span className="w-11 shrink-0 px-1">Order</span>
                     <span className="w-[7.5rem] shrink-0 px-1">Environment</span>
