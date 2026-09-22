@@ -68,6 +68,21 @@ function CommitMenuItem({
 
 const MAX_ROWS = 8;
 const LINE_HEIGHT = 20;
+/** Vertical padding (py-2) plus the 1px border on each side. */
+const CHROME_HEIGHT = 16 + 2;
+
+/** Sizes the textarea to its text, between one and MAX_ROWS lines. */
+function fitTextarea(el: HTMLTextAreaElement): void {
+  // A hidden textarea (the panel is on another tab) measures as zero. Leave the height
+  // alone and let the resize observer fit it once it's shown.
+  if (el.offsetParent === null) return;
+  el.style.height = 'auto';
+  const max = MAX_ROWS * LINE_HEIGHT + CHROME_HEIGHT;
+  // scrollHeight leaves out the border, but the height is set on the border box.
+  const needed = el.scrollHeight + (el.offsetHeight - el.clientHeight);
+  el.style.height = `${Math.min(needed, max)}px`;
+  el.style.overflowY = needed > max ? 'auto' : 'hidden';
+}
 
 export interface CommitBoxProps {
   projectId: string;
@@ -101,13 +116,26 @@ export function CommitBox({ projectId, state, actions }: CommitBoxProps): React.
   // without a visible scrollbar squeezing the text.
   // biome-ignore lint/correctness/useExhaustiveDependencies: the height follows the text
   useLayoutEffect(() => {
+    if (textareaRef.current) fitTextarea(textareaRef.current);
+  }, [message]);
+
+  // An AI message can land while the panel is hidden, where the textarea measures as zero
+  // tall, and a narrower panel re-wraps the text. Measure again whenever the width changes
+  // (including going from hidden to shown). Height changes are ignored so fitting doesn't
+  // trigger itself.
+  useLayoutEffect(() => {
     const el = textareaRef.current;
     if (!el) return;
-    el.style.height = 'auto';
-    const max = MAX_ROWS * LINE_HEIGHT + 16;
-    el.style.height = `${Math.min(el.scrollHeight, max)}px`;
-    el.style.overflowY = el.scrollHeight > max ? 'auto' : 'hidden';
-  }, [message]);
+    let lastWidth = -1;
+    const observer = new ResizeObserver(([entry]) => {
+      const width = entry?.contentRect.width ?? 0;
+      if (width === lastWidth) return;
+      lastWidth = width;
+      fitTextarea(el);
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
 
   async function commit(push: boolean): Promise<void> {
     // Pushing without a remote or branch would leave a commit behind and then fail.
@@ -193,7 +221,7 @@ export function CommitBox({ projectId, state, actions }: CommitBoxProps): React.
             event.preventDefault();
             void commit(id === 'commit.commitAndPush');
           }}
-          style={{ lineHeight: `${LINE_HEIGHT}px` }}
+          style={{ lineHeight: `${LINE_HEIGHT}px`, minHeight: LINE_HEIGHT + CHROME_HEIGHT }}
           className={cn(
             'block w-full resize-none overflow-hidden rounded-lg border border-input bg-background/60 py-2 pl-2.5 pr-9 text-[13px] outline-none transition-colors [scrollbar-width:none] placeholder:text-muted-foreground/70 focus:border-primary/50 focus:ring-2 focus:ring-primary/15 disabled:opacity-60 [&::-webkit-scrollbar]:hidden',
             generating && 'shimmer',
