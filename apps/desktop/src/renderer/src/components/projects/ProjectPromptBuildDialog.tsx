@@ -6,13 +6,14 @@ import {
   PROMPT_TYPES,
   TARGET_AIS,
 } from '@agentmat/core';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { CliLogo, cliOptionIcon } from '@/components/cliLogos';
 import { GrammarTextarea } from '@/components/grammar/GrammarTextarea';
 import {
+  CalendarDays,
   Check,
   ChevronDown,
   Copy,
@@ -30,6 +31,10 @@ import {
   WindowRestore,
 } from '@/components/icons';
 import { ProjectIcon } from '@/components/projects/ProjectIcon';
+import {
+  type ComposerValues,
+  PromptComposerDialog,
+} from '@/components/projects/prompts/PromptComposerDialog';
 import {
   RunRecommendationChip,
   useRunRecommendation,
@@ -243,6 +248,35 @@ export function ProjectPromptBuildDialog({
         }
       : null;
   const suggestionCli = suggestion ? getCliDefinition(suggestion.cliId) : undefined;
+
+  const queryClient = useQueryClient();
+  const [scheduling, setScheduling] = useState(false);
+  const scheduleMutation = useMutation({
+    mutationFn: (values: ComposerValues) =>
+      window.agentmat.scheduledTasks.createMany({
+        projectId,
+        tasks: [
+          {
+            rawInput: rawInput.trim() || values.text,
+            promptType,
+            targetAI,
+            content: values.text,
+            runAt: values.runAt,
+            runMode: values.runMode,
+            cliId: values.run.cliId,
+            model: values.run.model,
+            effort: values.run.effort,
+          },
+        ],
+      }),
+    onSuccess: () => {
+      toast.success('Prompt scheduled. Find it under the project’s Prompts section.');
+      void queryClient.invalidateQueries({ queryKey: queryKeys.scheduledTasks(projectId) });
+      setScheduling(false);
+      onOpenChange(false);
+    },
+    onError: () => toast.error('Could not schedule the prompt.'),
+  });
 
   async function openInAgent(launch: {
     cliId: string;
@@ -665,6 +699,16 @@ export function ProjectPromptBuildDialog({
                         ))}
                     </>
                   ) : null}
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onSelect={() => setScheduling(true)}>
+                    <CalendarDays className="h-4 w-4" />
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate">Add scheduled task</span>
+                      <span className="block truncate text-[11px] text-muted-foreground">
+                        Run it later, by hand or at a set time
+                      </span>
+                    </span>
+                  </DropdownMenuItem>
                   {!suggestion && runRecommendation.canAnalyze ? (
                     <>
                       <DropdownMenuSeparator />
@@ -679,6 +723,28 @@ export function ProjectPromptBuildDialog({
           </div>
         </DialogFooter>
       </DialogContent>
+      {scheduling ? (
+        <PromptComposerDialog
+          open
+          title="Add scheduled task"
+          description={`Save this prompt to ${projectName}'s schedule.`}
+          lockKind
+          initial={{
+            kind: 'scheduled',
+            text: generated,
+            run: suggestion
+              ? {
+                  cliId: suggestion.cliId,
+                  model: runRecommendation.choice?.model.modelArg,
+                  effort: runRecommendation.choice?.effort,
+                }
+              : { cliId: defaultCliId ?? undefined },
+          }}
+          pending={scheduleMutation.isPending}
+          onClose={() => setScheduling(false)}
+          onSubmit={(values) => scheduleMutation.mutate(values)}
+        />
+      ) : null}
     </Dialog>
   );
 }
