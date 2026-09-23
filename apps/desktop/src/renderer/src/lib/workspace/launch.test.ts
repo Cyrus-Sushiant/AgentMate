@@ -201,3 +201,72 @@ describe('cliLaunchCommand', () => {
     expect(cliLaunchCommand('claude-code')).toBe('claude --model sonnet');
   });
 });
+
+describe('background task arguments never reach a terminal', () => {
+  // Regression guard: the AI CLI Manager Arguments box is for background tasks only. A
+  // `--model haiku` saved there once started every new workspace tab on Haiku. Every CLI and
+  // every way of opening a terminal is swept, so a new launch path that reads them shows up here.
+  const BACKGROUND_ONLY = '--agentmate-background-only --model background-only-model';
+
+  async function loadWithBackgroundArgs() {
+    const loaded = await load();
+    const { CLI_REGISTRY } = await import('@agentmat/core');
+    loaded.useCliStore.setState({
+      cliArgs: Object.fromEntries(CLI_REGISTRY.map((cli) => [cli.id, BACKGROUND_ONLY])),
+      cliLaunchDefaults: {},
+    });
+    return { ...loaded, CLI_REGISTRY };
+  }
+
+  function expectClean(command: string | null | undefined, where: string): void {
+    expect(command, where).toBeTruthy();
+    expect(command, where).not.toContain('agentmate-background-only');
+    expect(command, where).not.toContain('background-only-model');
+  }
+
+  it('leaves them out of every launch for every CLI', async () => {
+    const { CLI_REGISTRY, launchAgentTab, launchPromptTab, cliLaunchCommand } =
+      await loadWithBackgroundArgs();
+    for (const cli of CLI_REGISTRY) {
+      expectClean(cliLaunchCommand(cli.id), `${cli.id}: cliLaunchCommand`);
+      expectClean(
+        cliLaunchCommand(cli.id, ['--effort', 'high']),
+        `${cli.id}: cliLaunchCommand with run args`,
+      );
+
+      launchAgentTab(project, cli.id);
+      expectClean(typed(), `${cli.id}: launchAgentTab`);
+      launchAgentTab(project, cli.id, undefined, { skipLaunchDefaults: true });
+      expectClean(typed(), `${cli.id}: launchAgentTab without launch defaults`);
+
+      launchPromptTab(project, { cliId: cli.id, prompt: 'hello', runArgs: ['--effort', 'high'] });
+      expectClean(typed(), `${cli.id}: launchPromptTab`);
+    }
+  });
+
+  it('leaves them out of resumed conversations', async () => {
+    const { launchResumeTab, resumeInputFor } = await loadWithBackgroundArgs();
+    for (const provider of ['claude-code', 'codex'] as const) {
+      launchResumeTab(project, { provider, id: 'abc', title: 'x', firstPrompt: '' });
+      expectClean(typed(), `${provider}: launchResumeTab`);
+    }
+    const tab = {
+      kind: 'terminal' as const,
+      id: 't1',
+      title: 'Agent',
+      cwd: 'E:\proj',
+      createdAt: 0,
+      shell: 'powershell.exe',
+      conversationId: 'abc-123',
+    };
+    expectClean(resumeInputFor({ ...tab, cliId: 'claude-code' }), 'claude-code: resumeInputFor');
+    expectClean(resumeInputFor({ ...tab, cliId: 'codex-cli' }), 'codex-cli: resumeInputFor');
+  });
+
+  it('still sends the launch defaults next to them', async () => {
+    const { useCliStore, launchAgentTab } = await loadWithBackgroundArgs();
+    useCliStore.setState({ cliLaunchDefaults: { 'claude-code': { model: 'opus' } } });
+    launchAgentTab(project, 'claude-code');
+    expect(typed()).toBe('claude --model opus\r');
+  });
+});

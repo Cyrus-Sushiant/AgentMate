@@ -38,7 +38,13 @@ export default defineConfig({
         test: {
           name: 'main',
           environment: 'node',
-          include: ['src/main/**/*.test.ts', 'src/shared/**/*.test.ts', 'src/preload/**/*.test.ts'],
+          include: [
+            // Top-level checks that read the whole source tree, like cliSettingsContract.test.ts.
+            'src/*.test.ts',
+            'src/main/**/*.test.ts',
+            'src/shared/**/*.test.ts',
+            'src/preload/**/*.test.ts',
+          ],
           setupFiles: ['src/test/main/setup.ts'],
           // Some of these start real servers, spawn git or open a pty.
           testTimeout: 20_000,

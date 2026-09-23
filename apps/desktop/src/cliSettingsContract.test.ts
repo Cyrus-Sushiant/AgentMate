@@ -80,10 +80,15 @@ describe('AI CLI launches use the user CLI settings', () => {
   });
 
   it('builds terminal launch commands in the renderer only through the core builder', () => {
+    // Terminals never read the background task arguments. A renderer file that does is how a
+    // `--model haiku` saved in AI CLI Manager ended up starting every new tab on Haiku.
+    expect(filesMatching('renderer', /\b(getCliArgsFor|getCliArgvFor)\b/)).toEqual([]);
     // The low-level pieces put together a command that can miss a setting or send a flag twice.
-    expect(
-      filesMatching('renderer', /\b(launchDefaultArgs|getCliArgsFor|getCliArgvFor)\b/),
-    ).toEqual([]);
+    // Scheduled prompts only use it to turn their own model and effort into run args, which then
+    // go through cliLaunchCommand() like every other launch.
+    expect(filesMatching('renderer', /\blaunchDefaultArgs\b/)).toEqual([
+      'renderer/src/lib/runScheduledPrompt.ts',
+    ]);
     expect(filesMatching('renderer', /\bbuildAgentLaunchCommand\b/)).toEqual([
       'renderer/src/lib/openCli.ts',
       'renderer/src/lib/workspace/launch.ts',
