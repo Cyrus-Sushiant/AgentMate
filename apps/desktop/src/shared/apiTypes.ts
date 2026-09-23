@@ -13,11 +13,13 @@ import type {
   GitChangeEntry,
   ImportSkip,
   KeepAwakeMode,
+  MergeMethod,
   ProjectBlueprint,
   ProjectDraft,
   ProjectNotificationSettings,
   ProjectRunCommand,
   ProxyMode,
+  PullRequestInfo,
   RunAssessment,
   ScanPhase,
   ScheduledTask,
@@ -1237,6 +1239,8 @@ export interface CreatePullRequestInput {
   title: string;
   body: string;
   base?: string;
+  /** Open it as a draft, so it can't be merged until it is marked ready. */
+  draft?: boolean;
 }
 
 export interface CreatePullRequestResult {
@@ -1245,6 +1249,87 @@ export interface CreatePullRequestResult {
   error?: string;
   /** True when the GitHub CLI wasn't available and we opened a compare page in the browser instead. */
   usedFallback?: boolean;
+}
+
+/** Everything the workspace Pull request tab needs for the current branch, in one read. */
+export interface PullRequestStatus {
+  cliAvailable: boolean;
+  authenticated: boolean;
+  /** The GitHub repository behind the primary remote, or null when it isn't on GitHub. */
+  github: { owner: string; repo: string } | null;
+  /** Null when HEAD is detached. */
+  branch: string | null;
+  defaultBranch: string | null;
+  onDefaultBranch: boolean;
+  /** Commits a push would send, or all of them when the branch has no upstream yet. */
+  ahead: number;
+  hasUpstream: boolean;
+  /** Uncommitted changes in the working tree. */
+  dirty: boolean;
+  pr: PullRequestInfo | null;
+  error?: string;
+}
+
+export interface PrActionResult {
+  ok: boolean;
+  error?: string;
+}
+
+export interface PrCommentInput {
+  projectId: string;
+  number: number;
+  body: string;
+}
+
+export interface PrThreadReplyInput {
+  projectId: string;
+  threadId: string;
+  body: string;
+}
+
+export interface PrThreadResolveInput {
+  projectId: string;
+  threadId: string;
+  resolved: boolean;
+}
+
+export type MergeStep = 'merge' | 'checkout' | 'pull' | 'delete';
+
+export interface MergeStepResult {
+  step: MergeStep;
+  ok: boolean;
+  message: string;
+}
+
+export interface MergePullRequestIpcInput {
+  projectId: string;
+  number: number;
+  base: string;
+  head: string;
+  method: MergeMethod;
+  cleanup: boolean;
+}
+
+export interface MergePullRequestResult {
+  ok: boolean;
+  /** True once GitHub merged it, even if a cleanup step afterwards failed. */
+  merged: boolean;
+  steps: MergeStepResult[];
+}
+
+export interface CleanupAfterMergeInput {
+  projectId: string;
+  base: string;
+  head: string;
+}
+
+export interface SuggestPullRequestTextResult {
+  ok: boolean;
+  title?: string;
+  body?: string;
+  cliName?: string | null;
+  error?: string;
+  cancelled?: boolean;
 }
 
 export interface GitInitInput {

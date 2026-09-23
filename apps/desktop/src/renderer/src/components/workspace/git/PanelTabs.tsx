@@ -9,6 +9,8 @@ export interface PanelTabDef {
   icon: React.ComponentType<{ className?: string }>;
   /** A small number on the icon (changed files, unpushed commits). */
   count?: number;
+  /** Red when the number is something failing rather than something pending. */
+  countTone?: 'default' | 'destructive';
   /** Buttons for this tab, shown at the end of the strip while it is the open one. */
   actions?: React.ReactNode;
   /**
@@ -55,7 +57,11 @@ function TabButton({
           <span
             className={cn(
               'absolute -right-0.5 -top-0.5 min-w-3.5 rounded-full px-1 text-center text-[9px] font-bold leading-[0.875rem] tabular-nums',
-              active ? 'bg-primary text-primary-foreground' : 'bg-foreground/15 text-foreground/80',
+              tab.countTone === 'destructive'
+                ? 'bg-destructive text-destructive-foreground'
+                : active
+                  ? 'bg-primary text-primary-foreground'
+                  : 'bg-foreground/15 text-foreground/80',
             )}
           >
             {tab.count > 99 ? '99+' : tab.count}

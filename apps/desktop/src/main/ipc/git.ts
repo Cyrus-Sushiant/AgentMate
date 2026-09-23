@@ -783,6 +783,7 @@ function registerGithubHandlers(): void {
         try {
           const args = ['pr', 'create', '--title', input.title, '--body', input.body];
           if (input.base) args.push('--base', input.base);
+          if (input.draft) args.push('--draft');
           const { stdout } = await runGh(args, { cwd, timeout: GH_TIMEOUT_MS });
           const url = stdout.trim().split('\n').pop() ?? '';
           return { ok: true, url };

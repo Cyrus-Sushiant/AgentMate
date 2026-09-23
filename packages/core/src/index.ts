@@ -13,6 +13,7 @@ export * from './cli/registry.js';
 export * from './env/dotenv.js';
 export * from './git/commitMessage.js';
 export * from './git/lineHunks.js';
+export * from './git/pullRequest.js';
 export * from './git/remoteUrl.js';
 export * from './git/statusV2.js';
 export * from './grammar/languagetool.js';

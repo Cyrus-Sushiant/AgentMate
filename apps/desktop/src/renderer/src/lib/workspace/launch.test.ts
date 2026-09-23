@@ -157,6 +157,47 @@ describe('launchResumeTab', () => {
   });
 });
 
+describe('resumeInputFor', () => {
+  const tab = {
+    kind: 'terminal' as const,
+    id: 't1',
+    title: 'Claude Code',
+    cwd: 'E:\\proj',
+    createdAt: 0,
+    shell: 'powershell.exe',
+  };
+
+  it('resumes the conversation the agent reported', async () => {
+    const { resumeInputFor } = await load();
+    expect(resumeInputFor({ ...tab, cliId: 'claude-code', conversationId: 'abc-123' })).toBe(
+      'claude --resume abc-123\r',
+    );
+  });
+
+  it('falls back to the conversation a resumed tab was opened on', async () => {
+    const { resumeInputFor } = await load();
+    expect(
+      resumeInputFor({ ...tab, cliId: 'codex-cli', launchInput: 'codex resume 0199aabbcc\r' }),
+    ).toBe('codex resume 0199aabbcc\r');
+  });
+
+  it('waits for the status hooks so the resumed agent reports its status', async () => {
+    stubAgentmate('C:\\hooks.json');
+    const { prepareStatusHooks, statusHooksReady, resumeInputFor } = await load();
+    prepareStatusHooks(['claude-code']);
+    await statusHooksReady('claude-code');
+    expect(resumeInputFor({ ...tab, cliId: 'claude-code', conversationId: 'abc-123' })).toBe(
+      'claude --settings C:\\hooks.json --resume abc-123\r',
+    );
+  });
+
+  it('has nothing to resume without a conversation, or for a plain shell', async () => {
+    const { resumeInputFor } = await load();
+    expect(resumeInputFor({ ...tab, cliId: 'claude-code', launchInput: 'claude\r' })).toBeNull();
+    expect(resumeInputFor({ ...tab, conversationId: 'abc-123' })).toBeNull();
+  });
+});
+
 describe('cliLaunchCommand', () => {
   it('matches what a workspace tab types, without hooks', async () => {
     const { useCliStore, cliLaunchCommand } = await load();

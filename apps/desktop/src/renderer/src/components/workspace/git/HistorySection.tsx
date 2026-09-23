@@ -9,7 +9,7 @@ import { SimpleTooltip } from '@/components/ui/tooltip';
 import { queryKeys } from '@/lib/queryKeys';
 import { timeAgo } from '@/lib/time';
 import { cn } from '@/lib/utils';
-import { HISTORY_CLI_ID, launchResumeTab } from '@/lib/workspace/launch';
+import { HISTORY_CLI_ID, launchResumeTab, resumedConversationId } from '@/lib/workspace/launch';
 import { modelDisplayName, useAgentStatusStore } from '@/stores/agentStatusStore';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
 
@@ -47,8 +47,9 @@ function useOpenConversations(projectId: string): Map<string, string> {
       if (tab.kind !== 'terminal' || !tab.cliId) continue;
       const id = runInfos[tab.id]?.conversationId;
       if (id) open.set(id, tab.id);
-      const resumed = tab.launchInput?.match(/(?:--resume|resume)\s+'?"?([0-9a-zA-Z-]{8,})/);
-      if (resumed?.[1] && !open.has(resumed[1])) open.set(resumed[1], tab.id);
+      if (tab.conversationId && !open.has(tab.conversationId)) open.set(tab.conversationId, tab.id);
+      const resumed = resumedConversationId(tab.launchInput);
+      if (resumed && !open.has(resumed)) open.set(resumed, tab.id);
     }
     return open;
   }, [tabs, runInfos]);

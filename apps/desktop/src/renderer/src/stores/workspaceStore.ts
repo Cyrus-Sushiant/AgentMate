@@ -9,6 +9,7 @@ import {
   findGroupOfTab,
   firstGroup,
   isSameOrInside,
+  type MergeMethod,
   moveTab,
   normalizeLayout,
   type PaneNode,
@@ -39,6 +40,12 @@ export interface WorkspaceTerminalTab {
    * an app restart, or the program resetting its title, instead of dropping back to the CLI name.
    */
   agentTitle?: string;
+  /**
+   * The agent's own id for the conversation running in this tab (Claude Code reports it through
+   * hooks). Kept on the tab so the conversation can be picked back up after its shell is gone,
+   * for example when Windows restarted or AgentMate was killed.
+   */
+  conversationId?: string;
   cliId?: string;
   shell?: string;
   cwd: string;
@@ -77,24 +84,40 @@ export interface WorkspaceFileTab {
 export type WorkspaceTab = WorkspaceTerminalTab | WorkspaceDiffTab | WorkspaceFileTab;
 
 /** The tabs of the right-hand panel. */
-export type SidePanelSection =
-  | 'changes'
-  | 'commits'
-  | 'branches'
-  | 'explorer'
-  | 'history'
-  | 'pipelines'
-  | 'tests';
+export type SidePanelSection = 'sourceControl' | 'explorer' | 'history' | 'tests';
 
 export const SIDE_PANEL_SECTIONS: SidePanelSection[] = [
-  'changes',
-  'commits',
-  'branches',
+  'sourceControl',
   'explorer',
   'history',
-  'pipelines',
   'tests',
 ];
+
+/** The folding sections inside the Source control tab, top to bottom. */
+export type SourceControlSection = 'changes' | 'branches' | 'commits' | 'pullRequest' | 'pipelines';
+
+export const SOURCE_CONTROL_SECTIONS: SourceControlSection[] = [
+  'changes',
+  'branches',
+  'commits',
+  'pullRequest',
+  'pipelines',
+];
+
+/** Only the changes are open until the user opens something else. */
+const DEFAULT_OPEN_SOURCE_SECTIONS: Record<SourceControlSection, boolean> = {
+  changes: true,
+  branches: false,
+  commits: false,
+  pullRequest: false,
+  pipelines: false,
+};
+
+function isSourceControlSection(value: unknown): value is SourceControlSection {
+  return SOURCE_CONTROL_SECTIONS.includes(value as SourceControlSection);
+}
+
+const MERGE_METHODS: readonly MergeMethod[] = ['squash', 'merge', 'rebase'];
 
 export interface ProjectWorkspace {
   root: PaneNode;
@@ -122,6 +145,10 @@ interface GitPanelPrefs {
   lineStatsExpanded: boolean;
   /** Which panel tab is showing. */
   activeSection: SidePanelSection;
+  /** Which sections of the Source control tab are unfolded. */
+  openSourceSections: Record<SourceControlSection, boolean>;
+  /** The merge method last used per project; squash when a project has none yet. */
+  mergeMethods: Record<string, MergeMethod>;
 }
 
 export type NewTerminalTab = Omit<WorkspaceTerminalTab, 'kind' | 'id' | 'createdAt'>;
@@ -141,8 +168,12 @@ interface WorkspaceState {
   addTerminal: (projectId: string, tab: NewTerminalTab, groupId?: string) => string;
   /** Closes a tab. Terminal tabs end their shell. */
   closeTab: (projectId: string, tabId: string) => void;
-  /** Starts a fresh shell in place of an ended one, same position and launch settings. */
-  restartTab: (projectId: string, tabId: string) => void;
+  /**
+   * Starts a fresh shell in place of an ended one, same position and launch settings.
+   * `resumeInput` replaces the launch command with one that picks the tab's conversation back
+   * up, which also keeps the task name, since it is still the same conversation.
+   */
+  restartTab: (projectId: string, tabId: string, resumeInput?: string) => void;
   activateTab: (projectId: string, tabId: string) => void;
   focusGroup: (projectId: string, groupId: string) => void;
   /** Splits a group and returns the new, empty group's id. */
@@ -159,6 +190,8 @@ interface WorkspaceState {
   renameTab: (projectId: string, tabId: string, title: string) => void;
   /** Remembers the task name an agent set as its window title, so the tab keeps it later. */
   setAgentTitle: (projectId: string, tabId: string, title: string) => void;
+  /** Remembers which agent conversation a tab is running, so it can be resumed later. */
+  setConversationId: (projectId: string, tabId: string, conversationId: string) => void;
   setAutoContinue: (projectId: string, tabId: string, options: AutoContinueOptions) => void;
   toggleZoom: (projectId: string, groupId: string) => void;
   /**
@@ -177,6 +210,46 @@ interface WorkspaceState {
   /** Closes the file tabs showing a deleted path or anything inside a deleted folder. */
   closeFileTabsUnder: (projectId: string, paths: string[]) => void;
   setGitPanel: (patch: Partial<GitPanelPrefs>) => void;
+  /** Folds or unfolds one section of the Source control tab. */
+  setSourceSectionOpen: (section: SourceControlSection, open: boolean) => void;
+  /**
+   * Brings a panel tab into view. A Source control section also switches to that tab and
+   * unfolds the section.
+   */
+  revealPanelSection: (section: SidePanelSection | SourceControlSection) => void;
+  setMergeMethod: (projectId: string, method: MergeMethod) => void;
+}
+
+/**
+ * The saved panel tab and folded sections. Older builds had a tab each for changes, commits,
+ * branches, pipelines and the pull request; one of those comes back as Source control with
+ * that section unfolded.
+ */
+function restorePanelSections(
+  saved: Partial<GitPanelPrefs> | undefined,
+): Pick<GitPanelPrefs, 'activeSection' | 'openSourceSections'> {
+  const savedOpen: Record<string, unknown> = { ...(saved?.openSourceSections ?? {}) };
+  const openSourceSections = Object.fromEntries(
+    SOURCE_CONTROL_SECTIONS.map((section) => [
+      section,
+      typeof savedOpen[section] === 'boolean'
+        ? savedOpen[section]
+        : DEFAULT_OPEN_SOURCE_SECTIONS[section],
+    ]),
+  ) as Record<SourceControlSection, boolean>;
+  const active: unknown = saved?.activeSection;
+  if (isSourceControlSection(active)) {
+    return {
+      activeSection: 'sourceControl',
+      openSourceSections: { ...openSourceSections, [active]: true },
+    };
+  }
+  return {
+    activeSection: SIDE_PANEL_SECTIONS.includes(active as SidePanelSection)
+      ? (active as SidePanelSection)
+      : 'sourceControl',
+    openSourceSections,
+  };
 }
 
 function newId(prefix: string): string {
@@ -267,7 +340,9 @@ export const useWorkspaceStore = create<WorkspaceState>()(
           diffIgnoreWhitespace: false,
           showLineStats: true,
           lineStatsExpanded: false,
-          activeSection: 'changes',
+          activeSection: 'sourceControl',
+          openSourceSections: DEFAULT_OPEN_SOURCE_SECTIONS,
+          mergeMethods: {},
         },
 
         openProject: (projectId) =>
@@ -332,7 +407,7 @@ export const useWorkspaceStore = create<WorkspaceState>()(
           });
         },
 
-        restartTab: (projectId, tabId) => {
+        restartTab: (projectId, tabId, resumeInput) => {
           const old = get().workspaces[projectId]?.tabs[tabId];
           if (old?.kind !== 'terminal') return;
           endTab(old);
@@ -344,7 +419,10 @@ export const useWorkspaceStore = create<WorkspaceState>()(
               id,
               createdAt: Date.now(),
               // A restart means a new session, so the old task name should not stick around.
-              agentTitle: undefined,
+              // A resume carries on the same conversation, so its name and id stay.
+              ...(resumeInput
+                ? { launchInput: resumeInput }
+                : { agentTitle: undefined, conversationId: undefined }),
               restored: false,
             };
             return {
@@ -420,6 +498,13 @@ export const useWorkspaceStore = create<WorkspaceState>()(
             const agentTitle = title.trim();
             if (tab?.kind !== 'terminal' || !agentTitle || tab.agentTitle === agentTitle) return ws;
             return { ...ws, tabs: { ...ws.tabs, [tabId]: { ...tab, agentTitle } } };
+          }),
+
+        setConversationId: (projectId, tabId, conversationId) =>
+          update(projectId, (ws) => {
+            const tab = ws.tabs[tabId];
+            if (tab?.kind !== 'terminal' || tab.conversationId === conversationId) return ws;
+            return { ...ws, tabs: { ...ws.tabs, [tabId]: { ...tab, conversationId } } };
           }),
 
         setAutoContinue: (projectId, tabId, options) =>
@@ -499,6 +584,33 @@ export const useWorkspaceStore = create<WorkspaceState>()(
           }),
 
         setGitPanel: (patch) => set((state) => ({ gitPanel: { ...state.gitPanel, ...patch } })),
+        setSourceSectionOpen: (section, open) =>
+          set((state) => ({
+            gitPanel: {
+              ...state.gitPanel,
+              openSourceSections: { ...state.gitPanel.openSourceSections, [section]: open },
+            },
+          })),
+        revealPanelSection: (section) =>
+          set((state) =>
+            isSourceControlSection(section)
+              ? {
+                  gitPanel: {
+                    ...state.gitPanel,
+                    collapsed: false,
+                    activeSection: 'sourceControl',
+                    openSourceSections: { ...state.gitPanel.openSourceSections, [section]: true },
+                  },
+                }
+              : { gitPanel: { ...state.gitPanel, collapsed: false, activeSection: section } },
+          ),
+        setMergeMethod: (projectId, method) =>
+          set((state) => ({
+            gitPanel: {
+              ...state.gitPanel,
+              mergeMethods: { ...state.gitPanel.mergeMethods, [projectId]: method },
+            },
+          })),
       };
     },
     {
@@ -555,10 +667,12 @@ export const useWorkspaceStore = create<WorkspaceState>()(
           gitPanel: {
             ...current.gitPanel,
             ...(saved.gitPanel ?? {}),
-            // A tab id saved by an older build may no longer exist.
-            activeSection: SIDE_PANEL_SECTIONS.includes(saved.gitPanel?.activeSection as never)
-              ? (saved.gitPanel?.activeSection as SidePanelSection)
-              : 'changes',
+            ...restorePanelSections(saved.gitPanel),
+            mergeMethods: Object.fromEntries(
+              Object.entries(saved.gitPanel?.mergeMethods ?? {}).filter(([, method]) =>
+                MERGE_METHODS.includes(method as MergeMethod),
+              ),
+            ) as Record<string, MergeMethod>,
           },
         };
       },

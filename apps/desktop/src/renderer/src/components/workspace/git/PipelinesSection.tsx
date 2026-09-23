@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
-import { Copy, Github, Spinner, Wand2 } from '@/components/icons';
+import { Copy, Spinner, Wand2 } from '@/components/icons';
 import { RunStatusIcon, runTone } from '@/components/pipelines/runStatus';
 import { Skeleton } from '@/components/ui/skeleton';
 import { SimpleTooltip } from '@/components/ui/tooltip';
@@ -13,6 +13,7 @@ import { timeAgo } from '@/lib/time';
 import { cn } from '@/lib/utils';
 import { useTerminalStore } from '@/stores/terminalStore';
 import { FixRunDialog } from './FixRunDialog';
+import { PanelNotice } from './PanelNotice';
 
 const RANK: Record<string, number> = {
   failed: 0,
@@ -52,22 +53,7 @@ export function PipelinesSection({ project }: { project: Project }): React.JSX.E
     title: string,
     body: React.ReactNode,
     action?: { label: string; run: () => void },
-  ) => (
-    <div className="flex flex-col items-center gap-1.5 px-5 py-5 text-center">
-      <Github className="h-4 w-4 text-muted-foreground" />
-      <p className="text-xs font-medium">{title}</p>
-      <p className="text-[11px] leading-relaxed text-muted-foreground">{body}</p>
-      {action ? (
-        <button
-          type="button"
-          onClick={action.run}
-          className="mt-1 text-[11px] font-medium text-primary hover:underline"
-        >
-          {action.label}
-        </button>
-      ) : null}
-    </div>
-  );
+  ) => <PanelNotice title={title} body={body} action={action} />;
 
   if (!data || data.error) {
     return notice(
@@ -188,13 +174,15 @@ export function PipelinesSection({ project }: { project: Project }): React.JSX.E
   );
 }
 
-/** Copy the failure, or hand it to an agent to fix. */
-function FailedRunActions({
+/** Copy the failure, or hand it to an agent to fix. Also used by the Pull request tab's checks. */
+export function FailedRunActions({
   project,
   run,
+  className,
 }: {
   project: Project;
   run: GithubActionsRunErrorInput;
+  className?: string;
 }): React.JSX.Element {
   const [fixing, setFixing] = useState(false);
   const [copying, setCopying] = useState(false);
@@ -215,7 +203,7 @@ function FailedRunActions({
   }
 
   return (
-    <div className="flex items-center gap-1 pb-1.5 pl-[2.625rem] pr-2">
+    <div className={cn('flex items-center gap-1 pb-1.5 pl-[2.625rem] pr-2', className)}>
       <button
         type="button"
         onClick={() => setFixing(true)}

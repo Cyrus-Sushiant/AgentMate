@@ -97,6 +97,7 @@ import type {
   BlueprintAttachmentResult,
   BlueprintSectionPatch,
   BootstrapResult,
+  CleanupAfterMergeInput,
   ConfirmationForwardedPayload,
   ConnectRemoteInput,
   CreateGithubRepoInput,
@@ -159,6 +160,8 @@ import type {
   KillProcessResult,
   LastRunInfoByCli,
   LocalSkillFolderPreview,
+  MergePullRequestIpcInput,
+  MergePullRequestResult,
   NotificationSendResult,
   OllamaConnectionTest,
   OpenSessionSummary,
@@ -166,11 +169,16 @@ import type {
   PackageUpdateProgress,
   PackageUpdateRequest,
   PackageUpdateResult,
+  PrActionResult,
+  PrCommentInput,
   ProjectEnvironment,
   ProjectPipelineStatus,
   PromptHistoryEntry,
   ProxyStatus,
   ProxyTestResult,
+  PrThreadReplyInput,
+  PrThreadResolveInput,
+  PullRequestStatus,
   RdpCertificatePrompt,
   RdpClipboardFiles,
   RdpConnectTicket,
@@ -215,6 +223,7 @@ import type {
   StartHostInput,
   StartSshAgentTaskInput,
   SuggestGitTextResult,
+  SuggestPullRequestTextResult,
   SuggestTagResult,
   SwapVersionFileInput,
   SystemStatsSample,
@@ -1227,6 +1236,38 @@ const pipelines = {
     ipcRenderer.invoke(IPC.pipelines.cancelRun, input),
 };
 
+const pullRequests = {
+  /** The current branch, its PR (with checks and review threads) and what the tab needs to decide. */
+  status: (projectId: string): Promise<PullRequestStatus> =>
+    ipcRenderer.invoke(IPC.pullRequests.status, projectId),
+  /** Asks the project's CLI for a PR title and description from the branch's commits. */
+  suggestText: (
+    projectId: string,
+    requestId: string,
+    base: string,
+  ): Promise<SuggestPullRequestTextResult> =>
+    ipcRenderer.invoke(IPC.pullRequests.suggestText, projectId, requestId, base),
+  comment: (input: PrCommentInput): Promise<PrActionResult> =>
+    ipcRenderer.invoke(IPC.pullRequests.comment, input),
+  replyThread: (input: PrThreadReplyInput): Promise<PrActionResult> =>
+    ipcRenderer.invoke(IPC.pullRequests.replyThread, input),
+  resolveThread: (input: PrThreadResolveInput): Promise<PrActionResult> =>
+    ipcRenderer.invoke(IPC.pullRequests.resolveThread, input),
+  markReady: (projectId: string, number: number): Promise<PrActionResult> =>
+    ipcRenderer.invoke(IPC.pullRequests.markReady, projectId, number),
+  /** Merges on GitHub, then optionally switches to the base, pulls and deletes the branch. */
+  merge: (input: MergePullRequestIpcInput): Promise<MergePullRequestResult> =>
+    ipcRenderer.invoke(IPC.pullRequests.merge, input),
+  /** The post-merge cleanup on its own, to retry a failed step or clean up later. */
+  cleanup: (input: CleanupAfterMergeInput): Promise<MergePullRequestResult> =>
+    ipcRenderer.invoke(IPC.pullRequests.cleanup, input),
+  /** A read-only AI review of the PR diff, returned for the user to edit before posting. */
+  localReview: (projectId: string, requestId: string): Promise<SuggestGitTextResult> =>
+    ipcRenderer.invoke(IPC.pullRequests.localReview, projectId, requestId),
+  cancelAi: (requestId: string): Promise<boolean> =>
+    ipcRenderer.invoke(IPC.pullRequests.cancelAi, requestId),
+};
+
 const tests = {
   /** Reads the project's files for test frameworks and the tests they declare. */
   discover: (projectId: string): Promise<TestDiscovery> =>
@@ -1668,6 +1709,7 @@ const agentmatApi = {
   notifications,
   git,
   pipelines,
+  pullRequests,
   tests,
   appNotifications,
   packages,

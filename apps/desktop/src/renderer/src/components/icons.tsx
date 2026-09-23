@@ -39,6 +39,7 @@ import {
   faCodeBranch,
   faCodeCommit,
   faCodeCompare,
+  faCodeMerge,
   faCodePullRequest,
   faComments,
   faCompress,
@@ -319,6 +320,7 @@ Docker.displayName = 'Docker';
 export const GitBranch = makeIcon(faCodeBranch);
 export const GitCommit = makeIcon(faCodeCommit);
 export const GitPullRequest = makeIcon(faCodePullRequest);
+export const GitMerge = makeIcon(faCodeMerge);
 export const CloudUpload = makeIcon(faCloudArrowUp);
 export const Medal = makeIcon(faMedal);
 

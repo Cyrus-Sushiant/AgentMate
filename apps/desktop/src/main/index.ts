@@ -36,6 +36,7 @@ import { registerProjectHandlers } from './ipc/projects';
 import { registerPromptBuildWidgetHandlers } from './ipc/promptBuildWidget';
 import { registerPromptHistoryHandlers } from './ipc/promptHistory';
 import { registerProxyHandlers } from './ipc/proxy';
+import { registerPullRequestHandlers } from './ipc/pullRequests';
 import { closeAllRdpSessions, registerRdpHandlers } from './ipc/rdp';
 import { registerRemoteHandlers } from './ipc/remote';
 import { registerScheduledTaskHandlers } from './ipc/scheduledTasks';
@@ -300,6 +301,7 @@ function registerAllIpcHandlers(): void {
   registerPromptBuildWidgetHandlers();
   registerPetHandlers();
   registerPipelineHandlers();
+  registerPullRequestHandlers();
   registerTestHandlers();
   registerVaultIpc();
   registerAppNotificationHandlers();

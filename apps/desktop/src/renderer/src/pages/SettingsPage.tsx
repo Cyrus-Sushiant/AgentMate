@@ -21,6 +21,7 @@ import {
   Download,
   FolderOpen,
   GitCommit,
+  GitPullRequest,
   HardDrive,
   Keyboard,
   Languages,
@@ -53,6 +54,7 @@ import { CliLaunchDefaultsSettings } from '@/components/settings/CliLaunchDefaul
 import { CliOrderSettings } from '@/components/settings/CliOrderSettings';
 import { CommitMessageSettingsForm } from '@/components/settings/CommitMessageSettingsCard';
 import { ProxySettings } from '@/components/settings/ProxySettings';
+import { ReviewCommandsSettings } from '@/components/settings/ReviewCommandsSettings';
 import { ShortcutSettings } from '@/components/settings/ShortcutSettings';
 import { WritingCheckSettings } from '@/components/settings/WritingCheckSettings';
 import { formatUpdateBytes, UpdateProgressTrack, updatePercent } from '@/components/UpdateManager';
@@ -1267,6 +1269,20 @@ export default function SettingsPage(): React.JSX.Element {
                   description="How the sparkle button in the Workspace changes panel writes a commit message for you."
                 >
                   <CommitMessageSettingsForm />
+                </SettingsCard>
+              )}
+
+              {showSection(
+                'agents',
+                'pull request review command bot claude gemini coderabbit codex comment github workspace',
+                'Review commands',
+              ) && (
+                <SettingsCard
+                  icon={GitPullRequest}
+                  title="Review commands"
+                  description="The comments offered in the workspace Pull request tab to ask a review bot to look at the pull request."
+                >
+                  <ReviewCommandsSettings />
                 </SettingsCard>
               )}
 

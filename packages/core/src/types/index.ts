@@ -343,6 +343,8 @@ export interface AppSettings {
   cliOrder: string[];
   /** Which CLI writes AI commit messages and the rules it follows. */
   commitMessage: CommitMessageSettings;
+  /** PR comments offered as one-click review requests in the workspace Pull request tab. */
+  reviewCommands: string[];
   theme: ThemeMode;
   /** Folder that holds the user's projects; folder pickers open here instead of the OS default. */
   projectsRootPath: string | null;

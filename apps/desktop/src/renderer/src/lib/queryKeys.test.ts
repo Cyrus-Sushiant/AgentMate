@@ -14,6 +14,7 @@ describe('queryKeys', () => {
     expect(queryKeys.workspaceFile('E:\\a\\b.ts')).toEqual(['workspace-file', 'E:\\a\\b.ts']);
     expect(queryKeys.project('p1')).toEqual(['projects', 'p1']);
     expect(queryKeys.gitStatus('p1')).toEqual(['git-status', 'p1']);
+    expect(queryKeys.pullRequest('p1')).toEqual(['pull-request', 'p1']);
   });
 
   it('hangs an image under the file and the diff it belongs to', () => {

@@ -49,7 +49,15 @@ beforeEach(() => {
       diffIgnoreWhitespace: false,
       showLineStats: true,
       lineStatsExpanded: false,
-      activeSection: 'changes',
+      activeSection: 'sourceControl',
+      openSourceSections: {
+        changes: true,
+        branches: false,
+        commits: false,
+        pullRequest: false,
+        pipelines: false,
+      },
+      mergeMethods: {},
     },
   });
 });
@@ -62,8 +70,18 @@ describe('the initial state', () => {
     expect(store().gitPanel).toMatchObject({
       width: GIT_PANEL_DEFAULT_WIDTH,
       collapsed: false,
-      activeSection: 'changes',
+      activeSection: 'sourceControl',
     });
+  });
+});
+
+describe('setMergeMethod', () => {
+  it('squashes by default and remembers a change per project', () => {
+    expect(store().gitPanel.mergeMethods).toEqual({});
+    store().setMergeMethod('p1', 'rebase');
+    expect(store().gitPanel.mergeMethods).toEqual({ p1: 'rebase' });
+    store().setMergeMethod('p2', 'merge');
+    expect(store().gitPanel.mergeMethods).toEqual({ p1: 'rebase', p2: 'merge' });
   });
 });
 
@@ -232,6 +250,44 @@ describe('restartTab', () => {
     // A restart is the one time the launch command is typed again, so it is no longer restored.
     expect(fresh.kind === 'terminal' && fresh.restored).toBe(false);
     expect(bridge.$fn('terminal.kill')).toHaveBeenCalledWith(tabId);
+  });
+
+  it('forgets the conversation on a plain restart, since that starts a new one', () => {
+    store().openProject('p1');
+    const tabId = store().addTerminal('p1', {
+      title: 'Claude Code',
+      cliId: 'claude-code',
+      cwd: 'E:\\proj',
+      launchInput: 'claude\r',
+    });
+    store().setConversationId('p1', tabId, 'abc-123');
+    store().setAgentTitle('p1', tabId, 'Fix the login bug');
+    store().restartTab('p1', tabId);
+    const fresh = Object.values(workspace().tabs)[0];
+    expect(fresh).toMatchObject({ launchInput: 'claude\r' });
+    expect(fresh?.kind === 'terminal' && fresh.conversationId).toBeUndefined();
+    expect(fresh?.kind === 'terminal' && fresh.agentTitle).toBeUndefined();
+  });
+
+  it('resumes the same conversation, keeping its name and id', () => {
+    store().openProject('p1');
+    const tabId = store().addTerminal('p1', {
+      title: 'Claude Code',
+      cliId: 'claude-code',
+      cwd: 'E:\\proj',
+      launchInput: 'claude\r',
+      restored: true,
+    });
+    store().setConversationId('p1', tabId, 'abc-123');
+    store().setAgentTitle('p1', tabId, 'Fix the login bug');
+    store().restartTab('p1', tabId, 'claude --resume abc-123\r');
+    const fresh = Object.values(workspace().tabs)[0];
+    expect(fresh).toMatchObject({
+      launchInput: 'claude --resume abc-123\r',
+      conversationId: 'abc-123',
+      agentTitle: 'Fix the login bug',
+      restored: false,
+    });
   });
 
   it('does nothing for a tab that is not a terminal', () => {
@@ -648,7 +704,7 @@ describe('coming back from a saved layout', () => {
     seed({
       railProjectIds: ['p1'],
       activeProjectId: 'p1',
-      gitPanel: { width: 420, collapsed: true, activeSection: 'commits' },
+      gitPanel: { width: 420, collapsed: true, activeSection: 'explorer' },
       workspaces: {
         p1: savedWorkspace([{ kind: 'terminal', id: 't1', title: 'PowerShell', cwd: 'E:\\proj' }]),
       },
@@ -659,7 +715,7 @@ describe('coming back from a saved layout', () => {
     expect(store().gitPanel).toMatchObject({
       width: 420,
       collapsed: true,
-      activeSection: 'commits',
+      activeSection: 'explorer',
     });
     expect(allTabIds(workspace().root)).toEqual(['t1']);
   });
@@ -721,10 +777,47 @@ describe('coming back from a saved layout', () => {
     expect(store().activeProjectId).toBeNull();
   });
 
-  it('falls back to the changes tab for a panel section an older build wrote', async () => {
+  it('falls back to Source control for a panel tab it does not know', async () => {
     seed({ railProjectIds: [], gitPanel: { activeSection: 'something-else' }, workspaces: {} });
     await rehydrate();
-    expect(store().gitPanel.activeSection).toBe('changes');
+    expect(store().gitPanel.activeSection).toBe('sourceControl');
+  });
+
+  it('turns an old Pull request tab into Source control with that section open', async () => {
+    seed({ railProjectIds: [], gitPanel: { activeSection: 'pullRequest' }, workspaces: {} });
+    await rehydrate();
+    expect(store().gitPanel.activeSection).toBe('sourceControl');
+    expect(store().gitPanel.openSourceSections).toMatchObject({
+      changes: true,
+      pullRequest: true,
+      commits: false,
+    });
+  });
+
+  it('keeps the folded sections and drops what it does not know', async () => {
+    seed({
+      railProjectIds: [],
+      gitPanel: { openSourceSections: { changes: false, commits: true, pipelines: 'yes', x: 1 } },
+      workspaces: {},
+    });
+    await rehydrate();
+    expect(store().gitPanel.openSourceSections).toEqual({
+      changes: false,
+      branches: false,
+      commits: true,
+      pullRequest: false,
+      pipelines: false,
+    });
+  });
+
+  it('keeps each project’s merge method and drops one it does not know', async () => {
+    seed({
+      railProjectIds: [],
+      gitPanel: { mergeMethods: { p1: 'rebase', p2: 'octopus', p3: 7 } },
+      workspaces: {},
+    });
+    await rehydrate();
+    expect(store().gitPanel.mergeMethods).toEqual({ p1: 'rebase' });
   });
 
   it('survives a saved layout with nothing usable in it', async () => {
@@ -761,6 +854,25 @@ describe('setGitPanel', () => {
     expect(store().gitPanel).toMatchObject({ collapsed: true, width: GIT_PANEL_DEFAULT_WIDTH });
     store().setGitPanel({ activeSection: 'tests' });
     expect(store().gitPanel).toMatchObject({ collapsed: true, activeSection: 'tests' });
+  });
+
+  it('reveals a Source control section by switching tab and unfolding it', () => {
+    store().setGitPanel({ collapsed: true, activeSection: 'tests' });
+    store().revealPanelSection('branches');
+    expect(store().gitPanel).toMatchObject({ collapsed: false, activeSection: 'sourceControl' });
+    expect(store().gitPanel.openSourceSections.branches).toBe(true);
+    store().revealPanelSection('explorer');
+    expect(store().gitPanel.activeSection).toBe('explorer');
+  });
+
+  it('folds one Source control section without touching the rest', () => {
+    store().setSourceSectionOpen('changes', false);
+    store().setSourceSectionOpen('pipelines', true);
+    expect(store().gitPanel.openSourceSections).toMatchObject({
+      changes: false,
+      pipelines: true,
+      branches: false,
+    });
   });
 
   it('remembers which sections were folded away', () => {

@@ -79,6 +79,22 @@ function sessionEntries(): AgentSessionEntry[] {
   return entries;
 }
 
+/**
+ * Copies the conversation ids agents report onto their tabs. Main only holds them for as long
+ * as it runs, and a tab needs its id after a crash or reboot to pick the conversation back up.
+ */
+function rememberConversations(runInfos: AgentRunInfoMap): void {
+  const store = useWorkspaceStore.getState();
+  for (const [projectId, workspace] of Object.entries(store.workspaces)) {
+    for (const tab of Object.values(workspace.tabs)) {
+      const conversationId = runInfos[tab.id]?.conversationId;
+      if (tab.kind === 'terminal' && tab.cliId && conversationId) {
+        store.setConversationId(projectId, tab.id, conversationId);
+      }
+    }
+  }
+}
+
 let started = false;
 
 /**
@@ -101,6 +117,7 @@ export function initAgentStatus(): void {
   });
   agents.onRunInfo((changes) => {
     useAgentStatusStore.setState((state) => ({ runInfos: { ...state.runInfos, ...changes } }));
+    rememberConversations(changes);
     // Keeps the "last run" cache current through the session, so a fresh tab opened
     // right after a `/model` switch already knows about it, not just after a restart.
     for (const entry of sessionEntries()) {
@@ -126,6 +143,7 @@ export function initAgentStatus(): void {
         agents.autoContinuePending(),
       ]);
       useAgentStatusStore.setState({ statuses, runInfos, autoContinue });
+      rememberConversations(runInfos);
     });
   };
   sync();

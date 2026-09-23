@@ -153,9 +153,20 @@ interface GithubGraphqlPayload<T> {
   errors?: { message: string }[];
 }
 
-/** One `gh api graphql` call. Throws when GitHub returns errors in the payload. */
-export async function ghGraphql<T>(query: string): Promise<T> {
-  const payload = await ghApi<GithubGraphqlPayload<T>>('graphql', ['-f', `query=${query}`]);
+/**
+ * One `gh api graphql` call. Throws when GitHub returns errors in the payload. Strings go in as
+ * `-f` (raw), so user text such as a comment starting with "@" is never read as a file path;
+ * only numbers and booleans use the typed `-F`.
+ */
+export async function ghGraphql<T>(
+  query: string,
+  variables: Record<string, string | number | boolean> = {},
+): Promise<T> {
+  const args = ['-f', `query=${query}`];
+  for (const [name, value] of Object.entries(variables)) {
+    args.push(typeof value === 'string' ? '-f' : '-F', `${name}=${value}`);
+  }
+  const payload = await ghApi<GithubGraphqlPayload<T>>('graphql', args);
   if (payload.errors?.length) {
     throw new Error(payload.errors.map((error) => error.message).join('; '));
   }

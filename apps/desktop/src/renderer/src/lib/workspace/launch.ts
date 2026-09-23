@@ -12,7 +12,7 @@ import { toast } from 'sonner';
 import { terminalRuntime } from '@/lib/terminal/terminalRuntime';
 import { useCliStore } from '@/stores/cliStore';
 import { defaultNewSession } from '@/stores/terminalStore';
-import { useWorkspaceStore } from '@/stores/workspaceStore';
+import { useWorkspaceStore, type WorkspaceTerminalTab } from '@/stores/workspaceStore';
 
 export interface ShellOption {
   shell: string;
@@ -47,6 +47,8 @@ export function projectCliId(project: Project): string | null {
 
 /** Settings files that make a CLI report its status through hooks, fetched ahead of launch. */
 const statusHookSettings = new Map<string, string | null>();
+/** The lookups still in flight, so a launch that runs at startup can wait for its hooks. */
+const statusHookLookups = new Map<string, Promise<unknown>>();
 
 /**
  * Looks up, once per CLI, whether its launches can carry status hooks. Called at startup so
@@ -56,10 +58,13 @@ export function prepareStatusHooks(cliIds: string[]): void {
   for (const cliId of cliIds) {
     if (statusHookSettings.has(cliId)) continue;
     statusHookSettings.set(cliId, null);
-    void window.agentmat.agents
-      .statusHookSettings(cliId)
-      .then((path) => statusHookSettings.set(cliId, path))
-      .catch(() => undefined);
+    statusHookLookups.set(
+      cliId,
+      window.agentmat.agents
+        .statusHookSettings(cliId)
+        .then((path) => statusHookSettings.set(cliId, path))
+        .catch(() => undefined),
+    );
   }
 }
 
@@ -230,6 +235,32 @@ export function launchResumeTab(
     },
     groupId,
   );
+}
+
+/** The conversation a resume command picks up (`claude --resume <id>`, `codex resume <id>`). */
+export function resumedConversationId(launchInput: string | undefined): string | null {
+  return launchInput?.match(/(?:--resume|resume)\s+'?"?([0-9a-zA-Z-]{8,})/)?.[1] ?? null;
+}
+
+/** Settles once the status hook lookup for this CLI (if one was started) is done. */
+export async function statusHooksReady(cliId: string | undefined): Promise<void> {
+  if (cliId) await statusHookLookups.get(cliId);
+}
+
+/**
+ * The command that picks an agent tab's conversation back up in a new shell, or null when the
+ * tab is not an agent or never got far enough to have a conversation worth resuming.
+ */
+export function resumeInputFor(tab: WorkspaceTerminalTab): string | null {
+  const id = tab.conversationId ?? resumedConversationId(tab.launchInput);
+  if (!id) return null;
+  const command =
+    tab.cliId === HISTORY_CLI_ID['claude-code']
+      ? agentCommand(tab.cliId, tab.shell, ['--resume', id])
+      : tab.cliId === HISTORY_CLI_ID.codex
+        ? agentCommand(tab.cliId, tab.shell, [], ['resume', id])
+        : null;
+  return command ? `${command}\r` : null;
 }
 
 /** Opens a plain shell tab in the project folder, or in `cwd` inside it. Returns the tab id. */

@@ -266,6 +266,18 @@ describe('settings migrations', () => {
     expect((await store.getSettings()).cliOrder).toEqual(['claude', 'codex']);
   });
 
+  it('offers the default review commands until the user edits them', async () => {
+    const { store } = await loadStore();
+    expect((await store.getSettings()).reviewCommands).toContain('@claude review');
+  });
+
+  it('keeps saved review commands trimmed and unique', async () => {
+    userData.writeData('settings.json', { reviewCommands: [' @bot go ', '@bot go', 4] });
+    const { store } = await loadStore();
+
+    expect((await store.getSettings()).reviewCommands).toEqual(['@bot go']);
+  });
+
   it('replaces a cliOrder that is not an array at all', async () => {
     userData.writeData('settings.json', { cliOrder: 'claude' });
     const { store } = await loadStore();

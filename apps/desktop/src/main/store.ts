@@ -25,6 +25,7 @@ import {
   DEFAULT_DESKTOP_PET_ACTION_SPEEDS,
   DEFAULT_GEMINI_API_MODEL,
   DEFAULT_OPENAI_API_MODEL,
+  DEFAULT_REVIEW_COMMANDS,
   DEFAULT_TERMINAL_BACKGROUND_COLOR,
   DEFAULT_VAULT_AUTO_LOCK_MINUTES,
   DEFAULT_VAULT_CLIPBOARD_CLEAR_SECONDS,
@@ -48,6 +49,7 @@ import {
   normalizeProjectNotifications,
   normalizeProjectRunCommands,
   normalizeProxySettings,
+  normalizeReviewCommands,
   normalizeUsageResetAlerts,
   normalizeUsageThresholdAlerts,
   normalizeVaultAutoLockMinutes,
@@ -97,6 +99,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   cliLaunchDefaults: {},
   cliOrder: [],
   commitMessage: { ...DEFAULT_COMMIT_MESSAGE_SETTINGS },
+  reviewCommands: [...DEFAULT_REVIEW_COMMANDS],
   theme: 'system',
   projectsRootPath: null,
   skillRepositoryIds: [],
@@ -208,6 +211,7 @@ function withSettingsMigrations(settings: AppSettings): AppSettings {
     cliArgs: normalizeCliArgs(settings.cliArgs),
     cliLaunchDefaults: normalizeCliLaunchDefaults(settings.cliLaunchDefaults),
     commitMessage: normalizeCommitMessageSettings(settings.commitMessage),
+    reviewCommands: normalizeReviewCommands(settings.reviewCommands),
     cliOrder: Array.isArray(settings.cliOrder)
       ? [...new Set(settings.cliOrder.filter((id): id is string => typeof id === 'string'))]
       : [],

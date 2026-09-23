@@ -29,6 +29,7 @@ import { SimpleTooltip } from '@/components/ui/tooltip';
 import { useTerminalSessionStore } from '@/lib/terminal/terminalRuntime';
 import { cn } from '@/lib/utils';
 import { useLauncherStore } from '@/lib/workspace/commands';
+import { resumeInputFor, statusHooksReady } from '@/lib/workspace/launch';
 import {
   isSessionBusy,
   modelDisplayName,
@@ -474,6 +475,23 @@ export function PaneGroup({
   const exitCode = useTerminalSessionStore((s) =>
     activeTab && activeTab.id in s.ended ? s.ended[activeTab.id] : undefined,
   );
+  // An agent tab whose shell did not survive AgentMate closing (a reboot, a crash, or the task
+  // being killed) picks its conversation back up, rather than leaving a dead tab to restart.
+  const resumeTab =
+    exitCode === null &&
+    activeTab?.kind === 'terminal' &&
+    activeTab.restored &&
+    resumeInputFor(activeTab) !== null
+      ? activeTab
+      : null;
+  useEffect(() => {
+    if (!resumeTab) return;
+    // Built once the status hooks are known, so the resumed agent still reports its status.
+    void statusHooksReady(resumeTab.cliId).then(() => {
+      const input = resumeInputFor(resumeTab);
+      if (input) restartTab(projectId, resumeTab.id, input);
+    });
+  }, [resumeTab, projectId, restartTab]);
   const workspaceEmpty = Object.keys(workspace.tabs).length === 0;
 
   const stripRef = useRef<HTMLDivElement>(null);
@@ -696,7 +714,7 @@ export function PaneGroup({
               tab={activeTab}
               focused={focused}
             />
-            {exitCode !== undefined ? (
+            {exitCode !== undefined && !resumeTab ? (
               <SessionEndedBar
                 exitCode={exitCode}
                 onRestart={() => restartTab(projectId, activeTab.id)}

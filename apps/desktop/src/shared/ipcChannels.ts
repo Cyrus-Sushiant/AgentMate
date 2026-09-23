@@ -576,6 +576,20 @@ export const IPC = {
     dispatch: 'pipelines:dispatch',
     cancelRun: 'pipelines:cancelRun',
   },
+  /** The workspace Pull request tab: the current branch's PR, its checks, review and merge. */
+  pullRequests: {
+    status: 'pullRequests:status',
+    suggestText: 'pullRequests:suggestText',
+    comment: 'pullRequests:comment',
+    replyThread: 'pullRequests:replyThread',
+    resolveThread: 'pullRequests:resolveThread',
+    markReady: 'pullRequests:markReady',
+    merge: 'pullRequests:merge',
+    cleanup: 'pullRequests:cleanup',
+    localReview: 'pullRequests:localReview',
+    /** Stops a suggestText or localReview run by its request id. */
+    cancelAi: 'pullRequests:cancelAi',
+  },
   /**
    * The in-app notification inbox. Distinct from the `notifications` group above,
    * which is about sending a notification out (Telegram, the desktop companion).

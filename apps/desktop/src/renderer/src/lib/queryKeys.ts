@@ -74,6 +74,8 @@ export const queryKeys = {
   /** The workspace changes panel's state, pushed live by the working tree watcher. */
   gitWorkspaceState: (projectId: string) => ['git-workspace-state', projectId] as const,
   agentHistory: (projectId: string) => ['agent-history', projectId] as const,
+  /** The workspace Pull request tab: the current branch and its PR, checks and review. */
+  pullRequest: (projectId: string) => ['pull-request', projectId] as const,
   gitFileDiff: (projectId: string, side: string, path: string) =>
     ['git-file-diff', projectId, side, path] as const,
   /** Both sides of a changed image. Under the diff prefix, so the watcher refreshes it too. */

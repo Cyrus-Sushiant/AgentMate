@@ -13,7 +13,6 @@ import {
   ChartSimple,
   ChevronRight,
   CircleCheck,
-  CodeCompare,
   CollapseAll,
   FileCode,
   FilePlus,
@@ -21,8 +20,6 @@ import {
   FolderPlus,
   FolderTree,
   GitBranch,
-  GitCommit,
-  Github,
   History,
   Minus,
   Plus,
@@ -44,6 +41,7 @@ import {
   GIT_PANEL_MAX_WIDTH,
   GIT_PANEL_MIN_WIDTH,
   type GitPanelSection,
+  type SourceControlSection,
   useWorkspaceStore,
 } from '@/stores/workspaceStore';
 import { TestsSection, TestsTabActions, useTestsFailedCount } from '../tests/TestsSection';
@@ -56,8 +54,13 @@ import { collapseAll, startCreateAtFocus } from './explorer/actions';
 import { ExplorerSearchToggle } from './explorer/ExplorerSearchToggle';
 import { GitFileRow } from './GitFileRow';
 import { HistorySection } from './HistorySection';
+import { PanelNotice } from './PanelNotice';
 import { PanelIconButton, type PanelTabDef, PanelTabs } from './PanelTabs';
 import { PipelinesSection } from './PipelinesSection';
+import { BranchPrPill, pullRequestAttention } from './pr/BranchPrPill';
+import { PullRequestSection } from './pr/PullRequestSection';
+import { usePullRequest } from './pr/usePullRequest';
+import { SourceSection } from './SourceSection';
 import {
   type GitActions,
   openChangedFile,
@@ -236,6 +239,7 @@ function BranchBar({
   state: WorkspaceGitState;
 }): React.JSX.Element {
   const setGitPanel = useWorkspaceStore((s) => s.setGitPanel);
+  const revealPanelSection = useWorkspaceStore((s) => s.revealPanelSection);
   const showLineStats = useWorkspaceStore((s) => s.gitPanel.showLineStats);
   return (
     <div className="flex h-9 shrink-0 items-center gap-1 border-b border-border/50 pl-1.5 pr-2">
@@ -252,7 +256,7 @@ function BranchBar({
       >
         <button
           type="button"
-          onClick={() => setGitPanel({ activeSection: 'branches' })}
+          onClick={() => revealPanelSection('branches')}
           className="flex min-w-0 flex-1 items-center gap-1.5 rounded px-1 py-0.5 text-left text-xs transition-colors hover:bg-foreground/[0.06]"
         >
           <GitBranch className="h-3 w-3 shrink-0 text-primary" />
@@ -261,6 +265,7 @@ function BranchBar({
           </span>
         </button>
       </SimpleTooltip>
+      <BranchPrPill projectId={projectId} />
       <SyncControls projectId={projectId} state={state} />
       <HeaderButton
         label={showLineStats ? 'Hide line totals' : 'Show line totals'}
@@ -344,7 +349,7 @@ function ChangeSections({
   const sections: SectionConfig[] = [
     { id: 'conflicts', title: 'Conflicts', side: 'conflict', entries: state.conflicts },
     { id: 'staged', title: 'Staged changes', side: 'staged', entries: state.staged },
-    { id: 'unstaged', title: 'Changes', side: 'unstaged', entries: state.unstaged },
+    { id: 'unstaged', title: 'Unstaged changes', side: 'unstaged', entries: state.unstaged },
     { id: 'untracked', title: 'Untracked', side: 'untracked', entries: state.untracked },
   ].filter((section) => section.entries.length > 0) as SectionConfig[];
 
@@ -483,16 +488,66 @@ function ChangeSections({
   );
 }
 
-function PanelBody({
+type PullRequestQuery = ReturnType<typeof usePullRequest>;
+
+/** Stage, commit and every changed file, live. */
+function ChangesBody({
   project,
   state,
+  actions,
+}: {
+  project: Project;
+  state: WorkspaceGitState;
+  actions: GitActions;
+}): React.JSX.Element {
+  const showLineStats = useWorkspaceStore((s) => s.gitPanel.showLineStats);
+  const total =
+    state.staged.length + state.unstaged.length + state.untracked.length + state.conflicts.length;
+  return (
+    <>
+      {total > 0 ? <CommitBox projectId={project.id} state={state} actions={actions} /> : null}
+      {showLineStats ? <ChangesSummary state={state} /> : null}
+      <div className="min-h-0 flex-1 overflow-y-auto" data-git-panel>
+        {total === 0 ? (
+          <div className="flex h-full flex-col items-center justify-center gap-2 px-6 py-4 text-center">
+            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-success/10 text-success">
+              <CircleCheck className="h-4 w-4" />
+            </div>
+            <p className="text-sm font-medium">Working tree clean</p>
+            <p className="max-w-[15rem] text-xs leading-relaxed text-muted-foreground">
+              Files your agents change show up here the moment they are written.
+            </p>
+          </div>
+        ) : (
+          <ChangeSections project={project} state={state} actions={actions} />
+        )}
+      </div>
+    </>
+  );
+}
+
+/**
+ * The Source control tab: the branch bar on top, then changes, branches, commits, the pull
+ * request and pipelines as sections that fold away.
+ */
+function SourceControlBody({
+  project,
+  state,
+  pullRequest,
+  creatingBranch,
+  onCreatingBranchChange,
 }: {
   project: Project;
   state: WorkspaceGitState | undefined;
+  pullRequest: PullRequestQuery;
+  creatingBranch: boolean;
+  onCreatingBranchChange: (creating: boolean) => void;
 }): React.JSX.Element {
   const navigate = useNavigate();
   const actions = useGitActions(project.id);
-  const showLineStats = useWorkspaceStore((s) => s.gitPanel.showLineStats);
+  const openSections = useWorkspaceStore((s) => s.gitPanel.openSourceSections);
+  const setSectionOpen = useWorkspaceStore((s) => s.setSourceSectionOpen);
+  const revealPanelSection = useWorkspaceStore((s) => s.revealPanelSection);
 
   if (!state) {
     return (
@@ -527,6 +582,12 @@ function PanelBody({
 
   const total =
     state.staged.length + state.unstaged.length + state.untracked.length + state.conflicts.length;
+  const prAttention = pullRequestAttention(pullRequest.data?.pr);
+  const fold = (section: SourceControlSection) => ({
+    id: section,
+    open: openSections[section],
+    onToggle: () => setSectionOpen(section, !openSections[section]),
+  });
 
   return (
     <>
@@ -552,30 +613,91 @@ function PanelBody({
           </button>
         </div>
       ) : null}
-      {total > 0 || state.conflicts.length > 0 ? (
-        <CommitBox projectId={project.id} state={state} actions={actions} />
-      ) : null}
-      {showLineStats ? <ChangesSummary state={state} /> : null}
-      <div className="min-h-0 flex-1 overflow-y-auto" data-git-panel>
-        {total === 0 ? (
-          <div className="flex h-full flex-col items-center justify-center gap-2 px-6 pb-10 text-center">
-            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-success/10 text-success">
-              <CircleCheck className="h-4 w-4" />
-            </div>
-            <p className="text-sm font-medium">Working tree clean</p>
-            <p className="max-w-[15rem] text-xs leading-relaxed text-muted-foreground">
-              Files your agents change show up here the moment they are written.
-            </p>
-          </div>
-        ) : (
-          <ChangeSections project={project} state={state} actions={actions} />
-        )}
+      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+        <SourceSection
+          {...fold('changes')}
+          primary
+          title="Changes"
+          count={total}
+          countLabel={`${total} changed file${total === 1 ? '' : 's'}`}
+          countTone={state.conflicts.length > 0 ? 'destructive' : 'default'}
+        >
+          <ChangesBody project={project} state={state} actions={actions} />
+        </SourceSection>
+        <SourceSection
+          {...fold('branches')}
+          title="Branches"
+          actions={
+            <PanelIconButton label="New branch" onClick={() => onCreatingBranchChange(true)}>
+              <Plus className="h-2.5 w-2.5" />
+            </PanelIconButton>
+          }
+        >
+          <BranchesSection
+            project={project}
+            state={state}
+            creating={creatingBranch}
+            onCreatingChange={onCreatingBranchChange}
+          />
+        </SourceSection>
+        <SourceSection
+          {...fold('commits')}
+          title="Commits"
+          count={state.ahead}
+          countLabel={`${state.ahead} unpushed commit${state.ahead === 1 ? '' : 's'}`}
+        >
+          <CommitsSection project={project} state={state} />
+        </SourceSection>
+        <SourceSection
+          {...fold('pullRequest')}
+          title="Pull request"
+          count={prAttention.count}
+          countLabel={prAttention.failing ? 'Checks failing' : 'Needs attention'}
+          countTone={prAttention.failing ? 'destructive' : 'default'}
+          actions={
+            state.hasRemote ? (
+              <PanelIconButton
+                label="Refresh pull request"
+                onClick={() => void pullRequest.refetch()}
+              >
+                <RefreshCw
+                  className={cn(
+                    'h-2.5 w-2.5',
+                    pullRequest.isFetching && 'animate-spin motion-reduce:animate-none',
+                  )}
+                />
+              </PanelIconButton>
+            ) : null
+          }
+        >
+          {state.hasRemote ? (
+            <PullRequestSection
+              project={project}
+              status={pullRequest.data}
+              loading={pullRequest.isPending}
+              onRetry={() => void pullRequest.refetch()}
+              onNewBranch={() => {
+                revealPanelSection('branches');
+                onCreatingBranchChange(true);
+              }}
+            />
+          ) : (
+            // The pull request is never read without a remote, so it would load forever.
+            <PanelNotice
+              title="No remote"
+              body="Add a GitHub remote and publish the branch to open a pull request."
+            />
+          )}
+        </SourceSection>
+        <SourceSection {...fold('pipelines')} title="Pipelines">
+          <PipelinesSection project={project} />
+        </SourceSection>
       </div>
     </>
   );
 }
 
-/** The right-hand changes panel: branch, sync, commit and every changed file, live. */
+/** The right-hand panel: source control, files, agent sessions and tests. */
 export function GitPanel({
   project,
   visible,
@@ -600,6 +722,14 @@ export function GitPanel({
   const count = state
     ? state.staged.length + state.unstaged.length + state.untracked.length + state.conflicts.length
     : 0;
+  // Read while the panel shows, not just the tab, so its badge and the branch pill stay current.
+  const pullRequest = usePullRequest(project.id, {
+    visible: visible && !collapsed && Boolean(state?.isRepo && state.hasRemote),
+    branch: state?.branch,
+    head: state?.head,
+    ahead: state?.ahead,
+  });
+  const prAttention = pullRequestAttention(pullRequest.data?.pr);
 
   function startResize(event: React.PointerEvent<HTMLDivElement>): void {
     if (event.button !== 0) return;
@@ -631,34 +761,19 @@ export function GitPanel({
 
   const tabs: PanelTabDef[] = [
     {
-      id: 'changes',
-      title: 'Changes',
-      icon: CodeCompare,
-      count,
-      render: () => <PanelBody project={project} state={state} />,
-    },
-    {
-      id: 'commits',
-      title: 'Commits',
-      icon: GitCommit,
-      count: state?.ahead || undefined,
-      render: () => <CommitsSection project={project} state={state} />,
-    },
-    {
-      id: 'branches',
-      title: 'Branches',
+      id: 'sourceControl',
+      title: 'Source control',
       icon: GitBranch,
-      actions: state?.isRepo ? (
-        <PanelIconButton label="New branch" onClick={() => setCreatingBranch(true)}>
-          <Plus className="h-2.5 w-2.5" />
-        </PanelIconButton>
-      ) : null,
+      // A failing pull request outranks the changed-file count.
+      count: prAttention.failing ? prAttention.count : count,
+      countTone: prAttention.failing ? 'destructive' : 'default',
       render: () => (
-        <BranchesSection
+        <SourceControlBody
           project={project}
           state={state}
-          creating={creatingBranch}
-          onCreatingChange={setCreatingBranch}
+          pullRequest={pullRequest}
+          creatingBranch={creatingBranch}
+          onCreatingBranchChange={setCreatingBranch}
         />
       ),
     },
@@ -719,12 +834,6 @@ export function GitPanel({
         </PanelIconButton>
       ),
       render: () => <HistorySection project={project} />,
-    },
-    {
-      id: 'pipelines',
-      title: 'Pipelines',
-      icon: Github,
-      render: () => <PipelinesSection project={project} />,
     },
     {
       id: 'tests',
