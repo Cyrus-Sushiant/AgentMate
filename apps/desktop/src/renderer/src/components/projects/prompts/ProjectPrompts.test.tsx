@@ -7,7 +7,7 @@ import { useTerminalStore } from '@/stores/terminalStore';
 import { renderWithProviders } from '../../../../../test/renderer/renderWithProviders';
 
 /**
- * History, drafts and scheduled prompts share one section. What matters: each tab shows the
+ * History, drafts and scheduled prompts share one section. What matters: each view shows the
  * right slice, a draft can be finished and moved onto the schedule, and Run now starts the CLI
  * in the project folder and records the run.
  */
@@ -15,6 +15,32 @@ import { renderWithProviders } from '../../../../../test/renderer/renderWithProv
 vi.mock('@/stores/confirmStore', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/stores/confirmStore')>();
   return { ...actual, confirmDialog: vi.fn(async () => true) };
+});
+
+// The view menu's springs call `jump` on their motion value, which the suite's Framer Motion stub
+// has no answer for. Same shape as SkillsPage.test.
+vi.mock('framer-motion', async (importOriginal) => {
+  const stub = (await importOriginal()) as Record<string, unknown>;
+  const motionValue = (initial: number) => {
+    let current = initial;
+    return {
+      get: () => current,
+      set: (next: number) => {
+        current = next;
+      },
+      jump: (next: number) => {
+        current = next;
+      },
+      on: () => () => undefined,
+    };
+  };
+  return {
+    ...stub,
+    useMotionValue: motionValue,
+    useSpring: motionValue,
+    useTransform: () => motionValue(0),
+    useMotionValueEvent: () => undefined,
+  };
 });
 
 const { ProjectPrompts } = await import('./ProjectPrompts');
@@ -88,24 +114,24 @@ beforeEach(() => {
 });
 
 describe('ProjectPrompts', () => {
-  it('shows history, drafts and scheduled prompts together in the History tab', async () => {
+  it('shows history, drafts and scheduled prompts together under History', async () => {
     renderSection();
 
     expect(await screen.findByText('Generated: build the signup page')).toBeTruthy();
     expect(screen.getByText('half-written idea about caching')).toBeTruthy();
     expect(screen.getByText('nightly dependency bump')).toBeTruthy();
-    expect(screen.getByRole('tab', { name: /History/, selected: true })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /^History/, current: true })).toBeTruthy();
   });
 
-  it('narrows each tab to its own kind and filters by search', async () => {
+  it('narrows each view to its own kind and filters by search', async () => {
     const { user } = renderSection();
     await screen.findByText('Generated: build the signup page');
 
-    await user.click(screen.getByRole('tab', { name: /Drafts/ }));
+    await user.click(screen.getByRole('button', { name: /^Drafts/ }));
     expect(await screen.findByText('half-written idea about caching')).toBeTruthy();
     expect(screen.queryByText('Generated: build the signup page')).toBeNull();
 
-    await user.click(screen.getByRole('tab', { name: /Scheduled/ }));
+    await user.click(screen.getByRole('button', { name: /^Scheduled/ }));
     expect(await screen.findByText('Needs attention')).toBeTruthy();
     expect(screen.getByText('nightly dependency bump')).toBeTruthy();
 
@@ -113,10 +139,10 @@ describe('ProjectPrompts', () => {
     expect(await screen.findByText(/No prompts match/)).toBeTruthy();
   });
 
-  it('opens the tab named in the URL', async () => {
+  it('opens the view named in the URL', async () => {
     renderSection('/projects/p1?tab=prompts&view=drafts');
 
-    expect(await screen.findByRole('tab', { name: /Drafts/, selected: true })).toBeTruthy();
+    expect(await screen.findByRole('button', { name: /^Drafts/, current: true })).toBeTruthy();
     expect(await screen.findByText('In progress')).toBeTruthy();
   });
 

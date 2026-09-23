@@ -11,9 +11,9 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import { CalendarDays, FileText, History, Plus, Search, Sparkles } from '@/components/icons';
 import { Button } from '@/components/ui/button';
+import { GooeyNav, GooeyNavCount } from '@/components/ui/gooey-nav';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { queryKeys } from '@/lib/queryKeys';
 import { runPromptInTerminal } from '@/lib/runScheduledPrompt';
 import { cn } from '@/lib/utils';
@@ -33,6 +33,7 @@ import {
   isPromptView,
   matchesSearch,
   mergePromptItems,
+  PROMPT_VIEWS,
   type PromptItem,
   type PromptView,
   taskPromptText,
@@ -372,34 +373,49 @@ export function ProjectPrompts({ project }: { project: Project }): React.JSX.Ele
         </div>
       </div>
 
-      <Tabs value={view} onValueChange={(v) => setView(v as PromptView)}>
-        <div className="flex flex-wrap items-end justify-between gap-2">
-          <TabsList className="gap-1">
-            <TabsTrigger value="all" className="gap-1.5">
-              <History className="h-3.5 w-3.5" /> History
-              <Count value={history.length + drafts.length + tasks.length} />
-            </TabsTrigger>
-            <TabsTrigger value="drafts" className="gap-1.5">
-              <FileText className="h-3.5 w-3.5" /> Drafts
-              <Count value={openDraftCount} />
-            </TabsTrigger>
-            <TabsTrigger value="scheduled" className="gap-1.5">
-              <CalendarDays className="h-3.5 w-3.5" /> Scheduled
-              <Count value={waitingCount} attention={missedCount > 0} />
-            </TabsTrigger>
-          </TabsList>
-          <div className="relative w-full max-w-xs pb-1">
-            <Search className="pointer-events-none absolute left-2.5 top-2.5 z-10 h-4 w-4 text-muted-foreground" />
-            <Input
-              className="h-9 pl-8"
-              placeholder="Search prompts…"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-          </div>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <GooeyNav
+          size="sm"
+          className="min-w-0 max-w-full overflow-x-auto"
+          aria-label="Prompt views"
+          items={[
+            {
+              label: 'History',
+              icon: <History />,
+              badge: <GooeyNavCount value={history.length + drafts.length + tasks.length} />,
+            },
+            {
+              label: 'Drafts',
+              icon: <FileText />,
+              badge: <GooeyNavCount value={openDraftCount} />,
+            },
+            {
+              label: 'Scheduled',
+              icon: <CalendarDays />,
+              badge:
+                missedCount > 0 ? (
+                  <MissedCount value={waitingCount} />
+                ) : (
+                  <GooeyNavCount value={waitingCount} />
+                ),
+            },
+          ]}
+          value={PROMPT_VIEWS.indexOf(view)}
+          onChange={(index) => setView(PROMPT_VIEWS[index])}
+        />
+        <div className="relative w-full max-w-xs">
+          <Search className="pointer-events-none absolute left-2.5 top-2.5 z-10 h-4 w-4 text-muted-foreground" />
+          <Input
+            className="h-9 pl-8"
+            placeholder="Search prompts…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
         </div>
+      </div>
 
-        <TabsContent value="all" className="space-y-5">
+      {view === 'all' ? (
+        <div className="space-y-5">
           {historyQuery.isPending || draftsQuery.isPending || tasksQuery.isPending ? (
             <ListSkeleton />
           ) : allItems.length === 0 ? (
@@ -424,9 +440,11 @@ export function ProjectPrompts({ project }: { project: Project }): React.JSX.Ele
               </Group>
             ))
           )}
-        </TabsContent>
+        </div>
+      ) : null}
 
-        <TabsContent value="drafts" className="space-y-5">
+      {view === 'drafts' ? (
+        <div className="space-y-5">
           {draftsQuery.isPending ? (
             <ListSkeleton />
           ) : openDrafts.length === 0 && doneDrafts.length === 0 ? (
@@ -469,9 +487,11 @@ export function ProjectPrompts({ project }: { project: Project }): React.JSX.Ele
               ) : null}
             </>
           )}
-        </TabsContent>
+        </div>
+      ) : null}
 
-        <TabsContent value="scheduled" className="space-y-5">
+      {view === 'scheduled' ? (
+        <div className="space-y-5">
           {tasksQuery.isPending ? (
             <ListSkeleton />
           ) : taskItems.length === 0 ? (
@@ -516,8 +536,8 @@ export function ProjectPrompts({ project }: { project: Project }): React.JSX.Ele
               ) : null}
             </>
           )}
-        </TabsContent>
-      </Tabs>
+        </div>
+      ) : null}
 
       {composer && composerProps ? (
         <PromptComposerDialog
@@ -584,21 +604,10 @@ function composerDialogProps(state: ComposerState | null): {
   return { title: 'New prompt', initial: state.initial };
 }
 
-function Count({
-  value,
-  attention,
-}: {
-  value: number;
-  attention?: boolean;
-}): React.JSX.Element | null {
-  if (value === 0) return null;
+/** The Scheduled count turns red while a prompt missed its time. */
+function MissedCount({ value }: { value: number }): React.JSX.Element {
   return (
-    <span
-      className={cn(
-        'rounded-full px-1.5 text-[11px] leading-4 tabular-nums',
-        attention ? 'bg-destructive/15 text-destructive' : 'bg-muted text-muted-foreground',
-      )}
-    >
+    <span className="min-w-4 rounded-full bg-destructive/20 px-1.5 text-center text-[10px] font-medium tabular-nums text-destructive">
       {value}
     </span>
   );

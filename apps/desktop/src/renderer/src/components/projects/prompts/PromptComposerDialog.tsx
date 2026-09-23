@@ -104,7 +104,9 @@ export function PromptComposerDialog({
           {description ? <DialogDescription>{description}</DialogDescription> : null}
         </DialogHeader>
 
-        <div className="space-y-4">
+        {/* The dialog caps its height, so the body scrolls instead of running under the footer.
+            The padding keeps focus rings from being clipped by the scroll edge. */}
+        <div className="-mx-1 min-h-0 space-y-4 overflow-y-auto px-1 py-1">
           {!lockKind ? (
             <SegmentedChoice
               label="Save as"
