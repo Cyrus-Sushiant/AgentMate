@@ -7,13 +7,13 @@ import type { IconProps } from '@/components/icons';
 import {
   Android,
   Blocks,
-  Broadcast,
   ChartColumn,
   Docker,
   FolderKanban,
   Github,
   LayoutDashboard,
   MessageSquare,
+  Monitor,
   Plug,
   SettingsIcon,
   Sparkles,
@@ -58,7 +58,7 @@ export const NAV_ITEMS: NavItem[] = [
   { to: '/android', label: 'Android', icon: Android },
   { to: '/cli-manager', label: 'AI CLI Manager', icon: TerminalSquare },
   { to: '/ask-ai', label: 'Ask AI', icon: MessageSquare },
-  { to: '/remote', label: 'Remote', icon: Broadcast },
+  { to: '/remote', label: 'Remote', icon: Monitor },
   { to: '/vault', label: 'Vault', icon: Vault },
   { to: '/settings', label: 'Settings', icon: SettingsIcon },
 ];
