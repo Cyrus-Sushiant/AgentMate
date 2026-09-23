@@ -20,7 +20,7 @@ describe('configuredArgsWithout', () => {
   });
 
   it('treats -m as --model', () => {
-    expect(configuredArgsWithout('-m gpt-5.6-luna --full-auto', ['--model', 'gpt-5.6-sol'])).toBe(
+    expect(configuredArgsWithout('-m gpt-6-luna --full-auto', ['--model', 'gpt-6-sol'])).toBe(
       '--full-auto',
     );
   });

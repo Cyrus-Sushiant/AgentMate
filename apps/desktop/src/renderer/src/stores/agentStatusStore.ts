@@ -38,7 +38,7 @@ export function useAutoContinuePending(sessionId: string): AutoContinuePending |
   return useAgentStatusStore((s) => s.autoContinue[sessionId] ?? null);
 }
 
-/** A model id as people say it: `claude-opus-5-20260101` becomes "Opus 5". */
+/** A model id as people say it: `claude-opus-5-5-20260101` becomes "Opus 5.5". */
 export function modelDisplayName(model: string): string {
   const known = catalogModelForApiId(model);
   if (known) return /\[1m\]$/i.test(model.trim()) ? `${known.label} (1M)` : known.label;

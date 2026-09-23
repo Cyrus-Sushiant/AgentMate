@@ -124,13 +124,12 @@ export function complexityForScore(score: number): TaskComplexity {
 function fromCatalog(
   id: string,
   model: CatalogModel,
-  priced = true,
 ): Pick<RunModelOption, 'id' | 'label' | 'modelArg' | 'pricingId'> {
   return {
     id,
     label: model.label,
     modelArg: model.cliArg,
-    ...(priced && model.apiId ? { pricingId: model.apiId } : {}),
+    ...(model.apiId ? { pricingId: model.apiId } : {}),
   };
 }
 
@@ -168,7 +167,7 @@ const RUN_PROFILES: Record<string, Omit<TargetRunProfile, 'cliId' | 'executable'
       {
         ...fromCatalog('opus', CLAUDE_MODELS.opus),
         tier: 'Deep',
-        costWeight: 5,
+        costWeight: 4,
         bestFor: 'Multi-file refactors and tricky systems work',
         maxScore: 86,
         efforts: CLAUDE_EFFORTS,
@@ -192,7 +191,7 @@ const RUN_PROFILES: Record<string, Omit<TargetRunProfile, 'cliId' | 'executable'
     effortHint: 'This model has no effort setting.',
     models: [
       {
-        ...fromCatalog('luna', CODEX_MODELS.luna, false),
+        ...fromCatalog('luna', CODEX_MODELS.luna),
         tier: 'Fast',
         costWeight: 1,
         bestFor: 'Small, well-defined edits',
@@ -201,7 +200,7 @@ const RUN_PROFILES: Record<string, Omit<TargetRunProfile, 'cliId' | 'executable'
         effortPicks: ['low', 'low', 'medium'],
       },
       {
-        ...fromCatalog('terra', CODEX_MODELS.terra, false),
+        ...fromCatalog('sol', CODEX_MODELS.sol),
         tier: 'Balanced',
         costWeight: 3,
         bestFor: 'Everyday features, fixes, and tests',
@@ -210,7 +209,7 @@ const RUN_PROFILES: Record<string, Omit<TargetRunProfile, 'cliId' | 'executable'
         effortPicks: ['medium', 'medium', 'high'],
       },
       {
-        ...fromCatalog('sol', CODEX_MODELS.sol, false),
+        ...fromCatalog('astra', CODEX_MODELS.astra),
         tier: 'Deep',
         costWeight: 6,
         bestFor: 'Complex, multi-step engineering work',
@@ -227,21 +226,21 @@ const RUN_PROFILES: Record<string, Omit<TargetRunProfile, 'cliId' | 'executable'
       'Gemini CLI has no per-run effort flag. Its thinking budget lives in settings.json (thinkingConfig).',
     models: [
       {
-        ...fromCatalog('flash-2.5', GEMINI_CLI_MODELS.flash25),
+        ...fromCatalog('flash-lite', GEMINI_CLI_MODELS.flashLite),
         tier: 'Fast',
         costWeight: 1,
         bestFor: 'Small, well-defined edits',
         maxScore: 30,
       },
       {
-        ...fromCatalog('flash-3', GEMINI_CLI_MODELS.flash3, false),
+        ...fromCatalog('flash', GEMINI_CLI_MODELS.flash),
         tier: 'Balanced',
         costWeight: 2,
         bestFor: 'Everyday features, fixes, and tests',
         maxScore: 65,
       },
       {
-        ...fromCatalog('pro-3', GEMINI_CLI_MODELS.pro3, false),
+        ...fromCatalog('pro', GEMINI_CLI_MODELS.pro),
         tier: 'Deep',
         costWeight: 6,
         bestFor: 'Complex reasoning and larger changes',

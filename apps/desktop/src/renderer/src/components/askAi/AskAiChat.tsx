@@ -30,6 +30,12 @@ import { MarkdownMessage } from './MarkdownMessage';
 const OPENAI_MODEL_OPTIONS = [...OPENAI_API_MODELS];
 const GEMINI_MODEL_OPTIONS = [...GEMINI_API_MODELS];
 
+/** The list, plus the saved model when the catalog has since dropped it, so the picker never looks empty. */
+function withCurrent(options: { value: string; label: string }[], current: string) {
+  if (!current || options.some((o) => o.value === current)) return options;
+  return [{ value: current, label: current }, ...options];
+}
+
 const PROVIDER_LABEL: Record<AiProvider, string> = {
   openai: 'OpenAI',
   gemini: 'Gemini',
@@ -260,7 +266,7 @@ export function AskAiChat({
               className="w-44"
               value={openaiModel}
               onChange={setOpenaiModel}
-              options={OPENAI_MODEL_OPTIONS}
+              options={withCurrent(OPENAI_MODEL_OPTIONS, openaiModel)}
               placeholder="Model"
             />
           )}

@@ -52,7 +52,7 @@ export interface WorkspaceTerminalTab {
   createdAt: number;
   /** Typed into the shell when it first starts, and again on a restart (the agent's command). */
   launchInput?: string;
-  /** The model and effort the tab was launched with, when chosen at launch ("Opus 5 · High"). */
+  /** The model and effort the tab was launched with, when chosen at launch ("Opus 5.5 · High"). */
   runLabel?: string;
   /** Types "continue" for the agent after a usage limit resets or a network error. */
   autoContinue?: AutoContinueOptions;

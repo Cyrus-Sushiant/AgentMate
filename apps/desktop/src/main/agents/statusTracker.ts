@@ -43,7 +43,7 @@ const TRANSCRIPT_TAIL_BYTES = 512 * 1024;
 
 const runInfos = new Map<string, AgentRunInfo>();
 
-/** "Set model to `Opus 5 (1M context)`", for every Claude family the model catalog knows. */
+/** "Set model to `Opus 5.5 (1M context)`", for every Claude family the model catalog knows. */
 const MODEL_SWITCH_LINE = new RegExp(
   `^\\s*<local-command-stdout>Set model to (?:.\\[1m|\`)?(${CLAUDE_FAMILIES.join('|')}) (\\d+(?:\\.\\d+)*)( \\(1M context\\))?`,
   'i',
@@ -51,7 +51,7 @@ const MODEL_SWITCH_LINE = new RegExp(
 
 /**
  * The model id a `/model` switch in a transcript picked. Claude Code records only the display
- * name ("Set model to `Opus 5 (1M context)`"), so this turns the usual family names back into
+ * name ("Set model to `Opus 5.5 (1M context)`"), so this turns the usual family names back into
  * an id and leaves anything else (e.g. "Default") alone.
  */
 function modelFromSwitchLine(line: string): string | undefined {

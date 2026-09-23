@@ -5,11 +5,13 @@ import { getModelPrice } from '../usage/pricing.js';
 import {
   CLAUDE_MODELS,
   CLI_MODEL_EXAMPLES,
+  CODEX_MODELS,
   catalogModelForApiId,
   DEFAULT_GEMINI_API_MODEL,
   DEFAULT_OPENAI_API_MODEL,
   DEFAULT_WHISPER_MODEL,
   GEMINI_API_MODELS,
+  GEMINI_CLI_MODELS,
   OPENAI_API_MODELS,
   WHISPER_MODELS,
 } from './catalog.js';
@@ -17,8 +19,11 @@ import {
 // These guard the catalog against a half-done update: a renamed model that loses its price, a
 // default that is no longer in its own list, or an example for a CLI that no longer exists.
 describe('model catalog', () => {
-  it('prices every Claude model', () => {
-    for (const model of Object.values(CLAUDE_MODELS)) {
+  it('prices every Claude, Codex, and Gemini CLI model', () => {
+    const models = [CLAUDE_MODELS, CODEX_MODELS, GEMINI_CLI_MODELS].flatMap((m) =>
+      Object.values(m),
+    );
+    for (const model of models) {
       expect(getModelPrice(model.apiId), model.apiId).not.toBeNull();
     }
   });

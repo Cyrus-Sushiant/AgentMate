@@ -27,8 +27,8 @@ describe('launchDefaultArgs', () => {
 
   it('uses each CLI its own flags', () => {
     expect(
-      launchDefaultArgs('codex-cli', { model: 'gpt-5.6-sol', effort: 'xhigh', mode: 'auto' }),
-    ).toEqual(['--model', 'gpt-5.6-sol', '-c', 'model_reasoning_effort=xhigh', '--approve-for-me']);
+      launchDefaultArgs('codex-cli', { model: 'gpt-6-sol', effort: 'xhigh', mode: 'auto' }),
+    ).toEqual(['--model', 'gpt-6-sol', '-c', 'model_reasoning_effort=xhigh', '--approve-for-me']);
     expect(launchDefaultArgs('gemini-cli', { mode: 'yolo' })).toEqual(['--approval-mode', 'yolo']);
   });
 

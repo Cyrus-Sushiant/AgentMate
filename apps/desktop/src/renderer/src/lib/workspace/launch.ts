@@ -98,7 +98,7 @@ export interface PromptLaunch {
   prompt: string;
   /** Model and effort flags for this CLI, e.g. from the prompt's run recommendation. */
   runArgs?: string[];
-  /** Shown on the tab, e.g. "Opus 5 · High". */
+  /** Shown on the tab, e.g. "Opus 5.5 · High". */
   runLabel?: string;
 }
 

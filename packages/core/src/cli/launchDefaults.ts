@@ -11,7 +11,7 @@ import { getCliDefinition } from './registry.js';
  * at all, so the CLI falls back to its own config exactly as if it had been started by hand.
  */
 export interface CliLaunchDefault {
-  /** Value for the CLI's model flag, e.g. "opus" or "gpt-5.6-sol". */
+  /** Value for the CLI's model flag, e.g. "opus" or "gpt-6-sol". */
   model?: string;
   effort?: EffortLevel;
   /** Id of one of the CLI's launch modes (see CliLaunchOptions.modes). */
