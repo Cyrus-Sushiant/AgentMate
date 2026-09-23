@@ -1,9 +1,14 @@
 import { randomUUID } from 'node:crypto';
-import type { ProjectDraft, ProjectDraftStatus } from '@agentmat/core';
+import type { ProjectDraft, ProjectDraftStatus, ScheduledTask } from '@agentmat/core';
 import { ipcMain } from 'electron';
-import type { CreateProjectDraftInput } from '../../shared/apiTypes';
+import type {
+  CreateProjectDraftInput,
+  ScheduledTaskInput,
+  UpdateProjectDraftInput,
+} from '../../shared/apiTypes';
 import { IPC } from '../../shared/ipcChannels';
 import { store } from '../store';
+import { createScheduledTasks } from './scheduledTasks';
 
 export function registerProjectDraftHandlers(): void {
   ipcMain.handle(
@@ -48,6 +53,35 @@ export function registerProjectDraftHandlers(): void {
         implementedAt: status === 'implemented' ? new Date().toISOString() : null,
       };
       await store.setProjectDrafts(drafts);
+    },
+  );
+
+  ipcMain.handle(
+    IPC.projectDrafts.update,
+    async (
+      _event,
+      draftId: string,
+      patch: UpdateProjectDraftInput,
+    ): Promise<ProjectDraft | null> => {
+      const drafts = await store.getProjectDrafts();
+      const index = drafts.findIndex((draft) => draft.id === draftId);
+      if (index === -1) return null;
+      drafts[index] = { ...drafts[index], ...patch };
+      await store.setProjectDrafts(drafts);
+      return drafts[index];
+    },
+  );
+
+  // A finished draft moves over to the schedule instead of living in both lists.
+  ipcMain.handle(
+    IPC.projectDrafts.promoteToScheduled,
+    async (_event, draftId: string, input: ScheduledTaskInput): Promise<ScheduledTask | null> => {
+      const drafts = await store.getProjectDrafts();
+      const draft = drafts.find((entry) => entry.id === draftId);
+      if (!draft) return null;
+      const [task] = await createScheduledTasks(draft.projectId, [input]);
+      await store.setProjectDrafts(drafts.filter((entry) => entry.id !== draftId));
+      return task;
     },
   );
 

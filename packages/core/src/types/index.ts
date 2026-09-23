@@ -3,6 +3,7 @@ import type { CliLaunchDefaultsMap } from '../cli/launchDefaults.js';
 import type { CommitMessageSettings } from '../git/commitMessage.js';
 import type { GrammarSettings } from '../grammar/languagetool.js';
 import type { ProxySettings } from '../network/proxy.js';
+import type { EffortLevel } from '../promptBuilder/runRecommendation.js';
 import type { DesktopPromptBuildWidgetInstance } from '../promptBuilder/types.js';
 import type {
   DesktopWidgetInstance,
@@ -831,7 +832,14 @@ export interface ProjectDraft {
   implementedAt: string | null;
 }
 
-export type ScheduledTaskStatus = 'pending' | 'completed' | 'cancelled';
+/** `missed` is an automatic task whose time passed while the app was closed. */
+export type ScheduledTaskStatus = 'pending' | 'completed' | 'cancelled' | 'missed';
+
+/**
+ * `manual` tasks wait for Run now. `auto` tasks open in a terminal on their own at `runAt`
+ * while the app is running.
+ */
+export type ScheduledTaskRunMode = 'manual' | 'auto';
 
 export interface ScheduledTask {
   id: string;
@@ -848,6 +856,15 @@ export interface ScheduledTask {
   telegramChatId?: string | null;
   /** message_id of the Telegram message tracking this task, used to edit it in place on status changes. */
   telegramMessageId?: number | null;
+  /** Missing on tasks saved before run modes existed, which read as manual. */
+  runMode?: ScheduledTaskRunMode;
+  /** CLI to run the prompt in. Missing falls back to the default CLI, then the target AI's CLI. */
+  cliId?: string;
+  /** Value for the CLI's model flag, e.g. "opus". */
+  model?: string;
+  effort?: EffortLevel;
+  /** ISO datetime the task was last started, by hand or by the scheduler. */
+  ranAt?: string | null;
 }
 
 /**

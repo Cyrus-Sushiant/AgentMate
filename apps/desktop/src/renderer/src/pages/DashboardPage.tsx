@@ -357,8 +357,11 @@ function ToolUpdateRow({
 // rows to render until every check has come back.
 function UpdatesCard({
   installedClis,
+  clisPending,
 }: {
   installedClis: { cli: CliDefinition; status: InstalledCli }[];
+  /** CLI detection hasn't answered yet, so an empty list means "don't know" rather than "none". */
+  clisPending: boolean;
 }): React.JSX.Element {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -400,6 +403,7 @@ function UpdatesCard({
   // Nothing is known to be up to date until the tool scan lands, so the idle wait
   // and the scan itself both count as "still checking".
   const checking =
+    clisPending ||
     !deferReady ||
     toolsQuery.isPending ||
     toolsQuery.isFetching ||
@@ -511,9 +515,12 @@ export default function DashboardPage(): React.JSX.Element {
   const [diagnoseHost, setDiagnoseHost] = useState<string | null>(null);
   const [speedTestOpen, setSpeedTestOpen] = useState(false);
 
+  // Detecting every CLI can take 20s on a cold start. The cards that use it have their own
+  // skeletons, so it doesn't hold the startup splash (or the overlay) open.
   const cliQuery = useQuery({
     queryKey: queryKeys.cliStatus,
     queryFn: () => window.agentmat.cli.detectAll(),
+    meta: { silentLoading: true },
   });
   const projectsQuery = useQuery({
     queryKey: queryKeys.projects,
@@ -1679,7 +1686,7 @@ export default function DashboardPage(): React.JSX.Element {
         )}
       </div>
 
-      <UpdatesCard installedClis={installedClis} />
+      <UpdatesCard installedClis={installedClis} clisPending={cliQuery.isPending} />
 
       <Dialog open={diagnoseHost !== null} onOpenChange={(open) => !open && setDiagnoseHost(null)}>
         <DialogContent>

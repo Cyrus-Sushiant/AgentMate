@@ -18,6 +18,15 @@ const BOOT_GRACE_MS = 1500;
  * button (see `meta.silentLoading` below).
  */
 export function useAppLoadingOverlay(): boolean {
+  return useStartupLoading().showOverlay;
+}
+
+/**
+ * The overlay plus whether the cold start is over. The main window stays
+ * hidden behind the startup splash until `booted` is set and the overlay is
+ * gone, so the user never sees a second loading screen (see AppShell).
+ */
+export function useStartupLoading(): { showOverlay: boolean; booted: boolean } {
   // A query that already has data is refreshing in place, so it isn't part of
   // the boot. `meta.silentLoading` opts a query out entirely (e.g. the
   // dashboard's IP lookup and CLI update checks).
@@ -49,5 +58,6 @@ export function useAppLoadingOverlay(): boolean {
     return () => clearTimeout(timer);
   }, [booted, bootFetching]);
 
-  return useDelayedLoading((!booted && bootFetching > 0) || isMutating > 0);
+  const showOverlay = useDelayedLoading((!booted && bootFetching > 0) || isMutating > 0);
+  return { showOverlay, booted };
 }

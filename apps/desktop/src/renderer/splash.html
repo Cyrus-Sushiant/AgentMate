@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <!-- The startup splash (see src/main/splashWindow.ts). Plain HTML and CSS
+         with one small script, so it paints before the app bundle has loaded. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AgentMate</title>
+    <style>
+      :root {
+        --fg: 0 0% 98%;
+        --muted: 0 0% 70%;
+        --primary: 150 100% 45%;
+        /* Laid over the native blur: just enough to keep the text readable. */
+        --tint: 0 0% 6% / 0.38;
+        --tint-css: 0 0% 8% / 0.72;
+        --edge: 0 0% 100% / 0.12;
+        --sheen: 0 0% 100% / 0.08;
+      }
+      :root[data-theme='light'] {
+        --fg: 0 0% 9%;
+        --muted: 0 0% 30%;
+        --primary: 150 100% 30%;
+        /* Heavier than the dark tint: light glass over a dark desktop otherwise reads as grey. */
+        --tint: 0 0% 100% / 0.66;
+        --tint-css: 0 0% 98% / 0.78;
+        --edge: 0 0% 0% / 0.1;
+        --sheen: 0 0% 100% / 0.6;
+      }
+
+      * {
+        box-sizing: border-box;
+        margin: 0;
+      }
+      html,
+      body {
+        height: 100%;
+        background: transparent;
+        overflow: hidden;
+        user-select: none;
+        cursor: default;
+      }
+      body {
+        color: hsl(var(--fg));
+        font-family:
+          "Segoe UI Variable Display", "Segoe UI", -apple-system, BlinkMacSystemFont, Roboto,
+          Helvetica, Arial, sans-serif;
+        letter-spacing: -0.011em;
+        -webkit-app-region: drag;
+      }
+
+      .card {
+        position: relative;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        padding: 28px 32px 22px;
+        background: hsl(var(--tint));
+        box-shadow: inset 0 1px 0 0 hsl(var(--sheen));
+        opacity: 0;
+        transform: scale(0.985);
+        transition:
+          opacity 220ms ease-out,
+          transform 260ms cubic-bezier(0.22, 1, 0.36, 1);
+        overflow: hidden;
+      }
+      /* No native blur here (Windows 10, Linux): draw the frosted surface ourselves. */
+      :root[data-glass='css'] .card {
+        background: hsl(var(--tint-css));
+        border: 1px solid hsl(var(--edge));
+        border-radius: 14px;
+      }
+      /* A soft green glow behind the logo, the one splash of brand color. */
+      .card::before {
+        content: '';
+        position: absolute;
+        width: 320px;
+        height: 320px;
+        left: -90px;
+        top: -120px;
+        background: radial-gradient(closest-side, hsl(var(--primary) / 0.22), transparent);
+        pointer-events: none;
+      }
+      body.ready .card {
+        opacity: 1;
+        transform: none;
+      }
+      body.closing .card {
+        opacity: 0;
+        transition-duration: 160ms;
+      }
+
+      .brand {
+        position: relative;
+        display: flex;
+        align-items: center;
+        gap: 18px;
+        margin-top: 14px;
+      }
+      .brand img {
+        width: 68px;
+        height: 68px;
+        filter: drop-shadow(0 6px 18px hsl(var(--primary) / 0.28));
+      }
+      .name {
+        font-size: 30px;
+        font-weight: 600;
+        line-height: 1.1;
+      }
+      .tagline {
+        margin-top: 4px;
+        font-size: 13px;
+        color: hsl(var(--muted));
+      }
+
+      .footer {
+        position: relative;
+        margin-top: auto;
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 16px;
+        font-size: 12px;
+        color: hsl(var(--muted));
+      }
+      .status {
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .version {
+        flex-shrink: 0;
+        font-variant-numeric: tabular-nums;
+      }
+
+      /* Indeterminate bar along the bottom edge, like Visual Studio's. */
+      .progress {
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        height: 2px;
+        overflow: hidden;
+      }
+      .progress::after {
+        content: '';
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        width: 30%;
+        background: linear-gradient(
+          90deg,
+          transparent,
+          hsl(var(--primary)),
+          transparent
+        );
+        animation: sweep 1.4s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+      }
+      @keyframes sweep {
+        from {
+          transform: translateX(-100%);
+        }
+        to {
+          transform: translateX(440%);
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .progress::after {
+          animation: none;
+          width: 100%;
+          opacity: 0.5;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <div class="brand">
+        <img id="logo" alt="" />
+        <div>
+          <div class="name">AgentMate</div>
+          <div class="tagline">Agentic Development Environment</div>
+        </div>
+      </div>
+      <div class="footer">
+        <span class="status" id="status">Starting...</span>
+        <span class="version" id="credit">© SmartClouds</span>
+      </div>
+      <div class="progress"></div>
+    </div>
+    <script type="module" src="/src/splash/main.ts"></script>
+  </body>
+</html>

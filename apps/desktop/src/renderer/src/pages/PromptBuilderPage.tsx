@@ -1,4 +1,4 @@
-import type { PromptType, TargetAI } from '@agentmat/core';
+import type { PromptType, ScheduledTaskRunMode, TargetAI } from '@agentmat/core';
 import {
   buildPromptGenerationRequest,
   CLI_REGISTRY,
@@ -17,6 +17,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { useShallow } from 'zustand/react/shallow';
+import { type RunSettings, RunSettingsFields } from '@/components/cli/RunSettingsFields';
 import { cliOptionIcon } from '@/components/cliLogos';
 import { MonacoEditor } from '@/components/editor/MonacoEditor';
 import { GrammarTextarea } from '@/components/grammar/GrammarTextarea';
@@ -62,6 +63,7 @@ import { SimpleTooltip } from '@/components/ui/tooltip';
 import { useVoiceInput } from '@/hooks/useVoiceInput';
 import { cliLaunchCommand } from '@/lib/openCli';
 import { queryKeys } from '@/lib/queryKeys';
+import { cn } from '@/lib/utils';
 import { useCliStore } from '@/stores/cliStore';
 import { usePageHeader } from '@/stores/pageHeaderStore';
 import { type PromptBuilderStatus, usePromptBuilderStore } from '@/stores/promptBuilderStore';
@@ -139,6 +141,8 @@ export default function PromptBuilderPage(): React.JSX.Element {
   const [isTranslating, setIsTranslating] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [scheduleQueue, setScheduleQueue] = useState<ScheduleQueueItem[]>([]);
+  const [seriesRunMode, setSeriesRunMode] = useState<ScheduledTaskRunMode>('auto');
+  const [seriesRun, setSeriesRun] = useState<RunSettings>({});
   const [historyOpen, setHistoryOpen] = useState(false);
   const [historySearch, setHistorySearch] = useState('');
 
@@ -249,7 +253,7 @@ export default function PromptBuilderPage(): React.JSX.Element {
       });
     },
     onSuccess: () => {
-      toast.success('Draft saved. Find it on the project’s Overview tab.');
+      toast.success('Draft saved. Find it under the project’s Prompts section.');
       void queryClient.invalidateQueries({ queryKey: queryKeys.projectDrafts(projectId!) });
     },
     onError: () => toast.error('Could not save the draft.'),
@@ -266,11 +270,15 @@ export default function PromptBuilderPage(): React.JSX.Element {
           targetAI,
           content: generatePrompt({ rawInput: item.text, promptType, targetAI }),
           runAt: new Date(item.runAt).toISOString(),
+          runMode: seriesRunMode,
+          cliId: seriesRun.cliId,
+          model: seriesRun.model,
+          effort: seriesRun.effort,
         })),
       });
     },
     onSuccess: () => {
-      toast.success('Scheduled series saved. View it on the project’s Schedule tab.');
+      toast.success('Scheduled series saved. Find it under the project’s Prompts section.');
       setScheduleQueue([]);
       void queryClient.invalidateQueries({ queryKey: queryKeys.scheduledTasks(projectId!) });
     },
@@ -566,7 +574,7 @@ export default function PromptBuilderPage(): React.JSX.Element {
                 </div>
                 <p className="text-xs text-muted-foreground">
                   {projectId
-                    ? 'Parks this request (with the prompt type, target AI, and generated prompt it was built with) on the project’s Overview tab, where you can mark it implemented later.'
+                    ? 'Parks this request (with the prompt type, target AI, and generated prompt it was built with) in the project’s Prompts section, where you can finish it and schedule it later.'
                     : 'Choose a project above to park this request on it as a draft.'}
                 </p>
                 <Button
@@ -597,6 +605,19 @@ export default function PromptBuilderPage(): React.JSX.Element {
                   </p>
                 )}
 
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Run</Label>
+                  <Combobox
+                    value={seriesRunMode}
+                    onChange={(v) => setSeriesRunMode(v as ScheduledTaskRunMode)}
+                    options={[
+                      { value: 'auto', label: 'Automatically at each time' },
+                      { value: 'manual', label: 'Manually, when I press Run' },
+                    ]}
+                  />
+                </div>
+                <RunSettingsFields value={seriesRun} onChange={setSeriesRun} />
+
                 {scheduleQueue.length === 0 ? (
                   <p className="text-xs text-muted-foreground">
                     No tasks queued yet. Add one to build a series of prompts to run on this project
@@ -625,7 +646,12 @@ export default function PromptBuilderPage(): React.JSX.Element {
                           value={item.text}
                           onChange={(e) => updateQueueItem(item.id, { text: e.target.value })}
                         />
-                        <div className="flex items-center gap-1.5">
+                        <div
+                          className={cn(
+                            'flex items-center gap-1.5',
+                            seriesRunMode === 'manual' && 'hidden',
+                          )}
+                        >
                           <Clock className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                           <Input
                             type="datetime-local"

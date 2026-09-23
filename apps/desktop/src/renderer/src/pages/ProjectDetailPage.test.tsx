@@ -233,14 +233,28 @@ describe('ProjectDetailPage sections', () => {
     await openSection(user, /^Config/);
     expect(await screen.findByText('.agentmate/config.json')).toBeTruthy();
 
-    await openSection(user, /^Prompt history/);
+    await openSection(user, /^Prompts/);
     // Leaving a section really unmounts it, rather than stacking the sections up.
     expect(screen.queryByText('Project terminal')).toBeNull();
     expect(screen.queryByText('No skills installed')).toBeNull();
   });
 
+  it('sends an old Schedule link to the Scheduled tab of Prompts', async () => {
+    renderWithProviders(<ProjectDetailPage />, {
+      route: '/projects/p1?tab=schedule',
+      path: 'projects/:projectId',
+      bridge: { 'projects.list': [project()], 'scheduledTasks.listByProject': [] },
+    });
+
+    expect(await screen.findByText('Nothing scheduled')).toBeTruthy();
+    expect(
+      within(sectionNav()).getByRole('button', { name: /^Prompts/, current: 'page' }),
+    ).toBeTruthy();
+    expect(screen.getByRole('tab', { name: /Scheduled/, selected: true })).toBeTruthy();
+  });
+
   it('mounts every section in the nav without falling over', async () => {
-    // The page is mostly a router between sixteen sections, so the thing worth proving is that
+    // The page is mostly a router between fifteen sections, so the thing worth proving is that
     // each one can be reached and rendered with nothing but a project behind the bridge.
     const { user } = renderPage({ 'tools.detectAll': [{ id: 'diffray', installed: true }] });
     await screen.findByRole('heading', { name: 'Apollo' });
@@ -248,7 +262,7 @@ describe('ProjectDetailPage sections', () => {
     const labels = within(sectionNav())
       .getAllByRole('button')
       .map((button) => button.textContent?.trim() ?? '');
-    expect(labels.length).toBe(16);
+    expect(labels.length).toBe(15);
 
     for (const label of labels) {
       const button = within(sectionNav()).getByRole('button', { name: label });
@@ -463,5 +477,58 @@ describe('ProjectDetailPage header menu', () => {
     expect((within(dialog).getByLabelText(/^Folder/) as HTMLInputElement).value).toBe(
       'C:\\code\\apollo',
     );
+  });
+});
+
+describe('ProjectDetailPage edit run commands link', () => {
+  const withRun = project({ runCommands: [{ id: 'dev', label: 'Dev', command: 'pnpm dev' }] });
+
+  function renderAt(route: string) {
+    return renderWithProviders(<ProjectDetailPage />, {
+      route,
+      path: 'projects/:projectId',
+      bridge: { 'projects.list': [withRun] },
+    });
+  }
+
+  it('opens Edit project on the Agent tab when the route asks for ?edit=run', async () => {
+    renderAt('/projects/p1?edit=run');
+
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByText('Edit project')).toBeTruthy();
+    expect(within(dialog).getByRole('tab', { name: /Agent/, selected: true })).toBeTruthy();
+    expect((within(dialog).getByLabelText('Command 1') as HTMLInputElement).value).toBe('pnpm dev');
+  });
+
+  it('keeps the section from the route alongside the edit link', async () => {
+    renderAt('/projects/p1?tab=terminal&edit=run');
+
+    await screen.findByRole('dialog');
+    // The open dialog hides the page behind it from the accessibility tree.
+    const nav = screen.getByRole('navigation', { name: 'Project sections', hidden: true });
+    expect(
+      within(nav).getByRole('button', { name: /Terminal/, current: 'page', hidden: true }),
+    ).toBeTruthy();
+  });
+
+  it('goes back to opening on Basics after the run commands dialog is closed', async () => {
+    const { user } = renderAt('/projects/p1?edit=run');
+    await screen.findByRole('dialog');
+
+    await user.keyboard('{Escape}');
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+
+    const menu = await openHeaderMenu(user);
+    await user.click(within(menu).getByRole('menuitem', { name: /Edit project/ }));
+
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByRole('tab', { name: /Basics/, selected: true })).toBeTruthy();
+  });
+
+  it('does not open the edit dialog without the link', async () => {
+    renderAt('/projects/p1');
+
+    await screen.findByRole('heading', { name: 'Apollo' });
+    expect(screen.queryByRole('dialog')).toBeNull();
   });
 });

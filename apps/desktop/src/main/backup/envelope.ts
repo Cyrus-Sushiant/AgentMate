@@ -245,7 +245,8 @@ function buildProjectDraft(entry: Record_): ProjectDraft | null {
   };
 }
 
-const TASK_STATUSES = new Set(['pending', 'completed', 'cancelled']);
+const TASK_STATUSES = new Set(['pending', 'completed', 'cancelled', 'missed']);
+const TASK_EFFORTS = new Set(['low', 'medium', 'high', 'xhigh', 'max']);
 
 function buildScheduledTask(entry: Record_): ScheduledTask | null {
   const id = str(entry.id);
@@ -265,6 +266,14 @@ function buildScheduledTask(entry: Record_): ScheduledTask | null {
     createdAt: strOr(entry.createdAt, new Date().toISOString()),
     telegramChatId: nullableStr(entry.telegramChatId),
     telegramMessageId: typeof entry.telegramMessageId === 'number' ? entry.telegramMessageId : null,
+    runMode: entry.runMode === 'auto' ? 'auto' : 'manual',
+    cliId: str(entry.cliId) || undefined,
+    model: str(entry.model) || undefined,
+    effort:
+      typeof entry.effort === 'string' && TASK_EFFORTS.has(entry.effort)
+        ? (entry.effort as ScheduledTask['effort'])
+        : undefined,
+    ranAt: nullableStr(entry.ranAt),
   };
 }
 

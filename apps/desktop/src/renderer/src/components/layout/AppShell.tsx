@@ -12,10 +12,11 @@ import { Button } from '@/components/ui/button';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { WorkspaceHeaderActions } from '@/components/workspace/WorkspaceHeaderActions';
 import { WorkspaceHost } from '@/components/workspace/WorkspaceHost';
-import { useAppLoadingOverlay } from '@/hooks/useAppLoadingOverlay';
+import { useStartupLoading } from '@/hooks/useAppLoadingOverlay';
 import { useAppNotificationMessages } from '@/hooks/useAppNotificationMessages';
 import { useGlobalShortcuts } from '@/hooks/useGlobalShortcuts';
 import { usePetDragGuard } from '@/hooks/usePetDragGuard';
+import { useScheduledTaskRunner } from '@/hooks/useScheduledTaskRunner';
 import { useVaultEvents } from '@/hooks/useVaultEvents';
 import { cn } from '@/lib/utils';
 import { isWorkspacePath } from '@/lib/workspace/commands';
@@ -146,12 +147,15 @@ function TopBar(): React.JSX.Element {
   );
 }
 
+/** How long the first page gets to paint its data before the splash hands over. */
+const READY_SETTLE_MS = 120;
+
 export function AppShell(): React.JSX.Element {
   const location = useLocation();
   const navigate = useNavigate();
   // Only the cold start gets the full-page overlay. Every later load shimmers
   // in place on the card that's waiting. See the hook for why.
-  const showLoading = useAppLoadingOverlay();
+  const { showOverlay: showLoading, booted } = useStartupLoading();
   const scrollRef = useRef<HTMLDivElement>(null);
   const onWorkspace = isWorkspacePath(location.pathname);
   // The workspace mounts on first visit and then stays, so its terminals survive navigation.
@@ -168,6 +172,20 @@ export function AppShell(): React.JSX.Element {
   useEffect(() => initSshAgentStatus(), []);
   // The desktop companion would otherwise swallow every drop in the app window.
   usePetDragGuard();
+  useScheduledTaskRunner();
+
+  // The window is still hidden behind the startup splash. Once the first page has its data, give
+  // React a beat to commit it and tell main to swap them. A timer, not requestAnimationFrame: a
+  // window that has never been shown only gets frames now and then. Later calls are ignored.
+  const reportedReady = useRef(false);
+  useEffect(() => {
+    if (!booted || showLoading || reportedReady.current) return undefined;
+    const timer = setTimeout(() => {
+      reportedReady.current = true;
+      window.agentmat.app.notifyReady();
+    }, READY_SETTLE_MS);
+    return () => clearTimeout(timer);
+  }, [booted, showLoading]);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: every route change starts the page at the top
   useEffect(() => {

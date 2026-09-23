@@ -381,6 +381,34 @@ describe('rows bound straight into SQL', () => {
     expect(result.skipped['scheduled tasks']).toBe(1);
   });
 
+  it('keeps a scheduled task run settings and reads old tasks as manual', () => {
+    const result = parsed({
+      scheduledTasks: [
+        {
+          id: 's1',
+          projectId: 'p1',
+          runAt: '2026-02-01T00:00:00.000Z',
+          status: 'missed',
+          runMode: 'auto',
+          cliId: 'claude-code',
+          model: 'opus',
+          effort: 'high',
+          ranAt: '2026-02-01T00:00:05.000Z',
+        },
+        { id: 's2', projectId: 'p1', runAt: '2026-02-01T00:00:00.000Z', effort: 'huge' },
+      ],
+    });
+    expect(result.data.scheduledTasks?.[0]).toMatchObject({
+      status: 'missed',
+      runMode: 'auto',
+      cliId: 'claude-code',
+      model: 'opus',
+      effort: 'high',
+      ranAt: '2026-02-01T00:00:05.000Z',
+    });
+    expect(result.data.scheduledTasks?.[1]).toMatchObject({ runMode: 'manual', effort: undefined });
+  });
+
   it('keeps only string metadata on an activity event', () => {
     const result = parsed({
       activity: [

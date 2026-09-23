@@ -3,15 +3,12 @@ import type {
   DetectedClaudeHook,
   NotificationHookKind,
   Project,
-  ProjectDraftStatus,
   ProjectGithubAction,
   ProjectNotificationHook,
   ProjectNotificationSettings,
-  ScheduledTask,
 } from '@agentmat/core';
 import {
   CLI_REGISTRY,
-  cliIdForTargetAI,
   configuredRunCommands,
   DIFFRAY_TOOL_ID,
   notificationHookChannel,
@@ -37,7 +34,6 @@ import {
   ArrowRight,
   ArrowUp,
   Blocks,
-  CalendarDays,
   Check,
   CircleCheck,
   CircleQuestion,
@@ -57,7 +53,6 @@ import {
   MessageSquare,
   Paw,
   Pencil,
-  Play,
   Plug,
   RefreshCw,
   Run,
@@ -103,7 +98,7 @@ import {
 import { ProjectFileBrowser } from '@/components/projects/ProjectFileBrowser';
 import { ProjectFormDialog, type ProjectFormValues } from '@/components/projects/ProjectFormDialog';
 import { ProjectPromptDialog } from '@/components/projects/ProjectPromptDialog';
-import { ProjectPromptHistory } from '@/components/projects/ProjectPromptHistory';
+import { ProjectPrompts } from '@/components/projects/prompts/ProjectPrompts';
 import { SecurityTab } from '@/components/projects/security/SecurityTab';
 import { useProjectRun } from '@/components/projects/useProjectRun';
 import {
@@ -151,12 +146,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { useGitRepoWatch } from '@/hooks/useGitRepoWatch';
 import { sanitizeCommitMessage, splitGitPath } from '@/lib/git';
-import { cliLaunchCommand } from '@/lib/openCli';
 import { queryKeys } from '@/lib/queryKeys';
-import { persianTextProps } from '@/lib/rtl';
-import { timeAgo } from '@/lib/time';
 import { cn } from '@/lib/utils';
-import { useCliStore } from '@/stores/cliStore';
 import { confirmDialog } from '@/stores/confirmStore';
 import { usePageHeader } from '@/stores/pageHeaderStore';
 import { useShortcutLabel } from '@/stores/shortcutStore';
@@ -178,12 +169,28 @@ export default function ProjectDetailPage(): React.JSX.Element {
   const tabParam = searchParams.get('tab');
   const section: ProjectSectionId = isProjectSectionId(tabParam) ? tabParam : 'overview';
 
+  // Schedule used to be its own section. It now lives under Prompts, so old links land there.
+  useEffect(() => {
+    if (tabParam !== 'schedule') return;
+    setSearchParams(
+      (prev) => {
+        const params = new URLSearchParams(prev);
+        params.set('tab', 'prompts');
+        params.set('view', 'scheduled');
+        return params;
+      },
+      { replace: true },
+    );
+  }, [tabParam, setSearchParams]);
+
   function setSection(next: ProjectSectionId): void {
     setSearchParams(
       (prev) => {
         const params = new URLSearchParams(prev);
         if (next === 'overview') params.delete('tab');
         else params.set('tab', next);
+        // The Prompts sub-tab only means something inside Prompts.
+        if (next !== 'prompts') params.delete('view');
         return params;
       },
       { replace: true },
@@ -326,14 +333,22 @@ export default function ProjectDetailPage(): React.JSX.Element {
     onError: (error: Error) => toast.error(error.message),
   });
 
-  // Shares its key with the Overview tab's drafts list, so both read one fetch.
+  // Share their keys with the Prompts section, so the nav badge and the lists read one fetch.
   const draftsQuery = useQuery({
     queryKey: queryKeys.projectDrafts(projectId ?? ''),
     queryFn: () => window.agentmat.projectDrafts.listByProject(projectId!),
     enabled: !!projectId,
   });
+  const scheduledTasksQuery = useQuery({
+    queryKey: queryKeys.scheduledTasks(projectId ?? ''),
+    queryFn: () => window.agentmat.scheduledTasks.listByProject(projectId!),
+    enabled: !!projectId,
+  });
   const openDraftCount = (draftsQuery.data ?? []).filter(
     (draft) => draft.status === 'draft',
+  ).length;
+  const missedTaskCount = (scheduledTasksQuery.data ?? []).filter(
+    (task) => task.status === 'missed',
   ).length;
 
   const installedMcpServersQuery = useQuery({
@@ -560,7 +575,8 @@ export default function ProjectDetailPage(): React.JSX.Element {
     const badges: Partial<Record<ProjectSectionId, SectionBadge>> = {};
     const skillCount = installedSkillsQuery.data?.length ?? 0;
     const mcpCount = installedMcpServersQuery.data?.length ?? 0;
-    if (openDraftCount > 0) badges.overview = { count: openDraftCount };
+    const promptCount = openDraftCount + missedTaskCount;
+    if (promptCount > 0) badges.prompts = { count: promptCount, attention: missedTaskCount > 0 };
     if (skillCount > 0) badges.skills = { count: skillCount, attention: skillUpdateCount > 0 };
     if (mcpCount > 0) badges.mcp = { count: mcpCount };
     // Only the two severities worth interrupting someone over. A repo with 400 low-severity
@@ -573,6 +589,7 @@ export default function ProjectDetailPage(): React.JSX.Element {
     installedMcpServersQuery.data,
     installedSkillsQuery.data,
     latestSecurityScanQuery.data,
+    missedTaskCount,
     openDraftCount,
     skillUpdateCount,
   ]);
@@ -666,8 +683,6 @@ export default function ProjectDetailPage(): React.JSX.Element {
                 installed={diffrayInstalled}
                 onOpen={() => setSection('review')}
               />
-
-              <DraftsSection projectId={project.id} />
             </div>
           )}
 
@@ -779,7 +794,7 @@ export default function ProjectDetailPage(): React.JSX.Element {
 
           {section === 'blueprint' && <BlueprintTab project={project} />}
 
-          {section === 'prompts' && <ProjectPromptHistory projectId={project.id} />}
+          {section === 'prompts' && <ProjectPrompts project={project} />}
 
           {section === 'skills' && (
             <div className="space-y-3">
@@ -1076,8 +1091,6 @@ export default function ProjectDetailPage(): React.JSX.Element {
           )}
 
           {section === 'security' && <SecurityTab key={project.id} project={project} />}
-
-          {section === 'schedule' && <ScheduleTab projectId={project.id} />}
 
           {section === 'hooks' && <HooksTab project={project} />}
 
@@ -1412,317 +1425,6 @@ function EditClaudeHookDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
-  );
-}
-
-/**
- * Prompt Builder drafts parked on this project, shown with the parameters each was built with
- * so the project's Overview says what was planned, and lets you flip one to implemented.
- */
-function DraftsSection({ projectId }: { projectId: string }): React.JSX.Element {
-  const queryClient = useQueryClient();
-  const navigate = useNavigate();
-  const [expandedId, setExpandedId] = useState<string | null>(null);
-
-  const draftsQuery = useQuery({
-    queryKey: queryKeys.projectDrafts(projectId),
-    queryFn: () => window.agentmat.projectDrafts.listByProject(projectId),
-  });
-
-  // Newest first, since the draft just saved from Prompt Builder is the one you came here for.
-  const drafts = [...(draftsQuery.data ?? [])].sort((a, b) =>
-    b.createdAt.localeCompare(a.createdAt),
-  );
-
-  function invalidate(): void {
-    void queryClient.invalidateQueries({ queryKey: queryKeys.projectDrafts(projectId) });
-  }
-
-  const updateStatusMutation = useMutation({
-    mutationFn: (params: { draftId: string; status: ProjectDraftStatus }) =>
-      window.agentmat.projectDrafts.updateStatus(params.draftId, params.status),
-    onSuccess: (_result, params) => {
-      toast.success(params.status === 'implemented' ? 'Marked as implemented.' : 'Draft reopened.');
-      invalidate();
-    },
-    onError: () => toast.error('Could not update the draft.'),
-  });
-
-  const removeMutation = useMutation({
-    mutationFn: (draftId: string) => window.agentmat.projectDrafts.remove(draftId),
-    onSuccess: invalidate,
-  });
-
-  return (
-    <div className="space-y-3">
-      <div className="space-y-1">
-        <p className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-          <FileText className="h-3.5 w-3.5" /> Drafts
-        </p>
-        <p className="text-xs text-muted-foreground">
-          Requests parked on this project from Prompt Builder, with the parameters they were built
-          with. Mark one implemented once it has shipped.
-        </p>
-      </div>
-
-      {draftsQuery.isLoading ? (
-        <div className="space-y-2">
-          <Skeleton className="h-20 w-full rounded-lg" />
-          <Skeleton className="h-20 w-full rounded-lg" />
-        </div>
-      ) : drafts.length === 0 ? (
-        <ProjectEmptyState
-          icon={FileText}
-          title="No drafts yet"
-          description='In Prompt Builder, set Status to "Draft", pick this project, and save.'
-          action={
-            <Button variant="outline" size="sm" onClick={() => navigate('/prompt-builder')}>
-              Open Prompt Builder
-            </Button>
-          }
-        />
-      ) : (
-        <div className="space-y-2">
-          {drafts.map((draft) => {
-            const implemented = draft.status === 'implemented';
-            const expanded = expandedId === draft.id;
-            return (
-              <div
-                key={draft.id}
-                className="space-y-2 rounded-lg border border-border bg-card px-3 py-2 text-sm"
-              >
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    <Badge variant={implemented ? 'success' : 'warning'} className="capitalize">
-                      {draft.status}
-                    </Badge>
-                    {draft.promptType && <Badge variant="secondary">{draft.promptType}</Badge>}
-                    {draft.targetAI && <Badge variant="outline">{draft.targetAI}</Badge>}
-                    <span className="text-xs text-muted-foreground">
-                      {implemented && draft.implementedAt
-                        ? `Implemented ${timeAgo(draft.implementedAt)}`
-                        : `Added ${timeAgo(draft.createdAt)}`}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <SimpleTooltip
-                      label={implemented ? 'Reopen draft' : 'Mark implemented'}
-                      wrapTrigger={updateStatusMutation.isPending}
-                    >
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        disabled={updateStatusMutation.isPending}
-                        onClick={() =>
-                          updateStatusMutation.mutate({
-                            draftId: draft.id,
-                            status: implemented ? 'draft' : 'implemented',
-                          })
-                        }
-                      >
-                        {implemented ? (
-                          <RefreshCw className="h-4 w-4" />
-                        ) : (
-                          <Check className="h-4 w-4" />
-                        )}
-                      </Button>
-                    </SimpleTooltip>
-                    <SimpleTooltip label="Delete draft">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => {
-                          void confirmDialog({
-                            title: 'Delete this draft?',
-                            description: 'It will be removed from this project.',
-                            confirmLabel: 'Delete',
-                            variant: 'destructive',
-                          }).then((confirmed) => {
-                            if (confirmed) removeMutation.mutate(draft.id);
-                          });
-                        }}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </SimpleTooltip>
-                  </div>
-                </div>
-
-                <p
-                  dir={persianTextProps(draft.rawInput).dir}
-                  className={cn(
-                    'whitespace-pre-wrap text-xs',
-                    implemented ? 'text-muted-foreground' : '',
-                    persianTextProps(draft.rawInput).className,
-                  )}
-                >
-                  {draft.rawInput || '(no description)'}
-                </p>
-
-                {draft.content && (
-                  <>
-                    <button
-                      type="button"
-                      className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
-                      onClick={() => setExpandedId(expanded ? null : draft.id)}
-                    >
-                      {expanded ? 'Hide generated prompt' : 'Show generated prompt'}
-                    </button>
-                    {expanded && (
-                      <pre className="max-h-64 overflow-auto whitespace-pre-wrap rounded-md border border-border bg-muted/30 p-2 font-mono text-xs">
-                        {draft.content}
-                      </pre>
-                    )}
-                  </>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function statusBadgeVariant(
-  status: ScheduledTask['status'],
-): 'warning' | 'success' | 'destructive' {
-  if (status === 'completed') return 'success';
-  if (status === 'cancelled') return 'destructive';
-  return 'warning';
-}
-
-function ScheduleTab({ projectId }: { projectId: string }): React.JSX.Element {
-  const queryClient = useQueryClient();
-  const navigate = useNavigate();
-  const openSession = useTerminalStore((s) => s.openSession);
-  const defaultCliId = useCliStore((s) => s.defaultCliId);
-
-  const tasksQuery = useQuery({
-    queryKey: queryKeys.scheduledTasks(projectId),
-    queryFn: () => window.agentmat.scheduledTasks.listByProject(projectId),
-  });
-
-  const tasks = [...(tasksQuery.data ?? [])].sort((a, b) => a.runAt.localeCompare(b.runAt));
-
-  const updateStatusMutation = useMutation({
-    mutationFn: (params: { taskId: string; status: ScheduledTask['status'] }) =>
-      window.agentmat.scheduledTasks.updateStatus(params.taskId, params.status),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: queryKeys.scheduledTasks(projectId) });
-    },
-  });
-
-  const removeMutation = useMutation({
-    mutationFn: (taskId: string) => window.agentmat.scheduledTasks.remove(taskId),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: queryKeys.scheduledTasks(projectId) });
-    },
-  });
-
-  async function handleRun(task: ScheduledTask): Promise<void> {
-    const cliId = defaultCliId ?? cliIdForTargetAI(task.targetAI);
-    const cliDef = CLI_REGISTRY.find((c) => c.id === cliId);
-    if (!cliDef) {
-      toast.error('No CLI available for this task. Set a default CLI in Settings.');
-      return;
-    }
-    const filePath = await window.agentmat.fs.writeScratchFile(
-      `scheduled-task-${task.id}.md`,
-      task.content,
-    );
-    const launch = cliLaunchCommand(cliDef.id) ?? cliDef.executableNames[0];
-    const command =
-      window.agentmat.platform === 'win32'
-        ? `& ${launch} (Get-Content -Raw -LiteralPath "${filePath}")`
-        : `${launch} "$(cat '${filePath}')"`;
-    openSession({ title: cliDef.name, initialInput: command });
-    updateStatusMutation.mutate({ taskId: task.id, status: 'completed' });
-  }
-
-  if (tasksQuery.isLoading) {
-    return (
-      <div className="space-y-2">
-        <Skeleton className="h-16 w-full rounded-lg" />
-        <Skeleton className="h-16 w-full rounded-lg" />
-      </div>
-    );
-  }
-
-  if (tasks.length === 0) {
-    return (
-      <ProjectEmptyState
-        icon={CalendarDays}
-        title="No scheduled tasks"
-        description='Build a series from Prompt Builder by setting Status to "Scheduled" and choosing this project.'
-        action={
-          <Button variant="outline" size="sm" onClick={() => navigate('/prompt-builder')}>
-            Open Prompt Builder
-          </Button>
-        }
-      />
-    );
-  }
-
-  return (
-    <div className="space-y-2">
-      {tasks.map((task) => (
-        <div
-          key={task.id}
-          className="space-y-2 rounded-lg border border-border bg-card px-3 py-2 text-sm"
-        >
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-              <CalendarDays className="h-3.5 w-3.5" />
-              {new Date(task.runAt).toLocaleString()}
-              <Badge variant={statusBadgeVariant(task.status)} className="ml-1 capitalize">
-                {task.status}
-              </Badge>
-              <Badge variant="outline">{task.targetAI}</Badge>
-            </div>
-            <div className="flex items-center gap-1">
-              {task.status === 'pending' && (
-                <>
-                  <SimpleTooltip label="Run now">
-                    <Button variant="ghost" size="icon" onClick={() => void handleRun(task)}>
-                      <Play className="h-4 w-4" />
-                    </Button>
-                  </SimpleTooltip>
-                  <SimpleTooltip label="Mark completed">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() =>
-                        updateStatusMutation.mutate({ taskId: task.id, status: 'completed' })
-                      }
-                    >
-                      <Check className="h-4 w-4" />
-                    </Button>
-                  </SimpleTooltip>
-                  <SimpleTooltip label="Cancel">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() =>
-                        updateStatusMutation.mutate({ taskId: task.id, status: 'cancelled' })
-                      }
-                    >
-                      <X className="h-4 w-4" />
-                    </Button>
-                  </SimpleTooltip>
-                </>
-              )}
-              <SimpleTooltip label="Delete">
-                <Button variant="ghost" size="icon" onClick={() => removeMutation.mutate(task.id)}>
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              </SimpleTooltip>
-            </div>
-          </div>
-          <p className="whitespace-pre-wrap text-xs text-muted-foreground">{task.rawInput}</p>
-        </div>
-      ))}
-    </div>
   );
 }
 

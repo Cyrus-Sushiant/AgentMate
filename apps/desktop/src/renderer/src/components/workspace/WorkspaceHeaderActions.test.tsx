@@ -1,6 +1,7 @@
 import type { Project } from '@agentmat/core';
-import { act, screen, waitFor } from '@testing-library/react';
+import { act, screen, waitFor, within } from '@testing-library/react';
 import { useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { useVersionDialogStore } from '@/stores/versionDialogStore';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
@@ -11,10 +12,14 @@ vi.mock('@/lib/terminal/terminalRuntime', () => ({
   terminalRuntime: { dispose: vi.fn(), mount: vi.fn(), unmount: vi.fn(), focus: vi.fn() },
 }));
 
-const run = vi.hoisted(() => ({ runCommand: vi.fn() }));
+const run = vi.hoisted(() => ({ requestRun: vi.fn(), runCommand: vi.fn() }));
 
 vi.mock('@/components/projects/useProjectRun', () => ({
-  useProjectRun: () => ({ requestRun: vi.fn(), runCommand: run.runCommand, runPicker: null }),
+  useProjectRun: () => ({
+    requestRun: run.requestRun,
+    runCommand: run.runCommand,
+    runPicker: null,
+  }),
 }));
 
 /**
@@ -66,7 +71,15 @@ function project(id: string): Project {
   } as unknown as Project;
 }
 
+/** Shows where the header navigated to, since the test router has no other pages. */
+function LocationProbe(): React.JSX.Element {
+  const location = useLocation();
+  return <output aria-label="Location">{location.pathname + location.search}</output>;
+}
+
 beforeEach(() => {
+  run.requestRun.mockReset();
+  run.runCommand.mockReset();
   dialogs.mounts.length = 0;
   dialogs.unmounts.length = 0;
   dialogs.onOpenChange = {};
@@ -74,9 +87,15 @@ beforeEach(() => {
 
 async function renderHeader(projects: Project[] = [project('a'), project('b')]) {
   useWorkspaceStore.getState().openProject('a');
-  const view = renderWithProviders(<WorkspaceHeaderActions />, {
-    bridge: { 'projects.list': projects },
-  });
+  const view = renderWithProviders(
+    <>
+      <WorkspaceHeaderActions />
+      <LocationProbe />
+    </>,
+    {
+      bridge: { 'projects.list': projects },
+    },
+  );
   await screen.findByRole('button', { name: 'Tag a version' });
   return view;
 }
@@ -112,10 +131,73 @@ describe('WorkspaceHeaderActions tag a version', () => {
   });
 });
 
+const dev = { id: 'dev', label: 'Dev', command: 'pnpm dev' };
+const prod = { id: 'prod', label: '', command: 'pnpm start' };
+
+async function openRunMenu(
+  user: Awaited<ReturnType<typeof renderHeader>>['user'],
+  name: string | RegExp,
+): Promise<HTMLElement> {
+  await user.pointer({ keys: '[MouseRight]', target: screen.getByRole('button', { name }) });
+  return screen.findByRole('menu');
+}
+
 describe('WorkspaceHeaderActions run menu', () => {
+  it('shows each command under its environment, or as the bare command when unnamed', async () => {
+    const { user } = await renderHeader([{ ...project('a'), runCommands: [dev, prod] }]);
+    const menu = await openRunMenu(user, 'Run A: pick a command');
+
+    const items = within(menu).getAllByRole('menuitem');
+    expect(items.map((item) => item.textContent)).toEqual([
+      'Devpnpm dev',
+      'pnpm start',
+      'Edit run commands',
+    ]);
+    expect(within(menu).getByText('Run in A')).toBeInTheDocument();
+  });
+
+  it('opens the menu without running anything', async () => {
+    const { user } = await renderHeader([{ ...project('a'), runCommands: [dev] }]);
+    await openRunMenu(user, 'Run A (pnpm dev)');
+
+    expect(run.requestRun).not.toHaveBeenCalled();
+    expect(run.runCommand).not.toHaveBeenCalled();
+  });
+
+  it('still runs through the normal path on a left click', async () => {
+    const { user } = await renderHeader([{ ...project('a'), runCommands: [dev] }]);
+    await user.click(screen.getByRole('button', { name: 'Run A (pnpm dev)' }));
+
+    expect(run.requestRun).toHaveBeenCalledWith(expect.objectContaining({ id: 'a' }), {
+      onEmpty: expect.any(Function),
+    });
+    expect(screen.queryByRole('menu')).toBeNull();
+  });
+
+  it('opens the project on its run commands from Edit run commands', async () => {
+    const { user } = await renderHeader([{ ...project('a'), runCommands: [dev] }]);
+    const menu = await openRunMenu(user, 'Run A (pnpm dev)');
+
+    await user.click(within(menu).getByRole('menuitem', { name: 'Edit run commands' }));
+
+    expect(screen.getByRole('status', { name: 'Location' })).toHaveTextContent(
+      '/projects/a?edit=run',
+    );
+  });
+
+  it('opens the run commands of the project currently in the Workspace', async () => {
+    const { user } = await renderHeader([
+      { ...project('a'), runCommands: [dev] },
+      { ...project('b'), runCommands: [prod] },
+    ]);
+    act(() => useWorkspaceStore.getState().openProject('b'));
+    const menu = await openRunMenu(user, 'Run B (pnpm start)');
+
+    await user.click(within(menu).getByRole('menuitem', { name: /pnpm start/ }));
+    expect(run.runCommand).toHaveBeenCalledWith(expect.objectContaining({ id: 'b' }), prod);
+  });
+
   it('lists the run commands on right-click and runs the one picked', async () => {
-    const dev = { id: 'dev', label: 'Dev', command: 'pnpm dev' };
-    const prod = { id: 'prod', label: '', command: 'pnpm start' };
     const { user } = await renderHeader([{ ...project('a'), runCommands: [dev, prod] }]);
 
     await user.pointer({
@@ -134,6 +216,12 @@ describe('WorkspaceHeaderActions run menu', () => {
       keys: '[MouseRight]',
       target: screen.getByRole('button', { name: 'Set a run command for A' }),
     });
-    expect(await screen.findByRole('menuitem', { name: /Add a run command/ })).toBeInTheDocument();
+    const menu = await screen.findByRole('menu');
+    expect(within(menu).getByText('No run commands yet')).toBeInTheDocument();
+    await user.click(within(menu).getByRole('menuitem', { name: /Add a run command/ }));
+
+    expect(screen.getByRole('status', { name: 'Location' })).toHaveTextContent(
+      '/projects/a?edit=run',
+    );
   });
 });

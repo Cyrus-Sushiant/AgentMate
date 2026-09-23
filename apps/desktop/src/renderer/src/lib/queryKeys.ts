@@ -67,6 +67,8 @@ export const queryKeys = {
   blueprintAgentFile: (projectId: string) => ['blueprint', projectId, 'agent-file'] as const,
   blueprintPresets: ['blueprint-presets'] as const,
   scheduledTasks: (projectId: string) => ['scheduled-tasks', projectId] as const,
+  /** Prefix of every project's task list, for changes made by the scheduler in main. */
+  scheduledTasksAll: ['scheduled-tasks'] as const,
   claudeHooks: (projectId: string) => ['claude-hooks', projectId] as const,
   gitStatus: (projectId: string) => ['git-status', projectId] as const,
   /** The workspace changes panel's state, pushed live by the working tree watcher. */

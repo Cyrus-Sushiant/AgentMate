@@ -14,11 +14,14 @@ import type {
   ImportSkip,
   KeepAwakeMode,
   ProjectBlueprint,
+  ProjectDraft,
   ProjectNotificationSettings,
   ProjectRunCommand,
   ProxyMode,
   RunAssessment,
   ScanPhase,
+  ScheduledTask,
+  ScheduledTaskRunMode,
   SecurityScannerId,
   SkillAuditFinding,
   SkillAuditVerdict,
@@ -760,6 +763,10 @@ export interface CreateProjectDraftInput {
   content: string;
 }
 
+export type UpdateProjectDraftInput = Partial<
+  Pick<ProjectDraft, 'rawInput' | 'content' | 'promptType' | 'targetAI'>
+>;
+
 /**
  * Partial update for one Blueprint step. A `text` that is present is what marks
  * the change as an edit worth keeping a revision of; the English cache fields
@@ -837,6 +844,21 @@ export interface ScheduledTaskInput {
   targetAI: string;
   content: string;
   runAt: string;
+  runMode?: ScheduledTaskRunMode;
+  cliId?: string;
+  model?: string;
+  effort?: EffortLevel;
+}
+
+/**
+ * Fields of a scheduled task that can be changed after it's created. `null` clears a CLI, model
+ * or effort choice, so the task goes back to the defaults.
+ */
+export interface UpdateScheduledTaskInput
+  extends Partial<Pick<ScheduledTask, 'rawInput' | 'content' | 'runAt' | 'runMode' | 'status'>> {
+  cliId?: string | null;
+  model?: string | null;
+  effort?: EffortLevel | null;
 }
 
 export interface CreateScheduledTasksInput {

@@ -15,6 +15,8 @@ export const IPC = {
     onConfirmQuit: 'app:confirmQuit',
     /** The renderer's answer to onConfirmQuit. */
     answerQuit: 'app:answerQuit',
+    /** The app window saying its first page has loaded, so the splash can hand over. */
+    rendererReady: 'app:rendererReady',
   },
   backup: {
     export: 'backup:export',
@@ -304,6 +306,8 @@ export const IPC = {
     listByProject: 'projectDrafts:listByProject',
     create: 'projectDrafts:create',
     updateStatus: 'projectDrafts:updateStatus',
+    update: 'projectDrafts:update',
+    promoteToScheduled: 'projectDrafts:promoteToScheduled',
     remove: 'projectDrafts:remove',
   },
   promptBuildWidget: {
@@ -317,12 +321,24 @@ export const IPC = {
     listByProject: 'scheduledTasks:listByProject',
     createMany: 'scheduledTasks:createMany',
     updateStatus: 'scheduledTasks:updateStatus',
+    update: 'scheduledTasks:update',
+    markRan: 'scheduledTasks:markRan',
     remove: 'scheduledTasks:remove',
+    // main -> renderer: an automatic task is due, open it in a terminal
+    onDue: 'scheduledTasks:due',
+    // main -> renderer: tasks changed outside the renderer (fired or missed)
+    onChanged: 'scheduledTasks:changed',
   },
   spellcheck: {
     // main -> renderer: an editable field was right-clicked, open the writing menu
     onShowMenu: 'spellcheck:showMenu',
     addToDictionary: 'spellcheck:addToDictionary',
+  },
+  splash: {
+    // main -> splash window: what startup is busy with right now
+    onStatus: 'splash:status',
+    // main -> splash window: the app window is up, fade out
+    onClose: 'splash:close',
   },
   grammar: {
     check: 'grammar:check',

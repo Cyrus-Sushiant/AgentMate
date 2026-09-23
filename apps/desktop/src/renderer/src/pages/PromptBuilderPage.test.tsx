@@ -418,7 +418,7 @@ describe('PromptBuilderPage drafts', () => {
       ),
     );
     expect(toast.success).toHaveBeenCalledWith(
-      'Draft saved. Find it on the project’s Overview tab.',
+      'Draft saved. Find it under the project’s Prompts section.',
     );
   });
 
@@ -432,5 +432,39 @@ describe('PromptBuilderPage drafts', () => {
     await user.click(await screen.findByRole('button', { name: /Save draft to project/ }));
 
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith('Could not save the draft.'));
+  });
+});
+
+describe('PromptBuilderPage scheduled series', () => {
+  it('saves each queued task as automatic by default, with the chosen time', async () => {
+    usePromptBuilderStore.setState({
+      rawInput: 'bump dependencies',
+      projectId: 'p1',
+      status: 'scheduled',
+      promptType: 'Frontend',
+      targetAI: 'Claude',
+    });
+    const { user, bridge } = renderPage({
+      'projects.list': [{ id: 'p1', name: 'Atlas', agentType: 'claude', cliId: 'claude-code' }],
+    });
+
+    await user.click(await screen.findByRole('button', { name: /Add task/ }));
+    await user.click(screen.getByRole('button', { name: /Save 1 task\(s\) to schedule/ }));
+
+    await waitFor(() =>
+      expect(bridge.$fn('scheduledTasks.createMany')).toHaveBeenCalledWith({
+        projectId: 'p1',
+        tasks: [
+          expect.objectContaining({
+            rawInput: 'bump dependencies',
+            runMode: 'auto',
+            runAt: expect.stringMatching(/Z$/),
+          }),
+        ],
+      }),
+    );
+    expect(toast.success).toHaveBeenCalledWith(
+      'Scheduled series saved. Find it under the project’s Prompts section.',
+    );
   });
 });

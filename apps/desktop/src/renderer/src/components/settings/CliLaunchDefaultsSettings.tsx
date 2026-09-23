@@ -15,6 +15,7 @@ import {
 } from '@agentmat/core';
 import { useQuery } from '@tanstack/react-query';
 import { useId, useState } from 'react';
+import { EffortPicker } from '@/components/cli/RunSettingsFields';
 import { CliLogo } from '@/components/cliLogos';
 import { Check, ChevronDown, ChevronRight, TriangleAlert, Undo } from '@/components/icons';
 import { Button } from '@/components/ui/button';
@@ -105,14 +106,6 @@ export function CliLaunchDefaultsSettings(): React.JSX.Element {
 }
 
 /** Effort names short enough to sit side by side in the segmented control. */
-const SHORT_EFFORT_LABELS: Record<EffortLevel, string> = {
-  low: 'Low',
-  medium: 'Med',
-  high: 'High',
-  xhigh: 'XHigh',
-  max: 'Max',
-};
-
 function modelLabel(options: CliLaunchOptions, model: string): string {
   return options.models.find((m) => m.value === model)?.label ?? model;
 }
@@ -443,50 +436,13 @@ function EffortField({
 }): React.JSX.Element {
   const knownModel = options.models.find((m) => m.value === model);
   const noEffort = Boolean(knownModel && !knownModel.efforts?.length);
-  const levels = options.efforts;
   const fits = (level: EffortLevel): boolean =>
     !knownModel || !!knownModel.efforts?.includes(level);
-  const choices: { id: EffortLevel | undefined; label: string }[] = [
-    { id: undefined, label: 'Not set' },
-    ...levels.map((level) => ({ id: level, label: SHORT_EFFORT_LABELS[level] })),
-  ];
 
   return (
     <div className="space-y-1.5">
       <FieldLabel>Effort</FieldLabel>
-      <div
-        role="radiogroup"
-        aria-label="Effort"
-        className={cn(
-          'flex h-9 w-full items-stretch gap-0.5 rounded-lg border border-input bg-background p-0.5',
-          noEffort && 'opacity-50',
-        )}
-      >
-        {choices.map((choice) => {
-          const selected = value === choice.id;
-          const disabled = noEffort || (choice.id !== undefined && !fits(choice.id));
-          return (
-            <button
-              key={choice.id ?? 'unset'}
-              type="button"
-              role="radio"
-              aria-checked={selected}
-              aria-label={choice.id ? EFFORT_LABELS[choice.id] : 'Not set'}
-              disabled={disabled}
-              onClick={() => onChange(choice.id)}
-              className={cn(
-                'min-w-0 flex-1 truncate rounded-md px-1.5 text-xs transition-colors disabled:pointer-events-none disabled:opacity-40',
-                selected
-                  ? 'bg-primary/15 font-medium text-foreground shadow-[inset_0_0_0_1px_hsl(var(--primary)/0.35)]'
-                  : 'text-muted-foreground hover:bg-foreground/[0.06] hover:text-foreground',
-                choice.id === undefined && !selected && 'text-muted-foreground/80',
-              )}
-            >
-              {choice.label}
-            </button>
-          );
-        })}
-      </div>
+      <EffortPicker options={options} model={model} value={value} onChange={onChange} />
       {part && !part.applied ? (
         <OverriddenNote part={part} />
       ) : !value && fromArgs ? (

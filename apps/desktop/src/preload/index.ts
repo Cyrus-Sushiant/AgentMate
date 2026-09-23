@@ -197,6 +197,7 @@ import type {
   SaveRdpServerInput,
   SaveSshServerInput,
   SaveTemplateInput,
+  ScheduledTaskInput,
   SendTestNotificationInput,
   SkillAuditRecord,
   SkillsShDetail,
@@ -227,6 +228,8 @@ import type {
   TranslateTextInput,
   UiProPrerequisites,
   UiProUpdateCheck,
+  UpdateProjectDraftInput,
+  UpdateScheduledTaskInput,
   UpdateStatus,
   VaultClipboardEvent,
   VaultCopyResult,
@@ -285,6 +288,8 @@ const appInfo = {
   },
   answerQuit: (confirmed: boolean): Promise<void> =>
     ipcRenderer.invoke(IPC.app.answerQuit, confirmed),
+  /** Tells main the first page is on screen, so the splash can hand over to this window. */
+  notifyReady: (): void => ipcRenderer.send(IPC.app.rendererReady),
 };
 
 const backup = {
@@ -889,6 +894,11 @@ const projectDrafts = {
     ipcRenderer.invoke(IPC.projectDrafts.create, input),
   updateStatus: (draftId: string, status: ProjectDraftStatus): Promise<void> =>
     ipcRenderer.invoke(IPC.projectDrafts.updateStatus, draftId, status),
+  update: (draftId: string, patch: UpdateProjectDraftInput): Promise<ProjectDraft | null> =>
+    ipcRenderer.invoke(IPC.projectDrafts.update, draftId, patch),
+  /** Turns a draft into a scheduled task and removes the draft. */
+  promoteToScheduled: (draftId: string, task: ScheduledTaskInput): Promise<ScheduledTask | null> =>
+    ipcRenderer.invoke(IPC.projectDrafts.promoteToScheduled, draftId, task),
   remove: (draftId: string): Promise<void> => ipcRenderer.invoke(IPC.projectDrafts.remove, draftId),
 };
 
@@ -977,7 +987,25 @@ const scheduledTasks = {
     ipcRenderer.invoke(IPC.scheduledTasks.createMany, input),
   updateStatus: (taskId: string, status: ScheduledTaskStatus): Promise<void> =>
     ipcRenderer.invoke(IPC.scheduledTasks.updateStatus, taskId, status),
+  update: (taskId: string, patch: UpdateScheduledTaskInput): Promise<ScheduledTask | null> =>
+    ipcRenderer.invoke(IPC.scheduledTasks.update, taskId, patch),
+  /** Records a run started by hand: completed, with the time it ran. */
+  markRan: (taskId: string): Promise<void> =>
+    ipcRenderer.invoke(IPC.scheduledTasks.markRan, taskId),
   remove: (taskId: string): Promise<void> => ipcRenderer.invoke(IPC.scheduledTasks.remove, taskId),
+  /** main saying an automatic task is due and should open in a terminal now. */
+  onDue: (callback: (task: ScheduledTask) => void): (() => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, task: ScheduledTask): void =>
+      callback(task);
+    ipcRenderer.on(IPC.scheduledTasks.onDue, listener);
+    return () => ipcRenderer.removeListener(IPC.scheduledTasks.onDue, listener);
+  },
+  /** main saying tasks changed on its side (fired or marked missed), so lists should refetch. */
+  onChanged: (callback: () => void): (() => void) => {
+    const listener = (): void => callback();
+    ipcRenderer.on(IPC.scheduledTasks.onChanged, listener);
+    return () => ipcRenderer.removeListener(IPC.scheduledTasks.onChanged, listener);
+  },
 };
 
 const notifications = {
@@ -1588,6 +1616,12 @@ const vault = {
     subscribe(IPC.vault.onClipboardSettled, cb),
 };
 
+/** Only the startup splash window listens to these. */
+const splash = {
+  onStatus: (cb: (status: string) => void): (() => void) => subscribe(IPC.splash.onStatus, cb),
+  onClose: (cb: () => void): (() => void) => subscribe(IPC.splash.onClose, cb),
+};
+
 const agentmatApi = {
   platform: process.platform,
   windowsBuild: windowsBuildNumber(),
@@ -1641,6 +1675,7 @@ const agentmatApi = {
   usage,
   pet,
   backup,
+  splash,
 };
 
 export type AgentmatApi = typeof agentmatApi;

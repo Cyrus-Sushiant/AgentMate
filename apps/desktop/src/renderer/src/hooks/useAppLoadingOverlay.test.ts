@@ -2,7 +2,7 @@ import { QueryClient, useMutation } from '@tanstack/react-query';
 import { act, waitFor } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { renderHookWithProviders } from '../../../test/renderer/renderWithProviders';
-import { useAppLoadingOverlay } from './useAppLoadingOverlay';
+import { useAppLoadingOverlay, useStartupLoading } from './useAppLoadingOverlay';
 
 /**
  * The full page overlay belongs to the cold start and to writes the user is waiting on. Anything
@@ -126,5 +126,54 @@ describe('useAppLoadingOverlay', () => {
     await new Promise((resolve) => setTimeout(resolve, 700));
     expect(result.current.overlay).toBe(false);
     act(() => write.settle());
+  });
+});
+
+// The main window waits behind the startup splash until `booted`, so these decide when it opens.
+describe('useStartupLoading', () => {
+  it('stays not booted while the first page is still fetching, then boots', async () => {
+    const queryClient = client();
+    const boot = gate();
+    const { result } = renderHookWithProviders(() => useStartupLoading(), { queryClient });
+
+    act(() => {
+      void queryClient.prefetchQuery({ queryKey: ['boot'], queryFn: () => boot.promise });
+    });
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    expect(result.current.booted).toBe(false);
+
+    act(() => boot.settle());
+    await waitFor(() => expect(result.current.booted).toBe(true));
+    expect(result.current.showOverlay).toBe(false);
+  });
+
+  it('does not wait on a slow query that opted out with silentLoading', async () => {
+    const queryClient = client();
+    const quick = gate();
+    const slow = gate();
+    const { result } = renderHookWithProviders(() => useStartupLoading(), { queryClient });
+
+    act(() => {
+      void queryClient.prefetchQuery({ queryKey: ['projects'], queryFn: () => quick.promise });
+      void queryClient.prefetchQuery({
+        queryKey: ['cli-status'],
+        queryFn: () => slow.promise,
+        meta: { silentLoading: true },
+      });
+    });
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    expect(result.current.booted).toBe(false);
+    act(() => quick.settle());
+    // Well inside the 1.5s no-query grace, so this is the settle booting it, not the timer.
+    await waitFor(() => expect(result.current.booted).toBe(true), { timeout: 800 });
+    act(() => slow.settle());
+  });
+
+  it('boots after the grace period when the page has no queries at all', async () => {
+    const { result } = renderHookWithProviders(() => useStartupLoading(), {
+      queryClient: client(),
+    });
+    expect(result.current.booted).toBe(false);
+    await waitFor(() => expect(result.current.booted).toBe(true), { timeout: 2500 });
   });
 });

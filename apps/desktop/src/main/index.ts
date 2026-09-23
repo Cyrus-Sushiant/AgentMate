@@ -55,7 +55,7 @@ import { registerToolHandlers } from './ipc/tools';
 import { registerTranslateHandlers } from './ipc/translate';
 import { registerUsageHandlers } from './ipc/usage';
 import { registerWindowHandlers } from './ipc/window';
-import { setMainWindow, setMainWindowFactory } from './mainWindow';
+import { focusMainWindow, setMainWindow, setMainWindowFactory } from './mainWindow';
 import {
   applyProxySettingsFromStore,
   installProxyFetch,
@@ -72,8 +72,16 @@ import { startPipelineWatcher, stopPipelineWatcher } from './pipelines/watcher';
 import { promptBuildWidgetManager } from './promptBuild/widgetWindows';
 import { allowQuit, guardQuit, registerQuitGuardHandlers } from './quitGuard';
 import { remoteManager } from './remote/manager';
+import { startScheduledTaskRunner, stopScheduledTaskRunner } from './scheduledTasks/scheduler';
 import { cancelAllSecurityScans, sweepOrphanScanContainers } from './security/scanRunner';
 import { configureSpellChecker, registerSpellcheckHandlers } from './spellcheck';
+import {
+  getSplash,
+  handOffWhenReady,
+  setSplashStatus,
+  showSplash,
+  themeBackground,
+} from './splashWindow';
 import { lockVault } from './ssh/vault';
 import {
   migrateInlineProjectIcons,
@@ -159,7 +167,14 @@ if (!isSingleInstance) {
   app.quit();
 }
 
+/** The theme's page color, read at startup so the window never flashes a different one. */
+let windowBackground = '#050807';
+/** Set for the first window of a launch: it stays hidden until the splash hands over. */
+let revealAfterSplash = false;
+
 function createMainWindow(): BrowserWindow {
+  const behindSplash = revealAfterSplash;
+  revealAfterSplash = false;
   const win = new BrowserWindow({
     width: 1440,
     height: 860,
@@ -168,7 +183,7 @@ function createMainWindow(): BrowserWindow {
     show: false,
     frame: false,
     autoHideMenuBar: true,
-    backgroundColor: '#050807',
+    backgroundColor: windowBackground,
     icon,
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
@@ -182,9 +197,13 @@ function createMainWindow(): BrowserWindow {
     },
   });
 
-  win.once('ready-to-show', () => {
-    if (!keepWindowsHidden) win.show();
-  });
+  if (behindSplash) {
+    handOffWhenReady(win);
+  } else {
+    win.once('ready-to-show', () => {
+      if (!keepWindowsHidden) win.show();
+    });
+  }
   setMainWindow(win);
   registerWindowHandlers(win);
   remoteManager.init(win);
@@ -289,6 +308,16 @@ function registerAllIpcHandlers(): void {
 }
 
 app.whenReady().then(async () => {
+  // The splash goes up first so a click on the app shows something right away. It needs the
+  // theme, and the settings file is small, so that one read comes before it.
+  const { theme } = await store.getSettings();
+  windowBackground = themeBackground(theme);
+  if (!keepWindowsHidden) {
+    showSplash(theme);
+    revealAfterSplash = true;
+  }
+  setSplashStatus('Loading settings...');
+
   // Ahead of every other startup step, so the first update check, widget
   // refresh, or usage poll already goes the configured way.
   await applyProxySettingsFromStore();
@@ -339,6 +368,7 @@ app.whenReady().then(async () => {
     { useSystemPicker: false },
   );
 
+  setSplashStatus('Starting services...');
   configureSpellChecker();
   registerBlueprintFileProtocol();
   registerAllIpcHandlers();
@@ -352,6 +382,7 @@ app.whenReady().then(async () => {
   setMainWindowFactory(createMainWindow);
   // Nothing answers a confirmation dialog in a test, so closing must not ask.
   if (isE2E) allowQuit();
+  setSplashStatus('Loading your workspace...');
   createMainWindow();
   registerNotificationActivation();
   void widgetManager.restoreAll();
@@ -362,6 +393,7 @@ app.whenReady().then(async () => {
   startNetworkQualityAlertWatcher();
   startPipelineWatcher();
   startToolUpdateWatcher();
+  startScheduledTaskRunner();
   startHourlyUpdateChecks();
 
   app.on('activate', () => {
@@ -369,12 +401,15 @@ app.whenReady().then(async () => {
   });
 });
 
+// Another launch while this one runs. During startup the splash is what's on screen, so that's
+// what comes forward; the main window stays hidden until it has loaded.
 app.on('second-instance', () => {
-  const [existingWindow] = BrowserWindow.getAllWindows();
-  if (existingWindow) {
-    if (existingWindow.isMinimized()) existingWindow.restore();
-    existingWindow.focus();
+  const splash = getSplash();
+  if (splash) {
+    splash.focus();
+    return;
   }
+  focusMainWindow();
 });
 
 // Terminal sessions are left alone here: on macOS the app keeps running with no window, and
@@ -407,6 +442,7 @@ app.on('before-quit', (event) => {
   stopNetworkQualityAlertWatcher();
   stopPipelineWatcher();
   stopToolUpdateWatcher();
+  stopScheduledTaskRunner();
   shutdownLocalServer();
   remoteManager.shutdown();
   stopAllSshTasks();

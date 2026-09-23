@@ -79,7 +79,11 @@ export default defineConfig({
     root: 'src/renderer',
     build: {
       rollupOptions: {
-        input: resolve(__dirname, 'src/renderer/index.html'),
+        input: {
+          index: resolve(__dirname, 'src/renderer/index.html'),
+          // The startup splash: a separate page with no React so it paints at once.
+          splash: resolve(__dirname, 'src/renderer/splash.html'),
+        },
       },
     },
     resolve: {

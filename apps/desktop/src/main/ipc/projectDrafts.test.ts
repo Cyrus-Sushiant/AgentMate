@@ -1,4 +1,4 @@
-import type { ProjectDraft } from '@agentmat/core';
+import type { ProjectDraft, ScheduledTask } from '@agentmat/core';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { IPC } from '../../shared/ipcChannels';
 import {
@@ -115,6 +115,51 @@ describe('project drafts', () => {
     const theirs = await invoke<ProjectDraft[]>(IPC.projectDrafts.listByProject, 'p2');
     expect(mine.map((one) => one.rawInput)).toEqual(['kept']);
     expect(theirs).toHaveLength(1);
+  });
+
+  it('edits a draft in place and keeps its status', async () => {
+    const draft = await invoke<ProjectDraft>(IPC.projectDrafts.create, draftInput('p1'));
+
+    const updated = await invoke<ProjectDraft>(IPC.projectDrafts.update, draft.id, {
+      rawInput: 'add login with passkeys',
+      content: 'new plan',
+    });
+
+    expect(updated).toMatchObject({
+      id: draft.id,
+      rawInput: 'add login with passkeys',
+      content: 'new plan',
+      status: 'draft',
+    });
+    await expect(
+      invoke(IPC.projectDrafts.update, 'no-such-id', { content: 'x' }),
+    ).resolves.toBeNull();
+  });
+
+  it('moves a draft onto the schedule with its run settings', async () => {
+    const draft = await invoke<ProjectDraft>(IPC.projectDrafts.create, draftInput('p1'));
+
+    const task = await invoke<ScheduledTask>(IPC.projectDrafts.promoteToScheduled, draft.id, {
+      rawInput: draft.rawInput,
+      promptType: draft.promptType,
+      targetAI: draft.targetAI,
+      content: draft.content,
+      runAt: '2026-10-01T09:00:00.000Z',
+      runMode: 'auto',
+      cliId: 'claude-code',
+      model: 'opus',
+      effort: 'high',
+    });
+
+    expect(task).toMatchObject({
+      projectId: 'p1',
+      status: 'pending',
+      runMode: 'auto',
+      cliId: 'claude-code',
+      model: 'opus',
+      effort: 'high',
+    });
+    await expect(invoke(IPC.projectDrafts.listByProject, 'p1')).resolves.toEqual([]);
   });
 
   it('keeps drafts across a restart', async () => {
