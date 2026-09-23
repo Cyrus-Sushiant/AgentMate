@@ -298,13 +298,12 @@ export async function runHeadlessCliPrompt(
   // Stdin bypasses cmd.exe's command line entirely, so a CLI confirmed to read the
   // prompt that way needs neither the %VAR% stripping nor the length truncation below,
   // both of which only exist because cmd.exe reparses whatever lands in argv.
-  // The user's CLI settings (saved arguments, launch default model and effort) go into every
-  // background run, placed where each CLI expects them; see buildHeadlessCliArgs().
+  // The Arguments box from AI CLI Manager goes into every background run, placed where each CLI
+  // expects it; see buildHeadlessCliArgs(). Launch defaults stay out: those are for terminals.
   // Run args only make sense for the CLI they were built for.
   const baseArgs = buildHeadlessCliArgs({
     cli,
     savedArgs: getCliArgsFor(settings.cliArgs, cli.id),
-    launchDefaults: settings.cliLaunchDefaults[cli.id],
     runArgs: cli.id === options.preferredCliId ? (options.runArgs ?? []) : [],
     allowWrites: options.allowWrites,
   });

@@ -3,7 +3,6 @@ import {
   type AgentHistoryProvider,
   type AgentHistorySession,
   buildAgentLaunchCommand,
-  getCliArgsFor,
   getCliDefinition,
   type Project,
   shellKindFor,
@@ -70,32 +69,27 @@ export function prepareStatusHooks(cliIds: string[]): void {
 
 /**
  * The command a workspace tab types to start a CLI: status hooks when available, the launch
- * defaults from Settings, the user's configured arguments, then the run arguments (a model and
- * effort). A launch default only fills in what neither of the others already sets. Normally the user's own
- * arguments win a clash. With `runArgsWin` the run arguments do instead: they were picked for
- * this one launch, so a `--model` saved in Settings must not quietly replace the pick.
- * `skipSavedArgs` drops the saved arguments and launch defaults entirely, for a launch that asked
- * to start bare.
+ * defaults from Settings, then the run arguments (a model and effort). A launch default only fills
+ * in what the run arguments don't already set. The Arguments box from AI CLI Manager is left out on
+ * purpose: it only applies to background tasks. `skipLaunchDefaults` drops the launch defaults,
+ * for a launch that asked to start bare.
  */
 function agentCommand(
   cliId: string,
   shell: string | undefined,
   runArgs: string[] = [],
   leadingArgs: string[] = [],
-  runArgsWin = false,
-  skipSavedArgs = false,
+  skipLaunchDefaults = false,
 ): string | null {
-  const { cliArgs, cliLaunchDefaults } = useCliStore.getState();
+  const { cliLaunchDefaults } = useCliStore.getState();
   return buildAgentLaunchCommand({
     cliId,
     shellKind: shellKindFor(shell, window.agentmat.platform),
-    savedArgs: getCliArgsFor(cliArgs, cliId),
     launchDefaults: cliLaunchDefaults[cliId],
     runArgs,
     leadingArgs,
     hookSettingsPath: statusHookSettings.get(cliId),
-    runArgsWin,
-    skipSavedArgs,
+    skipLaunchDefaults,
   });
 }
 
@@ -121,7 +115,7 @@ export function launchPromptTab(
 ): string | null {
   const cli = getCliDefinition(launch.cliId);
   const shell = defaultNewSession().shell;
-  const command = agentCommand(launch.cliId, shell, launch.runArgs, [], true);
+  const command = agentCommand(launch.cliId, shell, launch.runArgs);
   if (!cli || !command) {
     toast.error('Unknown CLI.');
     return null;
@@ -153,8 +147,8 @@ export function launchPromptTab(
 }
 
 export interface AgentLaunchOptions {
-  /** Start bare: without the arguments saved for this CLI in the CLI Manager. */
-  skipSavedArgs?: boolean;
+  /** Start bare: without this CLI's launch defaults from Settings. */
+  skipLaunchDefaults?: boolean;
 }
 
 /**
@@ -170,8 +164,8 @@ export function launchAgentTab(
 ): string | null {
   const cli = getCliDefinition(cliId);
   const shell = defaultNewSession().shell;
-  const skipSavedArgs = options?.skipSavedArgs ?? false;
-  const command = agentCommand(cliId, shell, [], [], false, skipSavedArgs);
+  const skipLaunchDefaults = options?.skipLaunchDefaults ?? false;
+  const command = agentCommand(cliId, shell, [], [], skipLaunchDefaults);
   if (!cli || !command) {
     toast.error('Unknown CLI.');
     return null;
@@ -186,7 +180,7 @@ export function launchAgentTab(
       shell,
       cwd: project.folderPath,
       launchInput: `${command}\r`,
-      runLabel: skipSavedArgs ? 'Without saved settings' : undefined,
+      runLabel: skipLaunchDefaults ? 'Without launch defaults' : undefined,
     },
     groupId,
   );

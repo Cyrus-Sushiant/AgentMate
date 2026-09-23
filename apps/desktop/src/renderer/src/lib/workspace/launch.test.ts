@@ -75,41 +75,30 @@ describe('launchAgentTab', () => {
     expect(typed()).not.toContain('--model');
   });
 
-  it('sends what Settings hold: launch defaults, then saved arguments', async () => {
+  it('sends the launch defaults from Settings', async () => {
+    const { useCliStore, launchAgentTab } = await load();
+    useCliStore.setState({ cliLaunchDefaults: { 'claude-code': { mode: 'auto' } } });
+    launchAgentTab(project, 'claude-code');
+    expect(typed()).toBe('claude --permission-mode auto\r');
+  });
+
+  it('never sends the background task arguments from AI CLI Manager', async () => {
+    // A `--model haiku` saved there for commit messages used to start every new tab on Haiku.
     const { useCliStore, launchAgentTab } = await load();
     useCliStore.setState({
-      cliArgs: { 'claude-code': '--verbose' },
+      cliArgs: { 'claude-code': '--model haiku --verbose' },
       cliLaunchDefaults: { 'claude-code': { mode: 'auto' } },
     });
     launchAgentTab(project, 'claude-code');
-    expect(typed()).toBe('claude --permission-mode auto --verbose\r');
+    expect(typed()).toBe('claude --permission-mode auto\r');
   });
 
-  it('stops sending the model once it is removed from the Arguments box', async () => {
-    const { useCliStore, launchAgentTab } = await load();
-    const { configuredArgsWithout } = await import('@agentmat/core');
-    useCliStore.setState({ cliArgs: { 'claude-code': '--model haiku' } });
-    launchAgentTab(project, 'claude-code');
-    expect(typed()).toBe('claude --model haiku\r');
-
-    // The same call the "Remove it" button in Launch defaults makes.
-    const saved = useCliStore.getState().cliArgs['claude-code'] ?? '';
-    useCliStore
-      .getState()
-      .setCliArgs('claude-code', configuredArgsWithout(saved, ['--model', 'haiku']));
-    expect(settingsUpdate).toHaveBeenLastCalledWith({ cliArgs: {} });
-
-    launchAgentTab(project, 'claude-code');
-    expect(typed()).toBe('claude\r');
-  });
-
-  it('starts bare when asked to skip saved settings', async () => {
+  it('starts bare when asked to skip launch defaults', async () => {
     const { useCliStore, launchAgentTab } = await load();
     useCliStore.setState({
-      cliArgs: { 'claude-code': '--model haiku' },
       cliLaunchDefaults: { 'claude-code': { model: 'opus', mode: 'plan' } },
     });
-    launchAgentTab(project, 'claude-code', undefined, { skipSavedArgs: true });
+    launchAgentTab(project, 'claude-code', undefined, { skipLaunchDefaults: true });
     expect(typed()).toBe('claude\r');
   });
 
@@ -131,15 +120,18 @@ describe('launchAgentTab', () => {
 });
 
 describe('launchPromptTab', () => {
-  it('lets the model picked for the run beat one saved in Settings', async () => {
+  it('lets the model picked for the run beat the launch default', async () => {
     const { useCliStore, launchPromptTab } = await load();
-    useCliStore.setState({ cliArgs: { 'claude-code': '--model haiku --verbose' } });
+    useCliStore.setState({
+      cliArgs: { 'claude-code': '--model haiku --verbose' },
+      cliLaunchDefaults: { 'claude-code': { model: 'sonnet', mode: 'auto' } },
+    });
     launchPromptTab(project, {
       cliId: 'claude-code',
       prompt: 'hello',
       runArgs: ['--model', 'opus', '--effort', 'high'],
     });
-    expect(typed()).toBe('claude --verbose --model opus --effort high\r');
+    expect(typed()).toBe('claude --permission-mode auto --model opus --effort high\r');
   });
 });
 
@@ -206,6 +198,6 @@ describe('cliLaunchCommand', () => {
       cliArgs: { 'claude-code': '--verbose' },
       cliLaunchDefaults: { 'claude-code': { model: 'sonnet' } },
     });
-    expect(cliLaunchCommand('claude-code')).toBe('claude --model sonnet --verbose');
+    expect(cliLaunchCommand('claude-code')).toBe('claude --model sonnet');
   });
 });

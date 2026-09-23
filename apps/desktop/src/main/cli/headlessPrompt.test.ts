@@ -89,26 +89,18 @@ describe('runHeadlessCliPrompt uses the user CLI settings', () => {
     expect((await run({})).args).toEqual(['-p', '--verbose']);
   });
 
-  it('passes the model and effort from Launch defaults', async () => {
+  it('leaves Launch defaults out, those are for terminals only', async () => {
     settings.current = {
       defaultCliId: 'claude-code',
       cliLaunchDefaults: { 'claude-code': { model: 'opus', effort: 'high', mode: 'auto' } },
     };
-    const { args } = await run({});
-    expect(args).toEqual(['-p', '--model', 'opus', '--effort', 'high']);
-    expect(args).not.toContain('--permission-mode');
+    expect((await run({})).args).toEqual(['-p']);
   });
 
   it('reads the settings again on every run, so a change applies right away', async () => {
-    settings.current = {
-      defaultCliId: 'claude-code',
-      cliLaunchDefaults: { 'claude-code': { model: 'opus' } },
-    };
+    settings.current = { defaultCliId: 'claude-code', cliArgs: { 'claude-code': '--model opus' } };
     expect((await run({})).args).toContain('opus');
-    settings.current = {
-      defaultCliId: 'claude-code',
-      cliLaunchDefaults: { 'claude-code': { model: 'sonnet' } },
-    };
+    settings.current = { defaultCliId: 'claude-code', cliArgs: { 'claude-code': '--model sonnet' } };
     expect((await run({})).args).toContain('sonnet');
   });
 
@@ -117,12 +109,10 @@ describe('runHeadlessCliPrompt uses the user CLI settings', () => {
     settings.current = {
       defaultCliId: 'claude-code',
       cliArgs: { 'claude-code': '--verbose', 'codex-cli': '--skip-git-repo-check' },
-      cliLaunchDefaults: { 'codex-cli': { model: 'gpt-5-codex' } },
     };
     const started = await run({ preferredCliId: 'codex-cli' });
     expect(started.command).toBe('codex');
     expect(started.args).toContain('--skip-git-repo-check');
-    expect(started.args).toContain('gpt-5-codex');
     expect(started.args).not.toContain('--verbose');
   });
 
@@ -141,7 +131,6 @@ describe('runHeadlessCliPrompt uses the user CLI settings', () => {
     settings.current = {
       defaultCliId: 'claude-code',
       cliArgs: { 'claude-code': '--model haiku --verbose' },
-      cliLaunchDefaults: { 'claude-code': { model: 'opus', effort: 'low' } },
     };
     const { args } = await run({
       preferredCliId: 'claude-code',
@@ -154,7 +143,7 @@ describe('runHeadlessCliPrompt uses the user CLI settings', () => {
   it('ignores run args meant for a different CLI', async () => {
     settings.current = {
       defaultCliId: 'claude-code',
-      cliLaunchDefaults: { 'claude-code': { model: 'opus' } },
+      cliArgs: { 'claude-code': '--model opus' },
     };
     const { args } = await run({ preferredCliId: 'codex-cli', runArgs: ['--model', 'gpt-x'] });
     expect(args).toEqual(['-p', '--model', 'opus']);
@@ -167,13 +156,6 @@ describe('runHeadlessCliPrompt uses the user CLI settings', () => {
       cliLaunchDefaults: { 'claude-code': { model: 'opus', mode: 'plan' } },
     };
     const { args } = await run({ allowWrites: true });
-    expect(args).toEqual([
-      '-p',
-      '--permission-mode',
-      'acceptEdits',
-      '--model',
-      'opus',
-      '--verbose',
-    ]);
+    expect(args).toEqual(['-p', '--permission-mode', 'acceptEdits', '--verbose']);
   });
 });

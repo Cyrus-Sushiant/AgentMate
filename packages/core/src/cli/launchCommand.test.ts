@@ -11,7 +11,6 @@ describe('buildAgentLaunchCommand', () => {
       buildAgentLaunchCommand({
         cliId: 'claude-code',
         shellKind: 'powershell',
-        savedArgs: '',
         launchDefaults: {},
       }),
     ).toBe('claude');
@@ -43,60 +42,36 @@ describe('buildAgentLaunchCommand', () => {
     ).toBe('claude --settings "C:\\Users\\A B\\hooks.json"');
   });
 
-  it('sends a model saved in the Arguments box', () => {
+  it('puts launch defaults before the run arguments', () => {
     expect(
       buildAgentLaunchCommand({
         cliId: 'claude-code',
         shellKind: 'posix',
-        savedArgs: '--model haiku',
-      }),
-    ).toBe('claude --model haiku');
-  });
-
-  it('puts launch defaults before the saved arguments', () => {
-    expect(
-      buildAgentLaunchCommand({
-        cliId: 'claude-code',
-        shellKind: 'posix',
-        savedArgs: '--verbose',
         launchDefaults: { model: 'opus', effort: 'high', mode: 'auto' },
+        runArgs: ['--resume', 'abc'],
       }),
-    ).toBe('claude --model opus --effort high --permission-mode auto --verbose');
+    ).toBe('claude --model opus --effort high --permission-mode auto --resume abc');
   });
 
-  it('lets saved arguments win over a launch default for the same flag', () => {
+  it('lets a model and effort picked for this launch replace the launch defaults', () => {
     expect(
       buildAgentLaunchCommand({
         cliId: 'claude-code',
         shellKind: 'posix',
-        savedArgs: '--model haiku',
-        launchDefaults: { model: 'opus', mode: 'plan' },
+        launchDefaults: { model: 'haiku', mode: 'plan' },
+        runArgs: ['--model', 'opus', '--effort', 'high'],
       }),
-    ).toBe('claude --permission-mode plan --model haiku');
+    ).toBe('claude --permission-mode plan --model opus --effort high');
   });
 
-  it('drops a run arg the saved arguments already set, unless the run args win', () => {
-    const base = {
-      cliId: 'claude-code',
-      shellKind: 'posix' as const,
-      savedArgs: '--model haiku --verbose',
-      runArgs: ['--model', 'opus', '--effort', 'high'],
-    };
-    expect(buildAgentLaunchCommand(base)).toBe('claude --model haiku --verbose --effort high');
-    expect(buildAgentLaunchCommand({ ...base, runArgsWin: true })).toBe(
-      'claude --verbose --model opus --effort high',
-    );
-  });
-
-  it('skips saved arguments and launch defaults for a bare start', () => {
+  it('skips launch defaults for a bare start', () => {
     expect(
       buildAgentLaunchCommand({
         cliId: 'claude-code',
         shellKind: 'posix',
-        savedArgs: '--model haiku',
-        launchDefaults: { mode: 'auto' },
+        launchDefaults: { model: 'opus', mode: 'auto' },
         hookSettingsPath: '/tmp/hooks.json',
-        skipSavedArgs: true,
+        skipLaunchDefaults: true,
       }),
     ).toBe('claude --settings /tmp/hooks.json');
   });
@@ -122,13 +97,13 @@ describe('buildAgentLaunchCommand', () => {
     ).toBe('claude --model haiku');
   });
 
-  it('leaves a launch default effort off when the saved model has none', () => {
+  it('leaves a launch default effort off when the picked model has none', () => {
     expect(
       buildAgentLaunchCommand({
         cliId: 'claude-code',
         shellKind: 'posix',
-        savedArgs: '--model haiku',
         launchDefaults: { effort: 'high' },
+        runArgs: ['--model', 'haiku'],
       }),
     ).toBe('claude --model haiku');
   });

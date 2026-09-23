@@ -5,15 +5,16 @@ import { createProject, initGitRepo, type LaunchedApp, launchApp } from './app';
 
 /**
  * Every AgentMate feature that asks an AI CLI something in the background must start that CLI
- * with the settings the user gave it: the Arguments box and the Launch defaults model and effort.
+ * with the Arguments box the user saved for it in AI CLI Manager, and nothing from Launch defaults
+ * (those are for terminals only).
  * Each test calls the feature the way its screen does and checks the arguments the fake `claude`
  * was really started with.
  */
 
 const USER_SETTINGS = {
   defaultCliId: 'claude-code',
-  cliArgs: { 'claude-code': '--verbose' },
-  // Mode is left out of background runs on purpose; "plan" here must never show up in one.
+  cliArgs: { 'claude-code': '--verbose --model sonnet' },
+  // Launch defaults belong to terminals; none of these may show up in a background run.
   cliLaunchDefaults: { 'claude-code': { model: 'opus', effort: 'high', mode: 'plan' } },
 };
 
@@ -53,9 +54,10 @@ async function cliArgsFor(area: string, method: string, ...args: unknown[]): Pro
 
 function expectUserSettings(args: string): void {
   expect(args).toMatch(/^-p\b/);
-  expect(args).toContain('--model opus');
-  expect(args).toContain('--effort high');
   expect(args).toContain('--verbose');
+  expect(args).toContain('--model sonnet');
+  expect(args).not.toContain('opus');
+  expect(args).not.toContain('--effort');
   expect(args).not.toContain('plan');
 }
 
@@ -111,10 +113,9 @@ test('a settings change applies to the next background run without a restart', a
         agentmat: { settings: { update(patch: unknown): Promise<unknown> } };
       }
     ).agentmat.settings.update({
-      cliArgs: {},
-      cliLaunchDefaults: { 'claude-code': { model: 'sonnet' } },
+      cliArgs: { 'claude-code': '--model haiku' },
     }),
   );
   const args = await cliArgsFor('git', 'suggestCommitMessage', projectId, undefined, 'all');
-  expect(args).toBe('-p --model sonnet');
+  expect(args).toBe('-p --model haiku');
 });

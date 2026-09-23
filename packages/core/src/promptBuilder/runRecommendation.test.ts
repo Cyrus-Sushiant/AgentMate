@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { configuredArgsWithout, withoutConfiguredRunArgs } from './runRecommendation.js';
+import { configuredArgsWithout } from './runRecommendation.js';
 
 describe('configuredArgsWithout', () => {
   it('drops a saved model so the picked one is used', () => {
@@ -40,11 +40,5 @@ describe('configuredArgsWithout', () => {
 
   it('leaves the saved arguments alone when there is nothing to override', () => {
     expect(configuredArgsWithout('--model haiku', [])).toBe('--model haiku');
-  });
-
-  it('is the opposite of withoutConfiguredRunArgs', () => {
-    expect(
-      withoutConfiguredRunArgs('--model haiku', ['--model', 'opus', '--effort', 'high']),
-    ).toEqual(['--effort', 'high']);
   });
 });

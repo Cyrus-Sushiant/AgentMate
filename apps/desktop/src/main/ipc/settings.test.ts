@@ -1,7 +1,7 @@
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { type AppSettings, buildAgentLaunchCommand, getCliArgsFor } from '@agentmat/core';
+import { type AppSettings, buildAgentLaunchCommand } from '@agentmat/core';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { IPC } from '../../shared/ipcChannels';
 
@@ -57,7 +57,6 @@ function claudeCommand(settings: AppSettings): string | null {
   return buildAgentLaunchCommand({
     cliId: 'claude-code',
     shellKind: 'powershell',
-    savedArgs: getCliArgsFor(settings.cliArgs, 'claude-code'),
     launchDefaults: settings.cliLaunchDefaults['claude-code'],
   });
 }
@@ -82,27 +81,16 @@ describe('settings to launch command', () => {
     expect(claudeCommand(settings)).toBe('claude');
   });
 
-  it('removing a stray --model from saved arguments keeps the other launch settings', async () => {
-    // The shape found in the affected release install.
+  it('never lets a --model from the Arguments box reach a new tab', async () => {
+    // The shape found in the affected release install. Those arguments are for background tasks.
     await writeData('settings.json', {
       defaultCliId: 'claude-code',
       cliArgs: { 'claude-code': '--model haiku' },
       cliLaunchDefaults: { 'claude-code': { mode: 'auto' } },
     });
-    const before = await ipc<AppSettings>(IPC.settings.get);
-    expect(claudeCommand(before)).toBe('claude --permission-mode auto --model haiku');
-
-    // What the renderer sends after "Remove it" (cliStore.setCliArgs with an emptied line).
-    const after = await ipc<AppSettings>(IPC.settings.update, { cliArgs: {} });
-    expect(claudeCommand(after)).toBe('claude --permission-mode auto');
-
-    const onDisk = await readSettingsFile();
-    expect(onDisk.cliArgs).toEqual({});
-    expect(onDisk.cliLaunchDefaults).toEqual({ 'claude-code': { mode: 'auto' } });
-    expect(onDisk.defaultCliId).toBe('claude-code');
-    expect(claudeCommand(await ipc<AppSettings>(IPC.settings.get))).toBe(
-      'claude --permission-mode auto',
-    );
+    const settings = await ipc<AppSettings>(IPC.settings.get);
+    expect(settings.cliArgs).toEqual({ 'claude-code': '--model haiku' });
+    expect(claudeCommand(settings)).toBe('claude --permission-mode auto');
   });
 
   it('never turns the last model a CLI ran on into a launch flag', async () => {

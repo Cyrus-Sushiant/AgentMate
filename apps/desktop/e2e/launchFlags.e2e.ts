@@ -2,9 +2,9 @@ import { expect, test } from '@playwright/test';
 import { type LaunchedApp, launchApp, openWorkspace } from './app';
 
 /**
- * A release install kept starting Claude Code with `--model haiku` that the Launch defaults
- * section said was "Not set". These drive the real app: what Settings shows, what "Remove it"
- * writes to disk, and the arguments a new workspace tab really starts `claude` with.
+ * A release install kept starting Claude Code with `--model haiku` saved in the AI CLI Manager
+ * Arguments box, which is meant for background tasks only. These drive the real app and check
+ * the arguments a new workspace tab really starts `claude` with.
  */
 
 let launched: LaunchedApp | undefined;
@@ -39,7 +39,7 @@ test('a new Claude Code tab gets no model when none is set anywhere', async () =
   expect(args).not.toContain('--permission-mode');
 });
 
-test('Launch defaults shows a model saved in the Arguments box and removes it', async () => {
+test('a model saved in the Arguments box never reaches a workspace tab', async () => {
   launched = await launchApp({
     settings: {
       defaultCliId: 'claude-code',
@@ -54,35 +54,16 @@ test('Launch defaults shows a model saved in the Arguments box and removes it', 
 
   const row = page.locator('button[aria-controls]').filter({ hasText: 'Claude Code' }).first();
   await expect(row).toBeVisible();
-  await expect(row).not.toContainText('Not set');
-  await expect(row).toContainText('Haiku');
+  await expect(row).not.toContainText('Haiku');
   await row.click();
-
   const panel = page.locator(`[id="${await row.getAttribute('aria-controls')}"]`);
-  await expect(panel).toContainText('Still sent');
-  await expect(panel).toContainText('--model haiku');
-  await expect(panel.locator('code').last()).toHaveText(
-    'claude --permission-mode auto --model haiku',
-  );
-
-  await panel.getByRole('button', { name: 'Remove it' }).click();
-  await expect(panel).not.toContainText('Still sent');
   await expect(panel.locator('code').last()).toHaveText('claude --permission-mode auto');
-
-  await expect.poll(() => launched?.settingsOnDisk().cliArgs).toEqual({});
-  expect(launched.settingsOnDisk().cliLaunchDefaults).toEqual({ 'claude-code': { mode: 'auto' } });
 
   const args = await claudeTabArgs(launched);
   expect(args).toContain('--permission-mode auto');
   expect(args).not.toContain('--model');
-});
-
-test('a model the user saved in the Arguments box is still sent', async () => {
-  launched = await launchApp({
-    settings: { defaultCliId: 'claude-code', cliArgs: { 'claude-code': '--model sonnet' } },
-  });
-  const args = await claudeTabArgs(launched);
-  expect(args).toContain('--model sonnet');
+  // Still saved: background tasks keep using it.
+  expect(launched.settingsOnDisk().cliArgs).toEqual({ 'claude-code': '--model haiku' });
 });
 
 test('a launch default model reaches the CLI', async () => {

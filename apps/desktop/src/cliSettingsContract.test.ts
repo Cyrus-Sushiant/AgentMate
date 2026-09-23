@@ -3,14 +3,14 @@ import { join, relative, sep } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 /**
- * Every place AgentMate starts an AI CLI has to use the settings the user gave that CLI (the
- * Arguments box and Launch defaults). That only holds while every launch goes through one of two
- * builders from @agentmat/core:
+ * Every place AgentMate starts an AI CLI has to use the settings the user gave that CLI, and only
+ * the ones meant for that kind of launch. The two never mix:
  *
  *   - buildAgentLaunchCommand(): terminal tabs and "open in terminal" (lib/workspace/launch.ts,
- *     lib/openCli.ts in the renderer)
+ *     lib/openCli.ts in the renderer). These take Launch defaults from Settings only.
  *   - buildHeadlessCliArgs(): background tasks such as commit messages, tag suggestions, version
- *     bumps, run sizing, skill reviews, and SSH tasks (main/cli/headlessPrompt.ts)
+ *     bumps, run sizing, skill reviews, and SSH tasks (main/cli/headlessPrompt.ts). These take the
+ *     Arguments box from AI CLI Manager only.
  *
  * These checks read the source and fail when new code reaches around them. If one fails, route the
  * new launch through runHeadlessCliPrompt() or cliLaunchCommand()/launchAgentTab() instead of
@@ -54,11 +54,11 @@ describe('AI CLI launches use the user CLI settings', () => {
     expect(filesMatching('main', /\.promptCommand\b/)).toEqual(['main/cli/headlessPrompt.ts']);
   });
 
-  it('builds background CLI arguments from both the Arguments box and Launch defaults', () => {
+  it('builds background CLI arguments from the Arguments box only', () => {
     const runner = files.find((file) => file.path === 'main/cli/headlessPrompt.ts')?.text ?? '';
     expect(runner).toMatch(/buildHeadlessCliArgs\(\{/);
     expect(runner).toMatch(/savedArgs:\s*getCliArgsFor\(settings\.cliArgs,\s*cli\.id\)/);
-    expect(runner).toMatch(/launchDefaults:\s*settings\.cliLaunchDefaults\[cli\.id\]/);
+    expect(runner).not.toMatch(/\bcliLaunchDefaults\b/);
   });
 
   it('reads saved CLI settings in the main process only where launches are built', () => {
@@ -67,10 +67,7 @@ describe('AI CLI launches use the user CLI settings', () => {
       'main/cli/headlessPrompt.ts',
       'main/store.ts',
     ]);
-    expect(filesMatching('main', /\bcliLaunchDefaults\b/)).toEqual([
-      'main/cli/headlessPrompt.ts',
-      'main/store.ts',
-    ]);
+    expect(filesMatching('main', /\bcliLaunchDefaults\b/)).toEqual(['main/store.ts']);
   });
 
   it('runs no registry CLI from the main process outside detection and the headless runner', () => {
@@ -85,7 +82,7 @@ describe('AI CLI launches use the user CLI settings', () => {
   it('builds terminal launch commands in the renderer only through the core builder', () => {
     // The low-level pieces put together a command that can miss a setting or send a flag twice.
     expect(
-      filesMatching('renderer', /\b(launchDefaultArgs|withoutConfiguredRunArgs|getCliArgvFor)\b/),
+      filesMatching('renderer', /\b(launchDefaultArgs|getCliArgsFor|getCliArgvFor)\b/),
     ).toEqual([]);
     expect(filesMatching('renderer', /\bbuildAgentLaunchCommand\b/)).toEqual([
       'renderer/src/lib/openCli.ts',
@@ -96,18 +93,17 @@ describe('AI CLI launches use the user CLI settings', () => {
   it('reads saved CLI settings in the renderer only to launch or edit them', () => {
     expect(filesMatching('renderer', /\bcliLaunchDefaults\b/)).toEqual([
       'renderer/src/components/settings/CliLaunchDefaultsSettings.tsx',
-      'renderer/src/lib/openCli.ts',
-      'renderer/src/lib/workspace/launch.ts',
-      'renderer/src/stores/cliStore.ts',
-    ]);
-    expect(filesMatching('renderer', /\bcliArgs\b/)).toEqual([
-      'renderer/src/components/CliArgsField.tsx',
-      'renderer/src/components/settings/CliLaunchDefaultsSettings.tsx',
-      // These two only check whether any are saved, for the "Alt+click skips them" hint.
+      // These two only check whether any are set, for the "Alt+click skips them" hint.
       'renderer/src/components/workspace/LauncherMenu.tsx',
       'renderer/src/components/workspace/PaneLauncher.tsx',
       'renderer/src/lib/openCli.ts',
       'renderer/src/lib/workspace/launch.ts',
+      'renderer/src/stores/cliStore.ts',
+    ]);
+    // Terminal launches never read the background task arguments, so only the field that edits
+    // them and the store that saves them know about them.
+    expect(filesMatching('renderer', /\bcliArgs\b/)).toEqual([
+      'renderer/src/components/CliArgsField.tsx',
       'renderer/src/stores/cliStore.ts',
     ]);
   });

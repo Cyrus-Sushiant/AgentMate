@@ -32,15 +32,13 @@ describe('openCliInTerminal', () => {
     expect(isOpen).toBe(true);
   });
 
-  it('carries the saved arguments and launch defaults into the command', () => {
+  it('carries the launch defaults into the command, never the background task arguments', () => {
     useCliStore.setState({
-      cliArgs: { 'claude-code': '--verbose' },
+      cliArgs: { 'claude-code': '--model haiku --verbose' },
       cliLaunchDefaults: { 'claude-code': { model: 'sonnet' } },
     });
     openCliInTerminal({ cliId: 'claude-code' });
-    expect(useTerminalStore.getState().sessions[0].initialInput).toBe(
-      'claude --model sonnet --verbose\r',
-    );
+    expect(useTerminalStore.getState().sessions[0].initialInput).toBe('claude --model sonnet\r');
   });
 
   it('starts the CLI in the folder and project it was asked for', () => {

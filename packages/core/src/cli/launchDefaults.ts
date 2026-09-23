@@ -48,8 +48,8 @@ export interface CliLaunchOptions {
   effortArgs?: (level: EffortLevel) => string[];
   modes: readonly CliLaunchMode[];
   /**
-   * Flags that already set a mode when the user typed them into the CLI's own arguments, so
-   * the saved mode is not added on top of them.
+   * Flags that already set a mode when a launch carries them, so the saved mode is not added on
+   * top of them.
    */
   modeFlags: readonly string[];
 }
@@ -355,13 +355,13 @@ function effortFlagKeys(effortArgs: readonly string[]): string[] {
 export interface LaunchDefaultPart {
   kind: 'model' | 'effort' | 'mode';
   args: string[];
-  /** False when the user's own arguments (or this launch's picks) already set the same thing. */
+  /** False when this launch's own picks already set the same thing. */
   applied: boolean;
 }
 
 /**
  * Turns a CLI's launch defaults into flags, one group per field that is set. `takenArgs` are
- * the arguments the launch already carries (the user's saved arguments and any run picks). A
+ * the arguments the launch already carries (a model and effort picked for this one run). A
  * default never fights them: a group whose flag is already there is marked not applied.
  */
 export function launchDefaultParts(
@@ -383,7 +383,7 @@ export function launchDefaultParts(
   }
 
   // An effort the chosen model can't take (Haiku has none) is left off rather than sent to fail.
-  // The model that really runs is the one already in the arguments, when they set one.
+  // The model that really runs is the one already in the launch's arguments, when they set one.
   const takenModel = options.modelFlag
     ? findTakenFlag(takenArgs, modelFlagKeys(options.modelFlag))?.value
     : undefined;
@@ -419,21 +419,16 @@ export function launchDefaultArgs(
     .flatMap((part) => part.args);
 }
 
-export interface SavedArgSetting {
-  kind: LaunchDefaultPart['kind'];
-  /** The flag as the user wrote it, e.g. "--model" or "-c". */
+/** A flag found in a launch's arguments, with the value right after it when it takes one. */
+interface TakenFlag {
   flag: string;
-  /**
-   * The value right after the flag, e.g. "haiku", or "model_reasoning_effort=high" for `-c`.
-   * Absent for a flag that takes no value, like "--yolo".
-   */
   value?: string;
 }
 
 function findTakenFlag(
   takenArgs: readonly string[],
   keys: readonly string[],
-): Omit<SavedArgSetting, 'kind'> | undefined {
+): TakenFlag | undefined {
   for (let i = 0; i < takenArgs.length; i++) {
     const arg = takenArgs[i]!;
     const next = takenArgs[i + 1];
@@ -450,26 +445,6 @@ function findTakenFlag(
     }
   }
   return undefined;
-}
-
-/**
- * The model, effort, and mode a CLI's saved arguments already set on their own. Launch defaults
- * show these, so a `--model haiku` typed into the Arguments box can't start the CLI on Haiku
- * while the Model picker says "Not set".
- */
-export function savedArgSettings(cliId: string, takenArgs: readonly string[]): SavedArgSetting[] {
-  const options = cliLaunchOptions(cliId);
-  if (!options || takenArgs.length === 0) return [];
-  const sample = options.efforts[0];
-  const checks: [SavedArgSetting['kind'], readonly string[]][] = [
-    ['model', options.modelFlag ? modelFlagKeys(options.modelFlag) : []],
-    ['effort', sample && options.effortArgs ? effortFlagKeys(options.effortArgs(sample)) : []],
-    ['mode', options.modeFlags],
-  ];
-  return checks.flatMap(([kind, keys]) => {
-    const found = findTakenFlag(takenArgs, keys);
-    return found ? [{ kind, ...found }] : [];
-  });
 }
 
 /**

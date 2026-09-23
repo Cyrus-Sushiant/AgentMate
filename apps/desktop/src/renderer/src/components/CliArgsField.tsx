@@ -5,15 +5,16 @@ import { SimpleTooltip } from '@/components/ui/tooltip';
 import { useCliStore } from '@/stores/cliStore';
 
 const HINT =
-  'Passed to this CLI everywhere AgentMate runs it: commit messages, tag suggestions, version bumps, skill audits, and terminal launches.';
+  'Only for background tasks AgentMate runs with this CLI: commit messages, tag suggestions, version bumps, and skill audits. Terminals and Workspace tabs never use these; they take Launch defaults from Settings.';
 
 /**
- * Extra flags for one CLI, e.g. "--model sonnet". Saved on blur (and on Enter) rather
+ * Extra flags for one CLI, e.g. "--model sonnet", used only when AgentMate runs it in the
+ * background (never for terminals, which take Launch defaults). Saved on blur (and on Enter) rather
  * than per keystroke, so a half-typed flag never reaches a run.
  */
 export function CliArgsField({
   cliId,
-  label = 'Arguments',
+  label = 'Background task arguments',
 }: {
   cliId: string;
   label?: string;

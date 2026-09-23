@@ -31,7 +31,7 @@ export function PaneLauncher({
   const agents = useAgentChoices(project);
   const shells = shellOptions();
   const menuOpen = useLauncherStore((s) => s.openForGroupId !== null);
-  const hasSavedArgs = useCliStore((s) => Object.keys(s.cliArgs).length > 0);
+  const hasLaunchDefaults = useCliStore((s) => Object.keys(s.cliLaunchDefaults).length > 0);
   const visibleAgents = useMemo(
     () => agents.installed.slice(0, hero ? 9 : 6),
     [agents.installed, hero],
@@ -48,7 +48,7 @@ export function PaneLauncher({
       const choice = digit ? visibleAgents[Number(digit[1]) - 1] : undefined;
       if (!choice) return;
       event.preventDefault();
-      launchAgentTab(project, choice.cli.id, groupId, { skipSavedArgs: event.altKey });
+      launchAgentTab(project, choice.cli.id, groupId, { skipLaunchDefaults: event.altKey });
     }
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
@@ -79,9 +79,9 @@ export function PaneLauncher({
 
         <p className="mb-3 flex items-center justify-between gap-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
           <span>{hero ? 'Start an agent' : 'Open in this pane'}</span>
-          {hasSavedArgs ? (
+          {hasLaunchDefaults ? (
             <span className="text-[10px] font-normal normal-case tracking-normal text-muted-foreground/70">
-              Alt+click: skip saved args and defaults
+              Alt+click: skip launch defaults
             </span>
           ) : null}
         </p>
@@ -118,7 +118,7 @@ export function PaneLauncher({
                 type="button"
                 onClick={(event) =>
                   launchAgentTab(project, choice.cli.id, groupId, {
-                    skipSavedArgs: event.altKey,
+                    skipLaunchDefaults: event.altKey,
                   })
                 }
                 className={cn(

@@ -43,10 +43,10 @@ export function LauncherMenu({
   const setOpenFor = useLauncherStore((s) => s.setOpenFor);
   const agents = useAgentChoices(project);
   const shells = shellOptions();
-  const hasSavedArgs = useCliStore((s) => Object.keys(s.cliArgs).length > 0);
+  const hasLaunchDefaults = useCliStore((s) => Object.keys(s.cliLaunchDefaults).length > 0);
 
-  const launchAgent = (cliId: string, skipSavedArgs = false): void => {
-    launchAgentTab(project, cliId, groupId, { skipSavedArgs });
+  const launchAgent = (cliId: string, skipLaunchDefaults = false): void => {
+    launchAgentTab(project, cliId, groupId, { skipLaunchDefaults });
   };
 
   return (
@@ -75,9 +75,9 @@ export function LauncherMenu({
         </DropdownMenuItem>
         <DropdownMenuLabel className="flex items-center justify-between gap-2">
           <span>Agents</span>
-          {hasSavedArgs ? (
+          {hasLaunchDefaults ? (
             <span className="text-[10px] font-normal text-muted-foreground/70">
-              Alt+click: skip saved args and defaults
+              Alt+click: skip launch defaults
             </span>
           ) : null}
         </DropdownMenuLabel>

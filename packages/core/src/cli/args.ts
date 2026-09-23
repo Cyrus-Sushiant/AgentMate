@@ -1,8 +1,8 @@
 /**
  * Per-CLI extra arguments the user configured in AgentMate, keyed by CLI id, stored
- * exactly as typed (e.g. "--model sonnet"). Every place the app runs an agent CLI
- * adds these, so picking a model or a profile once applies to prompts, git helpers,
- * skill audits, and terminal launches alike.
+ * exactly as typed (e.g. "--model sonnet"). Only background runs use these (commit
+ * messages, tag suggestions, version bumps, skill audits). Terminal launches never do;
+ * they take the launch defaults from Settings instead.
  */
 export type CliArgsMap = Record<string, string>;
 

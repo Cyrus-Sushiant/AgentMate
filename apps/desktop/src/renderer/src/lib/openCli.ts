@@ -1,26 +1,20 @@
-import {
-  buildAgentLaunchCommand,
-  getCliArgsFor,
-  getCliDefinition,
-  shellKindFor,
-} from '@agentmat/core';
+import { buildAgentLaunchCommand, getCliDefinition, shellKindFor } from '@agentmat/core';
 import { toast } from 'sonner';
 import { useCliStore } from '@/stores/cliStore';
 import { defaultNewSession, useTerminalStore } from '@/stores/terminalStore';
 
 /**
- * The command that starts this CLI, with its launch defaults and the user's configured
- * arguments already attached ("claude --permission-mode auto --model sonnet"). Callers that
- * pass a prompt of their own append it after this, so the flags stay ahead of the prompt.
- * `runArgs` (a suggested model and effort) fill in only what the saved arguments don't set, and
- * replace the launch defaults they overlap, so no flag is ever sent twice.
+ * The command that starts this CLI, with its launch defaults already attached
+ * ("claude --permission-mode auto --model sonnet"). Callers that pass a prompt of their own
+ * append it after this, so the flags stay ahead of the prompt. `runArgs` (a suggested model and
+ * effort) replace the launch defaults they overlap, so no flag is ever sent twice. The Arguments
+ * box from AI CLI Manager is not used here, it only applies to background tasks.
  */
 export function cliLaunchCommand(cliId: string, runArgs: readonly string[] = []): string | null {
-  const { cliArgs, cliLaunchDefaults } = useCliStore.getState();
+  const { cliLaunchDefaults } = useCliStore.getState();
   return buildAgentLaunchCommand({
     cliId,
     shellKind: shellKindFor(defaultNewSession().shell, window.agentmat.platform),
-    savedArgs: getCliArgsFor(cliArgs, cliId),
     launchDefaults: cliLaunchDefaults[cliId],
     runArgs,
   });

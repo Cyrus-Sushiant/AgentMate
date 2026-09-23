@@ -522,37 +522,15 @@ export function runArgsFromReported(
   return runChoiceArgs(profile, { model, effort });
 }
 
-/**
- * Drops run args the user already set in their own CLI arguments, so a configured
- * `--model` wins and the CLI never sees the same flag twice. Run args always come in
- * flag/value pairs; for `-c key=value` pairs the key is what has to be unique.
- */
-export function withoutConfiguredRunArgs(configuredArgs: string, runArgs: string[]): string[] {
-  const configured = configuredArgs.split(/\s+/).filter(Boolean);
-  const kept: string[] = [];
-  for (let i = 0; i + 1 < runArgs.length; i += 2) {
-    const flag = runArgs[i]!;
-    const value = runArgs[i + 1]!;
-    const key = flag === '-c' ? value.split('=')[0]! : flag;
-    const clash =
-      flag === '-c'
-        ? configured.some((arg) => arg.startsWith(`${key}=`))
-        : configured.some((arg) => arg === key || arg.startsWith(`${key}=`));
-    if (!clash) kept.push(flag, value);
-  }
-  return kept;
-}
-
 /** Short spellings CLIs accept for the long flags run args use. */
 const RUN_FLAG_ALIASES: Record<string, readonly string[]> = {
   '--model': ['-m'],
 };
 
 /**
- * The other way round from withoutConfiguredRunArgs(): drops whatever the user's own CLI
- * arguments set that the run args also set, for launches where the model and effort were picked
- * on purpose for this one run (say, in a Fix with AI dialog). A `--model haiku` kept in Settings
- * would otherwise win, and the CLI would start on it instead of the pick. Everything else in the
+ * Drops whatever the user's own CLI arguments set that the run args also set, for runs where the
+ * model and effort were picked on purpose (say, in a Fix with AI dialog). A `--model haiku` kept
+ * in the Arguments box would otherwise win, and the CLI would start on it instead of the pick. Everything else in the
  * configured string is left exactly as the user wrote it.
  */
 export function configuredArgsWithout(configuredArgs: string, runArgs: string[]): string {

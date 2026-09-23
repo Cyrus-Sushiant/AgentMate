@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import { buildHeadlessCliArgs } from './headlessArgs.js';
-import { launchDefaultArgs } from './launchDefaults.js';
 import { CLI_REGISTRY, type CliDefinition, getCliDefinition } from './registry.js';
 
 const HEADLESS_CLIS = CLI_REGISTRY.filter((cli) => cli.promptCommand);
@@ -38,28 +37,6 @@ describe('buildHeadlessCliArgs: every CLI in the registry', () => {
       }
     },
   );
-
-  it.each(HEADLESS_CLIS.map((c) => [c.id, c] as const))(
-    '%s gets the launch default model and effort it supports',
-    (_id, definition) => {
-      const launchDefaults = { model: 'agentmate-model', effort: 'high' as const };
-      const expected = launchDefaultArgs(definition.id, launchDefaults);
-      const args = buildHeadlessCliArgs({ cli: definition, launchDefaults });
-      expect(containsRun(args, expected)).toBe(true);
-    },
-  );
-
-  it.each(HEADLESS_CLIS.map((c) => [c.id, c] as const))(
-    '%s never takes the launch mode into a background run',
-    (_id, definition) => {
-      const plain = buildHeadlessCliArgs({ cli: definition, allowWrites: true });
-      for (const mode of ['plan', 'auto', 'bypassPermissions', 'yolo', 'full-access', 'force']) {
-        expect(
-          buildHeadlessCliArgs({ cli: definition, allowWrites: true, launchDefaults: { mode } }),
-        ).toEqual(plain);
-      }
-    },
-  );
 });
 
 describe('buildHeadlessCliArgs: Claude Code', () => {
@@ -69,42 +46,22 @@ describe('buildHeadlessCliArgs: Claude Code', () => {
     expect(buildHeadlessCliArgs({ cli: claude })).toEqual(['-p']);
   });
 
-  it('uses the model and effort from Launch defaults', () => {
-    expect(
-      buildHeadlessCliArgs({ cli: claude, launchDefaults: { model: 'opus', effort: 'high' } }),
-    ).toEqual(['-p', '--model', 'opus', '--effort', 'high']);
+  it('uses the model saved in the Arguments box', () => {
+    expect(buildHeadlessCliArgs({ cli: claude, savedArgs: '--model haiku' })).toEqual([
+      '-p',
+      '--model',
+      'haiku',
+    ]);
   });
 
-  it('lets the Arguments box win over a launch default for the same flag', () => {
-    expect(
-      buildHeadlessCliArgs({
-        cli: claude,
-        savedArgs: '--model sonnet --verbose',
-        launchDefaults: { model: 'opus', effort: 'high' },
-      }),
-    ).toEqual(['-p', '--effort', 'high', '--model', 'sonnet', '--verbose']);
-  });
-
-  it('leaves the effort off when the model that really runs has none', () => {
-    expect(
-      buildHeadlessCliArgs({
-        cli: claude,
-        savedArgs: '--model haiku',
-        launchDefaults: { effort: 'high' },
-      }),
-    ).toEqual(['-p', '--model', 'haiku']);
-  });
-
-  it('lets a model picked for this run replace both settings, never doubling a flag', () => {
+  it('lets a model picked for this run replace the saved one, never doubling a flag', () => {
     const args = buildHeadlessCliArgs({
       cli: claude,
       savedArgs: '--model sonnet --verbose',
-      launchDefaults: { model: 'opus', effort: 'low' },
       runArgs: ['--model', 'fable', '--effort', 'max'],
     });
     expect(args).toEqual(['-p', '--verbose', '--model', 'fable', '--effort', 'max']);
     expect(args.filter((a) => a === '--model')).toHaveLength(1);
-    expect(args.filter((a) => a === '--effort')).toHaveLength(1);
   });
 
   it('adds write flags only when the run may write, next to the user settings', () => {
@@ -113,9 +70,8 @@ describe('buildHeadlessCliArgs: Claude Code', () => {
         cli: claude,
         allowWrites: true,
         savedArgs: '--verbose',
-        launchDefaults: { model: 'opus', mode: 'plan' },
       }),
-    ).toEqual(['-p', '--permission-mode', 'acceptEdits', '--model', 'opus', '--verbose']);
+    ).toEqual(['-p', '--permission-mode', 'acceptEdits', '--verbose']);
   });
 });
 
