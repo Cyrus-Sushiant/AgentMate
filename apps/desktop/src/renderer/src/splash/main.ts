@@ -23,4 +23,8 @@ window.agentmat.splash.onClose(() => {
   document.body.classList.add('closing');
 });
 
-requestAnimationFrame(() => document.body.classList.add('ready'));
+// Fade in once the logo can paint with the rest, so the card never shows up without it.
+void logo
+  .decode()
+  .catch(() => undefined)
+  .then(() => requestAnimationFrame(() => document.body.classList.add('ready')));

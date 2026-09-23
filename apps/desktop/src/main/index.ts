@@ -314,15 +314,17 @@ app.whenReady().then(async () => {
   // theme, and the settings file is small, so that one read comes before it.
   const { theme } = await store.getSettings();
   windowBackground = themeBackground(theme);
+  let splashUp: Promise<void> = Promise.resolve();
   if (!keepWindowsHidden) {
-    showSplash(theme);
+    splashUp = showSplash(theme);
     revealAfterSplash = true;
   }
   setSplashStatus('Loading settings...');
 
   // Ahead of every other startup step, so the first update check, widget
-  // refresh, or usage poll already goes the configured way.
-  await applyProxySettingsFromStore();
+  // refresh, or usage poll already goes the configured way. The splash has to be
+  // fully drawn too, since the synchronous work below would otherwise stall it.
+  await Promise.all([applyProxySettingsFromStore(), splashUp]);
 
   const isDev = !!process.env.ELECTRON_RENDERER_URL;
   // Vite's dev server needs an inline HMR/preamble script and a websocket

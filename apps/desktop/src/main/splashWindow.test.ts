@@ -101,6 +101,28 @@ describe('splash window', () => {
     expect(FakeBrowserWindow.instances.filter((one) => one.options.width === 520)).toHaveLength(1);
   });
 
+  it('lets startup carry on if the splash never finishes loading', async () => {
+    let up = false;
+    void splash.showSplash('dark').then(() => {
+      up = true;
+    });
+    splashWindow()?.emit('ready-to-show');
+    await vi.advanceTimersByTimeAsync(1500);
+    expect(up).toBe(false);
+    await vi.advanceTimersByTimeAsync(600);
+    expect(up).toBe(true);
+  });
+
+  it('lets startup carry on when the splash is closed early', async () => {
+    let up = false;
+    void splash.showSplash('dark').then(() => {
+      up = true;
+    });
+    splashWindow()?.close();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(up).toBe(true);
+  });
+
   it('passes the startup status on to the page', () => {
     const win = openSplash();
     splash.setSplashStatus('Starting services...');

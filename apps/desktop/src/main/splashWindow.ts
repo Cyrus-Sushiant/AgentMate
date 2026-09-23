@@ -12,6 +12,8 @@ const MIN_VISIBLE_MS = 700;
 const FADE_MS = 180;
 /** If the app window never says it's ready, show it anyway rather than strand the user. */
 const HANDOFF_TIMEOUT_MS = 15_000;
+/** How long startup waits for the splash to finish loading before it carries on anyway. */
+const SPLASH_LOAD_TIMEOUT_MS = 2_000;
 /** Chromium's ERR_ABORTED: a load replaced by another one, not a failure. */
 const ERR_ABORTED = -3;
 
@@ -50,9 +52,15 @@ function supportsAcrylic(): boolean {
  * The small glass window shown while the app starts, the way Visual Studio
  * does it. It is a static page rather than the React bundle, so it paints
  * right away, and it goes as soon as the main window reports it has loaded.
+ *
+ * Resolves once the splash is on screen with its logo, status and progress bar
+ * loaded. Startup waits for that before its long synchronous stretch: while
+ * the main process is busy it can't answer the splash's requests (they all go
+ * through the CSP header hook), so the splash would sit half drawn until the
+ * work was done.
  */
-export function showSplash(theme: ThemeMode): void {
-  if (getSplash()) return;
+export function showSplash(theme: ThemeMode): Promise<void> {
+  if (getSplash()) return Promise.resolve();
   const dark = resolveStartupTheme(theme) !== 'light';
   const acrylic = supportsAcrylic();
   const mac = process.platform === 'darwin';
@@ -87,16 +95,43 @@ export function showSplash(theme: ThemeMode): void {
   });
   splash = win;
 
+  let painted = false;
+  let loaded = false;
+  let resolveSettled = (): void => undefined;
+  const settled = new Promise<void>((resolve) => {
+    resolveSettled = resolve;
+  });
+  const timer = setTimeout(resolveSettled, SPLASH_LOAD_TIMEOUT_MS);
+  const settle = (): void => {
+    if (!painted || !loaded) return;
+    clearTimeout(timer);
+    resolveSettled();
+  };
+
   win.once('ready-to-show', () => {
     if (win.isDestroyed()) return;
     shownAt = Date.now();
     win.show();
+    painted = true;
+    settle();
   });
   win.webContents.on('did-finish-load', () => {
     if (lastStatus) sendToWindow(win, IPC.splash.onStatus, lastStatus);
+    loaded = true;
+    settle();
+  });
+  win.webContents.on('did-fail-load', (_event, errorCode, _description, _url, isMainFrame) => {
+    if (isMainFrame && errorCode !== ERR_ABORTED) {
+      loaded = true;
+      painted = true;
+      settle();
+    }
   });
   win.on('closed', () => {
     if (splash === win) splash = null;
+    painted = true;
+    loaded = true;
+    settle();
   });
 
   const query = {
@@ -111,6 +146,7 @@ export function showSplash(theme: ThemeMode): void {
   } else {
     void win.loadFile(join(__dirname, '../renderer/splash.html'), { query });
   }
+  return settled;
 }
 
 /** One line under the logo saying what startup is busy with. */
