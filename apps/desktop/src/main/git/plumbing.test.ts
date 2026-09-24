@@ -1,4 +1,4 @@
-import { writeFileSync } from 'node:fs';
+import { rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { hasGit, initGitRepo } from '../../test/main/fixtures';
@@ -7,6 +7,7 @@ import {
   createBranch,
   currentBranch,
   detectDefaultBranch,
+  isGitLockBusy,
   isGitRepo,
   listBranches,
   parseStatusPorcelain,
@@ -16,6 +17,7 @@ import {
   readTagInfo,
   recentDays,
   renameBranch,
+  git as runGit,
   runGitOp,
   safeBranchName,
   TAG_NAME_PATTERN,
@@ -270,4 +272,61 @@ describe.skipIf(!git)('against a real repository', () => {
     // The tagged commit itself is already released, so it is not in the list.
     expect(subjects).not.toContain('first commit');
   });
+});
+
+describe('isGitLockBusy', () => {
+  it('spots git refusing to run because another process holds a lock', () => {
+    const indexLock = {
+      stderr:
+        "fatal: Unable to create 'E:/repo/.git/index.lock': File exists.\n\nAnother git process seems to be running in this repository",
+    };
+    const refLock = {
+      stderr:
+        "error: cannot lock ref 'HEAD': Unable to create 'E:/repo/.git/HEAD.lock': File exists.",
+    };
+
+    expect(isGitLockBusy(indexLock)).toBe(true);
+    expect(isGitLockBusy(refLock)).toBe(true);
+  });
+
+  it('leaves every other failure alone', () => {
+    expect(isGitLockBusy({ stderr: 'fatal: not a git repository' })).toBe(false);
+    expect(isGitLockBusy(new Error('spawn git ENOENT'))).toBe(false);
+    expect(isGitLockBusy(null)).toBe(false);
+  });
+});
+
+describe.skipIf(!git)('git() while another process holds the index lock', () => {
+  // The version bump's commit used to fail at random: a `git status` from the repo watcher, an
+  // editor or an agent held .git/index.lock for a moment, and `git add` gave up on the spot.
+
+  it('waits for a lock that goes away and then runs', async () => {
+    const repo = initGitRepo();
+    writeFileSync(join(repo.dir, 'package.json'), '{ "version": "1.1.0" }\n', 'utf-8');
+    const lock = join(repo.dir, '.git', 'index.lock');
+    writeFileSync(lock, '', 'utf-8');
+    const release = setTimeout(() => rmSync(lock, { force: true }), 250);
+
+    try {
+      await runGit(repo.dir, ['add', '-A']);
+      await runGit(repo.dir, ['commit', '-m', 'chore(release): bump version to 1.1.0']);
+    } finally {
+      clearTimeout(release);
+    }
+
+    expect(repo.git('status', '--porcelain').trim()).toBe('');
+    expect(repo.git('log', '-1', '--format=%s').trim()).toBe(
+      'chore(release): bump version to 1.1.0',
+    );
+  });
+
+  it("gives up with git's own message when the lock never goes away", async () => {
+    const repo = initGitRepo();
+    writeFileSync(join(repo.dir, 'package.json'), '{ "version": "1.1.0" }\n', 'utf-8');
+    writeFileSync(join(repo.dir, '.git', 'index.lock'), '', 'utf-8');
+
+    await expect(runGit(repo.dir, ['add', '-A'])).rejects.toMatchObject({
+      stderr: expect.stringMatching(/index\.lock'?: File exists/),
+    });
+  }, 10000);
 });

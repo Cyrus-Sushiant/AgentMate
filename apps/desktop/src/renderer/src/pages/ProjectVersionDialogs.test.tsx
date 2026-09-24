@@ -1,5 +1,5 @@
 import type { GitStatus, GitTagInfo } from '@shared/apiTypes';
-import { screen, waitFor } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderWithProviders } from '../../../test/renderer/renderWithProviders';
 
@@ -40,6 +40,7 @@ vi.mock('@/components/editor/MonacoDiffEditor', () => ({
 
 const { ProjectVersionDialogs } = await import('./ProjectDetailPage');
 const { useVersionDialogStore } = await import('@/stores/versionDialogStore');
+const { useConfirmStore } = await import('@/stores/confirmStore');
 
 const status = {
   isRepo: true,
@@ -149,6 +150,53 @@ describe('ProjectVersionDialogs', () => {
     expect(screen.getByText('Two features since v1.0.0.')).toBeTruthy();
     // The point of keeping it: the CLI is not asked a second time.
     expect(suggestTag).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps a failed version commit on screen and stops the tag from skipping past it', async () => {
+    // The commit used to fail at random when another git held .git/index.lock. The error was
+    // a toast that was easy to miss, and "Back to tag" then led straight into tagging a commit
+    // that still had the old version, with only a soft "uncommitted files" note to go on.
+    const lockError =
+      "fatal: Unable to create 'E:/repo/.git/index.lock': File exists.\n\nAnother git process seems to be running in this repository";
+    const bump = {
+      path: 'package.json',
+      kind: 'modified',
+      beforeId: 'a'.repeat(40),
+      afterId: 'b'.repeat(40),
+      beforeRawId: null,
+      afterRawId: null,
+      additions: 1,
+      deletions: 1,
+      diff: '@@ -1 +1 @@\n-{ "version": "1.0.0" }\n+{ "version": "1.1.0" }',
+    };
+    const createTag = vi.fn();
+    const { user } = renderDialogs({
+      'git.status': { ...status, files: [{ x: ' ', y: 'M', path: 'package.json' }] },
+      'git.applyVersion': async () => ({ ok: true, output: '', changes: [bump] }),
+      'git.commit': async () => ({ ok: false, message: lockError }),
+      'git.createTag': createTag,
+    });
+
+    await user.type(await screen.findByLabelText('Version'), '1.1.0');
+    await user.click(screen.getByRole('button', { name: /Update version in files/ }));
+    const decision = await screen.findByRole('group', { name: 'Decision for package.json' });
+    await user.click(within(decision).getByRole('button', { name: /Keep/ }));
+    const commit = await screen.findByRole('button', { name: /Commit 1 kept file/ });
+    await waitFor(() => expect(commit.hasAttribute('disabled')).toBe(false));
+    await user.click(commit);
+
+    expect(await screen.findByText(/The commit failed/)).toBeTruthy();
+    expect(screen.getByText(/index\.lock': File exists/)).toBeTruthy();
+
+    await user.click(screen.getByRole('button', { name: /Back to tag/ }));
+    expect(await screen.findByText(/isn't committed/)).toBeTruthy();
+    expect(screen.getByRole('button', { name: /Review and commit/ })).toBeTruthy();
+
+    await user.click(screen.getByRole('button', { name: /Create & push tag/ }));
+    await waitFor(() =>
+      expect(useConfirmStore.getState().title).toBe('Version bump not committed'),
+    );
+    expect(createTag).not.toHaveBeenCalled();
   });
 
   it('starts fresh after the user closes the flow', async () => {

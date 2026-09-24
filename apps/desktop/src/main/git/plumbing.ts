@@ -33,20 +33,57 @@ export const TAG_NAME_PATTERN = /^[A-Za-z0-9@][A-Za-z0-9._/+@-]*$/;
 
 const RECENT_TAG_LIMIT = 8;
 
+/**
+ * The environment every git the app spawns runs with.
+ *
+ * Nobody can answer a credential prompt in a hidden process, so a command that would ask for
+ * one should fail with a readable error instead of sitting there until the timeout.
+ *
+ * GIT_OPTIONAL_LOCKS=0 stops reads like `status` from taking `.git/index.lock` just to refresh
+ * the index. The app polls status constantly (the repo watcher, every git query refetch), and a
+ * read holding that lock is exactly what made a commit fail at random with "index.lock: File
+ * exists". Writes still take the lock, since for them it isn't optional.
+ */
+export const GIT_ENV: NodeJS.ProcessEnv = {
+  ...process.env,
+  GIT_TERMINAL_PROMPT: '0',
+  GIT_OPTIONAL_LOCKS: '0',
+};
+
+/**
+ * How long to wait between tries when another git holds a lock. It adds up to about two
+ * seconds, far longer than any status or add from an editor or an agent holds one, and short
+ * enough that a lock left behind by a crashed git still fails fast with git's own message.
+ */
+const LOCK_RETRY_DELAYS_MS = [100, 200, 400, 600, 800];
+
+/** True when git gave up because another process holds a lock (index, ref or config). */
+export function isGitLockBusy(error: unknown): boolean {
+  const stderr = (error as { stderr?: string } | null)?.stderr ?? '';
+  return /\.lock'?: File exists/i.test(stderr);
+}
+
 export async function git(
   cwd: string,
   args: string[],
   timeoutMs = GIT_TIMEOUT_MS,
 ): Promise<string> {
-  const { stdout } = await execFileAsync('git', ['-C', cwd, ...args], {
-    timeout: timeoutMs,
-    windowsHide: true,
-    maxBuffer: 10 * 1024 * 1024,
-    // Nobody can answer a credential prompt in a hidden process, so a command that would
-    // ask for one should fail with a readable error instead of sitting there until the timeout.
-    env: { ...process.env, GIT_TERMINAL_PROMPT: '0' },
-  });
-  return stdout;
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      const { stdout } = await execFileAsync('git', ['-C', cwd, ...args], {
+        timeout: timeoutMs,
+        windowsHide: true,
+        maxBuffer: 10 * 1024 * 1024,
+        env: GIT_ENV,
+      });
+      return stdout;
+    } catch (error) {
+      // git checks for the lock before it changes anything, so trying again is always safe.
+      const delay = LOCK_RETRY_DELAYS_MS[attempt];
+      if (delay === undefined || !isGitLockBusy(error)) throw error;
+      await new Promise((resolve) => setTimeout(resolve, delay));
+    }
+  }
 }
 
 /**

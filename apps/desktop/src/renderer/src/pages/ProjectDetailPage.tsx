@@ -2731,8 +2731,8 @@ function ApplyVersionDialog({
   });
   const currentRun = [...runs].reverse().find((run) => run.variables?.tag === tag);
 
-  // Tagging is gated on a clean working tree (see TagVersionDialog), so the version bump
-  // this dialog just wrote needs to be committed before the user can move on to tagging.
+  // The tag lands on HEAD, so the version bump this dialog just wrote has to be committed first
+  // or the tag points at a commit that still has the old version (TagVersionDialog checks).
   // Only the files the user kept go in, so nothing else lying around the tree gets swept up.
   const commitMutation = useMutation({
     mutationFn: ({ message, paths }: { message: string; paths: string[] }) =>
@@ -2797,6 +2797,14 @@ function ApplyVersionDialog({
     (change) => !fileDecision(change, reviews[change.path]),
   ).length;
   const committed = commitMutation.isSuccess && commitMutation.data.ok;
+  // A failed commit stays on screen until the next try. As a toast alone it was easy to miss,
+  // and then "Back to tag" led straight into tagging a commit without the new version.
+  const commitError =
+    commitMutation.isSuccess && !commitMutation.data.ok
+      ? commitMutation.data.message
+      : commitMutation.isError
+        ? commitMutation.error.message
+        : null;
 
   const isApplying = currentRun?.status === 'pending';
   const failed = currentRun?.status === 'error' || (result && !result.ok && !result.cancelled);
@@ -2907,6 +2915,20 @@ function ApplyVersionDialog({
                 onSavingChange={setSavingReview}
                 locked={committed || commitMutation.isPending}
               />
+              {commitError && !commitMutation.isPending && (
+                <div
+                  role="alert"
+                  className="space-y-1 rounded-xl border border-destructive/40 bg-destructive/5 px-3 py-2.5"
+                >
+                  <p className="flex items-center gap-1.5 text-xs font-medium text-destructive">
+                    <TriangleAlert className="h-3.5 w-3.5 shrink-0" /> The commit failed, so nothing
+                    was committed
+                  </p>
+                  <pre className="max-h-32 overflow-y-auto overscroll-contain text-[11px] break-words whitespace-pre-wrap text-muted-foreground">
+                    {commitError}
+                  </pre>
+                </div>
+              )}
               {committed ? (
                 <div className="flex items-start gap-2 rounded-xl border border-success/30 bg-success/10 px-3 py-2.5">
                   <CircleCheck className="mt-0.5 h-3.5 w-3.5 shrink-0 text-success" />
@@ -3165,6 +3187,24 @@ function TagVersionDialog({
   // something that just shipped. Git still rejects any duplicate this misses.
   const tagExists = trimmedVersion.length > 0 && recentTags.includes(tag) && !creatingThisTag;
   const versionApplied = trimmedVersion.length > 0 && updatedVersionFor === tag;
+
+  // The files "Update version in files" changed for this tag that are still uncommitted. The
+  // tag goes on HEAD, so while any are left it would point at a commit with the old version.
+  // A file that had edits of its own before the run stays dirty after a revert on purpose, so
+  // only the ones the run alone touched count.
+  const applyRuns = useMutationState({
+    filters: { mutationKey: ['applyVersion', projectId], exact: true, status: 'success' },
+    select: (m) => ({
+      tag: (m.state.variables as { tag: string } | undefined)?.tag,
+      data: m.state.data as ApplyVersionResult | undefined,
+    }),
+  });
+  const bumpRun = versionApplied ? [...applyRuns].reverse().find((run) => run.tag === tag) : null;
+  const dirtyPaths = new Set(status?.files.map((file) => file.path));
+  const uncommittedBump = (bumpRun?.data?.changes ?? [])
+    .filter((change) => !change.hadLocalEdits && dirtyPaths.has(change.path))
+    .map((change) => change.path);
+  const bumpUncommitted = uncommittedBump.length > 0;
   const blockedReason = tagExists ? `${tag} already exists. Pick another version.` : null;
   const canCreate = trimmedVersion.length > 0 && !tagExists;
 
@@ -3239,18 +3279,28 @@ function TagVersionDialog({
   function handleCreateTag(): void {
     if (!version.trim()) return;
     const next = tag.trim();
-    if (updatedVersionFor === next) {
+    if (updatedVersionFor === next && !bumpUncommitted) {
       createTagMutation.mutate(next);
       return;
     }
     confirmingSkipRef.current = true;
-    void confirmDialog({
-      title: 'Skip updating version in files?',
-      description:
-        'You have not run Update version in files for this tag. Package manifests and other version strings may still show the old version.',
-      confirmLabel: hasRemote ? 'Create & push anyway' : 'Create anyway',
-      cancelLabel: 'Go back',
-    }).then((confirmed) => {
+    void confirmDialog(
+      bumpUncommitted
+        ? {
+            title: 'Version bump not committed',
+            description: `${uncommittedBump.length} file${uncommittedBump.length === 1 ? '' : 's'} from Update version in files still ${uncommittedBump.length === 1 ? 'has' : 'have'} uncommitted edits. The tag goes on the last commit, which still has the old version. Go back and use "Review and commit" first.`,
+            confirmLabel: hasRemote ? 'Create & push anyway' : 'Create anyway',
+            cancelLabel: 'Go back',
+            variant: 'destructive',
+          }
+        : {
+            title: 'Skip updating version in files?',
+            description:
+              'You have not run Update version in files for this tag. Package manifests and other version strings may still show the old version.',
+            confirmLabel: hasRemote ? 'Create & push anyway' : 'Create anyway',
+            cancelLabel: 'Go back',
+          },
+    ).then((confirmed) => {
       confirmingSkipRef.current = false;
       if (confirmed) createTagMutation.mutate(next);
     });
@@ -3292,17 +3342,47 @@ function TagVersionDialog({
           </DialogDescription>
         </DialogHeader>
         <OverflowScroll fill className="-mx-1 space-y-4 px-1">
-          {/* A heads-up, not a blocker: the tag lands on HEAD regardless of the working tree. */}
-          {isDirty && (
-            <div className="flex gap-2 rounded-xl border border-warning/30 bg-warning/10 px-3 py-2.5">
-              <TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0 text-warning" />
-              <p className="text-xs text-muted-foreground">
-                <span className="font-medium text-foreground">
-                  {dirtyFileCount} uncommitted file{dirtyFileCount === 1 ? '' : 's'}.
-                </span>{' '}
-                They won't be part of this tag unless you commit them first.
-              </p>
+          {/* The version bump for this very tag never got committed, most often because the
+              commit in "Update version in files" failed. Tagging now would ship the old
+              version, so this says so and leads back to the review, where the commit is. */}
+          {bumpUncommitted ? (
+            <div
+              role="alert"
+              className="flex flex-col gap-2 rounded-xl border border-destructive/40 bg-destructive/5 px-3 py-2.5 sm:flex-row sm:items-center"
+            >
+              <div className="flex min-w-0 flex-1 gap-2">
+                <TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0 text-destructive" />
+                <p className="text-xs text-muted-foreground">
+                  <span className="font-medium text-foreground">
+                    The version bump for <span className="font-mono">{tag}</span> isn't committed.
+                  </span>{' '}
+                  {uncommittedBump.length} updated file{uncommittedBump.length === 1 ? '' : 's'}{' '}
+                  still {uncommittedBump.length === 1 ? 'has' : 'have'} uncommitted edits, so this
+                  tag would point at a commit with the old version.
+                </p>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                className="shrink-0 self-start sm:self-auto"
+                disabled={createTagMutation.isPending}
+                onClick={handleApplyVersion}
+              >
+                <GitCommit className="h-3.5 w-3.5" /> Review and commit
+              </Button>
             </div>
+          ) : (
+            isDirty && (
+              <div className="flex gap-2 rounded-xl border border-warning/30 bg-warning/10 px-3 py-2.5">
+                <TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0 text-warning" />
+                <p className="text-xs text-muted-foreground">
+                  <span className="font-medium text-foreground">
+                    {dirtyFileCount} uncommitted file{dirtyFileCount === 1 ? '' : 's'}.
+                  </span>{' '}
+                  They won't be part of this tag unless you commit them first.
+                </p>
+              </div>
+            )
           )}
 
           {/* The one place the finished tag is shown, so the fields below never repeat it
