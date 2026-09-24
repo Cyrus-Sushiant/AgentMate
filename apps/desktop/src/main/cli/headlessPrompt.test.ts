@@ -100,7 +100,10 @@ describe('runHeadlessCliPrompt uses the user CLI settings', () => {
   it('reads the settings again on every run, so a change applies right away', async () => {
     settings.current = { defaultCliId: 'claude-code', cliArgs: { 'claude-code': '--model opus' } };
     expect((await run({})).args).toContain('opus');
-    settings.current = { defaultCliId: 'claude-code', cliArgs: { 'claude-code': '--model sonnet' } };
+    settings.current = {
+      defaultCliId: 'claude-code',
+      cliArgs: { 'claude-code': '--model sonnet' },
+    };
     expect((await run({})).args).toContain('sonnet');
   });
 

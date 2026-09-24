@@ -351,7 +351,9 @@ export const ipcMain = {
   },
   once: (channel: string, listener: IpcListener) => ipcMain.on(channel, listener),
   removeListener: (channel: string, listener: IpcListener) => {
-    const remaining = (electronState.listeners.get(channel) ?? []).filter((one) => one !== listener);
+    const remaining = (electronState.listeners.get(channel) ?? []).filter(
+      (one) => one !== listener,
+    );
     electronState.listeners.set(channel, remaining);
     return ipcMain;
   },

@@ -205,10 +205,7 @@ function LaunchDefaultsRow({
           ) : null}
 
           <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border/40 pt-3">
-            <CommandPreview
-              executable={cli.executableNames[0] ?? cli.id}
-              parts={parts}
-            />
+            <CommandPreview executable={cli.executableNames[0] ?? cli.id} parts={parts} />
             <Button
               variant="ghost"
               size="sm"
