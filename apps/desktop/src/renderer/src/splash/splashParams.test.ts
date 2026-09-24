@@ -3,10 +3,10 @@ import { readSplashParams } from './splashParams';
 
 describe('readSplashParams', () => {
   it('reads the theme, the glass mode and the build from the splash URL', () => {
-    expect(readSplashParams('?theme=light&glass=native&version=1.47.0', 2026)).toEqual({
+    expect(readSplashParams('?theme=light&glass=native&version=1.48.0', 2026)).toEqual({
       theme: 'light',
       glass: 'native',
-      credit: '© 2026 SmartClouds · v1.47.0',
+      credit: '© 2026 SmartClouds · v1.48.0',
     });
   });
 
