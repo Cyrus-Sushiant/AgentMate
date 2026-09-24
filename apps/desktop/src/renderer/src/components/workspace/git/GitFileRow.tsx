@@ -1,11 +1,16 @@
-import type { GitChangeEntry } from '@agentmat/core';
+import type { GitChangeEntry, Project } from '@agentmat/core';
 import type { GitDiffSide } from '@shared/apiTypes';
 import { FileCode, Minus, Plus, Trash2, Undo } from '@/components/icons';
+import { ContextMenu, ContextMenuTrigger } from '@/components/ui/context-menu';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { changeStatusMeta, splitGitPath } from '@/lib/git';
 import { cn } from '@/lib/utils';
+import { GitFileMenu } from './GitFileMenu';
 
 export interface GitFileRowProps {
+  project: Project;
+  /** Where the project sits inside the repository, for turning repo paths into disk paths. */
+  projectPrefix: string;
   entry: GitChangeEntry;
   side: GitDiffSide;
   selected: boolean;
@@ -62,6 +67,8 @@ function focusSibling(current: HTMLElement, step: 1 | -1): void {
 }
 
 export function GitFileRow({
+  project,
+  projectPrefix,
   entry,
   side,
   selected,
@@ -90,153 +97,173 @@ export function GitFileRow({
   // and two stacked bubbles read as noise. Only the folder part, which truncates from the
   // left, gets one with the full path.
   return (
-    <div
-      role="option"
-      aria-selected={selected}
-      aria-label={description}
-      tabIndex={focusable ? 0 : -1}
-      data-git-row
-      onFocus={onFocusRow}
-      onClick={() => onOpen(false)}
-      onDoubleClick={() => onOpen(true)}
-      onKeyDown={(event) => {
-        if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
-          event.preventDefault();
-          focusSibling(event.currentTarget, event.key === 'ArrowDown' ? 1 : -1);
-        } else if (event.key === 'Enter') {
-          event.preventDefault();
-          onOpen(true);
-        } else if (event.key === ' ') {
-          event.preventDefault();
-          (onStage ?? onUnstage)?.();
-        } else if (event.key === 'Delete' && onDiscard) {
-          event.preventDefault();
-          onDiscard();
-        }
-      }}
-      className={cn(
-        'group/row relative mx-1 flex h-[26px] cursor-pointer select-none items-center gap-2 rounded-md pl-6 pr-2 text-[13px] outline-none transition-colors focus-visible:ring-1 focus-visible:ring-primary/60',
-        selected
-          ? 'bg-primary/12 text-foreground'
-          : 'text-foreground/90 hover:bg-foreground/[0.05]',
-      )}
-    >
-      <span
-        className={cn(
-          'min-w-0 shrink truncate',
-          deleted && 'text-muted-foreground line-through decoration-foreground/30',
-        )}
-      >
-        {name}
-      </span>
-      {dir ? (
-        <SimpleTooltip
-          label={
-            entry.origPath ? (
-              <>
-                <span className="block text-muted-foreground">{entry.origPath}</span>
-                <span className="block">{entry.path}</span>
-              </>
-            ) : (
-              entry.path
-            )
-          }
-          side="bottom"
-          align="start"
-          delayDuration={400}
-          className="max-w-[min(32rem,90vw)] break-all font-mono text-[11px]"
+    <ContextMenu modal={false}>
+      <ContextMenuTrigger asChild>
+        <div
+          role="option"
+          aria-selected={selected}
+          aria-label={description}
+          tabIndex={focusable ? 0 : -1}
+          data-git-row
+          onFocus={onFocusRow}
+          onClick={() => onOpen(false)}
+          onDoubleClick={() => onOpen(true)}
+          onKeyDown={(event) => {
+            if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+              event.preventDefault();
+              focusSibling(event.currentTarget, event.key === 'ArrowDown' ? 1 : -1);
+            } else if (event.key === 'Enter') {
+              event.preventDefault();
+              onOpen(true);
+            } else if (event.key === ' ') {
+              event.preventDefault();
+              (onStage ?? onUnstage)?.();
+            } else if (event.key === 'Delete' && onDiscard) {
+              event.preventDefault();
+              onDiscard();
+            }
+          }}
+          className={cn(
+            'group/row relative mx-1 flex h-[26px] cursor-pointer select-none items-center gap-2 rounded-md pl-6 pr-2 text-[13px] outline-none transition-colors focus-visible:ring-1 focus-visible:ring-primary/60',
+            selected
+              ? 'bg-primary/12 text-foreground'
+              : 'text-foreground/90 hover:bg-foreground/[0.05]',
+          )}
         >
           <span
-            className="min-w-0 flex-1 truncate text-left text-[11px] text-muted-foreground/80 [direction:rtl]"
-            aria-hidden
-          >
-            <bdi>{dir.replace(/\/$/, '')}</bdi>
-          </span>
-        </SimpleTooltip>
-      ) : (
-        <span className="flex-1" />
-      )}
-
-      <span className="flex shrink-0 items-center gap-1.5 group-focus-within/row:hidden group-hover/row:hidden">
-        {hasCounts ? (
-          <span className="font-mono text-[10px] tabular-nums">
-            {entry.additions ? <span className="text-success">+{entry.additions}</span> : null}
-            {entry.additions && entry.deletions ? ' ' : null}
-            {entry.deletions ? <span className="text-destructive">−{entry.deletions}</span> : null}
-          </span>
-        ) : null}
-      </span>
-
-      <span className="hidden shrink-0 items-center gap-0.5 group-focus-within/row:flex group-hover/row:flex">
-        {onResolve ? (
-          <>
-            <SimpleTooltip label="Keep your version" delayDuration={400}>
-              <button
-                type="button"
-                tabIndex={-1}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  onResolve('ours');
-                }}
-                className="rounded px-1.5 text-[10px] font-medium text-muted-foreground hover:bg-foreground/10 hover:text-foreground"
-              >
-                Ours
-              </button>
-            </SimpleTooltip>
-            <SimpleTooltip label="Keep the incoming version" delayDuration={400}>
-              <button
-                type="button"
-                tabIndex={-1}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  onResolve('theirs');
-                }}
-                className="rounded px-1.5 text-[10px] font-medium text-muted-foreground hover:bg-foreground/10 hover:text-foreground"
-              >
-                Theirs
-              </button>
-            </SimpleTooltip>
-          </>
-        ) : null}
-        {!deleted ? (
-          <RowAction label="Open file" onClick={onOpenFile}>
-            <FileCode className="h-2.5 w-2.5" />
-          </RowAction>
-        ) : null}
-        {onDiscard ? (
-          <RowAction
-            label={side === 'untracked' ? 'Delete file' : 'Discard changes'}
-            onClick={onDiscard}
-            tone="danger"
-          >
-            {side === 'untracked' ? (
-              <Trash2 className="h-2.5 w-2.5" />
-            ) : (
-              <Undo className="h-2.5 w-2.5" />
+            className={cn(
+              'min-w-0 shrink truncate',
+              deleted && 'text-muted-foreground line-through decoration-foreground/30',
             )}
-          </RowAction>
-        ) : null}
-        {onStage ? (
-          <RowAction label={side === 'conflict' ? 'Mark as resolved' : 'Stage'} onClick={onStage}>
-            <Plus className="h-2.5 w-2.5" />
-          </RowAction>
-        ) : null}
-        {onUnstage ? (
-          <RowAction label="Unstage" onClick={onUnstage}>
-            <Minus className="h-2.5 w-2.5" />
-          </RowAction>
-        ) : null}
-      </span>
+          >
+            {name}
+          </span>
+          {dir ? (
+            <SimpleTooltip
+              label={
+                entry.origPath ? (
+                  <>
+                    <span className="block text-muted-foreground">{entry.origPath}</span>
+                    <span className="block">{entry.path}</span>
+                  </>
+                ) : (
+                  entry.path
+                )
+              }
+              side="bottom"
+              align="start"
+              delayDuration={400}
+              className="max-w-[min(32rem,90vw)] break-all font-mono text-[11px]"
+            >
+              <span
+                className="min-w-0 flex-1 truncate text-left text-[11px] text-muted-foreground/80 [direction:rtl]"
+                aria-hidden
+              >
+                <bdi>{dir.replace(/\/$/, '')}</bdi>
+              </span>
+            </SimpleTooltip>
+          ) : (
+            <span className="flex-1" />
+          )}
 
-      <span
-        className={cn(
-          'w-3 shrink-0 text-center font-mono text-[11px] font-semibold',
-          meta.className,
-        )}
-        aria-label={meta.label}
-      >
-        {meta.letter}
-      </span>
-    </div>
+          <span className="flex shrink-0 items-center gap-1.5 group-focus-within/row:hidden group-hover/row:hidden">
+            {hasCounts ? (
+              <span className="font-mono text-[10px] tabular-nums">
+                {entry.additions ? <span className="text-success">+{entry.additions}</span> : null}
+                {entry.additions && entry.deletions ? ' ' : null}
+                {entry.deletions ? (
+                  <span className="text-destructive">−{entry.deletions}</span>
+                ) : null}
+              </span>
+            ) : null}
+          </span>
+
+          <span className="hidden shrink-0 items-center gap-0.5 group-focus-within/row:flex group-hover/row:flex">
+            {onResolve ? (
+              <>
+                <SimpleTooltip label="Keep your version" delayDuration={400}>
+                  <button
+                    type="button"
+                    tabIndex={-1}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      onResolve('ours');
+                    }}
+                    className="rounded px-1.5 text-[10px] font-medium text-muted-foreground hover:bg-foreground/10 hover:text-foreground"
+                  >
+                    Ours
+                  </button>
+                </SimpleTooltip>
+                <SimpleTooltip label="Keep the incoming version" delayDuration={400}>
+                  <button
+                    type="button"
+                    tabIndex={-1}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      onResolve('theirs');
+                    }}
+                    className="rounded px-1.5 text-[10px] font-medium text-muted-foreground hover:bg-foreground/10 hover:text-foreground"
+                  >
+                    Theirs
+                  </button>
+                </SimpleTooltip>
+              </>
+            ) : null}
+            {!deleted ? (
+              <RowAction label="Open file" onClick={onOpenFile}>
+                <FileCode className="h-2.5 w-2.5" />
+              </RowAction>
+            ) : null}
+            {onDiscard ? (
+              <RowAction
+                label={side === 'untracked' ? 'Delete file' : 'Discard changes'}
+                onClick={onDiscard}
+                tone="danger"
+              >
+                {side === 'untracked' ? (
+                  <Trash2 className="h-2.5 w-2.5" />
+                ) : (
+                  <Undo className="h-2.5 w-2.5" />
+                )}
+              </RowAction>
+            ) : null}
+            {onStage ? (
+              <RowAction
+                label={side === 'conflict' ? 'Mark as resolved' : 'Stage'}
+                onClick={onStage}
+              >
+                <Plus className="h-2.5 w-2.5" />
+              </RowAction>
+            ) : null}
+            {onUnstage ? (
+              <RowAction label="Unstage" onClick={onUnstage}>
+                <Minus className="h-2.5 w-2.5" />
+              </RowAction>
+            ) : null}
+          </span>
+
+          <span
+            className={cn(
+              'w-3 shrink-0 text-center font-mono text-[11px] font-semibold',
+              meta.className,
+            )}
+            aria-label={meta.label}
+          >
+            {meta.letter}
+          </span>
+        </div>
+      </ContextMenuTrigger>
+      <GitFileMenu
+        project={project}
+        projectPrefix={projectPrefix}
+        entry={entry}
+        side={side}
+        onOpen={() => onOpen(true)}
+        onOpenFile={onOpenFile}
+        onStage={onStage}
+        onUnstage={onUnstage}
+        onDiscard={onDiscard}
+      />
+    </ContextMenu>
   );
 }

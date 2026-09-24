@@ -442,6 +442,8 @@ function ChangeSections({
                   return (
                     <GitFileRow
                       key={key}
+                      project={project}
+                      projectPrefix={state.projectPrefix}
                       entry={entry}
                       side={section.side}
                       selected={activeDiff === key}
