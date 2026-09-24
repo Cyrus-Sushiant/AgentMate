@@ -11,6 +11,7 @@ import { useEffect, useMemo, useRef } from 'react';
 import { toast } from 'sonner';
 import { create } from 'zustand';
 import { queryKeys } from '@/lib/queryKeys';
+import { useWorkspaceStore } from '@/stores/workspaceStore';
 
 export interface RecentMerge {
   number: number;
@@ -59,6 +60,94 @@ export interface PullRequestWatch {
   branch: string | null | undefined;
   head: string | null | undefined;
   ahead: number | undefined;
+  /** Set once the branch is published, from the app or from a terminal. */
+  upstream?: string | null;
+}
+
+export interface PullRequestProgress {
+  tone: 'success' | 'error' | 'warning' | 'info';
+  title: string;
+  description?: string;
+}
+
+/**
+ * What happened on GitHub between two reads of the same open PR, worth a toast: checks that
+ * finished, a review decision, new review comments. Merges and closes are left out, the merge
+ * card already says so when it's done from here.
+ */
+export function pullRequestProgress(
+  prev: PullRequestStatus | undefined,
+  next: PullRequestStatus | undefined,
+): PullRequestProgress[] {
+  const before = prev?.pr;
+  const after = next?.pr;
+  if (!before || !after || before.number !== after.number) return [];
+  if (before.state !== 'OPEN' || after.state !== 'OPEN') return [];
+  const notes: PullRequestProgress[] = [];
+
+  const was = summarizeChecks(before.checks);
+  const now = summarizeChecks(after.checks);
+  if (was.running > 0 && now.running === 0 && now.total > 0) {
+    notes.push(
+      now.failed > 0
+        ? {
+            tone: 'error',
+            title: `Checks failed on #${after.number}`,
+            description: `${now.failed} of ${now.total} ${now.total === 1 ? 'check' : 'checks'} failed.`,
+          }
+        : {
+            tone: 'success',
+            title: `Checks passed on #${after.number}`,
+            description: `All ${now.total} ${now.total === 1 ? 'check' : 'checks'} passed.`,
+          },
+    );
+  }
+
+  if (after.reviewDecision !== before.reviewDecision) {
+    if (after.reviewDecision === 'APPROVED') {
+      notes.push({ tone: 'success', title: `#${after.number} was approved` });
+    } else if (after.reviewDecision === 'CHANGES_REQUESTED') {
+      notes.push({ tone: 'warning', title: `Changes requested on #${after.number}` });
+    }
+  }
+
+  const openBefore = before.threads.filter((thread) => !thread.isResolved).length;
+  const openAfter = after.threads.filter((thread) => !thread.isResolved).length;
+  if (openAfter > openBefore) {
+    const added = openAfter - openBefore;
+    notes.push({
+      tone: 'info',
+      title: `${added} new review ${added === 1 ? 'comment' : 'comments'} on #${after.number}`,
+    });
+  }
+  return notes;
+}
+
+function openPullRequestSection(): void {
+  useWorkspaceStore.getState().revealPanelSection('pullRequest');
+}
+
+/**
+ * Says the branch is on GitHub and, when it could have a pull request but has none yet,
+ * offers to open one. Reads the last known PR status, so it never waits on gh.
+ */
+export function announcePublishedBranch(
+  queryClient: QueryClient,
+  projectId: string,
+  branch: string | null | undefined,
+  title = 'Branch published',
+): void {
+  void queryClient.invalidateQueries({ queryKey: queryKeys.pullRequest(projectId) });
+  const status = queryClient.getQueryData<PullRequestStatus>(queryKeys.pullRequest(projectId));
+  const canOpenPr = status?.github && status.authenticated && !status.onDefaultBranch && !status.pr;
+  toast.success(title, {
+    description: canOpenPr
+      ? `${branch ?? 'The branch'} is on GitHub. Open a pull request to get it reviewed.`
+      : undefined,
+    action: canOpenPr
+      ? { label: 'Create pull request', onClick: openPullRequestSection }
+      : undefined,
+  });
 }
 
 export function usePullRequest(projectId: string, watch: PullRequestWatch) {
@@ -71,9 +160,23 @@ export function usePullRequest(projectId: string, watch: PullRequestWatch) {
     meta: { silentLoading: true },
   });
 
-  // A commit, push, or branch switch changes what the tab should show; the first render is
-  // already covered by the query itself.
-  const fingerprint = `${watch.branch ?? ''}|${watch.head ?? ''}|${watch.ahead ?? ''}`;
+  // Checks and reviews move on GitHub while the user works elsewhere in the app; each poll
+  // that brings news says so once.
+  const lastSeen = useRef(query.data);
+  useEffect(() => {
+    const prev = lastSeen.current;
+    lastSeen.current = query.data;
+    for (const note of pullRequestProgress(prev, query.data)) {
+      toast[note.tone](note.title, {
+        description: note.description,
+        action: { label: 'View', onClick: openPullRequestSection },
+      });
+    }
+  }, [query.data]);
+
+  // A commit, push, publish or branch switch changes what the tab should show; the first
+  // render is already covered by the query itself.
+  const fingerprint = `${watch.branch ?? ''}|${watch.head ?? ''}|${watch.ahead ?? ''}|${watch.upstream ?? ''}`;
   const seen = useRef(fingerprint);
   useEffect(() => {
     if (seen.current === fingerprint) return;

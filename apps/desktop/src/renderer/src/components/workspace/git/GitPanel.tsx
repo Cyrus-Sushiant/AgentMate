@@ -59,7 +59,7 @@ import { PanelIconButton, type PanelTabDef, PanelTabs } from './PanelTabs';
 import { PipelinesSection } from './PipelinesSection';
 import { BranchPrPill, pullRequestAttention } from './pr/BranchPrPill';
 import { PullRequestSection } from './pr/PullRequestSection';
-import { usePullRequest } from './pr/usePullRequest';
+import { announcePublishedBranch, usePullRequest } from './pr/usePullRequest';
 import { SourceSection } from './SourceSection';
 import {
   type GitActions,
@@ -138,8 +138,9 @@ function SyncControls({
       publish: ['Branch published', 'Could not publish the branch'],
       sync: ['Synced', 'Sync failed'],
     };
-    if (result.ok) toast.success(outcome[kind][0]);
-    else toast.error(outcome[kind][1], { description: result.message });
+    if (!result.ok) toast.error(outcome[kind][1], { description: result.message });
+    else if (kind === 'publish') announcePublishedBranch(queryClient, projectId, state.branch);
+    else toast.success(outcome[kind][0]);
   }
 
   if (!state.hasRemote) return null;
@@ -730,6 +731,7 @@ export function GitPanel({
     branch: state?.branch,
     head: state?.head,
     ahead: state?.ahead,
+    upstream: state?.upstream,
   });
   const prAttention = pullRequestAttention(pullRequest.data?.pr);
 

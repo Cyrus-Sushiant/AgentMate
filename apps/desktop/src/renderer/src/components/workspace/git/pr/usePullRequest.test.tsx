@@ -3,14 +3,22 @@ import type { PullRequestStatus } from '@shared/apiTypes';
 import { act, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { queryKeys } from '@/lib/queryKeys';
+import { useWorkspaceStore } from '@/stores/workspaceStore';
 import { renderHookWithProviders } from '../../../../../../test/renderer/renderWithProviders';
 import {
+  announcePublishedBranch,
+  pullRequestProgress,
   pullRequestRefetchInterval,
   usePullRequest,
   usePullRequestActions,
 } from './usePullRequest';
 
-const toast = vi.hoisted(() => ({ error: vi.fn(), success: vi.fn() }));
+const toast = vi.hoisted(() => ({
+  error: vi.fn(),
+  success: vi.fn(),
+  warning: vi.fn(),
+  info: vi.fn(),
+}));
 vi.mock('sonner', () => ({ toast, Toaster: () => null }));
 
 function check(status: string, conclusion: string | null = null): PrCheck {
@@ -90,6 +98,20 @@ describe('usePullRequest', () => {
     await waitFor(() => expect(bridge.$fn('pullRequests.status')).toHaveBeenCalledTimes(2));
   });
 
+  it('reads the status again once the branch is published', async () => {
+    const { rerender, bridge } = renderHookWithProviders(
+      ({ upstream }: { upstream: string | null }) =>
+        usePullRequest('p1', { visible: true, branch: 'feature', head: 'a', ahead: 0, upstream }),
+      {
+        initialProps: { upstream: null as string | null },
+        bridge: { 'pullRequests.status': status({ pr: null, hasUpstream: false }) },
+      },
+    );
+    await waitFor(() => expect(bridge.$fn('pullRequests.status')).toHaveBeenCalledTimes(1));
+    rerender({ upstream: 'origin/feature' });
+    await waitFor(() => expect(bridge.$fn('pullRequests.status')).toHaveBeenCalledTimes(2));
+  });
+
   it('stays idle while the tab is hidden', async () => {
     const { bridge } = renderHookWithProviders(
       () => usePullRequest('p1', { visible: false, branch: 'feature', head: 'a', ahead: 0 }),
@@ -98,6 +120,106 @@ describe('usePullRequest', () => {
     await new Promise((resolve) => setTimeout(resolve, 20));
     // $fn throws for a path nothing called, which is the point here.
     expect(() => bridge.$fn('pullRequests.status')).toThrow('has not been touched');
+  });
+});
+
+describe('pullRequestProgress', () => {
+  const running = status({ pr: { ...PR, checks: [check('in_progress'), check('queued')] } });
+
+  it('says when running checks pass or fail', () => {
+    expect(pullRequestProgress(running, status())).toEqual([
+      expect.objectContaining({ tone: 'success', title: 'Checks passed on #7' }),
+    ]);
+    const failed = status({
+      pr: { ...PR, checks: [check('completed', 'failure'), check('completed', 'success')] },
+    });
+    expect(pullRequestProgress(running, failed)).toEqual([
+      { tone: 'error', title: 'Checks failed on #7', description: '1 of 2 checks failed.' },
+    ]);
+  });
+
+  it('says when a review decision or new comments arrive', () => {
+    const reviewed = status({
+      pr: {
+        ...PR,
+        reviewDecision: 'CHANGES_REQUESTED',
+        threads: [
+          ...PR.threads,
+          { id: 'T2', isResolved: false, isOutdated: false, path: 'b.ts', line: 2, comments: [] },
+        ],
+      },
+    });
+    expect(pullRequestProgress(status(), reviewed).map((note) => note.title)).toEqual([
+      'Changes requested on #7',
+      '1 new review comment on #7',
+    ]);
+    const approved = status({ pr: { ...PR, reviewDecision: 'APPROVED' } });
+    expect(pullRequestProgress(reviewed, approved).map((note) => note.title)).toEqual([
+      '#7 was approved',
+    ]);
+  });
+
+  it('stays quiet on the first read, a different PR, or nothing new', () => {
+    expect(pullRequestProgress(undefined, status())).toEqual([]);
+    expect(pullRequestProgress(status(), status())).toEqual([]);
+    expect(pullRequestProgress(running, status({ pr: { ...PR, number: 8 } }))).toEqual([]);
+    expect(pullRequestProgress(running, status({ pr: { ...PR, state: 'MERGED' } }))).toEqual([]);
+  });
+
+  it('toasts news from a poll with a way back to the PR', async () => {
+    const { rerender, queryClient } = renderHookWithProviders(
+      () => usePullRequest('p1', { visible: true, branch: 'feature', head: 'a', ahead: 0 }),
+      { bridge: { 'pullRequests.status': running } },
+    );
+    await waitFor(() =>
+      expect(queryClient.getQueryData(queryKeys.pullRequest('p1'))).toEqual(running),
+    );
+    toast.success.mockClear();
+    act(() => queryClient.setQueryData(queryKeys.pullRequest('p1'), status()));
+    rerender({});
+    await waitFor(() =>
+      expect(toast.success).toHaveBeenCalledWith(
+        'Checks passed on #7',
+        expect.objectContaining({ action: expect.objectContaining({ label: 'View' }) }),
+      ),
+    );
+  });
+});
+
+describe('announcePublishedBranch', () => {
+  it('offers a pull request for a published branch that has none', async () => {
+    const { queryClient } = renderHookWithProviders(() => null, {
+      bridge: { 'pullRequests.status': status({ pr: null }) },
+    });
+    queryClient.setQueryData(queryKeys.pullRequest('p1'), status({ pr: null }));
+    toast.success.mockClear();
+    announcePublishedBranch(queryClient, 'p1', 'feature');
+
+    const [title, options] = toast.success.mock.calls[0] as [
+      string,
+      { action?: { label: string; onClick: () => void } },
+    ];
+    expect(title).toBe('Branch published');
+    expect(options.action?.label).toBe('Create pull request');
+    options.action?.onClick();
+    expect(useWorkspaceStore.getState().gitPanel.openSourceSections.pullRequest).toBe(true);
+  });
+
+  it('just says published when the branch already has a PR or is the default', () => {
+    const { queryClient } = renderHookWithProviders(() => null, {
+      bridge: { 'pullRequests.status': status() },
+    });
+    toast.success.mockClear();
+    queryClient.setQueryData(queryKeys.pullRequest('p1'), status());
+    announcePublishedBranch(queryClient, 'p1', 'feature');
+    queryClient.setQueryData(
+      queryKeys.pullRequest('p1'),
+      status({ pr: null, onDefaultBranch: true }),
+    );
+    announcePublishedBranch(queryClient, 'p1', 'master');
+    for (const [, options] of toast.success.mock.calls as [string, { action?: unknown }][]) {
+      expect(options.action).toBeUndefined();
+    }
   });
 });
 

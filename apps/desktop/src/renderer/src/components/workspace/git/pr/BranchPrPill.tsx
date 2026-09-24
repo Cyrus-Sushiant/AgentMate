@@ -19,8 +19,9 @@ export function pullRequestAttention(pr: PullRequestInfo | null | undefined): {
 }
 
 /**
- * `#42` next to the branch name, coloured by the PR's state. Reads whatever the Pull request tab
- * last loaded, so it never starts a gh call of its own.
+ * `#42` next to the branch name, coloured by the PR's checks and review, or "Create PR" once the
+ * branch is published without one. Reads whatever the Pull request tab last loaded, so it never
+ * starts a gh call of its own.
  */
 export function BranchPrPill({ projectId }: { projectId: string }): React.JSX.Element | null {
   const revealPanelSection = useWorkspaceStore((s) => s.revealPanelSection);
@@ -30,9 +31,32 @@ export function BranchPrPill({ projectId }: { projectId: string }): React.JSX.El
     enabled: false,
   });
   const pr = data?.pr;
-  if (!pr) return null;
+  if (!pr) {
+    // A published branch with no PR yet: the next step is opening one.
+    const ready =
+      data?.github &&
+      data.authenticated &&
+      data.branch &&
+      !data.onDefaultBranch &&
+      data.hasUpstream &&
+      !data.error;
+    if (!ready) return null;
+    return (
+      <SimpleTooltip label={`${data.branch} is published. Click to open a pull request for it`}>
+        <button
+          type="button"
+          onClick={() => revealPanelSection('pullRequest')}
+          className="inline-flex h-5 shrink-0 items-center gap-1 rounded-full border border-dashed border-primary/40 px-1.5 text-[10.5px] font-medium text-primary transition-colors hover:bg-primary/10"
+        >
+          <GitPullRequest className="h-2.5 w-2.5" />
+          Create PR
+        </button>
+      </SimpleTooltip>
+    );
+  }
   const { failing } = pullRequestAttention(pr);
   const running = pr.state === 'OPEN' && summarizeChecks(pr.checks).running > 0;
+  const changesRequested = pr.reviewDecision === 'CHANGES_REQUESTED';
   const label =
     pr.state === 'MERGED'
       ? 'merged'
@@ -42,9 +66,15 @@ export function BranchPrPill({ projectId }: { projectId: string }): React.JSX.El
           ? 'checks failing'
           : running
             ? 'checks running'
-            : pr.isDraft
-              ? 'draft'
-              : 'open';
+            : changesRequested
+              ? 'changes requested'
+              : pr.isDraft
+                ? 'draft'
+                : pr.reviewDecision === 'APPROVED'
+                  ? 'approved'
+                  : pr.reviewDecision === 'REVIEW_REQUIRED'
+                    ? 'waiting for review'
+                    : 'open';
 
   return (
     <SimpleTooltip label={`Pull request #${pr.number}, ${label}. Click to open the pull request`}>
@@ -61,7 +91,7 @@ export function BranchPrPill({ projectId }: { projectId: string }): React.JSX.El
               ? 'bg-violet-500'
               : pr.state === 'CLOSED' || failing
                 ? 'bg-destructive'
-                : running
+                : running || changesRequested
                   ? 'bg-amber-500'
                   : pr.isDraft
                     ? 'bg-muted-foreground'

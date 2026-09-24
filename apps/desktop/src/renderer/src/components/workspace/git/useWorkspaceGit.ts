@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 import { projectFilePath, repoFileAbsolutePath } from '@/lib/git';
 import { queryKeys } from '@/lib/queryKeys';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
+import { announcePublishedBranch } from './pr/usePullRequest';
 
 /**
  * The workspace changes panel's state for a project. While `watching`, main watches the
@@ -225,12 +226,25 @@ export function useGitActions(projectId: string): GitActions {
       },
 
       commit: async (message, push) => {
+        const before = queryClient.getQueryData<WorkspaceGitState>(
+          queryKeys.gitWorkspaceState(projectId),
+        );
+        const publishing = push && Boolean(before?.branch && !before.upstream);
         const result = await git.commitStaged(projectId, message, push);
         if (!result.ok) {
           toast.error(push ? 'Commit and push failed' : 'Commit failed', {
             description: result.message,
           });
           return false;
+        }
+        if (publishing) {
+          announcePublishedBranch(
+            queryClient,
+            projectId,
+            before?.branch,
+            'Committed and published',
+          );
+          return true;
         }
         const firstLine = message.split('\n')[0];
         toast.success(push ? 'Committed and pushed' : 'Committed', { description: firstLine });

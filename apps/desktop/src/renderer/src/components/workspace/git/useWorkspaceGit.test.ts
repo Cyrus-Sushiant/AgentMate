@@ -1,9 +1,16 @@
 // @vitest-environment jsdom
 import type { Project } from '@agentmat/core';
+import type { WorkspaceGitState } from '@shared/apiTypes';
+import { act } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { queryKeys } from '@/lib/queryKeys';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
 import { currentBridge, installAgentmatBridge } from '../../../../../test/renderer/agentmatBridge';
-import { openChangedFile } from './useWorkspaceGit';
+import { renderHookWithProviders } from '../../../../../test/renderer/renderWithProviders';
+import { openChangedFile, useGitActions } from './useWorkspaceGit';
+
+const toast = vi.hoisted(() => ({ error: vi.fn(), success: vi.fn() }));
+vi.mock('sonner', () => ({ toast, Toaster: () => null }));
 
 /**
  * Where a row in the changes panel sends you. A file the app can show opens in a tab; anything
@@ -54,5 +61,32 @@ describe('openChangedFile', () => {
   it('opens an image inside the project even when the repository sits above it', () => {
     openChangedFile(project, 'app', 'app/assets/logo.png', true);
     expect(openFile).toHaveBeenCalledWith('p1', 'E:\\work\\app\\assets\\logo.png', { pin: true });
+  });
+});
+
+describe('commit and push', () => {
+  const state = (upstream: string | null) =>
+    ({ isRepo: true, branch: 'feature', upstream, hasRemote: true }) as WorkspaceGitState;
+
+  it('treats pushing an unpublished branch as publishing it', async () => {
+    const { result, queryClient } = renderHookWithProviders(() => useGitActions('p1'), {
+      bridge: { 'git.commitStaged': { ok: true, message: '' }, 'pullRequests.status': null },
+    });
+    queryClient.setQueryData(queryKeys.gitWorkspaceState('p1'), state(null));
+    await act(async () => {
+      expect(await result.current.commit('Add it', true)).toBe(true);
+    });
+    expect(toast.success).toHaveBeenCalledWith('Committed and published', expect.anything());
+  });
+
+  it('keeps the plain message for a branch that already tracks a remote', async () => {
+    const { result, queryClient } = renderHookWithProviders(() => useGitActions('p1'), {
+      bridge: { 'git.commitStaged': { ok: true, message: '' } },
+    });
+    queryClient.setQueryData(queryKeys.gitWorkspaceState('p1'), state('origin/feature'));
+    await act(async () => {
+      await result.current.commit('Add it', true);
+    });
+    expect(toast.success).toHaveBeenCalledWith('Committed and pushed', { description: 'Add it' });
   });
 });

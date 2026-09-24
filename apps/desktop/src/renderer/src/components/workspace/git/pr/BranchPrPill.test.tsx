@@ -45,6 +45,45 @@ describe('BranchPrPill', () => {
     expect(useWorkspaceStore.getState().gitPanel.openSourceSections.pullRequest).toBe(true);
   });
 
+  it('names the review state in its tooltip label', async () => {
+    const { user, queryClient } = renderWithProviders(<BranchPrPill projectId="p1" />);
+    queryClient.setQueryData(queryKeys.pullRequest('p1'), {
+      pr: { ...PR, checks: [], reviewDecision: 'CHANGES_REQUESTED' },
+    } as unknown as PullRequestStatus);
+    await user.hover(await screen.findByRole('button', { name: /#42/ }));
+    expect(
+      (await screen.findAllByText(/Pull request #42, changes requested/)).length,
+    ).toBeGreaterThan(0);
+  });
+
+  it('offers to open a PR once the branch is published', async () => {
+    const { user, queryClient } = renderWithProviders(<BranchPrPill projectId="p1" />);
+    queryClient.setQueryData(queryKeys.pullRequest('p1'), {
+      github: { owner: 'acme', repo: 'app' },
+      authenticated: true,
+      branch: 'feature',
+      onDefaultBranch: false,
+      hasUpstream: true,
+      pr: null,
+    } as unknown as PullRequestStatus);
+    await user.click(await screen.findByRole('button', { name: /Create PR/ }));
+    expect(useWorkspaceStore.getState().gitPanel.openSourceSections.pullRequest).toBe(true);
+  });
+
+  it('does not offer a PR for a branch that is not published', async () => {
+    const { container, queryClient } = renderWithProviders(<BranchPrPill projectId="p1" />);
+    queryClient.setQueryData(queryKeys.pullRequest('p1'), {
+      github: { owner: 'acme', repo: 'app' },
+      authenticated: true,
+      branch: 'feature',
+      onDefaultBranch: false,
+      hasUpstream: false,
+      pr: null,
+    } as unknown as PullRequestStatus);
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    expect(container).toBeEmptyDOMElement();
+  });
+
   it('shows nothing without a PR', () => {
     const { container } = renderWithProviders(<BranchPrPill projectId="p1" />);
     expect(container).toBeEmptyDOMElement();
