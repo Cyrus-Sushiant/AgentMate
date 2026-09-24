@@ -6,7 +6,7 @@ import {
   type Page,
   test,
 } from '@playwright/test';
-import { type LaunchedApp, launchApp } from './app';
+import { closeApp, type LaunchedApp, launchApp } from './app';
 import { E2E_OUT_DIR } from './paths';
 
 /**
@@ -32,7 +32,7 @@ const CTRL_K = MAC ? '⌘K' : 'Ctrl+K';
 const CTRL_SHIFT_J = MAC ? '⌘⇧J' : 'Ctrl+Shift+J';
 
 test.afterEach(async () => {
-  await relaunched?.close().catch(() => undefined);
+  if (relaunched) await closeApp(relaunched);
   relaunched = undefined;
   await launched?.close();
   launched = undefined;

@@ -92,6 +92,9 @@ export function useMotionValue<Value>(initial: Value) {
     set: (next: Value) => {
       current = next;
     },
+    jump: (next: Value) => {
+      current = next;
+    },
     on: () => () => undefined,
   };
 }

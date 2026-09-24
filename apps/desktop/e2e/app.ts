@@ -160,31 +160,7 @@ export async function launchApp(seed: {
     mainLog: () =>
       mainLogFile && existsSync(mainLogFile) ? readFileSync(mainLogFile, 'utf-8') : '',
     close: async () => {
-      // Closed through Playwright's own API, or it keeps a handle on the app and the worker sits
-      // at teardown until it times out. AGENTMATE_E2E lets the quit guard through, so this no
-      // longer waits for the "quit while agents are running?" confirmation.
-      //
-      // The child process is taken before closing: afterwards Playwright has dropped its own
-      // handle and app.process() throws. A test that restarts the app has already stopped this
-      // one itself, so the handle can be gone before close() is ever reached.
-      let child: ChildProcess | null;
-      try {
-        child = app.process();
-      } catch {
-        child = null;
-      }
-      const exited = child
-        ? new Promise<void>((resolve) => child?.once('exit', () => resolve()))
-        : Promise.resolve();
-      await Promise.race([
-        app.close().catch(() => undefined),
-        new Promise((resolve) => setTimeout(resolve, 15_000)),
-      ]);
-      // Anything that ignored the close is killed outright, so nothing holds the temp folder open.
-      if (child && child.exitCode === null && !child.killed) {
-        child.kill();
-        await Promise.race([exited, new Promise((resolve) => setTimeout(resolve, 5_000))]);
-      }
+      await closeApp(app);
       killLeftovers(root);
       keepHostLog(userDataDir, root);
       try {
@@ -194,6 +170,43 @@ export async function launchApp(seed: {
       }
     },
   };
+}
+
+/**
+ * Closes an app through Playwright's own API, or it keeps a handle on the app and the worker sits
+ * at teardown until it times out. AGENTMATE_E2E lets the quit guard through, so this no longer
+ * waits for the "quit while agents are running?" confirmation.
+ *
+ * Playwright's close() only resolves once the app's stdio pipes close, and anything the app
+ * started (the detached terminal host, a CLI version probe) can inherit those pipes and keep them
+ * open long after the app itself is gone. So once the app has exited, our ends of those pipes are
+ * let go, which is what lets close() (and the worker's teardown after it) finish.
+ */
+export async function closeApp(app: ElectronApplication): Promise<void> {
+  // The child process is taken before closing: afterwards Playwright has dropped its own
+  // handle and app.process() throws. A test that restarts the app has already stopped this
+  // one itself, so the handle can be gone before close() is ever reached.
+  let child: ChildProcess | null;
+  try {
+    child = app.process();
+  } catch {
+    child = null;
+  }
+  const exited =
+    child && child.exitCode === null && child.signalCode === null
+      ? new Promise<void>((resolve) => child?.once('exit', () => resolve()))
+      : Promise.resolve();
+  const closed = app.close().catch(() => undefined);
+  await Promise.race([exited, new Promise((resolve) => setTimeout(resolve, 15_000))]);
+  // Anything that ignored the close is killed outright, so nothing holds the temp folder open.
+  if (child && child.exitCode === null && child.signalCode === null) {
+    child.kill();
+    await Promise.race([exited, new Promise((resolve) => setTimeout(resolve, 5_000))]);
+  }
+  // Every pipe, not just stdout/stderr: Playwright opens two more, and the process only counts
+  // as closed once all of them have ended.
+  for (const stream of child?.stdio ?? []) stream?.destroy();
+  await Promise.race([closed, new Promise((resolve) => setTimeout(resolve, 5_000))]);
 }
 
 /** The terminal host's own log, which otherwise goes with the profile it lives in. */

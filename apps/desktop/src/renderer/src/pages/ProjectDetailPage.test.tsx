@@ -250,7 +250,10 @@ describe('ProjectDetailPage sections', () => {
     expect(
       within(sectionNav()).getByRole('button', { name: /^Prompts/, current: 'page' }),
     ).toBeTruthy();
-    expect(screen.getByRole('tab', { name: /Scheduled/, selected: true })).toBeTruthy();
+    const promptViews = screen.getByRole('navigation', { name: 'Prompt views' });
+    expect(
+      within(promptViews).getByRole('button', { name: /^Scheduled/, current: true }),
+    ).toBeTruthy();
   });
 
   it('mounts every section in the nav without falling over', async () => {

@@ -7,7 +7,7 @@ import {
   type Page,
   test,
 } from '@playwright/test';
-import { type LaunchedApp, launchApp } from './app';
+import { closeApp, type LaunchedApp, launchApp } from './app';
 import { E2E_OUT_DIR } from './paths';
 
 /**
@@ -30,7 +30,7 @@ function useTimers(value: string): void {
 }
 
 test.afterEach(async () => {
-  await relaunched?.close().catch(() => undefined);
+  if (relaunched) await closeApp(relaunched);
   relaunched = undefined;
   await launched?.close();
   launched = undefined;
@@ -110,10 +110,19 @@ async function relaunch(current: LaunchedApp): Promise<Page> {
     current.app.process().once('exit', () => resolve()),
   );
   await current.app.evaluate(({ app }) => app.exit(0)).catch(() => undefined);
-  await exited;
+  await Promise.race([exited, new Promise((resolve) => setTimeout(resolve, 10_000))]);
   relaunched = await electron.launch({
-    args: [join(E2E_OUT_DIR, 'main', 'index.mjs'), `--user-data-dir=${current.userDataDir}`],
-    env: { ...(process.env as Record<string, string>), ELECTRON_RENDERER_URL: '' },
+    args: [
+      join(E2E_OUT_DIR, 'main', 'index.mjs'),
+      `--user-data-dir=${current.userDataDir}`,
+      ...(process.env.AGENTMATE_E2E_NO_SANDBOX === '1' ? ['--no-sandbox'] : []),
+    ],
+    env: {
+      ...(process.env as Record<string, string>),
+      ELECTRON_RENDERER_URL: '',
+      AGENTMATE_USER_DATA_DIR: current.userDataDir,
+      AGENTMATE_E2E: '1', // As in launchApp. Without it, firstWindow() is the splash.
+    },
   });
   const page = await relaunched.firstWindow();
   await page.waitForFunction(() => Boolean((window as { agentmat?: unknown }).agentmat));
