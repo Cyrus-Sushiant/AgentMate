@@ -136,13 +136,31 @@ export function resolveResults(
   const fileNodes = projectNode.children.filter((node) => node.kind === 'file');
   const out: TestResult[] = [];
 
+  // A report lists every test of a file together, so each file's nodes are looked up and
+  // flattened once rather than once per result.
+  const byFile = new Map<string, TestNode[]>();
+  for (const node of fileNodes) {
+    const key = node.file ?? '';
+    const list = byFile.get(key);
+    if (list) list.push(node);
+    else byFile.set(key, [node]);
+  }
+  const byDir = new Map<string, TestNode[]>();
+  const flattened = new Map<TestNode[], TestNode[]>();
+  const NO_FILES: TestNode[] = [];
+
   for (const result of parsed) {
     const file = result.file ? workspaceRelative(result.file, folderPath, project.root) : null;
     let scope: TestNode[];
-    if (file) scope = fileNodes.filter((node) => node.file === file);
+    if (file) scope = byFile.get(file) ?? NO_FILES;
     else if (result.dir !== undefined) {
       const dir = joinRel(project.root, result.dir);
-      scope = fileNodes.filter((node) => dirOf(node.file ?? '') === dir);
+      let inDir = byDir.get(dir);
+      if (!inDir) {
+        inDir = fileNodes.filter((node) => dirOf(node.file ?? '') === dir);
+        byDir.set(dir, inDir);
+      }
+      scope = inDir;
     } else scope = fileNodes;
 
     const base = {
@@ -162,11 +180,13 @@ export function resolveResults(
       continue;
     }
 
-    const candidates = scope.flatMap((node) => {
+    let candidates = flattened.get(scope);
+    if (!candidates) {
       const all: TestNode[] = [];
-      walk(node, (entry) => all.push(entry));
-      return all;
-    });
+      for (const node of scope) walk(node, (entry) => all.push(entry));
+      candidates = all;
+      flattened.set(scope, all);
+    }
     const node = findNode(candidates, result, file);
     if (node) {
       out.push(
@@ -227,16 +247,37 @@ function cloneNode(node: TestNode): TestNode {
   return { ...node, path: [...node.path], children: node.children.map(cloneNode) };
 }
 
-/** The tree with nodes added for results discovery did not know about. The input is not changed. */
+/**
+ * The tree with nodes added for results discovery did not know about. The input is not changed,
+ * and only the projects and files that gain a node are copied: everything else is handed back as
+ * the same object, so a panel redrawing on every batch of results can skip the rows that did not
+ * change.
+ */
 export function attachResults(
   tree: readonly TestNode[],
   results: readonly TestResult[],
 ): TestNode[] {
-  const copy = tree.map(cloneNode);
   const known = new Set<string>();
-  for (const project of copy) walk(project, (node) => known.add(node.id));
+  for (const project of tree) walk(project, (node) => known.add(node.id));
+  const unknown = results.filter((result) => !known.has(result.id));
+  if (unknown.length === 0) return [...tree];
 
-  for (const result of results) {
+  const touchedProjects = new Set(unknown.map((result) => result.testProjectId));
+  const touchedFiles = new Set(
+    unknown.map((result) => testNodeId(result.testProjectId, result.file ?? '', [])),
+  );
+  const copy = tree.map((project) =>
+    touchedProjects.has(project.id)
+      ? {
+          ...project,
+          children: project.children.map((child) =>
+            touchedFiles.has(child.id) ? cloneNode(child) : child,
+          ),
+        }
+      : project,
+  );
+
+  for (const result of unknown) {
     if (known.has(result.id)) continue;
     const project = copy.find((node) => node.id === result.testProjectId);
     if (!project) continue;

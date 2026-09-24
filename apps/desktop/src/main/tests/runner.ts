@@ -52,10 +52,46 @@ function testEnv(): NodeJS.ProcessEnv {
   return env;
 }
 
+/**
+ * The last `max` characters of a run's output. A big suite prints tens of thousands of lines, and
+ * trimming a 200 KB string for each one kept the main process, and so every click in the window,
+ * busy for seconds. Appending here only stores the piece; the tail is cut back once it grows to
+ * twice the cap, so each character costs the same however long the run goes on.
+ */
+export class OutputTail {
+  private parts: string[] = [];
+  private length = 0;
+
+  constructor(private readonly max: number) {}
+
+  get isEmpty(): boolean {
+    return this.length === 0;
+  }
+
+  append(text: string): void {
+    if (!text) return;
+    this.parts.push(text);
+    this.length += text.length;
+    if (this.length > this.max * 2) this.compact();
+  }
+
+  toString(): string {
+    this.compact();
+    return this.parts[0] ?? '';
+  }
+
+  private compact(): void {
+    const text = this.parts.join('').slice(-this.max);
+    this.parts = text ? [text] : [];
+    this.length = text.length;
+  }
+}
+
 export interface TestRunManagerDeps {
   emit: (event: TestRunEvent) => void;
   spawn?: typeof spawnStreaming;
   timeoutMs?: number;
+  /** How long output and results are held so a burst goes out as one event each. */
   outputFlushMs?: number;
   platform?: string;
 }
@@ -71,7 +107,7 @@ export interface StartRunInput {
 interface ActiveRun {
   summary: TestRunSummary;
   results: Map<string, TestResult>;
-  output: string;
+  output: OutputTail;
   /** Every test the run picked, kept so a panel that reopens mid-run knows what is still waiting. */
   queued: string[];
   token: CancelToken;
@@ -122,7 +158,7 @@ export class TestRunManager {
     const run: ActiveRun = {
       summary,
       results: new Map(),
-      output: '',
+      output: new OutputTail(MAX_OUTPUT_CHARS),
       queued: [],
       token: { cancelled: false, child: null },
       done: Promise.resolve(),
@@ -161,7 +197,7 @@ export class TestRunManager {
     return {
       summary: { ...run.summary },
       results: [...run.results.values()],
-      output: run.output,
+      output: run.output.toString(),
       queued: [...run.queued],
     };
   }
@@ -224,33 +260,47 @@ export class TestRunManager {
     const { summary } = run;
     let reportRoot: string | null = null;
     let pendingOutput = '';
+    let pendingResults: TestResult[] = [];
     let flushTimer: NodeJS.Timeout | null = null;
 
-    const flushOutput = (): void => {
+    // A streaming runner reports a result per line of output. Sent one by one, a big suite came
+    // to thousands of messages to every window, so both wait here and leave together.
+    const flush = (): void => {
       if (flushTimer) {
         clearTimeout(flushTimer);
         flushTimer = null;
       }
-      if (!pendingOutput) return;
-      const text = pendingOutput;
-      pendingOutput = '';
-      this.deps.emit({ type: 'output', runId: summary.runId, projectId: input.projectId, text });
+      if (pendingOutput) {
+        const text = pendingOutput;
+        pendingOutput = '';
+        this.deps.emit({ type: 'output', runId: summary.runId, projectId: input.projectId, text });
+      }
+      if (pendingResults.length > 0) {
+        const results = pendingResults;
+        pendingResults = [];
+        this.deps.emit({
+          type: 'results',
+          runId: summary.runId,
+          projectId: input.projectId,
+          results,
+        });
+      }
+    };
+    const scheduleFlush = (): void => {
+      flushTimer ??= setTimeout(flush, this.deps.outputFlushMs);
     };
     const appendOutput = (text: string): void => {
-      run.output = (run.output + text).slice(-MAX_OUTPUT_CHARS);
+      run.output.append(text);
       pendingOutput += text;
-      if (!flushTimer) flushTimer = setTimeout(flushOutput, this.deps.outputFlushMs);
+      scheduleFlush();
     };
     const publish = (results: TestResult[]): void => {
       if (results.length === 0) return;
-      flushOutput();
-      for (const result of results) run.results.set(result.id, result);
-      this.deps.emit({
-        type: 'results',
-        runId: summary.runId,
-        projectId: input.projectId,
-        results,
-      });
+      for (const result of results) {
+        run.results.set(result.id, result);
+        pendingResults.push(result);
+      }
+      scheduleFlush();
     };
 
     try {
@@ -271,15 +321,23 @@ export class TestRunManager {
         const picked = new Set(
           resolved.expanded.map((ref) => testNodeId(node.id, ref.file, ref.path)),
         );
+        // Walks the result's own ancestors rather than every pick: a rerun of many failures in a
+        // big suite otherwise compared each skipped result against each pick.
+        const underPicked = (id: string): boolean => {
+          for (let at = id.lastIndexOf(' > '); at > 0; at = id.lastIndexOf(' > ', at - 1)) {
+            if (picked.has(id.slice(0, at))) return true;
+          }
+          return false;
+        };
         const wasPicked = (result: TestResult): boolean =>
           resolved.all ||
           result.status !== 'skipped' ||
           picked.has(result.id) ||
-          [...picked].some((id) => result.id.startsWith(`${id} > `));
+          underPicked(result.id);
         // The output shows exactly what ran; errors carry the version a person would retype.
         summary.commands.push(formatCommand(plan));
         const command = readableCommand(plan, reportDir);
-        appendOutput(`${run.output ? '\n' : ''}$ ${formatCommand(plan)}\n`);
+        appendOutput(`${run.output.isEmpty ? '' : '\n'}$ ${formatCommand(plan)}\n`);
 
         const parser = createStreamParser(project);
         let reported = 0;
@@ -314,7 +372,7 @@ export class TestRunManager {
         for (const text of await readReports(plan, input.folderPath, startedAt)) {
           accept(parseTestReport(project.framework, text));
         }
-        flushOutput();
+        flush();
 
         if (outcome.cancelled) break;
         const label = TEST_FRAMEWORKS[project.framework].label;
@@ -359,7 +417,7 @@ export class TestRunManager {
         log: '',
       });
     } finally {
-      flushOutput();
+      flush();
       if (reportRoot) await rm(reportRoot, { recursive: true, force: true }).catch(() => undefined);
       const counts = countResults([...run.results.values()]);
       Object.assign(summary, {

@@ -277,6 +277,33 @@ describe('attachResults', () => {
     ]);
     expect(goTree.children[1].children[1].children).toEqual([]);
   });
+
+  it('hands back everything that gains no node as the same object', () => {
+    // The Tests panel redraws a row only when its node changes, and it attaches results on every
+    // batch a run sends, so copying the whole tree each time redrew every row of a big suite.
+    const results = resolveResults(
+      goTree,
+      go,
+      [
+        { dir: 'calc', path: ['TestSub', 'zero'], status: 'passed' },
+        { file: 'api/api_test.go', path: ['TestGet'], status: 'passed' },
+      ],
+      '/w',
+    );
+    const [go2, web2] = attachResults([goTree, webTree], results);
+    expect(web2).toBe(webTree);
+    expect(go2).not.toBe(goTree);
+    const [api, calc, more] = go2.children;
+    expect(api).toBe(goTree.children[0]);
+    expect(calc).not.toBe(goTree.children[1]);
+    expect(calc.children[1].children.map((node) => node.name)).toEqual(['zero']);
+    expect(more).toBe(goTree.children[2]);
+
+    const known = results.filter((result) => result.path.join() === 'TestGet');
+    const unchanged = attachResults([goTree, webTree], known);
+    expect(unchanged[0]).toBe(goTree);
+    expect(unchanged[1]).toBe(webTree);
+  });
 });
 
 describe('aggregateStatuses and countResults', () => {

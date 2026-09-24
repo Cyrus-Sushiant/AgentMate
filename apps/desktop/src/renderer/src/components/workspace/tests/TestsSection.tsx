@@ -14,7 +14,7 @@ import {
   type TestTarget,
 } from '@agentmat/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useMemo, useState } from 'react';
+import { memo, startTransition, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import {
   Ban,
@@ -48,12 +48,32 @@ import { PanelIconButton } from '../git/PanelTabs';
 type Filter = 'all' | 'failed' | 'passed' | 'skipped';
 
 const EMPTY_RUN: ProjectTestRun = { summary: null, results: {}, output: '' };
+
 /** One look for every button in the run summary, so none of them wraps or shouts. */
 const ACTION_BUTTON =
   'inline-flex h-6 shrink-0 items-center gap-1 whitespace-nowrap rounded-md px-2 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-foreground/10 hover:text-foreground';
 
 /** Past this many tests, files start folded so the list stays scannable. */
 const FOLD_FILES_OVER = 300;
+
+/** Rows drawn the moment the panel shows. The rest follow in batches React can interrupt. */
+const FIRST_ROWS = 80;
+const MORE_ROWS = 100;
+
+/**
+ * How many rows to draw so far out of `total`. Building every row of a big suite at once held up
+ * the click that switched to its project for over a second, so the panel starts with what fills
+ * the screen and adds the rest a batch at a time, as transitions a click or a key press can cut in
+ * front of.
+ */
+function useRowsDrawn(total: number): number {
+  const [drawn, setDrawn] = useState(FIRST_ROWS);
+  useEffect(() => {
+    if (drawn >= total) return;
+    startTransition(() => setDrawn((current) => current + MORE_ROWS));
+  }, [drawn, total]);
+  return drawn;
+}
 
 /**
  * The run without its output text. Output changes on nearly every event, and only the output pane
@@ -303,6 +323,17 @@ function useElapsed(summary: TestRunSummary | null): number | null {
   return Math.max(0, (finishedAt ?? now) - startedAt);
 }
 
+/** The run's stopwatch, on its own so its tick every second redraws only itself, not the tree. */
+function ElapsedClock({ summary }: { summary: TestRunSummary }): React.JSX.Element | null {
+  const elapsed = useElapsed(summary);
+  if (elapsed === null) return null;
+  return (
+    <span aria-label="Elapsed time" className="text-muted-foreground tabular-nums">
+      {summary.running ? formatClock(elapsed) : formatDuration(elapsed)}
+    </span>
+  );
+}
+
 interface VisibleRow {
   node: TestNode;
   depth: number;
@@ -344,6 +375,133 @@ function visibleRows(
   return rows;
 }
 
+interface RowActions {
+  toggleCollapsed: (id: string) => void;
+  toggleDetails: (id: string) => void;
+  open: (file: string) => void;
+  run: (node: TestNode) => void;
+  fix: (result: TestResult) => void;
+  copy: (result: TestResult) => void;
+}
+
+/**
+ * One line of the tree. Results arrive in batches several times a second during a run, and a big
+ * suite has thousands of rows, so a row only redraws when its own node, status or result changed.
+ */
+const TestRow = memo(function TestRow({
+  node,
+  depth,
+  status,
+  own,
+  isCollapsed,
+  detailsHidden,
+  running,
+  actions,
+}: {
+  node: TestNode;
+  depth: number;
+  status: TestStatus | undefined;
+  own: TestResult | undefined;
+  isCollapsed: boolean;
+  detailsHidden: boolean;
+  running: boolean;
+  actions: RowActions;
+}): React.JSX.Element {
+  const hasChildren = node.children.length > 0;
+  const failure = own?.status === 'failed' && (own.message || own.stack) ? own : null;
+  const detailsOpen = failure !== null && !detailsHidden;
+  const duration = node.kind === 'test' ? formatDuration(own?.durationMs) : null;
+  const indent = 8 + depth * 12;
+  return (
+    <div>
+      <div
+        role="treeitem"
+        aria-level={depth + 1}
+        aria-expanded={hasChildren ? !isCollapsed : undefined}
+        aria-selected={false}
+        tabIndex={-1}
+        onClick={() => {
+          if (failure) actions.toggleDetails(node.id);
+          else if (hasChildren) actions.toggleCollapsed(node.id);
+        }}
+        onDoubleClick={() => node.file && actions.open(node.file)}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter' && hasChildren) actions.toggleCollapsed(node.id);
+        }}
+        style={{ paddingLeft: indent }}
+        className={cn(
+          'group/test mx-1 flex h-6 cursor-default select-none items-center gap-1.5 rounded-md pr-1 transition-colors hover:bg-foreground/[0.05]',
+          status === 'failed' && node.kind === 'test' && 'bg-destructive/[0.04]',
+        )}
+      >
+        <span className="flex h-3 w-3 shrink-0 items-center justify-center text-muted-foreground">
+          {hasChildren ? (
+            <button
+              type="button"
+              tabIndex={-1}
+              aria-hidden
+              onClick={(event) => {
+                event.stopPropagation();
+                actions.toggleCollapsed(node.id);
+              }}
+              className="flex h-3 w-3 items-center justify-center"
+            >
+              <ChevronRight
+                className={cn('h-2 w-2 transition-transform', !isCollapsed && 'rotate-90')}
+              />
+            </button>
+          ) : null}
+        </span>
+        <StatusIcon status={status} />
+        {node.kind === 'file' ? (
+          <FileCode className="h-2.5 w-2.5 shrink-0 text-muted-foreground" />
+        ) : null}
+        <span
+          data-test-name
+          className={cn(
+            'min-w-0 flex-1 truncate',
+            node.kind === 'project' ? 'text-[11px] font-semibold' : 'text-[12px]',
+            node.kind === 'suite' && 'text-foreground/80',
+          )}
+        >
+          {node.name}
+        </span>
+        {duration ? (
+          <span className="shrink-0 text-[10px] tabular-nums text-muted-foreground">
+            {duration}
+          </span>
+        ) : null}
+        <span className="flex shrink-0 items-center">
+          {node.file ? (
+            <RowButton label={`Open ${node.name}`} onClick={() => actions.open(node.file ?? '')}>
+              <FileCode className="h-2.5 w-2.5" />
+            </RowButton>
+          ) : null}
+          {!running ? (
+            <RowButton label={`Run ${node.name}`} onClick={() => actions.run(node)}>
+              <Play className="h-2.5 w-2.5" />
+            </RowButton>
+          ) : null}
+        </span>
+      </div>
+      {node.kind === 'project' && node.children.length === 0 ? (
+        <p className="py-1 text-[11px] text-muted-foreground" style={{ paddingLeft: indent + 36 }}>
+          No tests found in this project.
+        </p>
+      ) : null}
+      {failure && detailsOpen ? (
+        <FailureDetail
+          result={failure}
+          indent={indent + 18}
+          onFix={() => actions.fix(failure)}
+          onCopy={() => actions.copy(failure)}
+          onOpen={failure.file ? () => actions.open(failure.file ?? '') : undefined}
+        />
+      ) : null}
+    </div>
+  );
+});
+
 /** The project's tests: discover, run, follow results, and act on failures. */
 export function TestsSection({ project }: { project: Project }): React.JSX.Element {
   const discovery = useDiscovery(project.id);
@@ -383,7 +541,27 @@ export function TestsSection({ project }: { project: Project }): React.JSX.Eleme
     [discovery.data, results],
   );
   const statuses = useMemo(() => aggregateStatuses(tree, results), [tree, results]);
-  const elapsed = useElapsed(run.summary);
+  const trimmedQuery = query.trim().toLowerCase();
+  const rows = useMemo(
+    () => visibleRows(tree, statuses, run.results, filter, trimmedQuery, collapsed),
+    [tree, statuses, run.results, filter, trimmedQuery, collapsed],
+  );
+  const drawn = useRowsDrawn(rows.length);
+
+  // Rows are memoized, so they get one set of handlers for good; each call goes to the latest
+  // render's version of it, which knows the current run and discovery.
+  const latestActions = useRef<RowActions | null>(null);
+  const rowActions = useMemo<RowActions>(
+    () => ({
+      toggleCollapsed: (id) => latestActions.current?.toggleCollapsed(id),
+      toggleDetails: (id) => latestActions.current?.toggleDetails(id),
+      open: (file) => latestActions.current?.open(file),
+      run: (node) => latestActions.current?.run(node),
+      fix: (result) => latestActions.current?.fix(result),
+      copy: (result) => latestActions.current?.copy(result),
+    }),
+    [],
+  );
 
   // Big suites start with files folded; the choice is made once per discovery.
   useEffect(() => {
@@ -462,15 +640,6 @@ export function TestsSection({ project }: { project: Project }): React.JSX.Eleme
   const failedTests = failures.filter((result) => result.path.length > 0);
   const labelOf = (testProjectId: string): string =>
     discovery.data.projects.find((entry) => entry.id === testProjectId)?.label ?? testProjectId;
-  const rows = visibleRows(
-    tree,
-    statuses,
-    run.results,
-    filter,
-    query.trim().toLowerCase(),
-    collapsed,
-  );
-
   const toggle = (id: string, set: React.Dispatch<React.SetStateAction<Set<string>>>): void =>
     set((current) => {
       const next = new Set(current);
@@ -550,6 +719,15 @@ export function TestsSection({ project }: { project: Project }): React.JSX.Eleme
     );
   }
 
+  latestActions.current = {
+    toggleCollapsed: (id) => toggle(id, setCollapsed),
+    toggleDetails: (id) => toggle(id, setHiddenDetails),
+    open: (file) => openInEditor(project, file),
+    run: (node) => void startRun(project.id, [targetFor(node)]),
+    fix: (result) => fixResults([result], []),
+    copy: (result) => void copyIssue(result),
+  };
+
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       {summary ? (
@@ -583,11 +761,7 @@ export function TestsSection({ project }: { project: Project }): React.JSX.Eleme
             {!running && summary.cancelled ? (
               <span className="text-muted-foreground">Stopped</span>
             ) : null}
-            {elapsed !== null ? (
-              <span aria-label="Elapsed time" className="text-muted-foreground tabular-nums">
-                {running ? formatClock(elapsed) : formatDuration(elapsed)}
-              </span>
-            ) : null}
+            <ElapsedClock summary={summary} />
           </div>
           {!running && (failures.length > 0 || hasOutput) ? (
             <div
@@ -687,118 +861,19 @@ export function TestsSection({ project }: { project: Project }): React.JSX.Eleme
           </p>
         ) : null}
         <div role="tree" aria-label="Tests">
-          {rows.map(({ node, depth }) => {
-            const status = statuses.get(node.id);
-            const own = run.results[node.id];
-            const hasChildren = node.children.length > 0;
-            const isCollapsed = collapsed.has(node.id);
-            const failure = own?.status === 'failed' && (own.message || own.stack) ? own : null;
-            const detailsOpen = failure !== null && !hiddenDetails.has(node.id);
-            const duration = node.kind === 'test' ? formatDuration(own?.durationMs) : null;
-            const indent = 8 + depth * 12;
-            return (
-              <div key={node.id}>
-                <div
-                  role="treeitem"
-                  aria-level={depth + 1}
-                  aria-expanded={hasChildren ? !isCollapsed : undefined}
-                  aria-selected={false}
-                  tabIndex={-1}
-                  onClick={() => {
-                    if (failure) toggle(node.id, setHiddenDetails);
-                    else if (hasChildren) toggle(node.id, setCollapsed);
-                  }}
-                  onDoubleClick={() => node.file && openInEditor(project, node.file)}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter' && hasChildren) toggle(node.id, setCollapsed);
-                  }}
-                  style={{ paddingLeft: indent }}
-                  className={cn(
-                    'group/test mx-1 flex h-6 cursor-default select-none items-center gap-1.5 rounded-md pr-1 transition-colors hover:bg-foreground/[0.05]',
-                    status === 'failed' && node.kind === 'test' && 'bg-destructive/[0.04]',
-                  )}
-                >
-                  <span className="flex h-3 w-3 shrink-0 items-center justify-center text-muted-foreground">
-                    {hasChildren ? (
-                      <button
-                        type="button"
-                        tabIndex={-1}
-                        aria-hidden
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          toggle(node.id, setCollapsed);
-                        }}
-                        className="flex h-3 w-3 items-center justify-center"
-                      >
-                        <ChevronRight
-                          className={cn(
-                            'h-2 w-2 transition-transform',
-                            !isCollapsed && 'rotate-90',
-                          )}
-                        />
-                      </button>
-                    ) : null}
-                  </span>
-                  <StatusIcon status={status} />
-                  {node.kind === 'file' ? (
-                    <FileCode className="h-2.5 w-2.5 shrink-0 text-muted-foreground" />
-                  ) : null}
-                  <span
-                    data-test-name
-                    className={cn(
-                      'min-w-0 flex-1 truncate',
-                      node.kind === 'project' ? 'text-[11px] font-semibold' : 'text-[12px]',
-                      node.kind === 'suite' && 'text-foreground/80',
-                    )}
-                  >
-                    {node.name}
-                  </span>
-                  {duration ? (
-                    <span className="shrink-0 text-[10px] tabular-nums text-muted-foreground">
-                      {duration}
-                    </span>
-                  ) : null}
-                  <span className="flex shrink-0 items-center">
-                    {node.file ? (
-                      <RowButton
-                        label={`Open ${node.name}`}
-                        onClick={() => openInEditor(project, node.file ?? '')}
-                      >
-                        <FileCode className="h-2.5 w-2.5" />
-                      </RowButton>
-                    ) : null}
-                    {!running ? (
-                      <RowButton
-                        label={`Run ${node.name}`}
-                        onClick={() => void startRun(project.id, [targetFor(node)])}
-                      >
-                        <Play className="h-2.5 w-2.5" />
-                      </RowButton>
-                    ) : null}
-                  </span>
-                </div>
-                {node.kind === 'project' && node.children.length === 0 ? (
-                  <p
-                    className="py-1 text-[11px] text-muted-foreground"
-                    style={{ paddingLeft: indent + 36 }}
-                  >
-                    No tests found in this project.
-                  </p>
-                ) : null}
-                {failure && detailsOpen ? (
-                  <FailureDetail
-                    result={failure}
-                    indent={indent + 18}
-                    onFix={() => fixResults([failure], [])}
-                    onCopy={() => void copyIssue(failure)}
-                    onOpen={
-                      failure.file ? () => openInEditor(project, failure.file ?? '') : undefined
-                    }
-                  />
-                ) : null}
-              </div>
-            );
-          })}
+          {rows.slice(0, drawn).map(({ node, depth }) => (
+            <TestRow
+              key={node.id}
+              node={node}
+              depth={depth}
+              status={statuses.get(node.id)}
+              own={run.results[node.id]}
+              isCollapsed={collapsed.has(node.id)}
+              detailsHidden={hiddenDetails.has(node.id)}
+              running={running}
+              actions={rowActions}
+            />
+          ))}
         </div>
       </div>
 

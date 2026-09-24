@@ -87,7 +87,8 @@ export function GitFileRow({
     .join(', ');
 
   // No hover tooltip on the row itself: the row is full of action buttons with their own,
-  // and two stacked bubbles read as noise. The diff tab shows the full path.
+  // and two stacked bubbles read as noise. Only the folder part, which truncates from the
+  // left, gets one with the full path.
   return (
     <div
       role="option"
@@ -129,12 +130,29 @@ export function GitFileRow({
         {name}
       </span>
       {dir ? (
-        <span
-          className="min-w-0 flex-1 truncate text-left text-[11px] text-muted-foreground/80 [direction:rtl]"
-          aria-hidden
+        <SimpleTooltip
+          label={
+            entry.origPath ? (
+              <>
+                <span className="block text-muted-foreground">{entry.origPath}</span>
+                <span className="block">{entry.path}</span>
+              </>
+            ) : (
+              entry.path
+            )
+          }
+          side="bottom"
+          align="start"
+          delayDuration={400}
+          className="max-w-[min(32rem,90vw)] break-all font-mono text-[11px]"
         >
-          <bdi>{dir.replace(/\/$/, '')}</bdi>
-        </span>
+          <span
+            className="min-w-0 flex-1 truncate text-left text-[11px] text-muted-foreground/80 [direction:rtl]"
+            aria-hidden
+          >
+            <bdi>{dir.replace(/\/$/, '')}</bdi>
+          </span>
+        </SimpleTooltip>
       ) : (
         <span className="flex-1" />
       )}

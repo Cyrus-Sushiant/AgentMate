@@ -227,6 +227,39 @@ describe('useTestsStore', () => {
     expect(run.results.b).toBeUndefined();
     expect(Object.keys(run.results)).toEqual(['a']);
   });
+
+  it('keeps the result objects it already has when a live run is hydrated again', () => {
+    const store = useTestsStore.getState();
+    store.applyEvent({
+      type: 'started',
+      runId: 'r1',
+      projectId: 'p1',
+      summary: summary(),
+      queued: ['a', 'b'],
+    });
+    store.applyEvent({
+      type: 'results',
+      runId: 'r1',
+      projectId: 'p1',
+      results: [result('a', 'passed'), result('b', 'failed')],
+    });
+    const before = useTestsStore.getState().runs.p1.results;
+    // Switching back to the project hydrates from main, which sends copies of the same results.
+    store.hydrate('p1', {
+      summary: summary(),
+      results: [
+        { ...result('a', 'passed'), path: ['a'] },
+        { ...result('b', 'failed'), message: 'now with a message' },
+      ],
+      output: '',
+      queued: ['a', 'b'],
+    });
+    const after = useTestsStore.getState().runs.p1.results;
+    // Rows are memoized on their result, so an unchanged one must stay the same object.
+    expect(after.a).toBe(before.a);
+    expect(after.b).not.toBe(before.b);
+    expect(after.b.message).toBe('now with a message');
+  });
 });
 
 describe('coalesceEvents', () => {
@@ -248,5 +281,96 @@ describe('coalesceEvents', () => {
     expect(events[0]).toMatchObject({ type: 'results' });
     expect((events[0] as { results: unknown[] }).results).toHaveLength(2);
     expect(events[1]).toMatchObject({ type: 'output', text: 'xy' });
+  });
+
+  it('folds the alternating output and results of a streaming run into one of each', () => {
+    // A streaming runner sends output, then that test's result, test after test.
+    const stream: TestRunEvent[] = [];
+    for (let i = 0; i < 500; i += 1) {
+      stream.push({ type: 'output', runId: 'r', projectId: 'a', text: `line ${i}\n` });
+      stream.push({ type: 'results', runId: 'r', projectId: 'a', results: [result(String(i))] });
+    }
+    const events = coalesceEvents(stream);
+    expect(events.map((event) => event.type)).toEqual(['output', 'results']);
+    const [output, results] = events as [
+      Extract<TestRunEvent, { type: 'output' }>,
+      Extract<TestRunEvent, { type: 'results' }>,
+    ];
+    expect(output.text.startsWith('line 0\nline 1\n')).toBe(true);
+    expect(output.text.endsWith('line 499\n')).toBe(true);
+    // A later result for the same test still lands after an earlier one.
+    expect(results.results.map((entry) => entry.id)).toEqual(
+      Array.from({ length: 500 }, (_, i) => String(i)),
+    );
+  });
+
+  it('never folds across the start or end of a run, and keeps projects apart', () => {
+    const started = (runId: string): TestRunEvent => ({
+      type: 'started',
+      runId,
+      projectId: 'a',
+      summary: {
+        runId,
+        projectId: 'a',
+        startedAt: 1,
+        running: true,
+        cancelled: false,
+        passed: 0,
+        failed: 0,
+        skipped: 0,
+        commands: [],
+        errors: [],
+      },
+      queued: [],
+    });
+    const events = coalesceEvents([
+      { type: 'output', runId: 'r1', projectId: 'a', text: 'a1 ' },
+      { type: 'output', runId: 'r1', projectId: 'b', text: 'b1 ' },
+      started('r2'),
+      { type: 'output', runId: 'r2', projectId: 'a', text: 'a2 ' },
+      { type: 'output', runId: 'r1', projectId: 'b', text: 'b2 ' },
+      { type: 'output', runId: 'r2', projectId: 'a', text: 'a3 ' },
+    ]);
+    expect(
+      events.map((event) =>
+        event.type === 'output' ? `${event.projectId}:${event.text.trim()}` : event.type,
+      ),
+    ).toEqual(['a:a1', 'b:b1 b2', 'started', 'a:a2 a3']);
+  });
+
+  it('takes a big run event by event without holding up the window', () => {
+    const store = useTestsStore.getState();
+    const ids = Array.from({ length: 3_000 }, (_, i) => `t${i}`);
+    store.applyEvent({
+      type: 'started',
+      runId: 'r1',
+      projectId: 'p1',
+      summary: {
+        runId: 'r1',
+        projectId: 'p1',
+        startedAt: 1,
+        running: true,
+        cancelled: false,
+        passed: 0,
+        failed: 0,
+        skipped: 0,
+        commands: [],
+        errors: [],
+      },
+      queued: ids,
+    });
+    const stream: TestRunEvent[] = ids.flatMap((id) => [
+      { type: 'output', runId: 'r1', projectId: 'p1', text: 'a log line\n'.repeat(6) },
+      { type: 'results', runId: 'r1', projectId: 'p1', results: [result(id)] },
+    ]);
+    const started = performance.now();
+    // What arrives in about 20 of the store's 150 ms batches during a run of that size.
+    for (let at = 0; at < stream.length; at += 300) {
+      store.applyEvents(stream.slice(at, at + 300));
+    }
+    const elapsed = performance.now() - started;
+    expect(Object.values(useTestsStore.getState().runs.p1.results)).toHaveLength(3_000);
+    // Copying every result and trimming the output once per event took about 6 seconds here.
+    expect(elapsed, 'time spent applying the events (ms)').toBeLessThan(750);
   });
 });

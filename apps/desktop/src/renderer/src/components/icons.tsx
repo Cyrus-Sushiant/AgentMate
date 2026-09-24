@@ -1,4 +1,8 @@
-import type { IconDefinition } from '@fortawesome/fontawesome-svg-core';
+import {
+  type AbstractElement,
+  icon as describeIcon,
+  type IconDefinition,
+} from '@fortawesome/fontawesome-svg-core';
 import {
   faAnglesLeft,
   faAnglesRight,
@@ -144,7 +148,6 @@ import {
   faWrench,
   faXmark,
 } from '@fortawesome/free-solid-svg-icons';
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import * as React from 'react';
 
 export interface IconProps {
@@ -152,10 +155,53 @@ export interface IconProps {
   onClick?: React.MouseEventHandler<SVGSVGElement>;
 }
 
+/** Font Awesome's attribute names as React props, the same way its React component maps them. */
+function propName(attribute: string): string {
+  if (attribute === 'class') return 'className';
+  if (attribute.startsWith('aria-') || attribute.startsWith('data-'))
+    return attribute.toLowerCase();
+  return attribute.replace(
+    /[_-]+(.)?/g,
+    (_, next: string | undefined) => next?.toUpperCase() ?? '',
+  );
+}
+
+function toElement(element: AbstractElement | string): React.ReactNode {
+  if (typeof element === 'string') return element;
+  const props: Record<string, unknown> = {};
+  for (const [attribute, value] of Object.entries(element.attributes ?? {})) {
+    props[propName(attribute)] = value;
+  }
+  return React.createElement(element.tag, props, ...(element.children ?? []).map(toElement));
+}
+
+type SvgElement = React.ReactElement<
+  React.SVGProps<SVGSVGElement> & React.RefAttributes<SVGSVGElement>
+>;
+
+/** More class names than this for one icon means they are generated, so stop keeping them. */
+const MAX_CACHED_CLASS_NAMES = 32;
+
+/**
+ * An icon as an inline SVG, the same markup FontAwesomeIcon renders for it. That component works
+ * the SVG out again on every render, which a panel of a few hundred rows (each with a handful of
+ * icons) turned into a noticeable part of switching projects. Here it is worked out once per
+ * class name and the element reused.
+ */
 function makeIcon(icon: IconDefinition): React.ForwardRefExoticComponent<IconProps> {
-  const Icon = React.forwardRef<SVGSVGElement, IconProps>(({ className, ...props }, ref) => (
-    <FontAwesomeIcon icon={icon} className={className} ref={ref} {...props} />
-  ));
+  const byClassName = new Map<string, SvgElement>();
+  const svgFor = (className: string): SvgElement => {
+    const cached = byClassName.get(className);
+    if (cached) return cached;
+    const [root] = describeIcon(icon, className ? { classes: className.split(' ') } : {}).abstract;
+    const svg = toElement(root) as SvgElement;
+    if (byClassName.size < MAX_CACHED_CLASS_NAMES) byClassName.set(className, svg);
+    return svg;
+  };
+  const Icon = React.forwardRef<SVGSVGElement, IconProps>(({ className, ...props }, ref) => {
+    const svg = svgFor(className ?? '');
+    return ref || Object.keys(props).length > 0 ? React.cloneElement(svg, { ...props, ref }) : svg;
+  });
   Icon.displayName = `Icon(${icon.iconName})`;
   return Icon;
 }

@@ -60,32 +60,74 @@ export function applyRunEvent(
   }
 }
 
+function sameResult(a: TestResult, b: TestResult): boolean {
+  return (
+    a.status === b.status &&
+    a.durationMs === b.durationMs &&
+    a.message === b.message &&
+    a.stack === b.stack &&
+    a.line === b.line &&
+    a.file === b.file &&
+    a.testProjectId === b.testProjectId &&
+    a.path.length === b.path.length &&
+    a.path.every((segment, index) => segment === b.path[index])
+  );
+}
+
 export function failedResults(run: ProjectTestRun | undefined): TestResult[] {
   return run ? Object.values(run.results).filter((result) => result.status === 'failed') : [];
 }
 
 /**
- * Folds neighbouring output and results events of one run into a single event, so a burst of
- * them costs one copy of the results map instead of one per event.
+ * Folds the output and results events of each run into one of each, so a burst costs one copy of
+ * the results map and one trim of the output instead of one per event. A runner that streams
+ * reports alternates the two, output then result for every test, so merging only neighbours of
+ * the same type merged nothing, and a big suite kept the window busy for seconds.
+ *
+ * Output and results touch different parts of a run, so gathering each at its first position is
+ * safe. A start or finish of the same project is never crossed.
  */
 export function coalesceEvents(events: TestRunEvent[]): TestRunEvent[] {
   const out: TestRunEvent[] = [];
+  const texts = new Map<number, string[]>();
+  const results = new Map<number, TestResult[]>();
+  /** Where each project's merged output and results sit in `out`, until its run starts or ends. */
+  const open = new Map<string, number>();
+
   for (const event of events) {
-    const last = out[out.length - 1];
-    if (last && last.type === 'output' && event.type === 'output' && last.runId === event.runId) {
-      out[out.length - 1] = { ...last, text: last.text + event.text };
-    } else if (
-      last &&
-      last.type === 'results' &&
-      event.type === 'results' &&
-      last.runId === event.runId
-    ) {
-      out[out.length - 1] = { ...last, results: [...last.results, ...event.results] };
-    } else {
+    if (event.type === 'started' || event.type === 'done') {
+      for (const key of [...open.keys()]) {
+        if (key.startsWith(`${event.projectId}\n`)) open.delete(key);
+      }
       out.push(event);
+      continue;
+    }
+    const key = `${event.projectId}\n${event.runId}\n${event.type}`;
+    const at = open.get(key);
+    if (at === undefined) {
+      open.set(key, out.length);
+      if (event.type === 'output') texts.set(out.length, [event.text]);
+      else results.set(out.length, [...event.results]);
+      out.push(event);
+    } else if (event.type === 'output') {
+      texts.get(at)?.push(event.text);
+    } else {
+      const list = results.get(at);
+      for (const result of event.results) list?.push(result);
     }
   }
-  return out;
+
+  return out.map((event, index) => {
+    if (event.type === 'output') {
+      const parts = texts.get(index);
+      return parts && parts.length > 1 ? { ...event, text: parts.join('') } : event;
+    }
+    if (event.type === 'results') {
+      const list = results.get(index);
+      return list && list.length !== event.results.length ? { ...event, results: list } : event;
+    }
+    return event;
+  });
 }
 
 interface TestsState {
@@ -120,8 +162,13 @@ export const useTestsStore = create<TestsState>((set) => ({
       ) {
         return state;
       }
+      // The panel hydrates each time it opens, switching back to a project included. Results the
+      // window already has keep their objects, so their rows are not all drawn over again.
       const results: Record<string, TestResult> = Object.fromEntries(
-        snapshot.results.map((result) => [result.id, result]),
+        snapshot.results.map((result) => {
+          const known = current?.results[result.id];
+          return [result.id, known && sameResult(known, result) ? known : result];
+        }),
       );
       // A snapshot only carries what the runner has reported. Without this, reopening the panel
       // during a run would leave every test still waiting looking as if it had never run.
