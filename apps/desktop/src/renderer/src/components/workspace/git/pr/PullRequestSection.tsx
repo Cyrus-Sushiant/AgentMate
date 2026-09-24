@@ -14,7 +14,7 @@ import { MergeCard } from './MergeCard';
 import { MergeSteps } from './MergeSteps';
 import { PR_GHOST_BUTTON } from './PrCard';
 import { PrChecks } from './PrChecks';
-import { PrHeader } from './PrHeader';
+import { PrHeader, PrOverview } from './PrHeader';
 import { PrReview } from './PrReview';
 import { type RecentMerge, usePullRequestActions, useRecentMerges } from './usePullRequest';
 
@@ -149,6 +149,88 @@ function FinishedPr({
   );
 }
 
+/** A column of PR cards in the large view; the cards drop their panel margin here. */
+const WIDE_COLUMN = 'space-y-3 lg:min-h-0 lg:overflow-y-auto lg:pb-1 [&>section]:mx-0';
+
+/**
+ * The large view of a branch with a PR (or about to get one). Review gets the wide column since
+ * it's mostly reading and writing; checks and the merge card sit beside it, so merging never
+ * needs a scroll past the conversation.
+ */
+function WidePullRequest({
+  project,
+  status,
+  onRetry,
+  before,
+}: {
+  project: Project;
+  status: PullRequestStatus;
+  onRetry: () => void;
+  before: React.ReactNode;
+}): React.JSX.Element {
+  const pr = status.pr;
+
+  if (status.error && !pr) {
+    return (
+      <PanelNotice
+        title="Could not read the pull request"
+        body={status.error}
+        action={{ label: 'Retry', run: onRetry }}
+      />
+    );
+  }
+
+  if (!pr) {
+    return (
+      <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5">
+        <div className="mx-auto w-full max-w-3xl space-y-4">
+          {before}
+          <div className="space-y-1">
+            <h2 className="text-lg font-semibold">Open a pull request</h2>
+            <p className="text-[13px] leading-relaxed text-muted-foreground">
+              Say what changed and why, so reviewers know where to look. Checks and reviews show up
+              here as soon as it's open.
+            </p>
+          </div>
+          <CreatePrForm project={project} status={status} roomy />
+        </div>
+      </div>
+    );
+  }
+
+  if (pr.state !== 'OPEN') {
+    return (
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        <PrOverview pr={pr} />
+        <div className="mx-auto w-full max-w-3xl space-y-3 px-5 py-4 [&_section]:mx-0">
+          {before}
+          <FinishedPr project={project} pr={pr} status={status} />
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex min-h-0 flex-1 flex-col overflow-y-auto lg:overflow-hidden">
+      <PrOverview pr={pr} />
+      <div className="grid gap-4 px-5 py-4 lg:min-h-0 lg:flex-1 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+        <div className={WIDE_COLUMN}>
+          {before}
+          <PrReview project={project} pr={pr} />
+        </div>
+        <div className={WIDE_COLUMN}>
+          <PrChecks
+            project={project}
+            pr={pr}
+            repo={`${status.github?.owner}/${status.github?.repo}`}
+          />
+          <MergeCard project={project} pr={pr} status={status} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /**
  * The workspace Pull request tab. Walks the current branch from "no PR" through checks and
  * review to a merge, and says plainly what's missing when it can't (no gh, signed out...).
@@ -159,12 +241,15 @@ export function PullRequestSection({
   loading,
   onRetry,
   onNewBranch,
+  wide = false,
 }: {
   project: Project;
   status: PullRequestStatus | undefined;
   loading: boolean;
   onRetry: () => void;
   onNewBranch: () => void;
+  /** The large view: review beside checks and merge, with a status strip on top. */
+  wide?: boolean;
 }): React.JSX.Element {
   const navigate = useNavigate();
   const openSession = useTerminalStore((s) => s.openSession);
@@ -240,6 +325,12 @@ export function PullRequestSection({
           </button>
         </div>
       </div>
+    );
+  }
+
+  if (wide) {
+    return (
+      <WidePullRequest project={project} status={status} onRetry={onRetry} before={recentCard} />
     );
   }
 

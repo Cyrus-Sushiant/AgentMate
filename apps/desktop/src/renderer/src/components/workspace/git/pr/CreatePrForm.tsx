@@ -9,8 +9,7 @@ import { Combobox } from '@/components/ui/combobox';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { queryKeys } from '@/lib/queryKeys';
 import { cn } from '@/lib/utils';
-import { useWorkspaceStore } from '@/stores/workspaceStore';
-import { PR_GHOST_BUTTON } from './PrCard';
+import { PR_GHOST_BUTTON, useRevealInPanel } from './PrCard';
 
 const FIELD =
   'block w-full rounded-lg border border-input bg-background/60 px-2.5 py-1.5 text-[13px] outline-none transition-colors placeholder:text-muted-foreground/70 focus:border-primary/50 focus:ring-2 focus:ring-primary/15 disabled:opacity-60';
@@ -19,12 +18,15 @@ const FIELD =
 export function CreatePrForm({
   project,
   status,
+  roomy = false,
 }: {
   project: Project;
   status: PullRequestStatus;
+  /** Larger fields for the large PR view, where there's space to write a real description. */
+  roomy?: boolean;
 }): React.JSX.Element {
   const queryClient = useQueryClient();
-  const revealPanelSection = useWorkspaceStore((s) => s.revealPanelSection);
+  const revealPanelSection = useRevealInPanel();
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
   const [base, setBase] = useState(status.defaultBranch ?? 'main');
@@ -112,7 +114,10 @@ export function CreatePrForm({
   return (
     <section
       aria-label="New pull request"
-      className="mx-2 space-y-2.5 rounded-lg border border-border/70 bg-card/40 p-3"
+      className={cn(
+        'space-y-2.5 rounded-lg border border-border/70 bg-card/40',
+        roomy ? 'p-4' : 'mx-2 p-3',
+      )}
     >
       <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
         <GitPullRequest className="h-3 w-3 shrink-0" />
@@ -158,7 +163,7 @@ export function CreatePrForm({
           placeholder="Title"
           disabled={creating}
           onChange={(event) => setTitle(event.target.value)}
-          className={cn(FIELD, 'pr-9', writing && 'shimmer')}
+          className={cn(FIELD, 'pr-9', roomy && 'py-2 text-sm font-medium', writing && 'shimmer')}
         />
         <SimpleTooltip label={writing ? 'Stop writing' : 'Write the title and description with AI'}>
           <button
@@ -166,7 +171,10 @@ export function CreatePrForm({
             aria-label={writing ? 'Stop writing' : 'Write the title and description with AI'}
             onClick={() => void write()}
             disabled={creating}
-            className="absolute right-1 top-1 flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary disabled:opacity-40"
+            className={cn(
+              'absolute right-1 flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary disabled:opacity-40',
+              roomy ? 'top-1.5' : 'top-1',
+            )}
           >
             {writing ? (
               <Spinner className="h-3.5 w-3.5 animate-spin text-primary motion-reduce:animate-none" />
@@ -179,7 +187,7 @@ export function CreatePrForm({
 
       <textarea
         value={body}
-        rows={5}
+        rows={roomy ? 14 : 5}
         aria-label="Pull request description"
         placeholder="What changed and why (optional)"
         disabled={creating}

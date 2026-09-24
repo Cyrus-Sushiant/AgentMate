@@ -14,6 +14,7 @@ import {
   ChevronRight,
   CircleCheck,
   CollapseAll,
+  Expand,
   FileCode,
   FilePlus,
   Flask,
@@ -58,6 +59,7 @@ import { PanelNotice } from './PanelNotice';
 import { PanelIconButton, type PanelTabDef, PanelTabs } from './PanelTabs';
 import { PipelinesSection } from './PipelinesSection';
 import { BranchPrPill, pullRequestAttention } from './pr/BranchPrPill';
+import { PullRequestDialog } from './pr/PullRequestDialog';
 import { PullRequestSection } from './pr/PullRequestSection';
 import { announcePublishedBranch, usePullRequest } from './pr/usePullRequest';
 import { SourceSection } from './SourceSection';
@@ -551,6 +553,7 @@ function SourceControlBody({
   const openSections = useWorkspaceStore((s) => s.gitPanel.openSourceSections);
   const setSectionOpen = useWorkspaceStore((s) => s.setSourceSectionOpen);
   const revealPanelSection = useWorkspaceStore((s) => s.revealPanelSection);
+  const [prDialogOpen, setPrDialogOpen] = useState(false);
 
   if (!state) {
     return (
@@ -659,17 +662,25 @@ function SourceControlBody({
           countTone={prAttention.failing ? 'destructive' : 'default'}
           actions={
             state.hasRemote ? (
-              <PanelIconButton
-                label="Refresh pull request"
-                onClick={() => void pullRequest.refetch()}
-              >
-                <RefreshCw
-                  className={cn(
-                    'h-2.5 w-2.5',
-                    pullRequest.isFetching && 'animate-spin motion-reduce:animate-none',
-                  )}
-                />
-              </PanelIconButton>
+              <>
+                <PanelIconButton
+                  label="Refresh pull request"
+                  onClick={() => void pullRequest.refetch()}
+                >
+                  <RefreshCw
+                    className={cn(
+                      'h-2.5 w-2.5',
+                      pullRequest.isFetching && 'animate-spin motion-reduce:animate-none',
+                    )}
+                  />
+                </PanelIconButton>
+                <PanelIconButton
+                  label="Open in a larger view"
+                  onClick={() => setPrDialogOpen(true)}
+                >
+                  <Expand className="h-2.5 w-2.5" />
+                </PanelIconButton>
+              </>
             ) : null
           }
         >
@@ -696,6 +707,21 @@ function SourceControlBody({
           <PipelinesSection project={project} />
         </SourceSection>
       </div>
+      {state.hasRemote ? (
+        <PullRequestDialog
+          project={project}
+          open={prDialogOpen}
+          onOpenChange={setPrDialogOpen}
+          status={pullRequest.data}
+          loading={pullRequest.isPending}
+          fetching={pullRequest.isFetching}
+          onRetry={() => void pullRequest.refetch()}
+          onNewBranch={() => {
+            revealPanelSection('branches');
+            onCreatingBranchChange(true);
+          }}
+        />
+      ) : null}
     </>
   );
 }

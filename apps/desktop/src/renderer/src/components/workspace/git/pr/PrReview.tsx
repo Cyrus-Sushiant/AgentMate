@@ -15,7 +15,7 @@ import { isSubmitKey, PR_AI_BUTTON, PR_GHOST_BUTTON, PrCard, PrPill, type PrTone
 import { ReviewThread } from './ReviewThread';
 import { usePullRequestActions } from './usePullRequest';
 
-const DECISIONS: Record<string, { label: string; tone: PrTone }> = {
+export const REVIEW_DECISIONS: Record<string, { label: string; tone: PrTone }> = {
   APPROVED: { label: 'Approved', tone: 'success' },
   CHANGES_REQUESTED: { label: 'Changes requested', tone: 'destructive' },
   REVIEW_REQUIRED: { label: 'Review required', tone: 'warning' },
@@ -35,7 +35,7 @@ export function PrReview({
   const [reviewing, setReviewing] = useState(false);
   const open = pr.threads.filter((thread) => !thread.isResolved);
   const resolved = pr.threads.filter((thread) => thread.isResolved);
-  const decision = pr.reviewDecision ? DECISIONS[pr.reviewDecision] : undefined;
+  const decision = pr.reviewDecision ? REVIEW_DECISIONS[pr.reviewDecision] : undefined;
 
   return (
     <PrCard

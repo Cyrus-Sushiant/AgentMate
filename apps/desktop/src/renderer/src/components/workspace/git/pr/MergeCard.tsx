@@ -28,7 +28,7 @@ import {
 import { cn } from '@/lib/utils';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
 import { MergeSteps } from './MergeSteps';
-import { PR_GHOST_BUTTON, PrCard } from './PrCard';
+import { PR_GHOST_BUTTON, PrCard, useRevealInPanel } from './PrCard';
 import { usePullRequestActions, useRecentMerges } from './usePullRequest';
 
 const METHODS: { id: MergeMethod; label: string; description: string }[] = [
@@ -73,7 +73,7 @@ export function MergeCard({
   const actions = usePullRequestActions(project.id);
   const method = useWorkspaceStore((s) => s.gitPanel.mergeMethods[project.id] ?? 'squash');
   const setMergeMethod = useWorkspaceStore((s) => s.setMergeMethod);
-  const revealPanelSection = useWorkspaceStore((s) => s.revealPanelSection);
+  const revealPanelSection = useRevealInPanel();
   const recordMerge = useRecentMerges((s) => s.record);
   const [cleanup, setCleanup] = useState(true);
   const [confirming, setConfirming] = useState(false);

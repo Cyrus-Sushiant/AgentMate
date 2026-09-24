@@ -1,6 +1,22 @@
-import { useState } from 'react';
+import { createContext, useContext, useState } from 'react';
 import { ChevronDown } from '@/components/icons';
 import { cn } from '@/lib/utils';
+import { type SourceControlSection, useWorkspaceStore } from '@/stores/workspaceStore';
+
+/** Set by a surface that covers the panel (the large PR view) so it can get out of the way. */
+export const PrSurfaceLeaveContext = createContext<() => void>(() => {
+  // The panel itself has nothing to close.
+});
+
+/** Jumps to another part of the Source control tab, closing the large PR view first if open. */
+export function useRevealInPanel(): (section: SourceControlSection) => void {
+  const leave = useContext(PrSurfaceLeaveContext);
+  const revealPanelSection = useWorkspaceStore((s) => s.revealPanelSection);
+  return (section) => {
+    leave();
+    revealPanelSection(section);
+  };
+}
 
 export type PrTone = 'default' | 'success' | 'warning' | 'destructive';
 
