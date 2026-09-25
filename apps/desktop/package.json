@@ -1,7 +1,7 @@
 {
   "name": "@agentmat/desktop",
   "private": true,
-  "version": "1.49.0",
+  "version": "1.50.0",
   "description": "AgentMate desktop application",
   "homepage": "https://github.com/Cyrus-Sushiant/AgentMate",
   "author": {
