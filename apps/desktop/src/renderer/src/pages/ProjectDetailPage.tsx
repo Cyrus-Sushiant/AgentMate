@@ -3315,10 +3315,15 @@ function TagVersionDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="max-w-xl overflow-hidden">
-        <DialogHeader>
-          <DialogTitle>Tag a version</DialogTitle>
-          <DialogDescription>
+      <DialogContent className="w-[min(36rem,calc(100vw-2rem))] max-w-none gap-0 overflow-hidden p-0 max-h-[88vh]">
+        <DialogHeader className="border-b border-border/70 px-5 py-4 pr-12">
+          <DialogTitle className="flex items-center gap-2 text-base">
+            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/12 text-primary">
+              <Tag className="h-3.5 w-3.5" />
+            </span>
+            Tag a version
+          </DialogTitle>
+          <DialogDescription className="text-xs">
             {latestTag ? (
               commitsSince > 0 ? (
                 <>
@@ -3343,7 +3348,7 @@ function TagVersionDialog({
             )}
           </DialogDescription>
         </DialogHeader>
-        <OverflowScroll fill className="-mx-1 space-y-4 px-1">
+        <OverflowScroll fill className="space-y-4 px-5 py-4">
           {/* The version bump for this very tag never got committed, most often because the
               commit in "Update version in files" failed. Tagging now would ship the old
               version, so this says so and leads back to the review, where the commit is. */}
@@ -3436,6 +3441,35 @@ function TagVersionDialog({
                 exactly as typed.
               </p>
             ) : null}
+          </div>
+
+          {/* The AI fills in the version (and a message), so it sits with the version choices. */}
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-xs font-medium text-muted-foreground">Choose a version</p>
+            {suggestMutation.isPending ? (
+              <AiSuggestButton
+                size="sm"
+                label="Suggest with AI"
+                pendingLabel="Asking your CLI…"
+                pendingTooltip="Reading the commits since the latest tag, click to cancel"
+                pending
+                onStart={() => suggestMutation.mutate()}
+                onCancel={handleCancelSuggest}
+              />
+            ) : (
+              <SimpleTooltip label="Reads the commits since the latest tag with your CLI and proposes the next semantic version">
+                <AiSuggestButton
+                  size="sm"
+                  label="Suggest with AI"
+                  pendingLabel="Asking your CLI…"
+                  pendingTooltip=""
+                  pending={false}
+                  disabled={createTagMutation.isPending}
+                  onStart={() => suggestMutation.mutate()}
+                  onCancel={handleCancelSuggest}
+                />
+              </SimpleTooltip>
+            )}
           </div>
 
           <div className="grid grid-cols-3 gap-2">
@@ -3628,36 +3662,31 @@ function TagVersionDialog({
             </SimpleTooltip>
           </div>
         </OverflowScroll>
-        <DialogFooter className="flex-col gap-1.5 sm:flex-col sm:items-stretch">
-          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-between">
-            {suggestMutation.isPending ? (
-              <AiSuggestButton
-                label="Suggest with AI"
-                pendingLabel="Asking your CLI…"
-                pendingTooltip="Reading the commits since the latest tag, click to cancel"
-                pending
-                onStart={() => suggestMutation.mutate()}
-                onCancel={handleCancelSuggest}
-              />
-            ) : (
-              <SimpleTooltip label="Reads the commits since the latest tag with your CLI and proposes the next semantic version">
-                <AiSuggestButton
-                  label="Suggest with AI"
-                  pendingLabel="Asking your CLI…"
-                  pendingTooltip=""
-                  pending={false}
-                  disabled={createTagMutation.isPending}
-                  onStart={() => suggestMutation.mutate()}
-                  onCancel={handleCancelSuggest}
-                />
-              </SimpleTooltip>
-            )}
+        <DialogFooter className="flex-row items-center gap-3 border-t border-border/70 px-5 py-3 sm:justify-between">
+          <span className="flex min-w-0 items-center gap-1.5 text-[11px] text-muted-foreground">
+            <CloudUpload className="h-3.5 w-3.5 shrink-0" />
+            <span className="min-w-0">
+              {hasRemote
+                ? 'Pushes the current branch and tag to origin.'
+                : 'No remote is configured, so the tag stays local.'}
+            </span>
+          </span>
+          <div className="flex shrink-0 items-center gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              disabled={createTagMutation.isPending}
+              onClick={() => handleOpenChange(false)}
+            >
+              Cancel
+            </Button>
             <SimpleTooltip
               label={trimmedVersion ? blockedReason : 'Pick a version first.'}
               wrapTrigger
             >
               <GitOpButton
                 icon={Tag}
+                size="sm"
                 label={hasRemote ? 'Create & push tag' : 'Create tag'}
                 pendingLabel={hasRemote ? 'Creating & pushing…' : 'Creating tag…'}
                 pending={createTagMutation.isPending}
@@ -3666,11 +3695,6 @@ function TagVersionDialog({
               />
             </SimpleTooltip>
           </div>
-          <p className="text-[11px] text-muted-foreground sm:text-right">
-            {hasRemote
-              ? 'Creates the tag, then pushes the current branch and tag to origin.'
-              : 'No remote is configured, so the tag stays local.'}
-          </p>
         </DialogFooter>
       </DialogContent>
     </Dialog>
