@@ -101,6 +101,40 @@ describe('main window state', () => {
     expect(bounds).toEqual({ width: 1100, height: 750 });
   });
 
+  it('maximizes before showing a window that was left maximized', async () => {
+    const state = await import('./mainWindowState');
+    const win = new FakeBrowserWindow();
+    const maximize = vi.spyOn(win, 'maximize');
+    const show = vi.spyOn(win, 'show');
+
+    state.showMainWindow(win as unknown as BrowserWindow, { bounds: null, isMaximized: true });
+
+    expect(maximize).toHaveBeenCalledTimes(1);
+    expect(show).toHaveBeenCalledTimes(1);
+    // Showing first would flash the restored size before the window fills the screen.
+    expect(maximize.mock.invocationCallOrder[0]).toBeLessThan(show.mock.invocationCallOrder[0]);
+  });
+
+  it('just shows a window that was not left maximized', async () => {
+    const state = await import('./mainWindowState');
+    const win = new FakeBrowserWindow();
+    const maximize = vi.spyOn(win, 'maximize');
+
+    state.showMainWindow(win as unknown as BrowserWindow, { bounds: null, isMaximized: false });
+
+    expect(maximize).not.toHaveBeenCalled();
+    expect(win.visible).toBe(true);
+  });
+
+  it('reads back a damaged file as the defaults', async () => {
+    const { mkdirSync, writeFileSync } = await import('node:fs');
+    mkdirSync(join(userData, 'data'), { recursive: true });
+    writeFileSync(join(userData, 'data', 'window-state.json'), '{ not json');
+    const state = await import('./mainWindowState');
+
+    expect(state.loadMainWindowState()).toEqual({ bounds: null, isMaximized: false });
+  });
+
   it('never opens below the minimum size', async () => {
     const state = await import('./mainWindowState');
     const bounds = state.mainWindowBounds({

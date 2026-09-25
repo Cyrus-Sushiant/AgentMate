@@ -85,6 +85,15 @@ export function mainWindowBounds(
 }
 
 /**
+ * Puts the window on screen the way it was left. Maximizing also shows the
+ * window, so this only runs once the window is due on screen anyway.
+ */
+export function showMainWindow(win: BrowserWindow, state: MainWindowState): void {
+  if (state.isMaximized) win.maximize();
+  win.show();
+}
+
+/**
  * Remembers the window's size, position and maximized state as it changes, so
  * the next launch opens the way this one was left.
  *

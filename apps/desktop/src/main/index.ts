@@ -62,6 +62,7 @@ import {
   loadMainWindowState,
   MAIN_WINDOW_MIN_SIZE,
   mainWindowBounds,
+  showMainWindow,
   trackMainWindowState,
 } from './mainWindowState';
 import {
@@ -206,11 +207,7 @@ function createMainWindow(): BrowserWindow {
   });
 
   trackMainWindowState(win, savedState.isMaximized);
-  // Maximizing also shows the window, so it waits until the window is due on screen anyway.
-  const reveal = (): void => {
-    if (savedState.isMaximized) win.maximize();
-    win.show();
-  };
+  const reveal = (): void => showMainWindow(win, savedState);
   if (behindSplash) {
     handOffWhenReady(win, reveal);
   } else {

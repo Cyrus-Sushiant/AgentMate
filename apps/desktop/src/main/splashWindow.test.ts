@@ -212,6 +212,17 @@ describe('handing over to the main window', () => {
     expect(main.visible).toBe(false);
   });
 
+  it('reveals through the show function it was given', () => {
+    openSplash();
+    const main = mainWindow();
+    const show = vi.fn();
+    splash.handOffWhenReady(main as unknown as BrowserWindow, show);
+    sendReady(main.webContents);
+    vi.advanceTimersByTime(1000);
+    // The caller decides how the window goes up (maximized or not), not the splash.
+    expect(show).toHaveBeenCalledTimes(1);
+  });
+
   it('reveals straight away when there is no splash (test mode)', () => {
     const main = mainWindow();
     splash.handOffWhenReady(main as unknown as BrowserWindow);
