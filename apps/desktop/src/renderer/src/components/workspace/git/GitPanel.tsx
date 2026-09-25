@@ -519,8 +519,8 @@ function ChangesBody({
       {showLineStats ? <ChangesSummary state={state} /> : null}
       <div className="min-h-0 flex-1 overflow-y-auto" data-git-panel>
         {total === 0 ? (
-          <div className="flex h-full flex-col items-center justify-center gap-2 px-6 py-4 text-center">
-            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-success/10 text-success">
+          <div className="flex min-h-full flex-col items-center justify-center gap-2 px-6 py-4 text-center">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-success/10 text-success">
               <CircleCheck className="h-4 w-4" />
             </div>
             <p className="text-sm font-medium">Working tree clean</p>
