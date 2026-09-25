@@ -58,6 +58,11 @@ export const CliDefinitionSchema = z.object({
    * CLIs with no obvious flag worth suggesting.
    */
   argsExample: z.string().optional(),
+  /**
+   * How a file is referred to in this CLI's input box: `@path` (the default, which the CLI
+   * turns into an attached file) or the bare path for CLIs with no mention syntax.
+   */
+  fileMention: z.enum(['at', 'plain']).optional(),
   /** Keyed by SupportedOS; not every OS needs an entry. */
   installCommand: z.record(z.string(), z.string()),
   /** Keyed by SupportedOS; falls back to installCommand when absent. */
@@ -309,6 +314,7 @@ export const CLI_REGISTRY: CliDefinition[] = [
     detectCommand: { command: 'aider', args: ['--version'] },
     versionCommand: { command: 'aider', args: ['--version'] },
     argsExample: `--model ${CLI_MODEL_EXAMPLES['aider']}`,
+    fileMention: 'plain',
     installCommand: {
       win32: 'pipx install aider-chat',
       darwin: 'pipx install aider-chat',
@@ -332,6 +338,7 @@ export const CLI_REGISTRY: CliDefinition[] = [
     detectCommand: { command: 'goose', args: ['--version'] },
     versionCommand: { command: 'goose', args: ['--version'] },
     promptCommand: { command: 'goose', args: ['run', '-t'] },
+    fileMention: 'plain',
     installCommand: {
       darwin:
         'curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh | bash',

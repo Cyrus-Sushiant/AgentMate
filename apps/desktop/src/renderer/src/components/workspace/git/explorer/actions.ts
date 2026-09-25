@@ -1,5 +1,7 @@
 import {
   baseName,
+  formatFileMentions,
+  getCliDefinition,
   isSameOrInside,
   type Project,
   parentPath,
@@ -9,7 +11,9 @@ import {
 import type { DirectoryEntry, ExplorerMove } from '@shared/apiTypes';
 import { toast } from 'sonner';
 import { queryKeys } from '@/lib/queryKeys';
-import { launchShellTab } from '@/lib/workspace/launch';
+import { terminalRuntime } from '@/lib/terminal/terminalRuntime';
+import { findAgentTerminal } from '@/lib/workspace/agentTarget';
+import { launchPromptTab, launchShellTab, projectCliId } from '@/lib/workspace/launch';
 import { queryClient } from '@/queryClient';
 import { confirmDialog } from '@/stores/confirmStore';
 import {
@@ -298,6 +302,71 @@ export function copyPaths(project: Project, paths: string[], relative: boolean):
     () => toast.success(paths.length === 1 ? 'Path copied' : `${paths.length} paths copied`),
     (error) => fail('Could not copy the path', error),
   );
+}
+
+/** Whether a row is a folder, from the listing of its parent the tree already loaded. */
+function isListedDirectory(projectId: string, path: string): boolean {
+  const parent = parentPath(path);
+  if (!parent) return false;
+  return cachedListing(projectId, parent).some((entry) => entry.path === path && entry.isDirectory);
+}
+
+/**
+ * The CLI that "Add to agent chat" hands files to: the running agent it would pick, or the
+ * project's default CLI that it would start. Null when there is neither.
+ */
+export function agentChatTarget(project: Project): { cliId: string; running: boolean } | null {
+  const tab = findAgentTerminal(project.id);
+  if (tab?.cliId) return { cliId: tab.cliId, running: true };
+  const cliId = projectCliId(project);
+  return cliId ? { cliId, running: false } : null;
+}
+
+/**
+ * Types references to files and folders (`@src/app.ts @src/lib/ `) into the agent CLI running
+ * in the workspace and focuses it, so the user asks about them right there. Nothing is
+ * submitted. With no agent running, the project's default CLI is started and gets them once it
+ * is ready.
+ */
+export function sendPathsToAgent(project: Project, paths: string[]): void {
+  const root = projectRoot(project);
+  const entries = topLevelPaths(paths)
+    .filter((path) => path !== root)
+    .map((path) => ({
+      relativePath: relativeTo(root, path) ?? path,
+      isDirectory: isListedDirectory(project.id, path),
+    }));
+  if (entries.length === 0) return;
+
+  const tab = findAgentTerminal(project.id);
+  if (!tab?.cliId) {
+    const cliId = projectCliId(project);
+    if (!cliId) {
+      toast.error('No agent CLI to ask', {
+        description: 'Pick a default CLI in Settings, or start one in this workspace.',
+      });
+      return;
+    }
+    const tabId = launchPromptTab(project, {
+      cliId,
+      prompt: formatFileMentions(cliId, entries),
+    });
+    if (tabId) terminalRuntime.focus(tabId);
+    return;
+  }
+
+  const text = formatFileMentions(tab.cliId, entries);
+  useWorkspaceStore.getState().activateTab(project.id, tab.id);
+  terminalRuntime.focus(tab.id);
+  if (terminalRuntime.insertText(tab.id, text)) return;
+  // The CLI is still starting, or its terminal was let go while off screen and is coming back.
+  void terminalRuntime.deliverPrompt(tab.id, text).then((delivered) => {
+    if (delivered) return;
+    void navigator.clipboard.writeText(text);
+    toast.warning(`${getCliDefinition(tab.cliId ?? '')?.name ?? 'The CLI'} is not taking input`, {
+      description: 'The file references are on your clipboard, ready to paste.',
+    });
+  });
 }
 
 export function revealInOs(project: Project, path: string): void {

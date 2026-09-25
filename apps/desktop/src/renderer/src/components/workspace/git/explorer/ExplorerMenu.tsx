@@ -1,4 +1,4 @@
-import { baseName, type Project, splitExtension } from '@agentmat/core';
+import { baseName, getCliDefinition, type Project, splitExtension } from '@agentmat/core';
 import {
   ContextMenuContent,
   ContextMenuItem,
@@ -11,6 +11,7 @@ import {
 import { patchExplorer, useExplorerStore } from '@/stores/explorerStore';
 import {
   addToGitignore,
+  agentChatTarget,
   collapseAll,
   copyPaths,
   copyToClipboard,
@@ -20,6 +21,7 @@ import {
   pasteInto,
   projectRoot,
   revealInOs,
+  sendPathsToAgent,
   startCreate,
   targetFolder,
 } from './actions';
@@ -77,6 +79,14 @@ export function ExplorerMenu({
     setTimeout(fn, 0);
   };
 
+  const agent = agentChatTarget(project);
+  const agentLabel = agent ? getCliDefinition(agent.cliId)?.label : undefined;
+  const addToChatLabel = !agentLabel
+    ? 'Add to Agent Chat'
+    : agent?.running
+      ? `Add to ${agentLabel}`
+      : `Add to New ${agentLabel} Tab`;
+
   const rename = later(() => {
     if (!path || isRoot) return;
     patchExplorer(project.id, {
@@ -89,6 +99,17 @@ export function ExplorerMenu({
       className="min-w-[15rem]"
       onCloseAutoFocus={(event) => event.preventDefault()}
     >
+      {!isRoot ? (
+        <>
+          <Item
+            label={addToChatLabel}
+            command="addToChat"
+            onSelect={later(() => sendPathsToAgent(project, paths))}
+          />
+          <ContextMenuSeparator />
+        </>
+      ) : null}
+
       {!multi && (target.isDirectory || isRoot) ? (
         <>
           <Item label="New File…" onSelect={later(() => startCreate(project, 'newFile', folder))} />

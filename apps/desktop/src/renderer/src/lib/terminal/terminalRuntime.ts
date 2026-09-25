@@ -492,6 +492,18 @@ export const terminalRuntime = {
     if (entry?.ready) entry.term.paste(text);
   },
 
+  /**
+   * Pastes text into the input box of the program running in the session, as one block and
+   * unsubmitted. Only when that program turned bracketed paste on (an agent CLI waiting for
+   * input does), since a bare shell would run the text. Returns false when nothing was typed.
+   */
+  insertText(id: string, text: string): boolean {
+    const entry = entries.get(id);
+    if (!entry?.ready || !entry.term.modes.bracketedPasteMode) return false;
+    pasteAtOnce(entry, text);
+    return true;
+  },
+
   /** Same as `paste`, but as chips when the shell is ready for them (e.g. a dropped file). */
   pasteChips(id: string, chips: ChipInput[]): void {
     const entry = entries.get(id);

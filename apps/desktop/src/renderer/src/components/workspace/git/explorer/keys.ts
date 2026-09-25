@@ -18,7 +18,8 @@ export type ExplorerCommand =
   | 'copyPath'
   | 'copyRelativePath'
   | 'reveal'
-  | 'find';
+  | 'find'
+  | 'addToChat';
 
 type Bindings = Record<ExplorerCommand, Shortcut[]>;
 
@@ -40,6 +41,7 @@ const WINDOWS_LINUX: Bindings = {
   copyRelativePath: [{ code: 'KeyC', mod: true, shift: true, alt: true }],
   reveal: [{ code: 'KeyR', shift: true, alt: true }],
   find: [{ code: 'KeyF', mod: true }],
+  addToChat: [{ code: 'KeyL', mod: true }],
 };
 
 const MAC: Bindings = {
@@ -55,6 +57,7 @@ const MAC: Bindings = {
   copyRelativePath: [{ code: 'KeyC', mod: true, alt: true, shift: true }],
   reveal: [{ code: 'KeyR', mod: true, alt: true }],
   find: [{ code: 'KeyF', mod: true }],
+  addToChat: [{ code: 'KeyL', mod: true }],
 };
 
 function bindings(): Bindings {

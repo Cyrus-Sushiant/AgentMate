@@ -35,6 +35,7 @@ import {
   projectRoot,
   renameEntry,
   revealInOs,
+  sendPathsToAgent,
   targetFolder,
   transferEntries,
 } from './explorer/actions';
@@ -694,6 +695,11 @@ export function ExplorerSection({
       case 'find':
         handled();
         toggleExplorerSearch(project.id, true);
+        return;
+      case 'addToChat':
+        if (targets.length === 0) return;
+        handled();
+        sendPathsToAgent(project, targets);
         return;
     }
   }

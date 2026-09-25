@@ -2,6 +2,7 @@ import { useLayoutEffect, useRef, useState } from 'react';
 import { pathsToChips } from '@/lib/terminal/pasteFiles';
 import { terminalRuntime } from '@/lib/terminal/terminalRuntime';
 import { resolveWorkspaceTerminalTheme } from '@/lib/terminal/xtermFactory';
+import { rememberAgentTab } from '@/lib/workspace/agentTarget';
 import { useTerminalAppearanceStore } from '@/stores/terminalAppearanceStore';
 import { useThemeStore } from '@/stores/themeStore';
 import type { WorkspaceTerminalTab } from '@/stores/workspaceStore';
@@ -55,6 +56,9 @@ export function TerminalSlot({ projectId, tab, focused }: TerminalSlotProps): Re
   return (
     <div
       className="absolute inset-0"
+      onFocusCapture={() => {
+        if (tab.cliId) rememberAgentTab(projectId, tab.id);
+      }}
       onDragOver={(event) => {
         if (!isFileDrag(event)) return;
         event.preventDefault();
