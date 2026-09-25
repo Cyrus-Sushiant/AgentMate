@@ -18,6 +18,7 @@ import {
   Pin,
   Plus,
   Save,
+  Sparkles,
   Spinner,
   SplitView,
   Undo,
@@ -31,7 +32,7 @@ import { DIFF_CHANGE_EVENT } from '@/lib/workspace/commands';
 import { useShortcutLabel } from '@/stores/shortcutStore';
 import { useWorkspaceStore, type WorkspaceDiffTab } from '@/stores/workspaceStore';
 import { ImageDiffView } from './ImageDiffView';
-import { openChangedFile, useGitActions } from './useWorkspaceGit';
+import { openChangedFile, useAiResolving, useGitActions } from './useWorkspaceGit';
 
 function ToolbarButton({
   label,
@@ -145,6 +146,7 @@ export default function DiffTab({
   const { dir, name } = splitGitPath(tab.path);
   const meta = entry ? changeStatusMeta(entry.status) : null;
   const gone = !tab.commit && state !== undefined && entry === null;
+  const aiResolving = useAiResolving(project.id, tab.path) && tab.side === 'conflict';
 
   // The right side of a working tree diff is the file on disk, so it can be edited and saved
   // right here. Staged content and past commits aren't files, so those stay read-only.
@@ -369,6 +371,32 @@ export default function DiffTab({
               </ToolbarButton>
             </>
           ) : null}
+          {entry && tab.side === 'conflict' ? (
+            <SimpleTooltip
+              label={
+                aiResolving
+                  ? 'Stop the AI and put the file back'
+                  : 'Have your AI CLI merge both sides. Nothing is staged.'
+              }
+            >
+              <button
+                type="button"
+                onClick={() => void actions.resolveWithAi(tab.path)}
+                aria-label={aiResolving ? 'Stop resolving with AI' : 'Resolve with AI'}
+                className="ml-1 inline-flex h-6 items-center gap-1 rounded-md border border-border px-2 text-[11px] font-medium transition-colors hover:border-primary/40 hover:bg-primary/10 hover:text-primary"
+              >
+                {aiResolving ? (
+                  <Spinner className="h-2.5 w-2.5 animate-spin text-primary motion-reduce:animate-none" />
+                ) : (
+                  <Sparkles className="h-2.5 w-2.5" />
+                )}
+                {/* A narrow pane keeps just the icon. */}
+                <span className="hidden @md:inline">
+                  {aiResolving ? 'Stop' : 'Resolve with AI'}
+                </span>
+              </button>
+            </SimpleTooltip>
+          ) : null}
           {entry ? (
             tab.side === 'staged' ? (
               <button
@@ -382,7 +410,9 @@ export default function DiffTab({
               <button
                 type="button"
                 onClick={() => void actions.stage([tab.path])}
-                className="ml-1 inline-flex h-6 items-center gap-1 rounded-md bg-primary px-2 text-[11px] font-semibold text-primary-foreground transition-all hover:brightness-110"
+                // Staging while the AI is still writing the file would take a half edit.
+                disabled={aiResolving}
+                className="ml-1 inline-flex h-6 items-center gap-1 rounded-md bg-primary px-2 text-[11px] font-semibold text-primary-foreground transition-all hover:brightness-110 disabled:pointer-events-none disabled:opacity-50"
               >
                 <Plus className="h-2.5 w-2.5" />{' '}
                 {tab.side === 'conflict' ? 'Mark resolved' : 'Stage'}

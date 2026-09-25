@@ -1,6 +1,6 @@
 import type { GitChangeEntry, Project } from '@agentmat/core';
 import type { GitDiffSide } from '@shared/apiTypes';
-import { FileCode, Minus, Plus, Trash2, Undo } from '@/components/icons';
+import { FileCode, Minus, Plus, Sparkles, Spinner, Trash2, Undo } from '@/components/icons';
 import { ContextMenu, ContextMenuTrigger } from '@/components/ui/context-menu';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { changeStatusMeta, splitGitPath } from '@/lib/git';
@@ -21,6 +21,9 @@ export interface GitFileRowProps {
   onUnstage?: () => void;
   onDiscard?: () => void;
   onResolve?: (pick: 'ours' | 'theirs') => void;
+  /** Starts an AI CLI on the conflict markers, or stops the one already on them. */
+  onResolveWithAi?: () => void;
+  aiResolving?: boolean;
   onOpenFile: () => void;
 }
 
@@ -79,6 +82,8 @@ export function GitFileRow({
   onUnstage,
   onDiscard,
   onResolve,
+  onResolveWithAi,
+  aiResolving = false,
   onOpenFile,
 }: GitFileRowProps): React.JSX.Element {
   const { dir, name } = splitGitPath(entry.path);
@@ -89,6 +94,7 @@ export function GitFileRow({
     entry.origPath ? `${entry.origPath} renamed to ${entry.path}` : entry.path,
     entry.conflict ? `${meta.label} (${entry.conflict})` : meta.label,
     entry.binary ? 'binary file' : null,
+    aiResolving ? 'resolving with AI' : null,
   ]
     .filter(Boolean)
     .join(', ');
@@ -128,6 +134,7 @@ export function GitFileRow({
             selected
               ? 'bg-primary/12 text-foreground'
               : 'text-foreground/90 hover:bg-foreground/[0.05]',
+            aiResolving && 'shimmer',
           )}
         >
           <span
@@ -179,7 +186,13 @@ export function GitFileRow({
           </span>
 
           <span className="hidden shrink-0 items-center gap-0.5 group-focus-within/row:flex group-hover/row:flex">
-            {onResolve ? (
+            {onResolveWithAi && !aiResolving ? (
+              <RowAction label="Resolve with AI" onClick={onResolveWithAi}>
+                <Sparkles className="h-2.5 w-2.5" />
+              </RowAction>
+            ) : null}
+            {/* Picking a side while the AI is still editing the file would race it. */}
+            {onResolve && !aiResolving ? (
               <>
                 <SimpleTooltip label="Keep your version" delayDuration={400}>
                   <button
@@ -242,6 +255,13 @@ export function GitFileRow({
             ) : null}
           </span>
 
+          {/* Stays out of the hover group so the run shows, and can be stopped, at a glance. */}
+          {aiResolving && onResolveWithAi ? (
+            <RowAction label="Stop resolving with AI" onClick={onResolveWithAi}>
+              <Spinner className="h-2.5 w-2.5 animate-spin text-primary motion-reduce:animate-none" />
+            </RowAction>
+          ) : null}
+
           <span
             className={cn(
               'w-3 shrink-0 text-center font-mono text-[11px] font-semibold',
@@ -263,6 +283,8 @@ export function GitFileRow({
         onStage={onStage}
         onUnstage={onUnstage}
         onDiscard={onDiscard}
+        onResolveWithAi={onResolveWithAi}
+        aiResolving={aiResolving}
       />
     </ContextMenu>
   );

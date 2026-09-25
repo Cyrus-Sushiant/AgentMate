@@ -26,6 +26,7 @@ import type {
   GitStatus,
   GitTagInfo,
   RenameBranchInput,
+  ResolveConflictWithAiResult,
   SuggestGitTextResult,
   SuggestTagResult,
   SwapVersionFileInput,
@@ -35,6 +36,12 @@ import type {
 } from '../../shared/apiTypes';
 import { IPC } from '../../shared/ipcChannels';
 import { cancelHeadlessPrompt, runHeadlessCliPrompt } from '../cli/headlessPrompt';
+import {
+  buildConflictResolutionPrompt,
+  hasConflictMarkers,
+  readConflictedText,
+  resolutionSummary,
+} from '../git/aiConflict';
 import {
   GITHUB_NAME_PATTERN,
   type GithubApiRepo,
@@ -109,6 +116,7 @@ import {
   assertCommitHash,
   assertLineRanges,
   assertRepoPaths,
+  backupPaths,
   commitStaged,
   discardPaths,
   locateRepo,
@@ -136,6 +144,8 @@ const GH_TIMEOUT_MS = 30000;
  * for a one-question prompt, routinely cuts that off halfway.
  */
 const VERSION_BUMP_TIMEOUT_MS = 900000;
+/** The agent reads the file and maybe its neighbours before editing, so a bare prompt's budget is short. */
+const CONFLICT_RESOLVE_TIMEOUT_MS = 600000;
 
 /**
  * Origin can point at a folder, a UNC share or a file:// URL. Those clone fine but
@@ -1050,6 +1060,87 @@ function registerWorkspaceHandlers(): void {
         return `Kept ${pick === 'ours' ? 'your' : 'their'} version of ${safe}.`;
       }),
   );
+
+  ipcMain.handle(
+    IPC.git.resolveConflictWithAi,
+    async (
+      _event,
+      projectId: string,
+      path: string,
+      requestId?: string,
+    ): Promise<ResolveConflictWithAiResult> => {
+      let folder: string | null = null;
+      try {
+        const project = await getProject(projectId);
+        const repo = await requireRepo(projectId);
+        folder = repo.folder;
+        const [safe] = assertRepoPaths(repo.root, [path]);
+        const state = await readWorkspaceGitState(repo.root);
+        const entry = state.conflicts.find((e) => e.path === safe);
+        if (!entry) throw new Error(`${safe} is no longer in conflict.`);
+        const before = await readConflictedText(repo.root, safe);
+        if (before === null) {
+          throw new Error(`${safe} is not a text file on disk. Keep ours or theirs instead.`);
+        }
+        if (!hasConflictMarkers(before)) {
+          throw new Error(
+            `${safe} has no conflict markers left. Review it and mark it as resolved, or keep one side.`,
+          );
+        }
+
+        // The agent writes straight to disk, so the markers are kept to put back if it stops
+        // half way, leaves some behind, or the user wants their own go at it after all.
+        const undoToken = await backupPaths(repo.root, [safe]);
+        const restore = (): Promise<void> => undoDiscard(undoToken).catch(() => undefined);
+        const result = await runHeadlessCliPrompt(
+          buildConflictResolutionPrompt(safe, state.operation, entry.conflict),
+          repo.root,
+          {
+            requestId: typeof requestId === 'string' ? requestId : undefined,
+            preferredCliId: project.cliId,
+            allowWrites: true,
+            timeoutMs: CONFLICT_RESOLVE_TIMEOUT_MS,
+          },
+        );
+        const cli = result.cliName ?? 'The AI CLI';
+        if (result.cancelled) {
+          await restore();
+          return { ok: false, cancelled: true, message: 'Stopped. The file is back as it was.' };
+        }
+        if (result.timedOut) {
+          await restore();
+          return { ok: false, message: `${result.error} The file is back as it was.` };
+        }
+
+        // What's on disk decides, not the exit code: a CLI can finish the edit and still
+        // end without a closing answer.
+        const after = await readConflictedText(repo.root, safe);
+        if (after === null || hasConflictMarkers(after)) {
+          await restore();
+          const reason = !result.ok
+            ? (result.error ?? `${cli} did not answer.`)
+            : after === null
+              ? `${cli} removed or broke the file.`
+              : `${cli} left conflict markers in the file.`;
+          return { ok: false, message: `${reason} The file is back as it was.` };
+        }
+        return {
+          ok: true,
+          message: `${cli} resolved ${safe}. Review it, then mark it as resolved.`,
+          summary: result.ok ? resolutionSummary(result.text) : undefined,
+          undoToken,
+        };
+      } catch (error) {
+        return { ok: false, message: (error as Error).message };
+      } finally {
+        if (folder) void refreshWorkspaceState(projectId, folder);
+      }
+    },
+  );
+
+  ipcMain.handle(IPC.git.cancelResolveConflictWithAi, (_event, requestId: string): boolean => {
+    return cancelHeadlessPrompt(requestId);
+  });
 
   ipcMain.handle(
     IPC.git.abortOperation,

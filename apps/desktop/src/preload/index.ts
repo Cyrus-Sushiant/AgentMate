@@ -200,6 +200,7 @@ import type {
   RemoteState,
   RemoveWorktreeInput,
   RenameBranchInput,
+  ResolveConflictWithAiResult,
   RunSkillAuditInput,
   RunSkillAuditResult,
   SaveBlueprintPresetInput,
@@ -1181,6 +1182,16 @@ const git = {
     path: string,
     pick: 'ours' | 'theirs',
   ): Promise<GitOpResult> => ipcRenderer.invoke(IPC.git.resolveConflict, projectId, path, pick),
+  /** Has the project's AI CLI edit the conflict markers out of one file. Nothing is staged. */
+  resolveConflictWithAi: (
+    projectId: string,
+    path: string,
+    requestId: string,
+  ): Promise<ResolveConflictWithAiResult> =>
+    ipcRenderer.invoke(IPC.git.resolveConflictWithAi, projectId, path, requestId),
+  /** Stops a resolveConflictWithAi(requestId) run and puts the file back as it was. */
+  cancelResolveConflictWithAi: (requestId: string): Promise<boolean> =>
+    ipcRenderer.invoke(IPC.git.cancelResolveConflictWithAi, requestId),
   abortOperation: (projectId: string): Promise<GitOpResult> =>
     ipcRenderer.invoke(IPC.git.abortOperation, projectId),
   /** Commits only what is staged, optionally pushing the branch right after. */

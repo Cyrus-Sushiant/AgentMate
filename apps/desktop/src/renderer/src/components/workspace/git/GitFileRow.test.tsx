@@ -104,3 +104,80 @@ describe('GitFileRow menu', () => {
     );
   });
 });
+
+describe('GitFileRow conflict with AI', () => {
+  const entry = { path: 'src/app.ts', status: 'U', conflict: 'UU' } as GitChangeEntry;
+
+  function renderConflict(aiResolving: boolean) {
+    const handlers = {
+      onResolve: vi.fn(),
+      onResolveWithAi: vi.fn(),
+      onOpen: vi.fn(),
+      onStage: vi.fn(),
+    };
+    render(
+      <TooltipProvider>
+        <GitFileRow
+          project={project}
+          projectPrefix=""
+          entry={entry}
+          side="conflict"
+          selected={false}
+          focusable
+          onFocusRow={vi.fn()}
+          onOpen={handlers.onOpen}
+          onOpenFile={vi.fn()}
+          onStage={aiResolving ? undefined : handlers.onStage}
+          onResolve={handlers.onResolve}
+          onResolveWithAi={handlers.onResolveWithAi}
+          aiResolving={aiResolving}
+        />
+      </TooltipProvider>,
+    );
+    return handlers;
+  }
+
+  it('offers AI next to ours and theirs, without opening the diff', () => {
+    const handlers = renderConflict(false);
+    fireEvent.click(screen.getByRole('button', { name: 'Resolve with AI' }));
+    expect(handlers.onResolveWithAi).toHaveBeenCalledOnce();
+    expect(handlers.onOpen).not.toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: 'Ours' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Theirs' })).toBeInTheDocument();
+  });
+
+  it('offers it from the right-click menu too', () => {
+    const handlers = renderConflict(false);
+    openMenu();
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Resolve with AI' }));
+    expect(handlers.onResolveWithAi).toHaveBeenCalledOnce();
+  });
+
+  it('while the AI works, shows a stop button and hides the actions that would race it', () => {
+    const handlers = renderConflict(true);
+    expect(screen.getByRole('option')).toHaveAccessibleName(/resolving with AI/);
+    expect(screen.getByRole('option')).toHaveClass('shimmer');
+    expect(screen.queryByRole('button', { name: 'Resolve with AI' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Ours' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Theirs' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Mark as resolved' })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Stop resolving with AI' }));
+    expect(handlers.onResolveWithAi).toHaveBeenCalledOnce();
+  });
+
+  it('turns the menu item into a stop while the AI works', () => {
+    const handlers = renderConflict(true);
+    openMenu();
+    expect(screen.queryByRole('menuitem', { name: 'Mark as Resolved' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Stop Resolving with AI' }));
+    expect(handlers.onResolveWithAi).toHaveBeenCalledOnce();
+  });
+
+  it('leaves AI off rows that are not in conflict', () => {
+    renderRow({ path: 'src/app.ts', status: 'M' } as GitChangeEntry);
+    expect(screen.queryByRole('button', { name: 'Resolve with AI' })).not.toBeInTheDocument();
+    openMenu();
+    expect(screen.queryByRole('menuitem', { name: 'Resolve with AI' })).not.toBeInTheDocument();
+  });
+});

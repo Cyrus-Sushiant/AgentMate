@@ -2,7 +2,7 @@
 import type { Project } from '@agentmat/core';
 import type { GitFileDiff, WorkspaceGitState } from '@shared/apiTypes';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { cleanup, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import type { WorkspaceDiffTab } from '@/stores/workspaceStore';
@@ -91,5 +91,80 @@ describe('DiffTab', () => {
 
     expect(await screen.findByTestId('monaco-diff')).toHaveTextContent('<svg id="a" />');
     expect(screen.queryByTestId('image-diff')).not.toBeInTheDocument();
+  });
+});
+
+describe('DiffTab conflict with AI', () => {
+  const conflictTab: WorkspaceDiffTab = {
+    kind: 'diff',
+    id: 'd2',
+    path: 'src/app.ts',
+    side: 'conflict',
+    preview: false,
+  };
+  const conflictState: Partial<WorkspaceGitState> = {
+    ...state,
+    conflicts: [{ path: 'src/app.ts', status: 'U', conflict: 'UU' }],
+  };
+
+  function renderConflict(run: (...args: unknown[]) => Promise<unknown>) {
+    const bridge = installAgentmatBridge({
+      'git.fileDiff': diff('src/app.ts', { modified: '<<<<<<< HEAD\n' }),
+      'git.workspaceState': conflictState,
+      'git.resolveConflictWithAi': run,
+      'git.cancelResolveConflictWithAi': async () => true,
+    });
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <TooltipProvider>
+          <DiffTab project={project} tab={conflictTab} focused />
+        </TooltipProvider>
+      </QueryClientProvider>,
+    );
+    return bridge;
+  }
+
+  it('offers AI next to mark resolved and starts it for this file', async () => {
+    const run = vi.fn(async () => ({ ok: false, cancelled: true, message: '' }));
+    renderConflict(run);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Resolve with AI' }));
+
+    expect(run).toHaveBeenCalledWith('p1', 'src/app.ts', expect.any(String));
+    // Settle the run so the shared in-flight list is empty for the next test.
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Resolve with AI' })).toBeInTheDocument(),
+    );
+  });
+
+  it('turns into a stop and holds off mark resolved while the AI works', async () => {
+    let finish: (answer: unknown) => void = () => undefined;
+    const run = vi.fn(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    );
+    const bridge = renderConflict(run);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Resolve with AI' }));
+
+    const stop = await screen.findByRole('button', { name: 'Stop resolving with AI' });
+    expect(screen.getByRole('button', { name: /Mark resolved/ })).toBeDisabled();
+    fireEvent.click(stop);
+    expect(bridge.$fn('git.cancelResolveConflictWithAi')).toHaveBeenCalledOnce();
+
+    await act(async () => {
+      finish({ ok: false, cancelled: true, message: 'Stopped. The file is back as it was.' });
+    });
+    expect(await screen.findByRole('button', { name: 'Resolve with AI' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Mark resolved/ })).toBeEnabled();
+  });
+
+  it('leaves AI off a diff that is not a conflict', async () => {
+    renderDiff(tab('src/app.ts'), diff('src/app.ts', { modified: 'a' }));
+    expect(await screen.findByTestId('monaco-diff')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Resolve with AI' })).not.toBeInTheDocument();
   });
 });

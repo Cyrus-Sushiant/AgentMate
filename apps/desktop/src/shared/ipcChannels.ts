@@ -675,6 +675,8 @@ export const IPC = {
     undoDiscard: 'git:undoDiscard',
     applyLines: 'git:applyLines',
     resolveConflict: 'git:resolveConflict',
+    resolveConflictWithAi: 'git:resolveConflictWithAi',
+    cancelResolveConflictWithAi: 'git:cancelResolveConflictWithAi',
     abortOperation: 'git:abortOperation',
     commitStaged: 'git:commitStaged',
     fileDiff: 'git:fileDiff',

@@ -7,7 +7,12 @@ import { queryKeys } from '@/lib/queryKeys';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
 import { currentBridge, installAgentmatBridge } from '../../../../../test/renderer/agentmatBridge';
 import { renderHookWithProviders } from '../../../../../test/renderer/renderWithProviders';
-import { openChangedFile, useGitActions } from './useWorkspaceGit';
+import {
+  openChangedFile,
+  useAiResolving,
+  useAiResolvingPaths,
+  useGitActions,
+} from './useWorkspaceGit';
 
 const toast = vi.hoisted(() => ({ error: vi.fn(), success: vi.fn() }));
 vi.mock('sonner', () => ({ toast, Toaster: () => null }));
@@ -88,5 +93,147 @@ describe('commit and push', () => {
       await result.current.commit('Add it', true);
     });
     expect(toast.success).toHaveBeenCalledWith('Committed and pushed', { description: 'Add it' });
+  });
+});
+
+describe('resolve with AI', () => {
+  type Answer = import('@shared/apiTypes').ResolveConflictWithAiResult;
+
+  /** A run that only finishes when the test says so, like a CLI still editing the file. */
+  function pendingRun() {
+    let finish: (answer: Answer) => void = () => undefined;
+    const run = vi.fn(
+      (_projectId: string, _path: string, _requestId: string) =>
+        new Promise<Answer>((resolve) => {
+          finish = resolve;
+        }),
+    );
+    return { run, finish: (answer: Answer) => finish(answer) };
+  }
+
+  function renderAi(bridge: Record<string, unknown>) {
+    return renderHookWithProviders(
+      () => ({
+        actions: useGitActions('p1'),
+        resolving: useAiResolving('p1', 'src/app.ts'),
+        isResolving: useAiResolvingPaths('p1'),
+      }),
+      { bridge },
+    );
+  }
+
+  beforeEach(() => {
+    toast.success.mockClear();
+    toast.error.mockClear();
+  });
+
+  it('shows the file as being resolved until the run comes back', async () => {
+    const { run, finish } = pendingRun();
+    const { result } = renderAi({ 'git.resolveConflictWithAi': run });
+
+    let done: Promise<void> = Promise.resolve();
+    act(() => {
+      done = result.current.actions.resolveWithAi('src/app.ts');
+    });
+    expect(result.current.resolving).toBe(true);
+    expect(result.current.isResolving('src/app.ts')).toBe(true);
+    expect(result.current.isResolving('src/other.ts')).toBe(false);
+    expect(run).toHaveBeenCalledWith('p1', 'src/app.ts', expect.any(String));
+
+    await act(async () => {
+      finish({ ok: true, message: 'Claude Code resolved src/app.ts.', undoToken: 't1' });
+      await done;
+    });
+    expect(result.current.resolving).toBe(false);
+  });
+
+  it('stops the run behind a second click instead of starting another', async () => {
+    const { run, finish } = pendingRun();
+    const { result, bridge } = renderAi({
+      'git.resolveConflictWithAi': run,
+      'git.cancelResolveConflictWithAi': async () => true,
+    });
+
+    let done: Promise<void> = Promise.resolve();
+    act(() => {
+      done = result.current.actions.resolveWithAi('src/app.ts');
+    });
+    const requestId = run.mock.calls[0]?.[2];
+    await act(async () => {
+      await result.current.actions.resolveWithAi('src/app.ts');
+    });
+
+    expect(run).toHaveBeenCalledOnce();
+    expect(bridge.$fn('git.cancelResolveConflictWithAi')).toHaveBeenCalledWith(requestId);
+    // Main still has to put the file back, so the row keeps showing the run until it answers.
+    expect(result.current.resolving).toBe(true);
+
+    await act(async () => {
+      finish({ ok: false, cancelled: true, message: 'Stopped. The file is back as it was.' });
+      await done;
+    });
+    expect(result.current.resolving).toBe(false);
+    expect(toast.success).not.toHaveBeenCalled();
+    expect(toast.error).not.toHaveBeenCalled();
+  });
+
+  it("reports success with the CLI's summary and an undo", async () => {
+    const { result, bridge } = renderAi({
+      'git.resolveConflictWithAi': {
+        ok: true,
+        message: 'Claude Code resolved src/app.ts. Review it, then mark it as resolved.',
+        summary: 'Kept both exports.',
+        undoToken: 't1',
+      },
+      'git.undoDiscard': { ok: true, message: 'Restored.' },
+    });
+
+    await act(async () => {
+      await result.current.actions.resolveWithAi('src/app.ts');
+    });
+
+    expect(toast.success).toHaveBeenCalledWith(
+      'Claude Code resolved src/app.ts. Review it, then mark it as resolved.',
+      expect.objectContaining({ description: 'Kept both exports.' }),
+    );
+    const options = toast.success.mock.calls[0]?.[1] as { action: { onClick: () => void } };
+    options.action.onClick();
+    expect(bridge.$fn('git.undoDiscard')).toHaveBeenCalledWith('p1', 't1');
+  });
+
+  it('says why when the CLI could not resolve it', async () => {
+    const { result } = renderAi({
+      'git.resolveConflictWithAi': {
+        ok: false,
+        message: 'Claude Code left conflict markers in the file. The file is back as it was.',
+      },
+    });
+
+    await act(async () => {
+      await result.current.actions.resolveWithAi('src/app.ts');
+    });
+
+    expect(toast.error).toHaveBeenCalledWith('AI could not resolve the conflict', {
+      description: 'Claude Code left conflict markers in the file. The file is back as it was.',
+    });
+    expect(result.current.resolving).toBe(false);
+  });
+
+  it('keeps runs apart per project', async () => {
+    const { run, finish } = pendingRun();
+    const { result } = renderAi({ 'git.resolveConflictWithAi': run });
+    const other = renderHookWithProviders(() => useAiResolving('p2', 'src/app.ts'));
+
+    let done: Promise<void> = Promise.resolve();
+    act(() => {
+      done = result.current.actions.resolveWithAi('src/app.ts');
+    });
+    expect(result.current.resolving).toBe(true);
+    expect(other.result.current).toBe(false);
+
+    await act(async () => {
+      finish({ ok: false, cancelled: true, message: '' });
+      await done;
+    });
   });
 });

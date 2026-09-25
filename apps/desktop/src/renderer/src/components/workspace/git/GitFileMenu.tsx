@@ -39,6 +39,8 @@ export function GitFileMenu({
   onStage,
   onUnstage,
   onDiscard,
+  onResolveWithAi,
+  aiResolving,
 }: {
   project: Project;
   projectPrefix: string;
@@ -49,6 +51,8 @@ export function GitFileMenu({
   onStage?: () => void;
   onUnstage?: () => void;
   onDiscard?: () => void;
+  onResolveWithAi?: () => void;
+  aiResolving?: boolean;
 }): React.JSX.Element {
   const deleted = entry.status === 'D';
   const absolute = repoFileAbsolutePath(project.folderPath, projectPrefix, entry.path);
@@ -90,7 +94,13 @@ export function GitFileMenu({
             : copyPaths(project, [entry.path], false)
         }
       />
-      {onStage || onUnstage || onDiscard ? <ContextMenuSeparator /> : null}
+      {onStage || onUnstage || onDiscard || onResolveWithAi ? <ContextMenuSeparator /> : null}
+      {onResolveWithAi ? (
+        <Item
+          label={aiResolving ? 'Stop Resolving with AI' : 'Resolve with AI'}
+          onSelect={onResolveWithAi}
+        />
+      ) : null}
       {onStage ? (
         <Item label={side === 'conflict' ? 'Mark as Resolved' : 'Stage'} onSelect={onStage} />
       ) : null}

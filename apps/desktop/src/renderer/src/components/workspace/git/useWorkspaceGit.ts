@@ -4,6 +4,7 @@ import { isImagePath } from '@shared/imageFiles';
 import { type QueryClient, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo } from 'react';
 import { toast } from 'sonner';
+import { create } from 'zustand';
 import { projectFilePath, repoFileAbsolutePath } from '@/lib/git';
 import { queryKeys } from '@/lib/queryKeys';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
@@ -68,6 +69,27 @@ export function openChangedFile(
   );
 }
 
+/**
+ * AI conflict runs still going, keyed by project and path, holding the id that stops each one.
+ * Kept outside React so closing the panel or the diff tab doesn't lose track of a run.
+ */
+const useAiResolves = create<Record<string, string>>(() => ({}));
+
+function aiResolveKey(projectId: string, path: string): string {
+  return `${projectId}\n${path}`;
+}
+
+/** Whether an AI CLI is working on this conflicted file right now. */
+export function useAiResolving(projectId: string, path: string): boolean {
+  return useAiResolves((s) => aiResolveKey(projectId, path) in s);
+}
+
+/** The same for a whole list of rows, which can't each call a hook. */
+export function useAiResolvingPaths(projectId: string): (path: string) => boolean {
+  const runs = useAiResolves();
+  return (path) => aiResolveKey(projectId, path) in runs;
+}
+
 function without(entries: GitChangeEntry[], paths: Set<string>): GitChangeEntry[] {
   return entries.filter((entry) => !paths.has(entry.path));
 }
@@ -90,6 +112,8 @@ export interface GitActions {
   /** Stages, unstages or discards only some lines of one file. */
   applyLines: (input: Omit<GitApplyLinesInput, 'projectId'>) => Promise<void>;
   resolve: (path: string, pick: 'ours' | 'theirs') => Promise<void>;
+  /** Has an AI CLI edit out the conflict markers, or stops it if it is already on that file. */
+  resolveWithAi: (path: string) => Promise<void>;
   abort: () => Promise<void>;
   commit: (message: string, push: boolean) => Promise<boolean>;
 }
@@ -101,9 +125,10 @@ export function useGitActions(projectId: string): GitActions {
     const resync = (): void => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.gitWorkspaceState(projectId) });
     };
-    const undoableToast = (result: GitDiscardResult): void => {
+    const undoableToast = (result: GitDiscardResult, description?: string): void => {
       const token = result.undoToken;
       toast.success(result.message, {
+        description,
         action: token
           ? {
               label: 'Undo',
@@ -217,6 +242,30 @@ export function useGitActions(projectId: string): GitActions {
         const result = await git.resolveConflict(projectId, path, pick);
         if (result.ok) toast.success(result.message);
         else toast.error('Could not resolve the conflict', { description: result.message });
+      },
+
+      resolveWithAi: async (path) => {
+        const key = aiResolveKey(projectId, path);
+        const running = useAiResolves.getState()[key];
+        if (running) {
+          // Main puts the file back once the CLI is down; the run below settles the state.
+          void git.cancelResolveConflictWithAi(running);
+          return;
+        }
+        const requestId = crypto.randomUUID();
+        useAiResolves.setState({ [key]: requestId });
+        try {
+          const result = await git.resolveConflictWithAi(projectId, path, requestId);
+          if (result.cancelled) return;
+          if (result.ok) undoableToast(result, result.summary);
+          else toast.error('AI could not resolve the conflict', { description: result.message });
+        } finally {
+          useAiResolves.setState((s) => {
+            if (s[key] !== requestId) return s;
+            const { [key]: _done, ...rest } = s;
+            return rest;
+          }, true);
+        }
       },
 
       abort: async () => {

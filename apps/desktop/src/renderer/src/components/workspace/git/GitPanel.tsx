@@ -71,6 +71,7 @@ import { SourceSection, SourceSectionSplitter } from './SourceSection';
 import {
   type GitActions,
   openChangedFile,
+  useAiResolvingPaths,
   useGitActions,
   useWorkspaceGitState,
 } from './useWorkspaceGit';
@@ -353,6 +354,7 @@ function ChangeSections({
     return tab?.kind === 'diff' ? `${tab.side}:${tab.path}` : null;
   });
   const [focusKey, setFocusKey] = useState<string | null>(null);
+  const aiResolving = useAiResolvingPaths(projectId);
 
   const sections: SectionConfig[] = [
     { id: 'conflicts', title: 'Conflicts', side: 'conflict', entries: state.conflicts },
@@ -447,6 +449,9 @@ function ChangeSections({
               ? null
               : section.entries.map((entry) => {
                   const key = `${section.side}:${entry.path}`;
+                  const conflict = section.side === 'conflict';
+                  // Marking it resolved while the AI is still writing would stage a half edit.
+                  const resolving = conflict && aiResolving(entry.path);
                   return (
                     <GitFileRow
                       key={key}
@@ -466,7 +471,7 @@ function ChangeSections({
                       }
                       onOpenFile={() => openFile(entry)}
                       onStage={
-                        section.side === 'staged'
+                        section.side === 'staged' || resolving
                           ? undefined
                           : () => void actions.stage([entry.path])
                       }
@@ -484,10 +489,12 @@ function ChangeSections({
                           : undefined
                       }
                       onResolve={
-                        section.side === 'conflict'
-                          ? (pick) => void actions.resolve(entry.path, pick)
-                          : undefined
+                        conflict ? (pick) => void actions.resolve(entry.path, pick) : undefined
                       }
+                      onResolveWithAi={
+                        conflict ? () => void actions.resolveWithAi(entry.path) : undefined
+                      }
+                      aiResolving={resolving}
                     />
                   );
                 })}

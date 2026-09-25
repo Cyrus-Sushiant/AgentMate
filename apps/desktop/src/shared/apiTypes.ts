@@ -1146,6 +1146,14 @@ export interface GitDiscardResult extends GitOpResult {
   undoToken?: string;
 }
 
+/** An AI CLI's go at a conflicted file. `undoToken` puts the markers back. */
+export interface ResolveConflictWithAiResult extends GitDiscardResult {
+  /** The CLI's own short account of what it kept. */
+  summary?: string;
+  /** Set when the user stopped the run; the file is back as it was. */
+  cancelled?: boolean;
+}
+
 export interface GitTagInfo {
   /** Most recent tag reachable from HEAD, or null when the repo has none yet. */
   latestTag: string | null;
