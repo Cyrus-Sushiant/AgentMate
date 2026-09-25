@@ -184,8 +184,10 @@ export function finishSplash(next: () => void): void {
  * `app:rendererReady` (see AppShell), then swaps them. A crash, a failed load
  * or the timeout reveals the window too, so startup can never get stuck on
  * the splash.
+ *
+ * `show` puts the window up; pass one that maximizes when the window should open that way.
  */
-export function handOffWhenReady(win: BrowserWindow): void {
+export function handOffWhenReady(win: BrowserWindow, show: () => void = () => win.show()): void {
   let done = false;
   const reveal = (): void => {
     if (done) return;
@@ -194,7 +196,7 @@ export function handOffWhenReady(win: BrowserWindow): void {
     ipcMain.removeListener(IPC.app.rendererReady, onReady);
     finishSplash(() => {
       if (win.isDestroyed()) return;
-      win.show();
+      show();
       win.focus();
     });
   };

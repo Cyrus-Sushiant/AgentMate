@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { useRef } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { SourceSection } from './SourceSection';
+import { SourceSection, SourceSectionSplitter } from './SourceSection';
 
 /**
  * A folding section of the Source control tab. A folded one must not render its body at all,
@@ -93,5 +94,85 @@ describe('SourceSection', () => {
       </SourceSection>,
     );
     expect(screen.getByRole('button', { name: /Commits/ })).toHaveTextContent(/^Commits$/);
+  });
+});
+
+describe('SourceSectionSplitter', () => {
+  function Sections({
+    onResize,
+    onReset = vi.fn(),
+  }: {
+    onResize: (upper: number, lower: number) => void;
+    onReset?: () => void;
+  }): React.JSX.Element {
+    const ref = useRef<HTMLDivElement>(null);
+    return (
+      <div ref={ref}>
+        <SourceSection id="changes" title="Changes" open onToggle={vi.fn()} primary>
+          <Body />
+        </SourceSection>
+        <SourceSection
+          id="branches"
+          title="Branches"
+          open
+          onToggle={vi.fn()}
+          splitter={
+            <SourceSectionSplitter
+              containerRef={ref}
+              upper="changes"
+              lower="branches"
+              onResize={onResize}
+              onReset={onReset}
+            />
+          }
+        >
+          <Body />
+        </SourceSection>
+      </div>
+    );
+  }
+
+  function stubHeights(heights: Record<string, number>): void {
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (
+      this: HTMLElement,
+    ) {
+      return { height: heights[this.dataset.sourceSection ?? ''] ?? 0 } as DOMRect;
+    });
+  }
+
+  afterEach(() => vi.restoreAllMocks());
+
+  it('moves height between the sections around it with the arrow keys', () => {
+    stubHeights({ changes: 300, branches: 200 });
+    const onResize = vi.fn();
+    render(<Sections onResize={onResize} />);
+    fireEvent.keyDown(screen.getByRole('separator', { name: 'Resize sections' }), {
+      key: 'ArrowDown',
+    });
+    expect(onResize).toHaveBeenCalledWith(316, 184);
+  });
+
+  it('never squeezes a section below its minimum', () => {
+    stubHeights({ changes: 300, branches: 120 });
+    const onResize = vi.fn();
+    render(<Sections onResize={onResize} />);
+    fireEvent.keyDown(screen.getByRole('separator'), { key: 'ArrowDown' });
+    expect(onResize).toHaveBeenCalledWith(308, 112);
+  });
+
+  it('lets the sections size themselves again on a double click', () => {
+    const onReset = vi.fn();
+    render(<Sections onResize={vi.fn()} onReset={onReset} />);
+    fireEvent.doubleClick(screen.getByRole('separator'));
+    expect(onReset).toHaveBeenCalledOnce();
+  });
+
+  it('applies a dragged height to a section that is not the primary one', () => {
+    render(
+      <SourceSection id="commits" title="Commits" open onToggle={vi.fn()} height={180}>
+        <Body />
+      </SourceSection>,
+    );
+    expect(screen.getByRole('region', { name: 'Commits' })).toHaveStyle({ flexBasis: '180px' });
   });
 });

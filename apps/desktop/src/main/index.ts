@@ -59,6 +59,12 @@ import { registerWindowHandlers } from './ipc/window';
 import { registerWorktreeHandlers } from './ipc/worktrees';
 import { focusMainWindow, setMainWindow, setMainWindowFactory } from './mainWindow';
 import {
+  loadMainWindowState,
+  MAIN_WINDOW_MIN_SIZE,
+  mainWindowBounds,
+  trackMainWindowState,
+} from './mainWindowState';
+import {
   applyProxySettingsFromStore,
   installProxyFetch,
   registerProxyAuthHandler,
@@ -177,11 +183,11 @@ let revealAfterSplash = false;
 function createMainWindow(): BrowserWindow {
   const behindSplash = revealAfterSplash;
   revealAfterSplash = false;
+  const savedState = loadMainWindowState();
   const win = new BrowserWindow({
-    width: 1440,
-    height: 860,
-    minWidth: 960,
-    minHeight: 600,
+    ...mainWindowBounds(savedState),
+    minWidth: MAIN_WINDOW_MIN_SIZE.width,
+    minHeight: MAIN_WINDOW_MIN_SIZE.height,
     show: false,
     frame: false,
     autoHideMenuBar: true,
@@ -199,11 +205,17 @@ function createMainWindow(): BrowserWindow {
     },
   });
 
+  trackMainWindowState(win, savedState.isMaximized);
+  // Maximizing also shows the window, so it waits until the window is due on screen anyway.
+  const reveal = (): void => {
+    if (savedState.isMaximized) win.maximize();
+    win.show();
+  };
   if (behindSplash) {
-    handOffWhenReady(win);
+    handOffWhenReady(win, reveal);
   } else {
     win.once('ready-to-show', () => {
-      if (!keepWindowsHidden) win.show();
+      if (!keepWindowsHidden) reveal();
     });
   }
   setMainWindow(win);

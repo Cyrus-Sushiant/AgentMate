@@ -43,6 +43,7 @@ import {
   GIT_PANEL_MAX_WIDTH,
   GIT_PANEL_MIN_WIDTH,
   type GitPanelSection,
+  SOURCE_CONTROL_SECTIONS,
   type SourceControlSection,
   useWorkspaceStore,
 } from '@/stores/workspaceStore';
@@ -66,7 +67,7 @@ import { BranchPrPill, pullRequestAttention } from './pr/BranchPrPill';
 import { PullRequestDialog } from './pr/PullRequestDialog';
 import { PullRequestSection } from './pr/PullRequestSection';
 import { announcePublishedBranch, usePullRequest } from './pr/usePullRequest';
-import { SourceSection } from './SourceSection';
+import { SourceSection, SourceSectionSplitter } from './SourceSection';
 import {
   type GitActions,
   openChangedFile,
@@ -556,6 +557,9 @@ function SourceControlBody({
   const actions = useGitActions(project.id);
   const openSections = useWorkspaceStore((s) => s.gitPanel.openSourceSections);
   const setSectionOpen = useWorkspaceStore((s) => s.setSourceSectionOpen);
+  const sectionHeights = useWorkspaceStore((s) => s.gitPanel.sourceSectionHeights);
+  const setSectionHeights = useWorkspaceStore((s) => s.setSourceSectionHeights);
+  const sectionsRef = useRef<HTMLDivElement>(null);
   const revealPanelSection = useWorkspaceStore((s) => s.revealPanelSection);
   const [prDialogOpen, setPrDialogOpen] = useState(false);
   const openCreateWorktree = useWorktreeDialogStore((s) => s.openCreate);
@@ -595,11 +599,41 @@ function SourceControlBody({
   const total =
     state.staged.length + state.unstaged.length + state.untracked.length + state.conflicts.length;
   const prAttention = pullRequestAttention(pullRequest.data?.pr);
-  const fold = (section: SourceControlSection) => ({
-    id: section,
-    open: openSections[section],
-    onToggle: () => setSectionOpen(section, !openSections[section]),
-  });
+  // The changes always take what is left, so only the other sections keep a dragged height.
+  const sized = (section: SourceControlSection, height: number | undefined) =>
+    section === 'changes' ? {} : { [section]: height };
+  const resized = SOURCE_CONTROL_SECTIONS.some(
+    (section) =>
+      section !== 'changes' && openSections[section] && sectionHeights[section] !== undefined,
+  );
+  const fold = (section: SourceControlSection) => {
+    const index = SOURCE_CONTROL_SECTIONS.indexOf(section);
+    const upper = SOURCE_CONTROL_SECTIONS.slice(0, index)
+      .reverse()
+      .find((other) => openSections[other]);
+    const lower = SOURCE_CONTROL_SECTIONS.slice(index).find((other) => openSections[other]);
+    return {
+      id: section,
+      open: openSections[section],
+      onToggle: () => setSectionOpen(section, !openSections[section]),
+      height: sectionHeights[section],
+      resized,
+      splitter:
+        upper && lower ? (
+          <SourceSectionSplitter
+            containerRef={sectionsRef}
+            upper={upper}
+            lower={lower}
+            onResize={(above, below) =>
+              setSectionHeights({ ...sized(upper, above), ...sized(lower, below) })
+            }
+            onReset={() =>
+              setSectionHeights({ ...sized(upper, undefined), ...sized(lower, undefined) })
+            }
+          />
+        ) : undefined,
+    };
+  };
 
   return (
     <>
@@ -626,7 +660,7 @@ function SourceControlBody({
         </div>
       ) : null}
       <WorktreeFinishSlot project={project} />
-      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+      <div ref={sectionsRef} className="flex min-h-0 flex-1 flex-col overflow-y-auto">
         <SourceSection
           {...fold('changes')}
           primary

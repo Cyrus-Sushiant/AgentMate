@@ -59,6 +59,7 @@ beforeEach(() => {
         pipelines: false,
         worktrees: false,
       },
+      sourceSectionHeights: {},
       mergeMethods: {},
     },
   });
@@ -811,6 +812,18 @@ describe('coming back from a saved layout', () => {
       pipelines: false,
       worktrees: false,
     });
+  });
+
+  it('keeps the dragged section heights and drops what it cannot use', async () => {
+    seed({
+      railProjectIds: [],
+      gitPanel: {
+        sourceSectionHeights: { branches: 180, commits: -4, pipelines: 'tall', x: 90 },
+      },
+      workspaces: {},
+    });
+    await rehydrate();
+    expect(store().gitPanel.sourceSectionHeights).toEqual({ branches: 180 });
   });
 
   it('keeps each project’s merge method and drops one it does not know', async () => {

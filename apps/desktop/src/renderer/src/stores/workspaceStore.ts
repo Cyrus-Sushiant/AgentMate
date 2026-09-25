@@ -156,6 +156,11 @@ interface GitPanelPrefs {
   activeSection: SidePanelSection;
   /** Which sections of the Source control tab are unfolded. */
   openSourceSections: Record<SourceControlSection, boolean>;
+  /**
+   * Heights in pixels the user dragged Source control sections to. A section without one sizes
+   * to what it shows, and the changes always take whatever is left.
+   */
+  sourceSectionHeights: Partial<Record<SourceControlSection, number>>;
   /** The merge method last used per project; squash when a project has none yet. */
   mergeMethods: Record<string, MergeMethod>;
 }
@@ -232,6 +237,10 @@ interface WorkspaceState {
   setGitPanel: (patch: Partial<GitPanelPrefs>) => void;
   /** Folds or unfolds one section of the Source control tab. */
   setSourceSectionOpen: (section: SourceControlSection, open: boolean) => void;
+  /** Sets or, with `undefined`, forgets the dragged heights of Source control sections. */
+  setSourceSectionHeights: (
+    patch: Partial<Record<SourceControlSection, number | undefined>>,
+  ) => void;
   /**
    * Brings a panel tab into view. A Source control section also switches to that tab and
    * unfolds the section.
@@ -247,7 +256,16 @@ interface WorkspaceState {
  */
 function restorePanelSections(
   saved: Partial<GitPanelPrefs> | undefined,
-): Pick<GitPanelPrefs, 'activeSection' | 'openSourceSections'> {
+): Pick<GitPanelPrefs, 'activeSection' | 'openSourceSections' | 'sourceSectionHeights'> {
+  const savedHeights: Record<string, unknown> = { ...(saved?.sourceSectionHeights ?? {}) };
+  const sourceSectionHeights = Object.fromEntries(
+    SOURCE_CONTROL_SECTIONS.flatMap((section) => {
+      const height = savedHeights[section];
+      return typeof height === 'number' && Number.isFinite(height) && height > 0
+        ? [[section, height]]
+        : [];
+    }),
+  ) as Partial<Record<SourceControlSection, number>>;
   const savedOpen: Record<string, unknown> = { ...(saved?.openSourceSections ?? {}) };
   const openSourceSections = Object.fromEntries(
     SOURCE_CONTROL_SECTIONS.map((section) => [
@@ -262,6 +280,7 @@ function restorePanelSections(
     return {
       activeSection: 'sourceControl',
       openSourceSections: { ...openSourceSections, [active]: true },
+      sourceSectionHeights,
     };
   }
   return {
@@ -269,6 +288,7 @@ function restorePanelSections(
       ? (active as SidePanelSection)
       : 'sourceControl',
     openSourceSections,
+    sourceSectionHeights,
   };
 }
 
@@ -363,6 +383,7 @@ export const useWorkspaceStore = create<WorkspaceState>()(
           lineStatsExpanded: false,
           activeSection: 'sourceControl',
           openSourceSections: DEFAULT_OPEN_SOURCE_SECTIONS,
+          sourceSectionHeights: {},
           mergeMethods: {},
         },
 
@@ -640,6 +661,18 @@ export const useWorkspaceStore = create<WorkspaceState>()(
               openSourceSections: { ...state.gitPanel.openSourceSections, [section]: open },
             },
           })),
+        setSourceSectionHeights: (patch) =>
+          set((state) => {
+            const heights = { ...state.gitPanel.sourceSectionHeights };
+            for (const [section, height] of Object.entries(patch) as [
+              SourceControlSection,
+              number | undefined,
+            ][]) {
+              if (height === undefined) delete heights[section];
+              else heights[section] = height;
+            }
+            return { gitPanel: { ...state.gitPanel, sourceSectionHeights: heights } };
+          }),
         revealPanelSection: (section) =>
           set((state) =>
             isSourceControlSection(section)

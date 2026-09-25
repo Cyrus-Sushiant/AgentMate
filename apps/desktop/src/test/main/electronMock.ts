@@ -257,6 +257,9 @@ export class FakeBrowserWindow {
   getBounds(): typeof this.bounds {
     return this.bounds;
   }
+  getNormalBounds(): typeof this.bounds {
+    return this.bounds;
+  }
   setAlwaysOnTop(): void {
     return undefined;
   }
