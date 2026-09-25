@@ -124,6 +124,17 @@ describe('projects CRUD', () => {
     expect(updated).toMatchObject({ iconBgColor: '#abcdef', iconColor: '#123456' });
   });
 
+  it('starts with no worktree setup and saves a cleaned one', async () => {
+    const created = await create();
+    expect(created.worktreeSetup).toEqual({ command: '', copyGlobs: null });
+    const updated = await invoke<Project>(IPC.projects.update, created.id, {
+      worktreeSetup: { command: '  pnpm install  ', copyGlobs: ['.env', ' '] },
+    });
+    expect(updated.worktreeSetup).toEqual({ command: 'pnpm install', copyGlobs: ['.env'] });
+    const untouched = await invoke<Project>(IPC.projects.update, created.id, { notes: 'x' });
+    expect(untouched.worktreeSetup.command).toBe('pnpm install');
+  });
+
   it('refuses to update or read a project that is gone', async () => {
     await expect(invoke(IPC.projects.update, 'missing', { name: 'x' })).rejects.toThrow(
       'Project missing not found',

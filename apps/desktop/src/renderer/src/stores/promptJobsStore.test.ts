@@ -134,6 +134,14 @@ describe('cancelPromptTask', () => {
     expect(bridge.$fn('ai.cancel')).toHaveBeenCalledWith('req-1');
   });
 
+  it('stops a translation through the translate bridge, not the AI one', () => {
+    beginPromptTask('k', 'translate', 'req-2');
+    cancelPromptTask('k');
+    expect(state().tasks.k).toBeUndefined();
+    expect(bridge.$fn('translate.cancel')).toHaveBeenCalledWith('req-2');
+    expect(() => bridge.$fn('ai.cancel')).toThrow();
+  });
+
   it('drops a job that has nothing to abort', () => {
     beginPromptTask('k', 'translate');
     cancelPromptTask('k');

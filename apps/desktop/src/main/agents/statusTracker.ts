@@ -24,6 +24,7 @@ import { showOsNotification } from '../notifications/osNotification';
 import { speakOnPet } from '../notifications/petNotifier';
 import { keepAwake } from '../power/keepAwake';
 import { store } from '../store';
+import { scopeDisplayName } from '../worktrees/resolve';
 
 /**
  * Follows what the agent in each workspace tab is doing, from the output stream and (for
@@ -217,7 +218,6 @@ async function flushNotices(): Promise<void> {
   pendingNotices = [];
   if (notices.length === 0) return;
   const settings = await store.getSettings().catch(() => null);
-  const projects = await store.getProjects().catch(() => []);
 
   const needsInput = notices.filter((n) => n.status === 'needs-input');
   // A question outranks a finished run: it is the one blocking work.
@@ -225,7 +225,7 @@ async function flushNotices(): Promise<void> {
   const entry = tracked.get(lead.id);
   if (!entry) return;
   const agent = (entry.cliId && getCliDefinition(entry.cliId)?.name) || 'Agent';
-  const project = projects.find((p) => p.id === entry.projectId)?.name ?? 'Workspace';
+  const project = (entry.projectId && (await scopeDisplayName(entry.projectId))) || 'Workspace';
   const others = notices.length - 1;
   const isQuestion = lead.status === 'needs-input';
 

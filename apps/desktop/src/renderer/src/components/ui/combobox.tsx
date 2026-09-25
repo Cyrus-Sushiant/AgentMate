@@ -29,6 +29,8 @@ export interface ComboboxProps {
   allowCustom?: boolean;
   /** Label for the typed-value row, given the typed text. */
   customLabel?: (text: string) => string;
+  /** What the field is, for screen readers, when no visible label points at it. */
+  ariaLabel?: string;
 }
 
 export function Combobox({
@@ -43,6 +45,7 @@ export function Combobox({
   clearable,
   allowCustom,
   customLabel = (text) => `Use "${text}"`,
+  ariaLabel,
 }: ComboboxProps): React.JSX.Element {
   const [open, setOpen] = React.useState(false);
   const [search, setSearch] = React.useState('');
@@ -68,6 +71,7 @@ export function Combobox({
           type="button"
           role="combobox"
           aria-expanded={open}
+          aria-label={ariaLabel}
           disabled={disabled}
           className={cn(
             'flex h-9 w-full cursor-pointer items-center justify-between gap-2 rounded-lg border border-input bg-background px-3 py-2 text-sm shadow-[inset_0_1px_0_0_hsl(0_0%_100%/0.04)] transition-colors hover:border-foreground/20 focus:outline-none focus-visible:border-primary/50 focus-visible:ring-2 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50 data-[state=open]:border-primary/50',

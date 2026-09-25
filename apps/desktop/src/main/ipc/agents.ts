@@ -12,6 +12,7 @@ import { claudeHookSettingsPath, supportsStatusHooks } from '../agents/claudeHoo
 import { listAgentHistory } from '../agents/sessionHistory';
 import { agentStatus } from '../agents/statusTracker';
 import { store } from '../store';
+import { findProjectScope } from '../worktrees/resolve';
 import { attachForTracking, autoContinue, SESSION_ID_PATTERN } from './terminal';
 
 function isEntry(value: unknown): value is AgentSessionEntry {
@@ -79,7 +80,8 @@ export function registerAgentHandlers(): void {
     IPC.agents.history,
     async (_event, projectId: unknown): Promise<AgentHistorySession[]> => {
       if (typeof projectId !== 'string') return [];
-      const project = (await store.getProjects()).find((p) => p.id === projectId);
+      // Claude Code and Codex file conversations by folder, so a worktree has its own.
+      const project = await findProjectScope(projectId);
       return project ? listAgentHistory(project.folderPath) : [];
     },
   );

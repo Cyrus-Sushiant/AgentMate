@@ -109,6 +109,44 @@ describe('newShell', () => {
     workspaceCommands.newShell();
     expect(Object.keys(workspace().tabs)).toHaveLength(1);
   });
+
+  it('opens the shell in the worktree when a worktree’s workspace is on screen', () => {
+    queryClient.setQueryData(queryKeys.worktrees('p1'), [
+      {
+        id: 'wt-1',
+        projectId: 'p1',
+        path: 'E:\\proj.worktrees\\feat',
+        branch: 'feat',
+        baseBranch: 'main',
+        createdAt: '2026-09-25T00:00:00.000Z',
+        createdByApp: true,
+        missing: false,
+        locked: false,
+        status: null,
+      },
+    ]);
+    store().openProject('p1~wt-1');
+    workspaceCommands.newShell();
+    const tabs = Object.values(store().workspaces['p1~wt-1']?.tabs ?? {});
+    expect(tabs).toHaveLength(1);
+    expect(tabs[0]).toMatchObject({ kind: 'terminal', cwd: 'E:\\proj.worktrees\\feat' });
+  });
+});
+
+describe('newWorktree', () => {
+  it('opens New worktree for the project on screen, from its checkout or a worktree', async () => {
+    const { useWorktreeDialogStore } = await import('@/stores/worktreeDialogStore');
+    store().openProject('p1~wt-1');
+    workspaceCommands.newWorktree();
+    expect(useWorktreeDialogStore.getState().create).toEqual({ projectId: 'p1' });
+  });
+
+  it('does nothing with no workspace open', async () => {
+    const { useWorktreeDialogStore } = await import('@/stores/worktreeDialogStore');
+    useWorktreeDialogStore.setState({ create: null });
+    workspaceCommands.newWorktree();
+    expect(useWorktreeDialogStore.getState().create).toBeNull();
+  });
 });
 
 describe('closeActiveTab', () => {

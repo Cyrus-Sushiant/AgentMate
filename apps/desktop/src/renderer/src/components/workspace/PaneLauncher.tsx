@@ -2,13 +2,14 @@ import type { Project } from '@agentmat/core';
 import { useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { CliLogo } from '@/components/cliLogos';
-import { Download, Sparkles, TerminalSquare } from '@/components/icons';
+import { Download, GitBranch, Sparkles, TerminalSquare } from '@/components/icons';
 import { ProjectIcon } from '@/components/projects/ProjectIcon';
 import { Skeleton } from '@/components/ui/skeleton';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import { useLauncherStore, usePromptDialogStore } from '@/lib/workspace/commands';
 import { launchAgentTab, launchShellTab, shellOptions } from '@/lib/workspace/launch';
+import type { WorkspaceProject } from '@/lib/workspace/scope';
 import { useCliStore } from '@/stores/cliStore';
 import { useAgentChoices } from './useAgentChoices';
 
@@ -29,6 +30,7 @@ export function PaneLauncher({
   focused,
 }: PaneLauncherProps): React.JSX.Element {
   const agents = useAgentChoices(project);
+  const worktree = (project as Partial<WorkspaceProject>).worktree ?? null;
   const shells = shellOptions();
   const menuOpen = useLauncherStore((s) => s.openForGroupId !== null);
   const hasLaunchDefaults = useCliStore((s) => Object.keys(s.cliLaunchDefaults).length > 0);
@@ -71,6 +73,14 @@ export function PaneLauncher({
               glyphClassName="h-6 w-6"
             />
             <h2 className="mt-4 text-xl font-semibold tracking-tight">{project.name}</h2>
+            {worktree ? (
+              // Several checkouts look alike, so say which one an agent started here works in.
+              <span className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-primary/35 bg-primary/10 px-2.5 py-0.5 text-xs">
+                <GitBranch className="h-3 w-3 text-primary" />
+                <span className="text-muted-foreground">Worktree</span>
+                <span className="font-mono font-medium">{worktree.branch ?? 'detached'}</span>
+              </span>
+            ) : null}
             <p className="mt-1 max-w-md truncate font-mono text-xs text-muted-foreground">
               {project.folderPath}
             </p>

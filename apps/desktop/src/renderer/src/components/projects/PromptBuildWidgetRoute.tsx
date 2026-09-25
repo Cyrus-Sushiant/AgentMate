@@ -55,6 +55,7 @@ export default function PromptBuildWidgetRoute(): React.JSX.Element {
     isTranslating,
     handleGenerate,
     handleTranslate,
+    handleCancel,
     handleCopy,
     saveDraftMutation,
   } = useProjectPromptBuilder(projectId, { enabled: !!projectId });
@@ -218,8 +219,17 @@ export default function PromptBuildWidgetRoute(): React.JSX.Element {
                 aria-busy={isBusy}
               />
               {isBusy && (
-                <div className="absolute inset-0 flex items-center justify-center rounded-lg bg-background/70 backdrop-blur-[2px]">
+                <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 rounded-lg bg-background/70 backdrop-blur-[2px]">
                   <Spinner className="h-4 w-4 animate-spin text-primary" />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-6 px-2 text-[11px]"
+                    onClick={handleCancel}
+                  >
+                    Cancel
+                  </Button>
                 </div>
               )}
             </div>

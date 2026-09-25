@@ -1,7 +1,8 @@
-import type { Project } from '@agentmat/core';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { parseScopeId } from '@agentmat/core';
+import { useQueryClient } from '@tanstack/react-query';
 import { useEffect } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { useWorkspaceProject } from '@/hooks/useWorktrees';
 import { queryKeys } from '@/lib/queryKeys';
 import { usePageHeader } from '@/stores/pageHeaderStore';
 import { useVersionDialogStore } from '@/stores/versionDialogStore';
@@ -17,20 +18,30 @@ export default function WorkspaceRoute(): null {
   const navigate = useNavigate();
   const openProject = useWorkspaceStore((s) => s.openProject);
   const activateTab = useWorkspaceStore((s) => s.activateTab);
-  const projectsQuery = useQuery<Project[]>({
-    queryKey: queryKeys.projects,
-    queryFn: () => window.agentmat.projects.list(),
-  });
-  const project = projectsQuery.data?.find((p) => p.id === projectId);
+  // The id in the URL is a project's, or a worktree's scope id (`<project>~<worktree>`).
+  const { project, projects, isPending } = useWorkspaceProject(projectId ?? null);
   const queryClient = useQueryClient();
 
   // A link to a project the cached list has not seen yet (just created): fetch it.
-  const unknown = Boolean(projectId && projectsQuery.data && !project);
+  const parentId = projectId ? parseScopeId(projectId).projectId : null;
+  const unknown = Boolean(parentId && !isPending && !projects.some((p) => p.id === parentId));
   useEffect(() => {
     if (unknown) void queryClient.invalidateQueries({ queryKey: queryKeys.projects });
   }, [unknown, queryClient]);
 
-  usePageHeader('Workspace', project ? `${project.name} · ${project.folderPath}` : undefined);
+  const branch = project?.worktree?.branch;
+  usePageHeader(
+    'Workspace',
+    project
+      ? [
+          project.name,
+          project.worktree ? `worktree ${branch ?? 'detached'}` : null,
+          project.folderPath,
+        ]
+          .filter(Boolean)
+          .join(' · ')
+      : undefined,
+  );
 
   useEffect(() => {
     if (projectId) {

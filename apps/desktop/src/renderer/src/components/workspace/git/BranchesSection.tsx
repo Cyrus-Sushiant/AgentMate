@@ -1,18 +1,43 @@
-import type { Project } from '@agentmat/core';
+import { type Project, parseScopeId, type WorktreeInfo } from '@agentmat/core';
 import type { GitBranchInfo, WorkspaceGitState } from '@shared/apiTypes';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { toast } from 'sonner';
-import { Check, CloudDownload, GitBranch, Search, Spinner, Trash2 } from '@/components/icons';
+import {
+  Check,
+  CloudDownload,
+  FolderPlus,
+  GitBranch,
+  Search,
+  Spinner,
+  Trash2,
+} from '@/components/icons';
 import { Skeleton } from '@/components/ui/skeleton';
 import { SimpleTooltip } from '@/components/ui/tooltip';
+import { useWorktrees } from '@/hooks/useWorktrees';
 import { queryKeys } from '@/lib/queryKeys';
 import { cn } from '@/lib/utils';
 import { confirmDialog } from '@/stores/confirmStore';
+import { useWorktreeCommands } from '../worktrees/useWorktreeCommands';
+
+/** Paths from git and from the project list can differ in slashes and, on Windows, case. */
+function samePath(a: string, b: string): boolean {
+  const norm = (p: string): string =>
+    p
+      .replace(/[\\/]+$/, '')
+      .replaceAll('\\', '/')
+      .toLowerCase();
+  return norm(a) === norm(b);
+}
+
+/** Who else has a branch checked out: the main checkout, or one of the project's worktrees. */
+type Holder = { kind: 'main' } | { kind: 'worktree'; worktree: WorktreeInfo | null };
 
 /**
  * Local and remote branches, with the current one marked. Clicking a branch switches to it;
- * git refuses (and the reason is shown) when uncommitted changes would be overwritten.
+ * git refuses (and the reason is shown) when uncommitted changes would be overwritten. A branch
+ * that another worktree (or the main checkout) has checked out opens that workspace instead,
+ * since git checks a branch out in one place at a time.
  * Local branches delete locally; a branch that only exists on the remote is deleted there.
  * The default branch and master can't be deleted from here.
  */
@@ -31,6 +56,14 @@ export function BranchesSection({
   const [filter, setFilter] = useState('');
   const [busy, setBusy] = useState<string | null>(null);
   const [newName, setNewName] = useState('');
+  const { projectId: parentId } = parseScopeId(project.id);
+  const worktreeCommands = useWorktreeCommands();
+  const worktrees = useWorktrees(parentId).data;
+  const projects = useQuery({
+    queryKey: queryKeys.projects,
+    queryFn: () => window.agentmat.projects.list(),
+  }).data;
+  const parent = projects?.find((p) => p.id === parentId) ?? null;
   const status = useQuery({
     // Keyed on the branch so a switch made anywhere re-reads the list.
     queryKey: [...queryKeys.gitStatus(project.id), state?.branch ?? '', state?.head ?? ''],
@@ -45,8 +78,28 @@ export function BranchesSection({
     void queryClient.invalidateQueries({ queryKey: queryKeys.gitWorkspaceState(project.id) });
   };
 
+  function holderOf(branch: GitBranchInfo): Holder | null {
+    const path = branch.worktreePath;
+    if (!path) return null;
+    if (parent && samePath(path, parent.folderPath)) return { kind: 'main' };
+    return { kind: 'worktree', worktree: worktrees?.find((w) => samePath(w.path, path)) ?? null };
+  }
+
   async function switchTo(branch: GitBranchInfo): Promise<void> {
     if (busy || branch.name === state?.branch) return;
+    const holder = holderOf(branch);
+    if (holder?.kind === 'main') {
+      worktreeCommands.openMain(parentId);
+      return;
+    }
+    if (holder?.kind === 'worktree') {
+      if (holder.worktree && parent) worktreeCommands.open(parent, holder.worktree);
+      else
+        toast.info(`${branch.name} is open in another worktree`, {
+          description: branch.worktreePath,
+        });
+      return;
+    }
     const dirty = state
       ? state.staged.length + state.unstaged.length + state.conflicts.length > 0
       : false;
@@ -131,6 +184,7 @@ export function BranchesSection({
 
   const row = (branch: GitBranchInfo): React.JSX.Element => {
     const current = branch.name === state.branch;
+    const holder = current ? null : holderOf(branch);
     return (
       <div
         key={`${branch.local ? 'l' : 'r'}:${branch.name}`}
@@ -162,11 +216,36 @@ export function BranchesSection({
               default
             </span>
           ) : null}
-          {branch.local && !branch.remote && state.hasRemote ? (
+          {branch.local && !branch.remote && state.hasRemote && !holder ? (
             <span className="shrink-0 text-[10px] text-muted-foreground/70">local only</span>
           ) : null}
+          {holder ? (
+            <span className="ml-auto flex shrink-0 items-center gap-1 rounded bg-primary/10 px-1 text-[9px] font-medium text-primary">
+              <GitBranch className="h-2 w-2" />
+              {holder.kind === 'main' ? 'in main checkout' : 'in worktree'}
+            </span>
+          ) : null}
         </button>
-        {!current && branch.name !== defaultBranch && branch.name !== 'master' ? (
+        {!current && !holder ? (
+          <SimpleTooltip label="Open in a new worktree">
+            <button
+              type="button"
+              aria-label={`Open ${branch.name} in a new worktree`}
+              onClick={() =>
+                worktreeCommands.create({
+                  projectId: parentId,
+                  branch: branch.name,
+                  mode: 'existing',
+                })
+              }
+              disabled={busy !== null}
+              className="hidden h-5 w-5 items-center justify-center rounded text-muted-foreground hover:bg-foreground/10 hover:text-primary group-hover/branch:flex focus-visible:flex"
+            >
+              <FolderPlus className="h-2.5 w-2.5" />
+            </button>
+          </SimpleTooltip>
+        ) : null}
+        {!current && !holder && branch.name !== defaultBranch && branch.name !== 'master' ? (
           <SimpleTooltip label={branch.local ? 'Delete branch' : 'Delete remote branch'}>
             <button
               type="button"

@@ -257,6 +257,35 @@ export function resumeInputFor(tab: WorkspaceTerminalTab): string | null {
   return command ? `${command}\r` : null;
 }
 
+/**
+ * What a setup tab types: the command, then an exit that only runs when it succeeded. A clean
+ * exit closes the tab (plain shells do, see WorkspaceHost), so a finished install tidies itself
+ * away, while a failed one stays open with its error on screen.
+ */
+export function setupInput(command: string, shell: string | undefined, platform: string): string {
+  const kind = shellKindFor(shell, platform);
+  const exit =
+    kind === 'powershell' ? '; if ($?) { exit }' : kind === 'fish' ? '; and exit' : ' && exit';
+  return `${command}${exit}\r`;
+}
+
+/** Runs a worktree's setup command (an install, say) in a tab of its own. Returns the tab id. */
+export function launchSetupTab(project: Project, command: string, groupId?: string): string {
+  const shell = defaultNewSession().shell;
+  const store = useWorkspaceStore.getState();
+  store.openProject(project.id);
+  return store.addTerminal(
+    project.id,
+    {
+      title: 'Setup',
+      shell,
+      cwd: project.folderPath,
+      launchInput: setupInput(command, shell, window.agentmat.platform),
+    },
+    groupId,
+  );
+}
+
 /** Opens a plain shell tab in the project folder, or in `cwd` inside it. Returns the tab id. */
 export function launchShellTab(
   project: Project,

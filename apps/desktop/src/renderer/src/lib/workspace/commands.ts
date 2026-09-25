@@ -1,10 +1,12 @@
-import type { PaneDirection, Project, SplitDirection } from '@agentmat/core';
-import { findGroup, findNeighborGroup, type PaneRect } from '@agentmat/core';
+import type { PaneDirection, Project, SplitDirection, WorktreeInfo } from '@agentmat/core';
+import { findGroup, findNeighborGroup, type PaneRect, parseScopeId } from '@agentmat/core';
 import { create } from 'zustand';
 import { queryKeys } from '@/lib/queryKeys';
 import { queryClient } from '@/queryClient';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
+import { useWorktreeDialogStore } from '@/stores/worktreeDialogStore';
 import { launchShellTab } from './launch';
+import { resolveWorkspaceProject } from './scope';
 
 interface LauncherState {
   /** The pane group whose "+" menu is open, or null. */
@@ -41,11 +43,14 @@ export function isWorkspacePath(pathname: string): boolean {
   return pathname === '/workspace' || pathname.startsWith('/workspace/');
 }
 
+/** The project on screen, pointed at the worktree when a worktree's workspace is showing. */
 function activeProject(): Project | null {
-  const projectId = useWorkspaceStore.getState().activeProjectId;
-  if (!projectId) return null;
-  const projects = queryClient.getQueryData<Project[]>(queryKeys.projects);
-  return projects?.find((project) => project.id === projectId) ?? null;
+  const scopeId = useWorkspaceStore.getState().activeProjectId;
+  if (!scopeId) return null;
+  const { projectId } = parseScopeId(scopeId);
+  const projects = queryClient.getQueryData<Project[]>(queryKeys.projects) ?? [];
+  const worktrees = queryClient.getQueryData<WorktreeInfo[]>(queryKeys.worktrees(projectId));
+  return resolveWorkspaceProject(projects, { [projectId]: worktrees }, scopeId);
 }
 
 function activeWorkspace() {
@@ -145,5 +150,12 @@ export const workspaceCommands = {
   toggleGitPanel(): void {
     const { gitPanel, setGitPanel } = useWorkspaceStore.getState();
     setGitPanel({ collapsed: !gitPanel.collapsed });
+  },
+
+  /** New worktree of the project on screen, whether its checkout or one of its worktrees is up. */
+  newWorktree(): void {
+    const scopeId = useWorkspaceStore.getState().activeProjectId;
+    if (!scopeId) return;
+    useWorktreeDialogStore.getState().openCreate({ projectId: parseScopeId(scopeId).projectId });
   },
 };

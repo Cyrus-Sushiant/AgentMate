@@ -270,3 +270,27 @@ describe('background task arguments never reach a terminal', () => {
     expect(typed()).toBe('claude --model opus\r');
   });
 });
+
+describe('launchSetupTab', () => {
+  it('runs the setup command in a tab of its own that closes once it succeeds', async () => {
+    const { launchSetupTab } = await load();
+    expect(launchSetupTab(project, 'pnpm install')).toBe('tab-1');
+    expect(addTerminal).toHaveBeenLastCalledWith(
+      'p1',
+      {
+        title: 'Setup',
+        shell: 'powershell.exe',
+        cwd: 'E:\\proj',
+        launchInput: 'pnpm install; if ($?) { exit }\r',
+      },
+      undefined,
+    );
+  });
+
+  it('uses the exit that the shell understands', async () => {
+    const { setupInput } = await load();
+    expect(setupInput('npm ci', 'cmd.exe', 'win32')).toBe('npm ci && exit\r');
+    expect(setupInput('npm ci', 'bash', 'linux')).toBe('npm ci && exit\r');
+    expect(setupInput('npm ci', 'fish', 'darwin')).toBe('npm ci; and exit\r');
+  });
+});

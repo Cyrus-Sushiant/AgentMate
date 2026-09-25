@@ -127,6 +127,7 @@ import {
 import { showOsNotification } from '../notifications/osNotification';
 import { schedulePipelineCheck } from '../pipelines/watcher';
 import { store } from '../store';
+import { findProjectScope } from '../worktrees/resolve';
 
 const GH_TIMEOUT_MS = 30000;
 /**
@@ -142,9 +143,9 @@ const VERSION_BUMP_TIMEOUT_MS = 900000;
  */
 const LOCAL_REMOTE_PATTERN = /^([a-z]:[\\/]|\\\\|\/|\.{1,2}[\\/]|file:)/i;
 
+/** The project, or for a worktree's workspace (a scope id) the project pointed at the worktree. */
 async function getProject(projectId: string): Promise<Project> {
-  const projects = await store.getProjects();
-  const project = projects.find((p) => p.id === projectId);
+  const project = await findProjectScope(projectId);
   if (!project) throw new Error(`Project ${projectId} not found`);
   return project;
 }

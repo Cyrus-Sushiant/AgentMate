@@ -71,6 +71,10 @@ export const queryKeys = {
   scheduledTasksAll: ['scheduled-tasks'] as const,
   claudeHooks: (projectId: string) => ['claude-hooks', projectId] as const,
   gitStatus: (projectId: string) => ['git-status', projectId] as const,
+  /** A project's git worktrees, with each one's live status. */
+  worktrees: (projectId: string) => ['worktrees', projectId] as const,
+  /** What the New worktree dialog starts from: branches, copy patterns, setup command. */
+  worktreeDefaults: (projectId: string) => ['worktrees', projectId, 'defaults'] as const,
   /** The workspace changes panel's state, pushed live by the working tree watcher. */
   gitWorkspaceState: (projectId: string) => ['git-workspace-state', projectId] as const,
   agentHistory: (projectId: string) => ['agent-history', projectId] as const,

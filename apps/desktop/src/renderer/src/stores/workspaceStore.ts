@@ -13,6 +13,7 @@ import {
   moveTab,
   normalizeLayout,
   type PaneNode,
+  parseScopeId,
   remapPath,
   removeGroup,
   removeTab,
@@ -94,11 +95,18 @@ export const SIDE_PANEL_SECTIONS: SidePanelSection[] = [
 ];
 
 /** The folding sections inside the Source control tab, top to bottom. */
-export type SourceControlSection = 'changes' | 'branches' | 'commits' | 'pullRequest' | 'pipelines';
+export type SourceControlSection =
+  | 'changes'
+  | 'branches'
+  | 'worktrees'
+  | 'commits'
+  | 'pullRequest'
+  | 'pipelines';
 
 export const SOURCE_CONTROL_SECTIONS: SourceControlSection[] = [
   'changes',
   'branches',
+  'worktrees',
   'commits',
   'pullRequest',
   'pipelines',
@@ -108,6 +116,7 @@ export const SOURCE_CONTROL_SECTIONS: SourceControlSection[] = [
 const DEFAULT_OPEN_SOURCE_SECTIONS: Record<SourceControlSection, boolean> = {
   changes: true,
   branches: false,
+  worktrees: false,
   commits: false,
   pullRequest: false,
   pipelines: false,
@@ -154,15 +163,26 @@ interface GitPanelPrefs {
 export type NewTerminalTab = Omit<WorkspaceTerminalTab, 'kind' | 'id' | 'createdAt'>;
 
 interface WorkspaceState {
+  /**
+   * Keyed by project id for a project's own checkout, and by scope id (`<project>~<worktree>`,
+   * see `worktreeScopeId`) for each of its git worktrees.
+   */
   workspaces: Record<string, ProjectWorkspace>;
   /** Projects open in the rail, in the order they were opened or the user dragged them into. */
   railProjectIds: string[];
+  /** The workspace on screen: a project id or a worktree's scope id. */
   activeProjectId: string | null;
+  /** Projects whose worktrees are folded away in the rail. Unset means shown. */
+  railExpanded: Record<string, boolean>;
   gitPanel: GitPanelPrefs;
 
+  /** Opens a project's workspace, or a worktree's (by scope id, which puts its project in the rail). */
   openProject: (projectId: string) => void;
-  /** Removes a project from the rail and ends every shell it had open. */
+  /** Removes a project from the rail and ends every shell it, and each of its worktrees, had open. */
   closeProject: (projectId: string) => void;
+  /** Closes one worktree's workspace and ends its shells, going back to the project if it was open. */
+  closeWorkspace: (scopeId: string) => void;
+  setRailExpanded: (projectId: string, expanded: boolean) => void;
   /** Moves a project to another spot in the rail. `index` is a slot in the rail's current order. */
   moveRailProject: (projectId: string, index: number) => void;
   addTerminal: (projectId: string, tab: NewTerminalTab, groupId?: string) => string;
@@ -332,6 +352,7 @@ export const useWorkspaceStore = create<WorkspaceState>()(
         workspaces: {},
         railProjectIds: [],
         activeProjectId: null,
+        railExpanded: {},
         gitPanel: {
           width: GIT_PANEL_DEFAULT_WIDTH,
           collapsed: false,
@@ -346,33 +367,61 @@ export const useWorkspaceStore = create<WorkspaceState>()(
         },
 
         openProject: (projectId) =>
-          set((state) => ({
-            activeProjectId: projectId,
-            railProjectIds: state.railProjectIds.includes(projectId)
-              ? state.railProjectIds
-              : [...state.railProjectIds, projectId],
-            workspaces: state.workspaces[projectId]
-              ? state.workspaces
-              : { ...state.workspaces, [projectId]: emptyWorkspace() },
-          })),
+          set((state) => {
+            // The rail lists projects; a worktree shows up under its project there.
+            const railId = parseScopeId(projectId).projectId;
+            return {
+              activeProjectId: projectId,
+              railProjectIds: state.railProjectIds.includes(railId)
+                ? state.railProjectIds
+                : [...state.railProjectIds, railId],
+              workspaces: state.workspaces[projectId]
+                ? state.workspaces
+                : { ...state.workspaces, [projectId]: emptyWorkspace() },
+            };
+          }),
 
         closeProject: (projectId) => {
-          const workspace = get().workspaces[projectId];
-          for (const tab of Object.values(workspace?.tabs ?? {})) endTab(tab);
+          const belongs = (key: string): boolean => parseScopeId(key).projectId === projectId;
+          for (const [key, workspace] of Object.entries(get().workspaces)) {
+            if (belongs(key)) for (const tab of Object.values(workspace.tabs)) endTab(tab);
+          }
           set((state) => {
-            const { [projectId]: _closed, ...workspaces } = state.workspaces;
+            const workspaces = Object.fromEntries(
+              Object.entries(state.workspaces).filter(([key]) => !belongs(key)),
+            );
             const railProjectIds = state.railProjectIds.filter((id) => id !== projectId);
             const index = state.railProjectIds.indexOf(projectId);
             return {
               workspaces,
               railProjectIds,
               activeProjectId:
-                state.activeProjectId === projectId
+                state.activeProjectId && belongs(state.activeProjectId)
                   ? (railProjectIds[Math.min(index, railProjectIds.length - 1)] ?? null)
                   : state.activeProjectId,
             };
           });
         },
+
+        closeWorkspace: (scopeId) => {
+          const { projectId, worktreeId } = parseScopeId(scopeId);
+          // A project's own workspace goes with the project, through closeProject.
+          if (!worktreeId) return;
+          for (const tab of Object.values(get().workspaces[scopeId]?.tabs ?? {})) endTab(tab);
+          set((state) => {
+            const { [scopeId]: _closed, ...workspaces } = state.workspaces;
+            if (state.activeProjectId !== scopeId) return { workspaces };
+            return {
+              workspaces: workspaces[projectId]
+                ? workspaces
+                : { ...workspaces, [projectId]: emptyWorkspace() },
+              activeProjectId: projectId,
+            };
+          });
+        },
+
+        setRailExpanded: (projectId, expanded) =>
+          set((state) => ({ railExpanded: { ...state.railExpanded, [projectId]: expanded } })),
 
         moveRailProject: (projectId, index) =>
           set((state) => {
@@ -619,6 +668,7 @@ export const useWorkspaceStore = create<WorkspaceState>()(
       partialize: (state) => ({
         railProjectIds: state.railProjectIds,
         activeProjectId: state.activeProjectId,
+        railExpanded: state.railExpanded,
         gitPanel: state.gitPanel,
         workspaces: Object.fromEntries(
           Object.entries(state.workspaces).map(([projectId, ws]) => {
@@ -655,11 +705,26 @@ export const useWorkspaceStore = create<WorkspaceState>()(
             zoomedGroupId: typeof ws?.zoomedGroupId === 'string' ? ws.zoomedGroupId : null,
           });
         }
-        const railProjectIds = (saved.railProjectIds ?? []).filter((id) => workspaces[id]);
+        // A project stays in the rail while any of its workspaces, its own or a worktree's, is left.
+        const withWorkspace = new Set(
+          Object.keys(workspaces).map((key) => parseScopeId(key).projectId),
+        );
+        const railProjectIds = (saved.railProjectIds ?? []).filter((id) => withWorkspace.has(id));
+        // A worktree's workspace only makes sense under its project in the rail.
+        for (const key of Object.keys(workspaces)) {
+          const { projectId, worktreeId } = parseScopeId(key);
+          if (worktreeId && !railProjectIds.includes(projectId)) delete workspaces[key];
+        }
+        const railExpanded = Object.fromEntries(
+          Object.entries(saved.railExpanded ?? {}).filter(
+            ([id, open]) => railProjectIds.includes(id) && typeof open === 'boolean',
+          ),
+        );
         return {
           ...current,
           workspaces,
           railProjectIds,
+          railExpanded,
           activeProjectId:
             saved.activeProjectId && workspaces[saved.activeProjectId]
               ? saved.activeProjectId

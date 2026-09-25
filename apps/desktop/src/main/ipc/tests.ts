@@ -9,9 +9,9 @@ import type {
 } from '@agentmat/core';
 import { ipcMain } from 'electron';
 import { IPC } from '../../shared/ipcChannels';
-import { store } from '../store';
 import { discoverWorkspaceTests } from '../tests/discovery';
 import { TestRunManager } from '../tests/runner';
+import { findProjectScope } from '../worktrees/resolve';
 import { broadcastToWindows } from './send';
 
 /**
@@ -29,7 +29,7 @@ const manager = new TestRunManager({
 });
 
 async function projectFolder(projectId: string): Promise<string> {
-  const project = (await store.getProjects()).find((entry) => entry.id === projectId);
+  const project = await findProjectScope(projectId);
   if (!project) throw new Error(`Project ${projectId} not found`);
   return project.folderPath;
 }

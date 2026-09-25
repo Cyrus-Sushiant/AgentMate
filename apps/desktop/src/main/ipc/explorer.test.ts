@@ -450,3 +450,36 @@ describe('explorer:ignoredPaths', () => {
     ).toEqual([]);
   });
 });
+
+describe('explorer in a worktree workspace', () => {
+  function addWorktree(): { scope: string; dir: string } {
+    const dir = join(tempDir('agentmate-explorer-wt-'), 'feat');
+    repo.git('worktree', 'add', '-b', 'feat', dir);
+    userData.writeData('worktrees.json', [
+      {
+        id: 'wt-1',
+        projectId: PROJECT_ID,
+        path: dir,
+        branch: 'feat',
+        baseBranch: 'main',
+        createdAt: '2026-09-25T00:00:00.000Z',
+        createdByApp: true,
+      },
+    ]);
+    return { scope: `${PROJECT_ID}~wt-1`, dir };
+  }
+
+  it('writes inside the worktree when given its scope id', async () => {
+    const { scope, dir } = addWorktree();
+    await invoke(IPC.explorer.createFile, scope, dir, 'made-here.txt');
+    expect(existsSync(join(dir, 'made-here.txt'))).toBe(true);
+  });
+
+  it('keeps a worktree workspace out of the main checkout', async () => {
+    const { scope } = addWorktree();
+    await expect(invoke(IPC.explorer.createFile, scope, repo.dir, 'stray.txt')).rejects.toThrow(
+      'outside of the allowed directories',
+    );
+    expect(existsSync(join(repo.dir, 'stray.txt'))).toBe(false);
+  });
+});

@@ -37,6 +37,7 @@ export type ShortcutCommandId =
   | 'workspace.prevTab'
   | 'workspace.zoomPane'
   | 'workspace.toggleGitPanel'
+  | 'workspace.newWorktree'
   | 'workspace.goToTab'
   | 'workspace.nextChange'
   | 'workspace.prevChange'
@@ -267,6 +268,15 @@ export const SHORTCUT_COMMANDS: ShortcutCommand[] = [
     group: 'Workspace',
     scope: 'workspace',
     defaults: [{ code: 'KeyG', mod: true, shift: true }],
+  },
+  {
+    id: 'workspace.newWorktree',
+    label: 'New worktree',
+    description:
+      'Starts a git worktree of the project on screen: its own folder and branch, with its own terminals and agents.',
+    group: 'Workspace',
+    scope: 'workspace',
+    defaults: [{ code: 'KeyN', mod: true, shift: true }],
   },
   {
     id: 'workspace.goToTab',

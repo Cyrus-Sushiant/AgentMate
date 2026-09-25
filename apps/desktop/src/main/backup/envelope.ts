@@ -22,6 +22,7 @@ import {
   normalizeProjectGithubActions,
   normalizeProjectNotifications,
   normalizeProjectRunCommands,
+  normalizeProjectWorktreeSetup,
   withBlueprintDefaults,
 } from '@agentmat/core';
 import type {
@@ -167,6 +168,7 @@ function buildProject(entry: Record_): Project | null {
     websiteUrl: strOr(entry.websiteUrl, ''),
     repoUrl: strOr(entry.repoUrl, ''),
     githubActionsMuted: normalizeProjectGithubActions(entry.githubActionsMuted),
+    worktreeSetup: normalizeProjectWorktreeSetup(entry.worktreeSetup),
     pinned: entry.pinned === true,
     archived: entry.archived === true,
     createdAt: strOr(entry.createdAt, now),

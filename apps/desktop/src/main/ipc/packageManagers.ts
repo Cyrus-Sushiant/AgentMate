@@ -9,7 +9,7 @@ import type {
 } from '../../shared/apiTypes';
 import { IPC } from '../../shared/ipcChannels';
 import { PACKAGE_MANAGER_ADAPTERS, scanProjectPackages } from '../packageManagers';
-import { store } from '../store';
+import { findProjectScope } from '../worktrees/resolve';
 import { sendToContents } from './send';
 
 /**
@@ -29,8 +29,7 @@ const NAME_PATTERNS: Record<PackageManagerEcosystem, RegExp> = {
 const VERSION_PATTERN = /^[A-Za-z0-9][A-Za-z0-9.+-]*$/;
 
 async function getProjectPath(projectId: string): Promise<string> {
-  const projects = await store.getProjects();
-  const project = projects.find((p) => p.id === projectId);
+  const project = await findProjectScope(projectId);
   if (!project) throw new Error(`Project ${projectId} not found`);
   return project.folderPath;
 }

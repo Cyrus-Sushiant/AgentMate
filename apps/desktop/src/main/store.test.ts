@@ -384,6 +384,7 @@ describe('project defaults on read', () => {
         repoUrl: '',
         githubActionsMuted: [],
         notifications: defaultProjectNotifications(),
+        worktreeSetup: { command: '', copyGlobs: null },
       }),
     ]);
   });
@@ -674,5 +675,57 @@ describe('settings written by the app come back byte for byte', () => {
     await store.setSettings(settings);
 
     expect(await store.getSettings()).toEqual(settings);
+  });
+});
+
+describe('worktree settings', () => {
+  it('starts with worktrees next to the repository and .env files copied', async () => {
+    const { store } = await loadStore();
+
+    expect((await store.getSettings()).worktrees).toEqual({
+      baseDir: null,
+      copyGlobs: ['.env', '.env.*'],
+      deleteBranchOnRemove: false,
+    });
+  });
+
+  it('cleans a hand-edited value on read', async () => {
+    userData.writeData('settings.json', {
+      worktrees: { baseDir: '  ', copyGlobs: ['.env', 7], deleteBranchOnRemove: 'yes' },
+    });
+    const { store } = await loadStore();
+
+    expect((await store.getSettings()).worktrees).toEqual({
+      baseDir: null,
+      copyGlobs: ['.env'],
+      deleteBranchOnRemove: false,
+    });
+  });
+});
+
+describe('worktree records', () => {
+  it('reads an empty list on a fresh profile', async () => {
+    const { store } = await loadStore();
+
+    expect(await store.getWorktrees()).toEqual([]);
+  });
+
+  it('round-trips records and drops ones that cannot be used', async () => {
+    const { store } = await loadStore();
+    const good = {
+      id: 'wt-1',
+      projectId: 'p1',
+      path: 'C:/code/app.worktrees/feat',
+      branch: 'feat',
+      baseBranch: 'main',
+      createdAt: '2026-09-25T00:00:00.000Z',
+      createdByApp: true,
+    };
+    userData.writeData('worktrees.json', [good, { id: 'wt-2' }, 'junk', { ...good, id: '' }]);
+
+    expect(await store.getWorktrees()).toEqual([good]);
+
+    await store.setWorktrees([{ ...good, branch: null }]);
+    expect(await store.getWorktrees()).toEqual([{ ...good, branch: null }]);
   });
 });

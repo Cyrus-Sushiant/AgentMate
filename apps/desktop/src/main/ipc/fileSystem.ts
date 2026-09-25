@@ -6,6 +6,7 @@ import { imageMimeType } from '../../shared/imageFiles';
 import { IPC } from '../../shared/ipcChannels';
 import { assertPathWithinRoots } from '../pathGuard';
 import { store } from '../store';
+import { knownWorktreePaths } from '../worktrees/resolve';
 
 /**
  * Past this an image is left to the default app rather than carried into the renderer as a
@@ -13,10 +14,13 @@ import { store } from '../store';
  */
 const MAX_IMAGE_BYTES = 16 * 1024 * 1024;
 
-/** Every folder the app is allowed to read or write through IPC: its own data, and the projects. */
+/**
+ * Every folder the app is allowed to read or write through IPC: its own data, the projects, and
+ * their worktrees (which sit next to the repository, outside the project folder, by default).
+ */
 export async function allowedRoots(): Promise<string[]> {
-  const projects = await store.getProjects();
-  return [app.getPath('userData'), ...projects.map((p) => p.folderPath)];
+  const [projects, worktrees] = await Promise.all([store.getProjects(), knownWorktreePaths()]);
+  return [app.getPath('userData'), ...projects.map((p) => p.folderPath), ...worktrees];
 }
 
 export function registerFileSystemHandlers(): void {

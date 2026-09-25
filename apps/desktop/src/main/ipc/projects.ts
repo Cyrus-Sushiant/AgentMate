@@ -8,10 +8,12 @@ import type {
   ProjectNotificationSettings,
 } from '@agentmat/core';
 import {
+  DEFAULT_PROJECT_WORKTREE_SETUP,
   defaultProjectNotifications,
   getBootstrapPlan,
   normalizeProjectColor,
   normalizeProjectRunCommands,
+  normalizeProjectWorktreeSetup,
 } from '@agentmat/core';
 import { dialog, ipcMain } from 'electron';
 import type { BootstrapResult, CreateProjectInput, FaviconResult } from '../../shared/apiTypes';
@@ -104,6 +106,7 @@ export function registerProjectHandlers(): void {
         websiteUrl: input.websiteUrl ?? '',
         repoUrl: input.repoUrl ?? '',
         githubActionsMuted: [],
+        worktreeSetup: { ...DEFAULT_PROJECT_WORKTREE_SETUP },
         pinned: false,
         archived: false,
         createdAt: now,
@@ -138,6 +141,10 @@ export function registerProjectHandlers(): void {
           updates.iconColor === undefined
             ? current.iconColor
             : normalizeProjectColor(updates.iconColor),
+        worktreeSetup:
+          updates.worktreeSetup === undefined
+            ? current.worktreeSetup
+            : normalizeProjectWorktreeSetup(updates.worktreeSetup),
       }));
     },
   );

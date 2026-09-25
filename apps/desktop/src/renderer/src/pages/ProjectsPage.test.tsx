@@ -50,6 +50,7 @@ function project(overrides: Partial<Project> = {}): Project {
     websiteUrl: '',
     repoUrl: '',
     githubActionsMuted: [],
+    worktreeSetup: { command: '', copyGlobs: null },
     pinned: false,
     archived: false,
     createdAt: '2025-01-01T00:00:00.000Z',

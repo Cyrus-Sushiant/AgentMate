@@ -106,6 +106,7 @@ import {
   VersionChangeReview,
   type VersionReviews,
 } from '@/components/projects/VersionChangeReview';
+import { ProjectWorktreeSetupCard } from '@/components/settings/WorktreeSettings';
 import { SkillAuditVerdictBadge } from '@/components/skills/SkillAuditReport';
 import {
   DEFAULT_CLI_VALUE,
@@ -1078,6 +1079,7 @@ export default function ProjectDetailPage(): React.JSX.Element {
               onReviewWithDiffray={() => setSection('review')}
             />
           )}
+          {section === 'git' && <ProjectWorktreeSetupCard project={project} />}
 
           {section === 'review' && (
             <DiffrayReviewWizard

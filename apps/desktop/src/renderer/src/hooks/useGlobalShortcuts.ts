@@ -38,6 +38,7 @@ const WORKSPACE_ACTIONS: Record<WorkspaceShortcutCommandId, (event: KeyboardEven
   'workspace.prevTab': () => workspaceCommands.cycleTab(-1),
   'workspace.zoomPane': workspaceCommands.toggleZoom,
   'workspace.toggleGitPanel': workspaceCommands.toggleGitPanel,
+  'workspace.newWorktree': workspaceCommands.newWorktree,
 };
 
 /**

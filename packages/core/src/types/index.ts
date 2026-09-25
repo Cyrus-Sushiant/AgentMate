@@ -1,6 +1,7 @@
 import type { CliArgsMap } from '../cli/args.js';
 import type { CliLaunchDefaultsMap } from '../cli/launchDefaults.js';
 import type { CommitMessageSettings } from '../git/commitMessage.js';
+import type { ProjectWorktreeSetup, WorktreeSettings } from '../git/worktrees.js';
 import type { GrammarSettings } from '../grammar/languagetool.js';
 import type { ProxySettings } from '../network/proxy.js';
 import type { EffortLevel } from '../promptBuilder/runRecommendation.js';
@@ -343,6 +344,8 @@ export interface AppSettings {
   cliOrder: string[];
   /** Which CLI writes AI commit messages and the rules it follows. */
   commitMessage: CommitMessageSettings;
+  /** Where new worktrees go and what they start with. */
+  worktrees: WorktreeSettings;
   /** PR comments offered as one-click review requests in the workspace Pull request tab. */
   reviewCommands: string[];
   theme: ThemeMode;
@@ -703,6 +706,8 @@ export interface Project {
    * them report failures, and a workflow added to the repo later starts watched too.
    */
   githubActionsMuted: ProjectGithubAction[];
+  /** What a new git worktree of this project gets: a setup command and files to copy. */
+  worktreeSetup: ProjectWorktreeSetup;
   /** Pinned projects are sorted first on the Projects page, above the drag-ordered rest. */
   pinned: boolean;
   /**

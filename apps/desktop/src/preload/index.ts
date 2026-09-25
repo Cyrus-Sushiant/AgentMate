@@ -69,6 +69,7 @@ import type {
   WidgetMode,
   WidgetSize,
   WidgetStyle,
+  WorktreeInfo,
 } from '@agentmat/core';
 import { contextBridge, ipcRenderer, webUtils } from 'electron';
 import type {
@@ -110,6 +111,8 @@ import type {
   CreateSshSessionOptions,
   CreateTagInput,
   CreateTerminalOptions,
+  CreateWorktreeInput,
+  CreateWorktreeResult,
   DeleteBranchInput,
   DetectChatIdResult,
   DirectoryEntry,
@@ -195,6 +198,7 @@ import type {
   RemoteSavedServer,
   RemoteScreenSize,
   RemoteState,
+  RemoveWorktreeInput,
   RenameBranchInput,
   RunSkillAuditInput,
   RunSkillAuditResult,
@@ -249,6 +253,10 @@ import type {
   VaultStatus,
   VaultUnlockResult,
   WorkspaceGitState,
+  WorktreeDefaults,
+  WorktreeMergePreflight,
+  WorktreeMergeResult,
+  WorktreeRemovePreflight,
   WriteVersionHunksInput,
   WriteVersionHunksResult,
 } from '../shared/apiTypes';
@@ -855,6 +863,9 @@ const promptHistory = {
 const translate = {
   text: (input: TranslateTextInput): Promise<string> =>
     ipcRenderer.invoke(IPC.translate.text, input),
+  /** Stops an in-flight text() that was given the same requestId. */
+  cancel: (requestId: string): Promise<boolean> =>
+    ipcRenderer.invoke(IPC.translate.cancel, requestId),
 };
 
 const ai = {
@@ -1304,6 +1315,46 @@ function subscribe<T>(channel: string, callback: (payload: T) => void): () => vo
   return () => ipcRenderer.removeListener(channel, listener);
 }
 
+const worktrees = {
+  list: (projectId: string): Promise<WorktreeInfo[]> =>
+    ipcRenderer.invoke(IPC.worktrees.list, projectId),
+  defaults: (projectId: string): Promise<WorktreeDefaults> =>
+    ipcRenderer.invoke(IPC.worktrees.defaults, projectId),
+  suggestPath: (projectId: string, branch: string): Promise<string> =>
+    ipcRenderer.invoke(IPC.worktrees.suggestPath, projectId, branch),
+  create: (input: CreateWorktreeInput): Promise<CreateWorktreeResult> =>
+    ipcRenderer.invoke(IPC.worktrees.create, input),
+  previewCopy: (projectId: string, globs: string[] | null): Promise<string[]> =>
+    ipcRenderer.invoke(IPC.worktrees.previewCopy, projectId, globs),
+  copyFiles: (projectId: string, worktreeId: string, files: string[]): Promise<string[]> =>
+    ipcRenderer.invoke(IPC.worktrees.copyFiles, projectId, worktreeId, files),
+  removePreflight: (projectId: string, worktreeId: string): Promise<WorktreeRemovePreflight> =>
+    ipcRenderer.invoke(IPC.worktrees.removePreflight, projectId, worktreeId),
+  remove: (input: RemoveWorktreeInput): Promise<GitOpResult> =>
+    ipcRenderer.invoke(IPC.worktrees.remove, input),
+  mergePreflight: (projectId: string, worktreeId: string): Promise<WorktreeMergePreflight> =>
+    ipcRenderer.invoke(IPC.worktrees.mergePreflight, projectId, worktreeId),
+  merge: (projectId: string, worktreeId: string): Promise<WorktreeMergeResult> =>
+    ipcRenderer.invoke(IPC.worktrees.merge, projectId, worktreeId),
+  mergeBaseIn: (projectId: string, worktreeId: string): Promise<WorktreeMergeResult> =>
+    ipcRenderer.invoke(IPC.worktrees.mergeBaseIn, projectId, worktreeId),
+  prune: (projectId: string): Promise<GitOpResult> =>
+    ipcRenderer.invoke(IPC.worktrees.prune, projectId),
+  suggestBranch: (
+    projectId: string,
+    task: string,
+    requestId?: string,
+  ): Promise<SuggestGitTextResult> =>
+    ipcRenderer.invoke(IPC.worktrees.suggestBranch, projectId, task, requestId),
+  cancelSuggestBranch: (requestId: string): Promise<boolean> =>
+    ipcRenderer.invoke(IPC.worktrees.cancelSuggestBranch, requestId),
+  pickLocation: (defaultPath: string | null): Promise<string | null> =>
+    ipcRenderer.invoke(IPC.worktrees.pickLocation, defaultPath),
+  /** Fires with the project id whenever that project's worktrees change. */
+  onChanged: (cb: (projectId: string) => void): (() => void) =>
+    subscribe(IPC.worktrees.onChanged, cb),
+};
+
 const packages = {
   list: (projectId: string): Promise<PackageScanResult> =>
     ipcRenderer.invoke(IPC.packages.list, projectId),
@@ -1708,6 +1759,7 @@ const agentmatApi = {
   scheduledTasks,
   notifications,
   git,
+  worktrees,
   pipelines,
   pullRequests,
   tests,

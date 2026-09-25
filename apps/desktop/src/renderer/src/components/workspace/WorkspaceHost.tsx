@@ -1,4 +1,4 @@
-import { allGroups, findGroup, type Project } from '@agentmat/core';
+import { allGroups, findGroup, isWorktreeScope, type Project } from '@agentmat/core';
 import { useQuery } from '@tanstack/react-query';
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -6,6 +6,7 @@ import { Workspace } from '@/components/icons';
 import { ProjectIcon } from '@/components/projects/ProjectIcon';
 import { ProjectPromptBuildDialog } from '@/components/projects/ProjectPromptBuildDialog';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useWorkspaceProject } from '@/hooks/useWorktrees';
 import { queryKeys } from '@/lib/queryKeys';
 import { useTerminalSessionStore } from '@/lib/terminal/terminalRuntime';
 import { cn } from '@/lib/utils';
@@ -14,6 +15,12 @@ import { useWorkspaceStore } from '@/stores/workspaceStore';
 import { GitPanel } from './git/GitPanel';
 import { PaneTree } from './PaneTree';
 import { ProjectRail } from './ProjectRail';
+import {
+  WorkspaceLoading,
+  WorktreeDialogsHost,
+  WorktreeMissingNotice,
+  WorktreeWorkspaceGuards,
+} from './worktrees/WorktreeHostParts';
 
 function WorkspaceWelcome({
   projects,
@@ -144,7 +151,11 @@ export function WorkspaceHost({ visible }: { visible: boolean }): React.JSX.Elem
     queryFn: () => window.agentmat.projects.list(),
   });
   const projects = projectsQuery.data ?? [];
-  const project = projects.find((p) => p.id === activeProjectId) ?? null;
+  // The active id is a project's, or a worktree's scope id; either way this is what its panes,
+  // git panel and launchers work on.
+  const { project } = useWorkspaceProject(activeProjectId);
+  const worktreePending = Boolean(activeProjectId && isWorktreeScope(activeProjectId) && !project);
+  const missing = project?.worktree?.missing === true;
 
   useAutoCloseFinishedShells();
   useReportViewing(visible);
@@ -168,18 +179,27 @@ export function WorkspaceHost({ visible }: { visible: boolean }): React.JSX.Elem
         visible ? 'workspace-enter' : 'hidden',
       )}
     >
-      <ProjectRail projects={projects} activeProjectId={project ? activeProjectId : null} />
+      <ProjectRail
+        projects={projects}
+        activeProjectId={project || worktreePending ? activeProjectId : null}
+      />
       <main className="relative flex min-h-0 min-w-0 flex-1 p-1.5">
-        {project && workspace ? (
+        {project && workspace && missing ? (
+          <WorktreeMissingNotice project={project} />
+        ) : project && workspace ? (
           <PaneTree key={project.id} project={project} workspace={workspace} />
+        ) : worktreePending ? (
+          <WorkspaceLoading />
         ) : (
           <WorkspaceWelcome projects={projects} loading={projectsQuery.isPending} />
         )}
       </main>
-      {project && workspace ? (
+      {project && workspace && !missing ? (
         <GitPanel key={project.id} project={project} visible={visible} />
       ) : null}
       <WorkspacePromptDialog projects={projects} />
+      <WorktreeDialogsHost projects={projects} />
+      <WorktreeWorkspaceGuards />
     </div>
   );
 }
@@ -189,8 +209,10 @@ function WorkspacePromptDialog({ projects }: { projects: Project[] }): React.JSX
   const projectId = usePromptDialogStore((s) => s.projectId);
   const groupId = usePromptDialogStore((s) => s.groupId);
   const close = usePromptDialogStore((s) => s.close);
-  const project = projects.find((p) => p.id === projectId);
-  if (!project) return null;
+  // Opened from a worktree's pane, the prompt is still the project's, but the agent runs there.
+  const { project: workspaceProject } = useWorkspaceProject(projectId);
+  const project = projects.find((p) => p.id === workspaceProject?.parentId);
+  if (!project || !workspaceProject) return null;
   return (
     <ProjectPromptBuildDialog
       open
@@ -203,6 +225,7 @@ function WorkspacePromptDialog({ projects }: { projects: Project[] }): React.JSX
       iconBgColor={project.iconBgColor}
       iconColor={project.iconColor}
       launchGroupId={groupId}
+      launchProject={workspaceProject.worktree ? workspaceProject : null}
     />
   );
 }

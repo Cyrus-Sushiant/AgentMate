@@ -1,5 +1,5 @@
 import type { GitChangeEntry, Project } from '@agentmat/core';
-import { baseName, findGroup } from '@agentmat/core';
+import { baseName, findGroup, parseScopeId } from '@agentmat/core';
 import type { GitDiffSide, GitOpResult, WorkspaceGitState } from '@shared/apiTypes';
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
@@ -32,6 +32,7 @@ import {
 } from '@/components/icons';
 import { Skeleton } from '@/components/ui/skeleton';
 import { SimpleTooltip } from '@/components/ui/tooltip';
+import { useWorktrees } from '@/hooks/useWorktrees';
 import { queryKeys } from '@/lib/queryKeys';
 import { cn } from '@/lib/utils';
 import { confirmDialog } from '@/stores/confirmStore';
@@ -45,7 +46,10 @@ import {
   type SourceControlSection,
   useWorkspaceStore,
 } from '@/stores/workspaceStore';
+import { useWorktreeDialogStore } from '@/stores/worktreeDialogStore';
 import { TestsSection, TestsTabActions, useTestsFailedCount } from '../tests/TestsSection';
+import { WorktreeFinishSlot } from '../worktrees/WorktreeFinishCard';
+import { WorktreesSection } from '../worktrees/WorktreesSection';
 import { BranchesSection } from './BranchesSection';
 import { ChangesSummary } from './ChangesSummary';
 import { CommitBox } from './CommitBox';
@@ -554,6 +558,8 @@ function SourceControlBody({
   const setSectionOpen = useWorkspaceStore((s) => s.setSourceSectionOpen);
   const revealPanelSection = useWorkspaceStore((s) => s.revealPanelSection);
   const [prDialogOpen, setPrDialogOpen] = useState(false);
+  const openCreateWorktree = useWorktreeDialogStore((s) => s.openCreate);
+  const worktreeCount = useWorktrees(parseScopeId(project.id).projectId).data?.length ?? 0;
 
   if (!state) {
     return (
@@ -577,7 +583,7 @@ function SourceControlBody({
         </p>
         <button
           type="button"
-          onClick={() => navigate(`/projects/${project.id}?tab=git`)}
+          onClick={() => navigate(`/projects/${parseScopeId(project.id).projectId}?tab=git`)}
           className="mt-1 text-xs font-medium text-primary hover:underline"
         >
           Open the Git tab
@@ -619,6 +625,7 @@ function SourceControlBody({
           </button>
         </div>
       ) : null}
+      <WorktreeFinishSlot project={project} />
       <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
         <SourceSection
           {...fold('changes')}
@@ -645,6 +652,22 @@ function SourceControlBody({
             creating={creatingBranch}
             onCreatingChange={onCreatingBranchChange}
           />
+        </SourceSection>
+        <SourceSection
+          {...fold('worktrees')}
+          title="Worktrees"
+          count={worktreeCount}
+          countLabel={`${worktreeCount} worktree${worktreeCount === 1 ? '' : 's'}`}
+          actions={
+            <PanelIconButton
+              label="New worktree"
+              onClick={() => openCreateWorktree({ projectId: parseScopeId(project.id).projectId })}
+            >
+              <Plus className="h-2.5 w-2.5" />
+            </PanelIconButton>
+          }
+        >
+          <WorktreesSection project={project} />
         </SourceSection>
         <SourceSection
           {...fold('commits')}

@@ -14,6 +14,7 @@ import type {
   PromptTemplate,
   ScheduledTask,
   SkillRepository,
+  WorktreeRecord,
 } from '@agentmat/core';
 import {
   blueprintPresetSeed,
@@ -30,6 +31,7 @@ import {
   DEFAULT_VAULT_AUTO_LOCK_MINUTES,
   DEFAULT_VAULT_CLIPBOARD_CLEAR_SECONDS,
   DEFAULT_WHISPER_MODEL,
+  DEFAULT_WORKTREE_SETTINGS,
   defaultGrammarSettings,
   defaultProxySettings,
   defaultUsageResetAlerts,
@@ -48,12 +50,15 @@ import {
   normalizeProjectGithubActions,
   normalizeProjectNotifications,
   normalizeProjectRunCommands,
+  normalizeProjectWorktreeSetup,
   normalizeProxySettings,
   normalizeReviewCommands,
   normalizeUsageResetAlerts,
   normalizeUsageThresholdAlerts,
   normalizeVaultAutoLockMinutes,
   normalizeVaultClipboardClearSeconds,
+  normalizeWorktreeRecord,
+  normalizeWorktreeSettings,
   withBlueprintDefaults,
 } from '@agentmat/core';
 import { app } from 'electron';
@@ -99,6 +104,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   cliLaunchDefaults: {},
   cliOrder: [],
   commitMessage: { ...DEFAULT_COMMIT_MESSAGE_SETTINGS },
+  worktrees: { ...DEFAULT_WORKTREE_SETTINGS, copyGlobs: [...DEFAULT_WORKTREE_SETTINGS.copyGlobs] },
   reviewCommands: [...DEFAULT_REVIEW_COMMANDS],
   theme: 'system',
   projectsRootPath: null,
@@ -211,6 +217,7 @@ function withSettingsMigrations(settings: AppSettings): AppSettings {
     cliArgs: normalizeCliArgs(settings.cliArgs),
     cliLaunchDefaults: normalizeCliLaunchDefaults(settings.cliLaunchDefaults),
     commitMessage: normalizeCommitMessageSettings(settings.commitMessage),
+    worktrees: normalizeWorktreeSettings(settings.worktrees),
     reviewCommands: normalizeReviewCommands(settings.reviewCommands),
     cliOrder: Array.isArray(settings.cliOrder)
       ? [...new Set(settings.cliOrder.filter((id): id is string => typeof id === 'string'))]
@@ -294,6 +301,7 @@ function withProjectDefaults(
     websiteUrl: project.websiteUrl ?? '',
     repoUrl: project.repoUrl ?? '',
     githubActionsMuted: normalizeProjectGithubActions(project.githubActionsMuted),
+    worktreeSetup: normalizeProjectWorktreeSetup(project.worktreeSetup),
   };
 }
 
@@ -304,6 +312,16 @@ export const store = {
   },
   setProjects: async (projects: Project[]): Promise<void> =>
     writeJsonFile('projects.json', await persistProjectIcons(projects)),
+
+  /** Git worktrees AgentMate made or picked up, so each keeps its workspace between runs. */
+  getWorktrees: async (): Promise<WorktreeRecord[]> => {
+    const saved = await readJsonFile<unknown>('worktrees.json', []);
+    return Array.isArray(saved)
+      ? saved.flatMap((entry) => normalizeWorktreeRecord(entry) ?? [])
+      : [];
+  },
+  setWorktrees: (worktrees: WorktreeRecord[]): Promise<void> =>
+    writeJsonFile('worktrees.json', worktrees),
 
   getSettings: async (): Promise<AppSettings> =>
     withSettingsMigrations({

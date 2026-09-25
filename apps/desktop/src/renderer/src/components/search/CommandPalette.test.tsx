@@ -301,3 +301,45 @@ describe('CommandPalette skills', () => {
     await waitFor(() => expect(pathname()).toBe('/skills'));
   });
 });
+
+describe('CommandPalette and worktrees', () => {
+  const worktree = {
+    id: 'wt-1',
+    projectId: 'p1',
+    path: '/code/aurora.worktrees/feat-auth',
+    branch: 'feat/auth',
+    baseBranch: 'main',
+    createdAt: '2026-09-25T00:00:00.000Z',
+    createdByApp: true,
+    missing: false,
+    locked: false,
+    status: null,
+  };
+
+  it('finds a worktree of an open project by its branch and opens its workspace', async () => {
+    const { useWorkspaceStore } = await import('@/stores/workspaceStore');
+    useWorkspaceStore.setState({ railProjectIds: ['p1'] });
+    const { user } = renderPalette({ 'projects.list': projects, 'worktrees.list': [worktree] });
+    await user.keyboard('{Control>}k{/Control}');
+    const input = await screen.findByPlaceholderText(/Search projects/);
+
+    await user.type(input, 'feat/auth');
+    const item = await within(group('Worktrees')).findByText('feat/auth');
+    await user.click(item);
+
+    await waitFor(() => expect(pathname()).toBe('/workspace/p1~wt-1'));
+  });
+
+  it('starts a new worktree of the project on screen', async () => {
+    const { useWorkspaceStore } = await import('@/stores/workspaceStore');
+    const { useWorktreeDialogStore } = await import('@/stores/worktreeDialogStore');
+    useWorkspaceStore.setState({ railProjectIds: ['p1'], activeProjectId: 'p1' });
+    const { user } = renderPalette({ 'projects.list': projects, 'worktrees.list': [] });
+    await user.keyboard('{Control>}k{/Control}');
+    const input = await screen.findByPlaceholderText(/Search projects/);
+
+    await user.type(input, 'new worktree');
+    await user.click(await within(group('Worktrees')).findByText('New worktree of Aurora'));
+    expect(useWorktreeDialogStore.getState().create).toEqual({ projectId: 'p1' });
+  });
+});

@@ -147,6 +147,45 @@ describe('translate', () => {
     await expect(translate('Hello')).rejects.toThrow(/429/);
   });
 
+  it('gives every request a deadline, so a stalled connection cannot hang forever', async () => {
+    await translate('Hello');
+
+    const init = fetchMock.mock.calls[0]?.[1] as RequestInit | undefined;
+    expect(init?.signal).toBeInstanceOf(AbortSignal);
+  });
+
+  it('stops a request when it is cancelled, without retrying it', async () => {
+    userData.writeData('settings.json', { translateMaxRetries: 3 });
+    await register();
+    let started!: () => void;
+    const sent = new Promise<void>((resolve) => {
+      started = resolve;
+    });
+    // Never answers on its own, like a connection that went quiet.
+    fetchMock.mockImplementation(
+      (_url: URL, init: RequestInit) =>
+        new Promise((_resolve, reject) => {
+          started();
+          init.signal?.addEventListener('abort', () =>
+            reject(new DOMException('aborted', 'AbortError')),
+          );
+        }),
+    );
+
+    const pending = invoke<string>(IPC.translate.text, {
+      text: 'Hello',
+      targetLang: 'en',
+      requestId: 'req-1',
+    });
+    await sent;
+
+    await expect(invoke<boolean>(IPC.translate.cancel, 'req-1')).resolves.toBe(true);
+    await expect(pending).rejects.toThrow(/aborted/);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    // Nothing is left to cancel once it has stopped.
+    await expect(invoke<boolean>(IPC.translate.cancel, 'req-1')).resolves.toBe(false);
+  });
+
   it('refuses an answer that is not the shape the endpoint documents', async () => {
     userData.writeData('settings.json', { translateMaxRetries: 0 });
     await register();

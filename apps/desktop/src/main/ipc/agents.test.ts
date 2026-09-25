@@ -13,6 +13,9 @@ import { invoke, loadIpc, useTempUserData } from '../../test/main/ipcHarness';
 
 vi.mock('../ptyHost/hostLauncher', () => ({ connectToHost: async () => null }));
 
+const history = vi.hoisted(() => ({ listAgentHistory: vi.fn(async () => []) }));
+vi.mock('../agents/sessionHistory', () => history);
+
 vi.mock('../ptyHost/sessionManager', () => ({
   PtySessionManager: class {
     createOrAttach(): unknown {
@@ -36,7 +39,7 @@ vi.mock('../ptyHost/sessionManager', () => ({
   },
 }));
 
-useTempUserData();
+const userData = useTempUserData();
 
 let terminal: typeof import('./terminal');
 
@@ -96,5 +99,28 @@ describe('agents:sync and auto-continue', () => {
 
     await invoke(IPC.agents.cancelAutoContinue, 'cancelled');
     expect(await invoke(IPC.agents.autoContinuePending)).toEqual({});
+  });
+});
+
+describe('agent history', () => {
+  it('reads the conversations started in a worktree from its own folder', async () => {
+    userData.writeData('projects.json', [
+      { id: 'p1', name: 'App', folderPath: 'C:/code/app', createdAt: '2026-01-01' },
+    ]);
+    userData.writeData('worktrees.json', [
+      {
+        id: 'wt-1',
+        projectId: 'p1',
+        path: 'C:/code/app.worktrees/feat',
+        branch: 'feat',
+        baseBranch: 'main',
+        createdAt: '2026-09-25T00:00:00.000Z',
+        createdByApp: true,
+      },
+    ]);
+    await invoke(IPC.agents.history, 'p1~wt-1');
+    expect(history.listAgentHistory).toHaveBeenLastCalledWith('C:/code/app.worktrees/feat');
+    await invoke(IPC.agents.history, 'p1');
+    expect(history.listAgentHistory).toHaveBeenLastCalledWith('C:/code/app');
   });
 });

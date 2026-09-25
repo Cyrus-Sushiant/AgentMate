@@ -19,6 +19,22 @@ function isAbortError(error: unknown): boolean {
   return (error as Error | undefined)?.name === 'AbortError';
 }
 
+/** True for the DOMException fetch throws when an AbortSignal.timeout() runs out. */
+function isTimeoutError(error: unknown): boolean {
+  return (error as Error | undefined)?.name === 'TimeoutError';
+}
+
+/**
+ * How long an ask() may go without an answer. A stalled connection otherwise holds the
+ * request (and every spinner waiting on it) open for as long as the socket survives.
+ * Ollama gets longer because a local model can take minutes to load and answer on CPU.
+ */
+const ASK_TIMEOUT_MS: Record<AiProvider, number> = {
+  openai: 3 * 60_000,
+  gemini: 3 * 60_000,
+  ollama: 10 * 60_000,
+};
+
 async function askOpenAi(
   model: string,
   prompt: string,
@@ -105,8 +121,8 @@ async function askOllama(
       signal,
     });
   } catch (error) {
-    // A cancelled request must not be reported as an unreachable server.
-    if (isAbortError(error)) throw error;
+    // A cancelled or timed-out request must not be reported as an unreachable server.
+    if (isAbortError(error) || isTimeoutError(error)) throw error;
     throw new Error(`Could not reach Ollama at ${baseUrl}. Is it running?`, { cause: error });
   }
 
@@ -288,6 +304,8 @@ const inFlightRequests = new Map<string, AbortController>();
 export function registerAiHandlers(): void {
   ipcMain.handle(IPC.ai.ask, async (_event, input: AskAiInput): Promise<AskAiResult> => {
     const controller = new AbortController();
+    // runAiPrompt treats anything that isn't OpenAI or Gemini as Ollama, and so does this.
+    const timeoutMs = ASK_TIMEOUT_MS[input.provider] ?? ASK_TIMEOUT_MS.ollama;
     if (input.requestId) inFlightRequests.set(input.requestId, controller);
     try {
       const text = await runAiPrompt(
@@ -295,12 +313,20 @@ export function registerAiHandlers(): void {
         input.model,
         input.prompt,
         input.history ?? [],
-        controller.signal,
+        AbortSignal.any([controller.signal, AbortSignal.timeout(timeoutMs)]),
       );
       return { ok: true, text };
     } catch (error) {
-      if (isAbortError(error) || controller.signal.aborted) {
+      if (controller.signal.aborted) {
         return { ok: false, text: '', cancelled: true, error: 'Request cancelled.' };
+      }
+      if (isTimeoutError(error)) {
+        const minutes = Math.round(timeoutMs / 60_000);
+        return {
+          ok: false,
+          text: '',
+          error: `No answer after ${minutes} minutes, so the request was stopped. Check your connection and try again.`,
+        };
       }
       return { ok: false, text: '', error: (error as Error).message };
     } finally {

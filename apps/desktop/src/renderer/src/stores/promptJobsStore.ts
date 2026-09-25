@@ -17,7 +17,7 @@ export interface PromptTask {
   kind: PromptTaskKind;
   /** Lets a finished request tell whether it was cleared or replaced while it ran. */
   id: string;
-  /** Set for generate, so Clear can abort the AI request. */
+  /** Lets Clear or Cancel abort the request in the main process. */
   requestId?: string;
 }
 
@@ -103,12 +103,14 @@ export function finishPromptTask(key: string, task: PromptTask): void {
   if (isCurrentPromptTask(key, task)) usePromptJobsStore.getState().setTask(key, null);
 }
 
-/** Drops whatever runs for `key` so its result is discarded, aborting the AI request if it can. */
+/** Drops whatever runs for `key` so its result is discarded, aborting the request if it can. */
 export function cancelPromptTask(key: string): void {
   const task = usePromptJobsStore.getState().tasks[key];
   if (!task) return;
   usePromptJobsStore.getState().setTask(key, null);
-  if (task.requestId) void window.agentmat.ai.cancel(task.requestId);
+  if (!task.requestId) return;
+  if (task.kind === 'translate') void window.agentmat.translate.cancel(task.requestId);
+  else void window.agentmat.ai.cancel(task.requestId);
 }
 
 export interface StartRunAssessmentInput {

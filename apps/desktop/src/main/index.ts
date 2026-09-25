@@ -56,6 +56,7 @@ import { registerToolHandlers } from './ipc/tools';
 import { registerTranslateHandlers } from './ipc/translate';
 import { registerUsageHandlers } from './ipc/usage';
 import { registerWindowHandlers } from './ipc/window';
+import { registerWorktreeHandlers } from './ipc/worktrees';
 import { focusMainWindow, setMainWindow, setMainWindowFactory } from './mainWindow';
 import {
   applyProxySettingsFromStore,
@@ -293,6 +294,7 @@ function registerAllIpcHandlers(): void {
   registerAiHandlers();
   registerSpeechHandlers();
   registerGitHandlers();
+  registerWorktreeHandlers();
   registerPackageManagerHandlers();
   registerRemoteHandlers();
   registerUsageHandlers();

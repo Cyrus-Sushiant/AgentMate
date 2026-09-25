@@ -5,15 +5,26 @@ import { motion, useReducedMotion } from 'framer-motion';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useShallow } from 'zustand/react/shallow';
-import { Plus, Search, X } from '@/components/icons';
+import { ChevronDown, ChevronUp, GitBranch, Plus, Search, X } from '@/components/icons';
 import { ProjectIcon } from '@/components/projects/ProjectIcon';
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuTrigger,
+} from '@/components/ui/context-menu';
 import { SimpleTooltip } from '@/components/ui/tooltip';
+import { useWorktrees } from '@/hooks/useWorktrees';
 import { useTerminalSessionStore } from '@/lib/terminal/terminalRuntime';
 import { cn } from '@/lib/utils';
 import { attentionStatus, useAgentStatusStore } from '@/stores/agentStatusStore';
 import { confirmDialog } from '@/stores/confirmStore';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
 import { AgentStatusDot } from './AgentStatusDot';
+import { monogramStyle } from './railStyle';
+import { RailWorktreeGroup } from './worktrees/RailWorktrees';
+import { useWorktreeCommands } from './worktrees/useWorktreeCommands';
 
 export function ProjectSearchList({
   projects,
@@ -82,22 +93,6 @@ function initials(name: string): string {
   return word.slice(0, 2).replace(/^./, (c) => c.toUpperCase());
 }
 
-/** A stable hue per project, so its tile keeps its colour between sessions. */
-function monogramStyle(project: Project): React.CSSProperties {
-  if (project.iconBgColor) {
-    return { backgroundColor: project.iconBgColor, color: project.iconColor ?? undefined };
-  }
-  let hash = 0;
-  for (const char of project.id) hash = (hash * 31 + char.charCodeAt(0)) | 0;
-  const hue = Math.abs(hash) % 360;
-  return {
-    backgroundColor: `hsl(${hue} 55% 45% / 0.18)`,
-    // A middle lightness that holds its contrast on both the light and the dark theme.
-    color: `hsl(${hue} 65% 50%)`,
-    boxShadow: `inset 0 0 0 1px hsl(${hue} 60% 55% / 0.25)`,
-  };
-}
-
 /** Drag payload type for rail projects, kept apart from tab and file drags. */
 const RAIL_PROJECT_MIME = 'application/x-agentmate-rail-project';
 
@@ -108,6 +103,7 @@ function isRailProjectDrag(event: React.DragEvent): boolean {
 function RailItem({
   project,
   active,
+  activeProjectId,
   onOpen,
   onClose,
   dragging,
@@ -117,6 +113,8 @@ function RailItem({
 }: {
   project: Project;
   active: boolean;
+  /** The workspace on screen, which may be one of this project's worktrees. */
+  activeProjectId: string | null;
   onOpen: () => void;
   onClose: () => void;
   dragging: boolean;
@@ -126,6 +124,7 @@ function RailItem({
   onDragEnd: () => void;
 }): React.JSX.Element {
   const reduceMotion = useReducedMotion();
+  const commands = useWorktreeCommands();
   const tabIds = useWorkspaceStore(
     useShallow((s) =>
       Object.values(s.workspaces[project.id]?.tabs ?? {})
@@ -140,106 +139,178 @@ function RailItem({
   const busyCount = useAgentStatusStore(
     (s) => tabIds.filter((id) => s.statuses[id] === 'working').length,
   );
+  const worktrees = useWorktrees(project.id).data ?? [];
+  const expanded = useWorkspaceStore((s) => s.railExpanded[project.id] !== false);
+  const setRailExpanded = useWorkspaceStore((s) => s.setRailExpanded);
+  // One of this project's worktrees is on screen, so the project tile keeps a lighter ring.
+  const holdsActive = !active && Boolean(activeProjectId?.startsWith(`${project.id}~`));
+  const count = worktrees.length;
+  const countLabel = `${count} worktree${count === 1 ? '' : 's'}`;
 
   return (
     <div
       data-rail-project-id={project.id}
-      draggable
-      onDragStart={(event) => {
-        event.dataTransfer.setData(RAIL_PROJECT_MIME, project.id);
-        event.dataTransfer.effectAllowed = 'move';
-        onDragStart();
-      }}
-      onDragEnd={onDragEnd}
       className={cn(
-        'group relative flex w-full justify-center transition-opacity',
+        'flex w-full flex-col items-center gap-1.5 transition-opacity',
         dragging && 'opacity-40',
       )}
     >
-      {dropIndicator ? (
-        <span
-          className={cn(
-            'pointer-events-none absolute left-1/2 h-[2px] w-8 -translate-x-1/2 rounded-full bg-primary shadow-[0_0_6px_hsl(var(--primary)/0.7)]',
-            dropIndicator === 'before' ? '-top-[6px]' : '-bottom-[6px]',
-          )}
-        />
-      ) : null}
-      {active ? (
-        <motion.span
-          layoutId="workspace-rail-active"
-          className="absolute left-0 top-1/2 h-6 w-[3px] -translate-y-1/2 rounded-r-full bg-primary shadow-[0_0_8px_hsl(var(--primary)/0.7)]"
-          transition={
-            reduceMotion ? { duration: 0 } : { type: 'spring', stiffness: 460, damping: 34 }
-          }
-        />
-      ) : null}
-      <SimpleTooltip
-        side="right"
-        label={
-          <span className="flex flex-col">
-            <span className="font-semibold">{project.name}</span>
-            <span className="font-mono text-[10px] text-muted-foreground">
-              {project.folderPath}
-            </span>
-            {tabCount > 0 ? (
-              <span className="mt-0.5 text-[10px] text-muted-foreground">
-                {tabCount} terminal{tabCount === 1 ? '' : 's'} open
-                {busyCount > 0 ? `, ${busyCount} working` : ''}
-                {attention === 'needs-input'
-                  ? ', waiting on you'
-                  : attention === 'done'
-                    ? ', something finished'
-                    : ''}
-              </span>
-            ) : null}
-          </span>
-        }
+      <div
+        draggable
+        onDragStart={(event) => {
+          event.dataTransfer.setData(RAIL_PROJECT_MIME, project.id);
+          event.dataTransfer.effectAllowed = 'move';
+          onDragStart();
+        }}
+        onDragEnd={onDragEnd}
+        className="group relative flex w-full justify-center"
       >
-        <button
-          type="button"
-          aria-label={`Open ${project.name}`}
-          aria-current={active ? 'page' : undefined}
-          onClick={onOpen}
-          className={cn(
-            'relative rounded-xl transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-            active
-              ? 'ring-2 ring-primary/55 ring-offset-2 ring-offset-background'
-              : 'opacity-70 hover:opacity-100',
-          )}
-        >
-          {project.iconDataUrl ? (
-            <ProjectIcon
-              iconDataUrl={project.iconDataUrl}
-              bgColor={project.iconBgColor}
-              iconColor={project.iconColor}
-              className="h-9 w-9 rounded-xl"
-            />
-          ) : (
-            // Folder glyphs all look alike in a column; initials tell projects apart at a glance.
-            <span
-              className="flex h-9 w-9 items-center justify-center rounded-xl text-[13px] font-semibold tracking-tight"
-              style={monogramStyle(project)}
+        {dropIndicator ? (
+          <span
+            className={cn(
+              'pointer-events-none absolute left-1/2 h-[2px] w-8 -translate-x-1/2 rounded-full bg-primary shadow-[0_0_6px_hsl(var(--primary)/0.7)]',
+              dropIndicator === 'before' ? '-top-[6px]' : '-bottom-[6px]',
+            )}
+          />
+        ) : null}
+        {active ? (
+          <motion.span
+            layoutId="workspace-rail-active"
+            className="absolute left-0 top-1/2 h-6 w-[3px] -translate-y-1/2 rounded-r-full bg-primary shadow-[0_0_8px_hsl(var(--primary)/0.7)]"
+            transition={
+              reduceMotion ? { duration: 0 } : { type: 'spring', stiffness: 460, damping: 34 }
+            }
+          />
+        ) : null}
+        <ContextMenu modal={false}>
+          <SimpleTooltip
+            side="right"
+            label={
+              <span className="flex flex-col">
+                <span className="font-semibold">{project.name}</span>
+                <span className="font-mono text-[10px] text-muted-foreground">
+                  {project.folderPath}
+                </span>
+                {tabCount > 0 ? (
+                  <span className="mt-0.5 text-[10px] text-muted-foreground">
+                    {tabCount} terminal{tabCount === 1 ? '' : 's'} open
+                    {busyCount > 0 ? `, ${busyCount} working` : ''}
+                    {attention === 'needs-input'
+                      ? ', waiting on you'
+                      : attention === 'done'
+                        ? ', something finished'
+                        : ''}
+                  </span>
+                ) : null}
+                {count > 0 ? (
+                  <span className="text-[10px] text-muted-foreground">{countLabel}</span>
+                ) : null}
+              </span>
+            }
+          >
+            <ContextMenuTrigger asChild>
+              <button
+                type="button"
+                aria-label={`Open ${project.name}`}
+                aria-current={active ? 'page' : undefined}
+                onClick={onOpen}
+                className={cn(
+                  'relative rounded-xl transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                  active
+                    ? 'ring-2 ring-primary/55 ring-offset-2 ring-offset-background'
+                    : holdsActive
+                      ? 'ring-1 ring-primary/30 ring-offset-2 ring-offset-background'
+                      : 'opacity-70 hover:opacity-100',
+                )}
+              >
+                {project.iconDataUrl ? (
+                  <ProjectIcon
+                    iconDataUrl={project.iconDataUrl}
+                    bgColor={project.iconBgColor}
+                    iconColor={project.iconColor}
+                    className="h-9 w-9 rounded-xl"
+                  />
+                ) : (
+                  // Folder glyphs all look alike in a column; initials tell projects apart at a glance.
+                  <span
+                    className="flex h-9 w-9 items-center justify-center rounded-xl text-[13px] font-semibold tracking-tight"
+                    style={monogramStyle(project)}
+                  >
+                    {initials(project.name)}
+                  </span>
+                )}
+                {attention ? (
+                  <span className="absolute -bottom-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-background">
+                    <AgentStatusDot status={attention} />
+                  </span>
+                ) : null}
+              </button>
+            </ContextMenuTrigger>
+          </SimpleTooltip>
+          <ContextMenuContent className="min-w-[12rem]">
+            <ContextMenuItem onSelect={() => commands.create({ projectId: project.id })}>
+              <GitBranch className="h-3.5 w-3.5" />
+              New worktree…
+            </ContextMenuItem>
+            {count > 0 ? (
+              <ContextMenuItem onSelect={() => setRailExpanded(project.id, !expanded)}>
+                {expanded ? (
+                  <ChevronUp className="h-3.5 w-3.5" />
+                ) : (
+                  <ChevronDown className="h-3.5 w-3.5" />
+                )}
+                {expanded ? 'Hide worktrees' : 'Show worktrees'}
+              </ContextMenuItem>
+            ) : null}
+            <ContextMenuSeparator />
+            <ContextMenuItem tone="danger" onSelect={onClose}>
+              <X className="h-3.5 w-3.5" />
+              Close workspace
+            </ContextMenuItem>
+          </ContextMenuContent>
+        </ContextMenu>
+        <SimpleTooltip label="Close workspace" side="right">
+          <button
+            type="button"
+            aria-label={`Close ${project.name} workspace`}
+            onClick={onClose}
+            className="absolute -top-1 right-1.5 flex h-4 w-4 items-center justify-center rounded-full border border-border bg-popover text-muted-foreground opacity-0 shadow transition-opacity hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100"
+          >
+            <X className="h-2 w-2" />
+          </button>
+        </SimpleTooltip>
+        {count > 0 && expanded ? (
+          <SimpleTooltip label="Hide worktrees" side="right">
+            <button
+              type="button"
+              aria-label={`Hide ${project.name} worktrees`}
+              onClick={() => setRailExpanded(project.id, false)}
+              className="absolute -bottom-1 left-1.5 flex h-4 w-4 items-center justify-center rounded-full border border-border bg-popover text-muted-foreground opacity-0 shadow transition-opacity hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100"
             >
-              {initials(project.name)}
-            </span>
-          )}
-          {attention ? (
-            <span className="absolute -bottom-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-background">
-              <AgentStatusDot status={attention} />
-            </span>
-          ) : null}
-        </button>
-      </SimpleTooltip>
-      <SimpleTooltip label="Close workspace" side="right">
-        <button
-          type="button"
-          aria-label={`Close ${project.name} workspace`}
-          onClick={onClose}
-          className="absolute -top-1 right-1.5 flex h-4 w-4 items-center justify-center rounded-full border border-border bg-popover text-muted-foreground opacity-0 shadow transition-opacity hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100"
-        >
-          <X className="h-2 w-2" />
-        </button>
-      </SimpleTooltip>
+              <ChevronUp className="h-2 w-2" />
+            </button>
+          </SimpleTooltip>
+        ) : null}
+        {count > 0 && !expanded ? (
+          <SimpleTooltip label={`${countLabel}, click to show`} side="right">
+            <button
+              type="button"
+              aria-label={`Show ${count} ${project.name} worktree${count === 1 ? '' : 's'}`}
+              onClick={() => setRailExpanded(project.id, true)}
+              className="absolute -bottom-1.5 left-0.5 flex h-4 min-w-4 items-center gap-0.5 rounded-full border border-border bg-popover px-1 text-[9px] font-semibold text-muted-foreground shadow transition-colors hover:border-primary/50 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <GitBranch className="h-2 w-2" />
+              {count}
+            </button>
+          </SimpleTooltip>
+        ) : null}
+      </div>
+      <RailWorktreeGroup
+        project={project}
+        worktrees={worktrees}
+        expanded={expanded}
+        activeProjectId={activeProjectId}
+      />
     </div>
   );
 }
@@ -340,6 +411,7 @@ export function ProjectRail({
           key={project.id}
           project={project}
           active={project.id === activeProjectId}
+          activeProjectId={activeProjectId}
           onOpen={() => navigate(`/workspace/${project.id}`)}
           onClose={() => void requestClose(project)}
           dragging={project.id === draggingId}

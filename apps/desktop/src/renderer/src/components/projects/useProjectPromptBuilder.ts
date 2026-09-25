@@ -211,7 +211,7 @@ export function useProjectPromptBuilder(
       toast.error('Enter some text before translating.');
       return;
     }
-    const task = beginPromptTask(jobKey, 'translate');
+    const task = beginPromptTask(jobKey, 'translate', crypto.randomUUID());
     if (!task) return;
     const request = { rawInput, promptType, targetAI };
     cancelRunAssessment(jobKey);
@@ -220,6 +220,7 @@ export function useProjectPromptBuilder(
       const translated = await window.agentmat.translate.text({
         text: request.rawInput,
         targetLang: 'en',
+        requestId: task.requestId,
       });
       if (!isCurrentPromptTask(jobKey, task)) return;
       setGenerated(translated);
@@ -234,6 +235,11 @@ export function useProjectPromptBuilder(
     } finally {
       finishPromptTask(jobKey, task);
     }
+  }
+
+  /** Stops a Generate or Translate that is taking too long, keeping the request text. */
+  function handleCancel(): void {
+    cancelPromptTask(jobKey);
   }
 
   async function handleCopy(): Promise<void> {
@@ -254,6 +260,7 @@ export function useProjectPromptBuilder(
     isTranslating,
     handleGenerate,
     handleTranslate,
+    handleCancel,
     handleCopy,
     handleClear,
     saveDraftMutation,

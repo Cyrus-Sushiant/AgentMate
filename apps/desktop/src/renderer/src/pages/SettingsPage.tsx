@@ -20,6 +20,7 @@ import {
   Code,
   Download,
   FolderOpen,
+  GitBranch,
   GitCommit,
   GitPullRequest,
   HardDrive,
@@ -56,6 +57,7 @@ import { CommitMessageSettingsForm } from '@/components/settings/CommitMessageSe
 import { ProxySettings } from '@/components/settings/ProxySettings';
 import { ReviewCommandsSettings } from '@/components/settings/ReviewCommandsSettings';
 import { ShortcutSettings } from '@/components/settings/ShortcutSettings';
+import { WorktreeSettingsForm } from '@/components/settings/WorktreeSettings';
 import { WritingCheckSettings } from '@/components/settings/WritingCheckSettings';
 import { formatUpdateBytes, UpdateProgressTrack, updatePercent } from '@/components/UpdateManager';
 import { Badge } from '@/components/ui/badge';
@@ -1269,6 +1271,20 @@ export default function SettingsPage(): React.JSX.Element {
                   description="How the sparkle button in the Workspace changes panel writes a commit message for you."
                 >
                   <CommitMessageSettingsForm />
+                </SettingsCard>
+              )}
+
+              {showSection(
+                'agents',
+                'worktree worktrees git branch parallel folder env copy setup location',
+                'Worktrees',
+              ) && (
+                <SettingsCard
+                  icon={GitBranch}
+                  title="Worktrees"
+                  description="Where new git worktrees go, which local files they start with, and how removing one tidies up."
+                >
+                  <WorktreeSettingsForm />
                 </SettingsCard>
               )}
 

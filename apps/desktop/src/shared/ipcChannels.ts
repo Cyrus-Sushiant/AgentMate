@@ -286,6 +286,7 @@ export const IPC = {
   },
   translate: {
     text: 'translate:text',
+    cancel: 'translate:cancel',
   },
   speech: {
     transcribe: 'speech:transcribe',
@@ -602,6 +603,26 @@ export const IPC = {
     unreadCount: 'appNotifications:unreadCount',
     /** main -> every renderer: something was added to or changed in the inbox. */
     onChanged: 'appNotifications:onChanged',
+  },
+  /** Git worktrees: a folder and branch per task, each with a workspace of its own. */
+  worktrees: {
+    list: 'worktrees:list',
+    defaults: 'worktrees:defaults',
+    suggestPath: 'worktrees:suggestPath',
+    create: 'worktrees:create',
+    previewCopy: 'worktrees:previewCopy',
+    copyFiles: 'worktrees:copyFiles',
+    removePreflight: 'worktrees:removePreflight',
+    remove: 'worktrees:remove',
+    mergePreflight: 'worktrees:mergePreflight',
+    merge: 'worktrees:merge',
+    mergeBaseIn: 'worktrees:mergeBaseIn',
+    prune: 'worktrees:prune',
+    suggestBranch: 'worktrees:suggestBranch',
+    cancelSuggestBranch: 'worktrees:cancelSuggestBranch',
+    pickLocation: 'worktrees:pickLocation',
+    /** main -> every renderer: a project's worktrees were added, removed or changed. */
+    onChanged: 'worktrees:onChanged',
   },
   git: {
     status: 'git:status',

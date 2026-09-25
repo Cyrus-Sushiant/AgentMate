@@ -60,6 +60,23 @@ describe('fs:readFile', () => {
     );
   });
 
+  it('reads inside a worktree folder AgentMate knows about', async () => {
+    // Worktrees live next to the repository, outside the project folder, by default.
+    const worktree = writeTree(tempDir('agentmate-fs-worktree-'), { 'notes.md': 'in the tree' });
+    userData.writeData('worktrees.json', [
+      {
+        id: 'wt-1',
+        projectId: 'p1',
+        path: worktree,
+        branch: 'feat',
+        baseBranch: 'main',
+        createdAt: '2026-09-25T00:00:00.000Z',
+        createdByApp: true,
+      },
+    ]);
+    expect(await invoke<string>(IPC.fs.readFile, join(worktree, 'notes.md'))).toBe('in the tree');
+  });
+
   it('reads the app data folder, which is an allowed root too', async () => {
     expect(await invoke<string>(IPC.fs.readFile, userData.dataFile('projects.json'))).toContain(
       'Demo',

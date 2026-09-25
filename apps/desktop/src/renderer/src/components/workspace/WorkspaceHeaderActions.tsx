@@ -1,5 +1,4 @@
-import { configuredRunCommands, type Project, projectRunCommandTitle } from '@agentmat/core';
-import { useQuery } from '@tanstack/react-query';
+import { configuredRunCommands, projectRunCommandTitle } from '@agentmat/core';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { Cpu, FolderOpen, Pencil, Play, Run, Tag } from '@/components/icons';
@@ -14,16 +13,20 @@ import {
   ContextMenuTrigger,
 } from '@/components/ui/context-menu';
 import { SimpleTooltip } from '@/components/ui/tooltip';
-import { queryKeys } from '@/lib/queryKeys';
+import { useWorkspaceProject } from '@/hooks/useWorktrees';
 import { ProjectVersionDialogs } from '@/pages/ProjectDetailPage';
 import { useRunningClisStore } from '@/stores/runningClisStore';
 import { useVersionDialogStore } from '@/stores/versionDialogStore';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
+import { WorkspaceScopeSwitcher } from './worktrees/WorkspaceScopeSwitcher';
 
 /**
  * Run and Tag a version for the project open in the Workspace, beside the header's other
  * buttons. Run uses the general terminal, the same as the project page's Run button.
  * Right-clicking Run lists the project's commands and links to where they're edited.
+ *
+ * In a worktree's workspace, Run starts in the worktree's folder, while tagging a version and
+ * the project page belong to the project itself (its main checkout).
  */
 export function WorkspaceHeaderActions(): React.JSX.Element | null {
   const navigate = useNavigate();
@@ -34,13 +37,10 @@ export function WorkspaceHeaderActions(): React.JSX.Element | null {
   const closeVersionDialog = useVersionDialogStore((s) => s.close);
   const runningClisOpen = useRunningClisStore((s) => s.open);
   const setRunningClisOpen = useRunningClisStore((s) => s.setOpen);
-  const projectsQuery = useQuery<Project[]>({
-    queryKey: queryKeys.projects,
-    queryFn: () => window.agentmat.projects.list(),
-  });
-  const project = projectsQuery.data?.find((p) => p.id === activeProjectId);
-  const tagOpen = tagDialogProjectId === activeProjectId;
-  if (!project) return null;
+  const { project } = useWorkspaceProject(activeProjectId);
+  const parentId = project?.parentId ?? null;
+  const tagOpen = parentId !== null && tagDialogProjectId === parentId;
+  if (!project || !parentId || !activeProjectId) return null;
 
   const commands = configuredRunCommands(project);
   const runLabel =
@@ -51,11 +51,12 @@ export function WorkspaceHeaderActions(): React.JSX.Element | null {
         : `Set a run command for ${project.name}`;
 
   function editRunCommands(): void {
-    if (project) navigate(`/projects/${project.id}?edit=run`);
+    if (parentId) navigate(`/projects/${parentId}?edit=run`);
   }
 
   return (
     <>
+      <WorkspaceScopeSwitcher scopeId={activeProjectId} />
       <ContextMenu>
         <SimpleTooltip label={runLabel}>
           <ContextMenuTrigger asChild>
@@ -116,7 +117,7 @@ export function WorkspaceHeaderActions(): React.JSX.Element | null {
           variant={tagOpen ? 'secondary' : 'ghost'}
           size="icon"
           aria-label="Tag a version"
-          onClick={() => openVersionDialog(project.id)}
+          onClick={() => openVersionDialog(parentId)}
         >
           <Tag className="h-4 w-4" />
         </Button>
@@ -126,7 +127,7 @@ export function WorkspaceHeaderActions(): React.JSX.Element | null {
           variant="ghost"
           size="icon"
           aria-label="Project details"
-          onClick={() => navigate(`/projects/${project.id}`)}
+          onClick={() => navigate(`/projects/${parentId}`)}
         >
           <FolderOpen className="h-4 w-4" />
         </Button>
@@ -145,12 +146,10 @@ export function WorkspaceHeaderActions(): React.JSX.Element | null {
       {/* Keyed by project so each one gets its own form, suggestion and tag run. One shared
           instance let a project's pending answer or finished tag land in the next project. */}
       <ProjectVersionDialogs
-        key={project.id}
-        projectId={project.id}
+        key={parentId}
+        projectId={parentId}
         open={tagOpen}
-        onOpenChange={(next) =>
-          next ? openVersionDialog(project.id) : closeVersionDialog(project.id)
-        }
+        onOpenChange={(next) => (next ? openVersionDialog(parentId) : closeVersionDialog(parentId))}
       />
     </>
   );

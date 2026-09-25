@@ -18,6 +18,7 @@ import type {
   ProjectDraft,
   ProjectNotificationSettings,
   ProjectRunCommand,
+  ProjectWorktreeSetup,
   ProxyMode,
   PullRequestInfo,
   RunAssessment,
@@ -30,6 +31,7 @@ import type {
   UsageProviderConfig,
   VaultEntryType,
   VaultImportFormat,
+  WorktreeInfo,
 } from '@agentmat/core';
 
 export type { AiProvider };
@@ -263,6 +265,8 @@ export interface CreateProjectInput {
   repoUrl?: string;
   /** Optional: the create/edit form doesn't collect it; the Prompt dialog defines it later. */
   prompt?: string;
+  /** What new worktrees of this project get: a setup command and files to copy. */
+  worktreeSetup?: ProjectWorktreeSetup;
 }
 
 export interface FaviconResult {
@@ -669,6 +673,8 @@ export interface BackupImportResult {
 export interface TranslateTextInput {
   text: string;
   targetLang: string;
+  /** Lets translate.cancel() stop this request. */
+  requestId?: string;
 }
 
 export interface TranscribeAudioInput {
@@ -919,6 +925,76 @@ export interface GitBranchInfo {
   local: boolean;
   /** Present on the primary remote (usually origin). */
   remote: boolean;
+  /**
+   * The folder of the other worktree that has this branch checked out. Git will not check a
+   * branch out twice, so the UI offers to open that worktree instead. Unset when none has it.
+   */
+  worktreePath?: string;
+}
+
+/** Why a worktree's branch cannot be merged back into its base right now. */
+export type WorktreeMergeBlocker =
+  | { kind: 'worktree-dirty'; changes: number }
+  | { kind: 'main-dirty'; changes: number }
+  | { kind: 'main-not-on-base'; current: string | null }
+  | { kind: 'nothing-to-merge' };
+
+export type WorktreeMergePreflight = { ok: true } | { ok: false; blocker: WorktreeMergeBlocker };
+
+export type WorktreeMergeResult =
+  | { ok: true; message: string }
+  /** The merge was backed out; these files conflicted. */
+  | { ok: false; conflicts: string[] };
+
+/** What the New worktree dialog starts from. */
+export interface WorktreeDefaults {
+  /** False when the project folder is not a git repository yet. */
+  isRepo: boolean;
+  /** The branch new worktrees start from unless the user picks another. */
+  defaultBranch: string | null;
+  /** The branch the main checkout is on. */
+  currentBranch: string | null;
+  branches: GitBranchInfo[];
+  /** The project's own patterns when it has them, else the app-wide ones. */
+  copyGlobs: string[];
+  setupCommand: string;
+}
+
+export interface CreateWorktreeInput {
+  /** The project, never a worktree scope: worktrees always hang off the main checkout. */
+  projectId: string;
+  branch: string;
+  mode: 'new' | 'existing';
+  /** What a new branch starts from; null uses the default branch. */
+  base: string | null;
+  /** Null puts it where Settings says (next to the repository by default). */
+  path: string | null;
+}
+
+export type CreateWorktreeResult =
+  | { ok: true; worktree: WorktreeInfo }
+  | { ok: false; error: string };
+
+/** What removing a worktree would throw away, for the Remove dialog. */
+export interface WorktreeRemovePreflight {
+  branch: string | null;
+  baseBranch: string | null;
+  /** The folder is already gone, so there is nothing left in it to lose. */
+  missing: boolean;
+  changes: number;
+  /** Commits on the branch that the base does not have. */
+  ahead: number;
+  /** Null when the branch has no upstream. */
+  unpushed: number | null;
+  merged: boolean;
+}
+
+export interface RemoveWorktreeInput {
+  projectId: string;
+  worktreeId: string;
+  /** Throw away uncommitted changes too. */
+  force: boolean;
+  deleteBranch: boolean;
 }
 
 export interface GitCommitInfo {

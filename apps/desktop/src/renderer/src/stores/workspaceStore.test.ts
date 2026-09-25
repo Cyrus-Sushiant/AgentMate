@@ -41,6 +41,7 @@ beforeEach(() => {
     workspaces: {},
     railProjectIds: [],
     activeProjectId: null,
+    railExpanded: {},
     gitPanel: {
       width: GIT_PANEL_DEFAULT_WIDTH,
       collapsed: false,
@@ -56,6 +57,7 @@ beforeEach(() => {
         commits: false,
         pullRequest: false,
         pipelines: false,
+        worktrees: false,
       },
       mergeMethods: {},
     },
@@ -807,6 +809,7 @@ describe('coming back from a saved layout', () => {
       commits: true,
       pullRequest: false,
       pipelines: false,
+      worktrees: false,
     });
   });
 
@@ -865,6 +868,13 @@ describe('setGitPanel', () => {
     expect(store().gitPanel.activeSection).toBe('explorer');
   });
 
+  it('reveals the Worktrees section, which starts folded', () => {
+    expect(store().gitPanel.openSourceSections.worktrees).toBe(false);
+    store().revealPanelSection('worktrees');
+    expect(store().gitPanel).toMatchObject({ activeSection: 'sourceControl' });
+    expect(store().gitPanel.openSourceSections.worktrees).toBe(true);
+  });
+
   it('folds one Source control section without touching the rest', () => {
     store().setSourceSectionOpen('changes', false);
     store().setSourceSectionOpen('pipelines', true);
@@ -878,5 +888,103 @@ describe('setGitPanel', () => {
   it('remembers which sections were folded away', () => {
     store().setGitPanel({ collapsedSections: { staged: true } });
     expect(store().gitPanel.collapsedSections).toEqual({ staged: true });
+  });
+});
+
+describe('worktree workspaces', () => {
+  const SCOPE = 'p1~wt-1';
+
+  it('opens a worktree as a workspace of its own, with only its project in the rail', () => {
+    store().openProject(SCOPE);
+    expect(store().activeProjectId).toBe(SCOPE);
+    expect(store().railProjectIds).toEqual(['p1']);
+    expect(store().workspaces[SCOPE]).toBeDefined();
+    expect(store().workspaces.p1).toBeUndefined();
+  });
+
+  it('keeps the tabs of the worktree and the main checkout apart', () => {
+    const main = withTerminal('p1');
+    const tree = withTerminal(SCOPE);
+    expect(Object.keys(workspace('p1').tabs)).toEqual([main.tabId]);
+    expect(Object.keys(workspace(SCOPE).tabs)).toEqual([tree.tabId]);
+  });
+
+  it('closeWorkspace ends only that worktree’s shells and goes back to the main checkout', () => {
+    const main = withTerminal('p1');
+    const tree = withTerminal(SCOPE);
+    store().closeWorkspace(SCOPE);
+    expect(bridge.$fn('terminal.kill')).toHaveBeenCalledWith(tree.tabId);
+    expect(bridge.$fn('terminal.kill')).not.toHaveBeenCalledWith(main.tabId);
+    expect(store().workspaces[SCOPE]).toBeUndefined();
+    expect(store().activeProjectId).toBe('p1');
+    expect(store().railProjectIds).toEqual(['p1']);
+  });
+
+  it('closeWorkspace leaves the active workspace alone when another one closes', () => {
+    withTerminal(SCOPE);
+    store().openProject('p2');
+    store().closeWorkspace(SCOPE);
+    expect(store().activeProjectId).toBe('p2');
+  });
+
+  it('closing a project closes its worktree workspaces too', () => {
+    const tree = withTerminal(SCOPE);
+    store().openProject('p2');
+    store().openProject('p1~wt-2');
+    store().closeProject('p1');
+    expect(bridge.$fn('terminal.kill')).toHaveBeenCalledWith(tree.tabId);
+    expect(Object.keys(store().workspaces)).toEqual(['p2']);
+    expect(store().railProjectIds).toEqual(['p2']);
+    expect(store().activeProjectId).toBe('p2');
+  });
+
+  it('remembers which projects show their worktrees in the rail', () => {
+    expect(store().railExpanded.p1).toBeUndefined();
+    store().setRailExpanded('p1', false);
+    expect(store().railExpanded.p1).toBe(false);
+    store().setRailExpanded('p1', true);
+    expect(store().railExpanded.p1).toBe(true);
+  });
+
+  it('brings worktree workspaces back, and drops ones whose project left the rail', async () => {
+    localStorage.setItem(
+      'agentmate-workspaces',
+      JSON.stringify({
+        version: 1,
+        state: {
+          railProjectIds: ['p1'],
+          activeProjectId: SCOPE,
+          railExpanded: { p1: false, junk: 'yes' },
+          workspaces: {
+            p1: { root: { type: 'group', id: 'g1', tabIds: [] }, tabs: {} },
+            [SCOPE]: { root: { type: 'group', id: 'g2', tabIds: [] }, tabs: {} },
+            'p9~wt-9': { root: { type: 'group', id: 'g3', tabIds: [] }, tabs: {} },
+          },
+        },
+      }),
+    );
+    await useWorkspaceStore.persist.rehydrate();
+    expect(Object.keys(store().workspaces).sort()).toEqual(['p1', SCOPE]);
+    expect(store().activeProjectId).toBe(SCOPE);
+    expect(store().railExpanded).toEqual({ p1: false });
+  });
+});
+
+describe('a project open only through its worktrees', () => {
+  it('stays in the rail after a restart', async () => {
+    localStorage.setItem(
+      'agentmate-workspaces',
+      JSON.stringify({
+        version: 1,
+        state: {
+          railProjectIds: ['p1'],
+          activeProjectId: 'p1~wt-1',
+          workspaces: { 'p1~wt-1': { root: { type: 'group', id: 'g1', tabIds: [] }, tabs: {} } },
+        },
+      }),
+    );
+    await useWorkspaceStore.persist.rehydrate();
+    expect(store().railProjectIds).toEqual(['p1']);
+    expect(store().activeProjectId).toBe('p1~wt-1');
   });
 });

@@ -35,7 +35,7 @@ import { runGit } from '../git/versionReview';
 import { refreshWorkspaceState } from '../git/workingTreeWatcher';
 import { locateRepo } from '../git/workspaceGit';
 import { assertPathWithinRoots } from '../pathGuard';
-import { store } from '../store';
+import { findProjectScope } from '../worktrees/resolve';
 
 /** A request naming more paths than this is not coming from the explorer. */
 const MAX_PATHS = 5000;
@@ -63,7 +63,8 @@ async function exists(path: string): Promise<boolean> {
 }
 
 async function projectFolder(projectId: unknown): Promise<string> {
-  const project = (await store.getProjects()).find((p) => p.id === projectId);
+  // A worktree's workspace passes its scope id and gets the worktree's folder.
+  const project = typeof projectId === 'string' ? await findProjectScope(projectId) : null;
   if (!project) throw new Error('That project no longer exists.');
   return resolve(project.folderPath);
 }

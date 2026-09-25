@@ -34,7 +34,7 @@ import {
 } from '../git/pullRequests';
 import { githubRepoForFolder } from '../pipelines/githubActions';
 import { schedulePipelineCheck } from '../pipelines/watcher';
-import { store } from '../store';
+import { findProjectScope } from '../worktrees/resolve';
 
 const MERGE_METHODS: readonly MergeMethod[] = ['squash', 'merge', 'rebase'];
 
@@ -45,7 +45,7 @@ const SIGNED_OUT = /gh auth login|not logged in|authentication required|HTTP 401
 const REVIEW_DIFF_LIMIT = 120_000;
 
 async function getProject(projectId: string): Promise<Project> {
-  const project = (await store.getProjects()).find((p) => p.id === projectId);
+  const project = await findProjectScope(projectId);
   if (!project) throw new Error(`Project ${projectId} not found`);
   return project;
 }

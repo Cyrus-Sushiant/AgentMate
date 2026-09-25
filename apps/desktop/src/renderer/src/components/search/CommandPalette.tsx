@@ -1,9 +1,20 @@
+import { parseScopeId } from '@agentmat/core';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { useQueries, useQuery } from '@tanstack/react-query';
 import { Command as CommandPrimitive } from 'cmdk';
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Bell, Blocks, Cpu, Folder, History, Search, Workspace } from '@/components/icons';
+import {
+  Bell,
+  Blocks,
+  Cpu,
+  Folder,
+  GitBranch,
+  History,
+  Plus,
+  Search,
+  Workspace,
+} from '@/components/icons';
 import { NAV_ITEMS } from '@/components/layout/Sidebar';
 import { VaultPaletteGroup } from '@/components/vault/VaultPaletteGroup';
 import { queryKeys } from '@/lib/queryKeys';
@@ -11,6 +22,8 @@ import { cn } from '@/lib/utils';
 import { useRunningClisStore } from '@/stores/runningClisStore';
 import { useSearchStore } from '@/stores/searchStore';
 import { useToastHistoryStore } from '@/stores/toastHistoryStore';
+import { useWorkspaceStore } from '@/stores/workspaceStore';
+import { useWorktreeDialogStore } from '@/stores/worktreeDialogStore';
 
 export function CommandPalette(): React.JSX.Element {
   const open = useSearchStore((s) => s.open);
@@ -53,6 +66,26 @@ export function CommandPalette(): React.JSX.Element {
       return q.data.skills.map((skill) => ({ skill, repo }));
     });
   }, [repoIndexQueries, reposQuery.data]);
+
+  // Worktrees of the projects open in the rail, the ones someone is likely to jump between.
+  const railProjectIds = useWorkspaceStore((s) => s.railProjectIds);
+  const activeScope = useWorkspaceStore((s) => s.activeProjectId);
+  const worktreeQueries = useQueries({
+    queries: railProjectIds.map((id) => ({
+      queryKey: queryKeys.worktrees(id),
+      queryFn: () => window.agentmat.worktrees.list(id),
+      enabled: open,
+      staleTime: 15_000,
+    })),
+  });
+  const worktreeResults = railProjectIds.flatMap((id, index) => {
+    const project = projectsQuery.data?.find((p) => p.id === id);
+    const list = worktreeQueries[index]?.data ?? [];
+    return project ? list.map((worktree) => ({ project, worktree })) : [];
+  });
+  const activeParent = activeScope
+    ? (projectsQuery.data?.find((p) => p.id === parseScopeId(activeScope).projectId) ?? null)
+    : null;
 
   function selectPage(to: string): void {
     setOpen(false);
@@ -203,6 +236,45 @@ export function CommandPalette(): React.JSX.Element {
                     ))}
                 </CommandPrimitive.Group>
               )}
+
+              {query.trim() && (activeParent || worktreeResults.length > 0) ? (
+                <CommandPrimitive.Group
+                  heading="Worktrees"
+                  className="px-1 py-1 text-xs font-medium text-muted-foreground [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5"
+                >
+                  {activeParent ? (
+                    <CommandPrimitive.Item
+                      value={`new worktree branch ${activeParent.name}`}
+                      onSelect={() => {
+                        setOpen(false);
+                        useWorktreeDialogStore
+                          .getState()
+                          .openCreate({ projectId: activeParent.id });
+                      }}
+                      className="flex cursor-pointer select-none items-center gap-2.5 rounded-md px-2 py-2 text-sm outline-none aria-selected:bg-primary/12 aria-selected:text-foreground"
+                    >
+                      <Plus className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                      <span className="truncate">New worktree of {activeParent.name}</span>
+                    </CommandPrimitive.Item>
+                  ) : null}
+                  {worktreeResults.map(({ project, worktree }) => (
+                    <CommandPrimitive.Item
+                      key={`worktree-${project.id}-${worktree.id}`}
+                      value={`worktree ${project.name} ${worktree.branch ?? ''} ${worktree.path}`}
+                      onSelect={() => selectPage(`/workspace/${project.id}~${worktree.id}`)}
+                      className="flex cursor-pointer select-none items-center gap-2.5 rounded-md px-2 py-2 text-sm outline-none aria-selected:bg-primary/12 aria-selected:text-foreground"
+                    >
+                      <GitBranch className="h-3.5 w-3.5 shrink-0 text-primary" />
+                      <span className="flex min-w-0 items-baseline gap-1.5">
+                        <span className="shrink-0 text-muted-foreground">{project.name}</span>
+                        <span className="truncate font-mono text-[13px]">
+                          {worktree.branch ?? worktree.path}
+                        </span>
+                      </span>
+                    </CommandPrimitive.Item>
+                  ))}
+                </CommandPrimitive.Group>
+              ) : null}
 
               {(historyQuery.data?.length ?? 0) > 0 && (
                 <CommandPrimitive.Group

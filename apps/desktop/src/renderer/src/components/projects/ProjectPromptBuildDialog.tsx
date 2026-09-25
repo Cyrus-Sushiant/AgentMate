@@ -1,4 +1,4 @@
-import type { PromptType, TargetAI } from '@agentmat/core';
+import type { Project, PromptType, TargetAI } from '@agentmat/core';
 import {
   cliIdForTargetAI,
   EFFORT_LABELS,
@@ -86,6 +86,11 @@ export interface ProjectPromptBuildDialogProps {
   iconColor?: string | null;
   /** The workspace pane an "Open in agent" launch should land in, when opened from one. */
   launchGroupId?: string | null;
+  /**
+   * Where "Open in agent" starts the agent, when that is not the project's own folder: a
+   * worktree's workspace passes itself, so the agent works in the worktree.
+   */
+  launchProject?: Project | null;
 }
 
 const chromeBtnClass =
@@ -100,6 +105,7 @@ export function ProjectPromptBuildDialog({
   iconBgColor = null,
   iconColor = null,
   launchGroupId = null,
+  launchProject = null,
 }: ProjectPromptBuildDialogProps): React.JSX.Element {
   const navigate = useNavigate();
   const [isMaximized, setIsMaximized] = useState(false);
@@ -122,6 +128,7 @@ export function ProjectPromptBuildDialog({
     isTranslating,
     handleGenerate,
     handleTranslate,
+    handleCancel,
     handleCopy,
     handleClear,
     saveDraftMutation,
@@ -286,14 +293,15 @@ export function ProjectPromptBuildDialog({
     if (!project || !generated.trim()) return;
     setLaunching(true);
     try {
+      const target = launchProject ?? project;
       const tabId = launchPromptTab(
-        project,
+        target,
         { ...launch, prompt: generated },
         launchGroupId ?? undefined,
       );
       if (!tabId) return;
       onOpenChange(false);
-      navigate(`/workspace/${project.id}`);
+      navigate(`/workspace/${target.id}`);
       const name = getCliDefinition(launch.cliId)?.name ?? 'the agent';
       toast.success(`Starting ${name}`, {
         description: 'The prompt goes in as soon as it is ready. Press Enter in the tab to run it.',
@@ -566,6 +574,15 @@ export function ProjectPromptBuildDialog({
                     <p className="text-sm text-muted-foreground">
                       {isGenerating ? 'Generating prompt…' : 'Translating…'}
                     </p>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="mt-1 h-7 px-3 text-xs"
+                      onClick={handleCancel}
+                    >
+                      Cancel
+                    </Button>
                   </div>
                 )}
               </div>

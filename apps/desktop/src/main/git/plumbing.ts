@@ -1,5 +1,7 @@
 import { execFile } from 'node:child_process';
+import { normalize } from 'node:path';
 import { promisify } from 'node:util';
+import { parseWorktreeList } from '@agentmat/core';
 import type {
   GitBranchHistory,
   GitBranchInfo,
@@ -138,6 +140,22 @@ async function listRefNames(cwd: string, pattern: string): Promise<string[]> {
 }
 
 /**
+ * Branches checked out in some other worktree, with that worktree's folder. The branch the
+ * current checkout is on is left out: it is here, not elsewhere.
+ */
+async function branchesInOtherWorktrees(
+  cwd: string,
+  current: string,
+): Promise<Map<string, string>> {
+  const output = (await gitOrNull(cwd, ['worktree', 'list', '--porcelain', '-z'])) ?? '';
+  const held = new Map<string, string>();
+  for (const entry of parseWorktreeList(output)) {
+    if (entry.branch && entry.branch !== current) held.set(entry.branch, normalize(entry.path));
+  }
+  return held;
+}
+
+/**
  * `remote` and `branch` are optional so a caller that already resolved them (see
  * `readStatus`) doesn't pay for the same two subprocesses twice.
  */
@@ -154,6 +172,7 @@ export async function listBranches(
 
   const localNames = new Set(localRefs);
   if (current) localNames.add(current);
+  const elsewhere = await branchesInOtherWorktrees(cwd, current);
 
   const remoteNames = new Set<string>();
   if (remote) {
@@ -166,11 +185,15 @@ export async function listBranches(
 
   return [...new Set([...localNames, ...remoteNames])]
     .sort((a, b) => a.localeCompare(b))
-    .map((name) => ({
-      name,
-      local: localNames.has(name),
-      remote: remoteNames.has(name),
-    }));
+    .map((name) => {
+      const worktreePath = elsewhere.get(name);
+      return {
+        name,
+        local: localNames.has(name),
+        remote: remoteNames.has(name),
+        ...(worktreePath ? { worktreePath } : {}),
+      };
+    });
 }
 
 /** Best-effort guess at the repo's primary branch, e.g. "main" vs "master". */
@@ -264,6 +287,13 @@ export async function readStatus(cwd: string): Promise<GitStatus> {
   };
 }
 
+/** Git checks a branch out in one worktree at a time; this says where to go instead. */
+function openElsewhereError(branch: string, worktreePath: string): Error {
+  return new Error(
+    `'${branch}' is open in the worktree at ${worktreePath}. Open that worktree to work on it.`,
+  );
+}
+
 export async function checkoutBranch(cwd: string, branchName: string): Promise<string> {
   const sanitized = safeBranchName(branchName);
 
@@ -275,6 +305,7 @@ export async function checkoutBranch(cwd: string, branchName: string): Promise<s
   if (!info) {
     throw new Error(`Branch '${sanitized}' was not found locally or on the remote.`);
   }
+  if (info.worktreePath) throw openElsewhereError(sanitized, info.worktreePath);
 
   if (info.local) {
     return git(cwd, ['checkout', sanitized]);
@@ -513,6 +544,7 @@ export async function deleteBranch(
   const branches = await listBranches(cwd, { remote, branch: current });
   const info = branches.find((branch) => branch.name === sanitized);
   if (!info) throw new Error(`Branch '${sanitized}' was not found.`);
+  if (info.worktreePath) throw openElsewhereError(sanitized, info.worktreePath);
 
   const notes: string[] = [];
   if (info.local) {

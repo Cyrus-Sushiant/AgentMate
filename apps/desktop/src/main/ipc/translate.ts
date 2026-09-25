@@ -14,6 +14,15 @@ function delay(ms: number): Promise<void> {
 const MAX_TRANSLATE_CHARS = 1200;
 
 /**
+ * The endpoint answers in well under a second. Without a limit a stalled connection
+ * leaves the request (and the spinner waiting on it) hanging for minutes per attempt.
+ */
+const TRANSLATE_REQUEST_TIMEOUT_MS = 15_000;
+
+/** In-flight translations that carried a requestId, so the renderer can stop them. */
+const inFlightTranslations = new Map<string, AbortController>();
+
+/**
  * Splits on paragraph breaks first, then on line breaks, and only cuts inside a
  * line when that single line is over the budget on its own. The separators stay
  * attached to the pieces they follow, so joining the results back together is a
@@ -55,7 +64,11 @@ function splitForTranslation(text: string): string[] {
 // Prompt Builder offer direct translation with zero setup. It's an
 // undocumented, unofficial endpoint that Google could change or block without
 // notice; callers should treat failures as recoverable.
-async function translateChunk(text: string, targetLang: string): Promise<string> {
+async function translateChunk(
+  text: string,
+  targetLang: string,
+  signal: AbortSignal,
+): Promise<string> {
   const url = new URL('https://translate.googleapis.com/translate_a/single');
   url.searchParams.set('client', 'gtx');
   url.searchParams.set('sl', 'auto');
@@ -63,7 +76,17 @@ async function translateChunk(text: string, targetLang: string): Promise<string>
   url.searchParams.set('dt', 't');
   url.searchParams.set('q', text);
 
-  const response = await fetch(url);
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      signal: AbortSignal.any([signal, AbortSignal.timeout(TRANSLATE_REQUEST_TIMEOUT_MS)]),
+    });
+  } catch (error) {
+    if ((error as Error | undefined)?.name === 'TimeoutError') {
+      throw new Error('The translation service did not answer in time.', { cause: error });
+    }
+    throw error;
+  }
   if (!response.ok) {
     throw new Error(`Translate request failed with status ${response.status}`);
   }
@@ -80,7 +103,11 @@ async function translateChunk(text: string, targetLang: string): Promise<string>
     .join('');
 }
 
-async function translateText(text: string, targetLang: string): Promise<string> {
+async function translateText(
+  text: string,
+  targetLang: string,
+  signal: AbortSignal,
+): Promise<string> {
   if (!text.trim()) return '';
 
   const out: string[] = [];
@@ -88,20 +115,27 @@ async function translateText(text: string, targetLang: string): Promise<string> 
     // Sequential on purpose: the endpoint is undocumented and unauthenticated,
     // and firing a dozen requests at once is the quickest way to be blocked.
     // Whitespace-only pieces have nothing to translate and come back empty.
-    out.push(chunk.trim() ? await translateChunk(chunk, targetLang) : chunk);
+    out.push(chunk.trim() ? await translateChunk(chunk, targetLang, signal) : chunk);
   }
   return out.join('');
 }
 
-async function translateTextWithRetries(text: string, targetLang: string): Promise<string> {
+async function translateTextWithRetries(
+  text: string,
+  targetLang: string,
+  signal: AbortSignal,
+): Promise<string> {
   const { translateMaxRetries } = await store.getSettings();
   const maxAttempts = 1 + Math.max(0, translateMaxRetries);
 
   let lastError: unknown;
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    signal.throwIfAborted();
     try {
-      return await translateText(text, targetLang);
+      return await translateText(text, targetLang, signal);
     } catch (error) {
+      // A cancelled request is over, retrying it would only restart what the user stopped.
+      if (signal.aborted) throw error;
       lastError = error;
       if (attempt < maxAttempts) await delay(500 * attempt);
     }
@@ -110,9 +144,21 @@ async function translateTextWithRetries(text: string, targetLang: string): Promi
 }
 
 export function registerTranslateHandlers(): void {
-  ipcMain.handle(
-    IPC.translate.text,
-    (_event, input: TranslateTextInput): Promise<string> =>
-      translateTextWithRetries(input.text, input.targetLang),
-  );
+  ipcMain.handle(IPC.translate.text, async (_event, input: TranslateTextInput): Promise<string> => {
+    const controller = new AbortController();
+    if (input.requestId) inFlightTranslations.set(input.requestId, controller);
+    try {
+      return await translateTextWithRetries(input.text, input.targetLang, controller.signal);
+    } finally {
+      if (input.requestId) inFlightTranslations.delete(input.requestId);
+    }
+  });
+
+  ipcMain.handle(IPC.translate.cancel, (_event, requestId: string): boolean => {
+    const controller = inFlightTranslations.get(requestId);
+    if (!controller) return false;
+    controller.abort();
+    inFlightTranslations.delete(requestId);
+    return true;
+  });
 }
