@@ -26,6 +26,8 @@ export type ShortcutCommandId =
   | 'prompt.translate'
   | 'prompt.copy'
   | 'workspace.newTab'
+  | 'workspace.newBrowser'
+  | 'workspace.pickElement'
   | 'workspace.closeTab'
   | 'workspace.splitRight'
   | 'workspace.splitDown'
@@ -174,6 +176,23 @@ export const SHORTCUT_COMMANDS: ShortcutCommand[] = [
     scope: 'workspace',
     // Not Ctrl+T: that toggles the general terminal drawer, which stays usable here too.
     defaults: [{ code: 'KeyT', mod: true, shift: true }],
+  },
+  {
+    id: 'workspace.newBrowser',
+    label: 'New browser tab',
+    description: 'Opens a browser tab in the focused pane, for your dev server or any site.',
+    group: 'Workspace',
+    scope: 'workspace',
+    defaults: [{ code: 'KeyB', mod: true, shift: true }],
+  },
+  {
+    id: 'workspace.pickElement',
+    label: 'Comment on a page element',
+    description:
+      'In a browser tab, picks an element on the page to leave a comment on for your agent.',
+    group: 'Workspace',
+    scope: 'workspace',
+    defaults: [{ code: 'KeyC', mod: true, shift: true }],
   },
   {
     id: 'workspace.closeTab',

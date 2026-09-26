@@ -1,7 +1,7 @@
 import type { Project } from '@agentmat/core';
 import { useNavigate } from 'react-router-dom';
 import { CliLogo } from '@/components/cliLogos';
-import { Keyboard, SettingsIcon, Sparkles, TerminalSquare } from '@/components/icons';
+import { Globe, Keyboard, SettingsIcon, Sparkles, TerminalSquare } from '@/components/icons';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -14,6 +14,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useLauncherStore, usePromptDialogStore } from '@/lib/workspace/commands';
 import { launchAgentTab, launchShellTab, shellOptions } from '@/lib/workspace/launch';
 import { useCliStore } from '@/stores/cliStore';
+import { useShortcutLabel } from '@/stores/shortcutStore';
+import { useWorkspaceStore } from '@/stores/workspaceStore';
 import { useAgentChoices } from './useAgentChoices';
 
 export interface LauncherMenuProps {
@@ -43,6 +45,7 @@ export function LauncherMenu({
   const setOpenFor = useLauncherStore((s) => s.setOpenFor);
   const agents = useAgentChoices(project);
   const shells = shellOptions();
+  const browserKey = useShortcutLabel('workspace.newBrowser');
   const hasLaunchDefaults = useCliStore((s) => Object.keys(s.cliLaunchDefaults).length > 0);
 
   const launchAgent = (cliId: string, skipLaunchDefaults = false): void => {
@@ -124,6 +127,14 @@ export function LauncherMenu({
             {option.label}
           </DropdownMenuItem>
         ))}
+        <DropdownMenuSeparator />
+        <DropdownMenuItem
+          onSelect={() => useWorkspaceStore.getState().openBrowser(project.id, { groupId })}
+        >
+          <Globe className="h-3.5 w-3.5 text-muted-foreground" />
+          Browser
+          {browserKey ? <Kbd>{browserKey}</Kbd> : null}
+        </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem onSelect={() => navigate('/cli-manager')}>
           <SettingsIcon className="h-3.5 w-3.5 text-muted-foreground" />

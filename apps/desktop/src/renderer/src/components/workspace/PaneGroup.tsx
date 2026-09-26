@@ -8,6 +8,7 @@ import {
   Expand,
   File as FileIcon,
   GitCommit,
+  Globe,
   ImageIcon,
   Plus,
   RefreshCw,
@@ -26,6 +27,7 @@ import {
 } from '@/components/ui/context-menu';
 import { Skeleton } from '@/components/ui/skeleton';
 import { SimpleTooltip } from '@/components/ui/tooltip';
+import { browserRuntime } from '@/lib/browser/browserRuntime';
 import { useTerminalSessionStore } from '@/lib/terminal/terminalRuntime';
 import { cn } from '@/lib/utils';
 import { useLauncherStore } from '@/lib/workspace/commands';
@@ -43,10 +45,12 @@ import {
   type ProjectWorkspace,
   terminalTabLabel,
   useWorkspaceStore,
+  type WorkspaceBrowserTab,
   type WorkspaceTab,
 } from '@/stores/workspaceStore';
 import { AGENT_STATUS_LABEL, AgentStatusDot } from './AgentStatusDot';
 import { AutoContinueMenu, autoContinuePendingLine } from './AutoContinueMenu';
+import { BrowserTabMenu } from './browser/BrowserTabMenu';
 import { FileTabMenu } from './FileTabMenu';
 import { LauncherMenu } from './LauncherMenu';
 import { PaneLauncher } from './PaneLauncher';
@@ -55,9 +59,29 @@ import { TerminalSlot } from './TerminalSlot';
 /** Monaco is heavy; it loads the first time a diff is opened. */
 const DiffTab = lazy(() => import('./git/DiffTab'));
 const FileTab = lazy(() => import('./FileTab'));
+const BrowserTab = lazy(() => import('./browser/BrowserTab'));
 
 /** Drag payload type for workspace tabs, kept apart from OS file drags. */
 const TAB_MIME = 'application/x-agentmate-tab';
+
+/**
+ * Pages of browser tabs sit above the panes in their own layer and would swallow the drag, so
+ * they step aside until it ends. The tab that started the drag may be gone by then (a move
+ * remounts it), so the end is watched on the window, with the first mouse move after a drop as
+ * a backstop.
+ */
+function beginTabDrag(): void {
+  browserRuntime.setDragging(true);
+  const end = (): void => {
+    browserRuntime.setDragging(false);
+    for (const type of ['dragend', 'drop', 'mousemove'] as const) {
+      window.removeEventListener(type, end, true);
+    }
+  };
+  for (const type of ['dragend', 'drop', 'mousemove'] as const) {
+    window.addEventListener(type, end, true);
+  }
+}
 
 interface DraggedTab {
   projectId: string;
@@ -128,7 +152,23 @@ function PaneIconButton({
   );
 }
 
+function BrowserTabIcon({ tab }: { tab: WorkspaceBrowserTab }): React.JSX.Element {
+  const [broken, setBroken] = useState<string | null>(null);
+  if (tab.faviconUrl && broken !== tab.faviconUrl) {
+    return (
+      <img
+        src={tab.faviconUrl}
+        alt=""
+        className="h-3.5 w-3.5 shrink-0 rounded-sm"
+        onError={() => setBroken(tab.faviconUrl ?? null)}
+      />
+    );
+  }
+  return <Globe className="h-3 w-3 text-muted-foreground" />;
+}
+
 function TabIcon({ tab }: { tab: WorkspaceTab }): React.JSX.Element {
+  if (tab.kind === 'browser') return <BrowserTabIcon tab={tab} />;
   if (tab.kind === 'diff') {
     return tab.commit ? (
       <GitCommit className="h-3 w-3 text-muted-foreground" />
@@ -147,7 +187,17 @@ function TabIcon({ tab }: { tab: WorkspaceTab }): React.JSX.Element {
   return <TerminalSquare className="h-3 w-3 text-muted-foreground" />;
 }
 
+function browserTabLabel(tab: WorkspaceBrowserTab): string {
+  if (tab.title.trim()) return tab.title;
+  try {
+    return tab.url ? new URL(tab.url).host : 'New tab';
+  } catch {
+    return tab.url || 'New tab';
+  }
+}
+
 function tabLabel(tab: WorkspaceTab, agentTitle: string | null): string {
+  if (tab.kind === 'browser') return browserTabLabel(tab);
   if (tab.kind === 'diff') {
     const name = tab.path.split('/').pop() ?? tab.path;
     return tab.commit ? `${name} @ ${tab.commit.slice(0, 7)}` : name;
@@ -231,6 +281,13 @@ function PaneTab({
         ) : null}
         <span className="font-mono text-[10px] text-muted-foreground">{tab.cwd}</span>
       </span>
+    ) : tab.kind === 'browser' ? (
+      <span className="flex flex-col gap-0.5">
+        <span className="font-semibold">{label}</span>
+        {tab.url ? (
+          <span className="font-mono text-[10px] text-muted-foreground">{tab.url}</span>
+        ) : null}
+      </span>
     ) : (
       tab.path
     );
@@ -246,6 +303,7 @@ function PaneTab({
         const payload: DraggedTab = { projectId, tabId: tab.id, groupId };
         event.dataTransfer.setData(TAB_MIME, JSON.stringify(payload));
         event.dataTransfer.effectAllowed = 'move';
+        beginTabDrag();
       }}
       onClick={onSelect}
       onKeyDown={(event) => {
@@ -340,6 +398,14 @@ function PaneTab({
       <ContextMenu>
         {tabElement}
         <FileTabMenu project={project} path={tab.path} onClose={onClose} />
+      </ContextMenu>
+    );
+  }
+  if (tab.kind === 'browser') {
+    return (
+      <ContextMenu>
+        {tabElement}
+        <BrowserTabMenu tab={tab} onClose={onClose} />
       </ContextMenu>
     );
   }
@@ -751,6 +817,22 @@ export function PaneGroup({
             }
           >
             <FileTab key={activeTab.id} project={project} tab={activeTab} />
+          </Suspense>
+        ) : activeTab?.kind === 'browser' ? (
+          <Suspense
+            fallback={
+              <div className="space-y-2 p-2">
+                <Skeleton className="h-7 w-full" />
+                <Skeleton className="h-40 w-full" />
+              </div>
+            }
+          >
+            <BrowserTab
+              key={activeTab.id}
+              project={project}
+              tabId={activeTab.id}
+              focused={focused}
+            />
           </Suspense>
         ) : (
           <PaneLauncher

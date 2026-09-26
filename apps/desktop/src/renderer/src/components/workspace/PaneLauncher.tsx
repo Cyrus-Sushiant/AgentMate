@@ -2,7 +2,7 @@ import type { Project } from '@agentmat/core';
 import { useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { CliLogo } from '@/components/cliLogos';
-import { Download, GitBranch, Sparkles, TerminalSquare } from '@/components/icons';
+import { Download, GitBranch, Globe, Sparkles, TerminalSquare } from '@/components/icons';
 import { ProjectIcon } from '@/components/projects/ProjectIcon';
 import { Skeleton } from '@/components/ui/skeleton';
 import { SimpleTooltip } from '@/components/ui/tooltip';
@@ -11,6 +11,8 @@ import { useLauncherStore, usePromptDialogStore } from '@/lib/workspace/commands
 import { launchAgentTab, launchShellTab, shellOptions } from '@/lib/workspace/launch';
 import type { WorkspaceProject } from '@/lib/workspace/scope';
 import { useCliStore } from '@/stores/cliStore';
+import { useShortcutLabel } from '@/stores/shortcutStore';
+import { useWorkspaceStore } from '@/stores/workspaceStore';
 import { useAgentChoices } from './useAgentChoices';
 
 export interface PaneLauncherProps {
@@ -32,6 +34,7 @@ export function PaneLauncher({
   const agents = useAgentChoices(project);
   const worktree = (project as Partial<WorkspaceProject>).worktree ?? null;
   const shells = shellOptions();
+  const browserKey = useShortcutLabel('workspace.newBrowser');
   const menuOpen = useLauncherStore((s) => s.openForGroupId !== null);
   const hasLaunchDefaults = useCliStore((s) => Object.keys(s.cliLaunchDefaults).length > 0);
   const visibleAgents = useMemo(
@@ -199,6 +202,19 @@ export function PaneLauncher({
               {option.label}
             </button>
           ))}
+          <span className="mx-1 h-4 w-px bg-border/70" />
+          <SimpleTooltip
+            label={browserKey ? `Open a web page, like your dev server (${browserKey})` : null}
+          >
+            <button
+              type="button"
+              onClick={() => useWorkspaceStore.getState().openBrowser(project.id, { groupId })}
+              className="inline-flex h-7 items-center gap-1.5 rounded-md border border-border/70 px-2.5 text-xs text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <Globe className="h-3 w-3" />
+              Browser
+            </button>
+          </SimpleTooltip>
         </div>
 
         {hero && agents.missing.length > 0 && agents.installed.length > 0 ? (

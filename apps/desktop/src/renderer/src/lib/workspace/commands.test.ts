@@ -1,6 +1,7 @@
 import type { Project } from '@agentmat/core';
 import { findGroup } from '@agentmat/core';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { onBrowserShortcut } from '@/lib/browser/browserSync';
 import { queryKeys } from '@/lib/queryKeys';
 import { queryClient } from '@/queryClient';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
@@ -297,5 +298,41 @@ describe('toggleGitPanel', () => {
     expect(store().gitPanel.collapsed).toBe(true);
     workspaceCommands.toggleGitPanel();
     expect(store().gitPanel.collapsed).toBe(false);
+  });
+});
+
+describe('newBrowser', () => {
+  it('opens a browser tab on its start page in the focused pane', () => {
+    const { groupId } = openWorkspace();
+    workspaceCommands.newBrowser();
+    const group = findGroup(workspace().root, groupId);
+    const active = group?.activeTabId ? workspace().tabs[group.activeTabId] : undefined;
+    expect(active).toMatchObject({ kind: 'browser', url: '' });
+  });
+
+  it('does nothing with no project open', () => {
+    workspaceCommands.newBrowser();
+    expect(store().workspaces).toEqual({});
+  });
+});
+
+describe('pickElement', () => {
+  it('starts commenting in the browser tab of the focused pane', () => {
+    openWorkspace();
+    const id = store().openBrowser('p1', { url: 'http://localhost:5173/' });
+    const seen = vi.fn();
+    const off = onBrowserShortcut(id, seen);
+    workspaceCommands.pickElement();
+    off();
+    expect(seen).toHaveBeenCalledWith('pick');
+  });
+
+  it('leaves other tabs alone', () => {
+    const { tabId } = openWorkspace();
+    const seen = vi.fn();
+    const off = onBrowserShortcut(tabId, seen);
+    workspaceCommands.pickElement();
+    off();
+    expect(seen).not.toHaveBeenCalled();
   });
 });

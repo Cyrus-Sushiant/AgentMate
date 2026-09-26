@@ -38,6 +38,8 @@ interface Entry {
   slot: HTMLElement | null;
   observer: ResizeObserver | null;
   viewport: ViewportPresetId;
+  /** Where the page sits in the pane, and its scale, as last laid out. */
+  frame: { left: number; top: number; scale: number };
   attached: boolean;
   /** Bumped on every new document, so the picker is injected again after a navigation. */
   documentId: number;
@@ -77,9 +79,10 @@ export function createBrowserRuntime(options: BrowserRuntimeOptions = {}) {
     if (!el) {
       el = document.createElement('div');
       el.id = 'browser-layer';
-      // Above pane contents, below menus and dialogs (those portal to the body with z-50).
+      // Between the workspace (z-10) and the terminal drawer that slides over it (z-20), which
+      // share the root stacking context with this layer. Menus and dialogs portal in at z-50.
       el.style.cssText =
-        'position:fixed;inset:0;pointer-events:none;z-index:30;overflow:hidden;contain:strict;';
+        'position:fixed;inset:0;pointer-events:none;z-index:15;overflow:hidden;contain:strict;';
       document.body.appendChild(el);
     }
     return el;
@@ -128,11 +131,14 @@ export function createBrowserRuntime(options: BrowserRuntimeOptions = {}) {
     const fit = fitViewport(entry.viewport, { width: rect.width, height: rect.height });
     const width = Math.round(fit.width * fit.scale);
     const height = Math.round(fit.height * fit.scale);
+    const left = Math.max(0, Math.round((rect.width - width) / 2));
+    const top = Math.max(0, Math.round((rect.height - height) / 2));
+    entry.frame = { left, top, scale: fit.scale };
     Object.assign(webview.style, {
       width: `${width}px`,
       height: `${height}px`,
-      left: `${Math.max(0, Math.round((rect.width - width) / 2))}px`,
-      top: `${Math.max(0, Math.round((rect.height - height) / 2))}px`,
+      left: `${left}px`,
+      top: `${top}px`,
     });
     applyZoom(entry, fit.scale);
   }
@@ -226,6 +232,7 @@ export function createBrowserRuntime(options: BrowserRuntimeOptions = {}) {
       slot: null,
       observer: null,
       viewport: 'responsive',
+      frame: { left: 0, top: 0, scale: 1 },
       attached: false,
       documentId: 0,
       pickerDocument: -1,
@@ -302,6 +309,11 @@ export function createBrowserRuntime(options: BrowserRuntimeOptions = {}) {
       if (!entry || entry.viewport === viewport) return;
       entry.viewport = viewport;
       place(entry);
+    },
+
+    /** Where the tab's page sits within its pane, for UI anchored to page elements. */
+    frame(tabId: string): { left: number; top: number; scale: number } {
+      return entries.get(tabId)?.frame ?? { left: 0, top: 0, scale: 1 };
     },
 
     state(tabId: string): BrowserNavState {

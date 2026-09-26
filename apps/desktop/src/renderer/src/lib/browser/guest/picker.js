@@ -637,8 +637,24 @@
       );
       renderMarkers();
     },
+    reveal(id) {
+      const marker = markers.find((one) => one.id === id);
+      if (!marker) return false;
+      if (!marker.fixed) {
+        const top = marker.rectPage.y - window.innerHeight / 3;
+        window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
+      }
+      window.__agentmatPicker.flashMarker(id);
+      return true;
+    },
+    /**
+     * Hides everything the picker draws, for a screenshot. Hiding settles after two frames, so
+     * the page has repainted without the highlight by the time the host captures it.
+     */
     setChromeHidden(hidden) {
       host.style.visibility = hidden ? 'hidden' : '';
+      if (!hidden) return true;
+      return new Promise((resolve) => raf(() => raf(() => resolve(true))));
     },
     inspect() {
       return {

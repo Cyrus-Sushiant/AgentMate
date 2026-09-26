@@ -17,6 +17,7 @@ interface PickerApi {
   freeze(): void;
   setMarkers(markers: PageMarker[]): void;
   flashMarker(id: string): void;
+  reveal(id: string): boolean;
   setChromeHidden(hidden: boolean): void;
   inspect(): {
     armed: boolean;
@@ -378,6 +379,19 @@ describe('pins', () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  it('scrolls a pin into view and pulses it', () => {
+    const api = inject();
+    const scrollTo = vi.fn();
+    window.scrollTo = scrollTo as typeof window.scrollTo;
+    api.setMarkers([marker(1)]);
+    expect(api.reveal('m1')).toBe(true);
+    expect(scrollTo).toHaveBeenCalledWith(
+      expect.objectContaining({ top: expect.any(Number), behavior: 'smooth' }),
+    );
+    expect(api.inspect().markers[0]?.flashing).toBe(true);
+    expect(api.reveal('nope')).toBe(false);
   });
 
   it('hides the highlight and the pins for a screenshot', () => {
