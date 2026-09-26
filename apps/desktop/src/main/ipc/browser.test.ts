@@ -74,14 +74,20 @@ function guest(id: number, overrides: Record<string, unknown> = {}): void {
     isDestroyed: () => false,
     getType: () => 'webview',
     hostWebContents: host,
-    capturePage: async () => screen,
+    capturePage: async (_rect?: unknown, options?: unknown) => {
+      captureOptions = options;
+      return screen;
+    },
     ...overrides,
   });
 }
 
+let captureOptions: unknown;
+
 beforeEach(async () => {
   guests = new Map();
   lastCrop = null;
+  captureOptions = undefined;
   await loadIpc(
     () => import('./browser'),
     (module) => module.registerBrowserHandlers(),
@@ -113,6 +119,12 @@ describe('browser:captureElement', () => {
     // The page is 1280 CSS px wide on a 2560 px capture, so everything doubles, with 8 CSS px of
     // context around the element.
     expect(lastCrop?.cropped).toEqual({ x: 184, y: 84, width: 432, height: 112 });
+  });
+
+  it('captures the page as it is on screen, not as a hidden page', async () => {
+    guest(7);
+    await invokeFrom(host, IPC.browser.captureElement, 7, rect, viewport);
+    expect(captureOptions).toEqual({ stayHidden: true });
   });
 
   it('refuses a page that is not a webview guest', async () => {

@@ -91,7 +91,9 @@ export function registerBrowserHandlers(): void {
       if (!isRect(rect) || !viewport || typeof viewport !== 'object') {
         throw new Error('Nothing to capture.');
       }
-      const page = await guest.capturePage();
+      // The page is on screen already, so it is captured as it is, without Electron's handling
+      // for capturing a hidden page (showing it for the capture and hiding it again after).
+      const page = await guest.capturePage(undefined, { stayHidden: true });
       const size = page.getSize();
       const crop = cropRect(rect, size, viewport as { width: number; height: number });
       if (!crop || page.isEmpty()) return null;
