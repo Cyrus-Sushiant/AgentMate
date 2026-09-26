@@ -23,6 +23,15 @@ vi.mock('@/lib/terminal/terminalRuntime', async (importOriginal) => {
 
 // The editor body pulls in Monaco and its workers. These tests are about the tab strip.
 vi.mock('./FileTab', () => ({ default: () => null }));
+vi.mock('./browser/BrowserTab', () => ({
+  default: ({ tabId }: { tabId: string }) => <div data-testid="browser-body">{tabId}</div>,
+}));
+const browserRuntime = vi.hoisted(() => ({
+  setDragging: vi.fn(),
+  reload: vi.fn(),
+  dispose: vi.fn(),
+}));
+vi.mock('@/lib/browser/browserRuntime', () => ({ browserRuntime }));
 
 const project = { id: 'p1', name: 'App', folderPath: 'C:\\work\\app' } as Project;
 const indexPath = 'C:\\work\\app\\src\\index.ts';
@@ -134,5 +143,69 @@ describe('PaneGroup file tab menu', () => {
     for (const name of ['Reveal in File Explorer', 'Reveal in Explorer View']) {
       expect(await screen.findByRole('menuitem', { name })).toHaveAttribute('data-disabled');
     }
+  });
+});
+
+describe('PaneGroup browser tab', () => {
+  function openBrowser(url = 'http://localhost:5173/pricing'): string {
+    const id = useWorkspaceStore.getState().openBrowser('p1', { url });
+    useWorkspaceStore
+      .getState()
+      .setBrowserPage('p1', id, { url, title: 'Pricing | Shop', faviconUrl: null });
+    return id;
+  }
+
+  it('names the tab after its page and shows the page', async () => {
+    const id = openBrowser();
+    renderWithProviders(<Harness />);
+    const tab = screen.getByRole('tab', { name: /Pricing \| Shop/ });
+    expect(tab.querySelector('[data-icon="globe"]')).toBeInTheDocument();
+    expect(await screen.findByTestId('browser-body')).toHaveTextContent(id);
+  });
+
+  it('calls a tab without a page a new tab', () => {
+    useWorkspaceStore.getState().openBrowser('p1');
+    renderWithProviders(<Harness />);
+    expect(screen.getByRole('tab', { name: /New tab/ })).toBeInTheDocument();
+  });
+
+  it('shows the site’s icon once the page has one', () => {
+    const id = openBrowser();
+    useWorkspaceStore.getState().setBrowserPage('p1', id, {
+      url: 'http://localhost:5173/pricing',
+      title: 'Pricing | Shop',
+      faviconUrl: 'http://localhost:5173/favicon.ico',
+    });
+    renderWithProviders(<Harness />);
+    const tab = screen.getByRole('tab', { name: /Pricing \| Shop/ });
+    expect(tab.querySelector('img')).toHaveAttribute('src', 'http://localhost:5173/favicon.ico');
+  });
+
+  it('offers reload, copy address and the system browser in its menu', async () => {
+    const id = openBrowser();
+    const { user, bridge } = renderWithProviders(<Harness />);
+    await user.pointer({
+      target: screen.getByRole('tab', { name: /Pricing \| Shop/ }),
+      keys: '[MouseRight]',
+    });
+    await user.click(await screen.findByRole('menuitem', { name: 'Reload' }));
+    expect(browserRuntime.reload).toHaveBeenCalledWith(id, false);
+    await user.pointer({
+      target: screen.getByRole('tab', { name: /Pricing \| Shop/ }),
+      keys: '[MouseRight]',
+    });
+    await user.click(await screen.findByRole('menuitem', { name: 'Open in system browser' }));
+    expect(bridge.$fn('shell.openExternal')).toHaveBeenCalledWith('http://localhost:5173/pricing');
+  });
+
+  it('moves pages out of the way while a tab is dragged', () => {
+    openBrowser();
+    renderWithProviders(<Harness />);
+    const tab = screen.getByRole('tab', { name: /Pricing \| Shop/ });
+    const dataTransfer = { setData: vi.fn(), effectAllowed: '' };
+    tab.dispatchEvent(Object.assign(new Event('dragstart', { bubbles: true }), { dataTransfer }));
+    expect(browserRuntime.setDragging).toHaveBeenLastCalledWith(true);
+    window.dispatchEvent(new Event('dragend'));
+    expect(browserRuntime.setDragging).toHaveBeenLastCalledWith(false);
   });
 });

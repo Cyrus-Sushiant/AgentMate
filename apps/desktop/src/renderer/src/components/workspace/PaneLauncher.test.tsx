@@ -3,6 +3,7 @@ import type { Project, WorktreeInfo } from '@agentmat/core';
 import { screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { asWorkspaceProject } from '@/lib/workspace/scope';
+import { useWorkspaceStore } from '@/stores/workspaceStore';
 import { renderWithProviders } from '../../../../test/renderer/renderWithProviders';
 import { PaneLauncher } from './PaneLauncher';
 
@@ -41,5 +42,19 @@ describe('PaneLauncher in a worktree', () => {
       bridge: { 'cli.detectAll': [], platform: 'win32' },
     });
     expect(screen.queryByText('Worktree')).toBeNull();
+  });
+});
+
+describe('PaneLauncher browser', () => {
+  it('opens a browser tab in its pane', async () => {
+    useWorkspaceStore.getState().openProject('p1');
+    const groupId = useWorkspaceStore.getState().workspaces.p1?.focusedGroupId ?? '';
+    const { user } = renderWithProviders(
+      <PaneLauncher project={project} groupId={groupId} hero focused={false} />,
+      { bridge: { 'cli.detectAll': [], platform: 'win32' } },
+    );
+    await user.click(screen.getByRole('button', { name: /Browser/ }));
+    const tabs = Object.values(useWorkspaceStore.getState().workspaces.p1?.tabs ?? {});
+    expect(tabs).toEqual([expect.objectContaining({ kind: 'browser', url: '' })]);
   });
 });

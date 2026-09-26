@@ -7,6 +7,8 @@ import { ProjectIcon } from '@/components/projects/ProjectIcon';
 import { ProjectPromptBuildDialog } from '@/components/projects/ProjectPromptBuildDialog';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useWorkspaceProject } from '@/hooks/useWorktrees';
+import { startBrowserSync } from '@/lib/browser/browserSync';
+import { startDevServerFeed } from '@/lib/browser/devServerFeed';
 import { queryKeys } from '@/lib/queryKeys';
 import { useTerminalSessionStore } from '@/lib/terminal/terminalRuntime';
 import { cn } from '@/lib/utils';
@@ -159,6 +161,17 @@ export function WorkspaceHost({ visible }: { visible: boolean }): React.JSX.Elem
 
   useAutoCloseFinishedShells();
   useReportViewing(visible);
+
+  // Browser tabs keep up with their pages, and new tabs can offer the workspace's dev servers,
+  // even for output printed before the first browser tab was opened.
+  useEffect(() => {
+    const stopFeed = startDevServerFeed();
+    const stopSync = startBrowserSync();
+    return () => {
+      stopFeed();
+      stopSync();
+    };
+  }, []);
 
   // A project deleted elsewhere takes its workspace with it. This runs only when a fresh
   // project list arrives, never because the rail changed: a project opened a moment ago can

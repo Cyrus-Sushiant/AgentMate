@@ -27,6 +27,8 @@ const WORKSPACE_ACTIONS: Record<WorkspaceShortcutCommandId, (event: KeyboardEven
   'workspace.nextChange': () => workspaceCommands.diffChange('next'),
   'workspace.prevChange': () => workspaceCommands.diffChange('previous'),
   'workspace.newTab': workspaceCommands.openLauncher,
+  'workspace.newBrowser': workspaceCommands.newBrowser,
+  'workspace.pickElement': workspaceCommands.pickElement,
   'workspace.closeTab': workspaceCommands.closeActiveTab,
   'workspace.splitRight': () => workspaceCommands.split('row'),
   'workspace.splitDown': () => workspaceCommands.split('column'),

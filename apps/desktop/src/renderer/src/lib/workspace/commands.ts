@@ -1,6 +1,7 @@
 import type { PaneDirection, Project, SplitDirection, WorktreeInfo } from '@agentmat/core';
 import { findGroup, findNeighborGroup, type PaneRect, parseScopeId } from '@agentmat/core';
 import { create } from 'zustand';
+import { emitBrowserShortcut } from '@/lib/browser/browserSync';
 import { queryKeys } from '@/lib/queryKeys';
 import { queryClient } from '@/queryClient';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
@@ -82,6 +83,23 @@ export const workspaceCommands = {
     const project = activeProject();
     const current = activeWorkspace();
     if (project && current) launchShellTab(project, undefined, current.workspace.focusedGroupId);
+  },
+
+  newBrowser(): void {
+    const current = activeWorkspace();
+    if (!current) return;
+    useWorkspaceStore
+      .getState()
+      .openBrowser(current.projectId, { groupId: current.workspace.focusedGroupId });
+  },
+
+  /** Starts commenting on a page element, when the focused pane shows a browser tab. */
+  pickElement(): void {
+    const current = activeWorkspace();
+    if (!current) return;
+    const group = findGroup(current.workspace.root, current.workspace.focusedGroupId);
+    const tab = group?.activeTabId ? current.workspace.tabs[group.activeTabId] : undefined;
+    if (tab?.kind === 'browser' && tab.url) emitBrowserShortcut(tab.id, 'pick');
   },
 
   closeActiveTab(): void {

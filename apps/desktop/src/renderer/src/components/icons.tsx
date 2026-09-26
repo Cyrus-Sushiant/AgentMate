@@ -45,9 +45,11 @@ import {
   faCodeCompare,
   faCodeMerge,
   faCodePullRequest,
+  faCommentMedical,
   faComments,
   faCompress,
   faCopy,
+  faCrosshairs,
   faCubes,
   faDice,
   faDisplay,
@@ -299,6 +301,8 @@ export const Plug = makeIcon(faPlug);
 
 // Ask AI icons.
 export const MessageSquare = makeIcon(faComments);
+export const MessageSquarePlus = makeIcon(faCommentMedical);
+export const Crosshair = makeIcon(faCrosshairs);
 
 // Remote control icons.
 export const Broadcast = makeIcon(faTowerBroadcast);

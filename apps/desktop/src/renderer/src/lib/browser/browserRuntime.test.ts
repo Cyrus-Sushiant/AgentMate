@@ -202,6 +202,16 @@ describe('device sizes', () => {
   });
 });
 
+describe('frame', () => {
+  it('says where the page sits in the pane and how much it is scaled', () => {
+    runtime.ensure('b1', 'http://localhost:5173/');
+    expect(runtime.frame('b1')).toEqual({ left: 0, top: 0, scale: 1 });
+    runtime.setViewport('b1', 'desktop');
+    runtime.attach('b1', slot(720, 600));
+    expect(runtime.frame('b1')).toEqual({ left: 0, top: 75, scale: 0.5 });
+  });
+});
+
 describe('page state', () => {
   it('tracks loading, the address, history and the title', () => {
     const states: unknown[] = [];
