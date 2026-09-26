@@ -57,15 +57,27 @@ describe('activity', () => {
   });
 
   it('caps the feed so the file cannot grow without end', async () => {
-    const { logActivity } = await import('../store');
+    const { logActivity, store } = await import('../store');
 
-    for (let index = 0; index < 205; index += 1) {
+    // Fill the feed to the cap in one write rather than 200 logActivity calls. Each call is a
+    // read, write and rename on disk, and on a loaded Windows machine that many ran past the
+    // test timeout, then kept renaming in the background and broke the next test with EPERM.
+    await store.setActivity(
+      Array.from({ length: 200 }, (_, index) => ({
+        id: `seed-${index}`,
+        type: 'prompt-generated' as const,
+        message: `event ${199 - index}`,
+        createdAt: new Date(199 - index).toISOString(),
+      })),
+    );
+    for (let index = 200; index < 205; index += 1) {
       await logActivity('prompt-generated', `event ${index}`);
     }
 
     const events = await invoke<ActivityEvent[]>(IPC.activity.list);
     expect(events).toHaveLength(200);
     expect(events[0]?.message).toBe('event 204');
+    expect(events.at(-1)?.message).toBe('event 5');
   });
 
   it('shows the newest event first, which is the order the feed is drawn in', async () => {

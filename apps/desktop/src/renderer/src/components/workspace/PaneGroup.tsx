@@ -47,6 +47,7 @@ import {
 } from '@/stores/workspaceStore';
 import { AGENT_STATUS_LABEL, AgentStatusDot } from './AgentStatusDot';
 import { AutoContinueMenu, autoContinuePendingLine } from './AutoContinueMenu';
+import { FileTabMenu } from './FileTabMenu';
 import { LauncherMenu } from './LauncherMenu';
 import { PaneLauncher } from './PaneLauncher';
 import { TerminalSlot } from './TerminalSlot';
@@ -156,6 +157,7 @@ function tabLabel(tab: WorkspaceTab, agentTitle: string | null): string {
 }
 
 interface PaneTabProps {
+  project: Project;
   projectId: string;
   groupId: string;
   tab: WorkspaceTab;
@@ -166,6 +168,7 @@ interface PaneTabProps {
 }
 
 function PaneTab({
+  project,
   projectId,
   groupId,
   tab,
@@ -327,15 +330,19 @@ function PaneTab({
 
   const tabElement = (
     <SimpleTooltip label={editing ? null : tooltip} delayDuration={600}>
-      {tab.kind === 'terminal' ? (
-        <ContextMenuTrigger asChild>{tabBody}</ContextMenuTrigger>
-      ) : (
-        tabBody
-      )}
+      {tab.kind === 'diff' ? tabBody : <ContextMenuTrigger asChild>{tabBody}</ContextMenuTrigger>}
     </SimpleTooltip>
   );
 
-  if (tab.kind !== 'terminal') return tabElement;
+  if (tab.kind === 'diff') return tabElement;
+  if (tab.kind === 'file') {
+    return (
+      <ContextMenu>
+        {tabElement}
+        <FileTabMenu project={project} path={tab.path} onClose={onClose} />
+      </ContextMenu>
+    );
+  }
   const isAgent = Boolean(tab.cliId) && !ended;
   return (
     <ContextMenu>
@@ -632,6 +639,7 @@ export function PaneGroup({
                   <span className="absolute -left-[2px] top-1 bottom-1 w-[2px] rounded-full bg-primary" />
                 ) : null}
                 <PaneTab
+                  project={project}
                   projectId={projectId}
                   groupId={group.id}
                   tab={tab}

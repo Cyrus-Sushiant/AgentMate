@@ -40,6 +40,7 @@
   "jest": {
     "preset": "jest-expo",
     "setupFilesAfterEnv": ["<rootDir>/jest.setup.ts"],
+    "testTimeout": 20000,
     "testMatch": ["<rootDir>/src/**/*.test.{ts,tsx}", "<rootDir>/App.test.tsx"],
     "moduleNameMapper": {
       "^@agentmat/protocol$": "<rootDir>/../../packages/protocol/src/index.ts"

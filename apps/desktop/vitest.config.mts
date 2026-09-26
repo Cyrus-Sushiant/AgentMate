@@ -67,6 +67,9 @@ export default defineConfig({
           include: ['src/renderer/**/*.test.{ts,tsx}'],
           setupFiles: ['src/test/renderer/setup.ts'],
           testTimeout: 15_000,
+          // The first beforeEach in a file imports every store module (see resetAllStoresAsync),
+          // which under a full parallel run can pass the 10s default.
+          hookTimeout: 20_000,
         },
       },
     ],
