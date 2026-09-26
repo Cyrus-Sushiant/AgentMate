@@ -297,7 +297,7 @@ describe('describing the element', () => {
   });
 
   it('reads the React components and source from the fiber', async () => {
-    const button = document.querySelector('button') as Element & Record<string, unknown>;
+    const button = document.querySelector('button') as unknown as Element & Record<string, unknown>;
     const Button = function Button() {
       return null;
     };

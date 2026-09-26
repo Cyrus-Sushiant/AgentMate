@@ -25,7 +25,10 @@ import {
 import type { GitDiffSide } from '@shared/apiTypes';
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { browserRuntime } from '@/lib/browser/browserRuntime';
+import { VIEWPORT_PRESETS, type ViewportPresetId } from '@/lib/browser/viewportPresets';
 import { terminalRuntime } from '@/lib/terminal/terminalRuntime';
+import { useBrowserStore } from './browserStore';
 
 export type { GitDiffSide };
 
@@ -82,7 +85,22 @@ export interface WorkspaceFileTab {
   preview: boolean;
 }
 
-export type WorkspaceTab = WorkspaceTerminalTab | WorkspaceDiffTab | WorkspaceFileTab;
+/** A web page, usually the project's dev server, where elements can be picked for an agent. */
+export interface WorkspaceBrowserTab {
+  kind: 'browser';
+  id: string;
+  /** The page on screen, or empty for the start page. */
+  url: string;
+  title: string;
+  faviconUrl?: string;
+  viewport: ViewportPresetId;
+}
+
+export type WorkspaceTab =
+  | WorkspaceTerminalTab
+  | WorkspaceDiffTab
+  | WorkspaceFileTab
+  | WorkspaceBrowserTab;
 
 /** The tabs of the right-hand panel. */
 export type SidePanelSection = 'sourceControl' | 'explorer' | 'history' | 'tests';
@@ -191,6 +209,15 @@ interface WorkspaceState {
   /** Moves a project to another spot in the rail. `index` is a slot in the rail's current order. */
   moveRailProject: (projectId: string, index: number) => void;
   addTerminal: (projectId: string, tab: NewTerminalTab, groupId?: string) => string;
+  /** Opens a browser tab, on its start page without a url, and returns its id. */
+  openBrowser: (projectId: string, options?: { url?: string; groupId?: string }) => string;
+  /** Keeps what a browser tab's page shows, for its label and for the next start. */
+  setBrowserPage: (
+    projectId: string,
+    tabId: string,
+    page: { url: string; title: string; faviconUrl: string | null },
+  ) => void;
+  setBrowserViewport: (projectId: string, tabId: string, viewport: ViewportPresetId) => void;
   /** Closes a tab. Terminal tabs end their shell. */
   closeTab: (projectId: string, tabId: string) => void;
   /**
@@ -352,9 +379,29 @@ function openPreviewable(
 }
 
 function endTab(tab: WorkspaceTab | undefined): void {
+  if (tab?.kind === 'browser') {
+    browserRuntime.dispose(tab.id);
+    useBrowserStore.getState().clearTab(tab.id);
+    return;
+  }
   if (tab?.kind !== 'terminal') return;
   void window.agentmat.terminal.kill(tab.id);
   terminalRuntime.dispose(tab.id);
+}
+
+function restoredBrowserTab(tab: Partial<WorkspaceBrowserTab>): WorkspaceBrowserTab | null {
+  if (typeof tab.id !== 'string' || typeof tab.url !== 'string') return null;
+  const viewport = VIEWPORT_PRESETS.some((preset) => preset.id === tab.viewport)
+    ? (tab.viewport as ViewportPresetId)
+    : 'responsive';
+  return {
+    kind: 'browser',
+    id: tab.id,
+    url: tab.url,
+    title: typeof tab.title === 'string' ? tab.title : '',
+    ...(typeof tab.faviconUrl === 'string' ? { faviconUrl: tab.faviconUrl } : {}),
+    viewport,
+  };
 }
 
 export const useWorkspaceStore = create<WorkspaceState>()(
@@ -468,6 +515,56 @@ export const useWorkspaceStore = create<WorkspaceState>()(
           });
           return id;
         },
+
+        openBrowser: (projectId, options = {}) => {
+          const id = newId('web');
+          update(projectId, (ws) => {
+            const target =
+              options.groupId && findGroup(ws.root, options.groupId)
+                ? options.groupId
+                : ws.focusedGroupId;
+            const tab: WorkspaceBrowserTab = {
+              kind: 'browser',
+              id,
+              url: options.url ?? '',
+              title: '',
+              viewport: 'responsive',
+            };
+            return {
+              ...ws,
+              root: addTab(ws.root, target, id),
+              tabs: { ...ws.tabs, [id]: tab },
+              focusedGroupId: target,
+              zoomedGroupId: null,
+            };
+          });
+          return id;
+        },
+
+        setBrowserPage: (projectId, tabId, page) =>
+          update(projectId, (ws) => {
+            const tab = ws.tabs[tabId];
+            if (tab?.kind !== 'browser') return ws;
+            const faviconUrl = page.faviconUrl ?? undefined;
+            if (tab.url === page.url && tab.title === page.title && tab.faviconUrl === faviconUrl) {
+              return ws;
+            }
+            const { faviconUrl: _old, ...rest } = tab;
+            const next: WorkspaceBrowserTab = {
+              ...rest,
+              url: page.url,
+              title: page.title,
+              ...(faviconUrl ? { faviconUrl } : {}),
+            };
+            return { ...ws, tabs: { ...ws.tabs, [tabId]: next } };
+          }),
+
+        setBrowserViewport: (projectId, tabId, viewport) =>
+          update(projectId, (ws) => {
+            const tab = ws.tabs[tabId];
+            if (tab?.kind !== 'browser' || tab.viewport === viewport) return ws;
+            return { ...ws, tabs: { ...ws.tabs, [tabId]: { ...tab, viewport } } };
+          }),
 
         closeTab: (projectId, tabId) => {
           endTab(get().workspaces[projectId]?.tabs[tabId]);
@@ -727,6 +824,10 @@ export const useWorkspaceStore = create<WorkspaceState>()(
           for (const [id, tab] of Object.entries(ws?.tabs ?? {})) {
             if (tab?.kind === 'terminal') tabs[id] = { ...tab, restored: true };
             else if (tab?.kind === 'diff' || tab?.kind === 'file') tabs[id] = tab;
+            else if (tab?.kind === 'browser') {
+              const browser = restoredBrowserTab(tab);
+              if (browser) tabs[id] = browser;
+            }
           }
           const root = normalizeLayout(ws?.root, new Set(Object.keys(tabs)), newId('g'));
           const placed = new Set(allTabIds(root));
