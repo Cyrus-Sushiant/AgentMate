@@ -33,6 +33,7 @@ import type {
   VaultImportFormat,
   WorktreeInfo,
 } from '@agentmat/core';
+import type { GuestShortcut } from './browserGuest';
 
 export type { AiProvider };
 
@@ -226,6 +227,23 @@ export type LastRunInfoByCli = Record<string, LastRunInfo>;
 export type TerminalClipboardPaste =
   | { kind: 'text'; text: string }
   | { kind: 'files'; paths: string[] };
+
+/** A crop of a page element picked in the workspace browser, saved for an agent to read. */
+export interface BrowserElementShot {
+  path: string;
+  /** A small PNG data URL for the comment card and the tray. */
+  thumbDataUrl: string;
+}
+
+export interface BrowserGuestShortcut {
+  webContentsId: number;
+  shortcut: GuestShortcut;
+}
+
+export interface BrowserOpenInNewTab {
+  webContentsId: number;
+  url: string;
+}
 
 export interface TerminalSnapshot {
   /** Serialized screen and scrollback, written into a fresh xterm to repaint it. */

@@ -98,6 +98,9 @@ import type {
   BlueprintAttachmentResult,
   BlueprintSectionPatch,
   BootstrapResult,
+  BrowserElementShot,
+  BrowserGuestShortcut,
+  BrowserOpenInNewTab,
   CleanupAfterMergeInput,
   ConfirmationForwardedPayload,
   ConnectRemoteInput,
@@ -843,6 +846,32 @@ const terminalClipboard = {
    * it can't be shown. */
   previewImage: (path: string, fullSize = false): Promise<string | null> =>
     ipcRenderer.invoke(IPC.terminalClipboard.previewImage, path, fullSize),
+};
+
+/** The workspace browser tab's pages (webview guests). */
+const browser = {
+  /** Crops a picked element out of a page and saves it for an agent. Null when it is off
+   * screen. `rect` and `viewport` are in the page's CSS pixels. */
+  captureElement: (
+    webContentsId: number,
+    rect: { x: number; y: number; width: number; height: number },
+    viewport: { width: number; height: number },
+  ): Promise<BrowserElementShot | null> =>
+    ipcRenderer.invoke(IPC.browser.captureElement, webContentsId, rect, viewport),
+  /** A browser shortcut pressed while a page had focus. */
+  onGuestShortcut: (callback: (payload: BrowserGuestShortcut) => void): (() => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, payload: BrowserGuestShortcut): void =>
+      callback(payload);
+    ipcRenderer.on(IPC.browser.onGuestShortcut, listener);
+    return () => ipcRenderer.removeListener(IPC.browser.onGuestShortcut, listener);
+  },
+  /** A page asked to open a new window. */
+  onOpenInNewTab: (callback: (payload: BrowserOpenInNewTab) => void): (() => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, payload: BrowserOpenInNewTab): void =>
+      callback(payload);
+    ipcRenderer.on(IPC.browser.onOpenInNewTab, listener);
+    return () => ipcRenderer.removeListener(IPC.browser.onOpenInNewTab, listener);
+  },
 };
 
 const promptHistory = {
@@ -1752,6 +1781,7 @@ const agentmatApi = {
   activity,
   shell: shellApi,
   terminalClipboard,
+  browser,
   spellcheck,
   grammar,
   proxy,

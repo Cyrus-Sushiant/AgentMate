@@ -4,9 +4,11 @@ import { join } from 'node:path';
 import { BLUEPRINT_FILE_SCHEME } from '@agentmat/core';
 import { app, BrowserWindow, desktopCapturer, protocol, session, shell } from 'electron';
 import icon from '../../resources/icon.ico?asset';
+import { BROWSER_PARTITION } from '../shared/browserGuest';
 import { stopAllSshTasks } from './agents/sshTaskRunner';
 import { stopEmulatorsOnQuit } from './android/runtime';
 import { registerBlueprintFileProtocol } from './blueprintFileStore';
+import { configureBrowserSession, setupBrowserGuests } from './browser/guestSession';
 import { seedExampleRepositoryIfEmpty } from './exampleSkillRepo';
 import { shutdownLocalServer } from './grammar/localServer';
 import { registerActivityHandlers } from './ipc/activity';
@@ -17,6 +19,7 @@ import { registerAppHandlers } from './ipc/app';
 import { registerAppNotificationHandlers } from './ipc/appNotifications';
 import { registerBackupHandlers } from './ipc/backup';
 import { registerBlueprintHandlers } from './ipc/blueprints';
+import { registerBrowserHandlers } from './ipc/browser';
 import { registerCliDetectionHandlers } from './ipc/cliDetection';
 import { registerDockerHandlers } from './ipc/docker';
 import { registerEnvironmentHandlers } from './ipc/environments';
@@ -203,6 +206,8 @@ function createMainWindow(): BrowserWindow {
       // Keep terminal output flowing and the pty session healthy while the
       // window is minimized; see the command-line switches above.
       backgroundThrottling: false,
+      // The workspace browser tab. Every guest is locked down in setupBrowserGuests below.
+      webviewTag: true,
     },
   });
 
@@ -217,6 +222,7 @@ function createMainWindow(): BrowserWindow {
   }
   setMainWindow(win);
   registerWindowHandlers(win);
+  setupBrowserGuests(win);
   remoteManager.init(win);
 
   // On Windows and Linux closing this window closes the app, so ask first while CLIs, SSH or
@@ -274,6 +280,7 @@ function registerAllIpcHandlers(): void {
   registerSshAgentHandlers();
   registerAgentHandlers();
   registerTerminalClipboardHandlers();
+  registerBrowserHandlers();
   registerPowerHandlers();
   registerProjectHandlers();
   registerProxyHandlers();
@@ -352,6 +359,8 @@ app.whenReady().then(async () => {
   const csp = isDev
     ? `default-src 'self' http://localhost:5173 ws://localhost:5173; script-src 'self' 'unsafe-inline' ${rdp.script} http://localhost:5173; style-src 'self' 'unsafe-inline'; img-src 'self' data: ${files}; media-src 'self' ${files}; font-src 'self' data:; connect-src 'self' ${rdp.connect} http://localhost:5173 ws://localhost:5173; worker-src 'self' blob:;`
     : `default-src 'self'; script-src 'self' ${rdp.script}; style-src 'self' 'unsafe-inline'; img-src 'self' data: ${files}; media-src 'self' ${files}; font-src 'self' data:; connect-src 'self' ${rdp.connect}; worker-src 'self' blob:;`;
+
+  configureBrowserSession(session.fromPartition(BROWSER_PARTITION));
 
   session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
     callback({

@@ -84,6 +84,7 @@ describe('the exposed bridge', () => {
       'skills',
       'remote',
       'backup',
+      'browser',
     ]) {
       expect(Object.keys(bridge)).toContain(namespace);
     }
