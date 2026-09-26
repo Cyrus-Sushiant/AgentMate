@@ -693,6 +693,14 @@ export const IPC = {
     read: 'terminalClipboard:read',
     previewImage: 'terminalClipboard:previewImage',
   },
+  browser: {
+    /** (webContentsId, rect, viewport) -> BrowserElementShot | null: a crop of a picked element. */
+    captureElement: 'browser:captureElement',
+    /** main -> renderer: a browser key pressed while a page had focus (BrowserGuestShortcut). */
+    onGuestShortcut: 'browser:guestShortcut',
+    /** main -> renderer: a page asked for a new window (BrowserOpenInNewTab). */
+    onOpenInNewTab: 'browser:openInNewTab',
+  },
   power: {
     // () -> KeepAwakeStatus
     keepAwakeStatus: 'power:keepAwakeStatus',

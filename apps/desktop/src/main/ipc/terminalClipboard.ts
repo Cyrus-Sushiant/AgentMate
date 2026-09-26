@@ -1,9 +1,9 @@
-import { randomUUID } from 'node:crypto';
-import { mkdir, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
-import { extname, join } from 'node:path';
-import { app, clipboard, ipcMain, nativeImage } from 'electron';
+import { readFile, stat } from 'node:fs/promises';
+import { extname } from 'node:path';
+import { clipboard, ipcMain, nativeImage } from 'electron';
 import type { TerminalClipboardPaste } from '../../shared/apiTypes';
 import { IPC } from '../../shared/ipcChannels';
+import { savePastedImage as saveImage } from '../pastedImages';
 
 /**
  * Lets a terminal take more than text from the clipboard, the way agent CLIs expect: a copied
@@ -12,8 +12,6 @@ import { IPC } from '../../shared/ipcChannels';
  */
 
 const MAX_IMAGE_BYTES = 25 * 1024 * 1024;
-/** Pasted images are only needed for the session they were pasted into. */
-const KEEP_PASTED_MS = 7 * 24 * 60 * 60 * 1000;
 
 const EXTENSIONS: Record<string, string> = {
   'image/png': 'png',
@@ -22,29 +20,6 @@ const EXTENSIONS: Record<string, string> = {
   'image/webp': 'webp',
   'image/bmp': 'bmp',
 };
-
-function pastedDir(): string {
-  return join(app.getPath('userData'), 'pasted-images');
-}
-
-async function pruneOld(dir: string): Promise<void> {
-  const cutoff = Date.now() - KEEP_PASTED_MS;
-  for (const name of await readdir(dir).catch(() => [] as string[])) {
-    const path = join(dir, name);
-    const info = await stat(path).catch(() => null);
-    if (info && info.mtimeMs < cutoff) await rm(path, { force: true }).catch(() => undefined);
-  }
-}
-
-async function saveImage(bytes: Uint8Array, extension: string): Promise<string> {
-  const dir = pastedDir();
-  await mkdir(dir, { recursive: true });
-  void pruneOld(dir);
-  const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-  const path = join(dir, `pasted-${stamp}-${randomUUID().slice(0, 6)}.${extension}`);
-  await writeFile(path, bytes);
-  return path;
-}
 
 /** Longest side of the preview shown when hovering an image chip in a terminal. */
 const PREVIEW_MAX_SIDE = 480;
