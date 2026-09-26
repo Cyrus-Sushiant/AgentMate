@@ -45,3 +45,21 @@ export function findAgentTerminal(projectId: string): WorkspaceTerminalTab | nul
   }
   return newest;
 }
+
+/**
+ * Every running agent tab in a workspace, the one `findAgentTerminal` picks first and the rest
+ * oldest first, so a menu can offer them all as places to send something.
+ */
+export function listAgentTerminals(projectId: string): WorkspaceTerminalTab[] {
+  const ws = useWorkspaceStore.getState().workspaces[projectId];
+  if (!ws) return [];
+  const ended = useTerminalSessionStore.getState().ended;
+  const preferred = findAgentTerminal(projectId);
+  const rest = Object.values(ws.tabs)
+    .filter(
+      (tab): tab is WorkspaceTerminalTab =>
+        tab.kind === 'terminal' && !!tab.cliId && !ended[tab.id] && tab.id !== preferred?.id,
+    )
+    .sort((a, b) => a.createdAt - b.createdAt);
+  return preferred ? [preferred, ...rest] : rest;
+}

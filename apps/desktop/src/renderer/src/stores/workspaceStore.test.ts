@@ -1,6 +1,7 @@
 import { allGroups, allTabIds, findGroup, findGroupOfTab } from '@agentmat/core';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { type FakeBridge, installAgentmatBridge } from '../../../test/renderer/agentmatBridge';
+import { useBrowserStore } from './browserStore';
 import {
   GIT_PANEL_DEFAULT_WIDTH,
   type ProjectWorkspace,
@@ -13,6 +14,11 @@ const dispose = vi.hoisted(() => vi.fn());
 // The runtime owns real xterm instances; only the two calls closing a tab makes matter here.
 vi.mock('@/lib/terminal/terminalRuntime', () => ({
   terminalRuntime: { dispose, mount: vi.fn(), unmount: vi.fn(), focus: vi.fn() },
+}));
+
+const disposeBrowser = vi.hoisted(() => vi.fn());
+vi.mock('@/lib/browser/browserRuntime', () => ({
+  browserRuntime: { dispose: disposeBrowser },
 }));
 
 let bridge: FakeBridge;
@@ -37,6 +43,8 @@ function withTerminal(projectId = 'p1'): { tabId: string; groupId: string } {
 beforeEach(() => {
   bridge = installAgentmatBridge();
   dispose.mockClear();
+  disposeBrowser.mockClear();
+  useBrowserStore.setState({ annotations: {}, recentUrls: {} });
   useWorkspaceStore.setState({
     workspaces: {},
     railProjectIds: [],
@@ -999,5 +1007,118 @@ describe('a project open only through its worktrees', () => {
     await useWorkspaceStore.persist.rehydrate();
     expect(store().railProjectIds).toEqual(['p1']);
     expect(store().activeProjectId).toBe('p1~wt-1');
+  });
+});
+
+describe('browser tabs', () => {
+  it('opens a browser tab in the focused pane and brings it forward', () => {
+    store().openProject('p1');
+    const id = store().openBrowser('p1', { url: 'http://localhost:5173/' });
+    const tab = workspace().tabs[id];
+    expect(tab).toEqual({
+      kind: 'browser',
+      id,
+      url: 'http://localhost:5173/',
+      title: '',
+      viewport: 'responsive',
+    });
+    const group = findGroupOfTab(workspace().root, id);
+    expect(group?.id).toBe(workspace().focusedGroupId);
+    expect(group?.activeTabId).toBe(id);
+  });
+
+  it('opens a blank tab on its start page', () => {
+    store().openProject('p1');
+    const id = store().openBrowser('p1');
+    expect(workspace().tabs[id]).toMatchObject({ kind: 'browser', url: '' });
+  });
+
+  it('opens in a given pane', () => {
+    store().openProject('p1');
+    const first = workspace().focusedGroupId;
+    const second = store().splitGroup('p1', first, 'row');
+    const id = store().openBrowser('p1', { url: 'https://example.com/', groupId: first });
+    expect(findGroupOfTab(workspace().root, id)?.id).toBe(first);
+    expect(second).not.toBe(first);
+  });
+
+  it('keeps what the page shows, for the tab strip and the next start', () => {
+    store().openProject('p1');
+    const id = store().openBrowser('p1', { url: 'http://localhost:5173/' });
+    store().setBrowserPage('p1', id, {
+      url: 'http://localhost:5173/pricing',
+      title: 'Pricing',
+      faviconUrl: 'http://localhost:5173/favicon.ico',
+    });
+    expect(workspace().tabs[id]).toMatchObject({
+      url: 'http://localhost:5173/pricing',
+      title: 'Pricing',
+      faviconUrl: 'http://localhost:5173/favicon.ico',
+    });
+  });
+
+  it('remembers the device size', () => {
+    store().openProject('p1');
+    const id = store().openBrowser('p1', { url: 'http://localhost:5173/' });
+    store().setBrowserViewport('p1', id, 'mobile');
+    expect(workspace().tabs[id]).toMatchObject({ viewport: 'mobile' });
+  });
+
+  it('leaves other tab kinds alone', () => {
+    const { tabId } = withTerminal();
+    const before = workspace().tabs[tabId];
+    store().setBrowserPage('p1', tabId, { url: 'x', title: 'y', faviconUrl: null });
+    store().setBrowserViewport('p1', tabId, 'mobile');
+    expect(workspace().tabs[tabId]).toBe(before);
+  });
+
+  it('lets go of the page and its comments when closed', () => {
+    store().openProject('p1');
+    const id = store().openBrowser('p1', { url: 'http://localhost:5173/' });
+    useBrowserStore.setState({ annotations: { [id]: [] as never[] } });
+    store().closeTab('p1', id);
+    expect(disposeBrowser).toHaveBeenCalledWith(id);
+    expect(useBrowserStore.getState().annotations[id]).toBeUndefined();
+    expect(dispose).not.toHaveBeenCalled();
+    expect(workspace().tabs[id]).toBeUndefined();
+  });
+
+  it('comes back after a restart, at the page it was on', async () => {
+    localStorage.setItem(
+      'agentmate-workspaces',
+      JSON.stringify({
+        state: {
+          railProjectIds: ['p1'],
+          activeProjectId: 'p1',
+          workspaces: {
+            p1: {
+              root: { type: 'group', id: 'g1', tabIds: ['b1', 'bad'], activeTabId: 'b1' },
+              tabs: {
+                b1: {
+                  kind: 'browser',
+                  id: 'b1',
+                  url: 'http://localhost:5173/pricing',
+                  title: 'Pricing',
+                  viewport: 'tablet',
+                },
+                bad: { kind: 'browser', id: 'bad', url: 42 },
+              },
+              focusedGroupId: 'g1',
+              zoomedGroupId: null,
+            },
+          },
+        },
+        version: 1,
+      }),
+    );
+    await useWorkspaceStore.persist.rehydrate();
+    expect(workspace().tabs.b1).toEqual({
+      kind: 'browser',
+      id: 'b1',
+      url: 'http://localhost:5173/pricing',
+      title: 'Pricing',
+      viewport: 'tablet',
+    });
+    expect(workspace().tabs.bad).toBeUndefined();
   });
 });

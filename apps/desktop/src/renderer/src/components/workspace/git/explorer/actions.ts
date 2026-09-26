@@ -1,7 +1,6 @@
 import {
   baseName,
   formatFileMentions,
-  getCliDefinition,
   isSameOrInside,
   type Project,
   parentPath,
@@ -11,9 +10,9 @@ import {
 import type { DirectoryEntry, ExplorerMove } from '@shared/apiTypes';
 import { toast } from 'sonner';
 import { queryKeys } from '@/lib/queryKeys';
-import { terminalRuntime } from '@/lib/terminal/terminalRuntime';
+import { deliverToAgent } from '@/lib/workspace/agentSend';
 import { findAgentTerminal } from '@/lib/workspace/agentTarget';
-import { launchPromptTab, launchShellTab, projectCliId } from '@/lib/workspace/launch';
+import { launchShellTab, projectCliId } from '@/lib/workspace/launch';
 import { queryClient } from '@/queryClient';
 import { confirmDialog } from '@/stores/confirmStore';
 import {
@@ -338,34 +337,9 @@ export function sendPathsToAgent(project: Project, paths: string[]): void {
     }));
   if (entries.length === 0) return;
 
-  const tab = findAgentTerminal(project.id);
-  if (!tab?.cliId) {
-    const cliId = projectCliId(project);
-    if (!cliId) {
-      toast.error('No agent CLI to ask', {
-        description: 'Pick a default CLI in Settings, or start one in this workspace.',
-      });
-      return;
-    }
-    const tabId = launchPromptTab(project, {
-      cliId,
-      prompt: formatFileMentions(cliId, entries),
-    });
-    if (tabId) terminalRuntime.focus(tabId);
-    return;
-  }
-
-  const text = formatFileMentions(tab.cliId, entries);
-  useWorkspaceStore.getState().activateTab(project.id, tab.id);
-  terminalRuntime.focus(tab.id);
-  if (terminalRuntime.insertText(tab.id, text)) return;
-  // The CLI is still starting, or its terminal was let go while off screen and is coming back.
-  void terminalRuntime.deliverPrompt(tab.id, text).then((delivered) => {
-    if (delivered) return;
-    void navigator.clipboard.writeText(text);
-    toast.warning(`${getCliDefinition(tab.cliId ?? '')?.name ?? 'The CLI'} is not taking input`, {
-      description: 'The file references are on your clipboard, ready to paste.',
-    });
+  void deliverToAgent(project, {
+    build: (cliId) => formatFileMentions(cliId, entries),
+    what: 'The file references',
   });
 }
 

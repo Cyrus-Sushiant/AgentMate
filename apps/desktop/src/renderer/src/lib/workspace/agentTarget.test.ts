@@ -2,7 +2,12 @@
 import type { PaneNode } from '@agentmat/core';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ProjectWorkspace, WorkspaceTab } from '@/stores/workspaceStore';
-import { findAgentTerminal, forgetAgentTabs, rememberAgentTab } from './agentTarget';
+import {
+  findAgentTerminal,
+  forgetAgentTabs,
+  listAgentTerminals,
+  rememberAgentTab,
+} from './agentTarget';
 
 /**
  * Which agent tab files from the explorer go to. The workspace and the ended-session list are
@@ -98,5 +103,21 @@ describe('findAgentTerminal', () => {
     setWorkspace(group('g1', ['sh', 'dead'], 'dead'), [shell('sh'), agent('dead')], 'g1');
     state.ended.dead = true;
     expect(findAgentTerminal('p1')).toBeNull();
+  });
+});
+
+describe('listAgentTerminals', () => {
+  it('lists the running agents, the one files would go to first', () => {
+    setWorkspace(
+      group('g1', ['a', 'b', 's', 'c'], 'b'),
+      [agent('a', 1), agent('b', 2), shell('s'), agent('c', 3)],
+      'g1',
+    );
+    state.ended.c = true;
+    expect(listAgentTerminals('p1').map((tab) => tab.id)).toEqual(['b', 'a']);
+  });
+
+  it('is empty for a workspace that is not open', () => {
+    expect(listAgentTerminals('p1')).toEqual([]);
   });
 });
