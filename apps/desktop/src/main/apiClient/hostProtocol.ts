@@ -48,6 +48,32 @@ function isSummary(value: unknown): value is EngineRunSummary {
   );
 }
 
+/**
+ * The host's "ready" message. Postman's runtime exposes its version as a function returning an
+ * object, and anything that is not plain data makes postMessage throw, so only the string goes.
+ */
+export function readyMessage(runtime: { version?: unknown }): {
+  type: 'ready';
+  runtimeVersion: string;
+} {
+  let version: unknown = runtime.version;
+  try {
+    if (typeof version === 'function') version = (version as () => unknown)();
+  } catch {
+    version = undefined;
+  }
+  if (isRecord(version)) version = version.version;
+  return { type: 'ready', runtimeVersion: typeof version === 'string' ? version : 'unknown' };
+}
+
+/**
+ * A copy that postMessage can always carry. Events are built from plain data, but a value from a
+ * script (a Date, a function) must not be able to stop a whole run from reporting back.
+ */
+export function toCloneable<T>(value: T): T {
+  return JSON.parse(JSON.stringify(value)) as T;
+}
+
 export function parseMainMessage(value: unknown): MainToHost | null {
   if (!isRecord(value) || !isId(value.runId)) return null;
   if (value.type === 'run' && isRunInput(value.input)) {

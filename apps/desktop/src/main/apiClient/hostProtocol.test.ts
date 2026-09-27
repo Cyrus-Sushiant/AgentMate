@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseHostMessage, parseMainMessage } from './hostProtocol';
+import { parseHostMessage, parseMainMessage, readyMessage, toCloneable } from './hostProtocol';
 
 /**
  * Messages cross a process boundary, so each side checks what it receives before acting on it.
@@ -38,6 +38,36 @@ describe('parseMainMessage', () => {
     expect(parseMainMessage({ type: 'run', runId: '', input })).toBeNull();
     expect(parseMainMessage({ type: 'run', runId: 'r', input: { collection: {} } })).toBeNull();
     expect(parseMainMessage({ type: 'exec', runId: 'r1' })).toBeNull();
+  });
+});
+
+describe('readyMessage', () => {
+  it('reads the version the runtime reports through its version() function', () => {
+    const message = readyMessage({ version: () => ({ version: '7.56.1', dependencies: {} }) });
+    expect(message).toEqual({ type: 'ready', runtimeVersion: '7.56.1' });
+    // Posting a message clones it; a function or class instance in it would throw.
+    expect(() => structuredClone(message)).not.toThrow();
+  });
+
+  it('copes with a plain string or nothing at all', () => {
+    expect(readyMessage({ version: '7.0.0' }).runtimeVersion).toBe('7.0.0');
+    expect(readyMessage({}).runtimeVersion).toBe('unknown');
+    expect(
+      readyMessage({
+        version: () => {
+          throw new Error('no');
+        },
+      }).runtimeVersion,
+    ).toBe('unknown');
+  });
+});
+
+describe('toCloneable', () => {
+  it('passes plain data through and flattens anything a message cannot carry', () => {
+    expect(toCloneable({ a: 1, b: ['x'] })).toEqual({ a: 1, b: ['x'] });
+    const flattened = toCloneable({ fn: () => 1, nested: { when: new Date(0) } });
+    expect(() => structuredClone(flattened)).not.toThrow();
+    expect(flattened).toEqual({ nested: { when: '1970-01-01T00:00:00.000Z' } });
   });
 });
 

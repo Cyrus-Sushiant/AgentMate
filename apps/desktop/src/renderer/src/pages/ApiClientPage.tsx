@@ -10,7 +10,7 @@ import { RequestTabStrip } from '@/components/apiClient/RequestTabStrip';
 import { ResponsePane } from '@/components/apiClient/ResponsePane';
 import { type SaveDestination, SaveRequestDialog } from '@/components/apiClient/SaveRequestDialog';
 import { UrlBar } from '@/components/apiClient/UrlBar';
-import { FilePlus, Send } from '@/components/icons';
+import { FilePlus, FolderPlus, FolderTree, Pencil, Send } from '@/components/icons';
 import { Button } from '@/components/ui/button';
 import { ResizeHandle } from '@/components/ui/ResizeHandle';
 import { queryKeys } from '@/lib/queryKeys';
@@ -29,6 +29,43 @@ type NameDialogState =
   | { kind: 'newFolder'; collectionId: string; parentId: string | null };
 
 const UNTITLED = 'Untitled Request';
+
+/** What the name dialog says for each thing it can name. */
+function nameDialogCopy(state: NameDialogState | null) {
+  switch (state?.kind) {
+    case 'rename':
+      return {
+        title: 'Rename collection',
+        description: 'The new name shows in the sidebar and in exported files.',
+        icon: <Pencil />,
+        label: 'Collection name',
+        initialValue: state.collection.name,
+        placeholder: 'Collection name',
+        confirmLabel: 'Rename',
+      };
+    case 'newFolder':
+      return {
+        title: 'New folder',
+        description: 'Folders group related requests inside a collection.',
+        icon: <FolderPlus />,
+        label: 'Folder name',
+        initialValue: '',
+        placeholder: 'e.g. Users, Orders, Auth',
+        confirmLabel: 'Create',
+      };
+    default:
+      return {
+        title: 'New collection',
+        description:
+          'A collection keeps related requests together. It is saved in the Postman format, so you can export it any time.',
+        icon: <FolderTree />,
+        label: 'Collection name',
+        initialValue: '',
+        placeholder: 'e.g. Payments API',
+        confirmLabel: 'Create',
+      };
+  }
+}
 
 function message(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -356,16 +393,7 @@ export default function ApiClientPage(): React.JSX.Element {
       <NameDialog
         open={nameDialog !== null}
         onOpenChange={(open) => !open && setNameDialog(null)}
-        title={
-          nameDialog?.kind === 'rename'
-            ? 'Rename collection'
-            : nameDialog?.kind === 'newFolder'
-              ? 'New folder'
-              : 'New collection'
-        }
-        label={nameDialog?.kind === 'newFolder' ? 'Folder name' : 'Collection name'}
-        initialValue={nameDialog?.kind === 'rename' ? nameDialog.collection.name : ''}
-        confirmLabel={nameDialog?.kind === 'rename' ? 'Rename' : 'Create'}
+        {...nameDialogCopy(nameDialog)}
         onSubmit={async (name) => {
           if (!nameDialog) return;
           if (nameDialog.kind === 'newCollection') {
