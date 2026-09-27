@@ -46,7 +46,6 @@ export async function initPingTargets(): Promise<void> {
     pingTargets: settings.pingTargets ?? ['1.1.1.1'],
     pingMethod: settings.pingMethod ?? 'icmp',
     pingUrls: settings.pingUrls ?? [DEFAULT_PING_URL],
-    pingUrlIntervalSeconds:
-      settings.pingUrlIntervalSeconds ?? DEFAULT_PING_URL_INTERVAL_SECONDS,
+    pingUrlIntervalSeconds: settings.pingUrlIntervalSeconds ?? DEFAULT_PING_URL_INTERVAL_SECONDS,
   });
 }
