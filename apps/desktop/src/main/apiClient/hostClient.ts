@@ -140,6 +140,9 @@ export function createHostEngine(options: HostEngineOptions): HostEngine {
           settle(message.runId, message.summary);
           break;
         case 'fatal':
+          // A host that fails while starting up never becomes usable, so the next request
+          // should get a fresh one rather than wait on this one.
+          if (!ready) stopHost();
           settleAll(failed(message.error));
           break;
       }

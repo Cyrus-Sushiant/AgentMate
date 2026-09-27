@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import {
   bodyLanguage,
+  canPreview,
   formatBytes,
   formatDuration,
   methodLabel,
   methodTone,
   prettyBody,
+  previewDocument,
   statusTone,
 } from './format';
 
@@ -78,5 +80,41 @@ describe('prettyBody', () => {
   it('does not try to format very large bodies', () => {
     const big = `[${'1,'.repeat(3_000_000)}1]`;
     expect(prettyBody(big, 'json')).toBe(big);
+  });
+});
+
+describe('canPreview', () => {
+  it('offers a preview for HTML and SVG only', () => {
+    expect(canPreview('text/html')).toBe(true);
+    expect(canPreview('application/xhtml+xml')).toBe(true);
+    expect(canPreview('image/svg+xml')).toBe(true);
+    expect(canPreview('application/json')).toBe(false);
+    expect(canPreview('text/plain')).toBe(false);
+  });
+});
+
+describe('previewDocument', () => {
+  it('adds a base tag inside head so relative links point at the server', () => {
+    expect(
+      previewDocument(
+        '<html><head><title>x</title></head><body>hi</body></html>',
+        'https://a.test/app/page',
+      ),
+    ).toBe(
+      '<html><head><base href="https://a.test/app/page"><title>x</title></head><body>hi</body></html>',
+    );
+  });
+
+  it('puts the base tag first when there is no head', () => {
+    expect(previewDocument('<p>hi</p>', 'https://a.test/')).toBe(
+      '<base href="https://a.test/"><p>hi</p>',
+    );
+  });
+
+  it('escapes the URL and leaves the document alone without one', () => {
+    expect(previewDocument('<head></head>', 'https://a.test/?q="x"&y')).toBe(
+      '<head><base href="https://a.test/?q=&quot;x&quot;&amp;y"></head>',
+    );
+    expect(previewDocument('<p>hi</p>', null)).toBe('<p>hi</p>');
   });
 });

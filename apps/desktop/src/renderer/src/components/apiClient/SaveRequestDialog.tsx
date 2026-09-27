@@ -1,7 +1,7 @@
 import type { ApiTreeNode } from '@agentmat/core';
 import type { ApiCollectionSummary } from '@shared/apiClientTypes';
 import { useEffect, useMemo, useState } from 'react';
-import { Folder, FolderPlus, FolderTree } from '@/components/icons';
+import { Folder, FolderPlus, FolderTree, Save, TriangleAlert } from '@/components/icons';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -110,104 +110,125 @@ export function SaveRequestDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
-        <DialogHeader>
-          <DialogTitle>Save request</DialogTitle>
-          <DialogDescription>Pick a collection or a folder to keep it in.</DialogDescription>
+      <DialogContent className="max-w-md gap-0 overflow-hidden p-0">
+        <DialogHeader className="flex-row items-center gap-3 border-b border-border/70 px-6 py-5">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-primary/20 bg-primary/10 text-primary">
+            <Save className="h-[18px] w-[18px]" />
+          </span>
+          <div className="min-w-0 space-y-1 pr-8">
+            <DialogTitle className="text-base">Save request</DialogTitle>
+            <DialogDescription className="text-xs leading-relaxed">
+              Pick a collection or a folder to keep it in.
+            </DialogDescription>
+          </div>
         </DialogHeader>
 
         <form
-          className="flex min-h-0 flex-col gap-4"
+          className="flex min-h-0 flex-col"
           onSubmit={(event) => {
             event.preventDefault();
             void save();
           }}
         >
-          <div className="space-y-1.5">
-            <Label htmlFor="api-save-name">Name</Label>
-            <Input
-              id="api-save-name"
-              aria-label="Request name"
-              value={name}
-              onChange={(event) => setName(event.target.value)}
-              autoFocus
-            />
-          </div>
+          <div className="flex min-h-0 flex-col gap-4 px-6 py-5">
+            <div className="space-y-1.5">
+              <Label htmlFor="api-save-name" className="text-xs font-semibold">
+                Name
+              </Label>
+              <Input
+                id="api-save-name"
+                aria-label="Request name"
+                value={name}
+                onChange={(event) => setName(event.target.value)}
+                autoFocus
+              />
+            </div>
 
-          <div className="flex min-h-0 flex-col gap-1.5">
-            <div className="flex items-center justify-between">
-              <Label>Save to</Label>
-              {places.length > 0 && (
-                <button
-                  type="button"
-                  onClick={() => setCreating((value) => !value)}
-                  className="flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs font-medium text-primary hover:bg-primary/10"
+            <div className="flex min-h-0 flex-col gap-1.5">
+              <div className="flex items-center justify-between">
+                <Label className="text-xs font-semibold">Save to</Label>
+                {places.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setCreating((value) => !value)}
+                    className="flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs font-medium text-primary hover:bg-primary/10"
+                  >
+                    <FolderPlus className="h-3 w-3" />
+                    {creating ? 'Pick an existing one' : 'New collection'}
+                  </button>
+                )}
+              </div>
+
+              {creating ? (
+                <Input
+                  aria-label="New collection name"
+                  placeholder="e.g. Payments API"
+                  value={newCollection}
+                  onChange={(event) => setNewCollection(event.target.value)}
+                />
+              ) : (
+                <div
+                  role="listbox"
+                  aria-label="Collections and folders"
+                  className="max-h-64 overflow-y-auto rounded-lg border border-border p-1"
                 >
-                  <FolderPlus className="h-3 w-3" />
-                  {creating ? 'Pick an existing one' : 'New collection'}
-                </button>
+                  {places.map((p) => (
+                    <div
+                      key={p.key}
+                      role="option"
+                      tabIndex={0}
+                      aria-selected={p.key === selected}
+                      onClick={() => setSelected(p.key)}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter' || event.key === ' ') {
+                          event.preventDefault();
+                          setSelected(p.key);
+                        }
+                      }}
+                      style={{ paddingLeft: `${0.5 + p.depth * 1}rem` }}
+                      className={cn(
+                        'flex cursor-pointer items-center gap-2 rounded-md py-1.5 pr-2 text-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring',
+                        p.key === selected
+                          ? 'bg-primary/12 font-medium text-foreground'
+                          : 'text-muted-foreground hover:bg-accent/60 hover:text-foreground',
+                      )}
+                    >
+                      {p.depth === 0 ? (
+                        <FolderTree className="h-3.5 w-3.5 shrink-0 text-primary" />
+                      ) : (
+                        <Folder className="h-3.5 w-3.5 shrink-0" />
+                      )}
+                      <span className="truncate">{p.label}</span>
+                    </div>
+                  ))}
+                </div>
               )}
             </div>
 
-            {creating ? (
-              <Input
-                aria-label="New collection name"
-                placeholder="Collection name"
-                value={newCollection}
-                onChange={(event) => setNewCollection(event.target.value)}
-              />
-            ) : (
-              <div
-                role="listbox"
-                aria-label="Collections and folders"
-                className="max-h-64 overflow-y-auto rounded-lg border border-border p-1"
-              >
-                {places.map((p) => (
-                  <div
-                    key={p.key}
-                    role="option"
-                    tabIndex={0}
-                    aria-selected={p.key === selected}
-                    onClick={() => setSelected(p.key)}
-                    onKeyDown={(event) => {
-                      if (event.key === 'Enter' || event.key === ' ') {
-                        event.preventDefault();
-                        setSelected(p.key);
-                      }
-                    }}
-                    style={{ paddingLeft: `${0.5 + p.depth * 1}rem` }}
-                    className={cn(
-                      'flex cursor-pointer items-center gap-2 rounded-md py-1.5 pr-2 text-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring',
-                      p.key === selected
-                        ? 'bg-primary/12 font-medium text-foreground'
-                        : 'text-muted-foreground hover:bg-accent/60 hover:text-foreground',
-                    )}
-                  >
-                    {p.depth === 0 ? (
-                      <FolderTree className="h-3.5 w-3.5 shrink-0 text-primary" />
-                    ) : (
-                      <Folder className="h-3.5 w-3.5 shrink-0" />
-                    )}
-                    <span className="truncate">{p.label}</span>
-                  </div>
-                ))}
-              </div>
+            {error && (
+              <p role="alert" className="flex items-start gap-1.5 text-xs text-destructive">
+                <TriangleAlert className="mt-0.5 h-3 w-3 shrink-0" />
+                {error}
+              </p>
             )}
           </div>
 
-          {error && (
-            <p role="alert" className="text-sm text-destructive">
-              {error}
+          <DialogFooter className="items-center border-t border-border/70 bg-muted/20 px-6 py-3.5 sm:justify-between">
+            <p className="hidden truncate text-[11px] text-muted-foreground sm:block">
+              {creating
+                ? 'A new collection will be created'
+                : place
+                  ? `Saving to ${place.label}`
+                  : 'Pick where to save it'}
             </p>
-          )}
-
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-              Cancel
-            </Button>
-            <Button type="submit" disabled={!canSave || saving}>
-              Save
-            </Button>
+            <div className="flex gap-2">
+              <Button type="button" variant="ghost" size="sm" onClick={() => onOpenChange(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" size="sm" disabled={!canSave || saving} className="min-w-20">
+                Save
+              </Button>
+            </div>
           </DialogFooter>
         </form>
       </DialogContent>

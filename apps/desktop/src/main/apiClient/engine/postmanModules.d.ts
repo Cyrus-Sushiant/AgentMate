@@ -73,6 +73,7 @@ declare module 'postman-runtime' {
     ): void;
   }
 
-  const runtime: { Runner: typeof Runner; version?: string };
+  /** version() answers `{ version, dependencies }`. */
+  const runtime: { Runner: typeof Runner; version?: () => { version: string } };
   export default runtime;
 }

@@ -77,3 +77,25 @@ export function prettyBody(body: string, language: string): string {
     return body;
   }
 }
+
+/** Postman's Preview tab, for the responses where a rendered view means something. */
+export function canPreview(mime: string): boolean {
+  return /html/.test(mime) || mime === 'image/svg+xml';
+}
+
+function escapeAttribute(value: string): string {
+  return value.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+}
+
+/**
+ * The HTML to render in the preview frame. A base tag makes relative links and anchors point at
+ * the server the page came from, the way they would in a browser.
+ */
+export function previewDocument(html: string, baseUrl: string | null): string {
+  if (!baseUrl) return html;
+  const base = `<base href="${escapeAttribute(baseUrl)}">`;
+  const head = /<head(\s[^>]*)?>/i.exec(html);
+  if (!head) return `${base}${html}`;
+  const at = head.index + head[0].length;
+  return `${html.slice(0, at)}${base}${html.slice(at)}`;
+}

@@ -1,7 +1,7 @@
 import runtime from 'postman-runtime';
 import { postmanEngine } from './engine/postmanEngine';
 import type { EngineRun } from './engine/types';
-import { type HostToMain, parseMainMessage } from './hostProtocol';
+import { type HostToMain, parseMainMessage, readyMessage, toCloneable } from './hostProtocol';
 
 /**
  * Entry point of the utility process that runs API requests (see hostClient.ts for why it is a
@@ -13,7 +13,12 @@ const port = process.parentPort;
 const runs = new Map<string, EngineRun>();
 
 function post(message: HostToMain): void {
-  port.postMessage(message);
+  try {
+    port.postMessage(message);
+  } catch {
+    // Something in it could not be cloned; a plain JSON copy always can.
+    port.postMessage(toCloneable(message));
+  }
 }
 
 port.on('message', (event: { data: unknown }) => {
@@ -54,4 +59,4 @@ process.on('uncaughtException', (error) => {
   post({ type: 'fatal', error: error.message });
 });
 
-post({ type: 'ready', runtimeVersion: runtime.version ?? 'unknown' });
+post(readyMessage(runtime));

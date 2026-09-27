@@ -115,6 +115,48 @@ describe('ResponsePane', () => {
     expect(screen.getByText(/request cancelled/i)).toBeInTheDocument();
   });
 
+  it('previews an HTML response in a sandbox that runs no scripts', async () => {
+    const { user } = show({
+      status: 'done',
+      result: result({
+        sent: { method: 'GET', url: 'https://site.test/home', headers: [], body: null },
+        response: response({
+          mime: 'text/html',
+          body: '<html><head></head><body><h1>Hello</h1><script>alert(1)</script></body></html>',
+        }),
+      }),
+    });
+    await user.click(screen.getByRole('radio', { name: 'Preview' }));
+    const frame = screen.getByTitle('Response preview');
+    expect(frame).toHaveAttribute('sandbox', '');
+    expect(frame.getAttribute('srcdoc')).toContain('<base href="https://site.test/home">');
+    expect(frame.getAttribute('srcdoc')).toContain('<h1>Hello</h1>');
+    expect(
+      screen.getByText(/scripts and files from other sites are not loaded/i),
+    ).toBeInTheDocument();
+  });
+
+  it('previews an SVG as an image', async () => {
+    const { user } = show({
+      status: 'done',
+      result: result({
+        response: response({
+          mime: 'image/svg+xml',
+          body: '<svg xmlns="http://www.w3.org/2000/svg"/>',
+        }),
+      }),
+    });
+    await user.click(screen.getByRole('radio', { name: 'Preview' }));
+    expect(screen.getByRole('img', { name: 'Response preview' }).getAttribute('src')).toMatch(
+      /^data:image\/svg\+xml;charset=utf-8,/,
+    );
+  });
+
+  it('has no preview for JSON', () => {
+    show({ status: 'done', result: result() });
+    expect(screen.queryByRole('radio', { name: 'Preview' })).not.toBeInTheDocument();
+  });
+
   it('previews images', () => {
     show({
       status: 'done',

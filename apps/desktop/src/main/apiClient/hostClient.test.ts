@@ -185,6 +185,21 @@ describe('createHostEngine', () => {
     await expect(run.done).resolves.toMatchObject({ error: 'out of memory' });
   });
 
+  it('drops a host that fails before it is ready, and starts a new one next time', async () => {
+    const engine = createHostEngine({ spawn });
+    const run = await started(engine);
+    hosts[0]?.reply({ type: 'fatal', error: 'An object could not be cloned.' });
+
+    await expect(run.done).resolves.toMatchObject({
+      error: expect.stringContaining('could not be cloned'),
+    });
+    expect(hosts[0]?.killed).toBe(true);
+
+    engine.run(input, vi.fn());
+    await vi.advanceTimersByTimeAsync(0);
+    expect(spawn).toHaveBeenCalledTimes(2);
+  });
+
   it('stops the host after it has been idle for a while', async () => {
     const engine = createHostEngine({ spawn, idleTimeoutMs: 5000 });
     const run = await started(engine);

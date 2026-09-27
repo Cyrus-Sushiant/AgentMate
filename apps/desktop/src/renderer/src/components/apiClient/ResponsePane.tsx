@@ -10,9 +10,11 @@ import { cn } from '@/lib/utils';
 import type { ApiTabRun } from '@/stores/apiClientTabsStore';
 import {
   bodyLanguage,
+  canPreview,
   formatBytes,
   formatDuration,
   prettyBody,
+  previewDocument,
   STATUS_TONE_CLASSES,
   statusTone,
 } from './format';
@@ -165,7 +167,7 @@ function ResponseTabs({
         <ResponseMeta response={response} />
       </div>
       <TabsContent value="body" className="mt-0 min-h-0 flex-1">
-        <ResponseBody response={response} />
+        <ResponseBody response={response} url={result.sent?.url ?? null} />
       </TabsContent>
       <TabsContent value="headers" className="mt-0 min-h-0 flex-1 overflow-auto p-3">
         <HeadersTable response={response} />
@@ -266,10 +268,20 @@ function ResponseMeta({ response }: { response: ApiResponseData }): React.JSX.El
   );
 }
 
-type BodyView = 'pretty' | 'raw';
+type BodyView = 'pretty' | 'raw' | 'preview';
 
-function ResponseBody({ response }: { response: ApiResponseData }): React.JSX.Element {
+const VIEW_LABELS: Record<BodyView, string> = { pretty: 'Pretty', raw: 'Raw', preview: 'Preview' };
+
+function ResponseBody({
+  response,
+  url,
+}: {
+  response: ApiResponseData;
+  url: string | null;
+}): React.JSX.Element {
   const [view, setView] = useState<BodyView>('pretty');
+  const previewable = canPreview(response.mime);
+  const views: BodyView[] = previewable ? ['pretty', 'raw', 'preview'] : ['pretty', 'raw'];
   const [copied, setCopied] = useState(false);
   const language = bodyLanguage(response.mime);
   const pretty = useMemo(
@@ -285,7 +297,7 @@ function ResponseBody({ response }: { response: ApiResponseData }): React.JSX.El
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex items-center justify-between gap-2 px-3 py-2">
         <div role="radiogroup" aria-label="Body view" className="flex rounded-lg bg-muted p-0.5">
-          {(['pretty', 'raw'] as const).map((option) => (
+          {views.map((option) => (
             <button
               key={option}
               type="button"
@@ -299,7 +311,7 @@ function ResponseBody({ response }: { response: ApiResponseData }): React.JSX.El
                   : 'text-muted-foreground hover:text-foreground',
               )}
             >
-              {option === 'pretty' ? 'Pretty' : 'Raw'}
+              {VIEW_LABELS[option]}
             </button>
           ))}
         </div>
@@ -326,6 +338,8 @@ function ResponseBody({ response }: { response: ApiResponseData }): React.JSX.El
       )}
       {response.body.length === 0 ? (
         <p className="px-3 text-sm text-muted-foreground">This response has no body.</p>
+      ) : view === 'preview' && previewable ? (
+        <BodyPreview response={response} url={url} />
       ) : view === 'pretty' ? (
         <div className="min-h-0 flex-1 px-3 pb-3">
           <MonacoEditor
@@ -340,6 +354,53 @@ function ResponseBody({ response }: { response: ApiResponseData }): React.JSX.El
         <pre className="min-h-0 flex-1 overflow-auto whitespace-pre-wrap break-all px-3 pb-3 font-mono text-xs">
           {response.body}
         </pre>
+      )}
+    </div>
+  );
+}
+
+/**
+ * The rendered page, in a frame sandboxed with no permissions at all: its scripts never run, and
+ * the app's content policy keeps it from loading anything from other sites.
+ */
+function BodyPreview({
+  response,
+  url,
+}: {
+  response: ApiResponseData;
+  url: string | null;
+}): React.JSX.Element {
+  const isSvg = response.mime === 'image/svg+xml';
+  const srcDoc = useMemo(
+    () => (isSvg ? '' : previewDocument(response.body, url)),
+    [isSvg, response.body, url],
+  );
+
+  return (
+    <div className="flex min-h-0 flex-1 flex-col gap-1.5 px-3 pb-3">
+      <div className="min-h-0 flex-1 overflow-hidden rounded-lg border border-border bg-white">
+        {isSvg ? (
+          <div className="flex h-full items-center justify-center overflow-auto p-4">
+            <img
+              alt="Response preview"
+              src={`data:image/svg+xml;charset=utf-8,${encodeURIComponent(response.body)}`}
+              className="max-h-full max-w-full"
+            />
+          </div>
+        ) : (
+          <iframe
+            title="Response preview"
+            sandbox=""
+            srcDoc={srcDoc}
+            referrerPolicy="no-referrer"
+            className="h-full w-full border-0 bg-white"
+          />
+        )}
+      </div>
+      {!isSvg && (
+        <p className="text-[11px] text-muted-foreground">
+          Scripts and files from other sites are not loaded in the preview.
+        </p>
       )}
     </div>
   );
