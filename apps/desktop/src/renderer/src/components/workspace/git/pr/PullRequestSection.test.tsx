@@ -4,6 +4,7 @@ import { screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
 import { renderWithProviders } from '../../../../../../test/renderer/renderWithProviders';
+import { useCreatePrDraft } from './CreatePrForm';
 import { PullRequestSection } from './PullRequestSection';
 import { useRecentMerges } from './usePullRequest';
 
@@ -69,6 +70,7 @@ function renderSection(value: PullRequestStatus | undefined, extra: Record<strin
 beforeEach(() => {
   vi.clearAllMocks();
   useRecentMerges.setState({ byProject: {} });
+  useCreatePrDraft.setState({ byProject: {} });
 });
 
 describe('PullRequestSection states', () => {

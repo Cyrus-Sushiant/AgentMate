@@ -3,6 +3,7 @@ import type { PullRequestStatus } from '@shared/apiTypes';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRef, useState } from 'react';
 import { toast } from 'sonner';
+import { create } from 'zustand';
 import { GitPullRequest, Sparkles, Spinner, TriangleAlert } from '@/components/icons';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Combobox } from '@/components/ui/combobox';
@@ -13,6 +14,46 @@ import { PR_GHOST_BUTTON, useRevealInPanel } from './PrCard';
 
 const FIELD =
   'block w-full rounded-lg border border-input bg-background/60 px-2.5 py-1.5 text-[13px] outline-none transition-colors placeholder:text-muted-foreground/70 focus:border-primary/50 focus:ring-2 focus:ring-primary/15 disabled:opacity-60';
+
+interface PrDraft {
+  title: string;
+  body: string;
+}
+
+const EMPTY_DRAFT: PrDraft = { title: '', body: '' };
+
+/**
+ * The title and description being written for a PR, per project. The panel and the large view
+ * each mount their own CreatePrForm, so this is what keeps them showing the same text instead of
+ * losing it when one opens or closes.
+ */
+export const useCreatePrDraft = create<{
+  byProject: Record<string, PrDraft>;
+  setTitle: (projectId: string, title: string) => void;
+  setBody: (projectId: string, body: string) => void;
+  reset: (projectId: string) => void;
+}>((set) => ({
+  byProject: {},
+  setTitle: (projectId, title) =>
+    set((state) => ({
+      byProject: {
+        ...state.byProject,
+        [projectId]: { ...(state.byProject[projectId] ?? EMPTY_DRAFT), title },
+      },
+    })),
+  setBody: (projectId, body) =>
+    set((state) => ({
+      byProject: {
+        ...state.byProject,
+        [projectId]: { ...(state.byProject[projectId] ?? EMPTY_DRAFT), body },
+      },
+    })),
+  reset: (projectId) =>
+    set((state) => {
+      const { [projectId]: _gone, ...rest } = state.byProject;
+      return { byProject: rest };
+    }),
+}));
 
 /** Opens a PR for the current branch; pushes it first, and can have the CLI write the text. */
 export function CreatePrForm({
@@ -27,8 +68,11 @@ export function CreatePrForm({
 }): React.JSX.Element {
   const queryClient = useQueryClient();
   const revealPanelSection = useRevealInPanel();
-  const [title, setTitle] = useState('');
-  const [body, setBody] = useState('');
+  const textDraft = useCreatePrDraft((s) => s.byProject[project.id]) ?? EMPTY_DRAFT;
+  const setDraftTitle = useCreatePrDraft((s) => s.setTitle);
+  const setDraftBody = useCreatePrDraft((s) => s.setBody);
+  const resetDraft = useCreatePrDraft((s) => s.reset);
+  const { title, body } = textDraft;
   const [base, setBase] = useState(status.defaultBranch ?? 'main');
   const [draft, setDraft] = useState(false);
   const [creating, setCreating] = useState(false);
@@ -57,8 +101,8 @@ export function CreatePrForm({
       const result = await window.agentmat.pullRequests.suggestText(project.id, requestId, base);
       if (result.cancelled) return;
       if (result.ok) {
-        if (result.title) setTitle(result.title);
-        if (result.body) setBody(result.body);
+        if (result.title) setDraftTitle(project.id, result.title);
+        if (result.body) setDraftBody(project.id, result.body);
         titleRef.current?.focus();
       } else {
         toast.error('Could not write the pull request', { description: result.error });
@@ -98,6 +142,7 @@ export function CreatePrForm({
             : undefined,
         });
       }
+      resetDraft(project.id);
       void queryClient.invalidateQueries({ queryKey: queryKeys.pullRequest(project.id) });
       void queryClient.invalidateQueries({ queryKey: queryKeys.gitWorkspaceState(project.id) });
     } finally {
@@ -162,7 +207,7 @@ export function CreatePrForm({
           aria-label="Pull request title"
           placeholder="Title"
           disabled={creating}
-          onChange={(event) => setTitle(event.target.value)}
+          onChange={(event) => setDraftTitle(project.id, event.target.value)}
           className={cn(FIELD, 'pr-9', roomy && 'py-2 text-sm font-medium', writing && 'shimmer')}
         />
         <SimpleTooltip label={writing ? 'Stop writing' : 'Write the title and description with AI'}>
@@ -191,7 +236,7 @@ export function CreatePrForm({
         aria-label="Pull request description"
         placeholder="What changed and why (optional)"
         disabled={creating}
-        onChange={(event) => setBody(event.target.value)}
+        onChange={(event) => setDraftBody(project.id, event.target.value)}
         className={cn(FIELD, 'resize-y text-[12px] leading-relaxed', writing && 'shimmer')}
       />
 
