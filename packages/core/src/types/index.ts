@@ -16,6 +16,8 @@ import type {
 
 export const THEME_MODES = ['light', 'dark', 'system', 'vscode-dark', 'vs2026'] as const;
 export type ThemeMode = (typeof THEME_MODES)[number];
+
+export type PingMethod = 'icmp' | 'http' | 'auto';
 export function isThemeMode(value: unknown): value is ThemeMode {
   return THEME_MODES.includes(value as ThemeMode);
 }
@@ -354,6 +356,12 @@ export interface AppSettings {
   skillRepositoryIds: string[];
   /** Hosts/IPs pinged for the dashboard's Network Status graph. */
   pingTargets: string[];
+  /** How connection quality is measured: the ping command, HTTP requests to `pingUrls`, or ping with an HTTP fallback. */
+  pingMethod: PingMethod;
+  /** URLs requested when `pingMethod` is `http` or `auto`. */
+  pingUrls: string[];
+  /** Seconds between URL requests, however often the app samples. */
+  pingUrlIntervalSeconds: number;
   /** Bot token from @BotFather, used to send notification-hook messages. */
   telegramBotToken: string | null;
   /** Chat/user ID the bot should message; also where confirmation replies are read from. */

@@ -22,6 +22,10 @@ const forcedExternals = [
   // allowBuilds), so bundling it fails at build time even though ssh2 already wraps its own
   // `require('cpu-features')` in a try/catch and runs fine without it at actual runtime.
   'cpu-features',
+  // Postman's request engine loads parts of itself by path at runtime (the script sandbox ships
+  // as a prebuilt string it evaluates), so it is left in node_modules rather than bundled.
+  'postman-runtime',
+  'postman-collection',
   /^node:/,
 ];
 
@@ -55,6 +59,9 @@ export default defineConfig({
           // The background terminal host. It runs as its own detached process so terminals
           // survive the app quitting or updating, which means it is started by path.
           ptyHost: resolve(__dirname, 'src/main/ptyHost/hostEntry.ts'),
+          // The API Client runs requests and their scripts in a utility process of its own, so a
+          // runaway script from an imported collection cannot freeze main. Started by path.
+          apiRunnerHost: resolve(__dirname, 'src/main/apiClient/runnerHost.ts'),
         },
       },
     },

@@ -44,6 +44,12 @@ const DESTINATIONS: Destination[] = [
     landmark: (page) => page.getByRole('heading', { name: 'Pick a project to work on' }),
   },
   {
+    label: 'API Client',
+    hash: '#/api-client',
+    landmark: (page) =>
+      page.getByRole('tree', { name: 'Collections' }).or(page.getByText('No collections yet')),
+  },
+  {
     label: 'Pipelines',
     hash: '#/pipelines',
     landmark: (page) => page.getByRole('button', { name: /^Refresh runs/ }),

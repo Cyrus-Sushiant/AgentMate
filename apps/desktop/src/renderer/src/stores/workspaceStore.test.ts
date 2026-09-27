@@ -2,6 +2,8 @@ import { allGroups, allTabIds, findGroup, findGroupOfTab } from '@agentmat/core'
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { type FakeBridge, installAgentmatBridge } from '../../../test/renderer/agentmatBridge';
 import { useBrowserStore } from './browserStore';
+import { useEditorRevealStore } from './editorRevealStore';
+import { useRecentFilesStore } from './recentFilesStore';
 import {
   GIT_PANEL_DEFAULT_WIDTH,
   type ProjectWorkspace,
@@ -615,6 +617,50 @@ describe('openFile', () => {
     store().openFile('p1', 'E:\\proj\\b.ts', { pin: true });
     store().openFile('p1', 'E:\\proj\\a.ts');
     expect(findGroup(workspace().root, workspace().focusedGroupId)?.activeTabId).toBe(tabId);
+  });
+
+  it('counts as a recent file for the search dialog', () => {
+    store().openFile('p1', 'E:\\proj\\a.ts');
+    store().openFile('p1', 'E:\\proj\\b.ts');
+    expect(useRecentFilesStore.getState().byProject.p1).toEqual([
+      'E:\\proj\\b.ts',
+      'E:\\proj\\a.ts',
+    ]);
+  });
+
+  it('asks the editor to show a line when given one', () => {
+    store().openFile('p1', 'E:\\proj\\a.ts', { reveal: { line: 12, column: 5, length: 3 } });
+    expect(useEditorRevealStore.getState().pending['E:\\proj\\a.ts']).toMatchObject({
+      line: 12,
+      column: 5,
+      length: 3,
+    });
+  });
+
+  it('makes a file recent again when its tab is picked', () => {
+    store().openFile('p1', 'E:\\proj\\a.ts', { pin: true });
+    const [tabId] = Object.keys(workspace().tabs);
+    store().openFile('p1', 'E:\\proj\\b.ts', { pin: true });
+    store().activateTab('p1', tabId);
+    expect(useRecentFilesStore.getState().byProject.p1?.[0]).toBe('E:\\proj\\a.ts');
+  });
+});
+
+describe('recent files follow the explorer', () => {
+  beforeEach(() => {
+    store().openProject('p1');
+  });
+
+  it('follows a rename', () => {
+    store().openFile('p1', 'E:\\proj\\a.ts', { pin: true });
+    store().retargetFileTabs('p1', 'E:\\proj\\a.ts', 'E:\\proj\\b.ts');
+    expect(useRecentFilesStore.getState().byProject.p1).toEqual(['E:\\proj\\b.ts']);
+  });
+
+  it('forgets a deleted file', () => {
+    store().openFile('p1', 'E:\\proj\\src\\a.ts', { pin: true });
+    store().closeFileTabsUnder('p1', ['E:\\proj\\src']);
+    expect(useRecentFilesStore.getState().byProject.p1 ?? []).toEqual([]);
   });
 });
 

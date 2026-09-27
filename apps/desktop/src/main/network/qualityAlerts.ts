@@ -1,11 +1,8 @@
-import { execFile } from 'node:child_process';
-import { promisify } from 'node:util';
 import type { PetPipelineMessage } from '../../shared/pet';
 import { petDisplayName } from '../pet/names';
 import { petManager } from '../pet/petWindow';
 import { store } from '../store';
-
-const execFileAsync = promisify(execFile);
+import { probeAll } from './pingProbe';
 
 const TICK_MS = 20_000;
 const CONFIRM_SAMPLES = 2;
@@ -41,19 +38,6 @@ function resetState(): void {
   pendingCount = 0;
 }
 
-async function pingHost(host: string): Promise<{ alive: boolean; latencyMs: number | null }> {
-  const isWin = process.platform === 'win32';
-  const args = isWin ? ['-n', '1', '-w', '1500', host] : ['-c', '1', '-W', '2', host];
-  try {
-    const { stdout } = await execFileAsync('ping', args, { timeout: 3000 });
-    const match = isWin ? stdout.match(/time[=<](\d+)ms/i) : stdout.match(/time=([\d.]+)\s*ms/i);
-    if (!match) return { alive: false, latencyMs: null };
-    return { alive: true, latencyMs: Math.round(Number(match[1])) };
-  } catch {
-    return { alive: false, latencyMs: null };
-  }
-}
-
 function bandFromLatency(latencyMs: number | null): QualityBand {
   if (latencyMs == null) return 'offline';
   if (latencyMs < 50) return 'excellent';
@@ -85,9 +69,7 @@ function petNetworkSpeech(
 
 async function sampleQuality(): Promise<{ band: QualityBand; latencyMs: number | null }> {
   const settings = await store.getSettings();
-  const hosts = (settings.pingTargets ?? []).map((host) => host.trim()).filter(Boolean);
-  const targets = hosts.length > 0 ? hosts : [FALLBACK_HOST];
-  const results = await Promise.all(targets.map((host) => pingHost(host)));
+  const results = await probeAll(settings, [FALLBACK_HOST]);
   const alive = results.filter((result) => result.alive && result.latencyMs != null);
   if (alive.length === 0) return { band: 'offline', latencyMs: null };
   const latencyMs = Math.min(...alive.map((result) => result.latencyMs as number));

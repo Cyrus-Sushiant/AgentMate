@@ -251,6 +251,12 @@ export const IPC = {
     ignoredPaths: 'explorer:ignoredPaths',
     listFiles: 'explorer:listFiles',
   },
+  workspaceSearch: {
+    text: 'workspaceSearch:text',
+    cancel: 'workspaceSearch:cancel',
+    symbols: 'workspaceSearch:symbols',
+    onTextResults: 'workspaceSearch:textResults',
+  },
   settings: {
     get: 'settings:get',
     update: 'settings:update',
@@ -731,6 +737,20 @@ export const IPC = {
     cancelAutoContinue: 'agents:cancelAutoContinue',
     // main -> renderer: AutoContinuePendingMap of tabs whose scheduled continue changed
     onAutoContinue: 'agents:onAutoContinue',
+  },
+  apiClient: {
+    listCollections: 'apiClient:listCollections',
+    getCollection: 'apiClient:getCollection',
+    createCollection: 'apiClient:createCollection',
+    renameCollection: 'apiClient:renameCollection',
+    removeCollection: 'apiClient:removeCollection',
+    saveRequest: 'apiClient:saveRequest',
+    createFolder: 'apiClient:createFolder',
+    removeItem: 'apiClient:removeItem',
+    // (ExecuteApiRequestInput) -> ApiExecutionResult, once the request finished or failed
+    execute: 'apiClient:execute',
+    // (requestId) -> boolean: stops a request started by execute
+    cancel: 'apiClient:cancel',
   },
   packages: {
     list: 'packages:list',

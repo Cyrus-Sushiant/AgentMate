@@ -5,6 +5,8 @@
  */
 
 export interface FileHit {
+  /** Where the path sits in the list that was searched. */
+  index: number;
   /** Path relative to the project root, with forward slashes. */
   path: string;
   /** Where the file name starts inside `path`. */
@@ -156,6 +158,7 @@ export function searchFiles(
     const match = matchPath(path, lowered[index] ?? path, needle, byPath);
     if (!match) continue;
     hits.push({
+      index,
       path,
       nameStart: path.lastIndexOf('/') + 1,
       ranges: match.ranges,
@@ -164,8 +167,12 @@ export function searchFiles(
   }
   const total = hits.length;
   // Same score: the shorter, then alphabetical path, so the order never wanders between runs.
+  // Equal strings (two symbols with one name) keep the order they were given in.
   hits.sort(
-    (a, b) => b.score - a.score || a.path.length - b.path.length || (a.path < b.path ? -1 : 1),
+    (a, b) =>
+      b.score - a.score ||
+      a.path.length - b.path.length ||
+      (a.path < b.path ? -1 : a.path > b.path ? 1 : a.index - b.index),
   );
   return { hits: hits.length > limit ? hits.slice(0, limit) : hits, total };
 }

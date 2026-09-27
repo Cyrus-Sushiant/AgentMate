@@ -4,6 +4,7 @@ import { create } from 'zustand';
 import { emitBrowserShortcut } from '@/lib/browser/browserSync';
 import { queryKeys } from '@/lib/queryKeys';
 import { queryClient } from '@/queryClient';
+import { useWorkspaceSearchStore } from '@/stores/workspaceSearchStore';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
 import { useWorktreeDialogStore } from '@/stores/worktreeDialogStore';
 import { launchShellTab } from './launch';
@@ -168,6 +169,12 @@ export const workspaceCommands = {
   toggleGitPanel(): void {
     const { gitPanel, setGitPanel } = useWorkspaceStore.getState();
     setGitPanel({ collapsed: !gitPanel.collapsed });
+  },
+
+  /** Opens the search dialog on the project on screen, or closes it when it is already up. */
+  openSearch(): void {
+    const scopeId = useWorkspaceStore.getState().activeProjectId;
+    if (scopeId) useWorkspaceSearchStore.getState().toggle(scopeId);
   },
 
   /** New worktree of the project on screen, whether its checkout or one of its worktrees is up. */

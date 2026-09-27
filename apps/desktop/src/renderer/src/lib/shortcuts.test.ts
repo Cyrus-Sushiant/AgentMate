@@ -259,6 +259,15 @@ describe('formatShortcut', () => {
 });
 
 describe('the command registry', () => {
+  it('opens the workspace search with Ctrl+P, only on the workspace', () => {
+    const search = SHORTCUT_COMMANDS.find((command) => command.id === 'workspace.search');
+    expect(search).toMatchObject({
+      scope: 'workspace',
+      group: 'Workspace',
+      defaults: [{ code: 'KeyP', mod: true }],
+    });
+  });
+
   it('gives every command an id of its own', () => {
     const ids = SHORTCUT_COMMANDS.map((command) => command.id);
     expect(new Set(ids).size).toBe(ids.length);

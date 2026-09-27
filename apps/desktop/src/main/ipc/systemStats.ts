@@ -8,13 +8,13 @@ import type {
   DiskUsage,
   GpuUsage,
   KillProcessResult,
-  PingResult,
   SystemStatsSample,
   TopResourceApp,
   TopResourceAppsResult,
   TopResourceKind,
 } from '../../shared/apiTypes';
 import { IPC } from '../../shared/ipcChannels';
+import { probeAll } from '../network/pingProbe';
 import { store } from '../store';
 import { asArray, runPowerShellJson } from '../system/processTree';
 
@@ -366,19 +366,6 @@ async function sampleNetworkRates(): Promise<
     netRxBytesPerSec: Math.max(0, (totals.rxBytes - previous.rxBytes) / elapsedSec),
     netTxBytesPerSec: Math.max(0, (totals.txBytes - previous.txBytes) / elapsedSec),
   };
-}
-
-async function pingHost(host: string): Promise<PingResult> {
-  const isWin = process.platform === 'win32';
-  const args = isWin ? ['-n', '1', '-w', '1500', host] : ['-c', '1', '-W', '2', host];
-  try {
-    const { stdout } = await execFileAsync('ping', args, { timeout: 3000 });
-    const match = isWin ? stdout.match(/time[=<](\d+)ms/i) : stdout.match(/time=([\d.]+)\s*ms/i);
-    if (!match) return { host, latencyMs: null, alive: false };
-    return { host, latencyMs: Math.round(Number(match[1])), alive: true };
-  } catch {
-    return { host, latencyMs: null, alive: false };
-  }
 }
 
 const cpuModel = readCpuModel();
@@ -1047,12 +1034,9 @@ export function registerSystemStatsHandlers(): void {
 
   ipcMain.handle(IPC.system.sample, async (): Promise<SystemStatsSample> => {
     const settings = await store.getSettings();
-    // Older settings.json files predate this field.
-    const hosts = (settings.pingTargets ?? []).map((h) => h.trim()).filter(Boolean);
-
     const [net, pings, disks, gpus, cpu] = await Promise.all([
       sampleNetworkRates(),
-      Promise.all(hosts.map((host) => pingHost(host))),
+      probeAll(settings),
       sampleDisksCached(),
       sampleGpusCached(),
       sampleCpu(),

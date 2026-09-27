@@ -5,6 +5,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { toggleExplorerSearch, useExplorerStore } from '@/stores/explorerStore';
+import { useWorkspaceSearchStore } from '@/stores/workspaceSearchStore';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
 import { installAgentmatBridge } from '../../../../../../test/renderer/agentmatBridge';
 import { ExplorerSearch } from './ExplorerSearch';
@@ -60,6 +61,27 @@ beforeEach(() => {
 });
 
 afterEach(cleanup);
+
+describe('handing over to the full search', () => {
+  it('opens the search dialog with what was typed', async () => {
+    renderSearch();
+    type('panel');
+    fireEvent.click(screen.getByRole('button', { name: /search files and code/i }));
+    expect(useWorkspaceSearchStore.getState()).toMatchObject({
+      open: true,
+      projectId: 'p1',
+      queries: { p1: 'panel' },
+    });
+    expect(onClose).toHaveBeenCalled();
+  });
+
+  it('offers to look for the text inside files', async () => {
+    renderSearch();
+    type('needle');
+    fireEvent.click(await screen.findByRole('button', { name: /search in file contents/i }));
+    expect(useWorkspaceSearchStore.getState().queries.p1).toBe('x:needle');
+  });
+});
 
 describe('ExplorerSearch', () => {
   it('shows nothing until something is typed', async () => {

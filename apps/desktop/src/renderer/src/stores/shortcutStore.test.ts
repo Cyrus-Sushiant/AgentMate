@@ -96,6 +96,13 @@ describe('commandForEvent', () => {
     expect(commandForEvent(press({ code: 'KeyZ', key: 'z', ctrlKey: true }), {})).toBeNull();
   });
 
+  it('gives Ctrl+P to the workspace search on the workspace, and to Projects elsewhere', () => {
+    const event = press({ code: 'KeyP', key: 'p', ctrlKey: true });
+    expect(commandForEvent(event, {}, true, 'workspace')).toBe('workspace.search');
+    expect(commandForEvent(event, {}, true, 'global')).toBe('nav.projects');
+    expect(conflictingCommand({ code: 'KeyP', mod: true }, 'workspace.search', {})).toBeNull();
+  });
+
   it('only looks in the scope it was asked about', () => {
     // Ctrl+T means translate in the prompt builder and toggle terminal everywhere else.
     const event = press({ code: 'KeyT', key: 't', ctrlKey: true });

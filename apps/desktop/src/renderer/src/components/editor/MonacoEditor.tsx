@@ -1,9 +1,10 @@
 import * as monaco from 'monaco-editor';
 import { useEffect, useRef } from 'react';
 import { cn } from '@/lib/utils';
+import type { Reveal } from '@/stores/editorRevealStore';
 import { resolveMonacoThemeKey } from './monacoSetup';
 
-function currentMonacoTheme(): string {
+export function currentMonacoTheme(): string {
   switch (resolveMonacoThemeKey()) {
     case 'light':
       return 'vs';
@@ -21,6 +22,10 @@ export interface MonacoEditorProps {
   language?: string;
   readOnly?: boolean;
   className?: string;
+  /** A place to select and scroll to, such as a search result. Applied once per `nonce`. */
+  reveal?: Reveal | null;
+  /** Called once the reveal is applied, so the caller can let go of it. */
+  onRevealed?: () => void;
 }
 
 export function MonacoEditor({
@@ -29,11 +34,16 @@ export function MonacoEditor({
   language = 'markdown',
   readOnly = false,
   className,
+  reveal,
+  onRevealed,
 }: MonacoEditorProps): React.JSX.Element {
   const containerRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
+  const onRevealedRef = useRef(onRevealed);
+  onRevealedRef.current = onRevealed;
+  const revealedRef = useRef<number | null>(null);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: mount-only setup; prop changes are applied via refs/other effects, not by recreating the editor
   useEffect(() => {
@@ -81,6 +91,30 @@ export function MonacoEditor({
   useEffect(() => {
     editorRef.current?.updateOptions({ readOnly });
   }, [readOnly]);
+
+  // Runs after the value effect above, so the lines it points at are already there.
+  useEffect(() => {
+    const editor = editorRef.current;
+    if (!editor || !reveal || revealedRef.current === reveal.nonce) return;
+    revealedRef.current = reveal.nonce;
+    const range = new monaco.Range(
+      reveal.line,
+      reveal.column,
+      reveal.line,
+      reveal.column + (reveal.length ?? 0),
+    );
+    editor.setSelection(range);
+    editor.revealRangeInCenterIfOutsideViewport(range);
+    editor.focus();
+    onRevealedRef.current?.();
+  }, [reveal]);
+
+  // The language is set at creation; this follows later changes, like a request body switched
+  // from JSON to XML, without recreating the editor and losing its undo history.
+  useEffect(() => {
+    const model = editorRef.current?.getModel();
+    if (model) monaco.editor.setModelLanguage(model, language);
+  }, [language]);
 
   return (
     <div

@@ -30,12 +30,12 @@ import type {
 } from '../../shared/apiTypes';
 import { IPC } from '../../shared/ipcChannels';
 import { indexProjectFiles } from '../explorer/fileIndex';
+import { projectFolder } from '../explorer/projectFolder';
 import { git, gitOrNull } from '../git/plumbing';
 import { runGit } from '../git/versionReview';
 import { refreshWorkspaceState } from '../git/workingTreeWatcher';
 import { locateRepo } from '../git/workspaceGit';
 import { assertPathWithinRoots } from '../pathGuard';
-import { findProjectScope } from '../worktrees/resolve';
 
 /** A request naming more paths than this is not coming from the explorer. */
 const MAX_PATHS = 5000;
@@ -60,13 +60,6 @@ async function exists(path: string): Promise<boolean> {
     () => true,
     () => false,
   );
-}
-
-async function projectFolder(projectId: unknown): Promise<string> {
-  // A worktree's workspace passes its scope id and gets the worktree's folder.
-  const project = typeof projectId === 'string' ? await findProjectScope(projectId) : null;
-  if (!project) throw new Error('That project no longer exists.');
-  return resolve(project.folderPath);
 }
 
 function assertPathString(path: unknown): asserts path is string {

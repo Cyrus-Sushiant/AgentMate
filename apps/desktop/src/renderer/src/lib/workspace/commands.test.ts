@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { onBrowserShortcut } from '@/lib/browser/browserSync';
 import { queryKeys } from '@/lib/queryKeys';
 import { queryClient } from '@/queryClient';
+import { useWorkspaceSearchStore } from '@/stores/workspaceSearchStore';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
 import { installAgentmatBridge } from '../../../../test/renderer/agentmatBridge';
 import {
@@ -298,6 +299,21 @@ describe('toggleGitPanel', () => {
     expect(store().gitPanel.collapsed).toBe(true);
     workspaceCommands.toggleGitPanel();
     expect(store().gitPanel.collapsed).toBe(false);
+  });
+});
+
+describe('openSearch', () => {
+  it('opens the search on the project on screen, and closes it on a second press', () => {
+    openWorkspace();
+    workspaceCommands.openSearch();
+    expect(useWorkspaceSearchStore.getState()).toMatchObject({ open: true, projectId: 'p1' });
+    workspaceCommands.openSearch();
+    expect(useWorkspaceSearchStore.getState().open).toBe(false);
+  });
+
+  it('does nothing with no project on screen', () => {
+    workspaceCommands.openSearch();
+    expect(useWorkspaceSearchStore.getState().open).toBe(false);
   });
 });
 

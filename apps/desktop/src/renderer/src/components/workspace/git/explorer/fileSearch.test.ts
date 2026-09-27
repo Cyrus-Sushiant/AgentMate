@@ -65,6 +65,11 @@ describe('searchFiles', () => {
     expect(result.hits).toHaveLength(5);
   });
 
+  it('says where each hit sits in the list it was given', () => {
+    const [hit] = searchFiles(FILES, 'fileOps').hits;
+    expect(FILES[hit.index]).toBe(hit.path);
+  });
+
   it('orders equal matches the same way every time', () => {
     const first = paths('workspacestore');
     expect(paths('workspacestore')).toEqual(first);

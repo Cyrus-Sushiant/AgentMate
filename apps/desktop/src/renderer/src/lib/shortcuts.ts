@@ -40,6 +40,7 @@ export type ShortcutCommandId =
   | 'workspace.zoomPane'
   | 'workspace.toggleGitPanel'
   | 'workspace.newWorktree'
+  | 'workspace.search'
   | 'workspace.goToTab'
   | 'workspace.nextChange'
   | 'workspace.prevChange'
@@ -296,6 +297,17 @@ export const SHORTCUT_COMMANDS: ShortcutCommand[] = [
     group: 'Workspace',
     scope: 'workspace',
     defaults: [{ code: 'KeyN', mod: true, shift: true }],
+  },
+  {
+    id: 'workspace.search',
+    label: 'Search files and code',
+    description:
+      'Finds files, types, members and text in the project on screen, with a preview. On the workspace it takes Ctrl+P from Go to Projects.',
+    group: 'Workspace',
+    scope: 'workspace',
+    // The quick-open key editors share. The workspace scope is checked first, so Ctrl+P still
+    // goes to Projects everywhere else.
+    defaults: [{ code: 'KeyP', mod: true }],
   },
   {
     id: 'workspace.goToTab',
