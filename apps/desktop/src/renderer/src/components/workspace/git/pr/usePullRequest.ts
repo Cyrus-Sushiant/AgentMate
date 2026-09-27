@@ -186,6 +186,20 @@ export function usePullRequest(projectId: string, watch: PullRequestWatch) {
     }
   }, [fingerprint, projectId, queryClient, watch.visible]);
 
+  // This status is read independently from the git status watcher that already knows the
+  // branch, so the two can disagree for a moment (they are separate reads of the same repo).
+  // A stale "you are on the default branch" from that mismatch would otherwise strand the tab
+  // until something else changes the fingerprint above; asked again once, it corrects itself.
+  const mismatchRetried = useRef<string | null>(null);
+  useEffect(() => {
+    if (!watch.visible || !watch.branch || !query.data?.branch || query.isFetching) return;
+    if (watch.branch === query.data.branch) return;
+    const key = `${watch.branch}|${query.data.branch}`;
+    if (mismatchRetried.current === key) return;
+    mismatchRetried.current = key;
+    void queryClient.invalidateQueries({ queryKey: queryKeys.pullRequest(projectId) });
+  }, [watch.visible, watch.branch, query.data, query.isFetching, projectId, queryClient]);
+
   return query;
 }
 

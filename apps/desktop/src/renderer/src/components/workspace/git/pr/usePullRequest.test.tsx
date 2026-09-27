@@ -121,6 +121,41 @@ describe('usePullRequest', () => {
     // $fn throws for a path nothing called, which is the point here.
     expect(() => bridge.$fn('pullRequests.status')).toThrow('has not been touched');
   });
+
+  it('reads again on its own when a read reports a branch the git watcher disagrees with', async () => {
+    let calls = 0;
+    const { result, bridge } = renderHookWithProviders(
+      () => usePullRequest('p1', { visible: true, branch: 'feature', head: 'a', ahead: 0 }),
+      {
+        bridge: {
+          'pullRequests.status': () => {
+            calls += 1;
+            // The first read gets the branch wrong (a stray read a poll on master could
+            // produce); the retry it triggers gets it right, like the branch really moving.
+            return calls === 1 ? status({ branch: 'master', onDefaultBranch: true, pr: null }) : status();
+          },
+        },
+      },
+    );
+    await waitFor(() => expect(result.current.data?.branch).toBe('feature'));
+    expect(bridge.$fn('pullRequests.status')).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not keep retrying when the mismatch is not a stray read', async () => {
+    const { bridge } = renderHookWithProviders(
+      () => usePullRequest('p1', { visible: true, branch: 'feature', head: 'a', ahead: 0 }),
+      {
+        bridge: {
+          'pullRequests.status': status({ branch: 'master', onDefaultBranch: true, pr: null }),
+        },
+      },
+    );
+    // The one automatic retry still disagrees with the watcher, so it is trusted rather than
+    // retried forever.
+    await waitFor(() => expect(bridge.$fn('pullRequests.status')).toHaveBeenCalledTimes(2));
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(bridge.$fn('pullRequests.status')).toHaveBeenCalledTimes(2);
+  });
 });
 
 describe('pullRequestProgress', () => {
