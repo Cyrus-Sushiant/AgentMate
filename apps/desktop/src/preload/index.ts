@@ -32,13 +32,13 @@ import type {
   McpRepositoryIndex,
   McpRepositorySourceType,
   OpenWidgetOptions,
+  PostmanCollection,
   Project,
   ProjectBlueprint,
   ProjectDraft,
   ProjectDraftStatus,
   ProjectGithubAction,
   ProjectNotificationSettings,
-  PostmanCollection,
   PromptTemplate,
   ProviderUsage,
   ProxySettings,
@@ -73,6 +73,12 @@ import type {
   WorktreeInfo,
 } from '@agentmat/core';
 import { contextBridge, ipcRenderer, webUtils } from 'electron';
+import type {
+  ApiCollectionSummary,
+  ApiExecutionResult,
+  ExecuteApiRequestInput,
+  SaveApiRequestInput,
+} from '../shared/apiClientTypes';
 import type {
   ActiveScan,
   AddPromptHistoryInput,
@@ -269,12 +275,6 @@ import type {
   WriteVersionHunksInput,
   WriteVersionHunksResult,
 } from '../shared/apiTypes';
-import type {
-  ApiCollectionSummary,
-  ApiExecutionResult,
-  ExecuteApiRequestInput,
-  SaveApiRequestInput,
-} from '../shared/apiClientTypes';
 import type { GrammarCheckInput, GrammarCheckResult, GrammarLocalStatus } from '../shared/grammar';
 import { IPC } from '../shared/ipcChannels';
 import type { PetPipelineMessage, PetSnoozeState, PetWorkArea } from '../shared/pet';
