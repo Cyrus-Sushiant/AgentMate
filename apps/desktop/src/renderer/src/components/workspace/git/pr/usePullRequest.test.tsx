@@ -132,7 +132,9 @@ describe('usePullRequest', () => {
             calls += 1;
             // The first read gets the branch wrong (a stray read a poll on master could
             // produce); the retry it triggers gets it right, like the branch really moving.
-            return calls === 1 ? status({ branch: 'master', onDefaultBranch: true, pr: null }) : status();
+            return calls === 1
+              ? status({ branch: 'master', onDefaultBranch: true, pr: null })
+              : status();
           },
         },
       },
