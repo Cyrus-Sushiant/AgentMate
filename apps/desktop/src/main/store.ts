@@ -73,6 +73,13 @@ import type {
 } from '../shared/apiTypes';
 import { referencedAttachmentFiles, removeOrphanAttachments } from './blueprintFileStore';
 import { blueprintRevisionDb } from './blueprintRevisionDb';
+import {
+  DEFAULT_PING_URL,
+  DEFAULT_PING_URL_INTERVAL_SECONDS,
+  isPingMethod,
+  normalizePingUrlInterval,
+  normalizePingUrls,
+} from './network/pingProbe';
 import { hydrateProjectIcons, persistProjectIcons } from './projectIconStore';
 
 function dataDir(): string {
@@ -110,6 +117,9 @@ export const DEFAULT_SETTINGS: AppSettings = {
   projectsRootPath: null,
   skillRepositoryIds: [],
   pingTargets: ['1.1.1.1'],
+  pingMethod: 'icmp',
+  pingUrls: [DEFAULT_PING_URL],
+  pingUrlIntervalSeconds: DEFAULT_PING_URL_INTERVAL_SECONDS,
   telegramBotToken: null,
   telegramChatId: null,
   telegramScheduledTasksChatId: null,
@@ -247,6 +257,9 @@ function withSettingsMigrations(settings: AppSettings): AppSettings {
     desktopPetCardView: normalizeDesktopPetCardView(settings.desktopPetCardView),
     desktopPetPipelineOnFail: settings.desktopPetPipelineOnFail === true,
     desktopPetPipelineOnPass: settings.desktopPetPipelineOnPass === true,
+    pingMethod: isPingMethod(settings.pingMethod) ? settings.pingMethod : 'icmp',
+    pingUrls: normalizePingUrls(settings.pingUrls),
+    pingUrlIntervalSeconds: normalizePingUrlInterval(settings.pingUrlIntervalSeconds),
     desktopPetNetworkQuality:
       settings.desktopPetNetworkQuality === true ||
       (settings as AppSettings & { networkQualityAlerts?: boolean }).networkQualityAlerts === true,

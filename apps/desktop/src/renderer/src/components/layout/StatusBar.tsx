@@ -805,6 +805,9 @@ function SystemSegments(): React.JSX.Element {
                   ? 'Offline'
                   : 'Connected, but pings get no reply'}
             </span>
+            {pings.some((ping) => /^https?:\/\//i.test(ping.host)) && (
+              <span className="text-muted-foreground">Measured with URL requests</span>
+            )}
             {pings.map((ping) => (
               <span key={ping.host} className="flex justify-between gap-4 text-muted-foreground">
                 <span className="font-mono">{ping.host}</span>

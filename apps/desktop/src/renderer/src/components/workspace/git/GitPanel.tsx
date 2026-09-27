@@ -5,6 +5,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
+import { vscodeMark } from '@/components/brandMarks';
 import {
   AnglesLeft,
   AnglesRight,
@@ -15,7 +16,6 @@ import {
   CircleCheck,
   CollapseAll,
   Expand,
-  FileCode,
   FilePlus,
   Flask,
   FolderPlus,
@@ -896,7 +896,9 @@ export function GitPanel({
                 .catch((error: Error) => toast.error(error.message))
             }
           >
-            <FileCode className="h-2.5 w-2.5" />
+            <svg role="img" viewBox="0 0 24 24" fill="currentColor" className="h-2.5 w-2.5">
+              <path d={vscodeMark.path} />
+            </svg>
           </PanelIconButton>
           <PanelIconButton
             label="Refresh files"

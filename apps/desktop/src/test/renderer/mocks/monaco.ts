@@ -33,11 +33,14 @@ class FakeModel {
 
 class FakeEditor {
   private model: FakeModel;
+  /** The navigation calls made on this editor, for tests that check where it went. */
+  readonly calls: { method: string; args: unknown[] }[] = [];
 
   constructor(
     readonly container: HTMLElement,
     options: { value?: string } = {},
   ) {
+    createdEditors.push(this);
     this.model = new FakeModel(options.value ?? '');
     // Something visible in the DOM makes editor tests assertable.
     const area = document.createElement('textarea');
@@ -88,11 +91,33 @@ class FakeEditor {
   getAction() {
     return { run: async () => undefined };
   }
-  revealLine(): void {
-    return undefined;
+  revealLine(...args: unknown[]): void {
+    this.calls.push({ method: 'revealLine', args });
   }
-  setPosition(): void {
-    return undefined;
+  revealLineInCenter(...args: unknown[]): void {
+    this.calls.push({ method: 'revealLineInCenter', args });
+  }
+  revealRangeInCenter(...args: unknown[]): void {
+    this.calls.push({ method: 'revealRangeInCenter', args });
+  }
+  revealRangeInCenterIfOutsideViewport(...args: unknown[]): void {
+    this.calls.push({ method: 'revealRangeInCenterIfOutsideViewport', args });
+  }
+  setSelection(...args: unknown[]): void {
+    this.calls.push({ method: 'setSelection', args });
+  }
+  setPosition(...args: unknown[]): void {
+    this.calls.push({ method: 'setPosition', args });
+  }
+  setScrollPosition(...args: unknown[]): void {
+    this.calls.push({ method: 'setScrollPosition', args });
+  }
+  createDecorationsCollection(...args: unknown[]) {
+    this.calls.push({ method: 'createDecorationsCollection', args });
+    return {
+      set: (...setArgs: unknown[]) => this.calls.push({ method: 'decorations.set', args: setArgs }),
+      clear: () => undefined,
+    };
   }
   getSelection() {
     return null;
@@ -108,11 +133,15 @@ class FakeEditor {
   }
 }
 
+/** Every editor made since the file started, newest last. */
+export const createdEditors: FakeEditor[] = [];
+
 export const editor = {
   create: (container: HTMLElement, options: { value?: string } = {}) =>
     new FakeEditor(container, options),
   createDiffEditor: (container: HTMLElement) => new FakeEditor(container),
   createModel: (value: string) => new FakeModel(value),
+  getModel: () => null,
   getModels: () => [] as FakeModel[],
   setModelLanguage: () => undefined,
   defineTheme: () => undefined,
@@ -121,6 +150,7 @@ export const editor = {
 };
 
 export const languages = {
+  getLanguages: () => [] as { id: string; extensions?: string[]; filenames?: string[] }[],
   register: () => undefined,
   setMonarchTokensProvider: () => undefined,
   setLanguageConfiguration: () => undefined,
@@ -157,4 +187,4 @@ export class Range {
 }
 export const MarkerSeverity = { Error: 8, Warning: 4, Info: 2, Hint: 1 };
 
-export default { editor, languages, KeyMod, KeyCode, Uri, Range, MarkerSeverity };
+export default { editor, languages, KeyMod, KeyCode, Uri, Range, MarkerSeverity, createdEditors };

@@ -22,6 +22,7 @@ import { registerBlueprintHandlers } from './ipc/blueprints';
 import { registerBrowserHandlers } from './ipc/browser';
 import { registerCliDetectionHandlers } from './ipc/cliDetection';
 import { registerDockerHandlers } from './ipc/docker';
+import { registerApiClientHandlers, shutdownApiClient } from './ipc/apiClient';
 import { registerEnvironmentHandlers } from './ipc/environments';
 import { registerExplorerHandlers } from './ipc/explorer';
 import { registerFileSystemHandlers } from './ipc/fileSystem';
@@ -59,6 +60,7 @@ import { registerToolHandlers } from './ipc/tools';
 import { registerTranslateHandlers } from './ipc/translate';
 import { registerUsageHandlers } from './ipc/usage';
 import { registerWindowHandlers } from './ipc/window';
+import { registerWorkspaceSearchHandlers } from './ipc/workspaceSearch';
 import { registerWorktreeHandlers } from './ipc/worktrees';
 import { focusMainWindow, setMainWindow, setMainWindowFactory } from './mainWindow';
 import {
@@ -277,6 +279,7 @@ function registerAllIpcHandlers(): void {
   registerSshHandlers();
   registerRdpHandlers();
   registerEnvironmentHandlers();
+  registerApiClientHandlers();
   registerSshAgentHandlers();
   registerAgentHandlers();
   registerTerminalClipboardHandlers();
@@ -296,6 +299,7 @@ function registerAllIpcHandlers(): void {
   registerDockerHandlers();
   registerFileSystemHandlers();
   registerExplorerHandlers();
+  registerWorkspaceSearchHandlers();
   registerSettingsHandlers();
   registerTemplateHandlers();
   registerActivityHandlers();
@@ -474,4 +478,5 @@ app.on('before-quit', (event) => {
   closeAllRdpSessions();
   lockVault();
   void getVaultService().shutdown();
+  shutdownApiClient();
 });

@@ -34,7 +34,12 @@ extraResources:
 #
 # The terminal host runs the app's exe in plain Node mode, which can't read inside the
 # archive at all, so its entry (and the shared chunks above) must be unpacked too.
+#
+# The workspace search starts ripgrep as a program, and a program can't be run from
+# inside the archive either. The binary lives in a per-platform package beside
+# @vscode/ripgrep, hence the wildcard.
 asarUnpack:
+  - '**/node_modules/@vscode/ripgrep*/**'
   - '**/node_modules/node-pty/**'
   - '**/node_modules/onnxruntime-node/**'
   - 'out/main/ptyHost.mjs'

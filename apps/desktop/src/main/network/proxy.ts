@@ -186,6 +186,11 @@ export async function applyProxySettings(settings: ProxySettings): Promise<void>
   restoreEnvBaseline();
 }
 
+/** The settings the app is running with right now, for callers that route traffic themselves. */
+export function currentProxySettings(): ProxySettings {
+  return current;
+}
+
 export async function applyProxySettingsFromStore(): Promise<void> {
   try {
     const settings = await store.getSettings();

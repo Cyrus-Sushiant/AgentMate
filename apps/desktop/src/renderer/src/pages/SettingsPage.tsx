@@ -1,4 +1,4 @@
-import type { AiProvider, ThemeMode } from '@agentmat/core';
+import type { AiProvider, PingMethod, ThemeMode } from '@agentmat/core';
 import {
   CLI_REGISTRY,
   DEFAULT_GEMINI_API_MODEL,
@@ -78,7 +78,12 @@ import { cn } from '@/lib/utils';
 import { useCliStore } from '@/stores/cliStore';
 import { confirmDialog } from '@/stores/confirmStore';
 import { usePageHeader } from '@/stores/pageHeaderStore';
-import { usePingTargetsStore } from '@/stores/pingTargetsStore';
+import {
+  DEFAULT_PING_URL,
+  MAX_PING_URL_INTERVAL_SECONDS,
+  MIN_PING_URL_INTERVAL_SECONDS,
+  usePingTargetsStore,
+} from '@/stores/pingTargetsStore';
 import { useTerminalAppearanceStore } from '@/stores/terminalAppearanceStore';
 import { type ResolvedTheme, themeClassName, useThemeStore } from '@/stores/themeStore';
 import { openUpdateDialog, useUpdateStore } from '@/stores/updateStore';
@@ -339,12 +344,42 @@ function MiniWindow({
   );
 }
 
+const PING_METHOD_OPTIONS: { value: PingMethod; label: string; hint: string }[] = [
+  {
+    value: 'icmp',
+    label: 'Ping command',
+    hint: 'Uses the system ping. Fails where ICMP is blocked.',
+  },
+  {
+    value: 'http',
+    label: 'URL request',
+    hint: 'Times an HTTPS request. Works behind most firewalls.',
+  },
+  { value: 'auto', label: 'Auto', hint: 'Ping first, switch to URLs if nothing answers.' },
+];
+
+function isHttpUrl(value: string): boolean {
+  try {
+    const { protocol } = new URL(value);
+    return protocol === 'http:' || protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
 function HostChips({
   value,
   onChange,
+  placeholder = '1.1.1.1',
+  validate,
+  ariaLabel,
 }: {
   value: string;
   onChange: (value: string) => void;
+  placeholder?: string;
+  /** Returns false for an entry that should be refused. */
+  validate?: (entry: string) => boolean;
+  ariaLabel?: string;
 }): React.JSX.Element {
   const [draft, setDraft] = useState('');
   const hosts = useMemo(
@@ -364,6 +399,10 @@ function HostChips({
     const next = raw.trim();
     if (!next || hosts.includes(next)) {
       setDraft('');
+      return;
+    }
+    if (validate && !validate(next)) {
+      toast.error(`"${next}" is not a valid entry.`);
       return;
     }
     onChange([...hosts, next].join(', '));
@@ -404,7 +443,8 @@ function HostChips({
           }
         }}
         onBlur={() => commit(draft)}
-        placeholder={hosts.length === 0 ? '1.1.1.1' : 'Add host'}
+        aria-label={ariaLabel}
+        placeholder={hosts.length === 0 ? placeholder : 'Add another'}
         className="min-w-[8rem] flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
       />
     </div>
@@ -424,6 +464,23 @@ export default function SettingsPage(): React.JSX.Element {
   const setTheme = useThemeStore((s) => s.setTheme);
   const pingTargets = usePingTargetsStore((s) => s.pingTargets);
   const setPingTargets = usePingTargetsStore((s) => s.setPingTargets);
+  const pingMethod = usePingTargetsStore((s) => s.pingMethod);
+  const setPingMethod = usePingTargetsStore((s) => s.setPingMethod);
+  const pingUrls = usePingTargetsStore((s) => s.pingUrls);
+  const setPingUrls = usePingTargetsStore((s) => s.setPingUrls);
+  const pingUrlIntervalSeconds = usePingTargetsStore((s) => s.pingUrlIntervalSeconds);
+  const setPingUrlIntervalSeconds = usePingTargetsStore((s) => s.setPingUrlIntervalSeconds);
+  const [pingIntervalDraft, setPingIntervalDraft] = useState<string | null>(null);
+
+  function commitPingInterval(): void {
+    if (pingIntervalDraft === null) return;
+    const parsed = Number.parseInt(pingIntervalDraft, 10);
+    setPingIntervalDraft(null);
+    if (!Number.isFinite(parsed)) return;
+    setPingUrlIntervalSeconds(
+      Math.min(MAX_PING_URL_INTERVAL_SECONDS, Math.max(MIN_PING_URL_INTERVAL_SECONDS, parsed)),
+    );
+  }
 
   const queryClient = useQueryClient();
   const tab: SettingsTab = isSettingsTab(searchParams.get('tab'))
@@ -638,17 +695,30 @@ export default function SettingsPage(): React.JSX.Element {
     if (!pingTargetsDirty) setPingTargetsText(pingTargets.join(', '));
   }, [pingTargets, pingTargetsDirty]);
 
-  function handleSavePingTargets(): void {
-    const parsed = Array.from(
+  // URLs contain no commas in practice, so they share the comma-separated chip editor.
+  const [pingUrlsText, setPingUrlsText] = useState(() => pingUrls.join(', '));
+  const [pingUrlsDirty, setPingUrlsDirty] = useState(false);
+
+  useEffect(() => {
+    if (!pingUrlsDirty) setPingUrlsText(pingUrls.join(', '));
+  }, [pingUrls, pingUrlsDirty]);
+
+  function splitList(text: string): string[] {
+    return Array.from(
       new Set(
-        pingTargetsText
+        text
           .split(',')
-          .map((host) => host.trim())
+          .map((entry) => entry.trim())
           .filter(Boolean),
       ),
     );
-    setPingTargets(parsed);
+  }
+
+  function handleSavePingTargets(): void {
+    if (pingTargetsDirty) setPingTargets(splitList(pingTargetsText));
+    if (pingUrlsDirty) setPingUrls(splitList(pingUrlsText).filter(isHttpUrl));
     setPingTargetsDirty(false);
+    setPingUrlsDirty(false);
     toast.success('Ping targets updated.');
   }
 
@@ -885,10 +955,10 @@ export default function SettingsPage(): React.JSX.Element {
     companion: false,
     ai: aiDirty || speechDirty || translateRetriesDirty,
     notifications: telegramDirty,
-    network: proxyDirty,
+    network: proxyDirty || pingTargetsDirty || pingUrlsDirty,
     // Vault settings persist the moment they change.
     vault: false,
-    data: pingTargetsDirty,
+    data: false,
   };
   const anyDirty = Object.values(tabDirty).some(Boolean);
   const saving =
@@ -906,7 +976,7 @@ export default function SettingsPage(): React.JSX.Element {
     if (telegramDirty) await saveTelegramMutation.mutateAsync();
     // The proxy card keeps its own draft, so it hands its save back through a ref.
     if (proxyDirty) await proxySaveRef.current?.();
-    if (pingTargetsDirty) handleSavePingTargets();
+    if (pingTargetsDirty || pingUrlsDirty) handleSavePingTargets();
   }
 
   function handleDiscardAll(): void {
@@ -916,6 +986,7 @@ export default function SettingsPage(): React.JSX.Element {
     setTranslateRetriesDirty(false);
     setTelegramDirty(false);
     setPingTargetsDirty(false);
+    setPingUrlsDirty(false);
     // Bumping the token is what tells the proxy card to drop its own draft.
     setProxyResetToken((token) => token + 1);
   }
@@ -999,7 +1070,7 @@ export default function SettingsPage(): React.JSX.Element {
     showSection('notifications', 'telegram bot token chat notify', 'Telegram bot'),
     showSection('network', PROXY_KEYWORDS, 'Proxy'),
     showSection('vault', VAULT_KEYWORDS, 'Vault'),
-    showSection('data', 'ping network hosts dashboard', 'Network ping targets'),
+    showSection('network', 'ping network hosts dashboard url http', 'Network ping targets'),
     showSection(
       'data',
       'backup restore export import zip environments secrets password',
@@ -1908,20 +1979,119 @@ export default function SettingsPage(): React.JSX.Element {
                 <VaultSettings settings={settingsQuery.data} />
               ) : null}
 
-              {showSection('data', 'ping network hosts dashboard', 'Network ping targets') && (
+              {showSection(
+                'network',
+                'ping network hosts dashboard url http generate_204 icmp status bar',
+                'Network ping targets',
+              ) && (
                 <SettingsCard
                   icon={NetworkIcon}
                   title="Network ping targets"
-                  description="Hosts shown on the dashboard Network Status graph. The AI pet uses these too if internet alerts are on. Press Enter to add one."
-                  dirty={pingTargetsDirty}
+                  description="How connection quality is measured for the status bar and the dashboard Network Status graph. The AI pet uses it too if internet alerts are on. Press Enter to add an entry."
+                  dirty={pingTargetsDirty || pingUrlsDirty}
                 >
-                  <HostChips
-                    value={pingTargetsText}
-                    onChange={(value) => {
-                      setPingTargetsText(value);
-                      setPingTargetsDirty(true);
-                    }}
-                  />
+                  <div className="space-y-4">
+                    <div className="space-y-1.5">
+                      <Label className="text-xs text-muted-foreground">Method</Label>
+                      <div
+                        role="radiogroup"
+                        aria-label="Ping method"
+                        className="flex flex-col gap-2 sm:flex-row"
+                      >
+                        {PING_METHOD_OPTIONS.map((option) => (
+                          <button
+                            key={option.value}
+                            type="button"
+                            role="radio"
+                            aria-checked={pingMethod === option.value}
+                            onClick={() => setPingMethod(option.value)}
+                            className={cn(
+                              'flex-1 cursor-pointer rounded-lg border px-3 py-2 text-left transition-colors',
+                              pingMethod === option.value
+                                ? 'border-primary/60 bg-primary/10'
+                                : 'border-input hover:bg-accent',
+                            )}
+                          >
+                            <div className="text-sm font-medium">{option.label}</div>
+                            <div className="text-[11px] text-muted-foreground">{option.hint}</div>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {pingMethod !== 'http' && (
+                      <div className="space-y-1.5">
+                        <Label className="text-xs text-muted-foreground">Hosts to ping</Label>
+                        <HostChips
+                          ariaLabel="Hosts to ping"
+                          value={pingTargetsText}
+                          onChange={(value) => {
+                            setPingTargetsText(value);
+                            setPingTargetsDirty(true);
+                          }}
+                        />
+                      </div>
+                    )}
+
+                    {pingMethod !== 'icmp' && (
+                      <div className="space-y-1.5">
+                        <div className="flex items-center justify-between">
+                          <Label className="text-xs text-muted-foreground">URLs to request</Label>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 px-2 text-xs"
+                            onClick={() => {
+                              setPingUrlsText(DEFAULT_PING_URL);
+                              setPingUrlsDirty(true);
+                            }}
+                          >
+                            Reset to default
+                          </Button>
+                        </div>
+                        <HostChips
+                          ariaLabel="URLs to request"
+                          placeholder={DEFAULT_PING_URL}
+                          validate={isHttpUrl}
+                          value={pingUrlsText}
+                          onChange={(value) => {
+                            setPingUrlsText(value);
+                            setPingUrlsDirty(true);
+                          }}
+                        />
+                        <div className="flex items-center gap-2 pt-1">
+                          <Label
+                            htmlFor="ping-url-interval"
+                            className="text-xs text-muted-foreground"
+                          >
+                            Request every
+                          </Label>
+                          <Input
+                            id="ping-url-interval"
+                            type="number"
+                            inputMode="numeric"
+                            min={MIN_PING_URL_INTERVAL_SECONDS}
+                            max={MAX_PING_URL_INTERVAL_SECONDS}
+                            className="h-8 w-20"
+                            value={pingIntervalDraft ?? String(pingUrlIntervalSeconds)}
+                            onChange={(event) => setPingIntervalDraft(event.target.value)}
+                            onBlur={commitPingInterval}
+                            onKeyDown={(event) => {
+                              if (event.key === 'Enter') commitPingInterval();
+                            }}
+                          />
+                          <span className="text-xs text-muted-foreground">
+                            seconds ({MIN_PING_URL_INTERVAL_SECONDS} to{' '}
+                            {MAX_PING_URL_INTERVAL_SECONDS})
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-muted-foreground">
+                          Use this when the network blocks the ping command. Any reply from the
+                          server counts as online, and the time to reply is the latency.
+                        </p>
+                      </div>
+                    )}
+                  </div>
                 </SettingsCard>
               )}
 

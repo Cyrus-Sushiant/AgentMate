@@ -47,6 +47,7 @@ installToastHistoryCapture();
 
 /** Skills ships a large offline catalog; keep it out of the main chunk until this route opens. */
 const SkillsPage = lazy(() => import('./pages/SkillsPage'));
+const ApiClientPage = lazy(() => import('./pages/ApiClientPage'));
 /** Carries the IronRDP WebAssembly engine, which only Remote Desktop session windows need. */
 const RdpSessionRoute = lazy(() => import('./components/rdp/RdpSessionRoute'));
 
@@ -161,6 +162,18 @@ export default function App(): React.JSX.Element {
                       }
                     >
                       <SkillsPage />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="api-client"
+                  element={
+                    <Suspense
+                      fallback={
+                        <div className="p-6 text-sm text-muted-foreground">Loading API Client…</div>
+                      }
+                    >
+                      <ApiClientPage />
                     </Suspense>
                   }
                 />

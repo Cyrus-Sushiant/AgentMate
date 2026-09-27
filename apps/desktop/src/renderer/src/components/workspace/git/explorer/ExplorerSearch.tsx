@@ -2,13 +2,16 @@ import { baseName, type GitChangeStatus, type Project } from '@agentmat/core';
 import { isImagePath } from '@shared/imageFiles';
 import { useQuery } from '@tanstack/react-query';
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
-import { File, FolderTree, ImageIcon, Search, X } from '@/components/icons';
+import { Expand, File, FolderTree, ImageIcon, Search, X } from '@/components/icons';
 import { Skeleton } from '@/components/ui/skeleton';
 import { SimpleTooltip } from '@/components/ui/tooltip';
+import { Highlighted } from '@/components/workspace/search/Highlighted';
 import { changeStatusMeta } from '@/lib/git';
 import { queryKeys } from '@/lib/queryKeys';
 import { cn } from '@/lib/utils';
 import { patchExplorer } from '@/stores/explorerStore';
+import { useShortcutLabel } from '@/stores/shortcutStore';
+import { useWorkspaceSearchStore } from '@/stores/workspaceSearchStore';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
 import { revealInTree } from './actions';
 import { type FileHit, loweredPaths, searchFiles, toAbsolutePath } from './fileSearch';
@@ -32,34 +35,6 @@ function dirStart(dir: string, ranges: [number, number][]): number {
     }
   }
   return Math.min(start, firstMark);
-}
-
-/** Text with its matched stretches picked out. `offset` is where `text` starts in the path. */
-function Highlighted({
-  text,
-  offset,
-  ranges,
-}: {
-  text: string;
-  offset: number;
-  ranges: [number, number][];
-}): React.JSX.Element {
-  const parts: React.ReactNode[] = [];
-  let at = 0;
-  for (const [start, end] of ranges) {
-    const from = Math.max(start - offset, 0);
-    const to = Math.min(end - offset, text.length);
-    if (to <= from || to <= at) continue;
-    if (from > at) parts.push(text.slice(at, from));
-    parts.push(
-      <mark key={from} className="rounded-[2px] bg-primary/25 text-foreground">
-        {text.slice(from, to)}
-      </mark>,
-    );
-    at = to;
-  }
-  if (at < text.length) parts.push(text.slice(at));
-  return <>{parts}</>;
 }
 
 /** Keeps the row the keyboard is on in view, as a ref so no effect has to chase it. */
@@ -184,6 +159,7 @@ export function ExplorerSearch({
   const inputRef = useRef<HTMLInputElement>(null);
   const [active, setActive] = useState(0);
   const openFile = useWorkspaceStore((s) => s.openFile);
+  const searchKey = useShortcutLabel('workspace.search');
 
   const index = useQuery({
     queryKey: queryKeys.workspaceExplorerFiles(project.id),
@@ -230,6 +206,12 @@ export function ExplorerSearch({
     revealInTree(project, path);
   }
 
+  /** Carries on in the search dialog, which also finds declarations and text inside files. */
+  function openFullSearch(seed: string): void {
+    onClose();
+    useWorkspaceSearchStore.getState().openSearch(project.id, seed);
+  }
+
   function onKeyDown(event: React.KeyboardEvent<HTMLInputElement>): void {
     const step = event.key === 'ArrowDown' ? 1 : event.key === 'ArrowUp' ? -1 : 0;
     if (step !== 0 && hits.length > 0) {
@@ -269,13 +251,25 @@ export function ExplorerSearch({
             value={query}
             onChange={(event) => patchExplorer(project.id, { search: event.target.value })}
             onKeyDown={onKeyDown}
-            className="h-6 w-full rounded-md border border-border/60 bg-background/60 pl-6 pr-14 text-[12px] outline-none placeholder:text-muted-foreground/70 focus:border-primary/50 focus:ring-1 focus:ring-primary/30"
+            className="h-6 w-full rounded-md border border-border/60 bg-background/60 pl-6 pr-[4.5rem] text-[12px] outline-none placeholder:text-muted-foreground/70 focus:border-primary/50 focus:ring-1 focus:ring-primary/30"
           />
           {query ? (
-            <span className="pointer-events-none absolute right-6 text-[10px] tabular-nums text-muted-foreground">
+            <span className="pointer-events-none absolute right-10 text-[10px] tabular-nums text-muted-foreground">
               {results.total > 999 ? '999+' : results.total}
             </span>
           ) : null}
+          <SimpleTooltip
+            label={searchKey ? `Search files and code (${searchKey})` : 'Search files and code'}
+          >
+            <button
+              type="button"
+              aria-label="Search files and code"
+              onClick={() => openFullSearch(query.trim())}
+              className="absolute right-5 flex h-4 w-4 items-center justify-center rounded text-muted-foreground hover:bg-foreground/10 hover:text-foreground"
+            >
+              <Expand className="h-2.5 w-2.5" />
+            </button>
+          </SimpleTooltip>
           <button
             type="button"
             aria-label="Close search"
@@ -344,6 +338,14 @@ export function ExplorerSearch({
               This project has more files than the search can hold, so a match may be missing.
             </p>
           ) : null}
+          <button
+            type="button"
+            onClick={() => openFullSearch(`x:${query.trim()}`)}
+            className="mx-1 mt-1 flex w-[calc(100%-0.5rem)] items-center gap-1.5 rounded-md px-1.5 py-1 text-left text-[11px] text-muted-foreground hover:bg-foreground/[0.05] hover:text-foreground"
+          >
+            <Search className="h-2.5 w-2.5 shrink-0" />
+            <span className="min-w-0 truncate">Search in file contents for “{query.trim()}”</span>
+          </button>
         </div>
       ) : null}
     </>

@@ -27,6 +27,7 @@ const workspace = vi.hoisted(() => ({
     focusedTabIsDiff: vi.fn(() => false),
     diffChange: vi.fn(),
     toggleGitPanel: vi.fn(),
+    openSearch: vi.fn(),
   },
 }));
 vi.mock('@/lib/workspace/commands', () => workspace);
@@ -125,6 +126,14 @@ describe('useGlobalShortcuts', () => {
     const { result } = renderShortcuts('/settings');
     press({ code: 'KeyP', ctrl: true });
     expect(result.current).toBe('/projects');
+  });
+
+  it('opens the workspace search on Ctrl+P while on the workspace', () => {
+    const { result } = renderShortcuts('/workspace/p1');
+    const event = press({ code: 'KeyP', ctrl: true });
+    expect(workspace.workspaceCommands.openSearch).toHaveBeenCalledTimes(1);
+    expect(event.defaultPrevented).toBe(true);
+    expect(result.current).toBe('/workspace/p1');
   });
 
   // A dialog binds its keys through React further down the tree, so it gets there first and

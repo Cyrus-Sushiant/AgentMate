@@ -4,13 +4,33 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { TooltipProvider } from '@/components/ui/tooltip';
+import { useEditorRevealStore } from '@/stores/editorRevealStore';
 import type { WorkspaceFileTab } from '@/stores/workspaceStore';
 import { installAgentmatBridge } from '../../../../test/renderer/agentmatBridge';
 
 // Monaco needs a real layout engine, and neither test below is about the editor itself.
-vi.mock('@/components/editor/MonacoEditor', () => ({
-  MonacoEditor: ({ value }: { value: string }) => <div data-testid="monaco">{value}</div>,
-}));
+const revealed = vi.hoisted(() => [] as string[]);
+vi.mock('@/components/editor/MonacoEditor', async () => {
+  const { useEffect } = await import('react');
+  return {
+    MonacoEditor: ({
+      value,
+      reveal,
+      onRevealed,
+    }: {
+      value: string;
+      reveal?: { line: number; column: number } | null;
+      onRevealed?: () => void;
+    }) => {
+      useEffect(() => {
+        if (!reveal) return;
+        revealed.push(`${reveal.line}:${reveal.column}`);
+        onRevealed?.();
+      }, [reveal, onRevealed]);
+      return <div data-testid="monaco">{value}</div>;
+    },
+  };
+});
 vi.mock('@/components/editor/MonacoDiffEditor', () => ({ languageFor: () => 'plaintext' }));
 
 const FileTab = (await import('./FileTab')).default;
@@ -127,6 +147,18 @@ describe('FileTab', () => {
     // A preview tab is reused for the next file clicked, which is a new picture, not source.
     view.rerender(wrap(tab('E:\\work\\app\\assets\\other.svg')));
     expect(await screen.findByAltText('other.svg')).toBeInTheDocument();
+  });
+
+  it('opens at the line a search result asked for, once', async () => {
+    installAgentmatBridge({ 'fs.readFile': () => 'a\nb\nc\n' });
+    const path = 'E:\\work\\app\\src\\index.ts';
+    useEditorRevealStore.getState().requestReveal(path, { line: 3, column: 2 });
+    renderTab(tab(path));
+
+    await screen.findByTestId('monaco');
+    // Taken as it is applied, so switching back to the tab later does not jump again.
+    await waitFor(() => expect(useEditorRevealStore.getState().pending[path]).toBeUndefined());
+    expect(revealed).toEqual(['3:2']);
   });
 
   it('keeps a plain file in the editor', async () => {

@@ -38,6 +38,7 @@ import type {
   ProjectDraftStatus,
   ProjectGithubAction,
   ProjectNotificationSettings,
+  PostmanCollection,
   PromptTemplate,
   ProviderUsage,
   ProxySettings,
@@ -234,10 +235,14 @@ import type {
   SuggestPullRequestTextResult,
   SuggestTagResult,
   SwapVersionFileInput,
+  SymbolIndexPayload,
   SystemStatsSample,
   TerminalAttachResult,
   TerminalClipboardPaste,
   TerminalUsageResult,
+  TextSearchBatch,
+  TextSearchRequest,
+  TextSearchSummary,
   TopResourceAppsResult,
   TopResourceKind,
   TranscribeAudioInput,
@@ -264,6 +269,12 @@ import type {
   WriteVersionHunksInput,
   WriteVersionHunksResult,
 } from '../shared/apiTypes';
+import type {
+  ApiCollectionSummary,
+  ApiExecutionResult,
+  ExecuteApiRequestInput,
+  SaveApiRequestInput,
+} from '../shared/apiClientTypes';
 import type { GrammarCheckInput, GrammarCheckResult, GrammarLocalStatus } from '../shared/grammar';
 import { IPC } from '../shared/ipcChannels';
 import type { PetPipelineMessage, PetSnoozeState, PetWorkArea } from '../shared/pet';
@@ -808,6 +819,24 @@ const explorer = {
     ipcRenderer.invoke(IPC.explorer.listFiles, projectId),
 };
 
+/** The workspace search dialog: text search through ripgrep, and the project's declarations. */
+const workspaceSearch = {
+  /** Resolves once the search stops. Matches arrive through `onTextResults` while it runs. */
+  text: (
+    projectId: string,
+    requestId: string,
+    request: TextSearchRequest,
+  ): Promise<TextSearchSummary> =>
+    ipcRenderer.invoke(IPC.workspaceSearch.text, projectId, requestId, request),
+  cancel: (requestId: string): Promise<boolean> =>
+    ipcRenderer.invoke(IPC.workspaceSearch.cancel, requestId),
+  /** The whole index, or `unchanged` when `sinceVersion` is still current. */
+  symbols: (projectId: string, sinceVersion?: number): Promise<SymbolIndexPayload> =>
+    ipcRenderer.invoke(IPC.workspaceSearch.symbols, projectId, sinceVersion),
+  onTextResults: (callback: (batch: TextSearchBatch) => void): (() => void) =>
+    subscribe(IPC.workspaceSearch.onTextResults, callback),
+};
+
 const settings = {
   get: (): Promise<AppSettings> => ipcRenderer.invoke(IPC.settings.get),
   update: (updates: Partial<AppSettings>): Promise<AppSettings> =>
@@ -1336,6 +1365,35 @@ const tests = {
     subscribe(IPC.tests.onRunEvent, callback),
 };
 
+const apiClient = {
+  listCollections: (): Promise<ApiCollectionSummary[]> =>
+    ipcRenderer.invoke(IPC.apiClient.listCollections),
+  getCollection: (id: string): Promise<PostmanCollection> =>
+    ipcRenderer.invoke(IPC.apiClient.getCollection, id),
+  createCollection: (name: string): Promise<ApiCollectionSummary> =>
+    ipcRenderer.invoke(IPC.apiClient.createCollection, name),
+  renameCollection: (id: string, name: string): Promise<ApiCollectionSummary> =>
+    ipcRenderer.invoke(IPC.apiClient.renameCollection, id, name),
+  removeCollection: (id: string): Promise<void> =>
+    ipcRenderer.invoke(IPC.apiClient.removeCollection, id),
+  /** Adds the request to the collection, or updates it where it already is. */
+  saveRequest: (input: SaveApiRequestInput): Promise<ApiCollectionSummary> =>
+    ipcRenderer.invoke(IPC.apiClient.saveRequest, input),
+  createFolder: (
+    collectionId: string,
+    parentId: string | null,
+    name: string,
+  ): Promise<{ summary: ApiCollectionSummary; folderId: string }> =>
+    ipcRenderer.invoke(IPC.apiClient.createFolder, collectionId, parentId, name),
+  removeItem: (collectionId: string, itemId: string): Promise<ApiCollectionSummary> =>
+    ipcRenderer.invoke(IPC.apiClient.removeItem, collectionId, itemId),
+  /** Sends one request and resolves when it finished, failed or was cancelled. */
+  execute: (input: ExecuteApiRequestInput): Promise<ApiExecutionResult> =>
+    ipcRenderer.invoke(IPC.apiClient.execute, input),
+  cancel: (requestId: string): Promise<boolean> =>
+    ipcRenderer.invoke(IPC.apiClient.cancel, requestId),
+};
+
 const appNotifications = {
   list: (): Promise<AppNotification[]> => ipcRenderer.invoke(IPC.appNotifications.list),
   unreadCount: (): Promise<number> => ipcRenderer.invoke(IPC.appNotifications.unreadCount),
@@ -1776,6 +1834,7 @@ const agentmatApi = {
   docker,
   fs,
   explorer,
+  workspaceSearch,
   settings,
   templates,
   activity,
@@ -1805,6 +1864,7 @@ const agentmatApi = {
   pullRequests,
   tests,
   appNotifications,
+  apiClient,
   packages,
   remote,
   usage,

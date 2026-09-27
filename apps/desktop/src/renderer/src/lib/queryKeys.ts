@@ -12,8 +12,17 @@ export const queryKeys = {
   /** Every file in the project, for the explorer's search box. */
   workspaceExplorerFiles: (projectId: string) =>
     ['workspace-explorer', projectId, 'files'] as const,
+  /**
+   * The project's declarations, for the search dialog's type and member filters. Under the
+   * explorer prefix, so a change on disk that refreshes the tree checks these too.
+   */
+  workspaceSymbols: (projectId: string) => ['workspace-explorer', projectId, 'symbols'] as const,
   cliStatus: ['cli-status'] as const,
   projects: ['projects'] as const,
+  /** Every API Client collection's outline, for the sidebar. */
+  apiCollections: ['api-collections'] as const,
+  /** One collection in full, nested under the list so one invalidate refreshes both. */
+  apiCollection: (id: string) => ['api-collections', id] as const,
   project: (id: string) => ['projects', id] as const,
   activity: ['activity'] as const,
   repositories: ['skill-repositories'] as const,

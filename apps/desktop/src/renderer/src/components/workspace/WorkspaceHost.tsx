@@ -13,10 +13,12 @@ import { queryKeys } from '@/lib/queryKeys';
 import { useTerminalSessionStore } from '@/lib/terminal/terminalRuntime';
 import { cn } from '@/lib/utils';
 import { usePromptDialogStore } from '@/lib/workspace/commands';
+import { useWorkspaceSearchStore } from '@/stores/workspaceSearchStore';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
 import { GitPanel } from './git/GitPanel';
 import { PaneTree } from './PaneTree';
 import { ProjectRail } from './ProjectRail';
+import { WorkspaceSearchDialog } from './search/WorkspaceSearchDialog';
 import {
   WorkspaceLoading,
   WorktreeDialogsHost,
@@ -211,10 +213,21 @@ export function WorkspaceHost({ visible }: { visible: boolean }): React.JSX.Elem
         <GitPanel key={project.id} project={project} visible={visible} />
       ) : null}
       <WorkspacePromptDialog projects={projects} />
+      {visible ? <WorkspaceSearchHost /> : null}
       <WorktreeDialogsHost projects={projects} />
       <WorktreeWorkspaceGuards />
     </div>
   );
+}
+
+/**
+ * The search dialog, for the workspace it was opened on. It stays mounted after closing so it
+ * can animate out, and so the next opening finds the file list and index already cached.
+ */
+function WorkspaceSearchHost(): React.JSX.Element | null {
+  const projectId = useWorkspaceSearchStore((s) => s.projectId);
+  const { project } = useWorkspaceProject(projectId);
+  return project ? <WorkspaceSearchDialog project={project} /> : null;
 }
 
 /** The Build Prompt dialog, opened from a pane's "+" menu so its result can run right there. */

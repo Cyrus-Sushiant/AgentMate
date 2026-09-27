@@ -273,6 +273,44 @@ body {
   }
 }
 
+/* The workspace search's progress line: a short bar sliding under the search box while
+   ripgrep runs, thin enough not to pull the eye away from the results. */
+@keyframes search-progress {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(400%);
+  }
+}
+
+.search-progress::after {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 25%;
+  background: linear-gradient(90deg, transparent, hsl(var(--primary)), transparent);
+  animation: search-progress 1.1s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .search-progress::after {
+    animation: none;
+    width: 100%;
+    opacity: 0.4;
+  }
+}
+
+/* The search preview's matched line and the match inside it (Monaco decorations). */
+.workspace-search-line {
+  background: hsl(var(--primary) / 0.1);
+}
+
+.workspace-search-match {
+  background: hsl(var(--primary) / 0.35);
+  border-radius: 2px;
+}
+
 /* Route transition (see layout/AppShell.tsx). Deliberately a plain CSS keyframe
    rather than a JS-driven one: the resting style is the visible state and no
    fill mode holds the start frame, so a transition that is interrupted, or

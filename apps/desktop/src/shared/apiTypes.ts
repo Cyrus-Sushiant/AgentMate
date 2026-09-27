@@ -327,6 +327,97 @@ export interface ExplorerFileIndex {
   truncated: boolean;
 }
 
+/** How the workspace search reads a text query. */
+export interface TextSearchOptions {
+  matchCase: boolean;
+  wholeWord: boolean;
+  /** The query is a regular expression rather than literal text. */
+  regex: boolean;
+}
+
+export interface TextSearchRequest extends TextSearchOptions {
+  query: string;
+  /** Stop after this many matching lines. The main process caps it too. */
+  maxMatches?: number;
+}
+
+/** One matching line, trimmed around the match when the line is long. */
+export interface TextSearchLine {
+  /** 1-based. */
+  line: number;
+  /** 1-based, in characters, of the first match on the line. */
+  column: number;
+  /** The part of the line worth showing. */
+  text: string;
+  /** Where `text` starts in the full line, in characters. */
+  textOffset: number;
+  /** Part of the line before `text` was cut off (not just its indent), so the row shows "…". */
+  clipped?: boolean;
+  /** [start, end) of each match inside `text`. */
+  ranges: [number, number][];
+}
+
+export interface TextSearchFileMatches {
+  /** Relative to the project folder, with forward slashes. */
+  path: string;
+  matches: TextSearchLine[];
+}
+
+/** Results streamed to the window while a text search runs. */
+export interface TextSearchBatch {
+  requestId: string;
+  files: TextSearchFileMatches[];
+}
+
+export interface TextSearchSummary {
+  requestId: string;
+  matches: number;
+  files: number;
+  /** A cap was reached, so there are more matches than were sent. */
+  truncated: boolean;
+  /** A newer search, or a cancel, stopped this one. */
+  cancelled: boolean;
+  /** Why the search could not run, such as a bad regular expression. */
+  error?: string;
+  /** Text search needs the bundled ripgrep, and it is missing. */
+  unavailable?: boolean;
+  elapsedMs: number;
+}
+
+/**
+ * Every declaration the search found in a project, column by column so a big project crosses
+ * IPC as a few arrays rather than one object per symbol. Entry `i` is `names[i]`, declared in
+ * `files[fileOf[i]]` at `lines[i]`, `columns[i]`.
+ */
+export interface SymbolIndex {
+  version: number;
+  /** The project folder the paths are relative to. */
+  root: string;
+  files: string[];
+  names: string[];
+  /** The type a member sits in, or '' at the top level. */
+  containers: string[];
+  /** Positions in `SYMBOL_KINDS`. */
+  kinds: Uint8Array;
+  fileOf: Uint32Array;
+  /** 1-based. */
+  lines: Uint32Array;
+  /** 1-based, in characters. */
+  columns: Uint32Array;
+  /** The project has more declarations than the index holds. */
+  truncated: boolean;
+  /** Symbol search needs the bundled ripgrep, and it is missing. */
+  unavailable: boolean;
+}
+
+/** The answer when the window already holds the latest version. */
+export interface SymbolIndexUnchanged {
+  unchanged: true;
+  version: number;
+}
+
+export type SymbolIndexPayload = SymbolIndex | SymbolIndexUnchanged;
+
 /** What a delete from the workspace explorer left behind. */
 export interface ExplorerDeleteResult {
   /** Paths the system trash would not take. They are still on disk. */

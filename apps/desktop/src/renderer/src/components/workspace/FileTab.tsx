@@ -1,7 +1,7 @@
 import type { Project } from '@agentmat/core';
 import { isImagePath, isTextImagePath } from '@shared/imageFiles';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { languageFor } from '@/components/editor/MonacoDiffEditor';
 import { MonacoEditor } from '@/components/editor/MonacoEditor';
@@ -10,6 +10,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { queryKeys } from '@/lib/queryKeys';
 import { cn } from '@/lib/utils';
+import { useEditorRevealStore } from '@/stores/editorRevealStore';
 import { setFileDirty } from '@/stores/explorerStore';
 import type { WorkspaceFileTab } from '@/stores/workspaceStore';
 import { ImageFileTab } from './ImageFileTab';
@@ -81,6 +82,12 @@ function TextFileTab({
   const containerRef = useRef<HTMLDivElement>(null);
   const dirty = draft !== null && draft !== file.data;
   const tooLarge = (file.data?.length ?? 0) > MAX_EDITABLE_CHARS;
+  // A search result opened here asks for its line; the editor takes it once it has the text.
+  const reveal = useEditorRevealStore((s) => s.pending[tab.path] ?? null);
+  const takeReveal = useCallback(
+    () => void useEditorRevealStore.getState().takeReveal(tab.path),
+    [tab.path],
+  );
 
   // The explorer warns before deleting a file that has unsaved edits here.
   useEffect(() => {
@@ -220,6 +227,8 @@ function TextFileTab({
             onChange={(value) => setDraft(value)}
             language={languageFor(tab.path.replaceAll('\\', '/'))}
             readOnly={tooLarge}
+            reveal={reveal}
+            onRevealed={takeReveal}
             className="absolute inset-0 min-h-0 rounded-none border-0"
           />
         )}

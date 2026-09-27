@@ -29,6 +29,8 @@ import { browserRuntime } from '@/lib/browser/browserRuntime';
 import { VIEWPORT_PRESETS, type ViewportPresetId } from '@/lib/browser/viewportPresets';
 import { terminalRuntime } from '@/lib/terminal/terminalRuntime';
 import { useBrowserStore } from './browserStore';
+import { type RevealTarget, useEditorRevealStore } from './editorRevealStore';
+import { useRecentFilesStore } from './recentFilesStore';
 
 export type { GitDiffSide };
 
@@ -255,8 +257,15 @@ interface WorkspaceState {
     file: { path: string; side: GitDiffSide; origPath?: string; commit?: string },
     options?: { pin?: boolean },
   ) => void;
-  /** Opens a project file in an editor tab, with the same preview behavior as diffs. */
-  openFile: (projectId: string, path: string, options?: { pin?: boolean }) => void;
+  /**
+   * Opens a project file in an editor tab, with the same preview behavior as diffs, and at a
+   * line when `reveal` says where.
+   */
+  openFile: (
+    projectId: string,
+    path: string,
+    options?: { pin?: boolean; reveal?: RevealTarget },
+  ) => void;
   /** Points file tabs at a renamed or moved path, keeping each tab (and its unsaved edits). */
   retargetFileTabs: (projectId: string, from: string, to: string) => void;
   /** Closes the file tabs showing a deleted path or anything inside a deleted folder. */
@@ -600,7 +609,9 @@ export const useWorkspaceStore = create<WorkspaceState>()(
           });
         },
 
-        activateTab: (projectId, tabId) =>
+        activateTab: (projectId, tabId) => {
+          const tab = get().workspaces[projectId]?.tabs[tabId];
+          if (tab?.kind === 'file') useRecentFilesStore.getState().touch(projectId, tab.path);
           update(projectId, (ws) => {
             const group = findGroupOfTab(ws.root, tabId);
             return {
@@ -608,7 +619,8 @@ export const useWorkspaceStore = create<WorkspaceState>()(
               root: activateTab(ws.root, tabId),
               focusedGroupId: group?.id ?? ws.focusedGroupId,
             };
-          }),
+          });
+        },
 
         focusGroup: (projectId, groupId) =>
           update(projectId, (ws) =>
@@ -711,7 +723,10 @@ export const useWorkspaceStore = create<WorkspaceState>()(
             ),
           ),
 
-        openFile: (projectId, path, options = {}) =>
+        openFile: (projectId, path, options = {}) => {
+          // Asked for before the tab exists, so a tab that mounts now finds it waiting.
+          if (options.reveal) useEditorRevealStore.getState().requestReveal(path, options.reveal);
+          useRecentFilesStore.getState().touch(projectId, path);
           update(projectId, (ws) =>
             openPreviewable(
               ws,
@@ -719,9 +734,11 @@ export const useWorkspaceStore = create<WorkspaceState>()(
               (id) => ({ kind: 'file', id, path, preview: !options.pin }),
               options.pin === true,
             ),
-          ),
+          );
+        },
 
-        retargetFileTabs: (projectId, from, to) =>
+        retargetFileTabs: (projectId, from, to) => {
+          useRecentFilesStore.getState().remap(projectId, from, to);
           update(projectId, (ws) => {
             let changed = false;
             const tabs = { ...ws.tabs };
@@ -733,9 +750,11 @@ export const useWorkspaceStore = create<WorkspaceState>()(
               changed = true;
             }
             return changed ? { ...ws, tabs } : ws;
-          }),
+          });
+        },
 
-        closeFileTabsUnder: (projectId, paths) =>
+        closeFileTabsUnder: (projectId, paths) => {
+          useRecentFilesStore.getState().forget(projectId, paths);
           update(projectId, (ws) => {
             const closing = Object.values(ws.tabs).filter(
               (tab) => tab.kind === 'file' && paths.some((path) => isSameOrInside(tab.path, path)),
@@ -748,7 +767,8 @@ export const useWorkspaceStore = create<WorkspaceState>()(
               root = removeTab(root, tab.id).root;
             }
             return { ...ws, root, tabs };
-          }),
+          });
+        },
 
         setGitPanel: (patch) => set((state) => ({ gitPanel: { ...state.gitPanel, ...patch } })),
         setSourceSectionOpen: (section, open) =>
