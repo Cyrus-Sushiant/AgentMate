@@ -35,6 +35,26 @@ describe('ConfirmDialogHost', () => {
     expect(screen.getByRole('button', { name: 'Cancel' })).toBeTruthy();
   });
 
+  it('lists the items in question, how many were left out, and any warning', async () => {
+    renderWithProviders(<ConfirmDialogHost />);
+
+    void confirmDialog({
+      title: 'Delete 3 items?',
+      items: [
+        { name: 'docs', isDirectory: true },
+        { name: 'notes.md', detail: 'src/lib' },
+      ],
+      moreCount: 1,
+      warning: 'One open file has unsaved changes that will be lost.',
+      variant: 'destructive',
+    });
+
+    const dialog = await screen.findByRole('dialog');
+    const rows = Array.from(dialog.querySelectorAll('li')).map((row) => row.textContent);
+    expect(rows).toEqual(['docs', 'notes.mdsrc/lib', 'and 1 more']);
+    expect(dialog.textContent).toContain('unsaved changes that will be lost');
+  });
+
   it('resolves true and closes when the user confirms', async () => {
     const { user } = renderWithProviders(<ConfirmDialogHost />);
     const answer = confirmDialog({ title: 'Delete everything?', confirmLabel: 'Delete' });

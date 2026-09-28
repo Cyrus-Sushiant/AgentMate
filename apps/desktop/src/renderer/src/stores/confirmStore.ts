@@ -1,8 +1,23 @@
+import type { ComponentType } from 'react';
 import { create } from 'zustand';
+
+/** One thing the question is about, listed in the modal so the user sees exactly what it hits. */
+export interface ConfirmItem {
+  name: string;
+  /** Where it lives, shown dimmed after the name. */
+  detail?: string;
+  isDirectory?: boolean;
+}
 
 interface ConfirmOptions {
   title: string;
   description?: string;
+  items?: ConfirmItem[];
+  /** How many more items there are beyond `items`, shown as a last line of the list. */
+  moreCount?: number;
+  /** A consequence worth calling out on its own, like unsaved work that will be lost. */
+  warning?: string;
+  icon?: ComponentType<{ className?: string }>;
   confirmLabel?: string;
   cancelLabel?: string;
   variant?: 'default' | 'destructive';
@@ -17,6 +32,10 @@ const initialState: ConfirmState = {
   open: false,
   title: '',
   description: undefined,
+  items: undefined,
+  moreCount: undefined,
+  warning: undefined,
+  icon: undefined,
   confirmLabel: 'Confirm',
   cancelLabel: 'Cancel',
   variant: 'default',

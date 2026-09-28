@@ -9,12 +9,13 @@ import {
 } from '@agentmat/core';
 import type { DirectoryEntry, ExplorerMove } from '@shared/apiTypes';
 import { toast } from 'sonner';
+import { Trash2 } from '@/components/icons';
 import { queryKeys } from '@/lib/queryKeys';
 import { deliverToAgent } from '@/lib/workspace/agentSend';
 import { findAgentTerminal } from '@/lib/workspace/agentTarget';
 import { launchShellTab, projectCliId } from '@/lib/workspace/launch';
 import { queryClient } from '@/queryClient';
-import { confirmDialog } from '@/stores/confirmStore';
+import { type ConfirmItem, confirmDialog } from '@/stores/confirmStore';
 import {
   explorerProject,
   forgetExplorerPaths,
@@ -166,6 +167,20 @@ function listNames(paths: string[]): string {
   return `${names.join('\n')}${more}`;
 }
 
+const LISTED_LIMIT = 50;
+
+/** The rows the delete modal lists: each name, the folder it sits in, and whether it is a folder. */
+function deleteItems(project: Project, paths: string[]): ConfirmItem[] {
+  const root = projectRoot(project);
+  return paths.slice(0, LISTED_LIMIT).map((path) => {
+    const parent = parentPath(path) ?? root;
+    const name = baseName(path);
+    const entry = cachedListing(project.id, parent).find((row) => row.name === name);
+    const folder = relativeTo(root, parent);
+    return { name, detail: folder || undefined, isDirectory: entry?.isDirectory ?? false };
+  });
+}
+
 /** Deletes after asking, to the trash unless `permanent`. True when anything was deleted. */
 export async function deleteEntries(
   project: Project,
@@ -177,18 +192,24 @@ export async function deleteEntries(
   const dirty = Object.keys(useExplorerStore.getState().dirtyFiles).filter((file) =>
     targets.some((target) => isSameOrInside(file, target)),
   );
+  const items = deleteItems(project, targets);
   const single = targets.length === 1;
-  const subject = single ? `"${baseName(targets[0] as string)}"` : `${targets.length} items`;
+  const subject = single
+    ? `this ${items[0]?.isDirectory ? 'folder' : 'file'}`
+    : `${targets.length} items`;
   const restoreNote = options.permanent
     ? "This can't be undone."
     : `You can restore ${single ? 'it' : 'them'} from the ${trashName()}.`;
-  const dirtyNote =
-    dirty.length > 0
-      ? ` ${dirty.length === 1 ? 'One open file has' : `${dirty.length} open files have`} unsaved changes that will be lost.`
-      : '';
   const confirmed = await confirmDialog({
     title: options.permanent ? `Permanently delete ${subject}?` : `Delete ${subject}?`,
-    description: `${single ? '' : `${listNames(targets)}\n\n`}${restoreNote}${dirtyNote}`,
+    description: restoreNote,
+    items,
+    moreCount: targets.length - items.length || undefined,
+    warning:
+      dirty.length > 0
+        ? `${dirty.length === 1 ? 'One open file has' : `${dirty.length} open files have`} unsaved changes that will be lost.`
+        : undefined,
+    icon: Trash2,
     confirmLabel: options.permanent ? 'Delete permanently' : `Move to ${trashName()}`,
     variant: 'destructive',
   });
