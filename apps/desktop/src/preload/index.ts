@@ -812,8 +812,7 @@ const explorer = {
   ): Promise<ExplorerTransferResult> =>
     ipcRenderer.invoke(IPC.explorer.pasteExternal, projectId, sources, targetDir),
   /** The OS clipboard's current file list, for pasting real files into the workspace explorer. */
-  osClipboardPaths: (): Promise<string[]> =>
-    ipcRenderer.invoke(IPC.explorer.osClipboardPaths),
+  osClipboardPaths: (): Promise<string[]> => ipcRenderer.invoke(IPC.explorer.osClipboardPaths),
   revealInOs: (projectId: string, path: string): Promise<void> =>
     ipcRenderer.invoke(IPC.explorer.revealInOs, projectId, path),
   addToGitignore: (
