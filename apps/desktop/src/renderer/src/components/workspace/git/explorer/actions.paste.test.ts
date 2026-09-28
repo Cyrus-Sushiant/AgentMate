@@ -6,12 +6,12 @@ import {
   type FakeBridge,
   installAgentmatBridge,
 } from '../../../../../../test/renderer/agentmatBridge';
-import { pasteInto, transferExternalEntries } from './actions';
+import { copyToClipboard, pasteInto, transferExternalEntries } from './actions';
 
 /**
- * Pasting into the explorer when what's on offer isn't from inside the app: files copied in
- * Explorer/Finder, read off the real OS clipboard. The in-app cut/copy clipboard always wins when
- * it applies to this project; the OS clipboard is only a fallback.
+ * Pasting into the explorer, from either the in-app clipboard or files copied in Explorer/Finder.
+ * The OS clipboard says which came last: copying in the app takes it over too, so files found
+ * there at paste time were copied afterwards and win.
  */
 
 const toast = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }));
@@ -45,11 +45,11 @@ describe('pasteInto', () => {
     );
   });
 
-  it('prefers the in-app clipboard over the OS clipboard when both have something', async () => {
+  it('uses the in-app clipboard when the OS clipboard holds no files', async () => {
     useExplorerStore.setState({
       clipboard: { mode: 'copy', projectId: 'p1', paths: ['C:\\work\\app\\a.txt'] },
     });
-    bridge.$set('explorer.osClipboardPaths', ['C:\\shots\\a.png']);
+    bridge.$set('explorer.osClipboardPaths', []);
     bridge.$set('explorer.copy', {
       moves: [{ from: 'C:\\work\\app\\a.txt', to: 'C:\\work\\app\\sub\\a.txt' }],
       conflicts: [],
@@ -57,8 +57,62 @@ describe('pasteInto', () => {
 
     await pasteInto(project, 'C:\\work\\app\\sub');
 
-    expect(bridge.$fn('explorer.copy')).toHaveBeenCalled();
+    expect(bridge.$fn('explorer.copy')).toHaveBeenCalledWith(
+      'p1',
+      ['C:\\work\\app\\a.txt'],
+      'C:\\work\\app\\sub',
+    );
     expect(() => bridge.$fn('explorer.pasteExternal')).toThrow('has not been touched');
+  });
+
+  it('prefers files copied in the OS after an in-app copy, and forgets the stale in-app one', async () => {
+    // An in-app copy takes the OS clipboard too, so files there were copied after it.
+    useExplorerStore.setState({
+      clipboard: { mode: 'copy', projectId: 'p1', paths: ['C:\\work\\app\\src'] },
+    });
+    bridge.$set('explorer.osClipboardPaths', ['C:\\shots\\b']);
+    bridge.$set('explorer.pasteExternal', { moves: [], conflicts: [] });
+
+    await pasteInto(project, project.folderPath);
+    await pasteInto(project, project.folderPath);
+
+    expect(bridge.$fn('explorer.pasteExternal')).toHaveBeenCalledTimes(2);
+    expect(bridge.$fn('explorer.pasteExternal')).toHaveBeenLastCalledWith(
+      'p1',
+      ['C:\\shots\\b'],
+      project.folderPath,
+    );
+    expect(() => bridge.$fn('explorer.copy')).toThrow('has not been touched');
+    expect(useExplorerStore.getState().clipboard).toBeNull();
+  });
+
+  it('pastes a copied folder beside itself when it is pasted onto itself', async () => {
+    useExplorerStore.setState({
+      clipboard: { mode: 'copy', projectId: 'p1', paths: ['C:\\work\\app\\src'] },
+    });
+    bridge.$set('explorer.osClipboardPaths', []);
+    bridge.$set('explorer.copy', { moves: [], conflicts: [] });
+
+    await pasteInto(project, 'C:\\work\\app\\src');
+
+    expect(bridge.$fn('explorer.copy')).toHaveBeenCalledWith(
+      'p1',
+      ['C:\\work\\app\\src'],
+      'C:\\work\\app',
+    );
+  });
+
+  it('pastes an OS-copied folder beside itself too, whatever case Explorer spelled it in', async () => {
+    bridge.$set('explorer.osClipboardPaths', ['c:\\Work\\App\\src']);
+    bridge.$set('explorer.pasteExternal', { moves: [], conflicts: [] });
+
+    await pasteInto(project, 'C:\\work\\app\\src');
+
+    expect(bridge.$fn('explorer.pasteExternal')).toHaveBeenCalledWith(
+      'p1',
+      ['c:\\Work\\App\\src'],
+      'C:\\work\\app',
+    );
   });
 
   it('falls back to the OS clipboard when the in-app clipboard belongs to a different project', async () => {
@@ -87,6 +141,39 @@ describe('pasteInto', () => {
 
     expect(() => bridge.$fn('explorer.pasteExternal')).toThrow('has not been touched');
     expect(toast.error).not.toHaveBeenCalled();
+  });
+});
+
+describe('copyToClipboard', () => {
+  it('puts the copied paths on the OS clipboard too, so older OS files stop shadowing it', () => {
+    copyToClipboard(project, ['C:\\work\\app\\src', 'C:\\work\\app\\a.txt'], 'copy');
+
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
+      'C:\\work\\app\\src\nC:\\work\\app\\a.txt',
+    );
+    expect(useExplorerStore.getState().clipboard).toEqual({
+      mode: 'copy',
+      projectId: 'p1',
+      paths: ['C:\\work\\app\\src', 'C:\\work\\app\\a.txt'],
+    });
+  });
+
+  it('lets a paste right after it read the OS clipboard only once the copy has landed there', async () => {
+    let land: () => void = () => undefined;
+    vi.mocked(navigator.clipboard.writeText).mockImplementationOnce(
+      () => new Promise<void>((resolve) => (land = resolve)),
+    );
+    bridge.$set('explorer.osClipboardPaths', []);
+    bridge.$set('explorer.copy', { moves: [], conflicts: [] });
+
+    copyToClipboard(project, ['C:\\work\\app\\a.txt'], 'copy');
+    const pasted = pasteInto(project, 'C:\\work\\app\\sub');
+    await Promise.resolve();
+    expect(() => bridge.$fn('explorer.osClipboardPaths')).toThrow('has not been touched');
+
+    land();
+    await pasted;
+    expect(bridge.$fn('explorer.copy')).toHaveBeenCalled();
   });
 });
 

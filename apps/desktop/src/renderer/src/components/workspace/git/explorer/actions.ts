@@ -221,10 +221,31 @@ export async function deleteEntries(
   return deleted.length > 0;
 }
 
+/** The in-app copy on its way to the OS clipboard. A paste waits for it before reading there. */
+let clipboardWrite: Promise<void> = Promise.resolve();
+
 export function copyToClipboard(project: Project, paths: string[], mode: 'copy' | 'cut'): void {
   const top = topLevelPaths(paths).filter((path) => path !== projectRoot(project));
   if (top.length === 0) return;
   useExplorerStore.setState({ clipboard: { mode, projectId: project.id, paths: top } });
+  // Taking the OS clipboard clears any files copied in Explorer earlier, so files found there at
+  // paste time were copied after this and win.
+  clipboardWrite = navigator.clipboard.writeText(top.join('\n')).catch(() => undefined);
+}
+
+/** Case only matters to a path on Linux. */
+function samePath(a: string, b: string): boolean {
+  const norm = (path: string): string => {
+    const trimmed = path.replace(/[\\/]+$/, '');
+    return window.agentmat.platform === 'linux' ? trimmed : trimmed.toLowerCase();
+  };
+  return norm(a) === norm(b);
+}
+
+/** Pasting an entry onto itself puts the copy beside it, as VS Code does, not inside itself. */
+function pasteTarget(project: Project, target: string, sources: string[]): string {
+  if (!sources.some((source) => samePath(source, target))) return target;
+  return parentPath(target) ?? projectRoot(project);
 }
 
 /** Copies or moves entries into a folder, asking before a move replaces anything. */
@@ -292,27 +313,29 @@ export async function transferExternalEntries(
 }
 
 /**
- * The in-app clipboard wins when it holds something cut or copied from this project; otherwise
- * this falls back to whatever is really on the OS clipboard (a file copied in Explorer or
- * Finder). With nothing on either, paste is a silent no-op, the way an empty in-app clipboard
- * always has been here.
+ * Pastes whichever was copied last: files on the OS clipboard (copied in Explorer or Finder), or
+ * what was cut or copied in this explorer. An in-app copy takes the OS clipboard over, so files
+ * found there came after it. With nothing to paste, this does nothing.
  */
 export async function pasteInto(project: Project, target: string): Promise<void> {
-  const clipboard = useExplorerStore.getState().clipboard;
-  if (clipboard && clipboard.projectId === project.id) {
-    const done = await transferEntries(
-      project,
-      clipboard.paths,
-      target,
-      clipboard.mode === 'cut' ? 'move' : 'copy',
-    );
-    // A cut moves once; a copy can be pasted again.
-    if (done && clipboard.mode === 'cut') useExplorerStore.setState({ clipboard: null });
+  await clipboardWrite;
+  const external = await window.agentmat.explorer.osClipboardPaths().catch(() => []);
+  if (external.length > 0) {
+    // The in-app copy is older than these files, so it is done with, and a cut row stops fading.
+    useExplorerStore.setState({ clipboard: null });
+    await transferExternalEntries(project, external, pasteTarget(project, target, external));
     return;
   }
-  const sources = await window.agentmat.explorer.osClipboardPaths().catch(() => []);
-  if (sources.length === 0) return;
-  await transferExternalEntries(project, sources, target);
+  const clipboard = useExplorerStore.getState().clipboard;
+  if (!clipboard || clipboard.projectId !== project.id) return;
+  const done = await transferEntries(
+    project,
+    clipboard.paths,
+    pasteTarget(project, target, clipboard.paths),
+    clipboard.mode === 'cut' ? 'move' : 'copy',
+  );
+  // A cut moves once; a copy can be pasted again.
+  if (done && clipboard.mode === 'cut') useExplorerStore.setState({ clipboard: null });
 }
 
 export function copyPaths(project: Project, paths: string[], relative: boolean): void {

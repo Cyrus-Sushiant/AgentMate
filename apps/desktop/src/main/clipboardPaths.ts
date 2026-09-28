@@ -12,6 +12,10 @@ const execFileAsync = promisify(execFile);
  */
 
 async function windowsPaths(): Promise<string[]> {
+  // Explorer puts `FileNameW` beside every file copy. Without it there are no files, and
+  // PowerShell is too slow to start on every paste just to find that out.
+  const single = clipboard.readBuffer('FileNameW').toString('utf16le').replace(/\0+$/, '').trim();
+  if (!single) return [];
   // `FileNameW` only carries the first file. PowerShell reads the whole drop list.
   try {
     const { stdout } = await execFileAsync(
@@ -32,8 +36,7 @@ async function windowsPaths(): Promise<string[]> {
   } catch {
     // Fall back to the single file below.
   }
-  const single = clipboard.readBuffer('FileNameW').toString('utf16le').replace(/\0+$/, '').trim();
-  return single ? [single] : [];
+  return [single];
 }
 
 function macPaths(): string[] {

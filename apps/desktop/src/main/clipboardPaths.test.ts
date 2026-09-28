@@ -45,8 +45,15 @@ beforeEach(async () => {
   electron.clipboard.readBuffer = () => Buffer.alloc(0);
 });
 
+/** What Explorer puts beside a file copy: the first file's path, in UTF-16. */
+function explorerCopied(first: string): void {
+  electron.clipboard.readBuffer = (format) =>
+    format === 'FileNameW' ? Buffer.from(`${first}\0`, 'utf16le') : Buffer.alloc(0);
+}
+
 describe('osClipboardPaths on win32', () => {
   it('reads every path PowerShell reports for a multi-file drop list', async () => {
+    explorerCopied('C:\\pics\\a.png');
     execState.outcomes.push({ stdout: 'C:\\pics\\a.png\r\nC:\\pics\\b.png\r\n' });
     const { osClipboardPaths } = await import('./clipboardPaths');
 
@@ -57,9 +64,8 @@ describe('osClipboardPaths on win32', () => {
   });
 
   it('falls back to the single FileNameW path when PowerShell reports nothing', async () => {
+    explorerCopied('C:\\shots\\screen.png');
     execState.outcomes.push({ stdout: '' });
-    electron.clipboard.readBuffer = (format) =>
-      format === 'FileNameW' ? Buffer.from('C:\\shots\\screen.png\0', 'utf16le') : Buffer.alloc(0);
     const { osClipboardPaths } = await import('./clipboardPaths');
 
     const paths = await withPlatform('win32', osClipboardPaths);
@@ -67,13 +73,24 @@ describe('osClipboardPaths on win32', () => {
     expect(paths).toEqual(['C:\\shots\\screen.png']);
   });
 
-  it('returns no paths when PowerShell fails and there is no single file either', async () => {
+  it('falls back to the single FileNameW path when PowerShell fails', async () => {
+    explorerCopied('C:\\shots\\screen.png');
     execState.outcomes.push({ error: new Error('powershell is not available') });
     const { osClipboardPaths } = await import('./clipboardPaths');
 
     const paths = await withPlatform('win32', osClipboardPaths);
 
+    expect(paths).toEqual(['C:\\shots\\screen.png']);
+  });
+
+  it('skips PowerShell when the clipboard carries no file at all', async () => {
+    // Every paste in the explorer asks, and most of the time the clipboard holds text.
+    const { osClipboardPaths } = await import('./clipboardPaths');
+
+    const paths = await withPlatform('win32', osClipboardPaths);
+
     expect(paths).toEqual([]);
+    expect(execState.calls).toEqual([]);
   });
 });
 
