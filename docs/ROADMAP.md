@@ -32,9 +32,9 @@ Progress is tracked in [`DELIVERY_STATUS.md`](DELIVERY_STATUS.md) and risks in
 ```
 Desktop (Electron, TS 7)                                   Server (Linux + systemd)
 renderer  Deploy section (React)                           agentmate-core  (.NET 10, root, unix socket)
-   |  window.agentmat.deploy* (IPC, zod-validated)            REST /api/v1 (OpenAPI)    SignalR /hubs/core
+   |  window.agentmat.deploy* (IPC, zod-validated)            SignalR /hubs/core (typed API + streams)
 main      deploy/connection  ssh2 pool --streamlocal--> sshd ---> /run/agentmate-core/core.sock
-          REST (openapi-fetch) + SignalR (ws over the SSH channel)
+          typed hub client (TypedSignalR) + small REST client, both over the SSH channel
           deploy/bootstrap   install/upgrade/repair via SSH exec + SFTP
           deploy/cloudflare  official SDK                      EF Core + SQLite, Identity, Data Protection
           deploy/assistant   shared AI loop -> StreamExec      Docker API + compose CLI, nginx, ACME,
@@ -47,7 +47,7 @@ main      deploy/connection  ssh2 pool --streamlocal--> sshd ---> /run/agentmate
 |---|---|---|
 | Core location | `apps/server-core` (.NET solution, no package.json, so pnpm ignores it) | Monorepo; the name avoids clashing with `packages/core` |
 | Transport | The core listens on a Unix socket `/run/agentmate-core/core.sock` (0660, group `agentmate`; the installer adds the SSH user to the group). The app reaches it through an in-process SSH tunnel: `ssh2` `openssh_forwardOutStreamLocal`, or, when sshd disables forwarding, an exec channel running `agentmate-core bridge` (stdio to the socket). Either channel goes through one socket-shim Duplex behind a custom `http.Agent#createConnection` shared by `node:http` REST, `ws` and the SignalR client. No local listening port. Direct TLS with mTLS arrives in E16 | Zero open ports; OS permissions stop other local users and nginx before any HTTP parsing; no DNS rebinding surface |
-| Realtime | SignalR (JSON protocol, source-generated serializers) for streams: metrics, stats, logs, jobs, exec, container console, alerts. REST (minimal APIs, OpenAPI) for request and response | Streaming and reconnect are built in |
+| API style | WebSocket first: one SignalR hub (`/hubs/core`, JSON protocol) carries every request/response call and every stream (metrics, stats, logs, jobs, exec, container console, alerts) through typed `ICoreHub` and `ICoreHubReceiver` interfaces. REST minimal APIs remain only for anonymous health, sign-in (challenge, login, renew) and large uploads. JSON uses camelCase, omits nulls and writes enums as camelCase strings, so the wire matches the generated types | One protocol, typed end to end; streaming and reconnect built in |
 | Identity | ASP.NET Core Identity on EF Core SQLite (users, password hashes, TOTP 2FA, recovery codes, lockout); custom auth endpoints only (no public `/register`); deny-by-default authorization fallback policy; 15-minute access tokens; roles Owner, Admin, Operator, Viewer | The password lives in the core's SQLite; no open sign-up surface |
 | Device enrollment | The desktop generates a P-256 device key (private half sealed with `safeStorage`). The installer pipes the public key and the owner password over SSH **stdin** to `agentmate-core admin create-owner` and `enroll-device` (never argv). Login is a signed server challenge plus password (and TOTP); renewal is a fresh signed challenge, so no refresh secret exists anywhere. Break-glass over SSH: `admin revoke-all`, `admin reset-password` | Nothing bearer-like to intercept or replay; a copied token dies in 15 minutes; the same key later backs mTLS and command approvals |
 | Privileges | The core runs as root under systemd with the hardening options that do not break its job; exposure is contained by the socket, auth, roles and a full audit trail | It administers Docker, nginx, packages and the firewall and offers root exec to the AI, so a helper split adds complexity without a real boundary |
@@ -60,13 +60,14 @@ main      deploy/connection  ssh2 pool --streamlocal--> sshd ---> /run/agentmate
 | Private registries | Default: a packages-only GitHub token (a classic PAT with just `read:packages`; the app opens GitHub's new-token page pre-filled and verifies `X-OAuth-Scopes`), kept in the app's secret envelope. The `gh` sign-in token is allowed only after an explicit warning, because it carries repo and workflow scopes. Either way the token travels per deploy into a tmpfs `DOCKER_CONFIG` that is wiped in a `finally`; an optional stored credential (Data Protection encrypted) covers unattended pulls | A compromised server must not become a compromised GitHub account |
 | Firewall | ufw (Debian family, `IPV6=yes`) or firewalld (RHEL family) backend; an SSH lockout guard using `sshd -T` plus the live `SSH_CONNECTION` port; "apply, confirm over a new SSH connection, or roll back", where the rollback is a transient systemd timer so it fires even if the core dies | Safety first |
 | Deploy AI | Reuse the SSH AI loop (`apps/desktop/src/main/agents/sshTaskRunner.ts`): the same RUN/FINISHED/NEEDS_INPUT protocol, approval flow, and CLI or Settings-provider choice. The loop gets a pluggable command executor, and a new executor runs through the core's `StreamExec` hub stream. Deploy modes: "approve every command" (default) and "auto-run diagnostics", where only a strict read-only allowlist (a single simple command without shell metacharacters, such as `docker ps`, `docker logs`, `docker inspect`, `systemctl status`, `journalctl`, `df`, `free`, `ss -tlnp`) runs unattended. There is no fully autonomous mode, because pattern blocklists can be bypassed with base64 or eval. The core itself refuses any non-allowlisted AI command unless it carries a device-signed approval over the exact command text and a nonce. Output is redacted (stack env values, token shapes) before it reaches the model, and logs enter prompts as delimited untrusted data | Proven UX; exit codes come back directly; prompt injection from logs cannot run anything destructive unattended |
-| Protocol types | The core emits OpenAPI at build time (`Microsoft.AspNetCore.OpenApi` plus `Microsoft.Extensions.ApiDescription.Server`); `openapi-typescript` generates types into `packages/core/src/deploy/protocol/`; a .NET test exports `hub-contract.json`, which a vitest test checks the TypeScript hub contract against; CI fails on drift | One source of truth across C# and TypeScript |
+| Protocol types | Tapper and TypedSignalR.Client.TypeScript (pinned local dotnet tool) generate the TypeScript DTO types and a typed hub client straight from the C# contracts into `apps/desktop/src/shared/deploy/protocol/generated/` (Bundler resolution, because the generator emits extensionless imports). CI regenerates and fails on any diff. OpenAPI generators were rejected: `openapi-typescript` and `@hey-api/openapi-ts` need the TypeScript 5 compiler API, which TypeScript 7 does not ship, and Kiota's TypeScript models make every field optional | One source of truth across C# and TypeScript, strict types, TS 7 only |
 | Release | CD builds self-contained single-file `linux-x64` and `linux-arm64` binaries (ReadyToRun, not AOT, since EF Core and Identity need reflection) as tar.gz plus SHA-256. A manifest with the hashes is embedded into the desktop build, so the app only installs a core it can verify. Core updates are pushed from the desktop over SSH, never fetched by the core itself | Supply-chain safety without key management |
 
 Versions to pin (re-check when each package is first added): .NET SDK 10.0.4xx, ASP.NET Core, EF
 Core and Identity 10.0.12, xunit.v3 4.x on Microsoft.Testing.Platform, Docker.DotNet.Enhanced
-4.3.x, Testcontainers 4.x, Verify.XunitV3, `@microsoft/signalr` 10.0.x, `openapi-typescript` 7.x,
-`openapi-fetch`, `cloudflare` 7.x, `yaml` (eemeli), `tar` (npm's own).
+4.3.x, Testcontainers 4.x, Verify.XunitV3, TypedSignalR.Client.TypeScript 1.17 (generator and
+attributes), Tapper 1.14 (attributes), `@microsoft/signalr` 10.0.x, `cloudflare` 7.x, `yaml`
+(eemeli), `tar` (npm's own).
 
 ## Server core at a glance
 
@@ -175,7 +176,7 @@ upload extraction, tunnel, installer verification, firewall guard) get coverage 
 
 - `test.yml` gains a `server-core` job on every push: locked restore, `dotnet format
   --verify-no-changes`, build with warnings as errors, unit and integration tests, NuGet
-  vulnerability audit, OpenAPI and hub-contract drift checks.
+  vulnerability audit, and a contracts drift check (regenerate the TypeScript, fail on any diff).
 - A `server-core-system` job (system tests plus the desktop installer integration tests on
   ubuntu-24.04 and rocky-9) runs when the commit message carries `[e2e]`.
 - A scheduled workflow runs the full OS matrix. SELinux-enforcing behavior runs in a Rocky VM when

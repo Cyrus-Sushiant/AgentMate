@@ -94,6 +94,8 @@ export default defineConfig({
         'src/main/ptyHost/hostEntry.ts',
         // Interface declarations with no runtime code of their own.
         'src/main/vault/ports.ts',
+        // Generated from the server core's C# contracts (pnpm server-core:contracts).
+        'src/shared/deploy/protocol/generated/**',
       ],
       reporter: ['text-summary', 'text', 'lcov', 'json-summary'],
       // A floor that holds the line at what is covered today, not a target. Raise it as the

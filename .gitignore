@@ -18,3 +18,8 @@ apps/desktop/out-e2e/
 apps/desktop/src/renderer/out-e2e/
 apps/desktop/test-results/
 apps/desktop/playwright-report/
+
+# Server core (.NET) build output
+apps/server-core/**/bin/
+apps/server-core/**/obj/
+apps/server-core/artifacts/

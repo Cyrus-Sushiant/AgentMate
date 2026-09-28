@@ -1,6 +1,6 @@
 # Delivery Status
 
-Updated: 2026-09-28
+Updated: 2026-09-29
 Run branch: master (direct, per the user's instruction)
 Plan: docs/ROADMAP.md
 
@@ -16,8 +16,9 @@ Plan: docs/ROADMAP.md
 | Type check | `pnpm -r typecheck` |
 | Unit and integration tests | `pnpm test:unit` (core, protocol, desktop) |
 | Desktop build | `pnpm --filter @agentmat/desktop build` |
-| Server core format | `pnpm server-core:format` (from E01) |
-| Server core tests | `pnpm server-core:test` (from E01) |
+| Server core format | `pnpm server-core:format:check` |
+| Server core tests | `pnpm server-core:test` (Linux-only socket tests run in the .NET SDK container or CI) |
+| Contracts | `pnpm server-core:contracts`, then no diff under `apps/desktop/src/shared/deploy/protocol/generated` |
 | System tests | Linux with Docker, `[e2e]` in the commit message (from E03) |
 | e2e | `pnpm test:e2e`, in CI when the commit message carries `[e2e]` |
 
@@ -25,8 +26,8 @@ Plan: docs/ROADMAP.md
 
 | Epic | Title | Status | Commit | Notes |
 |---|---|---|---|---|
-| E00 | Delivery docs | Complete | | Written by hand |
-| E01 | Server core scaffold | Not started | | |
+| E00 | Delivery docs | Complete | 4e412e3 | Written by hand |
+| E01 | Server core scaffold | Complete | see git log | Contracts via Tapper and TypedSignalR (TS 7 has no compiler API for openapi-typescript); API is WebSocket-first |
 | E02 | SSH foundation | Not started | | |
 | E03 | Walking skeleton: install and see the server | Not started | | |
 | E04 | Identity and device enrollment | Not started | | |
@@ -48,7 +49,7 @@ Status values: Not started, In progress, Blocked, Complete.
 
 ## Unverified criteria
 
-None yet.
+- E01 AC1 "passes in CI": verified locally on Windows and in the Linux .NET SDK container; the first CI run after the push confirms it.
 
 ## Open blockers
 

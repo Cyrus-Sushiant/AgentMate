@@ -25,7 +25,12 @@
     "test:e2e": "pnpm build:packages && pnpm --filter @agentmat/desktop exec install-electron && pnpm --filter @agentmat/desktop rebuild:native && pnpm --filter @agentmat/desktop test:e2e",
     "build:packages": "pnpm --filter @agentmat/core --filter @agentmat/protocol build",
     "test:unit": "pnpm build:packages && pnpm --filter @agentmat/core --filter @agentmat/protocol --filter @agentmat/desktop test",
-    "test:mobile": "pnpm --filter @agentmat/mobile test"
+    "test:mobile": "pnpm --filter @agentmat/mobile test",
+    "server-core:build": "node scripts/server-core.mjs build",
+    "server-core:test": "node scripts/server-core.mjs test",
+    "server-core:format": "node scripts/server-core.mjs format",
+    "server-core:format:check": "node scripts/server-core.mjs format:check",
+    "server-core:contracts": "node scripts/server-core.mjs contracts"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.13",

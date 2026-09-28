@@ -79,6 +79,64 @@ jobs:
             apps/desktop/coverage
             apps/desktop/test-results
 
+  # The .NET server core (apps/server-core). Its global.json pins the SDK feature band and the
+  # Microsoft.Testing.Platform runner, so every dotnet command runs from that folder. System tests
+  # (real Docker, test servers) are not part of this job; they run in the [e2e] job instead.
+  server-core:
+    name: Server core
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      DOTNET_NOLOGO: "1"
+      DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      # The feature band, not an exact patch, so release builds pick up the newest runtime fixes.
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.4xx
+          cache: true
+          cache-dependency-path: apps/server-core/**/packages.lock.json
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+
+      # Locked: the lock files are what was reviewed. Known high or critical vulnerabilities fail
+      # this step through NuGet audit.
+      - name: Restore
+        working-directory: apps/server-core
+        run: dotnet restore AgentMate.ServerCore.slnx --locked-mode
+
+      - name: Format
+        working-directory: apps/server-core
+        run: dotnet format AgentMate.ServerCore.slnx --verify-no-changes --no-restore
+
+      - name: Build
+        working-directory: apps/server-core
+        run: dotnet build AgentMate.ServerCore.slnx --no-restore --configuration Release
+
+      - name: Unit and integration tests
+        working-directory: apps/server-core
+        run: dotnet test --project tests/AgentMate.ServerCore.Tests --no-build --configuration Release
+
+      # The desktop's TypeScript contracts are generated from the C# ones. Regenerating must not
+      # change anything, or someone changed a contract without committing the new TypeScript.
+      - name: Contracts drift
+        run: |
+          node scripts/server-core.mjs contracts
+          drift="$(git status --porcelain -- apps/desktop/src/shared/deploy/protocol/generated)"
+          if [ -n "$drift" ]; then
+            echo "$drift"
+            git --no-pager diff -- apps/desktop/src/shared/deploy/protocol/generated
+            echo "::error title=Contracts drift::Run 'pnpm server-core:contracts' and commit the result."
+            exit 1
+          fi
+
   mobile:
     name: Mobile
     runs-on: ubuntu-latest

@@ -33,7 +33,7 @@ every later epic uses.
 - [ ] T10 Overview UI: pulse header, stat tiles, hand-drawn SVG charts (dataviz rules,
   `lib/chartColors.ts`), system facts, services, updates panel with preview and live log, reboot
   with typed confirmation and a reconnecting state.
-- [ ] T11 Fixture: TS fake core typed from the OpenAPI types and the hub contract, for main and
+- [ ] T11 Fixture: TS fake core implementing the generated `ICoreHub` interface, for main and
   renderer tests.
 
 ## Acceptance criteria

@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <PropertyGroup>
+    <AssemblyName>agentmate-core</AssemblyName>
+    <RootNamespace>AgentMate.ServerCore</RootNamespace>
+    <OutputType>Exe</OutputType>
+    <!-- Declared up front so locked restores include the Linux runtime packs that release
+         publishes need. -->
+    <RuntimeIdentifiers>linux-x64;linux-arm64</RuntimeIdentifiers>
+    <UserSecretsId />
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Tapper.Attributes" />
+    <PackageReference Include="TypedSignalR.Client.TypeScript.Attributes" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="AgentMate.ServerCore.Tests" />
+    <InternalsVisibleTo Include="AgentMate.ServerCore.SystemTests" />
+  </ItemGroup>
+</Project>

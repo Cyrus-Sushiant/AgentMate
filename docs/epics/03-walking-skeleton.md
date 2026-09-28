@@ -29,8 +29,8 @@ service, Unix socket, tunnel and REST.
 - [ ] T7 `agentmate-core bridge`: stdio to the Unix socket, used when stream-local forwarding is
   disabled.
 - [ ] T8 Transport: one socket-shim Duplex (adds the no-op socket methods `ws` and `http` expect)
-  behind a custom `http.Agent#createConnection`; typed REST client (`openapi-fetch` over a
-  `node:http` fetch adapter) using it.
+  behind a custom `http.Agent#createConnection`; a small REST client over `node:http` typed with
+  the generated DTOs, and the SignalR connection with the TypedSignalR hub proxy, both using it.
 - [ ] T9 Upgrade keeps the previous release; if the new one fails its health check the symlink goes
   back and the service restarts on the old release. Uninstall (keep or delete data).
 - [ ] T10 Install wizard UI: preflight results, step timeline with live progress, errors with a

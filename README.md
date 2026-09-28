@@ -201,6 +201,7 @@ AgentMate checks the prerequisites before a run and walks you through whatever i
 | Remote | `ws` for the local-network protocol, `ssh2` for SSH, Devolutions Iron Remote Desktop for RDP |
 | Speech | `@huggingface/transformers` running Whisper locally |
 | Updates | electron-updater (GitHub Releases) |
+| Server core | .NET 10, ASP.NET Core, SignalR over a Unix socket, xUnit v3; Tapper and TypedSignalR.Client.TypeScript generate the desktop's typed client |
 | Tooling | pnpm workspaces, Biome |
 
 ## Project structure
@@ -209,18 +210,22 @@ AgentMate checks the prerequisites before a run and walks you through whatever i
 AgentMate/
 ├── apps/
 │   ├── desktop/     Electron app (main, preload, renderer), the primary product
-│   └── mobile/      Expo/React Native companion app for the Remote feature
+│   ├── mobile/      Expo/React Native companion app for the Remote feature
+│   └── server-core/ .NET 10 service the Deploy section installs on your servers
+├── docs/            Delivery plan for the Deploy section (roadmap, epics, status)
 ├── packages/
 │   ├── core/        Shared business logic (@agentmat/core)
 │   └── protocol/    Shared types and wire protocol (@agentmat/protocol)
 └── patches/         pnpm patches for third-party packages
 ```
 
+`apps/server-core` is a .NET solution rather than a pnpm package, so it has no `package.json`; the root `server-core:*` scripts drive it. Its C# contracts are the source of truth for the desktop's typed client: `pnpm server-core:contracts` regenerates `apps/desktop/src/shared/deploy/protocol/generated` with Tapper and TypedSignalR.Client.TypeScript, and CI fails when the committed TypeScript is out of date.
+
 `packages/core` holds the logic that does not need Electron, grouped by feature: `blueprint`, `cli`, `env`, `git`, `grammar`, `mcp`, `models`, `network`, `projectBootstrap`, `promptBuilder`, `security`, `skills`, `system`, `testing`, `tools`, `usage`, `vault`, and `workspace`.
 
 ## Getting started
 
-**Prerequisites:** Node.js ≥ 20, [pnpm](https://pnpm.io) ≥ 11.
+**Prerequisites:** Node.js ≥ 20, [pnpm](https://pnpm.io) ≥ 11. Working on `apps/server-core` also needs the [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0) (the feature band pinned in `apps/server-core/global.json`).
 
 Installers for Windows, macOS, and Linux are published on [GitHub Releases](https://github.com/Cyrus-Sushiant/AgentMate/releases). The app can also check that feed and install an update from Settings.
 
@@ -252,6 +257,10 @@ On Windows you can also just run `run.bat`, which installs dependencies, verifie
 | `pnpm test:coverage` | The same with coverage, then print a summary table |
 | `pnpm test:mobile` | The mobile app's Jest suite |
 | `pnpm test:e2e` | Build the desktop app and drive it end to end through Playwright |
+| `pnpm server-core:build` | Build the .NET server core solution |
+| `pnpm server-core:test` | The server core's unit and integration tests (xUnit v3) |
+| `pnpm server-core:format` | Format the server core with `dotnet format` (`server-core:format:check` only verifies) |
+| `pnpm server-core:contracts` | Regenerate the desktop's TypeScript contracts from the server core's C# ones |
 
 ### Testing
 
@@ -264,6 +273,8 @@ Tests live next to the code they cover (`foo.ts` has `foo.test.ts` beside it). E
 | Component | `apps/desktop/src/renderer/**` | Vitest (jsdom) plus Testing Library |
 | End to end | `apps/desktop/e2e` | Playwright, driving the built Electron app |
 | Mobile | `apps/mobile` | Jest (`jest-expo`) plus React Native Testing Library |
+| Server core | `apps/server-core/tests/AgentMate.ServerCore.Tests` | xUnit v3 on Microsoft.Testing.Platform, with the real web host in memory |
+| Server core system | `apps/server-core/tests/AgentMate.ServerCore.SystemTests` | xUnit v3, Linux with Docker only (CI's `[e2e]` job) |
 
 The desktop suite is split into two Vitest projects, configured in `apps/desktop/vitest.config.mts`:
 
@@ -283,7 +294,7 @@ Tests need Node 22.13 or newer, because the SQLite stand-in uses `node:sqlite`.
 
 ### CI
 
-Every push and pull request runs [`.github/workflows/ci.yml`](.github/workflows/ci.yml): Biome (formatting, lint, import order), the two deprecation gates above, a type-check of every package, a real build of the desktop app, and the test suites in [`.github/workflows/test.yml`](.github/workflows/test.yml). That reusable workflow has three jobs: unit and integration with coverage, the mobile Jest suite, and the end-to-end matrix on Linux, Windows and macOS. The E2E matrix is the slow one, so it runs when the commit message carries `[e2e]` or when you ask for it on a manual dispatch. `All checks passed` is the single status to require in branch protection. Running `pnpm check && pnpm check:deprecated-code && pnpm check:deprecated-deps && pnpm typecheck && pnpm build && pnpm test:unit` reproduces most of it locally.
+Every push and pull request runs [`.github/workflows/ci.yml`](.github/workflows/ci.yml): Biome (formatting, lint, import order), the two deprecation gates above, a type-check of every package, a real build of the desktop app, and the test suites in [`.github/workflows/test.yml`](.github/workflows/test.yml). That reusable workflow has four jobs: unit and integration with coverage, the server core (locked restore, `dotnet format`, build, tests, and a check that the generated TypeScript contracts are current), the mobile Jest suite, and the end-to-end matrix on Linux, Windows and macOS. The E2E matrix is the slow one, so it runs when the commit message carries `[e2e]` or when you ask for it on a manual dispatch. `All checks passed` is the single status to require in branch protection. Running `pnpm check && pnpm check:deprecated-code && pnpm check:deprecated-deps && pnpm typecheck && pnpm build && pnpm test:unit` reproduces most of it locally.
 
 A deprecated dependency you cannot drop yet goes in [`.github/deprecated-deps-allowlist.json`](.github/deprecated-deps-allowlist.json) with a reason for keeping it. Releases are built and published by [`.github/workflows/cd.yml`](.github/workflows/cd.yml) when a `v*.*.*` tag is pushed, and it runs the same test workflow first, so a failing test cannot ship.
 

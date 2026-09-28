@@ -1,3 +1,17 @@
 # pnpm 12 rejects patch files with CRLF line endings, and Windows runners
 # check out with core.autocrlf=true, so keep patches as LF everywhere.
 *.patch text eol=lf
+
+# The server core and its generated TypeScript must be byte-identical on Windows and Linux, or the
+# contracts drift check and dotnet format would flag every line ending.
+*.cs text eol=lf
+*.csproj text eol=lf
+*.props text eol=lf
+*.targets text eol=lf
+*.slnx text eol=lf
+*.sh text eol=lf
+*.service text eol=lf
+*.socket text eol=lf
+*.timer text eol=lf
+apps/server-core/** text=auto eol=lf
+apps/desktop/src/shared/deploy/protocol/generated/** text eol=lf
