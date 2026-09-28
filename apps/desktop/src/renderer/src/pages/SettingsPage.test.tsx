@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
 import type { AppSettings } from '@agentmat/core';
-import { defaultGrammarSettings, defaultProxySettings } from '@agentmat/core';
+import { defaultGrammarSettings, defaultProxySettings, isStartupPage } from '@agentmat/core';
 import { screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { NAV_ITEMS } from '@/components/layout/Sidebar';
 import { useThemeStore } from '@/stores/themeStore';
 import { renderWithProviders } from '../../../test/renderer/renderWithProviders';
 
@@ -58,6 +59,7 @@ const settings = {
   keepTerminalsRunning: false,
   workspaceNotifications: true,
   checkToolUpdatesEnabled: true,
+  startupPage: 'last',
 } as AppSettings;
 
 function renderSettings(bridge: Record<string, unknown> = {}, route = '/settings') {
@@ -176,6 +178,43 @@ describe('SettingsPage appearance', () => {
     expect(document.documentElement.classList.contains('theme-vscode-dark')).toBe(false);
     expect(document.documentElement.classList.contains('dark')).toBe(false);
     expect(bridge.$fn('settings.update')).toHaveBeenLastCalledWith({ theme: 'light' });
+  });
+});
+
+describe('SettingsPage startup page', () => {
+  it('opens on the last page unless the user picks another', async () => {
+    renderSettings();
+    await screen.findByText('Startup page');
+
+    const picker = within(card('Startup page')).getByRole('combobox', { name: 'Startup page' });
+    expect(picker).toHaveTextContent('Last opened page');
+  });
+
+  it('saves the page the user picks', async () => {
+    const { user, bridge } = renderSettings();
+    await screen.findByText('Startup page');
+
+    await user.click(screen.getByRole('combobox', { name: 'Startup page' }));
+    await user.click(await screen.findByRole('option', { name: /Dashboard/ }));
+
+    await waitFor(() =>
+      expect(bridge.$fn('settings.update')).toHaveBeenLastCalledWith({ startupPage: '/' }),
+    );
+  });
+
+  it('is found by searching for it', async () => {
+    const { user } = renderSettings();
+    await screen.findByText('Appearance');
+
+    await user.type(screen.getByLabelText('Search settings'), 'startup');
+
+    expect(await screen.findByText('Startup page')).toBeInTheDocument();
+    expect(screen.queryByText('Appearance')).toBeNull();
+  });
+
+  it('can open on every page in the sidebar', () => {
+    // main only accepts the pages in STARTUP_PAGES, so a new sidebar page has to be added there.
+    expect(NAV_ITEMS.map((item) => item.to).filter((route) => !isStartupPage(route))).toEqual([]);
   });
 });
 

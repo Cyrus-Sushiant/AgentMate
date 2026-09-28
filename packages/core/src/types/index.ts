@@ -22,6 +22,36 @@ export function isThemeMode(value: unknown): value is ThemeMode {
   return THEME_MODES.includes(value as ThemeMode);
 }
 
+/**
+ * Where the main window opens. 'last' reopens the page the app was on when it closed; the rest
+ * are the sidebar's pages, so the list has to follow the sidebar when a page is added there.
+ */
+export const STARTUP_PAGES = [
+  'last',
+  '/',
+  '/usage',
+  '/prompt-builder',
+  '/projects',
+  '/workspace',
+  '/api-client',
+  '/pipelines',
+  '/skills',
+  '/mcp',
+  '/tools',
+  '/docker',
+  '/android',
+  '/cli-manager',
+  '/ask-ai',
+  '/remote',
+  '/vault',
+  '/settings',
+] as const;
+export type StartupPage = (typeof STARTUP_PAGES)[number];
+
+export function isStartupPage(value: unknown): value is StartupPage {
+  return STARTUP_PAGES.includes(value as StartupPage);
+}
+
 export type AiProvider = 'openai' | 'ollama' | 'gemini';
 
 export const DESKTOP_PET_IDS = [
@@ -351,6 +381,8 @@ export interface AppSettings {
   /** PR comments offered as one-click review requests in the workspace Pull request tab. */
   reviewCommands: string[];
   theme: ThemeMode;
+  /** The page the main window opens on: the one it was on when the app closed, or a fixed page. */
+  startupPage: StartupPage;
   /** Folder that holds the user's projects; folder pickers open here instead of the OS default. */
   projectsRootPath: string | null;
   skillRepositoryIds: string[];

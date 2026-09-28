@@ -46,6 +46,7 @@ export function LauncherMenu({
   const agents = useAgentChoices(project);
   const shells = shellOptions();
   const browserKey = useShortcutLabel('workspace.newBrowser');
+  const promptKey = useShortcutLabel('workspace.buildPrompt');
   const hasLaunchDefaults = useCliStore((s) => Object.keys(s.cliLaunchDefaults).length > 0);
 
   const launchAgent = (cliId: string, skipLaunchDefaults = false): void => {
@@ -74,7 +75,11 @@ export function LauncherMenu({
         >
           <Sparkles className="h-3.5 w-3.5" />
           <span className="font-medium">Build a prompt…</span>
-          <span className="ml-auto text-[10px] text-primary/70">then run it</span>
+          {promptKey ? (
+            <Kbd>{promptKey}</Kbd>
+          ) : (
+            <span className="ml-auto text-[10px] text-primary/70">then run it</span>
+          )}
         </DropdownMenuItem>
         <DropdownMenuLabel className="flex items-center justify-between gap-2">
           <span>Agents</span>

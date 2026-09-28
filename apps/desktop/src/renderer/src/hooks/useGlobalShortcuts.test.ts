@@ -23,6 +23,8 @@ const workspace = vi.hoisted(() => ({
     focusPane: vi.fn(),
     cycleTab: vi.fn(),
     goToTab: vi.fn(),
+    launchAgent: vi.fn(),
+    buildPrompt: vi.fn(),
     toggleZoom: vi.fn(),
     focusedTabIsDiff: vi.fn(() => false),
     diffChange: vi.fn(),
@@ -236,8 +238,27 @@ describe('useGlobalShortcuts', () => {
 
   it('passes the pressed number along to the go-to-tab command', () => {
     renderShortcuts('/workspace');
-    press({ code: 'Digit3', key: '3', ctrl: true });
+    press({ code: 'Digit3', key: '3', alt: true });
     expect(workspace.workspaceCommands.goToTab).toHaveBeenCalledWith(3);
+  });
+
+  it('opens the agent at the pressed position on Ctrl and a number', () => {
+    renderShortcuts('/workspace');
+    press({ code: 'Digit2', key: '2', ctrl: true });
+    expect(workspace.workspaceCommands.launchAgent).toHaveBeenCalledWith(2);
+    expect(workspace.workspaceCommands.goToTab).not.toHaveBeenCalled();
+  });
+
+  it('opens Build Prompt on Ctrl+G only in the workspace', () => {
+    const off = renderShortcuts('/projects');
+    press({ code: 'KeyG', ctrl: true });
+    expect(workspace.workspaceCommands.buildPrompt).not.toHaveBeenCalled();
+    off.unmount();
+
+    renderShortcuts('/workspace');
+    const event = press({ code: 'KeyG', ctrl: true });
+    expect(workspace.workspaceCommands.buildPrompt).toHaveBeenCalled();
+    expect(event.defaultPrevented).toBe(true);
   });
 
   // F7 steps through a diff, but on a terminal tab it should fall through untouched.

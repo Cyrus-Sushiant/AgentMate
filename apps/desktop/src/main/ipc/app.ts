@@ -1,6 +1,7 @@
 import { app, ipcMain } from 'electron';
 import type { UpdateStatus } from '../../shared/apiTypes';
 import { IPC } from '../../shared/ipcChannels';
+import { rememberRoute } from '../lastRoute';
 import { takePendingRoute } from '../mainWindow';
 import { allowQuit } from '../quitGuard';
 import { checkForUpdates, downloadUpdate, pauseDownload, quitAndInstall } from '../updater';
@@ -20,6 +21,8 @@ export function registerAppHandlers(): void {
   ipcMain.handle(IPC.app.pauseDownload, (): void => pauseDownload());
   ipcMain.handle(IPC.app.quitAndInstall, (): void => quitAndInstall());
   ipcMain.handle(IPC.app.pendingNavigate, (): string | null => takePendingRoute());
+  // The route crosses IPC, so rememberRoute checks it before anything is saved.
+  ipcMain.on(IPC.app.setLastRoute, (_event, route: unknown) => rememberRoute(route));
   // app.quit(), not app.exit(): exit() skips before-quit, so the pet window, hook
   // server and watchers registered there would never be torn down. Terminals are
   // the exception on purpose: a relaunch reattaches to them, so they keep running.

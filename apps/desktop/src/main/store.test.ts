@@ -285,6 +285,30 @@ describe('settings migrations', () => {
     expect((await store.getSettings()).cliOrder).toEqual([]);
   });
 
+  it('opens on the last page by default, including for a file that predates the setting', async () => {
+    const fresh = await loadStore();
+    expect((await fresh.store.getSettings()).startupPage).toBe('last');
+
+    userData.writeData('settings.json', { theme: 'dark' });
+    expect((await fresh.store.getSettings()).startupPage).toBe('last');
+  });
+
+  it('falls back to the last page when the saved startup page is not a page', async () => {
+    const { store } = await loadStore();
+
+    for (const startupPage of ['/widget/x', 42, '/nowhere', null]) {
+      userData.writeData('settings.json', { startupPage });
+      expect((await store.getSettings()).startupPage).toBe('last');
+    }
+  });
+
+  it('keeps a startup page picked from the list', async () => {
+    userData.writeData('settings.json', { startupPage: '/usage' });
+    const { store } = await loadStore();
+
+    expect((await store.getSettings()).startupPage).toBe('/usage');
+  });
+
   it('fills in a key the saved file has never heard of', async () => {
     userData.writeData('settings.json', { theme: 'dark' });
     const { store, DEFAULT_SETTINGS } = await loadStore();

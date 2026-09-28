@@ -24,6 +24,8 @@ const BLOCKED_BY_DIALOG = new Set<GlobalShortcutCommandId>(['nav.projects']);
 
 const WORKSPACE_ACTIONS: Record<WorkspaceShortcutCommandId, (event: KeyboardEvent) => void> = {
   'workspace.goToTab': (event) => workspaceCommands.goToTab(digitOf(event.code) ?? 1),
+  'workspace.launchAgent': (event) => void workspaceCommands.launchAgent(digitOf(event.code) ?? 1),
+  'workspace.buildPrompt': workspaceCommands.buildPrompt,
   'workspace.nextChange': () => workspaceCommands.diffChange('next'),
   'workspace.prevChange': () => workspaceCommands.diffChange('previous'),
   'workspace.newTab': workspaceCommands.openLauncher,

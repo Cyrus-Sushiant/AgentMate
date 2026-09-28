@@ -36,6 +36,7 @@ import {
   defaultProxySettings,
   defaultUsageResetAlerts,
   defaultUsageThresholdAlerts,
+  isStartupPage,
   isThemeMode,
   normalizeCliArgs,
   normalizeCliLaunchDefaults,
@@ -114,6 +115,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   worktrees: { ...DEFAULT_WORKTREE_SETTINGS, copyGlobs: [...DEFAULT_WORKTREE_SETTINGS.copyGlobs] },
   reviewCommands: [...DEFAULT_REVIEW_COMMANDS],
   theme: 'system',
+  startupPage: 'last',
   projectsRootPath: null,
   skillRepositoryIds: [],
   pingTargets: ['1.1.1.1'],
@@ -275,6 +277,7 @@ function withSettingsMigrations(settings: AppSettings): AppSettings {
     keepAwake:
       settings.keepAwake === 'on' || settings.keepAwake === 'off' ? settings.keepAwake : 'agent',
     theme: isThemeMode(settings.theme) ? settings.theme : 'system',
+    startupPage: isStartupPage(settings.startupPage) ? settings.startupPage : 'last',
     workspaceTerminalCustomBackground: settings.workspaceTerminalCustomBackground === true,
     workspaceTerminalBackgroundColor:
       normalizeProjectColor(settings.workspaceTerminalBackgroundColor) ??

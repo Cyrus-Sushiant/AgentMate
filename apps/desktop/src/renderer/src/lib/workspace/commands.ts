@@ -4,10 +4,12 @@ import { create } from 'zustand';
 import { emitBrowserShortcut } from '@/lib/browser/browserSync';
 import { queryKeys } from '@/lib/queryKeys';
 import { queryClient } from '@/queryClient';
+import { useCliStore } from '@/stores/cliStore';
 import { useWorkspaceSearchStore } from '@/stores/workspaceSearchStore';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
 import { useWorktreeDialogStore } from '@/stores/worktreeDialogStore';
-import { launchShellTab } from './launch';
+import { sortAgentChoices } from './agentChoices';
+import { launchAgentTab, launchShellTab, projectCliId } from './launch';
 import { resolveWorkspaceProject } from './scope';
 
 interface LauncherState {
@@ -84,6 +86,38 @@ export const workspaceCommands = {
     const project = activeProject();
     const current = activeWorkspace();
     if (project && current) launchShellTab(project, undefined, current.workspace.focusedGroupId);
+  },
+
+  /**
+   * Starts the agent at this position of the "+" menu (1 is the first) in the focused pane.
+   * Positions past the installed agents do nothing, the way going to a missing tab does.
+   */
+  async launchAgent(position: number): Promise<void> {
+    const project = activeProject();
+    const current = activeWorkspace();
+    if (!project || !current) return;
+    const groupId = current.workspace.focusedGroupId;
+    const statuses = await queryClient.ensureQueryData({
+      queryKey: queryKeys.cliStatus,
+      queryFn: () => window.agentmat.cli.detectAll(),
+    });
+    const { installed } = sortAgentChoices(
+      statuses,
+      useCliStore.getState().cliOrder,
+      projectCliId(project),
+    );
+    const choice = installed[position - 1];
+    if (!choice) return;
+    useLauncherStore.getState().setOpenFor(null);
+    launchAgentTab(project, choice.cli.id, groupId);
+  },
+
+  /** Opens Build Prompt for the project on screen, so "Open in agent" lands in the focused pane. */
+  buildPrompt(): void {
+    const current = activeWorkspace();
+    if (!current) return;
+    useLauncherStore.getState().setOpenFor(null);
+    usePromptDialogStore.getState().open(current.projectId, current.workspace.focusedGroupId);
   },
 
   newBrowser(): void {

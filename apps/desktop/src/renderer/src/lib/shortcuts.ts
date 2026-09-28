@@ -26,6 +26,8 @@ export type ShortcutCommandId =
   | 'prompt.translate'
   | 'prompt.copy'
   | 'workspace.newTab'
+  | 'workspace.buildPrompt'
+  | 'workspace.launchAgent'
   | 'workspace.newBrowser'
   | 'workspace.pickElement'
   | 'workspace.closeTab'
@@ -179,6 +181,25 @@ export const SHORTCUT_COMMANDS: ShortcutCommand[] = [
     defaults: [{ code: 'KeyT', mod: true, shift: true }],
   },
   {
+    id: 'workspace.buildPrompt',
+    label: 'Build a prompt',
+    description:
+      'Opens the prompt builder for the project on screen. "Open in agent" then runs it in the focused pane.',
+    group: 'Workspace',
+    scope: 'workspace',
+    defaults: [{ code: 'KeyG', mod: true }],
+  },
+  {
+    id: 'workspace.launchAgent',
+    label: 'Open agent 1 to 9',
+    description:
+      'Starts an agent in the focused pane by its place in the "+" menu, so 1 is the first one listed. Settings, Agent order sets the order. Press any number key to set the modifiers.',
+    group: 'Workspace',
+    scope: 'workspace',
+    defaults: [{ code: 'Digit1', mod: true }],
+    digitRow: true,
+  },
+  {
     id: 'workspace.newBrowser',
     label: 'New browser tab',
     description: 'Opens a browser tab in the focused pane, for your dev server or any site.',
@@ -316,7 +337,8 @@ export const SHORTCUT_COMMANDS: ShortcutCommand[] = [
       'Picks a tab in the focused pane by its position. Press any number key to set the modifiers.',
     group: 'Workspace',
     scope: 'workspace',
-    defaults: [{ code: 'Digit1', mod: true }],
+    // Ctrl+1 to 9 open agents, so tabs moved over to Alt.
+    defaults: [{ code: 'Digit1', alt: true }],
     digitRow: true,
   },
   {

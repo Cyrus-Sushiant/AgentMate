@@ -35,6 +35,7 @@ export function PaneLauncher({
   const worktree = (project as Partial<WorkspaceProject>).worktree ?? null;
   const shells = shellOptions();
   const browserKey = useShortcutLabel('workspace.newBrowser');
+  const promptKey = useShortcutLabel('workspace.buildPrompt');
   const menuOpen = useLauncherStore((s) => s.openForGroupId !== null);
   const hasLaunchDefaults = useCliStore((s) => Object.keys(s.cliLaunchDefaults).length > 0);
   const visibleAgents = useMemo(
@@ -187,6 +188,11 @@ export function PaneLauncher({
               Turn a rough request into a prompt, then open it in an agent on the suggested model
             </span>
           </span>
+          {promptKey ? (
+            <kbd className="shrink-0 rounded border border-border/80 bg-foreground/[0.04] px-1.5 font-mono text-[10px] leading-4 text-muted-foreground">
+              {promptKey}
+            </kbd>
+          ) : null}
         </button>
 
         <div className="mt-5 flex flex-wrap items-center justify-center gap-1.5">

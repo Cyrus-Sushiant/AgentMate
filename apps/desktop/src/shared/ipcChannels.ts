@@ -11,6 +11,8 @@ export const IPC = {
     onNavigate: 'app:navigate',
     /** The renderer collecting a route that arrived while the window was still loading. */
     pendingNavigate: 'app:pendingNavigate',
+    /** The app window reporting the page it is on, so the next launch can open there. */
+    setLastRoute: 'app:setLastRoute',
     /** main -> the app window: sessions are still open, ask before closing the app. */
     onConfirmQuit: 'app:confirmQuit',
     /** The renderer's answer to onConfirmQuit. */

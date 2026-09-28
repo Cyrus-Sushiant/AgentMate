@@ -247,7 +247,10 @@ describe('formatShortcut', () => {
     installAgentmatBridge({ platform: 'win32' });
     const goToTab = SHORTCUT_COMMANDS.find((command) => command.id === 'workspace.goToTab');
     if (!goToTab) throw new Error('workspace.goToTab is missing from the registry');
-    expect(formatCommandShortcut(goToTab, goToTab.defaults[0])).toBe('Ctrl+1…9');
+    expect(formatCommandShortcut(goToTab, goToTab.defaults[0])).toBe('Alt+1…9');
+    const launchAgent = SHORTCUT_COMMANDS.find((command) => command.id === 'workspace.launchAgent');
+    if (!launchAgent) throw new Error('workspace.launchAgent is missing from the registry');
+    expect(formatCommandShortcut(launchAgent, launchAgent.defaults[0])).toBe('Ctrl+1…9');
   });
 
   it('leaves a normal command is binding as it is', () => {

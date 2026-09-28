@@ -151,3 +151,15 @@ describe('checkToolUpdatesEnabled', () => {
     expect((await readSettingsFile()).checkToolUpdatesEnabled).toBe(true);
   });
 });
+
+describe('startupPage', () => {
+  it('persists a picked page, and going back to the last page', async () => {
+    const dashboard = await ipc<AppSettings>(IPC.settings.update, { startupPage: '/' });
+    expect(dashboard.startupPage).toBe('/');
+    expect((await readSettingsFile()).startupPage).toBe('/');
+
+    const last = await ipc<AppSettings>(IPC.settings.update, { startupPage: 'last' });
+    expect(last.startupPage).toBe('last');
+    expect((await readSettingsFile()).startupPage).toBe('last');
+  });
+});

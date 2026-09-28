@@ -143,13 +143,41 @@ describe('commandForEvent', () => {
     for (const digit of ['Digit1', 'Digit5', 'Digit9']) {
       expect(
         commandForEvent(
-          press({ code: digit, key: digit.slice(5), ctrlKey: true }),
+          press({ code: digit, key: digit.slice(5), altKey: true }),
           {},
           false,
           'workspace',
         ),
       ).toBe('workspace.goToTab');
     }
+  });
+
+  it('opens agents on Ctrl and a digit, leaving Alt and a digit to the tabs', () => {
+    for (const digit of ['Digit1', 'Digit5', 'Digit9']) {
+      expect(
+        commandForEvent(
+          press({ code: digit, key: digit.slice(5), ctrlKey: true }),
+          {},
+          false,
+          'workspace',
+        ),
+      ).toBe('workspace.launchAgent');
+    }
+  });
+
+  it('builds a prompt on Ctrl+G in the workspace, whatever the layout', () => {
+    expect(
+      commandForEvent(press({ code: 'KeyG', key: 'گ', ctrlKey: true }), {}, true, 'workspace'),
+    ).toBe('workspace.buildPrompt');
+    // Ctrl+Shift+G is still the changes panel.
+    expect(
+      commandForEvent(
+        press({ code: 'KeyG', key: 'G', ctrlKey: true, shiftKey: true }),
+        {},
+        true,
+        'workspace',
+      ),
+    ).toBe('workspace.toggleGitPanel');
   });
 
   it('matches the physical key on a non-Latin layout', () => {
@@ -193,8 +221,11 @@ describe('conflictingCommand', () => {
   });
 
   it('treats a number-row binding as owning every digit', () => {
-    // Go to tab is stored as Ctrl+1 but answers to Ctrl+1 through Ctrl+9.
+    // Open agent is stored as Ctrl+1 but answers to Ctrl+1 through Ctrl+9.
     expect(conflictingCommand({ code: 'Digit4', mod: true }, 'workspace.newTab', {})?.id).toBe(
+      'workspace.launchAgent',
+    );
+    expect(conflictingCommand({ code: 'Digit4', alt: true }, 'workspace.newTab', {})?.id).toBe(
       'workspace.goToTab',
     );
   });

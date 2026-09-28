@@ -62,6 +62,7 @@ import { registerUsageHandlers } from './ipc/usage';
 import { registerWindowHandlers } from './ipc/window';
 import { registerWorkspaceSearchHandlers } from './ipc/workspaceSearch';
 import { registerWorktreeHandlers } from './ipc/worktrees';
+import { flushLastRoute, prepareStartupRoute, takeStartupRoute, trackLastRoute } from './lastRoute';
 import { focusMainWindow, setMainWindow, setMainWindowFactory } from './mainWindow';
 import {
   loadMainWindowState,
@@ -214,6 +215,7 @@ function createMainWindow(): BrowserWindow {
   });
 
   trackMainWindowState(win, savedState.isMaximized);
+  trackLastRoute(win);
   const reveal = (): void => showMainWindow(win, savedState);
   if (behindSplash) {
     handOffWhenReady(win, reveal);
@@ -262,10 +264,15 @@ function createMainWindow(): BrowserWindow {
     return { action: 'deny' };
   });
 
+  // Opens on the page the app was left on (or the one picked in Settings), so the dashboard does
+  // not flash first. A deep link that arrives during startup still wins: it is parked and taken
+  // once the page is up.
+  const route = takeStartupRoute();
+  const hash = route === '/' ? undefined : route;
   if (process.env.ELECTRON_RENDERER_URL) {
-    void win.loadURL(process.env.ELECTRON_RENDERER_URL);
+    void win.loadURL(`${process.env.ELECTRON_RENDERER_URL}${hash ? `#${hash}` : ''}`);
   } else {
-    void win.loadFile(join(__dirname, '../renderer/index.html'));
+    void win.loadFile(join(__dirname, '../renderer/index.html'), { hash });
   }
 
   return win;
@@ -346,7 +353,8 @@ app.whenReady().then(async () => {
   // Ahead of every other startup step, so the first update check, widget
   // refresh, or usage poll already goes the configured way. The splash has to be
   // fully drawn too, since the synchronous work below would otherwise stall it.
-  await Promise.all([applyProxySettingsFromStore(), splashUp]);
+  // The launch page is worked out here too, so the window can start loading as soon as it exists.
+  await Promise.all([applyProxySettingsFromStore(), splashUp, prepareStartupRoute()]);
 
   const isDev = !!process.env.ELECTRON_RENDERER_URL;
   // Vite's dev server needs an inline HMR/preamble script and a websocket
@@ -449,6 +457,8 @@ app.on('window-all-closed', () => {
 app.on('before-quit', (event) => {
   // Asks before anything is torn down, and only once per quit the user agrees to.
   if (!guardQuit(event)) return;
+  // The page the window is on, for the next launch. Written first, before anything can fail.
+  flushLastRoute();
   // Terminals settle first. If that takes a moment (ending shells in the background host),
   // this quit is put off and retried, and the teardown below runs on the second pass.
   const terminalsSettling = terminalsHoldQuit();

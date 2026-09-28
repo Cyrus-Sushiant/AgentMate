@@ -16,6 +16,7 @@ import { useStartupLoading } from '@/hooks/useAppLoadingOverlay';
 import { useAppNotificationMessages } from '@/hooks/useAppNotificationMessages';
 import { useGlobalShortcuts } from '@/hooks/useGlobalShortcuts';
 import { usePetDragGuard } from '@/hooks/usePetDragGuard';
+import { useRememberRoute } from '@/hooks/useRememberRoute';
 import { useScheduledTaskRunner } from '@/hooks/useScheduledTaskRunner';
 import { useVaultEvents } from '@/hooks/useVaultEvents';
 import { cn } from '@/lib/utils';
@@ -172,6 +173,8 @@ export function AppShell(): React.JSX.Element {
   useEffect(() => initSshAgentStatus(), []);
   // The desktop companion would otherwise swallow every drop in the app window.
   usePetDragGuard();
+  // Main keeps the page this window is on, so the next launch can open there.
+  useRememberRoute();
   useScheduledTaskRunner();
 
   // The window is still hidden behind the startup splash. Once the first page has its data, give

@@ -1,9 +1,10 @@
-import type { AiProvider, PingMethod, ThemeMode } from '@agentmat/core';
+import type { AiProvider, PingMethod, StartupPage, ThemeMode } from '@agentmat/core';
 import {
   CLI_REGISTRY,
   DEFAULT_GEMINI_API_MODEL,
   DEFAULT_OPENAI_API_MODEL,
   DEFAULT_WHISPER_MODEL,
+  isStartupPage,
   WHISPER_MODELS,
 } from '@agentmat/core';
 import type { OllamaConnectionTest } from '@shared/apiTypes';
@@ -24,6 +25,7 @@ import {
   GitCommit,
   GitPullRequest,
   HardDrive,
+  History,
   Keyboard,
   Languages,
   MessageSquare,
@@ -47,6 +49,7 @@ import {
   VsInfinity,
   X,
 } from '@/components/icons';
+import { NAV_ITEMS } from '@/components/layout/Sidebar';
 import { CompanionSettings } from '@/components/pet/CompanionSettings';
 import { AndroidSdkSettings } from '@/components/settings/AndroidSdkSettings';
 import { BackupEnvironmentsPasswordDialog } from '@/components/settings/BackupEnvironmentsPasswordDialog';
@@ -63,7 +66,7 @@ import { formatUpdateBytes, UpdateProgressTrack, updatePercent } from '@/compone
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Combobox } from '@/components/ui/combobox';
+import { Combobox, type ComboboxOption } from '@/components/ui/combobox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { SecretInput } from '@/components/ui/secret-input';
@@ -114,6 +117,19 @@ const THEME_OPTIONS: { value: ThemeMode; label: string; hint: string; icon: type
   { value: 'system', label: 'System', hint: 'Follow this machine', icon: Monitor },
   { value: 'vscode-dark', label: 'VS Code Dark', hint: 'Blue accent, editor-inspired', icon: Code },
   { value: 'vs2026', label: 'VS 2026', hint: 'Violet accent, modern IDE', icon: VsInfinity },
+];
+
+const STARTUP_PAGE_KEYWORDS =
+  'startup start launch open opening page restore reopen last left off dashboard home';
+
+/** "Last opened page" first, then every sidebar page main can open on. */
+const STARTUP_PAGE_OPTIONS: ComboboxOption[] = [
+  { value: 'last', label: 'Last opened page', icon: <History className="h-3.5 w-3.5" /> },
+  ...NAV_ITEMS.filter((item) => isStartupPage(item.to)).map((item) => ({
+    value: item.to,
+    label: item.label,
+    icon: <item.icon className="h-3.5 w-3.5" />,
+  })),
 ];
 
 const SETTINGS_TABS = [
@@ -551,6 +567,11 @@ export default function SettingsPage(): React.JSX.Element {
   const checkToolUpdatesMutation = useMutation({
     mutationFn: (checkToolUpdatesEnabled: boolean) =>
       window.agentmat.settings.update({ checkToolUpdatesEnabled }),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: queryKeys.settings }),
+  });
+
+  const startupPageMutation = useMutation({
+    mutationFn: (startupPage: StartupPage) => window.agentmat.settings.update({ startupPage }),
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: queryKeys.settings }),
   });
 
@@ -1033,6 +1054,7 @@ export default function SettingsPage(): React.JSX.Element {
 
   const visibleCount = [
     showSection('general', 'appearance theme dark light system look', 'Appearance'),
+    showSection('general', STARTUP_PAGE_KEYWORDS, 'Startup page'),
     showSection('shortcuts', SHORTCUT_KEYWORDS, 'Keyboard shortcuts'),
     showSection(
       'companion',
@@ -1254,6 +1276,30 @@ export default function SettingsPage(): React.JSX.Element {
                   </div>
                 </SettingsCard>
               )}
+
+              {showSection('general', STARTUP_PAGE_KEYWORDS, 'Startup page') &&
+              settingsQuery.data ? (
+                <SettingsCard
+                  icon={History}
+                  title="Startup page"
+                  description="Where AgentMate opens. Last opened page brings back the page and project you were on, whether you closed the app, it restarted for an update or the computer shut down."
+                >
+                  <Combobox
+                    ariaLabel="Startup page"
+                    className="sm:w-72"
+                    value={
+                      startupPageMutation.isPending
+                        ? startupPageMutation.variables
+                        : settingsQuery.data.startupPage
+                    }
+                    onChange={(value) => {
+                      if (isStartupPage(value)) startupPageMutation.mutate(value);
+                    }}
+                    searchPlaceholder="Search pages…"
+                    options={STARTUP_PAGE_OPTIONS}
+                  />
+                </SettingsCard>
+              ) : null}
 
               {showSection('shortcuts', SHORTCUT_KEYWORDS, 'Keyboard shortcuts') && (
                 <SettingsCard

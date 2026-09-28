@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { onBrowserShortcut } from '@/lib/browser/browserSync';
 import { queryKeys } from '@/lib/queryKeys';
 import { queryClient } from '@/queryClient';
+import { useCliStore } from '@/stores/cliStore';
 import { useWorkspaceSearchStore } from '@/stores/workspaceSearchStore';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
 import { installAgentmatBridge } from '../../../../test/renderer/agentmatBridge';
@@ -94,6 +95,69 @@ describe('openLauncher', () => {
   it('does nothing with no project open', () => {
     workspaceCommands.openLauncher();
     expect(useLauncherStore.getState().openForGroupId).toBeNull();
+  });
+});
+
+describe('launchAgent', () => {
+  function agentTabs() {
+    return Object.values(workspace().tabs).filter((tab) => tab.kind === 'terminal' && tab.cliId);
+  }
+
+  beforeEach(() => {
+    useCliStore.setState({ cliOrder: [] });
+    queryClient.setQueryData(queryKeys.cliStatus, [
+      { id: 'claude-code', installed: true },
+      { id: 'gemini-cli', installed: false },
+      { id: 'codex-cli', installed: true },
+    ]);
+  });
+
+  it('starts the installed agent at that position in the focused pane', async () => {
+    const { groupId } = openWorkspace();
+    await workspaceCommands.launchAgent(2);
+    // Gemini is not installed, so the second agent in the menu is Codex.
+    expect(agentTabs()).toMatchObject([{ cliId: 'codex-cli' }]);
+    expect(findGroup(workspace().root, groupId)?.tabIds).toHaveLength(2);
+  });
+
+  it('follows the order chosen in Settings', async () => {
+    useCliStore.setState({ cliOrder: ['codex-cli', 'claude-code'] });
+    openWorkspace();
+    await workspaceCommands.launchAgent(1);
+    expect(agentTabs()).toMatchObject([{ cliId: 'codex-cli' }]);
+  });
+
+  it('closes an open launcher menu', async () => {
+    const { groupId } = openWorkspace();
+    useLauncherStore.getState().setOpenFor(groupId);
+    await workspaceCommands.launchAgent(1);
+    expect(useLauncherStore.getState().openForGroupId).toBeNull();
+  });
+
+  it('does nothing past the last installed agent', async () => {
+    openWorkspace();
+    await workspaceCommands.launchAgent(3);
+    expect(agentTabs()).toHaveLength(0);
+  });
+
+  it('does nothing with no project open', async () => {
+    await workspaceCommands.launchAgent(1);
+    expect(store().workspaces).toEqual({});
+  });
+});
+
+describe('buildPrompt', () => {
+  it('opens Build Prompt for the project on screen, aimed at the focused pane', () => {
+    const { groupId } = openWorkspace();
+    useLauncherStore.getState().setOpenFor(groupId);
+    workspaceCommands.buildPrompt();
+    expect(usePromptDialogStore.getState()).toMatchObject({ projectId: 'p1', groupId });
+    expect(useLauncherStore.getState().openForGroupId).toBeNull();
+  });
+
+  it('does nothing with no project open', () => {
+    workspaceCommands.buildPrompt();
+    expect(usePromptDialogStore.getState().projectId).toBeNull();
   });
 });
 

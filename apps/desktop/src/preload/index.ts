@@ -305,6 +305,8 @@ const appInfo = {
   relaunch: (): Promise<void> => ipcRenderer.invoke(IPC.app.relaunch),
   /** A route that arrived while this window was still loading, or null. */
   pendingNavigate: (): Promise<string | null> => ipcRenderer.invoke(IPC.app.pendingNavigate),
+  /** Tells main which page this window is on, so the next launch can open there. */
+  setLastRoute: (route: string): void => ipcRenderer.send(IPC.app.setLastRoute, route),
   /** main asking the app window to show a route, e.g. after a click on the pet. */
   onNavigate: (callback: (route: string) => void): (() => void) => {
     const listener = (_event: Electron.IpcRendererEvent, route: string): void => callback(route);
