@@ -7,7 +7,7 @@ import type {
   ExplorerTransferResult,
 } from '../../shared/apiTypes';
 import { IPC } from '../../shared/ipcChannels';
-import { initGitRepo, tempDir } from '../../test/main/fixtures';
+import { initGitRepo, tempDir, withPlatform } from '../../test/main/fixtures';
 import {
   electronState,
   expectChannelsCovered,
@@ -334,6 +334,101 @@ describe('explorer:move', () => {
     await expect(
       invoke(IPC.explorer.move, PROJECT_ID, [at('src')], at('src', 'nested')),
     ).rejects.toThrow('Cannot move "src" into itself.');
+  });
+});
+
+describe('explorer:pasteExternal', () => {
+  it('copies an external file into the target folder and reports it in `moves`', async () => {
+    const outside = tempDir('agentmate-explorer-external-');
+    const source = join(outside, 'brought-in.txt');
+    writeFileSync(source, 'from outside\n', 'utf-8');
+
+    const result = await invoke<ExplorerTransferResult>(
+      IPC.explorer.pasteExternal,
+      PROJECT_ID,
+      [source],
+      repo.dir,
+    );
+    expect(result.conflicts).toEqual([]);
+    expect(result.moves).toEqual([{ from: source, to: at('brought-in.txt') }]);
+    expect(readFileSync(at('brought-in.txt'), 'utf-8')).toBe('from outside\n');
+  });
+
+  it("auto-renames when the external file's name is already taken, the same as an internal copy", async () => {
+    const outside = tempDir('agentmate-explorer-external-');
+    const source = join(outside, 'a.txt');
+    writeFileSync(source, 'outside a\n', 'utf-8');
+
+    const result = await invoke<ExplorerTransferResult>(
+      IPC.explorer.pasteExternal,
+      PROJECT_ID,
+      [source],
+      repo.dir,
+    );
+    expect(result.moves).toEqual([{ from: source, to: at('a copy.txt') }]);
+    expect(readFileSync(at('a.txt'), 'utf-8')).toBe('at root\n');
+    expect(readFileSync(at('a copy.txt'), 'utf-8')).toBe('outside a\n');
+  });
+
+  it('copies an external folder tree into the project', async () => {
+    const outside = tempDir('agentmate-explorer-external-');
+    mkdirSync(join(outside, 'nested'), { recursive: true });
+    writeFileSync(join(outside, 'nested', 'keep.txt'), 'keep\n', 'utf-8');
+
+    const result = await invoke<ExplorerTransferResult>(
+      IPC.explorer.pasteExternal,
+      PROJECT_ID,
+      [join(outside, 'nested')],
+      at('sub'),
+    );
+    expect(result.moves).toEqual([{ from: join(outside, 'nested'), to: at('sub', 'nested') }]);
+    expect(readFileSync(at('sub', 'nested', 'keep.txt'), 'utf-8')).toBe('keep\n');
+  });
+
+  it('refuses when the target folder is outside the project', async () => {
+    const outside = tempDir('agentmate-explorer-external-');
+    const source = join(outside, 'x.txt');
+    writeFileSync(source, 'x', 'utf-8');
+    const elsewhere = tempDir('agentmate-explorer-external-target-');
+
+    await expect(
+      invoke(IPC.explorer.pasteExternal, PROJECT_ID, [source], elsewhere),
+    ).rejects.toThrow('outside of the allowed directories');
+  });
+
+  it('refuses a source that no longer exists', async () => {
+    const outside = tempDir('agentmate-explorer-external-');
+
+    await expect(
+      invoke(IPC.explorer.pasteExternal, PROJECT_ID, [join(outside, 'ghost.txt')], repo.dir),
+    ).rejects.toThrow('no longer exists.');
+  });
+});
+
+describe('explorer:osClipboardPaths', () => {
+  it('returns the paths the OS clipboard currently holds', async () => {
+    const electron = (await import('electron')) as unknown as {
+      clipboard: { read: (format: string) => string };
+    };
+    electron.clipboard.read = (format) =>
+      format === 'text/uri-list' ? 'file:///tmp/copied.txt' : '';
+
+    const paths = await withPlatform('linux', () =>
+      invoke<string[]>(IPC.explorer.osClipboardPaths),
+    );
+    expect(paths).toEqual(['/tmp/copied.txt']);
+  });
+
+  it('returns an empty list when the OS clipboard holds no files', async () => {
+    const electron = (await import('electron')) as unknown as {
+      clipboard: { read: (format: string) => string };
+    };
+    electron.clipboard.read = () => '';
+
+    const paths = await withPlatform('linux', () =>
+      invoke<string[]>(IPC.explorer.osClipboardPaths),
+    );
+    expect(paths).toEqual([]);
   });
 });
 

@@ -271,21 +271,48 @@ export async function transferEntries(
   }
 }
 
+/** Copies external entries (an OS clipboard paste, or a drag from the OS file manager) in. */
+export async function transferExternalEntries(
+  project: Project,
+  sources: string[],
+  target: string,
+): Promise<boolean> {
+  try {
+    const result = await window.agentmat.explorer.pasteExternal(project.id, sources, target);
+    if (target !== projectRoot(project)) setFolderOpen(project.id, target, true);
+    await refreshTree(project.id);
+    const landed = result.moves.map((move) => move.to);
+    if (landed.length > 0) selectRows(project.id, landed, { focus: true });
+    return true;
+  } catch (error) {
+    fail('Could not copy', error);
+    await refreshTree(project.id);
+    return false;
+  }
+}
+
+/**
+ * The in-app clipboard wins when it holds something cut or copied from this project; otherwise
+ * this falls back to whatever is really on the OS clipboard (a file copied in Explorer or
+ * Finder). With nothing on either, paste is a silent no-op, the way an empty in-app clipboard
+ * always has been here.
+ */
 export async function pasteInto(project: Project, target: string): Promise<void> {
   const clipboard = useExplorerStore.getState().clipboard;
-  if (!clipboard) return;
-  if (clipboard.projectId !== project.id) {
-    toast.error('Paste works inside the project the files were copied from.');
+  if (clipboard && clipboard.projectId === project.id) {
+    const done = await transferEntries(
+      project,
+      clipboard.paths,
+      target,
+      clipboard.mode === 'cut' ? 'move' : 'copy',
+    );
+    // A cut moves once; a copy can be pasted again.
+    if (done && clipboard.mode === 'cut') useExplorerStore.setState({ clipboard: null });
     return;
   }
-  const done = await transferEntries(
-    project,
-    clipboard.paths,
-    target,
-    clipboard.mode === 'cut' ? 'move' : 'copy',
-  );
-  // A cut moves once; a copy can be pasted again.
-  if (done && clipboard.mode === 'cut') useExplorerStore.setState({ clipboard: null });
+  const sources = await window.agentmat.explorer.osClipboardPaths().catch(() => []);
+  if (sources.length === 0) return;
+  await transferExternalEntries(project, sources, target);
 }
 
 export function copyPaths(project: Project, paths: string[], relative: boolean): void {

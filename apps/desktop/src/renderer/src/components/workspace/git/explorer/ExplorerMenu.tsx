@@ -64,7 +64,6 @@ export function ExplorerMenu({
   isRepo: boolean;
 }): React.JSX.Element {
   const selected = useExplorerStore((s) => s.projects[project.id]?.selected);
-  const canPaste = useExplorerStore((s) => s.clipboard?.projectId === project.id);
   const root = projectRoot(project);
   const path = target.path;
   const isRoot = path === null || path === root;
@@ -156,12 +155,7 @@ export function ExplorerMenu({
         </>
       ) : null}
       {!multi ? (
-        <Item
-          label="Paste"
-          command="paste"
-          disabled={!canPaste}
-          onSelect={() => void pasteInto(project, folder)}
-        />
+        <Item label="Paste" command="paste" onSelect={() => void pasteInto(project, folder)} />
       ) : null}
       <ContextMenuSeparator />
 

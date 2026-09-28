@@ -802,6 +802,16 @@ const explorer = {
     options: { overwrite: boolean },
   ): Promise<ExplorerTransferResult> =>
     ipcRenderer.invoke(IPC.explorer.move, projectId, sources, targetDir, options),
+  /** Copies files or folders from outside the project (an OS clipboard paste, or a drag from Explorer/Finder) into it. */
+  pasteExternal: (
+    projectId: string,
+    sources: string[],
+    targetDir: string,
+  ): Promise<ExplorerTransferResult> =>
+    ipcRenderer.invoke(IPC.explorer.pasteExternal, projectId, sources, targetDir),
+  /** The OS clipboard's current file list, for pasting real files into the workspace explorer. */
+  osClipboardPaths: (): Promise<string[]> =>
+    ipcRenderer.invoke(IPC.explorer.osClipboardPaths),
   revealInOs: (projectId: string, path: string): Promise<void> =>
     ipcRenderer.invoke(IPC.explorer.revealInOs, projectId, path),
   addToGitignore: (

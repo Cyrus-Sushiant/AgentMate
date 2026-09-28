@@ -245,6 +245,8 @@ export const IPC = {
     delete: 'explorer:delete',
     copy: 'explorer:copy',
     move: 'explorer:move',
+    pasteExternal: 'explorer:pasteExternal',
+    osClipboardPaths: 'explorer:osClipboardPaths',
     revealInOs: 'explorer:revealInOs',
     addToGitignore: 'explorer:addToGitignore',
     untrack: 'explorer:untrack',

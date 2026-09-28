@@ -38,6 +38,7 @@ import {
   sendPathsToAgent,
   targetFolder,
   transferEntries,
+  transferExternalEntries,
 } from './explorer/actions';
 import { EntryNameInput } from './explorer/EntryNameInput';
 import { ExplorerMenu, type ExplorerMenuTarget } from './explorer/ExplorerMenu';
@@ -118,6 +119,27 @@ function dropAllowed(projectId: string, folder: string): boolean {
   return !dragging.paths.some((path) => isSameOrInside(folder, path));
 }
 
+/** A drag carrying real OS files, dropped in from Explorer, Finder or a Linux file manager. */
+function isExternalFilesDrag(event: React.DragEvent): boolean {
+  return Array.from(event.dataTransfer.types).includes('Files');
+}
+
+/** Highlights `folder` as the drop target and arms the same hover-to-expand timer a drag uses. */
+function armDropTarget(projectId: string, folder: string, expandPath: string | undefined): void {
+  if (explorerProject(projectId).dropTarget !== folder) {
+    patchExplorer(projectId, { dropTarget: folder });
+  }
+  if (expandPath && expandTimer?.path !== expandPath) {
+    clearExpandTimer();
+    if (!explorerProject(projectId).open[expandPath]) {
+      expandTimer = {
+        path: expandPath,
+        id: window.setTimeout(() => setFolderOpen(projectId, expandPath, true), DRAG_EXPAND_MS),
+      };
+    }
+  }
+}
+
 function dropHandlers(
   context: TreeContext,
   folder: string,
@@ -126,30 +148,22 @@ function dropHandlers(
   const { project } = context;
   return {
     onDragOver: (event) => {
-      if (!dragging) return;
-      event.stopPropagation();
-      if (!dropAllowed(project.id, folder)) {
-        event.dataTransfer.dropEffect = 'none';
+      if (dragging) {
+        event.stopPropagation();
+        if (!dropAllowed(project.id, folder)) {
+          event.dataTransfer.dropEffect = 'none';
+          return;
+        }
+        event.preventDefault();
+        event.dataTransfer.dropEffect = isCopyDrag(event) ? 'copy' : 'move';
+        armDropTarget(project.id, folder, options.expandPath);
         return;
       }
+      if (!isExternalFilesDrag(event)) return;
+      event.stopPropagation();
       event.preventDefault();
-      event.dataTransfer.dropEffect = isCopyDrag(event) ? 'copy' : 'move';
-      if (explorerProject(project.id).dropTarget !== folder) {
-        patchExplorer(project.id, { dropTarget: folder });
-      }
-      const expandPath = options.expandPath;
-      if (expandPath && expandTimer?.path !== expandPath) {
-        clearExpandTimer();
-        if (!explorerProject(project.id).open[expandPath]) {
-          expandTimer = {
-            path: expandPath,
-            id: window.setTimeout(
-              () => setFolderOpen(project.id, expandPath, true),
-              DRAG_EXPAND_MS,
-            ),
-          };
-        }
-      }
+      event.dataTransfer.dropEffect = 'copy';
+      armDropTarget(project.id, folder, options.expandPath);
     },
     onDragLeave: (event) => {
       const next = event.relatedTarget as Node | null;
@@ -159,16 +173,28 @@ function dropHandlers(
       }
     },
     onDrop: (event) => {
-      if (!dragging) return;
+      if (dragging) {
+        event.preventDefault();
+        event.stopPropagation();
+        clearExpandTimer();
+        patchExplorer(project.id, { dropTarget: null });
+        const payload = dragging;
+        const allowed = dropAllowed(project.id, folder);
+        dragging = null;
+        if (!allowed) return;
+        void transferEntries(project, payload.paths, folder, isCopyDrag(event) ? 'copy' : 'move');
+        return;
+      }
+      if (!isExternalFilesDrag(event)) return;
       event.preventDefault();
       event.stopPropagation();
       clearExpandTimer();
       patchExplorer(project.id, { dropTarget: null });
-      const payload = dragging;
-      const allowed = dropAllowed(project.id, folder);
-      dragging = null;
-      if (!allowed) return;
-      void transferEntries(project, payload.paths, folder, isCopyDrag(event) ? 'copy' : 'move');
+      const paths = Array.from(event.dataTransfer.files)
+        .map((file) => window.agentmat.shell.pathForFile(file))
+        .filter((path): path is string => Boolean(path));
+      if (paths.length === 0) return;
+      void transferExternalEntries(project, paths, folder);
     },
   };
 }

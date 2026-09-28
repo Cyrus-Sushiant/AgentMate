@@ -29,6 +29,7 @@ import type {
   ExplorerTransferResult,
 } from '../../shared/apiTypes';
 import { IPC } from '../../shared/ipcChannels';
+import { osClipboardPaths } from '../clipboardPaths';
 import { indexProjectFiles } from '../explorer/fileIndex';
 import { projectFolder } from '../explorer/projectFolder';
 import { git, gitOrNull } from '../git/plumbing';
@@ -102,6 +103,17 @@ async function guardEntry(folder: string, path: unknown): Promise<string> {
   return resolved;
 }
 
+/**
+ * A source path from outside the project, such as a file copied in Explorer or dragged in from
+ * Finder. Only has to exist: unlike `guardEntry`, it is never required to sit inside a project.
+ */
+async function assertExternalEntry(path: unknown): Promise<string> {
+  assertPathString(path);
+  const resolved = resolve(path);
+  if (!(await exists(resolved))) throw new Error(`"${basename(resolved)}" no longer exists.`);
+  return resolved;
+}
+
 function assertName(name: unknown, allowNested: boolean): asserts name is string {
   if (typeof name !== 'string') throw new Error('A file or folder name must be provided.');
   const problem = validateEntryName(name, process.platform, { allowNested });
@@ -115,6 +127,29 @@ function alreadyExists(name: string): Error {
 /** Pushes fresh git state so badges and the changes list move with the file system. */
 function refresh(projectId: string, folder: string): void {
   void refreshWorkspaceState(projectId, folder).catch(() => undefined);
+}
+
+/** Copies each entry into `target`, renaming on a name clash. Shared by an internal and an external copy. */
+async function copyEntries(target: string, entries: string[]): Promise<ExplorerTransferResult> {
+  const taken = new Set(await readdir(target));
+  const moves: ExplorerMove[] = [];
+  for (const source of entries) {
+    const isDirectory = (await lstat(source)).isDirectory();
+    if (isDirectory && inside(target, source)) {
+      throw new Error(`Cannot copy "${basename(source)}" into itself.`);
+    }
+    const name = copyName(basename(source), taken, isDirectory);
+    taken.add(name);
+    const destination = join(target, name);
+    await cp(source, destination, {
+      recursive: true,
+      errorOnExist: true,
+      force: false,
+      verbatimSymlinks: true,
+    });
+    moves.push({ from: source, to: destination });
+  }
+  return { moves, conflicts: [] };
 }
 
 async function moveEntry(from: string, to: string): Promise<void> {
@@ -258,28 +293,33 @@ export function registerExplorerHandlers(): void {
       const entries = await Promise.all(
         topLevelPaths(sources).map((path) => guardEntry(folder, path)),
       );
-      const taken = new Set(await readdir(target));
-      const moves: ExplorerMove[] = [];
-      for (const source of entries) {
-        const isDirectory = (await lstat(source)).isDirectory();
-        if (isDirectory && inside(target, source)) {
-          throw new Error(`Cannot copy "${basename(source)}" into itself.`);
-        }
-        const name = copyName(basename(source), taken, isDirectory);
-        taken.add(name);
-        const destination = join(target, name);
-        await cp(source, destination, {
-          recursive: true,
-          errorOnExist: true,
-          force: false,
-          verbatimSymlinks: true,
-        });
-        moves.push({ from: source, to: destination });
-      }
+      const result = await copyEntries(target, entries);
       refresh(projectId, folder);
-      return { moves, conflicts: [] };
+      return result;
     },
   );
+
+  ipcMain.handle(
+    IPC.explorer.pasteExternal,
+    async (
+      _event,
+      projectId: string,
+      sources: unknown,
+      targetDir: unknown,
+    ): Promise<ExplorerTransferResult> => {
+      const folder = await projectFolder(projectId);
+      assertPathList(sources);
+      const target = await guardFolder(folder, targetDir);
+      const entries = await Promise.all(
+        topLevelPaths(sources).map((path) => assertExternalEntry(path)),
+      );
+      const result = await copyEntries(target, entries);
+      refresh(projectId, folder);
+      return result;
+    },
+  );
+
+  ipcMain.handle(IPC.explorer.osClipboardPaths, async (): Promise<string[]> => osClipboardPaths());
 
   ipcMain.handle(
     IPC.explorer.move,
