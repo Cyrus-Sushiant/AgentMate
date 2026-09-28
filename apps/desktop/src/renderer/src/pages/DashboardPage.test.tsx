@@ -261,17 +261,22 @@ describe('DashboardPage system charts', () => {
     );
   });
 
-  it('does not offer ping or traceroute for an HTTP probe target', async () => {
+  it('names an HTTP probe target by its site, without ping or traceroute', async () => {
     seedLayout(['pings']);
     const url = 'https://www.gstatic.com/generate_204';
-    renderPage(
+    const { user } = renderPage(
       withStats({
         'system.sample': async () => sample({ pings: [{ host: url, alive: true, latencyMs: 30 }] }),
       }),
     );
 
-    await waitFor(() => expect(screen.getByText(url)).toBeTruthy());
-    expect(screen.queryByRole('button', { name: url })).toBeNull();
+    const name = await waitFor(() => within(cardFor('Network Status')).getByText('gstatic'));
+    expect(screen.queryByRole('button', { name: 'gstatic' })).toBeNull();
+    expect(screen.queryByText(url)).toBeNull();
+
+    // The full URL is still there on hover.
+    await user.hover(name);
+    expect((await screen.findAllByText(url)).length).toBeGreaterThan(0);
   });
 });
 

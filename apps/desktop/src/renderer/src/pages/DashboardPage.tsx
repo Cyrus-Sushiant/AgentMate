@@ -218,6 +218,31 @@ function isHttpProbeTarget(host: string): boolean {
   return /^https?:\/\//i.test(host);
 }
 
+// Second-level labels that sit under a country code, as in "example.co.uk".
+const COUNTRY_SECOND_LEVELS = new Set(['ac', 'co', 'com', 'edu', 'gov', 'net', 'org']);
+
+// A full probe URL is too long for the legend, so it's shortened to the site
+// name: "https://www.gstatic.com/generate_204" reads as "gstatic". Plain hosts
+// and IP addresses are already short and come back unchanged.
+function probeTargetLabel(host: string): string {
+  if (!isHttpProbeTarget(host)) return host;
+  let hostname: string;
+  try {
+    hostname = new URL(host).hostname;
+  } catch {
+    return host;
+  }
+  if (/^[\d.]+$/.test(hostname) || hostname.startsWith('[')) return hostname;
+  const labels = hostname.split('.').filter(Boolean);
+  if (labels.length < 2) return hostname;
+  const secondLast = labels[labels.length - 2];
+  const tld = labels[labels.length - 1];
+  if (tld.length === 2 && COUNTRY_SECOND_LEVELS.has(secondLast) && labels.length >= 3) {
+    return labels[labels.length - 3];
+  }
+  return secondLast;
+}
+
 // Only the handle itself is draggable. The card underneath just listens for
 // dragover/drop, so clicking buttons elsewhere in the card (e.g. the ping
 // settings shortcut) never gets mistaken for a drag gesture.
@@ -1175,7 +1200,9 @@ export default function DashboardPage(): React.JSX.Element {
                   }}
                 />
                 {isHttpProbeTarget(p.host) ? (
-                  <span className="font-medium">{p.host}</span>
+                  <SimpleTooltip label={p.host}>
+                    <span className="font-medium">{probeTargetLabel(p.host)}</span>
+                  </SimpleTooltip>
                 ) : (
                   <button
                     type="button"
@@ -1220,7 +1247,7 @@ export default function DashboardPage(): React.JSX.Element {
               formatTime={formatClockTime}
               series={pings.map((p, i) => ({
                 key: p.host,
-                label: p.host,
+                label: probeTargetLabel(p.host),
                 color: chartColors.categorical[i % chartColors.categorical.length],
                 values: statsHistory.map(
                   (s) => s.pings.find((x) => x.host === p.host)?.latencyMs ?? 0,
