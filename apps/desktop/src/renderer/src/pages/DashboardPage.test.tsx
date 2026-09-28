@@ -260,6 +260,19 @@ describe('DashboardPage system charts', () => {
       'Press Enter in the terminal to trace the route to 1.1.1.1.',
     );
   });
+
+  it('does not offer ping or traceroute for an HTTP probe target', async () => {
+    seedLayout(['pings']);
+    const url = 'https://www.gstatic.com/generate_204';
+    renderPage(
+      withStats({
+        'system.sample': async () => sample({ pings: [{ host: url, alive: true, latencyMs: 30 }] }),
+      }),
+    );
+
+    await waitFor(() => expect(screen.getByText(url)).toBeTruthy());
+    expect(screen.queryByRole('button', { name: url })).toBeNull();
+  });
 });
 
 describe('DashboardPage stat tiles', () => {

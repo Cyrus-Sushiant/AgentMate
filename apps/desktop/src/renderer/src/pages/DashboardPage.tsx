@@ -211,6 +211,13 @@ function StatSkeleton({ className }: { className?: string }): React.JSX.Element 
   return <Skeleton className={cn('h-8 w-20 self-center', className)} />;
 }
 
+// HTTP probes report the URL they fetched as the host (in "http" mode, and in
+// "auto" when it falls back). Ping and traceroute can't take a URL, so those
+// targets get no diagnose dialog.
+function isHttpProbeTarget(host: string): boolean {
+  return /^https?:\/\//i.test(host);
+}
+
 // Only the handle itself is draggable. The card underneath just listens for
 // dragover/drop, so clicking buttons elsewhere in the card (e.g. the ping
 // settings shortcut) never gets mistaken for a drag gesture.
@@ -1167,13 +1174,17 @@ export default function DashboardPage(): React.JSX.Element {
                     backgroundColor: chartColors.categorical[i % chartColors.categorical.length],
                   }}
                 />
-                <button
-                  type="button"
-                  className="font-medium underline-offset-2 hover:underline"
-                  onClick={() => setDiagnoseHost(p.host)}
-                >
-                  {p.host}
-                </button>
+                {isHttpProbeTarget(p.host) ? (
+                  <span className="font-medium">{p.host}</span>
+                ) : (
+                  <button
+                    type="button"
+                    className="font-medium underline-offset-2 hover:underline"
+                    onClick={() => setDiagnoseHost(p.host)}
+                  >
+                    {p.host}
+                  </button>
+                )}
                 <span className="text-xs text-muted-foreground">
                   {p.latencyMs != null ? formatMs(p.latencyMs) : 'N/A'}
                 </span>
