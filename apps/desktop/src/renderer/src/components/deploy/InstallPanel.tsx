@@ -36,7 +36,9 @@ export function InstallPanel({
   const preflightQuery = useQuery({
     queryKey: queryKeys.deployPreflight(server.id),
     queryFn: () => withHostKeyTrust(server.id, () => window.agentmat.deploy.preflight(server.id)),
-    enabled: !installRun,
+    // Not while an install runs, but after one failed: "Try again" needs what the check found,
+    // even when the page was left and opened again since.
+    enabled: installRun?.status !== 'running',
     staleTime: 60_000,
   });
   const preflight = preflightQuery.data;
@@ -88,7 +90,11 @@ export function InstallPanel({
             <SetupFailure message={installRun.error ?? 'The install stopped.'} />
             {passwordField}
             <div className="flex flex-wrap items-center gap-2">
-              <Button size="sm" onClick={start} disabled={needsPassword && !password}>
+              <Button
+                size="sm"
+                onClick={start}
+                disabled={!preflight || (needsPassword && !password)}
+              >
                 <RefreshCw className="h-3.5 w-3.5" /> Try again
               </Button>
               <Button size="sm" variant="outline" onClick={backToChecks}>

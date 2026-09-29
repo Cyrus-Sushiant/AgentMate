@@ -276,6 +276,32 @@ describe('DeployPage install', () => {
     expect(screen.getByRole('button', { name: /Check the server again/ })).toBeTruthy();
   });
 
+  it('can try a failed install again after the page was left and opened again', async () => {
+    useDeploySetupStore.setState({
+      runs: {
+        'srv-1': {
+          kind: 'install',
+          planned: ['preflight', 'download'],
+          events: [{ phase: 'download', title: 'Get', status: 'failed', detail: 'offline' }],
+          status: 'failed',
+          error: 'The server core download kept failing.',
+          errorCode: null,
+          result: null,
+        },
+      },
+    });
+    const { user, bridge } = renderPage({ 'deploy.install': () => new Promise(() => undefined) });
+
+    const retry = await screen.findByRole('button', { name: /Try again/ });
+    await waitFor(() => expect((retry as HTMLButtonElement).disabled).toBe(false));
+    await user.click(retry);
+
+    expect(bridge.$fn('deploy.install')).toHaveBeenCalledWith({
+      serverId: 'srv-1',
+      sudoPassword: null,
+    });
+  });
+
   it('will not start an install the check says cannot work', async () => {
     renderPage({
       'deploy.preflight': async () => ({
