@@ -26,6 +26,10 @@ const forcedExternals = [
   // as a prebuilt string it evaluates), so it is left in node_modules rather than bundled.
   'postman-runtime',
   'postman-collection',
+  // The SignalR client picks its Node helpers at runtime (`require('eventsource')`,
+  // `require('tough-cookie')`), which only resolve from its own folder in pnpm's store, not
+  // from out/main. Bundled, the first hub call fails with "Cannot find module 'eventsource'".
+  '@microsoft/signalr',
   /^node:/,
 ];
 

@@ -1,13 +1,17 @@
 import { type ChildProcess, execFileSync, spawn } from 'node:child_process';
+import { existsSync, mkdtempSync, rmSync } from 'node:fs';
 import { request } from 'node:http';
 import { createServer } from 'node:net';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { APP_ROOT } from './paths';
 
 /**
  * The server core's DevHost for e2e runs: the real core on loopback TCP, so the Deploy page can
  * be driven end to end on machines without Linux or systemd. Built once per run with the SDK the
- * repo pins, then started straight from its DLL so stopping it leaves nothing behind.
+ * repo pins, then started straight from its DLL, with a data folder of its own that is deleted
+ * again on stop: what a run changes (two-factor on, say) never reaches the next run, or the
+ * DevHost a developer uses by hand.
  */
 
 const PROJECT = join(APP_ROOT, '..', 'server-core', 'src', 'AgentMate.ServerCore.DevHost');
@@ -62,17 +66,29 @@ function healthy(port: number): Promise<boolean> {
 export async function startDevHost(): Promise<DevHost> {
   execFileSync('dotnet', ['build', PROJECT, '--nologo', '-v', 'quiet'], { stdio: 'inherit' });
   const port = await freePort();
-  const child: ChildProcess = spawn('dotnet', [DLL], {
+  const data = mkdtempSync(join(tmpdir(), 'agentmate-e2e-devhost-'));
+  // Later arguments win, so this replaces the DevHost's own data folder.
+  const child: ChildProcess = spawn('dotnet', [DLL, `--Core:DataDirectory=${data}`], {
     env: { ...process.env, AGENTMATE_DEV_CORE_PORT: String(port) },
     stdio: 'ignore',
   });
   const stop = () => {
     if (child.exitCode === null) child.kill();
+    try {
+      // Windows can hold the database a moment after the process ends.
+      rmSync(data, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
+    } catch {
+      // A temp folder left behind is harmless.
+    }
   };
   const deadline = Date.now() + READY_TIMEOUT_MS;
   while (Date.now() < deadline) {
     if (child.exitCode !== null) throw new Error(`The DevHost exited with code ${child.exitCode}.`);
-    if (await healthy(port)) return { port, stop };
+    if (await healthy(port)) {
+      if (existsSync(join(data, 'core.db'))) return { port, stop };
+      stop();
+      throw new Error(`The DevHost did not keep its data in ${data}.`);
+    }
     await new Promise((resolve) => setTimeout(resolve, 250));
   }
   stop();

@@ -20,6 +20,10 @@ export interface ScriptedMachine {
   selinux: 'Enforcing' | null;
   /** Root commands (matched by substring) that should fail, with what they print. */
   failures: Array<{ match: string; stderr: string; exitCode?: number }>;
+  /** The users `agentmate-core admin status` reports. */
+  coreUsers: Array<{ userName: string; roles: string[] }>;
+  /** When set, `admin create-owner` refuses the password with this reason. */
+  ownerPasswordRefusal: string | null;
 }
 
 export const UBUNTU_24 =
@@ -36,6 +40,8 @@ export function scriptedMachine(overrides: Partial<ScriptedMachine> = {}): Scrip
     installed: null,
     selinux: null,
     failures: [],
+    coreUsers: [],
+    ownerPasswordRefusal: null,
     ...overrides,
   };
 }
@@ -57,6 +63,11 @@ export class ScriptedConnection {
   readonly uploads: Array<{ path: string; bytes: number; mode?: number }> = [];
   readonly tunnels: string[] = [];
   readonly execStreams: string[] = [];
+  /** Every exec as it reached the server: the command line and everything written to stdin. */
+  readonly execs: Array<{ command: string; stdin: string }> = [];
+  /** What each root command itself read on stdin, after sudo took its password line. */
+  readonly rootStdin: Array<{ command: string; stdin: string }> = [];
+  readonly enrolledKeys: string[] = [];
 
   constructor(readonly machine: ScriptedMachine) {
     this.endpoint = {
@@ -71,6 +82,7 @@ export class ScriptedConnection {
   async exec(command: string, options: ExecOptions = {}): Promise<ExecResult> {
     this.commands.push(command);
     const stdin = options.stdin === undefined ? '' : String(options.stdin);
+    this.execs.push({ command, stdin });
     const m = this.machine;
 
     if (command === 'cat /etc/os-release') return done(m.osRelease);
@@ -106,9 +118,28 @@ export class ScriptedConnection {
     const root = unwrapped;
 
     this.rootCommands.push(root);
+    // sudo -S reads the first line itself; the command gets the rest.
+    const payload =
+      sudoWrapped && command.startsWith('sudo -S') ? stdin.slice(stdin.indexOf('\n') + 1) : stdin;
+    this.rootStdin.push({ command: root, stdin: payload });
     const failure = m.failures.find((candidate) => root.includes(candidate.match));
     if (failure) return done('', failure.exitCode ?? 1, failure.stderr);
     if (root.startsWith('journalctl')) return done('agentmate-core: Unhandled exception. Boom.\n');
+    if (root.endsWith(' admin status')) {
+      const initialized = m.coreUsers.some((user) => user.roles.includes('owner'));
+      const users = m.coreUsers.map((user) => ({ ...user, devices: 0 }));
+      return done(`${JSON.stringify({ initialized, users })}\n`);
+    }
+    const owner = /admin create-owner --username (\S+) --password-stdin$/.exec(root);
+    if (owner) {
+      if (m.ownerPasswordRefusal) return done('', 1, `${m.ownerPasswordRefusal}\n`);
+      m.coreUsers.push({ userName: unquote(owner[1]), roles: ['owner'] });
+      return done('{"userId":"11111111-2222-4333-8444-555555555555"}\n');
+    }
+    if (/ admin enroll-device --user /.test(root)) {
+      this.enrolledKeys.push(payload.trim());
+      return done(`{"deviceId":"device-${this.enrolledKeys.length}"}\n`);
+    }
     return done();
   }
 

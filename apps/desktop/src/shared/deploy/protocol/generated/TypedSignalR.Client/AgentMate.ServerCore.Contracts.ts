@@ -3,7 +3,7 @@
 /* tslint:disable */
 // @ts-nocheck
 import type { IStreamResult, Subject } from '@microsoft/signalr';
-import type { PingResponse } from '../AgentMate.ServerCore.Contracts';
+import type { PingResponse, AccountInfo, StepUpRequest, StepUpResponse, DeviceInfo, SessionInfo, TotpSetup, RecoveryCodes, CreateEnrollmentCodeRequest, EnrollmentCodeInfo, AuditQuery, AuditPage, AuditVerificationInfo } from '../AgentMate.ServerCore.Contracts';
 
 /**
 * Everything the app can ask the core over the WebSocket. The desktop's typed client is
@@ -14,6 +14,74 @@ export type ICoreHub = {
     * @returns Transpiled from System.Threading.Tasks.Task<AgentMate.ServerCore.Contracts.PingResponse>
     */
     ping(): Promise<PingResponse>;
+    /**
+    * @returns Transpiled from System.Threading.Tasks.Task<AgentMate.ServerCore.Contracts.AccountInfo>
+    */
+    getAccount(): Promise<AccountInfo>;
+    /**
+    * Ends this session; the connection closes.
+    * @returns Transpiled from System.Threading.Tasks.Task
+    */
+    signOut(): Promise<void>;
+    /**
+    * @param request Transpiled from AgentMate.ServerCore.Contracts.StepUpRequest
+    * @returns Transpiled from System.Threading.Tasks.Task<AgentMate.ServerCore.Contracts.StepUpResponse>
+    */
+    stepUp(request: StepUpRequest): Promise<StepUpResponse>;
+    /**
+    * The caller's devices (an Admin sees everyone's).
+    * @returns Transpiled from System.Threading.Tasks.Task<AgentMate.ServerCore.Contracts.DeviceInfo[]>
+    */
+    listDevices(): Promise<DeviceInfo[]>;
+    /**
+    * One's own device, or anyone's for an Admin. Its sessions end with it.
+    * @param deviceId Transpiled from System.Guid
+    * @returns Transpiled from System.Threading.Tasks.Task
+    */
+    revokeDevice(deviceId: string): Promise<void>;
+    /**
+    * @returns Transpiled from System.Threading.Tasks.Task<AgentMate.ServerCore.Contracts.SessionInfo[]>
+    */
+    listSessions(): Promise<SessionInfo[]>;
+    /**
+    * @param sessionId Transpiled from System.Guid
+    * @returns Transpiled from System.Threading.Tasks.Task
+    */
+    revokeSession(sessionId: string): Promise<void>;
+    /**
+    * Needs a step-up. Two-factor is not on until the first code is confirmed.
+    * @returns Transpiled from System.Threading.Tasks.Task<AgentMate.ServerCore.Contracts.TotpSetup>
+    */
+    beginTotpSetup(): Promise<TotpSetup>;
+    /**
+    * @param code Transpiled from string
+    * @returns Transpiled from System.Threading.Tasks.Task<AgentMate.ServerCore.Contracts.RecoveryCodes>
+    */
+    confirmTotp(code: string): Promise<RecoveryCodes>;
+    /**
+    * @param code Transpiled from string
+    * @returns Transpiled from System.Threading.Tasks.Task
+    */
+    disableTotp(code: string): Promise<void>;
+    /**
+    * @returns Transpiled from System.Threading.Tasks.Task<AgentMate.ServerCore.Contracts.RecoveryCodes>
+    */
+    newRecoveryCodes(): Promise<RecoveryCodes>;
+    /**
+    * A single-use code so another device can enroll. Needs a step-up.
+    * @param request Transpiled from AgentMate.ServerCore.Contracts.CreateEnrollmentCodeRequest
+    * @returns Transpiled from System.Threading.Tasks.Task<AgentMate.ServerCore.Contracts.EnrollmentCodeInfo>
+    */
+    createEnrollmentCode(request: CreateEnrollmentCodeRequest): Promise<EnrollmentCodeInfo>;
+    /**
+    * @param query Transpiled from AgentMate.ServerCore.Contracts.AuditQuery
+    * @returns Transpiled from System.Threading.Tasks.Task<AgentMate.ServerCore.Contracts.AuditPage>
+    */
+    queryAudit(query: AuditQuery): Promise<AuditPage>;
+    /**
+    * @returns Transpiled from System.Threading.Tasks.Task<AgentMate.ServerCore.Contracts.AuditVerificationInfo>
+    */
+    verifyAudit(): Promise<AuditVerificationInfo>;
 }
 
 /**

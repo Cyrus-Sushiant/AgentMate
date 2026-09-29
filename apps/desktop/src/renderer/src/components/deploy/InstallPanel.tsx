@@ -9,6 +9,14 @@ import { installPhases, timeline } from '@/lib/deploy/setup';
 import { queryKeys } from '@/lib/queryKeys';
 import { withHostKeyTrust } from '@/lib/ssh/hostKeyTrust';
 import { useDeploySetupStore } from '@/stores/deploySetupStore';
+import {
+  type AccountDraft,
+  AccountFields,
+  type AccountMode,
+  accountProblem,
+  EMPTY_ACCOUNT,
+  toAccount,
+} from './AccountFields';
 import { PreflightChecklist, PreflightSkeleton } from './PreflightChecklist';
 import { SetupFailure } from './SetupFailure';
 import { SetupTimeline } from './SetupTimeline';
@@ -31,6 +39,7 @@ export function InstallPanel({
   const clear = useDeploySetupStore((state) => state.clear);
   const [password, setPassword] = useState('');
   const [askPassword, setAskPassword] = useState(false);
+  const [account, setAccount] = useState<AccountDraft>(EMPTY_ACCOUNT);
   const installRun = run?.kind === 'install' ? run : undefined;
 
   const preflightQuery = useQuery({
@@ -50,16 +59,45 @@ export function InstallPanel({
   const needsPassword =
     preflight?.sudo === 'password' && (!preflight.hasSavedPassword || askPassword || sudoError);
   const updating = server.core !== null || preflight?.installed != null;
+  // A new core needs its owner; an existing one this computer is not on can be joined now or later.
+  const accountMode: AccountMode | null = !preflight
+    ? null
+    : !preflight.installed
+      ? 'create'
+      : server.enrolled
+        ? null
+        : 'existing';
+  const accountTouched = account.userName !== '' || account.password !== '';
+  const accountIssue =
+    accountMode === 'create' || (accountMode === 'existing' && accountTouched)
+      ? accountProblem(account, accountMode)
+      : null;
+  const sendAccount = accountMode !== null && accountTouched && accountIssue === null;
 
   function start(): void {
-    if (!preflight) return;
-    void install(server.id, installPhases(preflight), needsPassword ? password : null);
+    if (!preflight || accountIssue) return;
+    void install(
+      server.id,
+      installPhases(preflight, sendAccount),
+      needsPassword ? password : null,
+      sendAccount ? toAccount(account) : undefined,
+    );
   }
 
   function backToChecks(): void {
     clear(server.id);
     void preflightQuery.refetch();
   }
+
+  const accountFields = accountMode && (
+    <AccountFields
+      mode={accountMode}
+      optional={accountMode === 'existing'}
+      draft={account}
+      onChange={setAccount}
+      idPrefix={`account-${server.id}`}
+    />
+  );
 
   const passwordField = needsPassword && preflight && (
     <SudoPasswordField
@@ -88,12 +126,13 @@ export function InstallPanel({
         {installRun.status === 'failed' && (
           <>
             <SetupFailure message={installRun.error ?? 'The install stopped.'} />
+            {accountIssue !== null && accountFields}
             {passwordField}
             <div className="flex flex-wrap items-center gap-2">
               <Button
                 size="sm"
                 onClick={start}
-                disabled={!preflight || (needsPassword && !password)}
+                disabled={!preflight || (needsPassword && !password) || accountIssue !== null}
               >
                 <RefreshCw className="h-3.5 w-3.5" /> Try again
               </Button>
@@ -144,6 +183,7 @@ export function InstallPanel({
             </ul>
           </div>
         )}
+        {!blocked && accountFields}
         {!blocked && passwordField}
         {!blocked && !needsPassword && preflight.sudo === 'password' && (
           <p className="text-xs text-muted-foreground">
@@ -158,9 +198,17 @@ export function InstallPanel({
           </p>
         )}
         <div className="flex flex-wrap items-center gap-2">
-          <Button onClick={start} disabled={blocked || (needsPassword && !password)}>
+          <Button
+            onClick={start}
+            disabled={blocked || (needsPassword && !password) || accountIssue !== null}
+          >
             <Rocket className="h-4 w-4" /> {label}
           </Button>
+          {!blocked && accountIssue && accountTouched && (
+            <p className="text-xs text-muted-foreground" role="status">
+              {accountIssue}
+            </p>
+          )}
           <Button
             variant="ghost"
             size="sm"

@@ -141,6 +141,8 @@ export default defineConfig({
         // What runs as root on a user's server, and how the app reaches the core it installed.
         'src/main/deploy/bootstrap/**': { lines: 95, branches: 80 },
         'src/main/deploy/connection/**': { lines: 90, branches: 80 },
+        // This computer's key on a core and the sessions it signs for.
+        'src/main/deploy/auth/**': { lines: 95, branches: 85 },
         'src/main/deploy/service.ts': { lines: 95, branches: 80 },
         'src/main/deploy/state.ts': { lines: 90, branches: 85 },
         'src/main/ipc/deploy.ts': { lines: 95, branches: 90 },

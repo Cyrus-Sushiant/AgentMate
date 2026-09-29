@@ -27,6 +27,8 @@ export interface DeployServer {
   port: number;
   username: string;
   core: DeployCoreRecord | null;
+  /** Whether this computer has a device on the core (not whether it is signed in right now). */
+  enrolled: boolean;
   /** Only the DevHost, a development stand-in for a server; it cannot be installed or removed. */
   dev?: boolean;
 }
@@ -70,6 +72,9 @@ export type DeploySetupPhase =
   | 'cleanup'
   | 'rollback'
   | 'health'
+  | 'owner'
+  | 'enroll'
+  | 'sign-in'
   | 'stop'
   | 'remove';
 
@@ -94,15 +99,73 @@ export interface DeployInstallResult {
   transport: 'streamlocal' | 'bridge';
   /** The version this install replaced, if any. */
   previousVersion: string | null;
+  /** The core runs, but this computer's access could not be set up; it can be retried. */
+  enrollmentError?: string;
+}
+
+/** A user on a core: the owner to create on a new one, or who to sign in as. */
+export interface DeployAccountInput {
+  userName: string;
+  password: string;
 }
 
 export interface DeployInstallInput {
   serverId: string;
   /** Null tries the saved login password, when sudo asks for one. */
   sudoPassword: string | null;
+  /** Sets up this computer's access right after the install; left out, it is done later. */
+  account?: DeployAccountInput;
 }
 
-export interface DeployUninstallInput extends DeployInstallInput {
+/** Enrolls this computer over SSH (again, after a revocation): its own device key for a user. */
+export interface DeployEnrollInput {
+  serverId: string;
+  sudoPassword: string | null;
+  account: DeployAccountInput;
+}
+
+export interface DeploySignInInput {
+  serverId: string;
+  password: string;
+  totpCode?: string;
+  recoveryCode?: string;
+}
+
+export interface DeployStepUpInput {
+  serverId: string;
+  password?: string;
+  totpCode?: string;
+}
+
+/**
+ * Whether this computer can act on a server's core: signed in; enrolled but with no live session;
+ * refused by the core as a device (revoked or unknown, so enroll again); never enrolled here; or
+ * not reachable right now.
+ */
+export type DeployAccessState =
+  | 'signed-in'
+  | 'needs-sign-in'
+  | 'needs-re-enroll'
+  | 'not-enrolled'
+  | 'unreachable';
+
+export interface DeployAccess {
+  state: DeployAccessState;
+  user?: { userName: string; roles: string[]; twoFactorEnabled: boolean };
+  /** For 'unreachable' and a locked account: what went wrong. */
+  message?: string;
+}
+
+/** A new authenticator key, as text and as a QR code image (a data URL). */
+export interface DeployTotpSetup {
+  sharedKey: string;
+  authenticatorUri: string;
+  qrDataUrl: string;
+}
+
+export interface DeployUninstallInput {
+  serverId: string;
+  sudoPassword: string | null;
   keepData: boolean;
 }
 

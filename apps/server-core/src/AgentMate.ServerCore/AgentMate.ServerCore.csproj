@@ -29,9 +29,16 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" />
     <PackageReference Include="Microsoft.Extensions.Hosting.Systemd" />
     <PackageReference Include="Tapper.Attributes" />
     <PackageReference Include="TypedSignalR.Client.TypeScript.Attributes" />
+  </ItemGroup>
+
+  <!-- Passwords long enough to pass the length rule but too common to allow (see its README). -->
+  <ItemGroup>
+    <EmbeddedResource Include="Security\CommonPasswords\common-passwords.txt" LogicalName="AgentMate.ServerCore.CommonPasswords" />
   </ItemGroup>
 
   <ItemGroup>

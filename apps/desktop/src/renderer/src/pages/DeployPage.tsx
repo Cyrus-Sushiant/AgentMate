@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
+import { CoreAccessCard } from '@/components/deploy/CoreAccessCard';
 import { CoreHealthCard } from '@/components/deploy/CoreHealthCard';
 import { InstallPanel } from '@/components/deploy/InstallPanel';
 import { RemovalPanel } from '@/components/deploy/RemovalPanel';
@@ -79,9 +80,15 @@ function useFinishedRuns(onFinished: (serverId: string) => void): void {
             ? `Server core ${run.result.version} is running on ${name}.`
             : `The server core is running on ${name}.`,
       );
+      if (run.result?.enrollmentError) {
+        toast.warning(
+          `Your access to ${name} is not set up yet: ${run.result.enrollmentError} Set it up from the server card.`,
+        );
+      }
       void Promise.all([
         queryClient.invalidateQueries({ queryKey: queryKeys.deployServers }),
         queryClient.invalidateQueries({ queryKey: queryKeys.deployHealth(serverId) }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.deployAccess(serverId) }),
       ]).finally(() => {
         handling.current.delete(serverId);
         clear(serverId);
@@ -172,12 +179,15 @@ export default function DeployPage(): React.JSX.Element {
     );
   } else {
     content = (
-      <CoreHealthCard
-        server={selected}
-        core={selected.core}
-        onReinstall={selected.dev ? undefined : () => setUpdating(selected.id)}
-        onRemove={selected.dev ? undefined : (keepData) => void remove(selected, keepData)}
-      />
+      <>
+        <CoreHealthCard
+          server={selected}
+          core={selected.core}
+          onReinstall={selected.dev ? undefined : () => setUpdating(selected.id)}
+          onRemove={selected.dev ? undefined : (keepData) => void remove(selected, keepData)}
+        />
+        <CoreAccessCard server={selected} />
+      </>
     );
   }
 

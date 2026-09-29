@@ -1,4 +1,5 @@
 import type {
+  DeployAccess,
   DeployCoreRecord,
   DeployHealth,
   DeployPreflight,
@@ -48,6 +49,7 @@ function server(overrides: Partial<DeployServer> = {}): DeployServer {
     port: 22,
     username: 'deployer',
     core: null,
+    enrolled: false,
     ...overrides,
   };
 }
@@ -76,6 +78,15 @@ const HEALTH: DeployHealth = {
   checkedAt: Date.now(),
 };
 
+/** The owner a first install creates, typed into the account fields. */
+const OWNER = { userName: 'maria', password: 'correct horse battery staple' };
+
+async function fillOwner(user: ReturnType<typeof renderPage>['user']): Promise<void> {
+  await user.type(await screen.findByLabelText('User name'), OWNER.userName);
+  await user.type(screen.getByLabelText('Password'), OWNER.password);
+  await user.type(screen.getByLabelText('Confirm the password'), OWNER.password);
+}
+
 function deferred<T>() {
   let resolve!: (value: T) => void;
   let reject!: (error: unknown) => void;
@@ -98,6 +109,7 @@ function renderPage(bridge: Record<string, unknown> = {}, route = '/deploy') {
         'deploy.listServers': async () => [server()],
         'deploy.preflight': async () => PREFLIGHT,
         'deploy.health': async () => HEALTH,
+        'deploy.access': async (): Promise<DeployAccess> => ({ state: 'not-enrolled' }),
         'ssh.vaultStatus': async () => ({ hasPasskey: false, unlocked: false }),
         ...bridge,
       },
@@ -108,6 +120,7 @@ function renderPage(bridge: Record<string, unknown> = {}, route = '/deploy') {
 beforeEach(() => {
   useDeploySetupStore.setState({ runs: {} });
   toast.success.mockClear();
+  toast.warning.mockClear();
 });
 
 describe('DeployPage states', () => {
@@ -199,11 +212,15 @@ describe('DeployPage install', () => {
     const call = deferred<unknown>();
     const { user, bridge } = renderPage({ 'deploy.install': () => call.promise });
 
-    await user.click(await screen.findByRole('button', { name: /Install core 1\.53\.0/ }));
+    const install = await screen.findByRole('button', { name: /Install core 1\.53\.0/ });
+    expect((install as HTMLButtonElement).disabled).toBe(true);
+    await fillOwner(user);
+    await user.click(install);
 
     expect(bridge.$fn('deploy.install')).toHaveBeenCalledWith({
       serverId: 'srv-1',
       sudoPassword: null,
+      account: OWNER,
     });
     const emit = (progress: DeploySetupProgressEvent['progress']) =>
       bridge.$emit('deploy.onSetupProgress', { serverId: 'srv-1', progress });
@@ -232,6 +249,7 @@ describe('DeployPage install', () => {
     });
 
     const install = await screen.findByRole('button', { name: /Install core/ });
+    await fillOwner(user);
     expect((install as HTMLButtonElement).disabled).toBe(true);
     await user.type(screen.getByLabelText('Sudo password for deployer'), 's3cret');
     await user.click(install);
@@ -239,6 +257,7 @@ describe('DeployPage install', () => {
     expect(bridge.$fn('deploy.install')).toHaveBeenCalledWith({
       serverId: 'srv-1',
       sudoPassword: 's3cret',
+      account: OWNER,
     });
   });
 
@@ -251,6 +270,7 @@ describe('DeployPage install', () => {
       },
     });
 
+    await fillOwner(user);
     await user.click(await screen.findByRole('button', { name: /Install core/ }));
 
     expect(await screen.findByText('The server did not accept that password.')).toBeTruthy();
@@ -267,6 +287,7 @@ describe('DeployPage install', () => {
       },
     });
 
+    await fillOwner(user);
     await user.click(await screen.findByRole('button', { name: /Install core/ }));
 
     expect(
@@ -292,14 +313,55 @@ describe('DeployPage install', () => {
     });
     const { user, bridge } = renderPage({ 'deploy.install': () => new Promise(() => undefined) });
 
+    // The account typed before went away with the page, so it is asked for again.
     const retry = await screen.findByRole('button', { name: /Try again/ });
+    await fillOwner(user);
     await waitFor(() => expect((retry as HTMLButtonElement).disabled).toBe(false));
     await user.click(retry);
 
     expect(bridge.$fn('deploy.install')).toHaveBeenCalledWith({
       serverId: 'srv-1',
       sudoPassword: null,
+      account: OWNER,
     });
+  });
+
+  it('keeps Install off until the owner account follows the rules, and says which one', async () => {
+    const { user } = renderPage();
+
+    const install = await screen.findByRole('button', { name: /Install core 1\.53\.0/ });
+    await user.type(screen.getByLabelText('User name'), 'maria');
+    await user.type(screen.getByLabelText('Password'), 'short');
+
+    expect(await screen.findByText('The password needs at least 12 characters.')).toBeTruthy();
+    expect((install as HTMLButtonElement).disabled).toBe(true);
+
+    await user.type(screen.getByLabelText('Password'), ' but longer now');
+    await user.type(screen.getByLabelText('Confirm the password'), 'something else entirely');
+    expect(await screen.findByText('The two passwords differ.')).toBeTruthy();
+    expect((install as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it('warns, without failing the install, when access could not be set up', async () => {
+    const { user } = renderPage({
+      'deploy.install': async () => ({
+        version: '1.53.0',
+        release: CORE.release,
+        transport: 'streamlocal',
+        previousVersion: null,
+        enrollmentError: 'The core refused the password: it is too common.',
+      }),
+    });
+
+    await fillOwner(user);
+    await user.click(await screen.findByRole('button', { name: /Install core 1\.53\.0/ }));
+
+    await waitFor(() =>
+      expect(toast.warning).toHaveBeenCalledWith(
+        'Your access to Production is not set up yet: The core refused the password: it is too common. Set it up from the server card.',
+      ),
+    );
+    expect(toast.success).toHaveBeenCalledWith('Server core 1.53.0 is running on Production.');
   });
 
   it('will not start an install the check says cannot work', async () => {
@@ -340,6 +402,7 @@ describe('DeployPage checks and updates', () => {
   it('takes a different sudo password even when one is saved', async () => {
     const { user, bridge } = renderPage({ 'deploy.install': () => new Promise(() => undefined) });
 
+    await fillOwner(user);
     await user.click(await screen.findByRole('button', { name: 'Use a different password' }));
     await user.type(screen.getByLabelText('Sudo password for deployer'), 'other-pw');
     await user.keyboard('{Enter}');
@@ -347,6 +410,7 @@ describe('DeployPage checks and updates', () => {
     expect(bridge.$fn('deploy.install')).toHaveBeenCalledWith({
       serverId: 'srv-1',
       sudoPassword: 'other-pw',
+      account: OWNER,
     });
   });
 
@@ -363,6 +427,65 @@ describe('DeployPage checks and updates', () => {
     expect(screen.getByText('Update or reinstall the server core')).toBeTruthy();
     await user.click(screen.getByRole('button', { name: 'Cancel' }));
     expect(await screen.findByText('Server core')).toBeTruthy();
+  });
+
+  it('lets an update join a core this computer is not on, or leave that for later', async () => {
+    const { user, bridge } = renderPage({
+      'deploy.listServers': async () => [server({ core: { ...CORE, version: '1.52.0' } })],
+      'deploy.preflight': async () => ({ ...PREFLIGHT, installed: { version: '1.52.0' } }),
+      'deploy.install': () => new Promise(() => undefined),
+    });
+
+    await user.click(await screen.findByRole('button', { name: 'More actions' }));
+    await user.click(await screen.findByRole('menuitem', { name: /Update or reinstall/ }));
+    const update = await screen.findByRole('button', { name: /Update to core 1\.53\.0/ });
+    expect(screen.getByText('Your account on this core')).toBeTruthy();
+    expect(screen.queryByLabelText('Confirm the password')).toBeNull();
+    expect((update as HTMLButtonElement).disabled).toBe(false);
+
+    await user.click(update);
+
+    expect(bridge.$fn('deploy.install')).toHaveBeenCalledWith({
+      serverId: 'srv-1',
+      sudoPassword: null,
+    });
+  });
+
+  it('sends the account along when one is given during an update', async () => {
+    const { user, bridge } = renderPage({
+      'deploy.listServers': async () => [server({ core: { ...CORE, version: '1.52.0' } })],
+      'deploy.preflight': async () => ({ ...PREFLIGHT, installed: { version: '1.52.0' } }),
+      'deploy.install': () => new Promise(() => undefined),
+    });
+
+    await user.click(await screen.findByRole('button', { name: 'More actions' }));
+    await user.click(await screen.findByRole('menuitem', { name: /Update or reinstall/ }));
+    const update = await screen.findByRole('button', { name: /Update to core 1\.53\.0/ });
+    await user.type(screen.getByLabelText('User name'), OWNER.userName);
+    expect((update as HTMLButtonElement).disabled).toBe(true);
+    await user.type(screen.getByLabelText('Password'), OWNER.password);
+    await user.click(update);
+
+    expect(bridge.$fn('deploy.install')).toHaveBeenCalledWith({
+      serverId: 'srv-1',
+      sudoPassword: null,
+      account: OWNER,
+    });
+  });
+
+  it('asks for no account when this computer is already on the core', async () => {
+    const { user } = renderPage({
+      'deploy.listServers': async () => [
+        server({ core: { ...CORE, version: '1.52.0' }, enrolled: true }),
+      ],
+      'deploy.preflight': async () => ({ ...PREFLIGHT, installed: { version: '1.52.0' } }),
+    });
+
+    await user.click(await screen.findByRole('button', { name: 'More actions' }));
+    await user.click(await screen.findByRole('menuitem', { name: /Update or reinstall/ }));
+
+    expect(await screen.findByRole('button', { name: /Update to core 1\.53\.0/ })).toBeTruthy();
+    expect(screen.queryByLabelText('User name')).toBeNull();
   });
 
   it('asks the core again when "Check now" is pressed', async () => {

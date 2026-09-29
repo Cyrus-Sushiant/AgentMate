@@ -276,12 +276,22 @@ import type {
   WriteVersionHunksResult,
 } from '../shared/apiTypes';
 import type {
+  AccountInfo,
+  RecoveryCodes,
+  StepUpResponse,
+} from '../shared/deploy/protocol/generated/AgentMate.ServerCore.Contracts';
+import type {
+  DeployAccess,
+  DeployEnrollInput,
   DeployHealth,
   DeployInstallInput,
   DeployInstallResult,
   DeployPreflight,
   DeployServer,
   DeploySetupProgressEvent,
+  DeploySignInInput,
+  DeployStepUpInput,
+  DeployTotpSetup,
   DeployUninstallInput,
 } from '../shared/deployTypes';
 import type { GrammarCheckInput, GrammarCheckResult, GrammarLocalStatus } from '../shared/grammar';
@@ -1355,6 +1365,26 @@ const deploy = {
     ipcRenderer.invoke(IPC.deploy.uninstall, input),
   health: (serverId: string): Promise<DeployHealth> =>
     ipcRenderer.invoke(IPC.deploy.health, serverId),
+  /** Whether this computer can act on the core now: signed in, or what it needs first. */
+  access: (serverId: string): Promise<DeployAccess> =>
+    ipcRenderer.invoke(IPC.deploy.access, serverId),
+  /** Enrolls this computer over SSH, as a user the core has (again, after a revocation). */
+  enroll: (input: DeployEnrollInput): Promise<DeployAccess> =>
+    ipcRenderer.invoke(IPC.deploy.enroll, input),
+  signIn: (input: DeploySignInInput): Promise<DeployAccess> =>
+    ipcRenderer.invoke(IPC.deploy.signIn, input),
+  signOut: (serverId: string): Promise<void> => ipcRenderer.invoke(IPC.deploy.signOut, serverId),
+  account: (serverId: string): Promise<AccountInfo> =>
+    ipcRenderer.invoke(IPC.deploy.account, serverId),
+  /** Confirms the password (or a code) again, for ten minutes of sensitive changes. */
+  stepUp: (input: DeployStepUpInput): Promise<StepUpResponse> =>
+    ipcRenderer.invoke(IPC.deploy.stepUp, input),
+  beginTotp: (serverId: string): Promise<DeployTotpSetup> =>
+    ipcRenderer.invoke(IPC.deploy.beginTotp, serverId),
+  confirmTotp: (serverId: string, code: string): Promise<RecoveryCodes> =>
+    ipcRenderer.invoke(IPC.deploy.confirmTotp, serverId, code),
+  disableTotp: (serverId: string, code: string): Promise<void> =>
+    ipcRenderer.invoke(IPC.deploy.disableTotp, serverId, code),
   /** Each step of a running install or removal, as it starts, finishes or fails. */
   onSetupProgress: (cb: (event: DeploySetupProgressEvent) => void): (() => void) =>
     subscribe(IPC.deploy.onSetupProgress, cb),

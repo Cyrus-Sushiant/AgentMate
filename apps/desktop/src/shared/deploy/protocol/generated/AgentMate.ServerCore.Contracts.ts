@@ -2,6 +2,266 @@
 /* eslint-disable */
 /* tslint:disable */
 
+/** Transpiled from AgentMate.ServerCore.Contracts.AccountInfo */
+export type AccountInfo = {
+    /** Transpiled from System.Guid */
+    userId: string;
+    /** Transpiled from string */
+    userName: string;
+    /** Transpiled from string[] */
+    roles: string[];
+    /** Transpiled from bool */
+    twoFactorEnabled: boolean;
+    /** Transpiled from int */
+    recoveryCodesLeft: number;
+    /** Transpiled from System.Guid */
+    sessionId: string;
+    /** Transpiled from System.Guid */
+    deviceId: string;
+    /** Transpiled from long */
+    stepUpUntilUnixMs?: number;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.DeviceInfo */
+export type DeviceInfo = {
+    /** Transpiled from System.Guid */
+    id: string;
+    /** Transpiled from string */
+    userName: string;
+    /** Transpiled from string */
+    name: string;
+    /** Transpiled from long */
+    createdAtUnixMs: number;
+    /** Transpiled from long */
+    lastSeenAtUnixMs?: number;
+    /** Transpiled from bool */
+    revoked: boolean;
+    /** Transpiled from bool */
+    current: boolean;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.SessionInfo */
+export type SessionInfo = {
+    /** Transpiled from System.Guid */
+    id: string;
+    /** Transpiled from System.Guid */
+    deviceId: string;
+    /** Transpiled from string */
+    deviceName: string;
+    /** Transpiled from long */
+    createdAtUnixMs: number;
+    /** Transpiled from long */
+    lastRenewedAtUnixMs: number;
+    /** Transpiled from long */
+    expiresAtUnixMs: number;
+    /** Transpiled from bool */
+    current: boolean;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.StepUpRequest */
+export type StepUpRequest = {
+    /** Transpiled from string? */
+    password?: string;
+    /** Transpiled from string? */
+    totpCode?: string;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.StepUpResponse */
+export type StepUpResponse = {
+    /** Transpiled from long */
+    stepUpUntilUnixMs: number;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.TotpSetup */
+export type TotpSetup = {
+    /** Transpiled from string */
+    sharedKey: string;
+    /** Transpiled from string */
+    authenticatorUri: string;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.RecoveryCodes */
+export type RecoveryCodes = {
+    /** Transpiled from string[] */
+    codes: string[];
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.CreateEnrollmentCodeRequest */
+export type CreateEnrollmentCodeRequest = {
+    /** Transpiled from string? */
+    userName?: string;
+    /** Transpiled from int */
+    validMinutes?: number;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.EnrollmentCodeInfo */
+export type EnrollmentCodeInfo = {
+    /** Transpiled from string */
+    code: string;
+    /** Transpiled from string */
+    userName: string;
+    /** Transpiled from long */
+    expiresAtUnixMs: number;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.EnrollRequest */
+export type EnrollRequest = {
+    /** Transpiled from string */
+    code: string;
+    /** Transpiled from string */
+    userName: string;
+    /** Transpiled from string */
+    password: string;
+    /** Transpiled from string */
+    publicKey: string;
+    /** Transpiled from string */
+    deviceName: string;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.EnrollResponse */
+export type EnrollResponse = {
+    /** Transpiled from System.Guid */
+    deviceId: string;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.AuditQuery */
+export type AuditQuery = {
+    /** Transpiled from long */
+    beforeId?: number;
+    /** Transpiled from int */
+    limit?: number;
+    /** Transpiled from string? */
+    action?: string;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.AuditEventInfo */
+export type AuditEventInfo = {
+    /** Transpiled from long */
+    id: number;
+    /** Transpiled from long */
+    atUnixMs: number;
+    /** Transpiled from System.Guid */
+    actorUserId?: string;
+    /** Transpiled from System.Guid */
+    deviceId?: string;
+    /** Transpiled from int */
+    peerUid?: number;
+    /** Transpiled from string */
+    action: string;
+    /** Transpiled from string? */
+    target?: string;
+    /** Transpiled from string? */
+    parameters?: string;
+    /** Transpiled from string */
+    result: string;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.AuditPage */
+export type AuditPage = {
+    /** Transpiled from AgentMate.ServerCore.Contracts.AuditEventInfo[] */
+    events: AuditEventInfo[];
+    /** Transpiled from long */
+    nextBeforeId?: number;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.AuditVerificationInfo */
+export type AuditVerificationInfo = {
+    /** Transpiled from bool */
+    intact: boolean;
+    /** Transpiled from int */
+    checked: number;
+    /** Transpiled from long */
+    brokenAt?: number;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.AuthPurpose */
+export type AuthPurpose = "login" | "renew";
+
+/** Transpiled from AgentMate.ServerCore.Contracts.ChallengeRequest */
+export type ChallengeRequest = {
+    /** Transpiled from System.Guid */
+    deviceId: string;
+    /** Transpiled from AgentMate.ServerCore.Contracts.AuthPurpose */
+    purpose: AuthPurpose;
+    /** Transpiled from System.Guid */
+    sessionId?: string;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.ChallengeResponse */
+export type ChallengeResponse = {
+    /** Transpiled from System.Guid */
+    challengeId: string;
+    /** Transpiled from string */
+    nonce: string;
+    /** Transpiled from long */
+    expiresAtUnixMs: number;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.LoginRequest */
+export type LoginRequest = {
+    /** Transpiled from System.Guid */
+    challengeId: string;
+    /** Transpiled from System.Guid */
+    deviceId: string;
+    /** Transpiled from string */
+    signature: string;
+    /** Transpiled from string */
+    userName: string;
+    /** Transpiled from string */
+    password: string;
+    /** Transpiled from string? */
+    totpCode?: string;
+    /** Transpiled from string? */
+    recoveryCode?: string;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.RenewRequest */
+export type RenewRequest = {
+    /** Transpiled from System.Guid */
+    challengeId: string;
+    /** Transpiled from System.Guid */
+    sessionId: string;
+    /** Transpiled from string */
+    signature: string;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.SignedInUser */
+export type SignedInUser = {
+    /** Transpiled from System.Guid */
+    id: string;
+    /** Transpiled from string */
+    userName: string;
+    /** Transpiled from string[] */
+    roles: string[];
+    /** Transpiled from bool */
+    twoFactorEnabled: boolean;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.SignedInResponse */
+export type SignedInResponse = {
+    /** Transpiled from System.Guid */
+    sessionId: string;
+    /** Transpiled from string */
+    accessToken: string;
+    /** Transpiled from long */
+    accessTokenExpiresAtUnixMs: number;
+    /** Transpiled from AgentMate.ServerCore.Contracts.SignedInUser */
+    user: SignedInUser;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.AuthErrorCode */
+export type AuthErrorCode = "challengeInvalid" | "deviceUnknown" | "deviceRevoked" | "invalidCredentials" | "lockedOut" | "totpRequired" | "totpInvalid" | "sessionExpired" | "sessionRevoked" | "rateLimited" | "enrollmentCodeInvalid" | "keyInvalid";
+
+/** Transpiled from AgentMate.ServerCore.Contracts.AuthError */
+export type AuthError = {
+    /** Transpiled from AgentMate.ServerCore.Contracts.AuthErrorCode */
+    code: AuthErrorCode;
+    /** Transpiled from string */
+    message: string;
+    /** Transpiled from long */
+    lockedOutUntilUnixMs?: number;
+}
+
 /** Transpiled from AgentMate.ServerCore.Contracts.HealthResponse */
 export type HealthResponse = {
     /** Transpiled from string */

@@ -15,4 +15,12 @@
   <ItemGroup>
     <ProjectReference Include="..\AgentMate.ServerCore\AgentMate.ServerCore.csproj" />
   </ItemGroup>
+
+  <!-- The startup project for `dotnet ef`, so the design-time tooling stays out of the release. -->
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
 </Project>

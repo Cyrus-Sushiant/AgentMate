@@ -1,8 +1,17 @@
 using System.Net;
+using System.Net.Http.Json;
 using System.Net.Sockets;
 using System.Runtime.Versioning;
+using System.Security.Cryptography;
+using System.Text;
+using AgentMate.ServerCore.Contracts;
+using AgentMate.ServerCore.Data;
 using AgentMate.ServerCore.Hosting;
+using AgentMate.ServerCore.Security;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace AgentMate.ServerCore.Tests;
 
@@ -57,12 +66,71 @@ public sealed class UnixSocketListenerTests : IDisposable
         Assert.Contains("already", error.Message, StringComparison.Ordinal);
     }
 
-    public void Dispose()
+    [Fact]
+    public async Task The_audit_trail_records_the_unix_user_on_the_other_end()
     {
-        if (Directory.Exists(_directory))
+        Assert.SkipUnless(OperatingSystem.IsLinux(), "SO_PEERCRED is Linux only.");
+        await using var app = await StartAsync();
+        using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        Guid deviceId;
+        await using (var scope = app.Services.CreateAsyncScope())
         {
-            Directory.Delete(_directory, recursive: true);
+            var users = scope.ServiceProvider.GetRequiredService<UserManager<CoreUser>>();
+            var maria = new CoreUser { UserName = "maria" };
+            Assert.True((await users.CreateAsync(maria, "correct horse battery staple")).Succeeded);
+            var db = scope.ServiceProvider.GetRequiredService<CoreDbContext>();
+            var device = new Device { Id = Guid.NewGuid(), UserId = maria.Id, Name = "laptop", PublicKey = key.ExportSubjectPublicKeyInfo() };
+            db.Devices.Add(device);
+            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+            deviceId = device.Id;
         }
+
+        using var client = SocketClient();
+        var challengeResponse = await client.PostAsJsonAsync(
+            "/api/v1/auth/challenge",
+            new ChallengeRequest(deviceId, AuthPurpose.Login),
+            CoreJson.Options,
+            TestContext.Current.CancellationToken);
+        var challenge = (await challengeResponse.Content.ReadFromJsonAsync<ChallengeResponse>(CoreJson.Options, TestContext.Current.CancellationToken))!;
+        var message = AuthMessage.For(AuthPurpose.Login, challenge.ChallengeId, challenge.Nonce, deviceId, null);
+        var signature = Convert.ToBase64String(key.SignData(
+            Encoding.UTF8.GetBytes(message),
+            HashAlgorithmName.SHA256,
+            DSASignatureFormat.IeeeP1363FixedFieldConcatenation));
+        await client.PostAsJsonAsync(
+            "/api/v1/auth/login",
+            new LoginRequest(challenge.ChallengeId, deviceId, signature, "maria", "not the password at all"),
+            CoreJson.Options,
+            TestContext.Current.CancellationToken);
+
+        await using var check = app.Services.CreateAsyncScope();
+        var audited = await check.ServiceProvider.GetRequiredService<CoreDbContext>()
+            .AuditEvents.SingleAsync(TestContext.Current.CancellationToken);
+        Assert.Equal("auth.login", audited.Action);
+        Assert.Equal(CurrentUid(), audited.PeerUid);
+    }
+
+    public void Dispose() => TestFolders.Delete(_directory);
+
+    /// <summary>This process's uid, from /proc rather than a libc call.</summary>
+    private static int CurrentUid()
+    {
+        var line = File.ReadLines("/proc/self/status").First(l => l.StartsWith("Uid:", StringComparison.Ordinal));
+        return int.Parse(line.Split('\t', StringSplitOptions.RemoveEmptyEntries)[1], System.Globalization.CultureInfo.InvariantCulture);
+    }
+
+    private HttpClient SocketClient()
+    {
+        var handler = new SocketsHttpHandler
+        {
+            ConnectCallback = async (_, cancellationToken) =>
+            {
+                var socket = new Socket(AddressFamily.Unix, SocketType.Stream, ProtocolType.Unspecified);
+                await socket.ConnectAsync(new UnixDomainSocketEndPoint(SocketPath), cancellationToken);
+                return new NetworkStream(socket, ownsSocket: true);
+            },
+        };
+        return new HttpClient(handler, disposeHandler: true) { BaseAddress = new Uri("http://agentmate-core") };
     }
 
     private async Task<WebApplication> StartAsync()

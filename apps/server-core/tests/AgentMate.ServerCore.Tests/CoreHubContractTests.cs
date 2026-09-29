@@ -45,7 +45,10 @@ public sealed class CoreHubContractTests
 
         var extra = typeof(CoreHub)
             .GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly)
-            .Where(method => !method.IsSpecialName && !contract.Contains(method.Name))
+            // Overrides of the hub's own lifecycle methods (OnConnectedAsync...) are not callable.
+            .Where(method => !method.IsSpecialName
+                && method.GetBaseDefinition().DeclaringType == typeof(CoreHub)
+                && !contract.Contains(method.Name))
             .Select(method => method.Name)
             .ToList();
 

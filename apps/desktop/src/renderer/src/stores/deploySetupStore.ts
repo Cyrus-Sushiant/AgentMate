@@ -1,4 +1,5 @@
 import type {
+  DeployAccountInput,
   DeployInstallResult,
   DeploySetupPhase,
   DeploySetupProgress,
@@ -32,6 +33,7 @@ interface DeploySetupState {
     serverId: string,
     planned: DeploySetupPhase[],
     sudoPassword: string | null,
+    account?: DeployAccountInput,
   ) => Promise<DeployInstallResult | null>;
   /** Resolves true once the core is gone. */
   uninstall: (serverId: string, keepData: boolean, sudoPassword: string | null) => Promise<boolean>;
@@ -92,12 +94,17 @@ export const useDeploySetupStore = create<DeploySetupState>((set, get) => {
 
   return {
     runs: {},
-    install: async (serverId, planned, sudoPassword) => {
+    install: async (serverId, planned, sudoPassword, account) => {
       const outcome = await start(
         serverId,
         'install',
         planned,
-        () => window.agentmat.deploy.install({ serverId, sudoPassword }),
+        () =>
+          window.agentmat.deploy.install({
+            serverId,
+            sudoPassword,
+            ...(account ? { account } : {}),
+          }),
         {},
         (result) => ({ result }),
       );

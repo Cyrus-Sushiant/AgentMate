@@ -32,8 +32,9 @@ public sealed class EndpointAuthorizationCoverageTests(CoreFactory factory) : IC
         Assert.Empty(undecided);
     }
 
+    /// <summary>Health, and the sign-in steps that run before there is a token.</summary>
     [Fact]
-    public void Only_health_is_anonymous()
+    public void Only_health_and_sign_in_are_anonymous()
     {
         var anonymous = factory.Services
             .GetRequiredService<EndpointDataSource>()
@@ -43,6 +44,8 @@ public sealed class EndpointAuthorizationCoverageTests(CoreFactory factory) : IC
             .Select(endpoint => endpoint.RoutePattern.RawText)
             .ToList();
 
-        Assert.Equal(["/api/v1/health"], anonymous);
+        Assert.Equal(
+            ["/api/v1/auth/challenge", "/api/v1/auth/enroll", "/api/v1/auth/login", "/api/v1/auth/renew", "/api/v1/health"],
+            anonymous.Order(StringComparer.Ordinal));
     }
 }

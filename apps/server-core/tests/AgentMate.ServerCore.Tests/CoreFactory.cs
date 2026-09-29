@@ -22,9 +22,9 @@ public sealed class CoreFactory : WebApplicationFactory<Program>
     protected override void Dispose(bool disposing)
     {
         base.Dispose(disposing);
-        if (disposing && Directory.Exists(_dataDirectory))
+        if (disposing)
         {
-            Directory.Delete(_dataDirectory, recursive: true);
+            TestFolders.Delete(_dataDirectory);
         }
     }
 }

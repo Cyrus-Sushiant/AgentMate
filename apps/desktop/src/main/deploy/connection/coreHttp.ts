@@ -38,6 +38,18 @@ export interface CoreRequestOptions {
   timeoutMs?: number;
 }
 
+/** A refusal from the core, with its status and (when it sent JSON) the body. */
+export class CoreHttpError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+    readonly body: unknown,
+  ) {
+    super(message);
+    this.name = 'CoreHttpError';
+  }
+}
+
 export class CoreHttpClient {
   private readonly agent: Agent;
 
@@ -89,11 +101,23 @@ export class CoreHttpClient {
           });
           response.on('end', () => {
             const status = response.statusCode ?? 0;
+            const text = Buffer.concat(chunks).toString('utf8');
             if (status < 200 || status >= 300) {
-              reject(new Error(`The server core refused ${method} ${path} (${status}).`));
+              let body: unknown = null;
+              try {
+                body = text ? JSON.parse(text) : null;
+              } catch {
+                // Not JSON: the status alone says what happened.
+              }
+              reject(
+                new CoreHttpError(
+                  `The server core refused ${method} ${path} (${status}).`,
+                  status,
+                  body,
+                ),
+              );
               return;
             }
-            const text = Buffer.concat(chunks).toString('utf8');
             try {
               resolve((text ? JSON.parse(text) : undefined) as T);
             } catch {

@@ -1,6 +1,6 @@
 # Delivery Status
 
-Updated: 2026-09-29
+Updated: 2026-09-30
 Run branch: master (direct, per the user's instruction)
 Plan: docs/ROADMAP.md
 
@@ -29,8 +29,8 @@ Plan: docs/ROADMAP.md
 | E00 | Delivery docs | Complete | 4e412e3 | Written by hand |
 | E01 | Server core scaffold | Complete | 3353dba | Contracts via Tapper and TypedSignalR (TS 7 has no compiler API for openapi-typescript); API is WebSocket-first |
 | E02 | SSH foundation | Complete | dc698a8 | Host-key trust dialog shared by terminals and Deploy; sudo password validated alone before payloads |
-| E03 | Walking skeleton: install and see the server | Complete | see git log | Tunnel or bridge settled by trying after the install (OpenSSH hides the reason); exec exit-status race fixed; DevHost e2e on every OS |
-| E04 | Identity and device enrollment | Not started | | |
+| E03 | Walking skeleton: install and see the server | Complete | 88403fa, 42aabeb | Tunnel or bridge settled by trying after the install (OpenSSH hides the reason); exec exit-status race fixed; DevHost e2e on every OS |
+| E04 | Identity and device enrollment | Complete | see git log | Authenticator codes work once (RFC 6238 5.2); two-factor changes end the other sessions only; access tokens sealed with Data Protection rather than JWTs; enrollment-code screens come with E15 T1; SignalR kept out of the main bundle |
 | E05 | Realtime, jobs and server overview | Not started | | |
 | E06 | Docker engine and containers | Not started | | |
 | E07 | Compose stacks | Not started | | |
@@ -62,6 +62,14 @@ Status values: Not started, In progress, Blocked, Complete.
 - E03, arm64: the linux-arm64 build cross-compiles, but no arm64 test server runs an install.
 - E03 AC5: the DevHost and navigation specs pass locally on Windows; macOS and Linux evidence comes
   from this commit's `[e2e]` run.
+- E04: the DevHost sign-in and two-factor spec passes locally on Windows; macOS and Linux evidence
+  comes from the E04 commit's `[e2e]` run.
+- E04 T11: minting and redeeming enrollment codes is tested in the core only. No screen uses it
+  until E15 T1, which the plan gives the users and devices UI.
+- E04 system tests: the first local run hung in both root-login installs (10-minute timeouts)
+  while the other six passed. Three later runs (alone, both root installs together, and the full
+  suite) passed in seconds, so the cause is unknown. The CI job "Server core on test servers" on
+  the E04 commit is the next data point.
 
 ## Known failures outside the Deploy work
 

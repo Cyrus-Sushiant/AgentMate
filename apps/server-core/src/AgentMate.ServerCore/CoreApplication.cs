@@ -1,16 +1,17 @@
 using System.Net;
+using AgentMate.ServerCore.Audit;
+using AgentMate.ServerCore.Data;
 using AgentMate.ServerCore.Endpoints;
 using AgentMate.ServerCore.Hosting;
 using AgentMate.ServerCore.Hubs;
 using AgentMate.ServerCore.Security;
 using Microsoft.AspNetCore.Authentication;
-using Microsoft.AspNetCore.DataProtection;
-using Microsoft.AspNetCore.DataProtection.KeyManagement;
-using Microsoft.AspNetCore.DataProtection.Repositories;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.HostFiltering;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.AspNetCore.Http.Connections;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 
 namespace AgentMate.ServerCore;
@@ -37,6 +38,8 @@ internal static class CoreApplication
         var builder = WebApplication.CreateBuilder(new WebApplicationOptions { Args = args });
         builder.Configuration.AddJsonFile(ConfigFile, optional: true, reloadOnChange: false);
         builder.Configuration.AddCommandLine(args);
+        // Every SQL statement at Information level would bury the journal; problems still show.
+        builder.Logging.AddFilter("Microsoft.EntityFrameworkCore.Database.Command", LogLevel.Warning);
 
         var listen = CoreListenOptions.From(builder.Configuration, OperatingSystem.IsLinux());
         builder.WebHost.ConfigureKestrel(kestrel => ConfigureKestrel(kestrel, listen));
@@ -51,30 +54,40 @@ internal static class CoreApplication
         builder.Services.AddSingleton(TimeProvider.System);
         builder.Services.AddSingleton<CoreStartup>();
 
-        // Keys for stored secrets live in the core's own state folder (root only), resolved when
-        // first needed so tests and tools can point it elsewhere. On Linux there is no OS key
-        // store to wrap them with; the folder's permissions are what protect them.
-        builder.Services.AddDataProtection().SetApplicationName("agentmate-core");
-        builder.Services
-            .AddOptions<KeyManagementOptions>()
-            .Configure<IConfiguration, ILoggerFactory>((options, configuration, loggers) =>
-            {
-                var keys = Path.Combine(CorePaths.DataDirectory(configuration, OperatingSystem.IsLinux()), "keys");
-                options.XmlRepository = new FileSystemXmlRepository(new DirectoryInfo(keys), loggers);
-            });
+        // The database, Identity, encryption keys and audit trail live in the core's own state
+        // folder (root only), resolved when first needed so tests and tools can point it elsewhere.
+        builder.Services.AddCoreData(services =>
+            CorePaths.DataDirectory(services.GetRequiredService<IConfiguration>(), OperatingSystem.IsLinux()));
+        builder.Services.AddHostedService<DatabaseStartup>();
+        builder.Services.AddHostedService<AuditRetention>();
         // Reports readiness to systemd (Type=notify), so `systemctl start` only returns once the
         // socket is listening and fails outright for a release that cannot start.
         builder.Services.AddSystemd();
 
+        builder.Services.AddSingleton<AuthChallenges>();
+        builder.Services.AddSingleton<AccessTokens>();
+        builder.Services.AddSingleton<AuthThrottle>();
+        builder.Services.AddScoped<DeviceSessions>();
+        builder.Services.AddScoped<EnrollmentCodes>();
+        builder.Services.AddSingleton<HubConnections>();
+        builder.Services.AddScoped<IAuthorizationHandler, StepUpHandler>();
         builder.Services
             .AddAuthentication(CoreAuthentication.Scheme)
-            .AddScheme<AuthenticationSchemeOptions, NoCredentialsAuthenticationHandler>(
+            .AddScheme<AuthenticationSchemeOptions, DeviceTokenHandler>(
                 CoreAuthentication.Scheme,
                 configureOptions: null);
-        builder.Services.AddAuthorizationBuilder()
-            .SetDefaultPolicy(CorePolicies.RequireSignedIn)
-            .SetFallbackPolicy(CorePolicies.RequireSignedIn)
-            .AddPolicy(CorePolicies.SignedIn, CorePolicies.RequireSignedIn);
+        // A ceiling on the sign-in routes as a whole; each user name has its own, lower limit.
+        builder.Services.AddRateLimiter(options =>
+        {
+            options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+            options.AddFixedWindowLimiter(AuthThrottle.Policy, limit =>
+            {
+                limit.PermitLimit = 60;
+                limit.Window = TimeSpan.FromMinutes(1);
+                limit.QueueLimit = 0;
+            });
+        });
+        builder.Services.AddAuthorizationBuilder().AddCorePolicies();
 
         builder.Services
             .AddSignalR(options =>
@@ -92,10 +105,12 @@ internal static class CoreApplication
         // authentication, so a browser request is refused without ever being authenticated.
         app.UseMiddleware<OriginRejectionMiddleware>();
         app.UseRouting();
+        app.UseRateLimiter();
         app.UseAuthentication();
         app.UseAuthorization();
 
         app.MapHealthEndpoints();
+        app.MapAuthEndpoints();
         app.MapHub<CoreHub>(CoreHub.Path, options =>
             {
                 options.Transports = HttpTransportType.WebSockets;

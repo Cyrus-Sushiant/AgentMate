@@ -54,3 +54,7 @@ dotnet_naming_rule.private_fields.priority = 2
 dotnet_diagnostic.CA1707.severity = none
 # Theory data is built from literal arrays on purpose; each row runs once.
 dotnet_diagnostic.CA1861.severity = none
+
+# EF Core writes these; they are regenerated, never edited by hand.
+[**/Data/Migrations/*.cs]
+generated_code = true

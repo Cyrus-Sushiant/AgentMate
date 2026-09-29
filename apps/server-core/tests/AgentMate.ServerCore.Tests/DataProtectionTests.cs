@@ -47,9 +47,6 @@ public sealed class DataProtectionTests : IDisposable
 
     public void Dispose()
     {
-        if (Directory.Exists(_dataDirectory))
-        {
-            Directory.Delete(_dataDirectory, recursive: true);
-        }
+        TestFolders.Delete(_dataDirectory);
     }
 }

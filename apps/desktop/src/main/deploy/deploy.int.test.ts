@@ -78,6 +78,13 @@ function deploy(
       },
     }),
     releases,
+    // The device key is sealed with a stand-in; the vault itself is tested on its own.
+    seal: async (plaintext) => ({
+      mode: 'safeStorage',
+      ciphertext: Buffer.from(plaintext).toString('base64'),
+    }),
+    unseal: async (envelope) => Buffer.from(envelope.ciphertext, 'base64').toString(),
+    deviceName: () => 'Integration test',
     availableVersion: async () => '0.0.0-dev',
     devCorePort: null,
     progress: (event) => events.push(event),
@@ -149,6 +156,44 @@ describe.skipIf(!enabled)('installing the server core on real servers', () => {
       );
     }
   }
+
+  it(
+    'creates the owner, enrolls this computer and signs in through the tunnel and the hub',
+    async () => {
+      const server = await startTestServer('ubuntu-24.04');
+      servers.push(server);
+      const { service, pool } = deploy(server, 'deployer');
+
+      const result = await service.install({
+        serverId: 'srv',
+        sudoPassword: null,
+        account: { userName: 'maria', password: 'correct horse battery staple' },
+      });
+      const access = await service.access('srv');
+      const account = await service.account('srv');
+      const stepUp = await service.stepUp({
+        serverId: 'srv',
+        password: 'correct horse battery staple',
+      });
+      const totp = await service.beginTotp('srv');
+
+      expect(result.enrollmentError).toBeUndefined();
+      expect(access).toMatchObject({
+        state: 'signed-in',
+        user: { userName: 'maria', roles: ['owner'] },
+      });
+      expect(account.userName).toBe('maria');
+      expect(stepUp.stepUpUntilUnixMs).toBeGreaterThan(Date.now());
+      expect(totp.qrDataUrl).toMatch(/^data:image\/png;base64,/);
+      expect(server.run('/opt/agentmate-core/current/agentmate-core admin status')).toContain(
+        '"userName":"maria","roles":["owner"],"devices":1',
+      );
+      await service.signOut('srv');
+      expect((await service.access('srv')).state).toBe('needs-sign-in');
+      pool.closeAll();
+    },
+    INSTALL_TIMEOUT_MS,
+  );
 
   it(
     'refuses a download that does not match its checksum, and the running core carries on',

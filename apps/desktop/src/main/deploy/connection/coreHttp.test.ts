@@ -1,7 +1,7 @@
 import { createServer, type IncomingMessage, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { CoreHttpClient } from './coreHttp';
+import { CoreHttpClient, CoreHttpError } from './coreHttp';
 import { devTcpTransport } from './transport';
 
 /**
@@ -89,6 +89,25 @@ describe('CoreHttpClient', () => {
 
     await expect(client.get('/api/v1/session')).rejects.toThrow(
       'The server core refused GET /api/v1/session (401).',
+    );
+  });
+
+  it('keeps the status and the JSON body of a refusal, for callers that act on its code', async () => {
+    const client = await serve(() => ({
+      status: 401,
+      body: { code: 'deviceRevoked', message: 'This device was revoked.' },
+    }));
+
+    const failure = await client.post('/api/v1/auth/login', {}).catch((error: unknown) => error);
+
+    expect(failure).toBeInstanceOf(CoreHttpError);
+    expect((failure as CoreHttpError).status).toBe(401);
+    expect((failure as CoreHttpError).body).toEqual({
+      code: 'deviceRevoked',
+      message: 'This device was revoked.',
+    });
+    expect((failure as Error).message).toBe(
+      'The server core refused POST /api/v1/auth/login (401).',
     );
   });
 

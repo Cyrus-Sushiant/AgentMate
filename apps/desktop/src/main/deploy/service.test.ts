@@ -99,6 +99,11 @@ function setup(machine: Partial<ScriptedMachine> = {}, overrides: Partial<Deploy
     devCorePort: null,
     progress: (event) => events.push(event),
     healthOf,
+    seal: async (plaintext) => ({
+      mode: 'safeStorage',
+      ciphertext: Buffer.from(plaintext).toString('base64'),
+    }),
+    unseal: async (envelope) => Buffer.from(envelope.ciphertext, 'base64').toString(),
     now: () => 1_000,
     ...overrides,
   };
@@ -127,6 +132,7 @@ describe('DeployService.listServers', () => {
         port: 22,
         username: 'deployer',
         core: null,
+        enrolled: false,
       },
       {
         id: 'srv-2',
@@ -135,6 +141,7 @@ describe('DeployService.listServers', () => {
         port: 2222,
         username: 'ops',
         core: RECORD,
+        enrolled: false,
       },
     ]);
   });

@@ -15,6 +15,9 @@ export const SETUP_LABELS: Record<DeploySetupPhase, string> = {
   cleanup: 'Tidy up old files',
   rollback: 'Go back to the previous release',
   health: 'Check that it answers',
+  owner: 'Set up your account on the core',
+  enroll: 'Enroll this computer',
+  'sign-in': 'Sign in',
   stop: 'Stop the core',
   remove: 'Remove its files',
 };
@@ -29,8 +32,14 @@ export interface TimelineStep {
   percent?: number;
 }
 
-/** The steps an install goes through, in order, so the whole plan shows before it runs. */
-export function installPhases(preflight: Pick<DeployPreflight, 'selinux'>): DeploySetupPhase[] {
+/**
+ * The steps an install goes through, in order, so the whole plan shows before it runs. With an
+ * account, setting up this computer's access follows.
+ */
+export function installPhases(
+  preflight: Pick<DeployPreflight, 'selinux'>,
+  withAccount = false,
+): DeploySetupPhase[] {
   const selinux = preflight.selinux === 'enforcing' || preflight.selinux === 'permissive';
   return [
     'preflight',
@@ -45,6 +54,7 @@ export function installPhases(preflight: Pick<DeployPreflight, 'selinux'>): Depl
     'start',
     'cleanup',
     'health',
+    ...(withAccount ? (['owner', 'enroll', 'sign-in'] as const) : []),
   ];
 }
 

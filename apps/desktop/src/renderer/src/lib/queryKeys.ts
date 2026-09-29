@@ -147,6 +147,8 @@ export const queryKeys = {
   deployHealth: (serverId: string) => ['deploy', 'health', serverId] as const,
   /** The install wizard's read-only look at a server. */
   deployPreflight: (serverId: string) => ['deploy', 'preflight', serverId] as const,
+  /** Whether this computer is signed in to a server's core, or what it needs first. */
+  deployAccess: (serverId: string) => ['deploy', 'access', serverId] as const,
   /** Every running shell with its process tree's CPU and memory, for the Running CLIs modal. */
   terminalUsage: ['terminal-usage'] as const,
   vaultStatus: ['vault', 'status'] as const,

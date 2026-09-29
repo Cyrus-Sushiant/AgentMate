@@ -79,6 +79,75 @@ describe('DeployState', () => {
   });
 });
 
+describe('DeployState devices', () => {
+  const CREDENTIALS = {
+    deviceId: 'd1',
+    userName: 'maria',
+    privateKey: { mode: 'safeStorage' as const, ciphertext: 'c2VhbGVk' },
+  };
+
+  it('keeps each server device apart from its core record', async () => {
+    const files = memoryFiles();
+    const state = new DeployState(files.port);
+
+    await state.set('srv-1', RECORD);
+    await state.setDevice('srv-1', CREDENTIALS);
+    await state.setDevice('srv-1', { ...CREDENTIALS, sessionId: 's1' });
+
+    expect(await state.device('srv-1')).toEqual({ ...CREDENTIALS, sessionId: 's1' });
+    expect(await state.get('srv-1')).toEqual(RECORD);
+    expect(files.writes.at(-1)).toMatchObject({ devices: { 'srv-1': { sessionId: 's1' } } });
+  });
+
+  it('forgets a device, and the device goes with a removed core', async () => {
+    const state = new DeployState(memoryFiles().port);
+    await state.set('srv-1', RECORD);
+    await state.setDevice('srv-1', CREDENTIALS);
+    await state.setDevice('srv-2', CREDENTIALS);
+
+    await state.removeDevice('srv-2');
+    await state.remove('srv-1');
+
+    expect(await state.device('srv-1')).toBeNull();
+    expect(await state.device('srv-2')).toBeNull();
+  });
+
+  it('skips device entries it cannot read', async () => {
+    const state = new DeployState(
+      memoryFiles({
+        version: 1,
+        cores: {},
+        devices: { good: CREDENTIALS, noKey: { deviceId: 'x', userName: 'y' }, text: 'nope' },
+      }).port,
+    );
+
+    expect(await state.device('good')).toEqual(CREDENTIALS);
+    expect(await state.device('noKey')).toBeNull();
+    expect(await state.device('text')).toBeNull();
+  });
+
+  it('moves every sealed device key when the passkey changes', async () => {
+    const state = new DeployState(memoryFiles().port);
+    await state.setDevice('srv-1', CREDENTIALS);
+    await state.setDevice('srv-2', { ...CREDENTIALS, deviceId: 'd2' });
+
+    const commit = await state.sealedKeys.prepare(async (envelope) => ({
+      mode: 'passphrase' as const,
+      ciphertext: `moved:${envelope.ciphertext}`,
+      iv: 'iv',
+      authTag: 'tag',
+    }));
+    expect((await state.device('srv-1'))?.privateKey.mode).toBe('safeStorage');
+    await commit();
+
+    expect((await state.device('srv-1'))?.privateKey).toMatchObject({
+      mode: 'passphrase',
+      ciphertext: 'moved:c2VhbGVk',
+    });
+    expect((await state.device('srv-2'))?.privateKey).toMatchObject({ mode: 'passphrase' });
+  });
+});
+
 describe('jsonFilePort', () => {
   it('reads nothing before the first write', async () => {
     expect(await jsonFilePort(join(tempDir(), 'deploy.json')).read()).toBeNull();
@@ -88,10 +157,10 @@ describe('jsonFilePort', () => {
     const path = join(tempDir(), 'nested', 'deploy.json');
     const port = jsonFilePort(path);
 
-    await port.write({ version: 1, cores: {} });
+    await port.write({ version: 1, cores: {}, devices: {} });
 
-    expect(JSON.parse(readFileSync(path, 'utf-8'))).toEqual({ version: 1, cores: {} });
-    expect(await port.read()).toEqual({ version: 1, cores: {} });
+    expect(JSON.parse(readFileSync(path, 'utf-8'))).toEqual({ version: 1, cores: {}, devices: {} });
+    expect(await port.read()).toEqual({ version: 1, cores: {}, devices: {} });
     if (process.platform !== 'win32') expect(statSync(path).mode & 0o777).toBe(0o600);
   });
 

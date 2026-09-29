@@ -62,6 +62,28 @@ export function lockVault(): void {
 }
 
 /**
+ * A store outside this file that seals secrets with the vault (the Deploy section's device keys).
+ * On a passkey change `prepare` re-encrypts its secrets with `move` without saving anything, and
+ * the function it returns saves them once every list has moved, so a failure part way leaves all
+ * of them as they were.
+ */
+export interface SealedSecretStore {
+  prepare: (
+    move: (envelope: SecretEnvelope) => Promise<SecretEnvelope>,
+  ) => Promise<() => Promise<void>>;
+}
+
+const sealedStores = new Set<SealedSecretStore>();
+
+/** Returns a function that unregisters the store again. */
+export function registerSealedSecretStore(sealed: SealedSecretStore): () => void {
+  sealedStores.add(sealed);
+  return () => {
+    sealedStores.delete(sealed);
+  };
+}
+
+/**
  * Turns the optional Servers passkey on, off, or to a new value. Re-encrypts every saved
  * server's secret between safeStorage and passphrase-derived modes so nothing is left stuck
  * under a key nothing can reach anymore. Changing away from an existing passkey requires the
@@ -103,6 +125,7 @@ export async function setPasskey(
   let sshServers: StoredSshServer[];
   let rdpServers: StoredRdpServer[];
   let environments: StoredProjectEnvironment[];
+  let commitSealed: Array<() => Promise<void>>;
   try {
     sshServers = await reencrypt(await store.getSshServers());
     rdpServers = await reencrypt(await store.getRdpServers());
@@ -124,6 +147,7 @@ export async function setPasskey(
         ),
       })),
     );
+    commitSealed = await Promise.all([...sealedStores].map((sealed) => sealed.prepare(move)));
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : String(error) };
   }
@@ -131,6 +155,7 @@ export async function setPasskey(
   await store.setSshServers(sshServers);
   await store.setRdpServers(rdpServers);
   await store.setProjectEnvironments(environments);
+  for (const commit of commitSealed) await commit();
   await store.setSshVault(nextKey ? { salt, verifier: makeVerifier(nextKey) } : null);
   unlockedKey = nextKey;
   return { ok: true };

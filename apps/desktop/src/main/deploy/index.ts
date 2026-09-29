@@ -7,6 +7,7 @@ import { sendToWindow } from '../ipc/send';
 import { getMainWindow } from '../mainWindow';
 import { SshConnectionPool } from '../ssh/pool';
 import { savedServerPoolSource } from '../ssh/savedServers';
+import { decryptSecret, encryptSecret, registerSealedSecretStore } from '../ssh/vault';
 import { store } from '../store';
 import { DownloadAbortedError, ResumableDownload } from '../updater/resumableDownload';
 import {
@@ -113,10 +114,15 @@ function devCorePort(): number | null {
 export function registerDeployIpc(): void {
   const pool = new SshConnectionPool(savedServerPoolSource);
   const source = app.isPackaged ? packagedSource() : developmentSource();
+  const state = new DeployState(jsonFilePort(join(app.getPath('userData'), 'data', 'deploy.json')));
+  // Device keys are sealed with the Servers vault, so they move with a passkey change.
+  registerSealedSecretStore(state.sealedKeys);
   const service = new DeployService({
     servers: () => store.getSshServers(),
     pool,
-    state: new DeployState(jsonFilePort(join(app.getPath('userData'), 'data', 'deploy.json'))),
+    state,
+    seal: encryptSecret,
+    unseal: decryptSecret,
     releases: source.releases,
     availableVersion: source.availableVersion,
     unavailableReason: source.unavailableReason,

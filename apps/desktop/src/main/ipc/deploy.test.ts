@@ -19,6 +19,15 @@ function harness(trusted = true) {
     install: vi.fn(async () => ({ version: '1.53.0' })),
     uninstall: vi.fn(async () => undefined),
     health: vi.fn(async () => ({ version: '1.53.0' })),
+    access: vi.fn(async () => ({ state: 'signed-in' })),
+    enroll: vi.fn(async () => ({ state: 'signed-in' })),
+    signIn: vi.fn(async () => ({ state: 'signed-in' })),
+    signOut: vi.fn(async () => undefined),
+    account: vi.fn(async () => ({})),
+    stepUp: vi.fn(async () => ({})),
+    beginTotp: vi.fn(async () => ({})),
+    confirmTotp: vi.fn(async () => ({ codes: [] })),
+    disableTotp: vi.fn(async () => undefined),
   };
   registerDeployHandlers({
     ipc: { handle: (channel, listener) => handlers.set(channel, listener) },
@@ -32,6 +41,8 @@ function harness(trusted = true) {
   };
   return { service, call, handlers };
 }
+
+const ACCOUNT = { userName: 'maria', password: 'correct horse battery staple' };
 
 describe('registerDeployHandlers', () => {
   it('handles every invoke channel in the deploy group', () => {
@@ -93,5 +104,58 @@ describe('registerDeployHandlers', () => {
     expect(service.install).not.toHaveBeenCalled();
     expect(service.uninstall).not.toHaveBeenCalled();
     expect(service.health).not.toHaveBeenCalled();
+  });
+
+  it('passes the account and sign-in calls through once their arguments check out', async () => {
+    const { service, call } = harness();
+
+    await call(IPC.deploy.install, { serverId: 'srv-1', sudoPassword: null, account: ACCOUNT });
+    await call(IPC.deploy.enroll, { serverId: 'srv-1', sudoPassword: 'pw', account: ACCOUNT });
+    await call(IPC.deploy.signIn, { serverId: 'srv-1', password: 'pw', totpCode: '123456' });
+    await call(IPC.deploy.stepUp, { serverId: 'srv-1', totpCode: '123456' });
+    await call(IPC.deploy.confirmTotp, 'srv-1', '123 456');
+    await call(IPC.deploy.access, 'srv-1');
+
+    expect(service.install).toHaveBeenCalledWith({
+      serverId: 'srv-1',
+      sudoPassword: null,
+      account: ACCOUNT,
+    });
+    expect(service.enroll).toHaveBeenCalledWith({
+      serverId: 'srv-1',
+      sudoPassword: 'pw',
+      account: ACCOUNT,
+    });
+    expect(service.signIn).toHaveBeenCalledWith({
+      serverId: 'srv-1',
+      password: 'pw',
+      totpCode: '123456',
+    });
+    expect(service.stepUp).toHaveBeenCalledWith({ serverId: 'srv-1', totpCode: '123456' });
+    expect(service.confirmTotp).toHaveBeenCalledWith('srv-1', '123 456');
+    expect(service.access).toHaveBeenCalledWith('srv-1');
+  });
+
+  it('refuses account and sign-in arguments of the wrong shape', async () => {
+    const { service, call } = harness();
+
+    await expect(
+      call(IPC.deploy.enroll, { serverId: 'srv-1', sudoPassword: null }),
+    ).rejects.toThrow(/account/);
+    await expect(
+      call(IPC.deploy.install, {
+        serverId: 'srv-1',
+        sudoPassword: null,
+        account: { userName: 7, password: 'x' },
+      }),
+    ).rejects.toThrow(/user name/);
+    await expect(call(IPC.deploy.signIn, { serverId: 'srv-1' })).rejects.toThrow(/password/);
+    await expect(
+      call(IPC.deploy.signIn, { serverId: 'srv-1', password: 'pw', totpCode: 'x'.repeat(40) }),
+    ).rejects.toThrow(/code/);
+    await expect(call(IPC.deploy.confirmTotp, 'srv-1', 42)).rejects.toThrow(/code/);
+    expect(service.enroll).not.toHaveBeenCalled();
+    expect(service.signIn).not.toHaveBeenCalled();
+    expect(service.confirmTotp).not.toHaveBeenCalled();
   });
 });
