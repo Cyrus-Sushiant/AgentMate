@@ -280,6 +280,7 @@ import { IPC } from '../shared/ipcChannels';
 import type { PetPipelineMessage, PetSnoozeState, PetWorkArea } from '../shared/pet';
 import type { RemoteInputEvent, RemoteRtcMessage } from '../shared/remoteProtocol';
 import type { SpellcheckMenuPayload } from '../shared/spellcheck';
+import type { SshHostKeyStatus } from '../shared/sshHostKey';
 
 interface TerminalDataPayload {
   sessionId: string;
@@ -382,6 +383,12 @@ const ssh = {
     ipcRenderer.invoke(IPC.ssh.unlockVault, passphrase),
   setPasskey: (passphrase: string | null): Promise<{ ok: boolean; error?: string }> =>
     ipcRenderer.invoke(IPC.ssh.setPasskey, passphrase),
+  /** The stored and presented host key fingerprints, read with a handshake that never logs in. */
+  hostKeyStatus: (serverId: string): Promise<SshHostKeyStatus> =>
+    ipcRenderer.invoke(IPC.ssh.hostKeyStatus, serverId),
+  /** Trusts the key the server presents now, provided it is still `fingerprint`. */
+  trustHostKey: (serverId: string, fingerprint: string): Promise<void> =>
+    ipcRenderer.invoke(IPC.ssh.trustHostKey, serverId, fingerprint),
   /** Starts a shell for a saved server, or reconnects when `sessionId` names one still running. */
   create: (options: CreateSshSessionOptions): Promise<SshAttachResult> =>
     ipcRenderer.invoke(IPC.ssh.create, options),

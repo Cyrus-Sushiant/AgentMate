@@ -1,0 +1,29 @@
+/**
+ * SSH failures the renderer has to react to, rather than just show. Electron only carries an
+ * error's message across IPC, so the code rides inside it, as with the Vault's errors.
+ */
+export type SshErrorCode = 'host-key-changed' | 'sudo-password-required' | 'sudo-password-rejected';
+
+const CODES: ReadonlySet<string> = new Set<SshErrorCode>([
+  'host-key-changed',
+  'sudo-password-required',
+  'sudo-password-rejected',
+]);
+const CODE = /\[ssh:([a-z-]+)\]\s*/;
+const REMOTE_PREFIX = /^Error invoking remote method '[^']+': (?:\w*Error: )?/;
+
+export function encodeSshError(code: SshErrorCode, message: string): string {
+  return `[ssh:${code}] ${message}`;
+}
+
+export function sshErrorCode(error: unknown): SshErrorCode | null {
+  const message = error instanceof Error ? error.message : String(error);
+  const code = message.match(CODE)?.[1];
+  return code && CODES.has(code) ? (code as SshErrorCode) : null;
+}
+
+/** The human part of the message, without Electron's wrapper or the code tag. */
+export function sshErrorMessage(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error);
+  return message.replace(REMOTE_PREFIX, '').replace(CODE, '');
+}

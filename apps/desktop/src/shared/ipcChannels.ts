@@ -70,6 +70,10 @@ export const IPC = {
     write: 'ssh:write',
     resize: 'ssh:resize',
     kill: 'ssh:kill',
+    // (serverId) -> SshHostKeyStatus: the stored key and the one the server presents now
+    hostKeyStatus: 'ssh:hostKeyStatus',
+    // (serverId, fingerprint): trusts the presented key, provided it is still that fingerprint
+    trustHostKey: 'ssh:trustHostKey',
     onData: 'ssh:onData',
     onExit: 'ssh:onExit',
   },

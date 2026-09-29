@@ -119,3 +119,74 @@ describe('sshTerminalAdapter', () => {
     expect(listener).not.toHaveBeenCalled();
   });
 });
+
+describe('sshTerminalAdapter and a changed host key', () => {
+  const status = {
+    serverId: 'server-1',
+    nickname: 'prod',
+    host: 'prod.example',
+    port: 22,
+    stored: 'ab'.repeat(32),
+    presented: 'cd'.repeat(32),
+  };
+  const changed = () =>
+    new Error(
+      "Error invoking remote method 'ssh:create': Error: [ssh:host-key-changed] The host key for prod.example:22 has changed since you last connected.",
+    );
+
+  it('asks about the new key and connects once it is trusted', async () => {
+    const { answerHostKeyPrompt, useHostKeyPromptStore } = await import(
+      '../../stores/hostKeyPromptStore'
+    );
+    const create = vi
+      .fn()
+      .mockRejectedValueOnce(changed())
+      .mockResolvedValueOnce({ sessionId: 'ssh-2' });
+    const trust = vi.fn(async () => undefined);
+    installAgentmatBridge({
+      'ssh.create': create,
+      'ssh.hostKeyStatus': status,
+      'ssh.trustHostKey': trust,
+    });
+
+    const pending = sshTerminalAdapter('server-1').create();
+    await vi.waitFor(() => expect(useHostKeyPromptStore.getState().request).not.toBeNull());
+    answerHostKeyPrompt(true);
+
+    await expect(pending).resolves.toEqual({ sessionId: 'ssh-2', isNew: true, snapshot: null });
+    expect(trust).toHaveBeenCalledWith('server-1', status.presented);
+    expect(create).toHaveBeenCalledTimes(2);
+  });
+
+  it('shows a plain reason, without the error code, when the key is not trusted', async () => {
+    const { answerHostKeyPrompt, useHostKeyPromptStore } = await import(
+      '../../stores/hostKeyPromptStore'
+    );
+    installAgentmatBridge({
+      'ssh.create': vi.fn().mockRejectedValue(changed()),
+      'ssh.hostKeyStatus': status,
+    });
+
+    const pending = sshTerminalAdapter('server-1').create();
+    await vi.waitFor(() => expect(useHostKeyPromptStore.getState().request).not.toBeNull());
+    answerHostKeyPrompt(false);
+
+    await expect(pending).rejects.toThrow(
+      'Not connected to prod: its new host key was not trusted.',
+    );
+  });
+
+  it('never shows the error code tag in the terminal', async () => {
+    installAgentmatBridge({
+      'ssh.create': async () => {
+        throw new Error(
+          "Error invoking remote method 'ssh:create': Error: [ssh:sudo-password-required] Needs the sudo password.",
+        );
+      },
+    });
+
+    await expect(sshTerminalAdapter('server-1').create()).rejects.toThrow(
+      /^Needs the sudo password\.$/,
+    );
+  });
+});

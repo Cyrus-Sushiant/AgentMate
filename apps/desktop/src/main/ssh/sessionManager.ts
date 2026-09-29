@@ -1,18 +1,8 @@
-import { readFile } from 'node:fs/promises';
 import { StringDecoder } from 'node:string_decoder';
 import { Client, type ClientChannel } from 'ssh2';
-import type { SshAuthMethod } from '../../shared/apiTypes';
+import { buildConnectConfig, friendlyConnectError, type SshEndpoint } from './connectConfig';
 
-export interface SshConnectOptions {
-  host: string;
-  port: number;
-  username: string;
-  authMethod: SshAuthMethod;
-  password?: string;
-  privateKeyPath?: string;
-  passphrase?: string;
-  /** Previously trusted host key fingerprint (SHA256, hex), if any. */
-  storedFingerprint?: string;
+export interface SshConnectOptions extends SshEndpoint {
   cols?: number;
   rows?: number;
 }
@@ -29,32 +19,6 @@ interface Session {
   stream: ClientChannel;
 }
 
-/** Turns an ssh2 connect failure into something a user, not a protocol log, can read. */
-function friendlyConnectError(
-  error: NodeJS.ErrnoException & { level?: string },
-  host: string,
-  port: number,
-  hostKeyMismatch: boolean,
-): Error {
-  if (hostKeyMismatch) {
-    return new Error(
-      `Host key for ${host}:${port} has changed since you last connected. If you did not ` +
-        'reinstall or replace this server, treat this as a possible security warning. Edit ' +
-        'and save the server to trust the new key.',
-    );
-  }
-  if (error.level === 'client-authentication') {
-    return new Error('Authentication failed. Check the username, password, or private key.');
-  }
-  if (error.code === 'ENOTFOUND' || error.code === 'ECONNREFUSED') {
-    return new Error(`Could not reach ${host}:${port}.`);
-  }
-  if (error.code === 'ETIMEDOUT') {
-    return new Error(`Connection to ${host}:${port} timed out.`);
-  }
-  return error instanceof Error ? error : new Error(String(error));
-}
-
 export class SshSessionManager {
   private sessions = new Map<string, Session>();
 
@@ -66,20 +30,16 @@ export class SshSessionManager {
   ): Promise<void> {
     if (this.sessions.has(sessionId)) return;
 
-    let privateKey: Buffer | undefined;
-    if (options.authMethod === 'privateKey' && options.privateKeyPath) {
-      privateKey = await readFile(options.privateKeyPath);
-    }
-
-    let trustedFingerprint: string | null = null;
-    let hostKeyMismatch = false;
+    const { config, verdict } = await buildConnectConfig(options);
     const client = new Client();
 
     try {
       await new Promise<void>((resolve, reject) => {
         client
           .on('ready', () => {
-            if (trustedFingerprint) listener.onHostKeyTrusted(sessionId, trustedFingerprint);
+            if (verdict.trustedFingerprint) {
+              listener.onHostKeyTrusted(sessionId, verdict.trustedFingerprint);
+            }
             client.shell(
               { cols: options.cols, rows: options.rows, term: 'xterm-256color' },
               (err, stream) => {
@@ -111,27 +71,9 @@ export class SshSessionManager {
             );
           })
           .on('error', (err) => {
-            reject(friendlyConnectError(err, options.host, options.port, hostKeyMismatch));
+            reject(friendlyConnectError(err, options, verdict));
           })
-          .connect({
-            host: options.host,
-            port: options.port,
-            username: options.username,
-            password: options.authMethod === 'password' ? options.password : undefined,
-            privateKey,
-            passphrase: options.authMethod === 'privateKey' ? options.passphrase : undefined,
-            readyTimeout: 15000,
-            hostHash: 'sha256',
-            hostVerifier: (fingerprint: string): boolean => {
-              if (!options.storedFingerprint) {
-                trustedFingerprint = fingerprint;
-                return true;
-              }
-              if (fingerprint === options.storedFingerprint) return true;
-              hostKeyMismatch = true;
-              return false;
-            },
-          });
+          .connect(config);
       });
     } catch (error) {
       this.sessions.delete(sessionId);

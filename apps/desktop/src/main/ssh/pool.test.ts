@@ -1,0 +1,153 @@
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import type { SshEndpoint } from './connectConfig';
+import { SshConnection } from './connection';
+import { type PoolSource, SshConnectionPool } from './pool';
+import { type FakeSshServer, startFakeSshServer } from './testing/fakeSshServer';
+
+/**
+ * Deploy keeps one SSH connection per server and shares it between installs, tunnels and
+ * commands, instead of logging in again for every step.
+ */
+
+const PASSWORD = 'correct horse battery staple';
+
+let server: FakeSshServer | null = null;
+let pool: SshConnectionPool | null = null;
+
+afterEach(async () => {
+  pool?.closeAll();
+  pool = null;
+  await server?.close();
+  server = null;
+});
+
+function sourceFor(fake: FakeSshServer, stored?: string) {
+  const trusted: Array<[string, string]> = [];
+  const connected: string[] = [];
+  const source: PoolSource = {
+    endpoint: async (serverId): Promise<SshEndpoint> => {
+      if (serverId !== 'srv-1') throw new Error('This saved server no longer exists.');
+      return {
+        host: fake.host,
+        port: fake.port,
+        username: 'deploy',
+        authMethod: 'password',
+        password: PASSWORD,
+        storedFingerprint: stored,
+      };
+    },
+    trustHostKey: async (serverId, fingerprint) => {
+      trusted.push([serverId, fingerprint]);
+    },
+    connected: (serverId) => connected.push(serverId),
+  };
+  return { source, trusted, connected };
+}
+
+async function setup(options: { idleMs?: number; stored?: string } = {}) {
+  server = await startFakeSshServer({ password: PASSWORD });
+  const { source, trusted, connected } = sourceFor(server, options.stored);
+  const open = vi.fn(SshConnection.open);
+  pool = new SshConnectionPool(source, { open, idleMs: options.idleMs });
+  return { server, pool, open, trusted, connected };
+}
+
+describe('SshConnectionPool', () => {
+  it('shares one connection between callers', async () => {
+    const { pool, open } = await setup();
+
+    const [a, b] = await Promise.all([pool.acquire('srv-1'), pool.acquire('srv-1')]);
+    const c = await pool.acquire('srv-1');
+
+    expect(open).toHaveBeenCalledTimes(1);
+    expect(a.connection).toBe(b.connection);
+    expect(c.connection).toBe(a.connection);
+    for (const lease of [a, b, c]) lease.release();
+  });
+
+  it('stores a host key trusted on first use, and records the connect', async () => {
+    const { pool, server, trusted, connected } = await setup();
+
+    const lease = await pool.acquire('srv-1');
+
+    expect(trusted).toEqual([['srv-1', server.fingerprint()]]);
+    expect(connected).toEqual(['srv-1']);
+    lease.release();
+  });
+
+  it('opens a fresh connection after the old one dropped', async () => {
+    const { pool, open, server } = await setup({ stored: undefined });
+    const first = await pool.acquire('srv-1');
+    first.release();
+
+    first.connection.close();
+    await vi.waitFor(() => expect(first.connection.isOpen).toBe(false));
+    const second = await pool.acquire('srv-1');
+
+    expect(open).toHaveBeenCalledTimes(2);
+    expect(second.connection).not.toBe(first.connection);
+    expect(second.connection.isOpen).toBe(true);
+    expect(server.fingerprint()).toMatch(/^[0-9a-f]{64}$/);
+    second.release();
+  });
+
+  it('logs in again after a reset, so new group memberships apply', async () => {
+    const { pool, open } = await setup();
+    const first = await pool.acquire('srv-1');
+
+    pool.reset('srv-1');
+    const second = await pool.acquire('srv-1');
+
+    expect(first.connection.isOpen).toBe(false);
+    expect(second.connection).not.toBe(first.connection);
+    expect(open).toHaveBeenCalledTimes(2);
+    second.release();
+  });
+
+  it('closes a connection nobody has used for a while', async () => {
+    const { pool } = await setup({ idleMs: 50 });
+    const lease = await pool.acquire('srv-1');
+
+    lease.release();
+
+    await vi.waitFor(() => expect(lease.connection.isOpen).toBe(false));
+    expect(pool.isConnected('srv-1')).toBe(false);
+  });
+
+  it('keeps a connection that is still leased', async () => {
+    const { pool } = await setup({ idleMs: 50 });
+    const held = await pool.acquire('srv-1');
+    const other = await pool.acquire('srv-1');
+
+    other.release();
+    await new Promise((resolve) => setTimeout(resolve, 120));
+
+    expect(held.connection.isOpen).toBe(true);
+    held.release();
+  });
+
+  it('does not remember a failed connect', async () => {
+    const { pool, open } = await setup();
+
+    await expect(pool.acquire('srv-missing')).rejects.toThrow(
+      'This saved server no longer exists.',
+    );
+    const lease = await pool.acquire('srv-1');
+
+    expect(open).toHaveBeenCalledTimes(1);
+    lease.release();
+  });
+
+  it('ignores a second release of the same lease', async () => {
+    const { pool } = await setup({ idleMs: 50 });
+    const a = await pool.acquire('srv-1');
+    const b = await pool.acquire('srv-1');
+
+    a.release();
+    a.release();
+    await new Promise((resolve) => setTimeout(resolve, 120));
+
+    expect(b.connection.isOpen).toBe(true);
+    b.release();
+  });
+});

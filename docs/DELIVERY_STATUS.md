@@ -27,8 +27,8 @@ Plan: docs/ROADMAP.md
 | Epic | Title | Status | Commit | Notes |
 |---|---|---|---|---|
 | E00 | Delivery docs | Complete | 4e412e3 | Written by hand |
-| E01 | Server core scaffold | Complete | see git log | Contracts via Tapper and TypedSignalR (TS 7 has no compiler API for openapi-typescript); API is WebSocket-first |
-| E02 | SSH foundation | Not started | | |
+| E01 | Server core scaffold | Complete | 3353dba | Contracts via Tapper and TypedSignalR (TS 7 has no compiler API for openapi-typescript); API is WebSocket-first |
+| E02 | SSH foundation | Complete | see git log | Host-key trust dialog shared by terminals and Deploy; sudo password validated alone before payloads |
 | E03 | Walking skeleton: install and see the server | Not started | | |
 | E04 | Identity and device enrollment | Not started | | |
 | E05 | Realtime, jobs and server overview | Not started | | |
@@ -49,7 +49,9 @@ Status values: Not started, In progress, Blocked, Complete.
 
 ## Unverified criteria
 
-- E01 AC1 "passes in CI": verified locally on Windows and in the Linux .NET SDK container; the first CI run after the push confirms it.
+- E01 has no end-to-end evidence of its own: its `[e2e]` run was cancelled by the next push. The
+  E02 commit carries `[e2e]` and covers both. E01 AC1 is verified: the Server core job passed in
+  CI runs 36490352987 and 36491482619.
 
 ## Open blockers
 

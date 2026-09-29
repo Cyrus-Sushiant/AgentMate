@@ -1,4 +1,5 @@
 import type { CreateTerminalOptions, TerminalAttachResult } from '@shared/apiTypes';
+import { withHostKeyTrust } from '@/lib/ssh/hostKeyTrust';
 
 // Not exported from apiTypes.ts (they're local to preload/index.ts), so re-declared here to
 // match window.agentmat.terminal's payload shape structurally.
@@ -21,6 +22,7 @@ function unwrapIpcError(error: unknown): Error {
   const message = error.message
     .replace(/^Error invoking remote method '[^']*':\s*/, '')
     .replace(/^(Error|TypeError):\s*/, '')
+    .replace(/^\[ssh:[a-z-]+\]\s*/, '')
     .trim();
   return new Error(message || error.message);
 }
@@ -42,12 +44,15 @@ export function sshTerminalAdapter(sshServerId: string): {
   return {
     create: async (options = {}): Promise<TerminalAttachResult | null> => {
       try {
-        const result = await window.agentmat.ssh.create({
-          sessionId: options.sessionId,
-          savedServerId: sshServerId,
-          cols: options.cols,
-          rows: options.rows,
-        });
+        // A changed host key asks the user first, then retries once if they trust it.
+        const result = await withHostKeyTrust(sshServerId, () =>
+          window.agentmat.ssh.create({
+            sessionId: options.sessionId,
+            savedServerId: sshServerId,
+            cols: options.cols,
+            rows: options.rows,
+          }),
+        );
         return { sessionId: result.sessionId, isNew: true, snapshot: null };
       } catch (error) {
         throw unwrapIpcError(error);

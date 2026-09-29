@@ -11,7 +11,10 @@ import type {
   StoredSshServer,
 } from '../../shared/apiTypes';
 import { IPC } from '../../shared/ipcChannels';
+import { isHostKeyFingerprint, type SshHostKeyStatus } from '../../shared/sshHostKey';
 import { keepAwake } from '../power/keepAwake';
+import { probeHostKey } from '../ssh/connectConfig';
+import { findSavedServer, updateSshServer } from '../ssh/savedServers';
 import { SshSessionManager } from '../ssh/sessionManager';
 import {
   decryptSecret,
@@ -136,30 +139,6 @@ function toPublicServer(server: StoredSshServer): SshSavedServer {
   return { ...rest, hasSecret: server.secretEnvelope != null };
 }
 
-/**
- * Serializes read-modify-write updates to ssh-servers.json. A connect can trigger two of these
- * close together (the host-key-trust write from `onHostKeyTrusted`, then the lastConnectedAt
- * write once the shell opens); without a queue their reads can interleave and one write silently
- * loses the other's change.
- */
-let updateQueue: Promise<void> = Promise.resolve();
-
-function updateServer(
-  id: string,
-  update: (server: StoredSshServer) => StoredSshServer,
-): Promise<void> {
-  const next = updateQueue.then(async () => {
-    const servers = await store.getSshServers();
-    const index = servers.findIndex((s) => s.id === id);
-    if (index < 0) return;
-    const updated = [...servers];
-    updated[index] = update(updated[index]);
-    await store.setSshServers(updated);
-  });
-  updateQueue = next.catch(() => undefined);
-  return next;
-}
-
 export function registerSshHandlers(): void {
   ipcMain.handle(
     IPC.ssh.listServers,
@@ -282,7 +261,7 @@ export function registerSshHandlers(): void {
             onData: forwardData,
             onExit: forwardExit,
             onHostKeyTrusted: (_id, fingerprint) => {
-              void updateServer(server.id, (s) => ({ ...s, hostKeyFingerprint: fingerprint }));
+              void updateSshServer(server.id, (s) => ({ ...s, hostKeyFingerprint: fingerprint }));
             },
           },
         );
@@ -293,8 +272,43 @@ export function registerSshHandlers(): void {
 
       sessions.set(sessionId, { serverId: server.id });
       syncPowerSaveBlocker();
-      void updateServer(server.id, (s) => ({ ...s, lastConnectedAt: Date.now() }));
+      void updateSshServer(server.id, (s) => ({ ...s, lastConnectedAt: Date.now() }));
       return { sessionId };
+    },
+  );
+
+  ipcMain.handle(
+    IPC.ssh.hostKeyStatus,
+    async (_event, serverId: unknown): Promise<SshHostKeyStatus> => {
+      const server = await findSavedServer(String(serverId));
+      const presented = await probeHostKey(server.host, server.port);
+      return {
+        serverId: server.id,
+        nickname: server.nickname,
+        host: server.host,
+        port: server.port,
+        stored: server.hostKeyFingerprint ?? null,
+        presented,
+      };
+    },
+  );
+
+  ipcMain.handle(
+    IPC.ssh.trustHostKey,
+    async (_event, serverId: unknown, fingerprint: unknown): Promise<void> => {
+      if (!isHostKeyFingerprint(fingerprint)) {
+        throw new Error('That is not a host key fingerprint.');
+      }
+      const server = await findSavedServer(String(serverId));
+      // Read the key again, so what gets stored is what the server presents right now and the
+      // user saw, not whatever was passed in.
+      const presented = await probeHostKey(server.host, server.port);
+      if (presented !== fingerprint) {
+        throw new Error(
+          `${server.nickname} presented a different key just now. Check it again before trusting it.`,
+        );
+      }
+      await updateSshServer(server.id, (s) => ({ ...s, hostKeyFingerprint: fingerprint }));
     },
   );
 

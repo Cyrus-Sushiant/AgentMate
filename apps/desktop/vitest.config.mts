@@ -131,6 +131,12 @@ export default defineConfig({
         'src/main/remote/tokens.ts': { lines: 90, branches: 80 },
         'src/main/usage/logParsers.ts': { lines: 80, branches: 70 },
         'src/main/rdp/rdcleanpath.ts': { lines: 85, branches: 75 },
+        // How the app logs in to servers, runs root commands and tunnels to the server core.
+        'src/main/ssh/connectConfig.ts': { lines: 95, branches: 85 },
+        'src/main/ssh/connection.ts': { lines: 90, branches: 75 },
+        'src/main/ssh/sudo.ts': { lines: 95, branches: 90 },
+        'src/main/ssh/pool.ts': { lines: 90, branches: 75 },
+        'src/main/ssh/savedServers.ts': { lines: 90, branches: 75 },
       },
     },
   },
