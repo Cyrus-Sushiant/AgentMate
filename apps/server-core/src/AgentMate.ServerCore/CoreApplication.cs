@@ -4,6 +4,9 @@ using AgentMate.ServerCore.Hosting;
 using AgentMate.ServerCore.Hubs;
 using AgentMate.ServerCore.Security;
 using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.DataProtection.KeyManagement;
+using Microsoft.AspNetCore.DataProtection.Repositories;
 using Microsoft.AspNetCore.HostFiltering;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
@@ -46,6 +49,22 @@ internal static class CoreApplication
         });
         builder.Services.ConfigureHttpJsonOptions(options => CoreJson.Configure(options.SerializerOptions));
         builder.Services.AddSingleton(TimeProvider.System);
+        builder.Services.AddSingleton<CoreStartup>();
+
+        // Keys for stored secrets live in the core's own state folder (root only), resolved when
+        // first needed so tests and tools can point it elsewhere. On Linux there is no OS key
+        // store to wrap them with; the folder's permissions are what protect them.
+        builder.Services.AddDataProtection().SetApplicationName("agentmate-core");
+        builder.Services
+            .AddOptions<KeyManagementOptions>()
+            .Configure<IConfiguration, ILoggerFactory>((options, configuration, loggers) =>
+            {
+                var keys = Path.Combine(CorePaths.DataDirectory(configuration, OperatingSystem.IsLinux()), "keys");
+                options.XmlRepository = new FileSystemXmlRepository(new DirectoryInfo(keys), loggers);
+            });
+        // Reports readiness to systemd (Type=notify), so `systemctl start` only returns once the
+        // socket is listening and fails outright for a release that cannot start.
+        builder.Services.AddSystemd();
 
         builder.Services
             .AddAuthentication(CoreAuthentication.Scheme)

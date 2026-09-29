@@ -27,6 +27,20 @@ public sealed class HealthEndpointTests(CoreFactory factory) : IClassFixture<Cor
     }
 
     [Fact]
+    public async Task Health_says_when_the_core_started_so_the_app_can_show_its_uptime()
+    {
+        using var client = factory.CreateClient();
+        var before = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+
+        var body = await client.GetFromJsonAsync<JsonElement>(
+            "/api/v1/health",
+            TestContext.Current.CancellationToken);
+
+        var startedAt = body.GetProperty("startedAtUnixMs").GetInt64();
+        Assert.InRange(startedAt, before - (10 * 60 * 1000), before + 1000);
+    }
+
+    [Fact]
     public async Task Health_uses_camel_case_json()
     {
         using var client = factory.CreateClient();

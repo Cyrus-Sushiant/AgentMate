@@ -5,6 +5,8 @@ out/
 release/
 build/
 !apps/desktop/build/
+# CD puts the server core release manifest here before packaging; never commit one.
+apps/desktop/build/server-core-manifest.json
 *.log
 .DS_Store
 .env

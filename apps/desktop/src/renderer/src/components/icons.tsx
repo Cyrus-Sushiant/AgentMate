@@ -113,6 +113,7 @@ import {
   faQrcode,
   faQuoteLeft,
   faRobot,
+  faRocket,
   faRotate,
   faRotateLeft,
   faRoute,
@@ -294,6 +295,7 @@ export const CircleQuestion = makeIcon(faCircleQuestion);
 export const CircleX = makeIcon(faCircleXmark);
 export const Paw = makeIcon(faPaw);
 export const Robot = makeIcon(faRobot);
+export const Rocket = makeIcon(faRocket);
 export const TriangleAlert = makeIcon(faTriangleExclamation);
 
 // MCP marketplace icons.

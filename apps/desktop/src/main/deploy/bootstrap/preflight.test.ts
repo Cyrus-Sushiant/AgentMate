@@ -1,0 +1,155 @@
+import { afterEach, describe, expect, it } from 'vitest';
+import { SshConnection } from '../../ssh/connection';
+import {
+  type ExecReply,
+  type ExecRequest,
+  type FakeSshServer,
+  startFakeSshServer,
+} from '../../ssh/testing/fakeSshServer';
+import { runPreflight } from './preflight';
+
+/**
+ * Before anything runs as root, the installer looks at the server as the login user and says in
+ * plain words what stands in the way: an unsupported system, no systemd, too little disk. A
+ * server whose sshd forbids stream-local forwarding is fine; the core's bridge covers it.
+ */
+
+const UBUNTU = 'NAME="Ubuntu"\nVERSION_ID="24.04"\nID=ubuntu\nPRETTY_NAME="Ubuntu 24.04.1 LTS"\n';
+
+interface Machine {
+  osRelease: string;
+  machine: string;
+  systemd: boolean;
+  freeKb: number[];
+  uid: number;
+  sudo: 'passwordless' | 'password' | 'missing';
+  installed: { release: string; version: string } | null;
+  selinux: string | null;
+  streamLocal: boolean;
+}
+
+const typical: Machine = {
+  osRelease: UBUNTU,
+  machine: 'x86_64',
+  systemd: true,
+  freeKb: [20_000_000, 18_000_000],
+  uid: 1000,
+  sudo: 'password',
+  installed: null,
+  selinux: null,
+  streamLocal: true,
+};
+
+function answer(machine: Machine, { command }: ExecRequest): ExecReply {
+  if (command === 'cat /etc/os-release') return { stdout: machine.osRelease };
+  if (command === 'uname -m') return { stdout: `${machine.machine}\n` };
+  if (command.startsWith('test -d /run/systemd/system'))
+    return { stdout: machine.systemd ? 'yes\n' : 'no\n' };
+  if (command.startsWith('df -Pk'))
+    return { stdout: machine.freeKb.map((kb) => `${kb}\n`).join('') };
+  if (command === 'id -u') return { stdout: `${machine.uid}\n` };
+  if (command === 'sudo -k -n true') {
+    if (machine.sudo === 'missing') return { exitCode: 127, stderr: 'sudo: command not found\n' };
+    return { exitCode: machine.sudo === 'passwordless' ? 0 : 1 };
+  }
+  if (command.startsWith('readlink -f /opt/agentmate-core/current')) {
+    return machine.installed ? { stdout: `${machine.installed.release}\n` } : { exitCode: 1 };
+  }
+  if (command.includes('admin version')) {
+    return machine.installed
+      ? { stdout: `${JSON.stringify({ version: machine.installed.version, apiVersion: 1 })}\n` }
+      : { exitCode: 127 };
+  }
+  if (command.includes('getenforce')) return { stdout: `${machine.selinux ?? 'absent'}\n` };
+  return { exitCode: 127, stderr: `unexpected: ${command}` };
+}
+
+let server: FakeSshServer | null = null;
+let connection: SshConnection | null = null;
+
+afterEach(async () => {
+  connection?.close();
+  connection = null;
+  await server?.close();
+  server = null;
+});
+
+async function preflight(overrides: Partial<Machine> = {}) {
+  const machine = { ...typical, ...overrides };
+  server = await startFakeSshServer({
+    username: 'deployer',
+    password: 'pw',
+    exec: (request) => answer(machine, request),
+    forwarding: machine.streamLocal ? 'allowed' : 'prohibited',
+    // The probe targets a socket nobody listens on, so an allowed tunnel still fails to connect.
+    forward: () => null,
+  });
+  connection = await SshConnection.open({
+    host: server.host,
+    port: server.port,
+    username: 'deployer',
+    authMethod: 'password',
+    password: 'pw',
+  });
+  return runPreflight(connection);
+}
+
+describe('runPreflight', () => {
+  it('reports a ready Ubuntu server with nothing in the way', async () => {
+    const report = await preflight();
+
+    expect(report).toMatchObject({
+      os: { supported: true, family: 'debian', name: 'Ubuntu 24.04.1 LTS' },
+      architecture: { machine: 'x86_64', rid: 'linux-x64' },
+      systemd: true,
+      freeDiskMb: Math.floor(18_000_000 / 1024),
+      sudo: 'password',
+      loginUser: 'deployer',
+      streamLocal: 'allowed',
+      installed: null,
+      selinux: 'absent',
+      problems: [],
+    });
+  });
+
+  it('notices an existing install and its version', async () => {
+    const report = await preflight({
+      installed: { release: '/opt/agentmate-core/releases/1.52.0-abcdef012345', version: '1.52.0' },
+    });
+
+    expect(report.installed).toEqual({
+      version: '1.52.0',
+      release: '/opt/agentmate-core/releases/1.52.0-abcdef012345',
+    });
+  });
+
+  it('is fine with sshd forbidding stream-local forwarding', async () => {
+    const report = await preflight({ streamLocal: false });
+
+    expect(report.streamLocal).toBe('prohibited');
+    expect(report.problems).toEqual([]);
+  });
+
+  it('reads SELinux and a root login', async () => {
+    const report = await preflight({ selinux: 'Enforcing', uid: 0 });
+
+    expect(report.selinux).toBe('enforcing');
+    expect(report.sudo).toBe('root');
+  });
+
+  it.each([
+    [
+      'an unsupported system',
+      { osRelease: 'ID=alpine\nVERSION_ID=3.20\nPRETTY_NAME="Alpine Linux v3.20"\n' },
+      /not supported/,
+    ],
+    ['a processor without a build', { machine: 'armv7l' }, /armv7l/],
+    ['no systemd', { systemd: false }, /systemd/],
+    ['too little disk', { freeKb: [100 * 1024, 900 * 1024] }, /300 MB/],
+    ['no sudo for a non-root login', { sudo: 'missing' as const }, /sudo is not installed/],
+  ])('explains %s', async (_case, overrides, message) => {
+    const report = await preflight(overrides);
+
+    expect(report.problems.join('\n')).toMatch(message);
+  });
+});

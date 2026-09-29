@@ -67,7 +67,13 @@ public sealed class UnixSocketListenerTests : IDisposable
 
     private async Task<WebApplication> StartAsync()
     {
-        var app = CoreApplication.Build([$"--Core:Listen:SocketPath={SocketPath}", "--environment", "Testing"]);
+        var app = CoreApplication.Build(
+        [
+            $"--Core:Listen:SocketPath={SocketPath}",
+            $"--Core:DataDirectory={Path.Combine(_directory, "data")}",
+            "--environment",
+            "Testing",
+        ]);
         try
         {
             await app.StartAsync(TestContext.Current.CancellationToken);

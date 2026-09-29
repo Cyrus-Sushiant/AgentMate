@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <!--
+    The real server core host, listening on loopback TCP instead of the Unix socket, for UI work
+    and for end-to-end tests on machines without Linux or systemd. Later epics wire fake platform,
+    Docker and nginx state into it. Never published or shipped.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>AgentMate.ServerCore.DevHost</RootNamespace>
+    <IsPackable>false</IsPackable>
+    <IsPublishable>false</IsPublishable>
+    <StaticWebAssetsEnabled>false</StaticWebAssetsEnabled>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\AgentMate.ServerCore\AgentMate.ServerCore.csproj" />
+  </ItemGroup>
+</Project>

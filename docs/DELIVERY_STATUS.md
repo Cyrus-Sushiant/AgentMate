@@ -19,7 +19,7 @@ Plan: docs/ROADMAP.md
 | Server core format | `pnpm server-core:format:check` |
 | Server core tests | `pnpm server-core:test` (Linux-only socket tests run in the .NET SDK container or CI) |
 | Contracts | `pnpm server-core:contracts`, then no diff under `apps/desktop/src/shared/deploy/protocol/generated` |
-| System tests | Linux with Docker, `[e2e]` in the commit message (from E03) |
+| System tests | `pnpm server-core:publish linux-x64`, then `AGENTMATE_SYSTEM_TESTS=1 pnpm --filter @agentmat/desktop exec vitest run src/main/deploy/deploy.int.test.ts` (Docker with Linux containers; CI job "Server core on test servers" with `[e2e]`) |
 | e2e | `pnpm test:e2e`, in CI when the commit message carries `[e2e]` |
 
 ## Epics
@@ -28,8 +28,8 @@ Plan: docs/ROADMAP.md
 |---|---|---|---|---|
 | E00 | Delivery docs | Complete | 4e412e3 | Written by hand |
 | E01 | Server core scaffold | Complete | 3353dba | Contracts via Tapper and TypedSignalR (TS 7 has no compiler API for openapi-typescript); API is WebSocket-first |
-| E02 | SSH foundation | Complete | see git log | Host-key trust dialog shared by terminals and Deploy; sudo password validated alone before payloads |
-| E03 | Walking skeleton: install and see the server | Not started | | |
+| E02 | SSH foundation | Complete | dc698a8 | Host-key trust dialog shared by terminals and Deploy; sudo password validated alone before payloads |
+| E03 | Walking skeleton: install and see the server | Complete | see git log | Tunnel or bridge settled by trying after the install (OpenSSH hides the reason); exec exit-status race fixed; DevHost e2e on every OS |
 | E04 | Identity and device enrollment | Not started | | |
 | E05 | Realtime, jobs and server overview | Not started | | |
 | E06 | Docker engine and containers | Not started | | |
@@ -52,6 +52,33 @@ Status values: Not started, In progress, Blocked, Complete.
 - E01 has no end-to-end evidence of its own: its `[e2e]` run was cancelled by the next push. The
   E02 commit carries `[e2e]` and covers both. E01 AC1 is verified: the Server core job passed in
   CI runs 36490352987 and 36491482619.
+- E03, SELinux labels: `restorecon` only runs where SELinux is on, and the Rocky 9 container runs
+  without it, so that step is covered by unit tests only. A Rocky VM with SELinux enforcing (the
+  planned nightly job) would verify it.
+- E03, release path: a packaged build downloading its core from a GitHub release, and the CD job
+  that publishes both architectures, attests them and embeds the manifest, first run on the next
+  `v*` tag. Until then the download source is covered with a fake downloader, and the publish
+  script was run by hand for linux-x64 and linux-arm64.
+- E03, arm64: the linux-arm64 build cross-compiles, but no arm64 test server runs an install.
+- E03 AC5: the DevHost and navigation specs pass locally on Windows; macOS and Linux evidence comes
+  from this commit's `[e2e]` run.
+
+## Known failures outside the Deploy work
+
+The `[e2e]` run for dc698a8 (CI run 36501786157) is red because of end-to-end specs that predate
+the Deploy epics and touch none of their code. The matrix had not run since those features
+landed, so nothing caught them earlier:
+
+- `apiClient.e2e.ts:40` (all OSes): expects the response header `x-echo`; the table now shows
+  `X-Echo`, as the server sent it.
+- `settingsPersistence.e2e.ts:77` (all OSes): two buttons are named "Remove Ctrl+P", so the
+  locator is ambiguous.
+- macOS: the local-terminal specs (autoContinue, launchFlags, terminal, Fix with AI) never see
+  "Fake Claude ready".
+- Windows: a few more visibility and count assertions in the same run.
+
+The Deploy-related specs pass: `sshAiTask.e2e.ts` on Ubuntu (the only runner with Docker) and
+`navigation.e2e.ts` everywhere. Left for the owner of those features.
 
 ## Open blockers
 

@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { sshErrorCode } from '../../shared/sshErrors';
 import type { SshEndpoint } from './connectConfig';
-import { SshConnection } from './connection';
+import { SshConnection, TunnelRefusedError } from './connection';
 import {
   echoStream,
   type FakeSshServer,
@@ -112,6 +112,26 @@ describe('SshConnection.exec', () => {
     expect(result.stdout).toContain('[output truncated]');
   });
 
+  it('keeps the exit code of a command that finishes in the same packet burst it started in', async () => {
+    // The exec reply, the output and the exit status arrive together, so ssh2 reports the exit
+    // before the caller could have attached a listener for it.
+    const { connection } = await connect({
+      interactiveExec: (_command, channel) => {
+        channel.write('out\n');
+        channel.stderr.write('err\n');
+        channel.exit(7);
+        channel.end();
+        return true;
+      },
+    });
+
+    for (let attempt = 0; attempt < 20; attempt += 1) {
+      const result = await connection.exec('sh -c "exit 7"');
+
+      expect(result).toMatchObject({ stdout: 'out\n', stderr: 'err\n', exitCode: 7 });
+    }
+  });
+
   it('streams output to callbacks as it arrives', async () => {
     const { connection } = await connect({
       exec: () => ({ stdout: 'step 1\nstep 2\n', exitCode: 0 }),
@@ -167,6 +187,80 @@ describe('SshConnection.openStream', () => {
     await expect(
       connection.openStream({ socketPath: '/run/agentmate-core/core.sock' }),
     ).rejects.toThrow(/could not open a tunnel to \/run\/agentmate-core\/core\.sock/i);
+  });
+});
+
+describe('SshConnection.openStream refusals', () => {
+  it('marks a tunnel that sshd refuses by policy', async () => {
+    const { connection } = await connect({ forwarding: 'prohibited' });
+
+    const failure = await connection
+      .openStream({ socketPath: '/run/x.sock' })
+      .catch((error) => error);
+
+    expect(failure).toBeInstanceOf(TunnelRefusedError);
+    expect((failure as TunnelRefusedError).prohibited).toBe(true);
+  });
+
+  it('tells a refusal by policy apart from nothing listening at the target', async () => {
+    const { connection } = await connect({ forward: () => null });
+
+    const failure = await connection
+      .openStream({ socketPath: '/run/x.sock' })
+      .catch((error) => error);
+
+    expect(failure).toBeInstanceOf(TunnelRefusedError);
+    expect((failure as TunnelRefusedError).prohibited).toBe(false);
+  });
+});
+
+describe('SshConnection.openExecStream', () => {
+  it('opens a two-way stream to a long-running command', async () => {
+    const commands: string[] = [];
+    const { connection } = await connect({
+      interactiveExec: (command, channel) => {
+        commands.push(command);
+        channel.pipe(channel);
+        return true;
+      },
+    });
+
+    const stream = await connection.openExecStream('agentmate-core bridge');
+    const echoed = readAll(stream, 5);
+    stream.write('hello');
+
+    expect((await echoed).toString()).toBe('hello');
+    expect(commands).toEqual(['agentmate-core bridge']);
+    stream.destroy();
+  });
+
+  it('refuses work after the connection closed', async () => {
+    const { connection } = await connect();
+    connection.close();
+
+    await expect(connection.openExecStream('agentmate-core bridge')).rejects.toThrow(/closed/);
+  });
+});
+
+describe('SshConnection.createStagingDirectory', () => {
+  it('returns the folder mktemp made', async () => {
+    const { connection } = await connect({
+      exec: ({ command }) => ({
+        stdout: command.startsWith('mktemp -d') ? '/tmp/agentmate.Ab12Cd34Ef\n' : '',
+      }),
+    });
+
+    expect(await connection.createStagingDirectory()).toBe('/tmp/agentmate.Ab12Cd34Ef');
+  });
+
+  it('refuses an answer that is not a fresh agentmate folder, since it gets removed later', async () => {
+    for (const answer of ['/\n', '/tmp\n', 'agentmate.Ab12Cd34Ef\n', '/tmp/agentmate.x y\n']) {
+      const { connection } = await connect({ exec: () => ({ stdout: answer }) });
+
+      await expect(connection.createStagingDirectory()).rejects.toThrow(/staging folder/);
+      connection.close();
+      await server?.close();
+    }
   });
 });
 

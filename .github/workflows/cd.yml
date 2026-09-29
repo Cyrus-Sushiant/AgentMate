@@ -1,8 +1,9 @@
 name: CD
 
 # Builds the AgentMate desktop app for Windows, macOS, and Linux plus the
-# Android mobile app (a universal APK and one per CPU architecture), and
-# publishes the installers/APKs to a GitHub Release.
+# Android mobile app (a universal APK and one per CPU architecture), and the
+# server core the desktop installs on users' servers (linux-x64 and
+# linux-arm64), and publishes all of it to a GitHub Release.
 #
 # Triggers:
 #   - Pushing a tag like "v1.2.3" builds and releases automatically.
@@ -46,9 +47,78 @@ jobs:
     with:
       e2e: ${{ (github.event_name == 'push' && contains(github.event.head_commit.message, '[e2e]')) || (github.event_name == 'workflow_dispatch' && inputs.e2e) }}
 
+  # The server core the Deploy section installs over SSH: self-contained single-file builds for
+  # both Linux architectures, each a tar.gz with its SHA-256, and the manifest listing those
+  # hashes. The desktop builds below embed the manifest, so an app only ever installs a core
+  # whose hash it already knows. Attested, so a download can be traced back to this workflow.
+  build-server-core:
+    name: Build server core
+    needs: tests
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.4xx
+          cache: true
+          cache-dependency-path: apps/server-core/**/packages.lock.json
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+
+      - name: Set server core version from release tag
+        shell: bash
+        run: |
+          if [ "${{ github.ref_type }}" = "tag" ]; then
+            TAG="${{ github.ref_name }}"
+          else
+            TAG="${{ inputs.tag }}"
+          fi
+          echo "SERVER_CORE_VERSION=${TAG#v}" >> "$GITHUB_ENV"
+
+      # CI=true makes these restores locked (Directory.Build.props), so the release is built from
+      # exactly the packages in the lock files.
+      - name: Publish linux-x64
+        run: node scripts/server-core.mjs publish linux-x64
+
+      - name: Publish linux-arm64
+        run: node scripts/server-core.mjs publish linux-arm64
+
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@v4
+        with:
+          subject-path: apps/server-core/artifacts/release/*.tar.gz
+
+      - name: Upload server core release
+        uses: actions/upload-artifact@v7
+        with:
+          name: server-core-release
+          if-no-files-found: error
+          path: |
+            apps/server-core/artifacts/release/*.tar.gz
+            apps/server-core/artifacts/release/*.sha256
+            apps/server-core/artifacts/release/server-core-manifest.json
+
+      # On its own as well, so the desktop builds fetch a few hundred bytes, not both tarballs.
+      - name: Upload server core manifest
+        uses: actions/upload-artifact@v7
+        with:
+          name: server-core-manifest
+          if-no-files-found: error
+          path: apps/server-core/artifacts/release/server-core-manifest.json
+
   build:
     name: Build (${{ matrix.os }})
-    needs: tests
+    needs: [tests, build-server-core]
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -126,6 +196,14 @@ jobs:
 
       - name: Build desktop app
         run: pnpm --filter @agentmat/desktop build
+
+      # electron-builder.yml copies this into the app's resources; the Deploy section refuses to
+      # install a server core whose hash is not in it.
+      - name: Download server core manifest
+        uses: actions/download-artifact@v8
+        with:
+          name: server-core-manifest
+          path: apps/desktop/build
 
       # Spotlight indexes the disk image dmgbuild mounts while it is still
       # open, which keeps the volume busy and makes the unmount at the end of
@@ -303,7 +381,7 @@ jobs:
 
   release:
     name: Publish GitHub Release
-    needs: [build, build-android]
+    needs: [build, build-android, build-server-core]
     runs-on: ubuntu-latest
     steps:
       - name: Determine release tag
@@ -326,6 +404,14 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           name: android-apk
+          path: dist-release
+
+      # The tarballs, their .sha256 files and server-core-manifest.json. The app downloads the
+      # tarball for its own version from this release and checks it against its embedded manifest.
+      - name: Download server core release
+        uses: actions/download-artifact@v8
+        with:
+          name: server-core-release
           path: dist-release
 
       # electron-updater's macOS auto-updater needs a single `latest-mac.yml`,

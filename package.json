@@ -30,7 +30,8 @@
     "server-core:test": "node scripts/server-core.mjs test",
     "server-core:format": "node scripts/server-core.mjs format",
     "server-core:format:check": "node scripts/server-core.mjs format:check",
-    "server-core:contracts": "node scripts/server-core.mjs contracts"
+    "server-core:contracts": "node scripts/server-core.mjs contracts",
+    "server-core:publish": "node scripts/server-core.mjs publish"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.13",

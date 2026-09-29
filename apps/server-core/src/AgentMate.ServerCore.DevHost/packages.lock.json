@@ -1,0 +1,42 @@
+{
+  "version": 2,
+  "dependencies": {
+    "net10.0": {
+      "TypedSignalR.Client.Attributes": {
+        "type": "Transitive",
+        "resolved": "1.1.0",
+        "contentHash": "/ky27lru1v2mpS9nIpZGwVAsCHpGOC7PqPmaxiWC+gvIH/sFLdtjtIK4U4b5lgYfyruRBTH0mfnmnhbHis/RQg=="
+      },
+      "agentmate-core": {
+        "type": "Project",
+        "dependencies": {
+          "Microsoft.Extensions.Hosting.Systemd": "[10.0.12, )",
+          "Tapper.Attributes": "[1.14.0, )",
+          "TypedSignalR.Client.TypeScript.Attributes": "[1.17.0, )"
+        }
+      },
+      "Microsoft.Extensions.Hosting.Systemd": {
+        "type": "CentralTransitive",
+        "requested": "[10.0.12, )",
+        "resolved": "10.0.12",
+        "contentHash": "WC1u8RbTqJTY/JknZFHX0+TDptgtpoBRc8Kro0xPSwunMql3e1zBxnK+OJbx30ozSCfMpHaYAfaeiVQgM5sizw=="
+      },
+      "Tapper.Attributes": {
+        "type": "CentralTransitive",
+        "requested": "[1.14.0, )",
+        "resolved": "1.14.0",
+        "contentHash": "SdjKVx9cnQS2eREE8Fg8bZv+ZCbnPJne/vW/Ity7rM3aX+fBM+tC3vHHBB1LMHPa+Zx+iqhElpM+h/J/DzyXXQ=="
+      },
+      "TypedSignalR.Client.TypeScript.Attributes": {
+        "type": "CentralTransitive",
+        "requested": "[1.17.0, )",
+        "resolved": "1.17.0",
+        "contentHash": "YNg+fB/HNzDxgs5zI6XAsfcbO7/9BgCYFZMG8L6TGbUW9L+V5GrMdSqLlWeMBElrliioVf0Vnb63tkfCWnXUYQ==",
+        "dependencies": {
+          "Tapper.Attributes": "1.14.0",
+          "TypedSignalR.Client.Attributes": "1.1.0"
+        }
+      }
+    }
+  }
+}

@@ -49,6 +49,8 @@ installToastHistoryCapture();
 /** Skills ships a large offline catalog; keep it out of the main chunk until this route opens. */
 const SkillsPage = lazy(() => import('./pages/SkillsPage'));
 const ApiClientPage = lazy(() => import('./pages/ApiClientPage'));
+/** Deploy is a large section that most sessions never open, so it loads on first visit. */
+const DeployPage = lazy(() => import('./pages/DeployPage'));
 /** Carries the IronRDP WebAssembly engine, which only Remote Desktop session windows need. */
 const RdpSessionRoute = lazy(() => import('./components/rdp/RdpSessionRoute'));
 
@@ -155,6 +157,18 @@ export default function App(): React.JSX.Element {
                 <Route path="workspace/:projectId" element={<WorkspaceRoute />} />
                 <Route path="pipelines" element={<PipelinesPage />} />
                 <Route path="notifications" element={<Navigate to="/pipelines" replace />} />
+                <Route
+                  path="deploy"
+                  element={
+                    <Suspense
+                      fallback={
+                        <div className="p-6 text-sm text-muted-foreground">Loading Deploy…</div>
+                      }
+                    >
+                      <DeployPage />
+                    </Suspense>
+                  }
+                />
                 <Route
                   path="skills"
                   element={

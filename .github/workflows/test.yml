@@ -137,6 +137,52 @@ jobs:
             exit 1
           fi
 
+  # The server core installed on real Linux machines: systemd test servers in Docker (Ubuntu
+  # 24.04 and Rocky 9), logged in as root and as a user whose sudo asks for a password, driven by
+  # the desktop's own installer, pool and REST client. Also a tampered download, a release that
+  # will not start (it must roll back), and sshd with tunnels switched off (the bridge).
+  server-core-system:
+    name: Server core on test servers
+    if: ${{ inputs.e2e }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      DOTNET_NOLOGO: "1"
+      DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.4xx
+          cache: true
+          cache-dependency-path: apps/server-core/**/packages.lock.json
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build workspace packages
+        run: pnpm build:packages
+
+      - name: Publish the linux-x64 release
+        run: node scripts/server-core.mjs publish linux-x64
+
+      - name: Install on test servers
+        env:
+          AGENTMATE_SYSTEM_TESTS: "1"
+        run: pnpm --filter @agentmat/desktop exec vitest run src/main/deploy/deploy.int.test.ts
+
   mobile:
     name: Mobile
     runs-on: ubuntu-latest
@@ -242,6 +288,14 @@ jobs:
         run: |
           git config --global user.name "AgentMate CI"
           git config --global user.email "ci@agentmate.invalid"
+
+      # The Deploy spec builds and starts the server core's DevHost, so it runs on every OS.
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.4xx
+          cache: true
+          cache-dependency-path: apps/server-core/**/packages.lock.json
 
       # Electron needs a display server. Playwright itself needs no browser download here,
       # because the _electron launcher drives the app's own runtime.

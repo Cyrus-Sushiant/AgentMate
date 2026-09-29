@@ -18,6 +18,11 @@ files:
 extraResources:
   - from: resources/example-skill-repo
     to: example-skill-repo
+  # The server core release manifest, which CD downloads into build/ before packaging. The app
+  # only installs a server core whose hash is listed here. A local build without it packages
+  # fine (electron-builder only warns) and its Deploy section says it has no core to install.
+  - from: build/server-core-manifest.json
+    to: server-core-manifest.json
 
 # node-pty ships native .node/.dll/.exe files that must exist as real files on
 # disk (it also spawns conpty/winpty helper executables at runtime); they

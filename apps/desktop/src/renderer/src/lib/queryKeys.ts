@@ -141,6 +141,12 @@ export const queryKeys = {
   dockerAvailability: ['docker-availability'] as const,
   dockerList: ['docker-list'] as const,
   dockerListForProject: (projectId: string) => ['docker-list', 'project', projectId] as const,
+  /** Saved servers with the server core each one runs, for the Deploy rail. */
+  deployServers: ['deploy', 'servers'] as const,
+  /** A core's live health, shared by its rail entry and its health card. */
+  deployHealth: (serverId: string) => ['deploy', 'health', serverId] as const,
+  /** The install wizard's read-only look at a server. */
+  deployPreflight: (serverId: string) => ['deploy', 'preflight', serverId] as const,
   /** Every running shell with its process tree's CPU and memory, for the Running CLIs modal. */
   terminalUsage: ['terminal-usage'] as const,
   vaultStatus: ['vault', 'status'] as const,

@@ -17,6 +17,9 @@ import type { ExecOptions, ExecResult, SshConnection } from './connection';
 
 export type SudoMode = 'root' | 'passwordless' | 'password';
 
+/** What running commands as root needs from a connection. */
+export type CommandRunner = Pick<SshConnection, 'exec' | 'endpoint'>;
+
 export interface RootShell {
   mode: SudoMode;
   /** Runs `command` as root. `options.stdin` reaches the command itself, untouched. */
@@ -26,7 +29,7 @@ export interface RootShell {
 const PROBE_TIMEOUT_MS = 30_000;
 const PASSWORD_ONLY = "sudo -S -k -p '' true";
 
-export async function detectSudoMode(connection: SshConnection): Promise<SudoMode> {
+export async function detectSudoMode(connection: CommandRunner): Promise<SudoMode> {
   const who = await connection.exec('id -u', { timeoutMs: PROBE_TIMEOUT_MS });
   if (who.exitCode === 0 && who.stdout.trim() === '0') return 'root';
 
@@ -47,7 +50,7 @@ function toBuffer(stdin: ExecOptions['stdin']): Buffer {
 }
 
 export async function openRootShell(
-  connection: SshConnection,
+  connection: CommandRunner,
   password: string | null,
 ): Promise<RootShell> {
   const mode = await detectSudoMode(connection);

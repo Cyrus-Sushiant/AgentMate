@@ -275,6 +275,15 @@ import type {
   WriteVersionHunksInput,
   WriteVersionHunksResult,
 } from '../shared/apiTypes';
+import type {
+  DeployHealth,
+  DeployInstallInput,
+  DeployInstallResult,
+  DeployPreflight,
+  DeployServer,
+  DeploySetupProgressEvent,
+  DeployUninstallInput,
+} from '../shared/deployTypes';
 import type { GrammarCheckInput, GrammarCheckResult, GrammarLocalStatus } from '../shared/grammar';
 import { IPC } from '../shared/ipcChannels';
 import type { PetPipelineMessage, PetSnoozeState, PetWorkArea } from '../shared/pet';
@@ -1334,6 +1343,23 @@ const pipelines = {
     ipcRenderer.invoke(IPC.pipelines.cancelRun, input),
 };
 
+/** The Deploy section: saved servers with their server core, installing it, and its health. */
+const deploy = {
+  listServers: (): Promise<DeployServer[]> => ipcRenderer.invoke(IPC.deploy.listServers),
+  /** A read-only look at the server: OS, processor, sudo, disk, and what is installed. */
+  preflight: (serverId: string): Promise<DeployPreflight> =>
+    ipcRenderer.invoke(IPC.deploy.preflight, serverId),
+  install: (input: DeployInstallInput): Promise<DeployInstallResult> =>
+    ipcRenderer.invoke(IPC.deploy.install, input),
+  uninstall: (input: DeployUninstallInput): Promise<void> =>
+    ipcRenderer.invoke(IPC.deploy.uninstall, input),
+  health: (serverId: string): Promise<DeployHealth> =>
+    ipcRenderer.invoke(IPC.deploy.health, serverId),
+  /** Each step of a running install or removal, as it starts, finishes or fails. */
+  onSetupProgress: (cb: (event: DeploySetupProgressEvent) => void): (() => void) =>
+    subscribe(IPC.deploy.onSetupProgress, cb),
+};
+
 const pullRequests = {
   /** The current branch, its PR (with checks and review threads) and what the tab needs to decide. */
   status: (projectId: string): Promise<PullRequestStatus> =>
@@ -1879,6 +1905,7 @@ const agentmatApi = {
   git,
   worktrees,
   pipelines,
+  deploy,
   pullRequests,
   tests,
   appNotifications,

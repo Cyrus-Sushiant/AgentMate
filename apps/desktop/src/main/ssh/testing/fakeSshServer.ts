@@ -29,7 +29,20 @@ export interface FakeSshServerOptions {
   /** OpenSSH-format public key allowed to log in, from `generateClientKey()`. */
   authorizedKey?: string;
   exec?: ExecHandler;
-  /** Called for each forwarded connection; return a stream to pipe it to, or null to refuse. */
+  /**
+   * Takes over an exec channel for a long-lived, two-way conversation (the core's stdio bridge).
+   * Return true to claim the channel; otherwise `exec` answers it.
+   */
+  interactiveExec?: (command: string, channel: ServerChannel) => boolean;
+  /**
+   * 'prohibited' refuses every tunnel by policy (reason 1), as sshd does with
+   * `AllowStreamLocalForwarding no`. Otherwise `forward` decides.
+   */
+  forwarding?: 'allowed' | 'prohibited';
+  /**
+   * Called for each forwarded connection; return a stream to pipe it to, or null to refuse it as
+   * a failed connect (reason 2), as sshd does when nothing listens at the target.
+   */
   forward?: (target: ForwardTarget) => Duplex | null;
 }
 
@@ -126,6 +139,7 @@ export async function startFakeSshServer(
           });
           session.on('exec', (accept, _reject, info) => {
             const channel = accept();
+            if (options.interactiveExec?.(info.command, channel)) return;
             const chunks: Buffer[] = [];
             channel.on('data', (data: Buffer) => chunks.push(data));
             channel.on('end', async () => {
@@ -139,6 +153,9 @@ export async function startFakeSshServer(
             });
           });
         });
+        // With no handler, ssh2 refuses a tunnel by policy, which is what sshd does when
+        // forwarding is switched off.
+        if (options.forwarding === 'prohibited') return;
         client.on('tcpip', (accept, reject, info) => {
           const target = options.forward?.({ kind: 'tcp', host: info.destIP, port: info.destPort });
           if (!target) return reject();

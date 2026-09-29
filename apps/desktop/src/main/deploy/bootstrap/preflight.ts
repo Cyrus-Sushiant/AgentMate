@@ -1,0 +1,131 @@
+import { type SshConnection, TunnelRefusedError } from '../../ssh/connection';
+import { detectSudoMode, type SudoMode } from '../../ssh/sudo';
+import { CORE_BINARY_PATH } from '../connection/transport';
+import {
+  type OsSupport,
+  osSupport,
+  parseOsRelease,
+  type ReleaseRid,
+  releaseRidFor,
+} from './osSupport';
+
+/**
+ * A read-only look at a server before installing the core: everything here runs as the login
+ * user, and the report says in plain words what would stop an install.
+ */
+
+export interface PreflightReport {
+  os: OsSupport;
+  architecture: { machine: string; rid: ReleaseRid | null };
+  systemd: boolean;
+  /** The smaller of the free space under /opt and /var, in MB; null when df could not say. */
+  freeDiskMb: number | null;
+  /** Null when sudo is missing on a non-root login (listed in `problems`). */
+  sudo: SudoMode | null;
+  loginUser: string;
+  /**
+   * 'prohibited' when sshd refused the probe tunnel by policy. OpenSSH refuses a forbidden
+   * stream-local tunnel with the same answer as one to a missing socket, so 'allowed' only means
+   * nothing said no; the installer settles it by trying the real socket.
+   */
+  streamLocal: 'allowed' | 'prohibited';
+  installed: { version: string; release: string } | null;
+  selinux: 'enforcing' | 'permissive' | 'disabled' | 'absent';
+  /** What stands in the way of an install; empty when it can go ahead. */
+  problems: string[];
+}
+
+const MIN_FREE_MB = 300;
+const PROBE_TIMEOUT_MS = 30_000;
+/** A path no core listens on: the answer only tells whether sshd allows the tunnel at all. */
+const STREAM_LOCAL_PROBE = '/run/agentmate-core/.preflight-probe';
+
+/** What the preflight needs from a connection. */
+export type PreflightConnection = Pick<SshConnection, 'exec' | 'endpoint' | 'openStream'>;
+
+export async function runPreflight(connection: PreflightConnection): Promise<PreflightReport> {
+  const run = (command: string) => connection.exec(command, { timeoutMs: PROBE_TIMEOUT_MS });
+  const problems: string[] = [];
+
+  const os = osSupport(parseOsRelease((await run('cat /etc/os-release')).stdout));
+  if (!os.supported && os.reason) problems.push(os.reason);
+
+  const machine = (await run('uname -m')).stdout.trim();
+  const rid = releaseRidFor(machine);
+  if (!rid) {
+    problems.push(
+      `This server's processor (${machine || 'unknown'}) has no server core build; it needs x64 or arm64.`,
+    );
+  }
+
+  const systemd =
+    (await run('test -d /run/systemd/system && echo yes || echo no')).stdout.trim() === 'yes';
+  if (!systemd)
+    problems.push(
+      'The server core runs as a systemd service, and this server does not run systemd.',
+    );
+
+  const free = (await run("df -Pk /opt /var 2>/dev/null | awk 'NR>1 {print $4}'")).stdout
+    .split(/\s+/)
+    .map(Number)
+    .filter((kb) => Number.isFinite(kb) && kb > 0);
+  const freeDiskMb = free.length > 0 ? Math.floor(Math.min(...free) / 1024) : null;
+  if (freeDiskMb !== null && freeDiskMb < MIN_FREE_MB) {
+    problems.push(
+      `The server needs at least ${MIN_FREE_MB} MB free under /opt and /var; it has ${freeDiskMb} MB.`,
+    );
+  }
+
+  let sudo: SudoMode | null = null;
+  try {
+    sudo = await detectSudoMode(connection);
+  } catch (error) {
+    problems.push((error as Error).message);
+  }
+
+  let installed: PreflightReport['installed'] = null;
+  const current = await run('readlink -f /opt/agentmate-core/current 2>/dev/null');
+  if (current.exitCode === 0 && current.stdout.trim()) {
+    const version = await run(`${CORE_BINARY_PATH} admin version 2>/dev/null`);
+    try {
+      const parsed = JSON.parse(version.stdout) as { version?: unknown };
+      if (typeof parsed.version === 'string') {
+        installed = { version: parsed.version, release: current.stdout.trim() };
+      }
+    } catch {
+      // A broken install: treat it as not installed, and let the install replace it.
+    }
+  }
+
+  const enforce = (
+    await run('command -v getenforce >/dev/null 2>&1 && getenforce || echo absent')
+  ).stdout
+    .trim()
+    .toLowerCase();
+  const selinux: PreflightReport['selinux'] =
+    enforce === 'enforcing' || enforce === 'permissive' || enforce === 'disabled'
+      ? enforce
+      : 'absent';
+
+  let streamLocal: PreflightReport['streamLocal'] = 'allowed';
+  try {
+    const probe = await connection.openStream({ socketPath: STREAM_LOCAL_PROBE });
+    probe.destroy();
+  } catch (error) {
+    // Any other refusal may be nothing listening there, or (from OpenSSH) a policy refusal.
+    if (error instanceof TunnelRefusedError && error.prohibited) streamLocal = 'prohibited';
+  }
+
+  return {
+    os,
+    architecture: { machine, rid },
+    systemd,
+    freeDiskMb,
+    sudo,
+    loginUser: connection.endpoint.username,
+    streamLocal,
+    installed,
+    selinux,
+    problems,
+  };
+}

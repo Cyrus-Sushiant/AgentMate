@@ -591,6 +591,15 @@ export const IPC = {
     dispatch: 'pipelines:dispatch',
     cancelRun: 'pipelines:cancelRun',
   },
+  /** The Deploy section: saved servers, installing the server core, and its health. */
+  deploy: {
+    listServers: 'deploy:listServers',
+    preflight: 'deploy:preflight',
+    install: 'deploy:install',
+    uninstall: 'deploy:uninstall',
+    health: 'deploy:health',
+    onSetupProgress: 'deploy:onSetupProgress',
+  },
   /** The workspace Pull request tab: the current branch's PR, its checks, review and merge. */
   pullRequests: {
     status: 'pullRequests:status',

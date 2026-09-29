@@ -43,11 +43,27 @@ export interface UploadOptions {
   onProgress?: (sentBytes: number, totalBytes: number) => void;
 }
 
+/** SSH's reason code when sshd refuses a channel by policy (RFC 4254, section 5.1). */
+const ADMINISTRATIVELY_PROHIBITED = 1;
+
+/** A tunnel the server would not open. `prohibited` means sshd's configuration forbids it. */
+export class TunnelRefusedError extends Error {
+  readonly prohibited: boolean;
+
+  constructor(message: string, reason: unknown) {
+    super(message);
+    this.name = 'TunnelRefusedError';
+    this.prohibited = reason === ADMINISTRATIVELY_PROHIBITED;
+  }
+}
+
 const KEEPALIVE_INTERVAL_MS = 15_000;
 const KEEPALIVE_COUNT_MAX = 3;
 const DEFAULT_TIMEOUT_MS = 5 * 60_000;
 const DEFAULT_MAX_OUTPUT_BYTES = 4 * 1024 * 1024;
 const UPLOAD_CHUNK_BYTES = 32 * 1024;
+/** What `mktemp -d -t agentmate.XXXXXXXXXX` prints: an absolute path ending in that name. */
+const STAGING_DIRECTORY = /^\/[^\s'"]*\/agentmate\.[A-Za-z0-9]{6,}$/;
 const TRUNCATED = '\n[output truncated]\n';
 
 class OutputCollector {
@@ -182,10 +198,28 @@ export class SshConnection {
         exitCode = code ?? null;
         signal = signalName ?? null;
       });
-      channel.on('close', finish);
+      // A command that finishes at once can have its exit status parsed in the same burst as the
+      // exec reply, before this listener exists. ssh2 repeats the status on 'close', which only
+      // fires once the buffered output has been read, so it cannot be missed there.
+      channel.on('close', (code?: number | null, signalName?: string) => {
+        if (exitCode === null && typeof code === 'number') exitCode = code;
+        if (signal === null && typeof signalName === 'string') signal = signalName;
+        finish();
+      });
 
       if (options.stdin !== undefined && options.stdin.length > 0) channel.end(options.stdin);
       else channel.end();
+    });
+  }
+
+  /**
+   * A command's stdin and stdout as one two-way stream, for long-lived conversations such as the
+   * core's `bridge`. Whatever the command writes to stderr is left out of the stream.
+   */
+  async openExecStream(command: string): Promise<Duplex> {
+    this.assertOpen();
+    return new Promise((resolve, reject) => {
+      this.client.exec(command, (error, channel) => (error ? reject(error) : resolve(channel)));
     });
   }
 
@@ -196,9 +230,10 @@ export class SshConnection {
       const done = (error: Error | undefined, channel: ClientChannel): void => {
         if (error) {
           reject(
-            new Error(
+            new TunnelRefusedError(
               `Could not open a tunnel to ${describeTarget(target)} on ${this.endpoint.host}: ` +
                 `${error.message}`,
+              (error as Error & { reason?: unknown }).reason,
             ),
           );
         } else {
@@ -268,11 +303,14 @@ export class SshConnection {
     }
   }
 
-  /** A fresh folder in the server's temp directory, owned by the login user. */
+  /**
+   * A fresh folder in the server's temp directory, owned by the login user. The answer must look
+   * like the folder mktemp was asked for, because callers remove it again with `rm -rf`.
+   */
   async createStagingDirectory(): Promise<string> {
     const result = await this.exec('mktemp -d -t agentmate.XXXXXXXXXX', { timeoutMs: 30_000 });
     const path = result.stdout.trim();
-    if (result.exitCode !== 0 || !path.startsWith('/') || /\s/.test(path)) {
+    if (result.exitCode !== 0 || !STAGING_DIRECTORY.test(path)) {
       throw new Error(
         `Could not create a staging folder on ${this.endpoint.host}: ${result.stderr.trim()}`,
       );

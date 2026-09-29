@@ -9,6 +9,7 @@ import { stopAllSshTasks } from './agents/sshTaskRunner';
 import { stopEmulatorsOnQuit } from './android/runtime';
 import { registerBlueprintFileProtocol } from './blueprintFileStore';
 import { configureBrowserSession, setupBrowserGuests } from './browser/guestSession';
+import { registerDeployIpc } from './deploy';
 import { seedExampleRepositoryIfEmpty } from './exampleSkillRepo';
 import { shutdownLocalServer } from './grammar/localServer';
 import { registerActivityHandlers } from './ipc/activity';
@@ -330,6 +331,7 @@ function registerAllIpcHandlers(): void {
   registerPromptBuildWidgetHandlers();
   registerPetHandlers();
   registerPipelineHandlers();
+  registerDeployIpc();
   registerPullRequestHandlers();
   registerTestHandlers();
   registerVaultIpc();

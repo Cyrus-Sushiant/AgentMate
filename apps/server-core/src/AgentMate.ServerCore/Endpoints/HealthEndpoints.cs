@@ -13,8 +13,8 @@ internal static class HealthEndpoints
     public static IEndpointRouteBuilder MapHealthEndpoints(this IEndpointRouteBuilder endpoints)
     {
         endpoints
-            .MapGet(Path, () => TypedResults.Ok(
-                new HealthResponse("ok", CoreVersion.Current, CoreVersion.ApiVersion)))
+            .MapGet(Path, (CoreStartup startup) => TypedResults.Ok(
+                new HealthResponse("ok", CoreVersion.Current, CoreVersion.ApiVersion, startup.StartedAtUnixMs)))
             .AllowAnonymous();
         return endpoints;
     }

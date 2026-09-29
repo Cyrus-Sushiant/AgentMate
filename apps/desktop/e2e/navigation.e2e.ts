@@ -55,6 +55,14 @@ const DESTINATIONS: Destination[] = [
     landmark: (page) => page.getByRole('button', { name: /^Refresh runs/ }),
   },
   {
+    // The e2e profile has no saved servers, so the page points to Remote; with servers it lists
+    // them in its rail.
+    label: 'Deploy',
+    hash: '#/deploy',
+    landmark: (page) =>
+      page.getByRole('navigation', { name: 'Servers' }).or(page.getByText('No servers yet')),
+  },
+  {
     label: 'Skills',
     hash: '#/skills',
     landmark: (page) => page.getByRole('navigation', { name: 'Skill views' }),

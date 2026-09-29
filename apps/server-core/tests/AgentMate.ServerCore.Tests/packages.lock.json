@@ -511,8 +511,18 @@
       "agentmate-core": {
         "type": "Project",
         "dependencies": {
+          "Microsoft.Extensions.Hosting.Systemd": "[10.0.12, )",
           "Tapper.Attributes": "[1.14.0, )",
           "TypedSignalR.Client.TypeScript.Attributes": "[1.17.0, )"
+        }
+      },
+      "Microsoft.Extensions.Hosting.Systemd": {
+        "type": "CentralTransitive",
+        "requested": "[10.0.12, )",
+        "resolved": "10.0.12",
+        "contentHash": "WC1u8RbTqJTY/JknZFHX0+TDptgtpoBRc8Kro0xPSwunMql3e1zBxnK+OJbx30ozSCfMpHaYAfaeiVQgM5sizw==",
+        "dependencies": {
+          "Microsoft.Extensions.Hosting": "10.0.12"
         }
       },
       "Tapper.Attributes": {

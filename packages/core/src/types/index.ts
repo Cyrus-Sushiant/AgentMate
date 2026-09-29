@@ -35,6 +35,7 @@ export const STARTUP_PAGES = [
   '/workspace',
   '/api-client',
   '/pipelines',
+  '/deploy',
   '/skills',
   '/mcp',
   '/tools',

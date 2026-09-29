@@ -4,6 +4,9 @@
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
     <CentralPackageTransitivePinningEnabled>true</CentralPackageTransitivePinningEnabled>
   </PropertyGroup>
+  <ItemGroup Label="Hosting">
+    <PackageVersion Include="Microsoft.Extensions.Hosting.Systemd" Version="10.0.12" />
+  </ItemGroup>
   <ItemGroup Label="Contracts">
     <PackageVersion Include="Tapper.Attributes" Version="1.14.0" />
     <PackageVersion Include="TypedSignalR.Client.TypeScript.Attributes" Version="1.17.0" />

@@ -10,6 +10,8 @@ export type HealthResponse = {
     version: string;
     /** Transpiled from int */
     apiVersion: number;
+    /** Transpiled from long */
+    startedAtUnixMs: number;
 }
 
 /** Transpiled from AgentMate.ServerCore.Contracts.PingResponse */

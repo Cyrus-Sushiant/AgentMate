@@ -1,6 +1,7 @@
 <Solution>
   <Folder Name="/src/">
     <Project Path="src/AgentMate.ServerCore/AgentMate.ServerCore.csproj" />
+    <Project Path="src/AgentMate.ServerCore.DevHost/AgentMate.ServerCore.DevHost.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/AgentMate.ServerCore.Tests/AgentMate.ServerCore.Tests.csproj" />
