@@ -49,19 +49,12 @@ beforeEach(() => {
 
 afterEach((context) => {
   if (context.task.result?.state === 'fail') {
-    const journals = servers.map((server) => {
-      try {
-        return server.run('journalctl --no-pager -n 150 2>&1 | tail -150');
-      } catch (error) {
-        return `(no journal: ${String(error)})`;
-      }
-    });
     // biome-ignore lint/suspicious/noConsole: the CI log is all there is to see where a run stopped
     console.log(
       [
         `Steps of "${context.task.name}":`,
         ...reported,
-        ...journals.map((journal) => `Journal:\n${journal}`),
+        ...servers.map((server) => server.diagnose()),
       ].join('\n'),
     );
   }
