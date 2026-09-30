@@ -127,10 +127,19 @@ export class CoreHttpClient {
           response.on('error', reject);
         },
       );
-      outgoing.setTimeout(options.timeoutMs ?? DEFAULT_TIMEOUT_MS, () => {
-        outgoing.destroy(new Error(`The server core did not answer ${method} ${path} in time.`));
+      // A deadline of its own rather than a socket timeout: an SSH channel never fires one, and
+      // the tunnel opening is part of what may hang.
+      const deadline = setTimeout(() => {
+        const error = new Error(`The server core did not answer ${method} ${path} in time.`);
+        outgoing.destroy(error);
+        // A request still waiting for its tunnel has no socket to report the error through.
+        reject(error);
+      }, options.timeoutMs ?? DEFAULT_TIMEOUT_MS);
+      outgoing.on('close', () => clearTimeout(deadline));
+      outgoing.on('error', (error) => {
+        clearTimeout(deadline);
+        reject(error);
       });
-      outgoing.on('error', reject);
       outgoing.end(payload);
     });
   }

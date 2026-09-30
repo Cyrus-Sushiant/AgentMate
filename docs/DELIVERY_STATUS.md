@@ -30,7 +30,7 @@ Plan: docs/ROADMAP.md
 | E01 | Server core scaffold | Complete | 3353dba | Contracts via Tapper and TypedSignalR (TS 7 has no compiler API for openapi-typescript); API is WebSocket-first |
 | E02 | SSH foundation | Complete | dc698a8 | Host-key trust dialog shared by terminals and Deploy; sudo password validated alone before payloads |
 | E03 | Walking skeleton: install and see the server | Complete | 88403fa, 42aabeb | Tunnel or bridge settled by trying after the install (OpenSSH hides the reason); exec exit-status race fixed; DevHost e2e on every OS |
-| E04 | Identity and device enrollment | Complete | see git log | Authenticator codes work once (RFC 6238 5.2); two-factor changes end the other sessions only; access tokens sealed with Data Protection rather than JWTs; enrollment-code screens come with E15 T1; SignalR kept out of the main bundle |
+| E04 | Identity and device enrollment | Complete | 73663f6, see git log | Authenticator codes work once (RFC 6238 5.2); two-factor changes end the other sessions only; access tokens sealed with Data Protection rather than JWTs; enrollment-code screens come with E15 T1; SignalR kept out of the main bundle |
 | E05 | Realtime, jobs and server overview | Not started | | |
 | E06 | Docker engine and containers | Not started | | |
 | E07 | Compose stacks | Not started | | |
@@ -60,16 +60,18 @@ Status values: Not started, In progress, Blocked, Complete.
   `v*` tag. Until then the download source is covered with a fake downloader, and the publish
   script was run by hand for linux-x64 and linux-arm64.
 - E03, arm64: the linux-arm64 build cross-compiles, but no arm64 test server runs an install.
-- E03 AC5: the DevHost and navigation specs pass locally on Windows; macOS and Linux evidence comes
-  from this commit's `[e2e]` run.
-- E04: the DevHost sign-in and two-factor spec passes locally on Windows; macOS and Linux evidence
-  comes from the E04 commit's `[e2e]` run.
+- E03 AC5 and E04: the DevHost, navigation and sign-in with two-factor specs passed on Ubuntu,
+  Windows and macOS in CI run 36647129514 (E04).
 - E04 T11: minting and redeeming enrollment codes is tested in the core only. No screen uses it
   until E15 T1, which the plan gives the users and devices UI.
-- E04 system tests: the first local run hung in both root-login installs (10-minute timeouts)
-  while the other six passed. Three later runs (alone, both root installs together, and the full
-  suite) passed in seconds, so the cause is unknown. The CI job "Server core on test servers" on
-  the E04 commit is the next data point.
+- E03 and E04 system tests on GitHub runners: they pass here (Docker Desktop, all 8, about 80
+  seconds) but have not passed in CI. E03's dispatched run 36542574176 had three installs run into
+  the 10-minute limit and both Rocky logins refused; E04's run 36647129514 was stopped by the
+  45-minute job limit. One local run showed the same hang once. Three waits in the SSH layer had
+  no time limit (opening a channel before a command's timer started, opening a tunnel, and HTTP
+  over a tunnel, whose socket timeout never fires); they are bounded now, the test servers are
+  built before the tests, and a failing test prints its timed steps and the server's journal, so
+  the next CI run shows where it stops.
 
 ## Known failures outside the Deploy work
 

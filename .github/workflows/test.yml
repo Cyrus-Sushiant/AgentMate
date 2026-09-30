@@ -178,6 +178,13 @@ jobs:
       - name: Publish the linux-x64 release
         run: node scripts/server-core.mjs publish linux-x64
 
+      # Built up front, so the image builds do not count against each test's time limit.
+      - name: Build the test servers
+        run: |
+          for image in ubuntu-24.04 rocky-9; do
+            docker build -q -t "agentmate-test-server:$image" "apps/server-core/test-servers/$image"
+          done
+
       - name: Install on test servers
         env:
           AGENTMATE_SYSTEM_TESTS: "1"

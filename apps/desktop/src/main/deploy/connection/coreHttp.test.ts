@@ -1,8 +1,10 @@
 import { createServer, type IncomingMessage, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
+import { Duplex } from 'node:stream';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { CoreHttpClient, CoreHttpError } from './coreHttp';
-import { devTcpTransport } from './transport';
+import { asSocket } from './socketShim';
+import { type CoreTransport, devTcpTransport } from './transport';
 
 /**
  * The few REST calls the app makes (health, and sign-in from E04), carried over whatever
@@ -117,6 +119,38 @@ describe('CoreHttpClient', () => {
     await expect(client.get('/api/v1/health', { timeoutMs: 100 })).rejects.toThrow(
       /did not answer/,
     );
+  });
+
+  it('gives up on a core that never answers over SSH, where socket timeouts do nothing', async () => {
+    const silent: CoreTransport = {
+      kind: 'streamlocal',
+      openStream: async () =>
+        asSocket(
+          new Duplex({
+            read() {
+              // A core that never says anything back.
+            },
+            write(_chunk, _encoding, done) {
+              done();
+            },
+          }),
+        ),
+    };
+
+    await expect(
+      new CoreHttpClient(silent).get('/api/v1/health', { timeoutMs: 100 }),
+    ).rejects.toThrow(/did not answer GET \/api\/v1\/health in time/);
+  });
+
+  it('gives up on a tunnel that never opens', async () => {
+    const stuck: CoreTransport = {
+      kind: 'streamlocal',
+      openStream: () => new Promise(() => undefined),
+    };
+
+    await expect(
+      new CoreHttpClient(stuck).get('/api/v1/health', { timeoutMs: 100 }),
+    ).rejects.toThrow(/did not answer/);
   });
 
   it('opens a new stream for every request', async () => {

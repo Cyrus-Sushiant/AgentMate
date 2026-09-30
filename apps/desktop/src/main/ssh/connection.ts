@@ -60,6 +60,8 @@ export class TunnelRefusedError extends Error {
 const KEEPALIVE_INTERVAL_MS = 15_000;
 const KEEPALIVE_COUNT_MAX = 3;
 const DEFAULT_TIMEOUT_MS = 5 * 60_000;
+/** How long a tunnel or a command stream may take to open before the server counts as stuck. */
+const OPEN_TIMEOUT_MS = 30_000;
 const DEFAULT_MAX_OUTPUT_BYTES = 4 * 1024 * 1024;
 const UPLOAD_CHUNK_BYTES = 32 * 1024;
 /** What `mktemp -d -t agentmate.XXXXXXXXXX` prints: an absolute path ending in that name. */
@@ -98,6 +100,10 @@ class OutputCollector {
     const text = Buffer.concat(this.chunks).toString('utf8');
     return this.truncated ? `${text}${TRUNCATED}` : text;
   }
+}
+
+function seconds(ms: number): string {
+  return ms % 1000 === 0 ? `${ms / 1000} seconds` : `${ms} ms`;
 }
 
 function describeTarget(target: TunnelTarget): string {
@@ -161,9 +167,16 @@ export class SshConnection {
 
   async exec(command: string, options: ExecOptions = {}): Promise<ExecResult> {
     this.assertOpen();
-    const channel = await new Promise<ClientChannel>((resolve, reject) => {
-      this.client.exec(command, (error, stream) => (error ? reject(error) : resolve(stream)));
-    });
+    const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+    const started = Date.now();
+    // The clock runs from the request, so a server that never takes the command cannot hang this.
+    const channel = await this.openChannel<ClientChannel>(
+      (done) => this.client.exec(command, done),
+      timeoutMs,
+    );
+    if (!channel) {
+      return { stdout: '', stderr: '', exitCode: null, signal: null, timedOut: true };
+    }
 
     return new Promise((resolve) => {
       const limit = options.maxOutputBytes ?? DEFAULT_MAX_OUTPUT_BYTES;
@@ -186,11 +199,14 @@ export class SshConnection {
           timedOut,
         });
       };
-      const timer = setTimeout(() => {
-        timedOut = true;
-        channel.close();
-        finish();
-      }, options.timeoutMs ?? DEFAULT_TIMEOUT_MS);
+      const timer = setTimeout(
+        () => {
+          timedOut = true;
+          channel.close();
+          finish();
+        },
+        Math.max(0, timeoutMs - (Date.now() - started)),
+      );
 
       channel.on('data', (chunk: Buffer) => stdout.push(chunk));
       channel.stderr.on('data', (chunk: Buffer) => stderr.push(chunk));
@@ -216,34 +232,49 @@ export class SshConnection {
    * A command's stdin and stdout as one two-way stream, for long-lived conversations such as the
    * core's `bridge`. Whatever the command writes to stderr is left out of the stream.
    */
-  async openExecStream(command: string): Promise<Duplex> {
+  async openExecStream(command: string, options: { timeoutMs?: number } = {}): Promise<Duplex> {
     this.assertOpen();
-    return new Promise((resolve, reject) => {
-      this.client.exec(command, (error, channel) => (error ? reject(error) : resolve(channel)));
-    });
+    const timeoutMs = options.timeoutMs ?? OPEN_TIMEOUT_MS;
+    const channel = await this.openChannel<ClientChannel>(
+      (done) => this.client.exec(command, done),
+      timeoutMs,
+    );
+    if (!channel) {
+      throw new Error(
+        `The command did not start within ${seconds(timeoutMs)} on ${this.endpoint.host}.`,
+      );
+    }
+    return channel;
   }
 
   /** A byte stream to a Unix socket or TCP port on the server, carried inside this connection. */
-  async openStream(target: TunnelTarget): Promise<Duplex> {
+  async openStream(target: TunnelTarget, options: { timeoutMs?: number } = {}): Promise<Duplex> {
     this.assertOpen();
-    return new Promise((resolve, reject) => {
-      const done = (error: Error | undefined, channel: ClientChannel): void => {
-        if (error) {
-          reject(
-            new TunnelRefusedError(
-              `Could not open a tunnel to ${describeTarget(target)} on ${this.endpoint.host}: ` +
-                `${error.message}`,
-              (error as Error & { reason?: unknown }).reason,
-            ),
-          );
-        } else {
-          resolve(channel);
-        }
-      };
-      if ('socketPath' in target)
-        this.client.openssh_forwardOutStreamLocal(target.socketPath, done);
-      else this.client.forwardOut('127.0.0.1', 0, target.host, target.port, done);
-    });
+    const timeoutMs = options.timeoutMs ?? OPEN_TIMEOUT_MS;
+    let channel: ClientChannel | null;
+    try {
+      channel = await this.openChannel<ClientChannel>((done) => {
+        if ('socketPath' in target)
+          this.client.openssh_forwardOutStreamLocal(target.socketPath, done);
+        else this.client.forwardOut('127.0.0.1', 0, target.host, target.port, done);
+      }, timeoutMs);
+    } catch (error) {
+      if (this.closed) throw error;
+      const refusal = error as Error & { reason?: unknown };
+      throw new TunnelRefusedError(
+        `Could not open a tunnel to ${describeTarget(target)} on ${this.endpoint.host}: ` +
+          `${refusal.message}`,
+        refusal.reason,
+      );
+    }
+    // No answer at all is not a refusal, so it must not send the caller to the bridge instead.
+    if (!channel) {
+      throw new Error(
+        `The tunnel to ${describeTarget(target)} on ${this.endpoint.host} did not open within ` +
+          `${seconds(timeoutMs)}.`,
+      );
+    }
+    return channel;
   }
 
   /**
@@ -333,6 +364,35 @@ export class SshConnection {
 
   private untilClosed<T>(work: Promise<T>): Promise<T> {
     return Promise.race([work, this.closedSignal]);
+  }
+
+  /**
+   * Opens a channel, or gives up after `timeoutMs` with null. A channel that opens after that is
+   * closed right away, and a connection that ends meanwhile fails the wait.
+   */
+  private openChannel<T extends { close(): unknown }>(
+    open: (done: (error: Error | undefined, channel: T) => void) => void,
+    timeoutMs: number,
+  ): Promise<T | null> {
+    return this.untilClosed(
+      new Promise<T | null>((resolve, reject) => {
+        let settled = false;
+        const timer = setTimeout(() => {
+          settled = true;
+          resolve(null);
+        }, timeoutMs);
+        open((error, channel) => {
+          if (settled) {
+            if (!error) channel.close();
+            return;
+          }
+          settled = true;
+          clearTimeout(timer);
+          if (error) reject(error);
+          else resolve(channel);
+        });
+      }),
+    );
   }
 
   private sftp(): Promise<SFTPWrapper> {

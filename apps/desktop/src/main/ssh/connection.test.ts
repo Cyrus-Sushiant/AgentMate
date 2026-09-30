@@ -103,6 +103,15 @@ describe('SshConnection.exec', () => {
     expect(result.exitCode).toBeNull();
   });
 
+  it('counts the wait for the server to take the command against the timeout', async () => {
+    const { connection } = await connect({ neverAnswer: 'commands' });
+
+    const result = await connection.exec('true', { timeoutMs: 100 });
+
+    expect(result.timedOut).toBe(true);
+    expect(result.exitCode).toBeNull();
+  });
+
   it('stops collecting output past the cap and says so', async () => {
     const { connection } = await connect({ exec: () => ({ stdout: 'x'.repeat(5000) }) });
 
@@ -181,6 +190,18 @@ describe('SshConnection.openStream', () => {
     stream.destroy();
   });
 
+  it('gives up on a tunnel the server never answers, without reading it as a refusal', async () => {
+    const { connection } = await connect({ neverAnswer: 'tunnels' });
+
+    const failure = await connection
+      .openStream({ socketPath: '/run/agentmate-core/core.sock' }, { timeoutMs: 100 })
+      .catch((error: unknown) => error);
+
+    expect(failure).toBeInstanceOf(Error);
+    expect(failure).not.toBeInstanceOf(TunnelRefusedError);
+    expect(String(failure)).toMatch(/did not open within/);
+  });
+
   it('explains a tunnel the server refused', async () => {
     const { connection } = await connect({ forward: () => null });
 
@@ -232,6 +253,14 @@ describe('SshConnection.openExecStream', () => {
     expect((await echoed).toString()).toBe('hello');
     expect(commands).toEqual(['agentmate-core bridge']);
     stream.destroy();
+  });
+
+  it('gives up on a command stream the server never starts', async () => {
+    const { connection } = await connect({ neverAnswer: 'commands' });
+
+    await expect(
+      connection.openExecStream('agentmate-core bridge', { timeoutMs: 100 }),
+    ).rejects.toThrow(/did not start within/);
   });
 
   it('refuses work after the connection closed', async () => {

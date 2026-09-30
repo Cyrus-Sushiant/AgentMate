@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto';
 import { copyFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { DeploySetupProgressEvent } from '../../shared/deployTypes';
 import { tempDir } from '../../test/main/fixtures';
 import { SshConnectionPool } from '../ssh/pool';
@@ -36,7 +36,36 @@ type Login = keyof typeof TEST_LOGINS;
 
 const servers: TestServer[] = [];
 
-afterEach(() => {
+/**
+ * Every step the running test's services reported, with the seconds since the test began. Printed
+ * with each server's journal when a test fails, since the CI log is all there is to go on.
+ */
+const reported: string[] = [];
+let testStarted = Date.now();
+
+beforeEach(() => {
+  testStarted = Date.now();
+});
+
+afterEach((context) => {
+  if (context.task.result?.state === 'fail') {
+    const journals = servers.map((server) => {
+      try {
+        return server.run('journalctl --no-pager -n 150 2>&1 | tail -150');
+      } catch (error) {
+        return `(no journal: ${String(error)})`;
+      }
+    });
+    // biome-ignore lint/suspicious/noConsole: the CI log is all there is to see where a run stopped
+    console.log(
+      [
+        `Steps of "${context.task.name}":`,
+        ...reported,
+        ...journals.map((journal) => `Journal:\n${journal}`),
+      ].join('\n'),
+    );
+  }
+  reported.length = 0;
   for (const server of servers.splice(0)) server.stop();
 });
 
@@ -87,7 +116,11 @@ function deploy(
     deviceName: () => 'Integration test',
     availableVersion: async () => '0.0.0-dev',
     devCorePort: null,
-    progress: (event) => events.push(event),
+    progress: (event) => {
+      events.push(event);
+      const seconds = ((Date.now() - testStarted) / 1000).toFixed(1);
+      reported.push(`${seconds}s ${JSON.stringify(event.progress)}`);
+    },
   });
   return { service, pool, events };
 }

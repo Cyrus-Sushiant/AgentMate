@@ -44,6 +44,11 @@ export interface FakeSshServerOptions {
    * a failed connect (reason 2), as sshd does when nothing listens at the target.
    */
   forward?: (target: ForwardTarget) => Duplex | null;
+  /**
+   * Leaves requests of one kind unanswered, neither accepted nor refused, the way a server that
+   * stopped responding does.
+   */
+  neverAnswer?: 'commands' | 'tunnels';
 }
 
 export type ForwardTarget =
@@ -138,6 +143,7 @@ export async function startFakeSshServer(
             shell.on('data', (data: Buffer) => shell.write(data));
           });
           session.on('exec', (accept, _reject, info) => {
+            if (options.neverAnswer === 'commands') return;
             const channel = accept();
             if (options.interactiveExec?.(info.command, channel)) return;
             const chunks: Buffer[] = [];
@@ -163,6 +169,7 @@ export async function startFakeSshServer(
           channel.pipe(target).pipe(channel);
         });
         client.on('openssh.streamlocal', (accept, reject, info) => {
+          if (options.neverAnswer === 'tunnels') return;
           const target = options.forward?.({ kind: 'unix', path: info.socketPath });
           if (!target) return reject();
           const channel = accept();
