@@ -178,6 +178,16 @@ jobs:
       - name: Publish the linux-x64 release
         run: node scripts/server-core.mjs publish linux-x64
 
+      # Ubuntu's AppArmor has a profile that confines any unix_chkpwd by its path, the Rocky test
+      # server's own included, since containers share the host's profiles. Confined, it cannot read
+      # /etc/shadow and every password login fails. A real Rocky server has no such profile.
+      - name: Let the Rocky test server check passwords
+        run: |
+          if sudo grep -q '^unix-chkpwd ' /sys/kernel/security/apparmor/profiles 2>/dev/null; then
+            echo -n unix-chkpwd | sudo tee /sys/kernel/security/apparmor/.remove > /dev/null
+            echo "Unloaded the runner's unix-chkpwd AppArmor profile."
+          fi
+
       # Built up front, so the image builds do not count against each test's time limit.
       - name: Build the test servers
         run: |

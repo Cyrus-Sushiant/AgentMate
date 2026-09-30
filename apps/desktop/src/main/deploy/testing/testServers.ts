@@ -7,6 +7,11 @@ import { fileURLToPath } from 'node:url';
  * systemd as PID 1 and sshd, started privileged on a free local port. Each has a root login and a
  * `deployer` whose sudo asks for its password. Only runs with AGENTMATE_SYSTEM_TESTS=1, since a
  * test boots whole machines.
+ *
+ * On an Ubuntu host with AppArmor (24.04 and later), the host's `unix-chkpwd` profile confines the
+ * Rocky server's unix_chkpwd too, and every password login there fails. CI unloads that profile
+ * first (see the "Let the Rocky test server check passwords" step in test.yml); do the same there
+ * before running these tests on such a machine.
  */
 
 export type TestServerImage = 'ubuntu-24.04' | 'debian-13' | 'rocky-9';
