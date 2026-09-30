@@ -104,6 +104,12 @@ hub method is covered by a policy; every sensitive action lands in a tamper-evid
 - **T11.** Minting (`CreateEnrollmentCode`, Owner, needs a step-up) and redeeming
   (`POST /api/v1/auth/enroll`) are in the core and tested. The screens for them come with E15 T1
   (users, devices and enrollment codes), where the plan puts user management.
+- **System tests in CI.** They had only ever passed on Docker Desktop. On GitHub's runners the
+  systemd test servers shared the host's cgroup namespace, which collides with the runner's own
+  systemd (Ubuntu servers never finished starting), and the runner's AppArmor profile for
+  unix_chkpwd confined the Rocky server's own helper (every password login failed). The servers
+  now get a private cgroup namespace and CI unloads that profile. Three SSH waits that had no
+  time limit are bounded as well. All 8 pass in CI now.
 - **SignalR in the built app.** Bundling the SignalR client broke its runtime `require` of
   `eventsource` and `tough-cookie` in `electron-vite` builds (unit and integration tests run
   unbundled, so none noticed). It is now external, like `postman-runtime`. The e2e test caught it

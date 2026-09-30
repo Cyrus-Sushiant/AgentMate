@@ -64,14 +64,15 @@ Status values: Not started, In progress, Blocked, Complete.
   Windows and macOS in CI run 36647129514 (E04).
 - E04 T11: minting and redeeming enrollment codes is tested in the core only. No screen uses it
   until E15 T1, which the plan gives the users and devices UI.
-- E03 and E04 system tests on GitHub runners: they pass here (Docker Desktop, all 8, about 80
-  seconds) but have not passed in CI. E03's dispatched run 36542574176 had three installs run into
-  the 10-minute limit and both Rocky logins refused; E04's run 36647129514 was stopped by the
-  45-minute job limit. One local run showed the same hang once. Three waits in the SSH layer had
-  no time limit (opening a channel before a command's timer started, opening a tunnel, and HTTP
-  over a tunnel, whose socket timeout never fires); they are bounded now, the test servers are
-  built before the tests, and a failing test prints its timed steps and the server's journal, so
-  the next CI run shows where it stops.
+- E03 and E04 system tests: all 8 now pass in CI too (run 36677124032, e3c7b94), after three
+  fixes. Three SSH waits had no time limit (a command's channel opening before its timer started,
+  opening a tunnel, and HTTP over a tunnel, whose socket timeout never fires). The systemd test
+  servers shared the runner's cgroup namespace, which collides with a host that runs systemd, so
+  Ubuntu servers never finished starting; they now get a private one. On Rocky, the runner's
+  AppArmor profile for unix_chkpwd confined the container's own helper, so every password login
+  failed; CI unloads that profile first. Before that, E03's dispatched run 36542574176 and E04's
+  run 36647129514 never finished these tests. They take about 80 seconds each in CI against
+  about 10 locally; the timed steps a failing test prints would show where, if it matters.
 
 ## Known failures outside the Deploy work
 
@@ -87,8 +88,17 @@ landed, so nothing caught them earlier:
   "Fake Claude ready".
 - Windows: a few more visibility and count assertions in the same run.
 
-The Deploy-related specs pass: `sshAiTask.e2e.ts` on Ubuntu (the only runner with Docker) and
-`navigation.e2e.ts` everywhere. Left for the owner of those features.
+Still failing in the E04 runs (36647129514 through 36677124032), none of them Deploy code:
+
+- All OSes: `apiClient.e2e.ts:40` and `settingsPersistence.e2e.ts:77`, as above.
+- macOS: the local-terminal specs above, plus `windowState.e2e.ts:99` and `worktrees.e2e.ts:44`
+  (`workspaceSearch.e2e.ts:33` failed once too).
+- Windows: `browser.e2e.ts:115`, `lastPage.e2e.ts:85`, `windowState.e2e.ts:81` and
+  `worktrees.e2e.ts:44`.
+
+The Deploy-related specs pass: `deploy.e2e.ts` (DevHost health, sign-in with two-factor) and
+`navigation.e2e.ts` on every OS, and `sshAiTask.e2e.ts` on Ubuntu (the only runner with Docker).
+Left for the owner of those features.
 
 ## Open blockers
 
