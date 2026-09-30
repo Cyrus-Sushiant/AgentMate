@@ -150,6 +150,7 @@ export async function startTestServer(
       `PID 1 cgroup: ${look('cat /proc/1/cgroup')}`,
       `sshd: ${look("pid=$(pgrep -o sshd); grep -E '^(Uid|CapEff|CapBnd)' /proc/$pid/status | tr '\\n' ' '")}`,
       `Shadow: ${look('ls -l /etc/shadow')}`,
+      `SELinux: ${look('(getenforce 2>&1 || echo no getenforce); grep -c selinuxfs /proc/mounts || true')}`,
       `Journal:\n${look('journalctl --no-pager -n 150 2>&1 | tail -150')}`,
     ].join('\n');
   };

@@ -11,7 +11,11 @@ RUN dnf -y install systemd openssh-server sudo passwd procps-ng tar gzip policyc
  && useradd -m deployer \
  && echo 'deployer-test-pw' | passwd --stdin deployer \
  && usermod -aG wheel deployer \
+ && rm -f /etc/selinux/config \
  && systemctl enable sshd
+# Without its config file, libselinux reports SELinux as disabled even on hosts whose kernel exposes
+# selinuxfs to the container (GitHub's runners). Otherwise PAM hands password checks to unix_chkpwd,
+# which cannot find the user there, and every login fails. SELinux itself is tested on a VM.
 STOPSIGNAL SIGRTMIN+3
 EXPOSE 22
 CMD ["/sbin/init"]
