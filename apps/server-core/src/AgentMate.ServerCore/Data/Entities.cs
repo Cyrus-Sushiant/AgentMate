@@ -1,3 +1,4 @@
+using AgentMate.ServerCore.Contracts;
 using Microsoft.AspNetCore.Identity;
 
 namespace AgentMate.ServerCore.Data;
@@ -120,4 +121,114 @@ internal sealed class AuditAnchor
     public long LastPrunedId { get; set; }
 
     public required string LastPrunedHash { get; set; }
+}
+
+/// <summary>A job's row. Its log lives in a file of its own under the data folder (jobs/&lt;id&gt;.log).</summary>
+internal sealed class Job
+{
+    public Guid Id { get; set; }
+
+    public JobKind Kind { get; set; }
+
+    public required string Title { get; set; }
+
+    public JobState State { get; set; }
+
+    /// <summary>What the job works on, as shown (a service name); locks are kept in memory.</summary>
+    public string? Resource { get; set; }
+
+    public Guid? RequestedBy { get; set; }
+
+    public string? RequestedByName { get; set; }
+
+    public long CreatedAt { get; set; }
+
+    public long? FinishedAt { get; set; }
+
+    public int? ExitCode { get; set; }
+
+    /// <summary>Why it failed, redacted.</summary>
+    public string? Error { get; set; }
+
+    /// <summary>Lines in the log, written when the job ends (a running job counts in memory).</summary>
+    public long LogLines { get; set; }
+
+    public bool Cancellable { get; set; }
+}
+
+/// <summary>One condition on one resource. Open until the condition clears; acknowledging only quiets it.</summary>
+internal sealed class Alert
+{
+    public long Id { get; set; }
+
+    /// <summary>Raised on every change, higher than any before, so clients can resume from it.</summary>
+    public long Revision { get; set; }
+
+    public AlertKind Kind { get; set; }
+
+    public AlertSeverity Severity { get; set; }
+
+    public required string Resource { get; set; }
+
+    /// <summary>Redacted before it is stored.</summary>
+    public required string Message { get; set; }
+
+    public long FirstSeenAt { get; set; }
+
+    public long LastSeenAt { get; set; }
+
+    public int Occurrences { get; set; }
+
+    public long? AcknowledgedAt { get; set; }
+
+    public Guid? AcknowledgedBy { get; set; }
+
+    public string? AcknowledgedByName { get; set; }
+
+    public long? ResolvedAt { get; set; }
+}
+
+/// <summary>
+/// Downsampled metrics: 1-minute averages for 48 hours and 15-minute averages for 30 days. Live
+/// readings stay in memory.
+/// </summary>
+internal sealed class MetricSample
+{
+    /// <summary>Seconds per sample: 60 or 900.</summary>
+    public int Resolution { get; set; }
+
+    /// <summary>The start of the period the sample covers.</summary>
+    public long At { get; set; }
+
+    public double CpuPercent { get; set; }
+
+    public double CpuIowaitPercent { get; set; }
+
+    public double CpuStealPercent { get; set; }
+
+    public double Load1 { get; set; }
+
+    public double Load5 { get; set; }
+
+    public double Load15 { get; set; }
+
+    public long MemoryTotalBytes { get; set; }
+
+    public long MemoryUsedBytes { get; set; }
+
+    public long SwapTotalBytes { get; set; }
+
+    public long SwapUsedBytes { get; set; }
+
+    public double NetworkReceiveBytesPerSecond { get; set; }
+
+    public double NetworkTransmitBytesPerSecond { get; set; }
+
+    public double DiskReadBytesPerSecond { get; set; }
+
+    public double DiskWriteBytesPerSecond { get; set; }
+
+    public long DiskTotalBytes { get; set; }
+
+    public long DiskUsedBytes { get; set; }
 }

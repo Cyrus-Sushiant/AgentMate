@@ -14,7 +14,9 @@ namespace AgentMate.ServerCore.DevHost;
 /// <remarks>
 /// A real server gets its owner and device from `admin` commands run over SSH. The DevHost has no
 /// SSH, so it has a fixed development owner and a loopback-only endpoint that enrolls a device for
-/// it. This project is never published, so none of that can reach a real server.
+/// it. The machine it reports on is pretend (Fakes/): metrics that move, a few updates waiting,
+/// Docker and nginx running, and a reboot that drops every connection for a few seconds. This
+/// project is never published, so none of that can reach a real server.
 /// </remarks>
 internal static class DevHost
 {
@@ -32,13 +34,14 @@ internal static class DevHost
         var data = Path.Combine(Path.GetTempPath(), "agentmate-core-devhost");
 
         await using var app = CoreApplication.Build(
-        [
-            $"--Core:Listen:TcpPort={port}",
-            $"--Core:DataDirectory={data}",
-            "--environment",
-            "Development",
-            .. args,
-        ]);
+            [
+                $"--Core:Listen:TcpPort={port}",
+                $"--Core:DataDirectory={data}",
+                "--environment",
+                "Development",
+                .. args,
+            ],
+            Fakes.FakePlatform.Add);
         app.MapPost("/dev/enroll", EnrollAsync).AllowAnonymous();
         await app.StartAsync();
         await EnsureDevOwnerAsync(app.Services);

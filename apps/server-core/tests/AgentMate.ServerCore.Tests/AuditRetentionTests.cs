@@ -1,4 +1,5 @@
 using AgentMate.ServerCore.Audit;
+using AgentMate.ServerCore.Security;
 using Microsoft.Extensions.Time.Testing;
 
 namespace AgentMate.ServerCore.Tests;
@@ -11,7 +12,7 @@ public sealed class AuditRetentionTests
     {
         await using var database = await TestDatabase.CreateAsync();
         var clock = new FakeTimeProvider(DateTimeOffset.FromUnixTimeMilliseconds(1_700_000_000_000));
-        using var log = new AuditLog(database.Contexts, clock);
+        using var log = new AuditLog(database.Contexts, clock, new Redactor());
         await log.AppendAsync(new AuditEntry("old", AuditResult.Success), TestContext.Current.CancellationToken);
         clock.Advance(AuditRetention.Keep + TimeSpan.FromDays(1));
         await log.AppendAsync(new AuditEntry("new", AuditResult.Success), TestContext.Current.CancellationToken);

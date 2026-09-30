@@ -10,6 +10,8 @@
     <UserSecretsId />
     <!-- An API behind a Unix socket serves no static web assets. -->
     <StaticWebAssetsEnabled>false</StaticWebAssetsEnabled>
+    <!-- LibraryImport generates the one libc call .NET has no API for: kill() on a process group. -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
 
   <!-- Release publishes (dotnet publish -r linux-x64 or linux-arm64): one self-contained binary,

@@ -1,22 +1,26 @@
 using System.Net.Http.Json;
 using System.Reflection;
 using System.Security.Cryptography;
+using AgentMate.ServerCore.Alerts;
 using AgentMate.ServerCore.Contracts;
 using AgentMate.ServerCore.Data;
 using AgentMate.ServerCore.Hubs;
+using AgentMate.ServerCore.Jobs;
+using AgentMate.ServerCore.Metrics;
 using AgentMate.ServerCore.Security;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.AspNetCore.SignalR.Client;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace AgentMate.ServerCore.Tests;
 
 /// <summary>
 /// The account side of the hub: stepping up for sensitive changes, two-factor, devices, sessions,
-/// enrollment codes for another device, and the audit trail. Roles decide who may do what, and a
-/// Viewer can never change anything beyond their own account.
+/// enrollment codes for another device, and the audit trail. Roles decide who may do what: a Viewer
+/// may read the server but can never change anything beyond their own account.
 /// </summary>
 public sealed class HubAccountTests
 {
@@ -314,22 +318,85 @@ public sealed class HubAccountTests
         }
     }
 
+    /// <summary>
+    /// What a Viewer may call, pinned: their own account, and reading the server. Any method added
+    /// later without a policy above Viewer shows up here and has to be decided on.
+    /// </summary>
     [Fact]
-    public void Every_method_a_viewer_may_call_is_account_self_service()
+    public void Every_method_a_viewer_may_call_reads_or_is_account_self_service()
     {
         var open = typeof(CoreHub).GetInterfaceMap(typeof(ICoreHub)).TargetMethods
             .Where(method => !method.GetCustomAttributes<AuthorizeAttribute>()
                 .Any(attribute => CorePolicies.AboveViewer.Contains(attribute.Policy)))
             .Select(method => method.Name)
-            .Order(StringComparer.Ordinal)
-            .ToList();
+            .ToHashSet(StringComparer.Ordinal);
 
-        Assert.Equal(
-            [
-                "BeginTotpSetup", "ConfirmTotp", "DisableTotp", "GetAccount", "ListDevices", "ListSessions",
-                "NewRecoveryCodes", "Ping", "RevokeDevice", "RevokeSession", "SignOut", "StepUp",
-            ],
-            open);
+        string[] account =
+        [
+            "BeginTotpSetup", "ConfirmTotp", "DisableTotp", "GetAccount", "ListDevices", "ListSessions",
+            "NewRecoveryCodes", "Ping", "RevokeDevice", "RevokeSession", "SignOut", "StepUp",
+        ];
+        string[] reads =
+        [
+            "GetJob", "GetMetricsHistory", "GetSystemInfo", "GetUpdates", "ListAlerts", "ListJobs",
+            "ListServices", "StreamAlerts", "StreamJob", "StreamMetrics",
+        ];
+        Assert.Equal(account.Concat(reads).Order(StringComparer.Ordinal), open.Order(StringComparer.Ordinal));
+    }
+
+    /// <summary>
+    /// AC2 for the server's methods: a Viewer calls every read it may (streams included) and nothing
+    /// on the server changes: no job, no call to the platform that would change it, no acknowledged
+    /// alert, and nothing new in the audit trail, which records every change.
+    /// </summary>
+    [Fact]
+    public async Task A_viewer_calling_every_read_it_may_changes_nothing()
+    {
+        await using var harness = await AuthHarness.CreateAsync(CoreRoles.Viewer, fakeClock: false);
+        var engine = harness.Services.GetRequiredService<JobEngine>();
+        var finished = await engine.StartAsync(
+            new JobRequest(JobKind.PackagesRefresh, "Check for updates", ["packages"]),
+            (_, _) => Task.CompletedTask,
+            Cancel);
+        await engine.WhenFinishedAsync(finished.Id, Cancel);
+        var alert = await harness.Services.GetRequiredService<AlertCenter>()
+            .RaiseAsync(AlertKind.DiskPressure, "/", AlertSeverity.Warning, "/ is 91% full", Cancel);
+        var sampler = harness.Services.GetRequiredService<MetricsSampler>();
+        await sampler.SampleOnceAsync(Cancel);
+        await Task.Delay(MetricsSampler.MinimumGap * 2, Cancel);
+        await sampler.SampleOnceAsync(Cancel);
+        await using var hub = await ConnectAsync(harness);
+        var auditBefore = await AuditCountAsync(harness);
+        var mutations = harness.Services.GetRequiredService<MutationLog>();
+
+        await hub.InvokeAsync<SystemInfo>(nameof(ICoreHub.GetSystemInfo), Cancel);
+        await hub.InvokeAsync<ServiceInfo[]>(nameof(ICoreHub.ListServices), Cancel);
+        await hub.InvokeAsync<UpdatesInfo>(nameof(ICoreHub.GetUpdates), Cancel);
+        await hub.InvokeAsync<JobPage>(nameof(ICoreHub.ListJobs), new JobQuery(), Cancel);
+        await hub.InvokeAsync<JobInfo>(nameof(ICoreHub.GetJob), finished.Id, Cancel);
+        await hub.InvokeAsync<AlertInfo[]>(nameof(ICoreHub.ListAlerts), new AlertQuery(IncludeResolved: true), Cancel);
+        await hub.InvokeAsync<MetricsHistory>(nameof(ICoreHub.GetMetricsHistory), new MetricsHistoryRequest(MetricsResolution.Live), Cancel);
+        await FirstAsync(hub.StreamAsync<JobStreamItem>(nameof(ICoreHub.StreamJob), finished.Id, 0L, Cancel));
+        await FirstAsync(hub.StreamAsync<AlertInfo>(nameof(ICoreHub.StreamAlerts), new AlertStreamRequest(), Cancel));
+        await FirstAsync(hub.StreamAsync<MetricsSample>(nameof(ICoreHub.StreamMetrics), new MetricsStreamRequest(SinceUnixMs: 0), Cancel));
+
+        Assert.Empty(mutations.Entries);
+        Assert.Single((await engine.ListAsync(new JobQuery(), Cancel)).Jobs);
+        Assert.Null((await harness.Services.GetRequiredService<AlertCenter>().ListAsync(new AlertQuery(), Cancel))
+            .Single(a => a.Id == alert.Id).AcknowledgedAtUnixMs);
+        Assert.Equal(auditBefore, await AuditCountAsync(harness));
+    }
+
+    private static async Task FirstAsync<T>(IAsyncEnumerable<T> stream)
+    {
+        await using var items = stream.GetAsyncEnumerator(Cancel);
+        Assert.True(await items.MoveNextAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(10), Cancel));
+    }
+
+    private static async Task<int> AuditCountAsync(AuthHarness harness)
+    {
+        await using var scope = harness.Services.CreateAsyncScope();
+        return await scope.ServiceProvider.GetRequiredService<CoreDbContext>().AuditEvents.CountAsync(Cancel);
     }
 
     private static Task<HttpResponseMessage> Enroll(AuthHarness harness, string code, string password, string publicKey) =>

@@ -4,7 +4,10 @@ using Microsoft.EntityFrameworkCore.Design;
 
 namespace AgentMate.ServerCore.Data;
 
-/// <summary>The core's own database: Identity's tables plus devices, sessions and the audit trail.</summary>
+/// <summary>
+/// The core's own database: Identity's tables plus devices, sessions, the audit trail, jobs, alerts
+/// and downsampled metrics.
+/// </summary>
 internal sealed class CoreDbContext(DbContextOptions<CoreDbContext> options)
     : IdentityDbContext<CoreUser, CoreRole, Guid>(options)
 {
@@ -17,6 +20,12 @@ internal sealed class CoreDbContext(DbContextOptions<CoreDbContext> options)
     public DbSet<AuditEvent> AuditEvents => Set<AuditEvent>();
 
     public DbSet<AuditAnchor> AuditAnchors => Set<AuditAnchor>();
+
+    public DbSet<Job> Jobs => Set<Job>();
+
+    public DbSet<Alert> Alerts => Set<Alert>();
+
+    public DbSet<MetricSample> MetricSamples => Set<MetricSample>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -57,6 +66,36 @@ internal sealed class CoreDbContext(DbContextOptions<CoreDbContext> options)
         {
             anchor.HasKey(a => a.Id);
             anchor.Property(a => a.Id).ValueGeneratedNever();
+        });
+
+        // Enums are stored by name, so the file stays readable and a reordered enum changes nothing.
+        builder.Entity<Job>(job =>
+        {
+            job.HasKey(j => j.Id);
+            job.Property(j => j.Kind).HasConversion<string>().HasMaxLength(40);
+            job.Property(j => j.State).HasConversion<string>().HasMaxLength(20);
+            job.Property(j => j.Title).HasMaxLength(200);
+            job.Property(j => j.Resource).HasMaxLength(100);
+            job.Property(j => j.RequestedByName).HasMaxLength(256);
+            job.HasIndex(j => j.CreatedAt);
+            job.HasIndex(j => j.State);
+        });
+
+        builder.Entity<Alert>(alert =>
+        {
+            alert.HasKey(a => a.Id);
+            alert.Property(a => a.Kind).HasConversion<string>().HasMaxLength(40);
+            alert.Property(a => a.Severity).HasConversion<string>().HasMaxLength(20);
+            alert.Property(a => a.Resource).HasMaxLength(200);
+            alert.Property(a => a.Message).HasMaxLength(1000);
+            alert.Property(a => a.AcknowledgedByName).HasMaxLength(256);
+            alert.HasIndex(a => a.Revision).IsUnique();
+            alert.HasIndex(a => new { a.Kind, a.Resource, a.ResolvedAt });
+        });
+
+        builder.Entity<MetricSample>(sample =>
+        {
+            sample.HasKey(s => new { s.Resolution, s.At });
         });
     }
 }

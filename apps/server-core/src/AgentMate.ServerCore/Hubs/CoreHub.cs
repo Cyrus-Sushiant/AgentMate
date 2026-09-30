@@ -14,17 +14,19 @@ namespace AgentMate.ServerCore.Hubs;
 /// <summary>
 /// The one hub the app talks to. Each method carries its own policy, so tightening a role later
 /// never depends on remembering the class-level default. Hub instances live for one invocation,
-/// so the scoped services they take are fresh each time.
+/// so the scoped services they take are fresh each time. The account and audit methods are here;
+/// the server's (system, metrics, updates, jobs, alerts) are in CoreHub.Server.cs.
 /// </summary>
 [Authorize(Policy = CorePolicies.SignedIn)]
-internal sealed class CoreHub(
+internal sealed partial class CoreHub(
     TimeProvider time,
     CoreDbContext db,
     UserManager<CoreUser> users,
     AuditLog audit,
     EnrollmentCodes enrollmentCodes,
     DeviceSessions sessions,
-    HubConnections connections) : Hub<ICoreHubReceiver>, ICoreHub
+    HubConnections connections,
+    ServerServices server) : Hub<ICoreHubReceiver>, ICoreHub
 {
     public const string Path = "/hubs/core";
 
@@ -52,6 +54,7 @@ internal sealed class CoreHub(
     public override Task OnDisconnectedAsync(Exception? exception)
     {
         connections.Remove(Context.ConnectionId);
+        server.Streams.Forget(Context.ConnectionId);
         return base.OnDisconnectedAsync(exception);
     }
 

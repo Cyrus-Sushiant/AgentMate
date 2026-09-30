@@ -4,7 +4,7 @@
 // @ts-nocheck
 import type { HubConnection, IStreamResult, Subject } from '@microsoft/signalr';
 import type { ICoreHub, ICoreHubReceiver } from './AgentMate.ServerCore.Contracts';
-import type { PingResponse, AccountInfo, StepUpRequest, StepUpResponse, DeviceInfo, SessionInfo, TotpSetup, RecoveryCodes, CreateEnrollmentCodeRequest, EnrollmentCodeInfo, AuditQuery, AuditPage, AuditVerificationInfo } from '../AgentMate.ServerCore.Contracts';
+import type { PingResponse, AccountInfo, StepUpRequest, StepUpResponse, DeviceInfo, SessionInfo, TotpSetup, RecoveryCodes, CreateEnrollmentCodeRequest, EnrollmentCodeInfo, AuditQuery, AuditPage, AuditVerificationInfo, SystemInfo, ServiceInfo, MetricsHistoryRequest, MetricsHistory, MetricsStreamRequest, MetricsSample, UpdatesInfo, JobQuery, JobPage, JobInfo, JobStreamItem, AlertQuery, AlertInfo, AlertStreamRequest, ManagedService } from '../AgentMate.ServerCore.Contracts';
 
 
 // components
@@ -138,6 +138,78 @@ class ICoreHub_HubProxy implements ICoreHub {
 
     public readonly verifyAudit = async (): Promise<AuditVerificationInfo> => {
         return await this.connection.invoke("VerifyAudit");
+    }
+
+    public readonly getSystemInfo = async (): Promise<SystemInfo> => {
+        return await this.connection.invoke("GetSystemInfo");
+    }
+
+    public readonly listServices = async (): Promise<ServiceInfo[]> => {
+        return await this.connection.invoke("ListServices");
+    }
+
+    public readonly getMetricsHistory = async (request: MetricsHistoryRequest): Promise<MetricsHistory> => {
+        return await this.connection.invoke("GetMetricsHistory", request);
+    }
+
+    public readonly streamMetrics = (request: MetricsStreamRequest): IStreamResult<MetricsSample> => {
+        return this.connection.stream("StreamMetrics", request);
+    }
+
+    public readonly getUpdates = async (): Promise<UpdatesInfo> => {
+        return await this.connection.invoke("GetUpdates");
+    }
+
+    public readonly listJobs = async (query: JobQuery): Promise<JobPage> => {
+        return await this.connection.invoke("ListJobs", query);
+    }
+
+    public readonly getJob = async (jobId: string): Promise<JobInfo> => {
+        return await this.connection.invoke("GetJob", jobId);
+    }
+
+    public readonly streamJob = (jobId: string, afterSeq: number): IStreamResult<JobStreamItem> => {
+        return this.connection.stream("StreamJob", jobId, afterSeq);
+    }
+
+    public readonly listAlerts = async (query: AlertQuery): Promise<AlertInfo[]> => {
+        return await this.connection.invoke("ListAlerts", query);
+    }
+
+    public readonly streamAlerts = (request: AlertStreamRequest): IStreamResult<AlertInfo> => {
+        return this.connection.stream("StreamAlerts", request);
+    }
+
+    public readonly checkForUpdates = async (): Promise<JobInfo> => {
+        return await this.connection.invoke("CheckForUpdates");
+    }
+
+    public readonly upgradeSecurityPackages = async (): Promise<JobInfo> => {
+        return await this.connection.invoke("UpgradeSecurityPackages");
+    }
+
+    public readonly upgradeAllPackages = async (): Promise<JobInfo> => {
+        return await this.connection.invoke("UpgradeAllPackages");
+    }
+
+    public readonly rebootServer = async (): Promise<JobInfo> => {
+        return await this.connection.invoke("RebootServer");
+    }
+
+    public readonly restartService = async (service: ManagedService): Promise<JobInfo> => {
+        return await this.connection.invoke("RestartService", service);
+    }
+
+    public readonly cancelJob = async (jobId: string): Promise<void> => {
+        return await this.connection.invoke("CancelJob", jobId);
+    }
+
+    public readonly acknowledgeAlert = async (alertId: number): Promise<AlertInfo> => {
+        return await this.connection.invoke("AcknowledgeAlert", alertId);
+    }
+
+    public readonly setAutomaticSecurityUpdates = async (enabled: boolean): Promise<JobInfo> => {
+        return await this.connection.invoke("SetAutomaticSecurityUpdates", enabled);
     }
 }
 

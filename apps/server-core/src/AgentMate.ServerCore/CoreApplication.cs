@@ -33,7 +33,11 @@ internal static class CoreApplication
 
     private const int MaxMessageBytes = 64 * 1024;
 
-    public static WebApplication Build(string[] args)
+    /// <param name="configureServices">
+    /// Runs after the core's own registrations. The DevHost puts its fake platform in here; the
+    /// published core never passes one.
+    /// </param>
+    public static WebApplication Build(string[] args, Action<IServiceCollection>? configureServices = null)
     {
         var builder = WebApplication.CreateBuilder(new WebApplicationOptions { Args = args });
         builder.Configuration.AddJsonFile(ConfigFile, optional: true, reloadOnChange: false);
@@ -60,6 +64,7 @@ internal static class CoreApplication
             CorePaths.DataDirectory(services.GetRequiredService<IConfiguration>(), OperatingSystem.IsLinux()));
         builder.Services.AddHostedService<DatabaseStartup>();
         builder.Services.AddHostedService<AuditRetention>();
+        builder.Services.AddCoreOperations();
         // Reports readiness to systemd (Type=notify), so `systemctl start` only returns once the
         // socket is listening and fails outright for a release that cannot start.
         builder.Services.AddSystemd();
@@ -99,6 +104,7 @@ internal static class CoreApplication
             })
             .AddJsonProtocol(options => CoreJson.Configure(options.PayloadSerializerOptions));
 
+        configureServices?.Invoke(builder.Services);
         var app = builder.Build();
 
         // Host filtering already ran (the host adds it first). Origin checks come next, then

@@ -1,5 +1,6 @@
 using AgentMate.ServerCore.Audit;
 using AgentMate.ServerCore.Data;
+using AgentMate.ServerCore.Security;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.Extensions.Time.Testing;
@@ -15,7 +16,7 @@ public sealed class AuditLogTests
 {
     private static readonly FakeTimeProvider _clock = new(DateTimeOffset.FromUnixTimeMilliseconds(1_700_000_000_000));
 
-    private static AuditLog Log(TestDatabase database) => new(database.Contexts, _clock);
+    private static AuditLog Log(TestDatabase database) => new(database.Contexts, _clock, new Redactor());
 
     private static AuditEntry Entry(string action, IReadOnlyDictionary<string, string?>? parameters = null) =>
         new(action, AuditResult.Success, Parameters: parameters);
@@ -85,7 +86,7 @@ public sealed class AuditLogTests
         await using var database = await TestDatabase.CreateAsync();
         // Two logs over their own connections stand in for the service and the admin command.
         var service = Log(database);
-        var admin = new AuditLog(new PooledDbContextFactory<CoreDbContext>(CoreDatabase.Options(database.Path)), _clock);
+        var admin = new AuditLog(new PooledDbContextFactory<CoreDbContext>(CoreDatabase.Options(database.Path)), _clock, new Redactor());
 
         await Task.WhenAll(Enumerable.Range(0, 40).Select(i =>
             (i % 2 == 0 ? service : admin).AppendAsync(Entry($"race.{i}"), TestContext.Current.CancellationToken)));
@@ -125,7 +126,7 @@ public sealed class AuditLogTests
     {
         await using var database = await TestDatabase.CreateAsync();
         var clock = new FakeTimeProvider(DateTimeOffset.FromUnixTimeMilliseconds(1_700_000_000_000));
-        var log = new AuditLog(database.Contexts, clock);
+        var log = new AuditLog(database.Contexts, clock, new Redactor());
         for (var i = 0; i < 3; i++)
         {
             await log.AppendAsync(Entry($"old.{i}"), TestContext.Current.CancellationToken);
@@ -150,7 +151,7 @@ public sealed class AuditLogTests
     {
         await using var database = await TestDatabase.CreateAsync();
         var clock = new FakeTimeProvider(DateTimeOffset.FromUnixTimeMilliseconds(1_700_000_000_000));
-        var log = new AuditLog(database.Contexts, clock);
+        var log = new AuditLog(database.Contexts, clock, new Redactor());
         await log.AppendAsync(Entry("old"), TestContext.Current.CancellationToken);
         clock.Advance(TimeSpan.FromDays(400));
         await log.AppendAsync(Entry("new.0"), TestContext.Current.CancellationToken);

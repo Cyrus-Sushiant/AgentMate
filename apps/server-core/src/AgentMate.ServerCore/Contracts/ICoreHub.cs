@@ -49,6 +49,67 @@ public interface ICoreHub
     Task<AuditPage> QueryAudit(AuditQuery query);
 
     Task<AuditVerificationInfo> VerifyAudit();
+
+    // The server, read by every role. None of these change anything.
+
+    /// <summary>The Overview's facts. The core gathers them at most every 30 seconds.</summary>
+    Task<SystemInfo> GetSystemInfo();
+
+    Task<ServiceInfo[]> ListServices();
+
+    Task<MetricsHistory> GetMetricsHistory(MetricsHistoryRequest request);
+
+    /// <summary>
+    /// Live samples, at least the requested interval apart (clamped to 1 to 60 seconds). After a
+    /// reconnect, pass the time of the last sample received: the ones buffered since come first.
+    /// </summary>
+    IAsyncEnumerable<MetricsSample> StreamMetrics(MetricsStreamRequest request, CancellationToken cancellationToken);
+
+    /// <summary>As of the last check. The core checks by itself every hour and after every package job.</summary>
+    Task<UpdatesInfo> GetUpdates();
+
+    Task<JobPage> ListJobs(JobQuery query);
+
+    Task<JobInfo> GetJob(Guid jobId);
+
+    /// <summary>
+    /// The job's log after line afterSeq (0 for all of it), new lines as they come, then its final
+    /// state, and the stream completes. After a reconnect, pass the last Seq received.
+    /// </summary>
+    IAsyncEnumerable<JobStreamItem> StreamJob(Guid jobId, long afterSeq, CancellationToken cancellationToken);
+
+    Task<AlertInfo[]> ListAlerts(AlertQuery query);
+
+    /// <summary>
+    /// Open alerts (or every change after a revision), then changes as they happen. A stream that
+    /// ends on its own fell behind: subscribe again with the highest revision received.
+    /// </summary>
+    IAsyncEnumerable<AlertInfo> StreamAlerts(AlertStreamRequest request, CancellationToken cancellationToken);
+
+    // Operator. The ones that change the server start a job and return it at once; StreamJob follows it.
+
+    /// <summary>Refreshes the package index (apt-get update or dnf makecache), then the list of updates.</summary>
+    Task<JobInfo> CheckForUpdates();
+
+    Task<JobInfo> UpgradeSecurityPackages();
+
+    /// <summary>Needs a step-up: it can change what every service runs.</summary>
+    Task<JobInfo> UpgradeAllPackages();
+
+    /// <summary>Needs a step-up. The job succeeds, then the server reboots five seconds later.</summary>
+    Task<JobInfo> RebootServer();
+
+    /// <summary>Docker or nginx, when installed. nginx restarts only if its configuration passes nginx -t.</summary>
+    Task<JobInfo> RestartService(ManagedService service);
+
+    Task CancelJob(Guid jobId);
+
+    Task<AlertInfo> AcknowledgeAlert(long alertId);
+
+    // Admin.
+
+    /// <summary>unattended-upgrades or dnf-automatic, installed when needed. A job.</summary>
+    Task<JobInfo> SetAutomaticSecurityUpdates(bool enabled);
 }
 
 /// <summary>Everything the core can push to the app without being asked.</summary>

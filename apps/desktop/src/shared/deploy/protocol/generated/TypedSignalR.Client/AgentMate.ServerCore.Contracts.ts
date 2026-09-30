@@ -3,7 +3,7 @@
 /* tslint:disable */
 // @ts-nocheck
 import type { IStreamResult, Subject } from '@microsoft/signalr';
-import type { PingResponse, AccountInfo, StepUpRequest, StepUpResponse, DeviceInfo, SessionInfo, TotpSetup, RecoveryCodes, CreateEnrollmentCodeRequest, EnrollmentCodeInfo, AuditQuery, AuditPage, AuditVerificationInfo } from '../AgentMate.ServerCore.Contracts';
+import type { PingResponse, AccountInfo, StepUpRequest, StepUpResponse, DeviceInfo, SessionInfo, TotpSetup, RecoveryCodes, CreateEnrollmentCodeRequest, EnrollmentCodeInfo, AuditQuery, AuditPage, AuditVerificationInfo, SystemInfo, ServiceInfo, MetricsHistoryRequest, MetricsHistory, MetricsStreamRequest, MetricsSample, UpdatesInfo, JobQuery, JobPage, JobInfo, JobStreamItem, AlertQuery, AlertInfo, AlertStreamRequest, ManagedService } from '../AgentMate.ServerCore.Contracts';
 
 /**
 * Everything the app can ask the core over the WebSocket. The desktop's typed client is
@@ -82,6 +82,106 @@ export type ICoreHub = {
     * @returns Transpiled from System.Threading.Tasks.Task<AgentMate.ServerCore.Contracts.AuditVerificationInfo>
     */
     verifyAudit(): Promise<AuditVerificationInfo>;
+    /**
+    * The Overview's facts. The core gathers them at most every 30 seconds.
+    * @returns Transpiled from System.Threading.Tasks.Task<AgentMate.ServerCore.Contracts.SystemInfo>
+    */
+    getSystemInfo(): Promise<SystemInfo>;
+    /**
+    * @returns Transpiled from System.Threading.Tasks.Task<AgentMate.ServerCore.Contracts.ServiceInfo[]>
+    */
+    listServices(): Promise<ServiceInfo[]>;
+    /**
+    * @param request Transpiled from AgentMate.ServerCore.Contracts.MetricsHistoryRequest
+    * @returns Transpiled from System.Threading.Tasks.Task<AgentMate.ServerCore.Contracts.MetricsHistory>
+    */
+    getMetricsHistory(request: MetricsHistoryRequest): Promise<MetricsHistory>;
+    /**
+    * Live samples, at least the requested interval apart (clamped to 1 to 60 seconds). After a
+    * reconnect, pass the time of the last sample received: the ones buffered since come first.
+    * @param request Transpiled from AgentMate.ServerCore.Contracts.MetricsStreamRequest
+    * @param cancellationToken Transpiled from System.Threading.CancellationToken
+    * @returns Transpiled from System.Collections.Generic.IAsyncEnumerable<AgentMate.ServerCore.Contracts.MetricsSample>
+    */
+    streamMetrics(request: MetricsStreamRequest): IStreamResult<MetricsSample>;
+    /**
+    * As of the last check. The core checks by itself every hour and after every package job.
+    * @returns Transpiled from System.Threading.Tasks.Task<AgentMate.ServerCore.Contracts.UpdatesInfo>
+    */
+    getUpdates(): Promise<UpdatesInfo>;
+    /**
+    * @param query Transpiled from AgentMate.ServerCore.Contracts.JobQuery
+    * @returns Transpiled from System.Threading.Tasks.Task<AgentMate.ServerCore.Contracts.JobPage>
+    */
+    listJobs(query: JobQuery): Promise<JobPage>;
+    /**
+    * @param jobId Transpiled from System.Guid
+    * @returns Transpiled from System.Threading.Tasks.Task<AgentMate.ServerCore.Contracts.JobInfo>
+    */
+    getJob(jobId: string): Promise<JobInfo>;
+    /**
+    * The job's log after line afterSeq (0 for all of it), new lines as they come, then its final
+    * state, and the stream completes. After a reconnect, pass the last Seq received.
+    * @param jobId Transpiled from System.Guid
+    * @param afterSeq Transpiled from long
+    * @param cancellationToken Transpiled from System.Threading.CancellationToken
+    * @returns Transpiled from System.Collections.Generic.IAsyncEnumerable<AgentMate.ServerCore.Contracts.JobStreamItem>
+    */
+    streamJob(jobId: string, afterSeq: number): IStreamResult<JobStreamItem>;
+    /**
+    * @param query Transpiled from AgentMate.ServerCore.Contracts.AlertQuery
+    * @returns Transpiled from System.Threading.Tasks.Task<AgentMate.ServerCore.Contracts.AlertInfo[]>
+    */
+    listAlerts(query: AlertQuery): Promise<AlertInfo[]>;
+    /**
+    * Open alerts (or every change after a revision), then changes as they happen. A stream that
+    * ends on its own fell behind: subscribe again with the highest revision received.
+    * @param request Transpiled from AgentMate.ServerCore.Contracts.AlertStreamRequest
+    * @param cancellationToken Transpiled from System.Threading.CancellationToken
+    * @returns Transpiled from System.Collections.Generic.IAsyncEnumerable<AgentMate.ServerCore.Contracts.AlertInfo>
+    */
+    streamAlerts(request: AlertStreamRequest): IStreamResult<AlertInfo>;
+    /**
+    * Refreshes the package index (apt-get update or dnf makecache), then the list of updates.
+    * @returns Transpiled from System.Threading.Tasks.Task<AgentMate.ServerCore.Contracts.JobInfo>
+    */
+    checkForUpdates(): Promise<JobInfo>;
+    /**
+    * @returns Transpiled from System.Threading.Tasks.Task<AgentMate.ServerCore.Contracts.JobInfo>
+    */
+    upgradeSecurityPackages(): Promise<JobInfo>;
+    /**
+    * Needs a step-up: it can change what every service runs.
+    * @returns Transpiled from System.Threading.Tasks.Task<AgentMate.ServerCore.Contracts.JobInfo>
+    */
+    upgradeAllPackages(): Promise<JobInfo>;
+    /**
+    * Needs a step-up. The job succeeds, then the server reboots five seconds later.
+    * @returns Transpiled from System.Threading.Tasks.Task<AgentMate.ServerCore.Contracts.JobInfo>
+    */
+    rebootServer(): Promise<JobInfo>;
+    /**
+    * Docker or nginx, when installed. nginx restarts only if its configuration passes nginx -t.
+    * @param service Transpiled from AgentMate.ServerCore.Contracts.ManagedService
+    * @returns Transpiled from System.Threading.Tasks.Task<AgentMate.ServerCore.Contracts.JobInfo>
+    */
+    restartService(service: ManagedService): Promise<JobInfo>;
+    /**
+    * @param jobId Transpiled from System.Guid
+    * @returns Transpiled from System.Threading.Tasks.Task
+    */
+    cancelJob(jobId: string): Promise<void>;
+    /**
+    * @param alertId Transpiled from long
+    * @returns Transpiled from System.Threading.Tasks.Task<AgentMate.ServerCore.Contracts.AlertInfo>
+    */
+    acknowledgeAlert(alertId: number): Promise<AlertInfo>;
+    /**
+    * unattended-upgrades or dnf-automatic, installed when needed. A job.
+    * @param enabled Transpiled from bool
+    * @returns Transpiled from System.Threading.Tasks.Task<AgentMate.ServerCore.Contracts.JobInfo>
+    */
+    setAutomaticSecurityUpdates(enabled: boolean): Promise<JobInfo>;
 }
 
 /**

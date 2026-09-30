@@ -45,6 +45,21 @@ internal static class CoreDatabase
         return connection.BeginTransaction(deferred: false);
     }
 
+    /// <summary>
+    /// A BEGIN IMMEDIATE transaction for an EF context, for a read and the write that depends on it
+    /// (the next revision of a counter, the next hash of a chain).
+    /// </summary>
+    public static async Task<Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction> BeginWriteAsync(
+        CoreDbContext db,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(db);
+        var connection = (SqliteConnection)db.Database.GetDbConnection();
+        await connection.OpenAsync(cancellationToken);
+        return await db.Database.UseTransactionAsync(BeginWrite(connection), cancellationToken)
+            ?? throw new InvalidOperationException("Could not start a write transaction.");
+    }
+
     /// <summary>Creates or upgrades the database, in write-ahead mode and readable by its owner alone.</summary>
     public static async Task PrepareAsync(string path, CancellationToken cancellationToken)
     {

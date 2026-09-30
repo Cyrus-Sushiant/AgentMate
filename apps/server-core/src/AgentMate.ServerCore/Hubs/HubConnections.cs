@@ -28,6 +28,15 @@ internal sealed class HubConnections
     public void CloseDevice(Guid deviceId, string callerConnectionId) =>
         Close(entry => entry.Device == deviceId, callerConnectionId);
 
+    /// <summary>Every open connection, at once: what a reboot does to them.</summary>
+    public void CloseAll()
+    {
+        foreach (var (_, entry) in _open)
+        {
+            entry.Context.Abort();
+        }
+    }
+
     private void Close(Func<(Guid Session, Guid Device), bool> matches, string callerConnectionId)
     {
         foreach (var (connectionId, entry) in _open)

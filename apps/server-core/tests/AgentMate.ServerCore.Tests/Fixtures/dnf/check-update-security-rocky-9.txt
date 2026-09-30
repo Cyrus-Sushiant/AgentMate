@@ -1,0 +1,5 @@
+
+kernel-core.x86_64                            5.14.0-503.21.1.el9_5              baseos   
+openssl-libs.x86_64                           1:3.2.2-6.el9_5.1                  baseos   
+Security: kernel-core-5.14.0-503.14.1.el9_5.x86_64 is an installed security update
+Security: kernel-core-5.14.0-427.13.1.el9_4.x86_64 is the currently running version

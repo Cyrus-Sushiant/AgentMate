@@ -3,6 +3,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using AgentMate.ServerCore.Data;
+using AgentMate.ServerCore.Security;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 
@@ -13,6 +14,7 @@ internal static class AuditResult
     public const string Success = "success";
     public const string Denied = "denied";
     public const string Failed = "failed";
+    public const string Cancelled = "cancelled";
 }
 
 /// <summary>What happened, by whom, to what. Parameters are redacted before they are stored.</summary>
@@ -38,7 +40,8 @@ internal sealed record AuditVerification(bool Intact, int Checked, long? BrokenA
 /// Someone with write access to the database file can rebuild the whole chain; the chain shows
 /// tampering by anything short of that, which the file's root-only permissions guard.
 /// </remarks>
-internal sealed class AuditLog(IDbContextFactory<CoreDbContext> contexts, TimeProvider time) : IDisposable
+internal sealed class AuditLog(IDbContextFactory<CoreDbContext> contexts, TimeProvider time, Redactor redactor)
+    : IDisposable
 {
     public const string Genesis = "0000000000000000000000000000000000000000000000000000000000000000";
 
@@ -70,7 +73,7 @@ internal sealed class AuditLog(IDbContextFactory<CoreDbContext> contexts, TimePr
                 PeerUid = entry.PeerUid,
                 Action = entry.Action,
                 Target = entry.Target,
-                Parameters = AuditRedactor.Serialize(entry.Parameters),
+                Parameters = redactor.Serialize(entry.Parameters),
                 Result = entry.Result,
                 PrevHash = last?.Hash ?? anchor?.LastPrunedHash ?? Genesis,
                 Hash = string.Empty,
@@ -187,39 +190,4 @@ internal sealed class AuditLog(IDbContextFactory<CoreDbContext> contexts, TimePr
         var canonical = JsonSerializer.SerializeToUtf8Bytes(fields);
         return Convert.ToHexStringLower(SHA256.HashData(canonical));
     }
-}
-
-/// <summary>Keeps secrets out of anything the audit trail stores.</summary>
-internal static class AuditRedactor
-{
-    public const string Redacted = "[redacted]";
-
-    /// <summary>Parameter names that carry a secret, matched anywhere in the name.</summary>
-    private static readonly string[] _secretNameParts =
-        ["password", "secret", "token", "key", "code", "otp", "signature", "nonce", "cookie"];
-
-    /// <summary>Values shaped like well-known credentials, whatever they are called.</summary>
-    private static readonly System.Text.RegularExpressions.Regex _secretValue = new(
-        @"(gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|AKIA[0-9A-Z]{16}|eyJ[A-Za-z0-9_-]{8,}\.eyJ[A-Za-z0-9_-]{8,})",
-        System.Text.RegularExpressions.RegexOptions.CultureInvariant,
-        TimeSpan.FromMilliseconds(100));
-
-    public static string? Serialize(IReadOnlyDictionary<string, string?>? parameters)
-    {
-        if (parameters is null || parameters.Count == 0)
-        {
-            return null;
-        }
-
-        var safe = new SortedDictionary<string, string?>(StringComparer.Ordinal);
-        foreach (var (name, value) in parameters)
-        {
-            safe[name] = IsSecretName(name) || (value is not null && _secretValue.IsMatch(value)) ? Redacted : value;
-        }
-
-        return JsonSerializer.Serialize(safe);
-    }
-
-    public static bool IsSecretName(string name) =>
-        _secretNameParts.Any(part => name.Contains(part, StringComparison.OrdinalIgnoreCase));
 }

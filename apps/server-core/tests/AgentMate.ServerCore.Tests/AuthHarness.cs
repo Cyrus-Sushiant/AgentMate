@@ -172,7 +172,10 @@ public sealed class AuthHarness : IAsyncDisposable
         return error!.Code;
     }
 
-    /// <summary>A hub connection the way the app makes one: WebSockets only, the token in a header.</summary>
+    /// <summary>
+    /// A hub connection the way the app makes one: WebSockets only, the token in a header, and the
+    /// core's JSON shape (enums as camelCase names).
+    /// </summary>
     public HubConnection Hub(string accessToken) =>
         new HubConnectionBuilder()
             .WithUrl(
@@ -189,6 +192,7 @@ public sealed class AuthHarness : IAsyncDisposable
                         return await client.ConnectAsync(context.Uri, cancellationToken);
                     };
                 })
+            .AddJsonProtocol(options => CoreJson.Configure(options.PayloadSerializerOptions))
             .Build();
 
     /// <summary>The code an authenticator app shows by this harness's clock, or that many 30-second steps away.</summary>

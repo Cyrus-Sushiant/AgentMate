@@ -1,0 +1,44 @@
+MainPID=0
+Id=ssh.service
+Description=ssh.service
+LoadState=not-found
+ActiveState=inactive
+SubState=dead
+ActiveEnterTimestampMonotonic=0
+UnitFileState=
+
+MainPID=812
+Id=sshd.service
+Description=OpenSSH server daemon
+LoadState=loaded
+ActiveState=active
+SubState=running
+ActiveEnterTimestampMonotonic=6039481
+UnitFileState=enabled
+
+MainPID=0
+Id=docker.service
+Description=docker.service
+LoadState=not-found
+ActiveState=inactive
+SubState=dead
+ActiveEnterTimestampMonotonic=0
+UnitFileState=
+
+MainPID=1203
+Id=nginx.service
+Description=The nginx HTTP and reverse proxy server
+LoadState=loaded
+ActiveState=active
+SubState=running
+ActiveEnterTimestampMonotonic=9203948
+UnitFileState=disabled
+
+MainPID=0
+Id=dnf-automatic.timer
+Description=dnf-automatic timer
+LoadState=loaded
+ActiveState=inactive
+SubState=dead
+ActiveEnterTimestampMonotonic=0
+UnitFileState=disabled

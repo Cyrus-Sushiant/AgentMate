@@ -174,6 +174,54 @@ export type AuditVerificationInfo = {
     brokenAt?: number;
 }
 
+/** Transpiled from AgentMate.ServerCore.Contracts.AlertKind */
+export type AlertKind = "diskPressure" | "jobFailed" | "rebootRequired";
+
+/** Transpiled from AgentMate.ServerCore.Contracts.AlertSeverity */
+export type AlertSeverity = "info" | "warning" | "critical";
+
+/** Transpiled from AgentMate.ServerCore.Contracts.AlertInfo */
+export type AlertInfo = {
+    /** Transpiled from long */
+    id: number;
+    /** Transpiled from long */
+    revision: number;
+    /** Transpiled from AgentMate.ServerCore.Contracts.AlertKind */
+    kind: AlertKind;
+    /** Transpiled from AgentMate.ServerCore.Contracts.AlertSeverity */
+    severity: AlertSeverity;
+    /** Transpiled from string */
+    resource: string;
+    /** Transpiled from string */
+    message: string;
+    /** Transpiled from long */
+    firstSeenAtUnixMs: number;
+    /** Transpiled from long */
+    lastSeenAtUnixMs: number;
+    /** Transpiled from int */
+    occurrences: number;
+    /** Transpiled from long */
+    acknowledgedAtUnixMs?: number;
+    /** Transpiled from string? */
+    acknowledgedBy?: string;
+    /** Transpiled from long */
+    resolvedAtUnixMs?: number;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.AlertQuery */
+export type AlertQuery = {
+    /** Transpiled from bool */
+    includeResolved: boolean;
+    /** Transpiled from int */
+    limit?: number;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.AlertStreamRequest */
+export type AlertStreamRequest = {
+    /** Transpiled from long */
+    afterRevision?: number;
+}
+
 /** Transpiled from AgentMate.ServerCore.Contracts.AuthPurpose */
 export type AuthPurpose = "login" | "renew";
 
@@ -278,5 +326,330 @@ export type HealthResponse = {
 export type PingResponse = {
     /** Transpiled from long */
     serverTimeUnixMs: number;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.JobKind */
+export type JobKind = "packagesRefresh" | "packagesUpgrade" | "packagesUpgradeSecurity" | "automaticUpdates" | "reboot" | "serviceRestart";
+
+/** Transpiled from AgentMate.ServerCore.Contracts.JobState */
+export type JobState = "running" | "succeeded" | "failed" | "cancelled" | "interrupted";
+
+/** Transpiled from AgentMate.ServerCore.Contracts.JobLogSource */
+export type JobLogSource = "out" | "err" | "system";
+
+/** Transpiled from AgentMate.ServerCore.Contracts.JobInfo */
+export type JobInfo = {
+    /** Transpiled from System.Guid */
+    id: string;
+    /** Transpiled from AgentMate.ServerCore.Contracts.JobKind */
+    kind: JobKind;
+    /** Transpiled from string */
+    title: string;
+    /** Transpiled from AgentMate.ServerCore.Contracts.JobState */
+    state: JobState;
+    /** Transpiled from long */
+    createdAtUnixMs: number;
+    /** Transpiled from long */
+    logLines: number;
+    /** Transpiled from bool */
+    cancellable: boolean;
+    /** Transpiled from string? */
+    resource?: string;
+    /** Transpiled from string? */
+    requestedBy?: string;
+    /** Transpiled from long */
+    finishedAtUnixMs?: number;
+    /** Transpiled from int */
+    exitCode?: number;
+    /** Transpiled from string? */
+    error?: string;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.JobLogLine */
+export type JobLogLine = {
+    /** Transpiled from long */
+    seq: number;
+    /** Transpiled from long */
+    atUnixMs: number;
+    /** Transpiled from AgentMate.ServerCore.Contracts.JobLogSource */
+    source: JobLogSource;
+    /** Transpiled from string */
+    text: string;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.JobStreamItem */
+export type JobStreamItem = {
+    /** Transpiled from AgentMate.ServerCore.Contracts.JobLogLine[] */
+    lines: JobLogLine[];
+    /** Transpiled from AgentMate.ServerCore.Contracts.JobInfo? */
+    job?: JobInfo;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.JobQuery */
+export type JobQuery = {
+    /** Transpiled from int */
+    limit?: number;
+    /** Transpiled from long */
+    beforeCreatedAtUnixMs?: number;
+    /** Transpiled from bool */
+    activeOnly: boolean;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.JobPage */
+export type JobPage = {
+    /** Transpiled from AgentMate.ServerCore.Contracts.JobInfo[] */
+    jobs: JobInfo[];
+    /** Transpiled from long */
+    nextBeforeCreatedAtUnixMs?: number;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.OsFamily */
+export type OsFamily = "debian" | "rhel" | "unknown";
+
+/** Transpiled from AgentMate.ServerCore.Contracts.OsInfo */
+export type OsInfo = {
+    /** Transpiled from string */
+    id: string;
+    /** Transpiled from string */
+    versionId: string;
+    /** Transpiled from string */
+    name: string;
+    /** Transpiled from AgentMate.ServerCore.Contracts.OsFamily */
+    family: OsFamily;
+    /** Transpiled from bool */
+    supported: boolean;
+    /** Transpiled from string? */
+    unsupportedReason?: string;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.CpuInfo */
+export type CpuInfo = {
+    /** Transpiled from string */
+    model: string;
+    /** Transpiled from int */
+    logicalCores: number;
+    /** Transpiled from int */
+    physicalCores: number;
+    /** Transpiled from int */
+    sockets: number;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.DiskInfo */
+export type DiskInfo = {
+    /** Transpiled from string */
+    mountPoint: string;
+    /** Transpiled from string */
+    device: string;
+    /** Transpiled from string */
+    fileSystem: string;
+    /** Transpiled from long */
+    totalBytes: number;
+    /** Transpiled from long */
+    usedBytes: number;
+    /** Transpiled from long */
+    availableBytes: number;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.NetworkInterfaceInfo */
+export type NetworkInterfaceInfo = {
+    /** Transpiled from string */
+    name: string;
+    /** Transpiled from bool */
+    up: boolean;
+    /** Transpiled from string[] */
+    addresses: string[];
+    /** Transpiled from string? */
+    macAddress?: string;
+    /** Transpiled from long */
+    speedMbps?: number;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.TimeSyncInfo */
+export type TimeSyncInfo = {
+    /** Transpiled from bool */
+    synchronized?: boolean;
+    /** Transpiled from bool */
+    ntpEnabled?: boolean;
+    /** Transpiled from string? */
+    timeZone?: string;
+    /** Transpiled from string? */
+    service?: string;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.SystemInfo */
+export type SystemInfo = {
+    /** Transpiled from string */
+    hostname: string;
+    /** Transpiled from AgentMate.ServerCore.Contracts.OsInfo */
+    os: OsInfo;
+    /** Transpiled from string */
+    kernel: string;
+    /** Transpiled from string */
+    architecture: string;
+    /** Transpiled from AgentMate.ServerCore.Contracts.CpuInfo */
+    cpu: CpuInfo;
+    /** Transpiled from long */
+    memoryTotalBytes: number;
+    /** Transpiled from long */
+    swapTotalBytes: number;
+    /** Transpiled from AgentMate.ServerCore.Contracts.DiskInfo[] */
+    disks: DiskInfo[];
+    /** Transpiled from AgentMate.ServerCore.Contracts.NetworkInterfaceInfo[] */
+    networks: NetworkInterfaceInfo[];
+    /** Transpiled from string[] */
+    publicAddresses: string[];
+    /** Transpiled from long */
+    bootedAtUnixMs: number;
+    /** Transpiled from AgentMate.ServerCore.Contracts.TimeSyncInfo */
+    timeSync: TimeSyncInfo;
+    /** Transpiled from string[] */
+    rebootRequiredBy: string[];
+    /** Transpiled from long */
+    collectedAtUnixMs: number;
+    /** Transpiled from bool */
+    rebootRequired?: boolean;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.ServiceState */
+export type ServiceState = "active" | "reloading" | "inactive" | "failed" | "activating" | "deactivating" | "notInstalled" | "unknown";
+
+/** Transpiled from AgentMate.ServerCore.Contracts.ServiceInfo */
+export type ServiceInfo = {
+    /** Transpiled from string */
+    name: string;
+    /** Transpiled from string */
+    unit: string;
+    /** Transpiled from string */
+    description: string;
+    /** Transpiled from AgentMate.ServerCore.Contracts.ServiceState */
+    state: ServiceState;
+    /** Transpiled from string */
+    subState: string;
+    /** Transpiled from bool */
+    canRestart: boolean;
+    /** Transpiled from bool */
+    enabledAtBoot?: boolean;
+    /** Transpiled from long */
+    activeSinceUnixMs?: number;
+    /** Transpiled from int */
+    mainPid?: number;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.ManagedService */
+export type ManagedService = "docker" | "nginx";
+
+/** Transpiled from AgentMate.ServerCore.Contracts.MetricsSample */
+export type MetricsSample = {
+    /** Transpiled from long */
+    atUnixMs: number;
+    /** Transpiled from double */
+    cpuPercent: number;
+    /** Transpiled from double */
+    cpuIowaitPercent: number;
+    /** Transpiled from double */
+    cpuStealPercent: number;
+    /** Transpiled from double */
+    load1: number;
+    /** Transpiled from double */
+    load5: number;
+    /** Transpiled from double */
+    load15: number;
+    /** Transpiled from long */
+    memoryTotalBytes: number;
+    /** Transpiled from long */
+    memoryUsedBytes: number;
+    /** Transpiled from long */
+    swapTotalBytes: number;
+    /** Transpiled from long */
+    swapUsedBytes: number;
+    /** Transpiled from double */
+    networkReceiveBytesPerSecond: number;
+    /** Transpiled from double */
+    networkTransmitBytesPerSecond: number;
+    /** Transpiled from double */
+    diskReadBytesPerSecond: number;
+    /** Transpiled from double */
+    diskWriteBytesPerSecond: number;
+    /** Transpiled from long */
+    diskTotalBytes: number;
+    /** Transpiled from long */
+    diskUsedBytes: number;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.MetricsResolution */
+export type MetricsResolution = "live" | "minute" | "quarterHour";
+
+/** Transpiled from AgentMate.ServerCore.Contracts.MetricsStreamRequest */
+export type MetricsStreamRequest = {
+    /** Transpiled from int */
+    intervalMs?: number;
+    /** Transpiled from long */
+    sinceUnixMs?: number;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.MetricsHistoryRequest */
+export type MetricsHistoryRequest = {
+    /** Transpiled from AgentMate.ServerCore.Contracts.MetricsResolution */
+    resolution: MetricsResolution;
+    /** Transpiled from long */
+    fromUnixMs?: number;
+    /** Transpiled from long */
+    toUnixMs?: number;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.MetricsHistory */
+export type MetricsHistory = {
+    /** Transpiled from AgentMate.ServerCore.Contracts.MetricsResolution */
+    resolution: MetricsResolution;
+    /** Transpiled from int */
+    intervalSeconds: number;
+    /** Transpiled from AgentMate.ServerCore.Contracts.MetricsSample[] */
+    samples: MetricsSample[];
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.UpgradablePackage */
+export type UpgradablePackage = {
+    /** Transpiled from string */
+    name: string;
+    /** Transpiled from string */
+    newVersion: string;
+    /** Transpiled from string */
+    source: string;
+    /** Transpiled from bool */
+    security: boolean;
+    /** Transpiled from string? */
+    architecture?: string;
+    /** Transpiled from string? */
+    currentVersion?: string;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.AutoUpdatesInfo */
+export type AutoUpdatesInfo = {
+    /** Transpiled from bool */
+    supported: boolean;
+    /** Transpiled from bool */
+    installed: boolean;
+    /** Transpiled from bool */
+    enabled: boolean;
+    /** Transpiled from string */
+    mechanism: string;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.UpdatesInfo */
+export type UpdatesInfo = {
+    /** Transpiled from string */
+    packageManager: string;
+    /** Transpiled from AgentMate.ServerCore.Contracts.UpgradablePackage[] */
+    packages: UpgradablePackage[];
+    /** Transpiled from int */
+    securityCount: number;
+    /** Transpiled from AgentMate.ServerCore.Contracts.AutoUpdatesInfo */
+    automaticSecurityUpdates: AutoUpdatesInfo;
+    /** Transpiled from long */
+    checkedAtUnixMs?: number;
+    /** Transpiled from bool */
+    rebootRequired?: boolean;
+    /** Transpiled from string? */
+    error?: string;
 }
 

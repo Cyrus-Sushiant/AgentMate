@@ -12,8 +12,8 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 namespace AgentMate.ServerCore;
 
 /// <summary>
-/// Everything that reads or writes the core's state: the database, Identity, the encryption keys
-/// and the audit trail. The web host and the admin commands both register it, so they always see
+/// Everything that reads or writes the core's state: the database, Identity, the encryption keys,
+/// the audit trail and the redactor it runs everything through. The web host and the admin commands both register it, so they always see
 /// the same data and can read each other's encrypted values.
 /// </summary>
 internal static class CoreServices
@@ -56,6 +56,7 @@ internal static class CoreServices
             .AddPasswordValidator<CommonPasswordValidator>();
         services.Configure<PasswordHasherOptions>(options => options.IterationCount = CoreIdentity.Pbkdf2Iterations);
 
+        services.TryAddSingleton<Redactor>();
         services.AddSingleton<AuditLog>();
         return services;
     }

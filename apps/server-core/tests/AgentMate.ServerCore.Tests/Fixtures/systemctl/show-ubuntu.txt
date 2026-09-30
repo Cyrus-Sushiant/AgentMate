@@ -1,0 +1,62 @@
+MainPID=1021
+Id=ssh.service
+Description=OpenBSD Secure Shell server
+LoadState=loaded
+ActiveState=active
+SubState=running
+ActiveEnterTimestampMonotonic=8203948
+UnitFileState=enabled
+
+MainPID=0
+Id=sshd.service
+Description=sshd.service
+LoadState=not-found
+ActiveState=inactive
+SubState=dead
+ActiveEnterTimestampMonotonic=0
+UnitFileState=
+
+MainPID=1402
+Id=docker.service
+Description=Docker Application Container Engine
+LoadState=loaded
+ActiveState=active
+SubState=running
+ActiveEnterTimestampMonotonic=12039481
+UnitFileState=enabled
+
+MainPID=0
+Id=nginx.service
+Description=nginx.service
+LoadState=not-found
+ActiveState=inactive
+SubState=dead
+ActiveEnterTimestampMonotonic=0
+UnitFileState=
+
+MainPID=904
+Id=cron.service
+Description=Regular background program processing daemon
+LoadState=loaded
+ActiveState=active
+SubState=running
+ActiveEnterTimestampMonotonic=7120394
+UnitFileState=enabled
+
+MainPID=0
+Id=fail2ban.service
+Description=Fail2Ban Service
+LoadState=loaded
+ActiveState=failed
+SubState=failed
+ActiveEnterTimestampMonotonic=0
+UnitFileState=enabled
+
+MainPID=0
+Id=unattended-upgrades.service
+Description=Unattended Upgrades Shutdown
+LoadState=loaded
+ActiveState=activating
+SubState=start
+ActiveEnterTimestampMonotonic=0
+UnitFileState=enabled

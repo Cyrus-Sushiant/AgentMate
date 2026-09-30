@@ -17,6 +17,67 @@ namespace AgentMate.ServerCore.Data.Migrations
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "10.0.12");
 
+            modelBuilder.Entity("AgentMate.ServerCore.Data.Alert", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long?>("AcknowledgedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<Guid?>("AcknowledgedBy")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("AcknowledgedByName")
+                        .HasMaxLength(256)
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("FirstSeenAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("LastSeenAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Message")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Occurrences")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long?>("ResolvedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Resource")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("Revision")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Severity")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Revision")
+                        .IsUnique();
+
+                    b.HasIndex("Kind", "Resource", "ResolvedAt");
+
+                    b.ToTable("Alerts");
+                });
+
             modelBuilder.Entity("AgentMate.ServerCore.Data.AuditAnchor", b =>
                 {
                     b.Property<int>("Id")
@@ -284,6 +345,126 @@ namespace AgentMate.ServerCore.Data.Migrations
                     b.HasIndex("UserId");
 
                     b.ToTable("EnrollmentCodes");
+                });
+
+            modelBuilder.Entity("AgentMate.ServerCore.Data.Job", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("Cancellable")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("CreatedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Error")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("ExitCode")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long?>("FinishedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("LogLines")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<Guid?>("RequestedBy")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("RequestedByName")
+                        .HasMaxLength(256)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Resource")
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("State")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedAt");
+
+                    b.HasIndex("State");
+
+                    b.ToTable("Jobs");
+                });
+
+            modelBuilder.Entity("AgentMate.ServerCore.Data.MetricSample", b =>
+                {
+                    b.Property<int>("Resolution")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("At")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<double>("CpuIowaitPercent")
+                        .HasColumnType("REAL");
+
+                    b.Property<double>("CpuPercent")
+                        .HasColumnType("REAL");
+
+                    b.Property<double>("CpuStealPercent")
+                        .HasColumnType("REAL");
+
+                    b.Property<double>("DiskReadBytesPerSecond")
+                        .HasColumnType("REAL");
+
+                    b.Property<long>("DiskTotalBytes")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("DiskUsedBytes")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<double>("DiskWriteBytesPerSecond")
+                        .HasColumnType("REAL");
+
+                    b.Property<double>("Load1")
+                        .HasColumnType("REAL");
+
+                    b.Property<double>("Load15")
+                        .HasColumnType("REAL");
+
+                    b.Property<double>("Load5")
+                        .HasColumnType("REAL");
+
+                    b.Property<long>("MemoryTotalBytes")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("MemoryUsedBytes")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<double>("NetworkReceiveBytesPerSecond")
+                        .HasColumnType("REAL");
+
+                    b.Property<double>("NetworkTransmitBytesPerSecond")
+                        .HasColumnType("REAL");
+
+                    b.Property<long>("SwapTotalBytes")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("SwapUsedBytes")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Resolution", "At");
+
+                    b.ToTable("MetricSamples");
                 });
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRoleClaim<System.Guid>", b =>

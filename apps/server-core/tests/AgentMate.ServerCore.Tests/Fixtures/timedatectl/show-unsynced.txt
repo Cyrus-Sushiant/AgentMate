@@ -1,0 +1,7 @@
+Timezone=America/New_York
+LocalRTC=no
+CanNTP=no
+NTP=no
+NTPSynchronized=no
+TimeUSec=Tue 2026-09-29 06:20:31 EDT
+RTCTimeUSec=Tue 2026-09-29 10:20:29 EDT
