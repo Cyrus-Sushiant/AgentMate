@@ -229,6 +229,7 @@ import type {
   SkillUsageReport,
   SpeechModelProgress,
   SpeechModelState,
+  SshAgentHistoryRun,
   SshAgentProgress,
   SshAttachResult,
   SshDataPayload,
@@ -444,6 +445,15 @@ const sshAgent = {
   answerPassword: (sessionId: string, approved: boolean): Promise<void> =>
     ipcRenderer.invoke(IPC.sshAgent.answerPassword, sessionId, approved),
   stop: (sessionId: string): Promise<void> => ipcRenderer.invoke(IPC.sshAgent.stop, sessionId),
+  /** Picks a run that paused on an error back up where it left off. */
+  continueTask: (sessionId: string): Promise<void> =>
+    ipcRenderer.invoke(IPC.sshAgent.continue, sessionId),
+  /** The terminal's AI tasks, newest first, with every command, question and answer. */
+  history: (sessionId: string): Promise<SshAgentHistoryRun[]> =>
+    ipcRenderer.invoke(IPC.sshAgent.history, sessionId),
+  /** Raises a system notification for a run that is waiting on the user. */
+  notifyWaiting: (sessionId: string, tabTitle: string): Promise<void> =>
+    ipcRenderer.invoke(IPC.sshAgent.notifyWaiting, sessionId, tabTitle),
   onProgress: (callback: (progress: SshAgentProgress) => void): (() => void) => {
     const listener = (_event: Electron.IpcRendererEvent, progress: SshAgentProgress): void =>
       callback(progress);

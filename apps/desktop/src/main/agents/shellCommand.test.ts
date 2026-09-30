@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   allowSudoPasswordPrompt,
   CommandDisplay,
+  dropEcho,
   ECHO_TIMEOUT_MS,
   endsWithPasswordPrompt,
   isRiskyCommand,
@@ -188,6 +189,31 @@ describe('markedCommandLine', () => {
     const marked = markedCommandLine('posix', 'ls', ID, '\r', false);
     expect(marked.start).toBeNull();
     expect(marked.line).toBe(`ls; printf '\\n__AGENTMATE_DONE_${ID}__:%s\\n' "$?"\r`);
+  });
+});
+
+describe('dropEcho', () => {
+  const line = markedCommandLine('powershell', 'Get-Location', 'f00d', '\r', false).line;
+
+  it('cuts the echoed line off the front of the output', () => {
+    const output = `${line.trimEnd()}\r\n\r\nPath\r\n----\r\nC:\\Users\\me\r\n\r\n`;
+    expect(dropEcho(output, line)).toBe('\r\n\r\nPath\r\n----\r\nC:\\Users\\me\r\n\r\n');
+  });
+
+  it('finds an echo that ConPTY wrapped and colored', () => {
+    const typed = line.trimEnd();
+    const wrapped = `\x1b[?25l\x1b[93m${typed.slice(0, 50)}\x1b[m\r\n${typed.slice(50)}\x1b[K\r\n`;
+    expect(dropEcho(`${wrapped}C:\\Users\\me\r\n`, line)).toBe('\x1b[K\r\nC:\\Users\\me\r\n');
+  });
+
+  it('keeps the output when ConPTY paints the echo again after it', () => {
+    const typed = line.trimEnd();
+    const output = `${typed}\r\nPath\r\nC:\\Users\\me\r\n\x1b[H${typed}\x1b[K\r\n`;
+    expect(dropEcho(output, line)).toBe('\r\nPath\r\nC:\\Users\\me\r\n\x1b[H\x1b[K\r\n');
+  });
+
+  it('leaves output alone when the echo is not in it', () => {
+    expect(dropEcho('hello\r\n', line)).toBe('hello\r\n');
   });
 });
 

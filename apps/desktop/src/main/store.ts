@@ -175,6 +175,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   desktopPetAgentStatus: false,
   keepTerminalsRunning: true,
   workspaceNotifications: true,
+  terminalAiNotifications: true,
   keepAwake: 'agent',
   checkToolUpdatesEnabled: true,
   workspaceTerminalCustomBackground: false,
@@ -273,6 +274,7 @@ function withSettingsMigrations(settings: AppSettings): AppSettings {
     usageThresholdAlerts: normalizeUsageThresholdAlerts(settings.usageThresholdAlerts),
     keepTerminalsRunning: settings.keepTerminalsRunning !== false,
     workspaceNotifications: settings.workspaceNotifications !== false,
+    terminalAiNotifications: settings.terminalAiNotifications !== false,
     checkToolUpdatesEnabled: settings.checkToolUpdatesEnabled !== false,
     keepAwake:
       settings.keepAwake === 'on' || settings.keepAwake === 'off' ? settings.keepAwake : 'agent',

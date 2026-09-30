@@ -1,8 +1,18 @@
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import type { SshAgentProgress } from '../../shared/apiTypes';
 import { IPC } from '../../shared/ipcChannels';
+import { runAiPrompt } from '../ipc/ai';
 import { registerSshHandlers } from '../ipc/ssh';
-import { answerSshTaskPassword, startSshTask, stopSshTask } from './sshTaskRunner';
+import { showOsNotification } from '../notifications/osNotification';
+import {
+  answerSshTaskPassword,
+  continueSshTask,
+  getSshTaskHistory,
+  isSshTaskRunning,
+  notifySshTaskWaiting,
+  startSshTask,
+  stopSshTask,
+} from './sshTaskRunner';
 import { createTerminalScreen, type TerminalScreen } from './testing/terminalScreen';
 
 /**
@@ -192,7 +202,10 @@ vi.mock('../cli/headlessPrompt', () => ({
   runHeadlessCliPrompt: vi.fn(),
 }));
 vi.mock('../notifications/petNotifier', () => ({ speakOnPet: vi.fn() }));
+vi.mock('../notifications/osNotification', () => ({ showOsNotification: vi.fn(() => true) }));
+vi.mock('../mainWindow', () => ({ getMainWindow: () => null }));
 vi.mock('@agentmat/core', () => ({
+  getCliDefinition: vi.fn(),
   runChoiceArgs: vi.fn(() => []),
   runProfileForTargetAI: vi.fn(),
 }));
@@ -444,6 +457,80 @@ describe('AI task over SSH', () => {
     // Typing afterwards shows up like normal.
     fake.shells.get(sessionId)?.emit('whoami');
     await vi.waitFor(async () => expect(await screen.text()).toMatch(/\$ whoami$/));
+  });
+});
+
+describe('pausing on an error', () => {
+  it('pauses instead of ending when the AI fails, and Continue picks up with the transcript', async () => {
+    const { sessionId } = await openSshTab();
+    vi.mocked(runAiPrompt).mockRejectedValueOnce(
+      new Error('Claude Code was still working after 5 minutes and was stopped.'),
+    );
+    const progress = startTask(sessionId, ['RUN: cat /etc/os-release', 'FINISHED: Checked.']);
+    await waitForPhase(progress, 'error');
+
+    const paused = progress.at(-1);
+    expect(paused?.canContinue).toBe(true);
+    expect(paused?.message).toContain('still working after 5 minutes');
+    expect(isSshTaskRunning(sessionId)).toBe(true);
+
+    continueSshTask(sessionId);
+    await waitForPhase(progress, 'finished');
+    // The failed attempt didn't use up a step number.
+    expect(progress.find((p) => p.phase === 'running')?.step).toBe(1);
+
+    const [run] = getSshTaskHistory(sessionId);
+    expect(run?.status).toBe('finished');
+    expect(run?.entries.map((e) => e.kind)).toEqual(['error', 'continued', 'command', 'finished']);
+  });
+
+  it('ends a paused run when the user stops it', async () => {
+    const { sessionId } = await openSshTab();
+    vi.mocked(runAiPrompt).mockRejectedValueOnce(new Error('network down'));
+    const progress = startTask(sessionId, []);
+    await waitForPhase(progress, 'error');
+
+    stopSshTask(sessionId);
+    expect(progress.at(-1)?.phase).toBe('stopped');
+    expect(isSshTaskRunning(sessionId)).toBe(false);
+    expect(getSshTaskHistory(sessionId)[0]?.status).toBe('stopped');
+  });
+
+  it('nudges the AI back to the reply format before retrying a reply it could not read', async () => {
+    const { sessionId } = await openSshTab();
+    const progress = startTask(sessionId, ['Sure! Let me check that for you.', 'FINISHED: ok']);
+    await waitForPhase(progress, 'error');
+    expect(progress.at(-1)?.canContinue).toBe(true);
+
+    continueSshTask(sessionId);
+    await waitForPhase(progress, 'finished');
+    expect(fake.aiPrompts.at(-1)).toContain('not in the RUN / FINISHED / NEEDS_INPUT format');
+  });
+});
+
+describe('notifying about a run that waits on the user', () => {
+  it('raises a notification that opens the terminal it is about', async () => {
+    const { sessionId } = await openSshTab();
+    vi.mocked(showOsNotification).mockClear();
+    const progress = startTask(sessionId, ['NEEDS_INPUT: Which log folder should I clear?']);
+    await waitForPhase(progress, 'needs-input');
+
+    await notifySshTaskWaiting(sessionId, 'SmartClouds (Germany)');
+    expect(showOsNotification).toHaveBeenCalledWith({
+      title: 'AI has a question for you',
+      body: 'SmartClouds (Germany)\nWhich log folder should I clear?',
+      route: `/terminal-session/${sessionId}`,
+    });
+    stopSshTask(sessionId);
+  });
+
+  it('stays quiet while the AI is working', async () => {
+    const { sessionId } = await openSshTab();
+    vi.mocked(showOsNotification).mockClear();
+    const progress = startTask(sessionId, ['RUN: cat /etc/os-release', 'FINISHED: ok']);
+    await waitForPhase(progress, 'finished');
+    await notifySshTaskWaiting(sessionId, 'SmartClouds');
+    expect(showOsNotification).not.toHaveBeenCalled();
   });
 });
 

@@ -49,6 +49,13 @@ vi.mock('../packageManagers/execUtils', () => ({
     return { stdout: '1.0.0', stderr: '' };
   }),
 }));
+/** Commands the next PATH refresh makes findable, like a CLI installed after the app started. */
+const appearsAfterPathRefresh = new Set<string>();
+vi.mock('../windowsPath', () => ({
+  refreshWindowsPath: vi.fn(async () => {
+    for (const command of appearsAfterPathRefresh) installed.add(command);
+  }),
+}));
 vi.mock('../store', () => ({
   store: {
     getSettings: async () => ({
@@ -160,6 +167,34 @@ describe('runHeadlessCliPrompt uses the user CLI settings', () => {
     };
     const { args } = await run({ allowWrites: true });
     expect(args).toEqual(['-p', '--permission-mode', 'acceptEdits', '--verbose']);
+  });
+});
+
+describe('runHeadlessCliPrompt finds a CLI the startup PATH missed', () => {
+  const realPlatform = process.platform;
+
+  it('reads PATH again on Windows before calling the chosen CLI missing', async () => {
+    Object.defineProperty(process, 'platform', { value: 'win32' });
+    try {
+      installed.clear();
+      appearsAfterPathRefresh.add('claude');
+      const started = await run({ preferredCliId: 'claude-code', strictCli: true });
+      expect(started.command).toBe('claude');
+    } finally {
+      appearsAfterPathRefresh.clear();
+      Object.defineProperty(process, 'platform', { value: realPlatform });
+    }
+  });
+
+  it('says how to fix it when the CLI really is missing', async () => {
+    installed.clear();
+    const { runHeadlessCliPrompt } = await import('./headlessPrompt');
+    const result = await runHeadlessCliPrompt('hi', '/repo', {
+      preferredCliId: 'claude-code',
+      strictCli: true,
+    });
+    expect(result.ok).toBe(false);
+    expect(result.error).toMatch(/^Claude Code.* wasn't found\. .*CLI Manager/);
   });
 });
 

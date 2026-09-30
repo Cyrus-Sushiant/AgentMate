@@ -153,6 +153,9 @@ export const IPC = {
     answerNeedsInput: 'sshAgent:answerNeedsInput',
     answerPassword: 'sshAgent:answerPassword',
     stop: 'sshAgent:stop',
+    continue: 'sshAgent:continue',
+    history: 'sshAgent:history',
+    notifyWaiting: 'sshAgent:notifyWaiting',
     // main -> renderer: the task's status changed (thinking, proposed a command, running it, ...)
     onProgress: 'sshAgent:onProgress',
   },

@@ -36,7 +36,7 @@ export interface CatalogModelOption {
 
 export const CLAUDE_MODELS = {
   haiku: { label: 'Haiku 4.5', family: 'Haiku', cliArg: 'haiku', apiId: 'claude-haiku-4-5' },
-  sonnet: { label: 'Sonnet 5', family: 'Sonnet', cliArg: 'sonnet', apiId: 'claude-sonnet-5' },
+  sonnet: { label: 'Sonnet 5.5', family: 'Sonnet', cliArg: 'sonnet', apiId: 'claude-sonnet-5-5' },
   opus: { label: 'Opus 5.5', family: 'Opus', cliArg: 'opus', apiId: 'claude-opus-5-5' },
   fable: { label: 'Fable 5.1', family: 'Fable', cliArg: 'fable', apiId: 'claude-fable-5-1' },
 } as const satisfies Record<string, CatalogModel>;
@@ -54,7 +54,7 @@ export const CLAUDE_WEEKLY_METERED_MODEL = CLAUDE_MODELS.fable;
 
 export const CODEX_MODELS = {
   luna: { label: 'GPT-6 Luna', cliArg: 'gpt-6-luna', apiId: 'gpt-6-luna' },
-  sol: { label: 'GPT-6 Sol', cliArg: 'gpt-6-sol', apiId: 'gpt-6-sol' },
+  sol: { label: 'GPT-6.1 Sol', cliArg: 'gpt-6.1-sol', apiId: 'gpt-6.1-sol' },
   astra: { label: 'GPT-6 Astra', cliArg: 'gpt-6-astra', apiId: 'gpt-6-astra' },
 } as const satisfies Record<string, CatalogModel>;
 
@@ -181,7 +181,7 @@ export interface ModelPrice {
 /**
  * Hand-maintained subset of model pricing (USD per 1,000,000 tokens), in the spirit of LiteLLM's
  * price map. Keys are matched by longest prefix against the model id, so dated variants
- * ("claude-sonnet-5-20260101") fall through to their base entry. Older ids stay listed because
+ * ("claude-sonnet-5-5-20260101") fall through to their base entry. Older ids stay listed because
  * past logs still name them.
  */
 export const MODEL_PRICES: Record<string, ModelPrice> = {
@@ -189,7 +189,11 @@ export const MODEL_PRICES: Record<string, ModelPrice> = {
   // premium (the 5-minute TTL, which is what the CLIs use). Opus dropped from $15/$75 to $5/$25
   // at 4.5, so the newer Opus ids need their own entries; longest-prefix keeps 4.0/4.1 on the
   // old rate. Opus 5.5 is cheaper again, and its cache reads are 5% of input rather than 10%.
+  // Fable 5.1 (and Mythos 5.1) keep Fable 5's rates but cut cache reads to $0.25. Sonnet dropped
+  // to $2/$10 at 5, with cache reads at $0.20.
+  'claude-fable-5-1': { input: 10, output: 50, cacheRead: 0.25, cacheWrite: 12.5 },
   'claude-fable-5': { input: 10, output: 50, cacheRead: 1, cacheWrite: 12.5 },
+  'claude-mythos-5-1': { input: 10, output: 50, cacheRead: 0.25, cacheWrite: 12.5 },
   'claude-mythos-5': { input: 10, output: 50, cacheRead: 1, cacheWrite: 12.5 },
   'claude-opus-5-5': { input: 4, output: 20, cacheRead: 0.2, cacheWrite: 5 },
   'claude-opus-5': { input: 5, output: 25, cacheRead: 0.5, cacheWrite: 6.25 },
@@ -199,16 +203,34 @@ export const MODEL_PRICES: Record<string, ModelPrice> = {
   'claude-opus-4-5': { input: 5, output: 25, cacheRead: 0.5, cacheWrite: 6.25 },
   'claude-opus-4': { input: 15, output: 75, cacheRead: 1.5, cacheWrite: 18.75 },
   'claude-sonnet-4': { input: 3, output: 15, cacheRead: 0.3, cacheWrite: 3.75 },
-  'claude-sonnet-5': { input: 3, output: 15, cacheRead: 0.3, cacheWrite: 3.75 },
+  'claude-sonnet-5-5': { input: 2, output: 10, cacheRead: 0.2, cacheWrite: 2.5 },
+  'claude-sonnet-5': { input: 2, output: 10, cacheRead: 0.2, cacheWrite: 2.5 },
   'claude-haiku-4': { input: 1, output: 5, cacheRead: 0.1, cacheWrite: 1.25 },
   'claude-3-5-sonnet': { input: 3, output: 15, cacheRead: 0.3, cacheWrite: 3.75 },
   'claude-3-5-haiku': { input: 0.8, output: 4, cacheRead: 0.08, cacheWrite: 1 },
   'claude-3-opus': { input: 15, output: 75, cacheRead: 1.5, cacheWrite: 18.75 },
 
-  // OpenAI (GPT / o-series / Codex).
-  'gpt-6-astra': { input: 10, output: 50, cacheRead: 1, cacheWrite: 10 },
-  'gpt-6-sol': { input: 2, output: 10, cacheRead: 0.2, cacheWrite: 2 },
-  'gpt-6-luna': { input: 0.1, output: 0.5, cacheRead: 0.01, cacheWrite: 0.1 },
+  // OpenAI (GPT / o-series / Codex). Rates for prompts under about 272k tokens; longer ones
+  // cost 2x on input and 1.5x on output. GPT-6 and GPT-5.6 cache writes carry a 1.25x premium;
+  // older models list no write price, so it's billed as plain input. GPT-5.6 Sol's rate is a
+  // promotional one that runs through 2026-11-21.
+  'gpt-6-astra': { input: 10, output: 50, cacheRead: 1, cacheWrite: 12.5 },
+  'gpt-6.1-sol': { input: 2, output: 10, cacheRead: 0.1, cacheWrite: 2.5 },
+  'gpt-6-sol': { input: 2, output: 10, cacheRead: 0.2, cacheWrite: 2.5 },
+  'gpt-6-luna': { input: 0.1, output: 0.5, cacheRead: 0.01, cacheWrite: 0.125 },
+  'gpt-5.6-sol': { input: 4, output: 20, cacheRead: 0.4, cacheWrite: 5 },
+  'gpt-5.6-terra': { input: 2, output: 12, cacheRead: 0.2, cacheWrite: 2.5 },
+  'gpt-5.6-luna': { input: 0.2, output: 1.2, cacheRead: 0.02, cacheWrite: 0.25 },
+  'gpt-5.5-pro': { input: 30, output: 180, cacheRead: 30, cacheWrite: 30 },
+  'gpt-5.5': { input: 5, output: 30, cacheRead: 0.5, cacheWrite: 5 },
+  'gpt-5.4-pro': { input: 30, output: 180, cacheRead: 30, cacheWrite: 30 },
+  'gpt-5.4-mini': { input: 0.75, output: 4.5, cacheRead: 0.075, cacheWrite: 0.75 },
+  'gpt-5.4-nano': { input: 0.2, output: 1.25, cacheRead: 0.02, cacheWrite: 0.2 },
+  'gpt-5.4': { input: 2.5, output: 15, cacheRead: 0.25, cacheWrite: 2.5 },
+  'gpt-5.3-codex': { input: 1.75, output: 14, cacheRead: 0.175, cacheWrite: 1.75 },
+  'gpt-5.2': { input: 1.75, output: 14, cacheRead: 0.175, cacheWrite: 1.75 },
+  'gpt-5-mini': { input: 0.25, output: 2, cacheRead: 0.025, cacheWrite: 0.25 },
+  'gpt-5-nano': { input: 0.05, output: 0.4, cacheRead: 0.005, cacheWrite: 0.05 },
   'gpt-5': { input: 1.25, output: 10, cacheRead: 0.125, cacheWrite: 1.25 },
   'gpt-4.1': { input: 2, output: 8, cacheRead: 0.5, cacheWrite: 2 },
   'gpt-4o-mini': { input: 0.15, output: 0.6, cacheRead: 0.075, cacheWrite: 0.15 },

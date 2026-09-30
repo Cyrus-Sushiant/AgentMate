@@ -2212,6 +2212,44 @@ export interface SshAgentProgress {
    * into the prompt. The password itself never leaves the main process.
    */
   hasSavedPassword?: boolean;
+  /**
+   * Only on `error`: the run is paused rather than over, and continueSshAgentTask() picks it up
+   * again with everything it has done so far.
+   */
+  canContinue?: boolean;
+}
+
+/** One thing that happened during an AI terminal task, as shown in its history. */
+export type SshAgentHistoryEntry =
+  | {
+      kind: 'command';
+      at: number;
+      command: string;
+      output: string;
+      exitCode: number | null;
+      timedOut: boolean;
+    }
+  | { kind: 'skipped'; at: number; command: string }
+  | { kind: 'question'; at: number; text: string }
+  | { kind: 'answer'; at: number; text: string }
+  | { kind: 'error'; at: number; text: string }
+  | { kind: 'continued'; at: number }
+  | { kind: 'finished'; at: number; text: string }
+  | { kind: 'stopped'; at: number; text: string };
+
+export type SshAgentRunStatus = 'running' | 'paused' | 'finished' | 'error' | 'stopped';
+
+/** A whole AI terminal task: what was asked and everything that happened, oldest first. */
+export interface SshAgentHistoryRun {
+  id: string;
+  sessionId: string;
+  prompt: string;
+  /** Who decided each step, e.g. "Claude Code" or "OpenAI". */
+  aiLabel: string;
+  startedAt: number;
+  endedAt: number | null;
+  status: SshAgentRunStatus;
+  entries: SshAgentHistoryEntry[];
 }
 
 /** Live transport quality for the controller's inbound video, sampled ~1/sec. */

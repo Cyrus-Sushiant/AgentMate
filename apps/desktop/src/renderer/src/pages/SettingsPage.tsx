@@ -564,6 +564,12 @@ export default function SettingsPage(): React.JSX.Element {
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: queryKeys.settings }),
   });
 
+  const terminalAiNotificationsMutation = useMutation({
+    mutationFn: (terminalAiNotifications: boolean) =>
+      window.agentmat.settings.update({ terminalAiNotifications }),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: queryKeys.settings }),
+  });
+
   const checkToolUpdatesMutation = useMutation({
     mutationFn: (checkToolUpdatesEnabled: boolean) =>
       window.agentmat.settings.update({ checkToolUpdatesEnabled }),
@@ -1460,6 +1466,29 @@ export default function SettingsPage(): React.JSX.Element {
                       }
                       onCheckedChange={(checked) => workspaceNotificationsMutation.mutate(checked)}
                       aria-label="Notify when a workspace agent finishes or needs input"
+                    />
+                  }
+                />
+              ) : null}
+
+              {showSection(
+                'general',
+                'terminal ai task notifications question approval approve command ssh waiting alert',
+                'Terminal AI notifications',
+              ) && settingsQuery.data ? (
+                <SettingsCard
+                  icon={Bell}
+                  title="Terminal AI notifications"
+                  description="Get a system notification when an AI task in a terminal asks you something or waits for you to approve a command, while that terminal is hidden or you are in another app."
+                  action={
+                    <Switch
+                      checked={
+                        terminalAiNotificationsMutation.isPending
+                          ? terminalAiNotificationsMutation.variables
+                          : settingsQuery.data.terminalAiNotifications
+                      }
+                      onCheckedChange={(checked) => terminalAiNotificationsMutation.mutate(checked)}
+                      aria-label="Notify when a terminal AI task needs you"
                     />
                   }
                 />

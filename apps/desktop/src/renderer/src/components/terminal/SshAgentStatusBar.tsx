@@ -1,5 +1,14 @@
 import { useState } from 'react';
-import { CircleCheck, Key, Robot, StopCircle, TriangleAlert, X } from '@/components/icons';
+import {
+  CircleCheck,
+  History,
+  Key,
+  Play,
+  Robot,
+  StopCircle,
+  TriangleAlert,
+  X,
+} from '@/components/icons';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
@@ -7,6 +16,7 @@ import {
   answerSshAgentInput,
   answerSshAgentPassword,
   approveSshAgentCommand,
+  continueSshAgentTask,
   skipSshAgentCommand,
   stopSshAgentTask,
   useSshAgentSession,
@@ -14,16 +24,28 @@ import {
 } from '@/stores/sshAgentStore';
 
 /** A slim bar above the terminal showing what the AI is doing, and any action it needs from you. */
-export function SshAgentStatusBar({ sessionId }: { sessionId: string }): React.JSX.Element | null {
+export function SshAgentStatusBar({
+  sessionId,
+  onOpenHistory,
+}: {
+  sessionId: string;
+  onOpenHistory: () => void;
+}): React.JSX.Element | null {
   const state = useSshAgentSession(sessionId);
   const clear = useSshAgentStore((s) => s.clear);
   const [answer, setAnswer] = useState('');
 
   if (!state) return null;
 
-  const done = state.phase === 'finished' || state.phase === 'error' || state.phase === 'stopped';
+  // A paused run looks like an error but is still alive, waiting for Continue or Stop.
+  const paused = state.phase === 'error' && state.canContinue === true;
+  const done =
+    !paused && (state.phase === 'finished' || state.phase === 'error' || state.phase === 'stopped');
   const waitingOnUser =
-    state.phase === 'proposed' || state.phase === 'needs-input' || state.phase === 'needs-password';
+    paused ||
+    state.phase === 'proposed' ||
+    state.phase === 'needs-input' ||
+    state.phase === 'needs-password';
 
   function submitAnswer(): void {
     answerSshAgentInput(sessionId, answer.trim());
@@ -34,8 +56,9 @@ export function SshAgentStatusBar({ sessionId }: { sessionId: string }): React.J
     <div
       className={cn(
         'flex min-h-9 shrink-0 items-center gap-2 border-b border-white/5 px-3 py-1.5 text-xs',
-        state.phase === 'error' && 'bg-destructive/10',
-        (state.phase === 'needs-input' || state.phase === 'needs-password') && 'bg-amber-500/10',
+        state.phase === 'error' && !paused && 'bg-destructive/10',
+        (paused || state.phase === 'needs-input' || state.phase === 'needs-password') &&
+          'bg-amber-500/10',
         !done &&
           state.phase !== 'needs-input' &&
           state.phase !== 'needs-password' &&
@@ -44,7 +67,9 @@ export function SshAgentStatusBar({ sessionId }: { sessionId: string }): React.J
       )}
     >
       {state.phase === 'error' ? (
-        <TriangleAlert className="h-3.5 w-3.5 shrink-0 text-destructive" />
+        <TriangleAlert
+          className={cn('h-3.5 w-3.5 shrink-0', paused ? 'text-amber-400' : 'text-destructive')}
+        />
       ) : state.phase === 'needs-password' ? (
         <Key className="h-3.5 w-3.5 shrink-0 text-amber-400" />
       ) : state.phase === 'finished' ? (
@@ -53,7 +78,7 @@ export function SshAgentStatusBar({ sessionId }: { sessionId: string }): React.J
         <Robot className={cn('h-3.5 w-3.5 shrink-0 text-primary', !done && 'animate-pulse')} />
       )}
 
-      <span className="min-w-0 flex-1 truncate text-zinc-300">
+      <span className="min-w-0 flex-1 truncate text-foreground/85">
         {state.phase === 'thinking' && `Step ${state.step}: thinking…`}
         {state.phase === 'proposed' && (
           <>
@@ -128,6 +153,29 @@ export function SshAgentStatusBar({ sessionId }: { sessionId: string }): React.J
           )}
         </div>
       )}
+
+      {paused && (
+        <div className="flex shrink-0 items-center gap-1.5">
+          <Button size="sm" onClick={() => continueSshAgentTask(sessionId)}>
+            <Play className="h-3 w-3" />
+            Continue
+          </Button>
+          <Button size="sm" variant="ghost" onClick={() => stopSshAgentTask(sessionId)}>
+            <StopCircle className="h-3 w-3" />
+            Stop
+          </Button>
+        </div>
+      )}
+
+      <Button
+        size="sm"
+        variant="ghost"
+        onClick={onOpenHistory}
+        className="shrink-0 gap-1.5 text-muted-foreground hover:text-foreground"
+      >
+        <History className="h-3 w-3" />
+        History
+      </Button>
 
       {!done && !waitingOnUser && (
         <Button

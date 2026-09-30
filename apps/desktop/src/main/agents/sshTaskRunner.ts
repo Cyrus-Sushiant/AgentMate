@@ -1,8 +1,10 @@
 import { randomUUID } from 'node:crypto';
 import { tmpdir } from 'node:os';
-import { runChoiceArgs, runProfileForTargetAI } from '@agentmat/core';
+import { getCliDefinition, runChoiceArgs, runProfileForTargetAI } from '@agentmat/core';
 import type {
   AiProvider,
+  SshAgentHistoryEntry,
+  SshAgentHistoryRun,
   SshAgentMode,
   SshAgentPhase,
   SshAgentProgress,
@@ -28,6 +30,8 @@ import {
   writeToSession,
   writeToTerminalDisplay,
 } from '../ipc/terminal';
+import { getMainWindow } from '../mainWindow';
+import { showOsNotification } from '../notifications/osNotification';
 import { speakOnPet } from '../notifications/petNotifier';
 import { stripAnsi } from '../process/spawnStreaming';
 import { store } from '../store';
@@ -35,6 +39,7 @@ import {
   allowSudoPasswordPrompt,
   CommandDisplay,
   type DisplaySink,
+  dropEcho,
   endsWithPasswordPrompt,
   isRiskyCommand,
   type MarkedCommand,
@@ -52,6 +57,10 @@ const MAX_RUNTIME_MS = 30 * 60 * 1000;
 const COMMAND_TIMEOUT_MS = 5 * 60 * 1000;
 /** How much of the transcript is kept in the prompt sent to the AI each step. */
 const TRANSCRIPT_TAIL_CHARS = 6000;
+/** Past tasks kept per terminal for the history view. */
+const MAX_HISTORY_RUNS = 20;
+/** Output kept per command in the history. The end is what explains how a command went. */
+const MAX_HISTORY_OUTPUT_CHARS = 8000;
 
 /**
  * An agent CLI would otherwise happily use its own tools, which run on the user's machine rather
@@ -195,15 +204,69 @@ interface RunState {
   pendingInputAnswer: ((answer: string) => void) | null;
   /** Resolves with true when the user lets AgentMate type the saved password into a prompt. */
   pendingPassword: ((approved: boolean) => void) | null;
+  /** Set while the run is paused on an error: true picks it up again, false ends it. */
+  pendingContinue: ((resume: boolean) => void) | null;
+  /** The step the run stops at. Continue after hitting it allows another MAX_STEPS. */
+  stepLimit: number;
+  history: SshAgentHistoryRun;
+  /** What the run last reported, so a notification can say what it is waiting for. */
+  lastProgress: SshAgentProgress | null;
   unsubscribeExit: () => void;
   listener: (progress: SshAgentProgress) => void;
 }
 
 const runs = new Map<string, RunState>();
+/** Every terminal's past and current tasks, newest last. Kept for as long as the app runs. */
+const histories = new Map<string, SshAgentHistoryRun[]>();
 
 function emit(run: RunState, phase: SshAgentPhase, extra: Partial<SshAgentProgress> = {}): void {
-  run.listener({ sessionId: run.sessionId, phase, step: run.step, ...extra });
+  run.lastProgress = { sessionId: run.sessionId, phase, step: run.step, ...extra };
+  run.listener(run.lastProgress);
 }
+
+/** Distributes Omit over the union, so each entry kind keeps its own fields. */
+type NewHistoryEntry = SshAgentHistoryEntry extends infer E
+  ? E extends SshAgentHistoryEntry
+    ? Omit<E, 'at'>
+    : never
+  : never;
+
+function record(run: RunState, entry: NewHistoryEntry): void {
+  run.history.entries.push({ ...entry, at: Date.now() } as SshAgentHistoryEntry);
+}
+
+function endHistory(run: RunState, status: SshAgentHistoryRun['status']): void {
+  run.history.status = status;
+  run.history.endedAt = Date.now();
+}
+
+function startHistory(sessionId: string, prompt: string): SshAgentHistoryRun {
+  const entry: SshAgentHistoryRun = {
+    id: randomUUID(),
+    sessionId,
+    prompt,
+    aiLabel: '',
+    startedAt: Date.now(),
+    endedAt: null,
+    status: 'running',
+    entries: [],
+  };
+  const list = histories.get(sessionId) ?? [];
+  list.push(entry);
+  histories.set(sessionId, list.slice(-MAX_HISTORY_RUNS));
+  return entry;
+}
+
+/** The terminal's AI tasks, newest first. */
+export function getSshTaskHistory(sessionId: string): SshAgentHistoryRun[] {
+  return [...(histories.get(sessionId) ?? [])].reverse();
+}
+
+const PROVIDER_LABELS: Record<AiProvider, string> = {
+  openai: 'OpenAI',
+  gemini: 'Gemini',
+  ollama: 'Ollama',
+};
 
 async function resolveProviderAndModel(): Promise<{ provider: AiProvider; model: string }> {
   const settings = await store.getSettings();
@@ -295,7 +358,9 @@ function runCommand(run: RunState, command: string): Promise<CommandResult> {
         // The AI gets the output alone, without the shell's echo of the typed line.
         const startAt = start ? buffer.indexOf(start) : -1;
         finish({
-          output: buffer.slice(startAt < 0 ? 0 : startAt + (start?.length ?? 0), match.index),
+          output: start
+            ? buffer.slice(startAt < 0 ? 0 : startAt + start.length, match.index)
+            : dropEcho(buffer.slice(0, match.index), marked.line),
           exitCode: Number(match[1]),
           timedOut: false,
         });
@@ -303,7 +368,12 @@ function runCommand(run: RunState, command: string): Promise<CommandResult> {
       }
       // Back at a prompt without the marker: the shell never ran the rest of the line.
       if (run.target.detectsPrompt && PROMPT_READY.test(buffer)) {
-        finish({ output: buffer.replace(PROMPT_READY, ''), exitCode: null, timedOut: false });
+        const output = buffer.replace(PROMPT_READY, '');
+        finish({
+          output: start ? output : dropEcho(output, marked.line),
+          exitCode: null,
+          timedOut: false,
+        });
         return;
       }
       if (askingForPassword || !endsWithPasswordPrompt(buffer.slice(promptScanFrom))) return;
@@ -352,11 +422,23 @@ function appendCompletedCommand(run: RunState, command: string, result: CommandR
     : text;
   const exitNote = result.exitCode !== null ? ` [exit code ${result.exitCode}]` : '';
   run.transcript += `\n$ ${command}${exitNote}\n${output}\n`;
+  const trimmed = text.trim();
+  record(run, {
+    kind: 'command',
+    command,
+    output:
+      trimmed.length > MAX_HISTORY_OUTPUT_CHARS
+        ? `(earlier output trimmed)\n${trimmed.slice(-MAX_HISTORY_OUTPUT_CHARS)}`
+        : trimmed,
+    exitCode: result.exitCode,
+    timedOut: result.timedOut,
+  });
 }
 
 function cleanupRun(run: RunState): void {
   run.unsubscribeExit();
   runs.delete(run.sessionId);
+  if (run.history.endedAt === null) endHistory(run, 'error');
 }
 
 /** A CLI starts fresh each step and reads the whole prompt, so it gets longer than an API call. */
@@ -383,18 +465,50 @@ async function askCli(run: RunState): Promise<string> {
   }
 }
 
+/**
+ * Holds the run on an error until the user picks Continue (true) or Stop (false). The run keeps
+ * its transcript, so continuing asks the AI for the next step as if nothing had happened.
+ */
+async function pauseOnError(run: RunState, reason: string): Promise<boolean> {
+  // "...was stopped." next to a Continue button reads like a contradiction without this.
+  const message = reason.startsWith('Paused') ? reason : `Paused: ${reason}`;
+  record(run, { kind: 'error', text: message });
+  run.history.status = 'paused';
+  const pausedAt = Date.now();
+  const decision = new Promise<boolean>((resolve) => {
+    run.pendingContinue = resolve;
+  });
+  emit(run, 'error', { message, canContinue: true });
+  const settings = await store.getSettings();
+  speakOnPet(settings, run.target.label, `AI task paused: ${message}`, 'warn');
+  const resume = await decision;
+  if (!resume || run.aborted) return false;
+  // Time spent waiting on the user isn't the task running long.
+  run.startedAt += Date.now() - pausedAt;
+  record(run, { kind: 'continued' });
+  run.history.status = 'running';
+  return true;
+}
+
 async function runLoop(run: RunState): Promise<void> {
   try {
     const api = run.cliId ? null : await resolveProviderAndModel();
+    run.history.aiLabel = api
+      ? PROVIDER_LABELS[api.provider]
+      : (getCliDefinition(run.cliId ?? '')?.name ?? 'AI CLI');
 
     while (!run.aborted) {
-      if (run.step >= MAX_STEPS) {
-        emit(run, 'error', { message: `Stopped after ${MAX_STEPS} steps without finishing.` });
-        return;
+      if (run.step >= run.stepLimit) {
+        const paused = `Paused after ${run.step} steps without finishing.`;
+        if (!(await pauseOnError(run, paused))) return;
+        run.stepLimit = run.step + MAX_STEPS;
+        continue;
       }
       if (Date.now() - run.startedAt > MAX_RUNTIME_MS) {
-        emit(run, 'error', { message: 'Stopped: this task ran for too long.' });
-        return;
+        const minutes = Math.round(MAX_RUNTIME_MS / 60_000);
+        if (!(await pauseOnError(run, `Paused: this task has run for ${minutes} minutes.`))) return;
+        run.startedAt = Date.now();
+        continue;
       }
 
       run.step += 1;
@@ -407,32 +521,41 @@ async function runLoop(run: RunState): Promise<void> {
           : await askCli(run);
       } catch (error) {
         if (run.aborted) return;
-        emit(run, 'error', { message: (error as Error).message });
-        return;
+        // Nothing came of this step, so the retry takes its number rather than skipping one.
+        run.step -= 1;
+        if (!(await pauseOnError(run, (error as Error).message))) return;
+        continue;
       }
       if (run.aborted) return;
 
       const parsed = parseModelReply(reply);
       if (!parsed) {
-        emit(run, 'error', {
-          message: 'The AI reply did not follow the expected format, stopping.',
-        });
-        return;
+        // Without this the retry would send the very same prompt and likely get the same reply.
+        run.transcript +=
+          '\n[Your last reply was not in the RUN / FINISHED / NEEDS_INPUT format. Reply in that format.]\n';
+        run.step -= 1;
+        if (!(await pauseOnError(run, 'The AI reply did not follow the expected format.'))) return;
+        continue;
       }
 
       if (parsed.kind === 'finished') {
-        emit(run, 'finished', { message: parsed.message || 'Task complete.' });
+        const summary = parsed.message || 'Task complete.';
+        record(run, { kind: 'finished', text: summary });
+        endHistory(run, 'finished');
+        emit(run, 'finished', { message: summary });
         const settings = await store.getSettings();
         speakOnPet(settings, run.target.label, parsed.message || 'AI finished the task.', 'pass');
         return;
       }
 
       if (parsed.kind === 'needs-input') {
+        record(run, { kind: 'question', text: parsed.message });
         emit(run, 'needs-input', { message: parsed.message });
         const settings = await store.getSettings();
         speakOnPet(settings, run.target.label, `AI needs input: ${parsed.message}`, 'warn');
         const answer = await waitForUserAnswer(run);
         if (run.aborted) return;
+        record(run, { kind: 'answer', text: answer });
         run.transcript += `\n[You answered]: ${answer}\n`;
         continue;
       }
@@ -449,6 +572,7 @@ async function runLoop(run: RunState): Promise<void> {
         const approved = await waitForApproval(run, command);
         if (run.aborted) return;
         if (!approved) {
+          record(run, { kind: 'skipped', command });
           run.transcript += `\n$ ${command}\n[skipped by user, not run]\n`;
           continue;
         }
@@ -509,6 +633,10 @@ export function startSshTask(
     pendingApproval: null,
     pendingInputAnswer: null,
     pendingPassword: null,
+    pendingContinue: null,
+    stepLimit: MAX_STEPS,
+    history: startHistory(sessionId, prompt.trim()),
+    lastProgress: null,
     // Replaced immediately below, once the real subscription exists.
     unsubscribeExit: () => undefined,
     listener,
@@ -551,6 +679,55 @@ export function answerSshTaskPassword(sessionId: string, approved: boolean): voi
   resolve(approved);
 }
 
+/** Picks a run paused on an error back up where it left off. */
+export function continueSshTask(sessionId: string): void {
+  const run = runs.get(sessionId);
+  if (!run?.pendingContinue) return;
+  const resolve = run.pendingContinue;
+  run.pendingContinue = null;
+  resolve(true);
+}
+
+/**
+ * Raises a system notification for a run that is waiting on the user. The renderer calls this
+ * when the terminal isn't in front of them (panel closed, another tab, another app), since only
+ * it knows that. `tabTitle` names the terminal the way its tab does.
+ */
+export async function notifySshTaskWaiting(sessionId: string, tabTitle: string): Promise<void> {
+  const progress = runs.get(sessionId)?.lastProgress;
+  if (!progress) return;
+  const settings = await store.getSettings();
+  if (settings.terminalAiNotifications === false) return;
+
+  const where = tabTitle.trim() || 'Terminal';
+  let title: string;
+  let detail: string | undefined;
+  switch (progress.phase) {
+    case 'proposed':
+      title = 'AI wants to run a command';
+      detail = progress.command;
+      break;
+    case 'needs-input':
+      title = 'AI has a question for you';
+      detail = progress.message;
+      break;
+    case 'needs-password':
+      title = 'A command is asking for a password';
+      detail = progress.command;
+      break;
+    case 'error':
+      if (!progress.canContinue) return;
+      title = 'AI task paused';
+      detail = progress.message;
+      break;
+    default:
+      return;
+  }
+  const route = `/terminal-session/${encodeURIComponent(sessionId)}`;
+  const body = detail ? `${where}\n${detail}` : where;
+  if (showOsNotification({ title, body, route })) getMainWindow()?.flashFrame(true);
+}
+
 export function stopSshTask(sessionId: string, reason: 'user' | 'exited' = 'user'): void {
   const run = runs.get(sessionId);
   if (!run || run.aborted) return;
@@ -566,14 +743,19 @@ export function stopSshTask(sessionId: string, reason: 'user' | 'exited' = 'user
     run.pendingInputAnswer('');
     run.pendingInputAnswer = null;
   }
-  emit(run, 'stopped', {
-    message:
-      reason === 'user'
-        ? 'Stopped by user.'
-        : run.target.kind === 'ssh'
-          ? 'The SSH session ended.'
-          : 'The terminal closed.',
-  });
+  if (run.pendingContinue) {
+    run.pendingContinue(false);
+    run.pendingContinue = null;
+  }
+  const message =
+    reason === 'user'
+      ? 'Stopped by user.'
+      : run.target.kind === 'ssh'
+        ? 'The SSH session ended.'
+        : 'The terminal closed.';
+  record(run, { kind: 'stopped', text: message });
+  endHistory(run, 'stopped');
+  emit(run, 'stopped', { message });
   cleanupRun(run);
 }
 

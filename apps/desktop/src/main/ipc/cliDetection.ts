@@ -19,6 +19,7 @@ import { IPC } from '../../shared/ipcChannels';
 import { mapWithConcurrency } from '../packageManagers/execUtils';
 import { compareVersions, fetchLatestVersion } from '../registryVersions';
 import { killProcessTree } from '../security/exec';
+import { pathKey, refreshWindowsPath } from '../windowsPath';
 
 /**
  * Some CLIs take a long time to answer `--version` (Cline and Cursor's agent run past ten seconds,
@@ -28,56 +29,6 @@ import { killProcessTree } from '../security/exec';
 const VERSION_TIMEOUT_MS = 20_000;
 /** Fifteen Node CLIs starting at once slowed each other past the timeout. */
 const PROBE_CONCURRENCY = 4;
-
-function pathKey(env: NodeJS.ProcessEnv): string {
-  return Object.keys(env).find((key) => key.toUpperCase() === 'PATH') ?? 'PATH';
-}
-
-function regQueryPath(hive: string): Promise<string[]> {
-  return new Promise((resolve) => {
-    execFile(
-      'reg.exe',
-      ['query', hive, '/v', 'Path'],
-      { windowsHide: true, timeout: 5000 },
-      (error, stdout) => {
-        if (error) {
-          resolve([]);
-          return;
-        }
-        const match = /\bPath\s+REG_(?:EXPAND_)?SZ\s+(.*)/i.exec(stdout);
-        const value = (match?.[1] ?? '').trim().replace(/%([^%]+)%/g, (whole, name: string) => {
-          const key = Object.keys(process.env).find((k) => k.toUpperCase() === name.toUpperCase());
-          return key ? (process.env[key] ?? whole) : whole;
-        });
-        resolve(value.split(';').filter(Boolean));
-      },
-    );
-  });
-}
-
-/**
- * The app keeps the PATH it started with, so a CLI installed (or a PATH entry added) after that
- * showed as missing for the whole session while a new cmd window found it. On Windows the current
- * PATH is read back from the registry and any new folders are added to this process's PATH, which
- * also lets what the app starts from here on find the CLI.
- */
-async function refreshWindowsPath(): Promise<void> {
-  if (process.platform !== 'win32') return;
-  const [machine, user] = await Promise.all([
-    regQueryPath('HKLM\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment'),
-    regQueryPath('HKCU\\Environment'),
-  ]);
-  const key = pathKey(process.env);
-  const current = (process.env[key] ?? '').split(delimiter).filter(Boolean);
-  const known = new Set(current.map((dir) => dir.toLowerCase().replace(/[\\/]+$/, '')));
-  const added = [...machine, ...user].filter((dir) => {
-    const normalized = dir.toLowerCase().replace(/[\\/]+$/, '');
-    if (known.has(normalized)) return false;
-    known.add(normalized);
-    return true;
-  });
-  if (added.length > 0) process.env[key] = [...current, ...added].join(delimiter);
-}
 
 async function isExecutable(path: string): Promise<boolean> {
   try {
@@ -205,7 +156,7 @@ export function detectAllClis(force: boolean): Promise<InstalledCli[]> {
   const sweep = previous
     .catch(() => [])
     .then(async () => {
-      await refreshWindowsPath();
+      await refreshWindowsPath({ force: true });
       return mapWithConcurrency(CLI_REGISTRY, PROBE_CONCURRENCY, detectCli);
     })
     .then((value) => {

@@ -9,6 +9,7 @@ import {
 } from '@agentmat/core';
 import { runCli } from '../packageManagers/execUtils';
 import { store } from '../store';
+import { refreshWindowsPath } from '../windowsPath';
 
 /** Agent CLIs answer through a model round-trip, so they need far longer than a git call. */
 const HEADLESS_TIMEOUT_MS = 180000;
@@ -187,6 +188,16 @@ async function resolveHeadlessCli(
 }
 
 async function isOnPath(cli: CliDefinition): Promise<boolean> {
+  if (await probeVersion(cli)) return true;
+  // The app keeps the PATH it started with, so a CLI installed (or moved to a new folder by an
+  // update) since then isn't found even though every new terminal finds it. Read PATH back from
+  // the registry once and look again before calling it missing.
+  if (process.platform !== 'win32') return false;
+  await refreshWindowsPath();
+  return probeVersion(cli);
+}
+
+async function probeVersion(cli: CliDefinition): Promise<boolean> {
   try {
     await runCli(cli.versionCommand.command, cli.versionCommand.args, process.cwd(), 8000);
     return true;
@@ -280,7 +291,9 @@ export async function runHeadlessCliPrompt(
       ok: false,
       text: '',
       cliName: name ?? null,
-      error: `${name ?? 'The chosen CLI'} is not installed or can't answer non-interactive prompts.`,
+      error:
+        `${name ?? 'The chosen CLI'} wasn't found. Check that it runs in a new terminal, then ` +
+        'refresh CLI Manager, or pick another AI for this task.',
     };
   }
 

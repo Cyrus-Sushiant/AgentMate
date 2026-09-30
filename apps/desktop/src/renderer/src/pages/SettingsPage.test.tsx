@@ -58,6 +58,7 @@ const settings = {
   grammar: defaultGrammarSettings(),
   keepTerminalsRunning: false,
   workspaceNotifications: true,
+  terminalAiNotifications: true,
   checkToolUpdatesEnabled: true,
   startupPage: 'last',
 } as AppSettings;

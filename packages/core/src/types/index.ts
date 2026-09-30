@@ -549,6 +549,11 @@ export interface AppSettings {
    */
   workspaceNotifications: boolean;
   /**
+   * When true, an AI task in a terminal tab that asks a question or waits for a command to be
+   * approved raises a system notification while that terminal isn't in front of you.
+   */
+  terminalAiNotifications: boolean;
+  /**
    * Whether AgentMate keeps this computer from going to sleep: always, only while an agent
    * (or a shell) is busy, or never.
    */

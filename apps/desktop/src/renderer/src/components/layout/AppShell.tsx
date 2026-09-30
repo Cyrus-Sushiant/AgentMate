@@ -25,7 +25,11 @@ import { initAgentStatus } from '@/stores/agentStatusStore';
 import { useAskAiStore } from '@/stores/askAiStore';
 import { usePageHeaderStore } from '@/stores/pageHeaderStore';
 import { useShortcutLabel } from '@/stores/shortcutStore';
-import { initSshAgentStatus } from '@/stores/sshAgentStore';
+import {
+  initSshAgentStatus,
+  isSshAgentWaitingOnUser,
+  useSshAgentStore,
+} from '@/stores/sshAgentStore';
 import { useTerminalStore } from '@/stores/terminalStore';
 import { useToastHistoryStore } from '@/stores/toastHistoryStore';
 import { useUiStore } from '@/stores/uiStore';
@@ -33,6 +37,9 @@ import { LoadingOverlay } from './LoadingOverlay';
 import { Sidebar } from './Sidebar';
 import { StatusBar } from './StatusBar';
 import { TitleBar } from './TitleBar';
+
+/** Where a terminal AI task notification points; see notifySshTaskWaiting() in main. */
+const TERMINAL_SESSION_ROUTE = /^\/terminal-session\/([^/?#]+)/;
 
 function TopBar(): React.JSX.Element {
   const isTerminalOpen = useTerminalStore((s) => s.isOpen);
@@ -53,6 +60,9 @@ function TopBar(): React.JSX.Element {
   );
   const terminalShortcut = useShortcutLabel('terminal.toggle');
   const onWorkspace = isWorkspacePath(useLocation().pathname);
+  const aiWaiting = useSshAgentStore((s) =>
+    Object.values(s.sessions).some((session) => isSshAgentWaitingOnUser(session)),
+  );
 
   return (
     <div className="flex h-14 shrink-0 items-center justify-between gap-3 border-b border-border/80 px-4">
@@ -93,7 +103,13 @@ function TopBar(): React.JSX.Element {
         {/* The general terminal (for running the app, installs and so on) stays available on
             every page, the Workspace included, where it opens over the panes. */}
         <SimpleTooltip
-          label={terminalShortcut ? `Toggle terminal (${terminalShortcut})` : 'Toggle terminal'}
+          label={
+            aiWaiting
+              ? 'An AI task in the terminal is waiting for you'
+              : terminalShortcut
+                ? `Toggle terminal (${terminalShortcut})`
+                : 'Toggle terminal'
+          }
         >
           <Button
             variant={isTerminalOpen ? 'secondary' : 'ghost'}
@@ -104,15 +120,19 @@ function TopBar(): React.JSX.Element {
             className="relative"
           >
             <TerminalSquare className="h-4 w-4" />
-            {sessions.length > 0 && (
-              <span
-                className={cn(
-                  'absolute right-1 top-1 h-1.5 w-1.5 rounded-full',
-                  isTerminalOpen
-                    ? 'bg-primary shadow-[0_0_6px_hsl(var(--primary))]'
-                    : 'bg-primary/70',
-                )}
-              />
+            {aiWaiting ? (
+              <span className="absolute right-1 top-1 h-2 w-2 animate-pulse rounded-full bg-amber-400 shadow-[0_0_6px_var(--color-amber-400)]" />
+            ) : (
+              sessions.length > 0 && (
+                <span
+                  className={cn(
+                    'absolute right-1 top-1 h-1.5 w-1.5 rounded-full',
+                    isTerminalOpen
+                      ? 'bg-primary shadow-[0_0_6px_hsl(var(--primary))]'
+                      : 'bg-primary/70',
+                  )}
+                />
+              )
             )}
           </Button>
         </SimpleTooltip>
@@ -200,11 +220,21 @@ export function AppShell(): React.JSX.Element {
   // started the window gets its route from the pending slot instead, since the
   // push would have gone out before this listener existed.
   useEffect(() => {
-    const stop = window.agentmat.app.onNavigate((route) => {
-      navigate(route);
-    });
+    // A terminal AI task notification opens its terminal where the user already is.
+    function go(route: string): void {
+      const terminalSession = TERMINAL_SESSION_ROUTE.exec(route);
+      if (!terminalSession) {
+        navigate(route);
+        return;
+      }
+      const terminal = useTerminalStore.getState();
+      const id = decodeURIComponent(terminalSession[1] ?? '');
+      if (terminal.sessions.some((s) => s.id === id)) terminal.setActiveSession(id);
+      terminal.openDrawer();
+    }
+    const stop = window.agentmat.app.onNavigate(go);
     void window.agentmat.app.pendingNavigate().then((route) => {
-      if (route) navigate(route);
+      if (route) go(route);
     });
     return stop;
   }, [navigate]);

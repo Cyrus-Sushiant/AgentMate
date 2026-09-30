@@ -125,6 +125,8 @@ export const queryKeys = {
   uiProUpdate: ['ui-ux-pro-max-update'] as const,
   remoteSavedServers: ['remote-saved-servers'] as const,
   sshServers: ['ssh-servers'] as const,
+  /** A terminal's AI task history, refetched as the running task reports progress. */
+  sshAgentHistory: (sessionId: string) => ['ssh-agent-history', sessionId] as const,
   sshVaultStatus: ['ssh-vault-status'] as const,
   rdpServers: ['rdp-servers'] as const,
   projectEnvironments: (projectId: string) => ['project-environments', projectId] as const,

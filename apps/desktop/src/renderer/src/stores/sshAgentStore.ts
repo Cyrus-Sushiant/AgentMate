@@ -6,6 +6,7 @@ import type {
   StartSshAgentTaskInput,
 } from '@shared/apiTypes';
 import { create } from 'zustand';
+import { useTerminalStore } from './terminalStore';
 
 export interface SshAgentSessionState {
   mode: SshAgentMode;
@@ -14,6 +15,8 @@ export interface SshAgentSessionState {
   command?: string;
   message?: string;
   hasSavedPassword?: boolean;
+  /** Set on an `error` the run is paused on, rather than ended by. */
+  canContinue?: boolean;
 }
 
 /** The AI the user picked last time: a CLI with its model and effort, or null for Settings' provider. */
@@ -52,7 +55,19 @@ export function useSshAgentSession(sessionId: string | null): SshAgentSessionSta
 /** True whenever the run can still act (waiting on the AI, or waiting on the user's OK/answer). */
 export function isSshAgentActive(state: SshAgentSessionState | undefined): boolean {
   if (!state) return false;
-  return state.phase !== 'finished' && state.phase !== 'error' && state.phase !== 'stopped';
+  if (state.phase === 'error') return state.canContinue === true;
+  return state.phase !== 'finished' && state.phase !== 'stopped';
+}
+
+/** True while the run can't go on until the user does something. */
+export function isSshAgentWaitingOnUser(state: SshAgentSessionState | undefined): boolean {
+  if (!state) return false;
+  return (
+    state.phase === 'proposed' ||
+    state.phase === 'needs-input' ||
+    state.phase === 'needs-password' ||
+    (state.phase === 'error' && state.canContinue === true)
+  );
 }
 
 export async function startSshAgentTask(input: StartSshAgentTaskInput): Promise<void> {
@@ -94,6 +109,24 @@ export function stopSshAgentTask(sessionId: string): void {
   void window.agentmat.sshAgent.stop(sessionId);
 }
 
+export function continueSshAgentTask(sessionId: string): void {
+  void window.agentmat.sshAgent.continueTask(sessionId);
+}
+
+/**
+ * Whether the user can see this terminal right now: AgentMate is the focused app, the terminal
+ * panel is open, and this is the tab it shows.
+ */
+function isWatchingSession(sessionId: string): boolean {
+  const terminal = useTerminalStore.getState();
+  return (
+    document.hasFocus() &&
+    document.visibilityState === 'visible' &&
+    terminal.isOpen &&
+    terminal.activeSessionId === sessionId
+  );
+}
+
 let started = false;
 
 /** Starts following AI-task progress for every SSH session, for the whole app's lifetime. */
@@ -110,8 +143,16 @@ export function initSshAgentStatus(): void {
         command: progress.command ?? existing?.command,
         message: progress.message,
         hasSavedPassword: progress.hasSavedPassword,
+        canContinue: progress.canContinue,
       };
       return { sessions: { ...state.sessions, [progress.sessionId]: next } };
     });
+
+    const now = useSshAgentStore.getState().sessions[progress.sessionId];
+    if (isSshAgentWaitingOnUser(now) && !isWatchingSession(progress.sessionId)) {
+      const title =
+        useTerminalStore.getState().sessions.find((s) => s.id === progress.sessionId)?.title ?? '';
+      void window.agentmat.sshAgent.notifyWaiting(progress.sessionId, title);
+    }
   });
 }

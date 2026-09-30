@@ -1,10 +1,17 @@
 import { type IpcMainInvokeEvent, ipcMain, type WebContents } from 'electron';
-import type { SshAgentProgress, StartSshAgentTaskInput } from '../../shared/apiTypes';
+import type {
+  SshAgentHistoryRun,
+  SshAgentProgress,
+  StartSshAgentTaskInput,
+} from '../../shared/apiTypes';
 import { IPC } from '../../shared/ipcChannels';
 import {
   answerSshTaskInput,
   answerSshTaskPassword,
   approveSshTaskCommand,
+  continueSshTask,
+  getSshTaskHistory,
+  notifySshTaskWaiting,
   skipSshTaskCommand,
   startSshTask,
   stopSshTask,
@@ -16,7 +23,12 @@ const owners = new Map<string, WebContents>();
 
 function forwardProgress(progress: SshAgentProgress): void {
   sendToContents(owners.get(progress.sessionId), IPC.sshAgent.onProgress, progress);
-  if (progress.phase === 'finished' || progress.phase === 'error' || progress.phase === 'stopped') {
+  // A paused run is still going, and whatever it reports after Continue needs somewhere to go.
+  const paused = progress.phase === 'error' && progress.canContinue;
+  if (
+    !paused &&
+    (progress.phase === 'finished' || progress.phase === 'error' || progress.phase === 'stopped')
+  ) {
     owners.delete(progress.sessionId);
   }
 }
@@ -55,4 +67,18 @@ export function registerSshAgentHandlers(): void {
   ipcMain.handle(IPC.sshAgent.stop, (_event, sessionId: string): void => {
     stopSshTask(sessionId);
   });
+
+  ipcMain.handle(IPC.sshAgent.continue, (_event, sessionId: string): void => {
+    continueSshTask(sessionId);
+  });
+
+  ipcMain.handle(IPC.sshAgent.history, (_event, sessionId: string): SshAgentHistoryRun[] =>
+    getSshTaskHistory(sessionId),
+  );
+
+  ipcMain.handle(
+    IPC.sshAgent.notifyWaiting,
+    (_event, sessionId: string, tabTitle: string): Promise<void> =>
+      notifySshTaskWaiting(sessionId, tabTitle),
+  );
 }

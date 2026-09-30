@@ -3,6 +3,7 @@ import {
   ArrowLeft,
   ArrowRight,
   Folder,
+  History,
   Plus,
   Robot,
   Server,
@@ -14,12 +15,14 @@ import {
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import { useShortcutLabel } from '@/stores/shortcutStore';
+import { isSshAgentWaitingOnUser, useSshAgentStore } from '@/stores/sshAgentStore';
 import {
   defaultNewSession,
   TERMINAL_MIN_HEIGHT,
   type TerminalSessionMeta,
   useTerminalStore,
 } from '@/stores/terminalStore';
+import { SshAgentHistoryDialog } from './SshAgentHistoryDialog';
 import { SshAgentStatusBar } from './SshAgentStatusBar';
 import { SshAskAiDialog } from './SshAskAiDialog';
 import { TerminalPane } from './TerminalPane';
@@ -73,8 +76,10 @@ function SessionTab({
   onSelect: () => void;
   onClose: () => void;
 }): React.JSX.Element {
+  const aiWaiting = useSshAgentStore((s) => isSshAgentWaitingOnUser(s.sessions[session.id]));
+  const label = session.cwd ? `${session.title}\n${session.cwd}` : session.title;
   return (
-    <SimpleTooltip label={session.cwd ? `${session.title}\n${session.cwd}` : session.title}>
+    <SimpleTooltip label={aiWaiting ? `${label}\nThe AI task here is waiting for you` : label}>
       <div
         className={cn(
           'group relative flex h-7 max-w-[14rem] shrink-0 items-center gap-1.5 rounded-t-md px-2.5 text-xs transition-colors',
@@ -102,9 +107,11 @@ function SessionTab({
           <span
             className={cn(
               'h-1.5 w-1.5 shrink-0 rounded-full',
-              active
-                ? 'terminal-live-dot bg-primary shadow-[0_0_6px_hsl(var(--primary))]'
-                : 'bg-foreground/25',
+              aiWaiting
+                ? 'animate-pulse bg-amber-400 shadow-[0_0_6px_var(--color-amber-400)]'
+                : active
+                  ? 'terminal-live-dot bg-primary shadow-[0_0_6px_hsl(var(--primary))]'
+                  : 'bg-foreground/25',
             )}
           />
           {session.kind === 'ssh' && <Server className="h-3 w-3 shrink-0 opacity-70" />}
@@ -267,6 +274,7 @@ export function TerminalDrawer({
   const [isMaximized, setIsMaximized] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
   const [askAiOpen, setAskAiOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
   const drawerRef = useRef<HTMLDivElement>(null);
 
   const activeSession = sessions.find((s) => s.id === activeSessionId) ?? sessions.at(-1) ?? null;
@@ -364,6 +372,11 @@ export function TerminalDrawer({
               <Robot className="h-3.5 w-3.5" />
             </IconButton>
           )}
+          {activeSession && (
+            <IconButton label="AI task history" onClick={() => setHistoryOpen(true)}>
+              <History className="h-3.5 w-3.5" />
+            </IconButton>
+          )}
           <IconButton
             label={
               newTabShortcut
@@ -390,7 +403,12 @@ export function TerminalDrawer({
         </div>
       </div>
 
-      {activeSession && <SshAgentStatusBar sessionId={activeSession.id} />}
+      {activeSession && (
+        <SshAgentStatusBar
+          sessionId={activeSession.id}
+          onOpenHistory={() => setHistoryOpen(true)}
+        />
+      )}
 
       <div className="terminal-well relative min-h-0 flex-1 overflow-hidden">
         {sessions.length === 0 ? (
@@ -457,6 +475,14 @@ export function TerminalDrawer({
           target={activeSession.kind === 'ssh' ? 'ssh' : 'local'}
           open={askAiOpen}
           onOpenChange={setAskAiOpen}
+        />
+      )}
+      {activeSession && (
+        <SshAgentHistoryDialog
+          sessionId={activeSession.id}
+          sessionTitle={activeSession.title}
+          open={historyOpen}
+          onOpenChange={setHistoryOpen}
         />
       )}
     </div>

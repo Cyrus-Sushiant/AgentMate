@@ -182,6 +182,62 @@ export function markedCommandLine(
   };
 }
 
+/** Index of the last character of the escape sequence starting at `from` (an ESC). */
+function escapeEnd(text: string, from: number): number {
+  const kind = text[from + 1];
+  if (kind === '[') {
+    let i = from + 2;
+    while (i < text.length && !/[@-~]/.test(text[i] ?? '')) i++;
+    return i;
+  }
+  if (kind === ']') {
+    let i = from + 2;
+    while (i < text.length && text[i] !== '\x07' && !(text[i] === '\x1b' && text[i + 1] === '\\'))
+      i++;
+    return text[i] === '\x1b' ? i + 1 : i;
+  }
+  return from + 1;
+}
+
+/**
+ * Output of a command typed with plain-text markers, minus the shell's echo of the typed line.
+ * ConPTY wraps that echo with escape codes and line breaks of its own, and can paint it again
+ * after the output has started, so the line is found by its visible characters alone: whatever
+ * came before the first copy goes, and any later copy is cut out. Unchanged without an echo.
+ */
+export function dropEcho(output: string, typedLine: string): string {
+  const target = typedLine.replace(/\s+/g, '');
+  if (!target) return output;
+  let visible = '';
+  const origin: number[] = [];
+  for (let i = 0; i < output.length; i++) {
+    const ch = output[i] ?? '';
+    if (ch === '\x1b') {
+      i = escapeEnd(output, i);
+      continue;
+    }
+    if (ch <= ' ') continue;
+    visible += ch;
+    origin.push(i);
+  }
+  const copies: [number, number][] = [];
+  for (
+    let at = visible.indexOf(target);
+    at >= 0;
+    at = visible.indexOf(target, at + target.length)
+  ) {
+    copies.push([origin[at] ?? 0, (origin[at + target.length - 1] ?? 0) + 1]);
+  }
+  if (copies.length === 0) return output;
+  let result = '';
+  let from = copies[0]?.[1] ?? 0;
+  for (const [start, end] of copies.slice(1)) {
+    result += output.slice(from, start);
+    from = end;
+  }
+  return result + output.slice(from);
+}
+
 /** Where `CommandDisplay` draws: the terminal pane of the session the command runs in. */
 export interface DisplaySink {
   /** While captured, output only reaches the terminal pane through `display`. */
