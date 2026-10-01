@@ -30,6 +30,8 @@ server {
     server_name open.test;
     server_tokens off;
     root /var/www/agentmate/sites/open;
+    access_log /var/log/nginx/agentmate-open.access.log;
+    error_log /var/log/nginx/agentmate-open.error.log;
 
     location ^~ /.well-known/acme-challenge/ {
         root /var/www/agentmate/acme;
@@ -62,6 +64,8 @@ server {
     server_name open.test;
     server_tokens off;
     root /var/www/agentmate/sites/open;
+    access_log /var/log/nginx/agentmate-open.access.log;
+    error_log /var/log/nginx/agentmate-open.error.log;
 
     ssl_certificate /etc/agentmate-test/tls/sites.crt;
     ssl_certificate_key /etc/agentmate-test/tls/sites.key;

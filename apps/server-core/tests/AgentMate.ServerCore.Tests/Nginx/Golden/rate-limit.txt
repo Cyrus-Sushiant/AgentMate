@@ -32,6 +32,8 @@ server {
     server_name limited.test;
     server_tokens off;
     root /var/www/agentmate/sites/limited;
+    access_log /var/log/nginx/agentmate-limited.access.log;
+    error_log /var/log/nginx/agentmate-limited.error.log;
 
     location ^~ /.well-known/acme-challenge/ {
         root /var/www/agentmate/acme;

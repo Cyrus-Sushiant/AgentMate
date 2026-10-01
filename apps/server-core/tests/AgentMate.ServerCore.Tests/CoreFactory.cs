@@ -1,5 +1,6 @@
 using AgentMate.ServerCore.Docker;
 using AgentMate.ServerCore.Firewall;
+using AgentMate.ServerCore.Nginx;
 using AgentMate.ServerCore.Platform;
 using AgentMate.ServerCore.Tests.Docker;
 using Microsoft.AspNetCore.Hosting;
@@ -48,6 +49,10 @@ public sealed class CoreFactory : WebApplicationFactory<Program>
             services.AddSingleton<IDockerEngine>(provider => provider.GetRequiredService<InMemoryDockerEngine>());
             services.AddSingleton<FakeDockerSetup>();
             services.AddSingleton<IDockerSetup>(provider => provider.GetRequiredService<FakeDockerSetup>());
+
+            // nginx on a simulated server, installed and running but not set up for AgentMate.
+            services.AddSingleton(_ => new SimulatedNginxMachine(installed: true));
+            services.AddSingleton<INginxMachine>(provider => provider.GetRequiredService<SimulatedNginxMachine>());
         });
     }
 

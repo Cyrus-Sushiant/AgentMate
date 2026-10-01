@@ -35,6 +35,19 @@ public sealed class NginxRendererTests
     private static NginxProblem RefusedSite(NginxSite site) => Assert.Single(Refused(new NginxConfiguration([site], [])));
 
     [Fact]
+    public void Every_server_block_of_a_site_logs_to_the_sites_own_files()
+    {
+        var content = SiteFile(Render(Site() with { Certificate = new NginxCertificate("/etc/ssl/a.pem", "/etc/ssl/a.key") }));
+
+        Assert.Equal(2, CountOf(content, "access_log /var/log/nginx/agentmate-app.access.log;"));
+        Assert.Equal(2, CountOf(content, "error_log /var/log/nginx/agentmate-app.error.log;"));
+        Assert.Equal("/var/log/nginx/agentmate-app.access.log", _layout.AccessLog("app"));
+        Assert.Equal("/var/log/nginx/agentmate-app.error.log", _layout.ErrorLog("app"));
+    }
+
+    private static int CountOf(string text, string part) => text.Split('\n').Count(line => line.Trim() == part);
+
+    [Fact]
     public void A_site_without_a_certificate_is_http_only_and_answers_acme_challenges()
     {
         var content = SiteFile(Render(Site() with { Hsts = new NginxHsts() }));

@@ -370,6 +370,7 @@ public sealed class HubAccountTests
         [
             "GetJob", "GetMetricsHistory", "GetSystemInfo", "GetUpdates", "ListAlerts", "ListJobs",
             "ListServices", "StreamAlerts", "StreamJob", "StreamMetrics",
+            "GetNginxStatus", "ListCertificates", "ListSites", "ListStreamProxies", "StreamSiteLog",
         ];
         string[] firewallReads = ["GetExposure", "GetFirewallPresets", "GetFirewallStatus", "ListFirewallChangeSets"];
         // Docker (E06): lists, inspect without environment values, stats, logs and events.
@@ -430,6 +431,10 @@ public sealed class HubAccountTests
         await hub.InvokeAsync<DockerDiskUsage>(nameof(ICoreHub.GetDockerDiskUsage), Cancel);
         await FirstAsync(hub.StreamAsync<ContainerLogBatch>(nameof(ICoreHub.StreamContainerLogs), new ContainerLogsRequest("shop-api-1", Tail: 5, Follow: false), Cancel));
         await FirstAsync(hub.StreamAsync<ContainerStatsBatch>(nameof(ICoreHub.StreamContainerStats), new ContainerStatsRequest(IntervalMs: 1_000), Cancel));
+        await hub.InvokeAsync<NginxStatus>(nameof(ICoreHub.GetNginxStatus), Cancel);
+        await hub.InvokeAsync<SiteInfo[]>(nameof(ICoreHub.ListSites), Cancel);
+        await hub.InvokeAsync<StreamProxyInfo[]>(nameof(ICoreHub.ListStreamProxies), Cancel);
+        await hub.InvokeAsync<CertificateInfo[]>(nameof(ICoreHub.ListCertificates), Cancel);
 
         Assert.Empty(harness.Services.GetRequiredService<InMemoryDockerEngine>().Changes);
         Assert.Empty(mutations.Entries);

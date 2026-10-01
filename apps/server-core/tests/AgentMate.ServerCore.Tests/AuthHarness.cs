@@ -24,7 +24,7 @@ public sealed class AuthHarness : IAsyncDisposable
     private readonly WebApplicationFactory<Program> _app;
     private readonly CoreFactory _factory = new();
 
-    private AuthHarness(FakeTimeProvider? clock)
+    private AuthHarness(FakeTimeProvider? clock, Action<IServiceCollection, FakeTimeProvider?>? configure)
     {
         Clock = clock;
         _app = _factory.WithWebHostBuilder(builder =>
@@ -32,6 +32,11 @@ public sealed class AuthHarness : IAsyncDisposable
             if (clock is not null)
             {
                 builder.ConfigureServices(services => services.AddSingleton<TimeProvider>(clock));
+            }
+
+            if (configure is not null)
+            {
+                builder.ConfigureServices(services => configure(services, clock));
             }
         });
         Client = _app.CreateClient();
@@ -49,9 +54,15 @@ public sealed class AuthHarness : IAsyncDisposable
 
     public Guid UserId { get; private set; }
 
-    public static async Task<AuthHarness> CreateAsync(string role = CoreRoles.Owner, bool fakeClock = true)
+    /// <param name="role">The seeded user's role.</param>
+    /// <param name="fakeClock">A FakeTimeProvider as the core's clock, or the real one.</param>
+    /// <param name="services">Registrations after the core's own, with the fake clock if there is one.</param>
+    public static async Task<AuthHarness> CreateAsync(
+        string role = CoreRoles.Owner,
+        bool fakeClock = true,
+        Action<IServiceCollection, FakeTimeProvider?>? services = null)
     {
-        var harness = new AuthHarness(fakeClock ? new FakeTimeProvider(DateTimeOffset.UtcNow) : null);
+        var harness = new AuthHarness(fakeClock ? new FakeTimeProvider(DateTimeOffset.UtcNow) : null, services);
         await harness.SeedAsync(role);
         return harness;
     }

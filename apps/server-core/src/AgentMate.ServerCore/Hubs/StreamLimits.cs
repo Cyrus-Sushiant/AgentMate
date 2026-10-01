@@ -25,6 +25,8 @@ internal sealed class StreamLimits
 
     public const string Console = "console";
 
+    public const string SiteLog = "site-log";
+
     public const int PerConnection = 8;
 
     public static readonly IReadOnlyDictionary<string, int> PerKind = new Dictionary<string, int>(StringComparer.Ordinal)
@@ -36,6 +38,7 @@ internal sealed class StreamLimits
         [ContainerLogs] = 4,
         [DockerEvents] = 2,
         [Console] = 2,
+        [SiteLog] = 2,
     };
 
     private readonly Lock _gate = new();

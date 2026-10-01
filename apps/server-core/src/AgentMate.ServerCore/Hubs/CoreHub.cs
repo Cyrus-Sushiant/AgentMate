@@ -6,6 +6,7 @@ using AgentMate.ServerCore.Data;
 using AgentMate.ServerCore.Docker;
 using AgentMate.ServerCore.Firewall;
 using AgentMate.ServerCore.Security;
+using AgentMate.ServerCore.Web;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.SignalR;
@@ -31,7 +32,8 @@ internal sealed partial class CoreHub(
     HubConnections connections,
     ServerServices server,
     FirewallHubServices firewall,
-    DockerOperations docker) : Hub<ICoreHubReceiver>, ICoreHub
+    DockerOperations docker,
+    WebServices web) : Hub<ICoreHubReceiver>, ICoreHub
 {
     public const string Path = "/hubs/core";
 

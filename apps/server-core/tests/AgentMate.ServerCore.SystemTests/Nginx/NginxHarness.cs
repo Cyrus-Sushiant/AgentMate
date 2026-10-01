@@ -78,7 +78,8 @@ internal sealed class NginxHarness : IAsyncDisposable
 
     public string NginxVersion { get; private set; } = string.Empty;
 
-    private string Nginx => _name + "-nginx";
+    /// <summary>The nginx container, for tests that drive it through the core's own code.</summary>
+    public string Nginx => _name + "-nginx";
 
     private string App => _name + "-app";
 

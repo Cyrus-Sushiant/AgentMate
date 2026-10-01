@@ -30,6 +30,8 @@ server {
     server_name snippets.test;
     server_tokens off;
     root /var/www/agentmate/sites/snippets;
+    access_log /var/log/nginx/agentmate-snippets.access.log;
+    error_log /var/log/nginx/agentmate-snippets.error.log;
 
     location ^~ /.well-known/acme-challenge/ {
         root /var/www/agentmate/acme;

@@ -30,6 +30,8 @@ server {
     server_name gzip.test;
     server_tokens off;
     root /var/www/agentmate/sites/gzip;
+    access_log /var/log/nginx/agentmate-gzip.access.log;
+    error_log /var/log/nginx/agentmate-gzip.error.log;
 
     location ^~ /.well-known/acme-challenge/ {
         root /var/www/agentmate/acme;

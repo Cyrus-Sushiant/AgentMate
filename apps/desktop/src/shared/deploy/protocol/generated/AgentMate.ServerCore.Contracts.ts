@@ -175,7 +175,7 @@ export type AuditVerificationInfo = {
 }
 
 /** Transpiled from AgentMate.ServerCore.Contracts.AlertKind */
-export type AlertKind = "diskPressure" | "jobFailed" | "rebootRequired";
+export type AlertKind = "diskPressure" | "jobFailed" | "rebootRequired" | "certificateRenewalFailed";
 
 /** Transpiled from AgentMate.ServerCore.Contracts.AlertSeverity */
 export type AlertSeverity = "info" | "warning" | "critical";
@@ -310,456 +310,95 @@ export type AuthError = {
     lockedOutUntilUnixMs?: number;
 }
 
-/** Transpiled from AgentMate.ServerCore.Contracts.DockerStatus */
-export type DockerStatus = {
-    /** Transpiled from bool */
-    installed: boolean;
-    /** Transpiled from bool */
-    running: boolean;
-    /** Transpiled from bool */
-    composeSupported: boolean;
+/** Transpiled from AgentMate.ServerCore.Contracts.CertificateSource */
+export type CertificateSource = "acme" | "uploaded";
+
+/** Transpiled from AgentMate.ServerCore.Contracts.CertificateState */
+export type CertificateState = "valid" | "expiringSoon" | "expired" | "revoked";
+
+/** Transpiled from AgentMate.ServerCore.Contracts.CertificateInfo */
+export type CertificateInfo = {
+    /** Transpiled from string */
+    siteId: string;
+    /** Transpiled from AgentMate.ServerCore.Contracts.CertificateSource */
+    source: CertificateSource;
+    /** Transpiled from AgentMate.ServerCore.Contracts.CertificateState */
+    state: CertificateState;
     /** Transpiled from string[] */
-    conflictingPackages: string[];
-    /** Transpiled from string? */
-    engineVersion?: string;
-    /** Transpiled from string? */
-    apiVersion?: string;
-    /** Transpiled from string? */
-    composeVersion?: string;
-    /** Transpiled from string? */
-    storageDriver?: string;
-    /** Transpiled from int */
-    cgroupVersion?: number;
-    /** Transpiled from string? */
-    message?: string;
-}
-
-/** Transpiled from AgentMate.ServerCore.Contracts.DockerInstallRequest */
-export type DockerInstallRequest = {
-    /** Transpiled from bool */
-    removeConflictingPackages: boolean;
-}
-
-/** Transpiled from AgentMate.ServerCore.Contracts.ContainerState */
-export type ContainerState = "created" | "running" | "paused" | "restarting" | "removing" | "exited" | "dead" | "unknown";
-
-/** Transpiled from AgentMate.ServerCore.Contracts.ContainerHealth */
-export type ContainerHealth = "none" | "starting" | "healthy" | "unhealthy";
-
-/** Transpiled from AgentMate.ServerCore.Contracts.ContainerPort */
-export type ContainerPort = {
-    /** Transpiled from int */
-    privatePort: number;
+    domains: string[];
     /** Transpiled from string */
-    protocol: string;
-    /** Transpiled from string? */
-    hostIp?: string;
-    /** Transpiled from int */
-    hostPort?: number;
-}
-
-/** Transpiled from AgentMate.ServerCore.Contracts.ContainerSummary */
-export type ContainerSummary = {
-    /** Transpiled from string */
-    id: string;
-    /** Transpiled from string */
-    name: string;
-    /** Transpiled from string */
-    image: string;
-    /** Transpiled from string */
-    imageId: string;
-    /** Transpiled from AgentMate.ServerCore.Contracts.ContainerState */
-    state: ContainerState;
-    /** Transpiled from string */
-    status: string;
-    /** Transpiled from AgentMate.ServerCore.Contracts.ContainerHealth */
-    health: ContainerHealth;
+    issuer: string;
     /** Transpiled from long */
-    createdAtUnixMs: number;
-    /** Transpiled from AgentMate.ServerCore.Contracts.ContainerPort[] */
-    ports: ContainerPort[];
-    /** Transpiled from string? */
-    composeProject?: string;
-    /** Transpiled from string? */
-    composeService?: string;
-    /** Transpiled from int */
-    composeNumber?: number;
-}
-
-/** Transpiled from AgentMate.ServerCore.Contracts.ContainerGroup */
-export type ContainerGroup = {
-    /** Transpiled from string? */
-    project?: string;
-    /** Transpiled from AgentMate.ServerCore.Contracts.ContainerSummary[] */
-    containers: ContainerSummary[];
-    /** Transpiled from string? */
-    workingDirectory?: string;
-}
-
-/** Transpiled from AgentMate.ServerCore.Contracts.ContainerList */
-export type ContainerList = {
-    /** Transpiled from AgentMate.ServerCore.Contracts.ContainerGroup[] */
-    groups: ContainerGroup[];
-}
-
-/** Transpiled from AgentMate.ServerCore.Contracts.ContainerLabel */
-export type ContainerLabel = {
-    /** Transpiled from string */
-    name: string;
-    /** Transpiled from string */
-    value: string;
-}
-
-/** Transpiled from AgentMate.ServerCore.Contracts.ContainerMount */
-export type ContainerMount = {
-    /** Transpiled from string */
-    type: string;
-    /** Transpiled from string */
-    destination: string;
+    notBeforeUnixMs: number;
+    /** Transpiled from long */
+    notAfterUnixMs: number;
     /** Transpiled from bool */
-    readWrite: boolean;
+    autoRenew: boolean;
+    /** Transpiled from bool */
+    staging: boolean;
+    /** Transpiled from long */
+    renewAtUnixMs?: number;
+    /** Transpiled from long */
+    lastAttemptAtUnixMs?: number;
     /** Transpiled from string? */
-    source?: string;
+    lastError?: string;
+    /** Transpiled from System.Guid */
+    lastJobId?: string;
+    /** Transpiled from int */
+    failedAttempts: number;
+    /** Transpiled from long */
+    nextAttemptAtUnixMs?: number;
+    /** Transpiled from long */
+    revokedAtUnixMs?: number;
     /** Transpiled from string? */
-    name?: string;
+    explanationUrl?: string;
 }
 
-/** Transpiled from AgentMate.ServerCore.Contracts.ContainerNetwork */
-export type ContainerNetwork = {
+/** Transpiled from AgentMate.ServerCore.Contracts.CertificateIssueRequest */
+export type CertificateIssueRequest = {
     /** Transpiled from string */
-    network: string;
+    siteId: string;
+    /** Transpiled from bool */
+    acceptTermsOfService: boolean;
     /** Transpiled from string? */
-    ipAddress?: string;
-    /** Transpiled from string? */
-    ipv6Address?: string;
-    /** Transpiled from string? */
-    macAddress?: string;
+    contactEmail?: string;
+    /** Transpiled from bool */
+    staging: boolean;
+    /** Transpiled from bool */
+    preferDns01: boolean;
 }
 
-/** Transpiled from AgentMate.ServerCore.Contracts.ContainerDetails */
-export type ContainerDetails = {
-    /** Transpiled from AgentMate.ServerCore.Contracts.ContainerSummary */
-    summary: ContainerSummary;
+/** Transpiled from AgentMate.ServerCore.Contracts.CertificateUploadRequest */
+export type CertificateUploadRequest = {
+    /** Transpiled from string */
+    siteId: string;
+    /** Transpiled from string */
+    certificatePem: string;
+    /** Transpiled from string */
+    privateKeyPem: string;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.CertificateRevocationReason */
+export type CertificateRevocationReason = "unspecified" | "keyCompromise" | "superseded" | "cessationOfOperation";
+
+/** Transpiled from AgentMate.ServerCore.Contracts.CertificateRemoveRequest */
+export type CertificateRemoveRequest = {
+    /** Transpiled from string */
+    siteId: string;
+    /** Transpiled from bool */
+    revoke: boolean;
+    /** Transpiled from AgentMate.ServerCore.Contracts.CertificateRevocationReason */
+    reason: CertificateRevocationReason;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.CertificateUploadResult */
+export type CertificateUploadResult = {
     /** Transpiled from string[] */
-    command: string[];
-    /** Transpiled from string[] */
-    entrypoint: string[];
-    /** Transpiled from string[] */
-    envKeys: string[];
-    /** Transpiled from AgentMate.ServerCore.Contracts.ContainerLabel[] */
-    labels: ContainerLabel[];
-    /** Transpiled from AgentMate.ServerCore.Contracts.ContainerMount[] */
-    mounts: ContainerMount[];
-    /** Transpiled from AgentMate.ServerCore.Contracts.ContainerNetwork[] */
-    networks: ContainerNetwork[];
-    /** Transpiled from string */
-    restartPolicy: string;
-    /** Transpiled from int */
-    restartCount: number;
-    /** Transpiled from bool */
-    tty: boolean;
-    /** Transpiled from bool */
-    privileged: boolean;
-    /** Transpiled from bool */
-    oomKilled: boolean;
-    /** Transpiled from string? */
-    user?: string;
-    /** Transpiled from string? */
-    workingDirectory?: string;
-    /** Transpiled from string? */
-    hostname?: string;
-    /** Transpiled from long */
-    startedAtUnixMs?: number;
-    /** Transpiled from long */
-    finishedAtUnixMs?: number;
-    /** Transpiled from int */
-    exitCode?: number;
-    /** Transpiled from string? */
-    error?: string;
-    /** Transpiled from long */
-    memoryLimitBytes?: number;
-    /** Transpiled from double */
-    cpuLimit?: number;
-}
-
-/** Transpiled from AgentMate.ServerCore.Contracts.ContainerEnvVariable */
-export type ContainerEnvVariable = {
-    /** Transpiled from string */
-    name: string;
-    /** Transpiled from string */
-    value: string;
-}
-
-/** Transpiled from AgentMate.ServerCore.Contracts.ContainerRemoveRequest */
-export type ContainerRemoveRequest = {
-    /** Transpiled from string */
-    containerId: string;
-    /** Transpiled from bool */
-    removeVolumes: boolean;
-    /** Transpiled from bool */
-    force: boolean;
-}
-
-/** Transpiled from AgentMate.ServerCore.Contracts.ContainerStatsRequest */
-export type ContainerStatsRequest = {
-    /** Transpiled from string[]? */
-    containerIds?: string[];
-    /** Transpiled from int */
-    intervalMs?: number;
-}
-
-/** Transpiled from AgentMate.ServerCore.Contracts.ContainerStatsSample */
-export type ContainerStatsSample = {
-    /** Transpiled from string */
-    containerId: string;
-    /** Transpiled from long */
-    atUnixMs: number;
-    /** Transpiled from double */
-    cpuPercent: number;
-    /** Transpiled from int */
-    onlineCpus: number;
-    /** Transpiled from long */
-    memoryUsedBytes: number;
-    /** Transpiled from long */
-    memoryLimitBytes: number;
-    /** Transpiled from double */
-    memoryPercent: number;
-    /** Transpiled from long */
-    networkReceivedBytes: number;
-    /** Transpiled from long */
-    networkTransmittedBytes: number;
-    /** Transpiled from long */
-    blockReadBytes: number;
-    /** Transpiled from long */
-    blockWrittenBytes: number;
-    /** Transpiled from long */
-    pids: number;
-}
-
-/** Transpiled from AgentMate.ServerCore.Contracts.ContainerStatsBatch */
-export type ContainerStatsBatch = {
-    /** Transpiled from long */
-    atUnixMs: number;
-    /** Transpiled from AgentMate.ServerCore.Contracts.ContainerStatsSample[] */
-    samples: ContainerStatsSample[];
-    /** Transpiled from string[] */
-    stopped: string[];
-}
-
-/** Transpiled from AgentMate.ServerCore.Contracts.ContainerLogSource */
-export type ContainerLogSource = "stdout" | "stderr";
-
-/** Transpiled from AgentMate.ServerCore.Contracts.ContainerLogsRequest */
-export type ContainerLogsRequest = {
-    /** Transpiled from string */
-    containerId: string;
-    /** Transpiled from int */
-    tail?: number;
-    /** Transpiled from long */
-    sinceUnixMs?: number;
-    /** Transpiled from string? */
-    afterTimestamp?: string;
-    /** Transpiled from bool */
-    follow: boolean;
-}
-
-/** Transpiled from AgentMate.ServerCore.Contracts.ContainerLogLine */
-export type ContainerLogLine = {
-    /** Transpiled from AgentMate.ServerCore.Contracts.ContainerLogSource */
-    stream: ContainerLogSource;
-    /** Transpiled from string */
-    timestamp: string;
-    /** Transpiled from long */
-    atUnixMs: number;
-    /** Transpiled from string */
-    text: string;
-}
-
-/** Transpiled from AgentMate.ServerCore.Contracts.ContainerLogBatch */
-export type ContainerLogBatch = {
-    /** Transpiled from AgentMate.ServerCore.Contracts.ContainerLogLine[] */
-    lines: ContainerLogLine[];
-}
-
-/** Transpiled from AgentMate.ServerCore.Contracts.ConsoleRequest */
-export type ConsoleRequest = {
-    /** Transpiled from string */
-    containerId: string;
-    /** Transpiled from int */
-    columns: number;
-    /** Transpiled from int */
-    rows: number;
-    /** Transpiled from string[]? */
-    command?: string[];
-    /** Transpiled from string? */
-    user?: string;
-}
-
-/** Transpiled from AgentMate.ServerCore.Contracts.ConsoleInput */
-export type ConsoleInput = {
-    /** Transpiled from string? */
-    data?: string;
-    /** Transpiled from int */
-    columns?: number;
-    /** Transpiled from int */
-    rows?: number;
-}
-
-/** Transpiled from AgentMate.ServerCore.Contracts.ConsoleOutput */
-export type ConsoleOutput = {
-    /** Transpiled from string? */
-    data?: string;
-    /** Transpiled from bool */
-    ended: boolean;
-    /** Transpiled from int */
-    exitCode?: number;
-}
-
-/** Transpiled from AgentMate.ServerCore.Contracts.ImageInfo */
-export type ImageInfo = {
-    /** Transpiled from string */
-    id: string;
-    /** Transpiled from string[] */
-    tags: string[];
-    /** Transpiled from string[] */
-    digests: string[];
-    /** Transpiled from long */
-    createdAtUnixMs: number;
-    /** Transpiled from long */
-    sizeBytes: number;
-    /** Transpiled from int */
-    containers: number;
-}
-
-/** Transpiled from AgentMate.ServerCore.Contracts.ImagePullRequest */
-export type ImagePullRequest = {
-    /** Transpiled from string */
-    reference: string;
-}
-
-/** Transpiled from AgentMate.ServerCore.Contracts.ImageRemoveRequest */
-export type ImageRemoveRequest = {
-    /** Transpiled from string */
-    image: string;
-    /** Transpiled from bool */
-    force: boolean;
-}
-
-/** Transpiled from AgentMate.ServerCore.Contracts.VolumeInfo */
-export type VolumeInfo = {
-    /** Transpiled from string */
-    name: string;
-    /** Transpiled from string */
-    driver: string;
-    /** Transpiled from string */
-    mountpoint: string;
-    /** Transpiled from int */
-    containers: number;
-    /** Transpiled from long */
-    createdAtUnixMs?: number;
-    /** Transpiled from long */
-    sizeBytes?: number;
-    /** Transpiled from string? */
-    composeProject?: string;
-}
-
-/** Transpiled from AgentMate.ServerCore.Contracts.NetworkInfo */
-export type NetworkInfo = {
-    /** Transpiled from string */
-    id: string;
-    /** Transpiled from string */
-    name: string;
-    /** Transpiled from string */
-    driver: string;
-    /** Transpiled from string */
-    scope: string;
-    /** Transpiled from bool */
-    internal: boolean;
-    /** Transpiled from bool */
-    builtIn: boolean;
-    /** Transpiled from string[] */
-    subnets: string[];
-    /** Transpiled from int */
-    containers: number;
-    /** Transpiled from string? */
-    composeProject?: string;
-}
-
-/** Transpiled from AgentMate.ServerCore.Contracts.DockerDiskUsageEntry */
-export type DockerDiskUsageEntry = {
-    /** Transpiled from int */
-    count: number;
-    /** Transpiled from int */
-    active: number;
-    /** Transpiled from long */
-    sizeBytes: number;
-    /** Transpiled from long */
-    reclaimableBytes: number;
-}
-
-/** Transpiled from AgentMate.ServerCore.Contracts.DockerDiskUsage */
-export type DockerDiskUsage = {
-    /** Transpiled from AgentMate.ServerCore.Contracts.DockerDiskUsageEntry */
-    images: DockerDiskUsageEntry;
-    /** Transpiled from AgentMate.ServerCore.Contracts.DockerDiskUsageEntry */
-    containers: DockerDiskUsageEntry;
-    /** Transpiled from AgentMate.ServerCore.Contracts.DockerDiskUsageEntry */
-    volumes: DockerDiskUsageEntry;
-    /** Transpiled from AgentMate.ServerCore.Contracts.DockerDiskUsageEntry */
-    buildCache: DockerDiskUsageEntry;
-}
-
-/** Transpiled from AgentMate.ServerCore.Contracts.DockerPruneTarget */
-export type DockerPruneTarget = "containers" | "images" | "volumes" | "networks" | "system";
-
-/** Transpiled from AgentMate.ServerCore.Contracts.DockerPruneRequest */
-export type DockerPruneRequest = {
-    /** Transpiled from AgentMate.ServerCore.Contracts.DockerPruneTarget */
-    target: DockerPruneTarget;
-    /** Transpiled from bool */
-    allImages: boolean;
-    /** Transpiled from bool */
-    includeVolumes: boolean;
-}
-
-/** Transpiled from AgentMate.ServerCore.Contracts.DockerPruneResult */
-export type DockerPruneResult = {
-    /** Transpiled from int */
-    removed: number;
-    /** Transpiled from long */
-    reclaimedBytes: number;
-}
-
-/** Transpiled from AgentMate.ServerCore.Contracts.DockerEventsRequest */
-export type DockerEventsRequest = {
-    /** Transpiled from long */
-    sinceUnixMs?: number;
-    /** Transpiled from string? */
-    afterCursor?: string;
-}
-
-/** Transpiled from AgentMate.ServerCore.Contracts.DockerEvent */
-export type DockerEvent = {
-    /** Transpiled from string */
-    type: string;
-    /** Transpiled from string */
-    action: string;
-    /** Transpiled from string */
-    actorId: string;
-    /** Transpiled from long */
-    atUnixMs: number;
-    /** Transpiled from string */
-    cursor: string;
-    /** Transpiled from string? */
-    name?: string;
-    /** Transpiled from string? */
-    image?: string;
-    /** Transpiled from string? */
-    composeProject?: string;
-    /** Transpiled from string? */
-    composeService?: string;
-    /** Transpiled from int */
-    exitCode?: number;
+    problems: string[];
+    /** Transpiled from AgentMate.ServerCore.Contracts.CertificateInfo? */
+    certificate?: CertificateInfo;
+    /** Transpiled from AgentMate.ServerCore.Contracts.NginxApplyResult? */
+    apply?: NginxApplyResult;
 }
 
 /** Transpiled from AgentMate.ServerCore.Contracts.HealthResponse */
@@ -781,7 +420,7 @@ export type PingResponse = {
 }
 
 /** Transpiled from AgentMate.ServerCore.Contracts.JobKind */
-export type JobKind = "packagesRefresh" | "packagesUpgrade" | "packagesUpgradeSecurity" | "automaticUpdates" | "reboot" | "serviceRestart" | "dockerInstall" | "imagePull";
+export type JobKind = "packagesRefresh" | "packagesUpgrade" | "packagesUpgradeSecurity" | "automaticUpdates" | "reboot" | "serviceRestart" | "nginxInstall" | "certificateIssue" | "certificateRenew";
 
 /** Transpiled from AgentMate.ServerCore.Contracts.JobState */
 export type JobState = "running" | "succeeded" | "failed" | "cancelled" | "interrupted";
@@ -1103,5 +742,303 @@ export type UpdatesInfo = {
     rebootRequired?: boolean;
     /** Transpiled from string? */
     error?: string;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.UpstreamKind */
+export type UpstreamKind = "servicePort" | "url" | "endpoint";
+
+/** Transpiled from AgentMate.ServerCore.Contracts.UpstreamTarget */
+export type UpstreamTarget = {
+    /** Transpiled from AgentMate.ServerCore.Contracts.UpstreamKind */
+    kind: UpstreamKind;
+    /** Transpiled from int */
+    port?: number;
+    /** Transpiled from string? */
+    address?: string;
+    /** Transpiled from string? */
+    service?: string;
+    /** Transpiled from bool */
+    verifyCertificate: boolean;
+    /** Transpiled from bool */
+    sendUpstreamHost: boolean;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.SiteProxyCache */
+export type SiteProxyCache = {
+    /** Transpiled from int */
+    ttlSeconds: number;
+    /** Transpiled from int */
+    maxSizeMegabytes: number;
+    /** Transpiled from string[]? */
+    bypassCookies?: string[];
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.SiteHsts */
+export type SiteHsts = {
+    /** Transpiled from int */
+    maxAgeSeconds: number;
+    /** Transpiled from bool */
+    includeSubdomains: boolean;
+    /** Transpiled from bool */
+    preload: boolean;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.SiteFrameOptions */
+export type SiteFrameOptions = "off" | "deny" | "sameOrigin";
+
+/** Transpiled from AgentMate.ServerCore.Contracts.SiteReferrerPolicy */
+export type SiteReferrerPolicy = "off" | "noReferrer" | "noReferrerWhenDowngrade" | "origin" | "originWhenCrossOrigin" | "sameOrigin" | "strictOrigin" | "strictOriginWhenCrossOrigin";
+
+/** Transpiled from AgentMate.ServerCore.Contracts.SiteSecurityHeaders */
+export type SiteSecurityHeaders = {
+    /** Transpiled from bool */
+    noSniff: boolean;
+    /** Transpiled from AgentMate.ServerCore.Contracts.SiteFrameOptions */
+    frameOptions: SiteFrameOptions;
+    /** Transpiled from AgentMate.ServerCore.Contracts.SiteReferrerPolicy */
+    referrerPolicy: SiteReferrerPolicy;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.SiteHeader */
+export type SiteHeader = {
+    /** Transpiled from string */
+    name: string;
+    /** Transpiled from string */
+    value: string;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.SiteIpRules */
+export type SiteIpRules = {
+    /** Transpiled from string[] */
+    allow: string[];
+    /** Transpiled from string[] */
+    deny: string[];
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.SiteBasicAuthUser */
+export type SiteBasicAuthUser = {
+    /** Transpiled from string */
+    name: string;
+    /** Transpiled from string? */
+    password?: string;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.SiteBasicAuth */
+export type SiteBasicAuth = {
+    /** Transpiled from AgentMate.ServerCore.Contracts.SiteBasicAuthUser[] */
+    users: SiteBasicAuthUser[];
+    /** Transpiled from string */
+    realm: string;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.SiteRatePeriod */
+export type SiteRatePeriod = "second" | "minute";
+
+/** Transpiled from AgentMate.ServerCore.Contracts.SiteRateLimit */
+export type SiteRateLimit = {
+    /** Transpiled from int */
+    requests: number;
+    /** Transpiled from AgentMate.ServerCore.Contracts.SiteRatePeriod */
+    per: SiteRatePeriod;
+    /** Transpiled from int */
+    burst: number;
+    /** Transpiled from bool */
+    noDelay: boolean;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.SiteTimeouts */
+export type SiteTimeouts = {
+    /** Transpiled from int */
+    connectSeconds?: number;
+    /** Transpiled from int */
+    readSeconds?: number;
+    /** Transpiled from int */
+    sendSeconds?: number;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.SiteSettings */
+export type SiteSettings = {
+    /** Transpiled from string */
+    id: string;
+    /** Transpiled from string[] */
+    domains: string[];
+    /** Transpiled from AgentMate.ServerCore.Contracts.UpstreamTarget */
+    upstream: UpstreamTarget;
+    /** Transpiled from bool */
+    websocket: boolean;
+    /** Transpiled from bool */
+    gzip: boolean;
+    /** Transpiled from AgentMate.ServerCore.Contracts.SiteProxyCache? */
+    proxyCache?: SiteProxyCache;
+    /** Transpiled from bool */
+    http2: boolean;
+    /** Transpiled from bool */
+    redirectToHttps: boolean;
+    /** Transpiled from AgentMate.ServerCore.Contracts.SiteHsts? */
+    hsts?: SiteHsts;
+    /** Transpiled from AgentMate.ServerCore.Contracts.SiteSecurityHeaders? */
+    securityHeaders?: SiteSecurityHeaders;
+    /** Transpiled from AgentMate.ServerCore.Contracts.SiteHeader[]? */
+    responseHeaders?: SiteHeader[];
+    /** Transpiled from AgentMate.ServerCore.Contracts.SiteIpRules? */
+    ipRules?: SiteIpRules;
+    /** Transpiled from AgentMate.ServerCore.Contracts.SiteBasicAuth? */
+    basicAuth?: SiteBasicAuth;
+    /** Transpiled from AgentMate.ServerCore.Contracts.SiteRateLimit? */
+    rateLimit?: SiteRateLimit;
+    /** Transpiled from int */
+    clientMaxBodySizeMegabytes?: number;
+    /** Transpiled from AgentMate.ServerCore.Contracts.SiteTimeouts? */
+    timeouts?: SiteTimeouts;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.SiteSnippets */
+export type SiteSnippets = {
+    /** Transpiled from string */
+    siteId: string;
+    /** Transpiled from string? */
+    serverSnippet?: string;
+    /** Transpiled from string? */
+    locationSnippet?: string;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.SiteInfo */
+export type SiteInfo = {
+    /** Transpiled from AgentMate.ServerCore.Contracts.SiteSettings */
+    settings: SiteSettings;
+    /** Transpiled from bool */
+    applied: boolean;
+    /** Transpiled from long */
+    createdAtUnixMs: number;
+    /** Transpiled from long */
+    updatedAtUnixMs: number;
+    /** Transpiled from string? */
+    serverSnippet?: string;
+    /** Transpiled from string? */
+    locationSnippet?: string;
+    /** Transpiled from AgentMate.ServerCore.Contracts.CertificateInfo? */
+    certificate?: CertificateInfo;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.NginxProblemInfo */
+export type NginxProblemInfo = {
+    /** Transpiled from string */
+    field: string;
+    /** Transpiled from string */
+    message: string;
+    /** Transpiled from int */
+    line?: number;
+    /** Transpiled from string? */
+    siteId?: string;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.SiteSaveResult */
+export type SiteSaveResult = {
+    /** Transpiled from AgentMate.ServerCore.Contracts.NginxProblemInfo[] */
+    problems: NginxProblemInfo[];
+    /** Transpiled from AgentMate.ServerCore.Contracts.SiteInfo? */
+    site?: SiteInfo;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.StreamProxyProtocol */
+export type StreamProxyProtocol = "tcp" | "udp";
+
+/** Transpiled from AgentMate.ServerCore.Contracts.StreamProxySettings */
+export type StreamProxySettings = {
+    /** Transpiled from string */
+    id: string;
+    /** Transpiled from AgentMate.ServerCore.Contracts.StreamProxyProtocol */
+    protocol: StreamProxyProtocol;
+    /** Transpiled from int */
+    listenPort: number;
+    /** Transpiled from AgentMate.ServerCore.Contracts.UpstreamTarget */
+    upstream: UpstreamTarget;
+    /** Transpiled from string[]? */
+    allowFrom?: string[];
+    /** Transpiled from int */
+    connectTimeoutSeconds?: number;
+    /** Transpiled from int */
+    idleTimeoutSeconds?: number;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.StreamProxyInfo */
+export type StreamProxyInfo = {
+    /** Transpiled from AgentMate.ServerCore.Contracts.StreamProxySettings */
+    settings: StreamProxySettings;
+    /** Transpiled from bool */
+    applied: boolean;
+    /** Transpiled from long */
+    updatedAtUnixMs: number;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.StreamProxySaveResult */
+export type StreamProxySaveResult = {
+    /** Transpiled from AgentMate.ServerCore.Contracts.NginxProblemInfo[] */
+    problems: NginxProblemInfo[];
+    /** Transpiled from AgentMate.ServerCore.Contracts.StreamProxyInfo? */
+    proxy?: StreamProxyInfo;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.NginxStatus */
+export type NginxStatus = {
+    /** Transpiled from bool */
+    installed: boolean;
+    /** Transpiled from bool */
+    running: boolean;
+    /** Transpiled from bool */
+    managed: boolean;
+    /** Transpiled from bool */
+    fromNginxOrg: boolean;
+    /** Transpiled from bool */
+    streamSupported: boolean;
+    /** Transpiled from bool */
+    pendingChanges: boolean;
+    /** Transpiled from bool */
+    seLinuxEnabled: boolean;
+    /** Transpiled from string? */
+    version?: string;
+    /** Transpiled from int */
+    currentRelease?: number;
+    /** Transpiled from long */
+    lastAppliedAtUnixMs?: number;
+    /** Transpiled from string? */
+    lastAppliedBy?: string;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.NginxApplyResult */
+export type NginxApplyResult = {
+    /** Transpiled from bool */
+    applied: boolean;
+    /** Transpiled from AgentMate.ServerCore.Contracts.NginxProblemInfo[] */
+    problems: NginxProblemInfo[];
+    /** Transpiled from string[] */
+    warnings: string[];
+    /** Transpiled from int */
+    release?: number;
+    /** Transpiled from string? */
+    error?: string;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.SiteLogKind */
+export type SiteLogKind = "access" | "error";
+
+/** Transpiled from AgentMate.ServerCore.Contracts.SiteLogRequest */
+export type SiteLogRequest = {
+    /** Transpiled from string */
+    siteId: string;
+    /** Transpiled from AgentMate.ServerCore.Contracts.SiteLogKind */
+    kind: SiteLogKind;
+    /** Transpiled from int */
+    tailLines?: number;
+    /** Transpiled from bool */
+    follow: boolean;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.SiteLogBatch */
+export type SiteLogBatch = {
+    /** Transpiled from string[] */
+    lines: string[];
+    /** Transpiled from bool */
+    reset: boolean;
 }
 

@@ -13,7 +13,7 @@ namespace AgentMate.ServerCore.SystemTests.Acme;
 /// process trusts Pebble's test CA (minica, copied out of the container) for these connections
 /// and nothing else. Without a Docker engine for Linux containers, the tests skip.
 /// </summary>
-public sealed class PebbleFixture : IAsyncLifetime
+public class PebbleFixture : IAsyncLifetime
 {
     public const string PebbleImage = "ghcr.io/letsencrypt/pebble:2.10.1";
     public const string ChallTestServerImage = "ghcr.io/letsencrypt/pebble-challtestsrv:2.10.1";
@@ -31,7 +31,7 @@ public sealed class PebbleFixture : IAsyncLifetime
             "managementListenAddress": "0.0.0.0:15000",
             "certificate": "test/certs/localhost/cert.pem",
             "privateKey": "test/certs/localhost/key.pem",
-            "httpPort": 5002,
+            "httpPort": HTTP_PORT,
             "tlsPort": 5001,
             "ocspResponderURL": "",
             "externalAccountBindingRequired": false,
@@ -49,6 +49,15 @@ public sealed class PebbleFixture : IAsyncLifetime
     private static readonly TimeSpan _pullTimeout = TimeSpan.FromMinutes(10);
 
     private readonly string _suffix = Guid.NewGuid().ToString("N")[..10];
+    private readonly int _httpPort;
+
+    public PebbleFixture()
+        : this(5002)
+    {
+    }
+
+    /// <param name="httpPort">Where Pebble connects for HTTP-01: 5002 is challtestsrv's, 80 a real web server's.</param>
+    protected PebbleFixture(int httpPort) => _httpPort = httpPort;
     private readonly string _workFolder = Path.Combine(Path.GetTempPath(), $"agentmate-pebble-{Guid.NewGuid():N}");
     private readonly List<string> _containers = [];
     private bool _networkCreated;
@@ -65,7 +74,8 @@ public sealed class PebbleFixture : IAsyncLifetime
     /// <summary>The HTTP-01 publisher and DNS-01 hook, through challtestsrv.</summary>
     internal ChallTestServer Challenges { get; private set; } = null!;
 
-    private string Network => $"agentmate-acme-{_suffix}";
+    /// <summary>The Docker network Pebble and challtestsrv share; a web server joins it to be validated.</summary>
+    public string Network => $"agentmate-acme-{_suffix}";
 
     private string PebbleName => $"agentmate-pebble-{_suffix}";
 
@@ -111,6 +121,7 @@ public sealed class PebbleFixture : IAsyncLifetime
 
     public async ValueTask DisposeAsync()
     {
+        GC.SuppressFinalize(this);
         foreach (var container in _containers)
         {
             await DockerCli.RunAsync(["rm", "--force", container], _commandTimeout, CancellationToken.None);
@@ -270,7 +281,7 @@ public sealed class PebbleFixture : IAsyncLifetime
             _commandTimeout,
             cancellationToken);
         var configuration = Path.Combine(_workFolder, "agentmate.json");
-        await File.WriteAllTextAsync(configuration, Configuration, cancellationToken);
+        await File.WriteAllTextAsync(configuration, Configuration.Replace("HTTP_PORT", _httpPort.ToString(CultureInfo.InvariantCulture), StringComparison.Ordinal), cancellationToken);
         await DockerCli.RunCheckedAsync(["cp", configuration, $"{PebbleName}:/test/config/agentmate.json"], _commandTimeout, cancellationToken);
         var minica = Path.Combine(_workFolder, "pebble.minica.pem");
         await DockerCli.RunCheckedAsync(["cp", $"{PebbleName}:/test/certs/pebble.minica.pem", minica], _commandTimeout, cancellationToken);

@@ -17,6 +17,43 @@ namespace AgentMate.ServerCore.Data.Migrations
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "10.0.12");
 
+            modelBuilder.Entity("AgentMate.ServerCore.Data.AcmeAccountRecord", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Contact")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("CreatedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("DirectoryUrl")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ProtectedKey")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Url")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DirectoryUrl")
+                        .IsUnique();
+
+                    b.ToTable("AcmeAccounts", (string)null);
+                });
+
             modelBuilder.Entity("AgentMate.ServerCore.Data.Alert", b =>
                 {
                     b.Property<long>("Id")
@@ -547,6 +584,205 @@ namespace AgentMate.ServerCore.Data.Migrations
                     b.ToTable("MetricSamples");
                 });
 
+            modelBuilder.Entity("AgentMate.ServerCore.Data.NginxReleaseRecord", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("AppliedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<Guid?>("AppliedBy")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("AppliedByName")
+                        .HasMaxLength(256)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Hash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Release")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("NginxReleases");
+                });
+
+            modelBuilder.Entity("AgentMate.ServerCore.Data.Site", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasMaxLength(63)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("AppliedFingerprint")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("BasicAuthHashes")
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("CreatedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("LocationSnippet")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ServerSnippet")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Settings")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("UpdatedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("Sites");
+                });
+
+            modelBuilder.Entity("AgentMate.ServerCore.Data.SiteCertificate", b =>
+                {
+                    b.Property<string>("SiteId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("AutoRenew")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("CertificateId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ChainPem")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("DirectoryUrl")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Domains")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ExplanationUrl")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("FailedAttempts")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("IssuedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Issuer")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("KeyType")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("TEXT");
+
+                    b.Property<long?>("LastAttemptAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("LastError")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid?>("LastJobId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<long?>("NextAttemptAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long?>("NextCheckAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("NotAfter")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("NotBefore")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("PreferredChain")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ProtectedKey")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<long?>("RenewAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Replaced")
+                        .HasColumnType("TEXT");
+
+                    b.Property<long?>("RevokedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("TEXT");
+
+                    b.Property<long?>("WindowEnd")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long?>("WindowStart")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("SiteId");
+
+                    b.ToTable("Certificates", (string)null);
+                });
+
+            modelBuilder.Entity("AgentMate.ServerCore.Data.SiteDomain", b =>
+                {
+                    b.Property<string>("Domain")
+                        .HasMaxLength(253)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Position")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("SiteId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Domain");
+
+                    b.HasIndex("SiteId");
+
+                    b.ToTable("SiteDomains");
+                });
+
+            modelBuilder.Entity("AgentMate.ServerCore.Data.StreamProxy", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasMaxLength(63)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("AppliedFingerprint")
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("CreatedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Settings")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("UpdatedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("StreamProxies");
+                });
+
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRoleClaim<System.Guid>", b =>
                 {
                     b.Property<int>("Id")
@@ -669,6 +905,24 @@ namespace AgentMate.ServerCore.Data.Migrations
                     b.HasOne("AgentMate.ServerCore.Data.CoreUser", null)
                         .WithMany()
                         .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("AgentMate.ServerCore.Data.SiteCertificate", b =>
+                {
+                    b.HasOne("AgentMate.ServerCore.Data.Site", null)
+                        .WithOne()
+                        .HasForeignKey("AgentMate.ServerCore.Data.SiteCertificate", "SiteId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("AgentMate.ServerCore.Data.SiteDomain", b =>
+                {
+                    b.HasOne("AgentMate.ServerCore.Data.Site", null)
+                        .WithMany()
+                        .HasForeignKey("SiteId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });

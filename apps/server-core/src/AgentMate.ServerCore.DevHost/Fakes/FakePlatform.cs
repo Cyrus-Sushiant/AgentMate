@@ -1,5 +1,8 @@
+using System.Net;
+using AgentMate.ServerCore.Certificates;
 using AgentMate.ServerCore.Docker;
 using AgentMate.ServerCore.Firewall;
+using AgentMate.ServerCore.Nginx;
 using AgentMate.ServerCore.Platform;
 
 namespace AgentMate.ServerCore.DevHost.Fakes;
@@ -32,6 +35,19 @@ internal static class FakePlatform
         services.AddSingleton(provider => new InMemoryDockerEngine(provider.GetRequiredService<TimeProvider>()));
         services.AddSingleton<IDockerEngine>(provider => provider.GetRequiredService<InMemoryDockerEngine>());
         services.AddSingleton<IDockerSetup, FakeDockerSetup>();
+
+        // Websites and certificates: nginx.org's nginx installed and running but not set up yet,
+        // a pretend CA, and upstream names that all resolve to a documentation address.
+        services.AddSingleton(_ => new SimulatedNginxMachine(installed: true));
+        services.AddSingleton<INginxMachine>(provider => provider.GetRequiredService<SimulatedNginxMachine>());
+        services.AddSingleton<ICertificateAuthorities, FakeCertificateAuthorities>();
+        services.AddSingleton<IUpstreamResolver, FakeResolver>();
+    }
+
+    private sealed class FakeResolver : IUpstreamResolver
+    {
+        public Task<IPAddress[]> ResolveAsync(string host, CancellationToken cancellationToken) =>
+            Task.FromResult(new[] { IPAddress.Parse("192.0.2.10") });
     }
 
     /// <summary>While the pretend server reboots, nothing answers but 503, as nothing would answer at all.</summary>

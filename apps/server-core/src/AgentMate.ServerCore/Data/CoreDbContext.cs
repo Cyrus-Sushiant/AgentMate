@@ -29,6 +29,19 @@ internal sealed class CoreDbContext(DbContextOptions<CoreDbContext> options)
 
     public DbSet<FirewallChangeSet> FirewallChangeSets => Set<FirewallChangeSet>();
 
+    // Websites and certificates (E10, E11).
+    public DbSet<Site> Sites => Set<Site>();
+
+    public DbSet<SiteDomain> SiteDomains => Set<SiteDomain>();
+
+    public DbSet<StreamProxy> StreamProxies => Set<StreamProxy>();
+
+    public DbSet<NginxReleaseRecord> NginxReleases => Set<NginxReleaseRecord>();
+
+    public DbSet<SiteCertificate> Certificates => Set<SiteCertificate>();
+
+    public DbSet<AcmeAccountRecord> AcmeAccounts => Set<AcmeAccountRecord>();
+
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
@@ -114,6 +127,8 @@ internal sealed class CoreDbContext(DbContextOptions<CoreDbContext> options)
             change.HasIndex(c => c.CreatedAt);
             change.HasIndex(c => c.State);
         });
+
+        WebModel.Configure(builder);
     }
 }
 

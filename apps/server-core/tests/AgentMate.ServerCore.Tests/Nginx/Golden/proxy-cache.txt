@@ -32,6 +32,8 @@ server {
     server_name cache.test;
     server_tokens off;
     root /var/www/agentmate/sites/cache;
+    access_log /var/log/nginx/agentmate-cache.access.log;
+    error_log /var/log/nginx/agentmate-cache.error.log;
 
     location ^~ /.well-known/acme-challenge/ {
         root /var/www/agentmate/acme;

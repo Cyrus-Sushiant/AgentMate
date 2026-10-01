@@ -30,6 +30,8 @@ server {
     server_name headers.test;
     server_tokens off;
     root /var/www/agentmate/sites/headers;
+    access_log /var/log/nginx/agentmate-headers.access.log;
+    error_log /var/log/nginx/agentmate-headers.error.log;
 
     location ^~ /.well-known/acme-challenge/ {
         root /var/www/agentmate/acme;

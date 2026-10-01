@@ -27,6 +27,11 @@
     <None Include="Fixtures\**\*" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
+  <!-- The DevHost's pretend CA, so the fake the UI is built against is tested too. -->
+  <ItemGroup>
+    <Compile Include="..\..\src\AgentMate.ServerCore.DevHost\Fakes\FakeCertificates.cs" Link="DevHost\FakeCertificates.cs" />
+  </ItemGroup>
+
   <!-- The nginx renderer's golden files, read from next to the test binary. -->
   <ItemGroup>
     <None Include="Nginx\Golden\*.txt" Exclude="Nginx\Golden\*.received.txt" CopyToOutputDirectory="PreserveNewest" />

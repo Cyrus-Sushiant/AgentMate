@@ -5,6 +5,7 @@ using AgentMate.ServerCore.Endpoints;
 using AgentMate.ServerCore.Hosting;
 using AgentMate.ServerCore.Hubs;
 using AgentMate.ServerCore.Security;
+using AgentMate.ServerCore.Web;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.HostFiltering;
@@ -65,6 +66,7 @@ internal static class CoreApplication
         builder.Services.AddHostedService<DatabaseStartup>();
         builder.Services.AddHostedService<AuditRetention>();
         builder.Services.AddCoreOperations();
+        builder.Services.AddWebOperations();
         // Reports readiness to systemd (Type=notify), so `systemctl start` only returns once the
         // socket is listening and fails outright for a release that cannot start.
         builder.Services.AddSystemd();

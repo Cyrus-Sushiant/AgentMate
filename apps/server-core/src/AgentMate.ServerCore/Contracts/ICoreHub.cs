@@ -238,6 +238,56 @@ public interface ICoreHub
     /// says to remove them.
     /// </summary>
     Task<JobInfo> InstallDocker(DockerInstallRequest request);
+
+    // Websites and certificates (E10, E11). Reads are open to every role.
+
+    Task<NginxStatus> GetNginxStatus();
+
+    Task<SiteInfo[]> ListSites();
+
+    Task<StreamProxyInfo[]> ListStreamProxies();
+
+    Task<CertificateInfo[]> ListCertificates();
+
+    /// <summary>A site's access or error log: the last lines, then new ones while Follow is on.</summary>
+    IAsyncEnumerable<SiteLogBatch> StreamSiteLog(SiteLogRequest request, CancellationToken cancellationToken);
+
+    // Admin. Saving changes the database only; ApplyNginx puts every saved change live at once.
+
+    /// <summary>Installs nginx from nginx.org (or adopts the one there) and sets it up for AgentMate. A job.</summary>
+    Task<JobInfo> InstallNginx();
+
+    /// <summary>Creates or updates a site. Nothing is saved when Problems is not empty.</summary>
+    Task<SiteSaveResult> SaveSite(SiteSettings settings);
+
+    Task DeleteSite(string siteId);
+
+    Task<StreamProxySaveResult> SaveStreamProxy(StreamProxySettings settings);
+
+    Task DeleteStreamProxy(string proxyId);
+
+    /// <summary>
+    /// Renders every saved site and proxy into a new release, checks it with nginx -t, reloads and
+    /// confirms nginx runs it; otherwise nginx keeps what it ran and Problems say why.
+    /// </summary>
+    Task<NginxApplyResult> ApplyNginx();
+
+    /// <summary>Applies the site if needed, then issues over ACME (HTTP-01) and switches the site to HTTPS. A job.</summary>
+    Task<JobInfo> IssueCertificate(CertificateIssueRequest request);
+
+    /// <summary>Renews now instead of waiting for the renewal service. A job.</summary>
+    Task<JobInfo> RenewCertificate(string siteId);
+
+    /// <summary>Checks and stores a certificate with its key, then applies.</summary>
+    Task<CertificateUploadResult> UploadCertificate(CertificateUploadRequest request);
+
+    /// <summary>Needs a step-up. Takes the certificate off the site (revoking it when asked), then applies.</summary>
+    Task<NginxApplyResult> RemoveCertificate(CertificateRemoveRequest request);
+
+    // Owner.
+
+    /// <summary>A site's custom snippets, checked against the directive allowlist.</summary>
+    Task<SiteSaveResult> SetSiteSnippets(SiteSnippets snippets);
 }
 
 /// <summary>Everything the core can push to the app without being asked.</summary>

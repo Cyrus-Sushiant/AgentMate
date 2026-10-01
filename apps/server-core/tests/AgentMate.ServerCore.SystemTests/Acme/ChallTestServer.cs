@@ -15,6 +15,10 @@ internal sealed class ChallTestServer(HttpClient management) : IHttp01ChallengeP
     public Task SetDefaultAddressAsync(string address, CancellationToken cancellationToken) =>
         PostAsync("set-default-ipv4", new { ip = address }, cancellationToken);
 
+    /// <summary>Points one name at an address, as a DNS record for a real server would.</summary>
+    public Task AddAddressAsync(string host, string address, CancellationToken cancellationToken) =>
+        PostAsync("add-a", new { host = host + ".", addresses = new[] { address } }, cancellationToken);
+
     public async Task PublishAsync(string domain, string token, string keyAuthorization, CancellationToken cancellationToken)
     {
         await PostAsync("add-http01", new { token, content = keyAuthorization }, cancellationToken);

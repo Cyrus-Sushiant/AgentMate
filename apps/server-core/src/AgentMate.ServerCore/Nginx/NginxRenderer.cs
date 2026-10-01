@@ -155,7 +155,7 @@ internal static class NginxRenderer
         [
             $"server_name {domains};",
             "server_tokens off;",
-        ]).Concat(redirect ? [] : [$"root {layout.SiteFolder(site.Id)};"]));
+        ]).Concat(redirect ? [] : [$"root {layout.SiteFolder(site.Id)};"]).Concat(Logs(site, layout)));
         WriteAcmeLocation(writer, layout);
         if (redirect)
         {
@@ -178,7 +178,7 @@ internal static class NginxRenderer
                 $"server_name {domains};",
                 "server_tokens off;",
                 $"root {layout.SiteFolder(site.Id)};",
-            ]));
+            ]).Concat(Logs(site, layout)));
             writer.Section(
             [
                 $"ssl_certificate {certificate.CertificatePath};",
@@ -433,6 +433,10 @@ internal static class NginxRenderer
 
         return writer.ToString();
     }
+
+    /// <summary>Each site logs to files of its own, which the app reads through the core (E10 T8).</summary>
+    private static string[] Logs(NginxSite site, NginxLayout layout) =>
+        [$"access_log {layout.AccessLog(site.Id)};", $"error_log {layout.ErrorLog(site.Id)};"];
 
     private static IEnumerable<string> Listen(NginxLayout layout, string what) =>
         layout.ListenIPv6 ? [$"listen {what};", $"listen [::]:{what};"] : [$"listen {what};"];

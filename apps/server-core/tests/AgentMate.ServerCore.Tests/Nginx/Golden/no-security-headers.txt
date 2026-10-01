@@ -30,6 +30,8 @@ server {
     server_name bare.test;
     server_tokens off;
     root /var/www/agentmate/sites/bare;
+    access_log /var/log/nginx/agentmate-bare.access.log;
+    error_log /var/log/nginx/agentmate-bare.error.log;
 
     location ^~ /.well-known/acme-challenge/ {
         root /var/www/agentmate/acme;

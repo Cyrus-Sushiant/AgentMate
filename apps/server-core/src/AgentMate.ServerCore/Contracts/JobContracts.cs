@@ -16,6 +16,9 @@ public enum JobKind
     ServiceRestart,
     DockerInstall,
     ImagePull,
+    NginxInstall,
+    CertificateIssue,
+    CertificateRenew,
 }
 
 [TranspilationSource]

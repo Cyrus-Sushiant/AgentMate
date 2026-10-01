@@ -33,6 +33,8 @@ server {
     listen [::]:80;
     server_name all.test www.all.test;
     server_tokens off;
+    access_log /var/log/nginx/agentmate-all.access.log;
+    error_log /var/log/nginx/agentmate-all.error.log;
 
     location ^~ /.well-known/acme-challenge/ {
         root /var/www/agentmate/acme;
@@ -54,6 +56,8 @@ server {
     server_name all.test www.all.test;
     server_tokens off;
     root /var/www/agentmate/sites/all;
+    access_log /var/log/nginx/agentmate-all.access.log;
+    error_log /var/log/nginx/agentmate-all.error.log;
 
     ssl_certificate /etc/agentmate-test/tls/sites.crt;
     ssl_certificate_key /etc/agentmate-test/tls/sites.key;

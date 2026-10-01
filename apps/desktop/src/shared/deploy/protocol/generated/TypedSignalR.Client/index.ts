@@ -4,7 +4,7 @@
 // @ts-nocheck
 import type { HubConnection, IStreamResult, Subject } from '@microsoft/signalr';
 import type { ICoreHub, ICoreHubReceiver } from './AgentMate.ServerCore.Contracts';
-import type { PingResponse, AccountInfo, StepUpRequest, StepUpResponse, DeviceInfo, SessionInfo, TotpSetup, RecoveryCodes, CreateEnrollmentCodeRequest, EnrollmentCodeInfo, AuditQuery, AuditPage, AuditVerificationInfo, SystemInfo, ServiceInfo, MetricsHistoryRequest, MetricsHistory, MetricsStreamRequest, MetricsSample, UpdatesInfo, JobQuery, JobPage, JobInfo, JobStreamItem, AlertQuery, AlertInfo, AlertStreamRequest, ManagedService, DockerStatus, ContainerList, ContainerDetails, ContainerStatsRequest, ContainerStatsBatch, ContainerLogsRequest, ContainerLogBatch, ImageInfo, VolumeInfo, NetworkInfo, DockerDiskUsage, DockerEventsRequest, DockerEvent, ContainerSummary, ContainerRemoveRequest, ImagePullRequest, ImageRemoveRequest, ContainerEnvVariable, ConsoleRequest, ConsoleInput, ConsoleOutput, DockerPruneRequest, DockerPruneResult, DockerInstallRequest } from '../AgentMate.ServerCore.Contracts';
+import type { PingResponse, AccountInfo, StepUpRequest, StepUpResponse, DeviceInfo, SessionInfo, TotpSetup, RecoveryCodes, CreateEnrollmentCodeRequest, EnrollmentCodeInfo, AuditQuery, AuditPage, AuditVerificationInfo, SystemInfo, ServiceInfo, MetricsHistoryRequest, MetricsHistory, MetricsStreamRequest, MetricsSample, UpdatesInfo, JobQuery, JobPage, JobInfo, JobStreamItem, AlertQuery, AlertInfo, AlertStreamRequest, ManagedService, NginxStatus, SiteInfo, StreamProxyInfo, CertificateInfo, SiteLogRequest, SiteLogBatch, SiteSettings, SiteSaveResult, StreamProxySettings, StreamProxySaveResult, NginxApplyResult, CertificateIssueRequest, CertificateUploadRequest, CertificateUploadResult, CertificateRemoveRequest, SiteSnippets } from '../AgentMate.ServerCore.Contracts';
 
 
 // components
@@ -212,104 +212,68 @@ class ICoreHub_HubProxy implements ICoreHub {
         return await this.connection.invoke("SetAutomaticSecurityUpdates", enabled);
     }
 
-    public readonly getDockerStatus = async (): Promise<DockerStatus> => {
-        return await this.connection.invoke("GetDockerStatus");
+    public readonly getNginxStatus = async (): Promise<NginxStatus> => {
+        return await this.connection.invoke("GetNginxStatus");
     }
 
-    public readonly listContainers = async (): Promise<ContainerList> => {
-        return await this.connection.invoke("ListContainers");
+    public readonly listSites = async (): Promise<SiteInfo[]> => {
+        return await this.connection.invoke("ListSites");
     }
 
-    public readonly inspectContainer = async (containerId: string): Promise<ContainerDetails> => {
-        return await this.connection.invoke("InspectContainer", containerId);
+    public readonly listStreamProxies = async (): Promise<StreamProxyInfo[]> => {
+        return await this.connection.invoke("ListStreamProxies");
     }
 
-    public readonly streamContainerStats = (request: ContainerStatsRequest): IStreamResult<ContainerStatsBatch> => {
-        return this.connection.stream("StreamContainerStats", request);
+    public readonly listCertificates = async (): Promise<CertificateInfo[]> => {
+        return await this.connection.invoke("ListCertificates");
     }
 
-    public readonly streamContainerLogs = (request: ContainerLogsRequest): IStreamResult<ContainerLogBatch> => {
-        return this.connection.stream("StreamContainerLogs", request);
+    public readonly streamSiteLog = (request: SiteLogRequest): IStreamResult<SiteLogBatch> => {
+        return this.connection.stream("StreamSiteLog", request);
     }
 
-    public readonly listImages = async (): Promise<ImageInfo[]> => {
-        return await this.connection.invoke("ListImages");
+    public readonly installNginx = async (): Promise<JobInfo> => {
+        return await this.connection.invoke("InstallNginx");
     }
 
-    public readonly listVolumes = async (): Promise<VolumeInfo[]> => {
-        return await this.connection.invoke("ListVolumes");
+    public readonly saveSite = async (settings: SiteSettings): Promise<SiteSaveResult> => {
+        return await this.connection.invoke("SaveSite", settings);
     }
 
-    public readonly listNetworks = async (): Promise<NetworkInfo[]> => {
-        return await this.connection.invoke("ListNetworks");
+    public readonly deleteSite = async (siteId: string): Promise<void> => {
+        return await this.connection.invoke("DeleteSite", siteId);
     }
 
-    public readonly getDockerDiskUsage = async (): Promise<DockerDiskUsage> => {
-        return await this.connection.invoke("GetDockerDiskUsage");
+    public readonly saveStreamProxy = async (settings: StreamProxySettings): Promise<StreamProxySaveResult> => {
+        return await this.connection.invoke("SaveStreamProxy", settings);
     }
 
-    public readonly streamDockerEvents = (request: DockerEventsRequest): IStreamResult<DockerEvent> => {
-        return this.connection.stream("StreamDockerEvents", request);
+    public readonly deleteStreamProxy = async (proxyId: string): Promise<void> => {
+        return await this.connection.invoke("DeleteStreamProxy", proxyId);
     }
 
-    public readonly startContainer = async (containerId: string): Promise<ContainerSummary> => {
-        return await this.connection.invoke("StartContainer", containerId);
+    public readonly applyNginx = async (): Promise<NginxApplyResult> => {
+        return await this.connection.invoke("ApplyNginx");
     }
 
-    public readonly stopContainer = async (containerId: string, timeoutSeconds: (number | undefined)): Promise<ContainerSummary> => {
-        return await this.connection.invoke("StopContainer", containerId, timeoutSeconds);
+    public readonly issueCertificate = async (request: CertificateIssueRequest): Promise<JobInfo> => {
+        return await this.connection.invoke("IssueCertificate", request);
     }
 
-    public readonly restartContainer = async (containerId: string, timeoutSeconds: (number | undefined)): Promise<ContainerSummary> => {
-        return await this.connection.invoke("RestartContainer", containerId, timeoutSeconds);
+    public readonly renewCertificate = async (siteId: string): Promise<JobInfo> => {
+        return await this.connection.invoke("RenewCertificate", siteId);
     }
 
-    public readonly pauseContainer = async (containerId: string): Promise<ContainerSummary> => {
-        return await this.connection.invoke("PauseContainer", containerId);
+    public readonly uploadCertificate = async (request: CertificateUploadRequest): Promise<CertificateUploadResult> => {
+        return await this.connection.invoke("UploadCertificate", request);
     }
 
-    public readonly unpauseContainer = async (containerId: string): Promise<ContainerSummary> => {
-        return await this.connection.invoke("UnpauseContainer", containerId);
+    public readonly removeCertificate = async (request: CertificateRemoveRequest): Promise<NginxApplyResult> => {
+        return await this.connection.invoke("RemoveCertificate", request);
     }
 
-    public readonly killContainer = async (containerId: string, signal: string): Promise<ContainerSummary> => {
-        return await this.connection.invoke("KillContainer", containerId, signal);
-    }
-
-    public readonly removeContainer = async (request: ContainerRemoveRequest): Promise<void> => {
-        return await this.connection.invoke("RemoveContainer", request);
-    }
-
-    public readonly pullImage = async (request: ImagePullRequest): Promise<JobInfo> => {
-        return await this.connection.invoke("PullImage", request);
-    }
-
-    public readonly removeImage = async (request: ImageRemoveRequest): Promise<void> => {
-        return await this.connection.invoke("RemoveImage", request);
-    }
-
-    public readonly removeNetwork = async (network: string): Promise<void> => {
-        return await this.connection.invoke("RemoveNetwork", network);
-    }
-
-    public readonly revealContainerEnv = async (containerId: string): Promise<ContainerEnvVariable[]> => {
-        return await this.connection.invoke("RevealContainerEnv", containerId);
-    }
-
-    public readonly containerConsole = (request: ConsoleRequest, input: Subject<ConsoleInput>): IStreamResult<ConsoleOutput> => {
-        return this.connection.stream("ContainerConsole", request, input);
-    }
-
-    public readonly removeVolume = async (volume: string, force: boolean): Promise<void> => {
-        return await this.connection.invoke("RemoveVolume", volume, force);
-    }
-
-    public readonly pruneDocker = async (request: DockerPruneRequest): Promise<DockerPruneResult> => {
-        return await this.connection.invoke("PruneDocker", request);
-    }
-
-    public readonly installDocker = async (request: DockerInstallRequest): Promise<JobInfo> => {
-        return await this.connection.invoke("InstallDocker", request);
+    public readonly setSiteSnippets = async (snippets: SiteSnippets): Promise<SiteSaveResult> => {
+        return await this.connection.invoke("SetSiteSnippets", snippets);
     }
 }
 

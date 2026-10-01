@@ -57,4 +57,30 @@ internal sealed record NginxLayout
     public string SiteFolder(string siteId) => SitesRoot + "/" + siteId;
 
     public string CacheDirectory(string siteId) => CacheRoot + "/agentmate-" + siteId;
+
+    /// <summary>
+    /// Where nginx writes logs. Each site's go directly in here, named agentmate-&lt;id&gt;, so the
+    /// logrotate rule nginx's package ships (/var/log/nginx/*.log) rotates them too.
+    /// </summary>
+    public string LogDirectory { get; init; } = "/var/log/nginx";
+
+    /// <summary>nginx's own error log, which a failed reload writes to.</summary>
+    public string ErrorLogFile => LogDirectory + "/error.log";
+
+    public string AccessLog(string siteId) => $"{LogDirectory}/agentmate-{siteId}.access.log";
+
+    public string ErrorLog(string siteId) => $"{LogDirectory}/agentmate-{siteId}.error.log";
+
+    /// <summary>Certificates for nginx, one root-only folder per site; the core's database is the source.</summary>
+    public string CertificatesDirectory => ConfigRoot + "/certs";
+
+    public string CertificateFile(string siteId) => $"{CertificatesDirectory}/{siteId}/fullchain.pem";
+
+    public string KeyFile(string siteId) => $"{CertificatesDirectory}/{siteId}/privkey.pem";
+
+    /// <summary>Written while an apply is under way, so a core that stopped halfway can finish or undo it.</summary>
+    public string ApplyMarker => ConfigRoot + "/apply.json";
+
+    /// <summary>ACME HTTP-01 answers, served by every site's challenge location.</summary>
+    public string AcmeChallengeDirectory => AcmeWebroot + "/.well-known/acme-challenge";
 }

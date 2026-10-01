@@ -30,6 +30,8 @@ server {
     server_name guarded.test;
     server_tokens off;
     root /var/www/agentmate/sites/guarded;
+    access_log /var/log/nginx/agentmate-guarded.access.log;
+    error_log /var/log/nginx/agentmate-guarded.error.log;
 
     location ^~ /.well-known/acme-challenge/ {
         root /var/www/agentmate/acme;

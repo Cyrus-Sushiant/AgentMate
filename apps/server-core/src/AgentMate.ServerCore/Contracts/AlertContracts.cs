@@ -14,6 +14,8 @@ public enum AlertKind
 
     /// <summary>Putting a firewall change's saved rules back failed.</summary>
     FirewallRollbackFailed,
+
+    CertificateRenewalFailed,
 }
 
 [TranspilationSource]
