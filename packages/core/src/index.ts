@@ -16,6 +16,7 @@ export * from './cli/headlessArgs.js';
 export * from './cli/launchCommand.js';
 export * from './cli/launchDefaults.js';
 export * from './cli/registry.js';
+export * from './deploy/catalog/index.js';
 export * from './deploy/compose/interpolate.js';
 export * from './deploy/compose/lint.js';
 export * from './deploy/compose/override.js';

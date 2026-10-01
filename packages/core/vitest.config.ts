@@ -25,6 +25,7 @@ export default defineConfig({
         'src/deploy/env/**': { lines: 90, branches: 85 },
         'src/deploy/dockerignore.ts': { lines: 90, branches: 85 },
         'src/deploy/compose/**': { lines: 90, branches: 80 },
+        'src/deploy/catalog/**': { lines: 90, branches: 85 },
       },
     },
   },
