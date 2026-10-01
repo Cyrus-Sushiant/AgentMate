@@ -164,6 +164,12 @@ export default defineConfig({
         'src/main/deploy/watcher.ts': { lines: 95, branches: 80 },
         'src/main/ipc/deploySystem.ts': { lines: 95, branches: 90 },
         'src/renderer/src/components/deploy/**': { lines: 85, functions: 75, branches: 75 },
+        // A server's Overview: the pulse, the charts, updates, reboot and the live feeds.
+        'src/renderer/src/components/deploy/overview/**': {
+          lines: 90,
+          functions: 85,
+          branches: 80,
+        },
         'src/renderer/src/pages/DeployPage.tsx': { lines: 85, functions: 75, branches: 75 },
         'src/renderer/src/stores/deploySetupStore.ts': { lines: 95, branches: 85 },
         'src/renderer/src/lib/deploy/**': { lines: 95, branches: 90 },

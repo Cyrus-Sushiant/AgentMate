@@ -333,6 +333,11 @@ export class DeployService {
         // Enrolled all the same: the code from the authenticator app goes in at the sign-in.
         if (coreErrorCode(error) === 'totpRequired') return { state: 'needs-sign-in' };
         throw error;
+      } finally {
+        // A new device (and maybe a session) either way: the lasting connection starts over on
+        // it, and the alert watcher learns of a core it can now follow, as after any sign-in.
+        this.links.reset(input.serverId);
+        this.deps.serversChanged?.();
       }
     });
   }

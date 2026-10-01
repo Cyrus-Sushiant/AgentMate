@@ -93,6 +93,73 @@ test("lists the DevHost's user and marks this computer in the Security area", as
   await expect(page.getByRole('status').filter({ hasText: 'The trail is intact' })).toBeVisible();
 });
 
+// Also before the two-factor test: the step-up a reboot may ask for takes the password alone.
+test("shows the DevHost's Overview live, lists its updates, and comes back after a reboot", async () => {
+  test.setTimeout(240_000);
+  if (!devHost) throw new Error('DevHost did not start');
+  launched = await launchApp({
+    settings: {},
+    env: { AGENTMATE_DEPLOY_DEV_CORE: String(devHost.port) },
+  });
+  const { page } = launched;
+  await page.getByRole('link', { name: 'Deploy' }).click();
+  await expect(page.getByText('Sign in to manage this core.')).toBeVisible({ timeout: 30_000 });
+  await page.getByRole('button', { name: 'Sign in', exact: true }).click();
+  const signIn = page.getByRole('dialog', { name: 'Sign in to DevHost' });
+  await signIn.getByLabel('Password', { exact: true }).fill(DEV_PASSWORD);
+  await signIn.getByRole('button', { name: 'Sign in', exact: true }).click();
+  await expect(page.getByText(/Signed in as/)).toBeVisible();
+
+  // The live connection is up and the pulse has a score.
+  await expect(page.getByRole('status', { name: 'Live connection: Connected' })).toBeVisible({
+    timeout: 30_000,
+  });
+  await expect(page.getByRole('button', { name: /^Health score \d+ of 100/ })).toBeVisible({
+    timeout: 30_000,
+  });
+
+  // The processor chart keeps receiving samples: its reading count goes up.
+  const chart = page.getByRole('img', { name: /^Processor, \d+ readings/ });
+  const readings = async () =>
+    Number(/(\d+) readings/.exec((await chart.getAttribute('aria-label')) ?? '')?.[1] ?? 0);
+  await expect(chart).toBeVisible({ timeout: 30_000 });
+  const before = await readings();
+  await expect.poll(readings, { timeout: 30_000 }).toBeGreaterThan(before);
+
+  // The DevHost's seven updates, four of them for security, after a check of its own.
+  await page.getByRole('button', { name: /Check for updates/ }).click();
+  const updates = page.getByRole('list', { name: 'Updates' });
+  await expect(updates.getByRole('listitem')).toHaveCount(7, { timeout: 30_000 });
+  await expect(updates.getByText('Security', { exact: true })).toHaveCount(4);
+  await expect(updates.getByRole('listitem', { name: 'openssl' })).toBeVisible();
+
+  // A reboot, typed out: the connection drops and comes back by itself.
+  await page.getByRole('button', { name: 'Reboot', exact: true }).click();
+  const confirm = page.getByRole('dialog', { name: 'Reboot DevHost?' });
+  await confirm.getByLabel(/to confirm/).fill('DevHost');
+  await confirm.getByRole('button', { name: 'Reboot', exact: true }).click();
+  const proof = page.getByRole('dialog', { name: /Confirm it is you/ });
+  const banner = page.getByText(/DevHost is about to reboot|Waiting for DevHost to come back/);
+  await expect(proof.or(banner)).toBeVisible({ timeout: 30_000 });
+  if (await proof.isVisible()) {
+    await proof.getByLabel('Password').fill(DEV_PASSWORD);
+    await proof.getByRole('button', { name: 'Confirm' }).click();
+  }
+  await expect(page.getByRole('status', { name: 'Live connection: Reconnecting' })).toBeVisible({
+    timeout: 60_000,
+  });
+  await expect(
+    page.getByText('Waiting for DevHost to come back. This page reconnects by itself.'),
+  ).toBeVisible();
+  await expect(page.getByRole('status', { name: 'Live connection: Connected' })).toBeVisible({
+    timeout: 90_000,
+  });
+  await expect(page.getByText('DevHost is back.')).toBeVisible();
+  await expect(banner).toBeHidden({ timeout: 30_000 });
+  // The Overview read the server again: it booted moments ago.
+  await expect(page.getByText('less than a minute').first()).toBeVisible({ timeout: 30_000 });
+});
+
 test('signs in to the DevHost, turns two-factor on, and asks for a code from then on', async () => {
   if (!devHost) throw new Error('DevHost did not start');
   launched = await launchApp({

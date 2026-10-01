@@ -5,9 +5,10 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import { CloudflareMark } from '@/components/cloudflare/CloudflareMark';
-import { CoreAccessCard } from '@/components/deploy/CoreAccessCard';
-import { CoreHealthCard } from '@/components/deploy/CoreHealthCard';
 import { InstallPanel } from '@/components/deploy/InstallPanel';
+import { ConnectionBadge } from '@/components/deploy/overview/ConnectionBadge';
+import { useConnectionUpdates } from '@/components/deploy/overview/hooks';
+import { OverviewPanel } from '@/components/deploy/overview/OverviewPanel';
 import { RemovalPanel } from '@/components/deploy/RemovalPanel';
 import { ServerRail } from '@/components/deploy/ServerRail';
 import { type ServerSection, ServerSections } from '@/components/deploy/ServerSections';
@@ -54,6 +55,11 @@ function ServerHeader({ server }: { server: DeployServer }): React.JSX.Element {
         </p>
       </div>
       {server.dev && <Badge variant="warning">Development</Badge>}
+      {server.core && (
+        <span className="ml-auto">
+          <ConnectionBadge serverId={server.id} />
+        </span>
+      )}
     </div>
   );
 }
@@ -120,6 +126,7 @@ export default function DeployPage(): React.JSX.Element {
     queryKey: queryKeys.sshVaultStatus,
     queryFn: () => window.agentmat.ssh.vaultStatus(),
   });
+  useConnectionUpdates();
   useFinishedRuns((serverId) => setUpdating((current) => (current === serverId ? null : current)));
 
   if (serversQuery.isPending) return <DeployPageSkeleton />;
@@ -193,15 +200,12 @@ export default function DeployPage(): React.JSX.Element {
   } else {
     sections = true;
     content = (
-      <>
-        <CoreHealthCard
-          server={selected}
-          core={selected.core}
-          onReinstall={selected.dev ? undefined : () => setUpdating(selected.id)}
-          onRemove={selected.dev ? undefined : (keepData) => void remove(selected, keepData)}
-        />
-        <CoreAccessCard server={selected} />
-      </>
+      <OverviewPanel
+        server={selected}
+        core={selected.core}
+        onReinstall={selected.dev ? undefined : () => setUpdating(selected.id)}
+        onRemove={selected.dev ? undefined : (keepData) => void remove(selected, keepData)}
+      />
     );
   }
 

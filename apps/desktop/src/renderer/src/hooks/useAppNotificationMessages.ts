@@ -15,7 +15,7 @@ const KIND: Record<AppNotification['kind'], { kind: ToastHistoryKind; tag?: stri
 };
 
 /** A page inside the app; anything else in `route` is ignored rather than followed. */
-function appRoute(item: AppNotification): string | null {
+export function appRoute(item: AppNotification): string | null {
   if (item.route?.startsWith('/') && !item.route.startsWith('//')) return item.route;
   return pipelineRunRoute(item.htmlUrl);
 }

@@ -279,6 +279,41 @@ describe('DeployService redeeming an enrollment code', () => {
     expect((await state.device('srv-1'))?.deviceId).toBe('device-from-code');
   });
 
+  it('starts the lasting connection over and tells the watcher, as every other sign-in does', async () => {
+    const serversChanged = vi.fn();
+    const { service } = setup({}, { deps: { serversChanged } });
+    const reset = vi.spyOn(service.links, 'reset');
+
+    await service.redeemEnrollmentCode(redeem);
+
+    expect(reset).toHaveBeenCalledWith('srv-1');
+    expect(serversChanged).toHaveBeenCalledTimes(1);
+  });
+
+  it('starts over too when the code from the authenticator app is still to come', async () => {
+    const serversChanged = vi.fn();
+    const { service, core } = setup({}, { deps: { serversChanged } });
+    core.refuse('/api/v1/auth/login', 'totpRequired');
+    const reset = vi.spyOn(service.links, 'reset');
+
+    await service.redeemEnrollmentCode(redeem);
+
+    expect(reset).toHaveBeenCalledWith('srv-1');
+    expect(serversChanged).toHaveBeenCalledTimes(1);
+  });
+
+  it('leaves the connection alone when the code is refused', async () => {
+    const serversChanged = vi.fn();
+    const { service, core } = setup({}, { record: null, deps: { serversChanged } });
+    core.refuse('/api/v1/auth/enroll', 'enrollmentCodeInvalid');
+    const reset = vi.spyOn(service.links, 'reset');
+
+    await expect(service.redeemEnrollmentCode(redeem)).rejects.toThrow();
+
+    expect(reset).not.toHaveBeenCalled();
+    expect(serversChanged).not.toHaveBeenCalled();
+  });
+
   it('passes any other refused sign-in on', async () => {
     const { service, core } = setup();
     core.refuse('/api/v1/auth/login', 'lockedOut');

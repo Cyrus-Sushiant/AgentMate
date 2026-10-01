@@ -338,6 +338,35 @@ describe('PipelinesPage failure notices', () => {
     await waitFor(() => expect(bridge.$fn('appNotifications.markRead')).toHaveBeenCalledWith('n1'));
   });
 
+  it('lists unread notices that open a page in the app, and follows their route', async () => {
+    const alert = {
+      ...notification,
+      id: 'd1',
+      kind: 'deploy-warning',
+      title: 'Production: disk filling up',
+      body: '/ is 91% full.',
+      projectId: null,
+      projectName: '',
+      htmlUrl: null,
+      route: '/deploy?server=srv-1',
+    };
+    const { bridge, user } = renderPage({
+      'pipelines.dashboardActivity': async () => activity(),
+      'appNotifications.list': [
+        notification,
+        alert,
+        { ...alert, id: 'd2', route: '//evil.example' },
+      ],
+    });
+    const list = await screen.findByRole('list', { name: 'Other notices' });
+    expect(within(list).getAllByRole('listitem')).toHaveLength(1);
+
+    await user.click(within(list).getByRole('button', { name: /Production: disk filling up/ }));
+
+    await waitFor(() => expect(bridge.$fn('appNotifications.markRead')).toHaveBeenCalledWith('d1'));
+    expect(currentLocation()).toBe('/deploy?server=srv-1');
+  });
+
   it('marks every notice read at once', async () => {
     const { bridge, user } = renderPage({
       'pipelines.dashboardActivity': async () => activity(),

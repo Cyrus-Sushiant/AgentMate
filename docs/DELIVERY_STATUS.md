@@ -1,6 +1,6 @@
 # Delivery Status
 
-Updated: 2026-09-30
+Updated: 2026-10-01
 Run branch: master (direct, per the user's instruction)
 Plan: docs/ROADMAP.md
 
@@ -31,17 +31,17 @@ Plan: docs/ROADMAP.md
 | E02 | SSH foundation | Complete | dc698a8 | Host-key trust dialog shared by terminals and Deploy; sudo password validated alone before payloads |
 | E03 | Walking skeleton: install and see the server | Complete | 88403fa, 42aabeb | Tunnel or bridge settled by trying after the install (OpenSSH hides the reason); exec exit-status race fixed; DevHost e2e on every OS |
 | E04 | Identity and device enrollment | Complete | 73663f6, see git log | Authenticator codes work once (RFC 6238 5.2); two-factor changes end the other sessions only; access tokens sealed with Data Protection rather than JWTs; enrollment-code screens come with E15 T1; SignalR kept out of the main bundle |
-| E05 | Realtime, jobs and server overview | Not started | | |
+| E05 | Realtime, jobs and server overview | Complete | see git log | Live link with token rotation and reboot recovery; Overview with health score, charts, updates and reboot; AC3 and AC4 covered by fake-core tests and the DevHost reboot, not a real server |
 | E06 | Docker engine and containers | Not started | | |
-| E07 | Compose stacks | Not started | | |
+| E07 | Compose stacks | In progress | ea106b3 | Libraries only: validation, env, compose lint and override, dockerignore, build context, safe tar extraction |
 | E08 | Private registries | Not started | | |
 | E09 | Logs center, problems feed and Deploy AI | Not started | | |
-| E10 | nginx websites | Not started | | |
-| E11 | Let's Encrypt certificates | Not started | | |
-| E12 | App Store | Not started | | |
-| E13 | Firewall | Not started | | |
-| E14 | Cloudflare | Not started | | |
-| E15 | Security center and maintenance | Not started | | |
+| E10 | nginx websites | In progress | 77b262a | Renderer, snippet allowlist and the nginx -t harness |
+| E11 | Let's Encrypt certificates | In progress | 7110a67 | ACME client (RFC 8555 and ARI) tested against Pebble |
+| E12 | App Store | In progress | | Catalog of 18 apps pinned by digest (MinIO left out: no public official image), pending integration |
+| E13 | Firewall | In progress | | Firewall core, pending integration |
+| E14 | Cloudflare | In progress | df848e5 | Desktop side: T1 to T4, T8, T9 and pointing a domain (part of T5); Origin CA (rest of T5), T6 and T7 wait on server work |
+| E15 | Security center and maintenance | In progress | c87918a | T1 (users, devices, enrollment codes) and T2 (audit viewer) done |
 | E16 | Direct TLS mode | Not started | | |
 | E17 | Polish and full OS matrix | Not started | | |
 

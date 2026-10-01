@@ -161,6 +161,16 @@ export const queryKeys = {
     ['deploy', 'security', serverId, 'audit', filter] as const,
   /** Until when the core takes sensitive changes without asking for the password again. */
   deployStepUp: (serverId: string) => ['deploy', 'security', serverId, 'step-up'] as const,
+  /** A server's lasting connection to its core, kept current by its change events. */
+  deployConnection: (serverId: string) => ['deploy', 'connection', serverId] as const,
+  /** Prefix of a server's Overview reads, fetched again when its connection comes back. */
+  deployOverview: (serverId: string) => ['deploy', 'overview', serverId] as const,
+  deploySystemInfo: (serverId: string) => ['deploy', 'overview', serverId, 'info'] as const,
+  deployServices: (serverId: string) => ['deploy', 'overview', serverId, 'services'] as const,
+  deployUpdates: (serverId: string) => ['deploy', 'overview', serverId, 'updates'] as const,
+  deployActiveJobs: (serverId: string) => ['deploy', 'overview', serverId, 'jobs'] as const,
+  deployMetricsHistory: (serverId: string, range: string) =>
+    ['deploy', 'overview', serverId, 'metrics', range] as const,
   /** Whether a Cloudflare token is saved, and what its last check found. */
   cloudflareStatus: ['cloudflare', 'status'] as const,
   /** Prefix of everything read with the Cloudflare token, dropped when the token changes. */

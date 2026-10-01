@@ -35,6 +35,7 @@ import { Input } from '@/components/ui/input';
 import { RefreshFailureBell, refreshTooltip } from '@/components/ui/refresh-failure-bell';
 import { Skeleton } from '@/components/ui/skeleton';
 import { SimpleTooltip } from '@/components/ui/tooltip';
+import { appRoute } from '@/hooks/useAppNotificationMessages';
 import { useLastGoodData } from '@/hooks/useLastGoodData';
 import { queryKeys } from '@/lib/queryKeys';
 import { timeAgo } from '@/lib/time';
@@ -380,6 +381,19 @@ export default function PipelinesPage(): React.JSX.Element {
     return map;
   }, [notifications]);
 
+  /**
+   * Unread notices that belong to a page elsewhere in the app (a Deploy server's alert, say).
+   * They have no run row to mark, so they get rows of their own that open their page.
+   */
+  const elsewhere = useMemo(
+    () =>
+      notifications.flatMap((item) => {
+        const route = !item.read && !item.htmlUrl ? appRoute(item) : null;
+        return route ? [{ item, route }] : [];
+      }),
+    [notifications],
+  );
+
   const counts = useMemo(() => {
     const tally: Record<FilterKey, number> = {
       all: runs.length,
@@ -547,6 +561,36 @@ export default function PipelinesPage(): React.JSX.Element {
           </SimpleTooltip>
         </div>
       </div>
+
+      {elsewhere.length > 0 ? (
+        <ul aria-label="Other notices" className="space-y-2">
+          {elsewhere.map(({ item, route }) => (
+            <li key={item.id} className="glass rounded-xl ring-1 ring-destructive/35">
+              <button
+                type="button"
+                onClick={() => {
+                  markRead.mutate(item.id);
+                  navigate(route);
+                }}
+                className="flex w-full cursor-pointer items-start gap-3 rounded-xl px-4 py-3 text-left transition-colors hover:bg-foreground/[0.05] focus-visible:bg-foreground/[0.06] focus-visible:outline-none"
+              >
+                <span className="min-w-0 flex-1">
+                  <span className="flex flex-wrap items-center gap-2">
+                    <span className="text-sm font-medium leading-snug">{item.title}</span>
+                    <Badge variant="destructive" className="h-5 px-1.5 text-[10px] font-normal">
+                      New
+                    </Badge>
+                  </span>
+                  <span className="mt-1 block text-xs text-muted-foreground">{item.body}</span>
+                </span>
+                <span className="shrink-0 text-[11px] tabular-nums text-muted-foreground">
+                  {timeAgo(item.createdAt)}
+                </span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : null}
 
       {loading ? (
         <ul className="space-y-2">

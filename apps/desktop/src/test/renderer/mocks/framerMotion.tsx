@@ -98,6 +98,8 @@ export function useMotionValue<Value>(initial: Value) {
     on: () => () => undefined,
   };
 }
+/** Reduced motion is on here, so a value never animates and nobody hears of a change. */
+export const useMotionValueEvent = (): void => undefined;
 export const useTransform = () => useMotionValue(0);
 export const useSpring = () => useMotionValue(0);
 export const animate = () => ({ stop: () => undefined, then: async () => undefined });
