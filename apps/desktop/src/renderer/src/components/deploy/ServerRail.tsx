@@ -1,5 +1,6 @@
 import type { DeployServer } from '@shared/deployTypes';
 import { Link } from 'react-router-dom';
+import { CloudflareMark } from '@/components/cloudflare/CloudflareMark';
 import { ExternalLink, Spinner } from '@/components/icons';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -105,6 +106,11 @@ export function ServerRail({
       <Button asChild variant="ghost" size="sm" className="justify-start text-muted-foreground">
         <Link to="/remote">
           <ExternalLink className="h-3.5 w-3.5" /> Add or edit servers in Remote
+        </Link>
+      </Button>
+      <Button asChild variant="outline" size="sm" className="justify-start">
+        <Link to="/deploy/cloudflare">
+          <CloudflareMark className="h-3.5 w-3.5" /> Cloudflare: domains and DNS
         </Link>
       </Button>
     </nav>

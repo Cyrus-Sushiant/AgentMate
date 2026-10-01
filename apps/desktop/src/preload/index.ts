@@ -281,6 +281,22 @@ import type {
   WriteVersionHunksResult,
 } from '../shared/apiTypes';
 import type {
+  CloudflareAccessRule,
+  CloudflareAccessRuleInput,
+  CloudflareCustomRule,
+  CloudflareCustomRuleInput,
+  CloudflareDnsRecord,
+  CloudflarePointDomainInput,
+  CloudflarePointDomainPlan,
+  CloudflarePointDomainResult,
+  CloudflarePurgeRequest,
+  CloudflareRecordInput,
+  CloudflareSettingChange,
+  CloudflareStatus,
+  CloudflareZone,
+  CloudflareZoneSettings,
+} from '../shared/cloudflareTypes';
+import type {
   AccountInfo,
   AlertInfo,
   AuditPage,
@@ -1564,6 +1580,72 @@ const deploySecurity = {
     ipcRenderer.invoke(IPC.deploySecurity.exportAudit, input),
 };
 
+/**
+ * The Deploy section's Cloudflare page. The API token goes in through saveToken and never comes
+ * back: everything else answers with zones, records, settings and rules.
+ */
+const cloudflare = {
+  /** Whether a token is saved (and locked behind the Servers passkey), and its last check. */
+  status: (): Promise<CloudflareStatus> => ipcRenderer.invoke(IPC.cloudflare.status),
+  /** Checks a pasted token against Cloudflare, then seals and saves it. */
+  saveToken: (token: string): Promise<CloudflareStatus> =>
+    ipcRenderer.invoke(IPC.cloudflare.saveToken, token),
+  /** Checks the saved token again, as after its permissions were edited on Cloudflare. */
+  checkToken: (): Promise<CloudflareStatus> => ipcRenderer.invoke(IPC.cloudflare.checkToken),
+  removeToken: (): Promise<void> => ipcRenderer.invoke(IPC.cloudflare.removeToken),
+  listZones: (): Promise<CloudflareZone[]> => ipcRenderer.invoke(IPC.cloudflare.listZones),
+  listRecords: (zoneId: string): Promise<CloudflareDnsRecord[]> =>
+    ipcRenderer.invoke(IPC.cloudflare.listRecords, zoneId),
+  createRecord: (zoneId: string, record: CloudflareRecordInput): Promise<CloudflareDnsRecord> =>
+    ipcRenderer.invoke(IPC.cloudflare.createRecord, zoneId, record),
+  updateRecord: (
+    zoneId: string,
+    recordId: string,
+    record: CloudflareRecordInput,
+  ): Promise<CloudflareDnsRecord> =>
+    ipcRenderer.invoke(IPC.cloudflare.updateRecord, zoneId, recordId, record),
+  deleteRecord: (zoneId: string, recordId: string): Promise<void> =>
+    ipcRenderer.invoke(IPC.cloudflare.deleteRecord, zoneId, recordId),
+  zoneSettings: (zoneId: string): Promise<CloudflareZoneSettings> =>
+    ipcRenderer.invoke(IPC.cloudflare.zoneSettings, zoneId),
+  changeSetting: (
+    zoneId: string,
+    change: CloudflareSettingChange,
+  ): Promise<CloudflareZoneSettings> =>
+    ipcRenderer.invoke(IPC.cloudflare.changeSetting, zoneId, change),
+  purgeCache: (zoneId: string, request: CloudflarePurgeRequest): Promise<void> =>
+    ipcRenderer.invoke(IPC.cloudflare.purgeCache, zoneId, request),
+  listCustomRules: (zoneId: string): Promise<CloudflareCustomRule[]> =>
+    ipcRenderer.invoke(IPC.cloudflare.listCustomRules, zoneId),
+  createCustomRule: (
+    zoneId: string,
+    input: CloudflareCustomRuleInput,
+  ): Promise<CloudflareCustomRule[]> =>
+    ipcRenderer.invoke(IPC.cloudflare.createCustomRule, zoneId, input),
+  setCustomRuleEnabled: (
+    zoneId: string,
+    ruleId: string,
+    enabled: boolean,
+  ): Promise<CloudflareCustomRule[]> =>
+    ipcRenderer.invoke(IPC.cloudflare.setCustomRuleEnabled, zoneId, ruleId, enabled),
+  deleteCustomRule: (zoneId: string, ruleId: string): Promise<CloudflareCustomRule[]> =>
+    ipcRenderer.invoke(IPC.cloudflare.deleteCustomRule, zoneId, ruleId),
+  listAccessRules: (zoneId: string): Promise<CloudflareAccessRule[]> =>
+    ipcRenderer.invoke(IPC.cloudflare.listAccessRules, zoneId),
+  createAccessRule: (
+    zoneId: string,
+    input: CloudflareAccessRuleInput,
+  ): Promise<CloudflareAccessRule> =>
+    ipcRenderer.invoke(IPC.cloudflare.createAccessRule, zoneId, input),
+  deleteAccessRule: (zoneId: string, ruleId: string): Promise<void> =>
+    ipcRenderer.invoke(IPC.cloudflare.deleteAccessRule, zoneId, ruleId),
+  /** What pointing a name at a saved server would change, without changing anything. */
+  planPointDomain: (input: CloudflarePointDomainInput): Promise<CloudflarePointDomainPlan> =>
+    ipcRenderer.invoke(IPC.cloudflare.planPointDomain, input),
+  pointDomain: (input: CloudflarePointDomainInput): Promise<CloudflarePointDomainResult> =>
+    ipcRenderer.invoke(IPC.cloudflare.pointDomain, input),
+};
+
 const pullRequests = {
   /** The current branch, its PR (with checks and review threads) and what the tab needs to decide. */
   status: (projectId: string): Promise<PullRequestStatus> =>
@@ -2114,6 +2196,7 @@ const agentmatApi = {
   deploySystem,
   deployJobs,
   deployAlerts,
+  cloudflare,
   pullRequests,
   tests,
   appNotifications,

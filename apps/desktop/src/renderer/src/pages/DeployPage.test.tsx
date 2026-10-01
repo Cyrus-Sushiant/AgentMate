@@ -137,6 +137,20 @@ describe('DeployPage states', () => {
     expect(screen.getByRole('button', { name: /Open Remote/ })).toBeTruthy();
   });
 
+  it('leads to the Cloudflare page, with servers or without', async () => {
+    const { unmount } = renderPage({ 'deploy.listServers': async () => [] });
+    expect(await screen.findByRole('button', { name: /Manage Cloudflare/ })).toBeTruthy();
+    unmount();
+
+    renderPage();
+    const rail = await screen.findByRole('navigation', { name: 'Servers' });
+    expect(
+      within(rail)
+        .getByRole('link', { name: /Cloudflare/ })
+        .getAttribute('href'),
+    ).toBe('/deploy/cloudflare');
+  });
+
   it('says why the list failed and offers to try again', async () => {
     const { user, bridge } = renderPage({
       'deploy.listServers': async () => {

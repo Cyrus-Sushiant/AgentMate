@@ -161,6 +161,15 @@ export const queryKeys = {
     ['deploy', 'security', serverId, 'audit', filter] as const,
   /** Until when the core takes sensitive changes without asking for the password again. */
   deployStepUp: (serverId: string) => ['deploy', 'security', serverId, 'step-up'] as const,
+  /** Whether a Cloudflare token is saved, and what its last check found. */
+  cloudflareStatus: ['cloudflare', 'status'] as const,
+  /** Prefix of everything read with the Cloudflare token, dropped when the token changes. */
+  cloudflareData: ['cloudflare', 'data'] as const,
+  cloudflareZones: ['cloudflare', 'data', 'zones'] as const,
+  cloudflareRecords: (zoneId: string) => ['cloudflare', 'data', 'records', zoneId] as const,
+  cloudflareSettings: (zoneId: string) => ['cloudflare', 'data', 'settings', zoneId] as const,
+  cloudflareCustomRules: (zoneId: string) => ['cloudflare', 'data', 'customRules', zoneId] as const,
+  cloudflareAccessRules: (zoneId: string) => ['cloudflare', 'data', 'accessRules', zoneId] as const,
   /** Every running shell with its process tree's CPU and memory, for the Running CLIs modal. */
   terminalUsage: ['terminal-usage'] as const,
   vaultStatus: ['vault', 'status'] as const,

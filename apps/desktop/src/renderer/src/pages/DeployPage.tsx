@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
+import { CloudflareMark } from '@/components/cloudflare/CloudflareMark';
 import { CoreAccessCard } from '@/components/deploy/CoreAccessCard';
 import { CoreHealthCard } from '@/components/deploy/CoreHealthCard';
 import { InstallPanel } from '@/components/deploy/InstallPanel';
@@ -143,9 +144,14 @@ export default function DeployPage(): React.JSX.Element {
           title="No servers yet"
           description="Deploy works with the servers you save in Remote. Add one there, then come back to install the server core on it."
           action={
-            <Button size="sm" onClick={() => navigate('/remote')}>
-              <Server className="h-3.5 w-3.5" /> Open Remote
-            </Button>
+            <div className="flex flex-wrap justify-center gap-2">
+              <Button size="sm" onClick={() => navigate('/remote')}>
+                <Server className="h-3.5 w-3.5" /> Open Remote
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => navigate('/deploy/cloudflare')}>
+                <CloudflareMark className="h-3.5 w-3.5" /> Manage Cloudflare
+              </Button>
+            </div>
           }
         />
       </div>

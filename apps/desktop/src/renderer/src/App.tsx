@@ -51,6 +51,8 @@ const SkillsPage = lazy(() => import('./pages/SkillsPage'));
 const ApiClientPage = lazy(() => import('./pages/ApiClientPage'));
 /** Deploy is a large section that most sessions never open, so it loads on first visit. */
 const DeployPage = lazy(() => import('./pages/DeployPage'));
+/** Deploy's account-wide Cloudflare page, loaded on first visit like the rest of Deploy. */
+const CloudflarePage = lazy(() => import('./pages/CloudflarePage'));
 /** Carries the IronRDP WebAssembly engine, which only Remote Desktop session windows need. */
 const RdpSessionRoute = lazy(() => import('./components/rdp/RdpSessionRoute'));
 
@@ -166,6 +168,18 @@ export default function App(): React.JSX.Element {
                       }
                     >
                       <DeployPage />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="deploy/cloudflare"
+                  element={
+                    <Suspense
+                      fallback={
+                        <div className="p-6 text-sm text-muted-foreground">Loading Cloudflare…</div>
+                      }
+                    >
+                      <CloudflarePage />
                     </Suspense>
                   }
                 />

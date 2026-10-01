@@ -26,6 +26,7 @@ import {
   type ReleaseSource,
   repoReleaseDirectory,
 } from './bootstrap/releaseSource';
+import { registerCloudflareIpc } from './cloudflare';
 import { DeploySubscriptions } from './live/subscriptions';
 import { DeploySecurity } from './security';
 import { DeployService } from './service';
@@ -191,6 +192,7 @@ export function registerDeployIpc(): void {
     pool.closeAll();
   });
   registerDeploySecurityIpc(service, guard);
+  registerCloudflareIpc();
 }
 
 /** The Security area: users, devices, sessions, enrollment codes and the audit trail. */
