@@ -19,6 +19,12 @@ export default defineConfig({
         'src/security/**': { lines: 80, branches: 70 },
         'src/skills/securityAudit.ts': { lines: 85, branches: 75 },
         'src/git/**': { lines: 80, branches: 70 },
+        // What the Deploy section renders into config on a server, and what it leaves out of an
+        // upload.
+        'src/deploy/validation.ts': { lines: 90, branches: 85 },
+        'src/deploy/env/**': { lines: 90, branches: 85 },
+        'src/deploy/dockerignore.ts': { lines: 90, branches: 85 },
+        'src/deploy/compose/**': { lines: 90, branches: 80 },
       },
     },
   },
