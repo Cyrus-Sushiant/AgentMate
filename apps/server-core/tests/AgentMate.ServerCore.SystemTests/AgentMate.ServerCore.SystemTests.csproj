@@ -20,4 +20,9 @@
   <ItemGroup>
     <Using Include="Xunit" />
   </ItemGroup>
+
+  <!-- The nginx renderer variants the golden files pin, so the harness loads exactly those. -->
+  <ItemGroup>
+    <Compile Include="..\AgentMate.ServerCore.Tests\Nginx\NginxVariants.cs" Link="Nginx\NginxVariants.cs" />
+  </ItemGroup>
 </Project>

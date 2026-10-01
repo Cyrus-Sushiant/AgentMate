@@ -26,4 +26,9 @@
   <ItemGroup>
     <None Include="Fixtures\**\*" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
+
+  <!-- The nginx renderer's golden files, read from next to the test binary. -->
+  <ItemGroup>
+    <None Include="Nginx\Golden\*.txt" Exclude="Nginx\Golden\*.received.txt" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
 </Project>
