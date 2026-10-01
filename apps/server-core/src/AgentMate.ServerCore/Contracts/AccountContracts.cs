@@ -64,10 +64,24 @@ public sealed record EnrollRequest(string Code, string UserName, string Password
 [TranspilationSource]
 public sealed record EnrollResponse(Guid DeviceId);
 
-/// <summary>Newest first, a page at a time, optionally one action only.</summary>
+/// <summary>Newest first, a page at a time. Every filter given has to match.</summary>
+/// <param name="Action">One action, or every action under a prefix that ends with a dot ("auth.").</param>
+/// <param name="Actor">The user who acted, by user name or id.</param>
+/// <param name="Result">success, denied, failed or cancelled.</param>
+/// <param name="FromUnixMs">Events at or after this time.</param>
+/// <param name="ToUnixMs">Events at or before this time.</param>
 [TranspilationSource]
-public sealed record AuditQuery(long? BeforeId = null, int? Limit = null, string? Action = null);
+public sealed record AuditQuery(
+    long? BeforeId = null,
+    int? Limit = null,
+    string? Action = null,
+    string? Actor = null,
+    string? Result = null,
+    long? FromUnixMs = null,
+    long? ToUnixMs = null);
 
+/// <param name="ActorUserName">The actor's user name now, or null when the user is gone or nobody signed in acted.</param>
+/// <param name="DeviceName">The device's name now, or null when it is gone or none was involved.</param>
 [TranspilationSource]
 public sealed record AuditEventInfo(
     long Id,
@@ -78,7 +92,9 @@ public sealed record AuditEventInfo(
     string Action,
     string? Target,
     string? Parameters,
-    string Result);
+    string Result,
+    string? ActorUserName = null,
+    string? DeviceName = null);
 
 [TranspilationSource]
 public sealed record AuditPage(AuditEventInfo[] Events, long? NextBeforeId = null);

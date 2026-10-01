@@ -330,12 +330,53 @@ internal sealed partial class CoreHub(
 
         if (!string.IsNullOrWhiteSpace(query?.Action))
         {
-            events = events.Where(e => e.Action == query.Action);
+            var action = query.Action.Trim();
+            events = action.EndsWith('.')
+                ? events.Where(e => e.Action.StartsWith(action))
+                : events.Where(e => e.Action == action);
+        }
+
+        if (!string.IsNullOrWhiteSpace(query?.Result))
+        {
+            var result = AuditResult.All.FirstOrDefault(known => known == query.Result.Trim())
+                ?? throw new HubException("A result is success, denied, failed or cancelled.");
+            events = events.Where(e => e.Result == result);
+        }
+
+        if (!string.IsNullOrWhiteSpace(query?.Actor))
+        {
+            var actor = query.Actor.Trim();
+            var actorId = Guid.TryParse(actor, out var id) ? id : (await users.FindByNameAsync(actor))?.Id;
+            if (actorId is null)
+            {
+                return new AuditPage([]);
+            }
+
+            events = events.Where(e => e.ActorUserId == actorId);
+        }
+
+        if (query?.FromUnixMs is long from)
+        {
+            events = events.Where(e => e.At >= from);
+        }
+
+        if (query?.ToUnixMs is long to)
+        {
+            events = events.Where(e => e.At <= to);
         }
 
         var page = await events.OrderByDescending(e => e.Id).Take(limit + 1).ToListAsync();
         var more = page.Count > limit;
         var shown = page.Take(limit).ToList();
+        // Names as they are now, for reading; the ids stay what the chain recorded.
+        var actorIds = shown.Where(e => e.ActorUserId is not null).Select(e => e.ActorUserId!.Value).Distinct().ToList();
+        var actorNames = await users.Users
+            .Where(u => actorIds.Contains(u.Id))
+            .ToDictionaryAsync(u => u.Id, u => u.UserName ?? string.Empty);
+        var deviceIds = shown.Where(e => e.DeviceId is not null).Select(e => e.DeviceId!.Value).Distinct().ToList();
+        var deviceNames = await db.Devices
+            .Where(d => deviceIds.Contains(d.Id))
+            .ToDictionaryAsync(d => d.Id, d => d.Name);
         return new AuditPage(
             [.. shown.Select(e => new AuditEventInfo(
                 e.Id,
@@ -346,7 +387,9 @@ internal sealed partial class CoreHub(
                 e.Action,
                 e.Target,
                 e.Parameters,
-                e.Result))],
+                e.Result,
+                e.ActorUserId is Guid actor ? actorNames.GetValueOrDefault(actor) : null,
+                e.DeviceId is Guid device ? deviceNames.GetValueOrDefault(device) : null))],
             more ? shown[^1].Id : null);
     }
 

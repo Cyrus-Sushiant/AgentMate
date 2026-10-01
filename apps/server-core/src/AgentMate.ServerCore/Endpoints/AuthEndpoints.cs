@@ -208,6 +208,11 @@ internal static class AuthEndpoints
 
         async Task<JsonHttpResult<AuthError>> LockedOutAsync(CoreUser lockedUser)
         {
+            if (CoreIdentity.IsDisabled(lockedUser))
+            {
+                return await Fail(AuthErrorCode.LockedOut, CoreIdentity.DisabledMessage, lockedUser.Id);
+            }
+
             var until = (await users.GetLockoutEndDateAsync(lockedUser))?.ToUnixTimeMilliseconds();
             return await Fail(
                 AuthErrorCode.LockedOut,
@@ -294,6 +299,11 @@ internal static class AuthEndpoints
                 new AuditEntry("device.enroll", AuditResult.Failed, user?.Id, PeerUid: peer, Target: request.UserName),
                 cancellationToken);
             return Refuse(AuthErrorCode.EnrollmentCodeInvalid, "That enrollment code is wrong, used or expired.");
+        }
+
+        if (CoreIdentity.IsDisabled(user))
+        {
+            return Refuse(AuthErrorCode.LockedOut, CoreIdentity.DisabledMessage);
         }
 
         if (await users.IsLockedOutAsync(user))

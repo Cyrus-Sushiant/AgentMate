@@ -45,7 +45,7 @@ interface SignedIn {
 const RENEW_MARGIN_MS = 60_000;
 
 /** Turns the core's JSON refusal into an error that keeps its code across IPC. */
-async function coded<T>(request: Promise<T>): Promise<T> {
+export async function coded<T>(request: Promise<T>): Promise<T> {
   try {
     return await request;
   } catch (error) {

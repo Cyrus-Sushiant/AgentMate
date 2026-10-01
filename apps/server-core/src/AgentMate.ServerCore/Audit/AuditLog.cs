@@ -15,6 +15,8 @@ internal static class AuditResult
     public const string Denied = "denied";
     public const string Failed = "failed";
     public const string Cancelled = "cancelled";
+
+    public static readonly string[] All = [Success, Denied, Failed, Cancelled];
 }
 
 /// <summary>What happened, by whom, to what. Parameters are redacted before they are stored.</summary>

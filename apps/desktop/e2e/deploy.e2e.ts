@@ -50,6 +50,49 @@ test('shows the DevHost core as online with its version and uptime', async () =>
   await expect(page.getByText(/less than a minute|\d+ min/)).toBeVisible();
 });
 
+// Before the two-factor test, which leaves two-factor on for the DevHost's user.
+test("lists the DevHost's user and marks this computer in the Security area", async () => {
+  if (!devHost) throw new Error('DevHost did not start');
+  launched = await launchApp({
+    settings: {},
+    env: { AGENTMATE_DEPLOY_DEV_CORE: String(devHost.port) },
+  });
+  const { page } = launched;
+  await page.getByRole('link', { name: 'Deploy' }).click();
+  await expect(page.getByText('Sign in to manage this core.')).toBeVisible({ timeout: 30_000 });
+  await page.getByRole('button', { name: 'Sign in', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: 'Sign in to DevHost' });
+  await dialog.getByLabel('Password', { exact: true }).fill(DEV_PASSWORD);
+  await dialog.getByRole('button', { name: 'Sign in', exact: true }).click();
+  await expect(page.getByText(/Signed in as/)).toBeVisible();
+
+  await page
+    .getByRole('navigation', { name: 'Server sections' })
+    .getByRole('button', { name: 'Security' })
+    .click();
+
+  // The development owner, on the Users tab an Owner starts on.
+  const dev = page.getByRole('list', { name: 'Users' }).getByRole('listitem', { name: 'dev' });
+  await expect(dev).toBeVisible({ timeout: 30_000 });
+  await expect(dev.getByText('You', { exact: true })).toBeVisible();
+  await expect(dev.getByText('Owner', { exact: true })).toBeVisible();
+  await expect(dev.getByText('Active', { exact: true })).toBeVisible();
+
+  // This launch enrolled a device of its own; the core marks it as the caller's.
+  await page.getByRole('tab', { name: 'Devices and sessions' }).click();
+  const devices = page.getByRole('list', { name: 'Devices' });
+  await expect(devices.getByText('This computer', { exact: true })).toHaveCount(1);
+  await expect(
+    page.getByRole('list', { name: 'Sessions' }).getByText('This session', { exact: true }),
+  ).toBeVisible();
+
+  // The sign-in a moment ago is the newest line of the audit trail, and the chain holds.
+  await page.getByRole('tab', { name: 'Audit trail' }).click();
+  await expect(page.getByRole('cell', { name: 'auth.login' }).first()).toBeVisible();
+  await page.getByRole('button', { name: 'Check the chain' }).click();
+  await expect(page.getByRole('status').filter({ hasText: 'The trail is intact' })).toBeVisible();
+});
+
 test('signs in to the DevHost, turns two-factor on, and asks for a code from then on', async () => {
   if (!devHost) throw new Error('DevHost did not start');
   launched = await launchApp({

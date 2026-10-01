@@ -140,6 +140,8 @@ import {
   faTrashCan,
   faTriangleExclamation,
   faUpload,
+  faUserPlus,
+  faUsers,
   faVault,
   faVideo,
   faWandMagic,
@@ -392,6 +394,9 @@ export const Github = React.forwardRef<SVGSVGElement, IconProps>(({ className, .
 Github.displayName = 'Github';
 export const Shield = makeIcon(faShieldHalved);
 export const Bug = makeIcon(faBug);
+// A server core's users (Deploy, Security).
+export const Users = makeIcon(faUsers);
+export const UserPlus = makeIcon(faUserPlus);
 
 // Agent tools icons.
 export const Wrench = makeIcon(faWrench);

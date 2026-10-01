@@ -152,6 +152,15 @@ export const queryKeys = {
   deployPreflight: (serverId: string) => ['deploy', 'preflight', serverId] as const,
   /** Whether this computer is signed in to a server's core, or what it needs first. */
   deployAccess: (serverId: string) => ['deploy', 'access', serverId] as const,
+  /** Prefix of a core's Security area: users, devices, sessions, the audit trail and the step-up. */
+  deploySecurity: (serverId: string) => ['deploy', 'security', serverId] as const,
+  deployUsers: (serverId: string) => ['deploy', 'security', serverId, 'users'] as const,
+  deployDevices: (serverId: string) => ['deploy', 'security', serverId, 'devices'] as const,
+  deploySessions: (serverId: string) => ['deploy', 'security', serverId, 'sessions'] as const,
+  deployAudit: (serverId: string, filter: object) =>
+    ['deploy', 'security', serverId, 'audit', filter] as const,
+  /** Until when the core takes sensitive changes without asking for the password again. */
+  deployStepUp: (serverId: string) => ['deploy', 'security', serverId, 'step-up'] as const,
   /** Every running shell with its process tree's CPU and memory, for the Running CLIs modal. */
   terminalUsage: ['terminal-usage'] as const,
   vaultStatus: ['vault', 'status'] as const,

@@ -24,6 +24,10 @@ export interface ScriptedMachine {
   coreUsers: Array<{ userName: string; roles: string[] }>;
   /** When set, `admin create-owner` refuses the password with this reason. */
   ownerPasswordRefusal: string | null;
+  /** The login's groups, as `id -nG` prints them for this session. */
+  groups: string[];
+  /** The user's groups on the server now (`id -nG <user>`); null when the same as `groups`. */
+  configuredGroups: string[] | null;
 }
 
 export const UBUNTU_24 =
@@ -42,6 +46,8 @@ export function scriptedMachine(overrides: Partial<ScriptedMachine> = {}): Scrip
     failures: [],
     coreUsers: [],
     ownerPasswordRefusal: null,
+    groups: ['deployer', 'agentmate'],
+    configuredGroups: null,
     ...overrides,
   };
 }
@@ -90,6 +96,10 @@ export class ScriptedConnection {
     if (command.startsWith('test -d /run/systemd/system')) return done('yes\n');
     if (command.startsWith('df -Pk')) return done('20000000\n20000000\n');
     if (command === 'id -u') return done(`${m.uid}\n`);
+    if (command === 'id -nG') return done(`${m.groups.join(' ')}\n`);
+    if (command.startsWith('id -nG -- ')) {
+      return done(`${(m.configuredGroups ?? m.groups).join(' ')}\n`);
+    }
     if (command === 'sudo -k -n true') return done('', m.sudo === 'passwordless' ? 0 : 1);
     if (command.startsWith('readlink -f /opt/agentmate-core/current')) {
       return m.installed ? done(`${m.installed.release}\n`) : done('', 1);

@@ -4,7 +4,7 @@
 // @ts-nocheck
 import type { HubConnection, IStreamResult, Subject } from '@microsoft/signalr';
 import type { ICoreHub, ICoreHubReceiver } from './AgentMate.ServerCore.Contracts';
-import type { PingResponse, AccountInfo, StepUpRequest, StepUpResponse, DeviceInfo, SessionInfo, TotpSetup, RecoveryCodes, CreateEnrollmentCodeRequest, EnrollmentCodeInfo, AuditQuery, AuditPage, AuditVerificationInfo, SystemInfo, ServiceInfo, MetricsHistoryRequest, MetricsHistory, MetricsStreamRequest, MetricsSample, UpdatesInfo, JobQuery, JobPage, JobInfo, JobStreamItem, AlertQuery, AlertInfo, AlertStreamRequest, ManagedService } from '../AgentMate.ServerCore.Contracts';
+import type { PingResponse, AccountInfo, StepUpRequest, StepUpResponse, DeviceInfo, SessionInfo, TotpSetup, RecoveryCodes, CreateEnrollmentCodeRequest, EnrollmentCodeInfo, UserInfo, CreateUserRequest, ResetUserPasswordRequest, AuditQuery, AuditPage, AuditVerificationInfo, SystemInfo, ServiceInfo, MetricsHistoryRequest, MetricsHistory, MetricsStreamRequest, MetricsSample, UpdatesInfo, JobQuery, JobPage, JobInfo, JobStreamItem, AlertQuery, AlertInfo, AlertStreamRequest, ManagedService } from '../AgentMate.ServerCore.Contracts';
 
 
 // components
@@ -112,6 +112,10 @@ class ICoreHub_HubProxy implements ICoreHub {
         return await this.connection.invoke("RevokeSession", sessionId);
     }
 
+    public readonly revokeOtherSessions = async (): Promise<number> => {
+        return await this.connection.invoke("RevokeOtherSessions");
+    }
+
     public readonly beginTotpSetup = async (): Promise<TotpSetup> => {
         return await this.connection.invoke("BeginTotpSetup");
     }
@@ -130,6 +134,30 @@ class ICoreHub_HubProxy implements ICoreHub {
 
     public readonly createEnrollmentCode = async (request: CreateEnrollmentCodeRequest): Promise<EnrollmentCodeInfo> => {
         return await this.connection.invoke("CreateEnrollmentCode", request);
+    }
+
+    public readonly listUsers = async (): Promise<UserInfo[]> => {
+        return await this.connection.invoke("ListUsers");
+    }
+
+    public readonly createUser = async (request: CreateUserRequest): Promise<UserInfo> => {
+        return await this.connection.invoke("CreateUser", request);
+    }
+
+    public readonly setUserRole = async (userId: string, role: string): Promise<UserInfo> => {
+        return await this.connection.invoke("SetUserRole", userId, role);
+    }
+
+    public readonly setUserDisabled = async (userId: string, disabled: boolean): Promise<UserInfo> => {
+        return await this.connection.invoke("SetUserDisabled", userId, disabled);
+    }
+
+    public readonly resetUserPassword = async (request: ResetUserPasswordRequest): Promise<void> => {
+        return await this.connection.invoke("ResetUserPassword", request);
+    }
+
+    public readonly deleteUser = async (userId: string): Promise<void> => {
+        return await this.connection.invoke("DeleteUser", userId);
     }
 
     public readonly queryAudit = async (query: AuditQuery): Promise<AuditPage> => {

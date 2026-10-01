@@ -596,3 +596,81 @@ describe('DeployPage removal', () => {
     expect(await screen.findByText('Online')).toBeTruthy();
   });
 });
+
+describe('DeployPage security', () => {
+  it("opens the selected server's Security area, and goes back to the overview", async () => {
+    const { user } = renderPage({
+      'deploy.listServers': async () => [server({ core: CORE, enrolled: true })],
+      'deploy.access': async (): Promise<DeployAccess> => ({
+        state: 'signed-in',
+        user: { userName: 'maria', roles: ['viewer'], twoFactorEnabled: false },
+      }),
+      'deploySecurity.listDevices': async () => [],
+      'deploySecurity.listSessions': async () => [],
+    });
+
+    const sections = await screen.findByRole('navigation', { name: 'Server sections' });
+    await user.click(within(sections).getByRole('button', { name: /Security/ }));
+
+    expect(await screen.findByText('No computers are enrolled on this core.')).toBeTruthy();
+    expect(
+      within(sections)
+        .getByRole('button', { name: /Security/ })
+        .getAttribute('aria-current'),
+    ).toBe('page');
+    await user.click(within(sections).getByRole('button', { name: 'Overview' }));
+    expect(await screen.findByText('Online')).toBeTruthy();
+  });
+
+  it('opens the Security area straight from a link', async () => {
+    renderPage(
+      {
+        'deploy.listServers': async () => [server({ core: CORE, enrolled: true })],
+        'deploy.access': async (): Promise<DeployAccess> => ({ state: 'needs-sign-in' }),
+      },
+      '/deploy?server=srv-1&view=security',
+    );
+
+    expect(await screen.findByText(/Sign in to see who can reach Production/)).toBeTruthy();
+  });
+
+  it('offers to join a core that already runs there with an enrollment code, no sudo needed', async () => {
+    let joined = false;
+    const { user, bridge } = renderPage({
+      'deploy.listServers': async () => [
+        joined ? server({ core: CORE, enrolled: true }) : server(),
+      ],
+      'deploy.preflight': async () => ({
+        ...PREFLIGHT,
+        sudo: null,
+        installed: { version: '1.53.0' },
+        problems: ['sudo is not installed on prod.example.'],
+      }),
+      'deploySecurity.redeemEnrollmentCode': async () => {
+        joined = true;
+        return { state: 'signed-in' };
+      },
+    });
+
+    await user.click(await screen.findByRole('button', { name: /Join with a code/ }));
+    await user.type(await screen.findByLabelText('Enrollment code'), 'K7Q2M-X9PLR');
+    await user.type(screen.getByLabelText('User name'), 'sam');
+    await user.type(screen.getByLabelText('Password'), 'another long passphrase');
+    await user.click(screen.getByRole('button', { name: 'Join' }));
+
+    expect(await screen.findByText('Online')).toBeTruthy();
+    expect(bridge.$fn('deploySecurity.redeemEnrollmentCode')).toHaveBeenCalledWith(
+      expect.objectContaining({ serverId: 'srv-1', userName: 'sam' }),
+    );
+  });
+
+  it('offers no code path when this computer is already on the core', async () => {
+    renderPage({
+      'deploy.listServers': async () => [server({ enrolled: true })],
+      'deploy.preflight': async () => ({ ...PREFLIGHT, installed: { version: '1.52.0' } }),
+    });
+
+    expect(await screen.findByRole('button', { name: /Update to core 1.53.0/ })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /Join with a code/ })).toBeNull();
+  });
+});

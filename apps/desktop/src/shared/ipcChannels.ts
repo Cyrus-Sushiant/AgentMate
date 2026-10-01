@@ -616,6 +616,28 @@ export const IPC = {
     disableTotp: 'deploy:disableTotp',
     onSetupProgress: 'deploy:onSetupProgress',
   },
+  /**
+   * A server core's Security area: users and roles (Owner), devices and sessions, enrollment
+   * codes (made by an Owner, redeemed on another computer) and the audit trail.
+   */
+  deploySecurity: {
+    listUsers: 'deploySecurity:listUsers',
+    createUser: 'deploySecurity:createUser',
+    setUserRole: 'deploySecurity:setUserRole',
+    setUserDisabled: 'deploySecurity:setUserDisabled',
+    resetUserPassword: 'deploySecurity:resetUserPassword',
+    deleteUser: 'deploySecurity:deleteUser',
+    createEnrollmentCode: 'deploySecurity:createEnrollmentCode',
+    redeemEnrollmentCode: 'deploySecurity:redeemEnrollmentCode',
+    listDevices: 'deploySecurity:listDevices',
+    revokeDevice: 'deploySecurity:revokeDevice',
+    listSessions: 'deploySecurity:listSessions',
+    revokeSession: 'deploySecurity:revokeSession',
+    revokeOtherSessions: 'deploySecurity:revokeOtherSessions',
+    queryAudit: 'deploySecurity:queryAudit',
+    verifyAudit: 'deploySecurity:verifyAudit',
+    exportAudit: 'deploySecurity:exportAudit',
+  },
   /** The workspace Pull request tab: the current branch's PR, its checks, review and merge. */
   pullRequests: {
     status: 'pullRequests:status',

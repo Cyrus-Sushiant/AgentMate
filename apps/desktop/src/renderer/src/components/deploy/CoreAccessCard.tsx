@@ -10,10 +10,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Skeleton } from '@/components/ui/skeleton';
 import { queryKeys } from '@/lib/queryKeys';
 import { EnrollDialog } from './EnrollDialog';
+import { RedeemCodeDialog } from './RedeemCodeDialog';
 import { SignInDialog } from './SignInDialog';
 import { TwoFactorDialog } from './TwoFactorDialog';
 
-type Dialog = 'sign-in' | 'enroll' | 'two-factor-on' | 'two-factor-off' | null;
+type Dialog = 'sign-in' | 'enroll' | 'redeem' | 'two-factor-on' | 'two-factor-off' | null;
 
 /**
  * Whether this computer can manage the core, and the one step that gets it there: sign in, enroll
@@ -138,6 +139,11 @@ export function CoreAccessCard({ server }: { server: DeployServer }): React.JSX.
             {state === 'needs-re-enroll' ? 'Enroll again' : 'Enroll this computer'}
           </Button>
         )}
+        {!server.dev && (
+          <Button size="sm" variant="outline" onClick={() => setDialog('redeem')}>
+            Use an enrollment code
+          </Button>
+        )}
       </div>
     );
   }
@@ -163,6 +169,12 @@ export function CoreAccessCard({ server }: { server: DeployServer }): React.JSX.
         server={server}
         open={dialog === 'enroll'}
         onOpenChange={(open) => (open ? setDialog('enroll') : closeDialog())}
+        onEnrolled={refresh}
+      />
+      <RedeemCodeDialog
+        server={server}
+        open={dialog === 'redeem'}
+        onOpenChange={(open) => (open ? setDialog('redeem') : closeDialog())}
         onEnrolled={refresh}
       />
       <TwoFactorDialog

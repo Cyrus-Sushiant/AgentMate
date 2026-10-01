@@ -1,3 +1,4 @@
+import { useId } from 'react';
 import { File, Folder, TriangleAlert } from '@/components/icons';
 import { Button } from '@/components/ui/button';
 import {
@@ -8,8 +9,15 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
-import { type ConfirmItem, resolveConfirm, useConfirmStore } from '@/stores/confirmStore';
+import {
+  type ConfirmItem,
+  resolveConfirm,
+  setConfirmTyped,
+  useConfirmStore,
+} from '@/stores/confirmStore';
 
 function ItemList({
   items,
@@ -58,8 +66,12 @@ export function ConfirmDialogHost(): React.JSX.Element {
     confirmLabel,
     cancelLabel,
     variant,
+    typeToConfirm,
+    typed,
   } = useConfirmStore();
   const destructive = variant === 'destructive';
+  const typedId = useId();
+  const waitingForText = typeToConfirm !== undefined && typed !== typeToConfirm;
 
   return (
     <Dialog open={open} onOpenChange={(next) => !next && resolveConfirm(false)}>
@@ -93,12 +105,27 @@ export function ConfirmDialogHost(): React.JSX.Element {
             )}
           </div>
         )}
+        {typeToConfirm !== undefined && (
+          <div className="space-y-1.5">
+            <Label htmlFor={typedId} className="text-sm font-normal">
+              Type <span className="font-mono font-semibold">{typeToConfirm}</span> to confirm
+            </Label>
+            <Input
+              id={typedId}
+              value={typed}
+              onChange={(event) => setConfirmTyped(event.target.value)}
+              autoComplete="off"
+              spellCheck={false}
+            />
+          </div>
+        )}
         <DialogFooter>
           <Button variant="outline" onClick={() => resolveConfirm(false)}>
             {cancelLabel}
           </Button>
           <Button
             variant={destructive ? 'destructive' : 'default'}
+            disabled={waitingForText}
             onClick={() => resolveConfirm(true)}
           >
             {confirmLabel}

@@ -331,10 +331,11 @@ public sealed class HubAccountTests
             .Select(method => method.Name)
             .ToHashSet(StringComparer.Ordinal);
 
+        // RevokeOtherSessions (E15) ends only the caller's own sessions, like RevokeSession.
         string[] account =
         [
             "BeginTotpSetup", "ConfirmTotp", "DisableTotp", "GetAccount", "ListDevices", "ListSessions",
-            "NewRecoveryCodes", "Ping", "RevokeDevice", "RevokeSession", "SignOut", "StepUp",
+            "NewRecoveryCodes", "Ping", "RevokeDevice", "RevokeOtherSessions", "RevokeSession", "SignOut", "StepUp",
         ];
         string[] reads =
         [

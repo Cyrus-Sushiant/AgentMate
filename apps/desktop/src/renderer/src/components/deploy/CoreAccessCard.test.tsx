@@ -170,6 +170,30 @@ describe('CoreAccessCard', () => {
     ).toBeTruthy();
   });
 
+  it('offers an enrollment code as the way in that needs no sudo, and asks again once joined', async () => {
+    let joined = false;
+    const { user } = renderCard(
+      async () => (joined ? SIGNED_IN : { state: 'not-enrolled' }),
+      SERVER,
+      {
+        'deploySecurity.redeemEnrollmentCode': async () => {
+          joined = true;
+          return SIGNED_IN;
+        },
+      },
+    );
+
+    await user.click(await screen.findByRole('button', { name: /Use an enrollment code/ }));
+    const dialog = await screen.findByRole('dialog', { name: 'Join Production with a code' });
+    await user.type(screen.getByLabelText('Enrollment code'), 'K7Q2M-X9PLR');
+    await user.type(screen.getByLabelText('User name'), 'maria');
+    await user.type(screen.getByLabelText('Password'), 'correct horse battery staple');
+    await user.click(screen.getByRole('button', { name: 'Join' }));
+
+    await waitFor(() => expect(dialog.isConnected).toBe(false));
+    expect(await screen.findByText('maria')).toBeTruthy();
+  });
+
   it('offers enrollment for a computer that never was, except on the DevHost', async () => {
     const { unmount } = renderCard(async () => ({ state: 'not-enrolled' }));
     expect(await screen.findByRole('button', { name: /Enroll this computer/ })).toBeTruthy();

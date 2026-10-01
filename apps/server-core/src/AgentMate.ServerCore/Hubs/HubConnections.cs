@@ -1,23 +1,25 @@
 using System.Collections.Concurrent;
+using System.Security.Claims;
 using Microsoft.AspNetCore.SignalR;
 
 namespace AgentMate.ServerCore.Hubs;
 
 /// <summary>
-/// Open hub connections by session and device, so revoking one ends its live connections too, not
-/// just its next sign-in. The connection that asked for the revocation closes a moment later, once
-/// its answer has gone out.
+/// Open hub connections by user, session and device, so revoking one ends its live connections
+/// too, not just its next sign-in. The connection that asked for the revocation closes a moment
+/// later, once its answer has gone out.
 /// </summary>
 internal sealed class HubConnections
 {
     private static readonly TimeSpan _callerGrace = TimeSpan.FromMilliseconds(250);
 
-    private readonly ConcurrentDictionary<string, (Guid Session, Guid Device, HubCallerContext Context)> _open = new();
+    private readonly ConcurrentDictionary<string, (Guid User, Guid Session, Guid Device, HubCallerContext Context)> _open = new();
 
     public void Add(HubCallerContext context, Guid sessionId, Guid deviceId)
     {
         ArgumentNullException.ThrowIfNull(context);
-        _open[context.ConnectionId] = (sessionId, deviceId, context);
+        var user = Guid.TryParse(context.User?.FindFirstValue(ClaimTypes.NameIdentifier), out var id) ? id : Guid.Empty;
+        _open[context.ConnectionId] = (user, sessionId, deviceId, context);
     }
 
     public void Remove(string connectionId) => _open.TryRemove(connectionId, out _);
@@ -28,6 +30,10 @@ internal sealed class HubConnections
     public void CloseDevice(Guid deviceId, string callerConnectionId) =>
         Close(entry => entry.Device == deviceId, callerConnectionId);
 
+    /// <summary>Every connection of one user: their rights changed, so they reconnect under the new ones.</summary>
+    public void CloseUser(Guid userId, string callerConnectionId) =>
+        Close(entry => entry.User == userId, callerConnectionId);
+
     /// <summary>Every open connection, at once: what a reboot does to them.</summary>
     public void CloseAll()
     {
@@ -37,11 +43,11 @@ internal sealed class HubConnections
         }
     }
 
-    private void Close(Func<(Guid Session, Guid Device), bool> matches, string callerConnectionId)
+    private void Close(Func<(Guid User, Guid Session, Guid Device), bool> matches, string callerConnectionId)
     {
         foreach (var (connectionId, entry) in _open)
         {
-            if (!matches((entry.Session, entry.Device)))
+            if (!matches((entry.User, entry.Session, entry.Device)))
             {
                 continue;
             }

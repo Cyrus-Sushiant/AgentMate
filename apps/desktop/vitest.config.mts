@@ -148,6 +148,15 @@ export default defineConfig({
         'src/main/deploy/service.ts': { lines: 95, branches: 80 },
         'src/main/deploy/state.ts': { lines: 90, branches: 85 },
         'src/main/ipc/deploy.ts': { lines: 95, branches: 90 },
+        // Who can reach a core and what it recorded: users, devices, sessions, codes, the audit.
+        'src/main/deploy/security.ts': { lines: 95, branches: 85 },
+        'src/main/deploy/auditExport.ts': { lines: 95, branches: 90 },
+        'src/main/ipc/deploySecurity.ts': { lines: 95, branches: 90 },
+        'src/renderer/src/components/deploy/security/**': {
+          lines: 90,
+          functions: 85,
+          branches: 80,
+        },
         'src/renderer/src/components/deploy/**': { lines: 85, functions: 75, branches: 75 },
         'src/renderer/src/pages/DeployPage.tsx': { lines: 85, functions: 75, branches: 75 },
         'src/renderer/src/stores/deploySetupStore.ts': { lines: 95, branches: 85 },

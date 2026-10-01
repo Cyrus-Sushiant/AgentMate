@@ -282,9 +282,27 @@ import type {
 } from '../shared/apiTypes';
 import type {
   AccountInfo,
+  AuditPage,
+  AuditVerificationInfo,
+  DeviceInfo,
+  EnrollmentCodeInfo,
   RecoveryCodes,
+  SessionInfo,
   StepUpResponse,
+  UserInfo,
 } from '../shared/deploy/protocol/generated/AgentMate.ServerCore.Contracts';
+import type {
+  DeployAuditExportInput,
+  DeployAuditExportResult,
+  DeployAuditQueryInput,
+  DeployCreateUserInput,
+  DeployEnrollmentCodeInput,
+  DeployRedeemCodeInput,
+  DeployResetPasswordInput,
+  DeploySetDisabledInput,
+  DeploySetRoleInput,
+  DeployUserTarget,
+} from '../shared/deploySecurityTypes';
 import type {
   DeployAccess,
   DeployEnrollInput,
@@ -1410,6 +1428,49 @@ const deploy = {
     subscribe(IPC.deploy.onSetupProgress, cb),
 };
 
+/**
+ * A server core's Security area. The core decides who may do what; changes to users need a
+ * step-up first (deploy.stepUp). Passwords pass straight through to the core.
+ */
+const deploySecurity = {
+  listUsers: (serverId: string): Promise<UserInfo[]> =>
+    ipcRenderer.invoke(IPC.deploySecurity.listUsers, serverId),
+  createUser: (input: DeployCreateUserInput): Promise<UserInfo> =>
+    ipcRenderer.invoke(IPC.deploySecurity.createUser, input),
+  setUserRole: (input: DeploySetRoleInput): Promise<UserInfo> =>
+    ipcRenderer.invoke(IPC.deploySecurity.setUserRole, input),
+  setUserDisabled: (input: DeploySetDisabledInput): Promise<UserInfo> =>
+    ipcRenderer.invoke(IPC.deploySecurity.setUserDisabled, input),
+  resetUserPassword: (input: DeployResetPasswordInput): Promise<void> =>
+    ipcRenderer.invoke(IPC.deploySecurity.resetUserPassword, input),
+  deleteUser: (input: DeployUserTarget): Promise<void> =>
+    ipcRenderer.invoke(IPC.deploySecurity.deleteUser, input),
+  /** Shown once: the core keeps only its hash. */
+  createEnrollmentCode: (input: DeployEnrollmentCodeInput): Promise<EnrollmentCodeInfo> =>
+    ipcRenderer.invoke(IPC.deploySecurity.createEnrollmentCode, input),
+  /** Enrolls this computer with an Owner's code, then signs in. No SSH root needed. */
+  redeemEnrollmentCode: (input: DeployRedeemCodeInput): Promise<DeployAccess> =>
+    ipcRenderer.invoke(IPC.deploySecurity.redeemEnrollmentCode, input),
+  listDevices: (serverId: string): Promise<DeviceInfo[]> =>
+    ipcRenderer.invoke(IPC.deploySecurity.listDevices, serverId),
+  revokeDevice: (serverId: string, deviceId: string): Promise<void> =>
+    ipcRenderer.invoke(IPC.deploySecurity.revokeDevice, serverId, deviceId),
+  listSessions: (serverId: string): Promise<SessionInfo[]> =>
+    ipcRenderer.invoke(IPC.deploySecurity.listSessions, serverId),
+  revokeSession: (serverId: string, sessionId: string): Promise<void> =>
+    ipcRenderer.invoke(IPC.deploySecurity.revokeSession, serverId, sessionId),
+  /** Ends every session of the signed-in user's but this computer's; returns how many. */
+  revokeOtherSessions: (serverId: string): Promise<number> =>
+    ipcRenderer.invoke(IPC.deploySecurity.revokeOtherSessions, serverId),
+  queryAudit: (input: DeployAuditQueryInput): Promise<AuditPage> =>
+    ipcRenderer.invoke(IPC.deploySecurity.queryAudit, input),
+  verifyAudit: (serverId: string): Promise<AuditVerificationInfo> =>
+    ipcRenderer.invoke(IPC.deploySecurity.verifyAudit, serverId),
+  /** Asks where to save, then writes every matching event as JSON or CSV. */
+  exportAudit: (input: DeployAuditExportInput): Promise<DeployAuditExportResult> =>
+    ipcRenderer.invoke(IPC.deploySecurity.exportAudit, input),
+};
+
 const pullRequests = {
   /** The current branch, its PR (with checks and review threads) and what the tab needs to decide. */
   status: (projectId: string): Promise<PullRequestStatus> =>
@@ -1956,6 +2017,7 @@ const agentmatApi = {
   worktrees,
   pipelines,
   deploy,
+  deploySecurity,
   pullRequests,
   tests,
   appNotifications,

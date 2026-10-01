@@ -87,6 +87,45 @@ describe('ConfirmDialogHost', () => {
     await expect(answer).resolves.toBe(false);
   });
 
+  it('keeps the confirm button off until the asked-for text is typed, for the most destructive questions', async () => {
+    const { user } = renderWithProviders(<ConfirmDialogHost />);
+    const answer = confirmDialog({
+      title: 'Remove sam?',
+      confirmLabel: 'Remove user',
+      variant: 'destructive',
+      typeToConfirm: 'sam',
+    });
+    await screen.findByRole('dialog');
+    const confirm = screen.getByRole('button', { name: 'Remove user' }) as HTMLButtonElement;
+
+    expect(confirm.disabled).toBe(true);
+    await user.type(screen.getByLabelText('Type sam to confirm'), 'Sam');
+    expect(confirm.disabled).toBe(true);
+    await user.clear(screen.getByLabelText('Type sam to confirm'));
+    await user.type(screen.getByLabelText('Type sam to confirm'), 'sam');
+    expect(confirm.disabled).toBe(false);
+    await user.click(confirm);
+
+    await expect(answer).resolves.toBe(true);
+  });
+
+  it('starts every typed question empty, whatever was typed for the one before', async () => {
+    const { user } = renderWithProviders(<ConfirmDialogHost />);
+    void confirmDialog({ title: 'Remove sam?', typeToConfirm: 'sam' });
+    await user.type(await screen.findByLabelText('Type sam to confirm'), 'sam');
+    await user.click(screen.getByRole('button', { name: 'Cancel' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+
+    void confirmDialog({ title: 'Remove sam?', typeToConfirm: 'sam', confirmLabel: 'Remove' });
+
+    expect(((await screen.findByLabelText('Type sam to confirm')) as HTMLInputElement).value).toBe(
+      '',
+    );
+    expect((screen.getByRole('button', { name: 'Remove' }) as HTMLButtonElement).disabled).toBe(
+      true,
+    );
+  });
+
   it('answers a question that gets replaced before it is picked, rather than stranding its caller', async () => {
     const { user } = renderWithProviders(<ConfirmDialogHost />);
     const first = confirmDialog({ title: 'First question?' });

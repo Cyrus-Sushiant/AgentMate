@@ -13,6 +13,13 @@ internal static class CoreRoles
     public const string Viewer = "viewer";
 
     public static readonly string[] All = [Owner, Admin, Operator, Viewer];
+
+    /// <summary>The most powerful of these roles, or null when none of them is one of the four.</summary>
+    public static string? Highest(IEnumerable<string?> roles)
+    {
+        var held = roles.ToHashSet(StringComparer.Ordinal);
+        return All.FirstOrDefault(held.Contains);
+    }
 }
 
 /// <summary>
@@ -30,6 +37,20 @@ internal static class CoreIdentity
 
     public const int MaxFailedAttempts = 5;
     public static readonly TimeSpan LockoutDuration = TimeSpan.FromMinutes(15);
+
+    /// <summary>
+    /// An Owner turns an account off by locking it until the end of time, which every sign-in
+    /// check already honours; a lockout for wrong passwords never reaches that far.
+    /// </summary>
+    public static readonly DateTimeOffset DisabledUntil = DateTimeOffset.MaxValue;
+
+    public const string DisabledMessage = "This account is disabled. An Owner of this core can turn it on again.";
+
+    public static bool IsDisabled(CoreUser user)
+    {
+        ArgumentNullException.ThrowIfNull(user);
+        return user.LockoutEnabled && user.LockoutEnd is { Year: >= 9999 };
+    }
 
     public static void Configure(IdentityOptions options)
     {

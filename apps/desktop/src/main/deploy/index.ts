@@ -1,8 +1,10 @@
 import { existsSync, readFileSync } from 'node:fs';
+import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { app, ipcMain } from 'electron';
+import { app, dialog, type IpcMainInvokeEvent, ipcMain } from 'electron';
 import { IPC } from '../../shared/ipcChannels';
 import { registerDeployHandlers } from '../ipc/deploy';
+import { registerDeploySecurityHandlers } from '../ipc/deploySecurity';
 import { sendToWindow } from '../ipc/send';
 import { getMainWindow } from '../mainWindow';
 import { SshConnectionPool } from '../ssh/pool';
@@ -17,6 +19,7 @@ import {
   type ReleaseSource,
   repoReleaseDirectory,
 } from './bootstrap/releaseSource';
+import { DeploySecurity } from './security';
 import { DeployService } from './service';
 import { DeployState, jsonFilePort } from './state';
 
@@ -139,5 +142,41 @@ export function registerDeployIpc(): void {
       );
     },
   });
+  registerDeploySecurityIpc(service);
   app.on('will-quit', () => pool.closeAll());
+}
+
+function fromMainWindow(event: IpcMainInvokeEvent): boolean {
+  const win = getMainWindow();
+  return (
+    !!win && event.sender === win.webContents && event.senderFrame === win.webContents.mainFrame
+  );
+}
+
+/** The Security area: users, devices, sessions, enrollment codes and the audit trail. */
+function registerDeploySecurityIpc(service: DeployService): void {
+  const security = new DeploySecurity({
+    withHub: (serverId, work) => service.withHub(serverId, work),
+    forgetTokens: (serverId) => service.forgetTokens(serverId),
+    serverName: async (serverId) =>
+      (await service.listServers()).find((server) => server.id === serverId)?.nickname ?? serverId,
+    pickExportPath: async (format, suggestedName) => {
+      const options = {
+        title: 'Export the audit trail',
+        defaultPath: suggestedName,
+        filters: [
+          format === 'csv'
+            ? { name: 'CSV', extensions: ['csv'] }
+            : { name: 'JSON', extensions: ['json'] },
+        ],
+      };
+      const win = getMainWindow();
+      const result = win
+        ? await dialog.showSaveDialog(win, options)
+        : await dialog.showSaveDialog(options);
+      return result.canceled ? null : (result.filePath ?? null);
+    },
+    writeFile: (path, content) => writeFile(path, content, 'utf-8'),
+  });
+  registerDeploySecurityHandlers({ ipc: ipcMain, security, service, guard: fromMainWindow });
 }

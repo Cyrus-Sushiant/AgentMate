@@ -21,11 +21,18 @@ interface ConfirmOptions {
   confirmLabel?: string;
   cancelLabel?: string;
   variant?: 'default' | 'destructive';
+  /**
+   * For the most destructive questions: the confirm button stays off until exactly this text is
+   * typed (a user name, a server's name), so a reflex click cannot do it.
+   */
+  typeToConfirm?: string;
 }
 
 interface ConfirmState extends ConfirmOptions {
   open: boolean;
   resolve: ((value: boolean) => void) | null;
+  /** What was typed toward `typeToConfirm`; every question starts empty. */
+  typed: string;
 }
 
 const initialState: ConfirmState = {
@@ -39,7 +46,9 @@ const initialState: ConfirmState = {
   confirmLabel: 'Confirm',
   cancelLabel: 'Cancel',
   variant: 'default',
+  typeToConfirm: undefined,
   resolve: null,
+  typed: '',
 };
 
 export const useConfirmStore = create<ConfirmState>(() => initialState);
@@ -55,4 +64,8 @@ export function confirmDialog(options: ConfirmOptions): Promise<boolean> {
 export function resolveConfirm(value: boolean): void {
   useConfirmStore.getState().resolve?.(value);
   useConfirmStore.setState({ open: false, resolve: null });
+}
+
+export function setConfirmTyped(typed: string): void {
+  useConfirmStore.setState({ typed });
 }

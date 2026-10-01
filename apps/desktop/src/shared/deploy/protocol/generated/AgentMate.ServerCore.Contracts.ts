@@ -132,6 +132,14 @@ export type AuditQuery = {
     limit?: number;
     /** Transpiled from string? */
     action?: string;
+    /** Transpiled from string? */
+    actor?: string;
+    /** Transpiled from string? */
+    result?: string;
+    /** Transpiled from long */
+    fromUnixMs?: number;
+    /** Transpiled from long */
+    toUnixMs?: number;
 }
 
 /** Transpiled from AgentMate.ServerCore.Contracts.AuditEventInfo */
@@ -154,6 +162,10 @@ export type AuditEventInfo = {
     parameters?: string;
     /** Transpiled from string */
     result: string;
+    /** Transpiled from string? */
+    actorUserName?: string;
+    /** Transpiled from string? */
+    deviceName?: string;
 }
 
 /** Transpiled from AgentMate.ServerCore.Contracts.AuditPage */
@@ -651,5 +663,47 @@ export type UpdatesInfo = {
     rebootRequired?: boolean;
     /** Transpiled from string? */
     error?: string;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.UserInfo */
+export type UserInfo = {
+    /** Transpiled from System.Guid */
+    id: string;
+    /** Transpiled from string */
+    userName: string;
+    /** Transpiled from string? */
+    role?: string;
+    /** Transpiled from bool */
+    twoFactorEnabled: boolean;
+    /** Transpiled from bool */
+    disabled: boolean;
+    /** Transpiled from long */
+    lockedOutUntilUnixMs?: number;
+    /** Transpiled from long */
+    lastSignInAtUnixMs?: number;
+    /** Transpiled from long */
+    createdAtUnixMs: number;
+    /** Transpiled from int */
+    devices: number;
+    /** Transpiled from bool */
+    current: boolean;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.CreateUserRequest */
+export type CreateUserRequest = {
+    /** Transpiled from string */
+    userName: string;
+    /** Transpiled from string */
+    password: string;
+    /** Transpiled from string */
+    role: string;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.ResetUserPasswordRequest */
+export type ResetUserPasswordRequest = {
+    /** Transpiled from System.Guid */
+    userId: string;
+    /** Transpiled from string */
+    password: string;
 }
 

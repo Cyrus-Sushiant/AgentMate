@@ -10,9 +10,11 @@ import type {
   StepUpResponse,
 } from '../../shared/deploy/protocol/generated/AgentMate.ServerCore.Contracts';
 import type { ICoreHub } from '../../shared/deploy/protocol/generated/TypedSignalR.Client/AgentMate.ServerCore.Contracts';
+import type { DeployRedeemCodeInput } from '../../shared/deploySecurityTypes';
 import type {
   DeployAccess,
   DeployAccountInput,
+  DeployCoreRecord,
   DeployEnrollInput,
   DeployHealth,
   DeployInstallInput,
@@ -30,6 +32,8 @@ import { TunnelRefusedError } from '../ssh/connection';
 import { openRootShell } from '../ssh/sudo';
 import { type CoreRest, CoreSessions } from './auth/coreSessions';
 import { createDeviceKey } from './auth/deviceKey';
+import { redeemEnrollmentCode } from './auth/enrollmentCode';
+import { coreGroupAccess, coreGroupProblem } from './bootstrap/coreGroup';
 import { enrollOverSsh } from './bootstrap/enrollment';
 import { type InstallerConnection, installCore, uninstallCore } from './bootstrap/installer';
 import { runPreflight } from './bootstrap/preflight';
@@ -252,6 +256,47 @@ export class DeployService {
     return this.access(input.serverId);
   }
 
+  /**
+   * Enrolls this computer with an Owner's single-use code instead of over SSH as root, then signs
+   * in: the way in for someone without sudo on the server. The key is made here and sealed like an
+   * SSH enrollment's. A core another computer installed is looked up first, and only remembered
+   * once its code was accepted.
+   */
+  async redeemEnrollmentCode(input: DeployRedeemCodeInput): Promise<DeployAccess> {
+    return this.exclusive(input.serverId, async () => {
+      const found =
+        this.isDevHost(input.serverId) || (await this.deps.state.get(input.serverId))
+          ? undefined
+          : await this.adoptCore(input.serverId);
+      const enrolled = await this.withTransport(
+        input.serverId,
+        (transport) =>
+          redeemEnrollmentCode(this.rest(transport), {
+            code: input.code,
+            userName: input.userName,
+            password: input.password,
+            deviceName: (this.deps.deviceName ?? hostname)().slice(0, 100),
+          }),
+        found,
+      );
+      if (found) await this.deps.state.set(input.serverId, found);
+      await this.deps.state.setDevice(input.serverId, {
+        deviceId: enrolled.deviceId,
+        userName: input.userName,
+        privateKey: await this.deps.seal(enrolled.privateKeyPem),
+      });
+      this.sessions.forget(input.serverId);
+      try {
+        const user = await this.sessions.signIn(input.serverId, { password: input.password });
+        return { state: 'signed-in', user: summary(user) };
+      } catch (error) {
+        // Enrolled all the same: the code from the authenticator app goes in at the sign-in.
+        if (coreErrorCode(error) === 'totpRequired') return { state: 'needs-sign-in' };
+        throw error;
+      }
+    });
+  }
+
   /** Whether this computer can act on the core right now, renewing its session if it has to. */
   async access(serverId: string): Promise<DeployAccess> {
     if (this.isDevHost(serverId)) await this.ensureDevDevice();
@@ -451,15 +496,59 @@ export class DeployService {
     });
   }
 
-  /** The transport the core is reached through, for the length of `work`. */
+  /**
+   * A core this computer did not install. The preflight (as the login user, no sudo) says whether
+   * one runs there and whether sshd allows the tunnel, and the core's health settles the transport,
+   * as after an install. Only root and the agentmate group may open the core's socket, so a login
+   * outside it is told what to ask for instead of meeting a tunnel error.
+   */
+  private async adoptCore(serverId: string): Promise<DeployCoreRecord> {
+    const report = await this.withLease(serverId, (lease) => runPreflight(lease.connection));
+    const installed = report.installed;
+    if (!installed) throw new Error('The server core is not installed on this server yet.');
+    if (report.sudo !== 'root') {
+      const access = await this.withLease(serverId, (lease) => coreGroupAccess(lease.connection));
+      if (access === 'missing') throw new Error(coreGroupProblem(report.loginUser));
+      // In the group since this login started: a fresh login picks it up.
+      if (access === 'new-login') this.deps.pool.reset(serverId);
+    }
+    const reached = await this.withLease(serverId, async (lease) => {
+      if (report.streamLocal !== 'prohibited') {
+        try {
+          const health = await this.healthOf(streamLocalTransport(lease.connection));
+          return { health, transport: 'streamlocal' as const };
+        } catch (error) {
+          if (!(error instanceof TunnelRefusedError)) throw error;
+        }
+      }
+      return {
+        health: await this.healthOf(bridgeTransport(lease.connection)),
+        transport: 'bridge' as const,
+      };
+    });
+    return {
+      version: reached.health.version,
+      release: installed.release,
+      transport: reached.transport,
+      installedAt: this.now(),
+      os: report.os.name,
+      architecture: report.architecture.machine,
+    };
+  }
+
+  /**
+   * The transport the core is reached through, for the length of `work`: the remembered one, or
+   * `known` for a core not remembered yet.
+   */
   private async withTransport<T>(
     serverId: string,
     work: (transport: CoreTransport) => Promise<T>,
+    known?: DeployCoreRecord,
   ): Promise<T> {
     if (this.isDevHost(serverId) && this.deps.devCorePort !== null) {
       return work(devTcpTransport(this.deps.devCorePort));
     }
-    const record = await this.deps.state.get(serverId);
+    const record = known ?? (await this.deps.state.get(serverId));
     if (!record) throw new Error('The server core is not installed on this server yet.');
     return this.withLease(serverId, (lease) =>
       work(
@@ -470,8 +559,11 @@ export class DeployService {
     );
   }
 
-  /** A short-lived hub connection, signed in with this computer's session. */
-  private withHub<T>(serverId: string, work: (hub: ICoreHub) => Promise<T>): Promise<T> {
+  /**
+   * A short-lived hub connection, signed in with this computer's session. The Security area
+   * (security.ts) makes its calls through it too.
+   */
+  withHub<T>(serverId: string, work: (hub: ICoreHub) => Promise<T>): Promise<T> {
     return this.withTransport(serverId, async (transport) => {
       const session = await this.openHub(serverId, transport);
       try {

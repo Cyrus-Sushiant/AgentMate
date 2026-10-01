@@ -9,7 +9,9 @@ import { CoreHealthCard } from '@/components/deploy/CoreHealthCard';
 import { InstallPanel } from '@/components/deploy/InstallPanel';
 import { RemovalPanel } from '@/components/deploy/RemovalPanel';
 import { ServerRail } from '@/components/deploy/ServerRail';
+import { type ServerSection, ServerSections } from '@/components/deploy/ServerSections';
 import { SetupFailure } from '@/components/deploy/SetupFailure';
+import { SecurityPanel } from '@/components/deploy/security/SecurityPanel';
 import { Lock, RefreshCw, Server } from '@/components/icons';
 import { ProjectEmptyState } from '@/components/projects/ProjectDetailChrome';
 import { SshVaultUnlockDialog } from '@/components/remote/SshVaultUnlockDialog';
@@ -152,6 +154,7 @@ export default function DeployPage(): React.JSX.Element {
 
   const selected = servers.find((server) => server.id === params.get('server')) ?? servers[0];
   const run = runs[selected.id];
+  const section: ServerSection = params.get('view') === 'security' ? 'security' : 'overview';
   const locked = vaultQuery.data?.hasPasskey === true && !vaultQuery.data.unlocked;
 
   async function remove(server: DeployServer, keepData: boolean): Promise<void> {
@@ -168,6 +171,7 @@ export default function DeployPage(): React.JSX.Element {
   }
 
   let content: React.ReactNode;
+  let sections = false;
   if (run?.kind === 'uninstall') {
     content = <RemovalPanel server={selected} run={run} />;
   } else if (!selected.core || updating === selected.id || run?.kind === 'install') {
@@ -177,7 +181,11 @@ export default function DeployPage(): React.JSX.Element {
         onCancel={selected.core ? () => setUpdating(null) : undefined}
       />
     );
+  } else if (section === 'security') {
+    sections = true;
+    content = <SecurityPanel server={selected} />;
   } else {
+    sections = true;
     content = (
       <>
         <CoreHealthCard
@@ -211,6 +219,17 @@ export default function DeployPage(): React.JSX.Element {
           </div>
         )}
         <ServerHeader server={selected} />
+        {sections && (
+          <ServerSections
+            value={section}
+            onChange={(next) =>
+              setParams(
+                next === 'overview' ? { server: selected.id } : { server: selected.id, view: next },
+                { replace: true },
+              )
+            }
+          />
+        )}
         {content}
       </div>
       <SshVaultUnlockDialog

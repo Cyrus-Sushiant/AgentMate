@@ -30,6 +30,9 @@ public interface ICoreHub
 
     Task RevokeSession(Guid sessionId);
 
+    /// <summary>Ends every session of the caller's but this one. Returns how many ended.</summary>
+    Task<int> RevokeOtherSessions();
+
     /// <summary>Needs a step-up. Two-factor is not on until the first code is confirmed.</summary>
     Task<TotpSetup> BeginTotpSetup();
 
@@ -43,6 +46,24 @@ public interface ICoreHub
 
     /// <summary>A single-use code so another device can enroll. Needs a step-up.</summary>
     Task<EnrollmentCodeInfo> CreateEnrollmentCode(CreateEnrollmentCodeRequest request);
+
+    // Owner: users. Each change needs a step-up, and none may leave the core without an Owner.
+
+    Task<UserInfo[]> ListUsers();
+
+    Task<UserInfo> CreateUser(CreateUserRequest request);
+
+    /// <summary>Takes effect at once: the user's open connections close, so they reconnect with the new role.</summary>
+    Task<UserInfo> SetUserRole(Guid userId, string role);
+
+    /// <summary>A disabled user cannot sign in, and every session of theirs ends. Not one's own account.</summary>
+    Task<UserInfo> SetUserDisabled(Guid userId, bool disabled);
+
+    /// <summary>Not one's own password. Every session of theirs ends.</summary>
+    Task ResetUserPassword(ResetUserPasswordRequest request);
+
+    /// <summary>The user goes, with their devices, sessions and enrollment codes. Not one's own account.</summary>
+    Task DeleteUser(Guid userId);
 
     // Admin.
 

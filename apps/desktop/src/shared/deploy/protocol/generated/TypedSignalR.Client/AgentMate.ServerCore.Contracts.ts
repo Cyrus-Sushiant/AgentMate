@@ -3,7 +3,7 @@
 /* tslint:disable */
 // @ts-nocheck
 import type { IStreamResult, Subject } from '@microsoft/signalr';
-import type { PingResponse, AccountInfo, StepUpRequest, StepUpResponse, DeviceInfo, SessionInfo, TotpSetup, RecoveryCodes, CreateEnrollmentCodeRequest, EnrollmentCodeInfo, AuditQuery, AuditPage, AuditVerificationInfo, SystemInfo, ServiceInfo, MetricsHistoryRequest, MetricsHistory, MetricsStreamRequest, MetricsSample, UpdatesInfo, JobQuery, JobPage, JobInfo, JobStreamItem, AlertQuery, AlertInfo, AlertStreamRequest, ManagedService } from '../AgentMate.ServerCore.Contracts';
+import type { PingResponse, AccountInfo, StepUpRequest, StepUpResponse, DeviceInfo, SessionInfo, TotpSetup, RecoveryCodes, CreateEnrollmentCodeRequest, EnrollmentCodeInfo, UserInfo, CreateUserRequest, ResetUserPasswordRequest, AuditQuery, AuditPage, AuditVerificationInfo, SystemInfo, ServiceInfo, MetricsHistoryRequest, MetricsHistory, MetricsStreamRequest, MetricsSample, UpdatesInfo, JobQuery, JobPage, JobInfo, JobStreamItem, AlertQuery, AlertInfo, AlertStreamRequest, ManagedService } from '../AgentMate.ServerCore.Contracts';
 
 /**
 * Everything the app can ask the core over the WebSocket. The desktop's typed client is
@@ -49,6 +49,11 @@ export type ICoreHub = {
     */
     revokeSession(sessionId: string): Promise<void>;
     /**
+    * Ends every session of the caller's but this one. Returns how many ended.
+    * @returns Transpiled from System.Threading.Tasks.Task<int>
+    */
+    revokeOtherSessions(): Promise<number>;
+    /**
     * Needs a step-up. Two-factor is not on until the first code is confirmed.
     * @returns Transpiled from System.Threading.Tasks.Task<AgentMate.ServerCore.Contracts.TotpSetup>
     */
@@ -73,6 +78,41 @@ export type ICoreHub = {
     * @returns Transpiled from System.Threading.Tasks.Task<AgentMate.ServerCore.Contracts.EnrollmentCodeInfo>
     */
     createEnrollmentCode(request: CreateEnrollmentCodeRequest): Promise<EnrollmentCodeInfo>;
+    /**
+    * @returns Transpiled from System.Threading.Tasks.Task<AgentMate.ServerCore.Contracts.UserInfo[]>
+    */
+    listUsers(): Promise<UserInfo[]>;
+    /**
+    * @param request Transpiled from AgentMate.ServerCore.Contracts.CreateUserRequest
+    * @returns Transpiled from System.Threading.Tasks.Task<AgentMate.ServerCore.Contracts.UserInfo>
+    */
+    createUser(request: CreateUserRequest): Promise<UserInfo>;
+    /**
+    * Takes effect at once: the user's open connections close, so they reconnect with the new role.
+    * @param userId Transpiled from System.Guid
+    * @param role Transpiled from string
+    * @returns Transpiled from System.Threading.Tasks.Task<AgentMate.ServerCore.Contracts.UserInfo>
+    */
+    setUserRole(userId: string, role: string): Promise<UserInfo>;
+    /**
+    * A disabled user cannot sign in, and every session of theirs ends. Not one's own account.
+    * @param userId Transpiled from System.Guid
+    * @param disabled Transpiled from bool
+    * @returns Transpiled from System.Threading.Tasks.Task<AgentMate.ServerCore.Contracts.UserInfo>
+    */
+    setUserDisabled(userId: string, disabled: boolean): Promise<UserInfo>;
+    /**
+    * Not one's own password. Every session of theirs ends.
+    * @param request Transpiled from AgentMate.ServerCore.Contracts.ResetUserPasswordRequest
+    * @returns Transpiled from System.Threading.Tasks.Task
+    */
+    resetUserPassword(request: ResetUserPasswordRequest): Promise<void>;
+    /**
+    * The user goes, with their devices, sessions and enrollment codes. Not one's own account.
+    * @param userId Transpiled from System.Guid
+    * @returns Transpiled from System.Threading.Tasks.Task
+    */
+    deleteUser(userId: string): Promise<void>;
     /**
     * @param query Transpiled from AgentMate.ServerCore.Contracts.AuditQuery
     * @returns Transpiled from System.Threading.Tasks.Task<AgentMate.ServerCore.Contracts.AuditPage>

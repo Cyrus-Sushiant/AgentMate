@@ -1,8 +1,8 @@
 import type { DeployServer } from '@shared/deployTypes';
 import { sshErrorMessage } from '@shared/sshErrors';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { RefreshCw, Rocket } from '@/components/icons';
+import { Key, RefreshCw, Rocket } from '@/components/icons';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { installPhases, timeline } from '@/lib/deploy/setup';
@@ -18,6 +18,7 @@ import {
   toAccount,
 } from './AccountFields';
 import { PreflightChecklist, PreflightSkeleton } from './PreflightChecklist';
+import { RedeemCodeDialog } from './RedeemCodeDialog';
 import { SetupFailure } from './SetupFailure';
 import { SetupTimeline } from './SetupTimeline';
 import { SudoPasswordField } from './SudoPasswordField';
@@ -40,6 +41,8 @@ export function InstallPanel({
   const [password, setPassword] = useState('');
   const [askPassword, setAskPassword] = useState(false);
   const [account, setAccount] = useState<AccountDraft>(EMPTY_ACCOUNT);
+  const [redeeming, setRedeeming] = useState(false);
+  const queryClient = useQueryClient();
   const installRun = run?.kind === 'install' ? run : undefined;
 
   const preflightQuery = useQuery({
@@ -168,6 +171,17 @@ export function InstallPanel({
     body = (
       <>
         <PreflightChecklist preflight={preflight} />
+        {preflight.installed && !server.enrolled && (
+          <div className="flex flex-wrap items-center gap-3 rounded-lg border border-border/70 bg-secondary/20 px-3 py-2.5">
+            <p className="min-w-0 flex-1 text-sm text-foreground">
+              The core already runs here. With an enrollment code from one of its Owners, this
+              computer can join it without sudo.
+            </p>
+            <Button size="sm" variant="outline" onClick={() => setRedeeming(true)}>
+              <Key className="h-3.5 w-3.5" /> Join with a code
+            </Button>
+          </div>
+        )}
         {blocked && (
           <div
             role="alert"
@@ -244,6 +258,16 @@ export function InstallPanel({
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">{body}</CardContent>
+      <RedeemCodeDialog
+        server={server}
+        open={redeeming}
+        onOpenChange={setRedeeming}
+        onEnrolled={() => {
+          // The app now knows this core, so the page moves on from the install.
+          void queryClient.invalidateQueries({ queryKey: queryKeys.deployServers });
+          void queryClient.invalidateQueries({ queryKey: queryKeys.deployAccess(server.id) });
+        }}
+      />
     </Card>
   );
 }
