@@ -153,6 +153,58 @@ export class FakeCoreConnection implements ICoreHub {
   queryAudit = () => this.unused('QueryAudit');
   verifyAudit = () => this.unused('VerifyAudit');
 
+  // Firewall, Docker, websites and certificates: the desktop does not call these yet.
+
+  getFirewallStatus = () => this.unused('GetFirewallStatus');
+  getFirewallPresets = () => this.unused('GetFirewallPresets');
+  listFirewallChangeSets = () => this.unused('ListFirewallChangeSets');
+  getExposure = () => this.unused('GetExposure');
+  previewFirewallChanges = () => this.unused('PreviewFirewallChanges');
+  applyFirewallChanges = () => this.unused('ApplyFirewallChanges');
+  confirmFirewallChanges = () => this.unused('ConfirmFirewallChanges');
+  revertFirewallChanges = () => this.unused('RevertFirewallChanges');
+  getDockerStatus = () => this.unused('GetDockerStatus');
+  listContainers = () => this.unused('ListContainers');
+  inspectContainer = () => this.unused('InspectContainer');
+  streamContainerStats = () => this.unusedStream('StreamContainerStats');
+  streamContainerLogs = () => this.unusedStream('StreamContainerLogs');
+  listImages = () => this.unused('ListImages');
+  listVolumes = () => this.unused('ListVolumes');
+  listNetworks = () => this.unused('ListNetworks');
+  getDockerDiskUsage = () => this.unused('GetDockerDiskUsage');
+  streamDockerEvents = () => this.unusedStream('StreamDockerEvents');
+  startContainer = () => this.unused('StartContainer');
+  stopContainer = () => this.unused('StopContainer');
+  restartContainer = () => this.unused('RestartContainer');
+  pauseContainer = () => this.unused('PauseContainer');
+  unpauseContainer = () => this.unused('UnpauseContainer');
+  killContainer = () => this.unused('KillContainer');
+  removeContainer = () => this.unused('RemoveContainer');
+  pullImage = () => this.unused('PullImage');
+  removeImage = () => this.unused('RemoveImage');
+  removeNetwork = () => this.unused('RemoveNetwork');
+  revealContainerEnv = () => this.unused('RevealContainerEnv');
+  containerConsole = () => this.unusedStream('ContainerConsole');
+  removeVolume = () => this.unused('RemoveVolume');
+  pruneDocker = () => this.unused('PruneDocker');
+  installDocker = () => this.unused('InstallDocker');
+  getNginxStatus = () => this.unused('GetNginxStatus');
+  listSites = () => this.unused('ListSites');
+  listStreamProxies = () => this.unused('ListStreamProxies');
+  listCertificates = () => this.unused('ListCertificates');
+  streamSiteLog = () => this.unusedStream('StreamSiteLog');
+  installNginx = () => this.unused('InstallNginx');
+  saveSite = () => this.unused('SaveSite');
+  deleteSite = () => this.unused('DeleteSite');
+  saveStreamProxy = () => this.unused('SaveStreamProxy');
+  deleteStreamProxy = () => this.unused('DeleteStreamProxy');
+  applyNginx = () => this.unused('ApplyNginx');
+  issueCertificate = () => this.unused('IssueCertificate');
+  renewCertificate = () => this.unused('RenewCertificate');
+  uploadCertificate = () => this.unused('UploadCertificate');
+  removeCertificate = () => this.unused('RemoveCertificate');
+  setSiteSnippets = () => this.unused('SetSiteSnippets');
+
   // Reading the server.
 
   getSystemInfo = async () => this.answer({ ...this.core.system });
@@ -367,5 +419,11 @@ export class FakeCoreConnection implements ICoreHub {
 
   private async unused(method: string): Promise<never> {
     throw invocationError(method, 'The fake core does not answer this call.');
+  }
+
+  private unusedStream(method: string): IStreamResult<never> {
+    return new FakeStream<never>((stream) =>
+      stream.fail(streamError(`The fake core does not answer ${method}.`)),
+    );
   }
 }

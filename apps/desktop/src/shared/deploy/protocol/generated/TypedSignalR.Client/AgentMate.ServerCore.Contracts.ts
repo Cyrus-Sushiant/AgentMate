@@ -3,7 +3,7 @@
 /* tslint:disable */
 // @ts-nocheck
 import type { IStreamResult, Subject } from '@microsoft/signalr';
-import type { PingResponse, AccountInfo, StepUpRequest, StepUpResponse, DeviceInfo, SessionInfo, TotpSetup, RecoveryCodes, CreateEnrollmentCodeRequest, EnrollmentCodeInfo, AuditQuery, AuditPage, AuditVerificationInfo, SystemInfo, ServiceInfo, MetricsHistoryRequest, MetricsHistory, MetricsStreamRequest, MetricsSample, UpdatesInfo, JobQuery, JobPage, JobInfo, JobStreamItem, AlertQuery, AlertInfo, AlertStreamRequest, ManagedService, NginxStatus, SiteInfo, StreamProxyInfo, CertificateInfo, SiteLogRequest, SiteLogBatch, SiteSettings, SiteSaveResult, StreamProxySettings, StreamProxySaveResult, NginxApplyResult, CertificateIssueRequest, CertificateUploadRequest, CertificateUploadResult, CertificateRemoveRequest, SiteSnippets } from '../AgentMate.ServerCore.Contracts';
+import type { PingResponse, AccountInfo, StepUpRequest, StepUpResponse, DeviceInfo, SessionInfo, TotpSetup, RecoveryCodes, CreateEnrollmentCodeRequest, EnrollmentCodeInfo, UserInfo, CreateUserRequest, ResetUserPasswordRequest, AuditQuery, AuditPage, AuditVerificationInfo, SystemInfo, ServiceInfo, MetricsHistoryRequest, MetricsHistory, MetricsStreamRequest, MetricsSample, UpdatesInfo, JobQuery, JobPage, JobInfo, JobStreamItem, AlertQuery, AlertInfo, AlertStreamRequest, ManagedService, FirewallStatus, FirewallPreset, FirewallChangeSetQuery, FirewallChangeSetInfo, ExposureInventory, FirewallChangeRequest, FirewallChangePreview, DockerStatus, ContainerList, ContainerDetails, ContainerStatsRequest, ContainerStatsBatch, ContainerLogsRequest, ContainerLogBatch, ImageInfo, VolumeInfo, NetworkInfo, DockerDiskUsage, DockerEventsRequest, DockerEvent, ContainerSummary, ContainerRemoveRequest, ImagePullRequest, ImageRemoveRequest, ContainerEnvVariable, ConsoleRequest, ConsoleInput, ConsoleOutput, DockerPruneRequest, DockerPruneResult, DockerInstallRequest, NginxStatus, SiteInfo, StreamProxyInfo, CertificateInfo, SiteLogRequest, SiteLogBatch, SiteSettings, SiteSaveResult, StreamProxySettings, StreamProxySaveResult, NginxApplyResult, CertificateIssueRequest, CertificateUploadRequest, CertificateUploadResult, CertificateRemoveRequest, SiteSnippets } from '../AgentMate.ServerCore.Contracts';
 
 /**
 * Everything the app can ask the core over the WebSocket. The desktop's typed client is
@@ -49,6 +49,11 @@ export type ICoreHub = {
     */
     revokeSession(sessionId: string): Promise<void>;
     /**
+    * Ends every session of the caller's but this one. Returns how many ended.
+    * @returns Transpiled from System.Threading.Tasks.Task<int>
+    */
+    revokeOtherSessions(): Promise<number>;
+    /**
     * Needs a step-up. Two-factor is not on until the first code is confirmed.
     * @returns Transpiled from System.Threading.Tasks.Task<AgentMate.ServerCore.Contracts.TotpSetup>
     */
@@ -73,6 +78,41 @@ export type ICoreHub = {
     * @returns Transpiled from System.Threading.Tasks.Task<AgentMate.ServerCore.Contracts.EnrollmentCodeInfo>
     */
     createEnrollmentCode(request: CreateEnrollmentCodeRequest): Promise<EnrollmentCodeInfo>;
+    /**
+    * @returns Transpiled from System.Threading.Tasks.Task<AgentMate.ServerCore.Contracts.UserInfo[]>
+    */
+    listUsers(): Promise<UserInfo[]>;
+    /**
+    * @param request Transpiled from AgentMate.ServerCore.Contracts.CreateUserRequest
+    * @returns Transpiled from System.Threading.Tasks.Task<AgentMate.ServerCore.Contracts.UserInfo>
+    */
+    createUser(request: CreateUserRequest): Promise<UserInfo>;
+    /**
+    * Takes effect at once: the user's open connections close, so they reconnect with the new role.
+    * @param userId Transpiled from System.Guid
+    * @param role Transpiled from string
+    * @returns Transpiled from System.Threading.Tasks.Task<AgentMate.ServerCore.Contracts.UserInfo>
+    */
+    setUserRole(userId: string, role: string): Promise<UserInfo>;
+    /**
+    * A disabled user cannot sign in, and every session of theirs ends. Not one's own account.
+    * @param userId Transpiled from System.Guid
+    * @param disabled Transpiled from bool
+    * @returns Transpiled from System.Threading.Tasks.Task<AgentMate.ServerCore.Contracts.UserInfo>
+    */
+    setUserDisabled(userId: string, disabled: boolean): Promise<UserInfo>;
+    /**
+    * Not one's own password. Every session of theirs ends.
+    * @param request Transpiled from AgentMate.ServerCore.Contracts.ResetUserPasswordRequest
+    * @returns Transpiled from System.Threading.Tasks.Task
+    */
+    resetUserPassword(request: ResetUserPasswordRequest): Promise<void>;
+    /**
+    * The user goes, with their devices, sessions and enrollment codes. Not one's own account.
+    * @param userId Transpiled from System.Guid
+    * @returns Transpiled from System.Threading.Tasks.Task
+    */
+    deleteUser(userId: string): Promise<void>;
     /**
     * @param query Transpiled from AgentMate.ServerCore.Contracts.AuditQuery
     * @returns Transpiled from System.Threading.Tasks.Task<AgentMate.ServerCore.Contracts.AuditPage>
@@ -182,6 +222,193 @@ export type ICoreHub = {
     * @returns Transpiled from System.Threading.Tasks.Task<AgentMate.ServerCore.Contracts.JobInfo>
     */
     setAutomaticSecurityUpdates(enabled: boolean): Promise<JobInfo>;
+    /**
+    * @returns Transpiled from System.Threading.Tasks.Task<AgentMate.ServerCore.Contracts.FirewallStatus>
+    */
+    getFirewallStatus(): Promise<FirewallStatus>;
+    /**
+    * Rules for SSH (on the ports sshd really uses), HTTP, HTTPS and common databases.
+    * @returns Transpiled from System.Threading.Tasks.Task<AgentMate.ServerCore.Contracts.FirewallPreset[]>
+    */
+    getFirewallPresets(): Promise<FirewallPreset[]>;
+    /**
+    * @param query Transpiled from AgentMate.ServerCore.Contracts.FirewallChangeSetQuery
+    * @returns Transpiled from System.Threading.Tasks.Task<AgentMate.ServerCore.Contracts.FirewallChangeSetInfo[]>
+    */
+    listFirewallChangeSets(query: FirewallChangeSetQuery): Promise<FirewallChangeSetInfo[]>;
+    /**
+    * Listening sockets and Docker's published ports, public or not, and what the firewall makes of each.
+    * @returns Transpiled from System.Threading.Tasks.Task<AgentMate.ServerCore.Contracts.ExposureInventory>
+    */
+    getExposure(): Promise<ExposureInventory>;
+    /**
+    * What a change set would do (the exact commands) and the lockout guard's verdict. Changes nothing.
+    * @param request Transpiled from AgentMate.ServerCore.Contracts.FirewallChangeRequest
+    * @returns Transpiled from System.Threading.Tasks.Task<AgentMate.ServerCore.Contracts.FirewallChangePreview>
+    */
+    previewFirewallChanges(request: FirewallChangeRequest): Promise<FirewallChangePreview>;
+    /**
+    * Saves the current rules, arms the rollback timer, then applies, and returns the change set
+    * waiting for confirmation. Needs a step-up to turn the firewall on or off or to override the guard.
+    * @param request Transpiled from AgentMate.ServerCore.Contracts.FirewallChangeRequest
+    * @returns Transpiled from System.Threading.Tasks.Task<AgentMate.ServerCore.Contracts.FirewallChangeSetInfo>
+    */
+    applyFirewallChanges(request: FirewallChangeRequest): Promise<FirewallChangeSetInfo>;
+    /**
+    * Keeps the change. Refused over the SSH connection that applied it: confirm through a new one.
+    * @param changeSetId Transpiled from System.Guid
+    * @returns Transpiled from System.Threading.Tasks.Task<AgentMate.ServerCore.Contracts.FirewallChangeSetInfo>
+    */
+    confirmFirewallChanges(changeSetId: string): Promise<FirewallChangeSetInfo>;
+    /**
+    * Puts the saved rules back now.
+    * @param changeSetId Transpiled from System.Guid
+    * @returns Transpiled from System.Threading.Tasks.Task<AgentMate.ServerCore.Contracts.FirewallChangeSetInfo>
+    */
+    revertFirewallChanges(changeSetId: string): Promise<FirewallChangeSetInfo>;
+    /**
+    * @returns Transpiled from System.Threading.Tasks.Task<AgentMate.ServerCore.Contracts.DockerStatus>
+    */
+    getDockerStatus(): Promise<DockerStatus>;
+    /**
+    * @returns Transpiled from System.Threading.Tasks.Task<AgentMate.ServerCore.Contracts.ContainerList>
+    */
+    listContainers(): Promise<ContainerList>;
+    /**
+    * Environment variable names only; RevealContainerEnv has the values.
+    * @param containerId Transpiled from string
+    * @returns Transpiled from System.Threading.Tasks.Task<AgentMate.ServerCore.Contracts.ContainerDetails>
+    */
+    inspectContainer(containerId: string): Promise<ContainerDetails>;
+    /**
+    * Live figures, as `docker stats` computes them, in batches at the requested interval. A
+    * stream that ends on its own lost the engine: open it again.
+    * @param request Transpiled from AgentMate.ServerCore.Contracts.ContainerStatsRequest
+    * @param cancellationToken Transpiled from System.Threading.CancellationToken
+    * @returns Transpiled from System.Collections.Generic.IAsyncEnumerable<AgentMate.ServerCore.Contracts.ContainerStatsBatch>
+    */
+    streamContainerStats(request: ContainerStatsRequest): IStreamResult<ContainerStatsBatch>;
+    /**
+    * Redacted log lines. After a reconnect, pass the last line's Timestamp as AfterTimestamp.
+    * @param request Transpiled from AgentMate.ServerCore.Contracts.ContainerLogsRequest
+    * @param cancellationToken Transpiled from System.Threading.CancellationToken
+    * @returns Transpiled from System.Collections.Generic.IAsyncEnumerable<AgentMate.ServerCore.Contracts.ContainerLogBatch>
+    */
+    streamContainerLogs(request: ContainerLogsRequest): IStreamResult<ContainerLogBatch>;
+    /**
+    * @returns Transpiled from System.Threading.Tasks.Task<AgentMate.ServerCore.Contracts.ImageInfo[]>
+    */
+    listImages(): Promise<ImageInfo[]>;
+    /**
+    * @returns Transpiled from System.Threading.Tasks.Task<AgentMate.ServerCore.Contracts.VolumeInfo[]>
+    */
+    listVolumes(): Promise<VolumeInfo[]>;
+    /**
+    * @returns Transpiled from System.Threading.Tasks.Task<AgentMate.ServerCore.Contracts.NetworkInfo[]>
+    */
+    listNetworks(): Promise<NetworkInfo[]>;
+    /**
+    * @returns Transpiled from System.Threading.Tasks.Task<AgentMate.ServerCore.Contracts.DockerDiskUsage>
+    */
+    getDockerDiskUsage(): Promise<DockerDiskUsage>;
+    /**
+    * Engine events as they happen. After a reconnect, pass the last event's Cursor.
+    * @param request Transpiled from AgentMate.ServerCore.Contracts.DockerEventsRequest
+    * @param cancellationToken Transpiled from System.Threading.CancellationToken
+    * @returns Transpiled from System.Collections.Generic.IAsyncEnumerable<AgentMate.ServerCore.Contracts.DockerEvent>
+    */
+    streamDockerEvents(request: DockerEventsRequest): IStreamResult<DockerEvent>;
+    /**
+    * @param containerId Transpiled from string
+    * @returns Transpiled from System.Threading.Tasks.Task<AgentMate.ServerCore.Contracts.ContainerSummary>
+    */
+    startContainer(containerId: string): Promise<ContainerSummary>;
+    /**
+    * The container's own stop timeout unless one is given (0 to 600 seconds).
+    * @param containerId Transpiled from string
+    * @param timeoutSeconds Transpiled from int?
+    * @returns Transpiled from System.Threading.Tasks.Task<AgentMate.ServerCore.Contracts.ContainerSummary>
+    */
+    stopContainer(containerId: string, timeoutSeconds: (number | undefined)): Promise<ContainerSummary>;
+    /**
+    * @param containerId Transpiled from string
+    * @param timeoutSeconds Transpiled from int?
+    * @returns Transpiled from System.Threading.Tasks.Task<AgentMate.ServerCore.Contracts.ContainerSummary>
+    */
+    restartContainer(containerId: string, timeoutSeconds: (number | undefined)): Promise<ContainerSummary>;
+    /**
+    * @param containerId Transpiled from string
+    * @returns Transpiled from System.Threading.Tasks.Task<AgentMate.ServerCore.Contracts.ContainerSummary>
+    */
+    pauseContainer(containerId: string): Promise<ContainerSummary>;
+    /**
+    * @param containerId Transpiled from string
+    * @returns Transpiled from System.Threading.Tasks.Task<AgentMate.ServerCore.Contracts.ContainerSummary>
+    */
+    unpauseContainer(containerId: string): Promise<ContainerSummary>;
+    /**
+    * SIGKILL unless another well-known signal is named.
+    * @param containerId Transpiled from string
+    * @param signal Transpiled from string?
+    * @returns Transpiled from System.Threading.Tasks.Task<AgentMate.ServerCore.Contracts.ContainerSummary>
+    */
+    killContainer(containerId: string, signal: string): Promise<ContainerSummary>;
+    /**
+    * With RemoveVolumes (its anonymous volumes go too) only for Admins.
+    * @param request Transpiled from AgentMate.ServerCore.Contracts.ContainerRemoveRequest
+    * @returns Transpiled from System.Threading.Tasks.Task
+    */
+    removeContainer(request: ContainerRemoveRequest): Promise<void>;
+    /**
+    * A job: StreamJob shows the layers as they arrive.
+    * @param request Transpiled from AgentMate.ServerCore.Contracts.ImagePullRequest
+    * @returns Transpiled from System.Threading.Tasks.Task<AgentMate.ServerCore.Contracts.JobInfo>
+    */
+    pullImage(request: ImagePullRequest): Promise<JobInfo>;
+    /**
+    * @param request Transpiled from AgentMate.ServerCore.Contracts.ImageRemoveRequest
+    * @returns Transpiled from System.Threading.Tasks.Task
+    */
+    removeImage(request: ImageRemoveRequest): Promise<void>;
+    /**
+    * @param network Transpiled from string
+    * @returns Transpiled from System.Threading.Tasks.Task
+    */
+    removeNetwork(network: string): Promise<void>;
+    /**
+    * Needs a step-up: these are the container's secrets.
+    * @param containerId Transpiled from string
+    * @returns Transpiled from System.Threading.Tasks.Task<AgentMate.ServerCore.Contracts.ContainerEnvVariable[]>
+    */
+    revealContainerEnv(containerId: string): Promise<ContainerEnvVariable[]>;
+    /**
+    * A terminal in the container (docker exec with a TTY): keystrokes and size changes go in,
+    * the screen comes out. Opening and closing it land in the audit trail; what is typed does not.
+    * @param request Transpiled from AgentMate.ServerCore.Contracts.ConsoleRequest
+    * @param input Transpiled from System.Collections.Generic.IAsyncEnumerable<AgentMate.ServerCore.Contracts.ConsoleInput>
+    * @param cancellationToken Transpiled from System.Threading.CancellationToken
+    * @returns Transpiled from System.Collections.Generic.IAsyncEnumerable<AgentMate.ServerCore.Contracts.ConsoleOutput>
+    */
+    containerConsole(request: ConsoleRequest, input: Subject<ConsoleInput>): IStreamResult<ConsoleOutput>;
+    /**
+    * @param volume Transpiled from string
+    * @param force Transpiled from bool
+    * @returns Transpiled from System.Threading.Tasks.Task
+    */
+    removeVolume(volume: string, force: boolean): Promise<void>;
+    /**
+    * @param request Transpiled from AgentMate.ServerCore.Contracts.DockerPruneRequest
+    * @returns Transpiled from System.Threading.Tasks.Task<AgentMate.ServerCore.Contracts.DockerPruneResult>
+    */
+    pruneDocker(request: DockerPruneRequest): Promise<DockerPruneResult>;
+    /**
+    * Docker Engine and Compose from download.docker.com, the repository key checked against its
+    * pinned fingerprint. A job. Refused while conflicting packages remain unless the request
+    * says to remove them.
+    * @param request Transpiled from AgentMate.ServerCore.Contracts.DockerInstallRequest
+    * @returns Transpiled from System.Threading.Tasks.Task<AgentMate.ServerCore.Contracts.JobInfo>
+    */
+    installDocker(request: DockerInstallRequest): Promise<JobInfo>;
     /**
     * @returns Transpiled from System.Threading.Tasks.Task<AgentMate.ServerCore.Contracts.NginxStatus>
     */
