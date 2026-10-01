@@ -1,7 +1,7 @@
 import type { Project } from '@agentmat/core';
-import type { GithubActionsRunErrorInput } from '@shared/apiTypes';
+import type { GithubActionsRunErrorInput, ProjectPipelineStatus } from '@shared/apiTypes';
 import { useQuery } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { Copy, Spinner, Wand2 } from '@/components/icons';
@@ -35,6 +35,11 @@ export function PipelinesSection({ project }: { project: Project }): React.JSX.E
     meta: { silentLoading: true },
   });
 
+  // A refresh that fails (offline, rate limited) must not replace rows the user is working with.
+  // Swapping them for the error notice unmounts every row, and with it an open Fix with AI dialog.
+  const lastGood = useRef<ProjectPipelineStatus | null>(null);
+  if (status.data && !status.data.error) lastGood.current = status.data;
+
   if (status.isPending) {
     return (
       <div className="space-y-2 p-3">
@@ -48,7 +53,7 @@ export function PipelinesSection({ project }: { project: Project }): React.JSX.E
     );
   }
 
-  const data = status.data;
+  const data = status.data?.error || !status.data ? (lastGood.current ?? status.data) : status.data;
   const notice = (
     title: string,
     body: React.ReactNode,
