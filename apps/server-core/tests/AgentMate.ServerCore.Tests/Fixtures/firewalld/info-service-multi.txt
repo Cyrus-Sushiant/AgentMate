@@ -1,0 +1,16 @@
+samba
+  ports: 139/tcp 445/tcp
+  protocols: 
+  source-ports: 
+  modules: 
+  destination: 
+  includes: samba-client
+  helpers: 
+dns
+  ports: 53/tcp 53/udp
+  protocols: 
+  source-ports: 
+  modules: 
+  destination: 
+  includes: 
+  helpers: 

@@ -4,7 +4,7 @@
 // @ts-nocheck
 import type { HubConnection, IStreamResult, Subject } from '@microsoft/signalr';
 import type { ICoreHub, ICoreHubReceiver } from './AgentMate.ServerCore.Contracts';
-import type { PingResponse, AccountInfo, StepUpRequest, StepUpResponse, DeviceInfo, SessionInfo, TotpSetup, RecoveryCodes, CreateEnrollmentCodeRequest, EnrollmentCodeInfo, UserInfo, CreateUserRequest, ResetUserPasswordRequest, AuditQuery, AuditPage, AuditVerificationInfo, SystemInfo, ServiceInfo, MetricsHistoryRequest, MetricsHistory, MetricsStreamRequest, MetricsSample, UpdatesInfo, JobQuery, JobPage, JobInfo, JobStreamItem, AlertQuery, AlertInfo, AlertStreamRequest, ManagedService } from '../AgentMate.ServerCore.Contracts';
+import type { PingResponse, AccountInfo, StepUpRequest, StepUpResponse, DeviceInfo, SessionInfo, TotpSetup, RecoveryCodes, CreateEnrollmentCodeRequest, EnrollmentCodeInfo, AuditQuery, AuditPage, AuditVerificationInfo, SystemInfo, ServiceInfo, MetricsHistoryRequest, MetricsHistory, MetricsStreamRequest, MetricsSample, UpdatesInfo, JobQuery, JobPage, JobInfo, JobStreamItem, AlertQuery, AlertInfo, AlertStreamRequest, ManagedService, FirewallStatus, FirewallPreset, FirewallChangeSetQuery, FirewallChangeSetInfo, ExposureInventory, FirewallChangeRequest, FirewallChangePreview } from '../AgentMate.ServerCore.Contracts';
 
 
 // components
@@ -112,10 +112,6 @@ class ICoreHub_HubProxy implements ICoreHub {
         return await this.connection.invoke("RevokeSession", sessionId);
     }
 
-    public readonly revokeOtherSessions = async (): Promise<number> => {
-        return await this.connection.invoke("RevokeOtherSessions");
-    }
-
     public readonly beginTotpSetup = async (): Promise<TotpSetup> => {
         return await this.connection.invoke("BeginTotpSetup");
     }
@@ -134,30 +130,6 @@ class ICoreHub_HubProxy implements ICoreHub {
 
     public readonly createEnrollmentCode = async (request: CreateEnrollmentCodeRequest): Promise<EnrollmentCodeInfo> => {
         return await this.connection.invoke("CreateEnrollmentCode", request);
-    }
-
-    public readonly listUsers = async (): Promise<UserInfo[]> => {
-        return await this.connection.invoke("ListUsers");
-    }
-
-    public readonly createUser = async (request: CreateUserRequest): Promise<UserInfo> => {
-        return await this.connection.invoke("CreateUser", request);
-    }
-
-    public readonly setUserRole = async (userId: string, role: string): Promise<UserInfo> => {
-        return await this.connection.invoke("SetUserRole", userId, role);
-    }
-
-    public readonly setUserDisabled = async (userId: string, disabled: boolean): Promise<UserInfo> => {
-        return await this.connection.invoke("SetUserDisabled", userId, disabled);
-    }
-
-    public readonly resetUserPassword = async (request: ResetUserPasswordRequest): Promise<void> => {
-        return await this.connection.invoke("ResetUserPassword", request);
-    }
-
-    public readonly deleteUser = async (userId: string): Promise<void> => {
-        return await this.connection.invoke("DeleteUser", userId);
     }
 
     public readonly queryAudit = async (query: AuditQuery): Promise<AuditPage> => {
@@ -238,6 +210,38 @@ class ICoreHub_HubProxy implements ICoreHub {
 
     public readonly setAutomaticSecurityUpdates = async (enabled: boolean): Promise<JobInfo> => {
         return await this.connection.invoke("SetAutomaticSecurityUpdates", enabled);
+    }
+
+    public readonly getFirewallStatus = async (): Promise<FirewallStatus> => {
+        return await this.connection.invoke("GetFirewallStatus");
+    }
+
+    public readonly getFirewallPresets = async (): Promise<FirewallPreset[]> => {
+        return await this.connection.invoke("GetFirewallPresets");
+    }
+
+    public readonly listFirewallChangeSets = async (query: FirewallChangeSetQuery): Promise<FirewallChangeSetInfo[]> => {
+        return await this.connection.invoke("ListFirewallChangeSets", query);
+    }
+
+    public readonly getExposure = async (): Promise<ExposureInventory> => {
+        return await this.connection.invoke("GetExposure");
+    }
+
+    public readonly previewFirewallChanges = async (request: FirewallChangeRequest): Promise<FirewallChangePreview> => {
+        return await this.connection.invoke("PreviewFirewallChanges", request);
+    }
+
+    public readonly applyFirewallChanges = async (request: FirewallChangeRequest): Promise<FirewallChangeSetInfo> => {
+        return await this.connection.invoke("ApplyFirewallChanges", request);
+    }
+
+    public readonly confirmFirewallChanges = async (changeSetId: string): Promise<FirewallChangeSetInfo> => {
+        return await this.connection.invoke("ConfirmFirewallChanges", changeSetId);
+    }
+
+    public readonly revertFirewallChanges = async (changeSetId: string): Promise<FirewallChangeSetInfo> => {
+        return await this.connection.invoke("RevertFirewallChanges", changeSetId);
     }
 }
 

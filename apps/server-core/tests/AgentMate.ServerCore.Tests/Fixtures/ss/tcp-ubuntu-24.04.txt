@@ -1,0 +1,7 @@
+LISTEN 0      4096      0.0.0.0:22   0.0.0.0:* users:(("sshd",pid=88,fd=3),("systemd",pid=1,fd=45))
+LISTEN 0      5       127.0.0.1:6379 0.0.0.0:* users:(("perl",pid=3006,fd=3))                      
+LISTEN 0      5      172.17.0.5:9000 0.0.0.0:* users:(("perl",pid=3029,fd=3))                      
+LISTEN 0      5         0.0.0.0:8080 0.0.0.0:* users:(("perl",pid=3007,fd=3))                      
+LISTEN 0      4096         [::]:22      [::]:* users:(("sshd",pid=88,fd=4),("systemd",pid=1,fd=46))
+LISTEN 0      5               *:3000       *:* users:(("perl",pid=3031,fd=3))                      
+LISTEN 0      5           [::1]:5432    [::]:* users:(("perl",pid=3030,fd=3))                      

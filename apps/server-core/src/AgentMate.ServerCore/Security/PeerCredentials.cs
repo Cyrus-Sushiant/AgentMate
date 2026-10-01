@@ -13,7 +13,15 @@ internal static class PeerCredentials
     private const int SolSocket = 1;
     private const int SoPeerCred = 17;
 
-    public static int? UidOf(HttpContext? context)
+    public static int? UidOf(HttpContext? context) => Read(context)?.Uid;
+
+    /// <summary>
+    /// The process that connected: sshd's session process for a stream-local tunnel, the bridge
+    /// otherwise. The firewall walks up from it to the SSH connection the call came over.
+    /// </summary>
+    public static int? PidOf(HttpContext? context) => Read(context)?.Pid;
+
+    private static (int Pid, int Uid)? Read(HttpContext? context)
     {
         if (context is null || !OperatingSystem.IsLinux())
         {
@@ -31,7 +39,7 @@ internal static class PeerCredentials
         try
         {
             return socket.GetRawSocketOption(SolSocket, SoPeerCred, credentials) >= 8
-                ? MemoryMarshal.Read<int>(credentials[4..8])
+                ? (MemoryMarshal.Read<int>(credentials[..4]), MemoryMarshal.Read<int>(credentials[4..8]))
                 : null;
         }
         catch (SocketException)

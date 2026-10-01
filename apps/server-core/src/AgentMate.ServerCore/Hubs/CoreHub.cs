@@ -3,6 +3,7 @@ using System.Security.Claims;
 using AgentMate.ServerCore.Audit;
 using AgentMate.ServerCore.Contracts;
 using AgentMate.ServerCore.Data;
+using AgentMate.ServerCore.Firewall;
 using AgentMate.ServerCore.Security;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
@@ -15,7 +16,8 @@ namespace AgentMate.ServerCore.Hubs;
 /// The one hub the app talks to. Each method carries its own policy, so tightening a role later
 /// never depends on remembering the class-level default. Hub instances live for one invocation,
 /// so the scoped services they take are fresh each time. The account and audit methods are here;
-/// the server's (system, metrics, updates, jobs, alerts) are in CoreHub.Server.cs.
+/// the server's (system, metrics, updates, jobs, alerts) are in CoreHub.Server.cs, and the
+/// firewall's in CoreHub.Firewall.cs.
 /// </summary>
 [Authorize(Policy = CorePolicies.SignedIn)]
 internal sealed partial class CoreHub(
@@ -26,7 +28,8 @@ internal sealed partial class CoreHub(
     EnrollmentCodes enrollmentCodes,
     DeviceSessions sessions,
     HubConnections connections,
-    ServerServices server) : Hub<ICoreHubReceiver>, ICoreHub
+    ServerServices server,
+    FirewallHubServices firewall) : Hub<ICoreHubReceiver>, ICoreHub
 {
     public const string Path = "/hubs/core";
 

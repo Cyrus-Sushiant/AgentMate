@@ -131,6 +131,35 @@ public interface ICoreHub
 
     /// <summary>unattended-upgrades or dnf-automatic, installed when needed. A job.</summary>
     Task<JobInfo> SetAutomaticSecurityUpdates(bool enabled);
+
+    // Firewall (E13). Reads for every role; changes for Admins. Turning the firewall on or off and
+    // overriding the SSH lockout guard also need a step-up. A change rolls itself back after
+    // ConfirmWithinSeconds unless ConfirmFirewallChanges arrives over a new SSH connection.
+
+    Task<FirewallStatus> GetFirewallStatus();
+
+    /// <summary>Rules for SSH (on the ports sshd really uses), HTTP, HTTPS and common databases.</summary>
+    Task<FirewallPreset[]> GetFirewallPresets();
+
+    Task<FirewallChangeSetInfo[]> ListFirewallChangeSets(FirewallChangeSetQuery query);
+
+    /// <summary>Listening sockets and Docker's published ports, public or not, and what the firewall makes of each.</summary>
+    Task<ExposureInventory> GetExposure();
+
+    /// <summary>What a change set would do (the exact commands) and the lockout guard's verdict. Changes nothing.</summary>
+    Task<FirewallChangePreview> PreviewFirewallChanges(FirewallChangeRequest request);
+
+    /// <summary>
+    /// Saves the current rules, arms the rollback timer, then applies, and returns the change set
+    /// waiting for confirmation. Needs a step-up to turn the firewall on or off or to override the guard.
+    /// </summary>
+    Task<FirewallChangeSetInfo> ApplyFirewallChanges(FirewallChangeRequest request);
+
+    /// <summary>Keeps the change. Refused over the SSH connection that applied it: confirm through a new one.</summary>
+    Task<FirewallChangeSetInfo> ConfirmFirewallChanges(Guid changeSetId);
+
+    /// <summary>Puts the saved rules back now.</summary>
+    Task<FirewallChangeSetInfo> RevertFirewallChanges(Guid changeSetId);
 }
 
 /// <summary>Everything the core can push to the app without being asked.</summary>

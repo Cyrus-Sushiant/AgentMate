@@ -1,3 +1,4 @@
+using AgentMate.ServerCore.Firewall;
 using AgentMate.ServerCore.Platform;
 
 namespace AgentMate.ServerCore.DevHost.Fakes;
@@ -18,6 +19,13 @@ internal static class FakePlatform
         services.AddSingleton<ISystemInfoSource, FakeSystemInfo>();
         services.AddSingleton<IPowerControl, FakePower>();
         services.AddSingleton<IStartupFilter, RebootingFilter>();
+
+        services.AddSingleton<FakeFirewall>();
+        services.AddSingleton<IFirewallBackendSource>(provider => provider.GetRequiredService<FakeFirewall>());
+        services.AddSingleton<IFirewallTimer, FakeFirewallTimer>();
+        services.AddSingleton<ISshdSettings, FakeSshd>();
+        services.AddSingleton<ICallerConnections, FakeCallerConnections>();
+        services.AddSingleton<IExposureSource, FakeExposure>();
     }
 
     /// <summary>While the pretend server reboots, nothing answers but 503, as nothing would answer at all.</summary>

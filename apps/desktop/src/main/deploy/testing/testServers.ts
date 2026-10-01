@@ -14,7 +14,18 @@ import { fileURLToPath } from 'node:url';
  * before running these tests on such a machine.
  */
 
-export type TestServerImage = 'ubuntu-24.04' | 'debian-13' | 'rocky-9';
+export type TestServerImage =
+  | 'ubuntu-24.04'
+  | 'debian-13'
+  | 'rocky-9'
+  | 'ubuntu-24.04-ufw'
+  | 'rocky-9-firewalld';
+
+/** Images built on top of another test server's image, which has to exist first. */
+const BASE_IMAGES: Partial<Record<TestServerImage, TestServerImage>> = {
+  'ubuntu-24.04-ufw': 'ubuntu-24.04',
+  'rocky-9-firewalld': 'rocky-9',
+};
 
 export const TEST_LOGINS = {
   root: { username: 'root', password: 'root-test-pw' },
@@ -101,16 +112,23 @@ function waitForBanner(host: string, port: number, deadline: number): Promise<vo
   });
 }
 
+function ensureImage(image: TestServerImage): void {
+  const tag = `agentmate-test-server:${image}`;
+  try {
+    docker(['image', 'inspect', tag]);
+  } catch {
+    const base = BASE_IMAGES[image];
+    if (base) ensureImage(base);
+    docker(['build', '-q', '-t', tag, `${IMAGES_DIR}${image}`], 1_800_000);
+  }
+}
+
 export async function startTestServer(
   image: TestServerImage,
   options: { streamLocal?: boolean } = {},
 ): Promise<TestServer> {
   const tag = `agentmate-test-server:${image}`;
-  try {
-    docker(['image', 'inspect', tag]);
-  } catch {
-    docker(['build', '-q', '-t', tag, `${IMAGES_DIR}${image}`], 1_800_000);
-  }
+  ensureImage(image);
   const name = `agentmate-test-${image}-${process.pid}-${Date.now()}`;
   // A private cgroup namespace, the setup systemd supports on cgroup v2 hosts. The host's own
   // namespace, with its cgroup tree mounted in, lets the container's systemd collide with the

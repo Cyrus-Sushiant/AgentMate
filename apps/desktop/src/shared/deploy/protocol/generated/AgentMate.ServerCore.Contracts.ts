@@ -187,7 +187,7 @@ export type AuditVerificationInfo = {
 }
 
 /** Transpiled from AgentMate.ServerCore.Contracts.AlertKind */
-export type AlertKind = "diskPressure" | "jobFailed" | "rebootRequired";
+export type AlertKind = "diskPressure" | "jobFailed" | "rebootRequired" | "firewallRolledBack" | "firewallRollbackFailed";
 
 /** Transpiled from AgentMate.ServerCore.Contracts.AlertSeverity */
 export type AlertSeverity = "info" | "warning" | "critical";
@@ -320,6 +320,292 @@ export type AuthError = {
     message: string;
     /** Transpiled from long */
     lockedOutUntilUnixMs?: number;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.FirewallBackendKind */
+export type FirewallBackendKind = "none" | "ufw" | "firewalld";
+
+/** Transpiled from AgentMate.ServerCore.Contracts.FirewallAction */
+export type FirewallAction = "allow" | "deny" | "reject" | "limit";
+
+/** Transpiled from AgentMate.ServerCore.Contracts.FirewallProtocol */
+export type FirewallProtocol = "any" | "tcp" | "udp";
+
+/** Transpiled from AgentMate.ServerCore.Contracts.FirewallPolicy */
+export type FirewallPolicy = "allow" | "deny" | "reject";
+
+/** Transpiled from AgentMate.ServerCore.Contracts.FirewallFamilies */
+export type FirewallFamilies = "both" | "ipv4" | "ipv6";
+
+/** Transpiled from AgentMate.ServerCore.Contracts.FirewallRuleSpec */
+export type FirewallRuleSpec = {
+    /** Transpiled from AgentMate.ServerCore.Contracts.FirewallAction */
+    action: FirewallAction;
+    /** Transpiled from AgentMate.ServerCore.Contracts.FirewallProtocol */
+    protocol: FirewallProtocol;
+    /** Transpiled from int */
+    port?: number;
+    /** Transpiled from int */
+    portTo?: number;
+    /** Transpiled from string? */
+    source?: string;
+    /** Transpiled from string? */
+    comment?: string;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.FirewallRuleInfo */
+export type FirewallRuleInfo = {
+    /** Transpiled from string */
+    id: string;
+    /** Transpiled from AgentMate.ServerCore.Contracts.FirewallAction */
+    action: FirewallAction;
+    /** Transpiled from AgentMate.ServerCore.Contracts.FirewallProtocol */
+    protocol: FirewallProtocol;
+    /** Transpiled from AgentMate.ServerCore.Contracts.FirewallFamilies */
+    families: FirewallFamilies;
+    /** Transpiled from string */
+    description: string;
+    /** Transpiled from bool */
+    editable: boolean;
+    /** Transpiled from int */
+    port?: number;
+    /** Transpiled from int */
+    portTo?: number;
+    /** Transpiled from string? */
+    source?: string;
+    /** Transpiled from string? */
+    comment?: string;
+    /** Transpiled from string? */
+    service?: string;
+    /** Transpiled from string? */
+    interface?: string;
+    /** Transpiled from string? */
+    destination?: string;
+    /** Transpiled from bool */
+    outgoing: boolean;
+    /** Transpiled from string? */
+    note?: string;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.SshPortsInfo */
+export type SshPortsInfo = {
+    /** Transpiled from int[] */
+    ports: number[];
+    /** Transpiled from string? */
+    error?: string;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.FirewallStatus */
+export type FirewallStatus = {
+    /** Transpiled from AgentMate.ServerCore.Contracts.FirewallBackendKind */
+    backend: FirewallBackendKind;
+    /** Transpiled from bool */
+    installed: boolean;
+    /** Transpiled from bool */
+    active: boolean;
+    /** Transpiled from AgentMate.ServerCore.Contracts.FirewallPolicy */
+    defaultIncoming: FirewallPolicy;
+    /** Transpiled from AgentMate.ServerCore.Contracts.FirewallPolicy */
+    defaultOutgoing: FirewallPolicy;
+    /** Transpiled from bool */
+    ipv6: boolean;
+    /** Transpiled from AgentMate.ServerCore.Contracts.FirewallRuleInfo[] */
+    rules: FirewallRuleInfo[];
+    /** Transpiled from string[] */
+    warnings: string[];
+    /** Transpiled from AgentMate.ServerCore.Contracts.SshPortsInfo */
+    ssh: SshPortsInfo;
+    /** Transpiled from int */
+    confirmWithinSeconds: number;
+    /** Transpiled from long */
+    checkedAtUnixMs: number;
+    /** Transpiled from string? */
+    zone?: string;
+    /** Transpiled from AgentMate.ServerCore.Contracts.FirewallChangeSetInfo? */
+    pending?: FirewallChangeSetInfo;
+    /** Transpiled from string? */
+    error?: string;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.FirewallPreset */
+export type FirewallPreset = {
+    /** Transpiled from string */
+    id: string;
+    /** Transpiled from string */
+    name: string;
+    /** Transpiled from string */
+    description: string;
+    /** Transpiled from AgentMate.ServerCore.Contracts.FirewallRuleSpec[] */
+    rules: FirewallRuleSpec[];
+    /** Transpiled from bool */
+    suggestSource: boolean;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.FirewallChangeKind */
+export type FirewallChangeKind = "addRule" | "removeRule" | "setDefaultIncoming" | "enable" | "disable";
+
+/** Transpiled from AgentMate.ServerCore.Contracts.FirewallChange */
+export type FirewallChange = {
+    /** Transpiled from AgentMate.ServerCore.Contracts.FirewallChangeKind */
+    kind: FirewallChangeKind;
+    /** Transpiled from AgentMate.ServerCore.Contracts.FirewallRuleSpec? */
+    rule?: FirewallRuleSpec;
+    /** Transpiled from string? */
+    ruleId?: string;
+    /** Transpiled from AgentMate.ServerCore.Contracts.FirewallPolicy */
+    policy?: FirewallPolicy;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.FirewallChangeRequest */
+export type FirewallChangeRequest = {
+    /** Transpiled from AgentMate.ServerCore.Contracts.FirewallChange[] */
+    changes: FirewallChange[];
+    /** Transpiled from string? */
+    sshConnection?: string;
+    /** Transpiled from string? */
+    overrideConfirmation?: string;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.FirewallGuardVerdict */
+export type FirewallGuardVerdict = {
+    /** Transpiled from bool */
+    blocked: boolean;
+    /** Transpiled from string[] */
+    reasons: string[];
+    /** Transpiled from string[] */
+    checked: string[];
+    /** Transpiled from string? */
+    confirmationPhrase?: string;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.FirewallChangePreview */
+export type FirewallChangePreview = {
+    /** Transpiled from string */
+    summary: string;
+    /** Transpiled from string[] */
+    commands: string[];
+    /** Transpiled from string[] */
+    notes: string[];
+    /** Transpiled from AgentMate.ServerCore.Contracts.FirewallRuleInfo[] */
+    resultingRules: FirewallRuleInfo[];
+    /** Transpiled from bool */
+    resultingActive: boolean;
+    /** Transpiled from AgentMate.ServerCore.Contracts.FirewallPolicy */
+    resultingDefaultIncoming: FirewallPolicy;
+    /** Transpiled from AgentMate.ServerCore.Contracts.FirewallGuardVerdict */
+    guard: FirewallGuardVerdict;
+    /** Transpiled from bool */
+    needsStepUp: boolean;
+    /** Transpiled from int */
+    confirmWithinSeconds: number;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.FirewallChangeState */
+export type FirewallChangeState = "applying" | "awaitingConfirmation" | "confirmed" | "rolledBack" | "rollbackFailed" | "failed";
+
+/** Transpiled from AgentMate.ServerCore.Contracts.FirewallRollbackCause */
+export type FirewallRollbackCause = "timer" | "user" | "applyFailed" | "restart";
+
+/** Transpiled from AgentMate.ServerCore.Contracts.FirewallChangeSetInfo */
+export type FirewallChangeSetInfo = {
+    /** Transpiled from System.Guid */
+    id: string;
+    /** Transpiled from AgentMate.ServerCore.Contracts.FirewallChangeState */
+    state: FirewallChangeState;
+    /** Transpiled from AgentMate.ServerCore.Contracts.FirewallBackendKind */
+    backend: FirewallBackendKind;
+    /** Transpiled from string */
+    summary: string;
+    /** Transpiled from string[] */
+    commands: string[];
+    /** Transpiled from long */
+    createdAtUnixMs: number;
+    /** Transpiled from bool */
+    guardOverridden: boolean;
+    /** Transpiled from long */
+    deadlineUnixMs?: number;
+    /** Transpiled from long */
+    finishedAtUnixMs?: number;
+    /** Transpiled from string? */
+    requestedBy?: string;
+    /** Transpiled from string? */
+    appliedFrom?: string;
+    /** Transpiled from AgentMate.ServerCore.Contracts.FirewallRollbackCause */
+    rolledBackBy?: FirewallRollbackCause;
+    /** Transpiled from string? */
+    error?: string;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.FirewallChangeSetQuery */
+export type FirewallChangeSetQuery = {
+    /** Transpiled from int */
+    limit?: number;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.ExposureScope */
+export type ExposureScope = "local" | "private" | "public";
+
+/** Transpiled from AgentMate.ServerCore.Contracts.ExposureFirewall */
+export type ExposureFirewall = "off" | "open" | "restricted" | "closed" | "bypassed" | "notApplicable";
+
+/** Transpiled from AgentMate.ServerCore.Contracts.ListeningSocketInfo */
+export type ListeningSocketInfo = {
+    /** Transpiled from AgentMate.ServerCore.Contracts.FirewallProtocol */
+    protocol: FirewallProtocol;
+    /** Transpiled from string */
+    address: string;
+    /** Transpiled from int */
+    port: number;
+    /** Transpiled from AgentMate.ServerCore.Contracts.ExposureScope */
+    scope: ExposureScope;
+    /** Transpiled from AgentMate.ServerCore.Contracts.ExposureFirewall */
+    firewall: ExposureFirewall;
+    /** Transpiled from string? */
+    process?: string;
+    /** Transpiled from int */
+    pid?: number;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.ContainerPortInfo */
+export type ContainerPortInfo = {
+    /** Transpiled from string */
+    containerId: string;
+    /** Transpiled from string */
+    containerName: string;
+    /** Transpiled from string */
+    image: string;
+    /** Transpiled from AgentMate.ServerCore.Contracts.FirewallProtocol */
+    protocol: FirewallProtocol;
+    /** Transpiled from string */
+    hostAddress: string;
+    /** Transpiled from int */
+    hostPort: number;
+    /** Transpiled from int */
+    containerPort: number;
+    /** Transpiled from AgentMate.ServerCore.Contracts.ExposureScope */
+    scope: ExposureScope;
+    /** Transpiled from AgentMate.ServerCore.Contracts.ExposureFirewall */
+    firewall: ExposureFirewall;
+    /** Transpiled from int */
+    hostPortTo?: number;
+    /** Transpiled from int */
+    containerPortTo?: number;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.ExposureInventory */
+export type ExposureInventory = {
+    /** Transpiled from AgentMate.ServerCore.Contracts.ListeningSocketInfo[] */
+    sockets: ListeningSocketInfo[];
+    /** Transpiled from AgentMate.ServerCore.Contracts.ContainerPortInfo[] */
+    containers: ContainerPortInfo[];
+    /** Transpiled from bool */
+    dockerAvailable: boolean;
+    /** Transpiled from long */
+    collectedAtUnixMs: number;
+    /** Transpiled from string? */
+    socketsError?: string;
+    /** Transpiled from string? */
+    dockerError?: string;
 }
 
 /** Transpiled from AgentMate.ServerCore.Contracts.HealthResponse */

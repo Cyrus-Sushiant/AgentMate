@@ -191,7 +191,7 @@ jobs:
       # Built up front, so the image builds do not count against each test's time limit.
       - name: Build the test servers
         run: |
-          for image in ubuntu-24.04 rocky-9; do
+          for image in ubuntu-24.04 rocky-9 ubuntu-24.04-ufw rocky-9-firewalld; do
             docker build -q -t "agentmate-test-server:$image" "apps/server-core/test-servers/$image"
           done
 
@@ -199,6 +199,13 @@ jobs:
         env:
           AGENTMATE_SYSTEM_TESTS: "1"
         run: pnpm --filter @agentmat/desktop exec vitest run src/main/deploy/deploy.int.test.ts
+
+      # ufw and firewalld on the test servers: live IPv4 and IPv6 rulesets, the SSH lockout guard,
+      # confirming over a new SSH connection, and a rollback by the systemd timer with the core killed.
+      - name: Firewall on test servers
+        env:
+          AGENTMATE_SYSTEM_TESTS: "1"
+        run: pnpm --filter @agentmat/desktop exec vitest run src/main/deploy/firewall.int.test.ts
 
   mobile:
     name: Mobile

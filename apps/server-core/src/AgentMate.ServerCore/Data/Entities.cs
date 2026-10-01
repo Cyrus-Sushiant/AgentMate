@@ -232,3 +232,54 @@ internal sealed class MetricSample
 
     public long DiskUsedBytes { get; set; }
 }
+
+/// <summary>
+/// One firewall change set: what it does, the commands it ran and how it ended. The rules saved
+/// before it and the decision between keeping it and rolling it back live in a folder of their own
+/// (firewall/&lt;id&gt; in the state folder), where the rollback timer finds them without the core.
+/// </summary>
+internal sealed class FirewallChangeSet
+{
+    public Guid Id { get; set; }
+
+    public FirewallBackendKind Backend { get; set; }
+
+    public FirewallChangeState State { get; set; }
+
+    public required string Summary { get; set; }
+
+    /// <summary>The changes as asked for, as JSON.</summary>
+    public required string Changes { get; set; }
+
+    /// <summary>The commands it runs, as shown to the person, as a JSON array.</summary>
+    public required string Commands { get; set; }
+
+    public long CreatedAt { get; set; }
+
+    /// <summary>When the rollback timer puts the saved rules back unless the change is confirmed.</summary>
+    public long? DeadlineAt { get; set; }
+
+    public long? FinishedAt { get; set; }
+
+    public Guid? RequestedBy { get; set; }
+
+    public string? RequestedByName { get; set; }
+
+    public Guid? DeviceId { get; set; }
+
+    /// <summary>The connection that applied it; the confirmation has to come over another one.</summary>
+    public required string AppliedOver { get; set; }
+
+    /// <summary>Whether <see cref="AppliedOver"/> names an SSH connection rather than only the socket connection.</summary>
+    public bool AppliedOverSsh { get; set; }
+
+    /// <summary>This computer's address as the server saw it.</summary>
+    public string? AppliedFrom { get; set; }
+
+    public bool GuardOverridden { get; set; }
+
+    public FirewallRollbackCause? RolledBackBy { get; set; }
+
+    /// <summary>Why it failed or was rolled back, redacted.</summary>
+    public string? Error { get; set; }
+}

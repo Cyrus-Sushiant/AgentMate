@@ -1,0 +1,34 @@
+Status: active
+Logging: on (low)
+Default: deny (incoming), allow (outgoing), deny (routed)
+New profiles: skip
+
+To                         Action      From
+--                         ------      ----
+23/tcp                     REJECT IN   Anywhere                  
+Anywhere                   DENY IN     203.0.113.7               
+22/tcp                     ALLOW IN    Anywhere                   # ssh access
+80/tcp                     ALLOW IN    Anywhere                  
+6000:6007/tcp              ALLOW IN    Anywhere                  
+5432/tcp                   ALLOW IN    10.0.0.0/8                
+2222/tcp                   LIMIT IN    Anywhere                  
+22/tcp (OpenSSH)           ALLOW IN    Anywhere                  
+8443/tcp on eth0           ALLOW IN    Anywhere                  
+53                         ALLOW IN    Anywhere                  
+Anywhere                   ALLOW IN    192.168.1.10              
+172.17.0.2 9000/tcp        ALLOW IN    198.51.100.0/24           
+51820/udp                  ALLOW IN    Anywhere                   # wire guard ünicode
+23/tcp (v6)                REJECT IN   Anywhere (v6)             
+22/tcp (v6)                ALLOW IN    Anywhere (v6)              # ssh access
+80/tcp (v6)                ALLOW IN    Anywhere (v6)             
+6000:6007/tcp (v6)         ALLOW IN    Anywhere (v6)             
+5432/tcp                   ALLOW IN    2001:db8::/32             
+2222/tcp (v6)              LIMIT IN    Anywhere (v6)             
+22/tcp (OpenSSH (v6))      ALLOW IN    Anywhere (v6)             
+8443/tcp (v6) on eth0      ALLOW IN    Anywhere (v6)             
+53 (v6)                    ALLOW IN    Anywhere (v6)             
+51820/udp (v6)             ALLOW IN    Anywhere (v6)              # wire guard ünicode
+
+25                         DENY OUT    Anywhere                  
+25 (v6)                    DENY OUT    Anywhere (v6)             
+

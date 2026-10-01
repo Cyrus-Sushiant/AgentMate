@@ -5,8 +5,8 @@ using Microsoft.EntityFrameworkCore.Design;
 namespace AgentMate.ServerCore.Data;
 
 /// <summary>
-/// The core's own database: Identity's tables plus devices, sessions, the audit trail, jobs, alerts
-/// and downsampled metrics.
+/// The core's own database: Identity's tables plus devices, sessions, the audit trail, jobs, alerts,
+/// downsampled metrics and firewall change sets.
 /// </summary>
 internal sealed class CoreDbContext(DbContextOptions<CoreDbContext> options)
     : IdentityDbContext<CoreUser, CoreRole, Guid>(options)
@@ -26,6 +26,8 @@ internal sealed class CoreDbContext(DbContextOptions<CoreDbContext> options)
     public DbSet<Alert> Alerts => Set<Alert>();
 
     public DbSet<MetricSample> MetricSamples => Set<MetricSample>();
+
+    public DbSet<FirewallChangeSet> FirewallChangeSets => Set<FirewallChangeSet>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -96,6 +98,21 @@ internal sealed class CoreDbContext(DbContextOptions<CoreDbContext> options)
         builder.Entity<MetricSample>(sample =>
         {
             sample.HasKey(s => new { s.Resolution, s.At });
+        });
+
+        builder.Entity<FirewallChangeSet>(change =>
+        {
+            change.HasKey(c => c.Id);
+            change.Property(c => c.Backend).HasConversion<string>().HasMaxLength(20);
+            change.Property(c => c.State).HasConversion<string>().HasMaxLength(30);
+            change.Property(c => c.RolledBackBy).HasConversion<string>().HasMaxLength(20);
+            change.Property(c => c.Summary).HasMaxLength(2000);
+            change.Property(c => c.AppliedOver).HasMaxLength(200);
+            change.Property(c => c.AppliedFrom).HasMaxLength(64);
+            change.Property(c => c.RequestedByName).HasMaxLength(256);
+            change.Property(c => c.Error).HasMaxLength(1000);
+            change.HasIndex(c => c.CreatedAt);
+            change.HasIndex(c => c.State);
         });
     }
 }

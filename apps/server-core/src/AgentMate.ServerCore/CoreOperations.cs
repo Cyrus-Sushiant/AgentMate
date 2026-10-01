@@ -1,6 +1,7 @@
 using AgentMate.ServerCore.Alerts;
 using AgentMate.ServerCore.Contracts;
 using AgentMate.ServerCore.Execution;
+using AgentMate.ServerCore.Firewall;
 using AgentMate.ServerCore.Hosting;
 using AgentMate.ServerCore.Hubs;
 using AgentMate.ServerCore.Jobs;
@@ -89,6 +90,9 @@ internal static class CoreOperations
         services.AddHostedService(provider => provider.GetRequiredService<UpdatesCache>());
         services.AddHostedService<AlertMonitor>();
         services.AddHostedService<CoreMaintenance>();
+
+        // The host firewall (E13): its change sets settle themselves once the database is up.
+        services.AddCoreFirewall();
         return services;
     }
 }

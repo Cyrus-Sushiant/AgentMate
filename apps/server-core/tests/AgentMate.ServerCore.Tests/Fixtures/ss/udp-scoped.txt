@@ -1,0 +1,5 @@
+UNCONN 0      0          127.0.0.54:53        0.0.0.0:*    users:(("systemd-resolve",pid=612,fd=16))
+UNCONN 0      0       127.0.0.53%lo:53        0.0.0.0:*    users:(("systemd-resolve",pid=612,fd=14))
+UNCONN 0      0      10.0.0.5%eth0:68        0.0.0.0:*    users:(("systemd-network",pid=590,fd=22))
+UNCONN 0      0      [fe80::5054:ff:fe12:3456]%eth0:546           [::]:*    users:(("systemd-network",pid=590,fd=23))
+UNCONN 0      0            0.0.0.0:51820      0.0.0.0:*

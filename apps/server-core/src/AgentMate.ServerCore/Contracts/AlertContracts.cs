@@ -8,6 +8,12 @@ public enum AlertKind
     DiskPressure,
     JobFailed,
     RebootRequired,
+
+    /// <summary>A firewall change was not confirmed in time, so the rules from before it are back.</summary>
+    FirewallRolledBack,
+
+    /// <summary>Putting a firewall change's saved rules back failed.</summary>
+    FirewallRollbackFailed,
 }
 
 [TranspilationSource]

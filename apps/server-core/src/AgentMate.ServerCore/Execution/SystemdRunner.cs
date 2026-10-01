@@ -4,6 +4,19 @@ using System.Text.RegularExpressions;
 
 namespace AgentMate.ServerCore.Execution;
 
+/// <summary>Where a scheduled command's timer is: still waiting, firing now, gone, or not known.</summary>
+internal enum ScheduleState
+{
+    Waiting,
+    Running,
+
+    /// <summary>It fired and finished, was stopped, or never existed.</summary>
+    Gone,
+
+    /// <summary>systemd could not be asked.</summary>
+    Unknown,
+}
+
 /// <summary>
 /// Runs privileged work (package operations, reboots) in a transient systemd unit of its own:
 /// `systemd-run --collect --wait --pipe`. The unit gets systemd's normal environment for a service
@@ -140,6 +153,48 @@ internal sealed partial class SystemdRunner(IProcessRunner runner, TimeProvider 
     }
 
     /// <summary>
+    /// Calls off a command scheduled with <see cref="ScheduleAsync"/> by stopping its timer. A
+    /// command that has already started is left alone.
+    /// </summary>
+    public async Task CancelScheduledAsync(string unitName, CancellationToken cancellationToken)
+    {
+        CheckUnitName(unitName);
+        var result = await SystemctlAsync(["stop", unitName + ".timer"], cancellationToken);
+        if (!result.Succeeded)
+        {
+            var reason = FirstLine(result.StandardError) ?? FirstLine(result.StandardOutput) ?? $"exit code {result.ExitCode}";
+            throw new ProcessFailedException($"systemd would not stop {unitName}.timer: {reason}");
+        }
+    }
+
+    /// <summary>Whether a scheduled command's timer is still waiting, has fired, or is gone.</summary>
+    public async Task<ScheduleState> ScheduleStateAsync(string unitName, CancellationToken cancellationToken)
+    {
+        CheckUnitName(unitName);
+        var result = await runner.RunAsync(
+            new ProcessSpec
+            {
+                Program = "systemctl",
+                Arguments = ["show", "--property=SubState", "--value", unitName + ".timer"],
+                Timeout = TimeSpan.FromSeconds(15),
+            },
+            onLine: null,
+            cancellationToken);
+        if (!result.Succeeded)
+        {
+            return ScheduleState.Unknown;
+        }
+
+        // An unknown unit shows as "dead"; an elapsed one has fired and its command has run.
+        return result.StandardOutput.Trim() switch
+        {
+            "waiting" => ScheduleState.Waiting,
+            "running" => ScheduleState.Running,
+            _ => ScheduleState.Gone,
+        };
+    }
+
+    /// <summary>
     /// Stops the unit and every process in it. systemctl stop sends SIGTERM and, after
     /// TimeoutStopSec, SIGKILL; it waits for that. A unit that is somehow still there after a few
     /// more tries (a start that raced the first stop) is killed outright.
@@ -194,13 +249,17 @@ internal sealed partial class SystemdRunner(IProcessRunner runner, TimeProvider 
             onLine: null,
             cancellationToken);
 
-    private static string[] UnitArguments(string unitName, string description)
+    private static void CheckUnitName(string unitName)
     {
         if (!UnitNamePattern().IsMatch(unitName))
         {
             throw new ArgumentException($"'{unitName}' is not a unit name this core makes.", nameof(unitName));
         }
+    }
 
+    private static string[] UnitArguments(string unitName, string description)
+    {
+        CheckUnitName(unitName);
         return
         [
             $"--unit={unitName}",

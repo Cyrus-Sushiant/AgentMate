@@ -1,3 +1,4 @@
+using AgentMate.ServerCore.Firewall;
 using AgentMate.ServerCore.Platform;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -32,6 +33,13 @@ public sealed class CoreFactory : WebApplicationFactory<Program>
             services.AddSingleton<IServiceManager>(provider => provider.GetRequiredService<FakeServiceManager>());
             services.AddSingleton<IPowerControl, FakePowerControl>();
             services.AddSingleton<ISystemInfoSource, FakeSystemInfoSource>();
+            services.AddSingleton<FakeFirewallBackend>();
+            services.AddSingleton<IFirewallBackendSource>(provider => provider.GetRequiredService<FakeFirewallBackend>());
+            services.AddSingleton<IFirewallTimer, FakeFirewallTimer>();
+            services.AddSingleton<ISshdSettings, FakeSshd>();
+            services.AddSingleton<FakeCallerConnections>();
+            services.AddSingleton<ICallerConnections>(provider => provider.GetRequiredService<FakeCallerConnections>());
+            services.AddSingleton<IExposureSource, FakeExposure>();
         });
     }
 

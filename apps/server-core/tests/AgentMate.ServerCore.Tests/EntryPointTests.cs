@@ -48,6 +48,22 @@ public sealed class EntryPointTests
     }
 
     [Fact]
+    public async Task The_firewall_rollback_runs_without_starting_the_web_host()
+    {
+        using var output = new StringWriter();
+        using var error = new StringWriter();
+
+        var exitCode = await CoreEntryPoint.RunAsync(
+            ["firewall-revert", "--help"],
+            output,
+            error,
+            _ => throw new InvalidOperationException("The web host must not start for the firewall rollback."));
+
+        Assert.Equal(2, exitCode);
+        Assert.Contains("Usage: agentmate-core firewall-revert", error.ToString(), StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task Serve_strips_its_verb_and_starts_the_web_host()
     {
         string[]? served = null;

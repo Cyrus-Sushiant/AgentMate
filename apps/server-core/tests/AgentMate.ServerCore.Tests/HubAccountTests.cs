@@ -319,8 +319,9 @@ public sealed class HubAccountTests
     }
 
     /// <summary>
-    /// What a Viewer may call, pinned: their own account, and reading the server. Any method added
-    /// later without a policy above Viewer shows up here and has to be decided on.
+    /// What a Viewer may call, pinned: their own account, and reading the server (its firewall and
+    /// exposure included). Any method added later without a policy above Viewer shows up here and
+    /// has to be decided on.
     /// </summary>
     [Fact]
     public void Every_method_a_viewer_may_call_reads_or_is_account_self_service()
@@ -342,7 +343,8 @@ public sealed class HubAccountTests
             "GetJob", "GetMetricsHistory", "GetSystemInfo", "GetUpdates", "ListAlerts", "ListJobs",
             "ListServices", "StreamAlerts", "StreamJob", "StreamMetrics",
         ];
-        Assert.Equal(account.Concat(reads).Order(StringComparer.Ordinal), open.Order(StringComparer.Ordinal));
+        string[] firewallReads = ["GetExposure", "GetFirewallPresets", "GetFirewallStatus", "ListFirewallChangeSets"];
+        Assert.Equal(account.Concat(reads).Concat(firewallReads).Order(StringComparer.Ordinal), open.Order(StringComparer.Ordinal));
     }
 
     /// <summary>
@@ -380,6 +382,10 @@ public sealed class HubAccountTests
         await FirstAsync(hub.StreamAsync<JobStreamItem>(nameof(ICoreHub.StreamJob), finished.Id, 0L, Cancel));
         await FirstAsync(hub.StreamAsync<AlertInfo>(nameof(ICoreHub.StreamAlerts), new AlertStreamRequest(), Cancel));
         await FirstAsync(hub.StreamAsync<MetricsSample>(nameof(ICoreHub.StreamMetrics), new MetricsStreamRequest(SinceUnixMs: 0), Cancel));
+        await hub.InvokeAsync<FirewallStatus>(nameof(ICoreHub.GetFirewallStatus), Cancel);
+        await hub.InvokeAsync<FirewallPreset[]>(nameof(ICoreHub.GetFirewallPresets), Cancel);
+        await hub.InvokeAsync<FirewallChangeSetInfo[]>(nameof(ICoreHub.ListFirewallChangeSets), new FirewallChangeSetQuery(), Cancel);
+        await hub.InvokeAsync<ExposureInventory>(nameof(ICoreHub.GetExposure), Cancel);
 
         Assert.Empty(mutations.Entries);
         Assert.Single((await engine.ListAsync(new JobQuery(), Cancel)).Jobs);

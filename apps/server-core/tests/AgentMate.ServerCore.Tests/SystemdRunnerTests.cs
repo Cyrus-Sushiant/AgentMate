@@ -157,6 +157,49 @@ public sealed class SystemdRunnerTests
     }
 
     [Fact]
+    public async Task A_scheduled_command_is_called_off_by_stopping_its_timer_alone()
+    {
+        var processes = new FakeProcessRunner();
+        var revert = SystemdRunner.UnitName("fwrevert", _job);
+
+        await Runner(processes).CancelScheduledAsync(revert, Cancel);
+
+        var stop = Assert.Single(processes.Calls);
+        Assert.Equal("systemctl", Path.GetFileName(stop.Program));
+        // Only the timer: a command that already started is left to finish what it does.
+        Assert.Equal(["stop", $"{revert}.timer"], stop.Arguments);
+    }
+
+    [Theory]
+    [InlineData("waiting\n", "Waiting")]
+    [InlineData("running\n", "Running")]
+    [InlineData("elapsed\n", "Gone")]
+    [InlineData("dead\n", "Gone")]
+    [InlineData("", "Gone")]
+    public async Task A_scheduled_commands_timer_says_whether_it_is_still_waiting(string subState, string expected)
+    {
+        var processes = new FakeProcessRunner();
+        var revert = SystemdRunner.UnitName("fwrevert", _job);
+        processes.Respond("systemctl", ["show"], _ => FakeProcessRunner.Ok(subState));
+
+        var state = await Runner(processes).ScheduleStateAsync(revert, Cancel);
+
+        Assert.Equal(Enum.Parse<ScheduleState>(expected), state);
+        Assert.Equal(["show", "--property=SubState", "--value", $"{revert}.timer"], Assert.Single(processes.Calls).Arguments);
+    }
+
+    [Fact]
+    public async Task A_timer_systemd_cannot_be_asked_about_is_unknown()
+    {
+        var processes = new FakeProcessRunner();
+        processes.Respond("systemctl", ["show"], _ => FakeProcessRunner.Exit(1, error: "Failed to connect to bus"));
+
+        var state = await Runner(processes).ScheduleStateAsync(SystemdRunner.UnitName("fwrevert", _job), Cancel);
+
+        Assert.Equal(ScheduleState.Unknown, state);
+    }
+
+    [Fact]
     public async Task A_schedule_that_systemd_refuses_is_an_error()
     {
         var processes = new FakeProcessRunner();

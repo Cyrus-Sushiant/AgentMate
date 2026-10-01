@@ -1,0 +1,24 @@
+public
+  target: default
+  icmp-block-inversion: no
+  interfaces: 
+  sources: 
+  services: cockpit dhcpv6-client ssh
+  ports: 8080/tcp 6000-6007/tcp 53/udp
+  protocols: 
+  forward: yes
+  masquerade: no
+  forward-ports: 
+  source-ports: 
+  icmp-blocks: 
+  rich rules: 
+	rule priority="-10" family="ipv4" source address="198.51.100.8" drop
+	rule family="ipv4" source address="10.0.0.0/8" port port="5432" protocol="tcp" accept
+	rule family="ipv6" source address="2001:db8::/32" port port="5432" protocol="tcp" accept
+	rule family="ipv4" source address="203.0.113.7" drop
+	rule port port="23" protocol="tcp" reject
+	rule family="ipv4" source address="192.168.1.10" accept
+	rule family="ipv4" source address="198.51.100.0/24" service name="http" accept
+	rule family="ipv4" source NOT address="192.0.2.0/24" port port="9000" protocol="tcp" accept
+	rule family="ipv4" source address="198.51.100.9" port port="22" protocol="tcp" reject type="icmp-host-prohibited"
+	rule service name="https" log prefix="https" level="info" limit value="5/m" accept
