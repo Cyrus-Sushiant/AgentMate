@@ -1,6 +1,15 @@
 import type { SkillUsageReport, SkillUsageStat } from '@shared/apiTypes';
 import { useMemo, useState } from 'react';
-import { ChartSimple, Clock, FolderOpen, RefreshCw, Search, Sparkles } from '@/components/icons';
+import {
+  ChartSimple,
+  Clock,
+  FolderOpen,
+  FolderPlus,
+  RefreshCw,
+  Search,
+  Sparkles,
+} from '@/components/icons';
+import { AddUsedSkillDialog } from '@/components/skills/AddUsedSkillDialog';
 import { SkillFavoriteButton } from '@/components/skills/SkillFavoriteButton';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -105,6 +114,32 @@ function MiniTrend({ daily }: { daily: number[] }): React.JSX.Element {
   );
 }
 
+/** The icon button that opens the "add to another project" picker for one used skill. */
+function AddToProjectButton({
+  skill,
+  onClick,
+  className,
+}: {
+  skill: string;
+  onClick: () => void;
+  className?: string;
+}): React.JSX.Element {
+  return (
+    <SimpleTooltip label="Add to another project">
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon"
+        className={cn('text-muted-foreground/60 hover:text-foreground', className)}
+        aria-label={`Add ${skill} to another project`}
+        onClick={onClick}
+      >
+        <FolderPlus className="h-4 w-4" />
+      </Button>
+    </SimpleTooltip>
+  );
+}
+
 /** Totals per project folder, derived from the per-skill breakdowns. */
 interface ProjectRollup {
   path: string;
@@ -158,8 +193,10 @@ export function SkillUsageTab({
   const [sort, setSort] = useState<UsageSort>('most-used');
   const [view, setView] = useState<UsageView>('skill');
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  const [addTarget, setAddTarget] = useState<SkillUsageStat | null>(null);
 
   const stats = useMemo(() => report?.stats ?? [], [report]);
+  const statBySkill = useMemo(() => new Map(stats.map((stat) => [stat.skill, stat])), [stats]);
   const query = search.trim().toLowerCase();
 
   const filtered = useMemo(() => {
@@ -387,6 +424,12 @@ export function SkillUsageTab({
                         </div>
                       </div>
 
+                      <AddToProjectButton
+                        skill={stat.skill}
+                        onClick={() => setAddTarget(stat)}
+                        className="shrink-0"
+                      />
+
                       <SkillFavoriteButton
                         starred={favorites.isFavorite(stat.skill)}
                         onToggle={() => favorites.toggleFavorite(usageFavoriteInput(stat.skill))}
@@ -434,7 +477,7 @@ export function SkillUsageTab({
                       </div>
                       <div className="space-y-1.5">
                         {project.skills.map((entry) => (
-                          <div key={entry.skill} className="flex items-center gap-2">
+                          <div key={entry.skill} className="group/skill flex items-center gap-2">
                             <span className="w-40 shrink-0 truncate text-xs text-foreground">
                               {entry.skill}
                             </span>
@@ -449,6 +492,14 @@ export function SkillUsageTab({
                             <span className="w-6 shrink-0 text-right text-xs tabular-nums text-muted-foreground">
                               {entry.count}
                             </span>
+                            <AddToProjectButton
+                              skill={entry.skill}
+                              onClick={() => {
+                                const stat = statBySkill.get(entry.skill);
+                                if (stat) setAddTarget(stat);
+                              }}
+                              className="h-6 w-6 shrink-0 opacity-0 focus-visible:opacity-100 group-hover/skill:opacity-100"
+                            />
                           </div>
                         ))}
                       </div>
@@ -468,6 +519,8 @@ export function SkillUsageTab({
           )}
         </>
       )}
+
+      <AddUsedSkillDialog stat={addTarget} onClose={() => setAddTarget(null)} />
     </div>
   );
 }

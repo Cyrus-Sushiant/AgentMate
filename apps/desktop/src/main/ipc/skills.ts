@@ -1,7 +1,7 @@
 import { execFile } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { type FSWatcher, watch } from 'node:fs';
-import { mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { cp, mkdir, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { basename, dirname, join } from 'node:path';
 import { promisify } from 'node:util';
 import type {
@@ -27,6 +27,8 @@ import {
 } from '@agentmat/core';
 import { app, dialog, ipcMain } from 'electron';
 import type {
+  AddUsedSkillInput,
+  AddUsedSkillResult,
   AuditSourcePreview,
   AuditSourceSkill,
   FavoriteSkillInput,
@@ -47,6 +49,8 @@ import type {
   UiProPrerequisites,
   UiProToolProbe,
   UiProUpdateCheck,
+  UsedSkillInspection,
+  UsedSkillQuery,
 } from '../../shared/apiTypes';
 import { IPC } from '../../shared/ipcChannels';
 import { cancelHeadlessPrompt } from '../cli/headlessPrompt';
@@ -625,6 +629,162 @@ async function previewAuditSource(rawInput: string): Promise<AuditSourcePreview>
   }
 }
 
+/**
+ * Splits an invoked name into the plugin it came from and the folder name it has on disk. Claude
+ * Code calls a plugin's skill `plugin:skill`, and every other skill by its folder name alone. The
+ * folder name ends up as a path segment, so it is held to the same character set as an install.
+ */
+function parseUsedSkillName(skill: string): { plugin: string | null; name: string } | null {
+  const trimmed = skill.trim();
+  const colon = trimmed.lastIndexOf(':');
+  const plugin = colon >= 0 ? trimmed.slice(0, colon).trim() : '';
+  const name = colon >= 0 ? trimmed.slice(colon + 1).trim() : trimmed;
+  if (!SKILL_NAME_PATTERN.test(name) || name === '.' || name === '..') return null;
+  return { plugin: plugin || null, name };
+}
+
+/** A skill is a folder with a SKILL.md in it. A folder without one is not worth copying. */
+async function isSkillFolder(dir: string): Promise<boolean> {
+  return stat(join(dir, 'SKILL.md'))
+    .then((stats) => stats.isFile())
+    .catch(() => false);
+}
+
+/** How deep under ~/.claude/plugins a plugin's `skills` folder can sit. */
+const PLUGIN_SEARCH_DEPTH = 5;
+
+/**
+ * Finds a plugin skill's folder under ~/.claude/plugins. Marketplaces and the install cache nest
+ * plugins at different depths, so this walks a few levels looking for `skills/<name>/SKILL.md`,
+ * and prefers a match whose path names the plugin over one from some other plugin.
+ */
+async function findPluginSkill(plugin: string, name: string): Promise<string | null> {
+  const root = join(app.getPath('home'), '.claude', 'plugins');
+  const matches: string[] = [];
+
+  async function walk(dir: string, depth: number): Promise<void> {
+    if (depth > PLUGIN_SEARCH_DEPTH) return;
+    let entries;
+    try {
+      entries = await readdir(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const entry of entries) {
+      if (!entry.isDirectory() || entry.name === '.git' || entry.name === 'node_modules') continue;
+      const full = join(dir, entry.name);
+      if (entry.name === 'skills' && (await isSkillFolder(join(full, name)))) {
+        matches.push(join(full, name));
+      }
+      await walk(full, depth + 1);
+    }
+  }
+
+  await walk(root, 0);
+  const wanted = plugin.toLowerCase();
+  const named = matches.find((match) =>
+    match
+      .slice(root.length)
+      .split(/[\\/]/)
+      .some((segment) => segment.toLowerCase() === wanted),
+  );
+  return named ?? matches[0] ?? null;
+}
+
+/**
+ * Where a used skill's files are. The folders it was invoked in come first, since that copy is
+ * the one the agent actually read, then the global agent dirs, and for a `plugin:skill` name the
+ * plugin's own folder.
+ */
+async function locateUsedSkill(query: UsedSkillQuery): Promise<UsedSkillInspection['source']> {
+  const parsed = parseUsedSkillName(query.skill);
+  if (!parsed) return null;
+
+  if (parsed.plugin) {
+    const path = await findPluginSkill(parsed.plugin, parsed.name);
+    return path ? { path, origin: 'plugin', label: parsed.plugin } : null;
+  }
+
+  for (const projectPath of query.projectPaths) {
+    for (const agentDir of KNOWN_AGENT_DIRS) {
+      const dir = join(projectPath, agentDir, 'skills', parsed.name);
+      if (await isSkillFolder(dir)) return { path: dir, origin: 'project', label: projectPath };
+    }
+  }
+
+  for (const agentDir of KNOWN_AGENT_DIRS) {
+    const dir = join(app.getPath('home'), agentDir, 'skills', parsed.name);
+    if (await isSkillFolder(dir)) return { path: dir, origin: 'global', label: `~/${agentDir}` };
+  }
+  return null;
+}
+
+/** True when a project already has a folder of this name in any skills dir it could be using. */
+async function projectHasSkill(projectId: string, folderName: string): Promise<boolean> {
+  const scope = await resolveSkillScope(projectId);
+  for (const parent of await skillParentDirs(scope, projectId)) {
+    if (await directoryExists(join(parent, folderName))) return true;
+  }
+  return false;
+}
+
+async function inspectUsedSkill(query: UsedSkillQuery): Promise<UsedSkillInspection> {
+  const parsed = parseUsedSkillName(query.skill);
+  if (!parsed) throw new Error(`Invalid skill name: ${query.skill}`);
+
+  const projects = await store.getProjects();
+  const presentInProjectIds: string[] = [];
+  for (const project of projects) {
+    if (await projectHasSkill(project.id, parsed.name)) presentInProjectIds.push(project.id);
+  }
+
+  return {
+    skill: query.skill,
+    folderName: parsed.name,
+    source: await locateUsedSkill(query),
+    presentInProjectIds,
+  };
+}
+
+/**
+ * Copies a used skill's folder into each project, into the same skills dirs an install would
+ * use. The source is looked up again here rather than taken from the renderer, so a copy can only
+ * ever come out of a skills folder. A project that already has the skill is left alone.
+ */
+async function addUsedSkillToProjects(input: AddUsedSkillInput): Promise<AddUsedSkillResult[]> {
+  const parsed = parseUsedSkillName(input.skill);
+  if (!parsed) throw new Error(`Invalid skill name: ${input.skill}`);
+  const source = await locateUsedSkill(input);
+  if (!source) throw new Error(`Could not find the files for "${input.skill}" on disk.`);
+
+  const results: AddUsedSkillResult[] = [];
+  for (const projectId of new Set(input.projectIds)) {
+    try {
+      if (await projectHasSkill(projectId, parsed.name)) {
+        results.push({ projectId, status: 'exists' });
+        continue;
+      }
+      const scope = await resolveSkillScope(projectId);
+      for (const parent of await resolveSkillInstallDirs(scope)) {
+        // force: false makes cp refuse to write over a folder that appeared since the check.
+        await cp(source.path, join(parent, parsed.name), {
+          recursive: true,
+          force: false,
+          errorOnExist: true,
+        });
+      }
+      results.push({ projectId, status: 'added' });
+    } catch (error) {
+      results.push({
+        projectId,
+        status: 'failed',
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+  return results;
+}
+
 export function registerSkillHandlers(): void {
   void syncLocalRepositoryWatchers();
 
@@ -1082,6 +1242,17 @@ export function registerSkillHandlers(): void {
   ipcMain.handle(IPC.skills.getUsage, (): Promise<SkillUsageReport> => getSkillUsage());
 
   ipcMain.handle(IPC.skills.rescanUsage, (): Promise<SkillUsageReport> => rescanSkillUsage());
+
+  ipcMain.handle(
+    IPC.skills.inspectUsedSkill,
+    (_event, query: UsedSkillQuery): Promise<UsedSkillInspection> => inspectUsedSkill(query),
+  );
+
+  ipcMain.handle(
+    IPC.skills.addUsedSkillToProjects,
+    (_event, input: AddUsedSkillInput): Promise<AddUsedSkillResult[]> =>
+      addUsedSkillToProjects(input),
+  );
 
   ipcMain.handle(
     IPC.skills.runAudit,

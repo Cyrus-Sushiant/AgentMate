@@ -8,6 +8,7 @@ import {
 } from '@agentmat/core';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type {
+  AddUsedSkillResult,
   AuditSourcePreview,
   AuditSourceSkill,
   FavoriteSkillRecord,
@@ -21,6 +22,7 @@ import type {
   SkillUsageReport,
   UiProPrerequisites,
   UiProUpdateCheck,
+  UsedSkillInspection,
 } from '../../shared/apiTypes';
 import { IPC } from '../../shared/ipcChannels';
 import { queueDialog } from '../../test/main/electronMock';
@@ -831,6 +833,191 @@ describe('usage counted out of the transcripts', () => {
     const report = await invoke<SkillUsageReport>(IPC.skills.getUsage);
     expect(report).toMatchObject({ totalInvocations: 0, filesScanned: 0, sourceRoots: [] });
     expect(report.days).toHaveLength(30);
+  });
+});
+
+describe('adding a used skill to another project', () => {
+  const OTHER_ID = 'p2';
+  const other = { dir: '' };
+
+  /** Writes `<parent>/<name>/SKILL.md`, plus a nested script so a copy has to recurse. */
+  function writeSkill(parent: string, name: string, body = `# ${name}\n`): string {
+    const dir = join(parent, name);
+    mkdirSync(join(dir, 'scripts'), { recursive: true });
+    writeFileSync(join(dir, 'SKILL.md'), body, 'utf-8');
+    writeFileSync(join(dir, 'scripts', 'run.sh'), 'echo hi\n', 'utf-8');
+    return dir;
+  }
+
+  beforeEach(() => {
+    // A second project to copy into. It has a .codex folder rather than a .claude one, so the
+    // copy has to follow the target's own agent dir instead of mirroring the source's.
+    other.dir = tempDir('agentmate-skills-other-');
+    mkdirSync(join(other.dir, '.codex'), { recursive: true });
+    userData.writeData('projects.json', [
+      {
+        id: PROJECT_ID,
+        name: 'Demo',
+        folderPath: project.dir,
+        agentType: 'claude-code',
+        createdAt: '2026-01-01T00:00:00Z',
+      },
+      {
+        id: OTHER_ID,
+        name: 'Other',
+        folderPath: other.dir,
+        agentType: 'codex',
+        createdAt: '2026-01-02T00:00:00Z',
+      },
+    ]);
+  });
+
+  it('finds the skill in the project it was used in and knows that project has it', async () => {
+    const source = writeSkill(join(project.dir, '.claude', 'skills'), 'formatter');
+
+    const inspection = await invoke<UsedSkillInspection>(IPC.skills.inspectUsedSkill, {
+      skill: 'formatter',
+      projectPaths: [project.dir],
+    });
+    expect(inspection).toEqual({
+      skill: 'formatter',
+      folderName: 'formatter',
+      source: { path: source, origin: 'project', label: project.dir },
+      presentInProjectIds: [PROJECT_ID],
+    });
+  });
+
+  it('copies the whole folder into the other project, and only there', async () => {
+    writeSkill(join(project.dir, '.claude', 'skills'), 'formatter', '# Formatter\n\nFormats.\n');
+
+    const results = await invoke<AddUsedSkillResult[]>(IPC.skills.addUsedSkillToProjects, {
+      skill: 'formatter',
+      projectPaths: [project.dir],
+      projectIds: [OTHER_ID],
+    });
+    expect(results).toEqual([{ projectId: OTHER_ID, status: 'added' }]);
+
+    const copied = join(other.dir, '.codex', 'skills', 'formatter');
+    expect(readFileSync(join(copied, 'SKILL.md'), 'utf-8')).toContain('Formats.');
+    expect(readFileSync(join(copied, 'scripts', 'run.sh'), 'utf-8')).toBe('echo hi\n');
+    expect(existsSync(join(other.dir, '.claude'))).toBe(false);
+
+    // The copy is an unmanaged folder, so AgentMate keeps no install record for it.
+    expect(await invoke<InstalledSkillRecord[]>(IPC.skills.listInstalled, OTHER_ID)).toEqual([]);
+    const after = await invoke<UsedSkillInspection>(IPC.skills.inspectUsedSkill, {
+      skill: 'formatter',
+      projectPaths: [project.dir],
+    });
+    expect(after.presentInProjectIds).toEqual([PROJECT_ID, OTHER_ID]);
+  });
+
+  it('leaves a project that already has the skill alone, including the one it came from', async () => {
+    writeSkill(join(project.dir, '.claude', 'skills'), 'formatter', '# New\n');
+    writeSkill(join(other.dir, '.codex', 'skills'), 'formatter', '# Edited by hand\n');
+
+    const results = await invoke<AddUsedSkillResult[]>(IPC.skills.addUsedSkillToProjects, {
+      skill: 'formatter',
+      projectPaths: [project.dir],
+      projectIds: [PROJECT_ID, OTHER_ID, OTHER_ID],
+    });
+    expect(results).toEqual([
+      { projectId: PROJECT_ID, status: 'exists' },
+      { projectId: OTHER_ID, status: 'exists' },
+    ]);
+    expect(
+      readFileSync(join(other.dir, '.codex', 'skills', 'formatter', 'SKILL.md'), 'utf-8'),
+    ).toBe('# Edited by hand\n');
+  });
+
+  it('falls back to the global skills when the project folder no longer has it', async () => {
+    const source = writeSkill(join(homeDir(), '.claude', 'skills'), 'reviewer');
+
+    const inspection = await invoke<UsedSkillInspection>(IPC.skills.inspectUsedSkill, {
+      skill: 'reviewer',
+      projectPaths: [project.dir],
+    });
+    expect(inspection.source).toEqual({ path: source, origin: 'global', label: '~/.claude' });
+    expect(inspection.presentInProjectIds).toEqual([]);
+
+    await invoke(IPC.skills.addUsedSkillToProjects, {
+      skill: 'reviewer',
+      projectPaths: [project.dir],
+      projectIds: [PROJECT_ID],
+    });
+    expect(existsSync(join(project.dir, '.claude', 'skills', 'reviewer', 'SKILL.md'))).toBe(true);
+  });
+
+  it('finds a plugin skill by its plugin, and copies it under its bare name', async () => {
+    const plugins = join(homeDir(), '.claude', 'plugins', 'marketplaces', 'official', 'plugins');
+    // Two plugins ship a skill of the same name. The invoked name says which one was used.
+    writeSkill(join(plugins, 'alpha', 'skills'), 'design', '# Alpha design\n');
+    const wanted = writeSkill(join(plugins, 'beta', 'skills'), 'design', '# Beta design\n');
+
+    const inspection = await invoke<UsedSkillInspection>(IPC.skills.inspectUsedSkill, {
+      skill: 'beta:design',
+      projectPaths: [],
+    });
+    expect(inspection).toMatchObject({
+      folderName: 'design',
+      source: { path: wanted, origin: 'plugin', label: 'beta' },
+    });
+
+    await invoke(IPC.skills.addUsedSkillToProjects, {
+      skill: 'beta:design',
+      projectPaths: [],
+      projectIds: [OTHER_ID],
+    });
+    expect(readFileSync(join(other.dir, '.codex', 'skills', 'design', 'SKILL.md'), 'utf-8')).toBe(
+      '# Beta design\n',
+    );
+  });
+
+  it('reports a skill with no files on disk and refuses to copy it', async () => {
+    // A folder without a SKILL.md is not a skill, so it does not count as a source.
+    mkdirSync(join(project.dir, '.claude', 'skills', 'init'), { recursive: true });
+
+    const inspection = await invoke<UsedSkillInspection>(IPC.skills.inspectUsedSkill, {
+      skill: 'init',
+      projectPaths: [project.dir],
+    });
+    expect(inspection.source).toBeNull();
+
+    await expect(
+      invoke(IPC.skills.addUsedSkillToProjects, {
+        skill: 'init',
+        projectPaths: [project.dir],
+        projectIds: [OTHER_ID],
+      }),
+    ).rejects.toThrow('Could not find the files for "init" on disk.');
+  });
+
+  it('refuses a name that could climb out of the skills folder', async () => {
+    for (const skill of ['..', '../escape', 'plugin:../escape', 'a/b']) {
+      await expect(
+        invoke(IPC.skills.inspectUsedSkill, { skill, projectPaths: [project.dir] }),
+      ).rejects.toThrow('Invalid skill name');
+      await expect(
+        invoke(IPC.skills.addUsedSkillToProjects, {
+          skill,
+          projectPaths: [project.dir],
+          projectIds: [OTHER_ID],
+        }),
+      ).rejects.toThrow('Invalid skill name');
+    }
+  });
+
+  it('reports an unknown project as failed without stopping the others', async () => {
+    writeSkill(join(project.dir, '.claude', 'skills'), 'formatter');
+
+    const results = await invoke<AddUsedSkillResult[]>(IPC.skills.addUsedSkillToProjects, {
+      skill: 'formatter',
+      projectPaths: [project.dir],
+      projectIds: ['gone', OTHER_ID],
+    });
+    expect(results).toEqual([
+      { projectId: 'gone', status: 'failed', error: 'Project gone not found' },
+      { projectId: OTHER_ID, status: 'added' },
+    ]);
   });
 });
 

@@ -1,7 +1,12 @@
 import { bundledSkillsShDirectory, type Skill, type SkillRepository } from '@agentmat/core';
 import { screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import type { InstalledSkillRecord, SkillAuditRecord } from '../../../shared/apiTypes';
+import type {
+  InstalledSkillRecord,
+  SkillAuditRecord,
+  SkillUsageReport,
+  UsedSkillInspection,
+} from '../../../shared/apiTypes';
 import { renderWithProviders } from '../../../test/renderer/renderWithProviders';
 
 /**
@@ -446,5 +451,164 @@ describe('SkillsPage directory filters', () => {
     expect(
       await screen.findByText("Couldn't reach skills.sh. Check your connection and try again."),
     ).toBeTruthy();
+  });
+});
+
+describe('SkillsPage adding a used skill to another project', () => {
+  const demo = { id: 'p1', name: 'Demo', folderPath: '/work/demo' };
+  const site = { id: 'p2', name: 'Site', folderPath: '/work/site' };
+  const docs = { id: 'p3', name: 'Docs', folderPath: '/work/docs' };
+
+  const days = Array.from(
+    { length: 30 },
+    (_, index) => `2026-09-${`${index + 1}`.padStart(2, '0')}`,
+  );
+  const usage: SkillUsageReport = {
+    stats: [
+      {
+        skill: 'formatter',
+        count: 4,
+        count7d: 2,
+        count30d: 4,
+        firstUsedAt: '2026-09-01T09:00:00.000Z',
+        lastUsedAt: '2026-09-29T09:00:00.000Z',
+        projects: [{ path: demo.folderPath, label: demo.name, count: 4 }],
+        daily: new Array(30).fill(0),
+      },
+    ],
+    totalInvocations: 4,
+    days,
+    dailyTotals: new Array(30).fill(0),
+    filesScanned: 1,
+    sourceRoots: ['/home/.claude/projects'],
+    scannedAt: '2026-09-30T09:00:00.000Z',
+  };
+
+  const found: UsedSkillInspection = {
+    skill: 'formatter',
+    folderName: 'formatter',
+    source: {
+      path: '/work/demo/.claude/skills/formatter',
+      origin: 'project',
+      label: demo.folderPath,
+    },
+    presentInProjectIds: [demo.id],
+  };
+
+  const bridge = {
+    'projects.list': [demo, site, docs],
+    'skills.getUsage': usage,
+    'skills.inspectUsedSkill': found,
+    'skills.addUsedSkillToProjects': async ({ projectIds }: { projectIds: string[] }) =>
+      projectIds.map((projectId) => ({ projectId, status: 'added' })),
+  };
+
+  async function openPicker(overrides: Record<string, unknown> = {}) {
+    const view = renderPage({ ...bridge, ...overrides });
+    await openTab(view.user, /^Usage/);
+    await view.user.click(
+      await screen.findByRole('button', { name: 'Add formatter to another project' }),
+    );
+    const dialog = await screen.findByRole('dialog');
+    return { ...view, dialog };
+  }
+
+  it('copies the skill into the projects picked, from where it was found', async () => {
+    const { user, bridge: fake, dialog } = await openPicker();
+
+    expect(within(dialog).getByText('Add formatter to projects')).toBeTruthy();
+    expect(await within(dialog).findByText(`From ${demo.folderPath}`)).toBeTruthy();
+    expect(fake.$fn('skills.inspectUsedSkill')).toHaveBeenCalledWith({
+      skill: 'formatter',
+      projectPaths: [demo.folderPath],
+    });
+
+    // The project it came from already has it, so it can't be picked again.
+    expect(within(dialog).getByRole('checkbox', { name: demo.name })).toBeDisabled();
+    expect(within(dialog).getByText('Already has it')).toBeTruthy();
+    expect(within(dialog).getByRole('button', { name: 'Add' })).toBeDisabled();
+
+    await user.click(within(dialog).getByRole('checkbox', { name: site.name }));
+    await user.click(within(dialog).getByRole('checkbox', { name: docs.name }));
+    await user.click(within(dialog).getByRole('button', { name: 'Add to 2 projects' }));
+
+    await waitFor(() =>
+      expect(fake.$fn('skills.addUsedSkillToProjects')).toHaveBeenCalledWith({
+        skill: 'formatter',
+        projectPaths: [demo.folderPath],
+        projectIds: [site.id, docs.id],
+      }),
+    );
+    expect(toast.success).toHaveBeenCalledWith('Added formatter to 2 projects.');
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+  });
+
+  it('narrows the projects to what the search matches', async () => {
+    const { user, dialog } = await openPicker();
+    await within(dialog).findByText(`From ${demo.folderPath}`);
+
+    await user.type(within(dialog).getByPlaceholderText('Search projects…'), 'site');
+    expect(within(dialog).getByRole('checkbox', { name: site.name })).toBeTruthy();
+    expect(within(dialog).queryByRole('checkbox', { name: docs.name })).toBeNull();
+
+    await user.clear(within(dialog).getByPlaceholderText('Search projects…'));
+    await user.type(within(dialog).getByPlaceholderText('Search projects…'), 'nothing here');
+    expect(within(dialog).getByText('No projects match your search.')).toBeTruthy();
+  });
+
+  it('says the files are missing and offers nothing to add when the skill is not on disk', async () => {
+    const { user, dialog } = await openPicker({
+      'skills.inspectUsedSkill': { ...found, source: null, presentInProjectIds: [] },
+    });
+
+    expect(
+      await within(dialog).findByText(/Couldn't find this skill's files on disk/),
+    ).toBeTruthy();
+    await user.click(within(dialog).getByRole('checkbox', { name: site.name }));
+    expect(within(dialog).getByRole('button', { name: 'Add to 1 project' })).toBeDisabled();
+  });
+
+  it('keeps the picker open on the projects that failed, and notes the ones left alone', async () => {
+    const {
+      user,
+      bridge: fake,
+      dialog,
+    } = await openPicker({
+      'skills.addUsedSkillToProjects': async () => [
+        { projectId: site.id, status: 'exists' },
+        { projectId: docs.id, status: 'failed', error: 'EACCES: permission denied' },
+      ],
+    });
+    await within(dialog).findByText(`From ${demo.folderPath}`);
+
+    await user.click(within(dialog).getByRole('checkbox', { name: site.name }));
+    await user.click(within(dialog).getByRole('checkbox', { name: docs.name }));
+    await user.click(within(dialog).getByRole('button', { name: 'Add to 2 projects' }));
+
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith(
+        'Could not add formatter to 1 project. EACCES: permission denied',
+      ),
+    );
+    expect(toast.info).toHaveBeenCalledWith('1 project already had formatter, left as is.');
+    expect(screen.getByRole('dialog')).toBeTruthy();
+    // Only the failure stays ticked, so trying again doesn't touch the rest.
+    expect(within(dialog).getByRole('checkbox', { name: docs.name })).toBeChecked();
+    expect(within(dialog).getByRole('checkbox', { name: site.name })).not.toBeChecked();
+    expect(fake.$fn('skills.addUsedSkillToProjects')).toHaveBeenCalledTimes(1);
+  });
+
+  it('opens the same picker from a skill in the by-project view', async () => {
+    const { user } = renderPage(bridge);
+    await openTab(user, /^Usage/);
+    await user.click(await screen.findByRole('button', { name: /By project/ }));
+
+    const buttons = await screen.findAllByRole('button', {
+      name: 'Add formatter to another project',
+    });
+    // The by-skill row is gone in this view, so the only button is the project card's own.
+    expect(buttons).toHaveLength(1);
+    await user.click(buttons[0]);
+    expect(await screen.findByText('Add formatter to projects')).toBeTruthy();
   });
 });

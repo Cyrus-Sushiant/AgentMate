@@ -82,6 +82,8 @@ import type {
 import type {
   ActiveScan,
   AddPromptHistoryInput,
+  AddUsedSkillInput,
+  AddUsedSkillResult,
   AgentRunInfoMap,
   AgentSessionEntry,
   AgentStatusMap,
@@ -260,6 +262,8 @@ import type {
   UpdateProjectDraftInput,
   UpdateScheduledTaskInput,
   UpdateStatus,
+  UsedSkillInspection,
+  UsedSkillQuery,
   VaultClipboardEvent,
   VaultCopyResult,
   VaultExportResult,
@@ -621,6 +625,12 @@ const skills = {
   getUsage: (): Promise<SkillUsageReport> => ipcRenderer.invoke(IPC.skills.getUsage),
   /** Re-reads every transcript from scratch instead of only the newly appended bytes. */
   rescanUsage: (): Promise<SkillUsageReport> => ipcRenderer.invoke(IPC.skills.rescanUsage),
+  /** Finds a used skill's folder on disk and the projects that already have it. */
+  inspectUsedSkill: (query: UsedSkillQuery): Promise<UsedSkillInspection> =>
+    ipcRenderer.invoke(IPC.skills.inspectUsedSkill, query),
+  /** Copies a used skill into each project's skills dirs, one result per project. */
+  addUsedSkillToProjects: (input: AddUsedSkillInput): Promise<AddUsedSkillResult[]> =>
+    ipcRenderer.invoke(IPC.skills.addUsedSkillToProjects, input),
   /** Scans a skill for prompt injection, exfiltration, and the other risk categories. */
   runAudit: (input: RunSkillAuditInput): Promise<RunSkillAuditResult> =>
     ipcRenderer.invoke(IPC.skills.runAudit, input),

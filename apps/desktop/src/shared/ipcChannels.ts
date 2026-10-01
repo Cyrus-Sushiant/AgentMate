@@ -212,6 +212,10 @@ export const IPC = {
     getUsage: 'skills:getUsage',
     /** Same, after throwing away the incremental scan cache and re-reading every transcript. */
     rescanUsage: 'skills:rescanUsage',
+    /** Where a used skill's files live, and which projects already have a copy. */
+    inspectUsedSkill: 'skills:inspectUsedSkill',
+    /** Copies a used skill's folder into other projects' skills dirs. */
+    addUsedSkillToProjects: 'skills:addUsedSkillToProjects',
     // Security audit
     runAudit: 'skills:runAudit',
     cancelAudit: 'skills:cancelAudit',

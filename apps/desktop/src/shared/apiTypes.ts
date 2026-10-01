@@ -649,6 +649,44 @@ export interface SkillUsageReport {
   scannedAt: string;
 }
 
+/** Which part of the machine a used skill's files were found in. */
+export type UsedSkillOrigin = 'project' | 'global' | 'plugin';
+
+/** Names a used skill and the folders the usage scan saw it invoked in. */
+export interface UsedSkillQuery {
+  /** The invoked name, e.g. `artifact-design` or `plugin:skill`. */
+  skill: string;
+  /** Folders the skill was invoked in, busiest first. They are searched before the global dirs. */
+  projectPaths: string[];
+}
+
+/** Where a used skill lives on disk, so it can be copied somewhere else. */
+export interface UsedSkillInspection {
+  skill: string;
+  /** The skill's folder name, which is what a copy is called in the target project. */
+  folderName: string;
+  /** Null when no folder with a SKILL.md was found, for example a skill built into the agent. */
+  source: {
+    path: string;
+    origin: UsedSkillOrigin;
+    /** The project folder, `~/.claude`, or the plugin's name. */
+    label: string;
+  } | null;
+  /** AgentMate projects that already have a folder of this name in one of their skills dirs. */
+  presentInProjectIds: string[];
+}
+
+export interface AddUsedSkillInput extends UsedSkillQuery {
+  projectIds: string[];
+}
+
+export interface AddUsedSkillResult {
+  projectId: string;
+  /** `exists` means the project already had the skill, so nothing was written. */
+  status: 'added' | 'exists' | 'failed';
+  error?: string;
+}
+
 export interface RunSkillAuditResult {
   ok: boolean;
   record: SkillAuditRecord | null;
