@@ -78,32 +78,39 @@ function SessionTab({
 }): React.JSX.Element {
   const aiWaiting = useSshAgentStore((s) => isSshAgentWaitingOnUser(s.sessions[session.id]));
   const label = session.cwd ? `${session.title}\n${session.cwd}` : session.title;
+  // The whole highlighted box is the tab. With only the label inside it clickable, a click on
+  // the padding or beside the close button did nothing, and the user had to click again.
   return (
     <SimpleTooltip label={aiWaiting ? `${label}\nThe AI task here is waiting for you` : label}>
       <div
+        role="tab"
+        aria-selected={active}
+        tabIndex={0}
+        onClick={onSelect}
+        onKeyDown={(e) => {
+          if (e.target !== e.currentTarget) return;
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            onSelect();
+          }
+        }}
+        onMouseDown={(e) => {
+          if (e.button === 1) e.preventDefault();
+        }}
+        onAuxClick={(e) => {
+          if (e.button === 1) {
+            e.preventDefault();
+            onClose();
+          }
+        }}
         className={cn(
-          'group relative flex h-7 max-w-[14rem] shrink-0 items-center gap-1.5 rounded-t-md px-2.5 text-xs transition-colors',
+          'group relative flex h-7 max-w-[14rem] shrink-0 cursor-pointer select-none items-center gap-1.5 rounded-t-md px-2.5 text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring',
           active
             ? 'bg-[#0a1210] text-zinc-100'
             : 'text-muted-foreground hover:bg-foreground/8 hover:text-foreground',
         )}
       >
-        <button
-          type="button"
-          role="tab"
-          aria-selected={active}
-          onClick={onSelect}
-          onMouseDown={(e) => {
-            if (e.button === 1) e.preventDefault();
-          }}
-          onAuxClick={(e) => {
-            if (e.button === 1) {
-              e.preventDefault();
-              onClose();
-            }
-          }}
-          className="flex min-w-0 flex-1 items-center gap-2 text-left focus-visible:outline-none"
-        >
+        <span className="flex min-w-0 flex-1 items-center gap-2">
           <span
             className={cn(
               'h-1.5 w-1.5 shrink-0 rounded-full',
@@ -116,7 +123,7 @@ function SessionTab({
           />
           {session.kind === 'ssh' && <Server className="h-3 w-3 shrink-0 opacity-70" />}
           <span className="truncate">{session.title}</span>
-        </button>
+        </span>
         <button
           type="button"
           aria-label={`Close ${session.title}`}
@@ -140,7 +147,7 @@ function SessionTab({
 
 const TAB_SCROLL = 120;
 
-function SessionTabStrip({
+export function SessionTabStrip({
   sessions,
   activeSessionId,
   onSelect,

@@ -181,6 +181,47 @@ test('a shell runs a command, a second tab is its own, and closing tabs ends bot
   await expect.poll(() => pids.filter(pidAlive), { timeout: 60_000 }).toEqual([]);
 });
 
+test('one click anywhere on a tab switches to it while typing in another', async () => {
+  launched = await launchApp({ settings: {} });
+  const { page } = launched;
+  await openDrawer(page);
+
+  const newTab = page.getByRole('button', { name: /^New (PowerShell|bash|zsh)/ }).first();
+  await newTab.click();
+  await expect.poll(() => drawerSessions(page), { timeout: 60_000 }).toHaveLength(1);
+  await newTab.click();
+  await expect.poll(() => drawerSessions(page), { timeout: 60_000 }).toHaveLength(2);
+  const tabs = page.getByRole('tablist', { name: 'Terminal sessions' }).getByRole('tab');
+  await expect(tabs).toHaveCount(2);
+  await expect(tabs.nth(1)).toHaveAttribute('aria-selected', 'true');
+
+  // Each press lands on a different part of the tab: the padding at either edge (which once did
+  // nothing, so switching took a second click) and the label. The terminal holds the keyboard
+  // every time, the way it does while someone is typing in it.
+  const spots = [
+    (box: { x: number; width: number }) => box.x + 3,
+    (box: { x: number; width: number }) => box.x + box.width - 3,
+    (box: { x: number; width: number }) => box.x + box.width / 2,
+  ];
+  for (const [round, spot] of spots.entries()) {
+    const from = round % 2 === 0 ? 1 : 0;
+    const to = 1 - from;
+    await expect(tabs.nth(from)).toHaveAttribute('aria-selected', 'true');
+    await page.locator('.terminal-pane:not(.hidden) .xterm-screen').click();
+    await expect(page.locator('.terminal-pane:not(.hidden) textarea')).toBeFocused();
+    await page.keyboard.type('echo typing', { delay: 10 });
+
+    const box = await tabs.nth(to).boundingBox();
+    if (!box) throw new Error('tab has no box');
+    await page.mouse.click(spot(box), box.y + box.height / 2, { delay: 80 });
+
+    await expect(tabs.nth(to)).toHaveAttribute('aria-selected', 'true');
+    await expect(tabs.nth(from)).toHaveAttribute('aria-selected', 'false');
+    // The keyboard follows: the tab just switched to has the terminal focus.
+    await expect(page.locator('.terminal-pane:not(.hidden) textarea')).toBeFocused();
+  }
+});
+
 test('quitting with no shells left takes the background host with it', async () => {
   launched = await launchApp({ settings: {} });
   const current = launched;
