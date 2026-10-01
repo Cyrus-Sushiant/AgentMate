@@ -1,5 +1,6 @@
 using AgentMate.ServerCore.Alerts;
 using AgentMate.ServerCore.Contracts;
+using AgentMate.ServerCore.Docker;
 using AgentMate.ServerCore.Execution;
 using AgentMate.ServerCore.Firewall;
 using AgentMate.ServerCore.Hosting;
@@ -83,6 +84,7 @@ internal static class CoreOperations
         services.AddSingleton<SystemJobs>();
         services.AddSingleton<StreamLimits>();
         services.AddSingleton<ServerServices>();
+        services.AddCoreDocker();
 
         // Recovery of jobs a previous core left running comes first, then the samplers and checks.
         services.AddHostedService(provider => provider.GetRequiredService<JobEngine>());

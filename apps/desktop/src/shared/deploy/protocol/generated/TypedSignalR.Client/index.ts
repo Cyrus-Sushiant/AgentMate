@@ -4,7 +4,7 @@
 // @ts-nocheck
 import type { HubConnection, IStreamResult, Subject } from '@microsoft/signalr';
 import type { ICoreHub, ICoreHubReceiver } from './AgentMate.ServerCore.Contracts';
-import type { PingResponse, AccountInfo, StepUpRequest, StepUpResponse, DeviceInfo, SessionInfo, TotpSetup, RecoveryCodes, CreateEnrollmentCodeRequest, EnrollmentCodeInfo, AuditQuery, AuditPage, AuditVerificationInfo, SystemInfo, ServiceInfo, MetricsHistoryRequest, MetricsHistory, MetricsStreamRequest, MetricsSample, UpdatesInfo, JobQuery, JobPage, JobInfo, JobStreamItem, AlertQuery, AlertInfo, AlertStreamRequest, ManagedService, FirewallStatus, FirewallPreset, FirewallChangeSetQuery, FirewallChangeSetInfo, ExposureInventory, FirewallChangeRequest, FirewallChangePreview } from '../AgentMate.ServerCore.Contracts';
+import type { PingResponse, AccountInfo, StepUpRequest, StepUpResponse, DeviceInfo, SessionInfo, TotpSetup, RecoveryCodes, CreateEnrollmentCodeRequest, EnrollmentCodeInfo, AuditQuery, AuditPage, AuditVerificationInfo, SystemInfo, ServiceInfo, MetricsHistoryRequest, MetricsHistory, MetricsStreamRequest, MetricsSample, UpdatesInfo, JobQuery, JobPage, JobInfo, JobStreamItem, AlertQuery, AlertInfo, AlertStreamRequest, ManagedService, DockerStatus, ContainerList, ContainerDetails, ContainerStatsRequest, ContainerStatsBatch, ContainerLogsRequest, ContainerLogBatch, ImageInfo, VolumeInfo, NetworkInfo, DockerDiskUsage, DockerEventsRequest, DockerEvent, ContainerSummary, ContainerRemoveRequest, ImagePullRequest, ImageRemoveRequest, ContainerEnvVariable, ConsoleRequest, ConsoleInput, ConsoleOutput, DockerPruneRequest, DockerPruneResult, DockerInstallRequest } from '../AgentMate.ServerCore.Contracts';
 
 
 // components
@@ -212,36 +212,104 @@ class ICoreHub_HubProxy implements ICoreHub {
         return await this.connection.invoke("SetAutomaticSecurityUpdates", enabled);
     }
 
-    public readonly getFirewallStatus = async (): Promise<FirewallStatus> => {
-        return await this.connection.invoke("GetFirewallStatus");
+    public readonly getDockerStatus = async (): Promise<DockerStatus> => {
+        return await this.connection.invoke("GetDockerStatus");
     }
 
-    public readonly getFirewallPresets = async (): Promise<FirewallPreset[]> => {
-        return await this.connection.invoke("GetFirewallPresets");
+    public readonly listContainers = async (): Promise<ContainerList> => {
+        return await this.connection.invoke("ListContainers");
     }
 
-    public readonly listFirewallChangeSets = async (query: FirewallChangeSetQuery): Promise<FirewallChangeSetInfo[]> => {
-        return await this.connection.invoke("ListFirewallChangeSets", query);
+    public readonly inspectContainer = async (containerId: string): Promise<ContainerDetails> => {
+        return await this.connection.invoke("InspectContainer", containerId);
     }
 
-    public readonly getExposure = async (): Promise<ExposureInventory> => {
-        return await this.connection.invoke("GetExposure");
+    public readonly streamContainerStats = (request: ContainerStatsRequest): IStreamResult<ContainerStatsBatch> => {
+        return this.connection.stream("StreamContainerStats", request);
     }
 
-    public readonly previewFirewallChanges = async (request: FirewallChangeRequest): Promise<FirewallChangePreview> => {
-        return await this.connection.invoke("PreviewFirewallChanges", request);
+    public readonly streamContainerLogs = (request: ContainerLogsRequest): IStreamResult<ContainerLogBatch> => {
+        return this.connection.stream("StreamContainerLogs", request);
     }
 
-    public readonly applyFirewallChanges = async (request: FirewallChangeRequest): Promise<FirewallChangeSetInfo> => {
-        return await this.connection.invoke("ApplyFirewallChanges", request);
+    public readonly listImages = async (): Promise<ImageInfo[]> => {
+        return await this.connection.invoke("ListImages");
     }
 
-    public readonly confirmFirewallChanges = async (changeSetId: string): Promise<FirewallChangeSetInfo> => {
-        return await this.connection.invoke("ConfirmFirewallChanges", changeSetId);
+    public readonly listVolumes = async (): Promise<VolumeInfo[]> => {
+        return await this.connection.invoke("ListVolumes");
     }
 
-    public readonly revertFirewallChanges = async (changeSetId: string): Promise<FirewallChangeSetInfo> => {
-        return await this.connection.invoke("RevertFirewallChanges", changeSetId);
+    public readonly listNetworks = async (): Promise<NetworkInfo[]> => {
+        return await this.connection.invoke("ListNetworks");
+    }
+
+    public readonly getDockerDiskUsage = async (): Promise<DockerDiskUsage> => {
+        return await this.connection.invoke("GetDockerDiskUsage");
+    }
+
+    public readonly streamDockerEvents = (request: DockerEventsRequest): IStreamResult<DockerEvent> => {
+        return this.connection.stream("StreamDockerEvents", request);
+    }
+
+    public readonly startContainer = async (containerId: string): Promise<ContainerSummary> => {
+        return await this.connection.invoke("StartContainer", containerId);
+    }
+
+    public readonly stopContainer = async (containerId: string, timeoutSeconds: (number | undefined)): Promise<ContainerSummary> => {
+        return await this.connection.invoke("StopContainer", containerId, timeoutSeconds);
+    }
+
+    public readonly restartContainer = async (containerId: string, timeoutSeconds: (number | undefined)): Promise<ContainerSummary> => {
+        return await this.connection.invoke("RestartContainer", containerId, timeoutSeconds);
+    }
+
+    public readonly pauseContainer = async (containerId: string): Promise<ContainerSummary> => {
+        return await this.connection.invoke("PauseContainer", containerId);
+    }
+
+    public readonly unpauseContainer = async (containerId: string): Promise<ContainerSummary> => {
+        return await this.connection.invoke("UnpauseContainer", containerId);
+    }
+
+    public readonly killContainer = async (containerId: string, signal: string): Promise<ContainerSummary> => {
+        return await this.connection.invoke("KillContainer", containerId, signal);
+    }
+
+    public readonly removeContainer = async (request: ContainerRemoveRequest): Promise<void> => {
+        return await this.connection.invoke("RemoveContainer", request);
+    }
+
+    public readonly pullImage = async (request: ImagePullRequest): Promise<JobInfo> => {
+        return await this.connection.invoke("PullImage", request);
+    }
+
+    public readonly removeImage = async (request: ImageRemoveRequest): Promise<void> => {
+        return await this.connection.invoke("RemoveImage", request);
+    }
+
+    public readonly removeNetwork = async (network: string): Promise<void> => {
+        return await this.connection.invoke("RemoveNetwork", network);
+    }
+
+    public readonly revealContainerEnv = async (containerId: string): Promise<ContainerEnvVariable[]> => {
+        return await this.connection.invoke("RevealContainerEnv", containerId);
+    }
+
+    public readonly containerConsole = (request: ConsoleRequest, input: Subject<ConsoleInput>): IStreamResult<ConsoleOutput> => {
+        return this.connection.stream("ContainerConsole", request, input);
+    }
+
+    public readonly removeVolume = async (volume: string, force: boolean): Promise<void> => {
+        return await this.connection.invoke("RemoveVolume", volume, force);
+    }
+
+    public readonly pruneDocker = async (request: DockerPruneRequest): Promise<DockerPruneResult> => {
+        return await this.connection.invoke("PruneDocker", request);
+    }
+
+    public readonly installDocker = async (request: DockerInstallRequest): Promise<JobInfo> => {
+        return await this.connection.invoke("InstallDocker", request);
     }
 }
 

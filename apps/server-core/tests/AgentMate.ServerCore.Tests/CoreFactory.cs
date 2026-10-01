@@ -1,5 +1,7 @@
+using AgentMate.ServerCore.Docker;
 using AgentMate.ServerCore.Firewall;
 using AgentMate.ServerCore.Platform;
+using AgentMate.ServerCore.Tests.Docker;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
@@ -40,6 +42,12 @@ public sealed class CoreFactory : WebApplicationFactory<Program>
             services.AddSingleton<FakeCallerConnections>();
             services.AddSingleton<ICallerConnections>(provider => provider.GetRequiredService<FakeCallerConnections>());
             services.AddSingleton<IExposureSource, FakeExposure>();
+
+            // Docker: the pretend engine (shared with the DevHost) and an installer that only records.
+            services.AddSingleton(provider => new InMemoryDockerEngine(provider.GetRequiredService<TimeProvider>()) { Tick = TimeSpan.FromMilliseconds(50) });
+            services.AddSingleton<IDockerEngine>(provider => provider.GetRequiredService<InMemoryDockerEngine>());
+            services.AddSingleton<FakeDockerSetup>();
+            services.AddSingleton<IDockerSetup>(provider => provider.GetRequiredService<FakeDockerSetup>());
         });
     }
 

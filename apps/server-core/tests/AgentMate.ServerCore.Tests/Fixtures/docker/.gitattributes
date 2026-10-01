@@ -1,0 +1,3 @@
+# Recorded Docker payloads are compared byte for byte: the multiplexed log streams carry NUL
+# bytes and the TTY one carries CRLF, so git must never touch their line endings.
+*.bin binary

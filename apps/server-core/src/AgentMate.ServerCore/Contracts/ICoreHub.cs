@@ -160,6 +160,84 @@ public interface ICoreHub
 
     /// <summary>Puts the saved rules back now.</summary>
     Task<FirewallChangeSetInfo> RevertFirewallChanges(Guid changeSetId);
+
+    // Docker. Every role reads; Operators run the containers' lifecycle and pull images; Admins
+    // open consoles, remove with volumes, prune and install the engine.
+
+    Task<DockerStatus> GetDockerStatus();
+
+    Task<ContainerList> ListContainers();
+
+    /// <summary>Environment variable names only; RevealContainerEnv has the values.</summary>
+    Task<ContainerDetails> InspectContainer(string containerId);
+
+    /// <summary>
+    /// Live figures, as `docker stats` computes them, in batches at the requested interval. A
+    /// stream that ends on its own lost the engine: open it again.
+    /// </summary>
+    IAsyncEnumerable<ContainerStatsBatch> StreamContainerStats(ContainerStatsRequest request, CancellationToken cancellationToken);
+
+    /// <summary>Redacted log lines. After a reconnect, pass the last line's Timestamp as AfterTimestamp.</summary>
+    IAsyncEnumerable<ContainerLogBatch> StreamContainerLogs(ContainerLogsRequest request, CancellationToken cancellationToken);
+
+    Task<ImageInfo[]> ListImages();
+
+    Task<VolumeInfo[]> ListVolumes();
+
+    Task<NetworkInfo[]> ListNetworks();
+
+    Task<DockerDiskUsage> GetDockerDiskUsage();
+
+    /// <summary>Engine events as they happen. After a reconnect, pass the last event's Cursor.</summary>
+    IAsyncEnumerable<DockerEvent> StreamDockerEvents(DockerEventsRequest request, CancellationToken cancellationToken);
+
+    // Docker, Operator.
+
+    Task<ContainerSummary> StartContainer(string containerId);
+
+    /// <summary>The container's own stop timeout unless one is given (0 to 600 seconds).</summary>
+    Task<ContainerSummary> StopContainer(string containerId, int? timeoutSeconds);
+
+    Task<ContainerSummary> RestartContainer(string containerId, int? timeoutSeconds);
+
+    Task<ContainerSummary> PauseContainer(string containerId);
+
+    Task<ContainerSummary> UnpauseContainer(string containerId);
+
+    /// <summary>SIGKILL unless another well-known signal is named.</summary>
+    Task<ContainerSummary> KillContainer(string containerId, string? signal);
+
+    /// <summary>With RemoveVolumes (its anonymous volumes go too) only for Admins.</summary>
+    Task RemoveContainer(ContainerRemoveRequest request);
+
+    /// <summary>A job: StreamJob shows the layers as they arrive.</summary>
+    Task<JobInfo> PullImage(ImagePullRequest request);
+
+    Task RemoveImage(ImageRemoveRequest request);
+
+    Task RemoveNetwork(string network);
+
+    // Docker, Admin.
+
+    /// <summary>Needs a step-up: these are the container's secrets.</summary>
+    Task<ContainerEnvVariable[]> RevealContainerEnv(string containerId);
+
+    /// <summary>
+    /// A terminal in the container (docker exec with a TTY): keystrokes and size changes go in,
+    /// the screen comes out. Opening and closing it land in the audit trail; what is typed does not.
+    /// </summary>
+    IAsyncEnumerable<ConsoleOutput> ContainerConsole(ConsoleRequest request, IAsyncEnumerable<ConsoleInput> input, CancellationToken cancellationToken);
+
+    Task RemoveVolume(string volume, bool force);
+
+    Task<DockerPruneResult> PruneDocker(DockerPruneRequest request);
+
+    /// <summary>
+    /// Docker Engine and Compose from download.docker.com, the repository key checked against its
+    /// pinned fingerprint. A job. Refused while conflicting packages remain unless the request
+    /// says to remove them.
+    /// </summary>
+    Task<JobInfo> InstallDocker(DockerInstallRequest request);
 }
 
 /// <summary>Everything the core can push to the app without being asked.</summary>

@@ -1,0 +1,4 @@
+stats-v2-oneshot.json {"BlockIO":"2.85MB / 0B","CPUPerc":"0.10%","Container":"shop-api-1","ID":"8ac808e7678e","MemPerc":"0.02%","MemUsage":"3.691MiB / 15.25GiB","Name":"shop-api-1","NetIO":"1.88kB / 126B","PIDs":"2"}
+stats-v1.json {"BlockIO":"13.6MB / 4.19MB","CPUPerc":"36.12%","Container":"legacy-v1","ID":"5b1e0c3d9a8f","MemPerc":"7.62%","MemUsage":"39MiB / 512MiB","Name":"legacy-v1","NetIO":"5.34MB / 649kB","PIDs":"7"}
+s1.json {"BlockIO":"2.85MB / 0B","CPUPerc":"0.00%","Container":"shop-api-1","ID":"8ac808e7678e","MemPerc":"0.03%","MemUsage":"4MiB / 15.25GiB","Name":"shop-api-1","NetIO":"1.88kB / 126B","PIDs":"2"}
+s3.json {"BlockIO":"2.85MB / 0B","CPUPerc":"0.09%","Container":"shop-api-1","ID":"8ac808e7678e","MemPerc":"0.03%","MemUsage":"4.051MiB / 15.25GiB","Name":"shop-api-1","NetIO":"1.88kB / 126B","PIDs":"2"}

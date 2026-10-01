@@ -12,6 +12,9 @@ RUN dnf -y install systemd openssh-server sudo passwd procps-ng tar gzip policyc
  && echo 'deployer-test-pw' | passwd --stdin deployer \
  && usermod -aG wheel deployer \
  && systemctl enable sshd
+# Docker inside the server (E06) keeps its images and layers off the container's own overlay
+# root, which the kernel refuses to stack another overlay on.
+VOLUME ["/var/lib/docker", "/var/lib/containerd"]
 STOPSIGNAL SIGRTMIN+3
 EXPOSE 22
 CMD ["/sbin/init"]

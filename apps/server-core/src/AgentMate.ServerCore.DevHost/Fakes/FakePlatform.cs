@@ -1,3 +1,4 @@
+using AgentMate.ServerCore.Docker;
 using AgentMate.ServerCore.Firewall;
 using AgentMate.ServerCore.Platform;
 
@@ -26,6 +27,11 @@ internal static class FakePlatform
         services.AddSingleton<ISshdSettings, FakeSshd>();
         services.AddSingleton<ICallerConnections, FakeCallerConnections>();
         services.AddSingleton<IExposureSource, FakeExposure>();
+
+        // Docker: two compose projects with moving stats, growing logs and consoles (E06).
+        services.AddSingleton(provider => new InMemoryDockerEngine(provider.GetRequiredService<TimeProvider>()));
+        services.AddSingleton<IDockerEngine>(provider => provider.GetRequiredService<InMemoryDockerEngine>());
+        services.AddSingleton<IDockerSetup, FakeDockerSetup>();
     }
 
     /// <summary>While the pretend server reboots, nothing answers but 503, as nothing would answer at all.</summary>

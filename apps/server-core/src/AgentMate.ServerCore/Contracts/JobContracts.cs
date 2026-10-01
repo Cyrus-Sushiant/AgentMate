@@ -14,6 +14,8 @@ public enum JobKind
     AutomaticUpdates,
     Reboot,
     ServiceRestart,
+    DockerInstall,
+    ImagePull,
 }
 
 [TranspilationSource]

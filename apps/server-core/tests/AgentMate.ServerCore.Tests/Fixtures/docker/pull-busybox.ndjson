@@ -1,0 +1,23 @@
+{"status":"Pulling from library/busybox","id":"1.37"}
+{"status":"Pulling fs layer","progressDetail":{},"id":"68fe9bff2ad4"}
+{"status":"Download complete","progressDetail":{"hidecounts":true},"id":"9177639ff916"}
+{"status":"Downloading","progressDetail":{"current":1048576,"total":2211514},"id":"68fe9bff2ad4"}
+{"status":"Downloading","progressDetail":{"current":1048576,"total":2211514},"id":"68fe9bff2ad4"}
+{"status":"Downloading","progressDetail":{"current":1048576,"total":2211514},"id":"68fe9bff2ad4"}
+{"status":"Downloading","progressDetail":{"current":1048576,"total":2211514},"id":"68fe9bff2ad4"}
+{"status":"Downloading","progressDetail":{"current":1048576,"total":2211514},"id":"68fe9bff2ad4"}
+{"status":"Downloading","progressDetail":{"current":1048576,"total":2211514},"id":"68fe9bff2ad4"}
+{"status":"Downloading","progressDetail":{"current":1048576,"total":2211514},"id":"68fe9bff2ad4"}
+{"status":"Downloading","progressDetail":{"current":1048576,"total":2211514},"id":"68fe9bff2ad4"}
+{"status":"Downloading","progressDetail":{"current":1048576,"total":2211514},"id":"68fe9bff2ad4"}
+{"status":"Downloading","progressDetail":{"current":1048576,"total":2211514},"id":"68fe9bff2ad4"}
+{"status":"Downloading","progressDetail":{"current":1048576,"total":2211514},"id":"68fe9bff2ad4"}
+{"status":"Downloading","progressDetail":{"current":1048576,"total":2211514},"id":"68fe9bff2ad4"}
+{"status":"Downloading","progressDetail":{"current":1048576,"total":2211514},"id":"68fe9bff2ad4"}
+{"status":"Downloading","progressDetail":{"current":1048576,"total":2211514},"id":"68fe9bff2ad4"}
+{"status":"Downloading","progressDetail":{"current":1048576,"total":2211514},"id":"68fe9bff2ad4"}
+{"status":"Download complete","progressDetail":{"hidecounts":true},"id":"68fe9bff2ad4"}
+{"status":"Extracting","progressDetail":{"current":1,"units":"s"},"id":"68fe9bff2ad4"}
+{"status":"Pull complete","progressDetail":{"hidecounts":true},"id":"68fe9bff2ad4"}
+{"status":"Digest: sha256:bdf57e528e45e4433820e045b29b4597825a1c9e38353532d90a01445013f82e"}
+{"status":"Status: Downloaded newer image for busybox:1.37"}

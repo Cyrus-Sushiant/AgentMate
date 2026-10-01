@@ -16,6 +16,15 @@ internal sealed class StreamLimits
 
     public const string Alerts = "alerts";
 
+    // Docker (E06).
+    public const string ContainerStats = "container-stats";
+
+    public const string ContainerLogs = "container-logs";
+
+    public const string DockerEvents = "docker-events";
+
+    public const string Console = "console";
+
     public const int PerConnection = 8;
 
     public static readonly IReadOnlyDictionary<string, int> PerKind = new Dictionary<string, int>(StringComparer.Ordinal)
@@ -23,6 +32,10 @@ internal sealed class StreamLimits
         [Metrics] = 2,
         [Job] = 4,
         [Alerts] = 2,
+        [ContainerStats] = 2,
+        [ContainerLogs] = 4,
+        [DockerEvents] = 2,
+        [Console] = 2,
     };
 
     private readonly Lock _gate = new();

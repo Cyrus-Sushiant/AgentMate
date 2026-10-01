@@ -1,0 +1,30 @@
+{
+ "Volumes": [
+  {
+   "CreatedAt": "2026-10-01T11:59:48Z",
+   "Driver": "local",
+   "Labels": {
+    "com.docker.volume.anonymous": ""
+   },
+   "Mountpoint": "/var/lib/docker/volumes/43491c2041c0c3c4677a866ae83ca9acc6d3716f06f9bfb96c593a3bddc391b9/_data",
+   "Name": "43491c2041c0c3c4677a866ae83ca9acc6d3716f06f9bfb96c593a3bddc391b9",
+   "Options": null,
+   "Scope": "local"
+  },
+  {
+   "CreatedAt": "2026-10-01T11:59:48Z",
+   "Driver": "local",
+   "Labels": {
+    "com.docker.compose.config-hash": "4e9994dd3f18d2005754ebe423d777f4baca4d40768dce9f0f672cc616414856",
+    "com.docker.compose.project": "shop",
+    "com.docker.compose.version": "5.5.1",
+    "com.docker.compose.volume": "data"
+   },
+   "Mountpoint": "/var/lib/docker/volumes/shop_data/_data",
+   "Name": "shop_data",
+   "Options": null,
+   "Scope": "local"
+  }
+ ],
+ "Warnings": null
+}

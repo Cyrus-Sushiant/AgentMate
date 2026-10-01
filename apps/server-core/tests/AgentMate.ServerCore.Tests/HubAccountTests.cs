@@ -4,6 +4,7 @@ using System.Security.Cryptography;
 using AgentMate.ServerCore.Alerts;
 using AgentMate.ServerCore.Contracts;
 using AgentMate.ServerCore.Data;
+using AgentMate.ServerCore.Docker;
 using AgentMate.ServerCore.Hubs;
 using AgentMate.ServerCore.Jobs;
 using AgentMate.ServerCore.Metrics;
@@ -309,13 +310,40 @@ public sealed class HubAccountTests
         Assert.NotEmpty(guarded);
         foreach (var method in guarded)
         {
+            // The cancellation token is the server's own; a client stream parameter (the console's
+            // input) gets an empty stream; a streaming method is called as a stream.
             var arguments = method.GetParameters()
-                .Select(parameter => parameter.ParameterType.IsValueType ? Activator.CreateInstance(parameter.ParameterType) : null)
+                .Where(parameter => parameter.ParameterType != typeof(CancellationToken))
+                .Select(parameter => IsStream(parameter.ParameterType)
+                    ? EmptyStream(parameter.ParameterType.GetGenericArguments()[0])
+                    : parameter.ParameterType.IsValueType ? Activator.CreateInstance(parameter.ParameterType) : null)
                 .ToArray();
-            var refusal = await Assert.ThrowsAsync<HubException>(() =>
-                hub.InvokeCoreAsync(method.Name, typeof(object), arguments, Cancel));
+            var refusal = await Assert.ThrowsAsync<HubException>(async () =>
+            {
+                if (IsStream(method.ReturnType))
+                {
+                    await foreach (var _ in hub.StreamAsyncCore<object>(method.Name, arguments, Cancel))
+                    {
+                    }
+                }
+                else
+                {
+                    await hub.InvokeCoreAsync(method.Name, typeof(object), arguments, Cancel);
+                }
+            });
             Assert.Contains("unauthorized", refusal.Message, StringComparison.OrdinalIgnoreCase);
         }
+    }
+
+    private static bool IsStream(Type type) => type.IsGenericType && type.GetGenericTypeDefinition() == typeof(IAsyncEnumerable<>);
+
+    private static object EmptyStream(Type item) =>
+        typeof(HubAccountTests).GetMethod(nameof(Empty), BindingFlags.NonPublic | BindingFlags.Static)!.MakeGenericMethod(item).Invoke(null, null)!;
+
+    private static async IAsyncEnumerable<T> Empty<T>()
+    {
+        await Task.CompletedTask;
+        yield break;
     }
 
     /// <summary>
@@ -344,6 +372,13 @@ public sealed class HubAccountTests
             "ListServices", "StreamAlerts", "StreamJob", "StreamMetrics",
         ];
         string[] firewallReads = ["GetExposure", "GetFirewallPresets", "GetFirewallStatus", "ListFirewallChangeSets"];
+        // Docker (E06): lists, inspect without environment values, stats, logs and events.
+        string[] docker =
+        [
+            "GetDockerDiskUsage", "GetDockerStatus", "InspectContainer", "ListContainers", "ListImages", "ListNetworks",
+            "ListVolumes", "StreamContainerLogs", "StreamContainerStats", "StreamDockerEvents",
+        ];
+        reads = [.. reads, .. docker];
         Assert.Equal(account.Concat(reads).Concat(firewallReads).Order(StringComparer.Ordinal), open.Order(StringComparer.Ordinal));
     }
 
@@ -386,7 +421,17 @@ public sealed class HubAccountTests
         await hub.InvokeAsync<FirewallPreset[]>(nameof(ICoreHub.GetFirewallPresets), Cancel);
         await hub.InvokeAsync<FirewallChangeSetInfo[]>(nameof(ICoreHub.ListFirewallChangeSets), new FirewallChangeSetQuery(), Cancel);
         await hub.InvokeAsync<ExposureInventory>(nameof(ICoreHub.GetExposure), Cancel);
+        await hub.InvokeAsync<DockerStatus>(nameof(ICoreHub.GetDockerStatus), Cancel);
+        await hub.InvokeAsync<ContainerList>(nameof(ICoreHub.ListContainers), Cancel);
+        await hub.InvokeAsync<ContainerDetails>(nameof(ICoreHub.InspectContainer), "shop-api-1", Cancel);
+        await hub.InvokeAsync<ImageInfo[]>(nameof(ICoreHub.ListImages), Cancel);
+        await hub.InvokeAsync<VolumeInfo[]>(nameof(ICoreHub.ListVolumes), Cancel);
+        await hub.InvokeAsync<NetworkInfo[]>(nameof(ICoreHub.ListNetworks), Cancel);
+        await hub.InvokeAsync<DockerDiskUsage>(nameof(ICoreHub.GetDockerDiskUsage), Cancel);
+        await FirstAsync(hub.StreamAsync<ContainerLogBatch>(nameof(ICoreHub.StreamContainerLogs), new ContainerLogsRequest("shop-api-1", Tail: 5, Follow: false), Cancel));
+        await FirstAsync(hub.StreamAsync<ContainerStatsBatch>(nameof(ICoreHub.StreamContainerStats), new ContainerStatsRequest(IntervalMs: 1_000), Cancel));
 
+        Assert.Empty(harness.Services.GetRequiredService<InMemoryDockerEngine>().Changes);
         Assert.Empty(mutations.Entries);
         Assert.Single((await engine.ListAsync(new JobQuery(), Cancel)).Jobs);
         Assert.Null((await harness.Services.GetRequiredService<AlertCenter>().ListAsync(new AlertQuery(), Cancel))

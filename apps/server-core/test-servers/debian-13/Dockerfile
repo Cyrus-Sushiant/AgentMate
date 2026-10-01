@@ -14,6 +14,9 @@ RUN apt-get update \
  && echo 'deployer:deployer-test-pw' | chpasswd \
  && usermod -aG sudo deployer \
  && systemctl enable ssh
+# Docker inside the server (E06) keeps its images and layers off the container's own overlay
+# root, which the kernel refuses to stack another overlay on.
+VOLUME ["/var/lib/docker", "/var/lib/containerd"]
 STOPSIGNAL SIGRTMIN+3
 EXPOSE 22
 CMD ["/sbin/init"]
