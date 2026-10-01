@@ -12,6 +12,7 @@ import { CoreHttpClient } from './connection/coreHttp';
 import { bridgeTransport, streamLocalTransport } from './connection/transport';
 import { DeployService } from './service';
 import { DeployState } from './state';
+import { DeploySystem } from './system';
 import {
   startTestServer,
   systemTestsEnabled,
@@ -33,6 +34,15 @@ const UNIT = join(REPO, 'apps', 'server-core', 'packaging', 'agentmate-core.serv
 const INSTALL_TIMEOUT_MS = 600_000;
 
 type Login = keyof typeof TEST_LOGINS;
+
+/** Asks again every half second until `done` holds, or fails saying what it waited for. */
+async function until(done: () => boolean, timeoutMs: number, what: string): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (!done()) {
+    if (Date.now() > deadline) throw new Error(`Gave up waiting for ${what}.`);
+    await new Promise((resolve) => setTimeout(resolve, 500));
+  }
+}
 
 const servers: TestServer[] = [];
 
@@ -216,6 +226,75 @@ describe.skipIf(!enabled)('installing the server core on real servers', () => {
       );
       await service.signOut('srv');
       expect((await service.access('srv')).state).toBe('needs-sign-in');
+      pool.closeAll();
+    },
+    INSTALL_TIMEOUT_MS,
+  );
+
+  it(
+    'streams live metrics through the tunnel on the lasting connection (E05 AC1)',
+    async () => {
+      const server = await startTestServer('ubuntu-24.04');
+      servers.push(server);
+      const { service, pool } = deploy(server, 'deployer');
+      await service.install({
+        serverId: 'srv',
+        sudoPassword: null,
+        account: { userName: 'maria', password: 'correct horse battery staple' },
+      });
+      const system = new DeploySystem({ links: service.links, roles: (id) => service.roles(id) });
+
+      const samples: number[] = [];
+      const stop = service.links.watchMetrics('srv', 1_000, (sample) => {
+        samples.push(sample.atUnixMs);
+      });
+      const info = await system.info('srv');
+      await until(() => samples.length >= 2, 30_000, 'two live samples');
+      stop();
+
+      expect(info.os.family).toBe('debian');
+      expect(service.connection('srv').state).toBe('online');
+      expect(samples[1]).toBeGreaterThan(samples[0]);
+      service.links.closeAll();
+      pool.closeAll();
+    },
+    INSTALL_TIMEOUT_MS,
+  );
+
+  it(
+    'stops every process of a job it cancels, with the transient unit (E05 AC2)',
+    async () => {
+      const server = await startTestServer('ubuntu-24.04');
+      servers.push(server);
+      const { service, pool } = deploy(server, 'deployer');
+      const password = 'correct horse battery staple';
+      await service.install({
+        serverId: 'srv',
+        sudoPassword: null,
+        account: { userName: 'maria', password },
+      });
+      const system = new DeploySystem({ links: service.links, roles: (id) => service.roles(id) });
+
+      const job = await system.upgradeAll({ serverId: 'srv', password });
+      let final: string | undefined;
+      service.links.watchJob('srv', job.id, 0, {
+        lines: () => undefined,
+        ended: (end) => {
+          final = end.job?.state ?? end.error;
+        },
+      });
+      await system.cancelJob('srv', job.id);
+      await until(() => final !== undefined, 60_000, 'the job to end');
+
+      expect(final).toBe('cancelled');
+      await until(
+        () =>
+          server.run("systemctl list-units --all --no-legend 'agentmate-*-*' || true") === '' &&
+          server.run("pgrep -fa '[a]pt-get|[d]pkg|[d]nf' || true") === '',
+        30_000,
+        'the unit and its processes to be gone',
+      );
+      service.links.closeAll();
       pool.closeAll();
     },
     INSTALL_TIMEOUT_MS,

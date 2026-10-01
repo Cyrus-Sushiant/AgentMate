@@ -14,6 +14,7 @@ import type { DeployRedeemCodeInput } from '../../shared/deploySecurityTypes';
 import type {
   DeployAccess,
   DeployAccountInput,
+  DeployConnection,
   DeployCoreRecord,
   DeployEnrollInput,
   DeployHealth,
@@ -40,12 +41,16 @@ import { runPreflight } from './bootstrap/preflight';
 import type { ReleaseSource } from './bootstrap/releaseSource';
 import { CoreHttpClient } from './connection/coreHttp';
 import { coreHub, createCoreHubConnection } from './connection/coreHub';
+import { hubMessage } from './connection/hubErrors';
+import { HubStartError, type LiveHubSession, startLiveHub } from './connection/liveHub';
 import {
   bridgeTransport,
   type CoreTransport,
   devTcpTransport,
   streamLocalTransport,
 } from './connection/transport';
+import { CoreLinks } from './live/coreLinks';
+import { LinkBlockedError } from './live/linkFailures';
 import type { DeployState } from './state';
 
 /**
@@ -102,6 +107,16 @@ export interface DeployServiceDeps {
   rest?: (transport: CoreTransport) => CoreRest;
   /** A started hub connection over a transport; tests pass a fake. */
   hub?: (transport: CoreTransport, accessToken: () => Promise<string>) => Promise<CoreHubSession>;
+  /** A lasting hub connection (live/coreLink.ts) with a fixed token; tests pass a fake. */
+  liveHub?: (
+    transport: CoreTransport,
+    token: string,
+    expiresAt: number | null,
+  ) => Promise<LiveHubSession>;
+  /** Hears every change of a server's lasting connection, for the renderer. */
+  connectionChanged?: (connection: DeployConnection) => void;
+  /** Called when the servers with a core and this computer on it may have changed. */
+  serversChanged?: () => void;
   now?: () => number;
 }
 
@@ -114,21 +129,19 @@ async function startHub(
   return { hub: coreHub(connection), stop: () => connection.stop() };
 }
 
-/** The human part of a hub error: SignalR puts what the core said after "HubException: ". */
-function hubMessage(error: unknown): string {
-  const message = error instanceof Error ? error.message : String(error);
-  const marker = message.indexOf('HubException: ');
-  return marker < 0 ? message : message.slice(marker + 'HubException: '.length);
-}
-
 function summary(user: SignedInUser): NonNullable<DeployAccess['user']> {
   return { userName: user.userName, roles: user.roles, twoFactorEnabled: user.twoFactorEnabled };
 }
 
 const NO_CORE = 'This build of AgentMate has no server core to install.';
+const NOT_INSTALLED = 'The server core is not installed on this server yet.';
+const NOT_ENROLLED = 'This computer is not enrolled on this server core yet.';
 
 export class DeployService {
+  /** Each server's lasting connection, for live streams and short calls (live/coreLinks.ts). */
+  readonly links: CoreLinks;
   private readonly busy = new Set<string>();
+  private readonly liveHubOf: NonNullable<DeployServiceDeps['liveHub']>;
   private readonly healthOf: (transport: CoreTransport) => Promise<HealthResponse>;
   private readonly rest: (transport: CoreTransport) => CoreRest;
   private readonly hubOf: (
@@ -150,6 +163,28 @@ export class DeployService {
         this.withTransport(serverId, (transport) => work(this.rest(transport))),
       now: this.now,
     });
+    this.liveHubOf = deps.liveHub ?? startLiveHub;
+    this.links = new CoreLinks({
+      open: (serverId) => this.openLive(serverId),
+      onState: deps.connectionChanged,
+      now: this.now,
+    });
+  }
+
+  /** A server's lasting connection right now. */
+  connection(serverId: string): DeployConnection {
+    return this.links.info(serverId);
+  }
+
+  /** Tries a server's connection again now, as after unlocking the vault or fixing SSH. */
+  reconnect(serverId: string): DeployConnection {
+    this.links.retry(serverId);
+    return this.links.info(serverId);
+  }
+
+  /** The signed-in user's roles on a server, when this run of the app knows them. */
+  roles(serverId: string): string[] | null {
+    return this.sessions.user(serverId)?.roles ?? null;
   }
 
   async listServers(): Promise<DeployServer[]> {
@@ -237,6 +272,9 @@ export class DeployService {
           enrollmentError = coreErrorMessage(error);
         }
       }
+      // The core restarted under any connection that was open; start over on the new one.
+      this.links.reset(input.serverId);
+      this.deps.serversChanged?.();
       return {
         version: installed.version,
         release: installed.release,
@@ -253,6 +291,8 @@ export class DeployService {
     await this.exclusive(input.serverId, () =>
       this.setUpAccess(input.serverId, input.sudoPassword, input.account),
     );
+    this.links.reset(input.serverId);
+    this.deps.serversChanged?.();
     return this.access(input.serverId);
   }
 
@@ -329,6 +369,7 @@ export class DeployService {
       ...(input.totpCode ? { totpCode: input.totpCode } : {}),
       ...(input.recoveryCode ? { recoveryCode: input.recoveryCode } : {}),
     });
+    this.links.reset(input.serverId);
     return { state: 'signed-in', user: summary(user) };
   }
 
@@ -345,6 +386,8 @@ export class DeployService {
       const { sessionId: _ended, ...rest } = device;
       await this.deps.state.setDevice(serverId, rest);
     }
+    // With no session left, the next connection waits for a sign-in instead of retrying.
+    this.links.reset(serverId);
   }
 
   /** Drops this run's access tokens for a server, as when the vault locks. */
@@ -400,6 +443,8 @@ export class DeployService {
       );
       await this.deps.state.remove(input.serverId);
       this.sessions.forget(input.serverId);
+      this.links.reset(input.serverId);
+      this.deps.serversChanged?.();
     });
   }
 
@@ -494,6 +539,7 @@ export class DeployService {
       userName: enrolled.userName,
       privateKey: await this.deps.seal(key.privateKeyPem),
     });
+    this.deps.serversChanged?.();
   }
 
   /**
@@ -560,10 +606,16 @@ export class DeployService {
   }
 
   /**
-   * A short-lived hub connection, signed in with this computer's session. The Security area
-   * (security.ts) makes its calls through it too.
+   * A hub call: on the server's lasting connection when it is up, otherwise on a short-lived one
+   * signed in with this computer's session. The Security area (security.ts) makes its calls
+   * through it too.
    */
   withHub<T>(serverId: string, work: (hub: ICoreHub) => Promise<T>): Promise<T> {
+    if (this.links.isOnline(serverId)) {
+      return this.links.call(serverId, work).catch((error: unknown) => {
+        throw new Error(hubMessage(error));
+      });
+    }
     return this.withTransport(serverId, async (transport) => {
       const session = await this.openHub(serverId, transport);
       try {
@@ -593,6 +645,72 @@ export class DeployService {
       } catch {
         throw new Error(hubMessage(refused));
       }
+    }
+  }
+
+  /**
+   * One lasting hub connection for the server's link, over the transport the install settled on,
+   * holding an SSH lease for as long as it is open. What cannot be fixed by trying again (no
+   * saved server, no core, no device here) is said so the link waits instead.
+   */
+  private async openLive(serverId: string): Promise<LiveHubSession> {
+    if (this.isDevHost(serverId)) {
+      await this.ensureDevDevice();
+      return this.startLive(serverId, devTcpTransport(this.deps.devCorePort as number));
+    }
+    try {
+      await this.saved(serverId);
+    } catch (error) {
+      throw new LinkBlockedError('offline', coreErrorMessage(error));
+    }
+    const record = await this.deps.state.get(serverId);
+    if (!record) throw new LinkBlockedError('offline', NOT_INSTALLED);
+    if (!(await this.deps.state.device(serverId))) {
+      throw new LinkBlockedError('offline', NOT_ENROLLED);
+    }
+    const lease = await this.deps.pool.acquire(serverId);
+    try {
+      const session = await this.startLiveOver(serverId, record, lease);
+      void session.closed.then(() => lease.release());
+      return session;
+    } catch (error) {
+      lease.release();
+      throw error;
+    }
+  }
+
+  private async startLiveOver(
+    serverId: string,
+    record: DeployCoreRecord,
+    lease: DeployLease,
+  ): Promise<LiveHubSession> {
+    if (record.transport === 'bridge') {
+      return this.startLive(serverId, bridgeTransport(lease.connection));
+    }
+    try {
+      return await this.startLive(serverId, streamLocalTransport(lease.connection));
+    } catch (error) {
+      // sshd may have stopped allowing the tunnel since the install, and the bridge still gets
+      // in. Only for this connection, though: a core that is still starting after a reboot
+      // refuses the tunnel too, so changing the record is left to the health check.
+      if (!(error instanceof TunnelRefusedError)) throw error;
+      return this.startLive(serverId, bridgeTransport(lease.connection));
+    }
+  }
+
+  private async startLive(serverId: string, transport: CoreTransport): Promise<LiveHubSession> {
+    const open = async () => {
+      const token = await this.sessions.accessToken(serverId);
+      return this.liveHubOf(transport, token, this.sessions.expiresAt(serverId));
+    };
+    try {
+      return await open();
+    } catch (error) {
+      // The core turned the token in hand away: its session or device was revoked there.
+      // Renewing says which, with a code the link waits on.
+      if (!(error instanceof HubStartError) || error.status !== 401) throw error;
+      this.sessions.forget(serverId);
+      return open();
     }
   }
 

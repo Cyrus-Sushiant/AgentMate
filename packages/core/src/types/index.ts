@@ -272,7 +272,14 @@ export function normalizeProjectGithubActions(value: unknown): ProjectGithubActi
   return actions;
 }
 
-export type AppNotificationKind = 'pipeline-failure' | 'pipeline-success' | 'tool-update-available';
+export type AppNotificationKind =
+  | 'pipeline-failure'
+  | 'pipeline-success'
+  | 'tool-update-available'
+  /** A server core's alert, by severity (the Deploy section's watcher raises these). */
+  | 'deploy-critical'
+  | 'deploy-warning'
+  | 'deploy-info';
 
 /** In-app inbox item: pipeline results from watched GitHub Actions, or a CLI/tool update. */
 export interface AppNotification {
@@ -283,6 +290,8 @@ export interface AppNotification {
   projectId: string | null;
   projectName: string;
   htmlUrl: string | null;
+  /** A page in the app that clicking it opens, such as a Deploy server's Overview. */
+  route?: string;
   createdAt: string;
   read: boolean;
 }

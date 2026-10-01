@@ -83,6 +83,11 @@ export class CoreSessions {
     return next;
   }
 
+  /** When the token in hand runs out (the core's clock), or null when there is none. */
+  expiresAt(serverId: string): number | null {
+    return this.signedIn.get(serverId)?.expiresAt ?? null;
+  }
+
   /** Who is signed in, when this run of the app has signed in or renewed. */
   user(serverId: string): SignedInUser | null {
     return this.signedIn.get(serverId)?.user ?? null;

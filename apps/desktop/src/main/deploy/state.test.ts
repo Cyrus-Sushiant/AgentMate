@@ -148,6 +148,49 @@ describe('DeployState devices', () => {
   });
 });
 
+describe('DeployState alert marks', () => {
+  it('keeps how far the alert watcher got on each server, and what it saw open', async () => {
+    const files = memoryFiles();
+    const state = new DeployState(files.port);
+    expect(await state.alertMark('srv-1')).toBeNull();
+
+    await state.set('srv-1', RECORD);
+    await state.setAlertMark('srv-1', { revision: 7, open: { '3': 'warning' } });
+
+    expect(await state.alertMark('srv-1')).toEqual({ revision: 7, open: { '3': 'warning' } });
+    expect(await state.get('srv-1')).toEqual(RECORD);
+  });
+
+  it('forgets the mark with the core it belongs to', async () => {
+    const state = new DeployState(memoryFiles().port);
+    await state.set('srv-1', RECORD);
+    await state.setAlertMark('srv-1', { revision: 7, open: {} });
+
+    await state.remove('srv-1');
+
+    expect(await state.alertMark('srv-1')).toBeNull();
+  });
+
+  it('skips marks it cannot read', async () => {
+    const state = new DeployState(
+      memoryFiles({
+        version: 1,
+        cores: {},
+        devices: {},
+        alerts: {
+          good: { revision: 2, open: { '1': 'critical', '2': 'loud' } },
+          negative: { revision: -1, open: {} },
+          text: 'nope',
+        },
+      }).port,
+    );
+
+    expect(await state.alertMark('good')).toEqual({ revision: 2, open: { '1': 'critical' } });
+    expect(await state.alertMark('negative')).toBeNull();
+    expect(await state.alertMark('text')).toBeNull();
+  });
+});
+
 describe('jsonFilePort', () => {
   it('reads nothing before the first write', async () => {
     expect(await jsonFilePort(join(tempDir(), 'deploy.json')).read()).toBeNull();

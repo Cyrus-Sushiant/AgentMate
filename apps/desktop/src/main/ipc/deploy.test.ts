@@ -28,6 +28,8 @@ function harness(trusted = true) {
     beginTotp: vi.fn(async () => ({})),
     confirmTotp: vi.fn(async () => ({ codes: [] })),
     disableTotp: vi.fn(async () => undefined),
+    connection: vi.fn(() => ({ serverId: 'srv-1', state: 'online', since: 1 })),
+    reconnect: vi.fn(() => ({ serverId: 'srv-1', state: 'connecting', since: 2 })),
   };
   registerDeployHandlers({
     ipc: { handle: (channel, listener) => handlers.set(channel, listener) },
@@ -134,6 +136,17 @@ describe('registerDeployHandlers', () => {
     expect(service.stepUp).toHaveBeenCalledWith({ serverId: 'srv-1', totpCode: '123456' });
     expect(service.confirmTotp).toHaveBeenCalledWith('srv-1', '123 456');
     expect(service.access).toHaveBeenCalledWith('srv-1');
+  });
+
+  it("tells a server's connection state, and tries it again on request", async () => {
+    const { service, call } = harness();
+
+    expect(await call(IPC.deploy.connection, 'srv-1')).toMatchObject({ state: 'online' });
+    expect(await call(IPC.deploy.reconnect, 'srv-1')).toMatchObject({ state: 'connecting' });
+    await expect(call(IPC.deploy.reconnect, '../x')).rejects.toThrow(/server/);
+
+    expect(service.connection).toHaveBeenCalledWith('srv-1');
+    expect(service.reconnect).toHaveBeenCalledTimes(1);
   });
 
   it('refuses account and sign-in arguments of the wrong shape', async () => {

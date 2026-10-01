@@ -474,6 +474,20 @@ describe('rows bound straight into SQL', () => {
     });
     expect(result.skipped.notifications).toBe(1);
   });
+
+  it("keeps a server alert's page in the app, and only a text one", () => {
+    const result = parsed({
+      appNotifications: [
+        { id: 'n1', kind: 'deploy-warning', route: '/deploy?server=srv-1' },
+        { id: 'n2', kind: 'deploy-info', route: 42 },
+      ],
+    });
+    expect(result.data.appNotifications?.[0]).toMatchObject({
+      kind: 'deploy-warning',
+      route: '/deploy?server=srv-1',
+    });
+    expect(result.data.appNotifications?.[1]).not.toHaveProperty('route');
+  });
 });
 
 describe('blueprints and presets', () => {

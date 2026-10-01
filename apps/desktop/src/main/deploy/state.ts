@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import type { SecretEnvelope } from '../../shared/apiTypes';
+import type { AlertSeverity } from '../../shared/deploy/protocol/generated/AgentMate.ServerCore.Contracts';
 import type { DeployCoreRecord, DeployTransport } from '../../shared/deployTypes';
 import type { SealedSecretStore } from '../ssh/vault';
 
@@ -23,10 +24,21 @@ export interface DeviceCredentials {
   sessionId?: string;
 }
 
+/**
+ * How far the alert watcher got on one server: the highest revision it handled, and the severity
+ * of each alert it saw open (by id), so nothing is announced twice, a restart included.
+ */
+export interface AlertMark {
+  revision: number;
+  open: Record<string, AlertSeverity>;
+}
+
 export interface DeployStateFile {
   version: 1;
   cores: Record<string, DeployCoreRecord>;
   devices: Record<string, DeviceCredentials>;
+  /** Left out by files written before E05. */
+  alerts?: Record<string, AlertMark>;
 }
 
 export interface DeployStatePort {
@@ -78,10 +90,34 @@ function isDevice(value: unknown): value is DeviceCredentials {
   );
 }
 
+const SEVERITIES: ReadonlySet<string> = new Set<AlertSeverity>(['info', 'warning', 'critical']);
+
+function parseMark(value: unknown): AlertMark | null {
+  if (typeof value !== 'object' || value === null) return null;
+  const mark = value as { revision?: unknown; open?: unknown };
+  if (typeof mark.revision !== 'number' || !Number.isSafeInteger(mark.revision)) return null;
+  if (mark.revision < 0) return null;
+  const open: Record<string, AlertSeverity> = {};
+  if (typeof mark.open === 'object' && mark.open !== null) {
+    for (const [id, severity] of Object.entries(mark.open)) {
+      if (typeof severity === 'string' && SEVERITIES.has(severity)) {
+        open[id] = severity as AlertSeverity;
+      }
+    }
+  }
+  return { revision: mark.revision, open };
+}
+
 function parse(value: unknown): DeployStateFile {
-  const file = (value ?? {}) as { version?: unknown; cores?: unknown; devices?: unknown };
+  const file = (value ?? {}) as {
+    version?: unknown;
+    cores?: unknown;
+    devices?: unknown;
+    alerts?: unknown;
+  };
   const cores: Record<string, DeployCoreRecord> = {};
   const devices: Record<string, DeviceCredentials> = {};
+  const alerts: Record<string, AlertMark> = {};
   if (file.version === 1) {
     if (typeof file.cores === 'object' && file.cores !== null) {
       for (const [serverId, record] of Object.entries(file.cores)) {
@@ -93,8 +129,14 @@ function parse(value: unknown): DeployStateFile {
         if (isDevice(device)) devices[serverId] = device;
       }
     }
+    if (typeof file.alerts === 'object' && file.alerts !== null) {
+      for (const [serverId, value] of Object.entries(file.alerts)) {
+        const mark = parseMark(value);
+        if (mark) alerts[serverId] = mark;
+      }
+    }
   }
-  return { version: 1, cores, devices };
+  return { version: 1, cores, devices, alerts };
 }
 
 export class DeployState {
@@ -134,13 +176,22 @@ export class DeployState {
     return this.update((file) => ({ ...file, cores: { ...file.cores, [serverId]: record } }));
   }
 
-  /** Forgets the core, and this computer's device on it with it. */
+  /** Forgets the core, and this computer's device on it (and what it saw of its alerts) with it. */
   remove(serverId: string): Promise<void> {
     return this.update((file) => {
       const { [serverId]: _core, ...cores } = file.cores;
       const { [serverId]: _device, ...devices } = file.devices;
-      return { ...file, cores, devices };
+      const { [serverId]: _mark, ...alerts } = file.alerts ?? {};
+      return { ...file, cores, devices, alerts };
     });
+  }
+
+  async alertMark(serverId: string): Promise<AlertMark | null> {
+    return (await this.read()).alerts?.[serverId] ?? null;
+  }
+
+  setAlertMark(serverId: string, mark: AlertMark): Promise<void> {
+    return this.update((file) => ({ ...file, alerts: { ...file.alerts, [serverId]: mark } }));
   }
 
   /** Servers this computer has a device on. */

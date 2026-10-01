@@ -10,15 +10,25 @@ import type {
 } from '../../shared/apiTypes';
 import { decryptWithKey, deriveKey, encryptWithKey } from '../crypto/aesGcm';
 import { store } from '../store';
+import { VaultLockedError } from './vaultErrors';
 
 /** Encrypted under a just-derived key and stashed alongside the salt, so a wrong passkey is
  *  rejected right away instead of producing garbage the first time a server tries to connect. */
 const VERIFIER_PLAINTEXT = 'agentmate-ssh-vault';
 
-const LOCKED_MESSAGE = 'The vault is locked. Unlock it with your passkey first.';
-
 /** Cached for the running app session only; cleared on `before-quit`. Never persisted. */
 let unlockedKey: Buffer | null = null;
+
+const unlockListeners = new Set<() => void>();
+
+/**
+ * Runs `listener` each time the passkey opens the vault, so whatever was waiting on a locked
+ * secret (the Deploy section's connections) can carry on. Returns a function that stops it.
+ */
+export function onVaultUnlocked(listener: () => void): () => void {
+  unlockListeners.add(listener);
+  return () => unlockListeners.delete(listener);
+}
 
 function verifyKey(key: Buffer, verifier: string): boolean {
   try {
@@ -54,6 +64,7 @@ export async function unlockVault(passphrase: string): Promise<boolean> {
   const key = await deriveKey(passphrase, vault.salt);
   if (!verifyKey(key, vault.verifier)) return false;
   unlockedKey = key;
+  for (const listener of [...unlockListeners]) listener();
   return true;
 }
 
@@ -177,7 +188,7 @@ function encryptWithSafeStorage(plaintext: string): SecretEnvelope {
 export async function encryptSecret(plaintext: string): Promise<SecretEnvelope> {
   if (unlockedKey) return encryptWithKey(plaintext, unlockedKey);
   const vault = await store.getSshVault();
-  if (vault) throw new Error(LOCKED_MESSAGE);
+  if (vault) throw new VaultLockedError();
   return encryptWithSafeStorage(plaintext);
 }
 
@@ -190,6 +201,6 @@ export async function decryptSecret(envelope: SecretEnvelope): Promise<string> {
   if (envelope.mode === 'safeStorage') {
     return safeStorage.decryptString(Buffer.from(envelope.ciphertext, 'base64'));
   }
-  if (!unlockedKey) throw new Error(LOCKED_MESSAGE);
+  if (!unlockedKey) throw new VaultLockedError();
   return decryptWithKey(envelope, unlockedKey);
 }

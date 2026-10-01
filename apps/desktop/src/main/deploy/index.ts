@@ -5,11 +5,18 @@ import { app, dialog, type IpcMainInvokeEvent, ipcMain } from 'electron';
 import { IPC } from '../../shared/ipcChannels';
 import { registerDeployHandlers } from '../ipc/deploy';
 import { registerDeploySecurityHandlers } from '../ipc/deploySecurity';
-import { sendToWindow } from '../ipc/send';
+import { registerDeploySystemHandlers, subscriptionOwners } from '../ipc/deploySystem';
+import { broadcastToWindows, sendToWindow } from '../ipc/send';
 import { getMainWindow } from '../mainWindow';
+import { showOsNotification } from '../notifications/osNotification';
 import { SshConnectionPool } from '../ssh/pool';
 import { savedServerPoolSource } from '../ssh/savedServers';
-import { decryptSecret, encryptSecret, registerSealedSecretStore } from '../ssh/vault';
+import {
+  decryptSecret,
+  encryptSecret,
+  onVaultUnlocked,
+  registerSealedSecretStore,
+} from '../ssh/vault';
 import { store } from '../store';
 import { DownloadAbortedError, ResumableDownload } from '../updater/resumableDownload';
 import {
@@ -19,15 +26,19 @@ import {
   type ReleaseSource,
   repoReleaseDirectory,
 } from './bootstrap/releaseSource';
+import { DeploySubscriptions } from './live/subscriptions';
 import { DeploySecurity } from './security';
 import { DeployService } from './service';
 import { DeployState, jsonFilePort } from './state';
+import { DeploySystem } from './system';
+import { appNotificationInbox, DeployAlertWatcher } from './watcher';
 
 /**
  * Wires the Deploy service into Electron. Packaged builds install the core release published
  * with their own version, checked against the manifest built into the app. Development builds
  * use `pnpm server-core:publish` output, and can add the DevHost with AGENTMATE_DEPLOY_DEV_CORE
- * (a loopback port); packaged builds ignore both.
+ * (a loopback port); packaged builds ignore both. Every enrolled server keeps a lasting
+ * connection while the app runs, for the Overview's live data and the alert watcher.
  */
 
 const MANIFEST = 'server-core-manifest.json';
@@ -120,6 +131,7 @@ export function registerDeployIpc(): void {
   const state = new DeployState(jsonFilePort(join(app.getPath('userData'), 'data', 'deploy.json')));
   // Device keys are sealed with the Servers vault, so they move with a passkey change.
   registerSealedSecretStore(state.sealedKeys);
+  let watcher: DeployAlertWatcher | null = null;
   const service = new DeployService({
     servers: () => store.getSshServers(),
     pool,
@@ -131,30 +143,61 @@ export function registerDeployIpc(): void {
     unavailableReason: source.unavailableReason,
     devCorePort: devCorePort(),
     progress: (event) => sendToWindow(getMainWindow(), IPC.deploy.onSetupProgress, event),
+    connectionChanged: (connection) =>
+      sendToWindow(getMainWindow(), IPC.deploy.onConnection, connection),
+    serversChanged: () => void watcher?.sync(),
   });
-  registerDeployHandlers({
-    ipc: ipcMain,
-    service,
-    guard: (event) => {
-      const win = getMainWindow();
-      return (
-        !!win && event.sender === win.webContents && event.senderFrame === win.webContents.mainFrame
-      );
-    },
-  });
-  registerDeploySecurityIpc(service);
-  app.on('will-quit', () => pool.closeAll());
-}
+  const guard = (event: IpcMainInvokeEvent): boolean => {
+    const win = getMainWindow();
+    return (
+      !!win && event.sender === win.webContents && event.senderFrame === win.webContents.mainFrame
+    );
+  };
+  registerDeployHandlers({ ipc: ipcMain, service, guard });
 
-function fromMainWindow(event: IpcMainInvokeEvent): boolean {
-  const win = getMainWindow();
-  return (
-    !!win && event.sender === win.webContents && event.senderFrame === win.webContents.mainFrame
-  );
+  const subscriptions = new DeploySubscriptions({ links: service.links });
+  const ownerOf = subscriptionOwners((ownerId) => subscriptions.dropOwner(ownerId));
+  registerDeploySystemHandlers({
+    ipc: ipcMain,
+    system: new DeploySystem({ links: service.links, roles: (id) => service.roles(id) }),
+    subscriptions,
+    guard,
+    owner: (event) => ownerOf(event.sender),
+  });
+
+  watcher = new DeployAlertWatcher({
+    links: service.links,
+    state,
+    servers: async () =>
+      (await service.listServers())
+        .filter((server) => server.enrolled && server.core)
+        .map((server) => ({ id: server.id, name: server.nickname })),
+    inbox: appNotificationInbox({
+      list: () => store.getAppNotifications(),
+      save: (items) => store.setAppNotifications(items),
+      changed: () => broadcastToWindows(IPC.appNotifications.onChanged),
+    }),
+    toast: (toast) => {
+      showOsNotification(toast);
+    },
+    focused: () => getMainWindow()?.isFocused() ?? false,
+  });
+  void watcher.sync();
+  // A locked vault holds every connection that needs a secret; opening it lets them carry on.
+  onVaultUnlocked(() => service.links.wake('locked'));
+  app.on('will-quit', () => {
+    watcher?.stop();
+    service.links.closeAll();
+    pool.closeAll();
+  });
+  registerDeploySecurityIpc(service, guard);
 }
 
 /** The Security area: users, devices, sessions, enrollment codes and the audit trail. */
-function registerDeploySecurityIpc(service: DeployService): void {
+function registerDeploySecurityIpc(
+  service: DeployService,
+  guard: (event: IpcMainInvokeEvent) => boolean,
+): void {
   const security = new DeploySecurity({
     withHub: (serverId, work) => service.withHub(serverId, work),
     forgetTokens: (serverId) => service.forgetTokens(serverId),
@@ -178,5 +221,5 @@ function registerDeploySecurityIpc(service: DeployService): void {
     },
     writeFile: (path, content) => writeFile(path, content, 'utf-8'),
   });
-  registerDeploySecurityHandlers({ ipc: ipcMain, security, service, guard: fromMainWindow });
+  registerDeploySecurityHandlers({ ipc: ipcMain, security, service, guard });
 }

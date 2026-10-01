@@ -282,13 +282,21 @@ import type {
 } from '../shared/apiTypes';
 import type {
   AccountInfo,
+  AlertInfo,
   AuditPage,
   AuditVerificationInfo,
   DeviceInfo,
   EnrollmentCodeInfo,
+  JobInfo,
+  JobPage,
+  ManagedService,
+  MetricsHistory,
   RecoveryCodes,
+  ServiceInfo,
   SessionInfo,
   StepUpResponse,
+  SystemInfo,
+  UpdatesInfo,
   UserInfo,
 } from '../shared/deploy/protocol/generated/AgentMate.ServerCore.Contracts';
 import type {
@@ -305,10 +313,19 @@ import type {
 } from '../shared/deploySecurityTypes';
 import type {
   DeployAccess,
+  DeployAlertsEvent,
+  DeployAlertsQuery,
+  DeployConnection,
   DeployEnrollInput,
   DeployHealth,
   DeployInstallInput,
   DeployInstallResult,
+  DeployJobEvent,
+  DeployJobsQuery,
+  DeployJobWatchInput,
+  DeployMetricsEvent,
+  DeployMetricsHistoryInput,
+  DeployMetricsWatchInput,
   DeployPreflight,
   DeployServer,
   DeploySetupProgressEvent,
@@ -1426,6 +1443,82 @@ const deploy = {
   /** Each step of a running install or removal, as it starts, finishes or fails. */
   onSetupProgress: (cb: (event: DeploySetupProgressEvent) => void): (() => void) =>
     subscribe(IPC.deploy.onSetupProgress, cb),
+  /** The server's lasting connection to its core right now. */
+  connection: (serverId: string): Promise<DeployConnection> =>
+    ipcRenderer.invoke(IPC.deploy.connection, serverId),
+  /** Tries the connection again now, whatever it waited for (after unlocking the vault, say). */
+  reconnect: (serverId: string): Promise<DeployConnection> =>
+    ipcRenderer.invoke(IPC.deploy.reconnect, serverId),
+  /** Every change of a server's connection: online, reconnecting, needs a sign-in, and so on. */
+  onConnection: (cb: (connection: DeployConnection) => void): (() => void) =>
+    subscribe(IPC.deploy.onConnection, cb),
+};
+
+/**
+ * A server's Overview: its facts, live and stored metrics, updates, reboot and restarts. Calls
+ * refused for a missing step-up carry `[core:stepUpRequired]`; for a role, `[core:forbidden]`.
+ */
+const deploySystem = {
+  info: (serverId: string): Promise<SystemInfo> =>
+    ipcRenderer.invoke(IPC.deploySystem.info, serverId),
+  services: (serverId: string): Promise<ServiceInfo[]> =>
+    ipcRenderer.invoke(IPC.deploySystem.services, serverId),
+  metricsHistory: (input: DeployMetricsHistoryInput): Promise<MetricsHistory> =>
+    ipcRenderer.invoke(IPC.deploySystem.metricsHistory, input),
+  updates: (serverId: string): Promise<UpdatesInfo> =>
+    ipcRenderer.invoke(IPC.deploySystem.updates, serverId),
+  checkUpdates: (serverId: string): Promise<JobInfo> =>
+    ipcRenderer.invoke(IPC.deploySystem.checkUpdates, serverId),
+  upgradeSecurity: (serverId: string): Promise<JobInfo> =>
+    ipcRenderer.invoke(IPC.deploySystem.upgradeSecurity, serverId),
+  /** Needs a step-up: pass the password (or a code) unless one was made in the last 10 minutes. */
+  upgradeAll: (input: DeployStepUpInput): Promise<JobInfo> =>
+    ipcRenderer.invoke(IPC.deploySystem.upgradeAll, input),
+  setAutomaticUpdates: (serverId: string, enabled: boolean): Promise<JobInfo> =>
+    ipcRenderer.invoke(IPC.deploySystem.setAutomaticUpdates, serverId, enabled),
+  /** Needs a step-up, as upgradeAll. The connection drops a few seconds after the job succeeds. */
+  reboot: (input: DeployStepUpInput): Promise<JobInfo> =>
+    ipcRenderer.invoke(IPC.deploySystem.reboot, input),
+  restartService: (serverId: string, service: ManagedService): Promise<JobInfo> =>
+    ipcRenderer.invoke(IPC.deploySystem.restartService, serverId, service),
+  /** Starts live samples for this window; they arrive on onMetrics under the returned id. */
+  watchMetrics: (input: DeployMetricsWatchInput): Promise<string> =>
+    ipcRenderer.invoke(IPC.deploySystem.watchMetrics, input),
+  unwatchMetrics: (subscriptionId: string): Promise<boolean> =>
+    ipcRenderer.invoke(IPC.deploySystem.unwatchMetrics, subscriptionId),
+  onMetrics: (cb: (event: DeployMetricsEvent) => void): (() => void) =>
+    subscribe(IPC.deploySystem.onMetrics, cb),
+};
+
+/** The jobs a server core runs, and their live logs (already redacted by the core). */
+const deployJobs = {
+  list: (query: DeployJobsQuery): Promise<JobPage> =>
+    ipcRenderer.invoke(IPC.deployJobs.list, query),
+  get: (serverId: string, jobId: string): Promise<JobInfo> =>
+    ipcRenderer.invoke(IPC.deployJobs.get, serverId, jobId),
+  cancel: (serverId: string, jobId: string): Promise<void> =>
+    ipcRenderer.invoke(IPC.deployJobs.cancel, serverId, jobId),
+  /** Starts a job's log for this window; it arrives on onLog until an event carries `ended`. */
+  watch: (input: DeployJobWatchInput): Promise<string> =>
+    ipcRenderer.invoke(IPC.deployJobs.watch, input),
+  unwatch: (subscriptionId: string): Promise<boolean> =>
+    ipcRenderer.invoke(IPC.deployJobs.unwatch, subscriptionId),
+  onLog: (cb: (event: DeployJobEvent) => void): (() => void) => subscribe(IPC.deployJobs.onLog, cb),
+};
+
+/** A server core's alerts: disk pressure, failed jobs, a reboot waiting. */
+const deployAlerts = {
+  list: (query: DeployAlertsQuery): Promise<AlertInfo[]> =>
+    ipcRenderer.invoke(IPC.deployAlerts.list, query),
+  acknowledge: (serverId: string, alertId: number): Promise<AlertInfo> =>
+    ipcRenderer.invoke(IPC.deployAlerts.acknowledge, serverId, alertId),
+  /** Starts alerts for this window: every open one first, then each change, on onChanged. */
+  watch: (serverId: string): Promise<string> =>
+    ipcRenderer.invoke(IPC.deployAlerts.watch, serverId),
+  unwatch: (subscriptionId: string): Promise<boolean> =>
+    ipcRenderer.invoke(IPC.deployAlerts.unwatch, subscriptionId),
+  onChanged: (cb: (event: DeployAlertsEvent) => void): (() => void) =>
+    subscribe(IPC.deployAlerts.onChanged, cb),
 };
 
 /**
@@ -2018,6 +2111,9 @@ const agentmatApi = {
   pipelines,
   deploy,
   deploySecurity,
+  deploySystem,
+  deployJobs,
+  deployAlerts,
   pullRequests,
   tests,
   appNotifications,

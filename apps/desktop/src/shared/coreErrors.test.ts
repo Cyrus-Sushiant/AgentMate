@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { coreErrorCode, coreErrorMessage, encodeCoreError } from './coreErrors';
+import { coreErrorCode, coreErrorMessage, encodeCoreError, isCoreErrorCode } from './coreErrors';
 
 /** A server core's refusal keeps its code across IPC, so the renderer can act on it. */
 describe('core error codes', () => {
@@ -19,6 +19,16 @@ describe('core error codes', () => {
 
     expect(coreErrorCode(crossed)).toBeNull();
     expect(coreErrorMessage(crossed)).toBe('The host key of prod.example changed.');
+  });
+
+  it("carry the app's own reasons a call was turned down: a step-up first, or not this role", () => {
+    for (const code of ['stepUpRequired', 'forbidden'] as const) {
+      const crossed = new Error(
+        `Error invoking remote method 'deploySystem:reboot': Error: ${encodeCoreError(code, 'No.')}`,
+      );
+      expect(coreErrorCode(crossed)).toBe(code);
+      expect(isCoreErrorCode(code)).toBe(true);
+    }
   });
 
   it('read as nothing for errors without one, or with a code this app does not know', () => {

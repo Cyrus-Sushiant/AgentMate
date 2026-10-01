@@ -196,6 +196,21 @@ function signInStep(events: DeploySetupProgressEvent[]) {
 }
 
 describe('DeployService install with an account', () => {
+  it('tells the alert watcher when the servers it should watch change', async () => {
+    const serversChanged = vi.fn();
+    const { service } = setup({}, { serversChanged });
+
+    await service.install({
+      serverId: 'srv-1',
+      sudoPassword: 'deployer-pw',
+      account: { userName: 'maria', password: PASSWORD },
+    });
+    expect(serversChanged).toHaveBeenCalledTimes(1);
+
+    await service.uninstall({ serverId: 'srv-1', sudoPassword: 'deployer-pw', keepData: false });
+    expect(serversChanged).toHaveBeenCalledTimes(2);
+  });
+
   it('creates the owner, enrolls this computer and signs it in', async () => {
     const { service, server, state, sealed, events } = setup();
 

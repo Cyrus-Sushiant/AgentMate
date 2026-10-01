@@ -36,21 +36,21 @@ const MAX_CODE = 16;
 const MAX_RECOVERY_CODE = 64;
 const MAX_USER_NAME = 64;
 
-function serverId(value: unknown): string {
+export function serverId(value: unknown): string {
   if (typeof value !== 'string' || !SERVER_ID.test(value)) {
     throw new Error('That is not a saved server.');
   }
   return value;
 }
 
-function text(value: unknown, max: number, what: string): string {
+export function text(value: unknown, max: number, what: string): string {
   if (typeof value !== 'string' || value.length === 0 || value.length > max) {
     throw new Error(`The ${what} must be text.`);
   }
   return value;
 }
 
-function optionalText(value: unknown, max: number, what: string): string | undefined {
+export function optionalText(value: unknown, max: number, what: string): string | undefined {
   return value === undefined || value === null || value === '' ? undefined : text(value, max, what);
 }
 
@@ -62,7 +62,7 @@ function sudoPassword(value: unknown): string | null {
   return value;
 }
 
-function object(value: unknown, what: string): Record<string, unknown> {
+export function object(value: unknown, what: string): Record<string, unknown> {
   if (typeof value !== 'object' || value === null) throw new Error(`Expected ${what}.`);
   return value as Record<string, unknown>;
 }
@@ -116,7 +116,7 @@ function signInInput(value: unknown): DeploySignInInput {
   };
 }
 
-function stepUpInput(value: unknown): DeployStepUpInput {
+export function stepUpInput(value: unknown): DeployStepUpInput {
   const input = object(value, 'step-up details');
   const password = optionalText(input.password, MAX_PASSWORD, 'password');
   const totpCode = optionalText(input.totpCode, MAX_CODE, 'authenticator code');
@@ -153,4 +153,6 @@ export function registerDeployHandlers({ ipc, service, guard }: DeployHandlerDep
   handle(IPC.deploy.disableTotp, (id, code) =>
     service.disableTotp(serverId(id), text(code, MAX_CODE, 'authenticator code')),
   );
+  handle(IPC.deploy.connection, (id) => service.connection(serverId(id)));
+  handle(IPC.deploy.reconnect, (id) => service.reconnect(serverId(id)));
 }

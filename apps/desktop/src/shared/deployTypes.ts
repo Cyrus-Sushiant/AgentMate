@@ -1,3 +1,11 @@
+import type {
+  AlertInfo,
+  JobInfo,
+  JobLogLine,
+  MetricsResolution,
+  MetricsSample,
+} from './deploy/protocol/generated/AgentMate.ServerCore.Contracts';
+
 /**
  * Plain data the Deploy section passes between the main process and the renderer. Nothing here
  * carries a secret: sudo passwords only travel from the renderer into an install call.
@@ -174,4 +182,101 @@ export interface DeployHealth {
   apiVersion: number;
   startedAtUnixMs: number;
   checkedAt: number;
+}
+
+/**
+ * A server's lasting connection to its core, as the Overview shows it: on its way up for the
+ * first time; up; lost and being tried again; down while nothing needs it (or not reachable
+ * yet, with `retryAt` when it is still being tried); or waiting for the user: a sign-in, a new
+ * enrollment, or the Servers vault unlocked.
+ */
+export type DeployConnectionState =
+  | 'connecting'
+  | 'online'
+  | 'reconnecting'
+  | 'offline'
+  | 'needs-sign-in'
+  | 'needs-re-enroll'
+  | 'locked';
+
+export interface DeployConnection {
+  serverId: string;
+  state: DeployConnectionState;
+  /** When it entered this state (this computer's clock). */
+  since: number;
+  /** What went wrong last, when it is not online. */
+  message?: string;
+  /** When the next attempt is due, while it keeps trying. */
+  retryAt?: number;
+}
+
+/** Live metrics for a server; `sinceUnixMs` asks for the samples after it first, to join history. */
+export interface DeployMetricsWatchInput {
+  serverId: string;
+  /** 1000 to 60000; 2000 when left out. A server runs two intervals at most at a time. */
+  intervalMs?: number;
+  sinceUnixMs?: number;
+}
+
+/** A batch of live samples for one metrics subscription, oldest first. */
+export interface DeployMetricsEvent {
+  subscriptionId: string;
+  serverId: string;
+  samples: MetricsSample[];
+}
+
+/** One job's log after line `afterSeq` (0, or left out, for all of it). */
+export interface DeployJobWatchInput {
+  serverId: string;
+  jobId: string;
+  afterSeq?: number;
+}
+
+/**
+ * New lines of a job's log (already redacted by the core), with the job when it changed. The
+ * last event of a subscription carries `ended`: the job reached its final state (in `job`), or
+ * the core refused to show the log (`ended.error`).
+ */
+export interface DeployJobEvent {
+  subscriptionId: string;
+  serverId: string;
+  jobId: string;
+  lines: JobLogLine[];
+  job?: JobInfo;
+  ended?: { error?: string };
+}
+
+/**
+ * Alerts in revision order: every open one when the subscription starts, then each change
+ * (a resolved alert carries `resolvedAtUnixMs`). Keep the highest revision per alert id.
+ */
+export interface DeployAlertsEvent {
+  subscriptionId: string;
+  serverId: string;
+  alerts: AlertInfo[];
+}
+
+/** Stored metrics: the last 15 minutes live, 1-minute points for 48 hours, 15-minute for 30 days. */
+export interface DeployMetricsHistoryInput {
+  serverId: string;
+  resolution: MetricsResolution;
+  fromUnixMs?: number;
+  toUnixMs?: number;
+}
+
+/** A page of a server's jobs, newest first; pass the last page's cursor for the next one. */
+export interface DeployJobsQuery {
+  serverId: string;
+  activeOnly?: boolean;
+  /** 1 to 200. */
+  limit?: number;
+  beforeCreatedAtUnixMs?: number;
+}
+
+/** A server's alerts, newest change first: the open ones, or resolved ones too. */
+export interface DeployAlertsQuery {
+  serverId: string;
+  includeResolved?: boolean;
+  /** 1 to 500. */
+  limit?: number;
 }

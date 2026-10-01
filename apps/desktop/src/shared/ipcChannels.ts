@@ -615,6 +615,51 @@ export const IPC = {
     confirmTotp: 'deploy:confirmTotp',
     disableTotp: 'deploy:disableTotp',
     onSetupProgress: 'deploy:onSetupProgress',
+    /** (serverId) -> DeployConnection: the server's lasting connection right now. */
+    connection: 'deploy:connection',
+    /** (serverId) -> DeployConnection: tries the connection again now, whatever it waited for. */
+    reconnect: 'deploy:reconnect',
+    /** main -> the main window: DeployConnection, whenever a server's connection changes. */
+    onConnection: 'deploy:onConnection',
+  },
+  /** The Deploy section's Overview: a server's facts, live metrics, updates, reboot and restarts. */
+  deploySystem: {
+    info: 'deploySystem:info',
+    services: 'deploySystem:services',
+    metricsHistory: 'deploySystem:metricsHistory',
+    updates: 'deploySystem:updates',
+    checkUpdates: 'deploySystem:checkUpdates',
+    upgradeSecurity: 'deploySystem:upgradeSecurity',
+    upgradeAll: 'deploySystem:upgradeAll',
+    setAutomaticUpdates: 'deploySystem:setAutomaticUpdates',
+    reboot: 'deploySystem:reboot',
+    restartService: 'deploySystem:restartService',
+    /** (DeployMetricsWatchInput) -> subscription id; samples arrive on onMetrics. */
+    watchMetrics: 'deploySystem:watchMetrics',
+    unwatchMetrics: 'deploySystem:unwatchMetrics',
+    /** main -> the window that asked: DeployMetricsEvent, a batch of live samples. */
+    onMetrics: 'deploySystem:onMetrics',
+  },
+  /** The jobs a server core runs (updates, reboots, restarts) and their live logs. */
+  deployJobs: {
+    list: 'deployJobs:list',
+    get: 'deployJobs:get',
+    cancel: 'deployJobs:cancel',
+    /** (DeployJobWatchInput) -> subscription id; the log arrives on onLog. */
+    watch: 'deployJobs:watch',
+    unwatch: 'deployJobs:unwatch',
+    /** main -> the window that asked: DeployJobEvent, new log lines and the job's state. */
+    onLog: 'deployJobs:onLog',
+  },
+  /** A server core's alerts: disk pressure, failed jobs, a reboot waiting. */
+  deployAlerts: {
+    list: 'deployAlerts:list',
+    acknowledge: 'deployAlerts:acknowledge',
+    /** (serverId) -> subscription id; the open alerts, then changes, arrive on onChanged. */
+    watch: 'deployAlerts:watch',
+    unwatch: 'deployAlerts:unwatch',
+    /** main -> the window that asked: DeployAlertsEvent, alerts in revision order. */
+    onChanged: 'deployAlerts:onChanged',
   },
   /**
    * A server core's Security area: users and roles (Owner), devices and sessions, enrollment

@@ -131,6 +131,51 @@ describe('useAppNotificationMessages', () => {
     expect(window.agentmat.shell.openExternal).not.toHaveBeenCalled();
   });
 
+  it("shows a server alert by its severity and opens that server's page", async () => {
+    await mount();
+    await inboxChanged([
+      notification({
+        id: 'deploy-alert:srv-1:1:1',
+        kind: 'deploy-warning',
+        title: 'A disk is filling up on Production',
+        body: '/ is 91% full.',
+        projectId: null,
+        projectName: 'Production',
+        htmlUrl: null,
+        route: '/deploy?server=srv-1',
+      }),
+      notification({ id: 'deploy-alert:srv-1:2:3', kind: 'deploy-critical', htmlUrl: null }),
+      notification({ id: 'deploy-alert:srv-1:3:4', kind: 'deploy-info', htmlUrl: null }),
+    ]);
+
+    expect(toastFns.warning).toHaveBeenCalledTimes(1);
+    expect(toastFns.error).toHaveBeenCalledTimes(1);
+    expect(toastFns.info).toHaveBeenCalledTimes(1);
+    const history = useToastHistoryStore.getState().items;
+    expect(history.map((item) => item.tag)).toEqual(
+      expect.arrayContaining(['Warning', 'Critical']),
+    );
+    await act(async () => toastFns.warning.mock.calls[0][1].action.onClick());
+    expect(document.querySelector('[data-testid="location"]')?.textContent).toBe(
+      '/deploy?server=srv-1',
+    );
+  });
+
+  it('only follows a route inside the app', async () => {
+    await mount();
+    await inboxChanged([
+      notification({
+        kind: 'deploy-warning',
+        htmlUrl: null,
+        route: 'https://example.com/elsewhere',
+      }),
+    ]);
+
+    await act(async () => toastFns.warning.mock.calls[0][1].action?.onClick?.());
+    expect(document.querySelector('[data-testid="location"]')?.textContent).toBe('/');
+    expect(window.agentmat.shell.openExternal).not.toHaveBeenCalled();
+  });
+
   it('sends a non-pipeline link to the browser', async () => {
     await mount();
     await inboxChanged([

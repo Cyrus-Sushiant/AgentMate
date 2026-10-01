@@ -2,11 +2,12 @@ import type { AuthErrorCode } from './deploy/protocol/generated/AgentMate.Server
 import { sshErrorMessage } from './sshErrors';
 
 /**
- * A server core's reasons for refusing a sign-in, plus the app's own "this computer has no device
- * on that core yet". Electron only carries an error's message across IPC, so the code rides inside
- * it, as with the SSH and Vault errors.
+ * A server core's reasons for refusing a sign-in, plus the app's own: "this computer has no
+ * device on that core yet", "confirm your password first" (a step-up) and "your role cannot do
+ * that". Electron only carries an error's message across IPC, so the code rides inside it, as
+ * with the SSH and Vault errors.
  */
-export type CoreErrorCode = AuthErrorCode | 'notEnrolled';
+export type CoreErrorCode = AuthErrorCode | 'notEnrolled' | 'stepUpRequired' | 'forbidden';
 
 const CODES: ReadonlySet<string> = new Set<CoreErrorCode>([
   'challengeInvalid',
@@ -22,6 +23,8 @@ const CODES: ReadonlySet<string> = new Set<CoreErrorCode>([
   'enrollmentCodeInvalid',
   'keyInvalid',
   'notEnrolled',
+  'stepUpRequired',
+  'forbidden',
 ]);
 const CODE = /\[core:([A-Za-z]+)\]\s*/;
 

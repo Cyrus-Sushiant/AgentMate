@@ -9,11 +9,20 @@ const KIND: Record<AppNotification['kind'], { kind: ToastHistoryKind; tag?: stri
   'pipeline-failure': { kind: 'error', tag: 'Failed' },
   'pipeline-success': { kind: 'success', tag: 'Passed' },
   'tool-update-available': { kind: 'info' },
+  'deploy-critical': { kind: 'error', tag: 'Critical' },
+  'deploy-warning': { kind: 'warning', tag: 'Warning' },
+  'deploy-info': { kind: 'info' },
 };
 
+/** A page inside the app; anything else in `route` is ignored rather than followed. */
+function appRoute(item: AppNotification): string | null {
+  if (item.route?.startsWith('/') && !item.route.startsWith('//')) return item.route;
+  return pipelineRunRoute(item.htmlUrl);
+}
+
 /**
- * Turns inbox entries (pipeline results, CLI updates) into in-app messages: a toast when
- * one arrives, and a row in Recent messages after. What was already in the inbox at
+ * Turns inbox entries (pipeline results, CLI updates, server alerts) into in-app messages: a
+ * toast when one arrives, and a row in Recent messages after. What was already in the inbox at
  * startup is left alone, only entries that show up while the app is open are announced.
  */
 export function useAppNotificationMessages(): void {
@@ -41,7 +50,7 @@ export function useAppNotificationMessages(): void {
 
     function announce(item: AppNotification): void {
       const style = KIND[item.kind] ?? KIND['tool-update-available'];
-      const route = pipelineRunRoute(item.htmlUrl);
+      const route = appRoute(item);
       const link: ToastHistoryLink = { notificationId: item.id };
       if (route) link.route = route;
       else if (item.htmlUrl) link.url = item.htmlUrl;

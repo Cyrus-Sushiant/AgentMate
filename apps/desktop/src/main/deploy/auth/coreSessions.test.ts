@@ -284,6 +284,24 @@ describe('CoreSessions.accessToken', () => {
   });
 });
 
+describe('CoreSessions.expiresAt', () => {
+  it('says when the token in hand runs out, so a lasting connection can move to a fresh one', async () => {
+    const { sessions, clock } = await setup();
+    expect(sessions.expiresAt('srv-1')).toBeNull();
+    const signedInAt = clock.now;
+
+    await sessions.signIn('srv-1', { password: PASSWORD });
+    expect(sessions.expiresAt('srv-1')).toBe(signedInAt + 15 * MINUTE);
+
+    clock.now += 14.5 * MINUTE;
+    await sessions.accessToken('srv-1');
+    expect(sessions.expiresAt('srv-1')).toBe(clock.now + 15 * MINUTE);
+
+    sessions.forget('srv-1');
+    expect(sessions.expiresAt('srv-1')).toBeNull();
+  });
+});
+
 describe('CoreSessions.patchUser', () => {
   it('keeps what the app shows about the user current after a change on the core', async () => {
     const { sessions } = await setup();

@@ -290,6 +290,7 @@ function buildAppNotification(entry: Record_): AppNotification | null {
     projectId: nullableStr(entry.projectId),
     projectName: strOr(entry.projectName, ''),
     htmlUrl: nullableStr(entry.htmlUrl),
+    ...(typeof entry.route === 'string' ? { route: entry.route } : {}),
     createdAt: strOr(entry.createdAt, new Date().toISOString()),
     read: entry.read === true,
   };

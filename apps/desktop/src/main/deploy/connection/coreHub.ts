@@ -22,10 +22,28 @@ const RECONNECT_DELAYS_MS = [0, 2_000, 5_000, 10_000, 30_000];
 /** SignalR's own logging goes nowhere by default; failures surface through the connection. */
 const quietLogger: ILogger = { log: () => undefined };
 
+/** What `ws` says when the core answers the upgrade with something other than 101. */
+const REFUSED_UPGRADE = /^Unexpected server response: (\d{3})$/;
+
+export interface CoreHubOptions {
+  /**
+   * Whether SignalR reconnects by itself (the default). The app's lasting connections turn it
+   * off: their transport rides one SSH connection, which may be the thing that died, so they
+   * open a fresh one themselves.
+   */
+  reconnect?: boolean;
+  /**
+   * The HTTP status of a refused upgrade. SignalR reports every refusal with the same text, but
+   * a 401 (renew the token) and a 503 (the core is starting) call for different answers.
+   */
+  onUpgradeStatus?: (status: number) => void;
+}
+
 export function createCoreHubConnection(
   transport: CoreTransport,
   accessToken: () => string | Promise<string>,
   logger: ILogger = quietLogger,
+  hubOptions: CoreHubOptions = {},
 ): HubConnection {
   // `ws` hands `createConnection` to node:http, which accepts a callback for sockets that are
   // made asynchronously, like a tunnel opened through SSH.
@@ -40,9 +58,16 @@ export function createCoreHubConnection(
     return undefined;
   }) as unknown as ClientOptions['createConnection'];
 
+  const onUpgradeStatus = hubOptions.onUpgradeStatus;
   class TunnelWebSocket extends WebSocket {
     constructor(address: string | URL, protocols?: string | string[], options?: ClientOptions) {
       super(address, protocols, { ...options, createConnection });
+      if (onUpgradeStatus) {
+        this.on('error', (error: Error) => {
+          const status = REFUSED_UPGRADE.exec(error.message)?.[1];
+          if (status) onUpgradeStatus(Number(status));
+        });
+      }
     }
   }
 
@@ -56,11 +81,9 @@ export function createCoreHubConnection(
     logMessageContent: false,
   };
 
-  return new HubConnectionBuilder()
-    .withUrl(`http://${CORE_HOST}/hubs/core`, options)
-    .withAutomaticReconnect(RECONNECT_DELAYS_MS)
-    .configureLogging(logger)
-    .build();
+  const builder = new HubConnectionBuilder().withUrl(`http://${CORE_HOST}/hubs/core`, options);
+  if (hubOptions.reconnect !== false) builder.withAutomaticReconnect(RECONNECT_DELAYS_MS);
+  return builder.configureLogging(logger).build();
 }
 
 /** The typed client generated from the core's `ICoreHub`. */
