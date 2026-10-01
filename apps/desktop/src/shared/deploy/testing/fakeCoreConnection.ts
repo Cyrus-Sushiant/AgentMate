@@ -138,11 +138,18 @@ export class FakeCoreConnection implements ICoreHub {
   revokeDevice = () => this.unused('RevokeDevice');
   listSessions = () => this.unused('ListSessions');
   revokeSession = () => this.unused('RevokeSession');
+  revokeOtherSessions = () => this.unused('RevokeOtherSessions');
   beginTotpSetup = () => this.unused('BeginTotpSetup');
   confirmTotp = () => this.unused('ConfirmTotp');
   disableTotp = () => this.unused('DisableTotp');
   newRecoveryCodes = () => this.unused('NewRecoveryCodes');
   createEnrollmentCode = () => this.unused('CreateEnrollmentCode');
+  listUsers = () => this.unused('ListUsers');
+  createUser = () => this.unused('CreateUser');
+  setUserRole = () => this.unused('SetUserRole');
+  setUserDisabled = () => this.unused('SetUserDisabled');
+  resetUserPassword = () => this.unused('ResetUserPassword');
+  deleteUser = () => this.unused('DeleteUser');
   queryAudit = () => this.unused('QueryAudit');
   verifyAudit = () => this.unused('VerifyAudit');
 
