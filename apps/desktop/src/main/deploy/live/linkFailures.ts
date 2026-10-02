@@ -38,6 +38,7 @@ export function blockedState(error: unknown): BlockedState | null {
     case 'deviceUnknown':
       return 'needs-re-enroll';
     case 'notEnrolled':
+    case 'tlsPinMismatch':
       return 'offline';
     default:
       break;

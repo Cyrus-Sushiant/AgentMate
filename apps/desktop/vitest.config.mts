@@ -228,6 +228,15 @@ export default defineConfig({
           functions: 80,
           branches: 70,
         },
+        // Direct TLS (E16): client certificates, the pin check, the fallback and its screen.
+        'src/main/deploy/directTls/**': { lines: 95, branches: 85 },
+        'src/main/ipc/deployDirectTls.ts': { lines: 95, branches: 90 },
+        'src/shared/deploy/directTlsValidation.ts': { lines: 95, branches: 90 },
+        'src/renderer/src/components/deploy/security/directTls/**': {
+          lines: 90,
+          functions: 80,
+          branches: 75,
+        },
       },
     },
   },

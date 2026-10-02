@@ -42,7 +42,7 @@ Plan: docs/ROADMAP.md
 | E13 | Firewall | Complete | 2a87c89, 271820e, see git log | Core (ufw and firewalld, lockout guard, safe apply), the Firewall screen (T6) and "make private" (T5): an AgentMate app is redeployed with the service on 127.0.0.1 as a revision the server copies; anything else is shown the compose or run change. AC1 to AC3 by the firewall system tests, passed locally |
 | E14 | Cloudflare | Complete | df848e5, see git log | Desktop T1 to T4, T8, T9; core and desktop T5 to T7: Origin CA (key made on the server), origin lock through firewall change sets with a daily unattended refresh and nginx real IP, DNS-01 with a zone-scoped token (migration CloudflareOriginAndDns) |
 | E15 | Security center and maintenance | Complete | c87918a, see git log | Checklist with a score and previewed fixes; SSH password login off only over a proven key login (two guards, timer rollback, kept over a new key login); a failed core update reconnects; backups encrypted on the core (PBKDF2 600,000, AES-256-GCM chunks) and restored over SSH as root |
-| E16 | Direct TLS mode | Not started | | |
+| E16 | Direct TLS mode | Complete | see git log | Opt-in HTTPS listener bound and closed at runtime (Kestrel endpoint reload), P-256 certificate made on first start and pinned over SSH; desktop self-signs a client certificate with its device key, checked against the enrolled keys on every handshake and request; firewall rule through E13 change sets; direct TLS first, SSH after, a pin mismatch stops the link |
 | E17 | Polish and full OS matrix | Not started | | |
 | E18 | Ask AI for Remote Desktop | Complete | | Input through the IronRDP session, screenshots from its canvas; verified against xrdp and XFCE; Codex image answer unverified locally |
 
@@ -68,6 +68,13 @@ Status values: Not started, In progress, Blocked, Complete.
 - E10 and E11, desktop: the Websites e2e spec runs against the DevHost's simulated nginx and
   pretend CA, not a real `nginx -t` or Let's Encrypt. E11 AC3 (a failed renewal's alert in the
   desktop inbox) has no test yet. Neither screen has had a visual pass in both themes.
+- E16: the system test (`directTls.int.test.ts`, ufw test server) passed locally on Docker
+  Desktop but has not run in CI yet (it has its own step in the "Server core on test servers"
+  job). Direct TLS over a real network (not a Docker port mapping on loopback) and on a firewalld
+  server have no automated run; the rule matching for firewalld (which keeps no comments) is
+  covered by unit tests only. No visual pass of the Connection tab in both themes was made.
+  `directTls.e2e.ts` is skipped on macOS (the listener is TLS 1.3 only, which .NET's SslStream
+  has not served there); it passed locally on Windows.
 - E03 and E04 system tests: all 8 now pass in CI too (run 36677124032, e3c7b94), after three
   fixes. Three SSH waits had no time limit (a command's channel opening before its timer started,
   opening a tunnel, and HTTP over a tunnel, whose socket timeout never fires). The systemd test

@@ -8,7 +8,7 @@ import { asSocket, type SocketLike } from './socketShim';
 export const CORE_SOCKET_PATH = '/run/agentmate-core/core.sock';
 export const CORE_BINARY_PATH = '/opt/agentmate-core/current/agentmate-core';
 
-export type CoreTransportKind = 'streamlocal' | 'bridge' | 'dev-tcp';
+export type CoreTransportKind = 'streamlocal' | 'bridge' | 'dev-tcp' | 'direct-tls';
 
 /** A way to open a fresh byte stream to the core's HTTP listener. */
 export interface CoreTransport {

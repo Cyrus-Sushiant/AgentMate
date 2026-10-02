@@ -2,6 +2,7 @@ using System.Net;
 using AgentMate.ServerCore.Audit;
 using AgentMate.ServerCore.Cloudflare;
 using AgentMate.ServerCore.Data;
+using AgentMate.ServerCore.DirectTls;
 using AgentMate.ServerCore.Endpoints;
 using AgentMate.ServerCore.Hosting;
 using AgentMate.ServerCore.Hubs;
@@ -72,6 +73,8 @@ internal static class CoreApplication
         builder.Services.AddCoreOperations();
         builder.Services.AddWebOperations();
         builder.Services.AddCloudflare();
+        // The opt-in HTTPS listener (E16): nothing is bound until the mode is turned on.
+        builder.AddDirectTls();
         // Reports readiness to systemd (Type=notify), so `systemctl start` only returns once the
         // socket is listening and fails outright for a release that cannot start.
         builder.Services.AddSystemd();
@@ -117,6 +120,8 @@ internal static class CoreApplication
         // Host filtering already ran (the host adds it first). Origin checks come next, then
         // authentication, so a browser request is refused without ever being authenticated.
         app.UseMiddleware<OriginRejectionMiddleware>();
+        // Over direct TLS, every request names its device again from the client certificate.
+        app.UseMiddleware<DirectTlsGuard>();
         app.UseRouting();
         app.UseRateLimiter();
         app.UseAuthentication();

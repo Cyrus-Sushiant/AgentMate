@@ -3,6 +3,7 @@ import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import type { SecretEnvelope } from '../../shared/apiTypes';
 import type { AlertSeverity } from '../../shared/deploy/protocol/generated/AgentMate.ServerCore.Contracts';
+import type { DeployDirectTlsPin } from '../../shared/deployDirectTlsTypes';
 import type { DeployCoreRecord, DeployTransport } from '../../shared/deployTypes';
 import type { SealedSecretStore } from '../ssh/vault';
 
@@ -39,6 +40,8 @@ export interface DeployStateFile {
   devices: Record<string, DeviceCredentials>;
   /** Left out by files written before E05. */
   alerts?: Record<string, AlertMark>;
+  /** Direct TLS pins, read over SSH (E16); left out by older files. */
+  directTls?: Record<string, DeployDirectTlsPin>;
 }
 
 export interface DeployStatePort {
@@ -90,6 +93,21 @@ function isDevice(value: unknown): value is DeviceCredentials {
   );
 }
 
+function isPin(value: unknown): value is DeployDirectTlsPin {
+  if (typeof value !== 'object' || value === null) return false;
+  const pin = value as Record<string, unknown>;
+  return (
+    typeof pin.enabled === 'boolean' &&
+    typeof pin.port === 'number' &&
+    Number.isSafeInteger(pin.port) &&
+    pin.port > 0 &&
+    pin.port <= 65535 &&
+    typeof pin.pin === 'string' &&
+    /^[A-Za-z0-9+/]{43}=$/.test(pin.pin) &&
+    typeof pin.pinnedAt === 'number'
+  );
+}
+
 const SEVERITIES: ReadonlySet<string> = new Set<AlertSeverity>(['info', 'warning', 'critical']);
 
 function parseMark(value: unknown): AlertMark | null {
@@ -114,10 +132,12 @@ function parse(value: unknown): DeployStateFile {
     cores?: unknown;
     devices?: unknown;
     alerts?: unknown;
+    directTls?: unknown;
   };
   const cores: Record<string, DeployCoreRecord> = {};
   const devices: Record<string, DeviceCredentials> = {};
   const alerts: Record<string, AlertMark> = {};
+  const directTls: Record<string, DeployDirectTlsPin> = {};
   if (file.version === 1) {
     if (typeof file.cores === 'object' && file.cores !== null) {
       for (const [serverId, record] of Object.entries(file.cores)) {
@@ -135,8 +155,13 @@ function parse(value: unknown): DeployStateFile {
         if (mark) alerts[serverId] = mark;
       }
     }
+    if (typeof file.directTls === 'object' && file.directTls !== null) {
+      for (const [serverId, pin] of Object.entries(file.directTls)) {
+        if (isPin(pin)) directTls[serverId] = pin;
+      }
+    }
   }
-  return { version: 1, cores, devices, alerts };
+  return { version: 1, cores, devices, alerts, directTls };
 }
 
 export class DeployState {
@@ -182,7 +207,8 @@ export class DeployState {
       const { [serverId]: _core, ...cores } = file.cores;
       const { [serverId]: _device, ...devices } = file.devices;
       const { [serverId]: _mark, ...alerts } = file.alerts ?? {};
-      return { ...file, cores, devices, alerts };
+      const { [serverId]: _pin, ...directTls } = file.directTls ?? {};
+      return { ...file, cores, devices, alerts, directTls };
     });
   }
 
@@ -192,6 +218,16 @@ export class DeployState {
 
   setAlertMark(serverId: string, mark: AlertMark): Promise<void> {
     return this.update((file) => ({ ...file, alerts: { ...file.alerts, [serverId]: mark } }));
+  }
+
+  /** The direct TLS pin this computer took over SSH, if any. */
+  async directTls(serverId: string): Promise<DeployDirectTlsPin | null> {
+    return (await this.read()).directTls?.[serverId] ?? null;
+  }
+
+  /** Only ever with a pin read over SSH (see directTls/service.ts). */
+  setDirectTls(serverId: string, pin: DeployDirectTlsPin): Promise<void> {
+    return this.update((file) => ({ ...file, directTls: { ...file.directTls, [serverId]: pin } }));
   }
 
   /** Servers this computer has a device on. */

@@ -36,6 +36,7 @@ import type {
 } from '../../shared/deployTypes';
 import { TunnelRefusedError } from '../ssh/connection';
 import { openRootShell } from '../ssh/sudo';
+import { VaultLockedError } from '../ssh/vaultErrors';
 import { type CoreRest, CoreSessions } from './auth/coreSessions';
 import { createDeviceKey } from './auth/deviceKey';
 import { redeemEnrollmentCode } from './auth/enrollmentCode';
@@ -55,6 +56,8 @@ import {
   devTcpTransport,
   streamLocalTransport,
 } from './connection/transport';
+import { clientCertificate } from './directTls/clientCertificate';
+import { directTlsTransport, PinMismatchError, type TlsConnect } from './directTls/transport';
 import { CoreLinks } from './live/coreLinks';
 import { LinkBlockedError } from './live/linkFailures';
 import type { DeployState } from './state';
@@ -125,8 +128,15 @@ export interface DeployServiceDeps {
   connectionChanged?: (connection: DeployConnection) => void;
   /** Called when the servers with a core and this computer on it may have changed. */
   serversChanged?: () => void;
+  /** Opens a TLS socket for direct TLS; tests pass a fake. */
+  tlsConnect?: TlsConnect;
   now?: () => number;
 }
+
+/** How long a direct TLS port that did not answer is left alone before it is tried again. */
+const DIRECT_DOWN_MS = 60_000;
+/** How long a direct TLS port that answered is used without asking it for its health again. */
+const DIRECT_UP_MS = 30_000;
 
 async function startHub(
   transport: CoreTransport,
@@ -158,6 +168,9 @@ export class DeployService {
   ) => Promise<CoreHubSession>;
   private readonly sessions: CoreSessions;
   private readonly now: () => number;
+  /** Until when each server's direct TLS port counts as down, or as up, after the last try. */
+  private readonly directDown = new Map<string, number>();
+  private readonly directUp = new Map<string, number>();
 
   constructor(private readonly deps: DeployServiceDeps) {
     this.healthOf = deps.healthOf ?? ((transport) => new CoreHttpClient(transport).health());
@@ -700,7 +713,12 @@ export class DeployService {
     serverId: string,
     work: (transport: CoreTransport) => Promise<T>,
     known?: DeployCoreRecord,
+    options: { sshOnly?: boolean } = {},
   ): Promise<T> {
+    if (!known && !options.sshOnly) {
+      const direct = await this.directRoute(serverId, { probe: true });
+      if (direct) return work(direct);
+    }
     if (this.isDevHost(serverId) && this.deps.devCorePort !== null) {
       return work(devTcpTransport(this.deps.devCorePort));
     }
@@ -736,6 +754,47 @@ export class DeployService {
         await session.stop().catch(() => undefined);
       }
     });
+  }
+
+  /**
+   * A hub call that only ever goes over SSH (on the DevHost, its loopback port): what the app
+   * learns the direct TLS pin through, so a pin never comes from the connection it protects.
+   */
+  withSshHub<T>(serverId: string, work: (hub: ICoreHub) => Promise<T>): Promise<T> {
+    const link = this.links.info(serverId);
+    const overSsh = link.transport !== undefined && link.transport !== 'direct-tls';
+    if (this.links.isOnline(serverId) && overSsh) {
+      return this.links.call(serverId, work).catch((error: unknown) => {
+        throw new Error(hubMessage(error));
+      });
+    }
+    return this.withTransport(
+      serverId,
+      async (transport) => {
+        const session = await this.openHub(serverId, transport);
+        try {
+          return await work(session.hub);
+        } catch (error) {
+          throw new Error(hubMessage(error));
+        } finally {
+          await session.stop().catch(() => undefined);
+        }
+      },
+      undefined,
+      { sshOnly: true },
+    );
+  }
+
+  /** The address direct TLS connects to: the saved server's host (loopback for the DevHost). */
+  async directTlsHost(serverId: string): Promise<string> {
+    return this.isDevHost(serverId) ? '127.0.0.1' : (await this.saved(serverId)).host;
+  }
+
+  /** Forgets whether direct TLS answered lately and opens the link again, after a change to it. */
+  directTlsChanged(serverId: string): void {
+    this.directDown.delete(serverId);
+    this.directUp.delete(serverId);
+    this.links.reset(serverId);
   }
 
   /**
@@ -843,6 +902,8 @@ export class DeployService {
   private async openLive(serverId: string): Promise<LiveHubSession> {
     if (this.isDevHost(serverId)) {
       await this.ensureDevDevice();
+      const direct = await this.startDirectLive(serverId);
+      if (direct) return direct;
       return this.startLive(serverId, devTcpTransport(this.deps.devCorePort as number));
     }
     try {
@@ -855,6 +916,8 @@ export class DeployService {
     if (!(await this.deps.state.device(serverId))) {
       throw new LinkBlockedError('offline', NOT_ENROLLED);
     }
+    const direct = await this.startDirectLive(serverId);
+    if (direct) return direct;
     const lease = await this.deps.pool.acquire(serverId);
     try {
       const session = await this.startLiveOver(serverId, record, lease);
@@ -885,10 +948,72 @@ export class DeployService {
     }
   }
 
+  /**
+   * The link over direct TLS, when it is on for this server and did not fail lately. A pin
+   * mismatch stops the link outright; any other failure leaves the port alone for a while and the
+   * link goes over SSH as before. Null when SSH is the way.
+   */
+  private async startDirectLive(serverId: string): Promise<LiveHubSession | null> {
+    const direct = await this.directRoute(serverId, { probe: false });
+    if (!direct) return null;
+    try {
+      const session = await this.startLive(serverId, direct);
+      this.directUp.set(serverId, this.now() + DIRECT_UP_MS);
+      return session;
+    } catch (error) {
+      if (error instanceof PinMismatchError) throw new LinkBlockedError('offline', error.message);
+      if (!this.worthSsh(error)) throw error;
+      this.directDown.set(serverId, this.now() + DIRECT_DOWN_MS);
+      return null;
+    }
+  }
+
+  /**
+   * The direct TLS transport for a server, or null when SSH is the way: the mode is off on this
+   * computer, the port failed lately, or (with `probe`) it does not answer its health now. A pin
+   * mismatch is thrown, never turned into a quiet fallback.
+   */
+  private async directRoute(
+    serverId: string,
+    options: { probe: boolean },
+  ): Promise<CoreTransport | null> {
+    const pinned = await this.deps.state.directTls(serverId);
+    if (!pinned?.enabled) return null;
+    const now = this.now();
+    if ((this.directDown.get(serverId) ?? 0) > now) return null;
+    const device = await this.deps.state.device(serverId);
+    if (!device) return null;
+    const host = await this.directTlsHost(serverId);
+    const transport = directTlsTransport(
+      { host, port: pinned.port, pin: pinned.pin },
+      async () => clientCertificate(await this.deps.unseal(device.privateKey)),
+      this.deps.tlsConnect,
+    );
+    if (!options.probe || (this.directUp.get(serverId) ?? 0) > now) return transport;
+    try {
+      await this.healthOf(transport);
+      this.directUp.set(serverId, this.now() + DIRECT_UP_MS);
+      return transport;
+    } catch (error) {
+      if (error instanceof PinMismatchError) throw new Error(error.message);
+      if (!this.worthSsh(error)) throw error;
+      this.directDown.set(serverId, this.now() + DIRECT_DOWN_MS);
+      return null;
+    }
+  }
+
+  /** Whether SSH may get past a direct TLS failure: not a locked vault or a refusal with a code. */
+  private worthSsh(error: unknown): boolean {
+    if (error instanceof VaultLockedError || error instanceof LinkBlockedError) return false;
+    return coreErrorCode(error) === null;
+  }
+
   private async startLive(serverId: string, transport: CoreTransport): Promise<LiveHubSession> {
     const open = async () => {
       const token = await this.sessions.accessToken(serverId);
-      return this.liveHubOf(transport, token, this.sessions.expiresAt(serverId));
+      const session = await this.liveHubOf(transport, token, this.sessions.expiresAt(serverId));
+      session.transport ??= transport.kind;
+      return session;
     };
     try {
       return await open();

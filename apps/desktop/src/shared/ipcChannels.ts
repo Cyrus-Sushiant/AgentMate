@@ -724,6 +724,20 @@ export const IPC = {
     onProgress: 'deployFirewall:onProgress',
   },
   /**
+   * Direct TLS (E16): the core's opt-in HTTPS port with mutual TLS. Reads and changes go over SSH
+   * only, which is where the pin comes from; the firewall rule goes through deployFirewall.
+   */
+  deployDirectTls: {
+    /** (serverId) -> DeployDirectTlsInfo: the core's account, the pin kept here, and whether it changed. */
+    status: 'deployDirectTls:status',
+    /** (DeployDirectTlsEnableInput) -> DeployDirectTlsInfo; Owner, may need a step-up. */
+    enable: 'deployDirectTls:enable',
+    /** (serverId) -> DeployDirectTlsInfo, after this computer stopped using the port. */
+    disable: 'deployDirectTls:disable',
+    /** (serverId) -> DeployDirectTlsInfo, with the key the core presents now pinned. */
+    acceptPin: 'deployDirectTls:acceptPin',
+  },
+  /**
    * Docker on a server (E06): the engine and its install, containers and their lifecycle, live
    * stats, logs and engine events, a console, and images, volumes, networks and disk use.
    */

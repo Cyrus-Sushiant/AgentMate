@@ -41,6 +41,7 @@ export const TRANSPORT_TEXT: Record<Transport, string> = {
   streamlocal: 'SSH tunnel',
   bridge: 'Core bridge over SSH',
   'dev-tcp': 'Loopback (DevHost)',
+  'direct-tls': 'Direct TLS',
 };
 
 /** The same, inside a sentence: "Answering through ...". */
@@ -48,4 +49,5 @@ export const TRANSPORT_PHRASE: Record<Transport, string> = {
   streamlocal: 'the SSH tunnel',
   bridge: "the core's bridge over SSH",
   'dev-tcp': 'loopback to the DevHost',
+  'direct-tls': "the core's own TLS port",
 };

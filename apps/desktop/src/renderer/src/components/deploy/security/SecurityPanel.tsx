@@ -12,6 +12,7 @@ import { BackupCard } from './backup/BackupCard';
 import { RestoreDialog } from './backup/RestoreDialog';
 import { ChecklistCard } from './checklist/ChecklistCard';
 import { DevicesCard } from './DevicesCard';
+import { DirectTlsCard } from './directTls/DirectTlsCard';
 import { hasRole } from './format';
 import { SessionsCard } from './SessionsCard';
 import { UsersCard } from './UsersCard';
@@ -19,9 +20,10 @@ import { UsersCard } from './UsersCard';
 /**
  * A server's Security area: the security checklist (Admins and Owners), who can sign in (Owners),
  * the computers enrolled and the sessions signed in (everyone's own; Admins see every computer),
- * the audit trail (Admins and Owners) and backups (Owners). It shows only what the signed-in role
- * may use, and the core checks every call again. A backup can be restored without signing in,
- * since that goes over SSH as root: the way back for a core nobody can sign in to.
+ * the audit trail (Admins and Owners), backups (Owners) and how the app reaches the core (direct
+ * TLS, which Owners change). It shows only what the signed-in role may use, and the core checks
+ * every call again. A backup can be restored without signing in, since that goes over SSH as
+ * root: the way back for a core nobody can sign in to.
  */
 export function SecurityPanel({
   server,
@@ -83,6 +85,7 @@ export function SecurityPanel({
         <TabsTrigger value="devices">Devices and sessions</TabsTrigger>
         {admin && <TabsTrigger value="audit">Audit trail</TabsTrigger>}
         {owner && <TabsTrigger value="backups">Backups</TabsTrigger>}
+        <TabsTrigger value="connection">Connection</TabsTrigger>
       </TabsList>
       {admin && (
         <TabsContent value="checklist">
@@ -108,6 +111,9 @@ export function SecurityPanel({
           <BackupCard server={server} userName={access.data.user?.userName} />
         </TabsContent>
       )}
+      <TabsContent value="connection">
+        <DirectTlsCard server={server} owner={owner} />
+      </TabsContent>
     </Tabs>
   );
 }

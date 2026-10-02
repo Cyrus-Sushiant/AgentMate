@@ -421,6 +421,7 @@ import type { RemoteInputEvent, RemoteRtcMessage } from '../shared/remoteProtoco
 import type { SpellcheckMenuPayload } from '../shared/spellcheck';
 import type { SshHostKeyStatus } from '../shared/sshHostKey';
 import { cloudflareServer } from './cloudflareServer';
+import { createDeployDirectTls } from './deployDirectTls';
 import { createDeployDocker } from './deployDocker';
 import { createDeployHardening } from './deployHardening';
 import { createDeployRegistry } from './deployRegistry';
@@ -1639,6 +1640,7 @@ const deployJobs = {
 
 /** Docker on a server: containers, their stats, logs and console, and Docker's resources. */
 const deployDocker = createDeployDocker(subscribe);
+const deployDirectTls = createDeployDirectTls();
 
 /** The Security center (E15): the checklist, its SSH fixes, backups and restores. */
 const deployHardening = createDeployHardening(subscribe);
@@ -2457,6 +2459,7 @@ const agentmatApi = {
   deployJobs,
   deployAlerts,
   deployDocker,
+  deployDirectTls,
   deploySites,
   deployCerts,
   deployStacks,

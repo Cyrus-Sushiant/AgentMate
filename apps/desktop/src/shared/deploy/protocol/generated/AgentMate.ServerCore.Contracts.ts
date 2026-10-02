@@ -596,6 +596,38 @@ export type DnsCredentialSaveResult = {
     credential?: DnsCredentialInfo;
 }
 
+/** Transpiled from AgentMate.ServerCore.Contracts.DirectTlsStatus */
+export type DirectTlsStatus = {
+    /** Transpiled from bool */
+    enabled: boolean;
+    /** Transpiled from int */
+    port: number;
+    /** Transpiled from string[] */
+    sources: string[];
+    /** Transpiled from bool */
+    listening: boolean;
+    /** Transpiled from string */
+    pin: string;
+    /** Transpiled from long */
+    certificateNotAfterUnixMs: number;
+    /** Transpiled from int */
+    defaultPort: number;
+    /** Transpiled from long */
+    changedAtUnixMs?: number;
+    /** Transpiled from string? */
+    changedBy?: string;
+    /** Transpiled from string? */
+    error?: string;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.DirectTlsRequest */
+export type DirectTlsRequest = {
+    /** Transpiled from int */
+    port: number;
+    /** Transpiled from string[]? */
+    sources?: string[];
+}
+
 /** Transpiled from AgentMate.ServerCore.Contracts.DockerStatus */
 export type DockerStatus = {
     /** Transpiled from bool */

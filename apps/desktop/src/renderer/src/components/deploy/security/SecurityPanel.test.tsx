@@ -54,6 +54,7 @@ describe('SecurityPanel', () => {
       'Devices and sessions',
       'Audit trail',
       'Backups',
+      'Connection',
     ]);
     expect(await screen.findByRole('list', { name: 'Checklist' })).toBeTruthy();
     await user.click(screen.getByRole('tab', { name: 'Users' }));
@@ -73,6 +74,7 @@ describe('SecurityPanel', () => {
       'Checklist',
       'Devices and sessions',
       'Audit trail',
+      'Connection',
     ]);
     await user.click(screen.getByRole('tab', { name: 'Devices and sessions' }));
     expect(await screen.findByText(/Every computer enrolled on this core/)).toBeTruthy();
@@ -97,7 +99,7 @@ describe('SecurityPanel', () => {
     renderPanel(async () => signedIn(['viewer']));
 
     const tabs = await screen.findAllByRole('tab');
-    expect(tabs.map((tab) => tab.textContent)).toEqual(['Devices and sessions']);
+    expect(tabs.map((tab) => tab.textContent)).toEqual(['Devices and sessions', 'Connection']);
     expect(await screen.findByText(/Your computers enrolled on this core/)).toBeTruthy();
     expect(screen.getByText('Your sessions')).toBeTruthy();
   });

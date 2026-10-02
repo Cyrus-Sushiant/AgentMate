@@ -125,7 +125,11 @@ function ensureImage(image: TestServerImage): void {
 
 export async function startTestServer(
   image: TestServerImage,
-  options: { streamLocal?: boolean } = {},
+  options: {
+    streamLocal?: boolean;
+    /** Ports published on the same number on 127.0.0.1, for direct TLS (E16). */
+    publish?: number[];
+  } = {},
 ): Promise<TestServer> {
   const tag = `agentmate-test-server:${image}`;
   ensureImage(image);
@@ -148,6 +152,7 @@ export async function startTestServer(
     '/run/lock',
     '-p',
     '127.0.0.1::22',
+    ...(options.publish ?? []).flatMap((port) => ['-p', `127.0.0.1:${port}:${port}`]),
     tag,
   ]);
   const stop = () => {

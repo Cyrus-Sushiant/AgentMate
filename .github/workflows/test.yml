@@ -213,6 +213,12 @@ jobs:
         env:
           AGENTMATE_SYSTEM_TESTS: "1"
         run: pnpm --filter @agentmat/desktop exec vitest run src/main/deploy/registries.int.test.ts
+      # Direct TLS (E16) behind ufw: the port opened by a change set, mutual TLS with the device key,
+      # strangers, a wrong pin and a revoked device refused, and the port and rule gone when it is off.
+      - name: Direct TLS on a test server
+        env:
+          AGENTMATE_SYSTEM_TESTS: "1"
+        run: pnpm --filter @agentmat/desktop exec vitest run src/main/deploy/directTls.int.test.ts
 
   mobile:
     name: Mobile

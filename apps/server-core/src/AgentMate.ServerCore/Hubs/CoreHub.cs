@@ -41,7 +41,8 @@ internal sealed partial class CoreHub(
     StackOperations stacks,
     RegistryCredentials registries,
     CloudflareServices cloudflare,
-    SecurityCenterServices security) : Hub<ICoreHubReceiver>, ICoreHub
+    SecurityCenterServices security,
+    DirectTls.DirectTlsManager directTls) : Hub<ICoreHubReceiver>, ICoreHub
 {
     public const string Path = "/hubs/core";
 

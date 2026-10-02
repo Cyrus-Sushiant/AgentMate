@@ -48,6 +48,8 @@ internal static class DevHost
                 $"--Core:RuntimeDirectory={runtime}",
                 // No tmpfs on a developer's machine; a real server never sets this (E08).
                 "--Core:RegistryAuthOnDisk=allow",
+                // Direct TLS (E16) can be tried on the DevHost, on loopback only.
+                "--Core:DirectTls:LoopbackOnly=true",
                 "--environment",
                 "Development",
                 .. args,

@@ -196,6 +196,7 @@ export const queryKeys = {
   deployStreams: (serverId: string) => ['deploy', 'web', serverId, 'streams'] as const,
   /** Everything the Firewall section reads (E13), dropped at once after a change. */
   deployFirewall: (serverId: string) => ['deploy', 'firewall', serverId] as const,
+  deployDirectTls: (serverId: string) => ['deploy', 'directTls', serverId] as const,
   deployFirewallStatus: (serverId: string) => ['deploy', 'firewall', serverId, 'status'] as const,
   deployFirewallPresets: (serverId: string) => ['deploy', 'firewall', serverId, 'presets'] as const,
   deployFirewallHistory: (serverId: string) => ['deploy', 'firewall', serverId, 'history'] as const,

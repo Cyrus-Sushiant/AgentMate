@@ -383,7 +383,9 @@ public sealed class HubAccountTests
         string[] stacks = ["GetStack", "GetStackRevisionFiles", "ListStacks"];
         // Cloudflare (E14): the origin lock and which zones have a DNS token (never the tokens).
         string[] cloudflare = ["GetOriginLock", "ListDnsCredentials"];
-        reads = [.. reads, .. docker, .. stacks, .. cloudflare];
+        // Direct TLS (E16): how the listener stands and the pin of its certificate.
+        string[] directTls = ["GetDirectTls"];
+        reads = [.. reads, .. docker, .. stacks, .. cloudflare, .. directTls];
         Assert.Equal(account.Concat(reads).Concat(firewallReads).Order(StringComparer.Ordinal), open.Order(StringComparer.Ordinal));
     }
 

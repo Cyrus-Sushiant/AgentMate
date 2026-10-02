@@ -407,6 +407,17 @@ public interface ICoreHub
 
     /// <summary>Deletes a backup from the server, once the app has it. True when there was one.</summary>
     Task<bool> DeleteBackup(Guid backupId);
+
+    // Direct TLS (E16): every role reads it; Owners change it, turning it on needs a step-up.
+
+    /// <summary>The listener's setting and state, and the pin of the certificate it presents.</summary>
+    Task<DirectTlsStatus> GetDirectTls();
+
+    /// <summary>Opens (or moves) the port. Owner, with a step-up. The firewall rule is a change set of its own.</summary>
+    Task<DirectTlsStatus> EnableDirectTls(DirectTlsRequest request);
+
+    /// <summary>Closes the port. Owner.</summary>
+    Task<DirectTlsStatus> DisableDirectTls();
 }
 
 /// <summary>Everything the core can push to the app without being asked.</summary>

@@ -20,6 +20,7 @@ import type {
   ContainerStatsBatch,
   ContainerStatsRequest,
   ContainerSummary,
+  DirectTlsRequest,
   DnsCredentialRequest,
   DockerDiskUsage,
   DockerEvent,
@@ -269,6 +270,44 @@ export class FakeCoreConnection implements ICoreHub {
     this.firewall('ConfirmFirewallChanges', true, (fw, caller) => fw.confirm(changeSetId, caller));
   revertFirewallChanges = async (changeSetId: string) =>
     this.firewall('RevertFirewallChanges', true, (fw) => fw.revert(changeSetId));
+
+  // Direct TLS (E16): every role reads it, Owners change it, turning it on needs a step-up.
+
+  getDirectTls = async () => {
+    this.assertOpen();
+    this.assertRole('GetDirectTls', VIEWERS);
+    return this.answer({ ...this.core.directTls });
+  };
+  enableDirectTls = async (request: DirectTlsRequest) => {
+    this.assertOpen();
+    this.assertRole('EnableDirectTls', OWNERS);
+    if (this.core.stepUpUntil <= this.core.now()) throw unauthorizedError('EnableDirectTls');
+    if (!Number.isInteger(request.port) || request.port < 1024 || request.port > 65535) {
+      throw invocationError('EnableDirectTls', 'Pick a port from 1024 up.');
+    }
+    this.core.directTls = {
+      ...this.core.directTls,
+      enabled: true,
+      listening: true,
+      port: request.port,
+      sources: request.sources ?? [],
+      changedAtUnixMs: this.core.now(),
+      changedBy: this.core.userName,
+    };
+    return this.answer({ ...this.core.directTls });
+  };
+  disableDirectTls = async () => {
+    this.assertOpen();
+    this.assertRole('DisableDirectTls', OWNERS);
+    this.core.directTls = {
+      ...this.core.directTls,
+      enabled: false,
+      listening: false,
+      changedAtUnixMs: this.core.now(),
+      changedBy: this.core.userName,
+    };
+    return this.answer({ ...this.core.directTls });
+  };
 
   // Websites and certificates: Viewers read, Admins change, Owners write snippets, and taking a
   // certificate off needs a step-up as well.

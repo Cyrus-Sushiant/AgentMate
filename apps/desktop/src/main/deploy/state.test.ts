@@ -189,6 +189,30 @@ describe('DeployState alert marks', () => {
     expect(await state.alertMark('negative')).toBeNull();
     expect(await state.alertMark('text')).toBeNull();
   });
+
+  it('keeps a direct TLS pin, skips a damaged one and forgets it with the core', async () => {
+    const pin = 'q83vEjRWeJq83vEjRWeJq83vEjRWeJq83vEjRWeJq80=';
+    const state = new DeployState(
+      memoryFiles({
+        version: 1,
+        cores: { 'srv-1': RECORD },
+        devices: {},
+        directTls: {
+          broken: { enabled: true, port: 7443, pin: 'short', pinnedAt: 1 },
+          outOfRange: { enabled: true, port: 70_000, pin, pinnedAt: 1 },
+        },
+      }).port,
+    );
+    await state.setDirectTls('srv-1', { enabled: true, port: 7443, pin, pinnedAt: 5 });
+
+    expect(await state.directTls('srv-1')).toEqual({ enabled: true, port: 7443, pin, pinnedAt: 5 });
+    expect(await state.directTls('broken')).toBeNull();
+    expect(await state.directTls('outOfRange')).toBeNull();
+
+    await state.remove('srv-1');
+
+    expect(await state.directTls('srv-1')).toBeNull();
+  });
 });
 
 describe('jsonFilePort', () => {

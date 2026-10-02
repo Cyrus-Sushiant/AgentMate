@@ -1,5 +1,6 @@
 using AgentMate.ServerCore.Cloudflare;
 using AgentMate.ServerCore.DevHost.Fakes;
+using AgentMate.ServerCore.DirectTls;
 using AgentMate.ServerCore.Docker;
 using AgentMate.ServerCore.Firewall;
 using AgentMate.ServerCore.Hardening;
@@ -33,6 +34,7 @@ public sealed class CoreFactory : WebApplicationFactory<Program>
         // Registry sign-ins (E08) go to a plain folder here: test machines have no tmpfs to spare.
         builder.UseSetting("Core:RuntimeDirectory", Path.Combine(_dataDirectory, "run"));
         builder.UseSetting("Core:RegistryAuthOnDisk", "allow");
+        builder.UseSetting("Core:DirectTls:LoopbackOnly", "true");
         builder.ConfigureServices(services =>
         {
             services.AddSingleton<MutationLog>();
@@ -59,6 +61,9 @@ public sealed class CoreFactory : WebApplicationFactory<Program>
             services.AddSingleton<ISshLoginLog>(provider => provider.GetRequiredService<FakeSshLoginLog>());
             services.AddSingleton<FakeSshHardeningTimer>();
             services.AddSingleton<ISshHardeningTimer>(provider => provider.GetRequiredService<FakeSshHardeningTimer>());
+            // Direct TLS: the in-memory server binds no ports, so the listener counts as open
+            // whenever the mode asks for it.
+            services.AddSingleton<IDirectTlsBinding, FakeDirectTlsBinding>();
 
             // Docker: the pretend engine (shared with the DevHost) and an installer that only records.
             services.AddSingleton(provider => new InMemoryDockerEngine(provider.GetRequiredService<TimeProvider>()) { Tick = TimeSpan.FromMilliseconds(50) });

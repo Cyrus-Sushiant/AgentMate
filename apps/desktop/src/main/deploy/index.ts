@@ -7,6 +7,7 @@ import { IPC } from '../../shared/ipcChannels';
 import { indexProjectFiles } from '../explorer/fileIndex';
 import { registerDeployHandlers } from '../ipc/deploy';
 import { registerDeployAppStoreHandlers } from '../ipc/deployAppStore';
+import { registerDeployDirectTlsHandlers } from '../ipc/deployDirectTls';
 import { registerDeployDockerHandlers } from '../ipc/deployDocker';
 import { registerDeployFirewallHandlers } from '../ipc/deployFirewall';
 import { registerDeployHardeningHandlers } from '../ipc/deployHardening';
@@ -37,6 +38,7 @@ import {
   repoReleaseDirectory,
 } from './bootstrap/releaseSource';
 import { registerCloudflareIpc } from './cloudflare';
+import { DeployDirectTls } from './directTls/service';
 import { DeployDocker } from './docker';
 import { DeployFirewall } from './firewall';
 import { DeployHardening } from './hardening';
@@ -196,6 +198,13 @@ export function registerDeployIpc(): void {
       roles: (id) => service.roles(id),
       progress: (event) => sendToWindow(getMainWindow(), IPC.deployFirewall.onProgress, event),
     }),
+    guard,
+  });
+
+  // Direct TLS (E16): read and changed over SSH only, so the pin never comes from the port it guards.
+  registerDeployDirectTlsHandlers({
+    ipc: ipcMain,
+    directTls: new DeployDirectTls({ service, state, roles: (id) => service.roles(id) }),
     guard,
   });
 
