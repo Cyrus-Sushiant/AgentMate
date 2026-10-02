@@ -138,6 +138,25 @@ describe('SshConnectionPool', () => {
     lease.release();
   });
 
+  it('opens a separate connection that nothing shares and that closes on release', async () => {
+    const { pool, open, connected } = await setup();
+    const shared = await pool.acquire('srv-1');
+    const separate = await pool.openSeparate('srv-1');
+
+    expect(open).toHaveBeenCalledTimes(2);
+    expect(separate.connection).not.toBe(shared.connection);
+    expect(connected).toEqual(['srv-1', 'srv-1']);
+    const again = await pool.acquire('srv-1');
+    expect(again.connection).toBe(shared.connection);
+
+    separate.release();
+    separate.release();
+    await vi.waitFor(() => expect(separate.connection.isOpen).toBe(false));
+    expect(shared.connection.isOpen).toBe(true);
+    shared.release();
+    again.release();
+  });
+
   it('ignores a second release of the same lease', async () => {
     const { pool } = await setup({ idleMs: 50 });
     const a = await pool.acquire('srv-1');

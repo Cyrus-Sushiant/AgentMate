@@ -303,6 +303,11 @@ import type {
   AuditVerificationInfo,
   DeviceInfo,
   EnrollmentCodeInfo,
+  ExposureInventory,
+  FirewallChangePreview,
+  FirewallChangeSetInfo,
+  FirewallPreset,
+  FirewallStatus,
   JobInfo,
   JobPage,
   ManagedService,
@@ -315,6 +320,13 @@ import type {
   UpdatesInfo,
   UserInfo,
 } from '../shared/deploy/protocol/generated/AgentMate.ServerCore.Contracts';
+import type {
+  DeployFirewallApplyInput,
+  DeployFirewallChangesInput,
+  DeployFirewallDecisionInput,
+  DeployFirewallHistoryInput,
+  DeployFirewallProgressEvent,
+} from '../shared/deployFirewallTypes';
 import type {
   DeployAuditExportInput,
   DeployAuditExportResult,
@@ -1538,6 +1550,37 @@ const deployAlerts = {
 };
 
 /**
+ * A server's host firewall (E13). Every role reads; Admins preview and apply. An applied change
+ * waits for `confirm`, which the main process sends over a brand-new SSH connection, and rolls
+ * back on the server by itself at its deadline otherwise. Steps arrive on onProgress.
+ */
+const deployFirewall = {
+  status: (serverId: string): Promise<FirewallStatus> =>
+    ipcRenderer.invoke(IPC.deployFirewall.status, serverId),
+  presets: (serverId: string): Promise<FirewallPreset[]> =>
+    ipcRenderer.invoke(IPC.deployFirewall.presets, serverId),
+  history: (input: DeployFirewallHistoryInput): Promise<FirewallChangeSetInfo[]> =>
+    ipcRenderer.invoke(IPC.deployFirewall.history, input),
+  exposure: (serverId: string): Promise<ExposureInventory> =>
+    ipcRenderer.invoke(IPC.deployFirewall.exposure, serverId),
+  /** The exact commands and the SSH guard's verdict. Changes nothing. */
+  preview: (input: DeployFirewallChangesInput): Promise<FirewallChangePreview> =>
+    ipcRenderer.invoke(IPC.deployFirewall.preview, input),
+  /**
+   * May need a step-up (`[core:stepUpRequired]`): pass the password, as upgradeAll does. Not
+   * called `apply`, which every function already has (Function.prototype.apply).
+   */
+  applyChanges: (input: DeployFirewallApplyInput): Promise<FirewallChangeSetInfo> =>
+    ipcRenderer.invoke(IPC.deployFirewall.apply, input),
+  confirm: (input: DeployFirewallDecisionInput): Promise<FirewallChangeSetInfo> =>
+    ipcRenderer.invoke(IPC.deployFirewall.confirm, input),
+  revert: (input: DeployFirewallDecisionInput): Promise<FirewallChangeSetInfo> =>
+    ipcRenderer.invoke(IPC.deployFirewall.revert, input),
+  onProgress: (cb: (event: DeployFirewallProgressEvent) => void): (() => void) =>
+    subscribe(IPC.deployFirewall.onProgress, cb),
+};
+
+/**
  * A server core's Security area. The core decides who may do what; changes to users need a
  * step-up first (deploy.stepUp). Passwords pass straight through to the core.
  */
@@ -2193,6 +2236,7 @@ const agentmatApi = {
   pipelines,
   deploy,
   deploySecurity,
+  deployFirewall,
   deploySystem,
   deployJobs,
   deployAlerts,

@@ -4,6 +4,8 @@ import type {
   AlertInfo,
   AlertQuery,
   AlertStreamRequest,
+  FirewallChangeRequest,
+  FirewallChangeSetQuery,
   JobInfo,
   JobLogLine,
   JobPage,
@@ -18,6 +20,7 @@ import type {
 } from '../protocol/generated/AgentMate.ServerCore.Contracts';
 import type { ICoreHub } from '../protocol/generated/TypedSignalR.Client/AgentMate.ServerCore.Contracts';
 import type { FakeCore } from './fakeCore';
+import type { FakeFirewall, FakeFirewallCaller } from './fakeFirewall';
 import {
   connectionClosedError,
   FakeStream,
@@ -36,6 +39,7 @@ const LIMITS = { metrics: 2, job: 4, alerts: 2 } as const;
 const PER_CONNECTION = 8;
 const OPERATORS = new Set(['owner', 'admin', 'operator']);
 const ADMINS = new Set(['owner', 'admin']);
+const VIEWERS = new Set(['owner', 'admin', 'operator', 'viewer']);
 
 type Kind = keyof typeof LIMITS;
 
@@ -153,16 +157,24 @@ export class FakeCoreConnection implements ICoreHub {
   queryAudit = () => this.unused('QueryAudit');
   verifyAudit = () => this.unused('VerifyAudit');
 
-  // Firewall, Docker, websites and certificates: the desktop does not call these yet.
+  // The firewall (E13): every role reads it, Admins change it.
 
-  getFirewallStatus = () => this.unused('GetFirewallStatus');
-  getFirewallPresets = () => this.unused('GetFirewallPresets');
-  listFirewallChangeSets = () => this.unused('ListFirewallChangeSets');
-  getExposure = () => this.unused('GetExposure');
-  previewFirewallChanges = () => this.unused('PreviewFirewallChanges');
-  applyFirewallChanges = () => this.unused('ApplyFirewallChanges');
-  confirmFirewallChanges = () => this.unused('ConfirmFirewallChanges');
-  revertFirewallChanges = () => this.unused('RevertFirewallChanges');
+  getFirewallStatus = async () => this.firewall('GetFirewallStatus', false, (fw) => fw.status());
+  getFirewallPresets = async () => this.firewall('GetFirewallPresets', false, (fw) => fw.presets());
+  listFirewallChangeSets = async (query: FirewallChangeSetQuery) =>
+    this.firewall('ListFirewallChangeSets', false, (fw) => fw.history(query.limit));
+  getExposure = async () => this.firewall('GetExposure', false, (fw) => fw.exposure());
+  previewFirewallChanges = async (request: FirewallChangeRequest) =>
+    this.firewall('PreviewFirewallChanges', true, (fw) => fw.preview(request));
+  applyFirewallChanges = async (request: FirewallChangeRequest) =>
+    this.firewall('ApplyFirewallChanges', true, (fw, caller) => fw.apply(request, caller));
+  confirmFirewallChanges = async (changeSetId: string) =>
+    this.firewall('ConfirmFirewallChanges', true, (fw, caller) => fw.confirm(changeSetId, caller));
+  revertFirewallChanges = async (changeSetId: string) =>
+    this.firewall('RevertFirewallChanges', true, (fw) => fw.revert(changeSetId));
+
+  // Docker, websites and certificates: the desktop does not call these yet.
+
   getDockerStatus = () => this.unused('GetDockerStatus');
   listContainers = () => this.unused('ListContainers');
   inspectContainer = () => this.unused('InspectContainer');
@@ -358,6 +370,23 @@ export class FakeCoreConnection implements ICoreHub {
     }
     try {
       return this.core.startJob(kind, title, options);
+    } catch (error) {
+      throw invocationError(method, (error as Error).message);
+    }
+  }
+
+  private firewall<T>(
+    method: string,
+    admin: boolean,
+    work: (firewall: FakeFirewall, caller: FakeFirewallCaller) => T,
+  ): T {
+    this.assertOpen();
+    this.assertRole(method, admin ? ADMINS : VIEWERS);
+    try {
+      return work(this.core.firewall, {
+        connection: this,
+        steppedUp: this.core.stepUpUntil > this.core.now(),
+      });
     } catch (error) {
       throw invocationError(method, (error as Error).message);
     }

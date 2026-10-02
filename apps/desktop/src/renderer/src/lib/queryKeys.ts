@@ -171,6 +171,13 @@ export const queryKeys = {
   deployActiveJobs: (serverId: string) => ['deploy', 'overview', serverId, 'jobs'] as const,
   deployMetricsHistory: (serverId: string, range: string) =>
     ['deploy', 'overview', serverId, 'metrics', range] as const,
+  /** Everything the Firewall section reads (E13), dropped at once after a change. */
+  deployFirewall: (serverId: string) => ['deploy', 'firewall', serverId] as const,
+  deployFirewallStatus: (serverId: string) => ['deploy', 'firewall', serverId, 'status'] as const,
+  deployFirewallPresets: (serverId: string) => ['deploy', 'firewall', serverId, 'presets'] as const,
+  deployFirewallHistory: (serverId: string) => ['deploy', 'firewall', serverId, 'history'] as const,
+  deployFirewallExposure: (serverId: string) =>
+    ['deploy', 'firewall', serverId, 'exposure'] as const,
   /** Whether a Cloudflare token is saved, and what its last check found. */
   cloudflareStatus: ['cloudflare', 'status'] as const,
   /** Prefix of everything read with the Cloudflare token, dropped when the token changes. */

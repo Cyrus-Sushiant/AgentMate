@@ -14,6 +14,7 @@ import type {
 } from '../protocol/generated/AgentMate.ServerCore.Contracts';
 import { FakeCoreConnection } from './fakeCoreConnection';
 import { metricsSample, sampleServices, sampleSystemInfo, sampleUpdates } from './fakeCoreData';
+import { FakeFirewall } from './fakeFirewall';
 
 /**
  * A server core in memory for tests (T11): the machine behind the hub. Tests move it along by
@@ -75,7 +76,19 @@ export class FakeCore {
   private jobCount = 0;
   private alertCount = 0;
 
-  constructor(readonly now: () => number = Date.now) {}
+  /** The host firewall (E13); a change nobody confirms in time raises firewallRolledBack. */
+  readonly firewall: FakeFirewall;
+
+  constructor(readonly now: () => number = Date.now) {
+    this.firewall = new FakeFirewall(now, (change) =>
+      this.raise(
+        'firewallRolledBack',
+        'firewall',
+        'warning',
+        `A firewall change nobody confirmed was rolled back: ${change.summary}.`,
+      ),
+    );
+  }
 
   get openConnections(): FakeCoreConnection[] {
     return this.connections.filter((connection) => !connection.closed);

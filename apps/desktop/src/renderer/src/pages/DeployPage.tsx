@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import { CloudflareMark } from '@/components/cloudflare/CloudflareMark';
+import { FirewallPanel } from '@/components/deploy/firewall/FirewallPanel';
 import { InstallPanel } from '@/components/deploy/InstallPanel';
 import { ConnectionBadge } from '@/components/deploy/overview/ConnectionBadge';
 import { useConnectionUpdates } from '@/components/deploy/overview/hooks';
@@ -167,7 +168,8 @@ export default function DeployPage(): React.JSX.Element {
 
   const selected = servers.find((server) => server.id === params.get('server')) ?? servers[0];
   const run = runs[selected.id];
-  const section: ServerSection = params.get('view') === 'security' ? 'security' : 'overview';
+  const view = params.get('view');
+  const section: ServerSection = view === 'security' || view === 'firewall' ? view : 'overview';
   const locked = vaultQuery.data?.hasPasskey === true && !vaultQuery.data.unlocked;
 
   async function remove(server: DeployServer, keepData: boolean): Promise<void> {
@@ -194,6 +196,9 @@ export default function DeployPage(): React.JSX.Element {
         onCancel={selected.core ? () => setUpdating(null) : undefined}
       />
     );
+  } else if (section === 'firewall') {
+    sections = true;
+    content = <FirewallPanel server={selected} />;
   } else if (section === 'security') {
     sections = true;
     content = <SecurityPanel server={selected} />;

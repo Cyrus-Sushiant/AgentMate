@@ -9,6 +9,7 @@ import { localArtifactSource } from './bootstrap/releaseSource';
 import { CoreHttpClient } from './connection/coreHttp';
 import { coreHub, createCoreHubConnection } from './connection/coreHub';
 import { bridgeTransport, streamLocalTransport } from './connection/transport';
+import { DeployFirewall } from './firewall';
 import { DeployService } from './service';
 import { DeployState } from './state';
 import {
@@ -149,7 +150,7 @@ async function installCore(image: TestServerImage) {
       },
     };
   };
-  return { server, pool, connect };
+  return { server, pool, connect, service };
 }
 
 async function waitFor(what: string, check: () => boolean | Promise<boolean>, timeoutMs = 150_000) {
@@ -215,6 +216,51 @@ async function unconfirmedChangeRevertsWithTheCoreKilled(
 }
 
 describe.skipIf(!enabled)('the firewall on real servers', () => {
+  it(
+    "applies over the app's lasting connection and keeps the change over a brand-new SSH connection",
+    async () => {
+      const core = await installCore('ubuntu-24.04-ufw');
+      const { server, service } = core;
+      const steps: string[] = [];
+      const firewall = new DeployFirewall({
+        links: service.links,
+        service,
+        roles: () => ['owner'],
+        progress: (event) => steps.push(`${event.operation}:${event.step}:${event.state}`),
+      });
+
+      // The guard sees this computer's SSH connection, read on the connection the link rides on.
+      const preview = await firewall.preview({
+        serverId: 'srv',
+        changes: [{ kind: 'enable' }],
+      });
+      expect(preview.guard.blocked).toBe(true);
+
+      const change = await firewall.apply({
+        serverId: 'srv',
+        changes: [tcp(22), tcp(9090), { kind: 'enable' }],
+        password: PASSWORD,
+      });
+      expect(change.state).toBe('awaitingConfirmation');
+      expect(change.appliedFrom).toBeTruthy();
+
+      // Over the link's own SSH connection the core refuses; the app's confirm opens a new one.
+      await expect(
+        service.links.call('srv', (hub) => hub.confirmFirewallChanges(change.id)),
+      ).rejects.toThrow(/same SSH connection/);
+      const kept = await firewall.confirm({ serverId: 'srv', changeSetId: change.id });
+      expect(kept.state).toBe('confirmed');
+      expect(steps).toContain('confirm:openingConnection:done');
+      expect(steps.at(-1)).toBe('confirm:confirming:done');
+      expect(server.run('iptables-save')).toMatch(/--dport 9090 -j ACCEPT/);
+      expect(server.run('systemctl list-timers --all --no-legend')).not.toContain(
+        'agentmate-fwrevert',
+      );
+      service.links.closeAll();
+    },
+    TEST_TIMEOUT_MS,
+  );
+
   it(
     'manages ufw for IPv4 and IPv6, refuses to cut SSH off, confirms over a new connection and rolls back with the core killed',
     async () => {

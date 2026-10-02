@@ -39,7 +39,7 @@ Plan: docs/ROADMAP.md
 | E10 | nginx websites | In progress | 77b262a | Renderer, snippet allowlist and the nginx -t harness |
 | E11 | Let's Encrypt certificates | In progress | 7110a67 | ACME client (RFC 8555 and ARI) tested against Pebble |
 | E12 | App Store | In progress | | Catalog of 18 apps pinned by digest (MinIO left out: no public official image), pending integration |
-| E13 | Firewall | In progress | | Firewall core, pending integration |
+| E13 | Firewall | In progress | 2a87c89, see git log | Core (ufw and firewalld, lockout guard, safe apply) and the Firewall screen (T6): status hero, rules, presets, staged changes, typed SSH override, countdown to keep or revert, history, exposure view. Confirm goes over a brand-new SSH connection. Left: "Make private" for containers (part of T5) waits on app deploys, so the button is disabled with a hint |
 | E14 | Cloudflare | In progress | df848e5 | Desktop side: T1 to T4, T8, T9 and pointing a domain (part of T5); Origin CA (rest of T5), T6 and T7 wait on server work |
 | E15 | Security center and maintenance | In progress | c87918a | T1 (users, devices, enrollment codes) and T2 (audit viewer) done |
 | E16 | Direct TLS mode | Not started | | |

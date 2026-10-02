@@ -171,6 +171,15 @@ export default defineConfig({
           branches: 80,
         },
         'src/renderer/src/pages/DeployPage.tsx': { lines: 85, functions: 75, branches: 75 },
+        // The firewall (E13): safe apply, the rule checks and its screen.
+        'src/main/deploy/firewall.ts': { lines: 95, branches: 85 },
+        'src/main/ipc/deployFirewall.ts': { lines: 95, branches: 90 },
+        'src/shared/deploy/firewallValidation.ts': { lines: 95, branches: 90 },
+        'src/renderer/src/components/deploy/firewall/**': {
+          lines: 90,
+          functions: 85,
+          branches: 80,
+        },
         'src/renderer/src/stores/deploySetupStore.ts': { lines: 95, branches: 85 },
         'src/renderer/src/lib/deploy/**': { lines: 95, branches: 90 },
         // The Cloudflare token lives here, and every call made with it.

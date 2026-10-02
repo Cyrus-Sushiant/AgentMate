@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { app, dialog, type IpcMainInvokeEvent, ipcMain } from 'electron';
 import { IPC } from '../../shared/ipcChannels';
 import { registerDeployHandlers } from '../ipc/deploy';
+import { registerDeployFirewallHandlers } from '../ipc/deployFirewall';
 import { registerDeploySecurityHandlers } from '../ipc/deploySecurity';
 import { registerDeploySystemHandlers, subscriptionOwners } from '../ipc/deploySystem';
 import { broadcastToWindows, sendToWindow } from '../ipc/send';
@@ -27,6 +28,7 @@ import {
   repoReleaseDirectory,
 } from './bootstrap/releaseSource';
 import { registerCloudflareIpc } from './cloudflare';
+import { DeployFirewall } from './firewall';
 import { DeploySubscriptions } from './live/subscriptions';
 import { DeploySecurity } from './security';
 import { DeployService } from './service';
@@ -164,6 +166,18 @@ export function registerDeployIpc(): void {
     subscriptions,
     guard,
     owner: (event) => ownerOf(event.sender),
+  });
+
+  // The firewall's safe apply confirms over a new SSH connection of its own (pool.openSeparate).
+  registerDeployFirewallHandlers({
+    ipc: ipcMain,
+    firewall: new DeployFirewall({
+      links: service.links,
+      service,
+      roles: (id) => service.roles(id),
+      progress: (event) => sendToWindow(getMainWindow(), IPC.deployFirewall.onProgress, event),
+    }),
+    guard,
   });
 
   watcher = new DeployAlertWatcher({

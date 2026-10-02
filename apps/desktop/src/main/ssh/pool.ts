@@ -84,6 +84,29 @@ export class SshConnectionPool {
     };
   }
 
+  /**
+   * A connection of its own, outside the pool: nothing else shares it, and releasing it closes
+   * it. For what must prove a new login still gets in, such as confirming a firewall change.
+   */
+  async openSeparate(serverId: string): Promise<SshLease> {
+    const endpoint = await this.source.endpoint(serverId);
+    const connection = await this.open(endpoint, {
+      onHostKeyTrusted: (fingerprint) => {
+        void this.source.trustHostKey(serverId, fingerprint);
+      },
+    });
+    this.source.connected?.(serverId);
+    let released = false;
+    return {
+      connection,
+      release: () => {
+        if (released) return;
+        released = true;
+        connection.close();
+      },
+    };
+  }
+
   /** Closes the server's connection, so the next `acquire` logs in again. */
   reset(serverId: string): void {
     const entry = this.entries.get(serverId);

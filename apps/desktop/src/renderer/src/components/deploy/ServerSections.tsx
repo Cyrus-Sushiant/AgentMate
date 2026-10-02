@@ -1,11 +1,12 @@
-import { Shield } from '@/components/icons';
+import { Lock, Shield } from '@/components/icons';
 import { cn } from '@/lib/utils';
 
 /** The parts of a server's page under Deploy. */
-export type ServerSection = 'overview' | 'security';
+export type ServerSection = 'overview' | 'firewall' | 'security';
 
 const SECTIONS: ReadonlyArray<{ value: ServerSection; label: string; icon?: typeof Shield }> = [
   { value: 'overview', label: 'Overview' },
+  { value: 'firewall', label: 'Firewall', icon: Lock },
   { value: 'security', label: 'Security', icon: Shield },
 ];
 

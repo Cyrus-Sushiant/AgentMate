@@ -662,6 +662,23 @@ export const IPC = {
     onChanged: 'deployAlerts:onChanged',
   },
   /**
+   * A server's host firewall (E13): status, presets, change history and exposure for every role;
+   * preview, apply (safe apply: confirm over a new SSH connection, or it rolls back) for Admins.
+   */
+  deployFirewall: {
+    status: 'deployFirewall:status',
+    presets: 'deployFirewall:presets',
+    history: 'deployFirewall:history',
+    exposure: 'deployFirewall:exposure',
+    preview: 'deployFirewall:preview',
+    apply: 'deployFirewall:apply',
+    /** (DeployFirewallDecisionInput) -> the change kept, confirmed over a new SSH connection. */
+    confirm: 'deployFirewall:confirm',
+    revert: 'deployFirewall:revert',
+    /** main -> the main window: DeployFirewallProgressEvent, each step of apply/confirm/revert. */
+    onProgress: 'deployFirewall:onProgress',
+  },
+  /**
    * A server core's Security area: users and roles (Owner), devices and sessions, enrollment
    * codes (made by an Owner, redeemed on another computer) and the audit trail.
    */

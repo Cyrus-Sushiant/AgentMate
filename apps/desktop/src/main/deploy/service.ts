@@ -86,6 +86,8 @@ export interface DeployServiceDeps {
     acquire: (serverId: string) => Promise<DeployLease>;
     /** Drops the server's connection, so the next acquire logs in again. */
     reset: (serverId: string) => void;
+    /** A new SSH connection of its own, closed on release (confirming a firewall change). */
+    openSeparate?: (serverId: string) => Promise<DeployLease>;
   };
   state: DeployState;
   releases: ReleaseSource;
@@ -634,15 +636,80 @@ export class DeployService {
   }
 
   /**
+   * Runs `work` with `$SSH_CONNECTION` as the server prints it on the pooled SSH connection, the
+   * one the server's lasting link rides on, and holds that connection for as long as `work`
+   * runs so the link's calls go over it. The DevHost has no SSH, so it gets undefined.
+   */
+  async onLinkConnection<T>(
+    serverId: string,
+    work: (sshConnection: string | undefined) => Promise<T>,
+  ): Promise<T> {
+    if (this.isDevHost(serverId)) return work(undefined);
+    return this.withLease(serverId, async (lease) => {
+      const printed = await lease.connection.exec('echo "$SSH_CONNECTION"');
+      const value = printed.stdout.trim();
+      return work(value.length > 0 ? value : undefined);
+    });
+  }
+
+  /**
+   * A hub call over a brand-new SSH connection and a new tunnel through it, both closed after:
+   * what proves a new login still gets in after a firewall change. On the DevHost a new TCP
+   * connection stands for a new SSH connection. `step` hears when the sign-in starts.
+   */
+  async withFreshHub<T>(
+    serverId: string,
+    work: (hub: ICoreHub) => Promise<T>,
+    step: (step: 'signingIn') => void = () => undefined,
+  ): Promise<T> {
+    let signingIn = false;
+    const run = async (transport: CoreTransport): Promise<T> => {
+      // Said once, even when the tunnel is refused and the bridge is tried next.
+      if (!signingIn) step('signingIn');
+      signingIn = true;
+      const session = await this.openHub(serverId, transport, { tunnelRefusal: 'throw' });
+      try {
+        return await work(session.hub);
+      } finally {
+        await session.stop().catch(() => undefined);
+      }
+    };
+    if (this.isDevHost(serverId)) return run(devTcpTransport(this.deps.devCorePort as number));
+    const record = await this.deps.state.get(serverId);
+    if (!record) throw new Error('The server core is not installed on this server yet.');
+    const pool = this.deps.pool;
+    if (!pool.openSeparate) throw new Error('This build cannot open a second SSH connection.');
+    // Called on the pool itself: the real one reads its own fields.
+    const lease = await pool.openSeparate(serverId);
+    try {
+      if (record.transport === 'bridge') return await run(bridgeTransport(lease.connection));
+      try {
+        return await run(streamLocalTransport(lease.connection));
+      } catch (error) {
+        if (!(error instanceof TunnelRefusedError)) throw error;
+        return await run(bridgeTransport(lease.connection));
+      }
+    } finally {
+      lease.release();
+    }
+  }
+
+  /**
    * A refused connection usually means the token outlived its session or device (revoked on the
    * core), which SignalR does not say. Renewing once does: a revoked device or ended session then
    * fails with its code, so the Deploy page can offer the way back.
    */
-  private async openHub(serverId: string, transport: CoreTransport): Promise<CoreHubSession> {
+  private async openHub(
+    serverId: string,
+    transport: CoreTransport,
+    options: { tunnelRefusal?: 'throw' } = {},
+  ): Promise<CoreHubSession> {
     const token = () => this.sessions.accessToken(serverId);
     try {
       return await this.hubOf(transport, token);
     } catch (refused) {
+      // A caller that falls back to the bridge needs to see the tunnel refusal as it is.
+      if (options.tunnelRefusal === 'throw' && refused instanceof TunnelRefusedError) throw refused;
       this.sessions.forget(serverId);
       await token();
       try {
