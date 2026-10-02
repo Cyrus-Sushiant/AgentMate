@@ -1,16 +1,28 @@
-import { Docker, Globe, Lock, Shield } from '@/components/icons';
+import { Blocks, Docker, Globe, Lock, Shield } from '@/components/icons';
 import { cn } from '@/lib/utils';
 
 /** The parts of a server's page under Deploy. */
-export type ServerSection = 'overview' | 'containers' | 'websites' | 'firewall' | 'security';
+export type ServerSection =
+  | 'overview'
+  | 'apps'
+  | 'containers'
+  | 'websites'
+  | 'firewall'
+  | 'security';
 
 const SECTIONS: ReadonlyArray<{ value: ServerSection; label: string; icon?: typeof Shield }> = [
   { value: 'overview', label: 'Overview' },
+  { value: 'apps', label: 'Apps', icon: Blocks },
   { value: 'containers', label: 'Containers', icon: Docker },
   { value: 'websites', label: 'Websites', icon: Globe },
   { value: 'firewall', label: 'Firewall', icon: Lock },
   { value: 'security', label: 'Security', icon: Shield },
 ];
+
+/** Reads a section from the page's address; anything unknown is the Overview. */
+export function sectionFromView(view: string | null): ServerSection {
+  return SECTIONS.find((section) => section.value === view)?.value ?? 'overview';
+}
 
 /**
  * Switches between a server's sections. The section is part of the page's address, so a link

@@ -3,7 +3,7 @@
 /* tslint:disable */
 // @ts-nocheck
 import type { IStreamResult, Subject } from '@microsoft/signalr';
-import type { PingResponse, AccountInfo, StepUpRequest, StepUpResponse, DeviceInfo, SessionInfo, TotpSetup, RecoveryCodes, CreateEnrollmentCodeRequest, EnrollmentCodeInfo, UserInfo, CreateUserRequest, ResetUserPasswordRequest, AuditQuery, AuditPage, AuditVerificationInfo, SystemInfo, ServiceInfo, MetricsHistoryRequest, MetricsHistory, MetricsStreamRequest, MetricsSample, UpdatesInfo, JobQuery, JobPage, JobInfo, JobStreamItem, AlertQuery, AlertInfo, AlertStreamRequest, ManagedService, FirewallStatus, FirewallPreset, FirewallChangeSetQuery, FirewallChangeSetInfo, ExposureInventory, FirewallChangeRequest, FirewallChangePreview, DockerStatus, ContainerList, ContainerDetails, ContainerStatsRequest, ContainerStatsBatch, ContainerLogsRequest, ContainerLogBatch, ImageInfo, VolumeInfo, NetworkInfo, DockerDiskUsage, DockerEventsRequest, DockerEvent, ContainerSummary, ContainerRemoveRequest, ImagePullRequest, ImageRemoveRequest, ContainerEnvVariable, ConsoleRequest, ConsoleInput, ConsoleOutput, DockerPruneRequest, DockerPruneResult, DockerInstallRequest, NginxStatus, SiteInfo, StreamProxyInfo, CertificateInfo, SiteLogRequest, SiteLogBatch, SiteSettings, SiteSaveResult, StreamProxySettings, StreamProxySaveResult, NginxApplyResult, CertificateIssueRequest, CertificateUploadRequest, CertificateUploadResult, CertificateRemoveRequest, SiteSnippets } from '../AgentMate.ServerCore.Contracts';
+import type { PingResponse, AccountInfo, StepUpRequest, StepUpResponse, DeviceInfo, SessionInfo, TotpSetup, RecoveryCodes, CreateEnrollmentCodeRequest, EnrollmentCodeInfo, UserInfo, CreateUserRequest, ResetUserPasswordRequest, AuditQuery, AuditPage, AuditVerificationInfo, SystemInfo, ServiceInfo, MetricsHistoryRequest, MetricsHistory, MetricsStreamRequest, MetricsSample, UpdatesInfo, JobQuery, JobPage, JobInfo, JobStreamItem, AlertQuery, AlertInfo, AlertStreamRequest, ManagedService, FirewallStatus, FirewallPreset, FirewallChangeSetQuery, FirewallChangeSetInfo, ExposureInventory, FirewallChangeRequest, FirewallChangePreview, DockerStatus, ContainerList, ContainerDetails, ContainerStatsRequest, ContainerStatsBatch, ContainerLogsRequest, ContainerLogBatch, ImageInfo, VolumeInfo, NetworkInfo, DockerDiskUsage, DockerEventsRequest, DockerEvent, ContainerSummary, ContainerRemoveRequest, ImagePullRequest, ImageRemoveRequest, ContainerEnvVariable, ConsoleRequest, ConsoleInput, ConsoleOutput, DockerPruneRequest, DockerPruneResult, DockerInstallRequest, NginxStatus, SiteInfo, StreamProxyInfo, CertificateInfo, SiteLogRequest, SiteLogBatch, SiteSettings, SiteSaveResult, StreamProxySettings, StreamProxySaveResult, NginxApplyResult, CertificateIssueRequest, CertificateUploadRequest, CertificateUploadResult, CertificateRemoveRequest, StackInfo, StackDetails, StackRevisionRef, StackRevisionFiles, CreateStackRequest, AcknowledgeStackRisksRequest, StackRevisionInfo, StackActionRequest, SiteSnippets } from '../AgentMate.ServerCore.Contracts';
 
 /**
 * Everything the app can ask the core over the WebSocket. The desktop's typed client is
@@ -488,6 +488,62 @@ export type ICoreHub = {
     * @returns Transpiled from System.Threading.Tasks.Task<AgentMate.ServerCore.Contracts.NginxApplyResult>
     */
     removeCertificate(request: CertificateRemoveRequest): Promise<NginxApplyResult>;
+    /**
+    * @returns Transpiled from System.Threading.Tasks.Task<AgentMate.ServerCore.Contracts.StackInfo[]>
+    */
+    listStacks(): Promise<StackInfo[]>;
+    /**
+    * The stack, its revisions newest first, and its services with their containers.
+    * @param stackId Transpiled from System.Guid
+    * @returns Transpiled from System.Threading.Tasks.Task<AgentMate.ServerCore.Contracts.StackDetails>
+    */
+    getStack(stackId: string): Promise<StackDetails>;
+    /**
+    * The compose file as uploaded and the loopback override. Env values never leave the core.
+    * @param revision Transpiled from AgentMate.ServerCore.Contracts.StackRevisionRef
+    * @returns Transpiled from System.Threading.Tasks.Task<AgentMate.ServerCore.Contracts.StackRevisionFiles>
+    */
+    getStackRevisionFiles(revision: StackRevisionRef): Promise<StackRevisionFiles>;
+    /**
+    * @param request Transpiled from AgentMate.ServerCore.Contracts.CreateStackRequest
+    * @returns Transpiled from System.Threading.Tasks.Task<AgentMate.ServerCore.Contracts.StackInfo>
+    */
+    createStack(request: CreateStackRequest): Promise<StackInfo>;
+    /**
+    * Records each acknowledgment in the audit trail, one entry per finding id.
+    * @param request Transpiled from AgentMate.ServerCore.Contracts.AcknowledgeStackRisksRequest
+    * @returns Transpiled from System.Threading.Tasks.Task<AgentMate.ServerCore.Contracts.StackRevisionInfo>
+    */
+    acknowledgeStackRisks(request: AcknowledgeStackRisksRequest): Promise<StackRevisionInfo>;
+    /**
+    * Validate, pull, build, up --wait, health. Refused while a finding is unacknowledged.
+    * @param revision Transpiled from AgentMate.ServerCore.Contracts.StackRevisionRef
+    * @returns Transpiled from System.Threading.Tasks.Task<AgentMate.ServerCore.Contracts.JobInfo>
+    */
+    deployStack(revision: StackRevisionRef): Promise<JobInfo>;
+    /**
+    * Copies an earlier revision into a new one and deploys it.
+    * @param revision Transpiled from AgentMate.ServerCore.Contracts.StackRevisionRef
+    * @returns Transpiled from System.Threading.Tasks.Task<AgentMate.ServerCore.Contracts.JobInfo>
+    */
+    rollbackStack(revision: StackRevisionRef): Promise<JobInfo>;
+    /**
+    * @param request Transpiled from AgentMate.ServerCore.Contracts.StackActionRequest
+    * @returns Transpiled from System.Threading.Tasks.Task<AgentMate.ServerCore.Contracts.JobInfo>
+    */
+    runStackAction(request: StackActionRequest): Promise<JobInfo>;
+    /**
+    * docker compose down, then the stack's files and records go. Its volumes stay.
+    * @param stackId Transpiled from System.Guid
+    * @returns Transpiled from System.Threading.Tasks.Task<AgentMate.ServerCore.Contracts.JobInfo>
+    */
+    deleteStack(stackId: string): Promise<JobInfo>;
+    /**
+    * As DeleteStack, with docker compose down --volumes: the app's data goes too. Admin.
+    * @param stackId Transpiled from System.Guid
+    * @returns Transpiled from System.Threading.Tasks.Task<AgentMate.ServerCore.Contracts.JobInfo>
+    */
+    deleteStackWithVolumes(stackId: string): Promise<JobInfo>;
     /**
     * A site's custom snippets, checked against the directive allowlist.
     * @param snippets Transpiled from AgentMate.ServerCore.Contracts.SiteSnippets

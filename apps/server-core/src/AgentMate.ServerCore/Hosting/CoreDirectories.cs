@@ -15,6 +15,11 @@ internal sealed class CoreDirectories(string dataDirectory)
 
     public string EnsureJobs() => EnsurePrivate(Jobs);
 
+    /// <summary>One folder per compose stack, its revisions inside (E07).</summary>
+    public string Stacks => Path.Combine(Data, "stacks");
+
+    public string EnsureStacks() => EnsurePrivate(Stacks);
+
     private static string EnsurePrivate(string path)
     {
         if (OperatingSystem.IsWindows())

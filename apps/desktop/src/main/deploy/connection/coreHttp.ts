@@ -1,5 +1,5 @@
-import { Agent, type ClientRequestArgs, request } from 'node:http';
-import type { Duplex } from 'node:stream';
+import { Agent, type ClientRequest, type ClientRequestArgs, request } from 'node:http';
+import type { Duplex, Readable } from 'node:stream';
 import type { HealthResponse } from '../../../shared/deploy/protocol/generated/AgentMate.ServerCore.Contracts';
 import type { CoreTransport } from './transport';
 
@@ -38,6 +38,15 @@ export interface CoreRequestOptions {
   timeoutMs?: number;
 }
 
+/** A streamed request body: a stack's build context (E07). */
+export interface CoreStreamOptions extends CoreRequestOptions {
+  contentType: string;
+  contentLength: number;
+  headers?: Record<string, string>;
+  /** Bytes handed to the transport so far. */
+  onProgress?: (sentBytes: number) => void;
+}
+
 /** A refusal from the core, with its status and (when it sent JSON) the body. */
 export class CoreHttpError extends Error {
   constructor(
@@ -69,6 +78,27 @@ export class CoreHttpClient {
     return this.send<T>('POST', path, body, options);
   }
 
+  /** Streams the body as it reads it, so a large upload is never held in memory. */
+  putStream<T>(path: string, body: Readable, options: CoreStreamOptions): Promise<T> {
+    const headers: Record<string, string> = {
+      ...options.headers,
+      host: CORE_HOST,
+      accept: 'application/json',
+      'content-type': options.contentType,
+      'content-length': String(options.contentLength),
+    };
+    if (options.token) headers.authorization = `Bearer ${options.token}`;
+    return this.exchange<T>('PUT', path, headers, options.timeoutMs, (outgoing) => {
+      let sent = 0;
+      body.on('data', (chunk: Buffer) => {
+        sent += chunk.length;
+        options.onProgress?.(sent);
+      });
+      body.on('error', (error) => outgoing.destroy(error));
+      body.pipe(outgoing);
+    });
+  }
+
   private send<T>(
     method: string,
     path: string,
@@ -82,7 +112,18 @@ export class CoreHttpClient {
       headers['content-length'] = String(payload.length);
     }
     if (options.token) headers.authorization = `Bearer ${options.token}`;
+    return this.exchange<T>(method, path, headers, options.timeoutMs, (outgoing) =>
+      outgoing.end(payload),
+    );
+  }
 
+  private exchange<T>(
+    method: string,
+    path: string,
+    headers: Record<string, string>,
+    timeoutMs: number | undefined,
+    write: (outgoing: ClientRequest) => void,
+  ): Promise<T> {
     return new Promise<T>((resolve, reject) => {
       const outgoing = request(
         { agent: this.agent, host: CORE_HOST, path, method, headers },
@@ -134,13 +175,13 @@ export class CoreHttpClient {
         outgoing.destroy(error);
         // A request still waiting for its tunnel has no socket to report the error through.
         reject(error);
-      }, options.timeoutMs ?? DEFAULT_TIMEOUT_MS);
+      }, timeoutMs ?? DEFAULT_TIMEOUT_MS);
       outgoing.on('close', () => clearTimeout(deadline));
       outgoing.on('error', (error) => {
         clearTimeout(deadline);
         reject(error);
       });
-      outgoing.end(payload);
+      write(outgoing);
     });
   }
 }

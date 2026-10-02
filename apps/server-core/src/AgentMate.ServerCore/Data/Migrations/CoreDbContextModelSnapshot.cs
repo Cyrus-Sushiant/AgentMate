@@ -759,6 +759,163 @@ namespace AgentMate.ServerCore.Data.Migrations
                     b.ToTable("SiteDomains");
                 });
 
+            modelBuilder.Entity("AgentMate.ServerCore.Data.StackRecord", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ComposePath")
+                        .HasMaxLength(500)
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("CreatedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(500)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("EnvironmentId")
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("EnvironmentName")
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("LastRevision")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("LiveRevision")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(63)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ProjectId")
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ProjectName")
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("UpdatedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Name")
+                        .IsUnique();
+
+                    b.ToTable("Stacks");
+                });
+
+            modelBuilder.Entity("AgentMate.ServerCore.Data.StackRevisionRecord", b =>
+                {
+                    b.Property<Guid>("StackId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Number")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("AcknowledgedRisks")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Bindings")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("Builds")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("ComposePath")
+                        .HasMaxLength(500)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ComposeSha256")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("CreatedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("TEXT");
+
+                    b.Property<long?>("DeployedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("EnvKeys")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("EnvironmentId")
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("EnvironmentName")
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Error")
+                        .HasMaxLength(2000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Findings")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<long?>("FinishedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("HasBuildContext")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<Guid?>("JobId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ProjectId")
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ProjectName")
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ProxiedServices")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("RollbackOf")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Services")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("State")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Steps")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("StackId", "Number");
+
+                    b.HasIndex("State");
+
+                    b.ToTable("StackRevisions");
+                });
+
             modelBuilder.Entity("AgentMate.ServerCore.Data.StreamProxy", b =>
                 {
                     b.Property<string>("Id")
@@ -923,6 +1080,15 @@ namespace AgentMate.ServerCore.Data.Migrations
                     b.HasOne("AgentMate.ServerCore.Data.Site", null)
                         .WithMany()
                         .HasForeignKey("SiteId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("AgentMate.ServerCore.Data.StackRevisionRecord", b =>
+                {
+                    b.HasOne("AgentMate.ServerCore.Data.StackRecord", null)
+                        .WithMany()
+                        .HasForeignKey("StackId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });

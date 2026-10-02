@@ -695,6 +695,18 @@ export class DeployService {
   }
 
   /**
+   * A REST call signed in with this computer's session, for what is too large for a hub message:
+   * the Apps' compose files and build contexts (E07).
+   */
+  async withCoreHttp<T>(
+    serverId: string,
+    work: (client: CoreHttpClient, token: string) => Promise<T>,
+  ): Promise<T> {
+    const token = await this.sessions.accessToken(serverId);
+    return this.withTransport(serverId, (transport) => work(new CoreHttpClient(transport), token));
+  }
+
+  /**
    * A refused connection usually means the token outlived its session or device (revoked on the
    * core), which SignalR does not say. Renewing once does: a revoked device or ended session then
    * fails with its code, so the Deploy page can offer the way back.

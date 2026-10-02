@@ -130,23 +130,34 @@ export class DeploySystem {
   }
 
   private explain(serverId: string, error: unknown, needsStepUp: boolean): Error {
-    // The connection's own refusals (a sign-in, a new enrollment) already carry their code.
-    if (coreErrorCode(error) && error instanceof Error) return error;
-    if (!UNAUTHORIZED.test(error instanceof Error ? error.message : String(error))) {
-      return new Error(hubMessage(error));
-    }
-    const roles = this.deps.roles(serverId);
-    if (needsStepUp && (!roles || roles.some((role) => CAN_STEP_UP.has(role)))) {
-      return new Error(
-        encodeCoreError(
-          'stepUpRequired',
-          'Confirm your password (or a code from your authenticator app) to do this.',
-        ),
-      );
-    }
-    const which = roles && roles.length > 0 ? ` (${roles.join(', ')})` : '';
+    return explainCoreRefusal(error, this.deps.roles(serverId), needsStepUp);
+  }
+}
+
+/**
+ * A hub call's error as the renderer should see it. The connection's own refusals already carry
+ * their code; a refused policy becomes `[core:stepUpRequired]` when a step-up could help (the
+ * caller's role would pass) and `[core:forbidden]` otherwise. The Apps (stacks.ts) use it too.
+ */
+export function explainCoreRefusal(
+  error: unknown,
+  roles: string[] | null,
+  needsStepUp: boolean,
+): Error {
+  if (coreErrorCode(error) && error instanceof Error) return error;
+  if (!UNAUTHORIZED.test(error instanceof Error ? error.message : String(error))) {
+    return new Error(hubMessage(error));
+  }
+  if (needsStepUp && (!roles || roles.some((role) => CAN_STEP_UP.has(role)))) {
     return new Error(
-      encodeCoreError('forbidden', `Your role on this server${which} cannot do that.`),
+      encodeCoreError(
+        'stepUpRequired',
+        'Confirm your password (or a code from your authenticator app) to do this.',
+      ),
     );
   }
+  const which = roles && roles.length > 0 ? ` (${roles.join(', ')})` : '';
+  return new Error(
+    encodeCoreError('forbidden', `Your role on this server${which} cannot do that.`),
+  );
 }

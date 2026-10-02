@@ -1,6 +1,6 @@
 import { createServer, type IncomingMessage, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
-import { Duplex } from 'node:stream';
+import { Duplex, Readable } from 'node:stream';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { CoreHttpClient, CoreHttpError } from './coreHttp';
 import { asSocket } from './socketShim';
@@ -84,6 +84,50 @@ describe('CoreHttpClient', () => {
     expect(bodies).toEqual(['{"user":"owner"}']);
     expect(seen[0].headers['content-type']).toBe('application/json');
     expect(seen[0].headers.authorization).toBe('Bearer abc');
+  });
+
+  it('streams a PUT body with its type, length, extra headers and progress', async () => {
+    const bodies: string[] = [];
+    const client = await serve((_request, body) => {
+      bodies.push(body);
+      return { status: 200, body: { number: 1 } };
+    });
+    const progress: number[] = [];
+
+    const answer = await client.putStream<{ number: number }>(
+      '/api/v1/stacks/s/revisions/1/context',
+      Readable.from([Buffer.from('abc'), Buffer.from('def')]),
+      {
+        token: 'abc',
+        contentType: 'application/gzip',
+        contentLength: 6,
+        headers: { 'x-content-sha256': 'f00' },
+        onProgress: (sent) => progress.push(sent),
+      },
+    );
+
+    expect(answer).toEqual({ number: 1 });
+    expect(bodies).toEqual(['abcdef']);
+    expect(seen[0].method).toBe('PUT');
+    expect(seen[0].headers['content-type']).toBe('application/gzip');
+    expect(seen[0].headers['content-length']).toBe('6');
+    expect(seen[0].headers['x-content-sha256']).toBe('f00');
+    expect(seen[0].headers.authorization).toBe('Bearer abc');
+    expect(seen[0].headers.host).toBe('agentmate-core');
+    expect(progress).toEqual([3, 6]);
+  });
+
+  it('fails a PUT whose body cannot be read', async () => {
+    const client = await serve(() => ({ status: 200, body: {} }));
+    const broken = new Readable({
+      read() {
+        this.destroy(new Error('disk gone'));
+      },
+    });
+
+    await expect(
+      client.putStream('/x', broken, { contentType: 'application/gzip', contentLength: 10 }),
+    ).rejects.toThrow('disk gone');
   });
 
   it('turns an error status into a readable error', async () => {

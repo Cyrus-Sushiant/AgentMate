@@ -119,6 +119,7 @@ internal static class CoreApplication
 
         app.MapHealthEndpoints();
         app.MapAuthEndpoints();
+        app.MapStackEndpoints();
         app.MapHub<CoreHub>(CoreHub.Path, options =>
             {
                 options.Transports = HttpTransportType.WebSockets;

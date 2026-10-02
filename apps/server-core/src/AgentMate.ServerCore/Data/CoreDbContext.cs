@@ -42,6 +42,11 @@ internal sealed class CoreDbContext(DbContextOptions<CoreDbContext> options)
 
     public DbSet<AcmeAccountRecord> AcmeAccounts => Set<AcmeAccountRecord>();
 
+    // Compose stacks (E07).
+    public DbSet<StackRecord> Stacks => Set<StackRecord>();
+
+    public DbSet<StackRevisionRecord> StackRevisions => Set<StackRevisionRecord>();
+
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
@@ -129,6 +134,7 @@ internal sealed class CoreDbContext(DbContextOptions<CoreDbContext> options)
         });
 
         WebModel.Configure(builder);
+        StackModel.Configure(builder);
     }
 }
 

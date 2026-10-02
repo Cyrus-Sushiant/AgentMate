@@ -31,6 +31,7 @@ import { store } from '../store';
 
 const userData = useTempUserData();
 const project = { dir: '' };
+let environmentsModule: typeof import('./environments');
 const PROJECT_ID = 'p1';
 const SECRET = 'API_TOKEN=do-not-log-me\n';
 
@@ -57,10 +58,46 @@ beforeEach(async () => {
   ]);
   // The passkey cache lives in the module rather than on disk, and the harness rebuilds the
   // module graph per test, so every test starts with the vault locked.
-  await loadIpc(
+  environmentsModule = await loadIpc(
     () => import('./environments'),
     (module) => module.registerEnvironmentHandlers(),
   );
+});
+
+describe('resolveProjectEnvironment (main process only)', () => {
+  it('decrypts every file and merges the keys, the later file winning', async () => {
+    const created = await newEnvironment();
+    await invoke(IPC.environments.saveFile, {
+      environmentId: created.id,
+      fileName: '.env',
+      content: 'A=1\nSHARED=from-env\n',
+    });
+    // Not awaited: the read waits for the save already queued.
+    const pending = invoke(IPC.environments.saveFile, {
+      environmentId: created.id,
+      fileName: '.env.production',
+      content: 'SHARED="from production"\nB=2\n',
+    });
+    const resolved = await environmentsModule.resolveProjectEnvironment(PROJECT_ID, created.id);
+    await pending;
+    expect(resolved.name).toBe('Production');
+    expect(resolved.files.map((file) => file.fileName)).toEqual(['.env', '.env.production']);
+    expect(resolved.entries).toEqual([
+      { key: 'A', value: '1' },
+      { key: 'SHARED', value: 'from production' },
+      { key: 'B', value: '2' },
+    ]);
+  });
+
+  it("refuses another project's environment and one that is gone", async () => {
+    const created = await newEnvironment();
+    await expect(environmentsModule.resolveProjectEnvironment('other', created.id)).rejects.toThrow(
+      'That environment belongs to another project.',
+    );
+    await expect(environmentsModule.resolveProjectEnvironment(PROJECT_ID, 'gone')).rejects.toThrow(
+      'That environment no longer exists.',
+    );
+  });
 });
 
 describe('environments CRUD', () => {

@@ -323,6 +323,10 @@ import type {
   SiteSaveResult,
   SiteSettings,
   SiteSnippets,
+  StackDetails,
+  StackInfo,
+  StackRevisionFiles,
+  StackRevisionInfo,
   StepUpResponse,
   StreamProxyInfo,
   StreamProxySaveResult,
@@ -357,6 +361,20 @@ import type {
   DeploySiteLogEvent,
   DeploySiteLogWatchInput,
 } from '../shared/deploySitesTypes';
+import type {
+  DeployComposeDiscovery,
+  DeployStackAcknowledgeInput,
+  DeployStackActionInput,
+  DeployStackCreateInput,
+  DeployStackDeleteInput,
+  DeployStackPreview,
+  DeployStackPreviewInput,
+  DeployStackRef,
+  DeployStackRevisionInput,
+  DeployStackRevisionRef,
+  DeployStackUploadProgress,
+  DeployStackUploadResult,
+} from '../shared/deployStacksTypes';
 import type {
   DeployAccess,
   DeployAlertsEvent,
@@ -1556,6 +1574,40 @@ const deployJobs = {
 /** Docker on a server: containers, their stats, logs and console, and Docker's resources. */
 const deployDocker = createDeployDocker(subscribe);
 
+/**
+ * A server's Apps (E07). Env values never come here: the main process reads the environment,
+ * renders the .env and uploads it. Changes return the job that does them (follow it with
+ * deployJobs.watch); refusals carry `[core:forbidden]` like deploySystem's.
+ */
+const deployStacks = {
+  discover: (projectId: string): Promise<DeployComposeDiscovery> =>
+    ipcRenderer.invoke(IPC.deployStacks.discover, projectId),
+  preview: (input: DeployStackPreviewInput): Promise<DeployStackPreview> =>
+    ipcRenderer.invoke(IPC.deployStacks.preview, input),
+  list: (serverId: string): Promise<StackInfo[]> =>
+    ipcRenderer.invoke(IPC.deployStacks.list, serverId),
+  get: (input: DeployStackRef): Promise<StackDetails> =>
+    ipcRenderer.invoke(IPC.deployStacks.get, input),
+  files: (input: DeployStackRevisionRef): Promise<StackRevisionFiles> =>
+    ipcRenderer.invoke(IPC.deployStacks.files, input),
+  create: (input: DeployStackCreateInput): Promise<DeployStackUploadResult> =>
+    ipcRenderer.invoke(IPC.deployStacks.create, input),
+  upload: (input: DeployStackRevisionInput): Promise<DeployStackUploadResult> =>
+    ipcRenderer.invoke(IPC.deployStacks.upload, input),
+  acknowledge: (input: DeployStackAcknowledgeInput): Promise<StackRevisionInfo> =>
+    ipcRenderer.invoke(IPC.deployStacks.acknowledge, input),
+  deploy: (input: DeployStackRevisionRef): Promise<JobInfo> =>
+    ipcRenderer.invoke(IPC.deployStacks.deploy, input),
+  rollback: (input: DeployStackRevisionRef): Promise<JobInfo> =>
+    ipcRenderer.invoke(IPC.deployStacks.rollback, input),
+  action: (input: DeployStackActionInput): Promise<JobInfo> =>
+    ipcRenderer.invoke(IPC.deployStacks.action, input),
+  delete: (input: DeployStackDeleteInput): Promise<JobInfo> =>
+    ipcRenderer.invoke(IPC.deployStacks.delete, input),
+  onUploadProgress: (cb: (event: DeployStackUploadProgress) => void): (() => void) =>
+    subscribe(IPC.deployStacks.onUploadProgress, cb),
+};
+
 /** A server core's alerts: disk pressure, failed jobs, a reboot waiting. */
 const deployAlerts = {
   list: (query: DeployAlertsQuery): Promise<AlertInfo[]> =>
@@ -2315,6 +2367,7 @@ const agentmatApi = {
   deployDocker,
   deploySites,
   deployCerts,
+  deployStacks,
   cloudflare,
   pullRequests,
   tests,

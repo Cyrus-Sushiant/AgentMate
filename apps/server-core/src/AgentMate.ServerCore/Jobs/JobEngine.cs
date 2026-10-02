@@ -74,6 +74,18 @@ internal sealed class JobContext
     /// <summary>Hands a program's output lines to the log.</summary>
     public Action<OutputLine> Output { get; }
 
+    /// <summary>How many lines the log has so far, so work can say which lines a step wrote.</summary>
+    public long LogLines
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _log.Count;
+            }
+        }
+    }
+
     /// <summary>Set by work that ran a program, so the job records how it ended.</summary>
     public int? ExitCode { get; set; }
 

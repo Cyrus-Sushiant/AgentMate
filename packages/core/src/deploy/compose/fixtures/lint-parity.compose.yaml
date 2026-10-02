@@ -1,0 +1,42 @@
+# The same findings from the app's linter (lint.ts) and the core's (ComposeConfigLint.cs). The
+# core reads Compose's own output for this file: lint-parity.config.json.
+services:
+  web:
+    image: nginx:1.29
+    privileged: true
+    pid: host
+    ports:
+      - "8080:80"
+      - "127.0.0.1:9090:9090"
+      - "0.0.0.0:7000-7001:7000-7001/udp"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /etc:/host-etc:ro
+      - /etc/localtime:/etc/localtime:ro
+      - ./data:/data
+      - /srv/media:/media
+    cap_add: [SYS_ADMIN, NET_ADMIN, CHOWN, SYS_NICE]
+    security_opt: ["seccomp:unconfined", "no-new-privileges:true"]
+    devices: ["/dev/fuse:/dev/fuse"]
+    restart: unless-stopped
+  api:
+    image: example/api:2.1
+    network_mode: host
+    ipc: host
+    uts: host
+    volumes:
+      - type: bind
+        source: /
+        target: /host
+        read_only: true
+      - shared:/var/lib/shared
+    device_cgroup_rules: ["c 10:200 rwm"]
+  proxied:
+    image: grafana/grafana:12.1.1
+    ports: ["3000:3000"]
+volumes:
+  shared:
+    driver_opts:
+      type: none
+      o: bind
+      device: /opt/agentmate-core/shared

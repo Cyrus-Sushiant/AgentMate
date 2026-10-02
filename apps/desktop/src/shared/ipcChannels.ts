@@ -750,6 +750,30 @@ export const IPC = {
     onConsole: 'deployDocker:onConsole',
   },
   /**
+   * A server's Apps (E07): compose stacks from a project's compose file and environment. Env
+   * values stay in the main process; the renderer sees keys only.
+   */
+  deployStacks: {
+    /** (projectId) -> DeployComposeDiscovery, the compose files in the project. */
+    discover: 'deployStacks:discover',
+    /** (DeployStackPreviewInput) -> DeployStackPreview: services, exposure, risks, env keys. */
+    preview: 'deployStacks:preview',
+    list: 'deployStacks:list',
+    get: 'deployStacks:get',
+    files: 'deployStacks:files',
+    /** (DeployStackCreateInput) -> DeployStackUploadResult: the app and its first revision. */
+    create: 'deployStacks:create',
+    /** (DeployStackRevisionInput) -> DeployStackUploadResult: a new revision of an app. */
+    upload: 'deployStacks:upload',
+    acknowledge: 'deployStacks:acknowledge',
+    deploy: 'deployStacks:deploy',
+    rollback: 'deployStacks:rollback',
+    action: 'deployStacks:action',
+    delete: 'deployStacks:delete',
+    /** main -> renderer: DeployStackUploadProgress while files go up. */
+    onUploadProgress: 'deployStacks:onUploadProgress',
+  },
+  /**
    * A server core's Security area: users and roles (Owner), devices and sessions, enrollment
    * codes (made by an Owner, redeemed on another computer) and the audit trail.
    */

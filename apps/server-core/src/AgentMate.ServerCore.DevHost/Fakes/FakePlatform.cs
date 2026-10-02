@@ -4,6 +4,7 @@ using AgentMate.ServerCore.Docker;
 using AgentMate.ServerCore.Firewall;
 using AgentMate.ServerCore.Nginx;
 using AgentMate.ServerCore.Platform;
+using AgentMate.ServerCore.Stacks;
 
 namespace AgentMate.ServerCore.DevHost.Fakes;
 
@@ -35,6 +36,12 @@ internal static class FakePlatform
         services.AddSingleton(provider => new InMemoryDockerEngine(provider.GetRequiredService<TimeProvider>()));
         services.AddSingleton<IDockerEngine>(provider => provider.GetRequiredService<InMemoryDockerEngine>());
         services.AddSingleton<IDockerSetup, FakeDockerSetup>();
+
+        // Compose stacks (E07): docker compose on the pretend engine, a few lines a second.
+        services.AddSingleton(provider => new SimulatedCompose(
+            provider.GetRequiredService<InMemoryDockerEngine>(),
+            provider.GetRequiredService<TimeProvider>()));
+        services.AddSingleton<IComposeRunner>(provider => provider.GetRequiredService<SimulatedCompose>());
 
         // Websites and certificates: nginx.org's nginx installed and running but not set up yet,
         // a pretend CA, and upstream names that all resolve to a documentation address.

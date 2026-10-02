@@ -3,6 +3,7 @@ import { readdir, readFile, stat, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import {
   countDotenvKeys,
+  type DotenvEntry,
   ENVIRONMENT_KINDS,
   type EnvironmentKind,
   guessEnvironmentKind,
@@ -10,6 +11,7 @@ import {
   isEnvTemplateFileName,
   MAX_ENV_FILE_BYTES,
   type Project,
+  parseDotenv,
 } from '@agentmat/core';
 import { clipboard, ipcMain } from 'electron';
 import type {
@@ -65,6 +67,50 @@ function mutate<T>(
   });
   updateQueue = next.catch(() => undefined);
   return next;
+}
+
+/** An environment's files read back in plain text, for the main process only. */
+export interface ResolvedEnvFile {
+  fileName: string;
+  entries: DotenvEntry[];
+}
+
+export interface ResolvedProjectEnvironment {
+  id: string;
+  name: string;
+  /** In the order they are kept, which is the order they apply in. */
+  files: ResolvedEnvFile[];
+  /** Every key once, the last file that sets it winning, in first-seen order. */
+  entries: Array<Pick<DotenvEntry, 'key' | 'value'>>;
+}
+
+/**
+ * The decrypted entries of one of a project's environments. Only main-process callers (the
+ * Apps deploy) use it; nothing here is ever sent to the renderer. It waits for saves already
+ * queued, so it reads what the Environments tab shows once they land.
+ */
+export async function resolveProjectEnvironment(
+  projectId: string,
+  environmentId: string,
+): Promise<ResolvedProjectEnvironment> {
+  await updateQueue;
+  const environment = findEnvironment(await store.getProjectEnvironments(), environmentId);
+  if (environment.projectId !== projectId) {
+    throw new Error('That environment belongs to another project.');
+  }
+  const files: ResolvedEnvFile[] = [];
+  const merged = new Map<string, string>();
+  for (const file of environment.files) {
+    const entries = parseDotenv(await decryptSecret(file.contentEnvelope));
+    files.push({ fileName: file.fileName, entries });
+    for (const { key, value } of entries) merged.set(key, value);
+  }
+  return {
+    id: environment.id,
+    name: environment.name,
+    files,
+    entries: [...merged].map(([key, value]) => ({ key, value })),
+  };
 }
 
 function findEnvironment(

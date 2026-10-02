@@ -379,7 +379,9 @@ public sealed class HubAccountTests
             "GetDockerDiskUsage", "GetDockerStatus", "InspectContainer", "ListContainers", "ListImages", "ListNetworks",
             "ListVolumes", "StreamContainerLogs", "StreamContainerStats", "StreamDockerEvents",
         ];
-        reads = [.. reads, .. docker];
+        // Compose stacks (E07): the apps, their revisions and the uploaded files (never env values).
+        string[] stacks = ["GetStack", "GetStackRevisionFiles", "ListStacks"];
+        reads = [.. reads, .. docker, .. stacks];
         Assert.Equal(account.Concat(reads).Concat(firewallReads).Order(StringComparer.Ordinal), open.Order(StringComparer.Ordinal));
     }
 

@@ -19,6 +19,9 @@ public enum JobKind
     NginxInstall,
     CertificateIssue,
     CertificateRenew,
+    StackDeploy,
+    StackAction,
+    StackDelete,
 }
 
 [TranspilationSource]

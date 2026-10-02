@@ -8,6 +8,7 @@ using AgentMate.ServerCore.Hubs;
 using AgentMate.ServerCore.Jobs;
 using AgentMate.ServerCore.Metrics;
 using AgentMate.ServerCore.Platform;
+using AgentMate.ServerCore.Stacks;
 using AgentMate.ServerCore.Updates;
 
 namespace AgentMate.ServerCore;
@@ -95,6 +96,9 @@ internal static class CoreOperations
 
         // The host firewall (E13): its change sets settle themselves once the database is up.
         services.AddCoreFirewall();
+
+        // Compose stacks (E07): after the job engine, so its recovery runs after the jobs' own.
+        services.AddCoreStacks();
         return services;
     }
 }

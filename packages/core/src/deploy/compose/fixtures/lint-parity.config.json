@@ -1,0 +1,143 @@
+{
+  "name": "parity",
+  "networks": {
+    "default": {
+      "name": "parity_default",
+      "ipam": {}
+    }
+  },
+  "services": {
+    "api": {
+      "command": null,
+      "device_cgroup_rules": ["c 10:200 rwm"],
+      "entrypoint": null,
+      "image": "example/api:2.1",
+      "ipc": "host",
+      "network_mode": "host",
+      "uts": "host",
+      "volumes": [
+        {
+          "type": "bind",
+          "source": "/",
+          "target": "/host",
+          "read_only": true
+        },
+        {
+          "type": "volume",
+          "source": "shared",
+          "target": "/var/lib/shared",
+          "volume": {}
+        }
+      ]
+    },
+    "proxied": {
+      "command": null,
+      "entrypoint": null,
+      "image": "grafana/grafana:12.1.1",
+      "networks": {
+        "default": null
+      },
+      "ports": [
+        {
+          "mode": "ingress",
+          "target": 3000,
+          "published": "3000",
+          "protocol": "tcp"
+        }
+      ]
+    },
+    "web": {
+      "cap_add": ["SYS_ADMIN", "NET_ADMIN", "CHOWN", "SYS_NICE"],
+      "command": null,
+      "devices": [
+        {
+          "source": "/dev/fuse",
+          "target": "/dev/fuse",
+          "permissions": "rwm"
+        }
+      ],
+      "entrypoint": null,
+      "image": "nginx:1.29",
+      "networks": {
+        "default": null
+      },
+      "pid": "host",
+      "ports": [
+        {
+          "mode": "ingress",
+          "target": 80,
+          "published": "8080",
+          "protocol": "tcp"
+        },
+        {
+          "mode": "ingress",
+          "host_ip": "127.0.0.1",
+          "target": 9090,
+          "published": "9090",
+          "protocol": "tcp"
+        },
+        {
+          "mode": "ingress",
+          "host_ip": "0.0.0.0",
+          "target": 7000,
+          "published": "7000",
+          "protocol": "udp"
+        },
+        {
+          "mode": "ingress",
+          "host_ip": "0.0.0.0",
+          "target": 7001,
+          "published": "7001",
+          "protocol": "udp"
+        }
+      ],
+      "privileged": true,
+      "restart": "unless-stopped",
+      "security_opt": ["seccomp:unconfined", "no-new-privileges:true"],
+      "volumes": [
+        {
+          "type": "bind",
+          "source": "/var/run/docker.sock",
+          "target": "/var/run/docker.sock",
+          "bind": {}
+        },
+        {
+          "type": "bind",
+          "source": "/etc",
+          "target": "/host-etc",
+          "read_only": true,
+          "bind": {}
+        },
+        {
+          "type": "bind",
+          "source": "/etc/localtime",
+          "target": "/etc/localtime",
+          "read_only": true,
+          "bind": {}
+        },
+        {
+          "type": "bind",
+          "source": "/srv/app/files/data",
+          "target": "/data",
+          "bind": {}
+        },
+        {
+          "type": "bind",
+          "source": "/srv/media",
+          "target": "/media",
+          "bind": {}
+        }
+      ]
+    }
+  },
+  "volumes": {
+    "shared": {
+      "name": "parity_shared",
+      "driver_opts": {
+        "device": "/opt/agentmate-core/shared",
+        "o": "bind",
+        "type": "none"
+      }
+    }
+  }
+}

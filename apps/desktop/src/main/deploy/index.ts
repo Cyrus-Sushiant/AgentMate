@@ -3,12 +3,15 @@ import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { app, dialog, type IpcMainInvokeEvent, ipcMain } from 'electron';
 import { IPC } from '../../shared/ipcChannels';
+import { indexProjectFiles } from '../explorer/fileIndex';
 import { registerDeployHandlers } from '../ipc/deploy';
 import { registerDeployDockerHandlers } from '../ipc/deployDocker';
 import { registerDeployFirewallHandlers } from '../ipc/deployFirewall';
 import { registerDeploySecurityHandlers } from '../ipc/deploySecurity';
 import { registerDeploySitesHandlers } from '../ipc/deploySites';
+import { registerDeployStacksHandlers } from '../ipc/deployStacks';
 import { registerDeploySystemHandlers, subscriptionOwners } from '../ipc/deploySystem';
+import { resolveProjectEnvironment } from '../ipc/environments';
 import { broadcastToWindows, sendToWindow } from '../ipc/send';
 import { getMainWindow } from '../mainWindow';
 import { showOsNotification } from '../notifications/osNotification';
@@ -39,6 +42,8 @@ import { DeploySecurity } from './security';
 import { DeployService } from './service';
 import { DeploySites } from './sites/deploySites';
 import { SiteLogSubscriptions } from './sites/siteLogs';
+import { buildContextTarball } from './stacks/buildContext';
+import { DeployStacks } from './stacks/service';
 import { DeployState, jsonFilePort } from './state';
 import { DeploySystem } from './system';
 import { appNotificationInbox, DeployAlertWatcher } from './watcher';
@@ -183,6 +188,27 @@ export function registerDeployIpc(): void {
       service,
       roles: (id) => service.roles(id),
       progress: (event) => sendToWindow(getMainWindow(), IPC.deployFirewall.onProgress, event),
+    }),
+    guard,
+  });
+
+  registerDeployStacksHandlers({
+    ipc: ipcMain,
+    stacks: new DeployStacks({
+      links: service.links,
+      roles: (id) => service.roles(id),
+      http: (serverId, work) => service.withCoreHttp(serverId, work),
+      source: {
+        project: async (projectId) => {
+          const project = (await store.getProjects()).find((item) => item.id === projectId);
+          if (!project) throw new Error('That project no longer exists.');
+          return project;
+        },
+        index: indexProjectFiles,
+        environment: resolveProjectEnvironment,
+      },
+      pack: buildContextTarball,
+      progress: (event) => sendToWindow(getMainWindow(), IPC.deployStacks.onUploadProgress, event),
     }),
     guard,
   });

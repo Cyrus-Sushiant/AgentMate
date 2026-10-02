@@ -193,6 +193,17 @@ export const queryKeys = {
   deployFirewallHistory: (serverId: string) => ['deploy', 'firewall', serverId, 'history'] as const,
   deployFirewallExposure: (serverId: string) =>
     ['deploy', 'firewall', serverId, 'exposure'] as const,
+  /** Prefix of a server's Apps (compose stacks). */
+  deployApps: (serverId: string) => ['deploy', 'apps', serverId] as const,
+  deployAppsList: (serverId: string) => ['deploy', 'apps', serverId, 'list'] as const,
+  deployApp: (serverId: string, stackId: string) =>
+    ['deploy', 'apps', serverId, 'app', stackId] as const,
+  deployAppFiles: (serverId: string, stackId: string, revision: number) =>
+    ['deploy', 'apps', serverId, 'app', stackId, 'files', revision] as const,
+  /** The compose files the New App wizard found in a project. */
+  deployComposeFiles: (projectId: string) => ['deploy', 'compose-files', projectId] as const,
+  /** The wizard's look at a compose file with an environment and its exposure choices. */
+  deployAppPreview: (input: object) => ['deploy', 'app-preview', input] as const,
   /** Whether a Cloudflare token is saved, and what its last check found. */
   cloudflareStatus: ['cloudflare', 'status'] as const,
   /** Prefix of everything read with the Cloudflare token, dropped when the token changes. */

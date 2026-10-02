@@ -1170,7 +1170,7 @@ export type PingResponse = {
 }
 
 /** Transpiled from AgentMate.ServerCore.Contracts.JobKind */
-export type JobKind = "packagesRefresh" | "packagesUpgrade" | "packagesUpgradeSecurity" | "automaticUpdates" | "reboot" | "serviceRestart" | "dockerInstall" | "imagePull" | "nginxInstall" | "certificateIssue" | "certificateRenew";
+export type JobKind = "packagesRefresh" | "packagesUpgrade" | "packagesUpgradeSecurity" | "automaticUpdates" | "reboot" | "serviceRestart" | "dockerInstall" | "imagePull" | "nginxInstall" | "certificateIssue" | "certificateRenew" | "stackDeploy" | "stackAction" | "stackDelete";
 
 /** Transpiled from AgentMate.ServerCore.Contracts.JobState */
 export type JobState = "running" | "succeeded" | "failed" | "cancelled" | "interrupted";
@@ -1242,6 +1242,250 @@ export type JobPage = {
     jobs: JobInfo[];
     /** Transpiled from long */
     nextBeforeCreatedAtUnixMs?: number;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.StackStatus */
+export type StackStatus = "new" | "busy" | "running" | "degraded" | "stopped" | "down" | "failed";
+
+/** Transpiled from AgentMate.ServerCore.Contracts.StackRevisionState */
+export type StackRevisionState = "awaitingContext" | "ready" | "invalid" | "deploying" | "live" | "failed" | "superseded";
+
+/** Transpiled from AgentMate.ServerCore.Contracts.StackStepKind */
+export type StackStepKind = "validate" | "pull" | "build" | "up" | "health";
+
+/** Transpiled from AgentMate.ServerCore.Contracts.StackStepState */
+export type StackStepState = "pending" | "running" | "succeeded" | "failed" | "skipped" | "cancelled";
+
+/** Transpiled from AgentMate.ServerCore.Contracts.StackRiskSeverity */
+export type StackRiskSeverity = "critical" | "high" | "medium" | "low";
+
+/** Transpiled from AgentMate.ServerCore.Contracts.StackAction */
+export type StackAction = "start" | "stop" | "restart" | "down";
+
+/** Transpiled from AgentMate.ServerCore.Contracts.StackSource */
+export type StackSource = {
+    /** Transpiled from string? */
+    projectId?: string;
+    /** Transpiled from string? */
+    projectName?: string;
+    /** Transpiled from string? */
+    composePath?: string;
+    /** Transpiled from string? */
+    environmentId?: string;
+    /** Transpiled from string? */
+    environmentName?: string;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.StackInfo */
+export type StackInfo = {
+    /** Transpiled from System.Guid */
+    id: string;
+    /** Transpiled from string */
+    name: string;
+    /** Transpiled from AgentMate.ServerCore.Contracts.StackStatus */
+    status: StackStatus;
+    /** Transpiled from long */
+    createdAtUnixMs: number;
+    /** Transpiled from long */
+    updatedAtUnixMs: number;
+    /** Transpiled from int */
+    revisionCount: number;
+    /** Transpiled from int */
+    liveRevision?: number;
+    /** Transpiled from string? */
+    description?: string;
+    /** Transpiled from AgentMate.ServerCore.Contracts.StackSource? */
+    source?: StackSource;
+    /** Transpiled from int */
+    runningContainers: number;
+    /** Transpiled from int */
+    containers: number;
+    /** Transpiled from System.Guid */
+    activeJobId?: string;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.StackRisk */
+export type StackRisk = {
+    /** Transpiled from string */
+    id: string;
+    /** Transpiled from string */
+    rule: string;
+    /** Transpiled from AgentMate.ServerCore.Contracts.StackRiskSeverity */
+    severity: StackRiskSeverity;
+    /** Transpiled from string */
+    message: string;
+    /** Transpiled from string? */
+    service?: string;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.StackDeployStep */
+export type StackDeployStep = {
+    /** Transpiled from AgentMate.ServerCore.Contracts.StackStepKind */
+    kind: StackStepKind;
+    /** Transpiled from AgentMate.ServerCore.Contracts.StackStepState */
+    state: StackStepState;
+    /** Transpiled from long */
+    startedAtUnixMs?: number;
+    /** Transpiled from long */
+    finishedAtUnixMs?: number;
+    /** Transpiled from long */
+    firstLogSeq?: number;
+    /** Transpiled from long */
+    lastLogSeq?: number;
+    /** Transpiled from string? */
+    detail?: string;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.StackPortBinding */
+export type StackPortBinding = {
+    /** Transpiled from string */
+    service: string;
+    /** Transpiled from int */
+    target: number;
+    /** Transpiled from string */
+    protocol: string;
+    /** Transpiled from string? */
+    hostIp?: string;
+    /** Transpiled from string? */
+    published?: string;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.StackRevisionInfo */
+export type StackRevisionInfo = {
+    /** Transpiled from System.Guid */
+    stackId: string;
+    /** Transpiled from int */
+    number: number;
+    /** Transpiled from AgentMate.ServerCore.Contracts.StackRevisionState */
+    state: StackRevisionState;
+    /** Transpiled from long */
+    createdAtUnixMs: number;
+    /** Transpiled from string */
+    composeSha256: string;
+    /** Transpiled from string[] */
+    envKeys: string[];
+    /** Transpiled from string[] */
+    services: string[];
+    /** Transpiled from string[] */
+    proxiedServices: string[];
+    /** Transpiled from bool */
+    hasBuildContext: boolean;
+    /** Transpiled from AgentMate.ServerCore.Contracts.StackDeployStep[] */
+    steps: StackDeployStep[];
+    /** Transpiled from AgentMate.ServerCore.Contracts.StackRisk[] */
+    findings: StackRisk[];
+    /** Transpiled from string[] */
+    acknowledgedRisks: string[];
+    /** Transpiled from string[] */
+    unacknowledgedRisks: string[];
+    /** Transpiled from AgentMate.ServerCore.Contracts.StackPortBinding[] */
+    bindings: StackPortBinding[];
+    /** Transpiled from string? */
+    createdBy?: string;
+    /** Transpiled from System.Guid */
+    jobId?: string;
+    /** Transpiled from long */
+    deployedAtUnixMs?: number;
+    /** Transpiled from long */
+    finishedAtUnixMs?: number;
+    /** Transpiled from int */
+    rollbackOf?: number;
+    /** Transpiled from string? */
+    error?: string;
+    /** Transpiled from AgentMate.ServerCore.Contracts.StackSource? */
+    source?: StackSource;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.StackServiceInfo */
+export type StackServiceInfo = {
+    /** Transpiled from string */
+    name: string;
+    /** Transpiled from AgentMate.ServerCore.Contracts.ContainerSummary[] */
+    containers: ContainerSummary[];
+    /** Transpiled from AgentMate.ServerCore.Contracts.StackPortBinding[] */
+    ports: StackPortBinding[];
+    /** Transpiled from string? */
+    image?: string;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.StackDetails */
+export type StackDetails = {
+    /** Transpiled from AgentMate.ServerCore.Contracts.StackInfo */
+    stack: StackInfo;
+    /** Transpiled from AgentMate.ServerCore.Contracts.StackRevisionInfo[] */
+    revisions: StackRevisionInfo[];
+    /** Transpiled from AgentMate.ServerCore.Contracts.StackServiceInfo[] */
+    services: StackServiceInfo[];
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.StackRevisionFiles */
+export type StackRevisionFiles = {
+    /** Transpiled from int */
+    number: number;
+    /** Transpiled from string */
+    compose: string;
+    /** Transpiled from string[] */
+    envKeys: string[];
+    /** Transpiled from string? */
+    override?: string;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.CreateStackRequest */
+export type CreateStackRequest = {
+    /** Transpiled from string */
+    name: string;
+    /** Transpiled from string? */
+    description?: string;
+    /** Transpiled from AgentMate.ServerCore.Contracts.StackSource? */
+    source?: StackSource;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.StackRevisionRef */
+export type StackRevisionRef = {
+    /** Transpiled from System.Guid */
+    stackId: string;
+    /** Transpiled from int */
+    revision: number;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.AcknowledgeStackRisksRequest */
+export type AcknowledgeStackRisksRequest = {
+    /** Transpiled from System.Guid */
+    stackId: string;
+    /** Transpiled from int */
+    revision: number;
+    /** Transpiled from string[] */
+    riskIds: string[];
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.StackActionRequest */
+export type StackActionRequest = {
+    /** Transpiled from System.Guid */
+    stackId: string;
+    /** Transpiled from AgentMate.ServerCore.Contracts.StackAction */
+    action: StackAction;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.StackRevisionUpload */
+export type StackRevisionUpload = {
+    /** Transpiled from string */
+    compose: string;
+    /** Transpiled from string */
+    env: string;
+    /** Transpiled from string[] */
+    proxiedServices: string[];
+    /** Transpiled from string[] */
+    acknowledgedRisks: string[];
+    /** Transpiled from bool */
+    buildContext: boolean;
+    /** Transpiled from AgentMate.ServerCore.Contracts.StackSource? */
+    source?: StackSource;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.StackUploadError */
+export type StackUploadError = {
+    /** Transpiled from string */
+    message: string;
 }
 
 /** Transpiled from AgentMate.ServerCore.Contracts.OsFamily */

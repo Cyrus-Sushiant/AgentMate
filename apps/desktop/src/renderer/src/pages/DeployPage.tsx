@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import { CloudflareMark } from '@/components/cloudflare/CloudflareMark';
+import { AppsPanel } from '@/components/deploy/apps/AppsPanel';
 import { ContainersPanel } from '@/components/deploy/containers/ContainersPanel';
 import { FirewallPanel } from '@/components/deploy/firewall/FirewallPanel';
 import { InstallPanel } from '@/components/deploy/InstallPanel';
@@ -13,7 +14,7 @@ import { useConnectionUpdates } from '@/components/deploy/overview/hooks';
 import { OverviewPanel } from '@/components/deploy/overview/OverviewPanel';
 import { RemovalPanel } from '@/components/deploy/RemovalPanel';
 import { ServerRail } from '@/components/deploy/ServerRail';
-import { type ServerSection, ServerSections } from '@/components/deploy/ServerSections';
+import { ServerSections, sectionFromView } from '@/components/deploy/ServerSections';
 import { SetupFailure } from '@/components/deploy/SetupFailure';
 import { SecurityPanel } from '@/components/deploy/security/SecurityPanel';
 import { SitesPanel } from '@/components/deploy/sites/SitesPanel';
@@ -170,11 +171,7 @@ export default function DeployPage(): React.JSX.Element {
 
   const selected = servers.find((server) => server.id === params.get('server')) ?? servers[0];
   const run = runs[selected.id];
-  const view = params.get('view');
-  const section: ServerSection =
-    view === 'security' || view === 'firewall' || view === 'websites' || view === 'containers'
-      ? view
-      : 'overview';
+  const section = sectionFromView(params.get('view'));
   const locked = vaultQuery.data?.hasPasskey === true && !vaultQuery.data.unlocked;
 
   async function remove(server: DeployServer, keepData: boolean): Promise<void> {
@@ -213,6 +210,9 @@ export default function DeployPage(): React.JSX.Element {
   } else if (section === 'containers') {
     sections = true;
     content = <ContainersPanel server={selected} />;
+  } else if (section === 'apps') {
+    sections = true;
+    content = <AppsPanel server={selected} />;
   } else {
     sections = true;
     content = (

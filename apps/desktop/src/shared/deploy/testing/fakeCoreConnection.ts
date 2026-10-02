@@ -314,6 +314,19 @@ export class FakeCoreConnection implements ICoreHub {
   setSiteSnippets = async (snippets: SiteSnippets) =>
     this.web('SetSiteSnippets', OWNERS, (nginx) => nginx.setSnippets(snippets));
 
+  // Compose stacks (E07): the desktop does not call these through the fake yet.
+
+  listStacks = () => this.unused('ListStacks');
+  getStack = () => this.unused('GetStack');
+  getStackRevisionFiles = () => this.unused('GetStackRevisionFiles');
+  createStack = () => this.unused('CreateStack');
+  acknowledgeStackRisks = () => this.unused('AcknowledgeStackRisks');
+  deployStack = () => this.unused('DeployStack');
+  rollbackStack = () => this.unused('RollbackStack');
+  runStackAction = () => this.unused('RunStackAction');
+  deleteStack = () => this.unused('DeleteStack');
+  deleteStackWithVolumes = () => this.unused('DeleteStackWithVolumes');
+
   // Reading the server.
 
   getSystemInfo = async () => this.answer({ ...this.core.system });

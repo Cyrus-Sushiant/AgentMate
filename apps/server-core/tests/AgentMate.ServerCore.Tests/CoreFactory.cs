@@ -1,7 +1,9 @@
+using AgentMate.ServerCore.DevHost.Fakes;
 using AgentMate.ServerCore.Docker;
 using AgentMate.ServerCore.Firewall;
 using AgentMate.ServerCore.Nginx;
 using AgentMate.ServerCore.Platform;
+using AgentMate.ServerCore.Stacks;
 using AgentMate.ServerCore.Tests.Docker;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -49,6 +51,13 @@ public sealed class CoreFactory : WebApplicationFactory<Program>
             services.AddSingleton<IDockerEngine>(provider => provider.GetRequiredService<InMemoryDockerEngine>());
             services.AddSingleton<FakeDockerSetup>();
             services.AddSingleton<IDockerSetup>(provider => provider.GetRequiredService<FakeDockerSetup>());
+
+            // docker compose, simulated on the pretend engine without delays.
+            services.AddSingleton(provider => new SimulatedCompose(
+                provider.GetRequiredService<InMemoryDockerEngine>(),
+                provider.GetRequiredService<TimeProvider>())
+            { LineDelay = TimeSpan.Zero });
+            services.AddSingleton<IComposeRunner>(provider => provider.GetRequiredService<SimulatedCompose>());
 
             // nginx on a simulated server, installed and running but not set up for AgentMate.
             services.AddSingleton(_ => new SimulatedNginxMachine(installed: true));

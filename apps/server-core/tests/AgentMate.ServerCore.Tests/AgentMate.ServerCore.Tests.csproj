@@ -12,6 +12,7 @@
     <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" />
     <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" />
     <PackageReference Include="xunit.v3" />
+    <PackageReference Include="YamlDotNet" />
   </ItemGroup>
 
   <ItemGroup>
@@ -30,6 +31,12 @@
   <!-- The DevHost's pretend CA, so the fake the UI is built against is tested too. -->
   <ItemGroup>
     <Compile Include="..\..\src\AgentMate.ServerCore.DevHost\Fakes\FakeCertificates.cs" Link="DevHost\FakeCertificates.cs" />
+    <Compile Include="..\..\src\AgentMate.ServerCore.DevHost\Fakes\SimulatedCompose.cs" Link="DevHost\SimulatedCompose.cs" />
+  </ItemGroup>
+
+  <!-- The compose lint parity fixture, shared with the app's linter in packages/core. -->
+  <ItemGroup>
+    <None Include="..\..\..\..\packages\core\src\deploy\compose\fixtures\lint-parity.*" Link="Fixtures\stacks\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <!-- The nginx renderer's golden files, read from next to the test binary. -->

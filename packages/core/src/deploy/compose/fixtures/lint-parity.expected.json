@@ -1,0 +1,20 @@
+[
+  "privileged:web",
+  "host-pid:web",
+  "docker-socket:web:/var/run/docker.sock",
+  "core-data:web:/etc",
+  "cap-add:web:SYS_ADMIN",
+  "cap-add:web:NET_ADMIN",
+  "cap-add:web:SYS_NICE",
+  "devices:web:/dev/fuse",
+  "security-opt:web:seccomp=unconfined",
+  "public-port:web:*:8080:80/tcp",
+  "public-port:web:0.0.0.0:7000:7000/udp",
+  "public-port:web:0.0.0.0:7001:7001/udp",
+  "host-network:api",
+  "host-ipc:api",
+  "host-uts:api",
+  "host-root:api:/",
+  "core-data:api:/opt/agentmate-core/shared",
+  "device-cgroup-rule:api:c 10:200 rwm"
+]

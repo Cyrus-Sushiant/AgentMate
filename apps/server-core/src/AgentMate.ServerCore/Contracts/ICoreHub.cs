@@ -284,6 +284,37 @@ public interface ICoreHub
     /// <summary>Needs a step-up. Takes the certificate off the site (revoking it when asked), then applies.</summary>
     Task<NginxApplyResult> RemoveCertificate(CertificateRemoveRequest request);
 
+    // Compose stacks (E07), the Apps of a server. Every role reads; Operators create, deploy, roll
+    // back and run the lifecycle; only Admins delete a stack with its volumes. Files are uploaded
+    // over REST first (see StackRevisionUpload). Changes start a job; StreamJob follows it.
+
+    Task<StackInfo[]> ListStacks();
+
+    /// <summary>The stack, its revisions newest first, and its services with their containers.</summary>
+    Task<StackDetails> GetStack(Guid stackId);
+
+    /// <summary>The compose file as uploaded and the loopback override. Env values never leave the core.</summary>
+    Task<StackRevisionFiles> GetStackRevisionFiles(StackRevisionRef revision);
+
+    Task<StackInfo> CreateStack(CreateStackRequest request);
+
+    /// <summary>Records each acknowledgment in the audit trail, one entry per finding id.</summary>
+    Task<StackRevisionInfo> AcknowledgeStackRisks(AcknowledgeStackRisksRequest request);
+
+    /// <summary>Validate, pull, build, up --wait, health. Refused while a finding is unacknowledged.</summary>
+    Task<JobInfo> DeployStack(StackRevisionRef revision);
+
+    /// <summary>Copies an earlier revision into a new one and deploys it.</summary>
+    Task<JobInfo> RollbackStack(StackRevisionRef revision);
+
+    Task<JobInfo> RunStackAction(StackActionRequest request);
+
+    /// <summary>docker compose down, then the stack's files and records go. Its volumes stay.</summary>
+    Task<JobInfo> DeleteStack(Guid stackId);
+
+    /// <summary>As DeleteStack, with docker compose down --volumes: the app's data goes too. Admin.</summary>
+    Task<JobInfo> DeleteStackWithVolumes(Guid stackId);
+
     // Owner.
 
     /// <summary>A site's custom snippets, checked against the directive allowlist.</summary>

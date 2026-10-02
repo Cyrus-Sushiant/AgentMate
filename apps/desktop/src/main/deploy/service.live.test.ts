@@ -188,6 +188,19 @@ describe('DeployService lasting connections', () => {
     expect((await state.get('srv-1'))?.transport).toBe('streamlocal');
   });
 
+  it('makes REST calls for uploads over the transport with a signed-in token', async () => {
+    const { service, pool, release } = await setup();
+
+    const seen = await service.withCoreHttp('srv-1', async (client, token) => ({
+      kind: client.transport.kind,
+      token,
+    }));
+
+    expect(seen).toEqual({ kind: 'streamlocal', token: 'token-1' });
+    expect(pool.acquire).toHaveBeenCalled();
+    expect(release).toHaveBeenCalled();
+  });
+
   it('renews the token once when the core turns the one in hand away', async () => {
     const { service, opened } = await setup({
       refusals: [new HubStartError('WebSocket failed to connect.', 401)],

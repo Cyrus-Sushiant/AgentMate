@@ -33,7 +33,7 @@ Plan: docs/ROADMAP.md
 | E04 | Identity and device enrollment | Complete | 73663f6, see git log | Authenticator codes work once (RFC 6238 5.2); two-factor changes end the other sessions only; access tokens sealed with Data Protection rather than JWTs; enrollment-code screens come with E15 T1; SignalR kept out of the main bundle |
 | E05 | Realtime, jobs and server overview | Complete | see git log | Live link with token rotation and reboot recovery; Overview with health score, charts, updates and reboot; AC3 and AC4 covered by fake-core tests and the DevHost reboot, not a real server |
 | E06 | Docker engine and containers | In progress | c5c0b68, see git log | Core and the desktop Containers screen (T6, T8, T9): shared stats and events streams, consoles that reopen after a connection change, redacted prompts for the project CLI; AC2, AC3 and AC5 tested |
-| E07 | Compose stacks | In progress | ea106b3 | Libraries only: validation, env, compose lint and override, dockerignore, build context, safe tar extraction |
+| E07 | Compose stacks | Complete | ea106b3, see git log | Files over REST, revisions on disk with their own project folder, compose config linted in the core with the app's finding ids; DevHost runs a simulated compose |
 | E08 | Private registries | Not started | | |
 | E09 | Logs center, problems feed and Deploy AI | Not started | | |
 | E10 | nginx websites | In progress | 77b262a, see git log | Renderer, snippet allowlist and the nginx -t harness; desktop T9 done (Websites section, site editor, Apply bar, route maps, stream proxies, live site logs) |
