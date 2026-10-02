@@ -113,6 +113,50 @@ export const settings = {
   security_level: { id: 'security_level', value: 'medium', editable: true, modified_on: null },
   ssl: { id: 'ssl', value: 'full', editable: true, modified_on: null },
   always_use_https: { id: 'always_use_https', value: 'off', editable: true, modified_on: null },
+  tls_client_auth: { id: 'tls_client_auth', value: 'off', editable: true, modified_on: null },
+};
+
+/** Cloudflare's ids for the permission groups the app names (GET /user/tokens/permission_groups). */
+export const DNS_WRITE_GROUP_ID = '4755a26eedb94da69e1066d98aa820be';
+export const ZONE_READ_GROUP_ID = 'c8fed203ed3043cba015a93ad1616f1f';
+
+/** GET /user/tokens/permission_groups (an excerpt: the list is long). */
+export const permissionGroups = [
+  { id: ZONE_READ_GROUP_ID, name: 'Zone Read', scopes: ['com.cloudflare.api.account.zone'] },
+  { id: DNS_WRITE_GROUP_ID, name: 'DNS Write', scopes: ['com.cloudflare.api.account.zone'] },
+  {
+    id: '82e64a83756745bbbb1c9c2701bf816b',
+    name: 'DNS Read',
+    scopes: ['com.cloudflare.api.account.zone'],
+  },
+  {
+    id: '686d18d5ac6c441c867cbf6771e58a0a',
+    name: 'API Tokens Write',
+    scopes: ['com.cloudflare.api.user'],
+  },
+];
+
+/** POST /user/tokens: the token's value is only ever in this answer. */
+export const createdToken = {
+  id: 'ed17574386854bf78a67040be0a770b1',
+  name: 'AgentMate DNS-01',
+  status: 'active',
+  issued_on: STAMP,
+  modified_on: STAMP,
+  not_before: null,
+  expires_on: null,
+  policies: [],
+  condition: {},
+};
+
+/** POST /certificates (Origin CA): the leaf alone, valid 15 years. */
+export const originCertificate = {
+  id: '328578533902268680212849205732770752308931942346',
+  certificate:
+    '-----BEGIN CERTIFICATE-----\nMIIEr6ADAgECAhRvAhAtYW9yZ2luLWNhLXJlY29yZGVkLWZpeHR1cmUwCgYIKoZI\n-----END CERTIFICATE-----\n',
+  expires_on: '2041-06-01 12:00:00 +0000 UTC',
+  request_type: 'origin-ecc',
+  requested_validity: 5475,
 };
 
 /** GET /zones/:id/rulesets/phases/http_request_firewall_custom/entrypoint */

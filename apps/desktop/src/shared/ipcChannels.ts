@@ -875,6 +875,16 @@ export const IPC = {
     planPointDomain: 'cloudflare:planPointDomain',
     pointDomain: 'cloudflare:pointDomain',
   },
+  /** Cloudflare work on one server (E14): origin lock, Origin CA certificates, DNS-01 tokens. */
+  cloudflareServer: {
+    originLock: 'cloudflareServer:originLock',
+    previewOriginLock: 'cloudflareServer:previewOriginLock',
+    applyOriginLock: 'cloudflareServer:applyOriginLock',
+    originCertificate: 'cloudflareServer:originCertificate',
+    dnsTokens: 'cloudflareServer:dnsTokens',
+    provisionDnsToken: 'cloudflareServer:provisionDnsToken',
+    removeDnsToken: 'cloudflareServer:removeDnsToken',
+  },
   /** The workspace Pull request tab: the current branch's PR, its checks, review and merge. */
   pullRequests: {
     status: 'pullRequests:status',

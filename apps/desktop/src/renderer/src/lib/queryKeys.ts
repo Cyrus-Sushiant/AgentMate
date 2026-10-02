@@ -227,6 +227,12 @@ export const queryKeys = {
   cloudflareSettings: (zoneId: string) => ['cloudflare', 'data', 'settings', zoneId] as const,
   cloudflareCustomRules: (zoneId: string) => ['cloudflare', 'data', 'customRules', zoneId] as const,
   cloudflareAccessRules: (zoneId: string) => ['cloudflare', 'data', 'accessRules', zoneId] as const,
+  /** A server's Cloudflare origin lock, as its core reports it (E14). */
+  cloudflareOriginLock: (serverId: string) =>
+    ['deploy', 'cloudflare', serverId, 'origin-lock'] as const,
+  /** The zones a server holds a DNS token for (never the tokens). */
+  cloudflareDnsTokens: (serverId: string) =>
+    ['deploy', 'cloudflare', serverId, 'dns-tokens'] as const,
   /** Every running shell with its process tree's CPU and memory, for the Running CLIs modal. */
   terminalUsage: ['terminal-usage'] as const,
   vaultStatus: ['vault', 'status'] as const,

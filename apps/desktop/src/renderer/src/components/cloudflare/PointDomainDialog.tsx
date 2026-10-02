@@ -8,10 +8,12 @@ import type {
 } from '@shared/cloudflareTypes';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useId, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import {
   CircleCheck,
   CircleInfo,
+  Globe,
   Minus,
   Pencil,
   Plus,
@@ -114,6 +116,10 @@ export function PointDomainDialog({
   const [plan, setPlan] = useState<CloudflarePointDomainPlan | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
   const [busy, setBusy] = useState<'preview' | 'apply' | null>(null);
+  const [done, setDone] = useState<{ names: string[]; serverId: string; nickname: string } | null>(
+    null,
+  );
+  const navigate = useNavigate();
 
   const server = servers.find((candidate) => candidate.id === serverId) ?? servers[0];
   const input: CloudflarePointDomainInput | null = server
@@ -154,7 +160,7 @@ export function PointDomainDialog({
       const result = await window.agentmat.cloudflare.pointDomain(input);
       toast.success(`${result.plan.names[0]} now points to ${server.nickname}.`);
       void queryClient.invalidateQueries({ queryKey: queryKeys.cloudflareRecords(zone.id) });
-      onOpenChange(false);
+      setDone({ names: result.plan.names, serverId: server.id, nickname: server.nickname });
     } catch (error) {
       setProblem(cloudflareFailureText(error, queryClient));
     } finally {
@@ -162,8 +168,54 @@ export function PointDomainDialog({
     }
   }
 
+  function close(next: boolean): void {
+    if (!next) {
+      setDone(null);
+      setPlan(null);
+    }
+    onOpenChange(next);
+  }
+
+  /** The next step after the records: a site on the server for the same names (E14 T5). */
+  function addWebsite(): void {
+    if (!done) return;
+    const params = new URLSearchParams({
+      server: done.serverId,
+      view: 'websites',
+      newSite: done.names.join(','),
+    });
+    close(false);
+    navigate(`/deploy?${params.toString()}`);
+  }
+
+  if (done) {
+    return (
+      <Dialog open={open} onOpenChange={close}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              {done.names[0]} points to {done.nickname}
+            </DialogTitle>
+            <DialogDescription>
+              The records are in place. To answer for {done.names.join(' and ')}, the server needs a
+              website for them in nginx.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button type="button" variant="ghost" onClick={() => close(false)}>
+              Close
+            </Button>
+            <Button type="button" onClick={addWebsite}>
+              <Globe className="h-3.5 w-3.5" /> Add a website on {done.nickname}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    );
+  }
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={close}>
       <DialogContent className="max-w-xl">
         <div className="flex max-h-[calc(85vh-3rem)] min-h-0 flex-col gap-4">
           <DialogHeader>

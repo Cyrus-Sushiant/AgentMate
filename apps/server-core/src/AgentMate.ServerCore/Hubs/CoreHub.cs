@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Security.Claims;
 using AgentMate.ServerCore.Audit;
+using AgentMate.ServerCore.Cloudflare;
 using AgentMate.ServerCore.Contracts;
 using AgentMate.ServerCore.Data;
 using AgentMate.ServerCore.Docker;
@@ -37,7 +38,8 @@ internal sealed partial class CoreHub(
     DockerOperations docker,
     WebServices web,
     StackOperations stacks,
-    RegistryCredentials registries) : Hub<ICoreHubReceiver>, ICoreHub
+    RegistryCredentials registries,
+    CloudflareServices cloudflare) : Hub<ICoreHubReceiver>, ICoreHub
 {
     public const string Path = "/hubs/core";
 

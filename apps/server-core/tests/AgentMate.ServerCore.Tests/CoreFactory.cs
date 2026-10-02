@@ -1,9 +1,11 @@
+using AgentMate.ServerCore.Cloudflare;
 using AgentMate.ServerCore.DevHost.Fakes;
 using AgentMate.ServerCore.Docker;
 using AgentMate.ServerCore.Firewall;
 using AgentMate.ServerCore.Nginx;
 using AgentMate.ServerCore.Platform;
 using AgentMate.ServerCore.Stacks;
+using AgentMate.ServerCore.Tests.Cloudflare;
 using AgentMate.ServerCore.Tests.Docker;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -65,6 +67,13 @@ public sealed class CoreFactory : WebApplicationFactory<Program>
             // nginx on a simulated server, installed and running but not set up for AgentMate.
             services.AddSingleton(_ => new SimulatedNginxMachine(installed: true));
             services.AddSingleton<INginxMachine>(provider => provider.GetRequiredService<SimulatedNginxMachine>());
+
+            // Cloudflare (E14): never the real API, and no refresh unless a test asks for one.
+            services.AddSingleton<FakeCloudflareApi>();
+            services.AddSingleton<ICloudflareRangeSource>(provider => provider.GetRequiredService<FakeCloudflareApi>());
+            services.AddSingleton<ICloudflareDnsApi>(provider => provider.GetRequiredService<FakeCloudflareApi>());
+            services.AddSingleton(OriginLockOptions.Default with { RunInBackground = false });
+            services.AddSingleton(new CloudflareDns01Options(TimeSpan.Zero));
         });
     }
 

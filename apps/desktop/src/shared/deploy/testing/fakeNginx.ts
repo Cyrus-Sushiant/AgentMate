@@ -205,6 +205,25 @@ export class FakeNginx {
     return { problems: [], certificate, apply: this.apply() };
   }
 
+  /** A Cloudflare Origin CA certificate for the key the core made (E14): stored and applied. */
+  installOrigin(siteId: string): CertificateUploadResult {
+    const certificate = this.certify(siteId, false, undefined, 'cloudflareOrigin');
+    const site = this.site(siteId);
+    this.sites.set(siteId, {
+      ...site,
+      certificate: {
+        ...certificate,
+        issuer: 'CloudFlare Origin SSL ECC Certificate Authority',
+        notAfterUnixMs: certificate.notBeforeUnixMs + 15 * 365 * DAY,
+      },
+    });
+    return {
+      problems: [],
+      certificate: { ...this.site(siteId).certificate! },
+      apply: this.apply(),
+    };
+  }
+
   removeCertificate(request: CertificateRemoveRequest): NginxApplyResult {
     const site = this.site(request.siteId);
     if (!site.certificate) throw new Error('This site has no certificate.');

@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { blankDraft, draftFromSite, type SiteDraft } from '@/lib/deploy/sites/draft';
+import { blankDraft, draftFromSite, type SiteDraft, suggestId } from '@/lib/deploy/sites/draft';
 import { problemsByTab, problemsFor, type SiteTab, tabOf } from '@/lib/deploy/sites/problems';
 import { type DraftErrors, settingsFromDraft } from '@/lib/deploy/sites/settings';
 import { confirmDialog } from '@/stores/confirmStore';
@@ -50,6 +50,7 @@ export function SiteEditor({
   owner,
   applyProblems,
   initialTab = 'domains',
+  initialDomains,
   onClose,
   onSaved,
   onChanged,
@@ -61,12 +62,20 @@ export function SiteEditor({
   owner: boolean;
   applyProblems: readonly NginxProblemInfo[];
   initialTab?: SiteTab;
+  /** For a new site: the domains to start with, such as the ones just pointed here in Cloudflare. */
+  initialDomains?: string[];
   onClose: () => void;
   onSaved: (site: SiteInfo) => void;
   /** Something changed on the server behind this site (a certificate, its snippets). */
   onChanged: () => void;
 }): React.JSX.Element {
-  const [draft, setDraft] = useState<SiteDraft>(() => (site ? draftFromSite(site) : blankDraft()));
+  const [draft, setDraft] = useState<SiteDraft>(() => {
+    if (site) return draftFromSite(site);
+    const blank = blankDraft();
+    return initialDomains?.length
+      ? { ...blank, domains: [...initialDomains], id: suggestId(initialDomains[0]) }
+      : blank;
+  });
   const [tab, setTab] = useState<SiteTab>(initialTab);
   const [local, setLocal] = useState<DraftErrors>({});
   const [saveProblems, setSaveProblems] = useState<NginxProblemInfo[]>([]);

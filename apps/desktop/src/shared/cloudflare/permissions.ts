@@ -1,4 +1,8 @@
-import type { CloudflarePermissionId } from '../cloudflareTypes';
+import type {
+  CloudflareAnyPermissionId,
+  CloudflareExtraPermissionId,
+  CloudflarePermissionId,
+} from '../cloudflareTypes';
 
 /**
  * The Cloudflare permissions AgentMate asks for, and nothing beyond them: every one is a zone
@@ -6,8 +10,10 @@ import type { CloudflarePermissionId } from '../cloudflareTypes';
  * lists them in the setup guide; the main process checks a token against them.
  */
 
-export interface CloudflarePermission {
-  id: CloudflarePermissionId;
+export interface CloudflarePermission<
+  Id extends CloudflareAnyPermissionId = CloudflarePermissionId,
+> {
+  id: Id;
   /** As Cloudflare's token page shows it: group, permission, access level. */
   label: string;
   /** What AgentMate uses it for, shown next to the label. */
@@ -74,11 +80,40 @@ export const CLOUDFLARE_PERMISSIONS: readonly CloudflarePermission[] = [
   },
 ];
 
+/**
+ * Asked for only when a feature needs it, so the main token can stay without them: Origin CA
+ * certificates need SSL and Certificates, and making a server its own zone-scoped DNS token needs
+ * API Tokens (a user permission, which is why pasting a token made by hand is offered too).
+ */
+export const CLOUDFLARE_EXTRA_PERMISSIONS: readonly CloudflarePermission<CloudflareExtraPermissionId>[] =
+  [
+    {
+      id: 'sslCertificates',
+      label: 'Zone > SSL and Certificates > Edit',
+      purpose: 'Origin CA certificates for your servers',
+      action: 'create Origin CA certificates',
+      template: { key: 'ssl_and_certificates', type: 'edit' },
+      apiNames: ['SSL and Certificates Write'],
+    },
+    {
+      id: 'apiTokens',
+      label: 'User > API Tokens > Edit',
+      purpose: 'A separate DNS token for a server, for wildcard certificates',
+      action: 'create API tokens',
+      template: { key: 'api_tokens', type: 'edit' },
+      apiNames: ['API Tokens Write'],
+    },
+  ];
+
 /** Cloudflare's page for creating and editing user API tokens. */
 export const TOKEN_PAGE = 'https://dash.cloudflare.com/profile/api-tokens';
 
-export function cloudflarePermission(id: CloudflarePermissionId): CloudflarePermission {
-  const permission = CLOUDFLARE_PERMISSIONS.find((candidate) => candidate.id === id);
+export function cloudflarePermission(
+  id: CloudflareAnyPermissionId,
+): CloudflarePermission<CloudflareAnyPermissionId> {
+  const permission = [...CLOUDFLARE_PERMISSIONS, ...CLOUDFLARE_EXTRA_PERMISSIONS].find(
+    (candidate) => candidate.id === id,
+  );
   if (!permission) throw new Error(`Unknown Cloudflare permission: ${id}`);
   return permission;
 }
@@ -106,7 +141,7 @@ export function missingPermissionLabels(missing: CloudflarePermissionId[]): stri
 }
 
 /** What to tell the user when Cloudflare refuses a change for want of a permission. */
-export function permissionDeniedMessage(id: CloudflarePermissionId): string {
+export function permissionDeniedMessage(id: CloudflareAnyPermissionId): string {
   const permission = cloudflarePermission(id);
   return `This token is not allowed to ${permission.action}. On Cloudflare, edit the token and add ${permission.label}, then check it again here.`;
 }

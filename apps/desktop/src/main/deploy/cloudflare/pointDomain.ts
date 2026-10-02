@@ -155,3 +155,14 @@ export async function addressesOfHost(host: string, lookup: LookupAll): Promise<
   }
   return split(reachable);
 }
+
+/**
+ * The public addresses the server core reports (its own view of the machine, E05), when it has
+ * any the internet can reach. Null sends the caller back to the saved server's host.
+ */
+export function addressesFromCore(publicAddresses: readonly string[]): ServerAddresses | null {
+  const reachable = [
+    ...new Set(publicAddresses.map((address) => canonicalIp(address) ?? address)),
+  ].filter((address) => ipVersion(address) !== null && isPublicAddress(address));
+  return reachable.length > 0 ? split(reachable) : null;
+}

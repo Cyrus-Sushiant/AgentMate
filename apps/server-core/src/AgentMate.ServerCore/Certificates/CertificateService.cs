@@ -83,7 +83,8 @@ internal sealed partial class CertificateService(
             cancellationToken);
     }
 
-    public async Task<CertificateUploadResult> UploadAsync(CertificateUploadRequest request, Requester who, CancellationToken cancellationToken)
+    /// <param name="source">Uploaded by hand, or (E14) a Cloudflare Origin CA certificate for a key made here.</param>
+    public async Task<CertificateUploadResult> UploadAsync(CertificateUploadRequest request, Requester who, CancellationToken cancellationToken, string source = CertificateViews.UploadedSource)
     {
         ArgumentNullException.ThrowIfNull(request);
         var site = await RequireSiteAsync(request.SiteId, cancellationToken);
@@ -103,7 +104,7 @@ internal sealed partial class CertificateService(
                 db.Certificates.Add(row);
             }
 
-            row.Source = CertificateViews.UploadedSource;
+            row.Source = source;
             row.DirectoryUrl = null;
             row.CertificateId = null;
             row.Domains = JsonSerializer.Serialize(checkedUpload.Names, CoreJson.Options);
@@ -196,9 +197,13 @@ internal sealed partial class CertificateService(
     {
         var site = await RequireSiteAsync(request.SiteId, cancellationToken);
         var domains = site.Settings.Domains;
-        if (domains.Any(domain => domain.StartsWith("*.", StringComparison.Ordinal)) && !issuers.CanAnswerDns01)
+        var wildcard = domains.Any(domain => domain.StartsWith("*.", StringComparison.Ordinal));
+        if ((wildcard || request.PreferDns01) && !await issuers.CanAnswerDns01Async(domains, cancellationToken))
         {
-            throw new JobFailedException("A wildcard domain can only be validated over DNS-01, which needs a DNS provider connected first (Cloudflare).");
+            throw new JobFailedException(
+                (wildcard ? "A wildcard domain can only be validated over DNS-01" : "DNS-01 was asked for")
+                + ", which needs a Cloudflare DNS token on this server for the zone of every domain of the site. "
+                + "On the Cloudflare page, send this server a DNS token for the zone (DNS-01), then issue again.");
         }
 
         await EnsureSiteLiveAsync(site, who, job, cancellationToken);
@@ -211,7 +216,7 @@ internal sealed partial class CertificateService(
             await issuer.EnsureAccountAsync(new AcmeAccountSettings(request.ContactEmail is { Length: > 0 } email ? [email] : [], request.AcceptTermsOfService), cancellationToken);
 
             await issuer.IssueAsync(
-                new AcmeIssueRequest { Name = site.Settings.Id, Domains = domains, PreferDns01 = request.PreferDns01 },
+                new AcmeIssueRequest { Name = site.Settings.Id, Domains = domains, PreferDns01 = request.PreferDns01 || wildcard },
                 new JobProgress(job),
                 cancellationToken);
         }

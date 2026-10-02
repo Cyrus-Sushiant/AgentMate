@@ -1,4 +1,4 @@
-import type { CloudflarePermissionId } from './cloudflareTypes';
+import type { CloudflareAnyPermissionId } from './cloudflareTypes';
 import { sshErrorMessage } from './sshErrors';
 
 /**
@@ -15,20 +15,22 @@ const CODES: ReadonlySet<string> = new Set<CloudflareErrorCode>([
   'no-token',
   'locked',
 ]);
-const PERMISSIONS: ReadonlySet<string> = new Set<CloudflarePermissionId>([
+const PERMISSIONS: ReadonlySet<string> = new Set<CloudflareAnyPermissionId>([
   'zone',
   'dns',
   'zoneSettings',
   'cachePurge',
   'waf',
   'accessRules',
+  'sslCertificates',
+  'apiTokens',
 ]);
 const TAG = /\[cloudflare:([a-z-]+)(?::([A-Za-z]+))?\]\s*/;
 
 export function encodeCloudflareError(
   code: CloudflareErrorCode,
   message: string,
-  permission?: CloudflarePermissionId,
+  permission?: CloudflareAnyPermissionId,
 ): string {
   return `[cloudflare:${code}${permission ? `:${permission}` : ''}] ${message}`;
 }
@@ -44,9 +46,11 @@ export function cloudflareErrorCode(error: unknown): CloudflareErrorCode | null 
 }
 
 /** For a missing-permission error, the permission the token needs. */
-export function cloudflareErrorPermission(error: unknown): CloudflarePermissionId | null {
+export function cloudflareErrorPermission(error: unknown): CloudflareAnyPermissionId | null {
   const permission = tag(error)?.[2];
-  return permission && PERMISSIONS.has(permission) ? (permission as CloudflarePermissionId) : null;
+  return permission && PERMISSIONS.has(permission)
+    ? (permission as CloudflareAnyPermissionId)
+    : null;
 }
 
 /** The human part of the message, without Electron's wrapper or the code tag. */

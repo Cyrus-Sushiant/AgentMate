@@ -283,6 +283,128 @@ internal sealed partial class FirewallManager(
     }
 
     /// <summary>
+    /// A change the core makes by itself, with nobody there to confirm it: the origin lock's
+    /// daily refresh (E14). It is held to what cannot touch SSH: only allow rules for single
+    /// ports in <paramref name="ports"/> are added or removed, and only while sshd listens on
+    /// none of them. The rules are saved first and put back at once if a step fails or the
+    /// read-back does not show the change; otherwise the change is recorded as confirmed, by
+    /// the core, and audited.
+    /// </summary>
+    public async Task<FirewallChangeSetInfo> ApplyUnattendedAsync(
+        IReadOnlyList<FirewallChange> changes,
+        string requestedBy,
+        IReadOnlyCollection<int> ports,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(ports);
+        await _gate.WaitAsync(cancellationToken);
+        try
+        {
+            if (await PendingAsync(cancellationToken) is { } pending)
+            {
+                throw new FirewallRefusedException(
+                    $"Another firewall change is waiting for its confirmation (\"{pending.Summary}\"), so the core changes nothing by itself now.");
+            }
+
+            var backend = backends.Current();
+            var plan = FirewallChangePlanner.Plan(await backend.ReadAsync(cancellationToken), changes);
+            if (plan.Enable is not null || plan.DefaultIncoming is not null
+                || plan.Added.Concat(plan.Removed).Any(rule => !IsAllowFor(rule, ports)))
+            {
+                throw new FirewallRefusedException(
+                    $"The core only changes allow rules for ports {string.Join(", ", ports)} by itself; anything else needs a person and a confirmation.");
+            }
+
+            var ssh = await sshd.ReadAsync(cancellationToken);
+            if (ssh.Ports.Length == 0 || ssh.Ports.Any(ports.Contains))
+            {
+                throw new FirewallRefusedException(
+                    ssh.Ports.Length == 0
+                        ? "The core cannot tell which port SSH listens on, so it changes nothing by itself."
+                        : "SSH listens on one of these ports, so the core changes nothing there by itself.");
+            }
+
+            var steps = backend.Steps(plan);
+            if (steps.Count == 0)
+            {
+                throw new FirewallRefusedException("Nothing would change.");
+            }
+
+            return await ApplyNowAsync(backend, plan, steps, changes, requestedBy);
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
+    private async Task<FirewallChangeSetInfo> ApplyNowAsync(
+        IFirewallBackend backend,
+        FirewallChangePlan plan,
+        IReadOnlyList<FirewallStep> steps,
+        IReadOnlyList<FirewallChange> changes,
+        string requestedBy)
+    {
+        var token = CancellationToken.None;
+        var id = Guid.NewGuid();
+        var snapshot = await backend.SnapshotAsync(token) with { TakenAtUnixMs = Now };
+        Files(id).WriteSnapshot(snapshot);
+        await using (var db = await contexts.CreateDbContextAsync(token))
+        {
+            db.FirewallChangeSets.Add(new FirewallChangeSet
+            {
+                Id = id,
+                Backend = backend.Kind,
+                State = FirewallChangeState.Applying,
+                Summary = Clip(plan.Summary, MaxSummaryLength),
+                Changes = JsonSerializer.Serialize(changes, CoreJson.Options),
+                Commands = JsonSerializer.Serialize(steps.Select(step => step.Display).ToArray(), CoreJson.Options),
+                CreatedAt = Now,
+                RequestedByName = Clip(requestedBy, 256),
+                AppliedOver = "core",
+            });
+            await db.SaveChangesAsync(token);
+        }
+
+        try
+        {
+            await backend.ApplyAsync(plan, steps, line => LogStep(logger, id, line), token);
+            await VerifyAsync(backend, plan, token);
+        }
+        catch (Exception failure) when (IsMachineFailure(failure))
+        {
+            LogApplyFailed(logger, id, failure);
+            try
+            {
+                await backend.RestoreAsync(snapshot, line => LogStep(logger, id, line), token);
+            }
+            catch (Exception restore) when (IsMachineFailure(restore))
+            {
+                await FailedRollbackAsync(await FindAsync(id, token), FirewallRollbackCause.ApplyFailed, $"{failure.Message} Putting the old rules back failed too: {restore.Message}");
+                throw new FirewallRefusedException($"The change failed ({failure.Message}), and putting the old rules back failed too: {restore.Message}");
+            }
+
+            await FinishAsync(id, FirewallChangeState.RolledBack, FirewallRollbackCause.ApplyFailed, failure.Message);
+            throw new FirewallRefusedException($"The change failed, so the firewall was put back as it was: {failure.Message}");
+        }
+
+        await FinishAsync(id, FirewallChangeState.Confirmed, cause: null, error: null);
+        await audit.AppendAsync(
+            new AuditEntry(
+                "firewall.apply",
+                AuditResult.Success,
+                Target: id.ToString("D"),
+                Parameters: new Dictionary<string, string?> { ["summary"] = plan.Summary, ["unattended"] = requestedBy }),
+            token);
+        return ToInfo(await FindAsync(id, token));
+    }
+
+    private static bool IsAllowFor(FirewallRule rule, IReadOnlyCollection<int> ports) =>
+        rule is { Action: FirewallAction.Allow, PortList: null, Outgoing: false, Routed: false }
+        && rule.Ports is { IsSingle: true } single
+        && ports.Contains(single.From);
+
+    /// <summary>
     /// Looks at every change set still open and settles what the timer or a restart decided. A
     /// change whose timer is gone without a decision (a reboot ends transient units) is rolled back
     /// by the core itself, and so is one whose timer is long past its time.

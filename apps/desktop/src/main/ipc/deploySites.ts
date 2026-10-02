@@ -65,6 +65,9 @@ function issueInput(value: unknown): DeployCertificateIssueInput {
     siteId: siteId(input.siteId),
     acceptTermsOfService: flag(input.acceptTermsOfService, 'the terms of service'),
     staging: flag(input.staging, 'the staging CA'),
+    ...(input.preferDns01 === undefined
+      ? {}
+      : { preferDns01: flag(input.preferDns01, 'DNS-01 validation') }),
     ...(email ? { contactEmail: email } : {}),
   };
 }

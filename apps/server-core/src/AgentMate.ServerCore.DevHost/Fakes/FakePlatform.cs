@@ -1,5 +1,6 @@
 using System.Net;
 using AgentMate.ServerCore.Certificates;
+using AgentMate.ServerCore.Cloudflare;
 using AgentMate.ServerCore.Docker;
 using AgentMate.ServerCore.Firewall;
 using AgentMate.ServerCore.Nginx;
@@ -55,6 +56,12 @@ internal static class FakePlatform
         services.AddSingleton<INginxMachine>(provider => provider.GetRequiredService<SimulatedNginxMachine>());
         services.AddSingleton<ICertificateAuthorities, FakeCertificateAuthorities>();
         services.AddSingleton<IUpstreamResolver, FakeResolver>();
+
+        // Cloudflare (E14): its ranges and a DNS API in memory, and DNS-01 records without the wait.
+        services.AddSingleton<FakeCloudflare>();
+        services.AddSingleton<ICloudflareRangeSource>(provider => provider.GetRequiredService<FakeCloudflare>());
+        services.AddSingleton<ICloudflareDnsApi>(provider => provider.GetRequiredService<FakeCloudflare>());
+        services.AddSingleton(new CloudflareDns01Options(TimeSpan.Zero));
     }
 
     private sealed class FakeResolver : IUpstreamResolver

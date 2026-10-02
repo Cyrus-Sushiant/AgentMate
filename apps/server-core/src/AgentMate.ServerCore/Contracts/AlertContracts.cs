@@ -16,6 +16,9 @@ public enum AlertKind
     FirewallRollbackFailed,
 
     CertificateRenewalFailed,
+
+    /// <summary>The origin lock could not fetch Cloudflare's ranges or bring the firewall up to date with them (E14).</summary>
+    OriginLockRefreshFailed,
 }
 
 [TranspilationSource]

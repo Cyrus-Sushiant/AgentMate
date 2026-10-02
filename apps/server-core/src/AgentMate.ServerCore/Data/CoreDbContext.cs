@@ -50,6 +50,13 @@ internal sealed class CoreDbContext(DbContextOptions<CoreDbContext> options)
     // Private registries (E08).
     public DbSet<RegistryCredentialRecord> RegistryCredentials => Set<RegistryCredentialRecord>();
 
+    // Cloudflare (E14).
+    public DbSet<DnsCredential> DnsCredentials => Set<DnsCredential>();
+
+    public DbSet<OriginCertificateKey> OriginCertificateKeys => Set<OriginCertificateKey>();
+
+    public DbSet<OriginLockSetting> OriginLock => Set<OriginLockSetting>();
+
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
@@ -139,6 +146,7 @@ internal sealed class CoreDbContext(DbContextOptions<CoreDbContext> options)
         WebModel.Configure(builder);
         StackModel.Configure(builder);
         RegistryModel.Configure(builder);
+        CloudflareModel.Configure(builder);
     }
 }
 

@@ -4,7 +4,7 @@
 // @ts-nocheck
 import type { HubConnection, IStreamResult, Subject } from '@microsoft/signalr';
 import type { ICoreHub, ICoreHubReceiver } from './AgentMate.ServerCore.Contracts';
-import type { PingResponse, AccountInfo, StepUpRequest, StepUpResponse, DeviceInfo, SessionInfo, TotpSetup, RecoveryCodes, CreateEnrollmentCodeRequest, EnrollmentCodeInfo, UserInfo, CreateUserRequest, ResetUserPasswordRequest, AuditQuery, AuditPage, AuditVerificationInfo, SystemInfo, ServiceInfo, MetricsHistoryRequest, MetricsHistory, MetricsStreamRequest, MetricsSample, UpdatesInfo, JobQuery, JobPage, JobInfo, JobStreamItem, AlertQuery, AlertInfo, AlertStreamRequest, ManagedService, FirewallStatus, FirewallPreset, FirewallChangeSetQuery, FirewallChangeSetInfo, ExposureInventory, FirewallChangeRequest, FirewallChangePreview, DockerStatus, ContainerList, ContainerDetails, ContainerStatsRequest, ContainerStatsBatch, ContainerLogsRequest, ContainerLogBatch, ImageInfo, VolumeInfo, NetworkInfo, DockerDiskUsage, DockerEventsRequest, DockerEvent, ContainerSummary, ContainerRemoveRequest, ImagePullRequest, ImageRemoveRequest, ContainerEnvVariable, ConsoleRequest, ConsoleInput, ConsoleOutput, DockerPruneRequest, DockerPruneResult, DockerInstallRequest, NginxStatus, SiteInfo, StreamProxyInfo, CertificateInfo, SiteLogRequest, SiteLogBatch, SiteSettings, SiteSaveResult, StreamProxySettings, StreamProxySaveResult, NginxApplyResult, CertificateIssueRequest, CertificateUploadRequest, CertificateUploadResult, CertificateRemoveRequest, StackInfo, StackDetails, StackRevisionRef, StackRevisionFiles, CreateStackRequest, AcknowledgeStackRisksRequest, StackRevisionInfo, StackActionRequest, ReviseStackRequest, StackEnvEntry, StackDeployRequest, RegistryCredentialInfo, SaveRegistryCredentialRequest, SiteSnippets } from '../AgentMate.ServerCore.Contracts';
+import type { PingResponse, AccountInfo, StepUpRequest, StepUpResponse, DeviceInfo, SessionInfo, TotpSetup, RecoveryCodes, CreateEnrollmentCodeRequest, EnrollmentCodeInfo, UserInfo, CreateUserRequest, ResetUserPasswordRequest, AuditQuery, AuditPage, AuditVerificationInfo, SystemInfo, ServiceInfo, MetricsHistoryRequest, MetricsHistory, MetricsStreamRequest, MetricsSample, UpdatesInfo, JobQuery, JobPage, JobInfo, JobStreamItem, AlertQuery, AlertInfo, AlertStreamRequest, ManagedService, FirewallStatus, FirewallPreset, FirewallChangeSetQuery, FirewallChangeSetInfo, ExposureInventory, FirewallChangeRequest, FirewallChangePreview, DockerStatus, ContainerList, ContainerDetails, ContainerStatsRequest, ContainerStatsBatch, ContainerLogsRequest, ContainerLogBatch, ImageInfo, VolumeInfo, NetworkInfo, DockerDiskUsage, DockerEventsRequest, DockerEvent, ContainerSummary, ContainerRemoveRequest, ImagePullRequest, ImageRemoveRequest, ContainerEnvVariable, ConsoleRequest, ConsoleInput, ConsoleOutput, DockerPruneRequest, DockerPruneResult, DockerInstallRequest, NginxStatus, SiteInfo, StreamProxyInfo, CertificateInfo, SiteLogRequest, SiteLogBatch, SiteSettings, SiteSaveResult, StreamProxySettings, StreamProxySaveResult, NginxApplyResult, CertificateIssueRequest, CertificateUploadRequest, CertificateUploadResult, CertificateRemoveRequest, StackInfo, StackDetails, StackRevisionRef, StackRevisionFiles, CreateStackRequest, AcknowledgeStackRisksRequest, StackRevisionInfo, StackActionRequest, ReviseStackRequest, StackEnvEntry, StackDeployRequest, RegistryCredentialInfo, SaveRegistryCredentialRequest, SiteSnippets, OriginLockStatus, OriginLockRequest, OriginLockPreview, OriginLockResult, OriginCertificateRequestInfo, OriginCertificateInstall, DnsCredentialInfo, DnsCredentialRequest, DnsCredentialSaveResult } from '../AgentMate.ServerCore.Contracts';
 
 
 // components
@@ -502,6 +502,42 @@ class ICoreHub_HubProxy implements ICoreHub {
 
     public readonly setSiteSnippets = async (snippets: SiteSnippets): Promise<SiteSaveResult> => {
         return await this.connection.invoke("SetSiteSnippets", snippets);
+    }
+
+    public readonly getOriginLock = async (): Promise<OriginLockStatus> => {
+        return await this.connection.invoke("GetOriginLock");
+    }
+
+    public readonly previewOriginLock = async (request: OriginLockRequest): Promise<OriginLockPreview> => {
+        return await this.connection.invoke("PreviewOriginLock", request);
+    }
+
+    public readonly applyOriginLock = async (request: OriginLockRequest): Promise<OriginLockResult> => {
+        return await this.connection.invoke("ApplyOriginLock", request);
+    }
+
+    public readonly refreshCloudflareRanges = async (): Promise<OriginLockStatus> => {
+        return await this.connection.invoke("RefreshCloudflareRanges");
+    }
+
+    public readonly createOriginCertificateRequest = async (siteId: string): Promise<OriginCertificateRequestInfo> => {
+        return await this.connection.invoke("CreateOriginCertificateRequest", siteId);
+    }
+
+    public readonly installOriginCertificate = async (request: OriginCertificateInstall): Promise<CertificateUploadResult> => {
+        return await this.connection.invoke("InstallOriginCertificate", request);
+    }
+
+    public readonly listDnsCredentials = async (): Promise<DnsCredentialInfo[]> => {
+        return await this.connection.invoke("ListDnsCredentials");
+    }
+
+    public readonly saveDnsCredential = async (request: DnsCredentialRequest): Promise<DnsCredentialSaveResult> => {
+        return await this.connection.invoke("SaveDnsCredential", request);
+    }
+
+    public readonly removeDnsCredential = async (zone: string): Promise<void> => {
+        return await this.connection.invoke("RemoveDnsCredential", zone);
     }
 }
 

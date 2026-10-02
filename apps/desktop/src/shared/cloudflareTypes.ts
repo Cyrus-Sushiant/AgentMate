@@ -1,3 +1,5 @@
+import type { OriginLockPreview } from './deploy/protocol/generated/AgentMate.ServerCore.Contracts';
+
 /**
  * Plain data the Cloudflare page passes between the main process and the renderer. The API token
  * is not in here on purpose: the renderer hands it over once to be saved, and from then on only
@@ -219,4 +221,51 @@ export interface CloudflarePointDomainResult {
   plan: CloudflarePointDomainPlan;
   /** How many creates, updates and removals were sent. */
   applied: number;
+}
+
+/**
+ * Permissions only some features need, asked for when one of them is used (E14): the setup guide
+ * lists them as optional, and a refusal names them like the others.
+ */
+export type CloudflareExtraPermissionId = 'sslCertificates' | 'apiTokens';
+
+export type CloudflareAnyPermissionId = CloudflarePermissionId | CloudflareExtraPermissionId;
+
+/** How a site domain on a server stands in Cloudflare, for the origin lock's checks. */
+export interface CloudflareDomainCheck {
+  domain: string;
+  /** The account's zone it belongs to, or null when no zone of this account holds it. */
+  zoneId: string | null;
+  zoneName: string | null;
+  /** Whether its A/AAAA/CNAME records go through the proxy; null when it has none. */
+  proxied: boolean | null;
+}
+
+export interface CloudflareOriginLockInput {
+  serverId: string;
+  enabled: boolean;
+  authenticatedOriginPulls: boolean;
+}
+
+/** Send a server a DNS token for one zone: made here with the account token, or pasted. */
+export type CloudflareDnsTokenInput =
+  | { serverId: string; zoneId: string; mode: 'mint' }
+  | { serverId: string; zoneId: string; mode: 'paste'; token: string };
+
+export interface CloudflareRemoveDnsTokenInput {
+  serverId: string;
+  zone: string;
+  /** Also delete the token at Cloudflare, when AgentMate made it. */
+  deleteAtCloudflare: boolean;
+}
+
+export interface CloudflareOriginCertificateInput {
+  serverId: string;
+  siteId: string;
+}
+
+/** What turning the origin lock on or off would do: the core's plan, and each site domain's state. */
+export interface CloudflareOriginLockPlan {
+  preview: OriginLockPreview;
+  domains: CloudflareDomainCheck[];
 }

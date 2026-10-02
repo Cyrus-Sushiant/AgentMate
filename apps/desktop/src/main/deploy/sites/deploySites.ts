@@ -94,8 +94,8 @@ export class DeploySites {
         siteId: input.siteId,
         acceptTermsOfService: input.acceptTermsOfService,
         staging: input.staging,
-        // DNS-01 comes with the Cloudflare work (E14); until then every order uses HTTP-01.
-        preferDns01: false,
+        // DNS-01 needs the server's Cloudflare DNS token for the zone (E14); HTTP-01 otherwise.
+        preferDns01: input.preferDns01 === true,
         ...(input.contactEmail ? { contactEmail: input.contactEmail } : {}),
       }),
     );

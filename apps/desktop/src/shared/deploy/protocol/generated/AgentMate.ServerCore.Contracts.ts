@@ -187,7 +187,7 @@ export type AuditVerificationInfo = {
 }
 
 /** Transpiled from AgentMate.ServerCore.Contracts.AlertKind */
-export type AlertKind = "diskPressure" | "jobFailed" | "rebootRequired" | "firewallRolledBack" | "firewallRollbackFailed" | "certificateRenewalFailed";
+export type AlertKind = "diskPressure" | "jobFailed" | "rebootRequired" | "firewallRolledBack" | "firewallRollbackFailed" | "certificateRenewalFailed" | "originLockRefreshFailed";
 
 /** Transpiled from AgentMate.ServerCore.Contracts.AlertSeverity */
 export type AlertSeverity = "info" | "warning" | "critical";
@@ -323,7 +323,7 @@ export type AuthError = {
 }
 
 /** Transpiled from AgentMate.ServerCore.Contracts.CertificateSource */
-export type CertificateSource = "acme" | "uploaded";
+export type CertificateSource = "acme" | "uploaded" | "cloudflareOrigin";
 
 /** Transpiled from AgentMate.ServerCore.Contracts.CertificateState */
 export type CertificateState = "valid" | "expiringSoon" | "expired" | "revoked";
@@ -411,6 +411,145 @@ export type CertificateUploadResult = {
     certificate?: CertificateInfo;
     /** Transpiled from AgentMate.ServerCore.Contracts.NginxApplyResult? */
     apply?: NginxApplyResult;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.CloudflareRanges */
+export type CloudflareRanges = {
+    /** Transpiled from string[] */
+    ipv4: string[];
+    /** Transpiled from string[] */
+    ipv6: string[];
+    /** Transpiled from long */
+    fetchedAtUnixMs: number;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.OriginLockState */
+export type OriginLockState = "off" | "pending" | "on" | "drifted";
+
+/** Transpiled from AgentMate.ServerCore.Contracts.OriginLockStatus */
+export type OriginLockStatus = {
+    /** Transpiled from bool */
+    enabled: boolean;
+    /** Transpiled from bool */
+    authenticatedOriginPulls: boolean;
+    /** Transpiled from AgentMate.ServerCore.Contracts.OriginLockState */
+    state: OriginLockState;
+    /** Transpiled from int[] */
+    ports: number[];
+    /** Transpiled from string[] */
+    missingRules: string[];
+    /** Transpiled from string[] */
+    openRules: string[];
+    /** Transpiled from string[] */
+    staleRules: string[];
+    /** Transpiled from string[] */
+    warnings: string[];
+    /** Transpiled from AgentMate.ServerCore.Contracts.CloudflareRanges? */
+    ranges?: CloudflareRanges;
+    /** Transpiled from long */
+    lastRefreshAtUnixMs?: number;
+    /** Transpiled from string? */
+    lastRefreshError?: string;
+    /** Transpiled from System.Guid */
+    changeSetId?: string;
+    /** Transpiled from AgentMate.ServerCore.Contracts.FirewallChangeState */
+    changeState?: FirewallChangeState;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.OriginLockRequest */
+export type OriginLockRequest = {
+    /** Transpiled from bool */
+    enabled: boolean;
+    /** Transpiled from bool */
+    authenticatedOriginPulls: boolean;
+    /** Transpiled from string? */
+    sshConnection?: string;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.OriginLockPreview */
+export type OriginLockPreview = {
+    /** Transpiled from AgentMate.ServerCore.Contracts.FirewallChange[] */
+    changes: FirewallChange[];
+    /** Transpiled from string[] */
+    notes: string[];
+    /** Transpiled from AgentMate.ServerCore.Contracts.CloudflareRanges */
+    ranges: CloudflareRanges;
+    /** Transpiled from AgentMate.ServerCore.Contracts.FirewallChangePreview? */
+    firewall?: FirewallChangePreview;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.OriginLockResult */
+export type OriginLockResult = {
+    /** Transpiled from AgentMate.ServerCore.Contracts.OriginLockStatus */
+    status: OriginLockStatus;
+    /** Transpiled from AgentMate.ServerCore.Contracts.NginxApplyResult */
+    nginx: NginxApplyResult;
+    /** Transpiled from AgentMate.ServerCore.Contracts.FirewallChangeSetInfo? */
+    changeSet?: FirewallChangeSetInfo;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.OriginCertificateRequestInfo */
+export type OriginCertificateRequestInfo = {
+    /** Transpiled from string */
+    siteId: string;
+    /** Transpiled from string */
+    csrPem: string;
+    /** Transpiled from string[] */
+    hostnames: string[];
+    /** Transpiled from string */
+    requestType: string;
+    /** Transpiled from long */
+    createdAtUnixMs: number;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.OriginCertificateInstall */
+export type OriginCertificateInstall = {
+    /** Transpiled from string */
+    siteId: string;
+    /** Transpiled from string */
+    certificatePem: string;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.DnsCredentialRequest */
+export type DnsCredentialRequest = {
+    /** Transpiled from string */
+    zone: string;
+    /** Transpiled from string */
+    zoneId: string;
+    /** Transpiled from string */
+    token: string;
+    /** Transpiled from string? */
+    tokenId?: string;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.DnsCredentialInfo */
+export type DnsCredentialInfo = {
+    /** Transpiled from string */
+    zone: string;
+    /** Transpiled from string */
+    zoneId: string;
+    /** Transpiled from string */
+    provider: string;
+    /** Transpiled from long */
+    createdAtUnixMs: number;
+    /** Transpiled from long */
+    updatedAtUnixMs: number;
+    /** Transpiled from string? */
+    tokenId?: string;
+    /** Transpiled from string? */
+    createdBy?: string;
+    /** Transpiled from long */
+    lastUsedAtUnixMs?: number;
+    /** Transpiled from string? */
+    lastError?: string;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.DnsCredentialSaveResult */
+export type DnsCredentialSaveResult = {
+    /** Transpiled from string[] */
+    problems: string[];
+    /** Transpiled from AgentMate.ServerCore.Contracts.DnsCredentialInfo? */
+    credential?: DnsCredentialInfo;
 }
 
 /** Transpiled from AgentMate.ServerCore.Contracts.DockerStatus */

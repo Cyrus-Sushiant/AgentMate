@@ -420,6 +420,7 @@ import type { PetPipelineMessage, PetSnoozeState, PetWorkArea } from '../shared/
 import type { RemoteInputEvent, RemoteRtcMessage } from '../shared/remoteProtocol';
 import type { SpellcheckMenuPayload } from '../shared/spellcheck';
 import type { SshHostKeyStatus } from '../shared/sshHostKey';
+import { cloudflareServer } from './cloudflareServer';
 import { createDeployDocker } from './deployDocker';
 import { createDeployRegistry } from './deployRegistry';
 
@@ -2457,6 +2458,7 @@ const agentmatApi = {
   deployAppStore,
   deployRegistry,
   cloudflare,
+  cloudflareServer,
   pullRequests,
   tests,
   appNotifications,

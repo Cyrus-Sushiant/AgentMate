@@ -59,7 +59,7 @@ internal static class NginxRenderer
         var files = new List<NginxReleaseFile> { new(HttpFile, RenderHttp(configuration, layout, directory)) };
         foreach (var site in configuration.Sites)
         {
-            files.Add(new NginxReleaseFile(SitePath(site), RenderSite(site, layout, upstreams, directory)));
+            files.Add(new NginxReleaseFile(SitePath(site), RenderSite(site, layout, upstreams, directory, configuration.OriginLock)));
 
             if (site.BasicAuth is { } auth)
             {
@@ -78,6 +78,15 @@ internal static class NginxRenderer
         }
 
         files.Add(new NginxReleaseFile(StreamFile, RenderStreams(configuration, layout, upstreams)));
+        if (configuration.OriginLock is { } originLock)
+        {
+            files.Add(new NginxReleaseFile(NginxCloudflare.RealIpFile, RenderRealIp(originLock)));
+            if (originLock.AuthenticatedOriginPulls)
+            {
+                files.Add(new NginxReleaseFile(NginxCloudflare.OriginPullCaFile, NginxCloudflare.OriginPullCa));
+            }
+        }
+
         return new NginxRelease(release, directory, files);
     }
 
@@ -124,7 +133,22 @@ internal static class NginxRenderer
         return writer.ToString();
     }
 
-    private static string RenderSite(NginxSite site, NginxLayout layout, UpstreamPolicy upstreams, string directory)
+    /// <summary>
+    /// The visitor's address from CF-Connecting-IP, trusted only on requests from Cloudflare's
+    /// networks. Included in every site's server blocks, never at the http level (see the remarks).
+    /// </summary>
+    private static string RenderRealIp(NginxOriginLock originLock)
+    {
+        var writer = new ConfigWriter();
+        writer.Section(Header);
+        writer.Section(
+            ["# Cloudflare's networks: only requests from them may name the visitor's address.",
+            .. originLock.CloudflareNetworks.Select(network => $"set_real_ip_from {Network(network)};"),
+            "real_ip_header CF-Connecting-IP;"]);
+        return writer.ToString();
+    }
+
+    private static string RenderSite(NginxSite site, NginxLayout layout, UpstreamPolicy upstreams, string directory, NginxOriginLock? originLock)
     {
         var domains = string.Join(' ', site.Domains.Select(d => d.ToLowerInvariant()));
         var writer = new ConfigWriter();
@@ -156,6 +180,11 @@ internal static class NginxRenderer
             $"server_name {domains};",
             "server_tokens off;",
         ]).Concat(redirect ? [] : [$"root {layout.SiteFolder(site.Id)};"]).Concat(Logs(site, layout)));
+        if (originLock is not null)
+        {
+            writer.Section($"include {directory}/{NginxCloudflare.RealIpFile};");
+        }
+
         WriteAcmeLocation(writer, layout);
         if (redirect)
         {
@@ -190,6 +219,19 @@ internal static class NginxRenderer
                 "ssl_session_tickets off;",
                 .. site.OcspStapling ? (string[])["ssl_stapling on;", "ssl_stapling_verify on;"] : ["ssl_stapling off;"],
             ]);
+            if (originLock is not null)
+            {
+                writer.Section($"include {directory}/{NginxCloudflare.RealIpFile};");
+            }
+
+            if (originLock is { AuthenticatedOriginPulls: true })
+            {
+                writer.Section(
+                    "# Authenticated Origin Pulls: HTTPS only for Cloudflare's client certificate.",
+                    $"ssl_client_certificate {directory}/{NginxCloudflare.OriginPullCaFile};",
+                    "ssl_verify_client on;");
+            }
+
             WriteServerBody(writer, site, layout, upstreams, directory, overTls: true);
             writer.Close();
         }

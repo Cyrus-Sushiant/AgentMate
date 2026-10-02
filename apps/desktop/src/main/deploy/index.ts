@@ -263,7 +263,13 @@ export function registerDeployIpc(): void {
   });
   registerDeploySecurityIpc(service, guard);
   registerDeployDockerIpc(service, guard, registries);
-  registerCloudflareIpc();
+  registerCloudflareIpc({
+    call: (serverId, work) => service.links.call(serverId, work),
+    roles: (serverId) => service.roles(serverId),
+    onLinkConnection: (serverId, work) => service.onLinkConnection(serverId, work),
+    serverName: async (serverId) =>
+      (await service.listServers()).find((server) => server.id === serverId)?.nickname ?? serverId,
+  });
 }
 
 /** The Security area: users, devices, sessions, enrollment codes and the audit trail. */

@@ -11,6 +11,7 @@ import type { DeployServer } from '@shared/deployTypes';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
+import { OriginLockCard } from '@/components/cloudflare/server/OriginLockCard';
 import { Skeleton } from '@/components/ui/skeleton';
 import { draftFromRule } from '@/lib/deploy/firewall/format';
 import { queryKeys } from '@/lib/queryKeys';
@@ -312,6 +313,14 @@ export function FirewallPanel({ server }: { server: DeployServer }): React.JSX.E
           outcomes: makePrivate.outcomes,
           onMakePrivate: (port) => void makePrivate.start(port),
         }}
+      />
+      <OriginLockCard
+        serverId={serverId}
+        serverName={server.nickname}
+        signedIn={signedIn}
+        canAdmin={canAdmin}
+        busy={!!pending || stale}
+        onApplied={applied}
       />
       {makePrivate.dialog}
 

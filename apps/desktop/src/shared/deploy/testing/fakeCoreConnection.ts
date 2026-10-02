@@ -20,6 +20,7 @@ import type {
   ContainerStatsBatch,
   ContainerStatsRequest,
   ContainerSummary,
+  DnsCredentialRequest,
   DockerDiskUsage,
   DockerEvent,
   DockerEventsRequest,
@@ -43,6 +44,8 @@ import type {
   MetricsSample,
   MetricsStreamRequest,
   NetworkInfo,
+  OriginCertificateInstall,
+  OriginLockRequest,
   SiteLogBatch,
   SiteLogKind,
   SiteLogRequest,
@@ -313,6 +316,34 @@ export class FakeCoreConnection implements ICoreHub {
     });
   setSiteSnippets = async (snippets: SiteSnippets) =>
     this.web('SetSiteSnippets', OWNERS, (nginx) => nginx.setSnippets(snippets));
+
+  // Cloudflare (E14): every role reads the lock and the DNS token list; Admins change them. The
+  // lock's firewall change is the fake firewall's own, so ConfirmFirewallChanges settles it.
+
+  getOriginLock = async () =>
+    this.firewall('GetOriginLock', false, () => this.core.cloudflare.status());
+  previewOriginLock = async (request: OriginLockRequest) =>
+    this.firewall('PreviewOriginLock', true, () => this.core.cloudflare.preview(request));
+  applyOriginLock = async (request: OriginLockRequest) =>
+    this.firewall('ApplyOriginLock', true, (_fw, caller) =>
+      this.core.cloudflare.apply(request, caller),
+    );
+  refreshCloudflareRanges = async () =>
+    this.firewall('RefreshCloudflareRanges', true, () => this.core.cloudflare.status());
+  createOriginCertificateRequest = async (siteId: string) =>
+    this.web('CreateOriginCertificateRequest', ADMINS, () =>
+      this.core.cloudflare.createRequest(siteId),
+    );
+  installOriginCertificate = async (request: OriginCertificateInstall) =>
+    this.web('InstallOriginCertificate', ADMINS, () => this.core.cloudflare.install(request));
+  listDnsCredentials = async () =>
+    this.web('ListDnsCredentials', VIEWERS, () => this.core.cloudflare.listCredentials());
+  saveDnsCredential = async (request: DnsCredentialRequest) =>
+    this.web('SaveDnsCredential', ADMINS, () =>
+      this.core.cloudflare.saveCredential(request, this.core.userName),
+    );
+  removeDnsCredential = async (zone: string) =>
+    this.web('RemoveDnsCredential', ADMINS, () => this.core.cloudflare.removeCredential(zone));
 
   // Compose stacks (E07): the desktop does not call these through the fake yet.
 

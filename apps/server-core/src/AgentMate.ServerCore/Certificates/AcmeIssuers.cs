@@ -93,8 +93,8 @@ internal interface ICertificateAuthority
 /// <summary>The CAs certificates come from: ACME on a real server, a simulation in the DevHost.</summary>
 internal interface ICertificateAuthorities
 {
-    /// <summary>Whether wildcards and DNS-01 can be answered (E14 adds a hook).</summary>
-    bool CanAnswerDns01 { get; }
+    /// <summary>Whether DNS-01 can be answered for every one of these names (E14's hook needs the zone's token).</summary>
+    Task<bool> CanAnswerDns01Async(IReadOnlyList<string> domains, CancellationToken cancellationToken);
 
     ICertificateAuthority For(Uri directory);
 }
@@ -111,7 +111,32 @@ internal sealed class AcmeIssuers(
 {
     private readonly ConcurrentDictionary<string, Authority> _issuers = new(StringComparer.Ordinal);
 
-    public bool CanAnswerDns01 => dns01.Any();
+    /// <summary>A hook that answers for every name (a test's) wins over one that needs a token per zone (Cloudflare's).</summary>
+    private IDns01ChallengeHook? Dns01Hook => dns01.FirstOrDefault(hook => hook is not IDns01Coverage) ?? dns01.FirstOrDefault();
+
+    public async Task<bool> CanAnswerDns01Async(IReadOnlyList<string> domains, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(domains);
+        if (Dns01Hook is not { } hook)
+        {
+            return false;
+        }
+
+        if (hook is not IDns01Coverage coverage)
+        {
+            return true;
+        }
+
+        foreach (var domain in domains)
+        {
+            if (!await coverage.CoversAsync(domain, cancellationToken))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
 
     public ICertificateAuthority For(Uri directory)
     {
@@ -121,7 +146,7 @@ internal sealed class AcmeIssuers(
             accounts,
             certificates,
             http01,
-            dns01.FirstOrDefault(),
+            Dns01Hook,
             time,
             loggers.CreateLogger<AcmeIssuer>())));
     }

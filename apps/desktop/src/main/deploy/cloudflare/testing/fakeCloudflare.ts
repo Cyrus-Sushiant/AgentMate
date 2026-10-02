@@ -1,4 +1,7 @@
-import type { CloudflarePermissionId } from '../../../../shared/cloudflareTypes';
+import type {
+  CloudflareAnyPermissionId,
+  CloudflarePermissionId,
+} from '../../../../shared/cloudflareTypes';
 import * as recorded from './recorded';
 
 /**
@@ -15,9 +18,11 @@ type Json = Record<string, unknown>;
 export interface FakeToken {
   id?: string;
   status?: 'active' | 'disabled' | 'expired';
-  grants: Partial<Record<CloudflarePermissionId, Access>>;
+  grants: Partial<Record<CloudflareAnyPermissionId, Access>>;
   /** Has User > API Tokens > Read, so it may read its own policies. */
   canReadSelf?: boolean;
+  /** Limited to these zones, as a zone-scoped token is; every zone when left out. */
+  zoneIds?: string[];
 }
 
 /** Everything AgentMate's token template asks for. */
@@ -58,6 +63,8 @@ export interface FakeRequest {
 
 export interface FakeCloudflare {
   fetch: (url: string | URL | Request, init?: RequestInit) => Promise<Response>;
+  /** Every token Cloudflare knows, those the app made included (keyed by value). */
+  tokens: Record<string, FakeToken>;
   requests: FakeRequest[];
   zones: Map<string, FakeZoneState>;
   /** The requests that could change something: everything but GET. */
@@ -67,19 +74,22 @@ export interface FakeCloudflare {
 }
 
 const API_PREFIX = '/client/v4';
-const PERMISSION_NAMES: Record<CloudflarePermissionId, Record<Access, string>> = {
+const PERMISSION_NAMES: Record<CloudflareAnyPermissionId, Record<Access, string>> = {
   zone: { read: 'Zone Read', edit: 'Zone Write' },
   dns: { read: 'DNS Read', edit: 'DNS Write' },
   zoneSettings: { read: 'Zone Settings Read', edit: 'Zone Settings Write' },
   cachePurge: { read: 'Cache Purge', edit: 'Cache Purge' },
   waf: { read: 'Zone WAF Read', edit: 'Zone WAF Write' },
   accessRules: { read: 'Firewall Services Read', edit: 'Firewall Services Write' },
+  sslCertificates: { read: 'SSL and Certificates Read', edit: 'SSL and Certificates Write' },
+  apiTokens: { read: 'API Tokens Read', edit: 'API Tokens Write' },
 };
 const SETTING_VALUES: Record<string, readonly string[]> = {
   development_mode: ['on', 'off'],
   security_level: ['off', 'essentially_off', 'low', 'medium', 'high', 'under_attack'],
   ssl: ['off', 'flexible', 'full', 'strict'],
   always_use_https: ['on', 'off'],
+  tls_client_auth: ['on', 'off'],
 };
 const ADDRESS_TYPES = new Set(['A', 'AAAA', 'CNAME']);
 
@@ -145,7 +155,11 @@ export function createFakeCloudflare(options: {
   const requests: FakeRequest[] = [];
   const failures: Array<{ path: RegExp; status: number; body: unknown }> = [];
 
-  function allowed(token: FakeToken, permission: CloudflarePermissionId, access: Access): boolean {
+  function allowed(
+    token: FakeToken,
+    permission: CloudflareAnyPermissionId,
+    access: Access,
+  ): boolean {
     const grant = token.grants[permission];
     return grant === 'edit' || (grant === 'read' && access === 'read');
   }
@@ -312,6 +326,67 @@ export function createFakeCloudflare(options: {
     return ok({ id: one[1] });
   }
 
+  /** POST /certificates: Origin CA signs for names in the account's zones only. */
+  function originRoutes(token: FakeToken, body: Json) {
+    if (!allowed(token, 'sslCertificates', 'edit')) {
+      return { status: 403, body: copy(recorded.permissionDenied) };
+    }
+    const hostnames = (body.hostnames as string[] | undefined) ?? [];
+    const names = [...zones.values()].map((state) => String(state.zone.name));
+    const foreign = hostnames.find(
+      (name) =>
+        !names.some((zone) => name.replace(/^\*\./, '') === zone || name.endsWith(`.${zone}`)),
+    );
+    if (typeof body.csr !== 'string' || !body.csr.includes('CERTIFICATE REQUEST')) {
+      return fail(400, 1010, 'Failed to parse CSR');
+    }
+    if (foreign) return fail(400, 1012, `${foreign} is not a hostname of a zone on this account`);
+    return ok({ ...copy(recorded.originCertificate), csr: body.csr, hostnames });
+  }
+
+  /** Permission groups, and tokens made or deleted with User > API Tokens > Edit. */
+  function tokenRoutes(token: FakeToken, method: string, path: string, body: Json) {
+    if (path === '/user/tokens/permission_groups') {
+      if (!allowed(token, 'apiTokens', 'read')) {
+        return { status: 403, body: copy(recorded.permissionDenied) };
+      }
+      return ok(copy(recorded.permissionGroups));
+    }
+    if (path === '/user/tokens' && method === 'POST') {
+      if (!allowed(token, 'apiTokens', 'edit')) {
+        return { status: 403, body: copy(recorded.permissionDenied) };
+      }
+      const policies = (body.policies as Json[] | undefined) ?? [];
+      const zoneIds = policies.flatMap((policy) =>
+        Object.keys((policy.resources as Json | undefined) ?? {})
+          .map((key) => key.match(/^com\.cloudflare\.api\.account\.zone\.([0-9a-f]{32})$/)?.[1])
+          .filter((id): id is string => Boolean(id)),
+      );
+      const groups = policies.flatMap((policy) => (policy.permission_groups as Json[]) ?? []);
+      const id = nextId();
+      const value = `minted${id}`.slice(0, 40);
+      options.tokens[value] = {
+        id,
+        grants: groups.some((group) => group.id === recorded.DNS_WRITE_GROUP_ID)
+          ? { dns: 'edit' }
+          : {},
+        zoneIds,
+      };
+      return ok({ ...copy(recorded.createdToken), id, name: body.name, policies, value });
+    }
+    const one = path.match(/^\/user\/tokens\/([0-9a-f]{32})$/);
+    if (one && method === 'DELETE') {
+      if (!allowed(token, 'apiTokens', 'edit')) {
+        return { status: 403, body: copy(recorded.permissionDenied) };
+      }
+      const entry = Object.entries(options.tokens).find(([, candidate]) => candidate.id === one[1]);
+      if (!entry) return fail(404, 1003, 'Token not found');
+      delete options.tokens[entry[0]];
+      return ok({ id: one[1] });
+    }
+    return null;
+  }
+
   /** Which permission a zone route needs, as Cloudflare's gateway sees it. */
   function routePermission(method: string, rest: string): [CloudflarePermissionId, Access] {
     const access: Access = method === 'GET' ? 'read' : 'edit';
@@ -335,6 +410,9 @@ export function createFakeCloudflare(options: {
         status: token.status ?? 'active',
       });
     }
+    if (path === '/certificates' && method === 'POST') return originRoutes(token, body);
+    const tokens = tokenRoutes(token, method, path, body);
+    if (tokens) return tokens;
     const self = path.match(/^\/user\/tokens\/([0-9a-f]{32})$/);
     if (self) {
       if (!token.canReadSelf) return { status: 403, body: copy(recorded.unauthorizedToRead) };
@@ -347,7 +425,11 @@ export function createFakeCloudflare(options: {
       return ok(details);
     }
     if (path === '/zones') {
-      const visible = token.grants.zone ? [...zones.values()].map((state) => state.zone) : [];
+      const visible = token.grants.zone
+        ? [...zones.values()]
+            .filter((state) => !token.zoneIds || token.zoneIds.includes(String(state.zone.id)))
+            .map((state) => state.zone)
+        : [];
       return page(visible, query, 20);
     }
     const zoneMatch = path.match(/^\/zones\/([0-9a-f]{32})(\/.*)?$/);
@@ -355,6 +437,9 @@ export function createFakeCloudflare(options: {
     const state = zones.get(zoneMatch[1]);
     const rest = zoneMatch[2] ?? '';
     const [permission, access] = routePermission(method, rest);
+    if (token.zoneIds && !token.zoneIds.includes(zoneMatch[1])) {
+      return { status: 403, body: copy(recorded.permissionDenied) };
+    }
     if (!allowed(token, permission, access))
       return { status: 403, body: copy(recorded.permissionDenied) };
     if (!state) {
@@ -444,6 +529,7 @@ export function createFakeCloudflare(options: {
 
   return {
     fetch: fakeFetch,
+    tokens: options.tokens,
     requests,
     zones,
     writes: () => requests.filter((request) => request.method !== 'GET'),

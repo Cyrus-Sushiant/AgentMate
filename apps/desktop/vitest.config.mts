@@ -210,6 +210,8 @@ export default defineConfig({
         // The Cloudflare token lives here, and every call made with it.
         'src/main/deploy/cloudflare/**': { lines: 95, branches: 85 },
         'src/main/ipc/cloudflare.ts': { lines: 95, branches: 90 },
+        'src/main/ipc/cloudflareServer.ts': { lines: 95, branches: 90 },
+        'src/shared/cloudflare/dns01.ts': { lines: 95, branches: 90 },
         'src/renderer/src/components/cloudflare/**': { lines: 85, functions: 75, branches: 75 },
         'src/renderer/src/pages/CloudflarePage.tsx': { lines: 85, functions: 75, branches: 75 },
         'src/renderer/src/lib/cloudflare/**': { lines: 95, branches: 90 },

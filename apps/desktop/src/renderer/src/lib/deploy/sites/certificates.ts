@@ -73,6 +73,9 @@ export function renewalText(certificate: CertificateInfo, now: number): string {
   if (certificate.source === 'uploaded') {
     return 'Uploaded by hand, so it does not renew by itself. Upload a new one before it runs out.';
   }
+  if (certificate.source === 'cloudflareOrigin') {
+    return 'A Cloudflare Origin CA certificate: valid for years, trusted by Cloudflare only. Make a new one from here before it runs out.';
+  }
   if (!certificate.autoRenew) return 'Automatic renewal is off.';
   if (certificate.failedAttempts > 0) {
     const next = certificate.nextAttemptAtUnixMs

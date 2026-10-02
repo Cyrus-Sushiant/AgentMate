@@ -1,5 +1,6 @@
 using System.Net;
 using AgentMate.ServerCore.Audit;
+using AgentMate.ServerCore.Cloudflare;
 using AgentMate.ServerCore.Data;
 using AgentMate.ServerCore.Endpoints;
 using AgentMate.ServerCore.Hosting;
@@ -70,6 +71,7 @@ internal static class CoreApplication
         builder.Services.AddHostedService<AuditRetention>();
         builder.Services.AddCoreOperations();
         builder.Services.AddWebOperations();
+        builder.Services.AddCloudflare();
         // Reports readiness to systemd (Type=notify), so `systemctl start` only returns once the
         // socket is listening and fails outright for a release that cannot start.
         builder.Services.AddSystemd();

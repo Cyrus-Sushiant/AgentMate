@@ -37,10 +37,10 @@ Plan: docs/ROADMAP.md
 | E08 | Private registries | Complete | see git log | Sign-ins sealed on this computer and sent per deploy into a tmpfs DOCKER_CONFIG wiped in a `finally` (the core refuses a non-tmpfs folder); GitHub scopes read from `X-OAuth-Scopes`, anything beyond read:packages behind a warning; write-only stored credentials (Data Protection, Admin with step-up); Containers pulls sign in through X-Registry-Auth |
 | E09 | Logs center, problems feed and Deploy AI | Not started | | |
 | E10 | nginx websites | In progress | 77b262a, see git log | Renderer, snippet allowlist and the nginx -t harness; desktop T9 done (Websites section, site editor, Apply bar, route maps, stream proxies, live site logs) |
-| E11 | Let's Encrypt certificates | In progress | 7110a67, see git log | ACME client (RFC 8555 and ARI) tested against Pebble; desktop T6 done (SSL tab); DNS-01 in the UI waits on E14 |
+| E11 | Let's Encrypt certificates | In progress | 7110a67, see git log | ACME client (RFC 8555 and ARI) tested against Pebble; desktop T6 done (SSL tab); DNS-01 through E14's Cloudflare hook |
 | E12 | App Store | In progress | see git log | Catalog of 18 apps pinned by digest (MinIO left out: no public official image); App Store section, one-screen install sheet, post-install card with masked secrets (step-up reveal), explicit updates as server-side revisions, digest refresh script. Left: AC3 (WordPress over HTTPS on Pebble) not verified |
 | E13 | Firewall | Complete | 2a87c89, 271820e, see git log | Core (ufw and firewalld, lockout guard, safe apply), the Firewall screen (T6) and "make private" (T5): an AgentMate app is redeployed with the service on 127.0.0.1 as a revision the server copies; anything else is shown the compose or run change. AC1 to AC3 by the firewall system tests, passed locally |
-| E14 | Cloudflare | In progress | df848e5 | Desktop side: T1 to T4, T8, T9 and pointing a domain (part of T5); Origin CA (rest of T5), T6 and T7 wait on server work |
+| E14 | Cloudflare | Complete | df848e5, see git log | Desktop T1 to T4, T8, T9; core and desktop T5 to T7: Origin CA (key made on the server), origin lock through firewall change sets with a daily unattended refresh and nginx real IP, DNS-01 with a zone-scoped token (migration CloudflareOriginAndDns) |
 | E15 | Security center and maintenance | In progress | c87918a | T1 (users, devices, enrollment codes) and T2 (audit viewer) done |
 | E16 | Direct TLS mode | Not started | | |
 | E17 | Polish and full OS matrix | Not started | | |
@@ -93,6 +93,11 @@ Status values: Not started, In progress, Blocked, Complete.
 - E08: the registry screens have not had a visual pass in both themes. AC1's system test
   (`registries.int.test.ts`) passed locally against Ubuntu 24.04 with registry:2; its CI step
   runs with the next `[e2e]` commit.
+- E14: the origin lock is checked against the pretend firewalls (core tests and the DevHost e2e
+  run), not a live ufw or firewalld; its nginx variant runs through a real `nginx -t` only in the
+  system tests (Docker). DNS-01 waits a fixed 20 seconds after adding the record and was not run
+  against Cloudflare's live API; Origin CA is covered by core tests with a test-signed certificate
+  and the recorded desktop fake, not by the e2e run. No visual pass in both themes.
 
 ## Known failures outside the Deploy work
 

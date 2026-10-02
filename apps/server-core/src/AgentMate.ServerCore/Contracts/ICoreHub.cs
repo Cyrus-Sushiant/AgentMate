@@ -344,6 +344,38 @@ public interface ICoreHub
 
     /// <summary>A site's custom snippets, checked against the directive allowlist.</summary>
     Task<SiteSaveResult> SetSiteSnippets(SiteSnippets snippets);
+
+    // Cloudflare (E14). Every role reads the origin lock and which zones have a DNS token; Admins
+    // change them and handle Origin CA certificates. The account token never reaches the core.
+
+    /// <summary>The origin lock and how the firewall compares with Cloudflare's ranges.</summary>
+    Task<OriginLockStatus> GetOriginLock();
+
+    /// <summary>What turning the lock on or off would change, with the firewall's own preview. Changes nothing.</summary>
+    Task<OriginLockPreview> PreviewOriginLock(OriginLockRequest request);
+
+    /// <summary>
+    /// Turns the lock on or off: the firewall change waits for its confirmation like any other
+    /// (ConfirmFirewallChanges), and nginx takes the real visitor address and the client check at once.
+    /// </summary>
+    Task<OriginLockResult> ApplyOriginLock(OriginLockRequest request);
+
+    /// <summary>Fetches Cloudflare's ranges now (the core also does daily) and brings a lock that is on up to date.</summary>
+    Task<OriginLockStatus> RefreshCloudflareRanges();
+
+    /// <summary>Makes a key on this server for a site and returns the signing request for Cloudflare's Origin CA.</summary>
+    Task<OriginCertificateRequestInfo> CreateOriginCertificateRequest(string siteId);
+
+    /// <summary>Checks the signed certificate against the key made for it, stores it and applies.</summary>
+    Task<CertificateUploadResult> InstallOriginCertificate(OriginCertificateInstall request);
+
+    /// <summary>The zones this server holds a DNS token for. The tokens never come back.</summary>
+    Task<DnsCredentialInfo[]> ListDnsCredentials();
+
+    /// <summary>Checks the token with Cloudflare and stores it sealed, replacing the zone's earlier one.</summary>
+    Task<DnsCredentialSaveResult> SaveDnsCredential(DnsCredentialRequest request);
+
+    Task RemoveDnsCredential(string zone);
 }
 
 /// <summary>Everything the core can push to the app without being asked.</summary>

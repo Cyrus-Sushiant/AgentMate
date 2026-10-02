@@ -12,6 +12,7 @@ import type {
   SystemInfo,
   UpdatesInfo,
 } from '../protocol/generated/AgentMate.ServerCore.Contracts';
+import { FakeCloudflareCore } from './fakeCloudflareCore';
 import { FakeCoreConnection } from './fakeCoreConnection';
 import { metricsSample, sampleServices, sampleSystemInfo, sampleUpdates } from './fakeCoreData';
 import { FakeDocker } from './fakeDocker';
@@ -94,6 +95,9 @@ export class FakeCore {
   /** The host firewall (E13); a change nobody confirms in time raises firewallRolledBack. */
   readonly firewall: FakeFirewall;
 
+  /** Cloudflare on the server (E14): the origin lock, Origin CA certificates and DNS tokens. */
+  readonly cloudflare: FakeCloudflareCore;
+
   constructor(readonly now: () => number = Date.now) {
     this.firewall = new FakeFirewall(now, (change) =>
       this.raise(
@@ -103,6 +107,7 @@ export class FakeCore {
         `A firewall change nobody confirmed was rolled back: ${change.summary}.`,
       ),
     );
+    this.cloudflare = new FakeCloudflareCore({ now, firewall: this.firewall, nginx: this.nginx });
   }
 
   get openConnections(): FakeCoreConnection[] {

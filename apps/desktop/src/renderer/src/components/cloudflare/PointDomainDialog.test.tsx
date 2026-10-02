@@ -117,6 +117,10 @@ describe('PointDomainDialog', () => {
     expect(bridge.$fn('cloudflare.pointDomain')).toHaveBeenCalledWith(expected);
     expect(toast.success).toHaveBeenCalledWith('example.com now points to Production.');
     expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.cloudflareRecords(ZONE.id) });
+
+    // The next step is offered: a website on that server for the names just pointed there.
+    expect(await screen.findByText('example.com points to Production')).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'Add a website on Production' }));
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 

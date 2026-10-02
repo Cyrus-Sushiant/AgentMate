@@ -286,3 +286,17 @@ describe('SitesPanel editor and proxies', () => {
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith('Not allowed.'));
   });
 });
+
+describe('SitesPanel from Cloudflare', () => {
+  it('starts a new site with the names just pointed at the server (E14)', async () => {
+    renderWithProviders(<SitesPanel server={SERVER} />, {
+      bridge: sitesBridge(),
+      route: '/deploy?view=websites&newSite=app.example.com,www.app.example.com,bad%20name',
+    });
+
+    expect(await screen.findByDisplayValue('app.example.com')).toBeInTheDocument();
+    expect(screen.getByDisplayValue('www.app.example.com')).toBeInTheDocument();
+    expect(screen.queryByDisplayValue('bad name')).toBeNull();
+    expect(screen.getByDisplayValue('app-example-com')).toBeInTheDocument();
+  });
+});

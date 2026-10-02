@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using AgentMate.ServerCore.Certificates;
 using AgentMate.ServerCore.Certificates.Acme;
+using AgentMate.ServerCore.Cloudflare;
 
 namespace AgentMate.ServerCore.DevHost.Fakes;
 
@@ -10,11 +11,24 @@ namespace AgentMate.ServerCore.DevHost.Fakes;
 /// certificates chain to a throwaway in-memory root, and the renewal window sits two thirds into
 /// the lifetime as Let's Encrypt's does. Nothing leaves the machine.
 /// </summary>
-internal sealed class FakeCertificateAuthorities(IAcmeCertificateStore store, TimeProvider time) : ICertificateAuthorities
+internal sealed class FakeCertificateAuthorities(IAcmeCertificateStore store, TimeProvider time, DnsCredentials? credentials = null) : ICertificateAuthorities
 {
     private readonly Lazy<(X509Certificate2 Root, ECDsa Key)> _root = new(CreateRoot);
 
-    public bool CanAnswerDns01 => false;
+    /// <summary>Like the real one: DNS-01 needs a DNS token for the zone of each name (E14).</summary>
+    public async Task<bool> CanAnswerDns01Async(IReadOnlyList<string> domains, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(domains);
+        foreach (var domain in domains)
+        {
+            if (credentials is null || await credentials.ForDomainAsync(domain, cancellationToken) is null)
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
 
     public ICertificateAuthority For(Uri directory) => new Authority(this, directory);
 
@@ -33,6 +47,18 @@ internal sealed class FakeCertificateAuthorities(IAcmeCertificateStore store, Ti
         {
             progress?.Report(new AcmeIssueProgress(step, step is AcmeIssueStep.PublishingChallenge or AcmeIssueStep.Validating ? request.Domains[0] : null));
             await Task.Delay(TimeSpan.FromMilliseconds(400), time, cancellationToken);
+        }
+
+        if (credentials is not null && (request.PreferDns01 || request.Domains.Any(domain => domain.StartsWith("*.", StringComparison.Ordinal))))
+        {
+            // Pretend DNS-01: the zone's token is "used", as the Cloudflare hook would use it.
+            foreach (var domain in request.Domains)
+            {
+                if (await credentials.ForDomainAsync(domain, cancellationToken) is { } zone)
+                {
+                    await credentials.RecordUseAsync(zone.Zone, null);
+                }
+            }
         }
 
         var (root, rootKey) = _root.Value;

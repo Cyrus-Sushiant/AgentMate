@@ -3,7 +3,7 @@
 /* tslint:disable */
 // @ts-nocheck
 import type { IStreamResult, Subject } from '@microsoft/signalr';
-import type { PingResponse, AccountInfo, StepUpRequest, StepUpResponse, DeviceInfo, SessionInfo, TotpSetup, RecoveryCodes, CreateEnrollmentCodeRequest, EnrollmentCodeInfo, UserInfo, CreateUserRequest, ResetUserPasswordRequest, AuditQuery, AuditPage, AuditVerificationInfo, SystemInfo, ServiceInfo, MetricsHistoryRequest, MetricsHistory, MetricsStreamRequest, MetricsSample, UpdatesInfo, JobQuery, JobPage, JobInfo, JobStreamItem, AlertQuery, AlertInfo, AlertStreamRequest, ManagedService, FirewallStatus, FirewallPreset, FirewallChangeSetQuery, FirewallChangeSetInfo, ExposureInventory, FirewallChangeRequest, FirewallChangePreview, DockerStatus, ContainerList, ContainerDetails, ContainerStatsRequest, ContainerStatsBatch, ContainerLogsRequest, ContainerLogBatch, ImageInfo, VolumeInfo, NetworkInfo, DockerDiskUsage, DockerEventsRequest, DockerEvent, ContainerSummary, ContainerRemoveRequest, ImagePullRequest, ImageRemoveRequest, ContainerEnvVariable, ConsoleRequest, ConsoleInput, ConsoleOutput, DockerPruneRequest, DockerPruneResult, DockerInstallRequest, NginxStatus, SiteInfo, StreamProxyInfo, CertificateInfo, SiteLogRequest, SiteLogBatch, SiteSettings, SiteSaveResult, StreamProxySettings, StreamProxySaveResult, NginxApplyResult, CertificateIssueRequest, CertificateUploadRequest, CertificateUploadResult, CertificateRemoveRequest, StackInfo, StackDetails, StackRevisionRef, StackRevisionFiles, CreateStackRequest, AcknowledgeStackRisksRequest, StackRevisionInfo, StackActionRequest, ReviseStackRequest, StackEnvEntry, StackDeployRequest, RegistryCredentialInfo, SaveRegistryCredentialRequest, SiteSnippets } from '../AgentMate.ServerCore.Contracts';
+import type { PingResponse, AccountInfo, StepUpRequest, StepUpResponse, DeviceInfo, SessionInfo, TotpSetup, RecoveryCodes, CreateEnrollmentCodeRequest, EnrollmentCodeInfo, UserInfo, CreateUserRequest, ResetUserPasswordRequest, AuditQuery, AuditPage, AuditVerificationInfo, SystemInfo, ServiceInfo, MetricsHistoryRequest, MetricsHistory, MetricsStreamRequest, MetricsSample, UpdatesInfo, JobQuery, JobPage, JobInfo, JobStreamItem, AlertQuery, AlertInfo, AlertStreamRequest, ManagedService, FirewallStatus, FirewallPreset, FirewallChangeSetQuery, FirewallChangeSetInfo, ExposureInventory, FirewallChangeRequest, FirewallChangePreview, DockerStatus, ContainerList, ContainerDetails, ContainerStatsRequest, ContainerStatsBatch, ContainerLogsRequest, ContainerLogBatch, ImageInfo, VolumeInfo, NetworkInfo, DockerDiskUsage, DockerEventsRequest, DockerEvent, ContainerSummary, ContainerRemoveRequest, ImagePullRequest, ImageRemoveRequest, ContainerEnvVariable, ConsoleRequest, ConsoleInput, ConsoleOutput, DockerPruneRequest, DockerPruneResult, DockerInstallRequest, NginxStatus, SiteInfo, StreamProxyInfo, CertificateInfo, SiteLogRequest, SiteLogBatch, SiteSettings, SiteSaveResult, StreamProxySettings, StreamProxySaveResult, NginxApplyResult, CertificateIssueRequest, CertificateUploadRequest, CertificateUploadResult, CertificateRemoveRequest, StackInfo, StackDetails, StackRevisionRef, StackRevisionFiles, CreateStackRequest, AcknowledgeStackRisksRequest, StackRevisionInfo, StackActionRequest, ReviseStackRequest, StackEnvEntry, StackDeployRequest, RegistryCredentialInfo, SaveRegistryCredentialRequest, SiteSnippets, OriginLockStatus, OriginLockRequest, OriginLockPreview, OriginLockResult, OriginCertificateRequestInfo, OriginCertificateInstall, DnsCredentialInfo, DnsCredentialRequest, DnsCredentialSaveResult } from '../AgentMate.ServerCore.Contracts';
 
 /**
 * Everything the app can ask the core over the WebSocket. The desktop's typed client is
@@ -591,6 +591,57 @@ export type ICoreHub = {
     * @returns Transpiled from System.Threading.Tasks.Task<AgentMate.ServerCore.Contracts.SiteSaveResult>
     */
     setSiteSnippets(snippets: SiteSnippets): Promise<SiteSaveResult>;
+    /**
+    * The origin lock and how the firewall compares with Cloudflare's ranges.
+    * @returns Transpiled from System.Threading.Tasks.Task<AgentMate.ServerCore.Contracts.OriginLockStatus>
+    */
+    getOriginLock(): Promise<OriginLockStatus>;
+    /**
+    * What turning the lock on or off would change, with the firewall's own preview. Changes nothing.
+    * @param request Transpiled from AgentMate.ServerCore.Contracts.OriginLockRequest
+    * @returns Transpiled from System.Threading.Tasks.Task<AgentMate.ServerCore.Contracts.OriginLockPreview>
+    */
+    previewOriginLock(request: OriginLockRequest): Promise<OriginLockPreview>;
+    /**
+    * Turns the lock on or off: the firewall change waits for its confirmation like any other
+    * (ConfirmFirewallChanges), and nginx takes the real visitor address and the client check at once.
+    * @param request Transpiled from AgentMate.ServerCore.Contracts.OriginLockRequest
+    * @returns Transpiled from System.Threading.Tasks.Task<AgentMate.ServerCore.Contracts.OriginLockResult>
+    */
+    applyOriginLock(request: OriginLockRequest): Promise<OriginLockResult>;
+    /**
+    * Fetches Cloudflare's ranges now (the core also does daily) and brings a lock that is on up to date.
+    * @returns Transpiled from System.Threading.Tasks.Task<AgentMate.ServerCore.Contracts.OriginLockStatus>
+    */
+    refreshCloudflareRanges(): Promise<OriginLockStatus>;
+    /**
+    * Makes a key on this server for a site and returns the signing request for Cloudflare's Origin CA.
+    * @param siteId Transpiled from string
+    * @returns Transpiled from System.Threading.Tasks.Task<AgentMate.ServerCore.Contracts.OriginCertificateRequestInfo>
+    */
+    createOriginCertificateRequest(siteId: string): Promise<OriginCertificateRequestInfo>;
+    /**
+    * Checks the signed certificate against the key made for it, stores it and applies.
+    * @param request Transpiled from AgentMate.ServerCore.Contracts.OriginCertificateInstall
+    * @returns Transpiled from System.Threading.Tasks.Task<AgentMate.ServerCore.Contracts.CertificateUploadResult>
+    */
+    installOriginCertificate(request: OriginCertificateInstall): Promise<CertificateUploadResult>;
+    /**
+    * The zones this server holds a DNS token for. The tokens never come back.
+    * @returns Transpiled from System.Threading.Tasks.Task<AgentMate.ServerCore.Contracts.DnsCredentialInfo[]>
+    */
+    listDnsCredentials(): Promise<DnsCredentialInfo[]>;
+    /**
+    * Checks the token with Cloudflare and stores it sealed, replacing the zone's earlier one.
+    * @param request Transpiled from AgentMate.ServerCore.Contracts.DnsCredentialRequest
+    * @returns Transpiled from System.Threading.Tasks.Task<AgentMate.ServerCore.Contracts.DnsCredentialSaveResult>
+    */
+    saveDnsCredential(request: DnsCredentialRequest): Promise<DnsCredentialSaveResult>;
+    /**
+    * @param zone Transpiled from string
+    * @returns Transpiled from System.Threading.Tasks.Task
+    */
+    removeDnsCredential(zone: string): Promise<void>;
 }
 
 /**
