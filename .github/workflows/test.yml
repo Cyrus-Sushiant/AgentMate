@@ -145,7 +145,7 @@ jobs:
     name: Server core on test servers
     if: ${{ inputs.e2e }}
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
     env:
       DOTNET_NOLOGO: "1"
       DOTNET_CLI_TELEMETRY_OPTOUT: "1"
@@ -206,6 +206,13 @@ jobs:
         env:
           AGENTMATE_SYSTEM_TESTS: "1"
         run: pnpm --filter @agentmat/desktop exec vitest run src/main/deploy/firewall.int.test.ts
+
+      # A private registry:2 with htpasswd on the test server: a deploy pulls with a per-deploy
+      # token, and after a success and a failure the whole filesystem holds no trace of it (E08).
+      - name: Private registries on test servers
+        env:
+          AGENTMATE_SYSTEM_TESTS: "1"
+        run: pnpm --filter @agentmat/desktop exec vitest run src/main/deploy/registries.int.test.ts
 
   mobile:
     name: Mobile

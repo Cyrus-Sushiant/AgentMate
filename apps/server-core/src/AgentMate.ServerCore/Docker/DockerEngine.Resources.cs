@@ -1,5 +1,6 @@
 using System.Threading.Channels;
 using AgentMate.ServerCore.Contracts;
+using AgentMate.ServerCore.Registries;
 using Docker.DotNet;
 using Docker.DotNet.Models;
 using VolumeInfo = AgentMate.ServerCore.Contracts.VolumeInfo;
@@ -28,7 +29,7 @@ internal sealed partial class DockerEngine
             },
             cancellationToken);
 
-    public Task PullImageAsync(ImageReference image, Action<PullProgress> progress, CancellationToken cancellationToken)
+    public Task PullImageAsync(ImageReference image, Action<PullProgress> progress, CancellationToken cancellationToken, RegistryLogin? login = null)
     {
         ArgumentNullException.ThrowIfNull(image);
         ArgumentNullException.ThrowIfNull(progress);
@@ -41,7 +42,9 @@ internal sealed partial class DockerEngine
                 string? failure = null;
                 await client.Images.CreateImageAsync(
                     parameters,
-                    authConfig: null,
+                    login is null
+                        ? null
+                        : new AuthConfig { Username = login.Username, Password = login.Secret, ServerAddress = RegistryNames.ConfigKey(login.Registry) },
                     new Reporter<JSONMessage>(message =>
                     {
                         failure ??= message.Error?.Message;

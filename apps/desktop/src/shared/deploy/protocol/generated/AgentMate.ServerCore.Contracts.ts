@@ -738,6 +738,8 @@ export type ImageInfo = {
 export type ImagePullRequest = {
     /** Transpiled from string */
     reference: string;
+    /** Transpiled from AgentMate.ServerCore.Contracts.RegistryAuth? */
+    auth?: RegistryAuth;
 }
 
 /** Transpiled from AgentMate.ServerCore.Contracts.ImageRemoveRequest */
@@ -1242,6 +1244,54 @@ export type JobPage = {
     jobs: JobInfo[];
     /** Transpiled from long */
     nextBeforeCreatedAtUnixMs?: number;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.RegistryAuth */
+export type RegistryAuth = {
+    /** Transpiled from string */
+    registry: string;
+    /** Transpiled from string */
+    username: string;
+    /** Transpiled from string */
+    secret: string;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.StackDeployRequest */
+export type StackDeployRequest = {
+    /** Transpiled from System.Guid */
+    stackId: string;
+    /** Transpiled from int */
+    revision: number;
+    /** Transpiled from AgentMate.ServerCore.Contracts.RegistryAuth[]? */
+    registries?: RegistryAuth[];
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.RegistryCredentialInfo */
+export type RegistryCredentialInfo = {
+    /** Transpiled from System.Guid */
+    id: string;
+    /** Transpiled from string */
+    registry: string;
+    /** Transpiled from string */
+    username: string;
+    /** Transpiled from long */
+    createdAtUnixMs: number;
+    /** Transpiled from long */
+    updatedAtUnixMs: number;
+    /** Transpiled from string? */
+    createdBy?: string;
+    /** Transpiled from long */
+    lastUsedAtUnixMs?: number;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.SaveRegistryCredentialRequest */
+export type SaveRegistryCredentialRequest = {
+    /** Transpiled from string */
+    registry: string;
+    /** Transpiled from string */
+    username: string;
+    /** Transpiled from string */
+    secret: string;
 }
 
 /** Transpiled from AgentMate.ServerCore.Contracts.StackStatus */

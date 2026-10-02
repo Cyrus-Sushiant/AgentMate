@@ -329,6 +329,14 @@ export class FakeCoreConnection implements ICoreHub {
   deleteStack = () => this.unused('DeleteStack');
   deleteStackWithVolumes = () => this.unused('DeleteStackWithVolumes');
 
+  // Private registries (E08): the desktop's tests use their own hub doubles for these.
+
+  deployStackWithRegistries = () => this.unused('DeployStackWithRegistries');
+  rollbackStackWithRegistries = () => this.unused('RollbackStackWithRegistries');
+  listRegistryCredentials = () => this.unused('ListRegistryCredentials');
+  saveRegistryCredential = () => this.unused('SaveRegistryCredential');
+  deleteRegistryCredential = () => this.unused('DeleteRegistryCredential');
+
   // Reading the server.
 
   getSystemInfo = async () => this.answer({ ...this.core.system });

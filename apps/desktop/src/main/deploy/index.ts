@@ -2,6 +2,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { app, dialog, type IpcMainInvokeEvent, ipcMain } from 'electron';
+import { registryOfImage } from '../../shared/deploy/registries';
 import { IPC } from '../../shared/ipcChannels';
 import { indexProjectFiles } from '../explorer/fileIndex';
 import { registerDeployHandlers } from '../ipc/deploy';
@@ -39,6 +40,8 @@ import { DeployFirewall } from './firewall';
 import { DockerLinks } from './live/dockerLinks';
 import { DockerSubscriptions } from './live/dockerSubscriptions';
 import { DeploySubscriptions } from './live/subscriptions';
+import { createDeployRegistries, registerDeployRegistryIpc } from './registry';
+import type { DeployRegistries } from './registry/service';
 import { DeploySecurity } from './security';
 import { DeployService } from './service';
 import { DeploySites } from './sites/deploySites';
@@ -193,6 +196,8 @@ export function registerDeployIpc(): void {
     guard,
   });
 
+  // Private registries (E08): this computer's sign-ins go with each deploy that pulls from them.
+  const registries = createDeployRegistries();
   const stacks = new DeployStacks({
     links: service.links,
     roles: (id) => service.roles(id),
@@ -208,8 +213,15 @@ export function registerDeployIpc(): void {
     },
     pack: buildContextTarball,
     progress: (event) => sendToWindow(getMainWindow(), IPC.deployStacks.onUploadProgress, event),
+    registryAuths: (serverId, stackId, hosts) => registries.authsFor(serverId, stackId, hosts),
   });
   registerDeployStacksHandlers({ ipc: ipcMain, stacks, guard });
+  registerDeployRegistryIpc({
+    registries,
+    core: { links: service.links, roles: (id) => service.roles(id) },
+    stacks,
+    guard,
+  });
   // The App Store (E12) installs and updates through the same stacks.
   registerDeployAppStoreHandlers({ ipc: ipcMain, store: new DeployAppStore({ stacks }), guard });
 
@@ -250,7 +262,7 @@ export function registerDeployIpc(): void {
     pool.closeAll();
   });
   registerDeploySecurityIpc(service, guard);
-  registerDeployDockerIpc(service, guard);
+  registerDeployDockerIpc(service, guard, registries);
   registerCloudflareIpc();
 }
 
@@ -289,13 +301,20 @@ function registerDeploySecurityIpc(
 function registerDeployDockerIpc(
   service: DeployService,
   guard: (event: IpcMainInvokeEvent) => boolean,
+  registries: DeployRegistries,
 ): void {
   const links = new DockerLinks(service.links);
   const subscriptions = new DockerSubscriptions({ links });
   const ownerOf = subscriptionOwners((ownerId) => subscriptions.dropOwner(ownerId));
   registerDeployDockerHandlers({
     ipc: ipcMain,
-    docker: new DeployDocker({ links: service.links, roles: (id) => service.roles(id) }),
+    docker: new DeployDocker({
+      links: service.links,
+      roles: (id) => service.roles(id),
+      // An image pull on the Containers screen signs in with this computer's sign-in too (E08).
+      registryAuth: async (reference) =>
+        (await registries.authsForRegistries([registryOfImage(reference)]))[0] ?? null,
+    }),
     subscriptions,
     guard,
     owner: (event) => ownerOf(event.sender),

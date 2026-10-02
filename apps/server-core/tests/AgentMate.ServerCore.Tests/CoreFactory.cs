@@ -27,6 +27,9 @@ public sealed class CoreFactory : WebApplicationFactory<Program>
         ArgumentNullException.ThrowIfNull(builder);
         builder.UseEnvironment("Testing");
         builder.UseSetting("Core:DataDirectory", _dataDirectory);
+        // Registry sign-ins (E08) go to a plain folder here: test machines have no tmpfs to spare.
+        builder.UseSetting("Core:RuntimeDirectory", Path.Combine(_dataDirectory, "run"));
+        builder.UseSetting("Core:RegistryAuthOnDisk", "allow");
         builder.ConfigureServices(services =>
         {
             services.AddSingleton<MutationLog>();

@@ -47,6 +47,9 @@ internal sealed class CoreDbContext(DbContextOptions<CoreDbContext> options)
 
     public DbSet<StackRevisionRecord> StackRevisions => Set<StackRevisionRecord>();
 
+    // Private registries (E08).
+    public DbSet<RegistryCredentialRecord> RegistryCredentials => Set<RegistryCredentialRecord>();
+
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
@@ -135,6 +138,7 @@ internal sealed class CoreDbContext(DbContextOptions<CoreDbContext> options)
 
         WebModel.Configure(builder);
         StackModel.Configure(builder);
+        RegistryModel.Configure(builder);
     }
 }
 

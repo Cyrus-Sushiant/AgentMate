@@ -5,6 +5,7 @@ using AgentMate.ServerCore.Data;
 using AgentMate.ServerCore.Docker;
 using AgentMate.ServerCore.Execution;
 using AgentMate.ServerCore.Jobs;
+using AgentMate.ServerCore.Registries;
 using Microsoft.EntityFrameworkCore;
 
 namespace AgentMate.ServerCore.Stacks;
@@ -32,9 +33,34 @@ internal sealed partial class StackOperations
 
     private static readonly StackStepKind[] _steps = [StackStepKind.Validate, StackStepKind.Pull, StackStepKind.Build, StackStepKind.Up, StackStepKind.Health];
 
-    public async Task<JobInfo> DeployAsync(Guid stackId, int number, StackCaller caller, CancellationToken cancellationToken)
+    public Task<JobInfo> DeployAsync(Guid stackId, int number, StackCaller caller, CancellationToken cancellationToken) =>
+        DeployAsync(stackId, number, [], caller, cancellationToken);
+
+    /// <summary>
+    /// A deploy that signs in to the registries the app sent sign-ins for (E08). They stay in this
+    /// job's memory until its pull, build and up steps, which read them from a tmpfs DOCKER_CONFIG
+    /// that is wiped when the job ends; the audit trail gets only the registry hosts.
+    /// </summary>
+    public async Task<JobInfo> DeployAsync(Guid stackId, int number, RegistryAuth[]? auths, StackCaller caller, CancellationToken cancellationToken)
     {
         var stack = await StackAsync(stackId, cancellationToken);
+        List<RegistryLogin> logins;
+        try
+        {
+            logins = RegistryCredentials.CheckRequest(auths);
+        }
+        catch (RegistryRefusedException refused)
+        {
+            await AuditAsync("stack.deploy", AuditResult.Denied, caller, stack.Name, new(Revision(number)) { ["registryAuth"] = "invalid" }, cancellationToken);
+            throw new StackRefusedException(refused.Message);
+        }
+
+        return await DeployCheckedAsync(stack, number, logins, caller, cancellationToken);
+    }
+
+    private async Task<JobInfo> DeployCheckedAsync(StackRecord stack, int number, List<RegistryLogin> logins, StackCaller caller, CancellationToken cancellationToken)
+    {
+        var stackId = stack.Id;
         var row = await RevisionAsync(stackId, number, cancellationToken);
         if (row.State is not (nameof(StackRevisionState.Ready) or nameof(StackRevisionState.Failed) or nameof(StackRevisionState.Superseded) or nameof(StackRevisionState.Live)))
         {
@@ -66,9 +92,15 @@ internal sealed partial class StackOperations
                     stack.Name,
                     caller.UserId,
                     caller.UserName),
-                (context, token) => RunDeployAsync(stack, row, context, token),
+                (context, token) => RunDeployAsync(stack, row, logins, context, token),
                 cancellationToken);
-            await AuditAsync("stack.deploy", AuditResult.Success, caller, stack.Name, new(Revision(number)) { ["job"] = job.Id.ToString("D") }, cancellationToken);
+            var parameters = new Dictionary<string, string?>(Revision(number)) { ["job"] = job.Id.ToString("D") };
+            if (logins.Count > 0)
+            {
+                parameters["registries"] = string.Join(' ', logins.Select(l => l.Registry));
+            }
+
+            await AuditAsync("stack.deploy", AuditResult.Success, caller, stack.Name, parameters, cancellationToken);
             return job;
         }
         catch (JobConflictException conflict)
@@ -79,9 +111,23 @@ internal sealed partial class StackOperations
         }
     }
 
-    public async Task<JobInfo> RollbackAsync(Guid stackId, int number, StackCaller caller, CancellationToken cancellationToken)
+    public Task<JobInfo> RollbackAsync(Guid stackId, int number, StackCaller caller, CancellationToken cancellationToken) =>
+        RollbackAsync(stackId, number, [], caller, cancellationToken);
+
+    public async Task<JobInfo> RollbackAsync(Guid stackId, int number, RegistryAuth[]? auths, StackCaller caller, CancellationToken cancellationToken)
     {
         var stack = await StackAsync(stackId, cancellationToken);
+        List<RegistryLogin> logins;
+        try
+        {
+            logins = RegistryCredentials.CheckRequest(auths);
+        }
+        catch (RegistryRefusedException refused)
+        {
+            await AuditAsync("stack.rollback", AuditResult.Denied, caller, stack.Name, new(Revision(number)) { ["registryAuth"] = "invalid" }, cancellationToken);
+            throw new StackRefusedException(refused.Message);
+        }
+
         var source = await RevisionAsync(stackId, number, cancellationToken);
         if (source.DeployedAt is null || source.State is nameof(StackRevisionState.Deploying) or nameof(StackRevisionState.Invalid) or nameof(StackRevisionState.AwaitingContext))
         {
@@ -141,7 +187,7 @@ internal sealed partial class StackOperations
         }
 
         await AuditAsync("stack.rollback", AuditResult.Success, caller, stack.Name, new(Revision(number)) { ["copy"] = copy.ToString(CultureInfo.InvariantCulture) }, cancellationToken);
-        return await DeployAsync(stackId, copy, caller, cancellationToken);
+        return await DeployCheckedAsync(await StackAsync(stackId, cancellationToken), copy, logins, caller, cancellationToken);
     }
 
     public async Task<JobInfo> RunActionAsync(Guid stackId, StackAction action, StackCaller caller, CancellationToken cancellationToken)
@@ -245,10 +291,12 @@ internal sealed partial class StackOperations
         }
     }
 
-    private async Task RunDeployAsync(StackRecord stack, StackRevisionRecord row, JobContext job, CancellationToken token)
+    private async Task RunDeployAsync(StackRecord stack, StackRevisionRecord row, IReadOnlyList<RegistryLogin> requested, JobContext job, CancellationToken token)
     {
         var folder = RevisionFolder(stack.Id, row.Number);
         job.Seed(await EnvValuesAsync(folder, token));
+        job.Seed(RegistrySecrets(requested));
+        using var signIns = new DeploySignIns(requested);
         var steps = Pending(row.Builds).ToList();
         await using (var db = await contexts.CreateDbContextAsync(CancellationToken.None))
         {
@@ -274,7 +322,7 @@ internal sealed partial class StackOperations
                 steps[current] = steps[current] with { State = StackStepState.Running, StartedAtUnixMs = Now, FirstLogSeq = job.LogLines + 1 };
                 await SaveStepsAsync(stack.Id, row.Number, steps);
                 job.Log($"Step: {Describe(kind)}.");
-                var detail = await RunStepAsync(kind, stack, folder, project, proxied, acknowledged, job, token);
+                var detail = await RunStepAsync(kind, stack, folder, project, proxied, acknowledged, signIns, job, token);
                 steps[current] = steps[current] with { State = StackStepState.Succeeded, FinishedAtUnixMs = Now, LastLogSeq = job.LogLines, Detail = detail };
                 await SaveStepsAsync(stack.Id, row.Number, steps);
             }
@@ -327,6 +375,7 @@ internal sealed partial class StackOperations
         ComposeProject project,
         string[] proxied,
         string[] acknowledged,
+        DeploySignIns signIns,
         JobContext job,
         CancellationToken token)
     {
@@ -345,12 +394,13 @@ internal sealed partial class StackOperations
                     job.Log($"{binding.Service} publishes {binding.Target}/{binding.Protocol} on {binding.HostIp ?? "every interface"}{(binding.Published is null ? string.Empty : $" port {binding.Published}")}.");
                 }
 
+                await SignInAsync(signIns, checkedConfig, job, token);
                 return $"{checkedConfig.Services.Length} services";
             case StackStepKind.Pull:
-                await ComposeStepAsync(job, project, ["pull", "--ignore-buildable"], PullTimeout, "stackpull", token);
+                await ComposeStepAsync(job, project, ["pull", "--ignore-buildable"], PullTimeout, "stackpull", token, signIns.Environment);
                 return null;
             case StackStepKind.Build:
-                await ComposeStepAsync(job, project, ["build"], BuildTimeout, "stackbuild", token);
+                await ComposeStepAsync(job, project, ["build"], BuildTimeout, "stackbuild", token, signIns.Environment);
                 return null;
             case StackStepKind.Up:
                 await ComposeStepAsync(
@@ -359,7 +409,8 @@ internal sealed partial class StackOperations
                     ["up", "--detach", "--wait", "--wait-timeout", "300", "--remove-orphans"],
                     UpTimeout,
                     "stackup",
-                    token);
+                    token,
+                    signIns.Environment);
                 return null;
             default:
                 return await HealthAsync(stack.Name, job, token);
@@ -406,12 +457,19 @@ internal sealed partial class StackOperations
         }
     }
 
-    private async Task ComposeStepAsync(JobContext job, ComposeProject project, string[] arguments, TimeSpan timeout, string unit, CancellationToken token)
+    private async Task ComposeStepAsync(
+        JobContext job,
+        ComposeProject project,
+        string[] arguments,
+        TimeSpan timeout,
+        string unit,
+        CancellationToken token,
+        IReadOnlyDictionary<string, string>? environment = null)
     {
         ProcessResult result;
         try
         {
-            result = await compose.RunAsync(project, arguments, new ComposeRunOptions(timeout, job.UnitFor(unit)), job.Output, token);
+            result = await compose.RunAsync(project, arguments, new ComposeRunOptions(timeout, job.UnitFor(unit), Environment: environment), job.Output, token);
         }
         catch (ProcessStartException)
         {

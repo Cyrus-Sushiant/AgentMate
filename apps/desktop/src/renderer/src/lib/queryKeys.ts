@@ -210,6 +210,14 @@ export const queryKeys = {
   deployComposeFiles: (projectId: string) => ['deploy', 'compose-files', projectId] as const,
   /** The wizard's look at a compose file with an environment and its exposure choices. */
   deployAppPreview: (input: object) => ['deploy', 'app-preview', input] as const,
+  /** Private registries (E08): everything below is dropped at once after a change. */
+  deployRegistries: ['deploy', 'registries'] as const,
+  /** The registry sign-ins kept on this computer (never their secrets). */
+  deployRegistryLocal: ['deploy', 'registries', 'local'] as const,
+  /** The credentials a server stores, write-only. */
+  deployRegistryServer: (serverId: string) => ['deploy', 'registries', 'server', serverId] as const,
+  /** Which sign-in goes with an app's deploys, per registry it pulls from. */
+  deployRegistryPlan: (input: object) => ['deploy', 'registries', 'plan', input] as const,
   /** Whether a Cloudflare token is saved, and what its last check found. */
   cloudflareStatus: ['cloudflare', 'status'] as const,
   /** Prefix of everything read with the Cloudflare token, dropped when the token changes. */

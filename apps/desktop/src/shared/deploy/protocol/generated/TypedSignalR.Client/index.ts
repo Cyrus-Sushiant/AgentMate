@@ -4,7 +4,7 @@
 // @ts-nocheck
 import type { HubConnection, IStreamResult, Subject } from '@microsoft/signalr';
 import type { ICoreHub, ICoreHubReceiver } from './AgentMate.ServerCore.Contracts';
-import type { PingResponse, AccountInfo, StepUpRequest, StepUpResponse, DeviceInfo, SessionInfo, TotpSetup, RecoveryCodes, CreateEnrollmentCodeRequest, EnrollmentCodeInfo, UserInfo, CreateUserRequest, ResetUserPasswordRequest, AuditQuery, AuditPage, AuditVerificationInfo, SystemInfo, ServiceInfo, MetricsHistoryRequest, MetricsHistory, MetricsStreamRequest, MetricsSample, UpdatesInfo, JobQuery, JobPage, JobInfo, JobStreamItem, AlertQuery, AlertInfo, AlertStreamRequest, ManagedService, FirewallStatus, FirewallPreset, FirewallChangeSetQuery, FirewallChangeSetInfo, ExposureInventory, FirewallChangeRequest, FirewallChangePreview, DockerStatus, ContainerList, ContainerDetails, ContainerStatsRequest, ContainerStatsBatch, ContainerLogsRequest, ContainerLogBatch, ImageInfo, VolumeInfo, NetworkInfo, DockerDiskUsage, DockerEventsRequest, DockerEvent, ContainerSummary, ContainerRemoveRequest, ImagePullRequest, ImageRemoveRequest, ContainerEnvVariable, ConsoleRequest, ConsoleInput, ConsoleOutput, DockerPruneRequest, DockerPruneResult, DockerInstallRequest, NginxStatus, SiteInfo, StreamProxyInfo, CertificateInfo, SiteLogRequest, SiteLogBatch, SiteSettings, SiteSaveResult, StreamProxySettings, StreamProxySaveResult, NginxApplyResult, CertificateIssueRequest, CertificateUploadRequest, CertificateUploadResult, CertificateRemoveRequest, StackInfo, StackDetails, StackRevisionRef, StackRevisionFiles, CreateStackRequest, AcknowledgeStackRisksRequest, StackRevisionInfo, StackActionRequest, ReviseStackRequest, StackEnvEntry, SiteSnippets } from '../AgentMate.ServerCore.Contracts';
+import type { PingResponse, AccountInfo, StepUpRequest, StepUpResponse, DeviceInfo, SessionInfo, TotpSetup, RecoveryCodes, CreateEnrollmentCodeRequest, EnrollmentCodeInfo, UserInfo, CreateUserRequest, ResetUserPasswordRequest, AuditQuery, AuditPage, AuditVerificationInfo, SystemInfo, ServiceInfo, MetricsHistoryRequest, MetricsHistory, MetricsStreamRequest, MetricsSample, UpdatesInfo, JobQuery, JobPage, JobInfo, JobStreamItem, AlertQuery, AlertInfo, AlertStreamRequest, ManagedService, FirewallStatus, FirewallPreset, FirewallChangeSetQuery, FirewallChangeSetInfo, ExposureInventory, FirewallChangeRequest, FirewallChangePreview, DockerStatus, ContainerList, ContainerDetails, ContainerStatsRequest, ContainerStatsBatch, ContainerLogsRequest, ContainerLogBatch, ImageInfo, VolumeInfo, NetworkInfo, DockerDiskUsage, DockerEventsRequest, DockerEvent, ContainerSummary, ContainerRemoveRequest, ImagePullRequest, ImageRemoveRequest, ContainerEnvVariable, ConsoleRequest, ConsoleInput, ConsoleOutput, DockerPruneRequest, DockerPruneResult, DockerInstallRequest, NginxStatus, SiteInfo, StreamProxyInfo, CertificateInfo, SiteLogRequest, SiteLogBatch, SiteSettings, SiteSaveResult, StreamProxySettings, StreamProxySaveResult, NginxApplyResult, CertificateIssueRequest, CertificateUploadRequest, CertificateUploadResult, CertificateRemoveRequest, StackInfo, StackDetails, StackRevisionRef, StackRevisionFiles, CreateStackRequest, AcknowledgeStackRisksRequest, StackRevisionInfo, StackActionRequest, ReviseStackRequest, StackEnvEntry, StackDeployRequest, RegistryCredentialInfo, SaveRegistryCredentialRequest, SiteSnippets } from '../AgentMate.ServerCore.Contracts';
 
 
 // components
@@ -478,6 +478,26 @@ class ICoreHub_HubProxy implements ICoreHub {
 
     public readonly deleteStackWithVolumes = async (stackId: string): Promise<JobInfo> => {
         return await this.connection.invoke("DeleteStackWithVolumes", stackId);
+    }
+
+    public readonly deployStackWithRegistries = async (request: StackDeployRequest): Promise<JobInfo> => {
+        return await this.connection.invoke("DeployStackWithRegistries", request);
+    }
+
+    public readonly rollbackStackWithRegistries = async (request: StackDeployRequest): Promise<JobInfo> => {
+        return await this.connection.invoke("RollbackStackWithRegistries", request);
+    }
+
+    public readonly listRegistryCredentials = async (): Promise<RegistryCredentialInfo[]> => {
+        return await this.connection.invoke("ListRegistryCredentials");
+    }
+
+    public readonly saveRegistryCredential = async (request: SaveRegistryCredentialRequest): Promise<RegistryCredentialInfo> => {
+        return await this.connection.invoke("SaveRegistryCredential", request);
+    }
+
+    public readonly deleteRegistryCredential = async (credentialId: string): Promise<void> => {
+        return await this.connection.invoke("DeleteRegistryCredential", credentialId);
     }
 
     public readonly setSiteSnippets = async (snippets: SiteSnippets): Promise<SiteSaveResult> => {

@@ -6,6 +6,7 @@ import { validateStackName } from '@agentmat/core';
 import { encodeCoreError } from '../../../shared/coreErrors';
 import type {
   JobInfo,
+  RegistryAuth,
   ReviseStackRequest,
   StackAction,
   StackDetails,
@@ -33,6 +34,7 @@ import type {
 import { type CoreHttpClient, CoreHttpError } from '../connection/coreHttp';
 import { ADMIN_ROLES, callCore } from '../coreCalls';
 import type { CoreLinks } from '../live/coreLinks';
+import { registriesOfCompose } from '../registry/images';
 import { explainCoreRefusal } from '../system';
 import type { BuildContextOptions, BuildContextResult } from './buildContext';
 import {
@@ -70,6 +72,15 @@ export interface DeployStacksDeps {
   progress?: (event: DeployStackUploadProgress) => void;
   /** Where packed contexts wait for their upload. */
   tempRoot?: () => string;
+  /**
+   * The registry sign-ins a deploy of this app sends for these registries (E08). They go with
+   * the deploy request only; the core keeps them in memory and a tmpfs DOCKER_CONFIG for the job.
+   */
+  registryAuths?: (
+    serverId: string,
+    stackId: string,
+    registries: string[],
+  ) => Promise<RegistryAuth[]>;
 }
 
 function unique(values: readonly string[]): string[] {
@@ -133,12 +144,40 @@ export class DeployStacks {
     );
   }
 
-  deploy(serverId: string, stackId: string, revision: number): Promise<JobInfo> {
-    return this.run(serverId, (hub) => hub.deployStack({ stackId, revision }));
+  /** A deploy, with this computer's sign-ins for the registries the revision pulls from. */
+  async deploy(serverId: string, stackId: string, revision: number): Promise<JobInfo> {
+    const registries = await this.signInsFor(serverId, stackId, revision);
+    return this.run(serverId, (hub) =>
+      registries.length > 0
+        ? hub.deployStackWithRegistries({ stackId, revision, registries })
+        : hub.deployStack({ stackId, revision }),
+    );
   }
 
-  rollback(serverId: string, stackId: string, revision: number): Promise<JobInfo> {
-    return this.run(serverId, (hub) => hub.rollbackStack({ stackId, revision }));
+  async rollback(serverId: string, stackId: string, revision: number): Promise<JobInfo> {
+    const registries = await this.signInsFor(serverId, stackId, revision);
+    return this.run(serverId, (hub) =>
+      registries.length > 0
+        ? hub.rollbackStackWithRegistries({ stackId, revision, registries })
+        : hub.rollbackStack({ stackId, revision }),
+    );
+  }
+
+  /** The registries a revision pulls from, read from its compose file on the server. */
+  async registriesOf(serverId: string, stackId: string, revision: number): Promise<string[]> {
+    const files = await this.files(serverId, stackId, revision);
+    return registriesOfCompose(files.compose);
+  }
+
+  /**
+   * Without sign-ins the old hub methods are used, so a server whose core predates E08 still
+   * deploys public images.
+   */
+  private async signInsFor(serverId: string, stackId: string, revision: number) {
+    if (!this.deps.registryAuths) return [];
+    const registries = await this.registriesOf(serverId, stackId, revision);
+    if (registries.length === 0) return [];
+    return this.deps.registryAuths(serverId, stackId, registries);
   }
 
   action(serverId: string, stackId: string, action: StackAction): Promise<JobInfo> {

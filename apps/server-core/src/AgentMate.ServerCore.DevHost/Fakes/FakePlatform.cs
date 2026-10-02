@@ -33,7 +33,13 @@ internal static class FakePlatform
         services.AddSingleton<IExposureSource, FakeExposure>();
 
         // Docker: two compose projects with moving stats, growing logs and consoles (E06).
-        services.AddSingleton(provider => new InMemoryDockerEngine(provider.GetRequiredService<TimeProvider>()));
+        services.AddSingleton(provider =>
+        {
+            var engine = new InMemoryDockerEngine(provider.GetRequiredService<TimeProvider>());
+            // A private registry (E08) whose images only pull with this sign-in.
+            engine.PrivateRegistries[DevHost.DevRegistry] = (DevHost.DevRegistryUser, DevHost.DevRegistryToken);
+            return engine;
+        });
         services.AddSingleton<IDockerEngine>(provider => provider.GetRequiredService<InMemoryDockerEngine>());
         services.AddSingleton<IDockerSetup, FakeDockerSetup>();
 

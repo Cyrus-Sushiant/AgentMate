@@ -808,6 +808,28 @@ export const IPC = {
     revealSecrets: 'deployAppStore:revealSecrets',
   },
   /**
+   * Private registries (E08): sign-ins kept on this computer (GitHub packages token, the gh
+   * sign-in behind a warning, Docker Hub, custom registries), each app's choice to send them with
+   * its deploys, and the write-only credentials stored on a server. No channel returns a secret.
+   */
+  deployRegistry: {
+    list: 'deployRegistry:list',
+    /** (token) -> DeployGithubTokenCheck: what GitHub says the token can do. Nothing is saved. */
+    checkGithubToken: 'deployRegistry:checkGithubToken',
+    saveGithubToken: 'deployRegistry:saveGithubToken',
+    githubCliStatus: 'deployRegistry:githubCliStatus',
+    saveGithubCli: 'deployRegistry:saveGithubCli',
+    saveCredential: 'deployRegistry:saveCredential',
+    remove: 'deployRegistry:remove',
+    /** (DeployAppRegistryChoice) -> void */
+    setAppChoice: 'deployRegistry:setAppChoice',
+    /** ({ serverId, stackId?, revision?, images? }) -> DeployRegistryPlan */
+    plan: 'deployRegistry:plan',
+    serverList: 'deployRegistry:serverList',
+    serverSave: 'deployRegistry:serverSave',
+    serverRemove: 'deployRegistry:serverRemove',
+  },
+  /**
    * A server core's Security area: users and roles (Owner), devices and sessions, enrollment
    * codes (made by an Owner, redeemed on another computer) and the audit trail.
    */

@@ -321,6 +321,25 @@ public interface ICoreHub
     /// <summary>As DeleteStack, with docker compose down --volumes: the app's data goes too. Admin.</summary>
     Task<JobInfo> DeleteStackWithVolumes(Guid stackId);
 
+    // Private registries (E08). The sign-ins a deploy carries live in a tmpfs DOCKER_CONFIG for
+    // that job only. Stored credentials are write-only; saving or removing one is for Admins with
+    // a recent step-up.
+
+    /// <summary>As DeployStack, signing in to the registries the request names (stored credentials fill the rest).</summary>
+    Task<JobInfo> DeployStackWithRegistries(StackDeployRequest request);
+
+    /// <summary>As RollbackStack, with the request's registry sign-ins.</summary>
+    Task<JobInfo> RollbackStackWithRegistries(StackDeployRequest request);
+
+    /// <summary>The credentials stored on this server, without their secrets. Operator.</summary>
+    Task<RegistryCredentialInfo[]> ListRegistryCredentials();
+
+    /// <summary>Stores or replaces the credential for a registry. Admin and a step-up.</summary>
+    Task<RegistryCredentialInfo> SaveRegistryCredential(SaveRegistryCredentialRequest request);
+
+    /// <summary>Admin and a step-up.</summary>
+    Task DeleteRegistryCredential(Guid credentialId);
+
     // Owner.
 
     /// <summary>A site's custom snippets, checked against the directive allowlist.</summary>

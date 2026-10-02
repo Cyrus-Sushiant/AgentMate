@@ -45,6 +45,9 @@ internal static class CoreApplication
         builder.Configuration.AddCommandLine(args);
         // Every SQL statement at Information level would bury the journal; problems still show.
         builder.Logging.AddFilter("Microsoft.EntityFrameworkCore.Database.Command", LogLevel.Warning);
+        // SignalR's debug log prints each invocation's arguments, and a deploy's carry registry
+        // sign-ins (E08). Their ToString hides the secret too; this keeps the journal out of it.
+        builder.Logging.AddFilter("Microsoft.AspNetCore.SignalR", LogLevel.Information);
 
         var listen = CoreListenOptions.From(builder.Configuration, OperatingSystem.IsLinux());
         builder.WebHost.ConfigureKestrel(kestrel => ConfigureKestrel(kestrel, listen));

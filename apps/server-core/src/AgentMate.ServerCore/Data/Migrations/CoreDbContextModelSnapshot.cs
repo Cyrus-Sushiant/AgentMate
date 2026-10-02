@@ -613,6 +613,47 @@ namespace AgentMate.ServerCore.Data.Migrations
                     b.ToTable("NginxReleases");
                 });
 
+            modelBuilder.Entity("AgentMate.ServerCore.Data.RegistryCredentialRecord", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("CreatedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("TEXT");
+
+                    b.Property<long?>("LastUsedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Registry")
+                        .IsRequired()
+                        .HasMaxLength(260)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("SealedSecret")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("UpdatedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Username")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Registry")
+                        .IsUnique();
+
+                    b.ToTable("RegistryCredentials");
+                });
+
             modelBuilder.Entity("AgentMate.ServerCore.Data.Site", b =>
                 {
                     b.Property<string>("Id")

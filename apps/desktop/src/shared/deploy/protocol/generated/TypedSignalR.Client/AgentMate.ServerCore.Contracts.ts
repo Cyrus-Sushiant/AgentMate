@@ -3,7 +3,7 @@
 /* tslint:disable */
 // @ts-nocheck
 import type { IStreamResult, Subject } from '@microsoft/signalr';
-import type { PingResponse, AccountInfo, StepUpRequest, StepUpResponse, DeviceInfo, SessionInfo, TotpSetup, RecoveryCodes, CreateEnrollmentCodeRequest, EnrollmentCodeInfo, UserInfo, CreateUserRequest, ResetUserPasswordRequest, AuditQuery, AuditPage, AuditVerificationInfo, SystemInfo, ServiceInfo, MetricsHistoryRequest, MetricsHistory, MetricsStreamRequest, MetricsSample, UpdatesInfo, JobQuery, JobPage, JobInfo, JobStreamItem, AlertQuery, AlertInfo, AlertStreamRequest, ManagedService, FirewallStatus, FirewallPreset, FirewallChangeSetQuery, FirewallChangeSetInfo, ExposureInventory, FirewallChangeRequest, FirewallChangePreview, DockerStatus, ContainerList, ContainerDetails, ContainerStatsRequest, ContainerStatsBatch, ContainerLogsRequest, ContainerLogBatch, ImageInfo, VolumeInfo, NetworkInfo, DockerDiskUsage, DockerEventsRequest, DockerEvent, ContainerSummary, ContainerRemoveRequest, ImagePullRequest, ImageRemoveRequest, ContainerEnvVariable, ConsoleRequest, ConsoleInput, ConsoleOutput, DockerPruneRequest, DockerPruneResult, DockerInstallRequest, NginxStatus, SiteInfo, StreamProxyInfo, CertificateInfo, SiteLogRequest, SiteLogBatch, SiteSettings, SiteSaveResult, StreamProxySettings, StreamProxySaveResult, NginxApplyResult, CertificateIssueRequest, CertificateUploadRequest, CertificateUploadResult, CertificateRemoveRequest, StackInfo, StackDetails, StackRevisionRef, StackRevisionFiles, CreateStackRequest, AcknowledgeStackRisksRequest, StackRevisionInfo, StackActionRequest, ReviseStackRequest, StackEnvEntry, SiteSnippets } from '../AgentMate.ServerCore.Contracts';
+import type { PingResponse, AccountInfo, StepUpRequest, StepUpResponse, DeviceInfo, SessionInfo, TotpSetup, RecoveryCodes, CreateEnrollmentCodeRequest, EnrollmentCodeInfo, UserInfo, CreateUserRequest, ResetUserPasswordRequest, AuditQuery, AuditPage, AuditVerificationInfo, SystemInfo, ServiceInfo, MetricsHistoryRequest, MetricsHistory, MetricsStreamRequest, MetricsSample, UpdatesInfo, JobQuery, JobPage, JobInfo, JobStreamItem, AlertQuery, AlertInfo, AlertStreamRequest, ManagedService, FirewallStatus, FirewallPreset, FirewallChangeSetQuery, FirewallChangeSetInfo, ExposureInventory, FirewallChangeRequest, FirewallChangePreview, DockerStatus, ContainerList, ContainerDetails, ContainerStatsRequest, ContainerStatsBatch, ContainerLogsRequest, ContainerLogBatch, ImageInfo, VolumeInfo, NetworkInfo, DockerDiskUsage, DockerEventsRequest, DockerEvent, ContainerSummary, ContainerRemoveRequest, ImagePullRequest, ImageRemoveRequest, ContainerEnvVariable, ConsoleRequest, ConsoleInput, ConsoleOutput, DockerPruneRequest, DockerPruneResult, DockerInstallRequest, NginxStatus, SiteInfo, StreamProxyInfo, CertificateInfo, SiteLogRequest, SiteLogBatch, SiteSettings, SiteSaveResult, StreamProxySettings, StreamProxySaveResult, NginxApplyResult, CertificateIssueRequest, CertificateUploadRequest, CertificateUploadResult, CertificateRemoveRequest, StackInfo, StackDetails, StackRevisionRef, StackRevisionFiles, CreateStackRequest, AcknowledgeStackRisksRequest, StackRevisionInfo, StackActionRequest, ReviseStackRequest, StackEnvEntry, StackDeployRequest, RegistryCredentialInfo, SaveRegistryCredentialRequest, SiteSnippets } from '../AgentMate.ServerCore.Contracts';
 
 /**
 * Everything the app can ask the core over the WebSocket. The desktop's typed client is
@@ -556,6 +556,35 @@ export type ICoreHub = {
     * @returns Transpiled from System.Threading.Tasks.Task<AgentMate.ServerCore.Contracts.JobInfo>
     */
     deleteStackWithVolumes(stackId: string): Promise<JobInfo>;
+    /**
+    * As DeployStack, signing in to the registries the request names (stored credentials fill the rest).
+    * @param request Transpiled from AgentMate.ServerCore.Contracts.StackDeployRequest
+    * @returns Transpiled from System.Threading.Tasks.Task<AgentMate.ServerCore.Contracts.JobInfo>
+    */
+    deployStackWithRegistries(request: StackDeployRequest): Promise<JobInfo>;
+    /**
+    * As RollbackStack, with the request's registry sign-ins.
+    * @param request Transpiled from AgentMate.ServerCore.Contracts.StackDeployRequest
+    * @returns Transpiled from System.Threading.Tasks.Task<AgentMate.ServerCore.Contracts.JobInfo>
+    */
+    rollbackStackWithRegistries(request: StackDeployRequest): Promise<JobInfo>;
+    /**
+    * The credentials stored on this server, without their secrets. Operator.
+    * @returns Transpiled from System.Threading.Tasks.Task<AgentMate.ServerCore.Contracts.RegistryCredentialInfo[]>
+    */
+    listRegistryCredentials(): Promise<RegistryCredentialInfo[]>;
+    /**
+    * Stores or replaces the credential for a registry. Admin and a step-up.
+    * @param request Transpiled from AgentMate.ServerCore.Contracts.SaveRegistryCredentialRequest
+    * @returns Transpiled from System.Threading.Tasks.Task<AgentMate.ServerCore.Contracts.RegistryCredentialInfo>
+    */
+    saveRegistryCredential(request: SaveRegistryCredentialRequest): Promise<RegistryCredentialInfo>;
+    /**
+    * Admin and a step-up.
+    * @param credentialId Transpiled from System.Guid
+    * @returns Transpiled from System.Threading.Tasks.Task
+    */
+    deleteRegistryCredential(credentialId: string): Promise<void>;
     /**
     * A site's custom snippets, checked against the directive allowlist.
     * @param snippets Transpiled from AgentMate.ServerCore.Contracts.SiteSnippets

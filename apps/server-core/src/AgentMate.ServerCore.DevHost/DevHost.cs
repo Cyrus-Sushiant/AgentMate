@@ -26,17 +26,28 @@ internal static class DevHost
 
     public const string DevPassword = "agentmate-local-password";
 
+    /// <summary>The pretend private registry (E08): its images pull only with this user and token.</summary>
+    public const string DevRegistry = "registry.agentmate.test";
+
+    public const string DevRegistryUser = "devhost";
+
+    public const string DevRegistryToken = "devhost-registry-token-4417";
+
     public static async Task<int> RunAsync(string[] args)
     {
         var port = int.TryParse(Environment.GetEnvironmentVariable("AGENTMATE_DEV_CORE_PORT"), out var chosen)
             ? chosen
             : DefaultPort;
         var data = Path.Combine(Path.GetTempPath(), "agentmate-core-devhost");
+        var runtime = Path.Combine(Path.GetTempPath(), "agentmate-core-devhost-runtime");
 
         await using var app = CoreApplication.Build(
             [
                 $"--Core:Listen:TcpPort={port}",
                 $"--Core:DataDirectory={data}",
+                $"--Core:RuntimeDirectory={runtime}",
+                // No tmpfs on a developer's machine; a real server never sets this (E08).
+                "--Core:RegistryAuthOnDisk=allow",
                 "--environment",
                 "Development",
                 .. args,

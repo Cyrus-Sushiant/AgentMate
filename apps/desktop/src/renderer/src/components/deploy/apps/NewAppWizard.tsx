@@ -15,6 +15,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { folderName, needsAcknowledgment, suggestAppName } from '@/lib/deploy/apps/format';
 import { queryKeys } from '@/lib/queryKeys';
 import { cn } from '@/lib/utils';
+import { RegistryPlanCard } from '../registries/RegistryPlanCard';
 import { DeployTimeline } from './DeployTimeline';
 import { type AppsAccess, useStack, useStacks } from './hooks';
 import { ConfigureStep } from './wizard/ConfigureStep';
@@ -401,6 +402,16 @@ export function NewAppWizard({
               : `${left} findings still need accepting.`}
           </p>
         )}
+        <RegistryPlanCard
+          input={{
+            serverId,
+            stackId: existing?.stack.id ?? null,
+            images: data.services
+              .filter((service) => !service.builds && service.image)
+              .map((service) => service.image as string),
+          }}
+          stackId={null}
+        />
       </div>
     );
     next = (

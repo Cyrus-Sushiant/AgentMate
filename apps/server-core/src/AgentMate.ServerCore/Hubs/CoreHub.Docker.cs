@@ -4,6 +4,7 @@ using System.Runtime.CompilerServices;
 using AgentMate.ServerCore.Audit;
 using AgentMate.ServerCore.Contracts;
 using AgentMate.ServerCore.Docker;
+using AgentMate.ServerCore.Registries;
 using AgentMate.ServerCore.Security;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
@@ -178,10 +179,27 @@ internal sealed partial class CoreHub
             throw new HubException("That is not an image reference (such as nginx:1.29 or ghcr.io/org/app@sha256:...).");
         }
 
+        RegistryLogin? login = null;
+        if (request!.Auth is { } auth)
+        {
+            login = RegistryCredentials.Check(auth.Registry, auth.Username, auth.Secret, RegistryLoginSource.Request);
+            if (login is null || login.Registry != RegistryNames.HostOfRepository(image.Repository))
+            {
+                await AuditAsync("image.pull", AuditResult.Denied, image.ToString(), new() { ["registryAuth"] = "invalid" });
+                throw new HubException("The sign-in sent with this pull is not valid for the image's registry.");
+            }
+        }
+
+        var parameters = new Dictionary<string, string?> { ["image"] = image.ToString() };
+        if (login is not null)
+        {
+            parameters["registry"] = login.Registry;
+        }
+
         return await StartJobAsync(
             "image.pull",
-            () => docker.PullAsync(image, Caller, Context.ConnectionAborted),
-            new() { ["image"] = image.ToString() });
+            () => docker.PullAsync(image, Caller, Context.ConnectionAborted, login),
+            parameters);
     }
 
     [Authorize(Policy = CorePolicies.Operator)]

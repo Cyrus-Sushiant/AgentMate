@@ -8,6 +8,7 @@ using AgentMate.ServerCore.Hubs;
 using AgentMate.ServerCore.Jobs;
 using AgentMate.ServerCore.Metrics;
 using AgentMate.ServerCore.Platform;
+using AgentMate.ServerCore.Registries;
 using AgentMate.ServerCore.Stacks;
 using AgentMate.ServerCore.Updates;
 
@@ -96,6 +97,9 @@ internal static class CoreOperations
 
         // The host firewall (E13): its change sets settle themselves once the database is up.
         services.AddCoreFirewall();
+
+        // Private registries (E08): stored credentials and the per-job DOCKER_CONFIG folders.
+        services.AddCoreRegistries();
 
         // Compose stacks (E07): after the job engine, so its recovery runs after the jobs' own.
         services.AddCoreStacks();

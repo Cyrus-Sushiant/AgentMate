@@ -7,6 +7,7 @@ using System.Text.RegularExpressions;
 using AgentMate.ServerCore.Contracts;
 using AgentMate.ServerCore.Docker;
 using AgentMate.ServerCore.Execution;
+using AgentMate.ServerCore.Registries;
 using AgentMate.ServerCore.Stacks;
 using YamlDotNet.RepresentationModel;
 
@@ -35,6 +36,12 @@ internal sealed partial class SimulatedCompose(InMemoryDockerEngine engine, Time
     /// <summary>Every call, "project command args...", so a test can prove what ran.</summary>
     public ConcurrentQueue<string> Calls { get; } = new();
 
+    /// <summary>
+    /// What each call's DOCKER_CONFIG folder held when it ran (E08): its path and config.json, or
+    /// null without one. The registry tests read it to prove the sign-ins were there for the pull.
+    /// </summary>
+    public ConcurrentQueue<(string Command, string? Folder, string? Config)> DockerConfigs { get; } = new();
+
     public Task<string?> VersionAsync(CancellationToken cancellationToken) => Task.FromResult(Version);
 
     public async Task<ProcessResult> RunAsync(
@@ -48,6 +55,9 @@ internal sealed partial class SimulatedCompose(InMemoryDockerEngine engine, Time
         ArgumentNullException.ThrowIfNull(arguments);
         var command = arguments.Count > 0 ? arguments[0] : string.Empty;
         Calls.Enqueue($"{project.Name} {string.Join(' ', arguments)}");
+        var dockerConfig = options?.Environment is { } environment && environment.TryGetValue("DOCKER_CONFIG", out var folder) ? folder : null;
+        var configFile = dockerConfig is null ? null : Path.Combine(dockerConfig, RegistryAuthFolders.ConfigFileName);
+        DockerConfigs.Enqueue((command, dockerConfig, configFile is not null && File.Exists(configFile) ? File.ReadAllText(configFile) : null));
         var errors = new StringBuilder();
         var output = new StringBuilder();
         async Task Say(string line)
@@ -100,8 +110,15 @@ internal sealed partial class SimulatedCompose(InMemoryDockerEngine engine, Time
 
                     var image = service?["image"]?.GetValue<string>() ?? name;
                     await Say($" {name} Pulling");
+                    var registry = DockerNames.TryParseReference(image, out var reference) ? RegistryNames.HostOfRepository(reference.Repository) : RegistryNames.DockerHub;
+                    if (!engine.SignedInWith(registry, dockerConfig))
+                    {
+                        await Say($" {name} Error Head \"https://{registry}/v2/{reference.Repository}/manifests/{reference.Tag ?? "latest"}\": unauthorized: authentication required");
+                        await Say($"Error response from daemon: Head \"https://{registry}/v2/{reference.Repository}/manifests/{reference.Tag ?? "latest"}\": unauthorized: authentication required");
+                        return new ProcessResult(18, string.Empty, errors.ToString(), false, false);
+                    }
+
                     await Say($" {name} Pulled");
-                    _ = image;
                 }
 
                 break;

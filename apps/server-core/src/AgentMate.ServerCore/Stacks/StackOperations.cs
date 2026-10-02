@@ -5,6 +5,7 @@ using AgentMate.ServerCore.Data;
 using AgentMate.ServerCore.Docker;
 using AgentMate.ServerCore.Hosting;
 using AgentMate.ServerCore.Jobs;
+using AgentMate.ServerCore.Registries;
 using AgentMate.ServerCore.Security;
 using Microsoft.EntityFrameworkCore;
 
@@ -34,7 +35,9 @@ internal sealed partial class StackOperations(
     AuditLog audit,
     Redactor redactor,
     TimeProvider time,
-    ILogger<StackOperations> logger) : IDisposable
+    ILogger<StackOperations> logger,
+    RegistryCredentials registries,
+    RegistryAuthFolders registryFolders) : IDisposable
 {
     public const string ComposeFileName = "compose.yaml";
 

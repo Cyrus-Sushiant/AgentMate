@@ -421,6 +421,7 @@ import type { RemoteInputEvent, RemoteRtcMessage } from '../shared/remoteProtoco
 import type { SpellcheckMenuPayload } from '../shared/spellcheck';
 import type { SshHostKeyStatus } from '../shared/sshHostKey';
 import { createDeployDocker } from './deployDocker';
+import { createDeployRegistry } from './deployRegistry';
 
 interface TerminalDataPayload {
   sessionId: string;
@@ -1689,6 +1690,9 @@ const deployAppStore = {
     ipcRenderer.invoke(IPC.deployAppStore.revealSecrets, input),
 };
 
+/** Private registries (E08): sign-ins on this computer and credentials stored on a server. */
+const deployRegistry = createDeployRegistry();
+
 /** A server core's alerts: disk pressure, failed jobs, a reboot waiting. */
 const deployAlerts = {
   list: (query: DeployAlertsQuery): Promise<AlertInfo[]> =>
@@ -2451,6 +2455,7 @@ const agentmatApi = {
   deployCerts,
   deployStacks,
   deployAppStore,
+  deployRegistry,
   cloudflare,
   pullRequests,
   tests,

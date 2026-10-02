@@ -90,6 +90,7 @@ export default defineConfig({
         'src/main/vault/index.ts',
         'src/main/deploy/index.ts',
         'src/main/deploy/cloudflare/index.ts',
+        'src/main/deploy/registry/index.ts',
         'src/renderer/src/main.tsx',
         'src/main/usage/usageScanWorker.ts',
         'src/main/security/codeqlExtractWorker.ts',
@@ -212,6 +213,15 @@ export default defineConfig({
         'src/renderer/src/components/cloudflare/**': { lines: 85, functions: 75, branches: 75 },
         'src/renderer/src/pages/CloudflarePage.tsx': { lines: 85, functions: 75, branches: 75 },
         'src/renderer/src/lib/cloudflare/**': { lines: 95, branches: 90 },
+        // Registry sign-ins (E08): sealed here, sent with each deploy, never shown again.
+        'src/main/deploy/registry/**': { lines: 95, branches: 85 },
+        'src/main/ipc/deployRegistry.ts': { lines: 95, branches: 85 },
+        'src/shared/deploy/registries.ts': { lines: 95, branches: 90 },
+        'src/renderer/src/components/deploy/registries/**': {
+          lines: 85,
+          functions: 80,
+          branches: 70,
+        },
       },
     },
   },

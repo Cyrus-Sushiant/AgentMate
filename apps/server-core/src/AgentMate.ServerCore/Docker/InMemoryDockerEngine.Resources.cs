@@ -1,6 +1,7 @@
 using System.Runtime.CompilerServices;
 using System.Threading.Channels;
 using AgentMate.ServerCore.Contracts;
+using AgentMate.ServerCore.Registries;
 
 namespace AgentMate.ServerCore.Docker;
 
@@ -18,13 +19,18 @@ internal sealed partial class InMemoryDockerEngine
         }
     }
 
-    public async Task PullImageAsync(ImageReference image, Action<PullProgress> progress, CancellationToken cancellationToken)
+    public async Task PullImageAsync(ImageReference image, Action<PullProgress> progress, CancellationToken cancellationToken, RegistryLogin? login = null)
     {
         ArgumentNullException.ThrowIfNull(image);
         ArgumentNullException.ThrowIfNull(progress);
         EnsureRunning();
         var name = image.ToString();
         Changes.Enqueue($"pull {name}");
+        var registry = RegistryNames.HostOfRepository(image.Repository);
+        if (!SignedIn(registry, login?.Username, login?.Secret))
+        {
+            throw new DockerRequestException($"Head \"https://{registry}/v2/{image.Repository}/manifests/{image.Tag ?? "latest"}\": unauthorized: authentication required");
+        }
         if (image.Repository.Contains("no-such", StringComparison.Ordinal) || image.Tag?.Contains("no-such", StringComparison.Ordinal) == true)
         {
             throw new DockerNotFoundException($"failed to resolve reference \"docker.io/library/{name}\": not found");
