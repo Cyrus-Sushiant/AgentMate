@@ -107,6 +107,20 @@ export function openRdpWindow(options: OpenRdpWindowOptions): BrowserWindow {
   return window;
 }
 
+/** The open window of a Remote Desktop session, or null once it has closed. */
+export function getRdpWindow(sessionId: string): BrowserWindow | null {
+  const window = windows.get(sessionId);
+  return window && !window.isDestroyed() ? window : null;
+}
+
+/**
+ * An AI task reads the session's canvas, which Chromium stops painting in a covered or minimized
+ * window unless throttling is off. Runs turn it off for their length and back on afterwards.
+ */
+export function setRdpWindowBackgroundThrottling(sessionId: string, enabled: boolean): void {
+  getRdpWindow(sessionId)?.webContents.setBackgroundThrottling(enabled);
+}
+
 export function closeAllRdpWindows(): void {
   for (const window of windows.values()) window.close();
 }

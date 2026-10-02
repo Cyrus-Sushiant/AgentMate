@@ -11,6 +11,7 @@ interface Spawned {
   command: string;
   args: string[];
   stdin: string | null;
+  env: Record<string, string | undefined> | undefined;
 }
 
 const spawned: Spawned[] = [];
@@ -23,12 +24,12 @@ vi.mock('node:child_process', () => ({
     (
       file: string,
       argv: string[],
-      _options: unknown,
+      options: { env?: Record<string, string | undefined> },
       done: (error: Error | null, stdout: string, stderr: string) => void,
     ) => {
       // Windows goes through `cmd.exe /d /s /c <command> ...args`.
       const [command, ...args] = file === 'cmd.exe' ? argv.slice(3) : [file, ...argv];
-      const entry: Spawned = { command: command ?? '', args, stdin: null };
+      const entry: Spawned = { command: command ?? '', args, stdin: null, env: options?.env };
       spawned.push(entry);
       setTimeout(() => done(null, 'an answer', ''), 0);
       return {
@@ -226,6 +227,79 @@ describe('runHeadlessCliPrompt keeps terminal settings out', () => {
         const joined = args.join(' ');
         expect(joined, `${cli.id} mode`).not.toContain(mode.args.join(' '));
       }
+    }
+  });
+});
+
+describe('runHeadlessCliPrompt attaches screenshots', () => {
+  it('adds an image flag per screenshot for Codex, after the usual args', async () => {
+    installed.add('codex');
+    settings.current = { defaultCliId: 'codex-cli', cliArgs: { 'codex-cli': '--verbose' } };
+    const started = await run({
+      preferredCliId: 'codex-cli',
+      strictCli: true,
+      images: ['frame.png'],
+    });
+    expect(started.command).toBe('codex');
+    expect(started.args).toEqual([
+      'exec',
+      '--verbose',
+      '--skip-git-repo-check',
+      '--image',
+      'frame.png',
+    ]);
+    expect(started.stdin).toBe('write a commit message');
+  });
+
+  it('mentions the screenshot in the prompt for Gemini and trusts the temp folder', async () => {
+    installed.add('gemini');
+    const started = await run({
+      preferredCliId: 'gemini-cli',
+      strictCli: true,
+      images: ['frame.png'],
+    });
+    expect(started.args).toEqual(['-p']);
+    expect(started.stdin).toBe('@frame.png write a commit message');
+    expect(started.env?.GEMINI_CLI_TRUST_WORKSPACE).toBe('true');
+    // The usual env still goes in.
+    expect(started.env?.CLINE_NO_AUTO_UPDATE).toBe('1');
+  });
+
+  it('lets Claude Code use its Read tool and tells it which file to open', async () => {
+    const started = await run({
+      preferredCliId: 'claude-code',
+      strictCli: true,
+      images: ['frame.png'],
+    });
+    expect(started.args).toEqual(['-p', '--allowedTools', 'Read']);
+    expect(started.stdin).toContain('./frame.png');
+    expect(started.stdin?.endsWith('write a commit message')).toBe(true);
+    expect(started.env?.GEMINI_CLI_TRUST_WORKSPACE).toBeUndefined();
+  });
+
+  it('refuses a CLI that cannot look at screenshots without starting it', async () => {
+    installed.add('opencode');
+    const { runHeadlessCliPrompt } = await import('./headlessPrompt');
+    const result = await runHeadlessCliPrompt('click something', '/tmp/run', {
+      preferredCliId: 'opencode',
+      strictCli: true,
+      images: ['frame.png'],
+    });
+    expect(result.ok).toBe(false);
+    expect(result.cliName).toBe('OpenCode');
+    expect(result.error).toMatch(/^OpenCode can't look at screenshots\. Pick .+ or .+\.$/);
+    for (const label of ['Claude Code', 'Codex', 'Gemini']) expect(result.error).toContain(label);
+    expect(spawned).toHaveLength(0);
+  });
+
+  it('starts the CLI exactly as before when no images are given', async () => {
+    installed.add('codex');
+    settings.current = { defaultCliId: 'codex-cli' };
+    for (const images of [undefined, []]) {
+      const started = await run({ preferredCliId: 'codex-cli', strictCli: true, images });
+      expect(started.args).toEqual(['exec']);
+      expect(started.stdin).toBe('write a commit message');
+      expect(started.env?.GEMINI_CLI_TRUST_WORKSPACE).toBeUndefined();
     }
   });
 });

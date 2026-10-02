@@ -2,7 +2,7 @@ import type { Project } from '@agentmat/core';
 import * as PopoverPrimitive from '@radix-ui/react-popover';
 import { Command as CommandPrimitive } from 'cmdk';
 import { motion, useReducedMotion } from 'framer-motion';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useShallow } from 'zustand/react/shallow';
 import { ChevronDown, ChevronUp, GitBranch, Plus, Search, X } from '@/components/icons';
@@ -14,6 +14,7 @@ import {
   ContextMenuSeparator,
   ContextMenuTrigger,
 } from '@/components/ui/context-menu';
+import { OverflowScroll } from '@/components/ui/overflow-scroll';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { useWorktrees } from '@/hooks/useWorktrees';
 import { useTerminalSessionStore } from '@/lib/terminal/terminalRuntime';
@@ -146,6 +147,12 @@ function RailItem({
   const holdsActive = !active && Boolean(activeProjectId?.startsWith(`${project.id}~`));
   const count = worktrees.length;
   const countLabel = `${count} worktree${count === 1 ? '' : 's'}`;
+  const tileRef = useRef<HTMLDivElement>(null);
+
+  // A project opened from elsewhere may sit below the fold of a long rail, so bring it into view.
+  useEffect(() => {
+    if (active) tileRef.current?.scrollIntoView?.({ block: 'nearest' });
+  }, [active]);
 
   return (
     <div
@@ -156,6 +163,7 @@ function RailItem({
       )}
     >
       <div
+        ref={tileRef}
         draggable
         onDragStart={(event) => {
           event.dataTransfer.setData(RAIL_PROJECT_MIME, project.id);
@@ -404,30 +412,37 @@ export function ProjectRail({
           before ? railProjectIds.indexOf(before.id) : railProjectIds.length,
         );
       }}
-      className="flex w-14 shrink-0 flex-col items-center gap-2.5 border-r border-border/70 bg-card/30 py-3"
+      className="flex w-14 shrink-0 flex-col items-center border-r border-border/70 bg-card/30 pb-3"
     >
-      {railProjects.map((project, index) => (
-        <RailItem
-          key={project.id}
-          project={project}
-          active={project.id === activeProjectId}
-          activeProjectId={activeProjectId}
-          onOpen={() => navigate(`/workspace/${project.id}`)}
-          onClose={() => void requestClose(project)}
-          dragging={project.id === draggingId}
-          dropIndicator={
-            !showInsert
-              ? null
-              : insertAt === index
-                ? 'before'
-                : insertAt === railProjects.length && index === railProjects.length - 1
-                  ? 'after'
-                  : null
-          }
-          onDragStart={() => setDraggingId(project.id)}
-          onDragEnd={endDrag}
-        />
-      ))}
+      {/* Only the projects scroll; the open button stays pinned right under them. */}
+      <OverflowScroll
+        surface="background"
+        rootClassName="flex w-full flex-col"
+        className="rail-scroll flex w-full flex-col items-center gap-2.5 pb-2.5 pt-3"
+      >
+        {railProjects.map((project, index) => (
+          <RailItem
+            key={project.id}
+            project={project}
+            active={project.id === activeProjectId}
+            activeProjectId={activeProjectId}
+            onOpen={() => navigate(`/workspace/${project.id}`)}
+            onClose={() => void requestClose(project)}
+            dragging={project.id === draggingId}
+            dropIndicator={
+              !showInsert
+                ? null
+                : insertAt === index
+                  ? 'before'
+                  : insertAt === railProjects.length && index === railProjects.length - 1
+                    ? 'after'
+                    : null
+            }
+            onDragStart={() => setDraggingId(project.id)}
+            onDragEnd={endDrag}
+          />
+        ))}
+      </OverflowScroll>
       <PopoverPrimitive.Root open={pickerOpen} onOpenChange={setPickerOpen}>
         <SimpleTooltip label="Open another project" side="right">
           <PopoverPrimitive.Trigger asChild>

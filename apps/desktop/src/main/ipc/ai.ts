@@ -40,6 +40,7 @@ async function askOpenAi(
   prompt: string,
   history: AskAiHistoryMessage[],
   signal?: AbortSignal,
+  images: string[] = [],
 ): Promise<string> {
   const settings = await store.getSettings();
   const apiKey = settings.openaiApiKey?.trim();
@@ -55,7 +56,19 @@ async function askOpenAi(
       model,
       messages: [
         ...history.map((h) => ({ role: h.role, content: h.content })),
-        { role: 'user', content: prompt },
+        {
+          role: 'user',
+          content:
+            images.length > 0
+              ? [
+                  { type: 'text', text: prompt },
+                  ...images.map((png) => ({
+                    type: 'image_url',
+                    image_url: { url: `data:image/png;base64,${png}` },
+                  })),
+                ]
+              : prompt,
+        },
       ],
     }),
     signal,
@@ -94,6 +107,7 @@ async function askOllama(
   prompt: string,
   history: AskAiHistoryMessage[],
   signal?: AbortSignal,
+  images: string[] = [],
 ): Promise<string> {
   const settings = await store.getSettings();
   const baseUrl = normalizeOllamaUrl(settings.ollamaBaseUrl);
@@ -111,7 +125,7 @@ async function askOllama(
         model,
         messages: [
           ...history.map((h) => ({ role: h.role, content: h.content })),
-          { role: 'user', content: prompt },
+          { role: 'user', content: prompt, ...(images.length > 0 ? { images } : {}) },
         ],
         stream: false,
         // Omitted keys let Ollama keep its own defaults, so only send what the user set.
@@ -140,6 +154,7 @@ async function askGemini(
   prompt: string,
   history: AskAiHistoryMessage[],
   signal?: AbortSignal,
+  images: string[] = [],
 ): Promise<string> {
   const settings = await store.getSettings();
   const apiKey = settings.geminiApiKey?.trim();
@@ -158,7 +173,13 @@ async function askGemini(
           role: h.role === 'assistant' ? 'model' : 'user',
           parts: [{ text: h.content }],
         })),
-        { role: 'user', parts: [{ text: prompt }] },
+        {
+          role: 'user',
+          parts: [
+            { text: prompt },
+            ...images.map((png) => ({ inline_data: { mime_type: 'image/png', data: png } })),
+          ],
+        },
       ],
     }),
     signal,
@@ -252,17 +273,22 @@ async function testOllamaConnection(baseUrlOverride?: string): Promise<OllamaCon
   }
 }
 
-/** Shared by the Ask AI IPC handler and other features (e.g. git branch/commit suggestions). */
+/**
+ * Shared by the Ask AI IPC handler and other features (e.g. git branch/commit suggestions).
+ * `images` are PNG screenshots, base64 without the `data:` prefix, attached to the prompt; the
+ * model has to be one that can see images.
+ */
 export async function runAiPrompt(
   provider: AiProvider,
   model: string,
   prompt: string,
   history: AskAiHistoryMessage[] = [],
   signal?: AbortSignal,
+  images: string[] = [],
 ): Promise<string> {
-  if (provider === 'openai') return askOpenAi(model, prompt, history, signal);
-  if (provider === 'gemini') return askGemini(model, prompt, history, signal);
-  return askOllama(model, prompt, history, signal);
+  if (provider === 'openai') return askOpenAi(model, prompt, history, signal, images);
+  if (provider === 'gemini') return askGemini(model, prompt, history, signal, images);
+  return askOllama(model, prompt, history, signal, images);
 }
 
 /** A sizing answer is one short JSON object; a CLI still busy after this has gone astray. */

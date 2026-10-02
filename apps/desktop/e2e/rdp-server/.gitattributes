@@ -1,0 +1,3 @@
+# The autostart file, the Dockerfile and the entrypoint are read inside a Linux container, where a
+# CRLF checkout would break them.
+* text eol=lf

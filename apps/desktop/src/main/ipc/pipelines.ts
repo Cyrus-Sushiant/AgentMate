@@ -9,6 +9,8 @@ import type {
   GithubRunAnnotationsInput,
   GithubRunAnnotationsResult,
   GithubRunCancelRequest,
+  GithubRunnersInput,
+  GithubRunnersResult,
   GithubWorkflowDispatchRequest,
   GithubWorkflowRefsResult,
   ProjectPipelineStatus,
@@ -23,6 +25,7 @@ import {
   fetchWorkflowRefs,
   setProjectMutedActions,
 } from '../pipelines/githubActions';
+import { fetchRunnerStatus } from '../pipelines/githubRunners';
 import {
   forgetWatchedWorkflows,
   refreshProjectPipelineStatus,
@@ -97,6 +100,16 @@ export function registerPipelineHandlers(): void {
       const result = await cancelWorkflowRun(input);
       if (result.ok) schedulePipelineCheck();
       return result;
+    },
+  );
+
+  ipcMain.handle(
+    IPC.pipelines.runners,
+    (_event, input: GithubRunnersInput): Promise<GithubRunnersResult> => {
+      return fetchRunnerStatus({
+        runs: Array.isArray(input?.runs) ? input.runs : [],
+        fresh: input?.fresh === true,
+      });
     },
   );
 }

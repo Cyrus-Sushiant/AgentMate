@@ -207,3 +207,4 @@ upload extraction, tunnel, installer verification, firewall guard) get coverage 
 | [E15](epics/15-security-center.md) | Security center and maintenance | M4 Security and operations | E13 |
 | [E16](epics/16-direct-tls.md) | Direct TLS mode | M4 Security and operations | E15 |
 | [E17](epics/17-polish-full-matrix.md) | Polish and full OS matrix | M4 Security and operations | all |
+| [E18](epics/18-rdp-ask-ai.md) | Ask AI for Remote Desktop | Standalone (Remote) | none |

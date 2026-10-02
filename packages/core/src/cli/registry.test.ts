@@ -98,6 +98,44 @@ describe('CLI_REGISTRY invariants', () => {
     }
   });
 
+  it('only sets the image fields on a CLI that has a prompt command', () => {
+    for (const cli of CLI_REGISTRY) {
+      if (cli.promptCommand) continue;
+      expect(cli.promptImageInput, cli.id).toBeUndefined();
+      expect(cli.promptImageArgs, cli.id).toBeUndefined();
+      expect(cli.promptImageEnv, cli.id).toBeUndefined();
+    }
+  });
+
+  it('lets exactly the CLIs checked by hand look at a screenshot', () => {
+    const withImages = CLI_REGISTRY.filter((cli) => cli.promptImageInput).map((cli) => cli.id);
+    expect(withImages.sort()).toEqual(['claude-code', 'codex-cli', 'gemini-cli']);
+  });
+
+  it('only attaches images to CLIs that read the prompt from stdin', () => {
+    // The attachment instructions sit in front of the prompt text, which an arg-mode CLI on
+    // Windows might have to truncate.
+    for (const cli of CLI_REGISTRY) {
+      if (!cli.promptImageInput) continue;
+      expect(cli.promptInputMode, cli.id).toBe('stdin');
+    }
+  });
+
+  it('gives every flag CLI the flag that names an image, and only them', () => {
+    for (const cli of CLI_REGISTRY) {
+      if (cli.promptImageInput === 'flag') expect(cli.promptImageFlag, cli.id).toBeTruthy();
+      else expect(cli.promptImageFlag, cli.id).toBeUndefined();
+    }
+  });
+
+  it('only sets image args or env alongside an image input', () => {
+    for (const cli of CLI_REGISTRY) {
+      if (cli.promptImageInput) continue;
+      expect(cli.promptImageArgs, cli.id).toBeUndefined();
+      expect(cli.promptImageEnv, cli.id).toBeUndefined();
+    }
+  });
+
   it('never leaves a write-arg list empty, which would read as "no args needed"', () => {
     for (const cli of CLI_REGISTRY) {
       if (!cli.promptWriteArgs) continue;

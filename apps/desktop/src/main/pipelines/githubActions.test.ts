@@ -488,6 +488,27 @@ describe('fetchProjectPipelineStatus', () => {
   });
 });
 
+describe('listProjectGithubRepos', () => {
+  it('lists each GitHub repo once, labelled with the first project that uses it', async () => {
+    storeState.projects = [
+      project({ id: 'a', name: 'A', folderPath: '/work/a' }),
+      project({ id: 'b', name: 'B', folderPath: '/work/b' }),
+    ];
+    scenario.gitRemote = 'https://github.com/ACME/Demo.git';
+
+    await expect(actions.listProjectGithubRepos()).resolves.toEqual([
+      { owner: 'ACME', repo: 'Demo', projectId: 'a', projectName: 'A' },
+    ]);
+  });
+
+  it('skips projects without a GitHub remote', async () => {
+    storeState.projects = [project()];
+    scenario.gitRemote = null;
+
+    await expect(actions.listProjectGithubRepos()).resolves.toEqual([]);
+  });
+});
+
 describe('fetchDashboardActionsActivity', () => {
   /** Local-time constructors on both sides, so the day buckets do not depend on the test box. */
   const NOW = new Date(2026, 2, 15, 12, 0, 0);

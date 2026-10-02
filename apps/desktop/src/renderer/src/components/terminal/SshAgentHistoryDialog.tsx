@@ -1,4 +1,9 @@
-import type { SshAgentHistoryEntry, SshAgentHistoryRun } from '@shared/apiTypes';
+import type {
+  RdpAgentHistoryEntry,
+  RdpAgentHistoryRun,
+  SshAgentHistoryEntry,
+  SshAgentHistoryRun,
+} from '@shared/apiTypes';
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
@@ -8,6 +13,7 @@ import {
   CircleCheck,
   CircleQuestion,
   Copy,
+  Crosshair,
   History,
   Play,
   Robot,
@@ -28,6 +34,22 @@ import { queryKeys } from '@/lib/queryKeys';
 import { cn } from '@/lib/utils';
 import { useSshAgentSession } from '@/stores/sshAgentStore';
 
+/** A run from either kind of AI task: commands in a terminal, or actions on a remote desktop. */
+type AgentRun = SshAgentHistoryRun | RdpAgentHistoryRun;
+type AgentEntry = SshAgentHistoryEntry | RdpAgentHistoryEntry;
+
+/**
+ * Where the history comes from. The dialog reads a terminal's history unless given another
+ * source, such as a Remote Desktop session's.
+ */
+export interface AgentHistorySource {
+  kind: 'ssh' | 'rdp';
+  queryKey: readonly unknown[];
+  load: () => Promise<AgentRun[]>;
+  /** The task's live state; each change means the history has moved on and is read again. */
+  live: unknown;
+}
+
 /** Output taller than this starts folded, so one noisy command doesn't bury the rest. */
 const FOLDED_OUTPUT_LINES = 12;
 
@@ -44,7 +66,7 @@ function dayAndTime(at: number): string {
     : `${date.toLocaleDateString([], { month: 'short', day: 'numeric' })}, ${clockTime(at)}`;
 }
 
-function duration(run: SshAgentHistoryRun): string {
+function duration(run: AgentRun): string {
   const ms = (run.endedAt ?? Date.now()) - run.startedAt;
   const seconds = Math.max(1, Math.round(ms / 1000));
   if (seconds < 60) return `${seconds}s`;
@@ -54,8 +76,8 @@ function duration(run: SshAgentHistoryRun): string {
     : `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
 }
 
-function commandCount(run: SshAgentHistoryRun): number {
-  return run.entries.filter((entry) => entry.kind === 'command').length;
+function stepCount(run: AgentRun): number {
+  return run.entries.filter((entry) => entry.kind === 'command' || entry.kind === 'action').length;
 }
 
 const STATUS_LABELS: Record<SshAgentHistoryRun['status'], string> = {
@@ -82,7 +104,7 @@ function StatusDot({ status }: { status: SshAgentHistoryRun['status'] }): React.
 }
 
 /** The whole run as plain text, for pasting into an issue or a chat. */
-function runAsText(run: SshAgentHistoryRun): string {
+function runAsText(run: AgentRun): string {
   const lines = [`Task: ${run.prompt}`, `AI: ${run.aiLabel || 'AI'}`, ''];
   for (const entry of run.entries) {
     switch (entry.kind) {
@@ -93,8 +115,16 @@ function runAsText(run: SshAgentHistoryRun): string {
         if (entry.output) lines.push(entry.output);
         lines.push('');
         break;
+      case 'action':
+        lines.push(`> ${entry.action}  [${entry.ok ? 'ok' : 'failed'}]`);
+        if (entry.outcome) lines.push(entry.outcome);
+        lines.push('');
+        break;
       case 'skipped':
-        lines.push(`$ ${entry.command}  [skipped]`, '');
+        lines.push(
+          'command' in entry ? `$ ${entry.command}  [skipped]` : `> ${entry.action}  [skipped]`,
+          '',
+        );
         break;
       case 'question':
         lines.push(`AI asked: ${entry.text}`);
@@ -214,6 +244,42 @@ function CommandEntry({
   );
 }
 
+/** One mouse or keyboard action the AI took on a remote desktop, and how it went. */
+function ActionEntry({
+  entry,
+}: {
+  entry: Extract<RdpAgentHistoryEntry, { kind: 'action' }>;
+}): React.JSX.Element {
+  return (
+    <div className="overflow-hidden rounded-lg border border-border bg-card shadow-sm">
+      <div className="flex items-center gap-2 px-3 py-2">
+        <Crosshair className="h-3.5 w-3.5 shrink-0 text-primary" />
+        <code className="min-w-0 flex-1 truncate font-mono text-xs text-foreground">
+          {entry.action}
+        </code>
+        <span
+          className={cn(
+            'shrink-0 rounded-full border px-2 py-px text-[10px] font-medium uppercase tracking-wide',
+            entry.ok
+              ? 'border-success/30 bg-success/10 text-success'
+              : 'border-destructive/30 bg-destructive/10 text-destructive',
+          )}
+        >
+          {entry.ok ? 'OK' : 'Failed'}
+        </span>
+        <span className="shrink-0 text-[10px] tabular-nums text-muted-foreground">
+          {clockTime(entry.at)}
+        </span>
+      </div>
+      {entry.outcome && (
+        <p className="border-t border-border/60 px-3 py-2 text-[11px] leading-relaxed text-muted-foreground">
+          {entry.outcome}
+        </p>
+      )}
+    </div>
+  );
+}
+
 /** A chat bubble: the user's words sit on the right, the AI's on the left. */
 function Bubble({
   from,
@@ -271,14 +337,19 @@ function Note({
   );
 }
 
-function Entry({ entry }: { entry: SshAgentHistoryEntry }): React.JSX.Element {
+function Entry({ entry }: { entry: AgentEntry }): React.JSX.Element {
   switch (entry.kind) {
     case 'command':
       return <CommandEntry entry={entry} />;
+    case 'action':
+      return <ActionEntry entry={entry} />;
     case 'skipped':
       return (
         <Note icon={<StopCircle className="h-3.5 w-3.5" />} tone="muted">
-          You skipped <code className="rounded bg-black/30 px-1 font-mono">{entry.command}</code>
+          You skipped{' '}
+          <code className="rounded bg-black/30 px-1 font-mono">
+            {'command' in entry ? entry.command : entry.action}
+          </code>
         </Note>
       );
     case 'question':
@@ -327,7 +398,7 @@ function Entry({ entry }: { entry: SshAgentHistoryEntry }): React.JSX.Element {
   }
 }
 
-function RunTimeline({ run }: { run: SshAgentHistoryRun }): React.JSX.Element {
+function RunTimeline({ run }: { run: AgentRun }): React.JSX.Element {
   const scrollRef = useRef<HTMLDivElement>(null);
   const stickToBottom = useRef(true);
 
@@ -368,16 +439,21 @@ export function SshAgentHistoryDialog({
   sessionTitle,
   open,
   onOpenChange,
+  source,
 }: {
   sessionId: string;
   sessionTitle: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** Where to read the history from. A terminal's AI task history when absent. */
+  source?: AgentHistorySource;
 }): React.JSX.Element {
-  const liveState = useSshAgentSession(sessionId);
-  const historyQuery = useQuery({
-    queryKey: queryKeys.sshAgentHistory(sessionId),
-    queryFn: () => window.agentmat.sshAgent.history(sessionId),
+  const sshLiveState = useSshAgentSession(sessionId);
+  const liveState = source ? source.live : sshLiveState;
+  const desktop = source?.kind === 'rdp';
+  const historyQuery = useQuery<AgentRun[]>({
+    queryKey: source?.queryKey ?? queryKeys.sshAgentHistory(sessionId),
+    queryFn: source?.load ?? (() => window.agentmat.sshAgent.history(sessionId)),
     enabled: open,
     meta: { silentLoading: true },
   });
@@ -405,8 +481,9 @@ export function SshAgentHistoryDialog({
             AI task history
           </DialogTitle>
           <DialogDescription className="truncate">
-            Every task the AI ran in {sessionTitle || 'this terminal'}, with each command, its
-            output, and what you answered. Kept until AgentMate closes.
+            {desktop
+              ? `Every task the AI ran in ${sessionTitle || 'this desktop'}, with each action, how it went, and what you answered. Kept until AgentMate closes.`
+              : `Every task the AI ran in ${sessionTitle || 'this terminal'}, with each command, its output, and what you answered. Kept until AgentMate closes.`}
           </DialogDescription>
         </DialogHeader>
 
@@ -420,7 +497,9 @@ export function SshAgentHistoryDialog({
               <p className="max-w-sm text-xs leading-relaxed text-muted-foreground">
                 {historyQuery.isLoading
                   ? 'Loading…'
-                  : 'Start one with the robot button in the terminal bar. Everything it does shows up here.'}
+                  : desktop
+                    ? 'Start one with Ask AI in the toolbar. Everything it does shows up here.'
+                    : 'Start one with the robot button in the terminal bar. Everything it does shows up here.'}
               </p>
             </div>
           </div>
@@ -432,7 +511,8 @@ export function SshAgentHistoryDialog({
             >
               {runs.map((run) => {
                 const active = run.id === selected?.id;
-                const count = commandCount(run);
+                const count = stepCount(run);
+                const noun = desktop ? 'action' : 'command';
                 return (
                   <button
                     key={run.id}
@@ -451,7 +531,8 @@ export function SshAgentHistoryDialog({
                       </span>
                     </span>
                     <span className="pl-4 text-[10px] text-muted-foreground">
-                      {dayAndTime(run.startedAt)} · {count} command{count === 1 ? '' : 's'}
+                      {dayAndTime(run.startedAt)} · {count} {noun}
+                      {count === 1 ? '' : 's'}
                     </span>
                   </button>
                 );

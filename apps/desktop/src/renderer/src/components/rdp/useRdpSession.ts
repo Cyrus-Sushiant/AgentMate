@@ -1,5 +1,5 @@
 import type { RdpCertificatePrompt, RdpServerOptions } from '@shared/apiTypes';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { formatBytes } from '@/lib/format';
 import {
   clampDesktopSize,
@@ -9,10 +9,13 @@ import {
   type FileInfo,
   forgetUnpastedUpload,
   mountRemoteDesktop,
+  type RdpBackend,
   RdpFileTransferProvider,
   type RdpScale,
+  type RdpSession,
   type UserInteraction,
 } from '@/lib/rdp/ironRdp';
+import type { RdpAgentTargets } from './useRdpAgentBridge';
 
 export type RdpPhase =
   | { kind: 'connecting' }
@@ -72,6 +75,11 @@ export function useRdpSession(sessionId: string, hostRef: React.RefObject<HTMLDi
   const proxyErrorRef = useRef<string | null>(null);
   const clipboardSignatureRef = useRef<string | null>(null);
   const connectedRef = useRef(false);
+  // What an AI task works through: the engine's session, the backend it came from, and the
+  // canvas the remote screen is drawn on.
+  const sessionRef = useRef<RdpSession | null>(null);
+  const backendRef = useRef<RdpBackend | null>(null);
+  const canvasRef = useRef<(() => HTMLCanvasElement | null) | null>(null);
 
   const upsertTransfer = useCallback((key: string, patch: Partial<RdpTransfer>) => {
     setTransfers((current) => {
@@ -291,13 +299,19 @@ export function useRdpSession(sessionId: string, hostRef: React.RefObject<HTMLDi
         setOptions(ticket.options);
 
         host.replaceChildren();
-        const mounted = await mountRemoteDesktop(host);
+        const mounted = await mountRemoteDesktop(host, {
+          onSession: (session) => {
+            if (!cancelled) sessionRef.current = session;
+          },
+        });
         if (cancelled) {
           mounted.element.remove();
           return;
         }
         ui = mounted.ui;
         element = mounted.element;
+        backendRef.current = mounted.backend;
+        canvasRef.current = mounted.canvas;
         uiRef.current = ui;
         elementRef.current = element;
 
@@ -397,11 +411,13 @@ export function useRdpSession(sessionId: string, hostRef: React.RefObject<HTMLDi
           .then((termination) => {
             if (cancelled) return;
             connectedRef.current = false;
+            sessionRef.current = null;
             setPhase({ kind: 'ended', reason: termination.reason() });
           })
           .catch((error: unknown) => {
             if (cancelled) return;
             connectedRef.current = false;
+            sessionRef.current = null;
             setPhase({
               kind: 'failed',
               message: describeConnectError(error, proxyErrorRef.current),
@@ -410,6 +426,7 @@ export function useRdpSession(sessionId: string, hostRef: React.RefObject<HTMLDi
       } catch (error) {
         if (cancelled) return;
         connectedRef.current = false;
+        sessionRef.current = null;
         setPhase({ kind: 'failed', message: describeConnectError(error, proxyErrorRef.current) });
       }
     })();
@@ -426,6 +443,9 @@ export function useRdpSession(sessionId: string, hostRef: React.RefObject<HTMLDi
       uiRef.current = null;
       elementRef.current = null;
       providerRef.current = null;
+      sessionRef.current = null;
+      backendRef.current = null;
+      canvasRef.current = null;
     };
     // `attempt` is the only thing that should start a new connection.
   }, [attempt]);
@@ -458,6 +478,17 @@ export function useRdpSession(sessionId: string, hostRef: React.RefObject<HTMLDi
     return () => window.removeEventListener('focus', onFocus);
   }, [syncClipboardFiles]);
 
+  // Read when a request arrives, so one object serves every connection attempt.
+  const agentTargets = useMemo<RdpAgentTargets>(
+    () => ({
+      getSession: () => (connectedRef.current ? sessionRef.current : null),
+      getBackend: () => backendRef.current,
+      getCanvas: () => canvasRef.current?.() ?? null,
+    }),
+    [],
+  );
+  const getRemoteElement = useCallback(() => elementRef.current, []);
+
   return {
     phase,
     nickname,
@@ -487,6 +518,8 @@ export function useRdpSession(sessionId: string, hostRef: React.RefObject<HTMLDi
       focusRemote();
     },
     focusRemote,
+    agentTargets,
+    getRemoteElement,
     pickAndSendFiles,
     dropFiles,
     saveRemoteFiles,

@@ -3,9 +3,11 @@ import { execFile } from 'node:child_process';
 import type { AppSettings, CliDefinition, SupportedOS } from '@agentmat/core';
 import {
   buildHeadlessCliArgs,
+  buildHeadlessImageInput,
   CLI_REGISTRY,
   getCliArgsFor,
   getCliDefinition,
+  supportsPromptImages,
 } from '@agentmat/core';
 import { runCli } from '../packageManagers/execUtils';
 import { store } from '../store';
@@ -100,6 +102,7 @@ function execPrompt(
   requestId: string | undefined,
   stdinPayload: string | null,
   timeoutMs: number,
+  extraEnv: Record<string, string> = {},
 ): Promise<ExecOutcome> {
   return new Promise((resolve) => {
     const options = {
@@ -112,7 +115,7 @@ function execPrompt(
       // Cline's CLI self-updates on every invocation by spawning a detached background
       // installer; on Windows that can flash open a visible console mid-run. This is a
       // no-op env var for every other CLI we shell out to.
-      env: { ...process.env, CLINE_NO_AUTO_UPDATE: '1' },
+      env: { ...process.env, CLINE_NO_AUTO_UPDATE: '1', ...extraEnv },
     };
     // npm-installed CLIs are .cmd shims on Windows, which Node refuses to spawn directly;
     // cmd.exe gets an argv array (not `shell: true`), so args never get re-parsed as a
@@ -259,6 +262,18 @@ export interface HeadlessPromptOptions {
    * the same flags in the user's saved CLI arguments rather than being added next to them.
    */
   runArgs?: string[];
+  /**
+   * Screenshots for the CLI to look at, as paths relative to `cwd`. Only CLIs whose registry
+   * entry says how to attach an image can take them; any other CLI is not started at all.
+   */
+  images?: string[];
+}
+
+/** Names the CLIs that can look at a screenshot, for an error that tells the user what to pick. */
+function imageCliNames(): string {
+  const labels = CLI_REGISTRY.filter(supportsPromptImages).map((cli) => cli.label);
+  if (labels.length <= 1) return labels.join('');
+  return `${labels.slice(0, -1).join(', ')} or ${labels.at(-1)}`;
 }
 
 /**
@@ -308,6 +323,16 @@ export async function runHeadlessCliPrompt(
     };
   }
 
+  const images = options.images ?? [];
+  if (images.length > 0 && !supportsPromptImages(cli)) {
+    return {
+      ok: false,
+      text: '',
+      cliName: cli.name,
+      error: `${cli.name} can't look at screenshots. Pick ${imageCliNames()}.`,
+    };
+  }
+
   // Stdin bypasses cmd.exe's command line entirely, so a CLI confirmed to read the
   // prompt that way needs neither the %VAR% stripping nor the length truncation below,
   // both of which only exist because cmd.exe reparses whatever lands in argv.
@@ -320,28 +345,33 @@ export async function runHeadlessCliPrompt(
     runArgs: cli.id === options.preferredCliId ? (options.runArgs ?? []) : [],
     allowWrites: options.allowWrites,
   });
+  const imageInput = buildHeadlessImageInput(cli, images);
+  const args = [...baseArgs, ...imageInput.args];
+  const fullPrompt = imageInput.promptPrefix + prompt;
 
   const timeoutMs = options.timeoutMs ?? HEADLESS_TIMEOUT_MS;
   const outcome =
     cli.promptInputMode === 'stdin'
       ? await execPrompt(
           cli.promptCommand.command,
-          baseArgs,
+          args,
           cwd,
           options.requestId,
-          prompt,
+          fullPrompt,
           timeoutMs,
+          imageInput.env,
         )
       : await execPrompt(
           cli.promptCommand.command,
           [
-            ...baseArgs,
-            truncateForCommandLine(stripEnvExpansions(prompt), cli.promptCommand.command, baseArgs),
+            ...args,
+            truncateForCommandLine(stripEnvExpansions(fullPrompt), cli.promptCommand.command, args),
           ],
           cwd,
           options.requestId,
           null,
           timeoutMs,
+          imageInput.env,
         );
 
   // A cancel that lost the race with completion would otherwise sit in the set forever.

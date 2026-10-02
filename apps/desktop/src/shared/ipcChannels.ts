@@ -161,6 +161,22 @@ export const IPC = {
     // main -> renderer: the task's status changed (thinking, proposed a command, running it, ...)
     onProgress: 'sshAgent:onProgress',
   },
+  rdpAgent: {
+    start: 'rdpAgent:start',
+    approveAction: 'rdpAgent:approveAction',
+    skipAction: 'rdpAgent:skipAction',
+    answerNeedsInput: 'rdpAgent:answerNeedsInput',
+    stop: 'rdpAgent:stop',
+    continue: 'rdpAgent:continue',
+    history: 'rdpAgent:history',
+    notifyWaiting: 'rdpAgent:notifyWaiting',
+    // Remote Desktop window -> main: the answer to an onRequest (a screenshot, or input applied)
+    respond: 'rdpAgent:respond',
+    // main -> Remote Desktop window: capture the screen, or apply mouse and keyboard input
+    onRequest: 'rdpAgent:onRequest',
+    // main -> Remote Desktop window: the task's status changed (thinking, proposed an action, ...)
+    onProgress: 'rdpAgent:onProgress',
+  },
   projects: {
     list: 'projects:list',
     create: 'projects:create',
@@ -599,6 +615,7 @@ export const IPC = {
     refs: 'pipelines:refs',
     dispatch: 'pipelines:dispatch',
     cancelRun: 'pipelines:cancelRun',
+    runners: 'pipelines:runners',
   },
   /** The Deploy section: saved servers, installing the server core, and its health. */
   deploy: {

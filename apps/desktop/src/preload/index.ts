@@ -159,6 +159,8 @@ import type {
   GithubRunAnnotationsInput,
   GithubRunAnnotationsResult,
   GithubRunCancelRequest,
+  GithubRunnersInput,
+  GithubRunnersResult,
   GithubWorkflowDispatchRequest,
   GithubWorkflowRefsResult,
   GitImageDiff,
@@ -194,6 +196,10 @@ import type {
   PrThreadReplyInput,
   PrThreadResolveInput,
   PullRequestStatus,
+  RdpAgentHistoryRun,
+  RdpAgentProgress,
+  RdpAgentRequest,
+  RdpAgentResponse,
   RdpCertificatePrompt,
   RdpClipboardFiles,
   RdpConnectTicket,
@@ -240,6 +246,7 @@ import type {
   SshSavedServer,
   SshVaultStatus,
   StartHostInput,
+  StartRdpAgentTaskInput,
   StartSshAgentTaskInput,
   SuggestGitTextResult,
   SuggestPullRequestTextResult,
@@ -570,6 +577,44 @@ const sshAgent = {
       callback(progress);
     ipcRenderer.on(IPC.sshAgent.onProgress, listener);
     return () => ipcRenderer.removeListener(IPC.sshAgent.onProgress, listener);
+  },
+};
+
+const rdpAgent = {
+  /** Starts an AI task in an open Remote Desktop session; rejects if one is already running there. */
+  start: (input: StartRdpAgentTaskInput): Promise<void> =>
+    ipcRenderer.invoke(IPC.rdpAgent.start, input),
+  approveAction: (sessionId: string): Promise<void> =>
+    ipcRenderer.invoke(IPC.rdpAgent.approveAction, sessionId),
+  skipAction: (sessionId: string): Promise<void> =>
+    ipcRenderer.invoke(IPC.rdpAgent.skipAction, sessionId),
+  answerNeedsInput: (sessionId: string, answer: string): Promise<void> =>
+    ipcRenderer.invoke(IPC.rdpAgent.answerNeedsInput, sessionId, answer),
+  stop: (sessionId: string): Promise<void> => ipcRenderer.invoke(IPC.rdpAgent.stop, sessionId),
+  /** Picks a run that paused on an error back up where it left off. */
+  continueTask: (sessionId: string): Promise<void> =>
+    ipcRenderer.invoke(IPC.rdpAgent.continue, sessionId),
+  /** The session's AI tasks, newest first, with every action, question and answer. */
+  history: (sessionId: string): Promise<RdpAgentHistoryRun[]> =>
+    ipcRenderer.invoke(IPC.rdpAgent.history, sessionId),
+  /** Raises a system notification for a run that is waiting on the user. */
+  notifyWaiting: (sessionId: string, title: string): Promise<void> =>
+    ipcRenderer.invoke(IPC.rdpAgent.notifyWaiting, sessionId, title),
+  /** Answers a request from onRequest: the screenshot, or that the input was applied. */
+  respond: (response: RdpAgentResponse): Promise<boolean> =>
+    ipcRenderer.invoke(IPC.rdpAgent.respond, response),
+  /** Main asking this window for a screenshot or to apply mouse and keyboard input. */
+  onRequest: (callback: (request: RdpAgentRequest) => void): (() => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, request: RdpAgentRequest): void =>
+      callback(request);
+    ipcRenderer.on(IPC.rdpAgent.onRequest, listener);
+    return () => ipcRenderer.removeListener(IPC.rdpAgent.onRequest, listener);
+  },
+  onProgress: (callback: (progress: RdpAgentProgress) => void): (() => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, progress: RdpAgentProgress): void =>
+      callback(progress);
+    ipcRenderer.on(IPC.rdpAgent.onProgress, listener);
+    return () => ipcRenderer.removeListener(IPC.rdpAgent.onProgress, listener);
   },
 };
 
@@ -1478,6 +1523,9 @@ const pipelines = {
   /** Stops a queued or in-progress run. */
   cancelRun: (input: GithubRunCancelRequest): Promise<GithubPipelineActionResult> =>
     ipcRenderer.invoke(IPC.pipelines.cancelRun, input),
+  /** Self-hosted runners behind the projects' repos, and jobs stuck waiting for one. */
+  runners: (input: GithubRunnersInput): Promise<GithubRunnersResult> =>
+    ipcRenderer.invoke(IPC.pipelines.runners, input),
 };
 
 /** The Deploy section: saved servers with their server core, installing it, and its health. */
@@ -2327,6 +2375,7 @@ const agentmatApi = {
   vault,
   rdp,
   sshAgent,
+  rdpAgent,
   agents,
   power,
   projects,

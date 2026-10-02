@@ -50,17 +50,60 @@ async function clipboardSetupSettled(): Promise<void> {
   await nextTask();
 }
 
-/** Creates the element and resolves once it hands over its control surface. */
-export async function mountRemoteDesktop(host: HTMLElement): Promise<{
+/** The engine's namespace of WebAssembly classes the element builds its session from. */
+export type RdpBackend = typeof Backend;
+
+/** The live connection the element drives. The AI task sends input through it directly. */
+export type RdpSession = Awaited<ReturnType<InstanceType<RdpBackend['SessionBuilder']>['connect']>>;
+
+/**
+ * Returns `backend` with a SessionBuilder that reports the session it connects. `UserInteraction`
+ * has no input API, but the element builds its session through `module.SessionBuilder`, so this
+ * is where the session can be picked up. The builder is the engine's own object with only
+ * `connect` patched, because the WebAssembly classes don't support being subclassed.
+ */
+export function wrapBackend(
+  backend: RdpBackend,
+  onSession: (session: RdpSession) => void,
+): RdpBackend {
+  function SessionBuilder(): InstanceType<RdpBackend['SessionBuilder']> {
+    const builder = new backend.SessionBuilder();
+    const connect = builder.connect.bind(builder);
+    builder.connect = async () => {
+      const session = await connect();
+      onSession(session);
+      return session;
+    };
+    return builder;
+  }
+  return {
+    ...backend,
+    // Called with `new`, a function that returns an object yields that object.
+    SessionBuilder: SessionBuilder as unknown as RdpBackend['SessionBuilder'],
+  };
+}
+
+export interface MountedRemoteDesktop {
   element: HTMLElement;
   ui: UserInteraction;
-}> {
+  /** The backend the element was given, with its session builder wrapped. */
+  backend: RdpBackend;
+  /** The canvas the element draws the remote screen on, once it has made one. */
+  canvas: () => HTMLCanvasElement | null;
+}
+
+/** Creates the element and resolves once it hands over its control surface. */
+export async function mountRemoteDesktop(
+  host: HTMLElement,
+  options: { onSession?: (session: RdpSession) => void } = {},
+): Promise<MountedRemoteDesktop> {
   await loadEngine();
-  const mounted = await new Promise<{ element: HTMLElement; ui: UserInteraction }>((resolve) => {
+  const backend = wrapBackend(Backend, (session) => options.onSession?.(session));
+  const mounted = await new Promise<MountedRemoteDesktop>((resolve) => {
     const element = document.createElement('iron-remote-desktop') as HTMLElement & {
       module: unknown;
     };
-    element.module = Backend;
+    element.module = backend;
     element.setAttribute('scale', 'fit');
     element.setAttribute('flexcenter', 'true');
     element.setAttribute('verbose', 'false');
@@ -71,7 +114,12 @@ export async function mountRemoteDesktop(host: HTMLElement): Promise<{
       'ready',
       (event) => {
         const detail = (event as CustomEvent<{ irgUserInteraction: UserInteraction }>).detail;
-        resolve({ element, ui: detail.irgUserInteraction });
+        resolve({
+          element,
+          ui: detail.irgUserInteraction,
+          backend,
+          canvas: () => element.shadowRoot?.querySelector('canvas') ?? null,
+        });
       },
       { once: true },
     );

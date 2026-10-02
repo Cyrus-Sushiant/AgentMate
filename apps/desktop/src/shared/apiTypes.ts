@@ -2302,6 +2302,110 @@ export interface SshAgentHistoryRun {
   entries: SshAgentHistoryEntry[];
 }
 
+/** Starts an AI task that operates a Remote Desktop session by looking at it and using mouse and keyboard. */
+export interface StartRdpAgentTaskInput {
+  /** The Remote Desktop session (its window) the AI should operate. */
+  sessionId: string;
+  /** The task in plain language, e.g. "open Notepad and write a shopping list". */
+  prompt: string;
+  mode: SshAgentMode;
+  /**
+   * Agent CLI that decides each step. It has to be one that can look at a screenshot. Null or
+   * absent uses the AI provider from Settings instead, which then needs a vision model.
+   */
+  cliId?: string | null;
+  /** Model id from that CLI's run profile. Absent keeps the CLI's own default. */
+  modelId?: string | null;
+  /** Reasoning effort, when the chosen model has one. */
+  effort?: EffortLevel | null;
+}
+
+export type RdpAgentPhase =
+  | 'thinking'
+  | 'proposed'
+  | 'acting'
+  | 'needs-input'
+  | 'finished'
+  | 'error'
+  | 'stopped';
+
+export interface RdpAgentProgress {
+  sessionId: string;
+  phase: RdpAgentPhase;
+  /** How many actions the AI has proposed so far this run, 1-based. */
+  step: number;
+  /** The action as the AI wrote it, e.g. `CLICK 512 300`, when relevant to `phase`. */
+  action?: string;
+  /** Where a pointer action lands, as fractions (0 to 1) of the desktop, for the on-screen marker. */
+  target?: { x: number; y: number };
+  /** A question (needs-input), a summary (finished), a warning (proposed), or an error/stop reason. */
+  message?: string;
+  /** Only on `error`: the run is paused rather than over, and continuing picks it up again. */
+  canContinue?: boolean;
+}
+
+/** One thing that happened during an AI Remote Desktop task, as shown in its history. */
+export type RdpAgentHistoryEntry =
+  | { kind: 'action'; at: number; action: string; outcome: string; ok: boolean }
+  | { kind: 'skipped'; at: number; action: string }
+  | { kind: 'question'; at: number; text: string }
+  | { kind: 'answer'; at: number; text: string }
+  | { kind: 'error'; at: number; text: string }
+  | { kind: 'continued'; at: number }
+  | { kind: 'finished'; at: number; text: string }
+  | { kind: 'stopped'; at: number; text: string };
+
+/** A whole AI Remote Desktop task: what was asked and everything that happened, oldest first. */
+export interface RdpAgentHistoryRun {
+  id: string;
+  sessionId: string;
+  prompt: string;
+  /** Who decided each step, e.g. "Claude Code" or "OpenAI". */
+  aiLabel: string;
+  startedAt: number;
+  endedAt: number | null;
+  status: SshAgentRunStatus;
+  entries: RdpAgentHistoryEntry[];
+}
+
+/**
+ * Low-level input in remote desktop pixels. The main process builds these from the AI's action;
+ * the Remote Desktop window only executes them.
+ */
+export type RdpInputOp =
+  | { kind: 'move'; x: number; y: number }
+  /** DOM numbering: 0 left, 1 middle, 2 right. */
+  | { kind: 'button'; button: 0 | 1 | 2; down: boolean }
+  /** PS/2 set 1 scancode. Extended keys carry 0xE0 in the high byte (the Windows key is 0xE05B). */
+  | { kind: 'key'; scancode: number; down: boolean }
+  | { kind: 'unicode'; char: string; down: boolean }
+  /** Positive scrolls up. unit: 0 pixel, 1 line, 2 page. */
+  | { kind: 'wheel'; vertical: boolean; amount: number; unit: 0 | 1 | 2 }
+  | { kind: 'pause'; ms: number }
+  | { kind: 'releaseAll' };
+
+/** One screenshot of a Remote Desktop session, scaled down for the AI. */
+export interface RdpAgentFrame {
+  /** PNG, base64, without the `data:` prefix. */
+  png: string;
+  /** Size of the PNG. */
+  width: number;
+  height: number;
+  /** Size of the remote desktop the PNG was scaled from. */
+  desktopWidth: number;
+  desktopHeight: number;
+}
+
+/** main -> Remote Desktop window. */
+export type RdpAgentRequest =
+  | { requestId: string; sessionId: string; kind: 'frame'; maxWidth: number }
+  | { requestId: string; sessionId: string; kind: 'input'; ops: RdpInputOp[] };
+
+/** Remote Desktop window -> main, answering one RdpAgentRequest. */
+export type RdpAgentResponse =
+  | { requestId: string; ok: true; frame?: RdpAgentFrame }
+  | { requestId: string; ok: false; error: string };
+
 /** Live transport quality for the controller's inbound video, sampled ~1/sec. */
 export interface RemoteQualitySample {
   kbps: number;
@@ -2522,6 +2626,91 @@ export interface GithubActionsActivity {
   repoCount: number;
   error?: string;
 }
+
+/**
+ * How a self-hosted runner looks right now. `seen` means GitHub would not tell us its live
+ * state (an org runner without org admin access), so all we know is that it ran a job lately.
+ */
+export type GithubRunnerState = 'idle' | 'busy' | 'offline' | 'seen';
+
+/** The job a busy runner is working on. */
+export interface GithubRunnerJob {
+  repo: string;
+  runId: number;
+  jobName: string;
+  workflowName: string;
+  htmlUrl: string;
+}
+
+export interface GithubRunner {
+  /** Runner names are unique within their scope, so `scope` plus `name` identifies one. */
+  name: string;
+  /** Only known for runners read from the runners API. */
+  id?: number;
+  /** Where the runner is registered: one repo (`owner/name`) or a whole org. */
+  scope: { kind: 'repo' | 'org'; name: string };
+  /** `Linux`, `Windows` or `macOS`, empty when only seen through jobs and the labels say nothing. */
+  os: string;
+  /** `X64`, `ARM64` and so on, when a label gives it away. */
+  arch?: string;
+  state: GithubRunnerState;
+  /** Every label, as GitHub reports it. */
+  labels: string[];
+  /** Labels someone added by hand, without `self-hosted`, the OS and the arch. */
+  customLabels: string[];
+  /** Set while the runner is busy and the job belongs to a run we know about. */
+  currentJob?: GithubRunnerJob;
+  /** When the runner last finished a job, for `seen` runners. ISO timestamp. */
+  lastSeenAt?: string;
+}
+
+/** A queued job asking for a self-hosted runner that no online runner can take. */
+export interface GithubRunnerWaitingJob {
+  repo: string;
+  runId: number;
+  jobName: string;
+  workflowName: string;
+  htmlUrl: string;
+  /** The `runs-on` labels the job is waiting for. */
+  labels: string[];
+  /** ISO timestamp of when the job was queued. */
+  queuedAt: string;
+  /**
+   * True when we could read the live runner list for the job's repo or org and none online
+   * matches. False when the org hides its runners, so the job is only reported once it has
+   * waited a while and the copy has to say "may be offline" rather than "is offline".
+   */
+  liveStatusKnown: boolean;
+}
+
+/** A run from the activity list, so the runner lookup can read its jobs. */
+export interface GithubRunnersRunRef {
+  repo: string;
+  runId: number;
+  workflowName: string;
+  /** Whether the run has finished. Finished runs only feed `seen` runners. */
+  completed: boolean;
+}
+
+export interface GithubRunnersInput {
+  /** Runs from the activity list, newest first. The main process caps how many it reads. */
+  runs: GithubRunnersRunRef[];
+  /**
+   * Ask GitHub again for runner lists it refused recently. Set when the user refreshes or has
+   * just granted org access, so a new scope shows up at once instead of minutes later.
+   */
+  fresh?: boolean;
+}
+
+export type GithubRunnersResult =
+  | {
+      ok: true;
+      runners: GithubRunner[];
+      waiting: GithubRunnerWaitingJob[];
+      /** Orgs whose runner list needs org admin access (the `admin:org` scope). */
+      hiddenOrgs: string[];
+    }
+  | { ok: false; error: string };
 
 export interface GithubActionsRunErrorInput {
   repo: string;

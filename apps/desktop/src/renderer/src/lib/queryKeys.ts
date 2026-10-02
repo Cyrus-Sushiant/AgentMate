@@ -110,6 +110,8 @@ export const queryKeys = {
   githubActivity: ['github-activity'] as const,
   githubNotifications: ['github-notifications'] as const,
   githubActionsActivity: ['github-actions-activity'] as const,
+  /** Self-hosted runners behind the projects' repos, for the Pipelines page. */
+  githubRunners: ['github-runners'] as const,
   /** Annotations one finished Actions run left behind. */
   runAnnotations: (repo: string, runId: number) => ['run-annotations', repo, runId] as const,
   pipelineStatus: (projectId: string) => ['pipeline-status', projectId] as const,
@@ -128,6 +130,8 @@ export const queryKeys = {
   sshServers: ['ssh-servers'] as const,
   /** A terminal's AI task history, refetched as the running task reports progress. */
   sshAgentHistory: (sessionId: string) => ['ssh-agent-history', sessionId] as const,
+  /** A Remote Desktop session's AI task history, refetched as the running task reports progress. */
+  rdpAgentHistory: (sessionId: string) => ['rdp-agent-history', sessionId] as const,
   /** The Claude Code and Codex conversations stored on a saved server. */
   sshConversations: (serverId: string) => ['ssh-conversations', serverId] as const,
   sshVaultStatus: ['ssh-vault-status'] as const,

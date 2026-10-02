@@ -44,6 +44,7 @@ Plan: docs/ROADMAP.md
 | E15 | Security center and maintenance | In progress | c87918a | T1 (users, devices, enrollment codes) and T2 (audit viewer) done |
 | E16 | Direct TLS mode | Not started | | |
 | E17 | Polish and full OS matrix | Not started | | |
+| E18 | Ask AI for Remote Desktop | Complete | | Input through the IronRDP session, screenshots from its canvas; verified against xrdp and XFCE; Codex image answer unverified locally |
 
 Status values: Not started, In progress, Blocked, Complete.
 

@@ -1,0 +1,5 @@
+[Desktop Entry]
+Type=Application
+Name=E2E terminal
+# Opened at a fixed spot so the test's clicks know where it is.
+Exec=xfce4-terminal --geometry=100x30+0+30

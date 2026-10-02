@@ -1,7 +1,13 @@
-import type { GithubActionsActivity, GithubActionsHistoryItem } from '@shared/apiTypes';
+import type {
+  GithubActionsActivity,
+  GithubActionsHistoryItem,
+  GithubRunner,
+  GithubRunnersResult,
+} from '@shared/apiTypes';
 import { act, screen, waitFor, within } from '@testing-library/react';
 import { useLocation } from 'react-router-dom';
 import { describe, expect, it, vi } from 'vitest';
+import { queryKeys } from '@/lib/queryKeys';
 import { useTerminalStore } from '@/stores/terminalStore';
 import { renderWithProviders } from '../../../test/renderer/renderWithProviders';
 
@@ -203,6 +209,23 @@ describe('PipelinesPage when there is nothing to show', () => {
     });
 
     expect(await screen.findByText('No workflow runs yet.')).toBeTruthy();
+  });
+
+  it('leaves the runner panel out until GitHub is connected', async () => {
+    renderPage({
+      // `ok: true` so the page shows this answer rather than a list an earlier test saved.
+      'pipelines.dashboardActivity': async () =>
+        activity({ authenticated: false, runs: [], repoCount: 0 }),
+      'pipelines.runners': async () => ({
+        ok: true,
+        runners: [],
+        waiting: [],
+        hiddenOrgs: ['acme'],
+      }),
+    });
+
+    await screen.findByRole('button', { name: 'gh auth login' });
+    expect(screen.queryByRole('region', { name: 'Self-hosted runners' })).toBeNull();
   });
 });
 
@@ -448,5 +471,223 @@ describe('PipelinesPage keeping the last list', () => {
       await screen.findByRole('button', { name: 'Refresh runs, last refresh failed' }),
     ).toBeTruthy();
     expect(bridge.$fn('pipelines.dashboardActivity')).toHaveBeenCalled();
+  });
+});
+
+/**
+ * Last on purpose: these load runners, and the runner panel keeps the last good answer in the
+ * same kind of module-level map, so anything after them would see a panel it did not ask for.
+ */
+describe('PipelinesPage self-hosted runners', () => {
+  function runners(overrides: Partial<GithubRunner> = {}): GithubRunnersResult {
+    return {
+      ok: true,
+      runners: [
+        {
+          name: 'deploy-box',
+          scope: { kind: 'org', name: 'acme' },
+          os: 'Linux',
+          arch: 'X64',
+          state: 'busy',
+          labels: ['self-hosted', 'Linux', 'X64'],
+          customLabels: [],
+          currentJob: {
+            repo: 'acme/aurora',
+            runId: 3,
+            jobName: 'publish',
+            workflowName: 'Docs',
+            htmlUrl: 'https://github.com/acme/aurora/actions/runs/3/job/30',
+          },
+          ...overrides,
+        },
+      ],
+      waiting: [],
+      hiddenOrgs: ['acme'],
+    };
+  }
+
+  function renderWithRunners(answer: GithubRunnersResult = runners()) {
+    return renderPage({
+      'pipelines.dashboardActivity': async () => activity(),
+      'pipelines.runners': async () => answer,
+    });
+  }
+
+  it('shows the runner panel above the run filters', async () => {
+    renderWithRunners();
+
+    const region = await screen.findByRole('region', { name: 'Self-hosted runners' });
+    await screen.findByText('deploy-box');
+
+    expect(
+      region.compareDocumentPosition(filterTab('All')) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+  });
+
+  it('brings up the run a busy runner is on, clearing filters that hide it', async () => {
+    const { bridge, user } = renderWithRunners();
+    await screen.findByText('Deploy docs');
+    await user.click(filterTab('Failed'));
+    await waitFor(() => expect(screen.queryByText('Deploy docs')).toBeNull());
+
+    await user.click(await screen.findByRole('button', { name: 'Docs · publish' }));
+
+    await waitFor(() => expect(runRow('Deploy docs').className).toContain('run-blink'));
+    // The run is right here, so nothing should have gone to the browser.
+    expect(() => bridge.$fn('shell.openExternal')).toThrow(/not been touched/);
+  });
+
+  it('opens the job on GitHub when its run is not in the list', async () => {
+    const elsewhere = runners({
+      currentJob: {
+        repo: 'acme/other',
+        runId: 999,
+        jobName: 'publish',
+        workflowName: 'Docs',
+        htmlUrl: 'https://github.com/acme/other/actions/runs/999/job/1',
+      },
+    });
+    const { bridge, user } = renderWithRunners(elsewhere);
+
+    await user.click(await screen.findByRole('button', { name: 'Docs · publish' }));
+
+    await waitFor(() =>
+      expect(bridge.$fn('shell.openExternal')).toHaveBeenCalledWith(
+        'https://github.com/acme/other/actions/runs/999/job/1',
+      ),
+    );
+  });
+
+  it('opens a terminal to grant org admin access', async () => {
+    const { user } = renderWithRunners();
+
+    await user.click(await screen.findByRole('button', { name: 'Grant access' }));
+
+    const session = useTerminalStore
+      .getState()
+      .sessions.find((one) => one.title === 'GitHub org access');
+    expect(session?.initialInput).toBe('gh auth refresh -h github.com -s admin:org');
+    expect(toast.info).toHaveBeenCalledWith(
+      'Press Enter in the terminal, then approve the new scope in your browser.',
+    );
+  });
+
+  it('refreshes the runners with the runs', async () => {
+    const { bridge, user } = renderWithRunners();
+    await screen.findByText('deploy-box');
+    const before = bridge.$fn('pipelines.runners').mock.calls.length;
+
+    await user.click(screen.getByRole('button', { name: 'Refresh runs' }));
+
+    await waitFor(() =>
+      expect(bridge.$fn('pipelines.runners').mock.calls.length).toBeGreaterThan(before),
+    );
+  });
+});
+
+/** Also after the runner tests, for the same reason. */
+describe('PipelinesPage runner follow-ups', () => {
+  const answer: GithubRunnersResult = {
+    ok: true,
+    runners: [
+      {
+        name: 'deploy-box',
+        scope: { kind: 'org', name: 'acme' },
+        os: 'Linux',
+        arch: 'X64',
+        state: 'busy',
+        labels: ['self-hosted', 'Linux', 'X64'],
+        customLabels: [],
+        currentJob: {
+          repo: 'acme/aurora',
+          runId: 3,
+          jobName: 'publish',
+          workflowName: 'Docs',
+          htmlUrl: 'https://github.com/acme/aurora/actions/runs/3/job/30',
+        },
+      },
+    ],
+    waiting: [],
+    hiddenOrgs: [],
+  };
+
+  function renderWithRunners() {
+    return renderPage({
+      'pipelines.dashboardActivity': async () => activity(),
+      'pipelines.runners': async () => answer,
+    });
+  }
+
+  it('asks GitHub afresh for runners on a refresh, and only for that one lookup', async () => {
+    const { bridge, user, queryClient } = renderWithRunners();
+    await screen.findByText('deploy-box');
+    await waitFor(() => expect(queryClient.isFetching()).toBe(0));
+    const calls = bridge.$fn('pipelines.runners');
+    expect(calls.mock.lastCall?.[0]).not.toHaveProperty('fresh');
+    const before = calls.mock.calls.length;
+
+    await user.click(screen.getByRole('button', { name: 'Refresh runs' }));
+
+    await waitFor(() => expect(calls).toHaveBeenCalledTimes(before + 1));
+    expect(calls.mock.lastCall?.[0]).toMatchObject({ fresh: true });
+    await waitFor(() => expect(queryClient.isFetching()).toBe(0));
+
+    // The next poll goes back to the normal lookup.
+    await act(() => queryClient.refetchQueries({ queryKey: queryKeys.githubRunners }));
+    expect(calls).toHaveBeenCalledTimes(before + 2);
+    expect(calls.mock.lastCall?.[0]).not.toHaveProperty('fresh');
+  });
+
+  it('scrolls to the run a runner is on', async () => {
+    const scrolled: Element[] = [];
+    const scrollIntoView = vi
+      .spyOn(Element.prototype, 'scrollIntoView')
+      .mockImplementation(function (this: Element) {
+        scrolled.push(this);
+      });
+    try {
+      const { user } = renderWithRunners();
+      await screen.findByText('Deploy docs');
+
+      await user.click(await screen.findByRole('button', { name: 'Docs · publish' }));
+
+      await waitFor(() => expect(scrolled).toContain(runRow('Deploy docs')));
+    } finally {
+      scrollIntoView.mockRestore();
+    }
+  });
+
+  it('blinks the row again when the same job is clicked a second time', async () => {
+    // jsdom has no Web Animations, so the row's CSS animations are faked here.
+    const blink = { animationName: 'run-blink', currentTime: 1200 as number | null, play: vi.fn() };
+    const other = { animationName: 'fade', currentTime: 300 as number | null, play: vi.fn() };
+    const original = Object.getOwnPropertyDescriptor(Element.prototype, 'getAnimations');
+    Object.defineProperty(Element.prototype, 'getAnimations', {
+      configurable: true,
+      writable: true,
+      value(this: Element) {
+        return this.classList.contains('run-blink') ? [blink, other] : [];
+      },
+    });
+    try {
+      const { user } = renderWithRunners();
+      await screen.findByText('Deploy docs');
+      const job = await screen.findByRole('button', { name: 'Docs · publish' });
+
+      await user.click(job);
+      await waitFor(() => expect(runRow('Deploy docs').className).toContain('run-blink'));
+      blink.currentTime = 1500;
+      blink.play.mockClear();
+
+      await user.click(job);
+
+      await waitFor(() => expect(blink.play).toHaveBeenCalled());
+      expect(blink.currentTime).toBe(0);
+      expect(other.play).not.toHaveBeenCalled();
+      expect(other.currentTime).toBe(300);
+    } finally {
+      if (original) Object.defineProperty(Element.prototype, 'getAnimations', original);
+      else delete (Element.prototype as { getAnimations?: unknown }).getAnimations;
+    }
   });
 });

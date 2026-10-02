@@ -9,14 +9,17 @@ import { cn } from '@/lib/utils';
 export function OverflowScroll({
   children,
   className,
+  rootClassName,
   fill = false,
   surface = 'popover',
 }: {
   children: ReactNode;
   className?: string;
+  /** Classes for the outer wrapper that holds the scroller and its fades. */
+  rootClassName?: string;
   /** Stretch to the parent (dialog body). Leave off for a max-height list. */
   fill?: boolean;
-  surface?: 'popover' | 'card';
+  surface?: 'popover' | 'card' | 'background';
 }): React.JSX.Element {
   const ref = useRef<HTMLDivElement>(null);
   const [overflow, setOverflow] = useState({ up: false, down: false });
@@ -47,10 +50,15 @@ export function OverflowScroll({
     };
   }, [update]);
 
-  const fadeFrom = surface === 'card' ? 'from-card' : 'from-popover';
+  const fadeFrom =
+    surface === 'card'
+      ? 'from-card'
+      : surface === 'background'
+        ? 'from-background'
+        : 'from-popover';
 
   return (
-    <div className={cn('relative min-h-0', fill && 'h-full')}>
+    <div className={cn('relative min-h-0', fill && 'h-full', rootClassName)}>
       <div
         ref={ref}
         className={cn('min-h-0 overflow-y-auto overscroll-contain', fill && 'h-full', className)}

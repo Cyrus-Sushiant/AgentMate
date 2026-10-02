@@ -201,6 +201,27 @@ body {
   background-color: transparent;
 }
 
+/* A hairline scrollbar for narrow columns like the workspace rail. The thumb
+   stays hidden until the pointer is over the column, so it never crowds the icons. */
+.rail-scroll::-webkit-scrollbar {
+  width: 4px;
+}
+
+.rail-scroll::-webkit-scrollbar-thumb {
+  border: 0;
+  background-color: transparent;
+  transition: background-color 150ms;
+}
+
+.rail-scroll:hover::-webkit-scrollbar-thumb {
+  background-color: hsl(var(--foreground) / 0.16);
+}
+
+.rail-scroll::-webkit-scrollbar-thumb:hover,
+.rail-scroll::-webkit-scrollbar-thumb:active {
+  background-color: hsl(var(--primary) / 0.55);
+}
+
 /* Applied automatically to text inputs/textareas whose current value
    contains Persian/Arabic script, see lib/rtl.ts. */
 .font-vazirmatn {

@@ -190,24 +190,20 @@ function emptyActivity(
   };
 }
 
-/** Recent Actions runs across AgentMate projects, for the dashboard chart and the Pipelines page. */
-export async function fetchDashboardActionsActivity(): Promise<GithubActionsActivity> {
-  if (!(await isGhCliAvailable())) {
-    return emptyActivity({
-      ok: false,
-      cliAvailable: false,
-      authenticated: false,
-      error: 'Install the GitHub CLI and sign in to see GitHub Actions.',
-    });
-  }
+export interface ProjectGithubRepo {
+  owner: string;
+  repo: string;
+  projectId: string;
+  projectName: string;
+}
 
+/**
+ * The GitHub repos behind AgentMate projects, each listed once under the first project that
+ * uses it, and at most `MAX_REPOS` of them.
+ */
+export async function listProjectGithubRepos(): Promise<ProjectGithubRepo[]> {
   const projects = await store.getProjects();
-  const repos: {
-    owner: string;
-    repo: string;
-    projectId: string;
-    projectName: string;
-  }[] = [];
+  const repos: ProjectGithubRepo[] = [];
   const seen = new Set<string>();
   for (const project of projects) {
     const github = await githubRepoForFolder(project.folderPath);
@@ -223,7 +219,21 @@ export async function fetchDashboardActionsActivity(): Promise<GithubActionsActi
     });
     if (repos.length >= MAX_REPOS) break;
   }
+  return repos;
+}
 
+/** Recent Actions runs across AgentMate projects, for the dashboard chart and the Pipelines page. */
+export async function fetchDashboardActionsActivity(): Promise<GithubActionsActivity> {
+  if (!(await isGhCliAvailable())) {
+    return emptyActivity({
+      ok: false,
+      cliAvailable: false,
+      authenticated: false,
+      error: 'Install the GitHub CLI and sign in to see GitHub Actions.',
+    });
+  }
+
+  const repos = await listProjectGithubRepos();
   if (repos.length === 0) {
     return emptyActivity({ ok: true, cliAvailable: true, authenticated: true });
   }

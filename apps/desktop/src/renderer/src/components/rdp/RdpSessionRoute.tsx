@@ -8,6 +8,7 @@ import {
   Keyboard,
   Monitor,
   RefreshCw,
+  Sparkles,
   TriangleAlert,
   Upload,
   WindowMinimize,
@@ -18,6 +19,7 @@ import {
   NativeCaptionButtons,
   type WindowControlsProps,
 } from '@/components/layout/TitleBar';
+import { SshAgentHistoryDialog } from '@/components/terminal/SshAgentHistoryDialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -30,7 +32,13 @@ import {
 } from '@/components/ui/dialog';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { formatBytes } from '@/lib/format';
+import { queryKeys } from '@/lib/queryKeys';
 import { cn } from '@/lib/utils';
+import { initRdpAgentStatus, isRdpAgentActive, useRdpAgentSession } from '@/stores/rdpAgentStore';
+import { RdpAgentOverlay } from './RdpAgentOverlay';
+import { RdpAgentStatusBar } from './RdpAgentStatusBar';
+import { RdpAskAiDialog } from './RdpAskAiDialog';
+import { useRdpAgentBridge } from './useRdpAgentBridge';
 import { type RdpPhase, type RdpTransfer, useRdpSession } from './useRdpSession';
 
 const HIDE_BAR_DELAY_MS = 1200;
@@ -133,8 +141,18 @@ export default function RdpSessionRoute(): React.JSX.Element {
   });
   const [barVisible, setBarVisible] = useState(false);
   const [transfersOpen, setTransfersOpen] = useState(false);
+  const [askAiOpen, setAskAiOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
   const hideTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const isMac = window.agentmat.platform === 'darwin';
+  const agentState = useRdpAgentSession(sessionId);
+  const agentActive = isRdpAgentActive(agentState);
+  const nicknameRef = useRef(session.nickname);
+  nicknameRef.current = session.nickname;
+
+  // The AI task in main sees and works this session through this window.
+  useRdpAgentBridge(sessionId, session.agentTargets);
+  useEffect(() => initRdpAgentStatus(() => nicknameRef.current), []);
 
   useEffect(() => {
     void window.agentmat.rdpWindow.getState().then(setWindowState);
@@ -184,6 +202,17 @@ export default function RdpSessionRoute(): React.JSX.Element {
 
   const actions = (
     <>
+      <ToolbarButton
+        label={
+          agentActive
+            ? 'The AI is already working on this desktop'
+            : 'Ask AI to do a task on this desktop'
+        }
+        disabled={!connected || agentActive}
+        onClick={() => setAskAiOpen(true)}
+      >
+        <Sparkles className="h-3.5 w-3.5" /> Ask AI
+      </ToolbarButton>
       <ToolbarButton
         label="Send Ctrl+Alt+Del to the server"
         disabled={!connected}
@@ -318,6 +347,8 @@ export default function RdpSessionRoute(): React.JSX.Element {
         </>
       )}
 
+      <RdpAgentStatusBar sessionId={sessionId} onOpenHistory={() => setHistoryOpen(true)} />
+
       {session.notice && (
         <div
           className={cn(
@@ -361,6 +392,14 @@ export default function RdpSessionRoute(): React.JSX.Element {
         }}
       >
         <div ref={hostRef} className="absolute inset-0 overflow-hidden" />
+
+        {connected && (
+          <RdpAgentOverlay
+            sessionId={sessionId}
+            getRemoteElement={session.getRemoteElement}
+            getCanvas={session.agentTargets.getCanvas}
+          />
+        )}
 
         {phase.kind !== 'connected' && (
           <div className="absolute inset-0 z-10 flex items-center justify-center bg-background">
@@ -411,6 +450,20 @@ export default function RdpSessionRoute(): React.JSX.Element {
           </div>
         )}
       </div>
+
+      <RdpAskAiDialog sessionId={sessionId} open={askAiOpen} onOpenChange={setAskAiOpen} />
+      <SshAgentHistoryDialog
+        sessionId={sessionId}
+        sessionTitle={session.nickname}
+        open={historyOpen}
+        onOpenChange={setHistoryOpen}
+        source={{
+          kind: 'rdp',
+          queryKey: queryKeys.rdpAgentHistory(sessionId),
+          load: () => window.agentmat.rdpAgent.history(sessionId),
+          live: agentState,
+        }}
+      />
 
       <Dialog
         open={session.certificate != null}

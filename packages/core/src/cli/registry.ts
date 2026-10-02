@@ -63,6 +63,22 @@ export const CliDefinitionSchema = z.object({
    * turns into an attached file) or the bare path for CLIs with no mention syntax.
    */
   fileMention: z.enum(['at', 'plain']).optional(),
+  /**
+   * How a headless run attaches a screenshot: a CLI flag per image (`flag`), a file mention in
+   * the prompt (`mention`), or a prompt that tells the agent to open the file with its own read
+   * tool (`read-tool`). Absent for CLIs that cannot look at an image in headless mode. Only set
+   * after checking by hand that the CLI really describes the attached image.
+   */
+  promptImageInput: z.enum(['flag', 'mention', 'read-tool']).optional(),
+  /**
+   * Args added once to a run that attaches images. For `read-tool` they are what lets the agent
+   * use that tool without a TTY to approve it.
+   */
+  promptImageArgs: z.array(z.string()).optional(),
+  /** For `flag`: the flag that names one image, repeated with each image's path. */
+  promptImageFlag: z.string().optional(),
+  /** Env vars for a run that attaches images, e.g. to let the CLI read from a temp folder. */
+  promptImageEnv: z.record(z.string(), z.string()).optional(),
   /** Keyed by SupportedOS; not every OS needs an entry. */
   installCommand: z.record(z.string(), z.string()),
   /** Keyed by SupportedOS; falls back to installCommand when absent. */
@@ -87,6 +103,10 @@ export const CLI_REGISTRY: CliDefinition[] = [
     promptCommand: { command: 'claude', args: ['-p'] },
     promptInputMode: 'stdin',
     promptWriteArgs: ['--permission-mode', 'acceptEdits'],
+    // `-p` has no image flag, but it can open a PNG with its Read tool, which a headless run
+    // may only use when it is allowed up front.
+    promptImageInput: 'read-tool',
+    promptImageArgs: ['--allowedTools', 'Read'],
     argsExample: `--model ${CLI_MODEL_EXAMPLES['claude-code']}`,
     installCommand: {
       win32: 'npm install -g @anthropic-ai/claude-code',
@@ -108,6 +128,10 @@ export const CLI_REGISTRY: CliDefinition[] = [
     promptCommand: { command: 'gemini', args: ['-p'] },
     promptInputMode: 'stdin',
     promptWriteArgs: ['--yolo'],
+    promptImageInput: 'mention',
+    // Headless gemini refuses to read from a folder it doesn't trust, and a per-run temp folder
+    // never is.
+    promptImageEnv: { GEMINI_CLI_TRUST_WORKSPACE: 'true' },
     argsExample: `-m ${CLI_MODEL_EXAMPLES['gemini-cli']}`,
     installCommand: {
       win32: 'npm install -g @google/gemini-cli',
@@ -179,6 +203,11 @@ export const CLI_REGISTRY: CliDefinition[] = [
     // ("unexpected argument '--full-auto'"). The exec equivalent is the sandbox policy, and
     // exec never prompts for approvals anyway.
     promptWriteArgs: ['--sandbox', 'workspace-write'],
+    promptImageInput: 'flag',
+    promptImageFlag: '--image',
+    // An image run happens in a fresh temp folder, and outside a git repo `codex exec` stops with
+    // "Not inside a trusted directory and --skip-git-repo-check was not specified."
+    promptImageArgs: ['--skip-git-repo-check'],
     argsExample: `--model ${CLI_MODEL_EXAMPLES['codex-cli']}`,
     installCommand: {
       win32: 'npm install -g @openai/codex',

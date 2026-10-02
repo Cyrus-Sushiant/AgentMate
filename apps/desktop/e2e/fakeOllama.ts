@@ -6,6 +6,8 @@ export interface FakeOllama {
   url: string;
   /** Every prompt the app sent, oldest first. */
   prompts: string[];
+  /** The base64 images attached to each of those prompts, empty when there were none. */
+  images: string[][];
   close: () => Promise<void>;
 }
 
@@ -16,6 +18,7 @@ export interface FakeOllama {
 export async function startFakeOllama(replies: string[]): Promise<FakeOllama> {
   const queue = [...replies];
   const prompts: string[] = [];
+  const images: string[][] = [];
   const server = createServer((request, response) => {
     let body = '';
     request.on('data', (chunk) => {
@@ -26,8 +29,11 @@ export async function startFakeOllama(replies: string[]): Promise<FakeOllama> {
         response.writeHead(404).end();
         return;
       }
-      const { messages } = JSON.parse(body) as { messages: { content: string }[] };
+      const { messages } = JSON.parse(body) as {
+        messages: { content: string; images?: string[] }[];
+      };
       prompts.push(messages.at(-1)?.content ?? '');
+      images.push(messages.at(-1)?.images ?? []);
       const content = queue.shift() ?? 'FINISHED: out of script';
       response.writeHead(200, { 'Content-Type': 'application/json' });
       response.end(JSON.stringify({ message: { role: 'assistant', content }, done: true }));
@@ -38,6 +44,7 @@ export async function startFakeOllama(replies: string[]): Promise<FakeOllama> {
   return {
     url: `http://127.0.0.1:${port}`,
     prompts,
+    images,
     close: () => new Promise((resolve) => server.close(() => resolve())),
   };
 }

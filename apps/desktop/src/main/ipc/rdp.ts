@@ -12,6 +12,7 @@ import type {
 } from '../../shared/apiTypes';
 import { IPC } from '../../shared/ipcChannels';
 import { withRdpDefaults } from '../../shared/rdpDefaults';
+import { stopRdpTask } from '../agents/rdpTaskRunner';
 import { keepAwake } from '../power/keepAwake';
 import { type ClipboardFileSet, readClipboardFiles } from '../rdp/clipboardFiles';
 import {
@@ -172,6 +173,7 @@ export function registerRdpHandlers(): void {
       title: `${server.nickname} - Remote Desktop`,
       fullScreen: withRdpDefaults(server.options).fullscreenOnConnect,
       onClosed: () => {
+        stopRdpTask(sessionId, 'exited');
         sessions.delete(sessionId);
         proxy.closeSession(sessionId);
         void abandonDownloads(ownerId);

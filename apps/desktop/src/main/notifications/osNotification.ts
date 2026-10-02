@@ -17,12 +17,19 @@ import { focusMainWindow } from '../mainWindow';
  */
 
 const ROUTE_ARG = 'agentmate-route';
+/** Names the notification in a toast's launch args, so its onClick can be found again. */
+const ID_ARG = 'agentmate-notification';
 /** Enough to keep recent toasts clickable without holding on to every one ever shown. */
 const MAX_LIVE = 50;
 /** The instance event and the activation callback both fire for one click on Windows. */
 const DUPLICATE_CLICK_MS = 1500;
 
 const live = new Map<string, Notification>();
+/**
+ * Click actions by notification id. Kept apart from `live` so an Action Center click still finds
+ * its action once the toast object is gone, and removed on first use so one click runs it once.
+ */
+const clickActions = new Map<string, () => void>();
 let lastOpened = { route: '', at: 0 };
 let toastIconUrl: string | null | undefined;
 
@@ -32,6 +39,19 @@ export interface OsNotificationInput {
   /** The renderer route a click opens, e.g. `/workspace/<projectId>?session=<tabId>`. */
   route: string;
   silent?: boolean;
+  /**
+   * Runs on click instead of opening `route`, for things that live outside the main window
+   * (a Remote Desktop session window, for one).
+   */
+  onClick?: () => void;
+}
+
+/** Runs and forgets a notification's click action. Does nothing once it has already run. */
+function runClickAction(id: string): void {
+  const action = clickActions.get(id);
+  if (!action) return;
+  clickActions.delete(id);
+  action();
 }
 
 function openRoute(route: string): void {
@@ -64,8 +84,13 @@ function iconForToast(): string | null {
   return toastIconUrl;
 }
 
-function toastXml({ title, body, route, silent }: OsNotificationInput): string {
-  const launch = new URLSearchParams({ [ROUTE_ARG]: route }).toString();
+function toastXml(
+  id: string,
+  { title, body, route, silent, onClick }: OsNotificationInput,
+): string {
+  const launch = new URLSearchParams(
+    onClick ? { [ROUTE_ARG]: route, [ID_ARG]: id } : { [ROUTE_ARG]: route },
+  ).toString();
   const iconUrl = iconForToast();
   return [
     `<toast launch="${escapeXml(launch)}" activationType="foreground">`,
@@ -92,7 +117,7 @@ export function showOsNotification(input: OsNotificationInput): boolean {
   const id = randomUUID();
   const notification =
     process.platform === 'win32'
-      ? new Notification({ id, toastXml: toastXml(input) })
+      ? new Notification({ id, toastXml: toastXml(id, input) })
       : new Notification({
           id,
           title: input.title,
@@ -101,9 +126,18 @@ export function showOsNotification(input: OsNotificationInput): boolean {
           silent: input.silent ?? false,
         });
 
+  if (input.onClick) {
+    clickActions.set(id, input.onClick);
+    if (clickActions.size > MAX_LIVE) {
+      const oldest = clickActions.keys().next().value;
+      if (oldest) clickActions.delete(oldest);
+    }
+  }
+
   notification.on('click', () => {
     forget(id);
-    openRoute(input.route);
+    if (input.onClick) runClickAction(id);
+    else openRoute(input.route);
   });
   notification.on('close', (details) => {
     // A toast that timed out moves to the Action Center and can still be clicked there.
@@ -131,7 +165,15 @@ export function registerNotificationActivation(): void {
   if (process.platform !== 'win32') return;
   Notification.handleActivation((details) => {
     if (details.type !== 'click') return;
-    const route = new URLSearchParams(details.arguments).get(ROUTE_ARG);
+    const args = new URLSearchParams(details.arguments);
+    const id = args.get(ID_ARG);
+    // A toast with an onClick never opens a route. The action may already have run from the
+    // instance event, in which case this does nothing.
+    if (id) {
+      runClickAction(id);
+      return;
+    }
+    const route = args.get(ROUTE_ARG);
     if (route?.startsWith('/')) openRoute(route);
     else focusMainWindow();
   });

@@ -14,6 +14,7 @@ import {
   X,
 } from '@/components/icons';
 import { CopyRunErrorButton } from '@/components/pipelines/CopyRunErrorButton';
+import { type RunnerRunTarget, RunnersPanel } from '@/components/pipelines/RunnersPanel';
 import {
   RunAnnotations,
   useRunAnnotations,
@@ -288,7 +289,15 @@ export default function PipelinesPage(): React.JSX.Element {
   const [search, setSearch] = useState('');
   /** A run asked for by a deep link, waiting for the list to load. */
   const [pendingFocus, setPendingFocus] = useState<{ runId: number; repo: string } | null>(null);
-  const [focusedRunId, setFocusedRunId] = useState<number | null>(null);
+  /**
+   * The run being pointed at. A new object for every focus, even of the same run, so the scroll
+   * and the blink happen again on a second click.
+   */
+  const [focus, setFocus] = useState<{ runId: number; nonce: number } | null>(null);
+  const focusCount = useRef(0);
+  const focusedRunId = focus?.runId ?? null;
+  /** Bumped by the Refresh button, which tells the runner panel to look again too. */
+  const [runnersRefresh, setRunnersRefresh] = useState(0);
   const rowNodes = useRef(new Map<number, HTMLLIElement>());
 
   const bindRow = useCallback((runId: number) => {
@@ -427,8 +436,7 @@ export default function PipelinesPage(): React.JSX.Element {
     });
   }, [filter, repo, runs, search]);
 
-  // The list is in by now, so scroll the requested run into view and ring it.
-  // The frame wait lets the rows the filter reset just brought back mount.
+  // The list is in by now, so find the requested run and point at it.
   useEffect(() => {
     if (!pendingFocus) return;
     const match = runs.find(
@@ -441,19 +449,39 @@ export default function PipelinesPage(): React.JSX.Element {
       if (runs.length > 0) toast.info('That run has dropped off the recent list.');
       return;
     }
-    setFocusedRunId(match.id);
+    focusCount.current += 1;
+    setFocus({ runId: match.id, nonce: focusCount.current });
+  }, [pendingFocus, runs]);
+
+  // Scroll it into view and start the blink over. This lives apart from the effect above,
+  // which re-runs as soon as it clears pendingFocus and would cancel the frame. The frame
+  // wait lets the rows the filter reset just brought back mount.
+  useEffect(() => {
+    if (!focus) return;
     const frame = requestAnimationFrame(() => {
-      rowNodes.current.get(match.id)?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      const node = rowNodes.current.get(focus.runId);
+      if (!node) return;
+      // A second click on the same run leaves the class in place, so the CSS animation would
+      // not run again by itself. jsdom has no getAnimations, hence the check.
+      if (typeof node.getAnimations === 'function') {
+        for (const animation of node.getAnimations()) {
+          if ('animationName' in animation && animation.animationName === 'run-blink') {
+            animation.currentTime = 0;
+            animation.play();
+          }
+        }
+      }
+      node.scrollIntoView({ block: 'center', behavior: 'smooth' });
     });
     return () => cancelAnimationFrame(frame);
-  }, [pendingFocus, runs]);
+  }, [focus]);
 
   // The ring is a "here it is" pointer, not a state, so it fades on its own.
   useEffect(() => {
-    if (focusedRunId === null) return;
-    const timer = setTimeout(() => setFocusedRunId(null), 6000);
+    if (!focus) return;
+    const timer = setTimeout(() => setFocus(null), 6000);
     return () => clearTimeout(timer);
-  }, [focusedRunId]);
+  }, [focus]);
 
   const loading = activityQuery.isPending && activity === undefined;
   const connected = activity?.ok === true && activity.cliAvailable && activity.authenticated;
@@ -467,6 +495,32 @@ export default function PipelinesPage(): React.JSX.Element {
 
   function handleRefresh(): void {
     lastGood.refresh();
+    // The runner panel has no button of its own, so one refresh covers both. It refetches on
+    // its own when the count changes, asking GitHub afresh rather than trusting a recent refusal.
+    setRunnersRefresh((count) => count + 1);
+  }
+
+  /**
+   * A runner's job or a waiting job. A run in the list gets the same treatment as a deep link
+   * (filters cleared, scrolled to, ringed); one that has dropped off opens on GitHub instead.
+   */
+  function focusRun({ runId, repo: runRepo, htmlUrl }: RunnerRunTarget): void {
+    if (!runs.some((run) => run.id === runId && run.repo === runRepo)) {
+      if (htmlUrl) void window.agentmat.shell.openExternal(htmlUrl);
+      return;
+    }
+    setFilter('all');
+    setRepo('');
+    setSearch('');
+    setPendingFocus({ runId, repo: runRepo });
+  }
+
+  function handleGrantAccess(): void {
+    openSession({
+      title: 'GitHub org access',
+      initialInput: 'gh auth refresh -h github.com -s admin:org',
+    });
+    toast.info('Press Enter in the terminal, then approve the new scope in your browser.');
   }
 
   function handleOpenRun(item: GithubActionsHistoryItem): void {
@@ -477,6 +531,14 @@ export default function PipelinesPage(): React.JSX.Element {
 
   return (
     <div className="flex min-h-full flex-1 flex-col gap-4 p-6">
+      {connected ? (
+        <RunnersPanel
+          runs={runs}
+          refreshCount={runnersRefresh}
+          onFocusRun={focusRun}
+          onGrantAccess={handleGrantAccess}
+        />
+      ) : null}
       <div className="flex flex-wrap items-center gap-2">
         <div className="flex flex-wrap items-center gap-1 rounded-xl border border-border p-1">
           {FILTERS.map((entry) => (

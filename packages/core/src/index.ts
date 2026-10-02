@@ -13,6 +13,7 @@ export * from './cli/agentTypes.js';
 export * from './cli/args.js';
 export * from './cli/fileMention.js';
 export * from './cli/headlessArgs.js';
+export * from './cli/headlessImages.js';
 export * from './cli/launchCommand.js';
 export * from './cli/launchDefaults.js';
 export * from './cli/registry.js';
