@@ -1,7 +1,7 @@
 import { type Project, parseScopeId, type WorktreeInfo } from '@agentmat/core';
 import type { GitBranchInfo, WorkspaceGitState } from '@shared/apiTypes';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import {
   Check,
@@ -30,6 +30,9 @@ function samePath(a: string, b: string): boolean {
   return norm(a) === norm(b);
 }
 
+/** How long a click on a branch waits to see whether a second one makes it a double-click. */
+const DOUBLE_CLICK_MS = 250;
+
 /** Who else has a branch checked out: the main checkout, or one of the project's worktrees. */
 type Holder = { kind: 'main' } | { kind: 'worktree'; worktree: WorktreeInfo | null };
 
@@ -38,6 +41,7 @@ type Holder = { kind: 'main' } | { kind: 'worktree'; worktree: WorktreeInfo | nu
  * git refuses (and the reason is shown) when uncommitted changes would be overwritten. A branch
  * that another worktree (or the main checkout) has checked out opens that workspace instead,
  * since git checks a branch out in one place at a time.
+ * Double-clicking a branch opens it on GitHub instead.
  * Local branches delete locally; a branch that only exists on the remote is deleted there.
  * The default branch and master can't be deleted from here.
  */
@@ -56,6 +60,13 @@ export function BranchesSection({
   const [filter, setFilter] = useState('');
   const [busy, setBusy] = useState<string | null>(null);
   const [newName, setNewName] = useState('');
+  const clickTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(
+    () => () => {
+      if (clickTimer.current) clearTimeout(clickTimer.current);
+    },
+    [],
+  );
   const { projectId: parentId } = parseScopeId(project.id);
   const worktreeCommands = useWorktreeCommands();
   const worktrees = useWorktrees(parentId).data;
@@ -118,6 +129,43 @@ export function BranchesSection({
     if (result.ok) toast.success(`Switched to ${branch.name}`);
     else toast.error(`Could not switch to ${branch.name}`, { description: result.message });
     refresh();
+  }
+
+  /**
+   * A single click switches branches, so it waits out the double-click window first. Keyboard
+   * activation (detail 0) has no second click coming and switches straight away.
+   */
+  function onRowClick(branch: GitBranchInfo, event: React.MouseEvent): void {
+    if (clickTimer.current) clearTimeout(clickTimer.current);
+    clickTimer.current = null;
+    if (event.detail === 0) {
+      void switchTo(branch);
+      return;
+    }
+    if (event.detail > 1) return;
+    clickTimer.current = setTimeout(() => {
+      clickTimer.current = null;
+      void switchTo(branch);
+    }, DOUBLE_CLICK_MS);
+  }
+
+  async function openOnRemote(branch: GitBranchInfo): Promise<void> {
+    if (clickTimer.current) clearTimeout(clickTimer.current);
+    clickTimer.current = null;
+    if (!branch.remote) {
+      toast.info(`${branch.name} is not on the remote yet`, {
+        description: 'Push it first to see it on GitHub.',
+      });
+      return;
+    }
+    const repoUrl = await window.agentmat.git.detectRemote(project.folderPath);
+    if (!repoUrl) {
+      toast.info('This repository has no origin remote to open');
+      return;
+    }
+    // GitHub's /tree/<branch> takes slashes in the name as they are.
+    const ref = branch.name.split('/').map(encodeURIComponent).join('/');
+    void window.agentmat.shell.openExternal(`${repoUrl}/tree/${ref}`);
   }
 
   async function remove(branch: GitBranchInfo): Promise<void> {
@@ -195,9 +243,12 @@ export function BranchesSection({
       >
         <button
           type="button"
-          onClick={() => void switchTo(branch)}
-          disabled={current || busy !== null}
-          className="flex min-w-0 flex-1 items-center gap-2 text-left disabled:cursor-default"
+          onClick={(event) => onRowClick(branch, event)}
+          onDoubleClick={() => void openOnRemote(branch)}
+          // Not `disabled`: a disabled button swallows the double-click that opens it on GitHub.
+          // switchTo already ignores the current branch and clicks while busy.
+          aria-disabled={current || busy !== null}
+          className="flex min-w-0 flex-1 items-center gap-2 text-left aria-disabled:cursor-default"
         >
           {busy === branch.name ? (
             <Spinner className="h-3 w-3 shrink-0 animate-spin text-primary" />

@@ -128,3 +128,72 @@ describe('BranchesSection and worktrees', () => {
     expect(navigate).toHaveBeenCalledWith('/workspace/p1');
   });
 });
+
+describe('BranchesSection on GitHub', () => {
+  const branches = [
+    { name: 'feat/login', local: true, remote: true },
+    { name: 'main', local: true, remote: true },
+    { name: 'scratch', local: true, remote: false },
+  ];
+
+  function renderSection() {
+    return renderWithProviders(
+      <BranchesSection
+        project={project}
+        state={state}
+        creating={false}
+        onCreatingChange={() => undefined}
+      />,
+      {
+        bridge: {
+          'git.status': status(branches),
+          'git.detectRemote': async () => 'https://github.com/me/app',
+          'git.checkoutBranch': { ok: true },
+          'projects.list': [project],
+        },
+      },
+    );
+  }
+
+  it('opens a double-clicked branch on GitHub without switching to it', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      const { bridge } = renderSection();
+      const row = await screen.findByRole('button', { name: /^feat\/login/ });
+      fireEvent.click(row, { detail: 1 });
+      fireEvent.click(row, { detail: 2 });
+      fireEvent.doubleClick(row);
+      await vi.waitFor(() =>
+        expect(bridge.$fn('shell.openExternal')).toHaveBeenCalledWith(
+          'https://github.com/me/app/tree/feat/login',
+        ),
+      );
+      expect(bridge.$fn('git.detectRemote')).toHaveBeenCalledWith(project.folderPath);
+      await vi.advanceTimersByTimeAsync(500);
+      expect(() => bridge.$fn('git.checkoutBranch')).toThrow('has not been touched');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('still opens the current branch, and switches on a lone click', async () => {
+    const { bridge } = renderSection();
+    fireEvent.doubleClick(await screen.findByRole('button', { name: /^main/ }));
+    await vi.waitFor(() =>
+      expect(bridge.$fn('shell.openExternal')).toHaveBeenCalledWith(
+        'https://github.com/me/app/tree/main',
+      ),
+    );
+    fireEvent.click(screen.getByRole('button', { name: /^feat\/login/ }), { detail: 1 });
+    await vi.waitFor(() =>
+      expect(bridge.$fn('git.checkoutBranch')).toHaveBeenCalledWith('p1', 'feat/login'),
+    );
+  });
+
+  it('does not open a branch that was never pushed', async () => {
+    const { bridge } = renderSection();
+    fireEvent.doubleClick(await screen.findByRole('button', { name: /^scratch/ }));
+    expect(() => bridge.$fn('git.detectRemote')).toThrow('has not been touched');
+    expect(() => bridge.$fn('shell.openExternal')).toThrow('has not been touched');
+  });
+});
