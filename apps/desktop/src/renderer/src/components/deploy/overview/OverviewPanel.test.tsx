@@ -251,7 +251,9 @@ describe('OverviewPanel actions', () => {
     expect(await screen.findByText(/Waiting for Production to come back/)).toBeInTheDocument();
     act(() => bridge.$emit('deploy.onConnection', connection('online')));
     await waitFor(() => expect(toast.success).toHaveBeenCalledWith('Production is back.'));
-    expect(screen.queryByText(/Waiting for Production/)).toBeNull();
+    // The toast and the cleared banner come from the same effect, so the banner is still on
+    // screen when the toast fires and leaves with the next render.
+    await waitFor(() => expect(screen.queryByText(/Waiting for Production/)).toBeNull());
   });
 
   it('checks for updates quietly and reads the list again when the check is done', async () => {
