@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import { CloudflareMark } from '@/components/cloudflare/CloudflareMark';
+import { ContainersPanel } from '@/components/deploy/containers/ContainersPanel';
 import { FirewallPanel } from '@/components/deploy/firewall/FirewallPanel';
 import { InstallPanel } from '@/components/deploy/InstallPanel';
 import { ConnectionBadge } from '@/components/deploy/overview/ConnectionBadge';
@@ -171,7 +172,9 @@ export default function DeployPage(): React.JSX.Element {
   const run = runs[selected.id];
   const view = params.get('view');
   const section: ServerSection =
-    view === 'security' || view === 'firewall' || view === 'websites' ? view : 'overview';
+    view === 'security' || view === 'firewall' || view === 'websites' || view === 'containers'
+      ? view
+      : 'overview';
   const locked = vaultQuery.data?.hasPasskey === true && !vaultQuery.data.unlocked;
 
   async function remove(server: DeployServer, keepData: boolean): Promise<void> {
@@ -207,6 +210,9 @@ export default function DeployPage(): React.JSX.Element {
   } else if (section === 'security') {
     sections = true;
     content = <SecurityPanel server={selected} />;
+  } else if (section === 'containers') {
+    sections = true;
+    content = <ContainersPanel server={selected} />;
   } else {
     sections = true;
     content = (

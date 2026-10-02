@@ -1,0 +1,230 @@
+import type { ContainerSummary } from '@shared/deploy/protocol/generated/AgentMate.ServerCore.Contracts';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { ArrowDown, ArrowUp, RefreshCw, Search, Wand2 } from '@/components/icons';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Switch } from '@/components/ui/switch';
+import { useVirtualRows } from '@/hooks/useVirtualRows';
+import { clockTime, findMatches, highlight, plain } from '@/lib/deploy/containers/logs';
+import { cn } from '@/lib/utils';
+import { useContainerLog } from './hooks';
+
+/**
+ * A container's log (E06 T8), as plain text (it can hold anything a program printed): the last
+ * 500 lines, then every new one while following, with a search that marks and steps through its
+ * matches. stderr lines say "err" in their own column, not only in another colour.
+ */
+
+const LINE_HEIGHT = 20;
+
+export function ContainerLogsTab({
+  serverId,
+  container,
+  onSendToCli,
+}: {
+  serverId: string;
+  container: ContainerSummary;
+  onSendToCli?: () => void;
+}): React.JSX.Element {
+  const [follow, setFollow] = useState(container.state === 'running');
+  const [run, setRun] = useState(0);
+  const [query, setQuery] = useState('');
+  const [current, setCurrent] = useState(0);
+  const log = useContainerLog(serverId, container.id, { follow, run });
+  const matches = useMemo(() => findMatches(log.lines, query), [log.lines, query]);
+  const virtual = useVirtualRows(log.lines.length, LINE_HEIGHT, 20);
+  const atBottom = useRef(true);
+  const box = useRef<HTMLDivElement | null>(null);
+
+  // While following, new lines keep the view at the bottom unless the user scrolled up to read.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: each new line is the trigger
+  useEffect(() => {
+    const element = box.current;
+    if (!element || !follow || !atBottom.current || query) return;
+    element.scrollTop = element.scrollHeight;
+    virtual.onScroll();
+  }, [log.lines.length, follow, query]);
+
+  // A new search starts at its first match.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: the search is the trigger
+  useEffect(() => {
+    setCurrent(0);
+  }, [query]);
+
+  const goTo = (next: number) => {
+    if (matches.length === 0) return;
+    const index = (next + matches.length) % matches.length;
+    setCurrent(index);
+    virtual.scrollToIndex(matches[index]);
+  };
+
+  const running = container.state === 'running';
+  const status = log.error
+    ? log.error
+    : log.ended && follow
+      ? running
+        ? 'The log stream ended.'
+        : 'The container stopped, so the log ends here.'
+      : null;
+
+  return (
+    <div className="flex min-h-0 flex-1 flex-col gap-2">
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="relative min-w-48 flex-1">
+          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') goTo(event.shiftKey ? current - 1 : current + 1);
+            }}
+            placeholder="Search the log"
+            aria-label="Search the log"
+            className="h-8 pl-8"
+          />
+        </div>
+        {query && (
+          <span className="text-xs tabular-nums text-muted-foreground" role="status">
+            {matches.length === 0 ? 'No matches' : `${current + 1} of ${matches.length}`}
+          </span>
+        )}
+        {query && matches.length > 1 && (
+          <>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-8 w-8 p-0"
+              aria-label="Previous match"
+              onClick={() => goTo(current - 1)}
+            >
+              <ArrowUp className="h-3.5 w-3.5" />
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-8 w-8 p-0"
+              aria-label="Next match"
+              onClick={() => goTo(current + 1)}
+            >
+              <ArrowDown className="h-3.5 w-3.5" />
+            </Button>
+          </>
+        )}
+        <label className="flex items-center gap-2 text-xs text-muted-foreground">
+          <Switch
+            checked={follow}
+            onCheckedChange={(next) => {
+              atBottom.current = true;
+              setFollow(next);
+            }}
+            aria-label="Follow new lines"
+          />
+          Follow
+        </label>
+        {log.ended && (
+          <Button
+            size="sm"
+            variant="ghost"
+            className="gap-1.5"
+            onClick={() => setRun((n) => n + 1)}
+          >
+            <RefreshCw className="h-3.5 w-3.5" /> Read again
+          </Button>
+        )}
+        {onSendToCli && (
+          <Button
+            size="sm"
+            variant="outline"
+            className="gap-1.5"
+            onClick={onSendToCli}
+            disabled={log.lines.length === 0}
+          >
+            <Wand2 className="h-3.5 w-3.5" /> Send to the project CLI
+          </Button>
+        )}
+      </div>
+
+      <div
+        ref={(element) => {
+          box.current = element;
+          virtual.containerRef(element);
+        }}
+        onScroll={() => {
+          const element = box.current;
+          if (element) {
+            atBottom.current =
+              element.scrollHeight - element.scrollTop - element.clientHeight < LINE_HEIGHT * 2;
+          }
+          virtual.onScroll();
+        }}
+        className="min-h-48 flex-1 overflow-auto rounded-lg border border-border bg-background/70 py-1 font-mono text-[12px]"
+        role="log"
+        aria-label={`Log of ${container.name}`}
+        aria-busy={!log.ready}
+      >
+        {!log.ready ? (
+          <div className="space-y-2 p-3">
+            {Array.from({ length: 6 }, (_, i) => (
+              <Skeleton key={i} className="h-3" style={{ width: `${90 - i * 8}%` }} />
+            ))}
+          </div>
+        ) : log.lines.length === 0 ? (
+          <p className="p-3 font-sans text-sm text-muted-foreground">
+            {log.error ? 'Nothing to show.' : 'Nothing in the log yet.'}
+          </p>
+        ) : (
+          <div style={{ paddingTop: virtual.padTop, paddingBottom: virtual.padBottom }}>
+            {log.lines.slice(virtual.start, virtual.end).map((line, offset) => {
+              const index = virtual.start + offset;
+              const selected = matches[current] === index && query !== '';
+              return (
+                <div
+                  key={`${line.timestamp}-${index}`}
+                  style={{ height: LINE_HEIGHT }}
+                  className={cn(
+                    'flex items-center gap-2 whitespace-pre px-3 leading-5',
+                    line.stream === 'stderr' && 'bg-destructive/5',
+                    selected && 'bg-primary/10',
+                  )}
+                  data-stream={line.stream}
+                >
+                  <span className="shrink-0 text-muted-foreground/80">
+                    {clockTime(line.atUnixMs)}
+                  </span>
+                  <span
+                    className={cn(
+                      'w-6 shrink-0 text-[10px] uppercase',
+                      line.stream === 'stderr' ? 'text-destructive' : 'text-muted-foreground/60',
+                    )}
+                  >
+                    {line.stream === 'stderr' ? 'err' : 'out'}
+                  </span>
+                  <span className="text-foreground">
+                    {highlight(plain(line.text), query).map((piece, i) =>
+                      piece.match ? (
+                        <mark key={i} className="rounded-sm bg-warning/40 text-foreground">
+                          {piece.text}
+                        </mark>
+                      ) : (
+                        <span key={i}>{piece.text}</span>
+                      ),
+                    )}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+      {status && (
+        <p
+          role="status"
+          className={cn('text-xs', log.error ? 'text-destructive' : 'text-muted-foreground')}
+        >
+          {status}
+        </p>
+      )}
+    </div>
+  );
+}

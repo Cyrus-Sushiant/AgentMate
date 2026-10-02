@@ -1,5 +1,6 @@
 import type { Terminal } from '@xterm/xterm';
 import { useEffect, useRef } from 'react';
+import { containerConsoleAdapter } from '@/lib/terminal/containerConsoleAdapter';
 import { claimTerminalFocus, releaseTerminalFocus } from '@/lib/terminal/focusClaim';
 import { onFontsLoaded, whenTerminalFontReady } from '@/lib/terminal/fontReady';
 import { attachTerminalPaste } from '@/lib/terminal/pasteFiles';
@@ -34,10 +35,14 @@ export function TerminalPane({ meta, active, onExit }: TerminalPaneProps): React
 
     let ptySessionId: string | null = null;
     let disposed = false;
+    // SSH sessions and container consoles run somewhere else: no local pty, no shell integration.
+    const remote = meta.kind === 'ssh' || meta.kind === 'container';
     const client =
-      meta.kind === 'ssh' && meta.sshServerId
-        ? sshTerminalAdapter(meta.sshServerId)
-        : window.agentmat.terminal;
+      meta.kind === 'container' && meta.container
+        ? containerConsoleAdapter(meta.container.serverId, meta.container.containerId)
+        : meta.kind === 'ssh' && meta.sshServerId
+          ? sshTerminalAdapter(meta.sshServerId)
+          : window.agentmat.terminal;
     const initialTheme = resolveDrawerTerminalTheme(useThemeStore.getState().theme);
     paneRef.current?.style.setProperty('--terminal-bg', initialTheme.background as string);
     const {
@@ -51,9 +56,9 @@ export function TerminalPane({ meta, active, onExit }: TerminalPaneProps): React
       theme: initialTheme,
       // No shell-integration marker is ever injected into a remote shell, so SSH panes just
       // never see it ready and stay on today's raw-path paste behavior.
-      chipPasteMode: meta.kind !== 'ssh',
+      chipPasteMode: !remote,
       shell: () => meta.shell,
-      localPty: meta.kind !== 'ssh',
+      localPty: !remote,
     });
     termRef.current = term;
 
@@ -153,7 +158,7 @@ export function TerminalPane({ meta, active, onExit }: TerminalPaneProps): React
             return;
           }
           // A painted snapshot is not what ConPTY believes is on screen, so have it repaint.
-          if (fromSnapshot && meta.kind !== 'ssh' && window.agentmat.platform === 'win32') {
+          if (fromSnapshot && !remote && window.agentmat.platform === 'win32') {
             resizeSync.repaint();
           } else {
             resizeSync.flush();
@@ -173,9 +178,7 @@ export function TerminalPane({ meta, active, onExit }: TerminalPaneProps): React
       .catch((error: unknown) => {
         if (disposed) return;
         const message =
-          meta.kind === 'ssh' && error instanceof Error
-            ? error.message
-            : 'Could not start this terminal.';
+          remote && error instanceof Error ? error.message : 'Could not start this terminal.';
         term.write(`\r\n\x1b[31m${message}\x1b[0m\r\n`);
       });
 
@@ -193,7 +196,9 @@ export function TerminalPane({ meta, active, onExit }: TerminalPaneProps): React
       unsubscribeData();
       unsubscribeExit();
       // The shell is deliberately left running: closing a tab ends it through the store,
-      // while an unmount can just as well be a reload that reattaches a moment later.
+      // while an unmount can just as well be a reload that reattaches a moment later. A
+      // container console cannot reattach, so it ends with its pane.
+      if (meta.kind === 'container' && ptySessionId) void client.kill(ptySessionId);
       term.dispose();
       termRef.current = null;
     };

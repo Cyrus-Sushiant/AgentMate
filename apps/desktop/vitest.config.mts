@@ -188,6 +188,16 @@ export default defineConfig({
         },
         'src/renderer/src/stores/deploySetupStore.ts': { lines: 95, branches: 85 },
         'src/renderer/src/lib/deploy/**': { lines: 95, branches: 90 },
+        // Docker on a server (E06): its calls, live streams and consoles, and the Containers screen.
+        'src/main/deploy/docker.ts': { lines: 95, branches: 85 },
+        'src/main/deploy/coreCalls.ts': { lines: 95, branches: 90 },
+        'src/main/ipc/deployDocker.ts': { lines: 95, branches: 90 },
+        'src/renderer/src/components/deploy/containers/**': {
+          lines: 90,
+          functions: 85,
+          branches: 80,
+        },
+        'src/renderer/src/lib/terminal/containerConsoleAdapter.ts': { lines: 95, branches: 85 },
         // The Cloudflare token lives here, and every call made with it.
         'src/main/deploy/cloudflare/**': { lines: 95, branches: 85 },
         'src/main/ipc/cloudflare.ts': { lines: 95, branches: 90 },

@@ -26,6 +26,8 @@ export default defineConfig({
         'src/deploy/dockerignore.ts': { lines: 90, branches: 85 },
         'src/deploy/compose/**': { lines: 90, branches: 80 },
         'src/deploy/catalog/**': { lines: 90, branches: 85 },
+        // The prompt a container's log turns into, which must never carry an environment value.
+        'src/deploy/prompts.ts': { lines: 95, branches: 90 },
       },
     },
   },

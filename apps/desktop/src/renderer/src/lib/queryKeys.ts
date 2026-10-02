@@ -171,6 +171,16 @@ export const queryKeys = {
   deployActiveJobs: (serverId: string) => ['deploy', 'overview', serverId, 'jobs'] as const,
   deployMetricsHistory: (serverId: string, range: string) =>
     ['deploy', 'overview', serverId, 'metrics', range] as const,
+  /** Prefix of a server's Docker reads (E06), fetched again on engine events and reconnects. */
+  deployDocker: (serverId: string) => ['deploy', 'docker', serverId] as const,
+  deployDockerStatus: (serverId: string) => ['deploy', 'docker', serverId, 'status'] as const,
+  deployContainers: (serverId: string) => ['deploy', 'docker', serverId, 'containers'] as const,
+  deployContainer: (serverId: string, containerId: string) =>
+    ['deploy', 'docker', serverId, 'container', containerId] as const,
+  deployImages: (serverId: string) => ['deploy', 'docker', serverId, 'images'] as const,
+  deployVolumes: (serverId: string) => ['deploy', 'docker', serverId, 'volumes'] as const,
+  deployNetworks: (serverId: string) => ['deploy', 'docker', serverId, 'networks'] as const,
+  deployDiskUsage: (serverId: string) => ['deploy', 'docker', serverId, 'disk'] as const,
   /** Prefix of a server's Websites section: nginx, sites, stream proxies and certificates. */
   deployWeb: (serverId: string) => ['deploy', 'web', serverId] as const,
   deployNginx: (serverId: string) => ['deploy', 'web', serverId, 'nginx'] as const,

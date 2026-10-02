@@ -14,6 +14,7 @@ import type {
 } from '../protocol/generated/AgentMate.ServerCore.Contracts';
 import { FakeCoreConnection } from './fakeCoreConnection';
 import { metricsSample, sampleServices, sampleSystemInfo, sampleUpdates } from './fakeCoreData';
+import { FakeDocker } from './fakeDocker';
 import { FakeFirewall } from './fakeFirewall';
 import { FakeNginx } from './fakeNginx';
 
@@ -72,6 +73,8 @@ export class FakeCore {
   system: SystemInfo = sampleSystemInfo();
   services: ServiceInfo[] = sampleServices();
   updates: UpdatesInfo = sampleUpdates();
+  /** Docker on the pretend server (E06): containers, logs, stats, events and resources. */
+  readonly docker: FakeDocker = new FakeDocker(this);
   /** nginx, its sites and certificates (E10, E11). */
   readonly nginx: FakeNginx = new FakeNginx({
     now: () => this.now(),

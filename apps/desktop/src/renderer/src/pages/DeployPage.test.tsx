@@ -705,3 +705,20 @@ describe('DeployPage security', () => {
     expect(screen.queryByRole('button', { name: /Join with a code/ })).toBeNull();
   });
 });
+
+describe('DeployPage containers', () => {
+  it('opens the Containers section from the section bar and from a link', async () => {
+    const { user } = renderPage({
+      'deploy.listServers': async () => [server({ core: CORE, enrolled: true })],
+      'deploy.access': async (): Promise<DeployAccess> => ({ state: 'needs-sign-in' }),
+    });
+    const sections = await screen.findByRole('navigation', { name: 'Server sections' });
+    await user.click(within(sections).getByRole('button', { name: /Containers/ }));
+    expect(await screen.findByText(/to see and manage its containers/)).toBeTruthy();
+    expect(
+      within(sections)
+        .getByRole('button', { name: /Containers/ })
+        .getAttribute('aria-current'),
+    ).toBe('page');
+  });
+});

@@ -1,11 +1,12 @@
-import { Globe, Lock, Shield } from '@/components/icons';
+import { Docker, Globe, Lock, Shield } from '@/components/icons';
 import { cn } from '@/lib/utils';
 
 /** The parts of a server's page under Deploy. */
-export type ServerSection = 'overview' | 'websites' | 'firewall' | 'security';
+export type ServerSection = 'overview' | 'containers' | 'websites' | 'firewall' | 'security';
 
 const SECTIONS: ReadonlyArray<{ value: ServerSection; label: string; icon?: typeof Shield }> = [
   { value: 'overview', label: 'Overview' },
+  { value: 'containers', label: 'Containers', icon: Docker },
   { value: 'websites', label: 'Websites', icon: Globe },
   { value: 'firewall', label: 'Firewall', icon: Lock },
   { value: 'security', label: 'Security', icon: Shield },

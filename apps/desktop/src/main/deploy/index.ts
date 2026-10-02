@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { app, dialog, type IpcMainInvokeEvent, ipcMain } from 'electron';
 import { IPC } from '../../shared/ipcChannels';
 import { registerDeployHandlers } from '../ipc/deploy';
+import { registerDeployDockerHandlers } from '../ipc/deployDocker';
 import { registerDeployFirewallHandlers } from '../ipc/deployFirewall';
 import { registerDeploySecurityHandlers } from '../ipc/deploySecurity';
 import { registerDeploySitesHandlers } from '../ipc/deploySites';
@@ -29,7 +30,10 @@ import {
   repoReleaseDirectory,
 } from './bootstrap/releaseSource';
 import { registerCloudflareIpc } from './cloudflare';
+import { DeployDocker } from './docker';
 import { DeployFirewall } from './firewall';
+import { DockerLinks } from './live/dockerLinks';
+import { DockerSubscriptions } from './live/dockerSubscriptions';
 import { DeploySubscriptions } from './live/subscriptions';
 import { DeploySecurity } from './security';
 import { DeployService } from './service';
@@ -220,6 +224,7 @@ export function registerDeployIpc(): void {
     pool.closeAll();
   });
   registerDeploySecurityIpc(service, guard);
+  registerDeployDockerIpc(service, guard);
   registerCloudflareIpc();
 }
 
@@ -252,4 +257,22 @@ function registerDeploySecurityIpc(
     writeFile: (path, content) => writeFile(path, content, 'utf-8'),
   });
   registerDeploySecurityHandlers({ ipc: ipcMain, security, service, guard });
+}
+
+/** Docker on each server (E06): containers, their live stats, logs and consoles, and resources. */
+function registerDeployDockerIpc(
+  service: DeployService,
+  guard: (event: IpcMainInvokeEvent) => boolean,
+): void {
+  const links = new DockerLinks(service.links);
+  const subscriptions = new DockerSubscriptions({ links });
+  const ownerOf = subscriptionOwners((ownerId) => subscriptions.dropOwner(ownerId));
+  registerDeployDockerHandlers({
+    ipc: ipcMain,
+    docker: new DeployDocker({ links: service.links, roles: (id) => service.roles(id) }),
+    subscriptions,
+    guard,
+    owner: (event) => ownerOf(event.sender),
+  });
+  app.on('will-quit', () => links.closeAll());
 }

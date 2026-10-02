@@ -32,7 +32,7 @@ Plan: docs/ROADMAP.md
 | E03 | Walking skeleton: install and see the server | Complete | 88403fa, 42aabeb | Tunnel or bridge settled by trying after the install (OpenSSH hides the reason); exec exit-status race fixed; DevHost e2e on every OS |
 | E04 | Identity and device enrollment | Complete | 73663f6, see git log | Authenticator codes work once (RFC 6238 5.2); two-factor changes end the other sessions only; access tokens sealed with Data Protection rather than JWTs; enrollment-code screens come with E15 T1; SignalR kept out of the main bundle |
 | E05 | Realtime, jobs and server overview | Complete | see git log | Live link with token rotation and reboot recovery; Overview with health score, charts, updates and reboot; AC3 and AC4 covered by fake-core tests and the DevHost reboot, not a real server |
-| E06 | Docker engine and containers | Not started | | |
+| E06 | Docker engine and containers | In progress | c5c0b68, see git log | Core and the desktop Containers screen (T6, T8, T9): shared stats and events streams, consoles that reopen after a connection change, redacted prompts for the project CLI; AC2, AC3 and AC5 tested |
 | E07 | Compose stacks | In progress | ea106b3 | Libraries only: validation, env, compose lint and override, dockerignore, build context, safe tar extraction |
 | E08 | Private registries | Not started | | |
 | E09 | Logs center, problems feed and Deploy AI | Not started | | |
@@ -76,6 +76,11 @@ Status values: Not started, In progress, Blocked, Complete.
   failed; CI unloads that profile first. Before that, E03's dispatched run 36542574176 and E04's
   run 36647129514 never finished these tests. They take about 80 seconds each in CI against
   about 10 locally; the timed steps a failing test prints would show where, if it matters.
+
+- E06 AC1 and AC4: the stats math fixtures and the Rocky 9 install system test
+  (`docker.int.test.ts`) were not run with the desktop work; they need the core's test suite and
+  Docker. The Containers console has no e2e test, and the screen has not had a visual pass in
+  both themes.
 
 ## Known failures outside the Deploy work
 

@@ -51,7 +51,7 @@ interface Entry {
 }
 
 /** Items that go out together a moment after the first of them arrived. */
-class Batch<T> {
+export class Batch<T> {
   private items: T[] = [];
   private timer: ReturnType<typeof setTimeout> | null = null;
 

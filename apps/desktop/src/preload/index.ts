@@ -386,6 +386,7 @@ import type { PetPipelineMessage, PetSnoozeState, PetWorkArea } from '../shared/
 import type { RemoteInputEvent, RemoteRtcMessage } from '../shared/remoteProtocol';
 import type { SpellcheckMenuPayload } from '../shared/spellcheck';
 import type { SshHostKeyStatus } from '../shared/sshHostKey';
+import { createDeployDocker } from './deployDocker';
 
 interface TerminalDataPayload {
   sessionId: string;
@@ -1552,6 +1553,9 @@ const deployJobs = {
   onLog: (cb: (event: DeployJobEvent) => void): (() => void) => subscribe(IPC.deployJobs.onLog, cb),
 };
 
+/** Docker on a server: containers, their stats, logs and console, and Docker's resources. */
+const deployDocker = createDeployDocker(subscribe);
+
 /** A server core's alerts: disk pressure, failed jobs, a reboot waiting. */
 const deployAlerts = {
   list: (query: DeployAlertsQuery): Promise<AlertInfo[]> =>
@@ -2308,6 +2312,7 @@ const agentmatApi = {
   deploySystem,
   deployJobs,
   deployAlerts,
+  deployDocker,
   deploySites,
   deployCerts,
   cloudflare,

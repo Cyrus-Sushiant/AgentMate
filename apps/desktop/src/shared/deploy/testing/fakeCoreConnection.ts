@@ -1,4 +1,4 @@
-import type { IStreamResult } from '@microsoft/signalr';
+import type { IStreamResult, Subject } from '@microsoft/signalr';
 import type {
   AccountInfo,
   AlertInfo,
@@ -7,8 +7,31 @@ import type {
   CertificateIssueRequest,
   CertificateRemoveRequest,
   CertificateUploadRequest,
+  ConsoleInput,
+  ConsoleOutput,
+  ConsoleRequest,
+  ContainerDetails,
+  ContainerEnvVariable,
+  ContainerList,
+  ContainerLogBatch,
+  ContainerLogLine,
+  ContainerLogsRequest,
+  ContainerRemoveRequest,
+  ContainerStatsBatch,
+  ContainerStatsRequest,
+  ContainerSummary,
+  DockerDiskUsage,
+  DockerEvent,
+  DockerEventsRequest,
+  DockerInstallRequest,
+  DockerPruneRequest,
+  DockerPruneResult,
+  DockerStatus,
   FirewallChangeRequest,
   FirewallChangeSetQuery,
+  ImageInfo,
+  ImagePullRequest,
+  ImageRemoveRequest,
   JobInfo,
   JobLogLine,
   JobPage,
@@ -19,6 +42,7 @@ import type {
   MetricsHistoryRequest,
   MetricsSample,
   MetricsStreamRequest,
+  NetworkInfo,
   SiteLogBatch,
   SiteLogKind,
   SiteLogRequest,
@@ -26,9 +50,11 @@ import type {
   SiteSnippets,
   StepUpRequest,
   StreamProxySettings,
+  VolumeInfo,
 } from '../protocol/generated/AgentMate.ServerCore.Contracts';
 import type { ICoreHub } from '../protocol/generated/TypedSignalR.Client/AgentMate.ServerCore.Contracts';
 import type { FakeCore } from './fakeCore';
+import type { FakeConsoleSession } from './fakeDocker';
 import type { FakeFirewall, FakeFirewallCaller } from './fakeFirewall';
 import {
   connectionClosedError,
@@ -41,23 +67,39 @@ import {
 /**
  * One hub connection to a `FakeCore`, with the core's rules: Viewer reads, Operator jobs, step-up
  * for upgrading everything and rebooting, Admin for automatic updates, and the per-connection
- * stream limits (metrics 2, jobs 4, alerts 2, 8 in all). Calls the fake has no use for say so.
+ * stream limits (metrics 2, jobs 4, alerts 2, container stats 2, container logs 4, Docker events 2,
+ * consoles 2, site logs 2, 8 in all). Calls the fake has no use for say so.
  */
 
-const LIMITS = { metrics: 2, job: 4, alerts: 2, siteLog: 2 } as const;
+const LIMITS = {
+  metrics: 2,
+  job: 4,
+  alerts: 2,
+  'container-stats': 2,
+  'container-logs': 4,
+  'docker-events': 2,
+  console: 2,
+  siteLog: 2,
+} as const;
 const PER_CONNECTION = 8;
 const OPERATORS = new Set(['owner', 'admin', 'operator']);
 const ADMINS = new Set(['owner', 'admin']);
 const VIEWERS = new Set(['owner', 'admin', 'operator', 'viewer']);
 const OWNERS = new Set(['owner']);
 
-type Kind = keyof typeof LIMITS;
+export type FakeStreamKind = keyof typeof LIMITS;
+type Kind = FakeStreamKind;
 
 interface OpenStream {
   kind: Kind;
   stream: FakeStream<unknown>;
   /** For a job stream, the job it follows; for a site log, `siteId:kind`. */
   jobId?: string;
+  /** For a log stream, the container whose log it follows (until the end, or for good). */
+  containerId?: string;
+  follow?: boolean;
+  /** For a stats stream, the containers it asked for (every running one when left out). */
+  containerIds?: string[];
 }
 
 export class FakeCoreConnection implements ICoreHub {
@@ -122,6 +164,40 @@ export class FakeCoreConnection implements ICoreHub {
 
   endAlertStreams(): void {
     for (const open of this.of('alerts')) open.stream.complete();
+  }
+
+  deliverContainerStats(batch: ContainerStatsBatch): void {
+    for (const open of this.of('container-stats')) {
+      const wanted = open.containerIds;
+      const samples = wanted
+        ? batch.samples.filter((sample) => wanted.includes(sample.containerId))
+        : batch.samples;
+      open.stream.push({ ...batch, samples });
+    }
+  }
+
+  deliverContainerLog(containerId: string, line: ContainerLogLine): void {
+    for (const open of this.of('container-logs')) {
+      if (open.containerId === containerId && open.follow) {
+        open.stream.push({ lines: [line] } satisfies ContainerLogBatch);
+      }
+    }
+  }
+
+  /** Ends every log stream of a container, as the engine does when it stops. */
+  endContainerLogs(containerId: string): void {
+    for (const open of this.of('container-logs')) {
+      if (open.containerId === containerId) open.stream.complete();
+    }
+  }
+
+  deliverDockerEvent(event: DockerEvent): void {
+    for (const open of this.of('docker-events')) open.stream.push({ ...event });
+  }
+
+  /** Ends every stream of a kind from the core's side, as when it lost the engine. */
+  endStreams(kind: Kind): void {
+    for (const open of this.of(kind)) open.stream.complete();
   }
 
   // Account calls: only what the Overview's tests lean on.
@@ -191,33 +267,6 @@ export class FakeCoreConnection implements ICoreHub {
   revertFirewallChanges = async (changeSetId: string) =>
     this.firewall('RevertFirewallChanges', true, (fw) => fw.revert(changeSetId));
 
-  // Docker: the desktop does not call these yet.
-
-  getDockerStatus = () => this.unused('GetDockerStatus');
-  listContainers = () => this.unused('ListContainers');
-  inspectContainer = () => this.unused('InspectContainer');
-  streamContainerStats = () => this.unusedStream('StreamContainerStats');
-  streamContainerLogs = () => this.unusedStream('StreamContainerLogs');
-  listImages = () => this.unused('ListImages');
-  listVolumes = () => this.unused('ListVolumes');
-  listNetworks = () => this.unused('ListNetworks');
-  getDockerDiskUsage = () => this.unused('GetDockerDiskUsage');
-  streamDockerEvents = () => this.unusedStream('StreamDockerEvents');
-  startContainer = () => this.unused('StartContainer');
-  stopContainer = () => this.unused('StopContainer');
-  restartContainer = () => this.unused('RestartContainer');
-  pauseContainer = () => this.unused('PauseContainer');
-  unpauseContainer = () => this.unused('UnpauseContainer');
-  killContainer = () => this.unused('KillContainer');
-  removeContainer = () => this.unused('RemoveContainer');
-  pullImage = () => this.unused('PullImage');
-  removeImage = () => this.unused('RemoveImage');
-  removeNetwork = () => this.unused('RemoveNetwork');
-  revealContainerEnv = () => this.unused('RevealContainerEnv');
-  containerConsole = () => this.unusedStream('ContainerConsole');
-  removeVolume = () => this.unused('RemoveVolume');
-  pruneDocker = () => this.unused('PruneDocker');
-  installDocker = () => this.unused('InstallDocker');
   // Websites and certificates: Viewers read, Admins change, Owners write snippets, and taking a
   // certificate off needs a step-up as well.
 
@@ -405,6 +454,266 @@ export class FakeCoreConnection implements ICoreHub {
     return this.core.acknowledge(alertId);
   };
 
+  // Docker (E06): Viewer reads, Operator runs the lifecycle and pulls, Admin opens consoles,
+  // removes volumes, prunes and installs, and revealing environment values takes a step-up too.
+
+  getDockerStatus = async (): Promise<DockerStatus> =>
+    this.answer({
+      ...this.docker.status,
+      conflictingPackages: [...this.docker.status.conflictingPackages],
+    });
+
+  listContainers = async (): Promise<ContainerList> => this.answer(this.docker.list());
+
+  inspectContainer = async (containerId: string): Promise<ContainerDetails> =>
+    this.docker.details(this.container('InspectContainer', containerId));
+
+  revealContainerEnv = async (containerId: string): Promise<ContainerEnvVariable[]> => {
+    this.assertOpen();
+    this.assertRole('RevealContainerEnv', ADMINS);
+    if (this.core.stepUpUntil <= this.core.now()) throw unauthorizedError('RevealContainerEnv');
+    return this.docker.env(this.container('RevealContainerEnv', containerId));
+  };
+
+  startContainer = async (containerId: string) =>
+    this.lifecycle('StartContainer', containerId, 'running', 'start');
+
+  stopContainer = async (containerId: string, _timeoutSeconds?: number) =>
+    this.lifecycle('StopContainer', containerId, 'exited', 'die');
+
+  restartContainer = async (containerId: string, _timeoutSeconds?: number) =>
+    this.lifecycle('RestartContainer', containerId, 'running', 'restart');
+
+  pauseContainer = async (containerId: string) =>
+    this.lifecycle('PauseContainer', containerId, 'paused', 'pause');
+
+  unpauseContainer = async (containerId: string) =>
+    this.lifecycle('UnpauseContainer', containerId, 'running', 'unpause');
+
+  killContainer = async (containerId: string, _signal?: string) =>
+    this.lifecycle('KillContainer', containerId, 'exited', 'kill');
+
+  removeContainer = async (request: ContainerRemoveRequest): Promise<void> => {
+    this.assertOpen();
+    this.assertRole('RemoveContainer', OPERATORS);
+    if (request.removeVolumes && !this.core.roles.some((role) => ADMINS.has(role))) {
+      throw invocationError(
+        'RemoveContainer',
+        'Removing a container with its volumes is for Admins.',
+      );
+    }
+    this.container('RemoveContainer', request.containerId);
+    try {
+      this.docker.remove(request);
+    } catch (error) {
+      throw invocationError('RemoveContainer', (error as Error).message);
+    }
+  };
+
+  listImages = async (): Promise<ImageInfo[]> =>
+    this.answer(this.docker.images.map((image) => ({ ...image })));
+
+  pullImage = async (request: ImagePullRequest): Promise<JobInfo> =>
+    this.job('PullImage', 'imagePull', `Pull ${request.reference}`, {
+      resource: request.reference,
+    });
+
+  removeImage = async (request: ImageRemoveRequest): Promise<void> => {
+    this.assertOpen();
+    this.assertRole('RemoveImage', OPERATORS);
+    const image = this.docker.images.find(
+      (one) => one.id === request.image || one.tags.includes(request.image),
+    );
+    if (!image) throw invocationError('RemoveImage', `No such image: ${request.image}`);
+    if (image.containers > 0 && !request.force) {
+      throw invocationError('RemoveImage', 'A container still uses this image.');
+    }
+    this.docker.images = this.docker.images.filter((one) => one !== image);
+  };
+
+  listVolumes = async (): Promise<VolumeInfo[]> =>
+    this.answer(this.docker.volumes.map((volume) => ({ ...volume })));
+
+  removeVolume = async (volume: string, _force: boolean): Promise<void> => {
+    this.assertOpen();
+    this.assertRole('RemoveVolume', ADMINS);
+    if (!this.docker.volumes.some((one) => one.name === volume)) {
+      throw invocationError('RemoveVolume', `No such volume: ${volume}`);
+    }
+    this.docker.volumes = this.docker.volumes.filter((one) => one.name !== volume);
+  };
+
+  listNetworks = async (): Promise<NetworkInfo[]> =>
+    this.answer(this.docker.networks.map((network) => ({ ...network })));
+
+  removeNetwork = async (network: string): Promise<void> => {
+    this.assertOpen();
+    this.assertRole('RemoveNetwork', OPERATORS);
+    const found = this.docker.networks.find((one) => one.name === network || one.id === network);
+    if (!found) throw invocationError('RemoveNetwork', `No such network: ${network}`);
+    if (found.builtIn) throw invocationError('RemoveNetwork', `${found.name} is built in.`);
+    this.docker.networks = this.docker.networks.filter((one) => one !== found);
+  };
+
+  getDockerDiskUsage = async (): Promise<DockerDiskUsage> =>
+    this.answer(structuredClone(this.docker.diskUsage));
+
+  pruneDocker = async (request: DockerPruneRequest): Promise<DockerPruneResult> => {
+    this.assertOpen();
+    this.assertRole('PruneDocker', ADMINS);
+    this.docker.pruned.push({ ...request });
+    return { removed: 2, reclaimedBytes: 124_000_000 };
+  };
+
+  installDocker = async (request: DockerInstallRequest): Promise<JobInfo> => {
+    const job = this.job('InstallDocker', 'dockerInstall', 'Install Docker', {
+      admin: true,
+      resource: 'docker',
+    });
+    const conflicts = this.docker.status.conflictingPackages;
+    if (conflicts.length > 0 && !request.removeConflictingPackages) {
+      this.core.log(job.id, `Remove ${conflicts.join(', ')} first, or agree to it.`, 'err');
+      return this.core.finishJob(job.id, 'failed', 1);
+    }
+    return job;
+  };
+
+  streamContainerStats = (request: ContainerStatsRequest): IStreamResult<ContainerStatsBatch> => {
+    const ids = request.containerIds?.map((id) => this.docker.find(id)?.summary.id ?? id);
+    return this.open<ContainerStatsBatch>(
+      'container-stats',
+      [request],
+      (stream) => {
+        if (!this.docker.status.running) {
+          stream.fail(streamError('Docker is not running on this server.'));
+        }
+      },
+      ids ? { containerIds: ids } : {},
+    );
+  };
+
+  streamContainerLogs = (request: ContainerLogsRequest): IStreamResult<ContainerLogBatch> => {
+    const container = this.docker.find(request.containerId);
+    return this.open<ContainerLogBatch>(
+      'container-logs',
+      [request],
+      (stream) => {
+        if (!container) {
+          stream.fail(streamError(`No such container: ${request.containerId}`));
+          return;
+        }
+        const after = request.afterTimestamp;
+        const since = request.sinceUnixMs;
+        const lines = after
+          ? container.logs.filter((line) => line.timestamp > after)
+          : container.logs
+              .filter((line) => since === undefined || line.atUnixMs >= since)
+              .slice(-(request.tail ?? 200));
+        if (lines.length > 0) stream.push({ lines });
+        if (!request.follow || container.summary.state !== 'running') stream.complete();
+      },
+      { containerId: container?.summary.id ?? request.containerId, follow: request.follow },
+    );
+  };
+
+  streamDockerEvents = (request: DockerEventsRequest): IStreamResult<DockerEvent> =>
+    this.open<DockerEvent>('docker-events', [request], (stream) => {
+      for (const event of this.docker.eventsAfter(request.afterCursor)) stream.push({ ...event });
+    });
+
+  /** A shell that echoes, answers each line with "ran <line>", and ends on "exit". */
+  containerConsole = (
+    request: ConsoleRequest,
+    input: Subject<ConsoleInput>,
+  ): IStreamResult<ConsoleOutput> => {
+    const session: FakeConsoleSession = {
+      containerId: request.containerId,
+      typed: [],
+      sizes: [{ columns: request.columns, rows: request.rows }],
+      open: true,
+    };
+    let typing: { dispose(): void } | null = null;
+    return this.open<ConsoleOutput>(
+      'console',
+      [request],
+      (stream) => {
+        if (!this.core.roles.some((role) => ADMINS.has(role))) {
+          stream.fail(unauthorizedError('ContainerConsole'));
+          return;
+        }
+        const container = this.docker.find(request.containerId);
+        if (!container || container.summary.state !== 'running') {
+          stream.fail(streamError(`Container ${request.containerId} is not running.`));
+          return;
+        }
+        this.docker.consoles.push(session);
+        const prompt = `root@${container.summary.name}:/# `;
+        let line = '';
+        stream.push({ data: prompt, ended: false });
+        typing = input.subscribe({
+          next: (item) => {
+            if (item.columns && item.rows) {
+              session.sizes.push({ columns: item.columns, rows: item.rows });
+            }
+            if (!item.data) return;
+            session.typed.push(item.data);
+            for (const character of item.data) {
+              if (character !== '\r') {
+                line += character;
+                stream.push({ data: character, ended: false });
+                continue;
+              }
+              const command = line.trim();
+              line = '';
+              if (command === 'exit') {
+                stream.push({ data: '\r\nexit\r\n', ended: false });
+                stream.push({ ended: true, exitCode: 0 });
+                stream.complete();
+                return;
+              }
+              const answer = command ? `ran ${command}\r\n` : '';
+              stream.push({ data: `\r\n${answer}${prompt}`, ended: false });
+            }
+          },
+          complete: () => undefined,
+          error: () => undefined,
+        });
+      },
+      {},
+      () => {
+        session.open = false;
+        typing?.dispose();
+      },
+    );
+  };
+
+  private get docker() {
+    return this.core.docker;
+  }
+
+  private container(method: string, idOrName: string) {
+    this.assertOpen();
+    const container = this.docker.find(idOrName);
+    if (!container) throw invocationError(method, `No such container: ${idOrName}`);
+    return container;
+  }
+
+  private lifecycle(
+    method: string,
+    containerId: string,
+    state: ContainerSummary['state'],
+    action: string,
+  ): ContainerSummary {
+    this.assertOpen();
+    this.assertRole(method, OPERATORS);
+    const id = this.container(method, containerId).summary.id;
+    const summary = this.docker.setState(id, state, action);
+    if (state !== 'running') {
+      for (const connection of this.core.openConnections) connection.endContainerLogs(id);
+    }
+    return summary;
+  }
+
   private job(
     method: string,
     kind: JobInfo['kind'],
@@ -462,10 +771,15 @@ export class FakeCoreConnection implements ICoreHub {
     kind: Kind,
     args: unknown[],
     replay: (stream: FakeStream<T>) => void,
-    jobId?: string,
+    target?: string | Pick<OpenStream, 'containerId' | 'follow' | 'containerIds'>,
+    stopped?: () => void,
   ): IStreamResult<T> {
     this.requested.push({ kind, args });
-    const entry: OpenStream = { kind, stream: null as unknown as FakeStream<unknown>, jobId };
+    const entry: OpenStream = {
+      kind,
+      stream: null as unknown as FakeStream<unknown>,
+      ...(typeof target === 'string' ? { jobId: target } : target),
+    };
     const stream = new FakeStream<T>(
       (started) => {
         if (this.closed) {
@@ -487,7 +801,10 @@ export class FakeCoreConnection implements ICoreHub {
         this.streams.add(entry);
         replay(started);
       },
-      () => this.streams.delete(entry),
+      () => {
+        this.streams.delete(entry);
+        stopped?.();
+      },
     );
     entry.stream = stream as FakeStream<unknown>;
     return stream;
@@ -514,11 +831,5 @@ export class FakeCoreConnection implements ICoreHub {
 
   private async unused(method: string): Promise<never> {
     throw invocationError(method, 'The fake core does not answer this call.');
-  }
-
-  private unusedStream(method: string): IStreamResult<never> {
-    return new FakeStream<never>((stream) =>
-      stream.fail(streamError(`The fake core does not answer ${method}.`)),
-    );
   }
 }

@@ -705,6 +705,51 @@ export const IPC = {
     onProgress: 'deployFirewall:onProgress',
   },
   /**
+   * Docker on a server (E06): the engine and its install, containers and their lifecycle, live
+   * stats, logs and engine events, a console, and images, volumes, networks and disk use.
+   */
+  deployDocker: {
+    status: 'deployDocker:status',
+    install: 'deployDocker:install',
+    listContainers: 'deployDocker:listContainers',
+    inspect: 'deployDocker:inspect',
+    /** Admins, after a step-up: the container's environment values. */
+    revealEnv: 'deployDocker:revealEnv',
+    act: 'deployDocker:act',
+    remove: 'deployDocker:remove',
+    /** The last lines of a container's log, collected once. */
+    logTail: 'deployDocker:logTail',
+    listImages: 'deployDocker:listImages',
+    pullImage: 'deployDocker:pullImage',
+    removeImage: 'deployDocker:removeImage',
+    listVolumes: 'deployDocker:listVolumes',
+    removeVolume: 'deployDocker:removeVolume',
+    listNetworks: 'deployDocker:listNetworks',
+    removeNetwork: 'deployDocker:removeNetwork',
+    diskUsage: 'deployDocker:diskUsage',
+    prune: 'deployDocker:prune',
+    /** (serverId) -> subscription id; every running container's stats arrive on onStats. */
+    watchStats: 'deployDocker:watchStats',
+    unwatchStats: 'deployDocker:unwatchStats',
+    onStats: 'deployDocker:onStats',
+    /** (DeployContainerLogsWatchInput) -> subscription id; lines arrive on onLogs. */
+    watchLogs: 'deployDocker:watchLogs',
+    unwatchLogs: 'deployDocker:unwatchLogs',
+    onLogs: 'deployDocker:onLogs',
+    /** (serverId) -> subscription id; engine events arrive on onEvents. */
+    watchEvents: 'deployDocker:watchEvents',
+    unwatchEvents: 'deployDocker:unwatchEvents',
+    onEvents: 'deployDocker:onEvents',
+    /** (DeployConsoleOpenInput) -> subscription id; the screen arrives on onConsole. */
+    openConsole: 'deployDocker:openConsole',
+    /** (subscription id, keystrokes) */
+    consoleInput: 'deployDocker:consoleInput',
+    /** (subscription id, columns, rows) */
+    consoleResize: 'deployDocker:consoleResize',
+    closeConsole: 'deployDocker:closeConsole',
+    onConsole: 'deployDocker:onConsole',
+  },
+  /**
    * A server core's Security area: users and roles (Owner), devices and sessions, enrollment
    * codes (made by an Owner, redeemed on another computer) and the audit trail.
    */

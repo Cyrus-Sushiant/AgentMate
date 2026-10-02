@@ -24,6 +24,7 @@ export * from './deploy/compose/parse.js';
 export * from './deploy/compose/ports.js';
 export * from './deploy/dockerignore.js';
 export * from './deploy/env/composeEnv.js';
+export * from './deploy/prompts.js';
 export * from './deploy/validation.js';
 export * from './env/dotenv.js';
 export * from './git/commitMessage.js';

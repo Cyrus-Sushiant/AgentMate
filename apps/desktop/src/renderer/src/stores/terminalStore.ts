@@ -13,8 +13,13 @@ export interface TerminalSessionMeta {
   initialInput?: string;
   projectId?: string;
   /** Defaults to 'local'. An 'ssh' session connects to a saved server instead of spawning a shell. */
-  kind?: 'local' | 'ssh';
+  kind?: 'local' | 'ssh' | 'container';
   sshServerId?: string;
+  /**
+   * For a 'container' session: a console in a container on a server with the core (Deploy).
+   * These panes live inside the Containers screen and are never put in the store.
+   */
+  container?: { serverId: string; containerId: string };
   /**
    * Brought back from a previous run of the app. Its pane only reconnects to the shell that
    * is still running in the background and closes itself if that shell is gone, so a

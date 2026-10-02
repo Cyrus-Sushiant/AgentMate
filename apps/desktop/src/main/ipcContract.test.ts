@@ -1,5 +1,5 @@
 import { readdirSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { IPC } from '../shared/ipcChannels';
@@ -90,7 +90,15 @@ const INVOKE = /ipcRenderer\.(?:invoke|send)\(\s*IPC\.([A-Za-z0-9_]+\.[A-Za-z0-9
 const SUBSCRIBE = /(?:ipcRenderer\.(?:on|once)|subscribe)\(\s*IPC\.([A-Za-z0-9_]+\.[A-Za-z0-9_]+)/g;
 
 const mainFiles = tsFilesUnder(mainDir);
-const preloadText = readFileSync(preloadFile, 'utf-8');
+// The preload is index.ts plus the groups it builds from modules beside it (deployDocker.ts).
+const preloadText = [
+  preloadFile,
+  ...readdirSync(dirname(preloadFile))
+    .filter((name) => /\.ts$/.test(name) && !/\.(test|d)\.ts$/.test(name) && name !== 'index.ts')
+    .map((name) => join(dirname(preloadFile), name)),
+]
+  .map((file) => readFileSync(file, 'utf-8'))
+  .join('\n');
 
 const handled = new Set<string>();
 for (const file of mainFiles) {
