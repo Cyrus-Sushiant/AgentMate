@@ -185,4 +185,10 @@ export function registerDeployStacksHandlers(deps: DeployStacksHandlerDeps): voi
     }
     return stacks.delete(input.serverId, input.stackId, removeVolumes);
   });
+  handle(IPC.deployStacks.makePrivate, (value) => {
+    const input = ref(value);
+    const services = serviceNames(object(value, 'the services to make private').services);
+    if (services.length === 0) throw new Error('Name a service to make private.');
+    return stacks.makePrivate({ ...input, services });
+  });
 }

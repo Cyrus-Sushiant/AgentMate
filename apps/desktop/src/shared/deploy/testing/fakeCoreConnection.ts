@@ -324,6 +324,8 @@ export class FakeCoreConnection implements ICoreHub {
   deployStack = () => this.unused('DeployStack');
   rollbackStack = () => this.unused('RollbackStack');
   runStackAction = () => this.unused('RunStackAction');
+  reviseStack = () => this.unused('ReviseStack');
+  revealStackEnv = () => this.unused('RevealStackEnv');
   deleteStack = () => this.unused('DeleteStack');
   deleteStackWithVolumes = () => this.unused('DeleteStackWithVolumes');
 

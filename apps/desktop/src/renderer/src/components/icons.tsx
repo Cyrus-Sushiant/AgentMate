@@ -128,6 +128,7 @@ import {
   faSquareMinus,
   faStar,
   faStop,
+  faStore,
   faStrikethrough,
   faSun,
   faTable,
@@ -326,6 +327,9 @@ export const Key = makeIcon(faKey);
 
 // Package manager tab icons.
 export const Package = makeIcon(faBox);
+
+// The App Store of a Deploy server.
+export const Store = makeIcon(faStore);
 
 // Project archive icons.
 export const Archive = makeIcon(faBoxArchive);

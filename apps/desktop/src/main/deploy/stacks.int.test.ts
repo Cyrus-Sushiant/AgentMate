@@ -2,7 +2,12 @@ import { execFileSync } from 'node:child_process';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { Project } from '@agentmat/core';
+import {
+  CATALOG_TEMPLATES,
+  generateCatalogSecrets,
+  type Project,
+  renderCatalogApp,
+} from '@agentmat/core';
 import type { HubConnection, IStreamResult } from '@microsoft/signalr';
 import { afterEach, describe, expect, it } from 'vitest';
 import type {
@@ -35,7 +40,9 @@ import {
  * REST, the build context streamed, the deploy as a job). It checks what only a real Docker can
  * say: the .env reaches the container exactly (AC2), a service published on every interface ends
  * up on 127.0.0.1 only (AC3), and a rollback brings the previous revision's files and running
- * state back (AC4). Needs AGENTMATE_SYSTEM_TESTS=1, Docker, network access from the test server
+ * state back (AC4). Then E13's "make private" moves a public service to 127.0.0.1 as a new
+ * revision, and every App Store template (E12 AC1) goes through the server's own docker compose
+ * config and risk linter. Needs AGENTMATE_SYSTEM_TESTS=1, Docker, network access from the test server
  * (Docker's packages and busybox), and `pnpm server-core:publish linux-x64`.
  */
 
@@ -382,6 +389,41 @@ describe.skipIf(!enabled)('Compose stacks through the server core on a real serv
         )['8080/tcp'],
       ).toEqual([{ HostIp: '127.0.0.1', HostPort: '8090' }]);
 
+      // E13 make private: a revision left public on purpose, then moved back to 127.0.0.1 by a
+      // revision the server copies, with the same .env.
+      const publicRevision = await stacks.upload({
+        ...source,
+        serverId: 'srv',
+        stackId,
+        proxiedServices: [],
+        acknowledgedRisks: (await stacks.preview({ ...source, proxiedServices: [] }))
+          .requiresAcknowledgment,
+      });
+      const madePublic = await runJob(
+        hub,
+        await stacks.deploy('srv', stackId, publicRevision.revision.number),
+        900_000,
+      );
+      expect(madePublic.final?.state, madePublic.log.slice(-60).join('\n')).toBe('succeeded');
+      const hostIps = () =>
+        (
+          JSON.parse(
+            runSlowly(server, `docker inspect -f '{{json .HostConfig.PortBindings}}' ${container}`),
+          )['8080/tcp'] as Array<{ HostIp: string }>
+        ).map((binding) => binding.HostIp);
+      expect(hostIps().every((ip) => ip !== '127.0.0.1')).toBe(true);
+      const privateAgain = await stacks.makePrivate({
+        serverId: 'srv',
+        stackId,
+        services: ['web'],
+      });
+      expect(privateAgain.job, privateAgain.revision.error).not.toBeNull();
+      const madePrivate = await runJob(hub, privateAgain.job as JobInfo, 900_000);
+      expect(madePrivate.final?.state, madePrivate.log.slice(-60).join('\n')).toBe('succeeded');
+      expect(hostIps()).toEqual(['127.0.0.1']);
+      // The copy kept the .env of the revision it came from (the public one, from the project).
+      expect(envOf()).toBe('plain');
+
       // Taken down and deleted with its volumes: nothing of the app is left.
       const removed = await runJob(hub, await stacks.delete('srv', stackId, true), 300_000);
       expect(removed.final?.state, removed.log.slice(-40).join('\n')).toBe('succeeded');
@@ -389,6 +431,28 @@ describe.skipIf(!enabled)('Compose stacks through the server core on a real serv
         runSlowly(server, 'docker ps -a --filter label=com.docker.compose.project=site -q'),
       ).toBe('');
       expect(await stacks.list('srv')).toEqual([]);
+
+      // E12 AC1: every App Store template, as an install uploads it, is read by the server's
+      // docker compose config and leaves its linter with nothing to acknowledge.
+      for (const template of CATALOG_TEMPLATES) {
+        const rendered = renderCatalogApp(template, {
+          secrets: generateCatalogSecrets(template.secrets),
+        });
+        if (!rendered.ok) throw new Error(`${template.id}: ${rendered.reason}`);
+        const { render } = rendered;
+        const created = await stacks.createFromFiles('srv', `store-${template.id}`, 'App Store', {
+          compose: render.compose,
+          env: render.envFile,
+          proxiedServices: [...new Set(render.ports.map((port) => port.service))],
+          acknowledgedRisks: [],
+          buildContext: false,
+        });
+        expect(created.revision.state, `${template.id}: ${created.revision.error}`).toBe('ready');
+        expect(created.revision.unacknowledgedRisks, template.id).toEqual([]);
+        for (const binding of created.revision.bindings) {
+          expect(binding.hostIp, `${template.id} ${binding.service}`).toBe('127.0.0.1');
+        }
+      }
     },
     TEST_TIMEOUT_MS,
   );

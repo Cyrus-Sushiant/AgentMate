@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import { CloudflareMark } from '@/components/cloudflare/CloudflareMark';
+import { AppStorePanel } from '@/components/deploy/appStore/AppStorePanel';
 import { AppsPanel } from '@/components/deploy/apps/AppsPanel';
 import { ContainersPanel } from '@/components/deploy/containers/ContainersPanel';
 import { FirewallPanel } from '@/components/deploy/firewall/FirewallPanel';
@@ -213,6 +214,9 @@ export default function DeployPage(): React.JSX.Element {
   } else if (section === 'apps') {
     sections = true;
     content = <AppsPanel server={selected} />;
+  } else if (section === 'store') {
+    sections = true;
+    content = <AppStorePanel server={selected} />;
   } else {
     sections = true;
     content = (

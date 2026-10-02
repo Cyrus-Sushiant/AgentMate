@@ -309,6 +309,12 @@ public interface ICoreHub
 
     Task<JobInfo> RunStackAction(StackActionRequest request);
 
+    /// <summary>A new revision copied from another on the server, with other proxied services or a new compose file.</summary>
+    Task<StackRevisionInfo> ReviseStack(ReviseStackRequest request);
+
+    /// <summary>A revision's .env with its values. Admin, after a step-up; only the count is audited.</summary>
+    Task<StackEnvEntry[]> RevealStackEnv(StackRevisionRef revision);
+
     /// <summary>docker compose down, then the stack's files and records go. Its volumes stay.</summary>
     Task<JobInfo> DeleteStack(Guid stackId);
 

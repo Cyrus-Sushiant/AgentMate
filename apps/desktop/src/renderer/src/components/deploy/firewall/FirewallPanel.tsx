@@ -24,6 +24,7 @@ import { CountdownBanner } from './CountdownBanner';
 import { ExposureCard } from './ExposureCard';
 import { HistoryCard } from './HistoryCard';
 import { useFirewallData, useFirewallSteps, useTicking } from './hooks';
+import { useMakePrivate } from './MakePrivate';
 import { PresetsCard } from './PresetsCard';
 import { RuleDialog } from './RuleDialog';
 import { RulesCard } from './RulesCard';
@@ -63,6 +64,8 @@ export function FirewallPanel({ server }: { server: DeployServer }): React.JSX.E
   });
   const signedIn = access.data?.state === 'signed-in';
   const canAdmin = hasRole(access.data?.user?.roles, 'admin');
+  const canOperate = hasRole(access.data?.user?.roles, 'operator');
+  const makePrivate = useMakePrivate(serverId);
   const connection = useDeployConnection(serverId, signedIn);
   const stale = connection?.state === 'reconnecting';
   const { status, presets, history, exposure } = useFirewallData(serverId, signedIn);
@@ -301,7 +304,16 @@ export function FirewallPanel({ server }: { server: DeployServer }): React.JSX.E
         exposure={exposure.data}
         loading={exposure.isPending}
         error={message(exposure.error)}
+        actions={{
+          serverId,
+          canOperate,
+          checking: makePrivate.checking,
+          problem: makePrivate.problem,
+          outcomes: makePrivate.outcomes,
+          onMakePrivate: (port) => void makePrivate.start(port),
+        }}
       />
+      {makePrivate.dialog}
 
       <RuleDialog
         open={form !== null}

@@ -152,6 +152,33 @@ function serviceYaml(
   return out;
 }
 
+/**
+ * The top-level extension block that says what an install is: Compose keeps `x-` keys and does
+ * nothing with them. The parameters are never secrets, and strings are escaped like any other
+ * literal, since Compose interpolates extension values too.
+ */
+export const CATALOG_EXTENSION_KEY = 'x-agentmate';
+
+function catalogBlock(
+  templateId: string,
+  versionId: string,
+  params: Record<string, unknown>,
+  publicUrl: string | null,
+): Record<string, unknown> {
+  const kept: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(params)) {
+    if (value === undefined || value === null) continue;
+    kept[key] = typeof value === 'string' ? literal(value) : value;
+  }
+  const catalog: Record<string, unknown> = {
+    template: templateId,
+    version: versionId,
+    params: kept,
+  };
+  if (publicUrl) catalog.domain = new URL(publicUrl).hostname;
+  return { catalog };
+}
+
 function mask(value: string, secrets: readonly string[]): string {
   let masked = value;
   for (const secret of secrets) masked = masked.split(secret).join(CATALOG_MASKED_SECRET);
@@ -233,6 +260,7 @@ export function renderCatalogApp(
   const data: Record<string, unknown> = { services };
   if (volumes.length > 0) data.volumes = Object.fromEntries(volumes.map((name) => [name, {}]));
   if (Object.keys(networks).length > 0) data.networks = networks;
+  data[CATALOG_EXTENSION_KEY] = catalogBlock(template.id, version.id, params, publicUrl);
   const document = new Document(data);
   document.commentBefore = [
     ` Written by AgentMate from the ${template.name} template (${version.label}).`,

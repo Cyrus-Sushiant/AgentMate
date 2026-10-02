@@ -789,8 +789,23 @@ export const IPC = {
     rollback: 'deployStacks:rollback',
     action: 'deployStacks:action',
     delete: 'deployStacks:delete',
+    /** (DeployMakePrivateInput) -> DeployRevisionResult: services moved to 127.0.0.1 (E13). */
+    makePrivate: 'deployStacks:makePrivate',
     /** main -> renderer: DeployStackUploadProgress while files go up. */
     onUploadProgress: 'deployStacks:onUploadProgress',
+  },
+  /**
+   * A server's App Store (E12): an app installed from the catalog, its update to newer images and
+   * its generated passwords revealed (Admins, after a step-up). The main process renders the
+   * files itself from what was picked.
+   */
+  deployAppStore: {
+    /** (DeployAppInstallInput) -> DeployAppInstallResult: the app, its revision and deploy job. */
+    install: 'deployAppStore:install',
+    /** (DeployAppUpdateInput) -> DeployRevisionResult: a copy of the live revision on newer images. */
+    update: 'deployAppStore:update',
+    /** (DeployAppRevealInput) -> the app's .env as a map of key to value. */
+    revealSecrets: 'deployAppStore:revealSecrets',
   },
   /**
    * A server core's Security area: users and roles (Owner), devices and sessions, enrollment

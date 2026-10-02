@@ -6,6 +6,7 @@ import { validateStackName } from '@agentmat/core';
 import { encodeCoreError } from '../../../shared/coreErrors';
 import type {
   JobInfo,
+  ReviseStackRequest,
   StackAction,
   StackDetails,
   StackInfo,
@@ -16,6 +17,11 @@ import type {
 } from '../../../shared/deploy/protocol/generated/AgentMate.ServerCore.Contracts';
 import type { ICoreHub } from '../../../shared/deploy/protocol/generated/TypedSignalR.Client/AgentMate.ServerCore.Contracts';
 import type {
+  DeployAppRevealInput,
+  DeployMakePrivateInput,
+  DeployRevisionResult,
+} from '../../../shared/deployAppStoreTypes';
+import type {
   DeployComposeDiscovery,
   DeployStackCreateInput,
   DeployStackPreview,
@@ -25,6 +31,7 @@ import type {
   DeployStackUploadResult,
 } from '../../../shared/deployStacksTypes';
 import { type CoreHttpClient, CoreHttpError } from '../connection/coreHttp';
+import { ADMIN_ROLES, callCore } from '../coreCalls';
 import type { CoreLinks } from '../live/coreLinks';
 import { explainCoreRefusal } from '../system';
 import type { BuildContextOptions, BuildContextResult } from './buildContext';
@@ -141,6 +148,104 @@ export class DeployStacks {
   delete(serverId: string, stackId: string, removeVolumes: boolean): Promise<JobInfo> {
     return this.run(serverId, (hub) =>
       removeVolumes ? hub.deleteStackWithVolumes(stackId) : hub.deleteStack(stackId),
+    );
+  }
+
+  /**
+   * A new app whose files were made in this process (an App Store install) rather than read from
+   * a project. Like `create`, a name taken by an app that never got files is reused.
+   */
+  async createFromFiles(
+    serverId: string,
+    name: string,
+    description: string,
+    upload: StackRevisionUpload,
+  ): Promise<DeployStackUploadResult> {
+    const checked = validateStackName(name);
+    if (!checked.ok) throw new Error(checked.reason);
+    const existing = (await this.list(serverId)).find((stack) => stack.name === checked.value);
+    if (existing && existing.revisionCount > 0) {
+      throw new Error(`There is already an app called ${checked.value} on this server.`);
+    }
+    const stack =
+      existing ??
+      (await this.run(serverId, (hub) => hub.createStack({ name: checked.value, description })));
+    this.progress(serverId, 'uploading-files');
+    const revision = await this.rest(serverId, (client, token) =>
+      client.post<StackRevisionInfo>(
+        `/api/v1/stacks/${encodeURIComponent(stack.id)}/revisions`,
+        upload,
+        { token, timeoutMs: FILES_TIMEOUT_MS },
+      ),
+    );
+    this.progress(serverId, 'done');
+    const details = await this.get(serverId, stack.id);
+    return { stack: details.stack, revision };
+  }
+
+  /**
+   * A revision copied on the server (its .env and files with it), then deployed when the server
+   * found it ready with nothing left to acknowledge. Otherwise the revision comes back alone, so
+   * the screen can say why.
+   */
+  async reviseAndDeploy(
+    serverId: string,
+    request: ReviseStackRequest,
+  ): Promise<DeployRevisionResult> {
+    const revision = await this.run(serverId, (hub) => hub.reviseStack(request));
+    if (revision.state !== 'ready' || revision.unacknowledgedRisks.length > 0) {
+      return { revision, job: null };
+    }
+    const job = await this.deploy(serverId, request.stackId, revision.number);
+    return { revision, job };
+  }
+
+  /**
+   * "Make private" (E13): what runs now (or the newest revision, when nothing is live) again,
+   * with these services' ports on 127.0.0.1 through the same loopback override as any proxied
+   * service. Public access goes through a site in Websites from then on.
+   */
+  async makePrivate(input: DeployMakePrivateInput): Promise<DeployRevisionResult> {
+    const details = await this.get(input.serverId, input.stackId);
+    const { stack } = details;
+    const base =
+      details.revisions.find((revision) => revision.number === stack.liveRevision) ??
+      details.revisions[0];
+    if (!base) throw new Error(`${stack.name} has no revision to start from yet.`);
+    for (const service of input.services) {
+      if (!base.services.includes(service)) {
+        throw new Error(`${stack.name} has no service called ${service}.`);
+      }
+    }
+    const added = input.services.filter((service) => !base.proxiedServices.includes(service));
+    if (added.length === 0) {
+      throw new Error(
+        `${input.services.join(', ')} already publishes on 127.0.0.1 only in revision ${base.number}.`,
+      );
+    }
+    return this.reviseAndDeploy(input.serverId, {
+      stackId: stack.id,
+      revision: base.number,
+      proxiedServices: unique([...base.proxiedServices, ...input.services]),
+      purpose: 'makePrivate',
+    });
+  }
+
+  /** A revision's .env with its values: Admins only, after a step-up made here when asked. */
+  revealEnv(input: DeployAppRevealInput) {
+    return callCore(
+      this.deps,
+      input.serverId,
+      async (hub) => {
+        if (input.password || input.totpCode) {
+          await hub.stepUp({
+            ...(input.password ? { password: input.password } : {}),
+            ...(input.totpCode ? { totpCode: input.totpCode } : {}),
+          });
+        }
+        return hub.revealStackEnv({ stackId: input.stackId, revision: input.revision });
+      },
+      { stepUpFor: ADMIN_ROLES },
     );
   }
 

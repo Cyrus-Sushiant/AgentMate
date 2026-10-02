@@ -38,8 +38,8 @@ Plan: docs/ROADMAP.md
 | E09 | Logs center, problems feed and Deploy AI | Not started | | |
 | E10 | nginx websites | In progress | 77b262a, see git log | Renderer, snippet allowlist and the nginx -t harness; desktop T9 done (Websites section, site editor, Apply bar, route maps, stream proxies, live site logs) |
 | E11 | Let's Encrypt certificates | In progress | 7110a67, see git log | ACME client (RFC 8555 and ARI) tested against Pebble; desktop T6 done (SSL tab); DNS-01 in the UI waits on E14 |
-| E12 | App Store | In progress | | Catalog of 18 apps pinned by digest (MinIO left out: no public official image), pending integration |
-| E13 | Firewall | In progress | 2a87c89, see git log | Core (ufw and firewalld, lockout guard, safe apply) and the Firewall screen (T6): status hero, rules, presets, staged changes, typed SSH override, countdown to keep or revert, history, exposure view. Confirm goes over a brand-new SSH connection. Left: "Make private" for containers (part of T5) waits on app deploys, so the button is disabled with a hint |
+| E12 | App Store | In progress | see git log | Catalog of 18 apps pinned by digest (MinIO left out: no public official image); App Store section, one-screen install sheet, post-install card with masked secrets (step-up reveal), explicit updates as server-side revisions, digest refresh script. Left: AC3 (WordPress over HTTPS on Pebble) not verified |
+| E13 | Firewall | Complete | 2a87c89, 271820e, see git log | Core (ufw and firewalld, lockout guard, safe apply), the Firewall screen (T6) and "make private" (T5): an AgentMate app is redeployed with the service on 127.0.0.1 as a revision the server copies; anything else is shown the compose or run change. AC1 to AC3 by the firewall system tests, passed locally |
 | E14 | Cloudflare | In progress | df848e5 | Desktop side: T1 to T4, T8, T9 and pointing a domain (part of T5); Origin CA (rest of T5), T6 and T7 wait on server work |
 | E15 | Security center and maintenance | In progress | c87918a | T1 (users, devices, enrollment codes) and T2 (audit viewer) done |
 | E16 | Direct TLS mode | Not started | | |
@@ -82,6 +82,14 @@ Status values: Not started, In progress, Blocked, Complete.
   (`docker.int.test.ts`) were not run with the desktop work; they need the core's test suite and
   Docker. The Containers console has no e2e test, and the screen has not had a visual pass in
   both themes.
+
+- E12 AC3: installing WordPress on a domain over HTTPS has no end-to-end test on the Pebble
+  harness. The install, the site, nginx apply and the certificate order are each covered (component
+  tests, the E10 `nginx -t` and E11 Pebble harnesses), not together. The App Store screens have not
+  had a visual pass in both themes.
+- E12 and E13 system tests (`stacks.int.test.ts`: every template through the server's compose
+  config and linter, and make private on a real Docker; `firewall.int.test.ts`) ran locally only,
+  not yet in CI.
 
 ## Known failures outside the Deploy work
 

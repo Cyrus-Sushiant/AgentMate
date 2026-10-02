@@ -1,4 +1,5 @@
 import type {
+  ContainerPortInfo,
   ExposureFirewall,
   ExposureInventory,
   ExposureScope,
@@ -10,13 +11,59 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { EXPOSURE_FIREWALL_LABEL, SCOPE_LABEL } from '@/lib/deploy/firewall/format';
 import { cn } from '@/lib/utils';
+import { MakePrivateNotice, type MakePrivateOutcome } from './MakePrivate';
 
 /**
  * What can be reached on the server: every listening socket and every port Docker publishes,
  * public or not, and what the firewall makes of it. A container published on all addresses
- * goes around the host firewall, so it is called out. Moving one behind nginx ("make private")
- * comes with app deploys and is not available yet; the button says so.
+ * goes around the host firewall, so it is called out, with "make private": an AgentMate app is
+ * redeployed with the service on 127.0.0.1, anything else is shown the change to make.
  */
+
+export interface ExposureActions {
+  serverId: string;
+  canOperate: boolean;
+  /** The container being looked up right now. */
+  checking: string | null;
+  /** Why the container could not be looked up. */
+  problem: string | null;
+  /** By container name, which a redeploy keeps while the id changes. */
+  outcomes: Record<string, MakePrivateOutcome>;
+  onMakePrivate: (port: ContainerPortInfo) => void;
+}
+
+function MakePrivateButton({
+  port,
+  actions,
+}: {
+  port: ContainerPortInfo;
+  actions: ExposureActions | undefined;
+}): React.JSX.Element {
+  const allowed = actions?.canOperate === true;
+  const checking = actions?.checking === port.containerId;
+  const button = (
+    <Button
+      size="sm"
+      variant="ghost"
+      disabled={!allowed || checking || actions?.checking !== null}
+      onClick={() => actions?.onMakePrivate(port)}
+      className="ml-auto"
+    >
+      Make private
+    </Button>
+  );
+  return allowed ? (
+    button
+  ) : (
+    <SimpleTooltip
+      label="Making a container private needs the Operator role or higher."
+      className="max-w-64"
+      wrapTrigger
+    >
+      {button}
+    </SimpleTooltip>
+  );
+}
 
 const SCOPE_ICON: Record<ExposureScope, typeof Globe> = {
   public: Globe,
@@ -52,10 +99,12 @@ export function ExposureCard({
   exposure,
   loading,
   error,
+  actions,
 }: {
   exposure: ExposureInventory | undefined;
   loading: boolean;
   error: string | null;
+  actions?: ExposureActions;
 }): React.JSX.Element {
   return (
     <Card className="glass">
@@ -112,7 +161,8 @@ export function ExposureCard({
                   {exposure.containers.some((port) => port.firewall === 'bypassed') && (
                     <li className="pb-1.5 text-xs text-muted-foreground">
                       Docker publishes these ports around the host firewall, so its rules do not
-                      apply to them. Making them private from here is not available yet.
+                      apply to them. Make them private to keep them on 127.0.0.1, then serve them
+                      through Websites.
                     </li>
                   )}
                   {exposure.containers.map((port) => (
@@ -127,19 +177,25 @@ export function ExposureCard({
                       </span>
                       <Reach scope={port.scope} firewall={port.firewall} />
                       {port.scope !== 'local' && (
-                        <SimpleTooltip
-                          label="Not available yet: making a container private comes with app deploys. For now, publish it on 127.0.0.1 in its compose file."
-                          className="max-w-64"
-                          wrapTrigger
-                        >
-                          <Button size="sm" variant="ghost" disabled className="ml-auto">
-                            Make private
-                          </Button>
-                        </SimpleTooltip>
+                        <MakePrivateButton port={port} actions={actions} />
                       )}
+                      {actions?.outcomes[port.containerName] &&
+                        exposure.containers.find(
+                          (other) => other.containerName === port.containerName,
+                        ) === port && (
+                          <MakePrivateNotice
+                            serverId={actions.serverId}
+                            outcome={actions.outcomes[port.containerName]}
+                          />
+                        )}
                     </li>
                   ))}
                 </ul>
+              )}
+              {actions?.problem && (
+                <p role="alert" className="pt-1 text-xs text-destructive">
+                  {actions.problem}
+                </p>
               )}
             </section>
           </>

@@ -1482,6 +1482,33 @@ export type StackRevisionUpload = {
     source?: StackSource;
 }
 
+/** Transpiled from AgentMate.ServerCore.Contracts.StackRevisionPurpose */
+export type StackRevisionPurpose = "edit" | "makePrivate" | "update";
+
+/** Transpiled from AgentMate.ServerCore.Contracts.ReviseStackRequest */
+export type ReviseStackRequest = {
+    /** Transpiled from System.Guid */
+    stackId: string;
+    /** Transpiled from int */
+    revision: number;
+    /** Transpiled from string[] */
+    proxiedServices: string[];
+    /** Transpiled from string? */
+    compose?: string;
+    /** Transpiled from string[]? */
+    acknowledgedRisks?: string[];
+    /** Transpiled from AgentMate.ServerCore.Contracts.StackRevisionPurpose */
+    purpose: StackRevisionPurpose;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.StackEnvEntry */
+export type StackEnvEntry = {
+    /** Transpiled from string */
+    key: string;
+    /** Transpiled from string */
+    value: string;
+}
+
 /** Transpiled from AgentMate.ServerCore.Contracts.StackUploadError */
 export type StackUploadError = {
     /** Transpiled from string */

@@ -5,6 +5,7 @@ import { app, dialog, type IpcMainInvokeEvent, ipcMain } from 'electron';
 import { IPC } from '../../shared/ipcChannels';
 import { indexProjectFiles } from '../explorer/fileIndex';
 import { registerDeployHandlers } from '../ipc/deploy';
+import { registerDeployAppStoreHandlers } from '../ipc/deployAppStore';
 import { registerDeployDockerHandlers } from '../ipc/deployDocker';
 import { registerDeployFirewallHandlers } from '../ipc/deployFirewall';
 import { registerDeploySecurityHandlers } from '../ipc/deploySecurity';
@@ -24,6 +25,7 @@ import {
 } from '../ssh/vault';
 import { store } from '../store';
 import { DownloadAbortedError, ResumableDownload } from '../updater/resumableDownload';
+import { DeployAppStore } from './appStore/service';
 import {
   githubReleaseSource,
   localArtifactSource,
@@ -191,26 +193,25 @@ export function registerDeployIpc(): void {
     guard,
   });
 
-  registerDeployStacksHandlers({
-    ipc: ipcMain,
-    stacks: new DeployStacks({
-      links: service.links,
-      roles: (id) => service.roles(id),
-      http: (serverId, work) => service.withCoreHttp(serverId, work),
-      source: {
-        project: async (projectId) => {
-          const project = (await store.getProjects()).find((item) => item.id === projectId);
-          if (!project) throw new Error('That project no longer exists.');
-          return project;
-        },
-        index: indexProjectFiles,
-        environment: resolveProjectEnvironment,
+  const stacks = new DeployStacks({
+    links: service.links,
+    roles: (id) => service.roles(id),
+    http: (serverId, work) => service.withCoreHttp(serverId, work),
+    source: {
+      project: async (projectId) => {
+        const project = (await store.getProjects()).find((item) => item.id === projectId);
+        if (!project) throw new Error('That project no longer exists.');
+        return project;
       },
-      pack: buildContextTarball,
-      progress: (event) => sendToWindow(getMainWindow(), IPC.deployStacks.onUploadProgress, event),
-    }),
-    guard,
+      index: indexProjectFiles,
+      environment: resolveProjectEnvironment,
+    },
+    pack: buildContextTarball,
+    progress: (event) => sendToWindow(getMainWindow(), IPC.deployStacks.onUploadProgress, event),
   });
+  registerDeployStacksHandlers({ ipc: ipcMain, stacks, guard });
+  // The App Store (E12) installs and updates through the same stacks.
+  registerDeployAppStoreHandlers({ ipc: ipcMain, store: new DeployAppStore({ stacks }), guard });
 
   // The Websites section (E10, E11): its site logs end with the window that opened them.
   const siteLogs = new SiteLogSubscriptions({ links: service.links });

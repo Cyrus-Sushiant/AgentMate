@@ -186,6 +186,14 @@ export default defineConfig({
           functions: 85,
           branches: 80,
         },
+        // The App Store (E12): installs rendered again in main, updates, the install sheet and card.
+        'src/main/deploy/appStore/**': { lines: 95, branches: 85 },
+        'src/main/ipc/deployAppStore.ts': { lines: 95, branches: 90 },
+        'src/renderer/src/components/deploy/appStore/**': {
+          lines: 90,
+          functions: 80,
+          branches: 80,
+        },
         'src/renderer/src/stores/deploySetupStore.ts': { lines: 95, branches: 85 },
         'src/renderer/src/lib/deploy/**': { lines: 95, branches: 90 },
         // Docker on a server (E06): its calls, live streams and consoles, and the Containers screen.

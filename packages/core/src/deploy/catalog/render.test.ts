@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { parseComposeFile } from '../compose/parse.js';
 import { defineCatalogTemplate, identifierParam, portParam } from './define.js';
+import { readCatalogInstall } from './installed.js';
 import { renderCatalogApp } from './render.js';
 import type { PinnedImage } from './types.js';
 
@@ -172,6 +173,19 @@ describe('renderCatalogApp', () => {
       { environment: Record<string, string> }
     >;
     expect(services.app.environment.GREETING).toBe('cost: $5');
+  });
+
+  it('records the install in an extension block, escaped like any literal', () => {
+    const result = rendered({ secrets: SECRETS, domain: 'apps.example.com' });
+    expect(result.compose).toContain('greeting: "cost: $$5"');
+    const read = readCatalogInstall(result.compose, () => EXAMPLE);
+    if (!read.ok) throw new Error(read.reason);
+    expect(read.install.params.greeting).toBe('cost: $5');
+    expect(read.install.domain).toBe('apps.example.com');
+    expect(read.install.installed.images.app).toEqual({
+      tag: '2.1',
+      digest: `sha256:${'a'.repeat(64)}`,
+    });
   });
 
   it('is byte for byte the same for the same inputs', () => {

@@ -31,6 +31,7 @@ function harness(trusted = true) {
       'rollback',
       'action',
       'delete',
+      'makePrivate',
     ].map((name) => [name, vi.fn(async () => ({ ok: name }))]),
   ) as unknown as Record<string, ReturnType<typeof vi.fn>>;
   registerDeployStacksHandlers({
@@ -126,6 +127,21 @@ describe('registerDeployStacksHandlers', () => {
     expect(stacks.delete).toHaveBeenCalledWith(SERVER, STACK, true);
   });
 
+  it('makes the named services of an app private', async () => {
+    const { call, stacks } = harness();
+    await call(IPC.deployStacks.makePrivate, {
+      serverId: SERVER,
+      stackId: STACK,
+      services: ['web'],
+      extra: 'dropped',
+    });
+    expect(stacks.makePrivate).toHaveBeenCalledWith({
+      serverId: SERVER,
+      stackId: STACK,
+      services: ['web'],
+    });
+  });
+
   it('refuses arguments the core would refuse anyway', async () => {
     const { call, stacks } = harness();
     const refused: Array<[string, unknown, string]> = [
@@ -173,6 +189,16 @@ describe('registerDeployStacksHandlers', () => {
         "Say whether the app's volumes go too.",
       ],
       [IPC.deployStacks.list, 42, 'That is not a saved server.'],
+      [
+        IPC.deployStacks.makePrivate,
+        { serverId: SERVER, stackId: STACK, services: [] },
+        'Name a service to make private.',
+      ],
+      [
+        IPC.deployStacks.makePrivate,
+        { serverId: SERVER, stackId: STACK, services: ['web; rm'] },
+        'One of the services is not valid.',
+      ],
     ];
     for (const [channel, value, message] of refused) {
       await expect(call(channel, value), channel).rejects.toThrow(message);

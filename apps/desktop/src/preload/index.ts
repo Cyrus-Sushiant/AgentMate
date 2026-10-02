@@ -344,6 +344,14 @@ import type {
   UserInfo,
 } from '../shared/deploy/protocol/generated/AgentMate.ServerCore.Contracts';
 import type {
+  DeployAppInstallInput,
+  DeployAppInstallResult,
+  DeployAppRevealInput,
+  DeployAppUpdateInput,
+  DeployMakePrivateInput,
+  DeployRevisionResult,
+} from '../shared/deployAppStoreTypes';
+import type {
   DeployFirewallApplyInput,
   DeployFirewallChangesInput,
   DeployFirewallDecisionInput,
@@ -1659,8 +1667,26 @@ const deployStacks = {
     ipcRenderer.invoke(IPC.deployStacks.action, input),
   delete: (input: DeployStackDeleteInput): Promise<JobInfo> =>
     ipcRenderer.invoke(IPC.deployStacks.delete, input),
+  /** Redeploys the app as a new revision with these services on 127.0.0.1 (E13). */
+  makePrivate: (input: DeployMakePrivateInput): Promise<DeployRevisionResult> =>
+    ipcRenderer.invoke(IPC.deployStacks.makePrivate, input),
   onUploadProgress: (cb: (event: DeployStackUploadProgress) => void): (() => void) =>
     subscribe(IPC.deployStacks.onUploadProgress, cb),
+};
+
+/**
+ * A server's App Store (E12). The catalog is read from @agentmat/core in the renderer; these
+ * send what was picked, and the main process renders the files itself.
+ */
+const deployAppStore = {
+  install: (input: DeployAppInstallInput): Promise<DeployAppInstallResult> =>
+    ipcRenderer.invoke(IPC.deployAppStore.install, input),
+  /** A copy of the live revision on newer images, deployed; the .env stays on the server. */
+  update: (input: DeployAppUpdateInput): Promise<DeployRevisionResult> =>
+    ipcRenderer.invoke(IPC.deployAppStore.update, input),
+  /** Admins, after a step-up: the app's .env as a map of key to value. */
+  revealSecrets: (input: DeployAppRevealInput): Promise<Record<string, string>> =>
+    ipcRenderer.invoke(IPC.deployAppStore.revealSecrets, input),
 };
 
 /** A server core's alerts: disk pressure, failed jobs, a reboot waiting. */
@@ -2424,6 +2450,7 @@ const agentmatApi = {
   deploySites,
   deployCerts,
   deployStacks,
+  deployAppStore,
   cloudflare,
   pullRequests,
   tests,

@@ -318,7 +318,10 @@ internal sealed partial class SimulatedCompose(InMemoryDockerEngine engine, Time
         return JsonValue.Create(Interpolate(text, environment).Replace("$", "$$", StringComparison.Ordinal));
     }
 
-    /// <summary>`$$`, `${NAME}`, `${NAME:-default}`, `${NAME-default}` and `$NAME`, as Compose reads them.</summary>
+    /// <summary>
+    /// `$$`, `${NAME}`, `${NAME:-default}`, `${NAME-default}`, `${NAME:?error}`, `${NAME?error}` and
+    /// `$NAME`, as Compose reads them. A required variable that is missing fails the whole read.
+    /// </summary>
     private static string Interpolate(string text, Dictionary<string, string> environment) =>
         Variable().Replace(text, match =>
         {
@@ -331,8 +334,17 @@ internal sealed partial class SimulatedCompose(InMemoryDockerEngine engine, Time
             var found = environment.TryGetValue(name, out var value);
             if (match.Groups["fallback"].Success)
             {
-                var emptyCounts = match.Groups["op"].Value == ":-";
-                return found && (!emptyCounts || value!.Length > 0) ? value! : match.Groups["fallback"].Value;
+                var op = match.Groups["op"].Value;
+                var emptyCounts = op.StartsWith(':');
+                var usable = found && (!emptyCounts || value!.Length > 0);
+                if (op.EndsWith('?'))
+                {
+                    return usable
+                        ? value!
+                        : throw new InvalidDataException($"required variable {name} is missing a value: {match.Groups["fallback"].Value}");
+                }
+
+                return usable ? value! : match.Groups["fallback"].Value;
             }
 
             return found ? value! : string.Empty;
@@ -490,6 +502,6 @@ internal sealed partial class SimulatedCompose(InMemoryDockerEngine engine, Time
         return result;
     }
 
-    [GeneratedRegex(@"\$\$|\$\{(?<braced>[A-Za-z_][A-Za-z0-9_]*)(?:(?<op>:?-)(?<fallback>[^}]*))?\}|\$(?<plain>[A-Za-z_][A-Za-z0-9_]*)", RegexOptions.CultureInvariant)]
+    [GeneratedRegex(@"\$\$|\$\{(?<braced>[A-Za-z_][A-Za-z0-9_]*)(?:(?<op>:?[-?])(?<fallback>[^}]*))?\}|\$(?<plain>[A-Za-z_][A-Za-z0-9_]*)", RegexOptions.CultureInvariant)]
     private static partial Regex Variable();
 }

@@ -167,7 +167,7 @@ describe('HistoryCard', () => {
 });
 
 describe('ExposureCard', () => {
-  it('marks what goes around the firewall, and says making it private is not available', () => {
+  it('marks what goes around the firewall, with make private off without the role', () => {
     renderWithProviders(<ExposureCard exposure={EXPOSURE} loading={false} error={null} />);
 
     const db = screen.getByRole('listitem', { name: 'shop-db-1' });
