@@ -376,6 +376,37 @@ public interface ICoreHub
     Task<DnsCredentialSaveResult> SaveDnsCredential(DnsCredentialRequest request);
 
     Task RemoveDnsCredential(string zone);
+
+    // Security center (E15). Admins read the checklist; Owners make its SSH changes, which need a
+    // step-up and only run over an SSH connection that signed in with a key. A change rolls itself
+    // back after ConfirmWithinSeconds unless ConfirmSshHardening arrives over another new
+    // connection that signed in with a key too.
+
+    /// <summary>How safe the server is, item by item, with a score. Changes nothing.</summary>
+    Task<SecurityChecklist> GetSecurityChecklist(SecurityChecklistRequest request);
+
+    /// <summary>The exact drop-in and commands, and whether this connection is proven to use a key. Changes nothing.</summary>
+    Task<SshHardeningPreview> PreviewSshHardening(SshHardeningRequest request);
+
+    /// <summary>Saves the old drop-in, arms the rollback timer, writes and checks the new one, then reloads sshd.</summary>
+    Task<SshHardeningChangeInfo> ApplySshHardening(SshHardeningRequest request);
+
+    /// <summary>Keeps the change. Refused over the connection that applied it, or one that did not sign in with a key.</summary>
+    Task<SshHardeningChangeInfo> ConfirmSshHardening(Guid changeId);
+
+    /// <summary>Puts the old drop-in back now and reloads sshd.</summary>
+    Task<SshHardeningChangeInfo> RevertSshHardening(Guid changeId);
+
+    // Backups (E15), Owners only. Making one needs a step-up: it holds every secret the core keeps.
+
+    /// <summary>
+    /// Encrypts the core's state with the passphrase into a file that waits an hour to be downloaded
+    /// (GET /api/v1/backups/{id}). The passphrase is not kept.
+    /// </summary>
+    Task<BackupInfo> CreateBackup(BackupRequest request);
+
+    /// <summary>Deletes a backup from the server, once the app has it. True when there was one.</summary>
+    Task<bool> DeleteBackup(Guid backupId);
 }
 
 /// <summary>Everything the core can push to the app without being asked.</summary>

@@ -322,6 +322,50 @@ export type AuthError = {
     lockedOutUntilUnixMs?: number;
 }
 
+/** Transpiled from AgentMate.ServerCore.Contracts.BackupRequest */
+export type BackupRequest = {
+    /** Transpiled from string */
+    passphrase: string;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.BackupContents */
+export type BackupContents = {
+    /** Transpiled from int */
+    users: number;
+    /** Transpiled from int */
+    devices: number;
+    /** Transpiled from int */
+    stacks: number;
+    /** Transpiled from int */
+    sites: number;
+    /** Transpiled from int */
+    certificates: number;
+    /** Transpiled from long */
+    databaseBytes: number;
+    /** Transpiled from int */
+    files: number;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.BackupInfo */
+export type BackupInfo = {
+    /** Transpiled from System.Guid */
+    id: string;
+    /** Transpiled from string */
+    fileName: string;
+    /** Transpiled from long */
+    sizeBytes: number;
+    /** Transpiled from string */
+    sha256: string;
+    /** Transpiled from long */
+    createdAtUnixMs: number;
+    /** Transpiled from long */
+    expiresAtUnixMs: number;
+    /** Transpiled from string */
+    coreVersion: string;
+    /** Transpiled from AgentMate.ServerCore.Contracts.BackupContents */
+    contents: BackupContents;
+}
+
 /** Transpiled from AgentMate.ServerCore.Contracts.CertificateSource */
 export type CertificateSource = "acme" | "uploaded" | "cloudflareOrigin";
 
@@ -1431,6 +1475,133 @@ export type SaveRegistryCredentialRequest = {
     username: string;
     /** Transpiled from string */
     secret: string;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.SshPolicyInfo */
+export type SshPolicyInfo = {
+    /** Transpiled from bool */
+    passwordLogin?: boolean;
+    /** Transpiled from bool */
+    keyboardInteractiveLogin?: boolean;
+    /** Transpiled from bool */
+    keyLogin?: boolean;
+    /** Transpiled from string? */
+    rootLogin?: string;
+    /** Transpiled from bool */
+    managedByAgentMate: boolean;
+    /** Transpiled from string? */
+    error?: string;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.SshLoginProof */
+export type SshLoginProof = {
+    /** Transpiled from bool */
+    keyLoginProven: boolean;
+    /** Transpiled from string */
+    explanation: string;
+    /** Transpiled from string? */
+    method?: string;
+    /** Transpiled from string? */
+    userName?: string;
+    /** Transpiled from long */
+    atUnixMs?: number;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.SshHardeningRequest */
+export type SshHardeningRequest = {
+    /** Transpiled from bool */
+    disablePasswordLogin: boolean;
+    /** Transpiled from bool */
+    restrictRootLogin: boolean;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.SshHardeningPreview */
+export type SshHardeningPreview = {
+    /** Transpiled from string */
+    summary: string;
+    /** Transpiled from string */
+    path: string;
+    /** Transpiled from string */
+    content: string;
+    /** Transpiled from string[] */
+    commands: string[];
+    /** Transpiled from AgentMate.ServerCore.Contracts.SshLoginProof */
+    proof: SshLoginProof;
+    /** Transpiled from bool */
+    allowed: boolean;
+    /** Transpiled from int */
+    confirmWithinSeconds: number;
+    /** Transpiled from string[] */
+    notes: string[];
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.SshHardeningState */
+export type SshHardeningState = "awaitingConfirmation" | "confirmed" | "rolledBack" | "failed";
+
+/** Transpiled from AgentMate.ServerCore.Contracts.SshHardeningChangeInfo */
+export type SshHardeningChangeInfo = {
+    /** Transpiled from System.Guid */
+    id: string;
+    /** Transpiled from AgentMate.ServerCore.Contracts.SshHardeningState */
+    state: SshHardeningState;
+    /** Transpiled from string */
+    summary: string;
+    /** Transpiled from long */
+    createdAtUnixMs: number;
+    /** Transpiled from long */
+    deadlineUnixMs: number;
+    /** Transpiled from string */
+    requestedBy: string;
+    /** Transpiled from long */
+    finishedAtUnixMs?: number;
+    /** Transpiled from string? */
+    error?: string;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.ChecklistStatus */
+export type ChecklistStatus = "pass" | "warn" | "fail" | "unknown";
+
+/** Transpiled from AgentMate.ServerCore.Contracts.ChecklistFix */
+export type ChecklistFix = "none" | "enableFirewall" | "disableSshPasswordLogin" | "restrictRootLogin" | "enableAutomaticUpdates" | "reboot" | "reviewExposure" | "renewCertificates" | "updateCore" | "enableTwoFactor";
+
+/** Transpiled from AgentMate.ServerCore.Contracts.ChecklistItem */
+export type ChecklistItem = {
+    /** Transpiled from string */
+    id: string;
+    /** Transpiled from string */
+    title: string;
+    /** Transpiled from AgentMate.ServerCore.Contracts.ChecklistStatus */
+    status: ChecklistStatus;
+    /** Transpiled from int */
+    weight: number;
+    /** Transpiled from string */
+    detail: string;
+    /** Transpiled from AgentMate.ServerCore.Contracts.ChecklistFix */
+    fix: ChecklistFix;
+    /** Transpiled from string[] */
+    targets: string[];
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.SecurityChecklist */
+export type SecurityChecklist = {
+    /** Transpiled from int */
+    score: number;
+    /** Transpiled from AgentMate.ServerCore.Contracts.ChecklistItem[] */
+    items: ChecklistItem[];
+    /** Transpiled from AgentMate.ServerCore.Contracts.SshPolicyInfo */
+    ssh: SshPolicyInfo;
+    /** Transpiled from string */
+    coreVersion: string;
+    /** Transpiled from long */
+    checkedAtUnixMs: number;
+    /** Transpiled from AgentMate.ServerCore.Contracts.SshHardeningChangeInfo? */
+    pendingSshChange?: SshHardeningChangeInfo;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.SecurityChecklistRequest */
+export type SecurityChecklistRequest = {
+    /** Transpiled from string? */
+    availableCoreVersion?: string;
 }
 
 /** Transpiled from AgentMate.ServerCore.Contracts.StackStatus */

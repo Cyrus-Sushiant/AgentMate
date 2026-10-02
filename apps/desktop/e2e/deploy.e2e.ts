@@ -71,7 +71,9 @@ test("lists the DevHost's user and marks this computer in the Security area", as
     .getByRole('button', { name: 'Security' })
     .click();
 
-  // The development owner, on the Users tab an Owner starts on.
+  // An Owner starts on the checklist; the development owner is on the Users tab.
+  await expect(page.getByRole('list', { name: 'Checklist' })).toBeVisible({ timeout: 30_000 });
+  await page.getByRole('tab', { name: 'Users' }).click();
   const dev = page.getByRole('list', { name: 'Users' }).getByRole('listitem', { name: 'dev' });
   await expect(dev).toBeVisible({ timeout: 30_000 });
   await expect(dev.getByText('You', { exact: true })).toBeVisible();

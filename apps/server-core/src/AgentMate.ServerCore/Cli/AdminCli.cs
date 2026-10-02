@@ -1,6 +1,7 @@
 using System.Runtime.InteropServices;
 using System.Text.Json;
 using AgentMate.ServerCore.Audit;
+using AgentMate.ServerCore.Backups;
 using AgentMate.ServerCore.Data;
 using AgentMate.ServerCore.Hosting;
 using AgentMate.ServerCore.Security;
@@ -44,6 +45,9 @@ internal static class AdminCli
                                                             (SubjectPublicKeyInfo, base64) is read from stdin.
           revoke-all                                        Revokes every device and session.
           reset-password --user <name> --password-stdin     A new password from stdin; signs the user out everywhere.
+          restore-stage --file <backup> --into <folder> --passphrase-stdin
+                                                            Decrypts and checks a backup into a new folder,
+                                                            ready to take the state folder's place.
         """;
 
     private enum Exit
@@ -101,6 +105,7 @@ internal static class AdminCli
                     parsed.Value.Options["--name"]),
                 "revoke-all" => await RevokeAllAsync(context),
                 "reset-password" => await ResetPasswordAsync(context, parsed.Value.Options["--user"]),
+                "restore-stage" => await RestoreStageAsync(context, parsed.Value.Options["--file"], parsed.Value.Options["--into"]),
                 _ => Exit.Usage,
             };
             return (int)exit;
@@ -157,6 +162,7 @@ internal static class AdminCli
         ["enroll-device"] = (["--user", "--name"], []),
         ["revoke-all"] = ([], []),
         ["reset-password"] = (["--user"], ["--password-stdin"]),
+        ["restore-stage"] = (["--file", "--into"], ["--passphrase-stdin"]),
     };
 
     /// <summary>Every listed option exactly once, nothing else.</summary>
@@ -339,6 +345,112 @@ internal static class AdminCli
         await context.AuditAsync("admin.reset-password", AuditResult.Success, userName);
         await context.WriteAsync(new { UserId = user.Id });
         return Exit.Done;
+    }
+
+    /// <summary>
+    /// Decrypts the backup to a scratch file beside the target folder, then unpacks and checks it
+    /// into the folder; nothing outside those two is touched, so the running core carries on. The
+    /// installer stops the core and swaps the folders afterwards.
+    /// </summary>
+    private static async Task<Exit> RestoreStageAsync(Context context, string file, string into)
+    {
+        if (!Path.IsPathFullyQualified(file) || !Path.IsPathFullyQualified(into))
+        {
+            await context.Error.WriteLineAsync("--file and --into take absolute paths.");
+            return Exit.Usage;
+        }
+
+        if (Directory.Exists(into) || File.Exists(into))
+        {
+            await context.Error.WriteLineAsync($"{into} already exists. A backup only unpacks into a new folder.");
+            return Exit.Refused;
+        }
+
+        var pending = await RestoreGuard.PendingAsync(context.Environment.DataDirectory, context.Db, CancellationToken.None);
+        if (pending.Count > 0)
+        {
+            var refusal = RestoreGuard.Refusal(pending);
+            await context.Error.WriteLineAsync(refusal);
+            await context.AuditAsync("admin.restore-stage", AuditResult.Denied, null, new Dictionary<string, string?> { ["reason"] = refusal });
+            return Exit.Refused;
+        }
+
+        var passphrase = await context.Input.ReadLineAsync();
+        if (string.IsNullOrEmpty(passphrase))
+        {
+            await context.Error.WriteLineAsync("The passphrase must come on stdin, followed by a newline.");
+            return Exit.Refused;
+        }
+
+        var payload = into + ".payload";
+        try
+        {
+            await using (var input = File.OpenRead(file))
+            await using (var output = PrivateFile(payload))
+            {
+                await BackupCrypto.DecryptAsync(input, output, passphrase, CancellationToken.None);
+            }
+
+            BackupManifest manifest;
+            await using (var staged = File.OpenRead(payload))
+            {
+                manifest = await BackupArchive.StageAsync(staged, into, [.. context.Db.Database.GetMigrations()], context.Now, CancellationToken.None);
+            }
+
+            var owners = await BackupArchive.OwnersAsync(into, CancellationToken.None);
+            await RecordRestoreAsync(context.Environment with { DataDirectory = into }, manifest);
+            await context.AuditAsync("admin.restore-stage", AuditResult.Success, manifest.HostName, new Dictionary<string, string?>
+            {
+                ["coreVersion"] = manifest.CoreVersion,
+                ["createdAtUnixMs"] = manifest.CreatedAtUnixMs.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            });
+            await context.WriteAsync(new { manifest.CoreVersion, manifest.CreatedAtUnixMs, manifest.HostName, manifest.Contents, Owners = owners });
+            return Exit.Done;
+        }
+        catch (Exception error) when (error is BackupRefusedException or IOException or UnauthorizedAccessException)
+        {
+            await context.Error.WriteLineAsync(error is BackupRefusedException ? error.Message : $"The backup could not be read: {error.Message}");
+            await context.AuditAsync("admin.restore-stage", AuditResult.Failed, null, new Dictionary<string, string?> { ["reason"] = error.Message });
+            return Exit.Refused;
+        }
+        finally
+        {
+            BackupArchive.TryDelete(payload);
+        }
+    }
+
+    /// <summary>The restored core's own trail starts its new life with the restore.</summary>
+    private static async Task RecordRestoreAsync(AdminEnvironment staged, BackupManifest manifest)
+    {
+        await using (var services = BuildServices(staged))
+        {
+            await services.GetRequiredService<AuditLog>().AppendAsync(new AuditEntry(
+                "admin.restore",
+                AuditResult.Success,
+                PeerUid: staged.SudoUid,
+                Target: manifest.HostName,
+                Parameters: new Dictionary<string, string?>
+                {
+                    ["via"] = "admin-cli",
+                    ["sudoUser"] = staged.SudoUser,
+                    ["backupCoreVersion"] = manifest.CoreVersion,
+                    ["backupCreatedAtUnixMs"] = manifest.CreatedAtUnixMs.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                }));
+        }
+
+        Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+        BackupArchive.Restrict(staged.DataDirectory);
+    }
+
+    private static FileStream PrivateFile(string path)
+    {
+        var options = new FileStreamOptions { Mode = FileMode.CreateNew, Access = FileAccess.ReadWrite, Share = FileShare.None };
+        if (!OperatingSystem.IsWindows())
+        {
+            options.UnixCreateMode = UnixFileMode.UserRead | UnixFileMode.UserWrite;
+        }
+
+        return new FileStream(path, options);
     }
 
     private static async Task<string?> ReadSecretLineAsync(Context context)

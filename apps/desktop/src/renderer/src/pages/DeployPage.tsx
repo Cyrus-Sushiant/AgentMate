@@ -207,7 +207,12 @@ export default function DeployPage(): React.JSX.Element {
     content = <FirewallPanel server={selected} />;
   } else if (section === 'security') {
     sections = true;
-    content = <SecurityPanel server={selected} />;
+    content = (
+      <SecurityPanel
+        server={selected}
+        onUpdateCore={selected.dev ? undefined : () => setUpdating(selected.id)}
+      />
+    );
   } else if (section === 'containers') {
     sections = true;
     content = <ContainersPanel server={selected} />;

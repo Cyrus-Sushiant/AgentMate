@@ -10,6 +10,7 @@ import type {
 import type { DeployServer } from '@shared/deployTypes';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import { OriginLockCard } from '@/components/cloudflare/server/OriginLockCard';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -207,6 +208,38 @@ export function FirewallPanel({ server }: { server: DeployServer }): React.JSX.E
       refresh();
     }
   }
+
+  // The Security checklist's "Turn on the firewall" lands here: SSH's own rules are staged first
+  // where the firewall lacks them, then turning it on, and the usual review opens with the exact
+  // commands and the lockout guard's verdict. Applying is the usual safe apply.
+  const [params, setParams] = useSearchParams();
+  const fixAsked = params.get('fix') === 'enable-firewall';
+  useEffect(() => {
+    if (!fixAsked || !status.data || !presets.data) return;
+    const next = new URLSearchParams(params);
+    next.delete('fix');
+    setParams(next, { replace: true });
+    if (!canAdmin || status.data.active || status.data.pending || !status.data.installed) return;
+    const ssh = presets.data.find((preset) => preset.id === 'ssh')?.rules ?? [];
+    const missing = ssh.filter(
+      (wanted) =>
+        !status.data?.rules.some(
+          (rule) =>
+            rule.action === 'allow' &&
+            !rule.source &&
+            !rule.outgoing &&
+            rule.port === wanted.port &&
+            (rule.protocol === wanted.protocol || rule.protocol === 'any'),
+        ),
+    );
+    setStaged((current) => [
+      ...current,
+      ...missing.map((rule) => ({ change: { kind: 'addRule' as const, rule } })),
+      { change: { kind: 'enable' as const } },
+    ]);
+    reset('apply');
+    setReviewing(true);
+  }, [fixAsked, status.data, presets.data, canAdmin, params, setParams, reset]);
 
   if (access.isPending) {
     return (

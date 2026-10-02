@@ -368,6 +368,16 @@ export class FakeCoreConnection implements ICoreHub {
   saveRegistryCredential = () => this.unused('SaveRegistryCredential');
   deleteRegistryCredential = () => this.unused('DeleteRegistryCredential');
 
+  // The Security center (E15): its tests use hub stubs of their own.
+
+  getSecurityChecklist = () => this.unused('GetSecurityChecklist');
+  previewSshHardening = () => this.unused('PreviewSshHardening');
+  applySshHardening = () => this.unused('ApplySshHardening');
+  confirmSshHardening = () => this.unused('ConfirmSshHardening');
+  revertSshHardening = () => this.unused('RevertSshHardening');
+  createBackup = () => this.unused('CreateBackup');
+  deleteBackup = () => this.unused('DeleteBackup');
+
   // Reading the server.
 
   getSystemInfo = async () => this.answer({ ...this.core.system });

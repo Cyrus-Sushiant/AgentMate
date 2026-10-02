@@ -2,6 +2,7 @@ using AgentMate.ServerCore.Cloudflare;
 using AgentMate.ServerCore.DevHost.Fakes;
 using AgentMate.ServerCore.Docker;
 using AgentMate.ServerCore.Firewall;
+using AgentMate.ServerCore.Hardening;
 using AgentMate.ServerCore.Nginx;
 using AgentMate.ServerCore.Platform;
 using AgentMate.ServerCore.Stacks;
@@ -50,6 +51,14 @@ public sealed class CoreFactory : WebApplicationFactory<Program>
             services.AddSingleton<FakeCallerConnections>();
             services.AddSingleton<ICallerConnections>(provider => provider.GetRequiredService<FakeCallerConnections>());
             services.AddSingleton<IExposureSource, FakeExposure>();
+
+            // sshd for the Security center: passwords on, connections signed in with a key unless a test says otherwise.
+            services.AddSingleton<FakeSshMachine>();
+            services.AddSingleton<ISshMachine>(provider => provider.GetRequiredService<FakeSshMachine>());
+            services.AddSingleton<FakeSshLoginLog>();
+            services.AddSingleton<ISshLoginLog>(provider => provider.GetRequiredService<FakeSshLoginLog>());
+            services.AddSingleton<FakeSshHardeningTimer>();
+            services.AddSingleton<ISshHardeningTimer>(provider => provider.GetRequiredService<FakeSshHardeningTimer>());
 
             // Docker: the pretend engine (shared with the DevHost) and an installer that only records.
             services.AddSingleton(provider => new InMemoryDockerEngine(provider.GetRequiredService<TimeProvider>()) { Tick = TimeSpan.FromMilliseconds(50) });

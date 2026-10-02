@@ -9,6 +9,7 @@ import { registerDeployHandlers } from '../ipc/deploy';
 import { registerDeployAppStoreHandlers } from '../ipc/deployAppStore';
 import { registerDeployDockerHandlers } from '../ipc/deployDocker';
 import { registerDeployFirewallHandlers } from '../ipc/deployFirewall';
+import { registerDeployHardeningHandlers } from '../ipc/deployHardening';
 import { registerDeploySecurityHandlers } from '../ipc/deploySecurity';
 import { registerDeploySitesHandlers } from '../ipc/deploySites';
 import { registerDeployStacksHandlers } from '../ipc/deployStacks';
@@ -27,6 +28,7 @@ import {
 import { store } from '../store';
 import { DownloadAbortedError, ResumableDownload } from '../updater/resumableDownload';
 import { DeployAppStore } from './appStore/service';
+import { DeployBackups } from './backups';
 import {
   githubReleaseSource,
   localArtifactSource,
@@ -37,6 +39,7 @@ import {
 import { registerCloudflareIpc } from './cloudflare';
 import { DeployDocker } from './docker';
 import { DeployFirewall } from './firewall';
+import { DeployHardening } from './hardening';
 import { DockerLinks } from './live/dockerLinks';
 import { DockerSubscriptions } from './live/dockerSubscriptions';
 import { DeploySubscriptions } from './live/subscriptions';
@@ -262,6 +265,7 @@ export function registerDeployIpc(): void {
     pool.closeAll();
   });
   registerDeploySecurityIpc(service, guard);
+  registerDeployHardeningIpc(service, guard);
   registerDeployDockerIpc(service, guard, registries);
   registerCloudflareIpc({
     call: (serverId, work) => service.links.call(serverId, work),
@@ -301,6 +305,65 @@ function registerDeploySecurityIpc(
     writeFile: (path, content) => writeFile(path, content, 'utf-8'),
   });
   registerDeploySecurityHandlers({ ipc: ipcMain, security, service, guard });
+}
+
+/**
+ * The Security center (E15): the checklist and its SSH fixes, which go over new SSH connections
+ * of their own (pool.openSeparate), and backups, saved where the user picks.
+ */
+function registerDeployHardeningIpc(
+  service: DeployService,
+  guard: (event: IpcMainInvokeEvent) => boolean,
+): void {
+  const dialogOwner = () => getMainWindow();
+  const backups = new DeployBackups({
+    withHub: (serverId, work) => service.withHub(serverId, work),
+    withCoreHttp: (serverId, work) => service.withCoreHttp(serverId, work),
+    serverName: async (serverId) =>
+      (await service.listServers()).find((server) => server.id === serverId)?.nickname ?? serverId,
+    pickSavePath: async (suggestedName) => {
+      const options = {
+        title: 'Save the server backup',
+        defaultPath: suggestedName,
+        filters: [{ name: 'AgentMate server backup', extensions: ['ambackup'] }],
+      };
+      const win = dialogOwner();
+      const result = win
+        ? await dialog.showSaveDialog(win, options)
+        : await dialog.showSaveDialog(options);
+      return result.canceled ? null : (result.filePath ?? null);
+    },
+    pickOpenPath: async () => {
+      const options = {
+        title: 'Restore a server backup',
+        properties: ['openFile' as const],
+        filters: [{ name: 'AgentMate server backup', extensions: ['ambackup'] }],
+      };
+      const win = dialogOwner();
+      const result = win
+        ? await dialog.showOpenDialog(win, options)
+        : await dialog.showOpenDialog(options);
+      return result.canceled ? null : (result.filePaths[0] ?? null);
+    },
+  });
+  registerDeployHardeningHandlers({
+    ipc: ipcMain,
+    hardening: new DeployHardening({
+      links: service.links,
+      service: {
+        withFreshHub: (serverId, work, step) => service.withFreshHub(serverId, work, step),
+        availableCoreVersion: () => service.availableCoreVersion(),
+        loginMethod: (serverId) => service.loginMethod(serverId),
+      },
+      roles: (id) => service.roles(id),
+      progress: (event) => sendToWindow(getMainWindow(), IPC.deployHardening.onSshProgress, event),
+    }),
+    backups,
+    service,
+    restoreProgress: (_event, serverId, progress) =>
+      sendToWindow(getMainWindow(), IPC.deployHardening.onRestoreProgress, { serverId, progress }),
+    guard,
+  });
 }
 
 /** Docker on each server (E06): containers, their live stats, logs and consoles, and resources. */

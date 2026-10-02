@@ -3,7 +3,7 @@
 /* tslint:disable */
 // @ts-nocheck
 import type { IStreamResult, Subject } from '@microsoft/signalr';
-import type { PingResponse, AccountInfo, StepUpRequest, StepUpResponse, DeviceInfo, SessionInfo, TotpSetup, RecoveryCodes, CreateEnrollmentCodeRequest, EnrollmentCodeInfo, UserInfo, CreateUserRequest, ResetUserPasswordRequest, AuditQuery, AuditPage, AuditVerificationInfo, SystemInfo, ServiceInfo, MetricsHistoryRequest, MetricsHistory, MetricsStreamRequest, MetricsSample, UpdatesInfo, JobQuery, JobPage, JobInfo, JobStreamItem, AlertQuery, AlertInfo, AlertStreamRequest, ManagedService, FirewallStatus, FirewallPreset, FirewallChangeSetQuery, FirewallChangeSetInfo, ExposureInventory, FirewallChangeRequest, FirewallChangePreview, DockerStatus, ContainerList, ContainerDetails, ContainerStatsRequest, ContainerStatsBatch, ContainerLogsRequest, ContainerLogBatch, ImageInfo, VolumeInfo, NetworkInfo, DockerDiskUsage, DockerEventsRequest, DockerEvent, ContainerSummary, ContainerRemoveRequest, ImagePullRequest, ImageRemoveRequest, ContainerEnvVariable, ConsoleRequest, ConsoleInput, ConsoleOutput, DockerPruneRequest, DockerPruneResult, DockerInstallRequest, NginxStatus, SiteInfo, StreamProxyInfo, CertificateInfo, SiteLogRequest, SiteLogBatch, SiteSettings, SiteSaveResult, StreamProxySettings, StreamProxySaveResult, NginxApplyResult, CertificateIssueRequest, CertificateUploadRequest, CertificateUploadResult, CertificateRemoveRequest, StackInfo, StackDetails, StackRevisionRef, StackRevisionFiles, CreateStackRequest, AcknowledgeStackRisksRequest, StackRevisionInfo, StackActionRequest, ReviseStackRequest, StackEnvEntry, StackDeployRequest, RegistryCredentialInfo, SaveRegistryCredentialRequest, SiteSnippets, OriginLockStatus, OriginLockRequest, OriginLockPreview, OriginLockResult, OriginCertificateRequestInfo, OriginCertificateInstall, DnsCredentialInfo, DnsCredentialRequest, DnsCredentialSaveResult } from '../AgentMate.ServerCore.Contracts';
+import type { PingResponse, AccountInfo, StepUpRequest, StepUpResponse, DeviceInfo, SessionInfo, TotpSetup, RecoveryCodes, CreateEnrollmentCodeRequest, EnrollmentCodeInfo, UserInfo, CreateUserRequest, ResetUserPasswordRequest, AuditQuery, AuditPage, AuditVerificationInfo, SystemInfo, ServiceInfo, MetricsHistoryRequest, MetricsHistory, MetricsStreamRequest, MetricsSample, UpdatesInfo, JobQuery, JobPage, JobInfo, JobStreamItem, AlertQuery, AlertInfo, AlertStreamRequest, ManagedService, FirewallStatus, FirewallPreset, FirewallChangeSetQuery, FirewallChangeSetInfo, ExposureInventory, FirewallChangeRequest, FirewallChangePreview, DockerStatus, ContainerList, ContainerDetails, ContainerStatsRequest, ContainerStatsBatch, ContainerLogsRequest, ContainerLogBatch, ImageInfo, VolumeInfo, NetworkInfo, DockerDiskUsage, DockerEventsRequest, DockerEvent, ContainerSummary, ContainerRemoveRequest, ImagePullRequest, ImageRemoveRequest, ContainerEnvVariable, ConsoleRequest, ConsoleInput, ConsoleOutput, DockerPruneRequest, DockerPruneResult, DockerInstallRequest, NginxStatus, SiteInfo, StreamProxyInfo, CertificateInfo, SiteLogRequest, SiteLogBatch, SiteSettings, SiteSaveResult, StreamProxySettings, StreamProxySaveResult, NginxApplyResult, CertificateIssueRequest, CertificateUploadRequest, CertificateUploadResult, CertificateRemoveRequest, StackInfo, StackDetails, StackRevisionRef, StackRevisionFiles, CreateStackRequest, AcknowledgeStackRisksRequest, StackRevisionInfo, StackActionRequest, ReviseStackRequest, StackEnvEntry, StackDeployRequest, RegistryCredentialInfo, SaveRegistryCredentialRequest, SiteSnippets, OriginLockStatus, OriginLockRequest, OriginLockPreview, OriginLockResult, OriginCertificateRequestInfo, OriginCertificateInstall, DnsCredentialInfo, DnsCredentialRequest, DnsCredentialSaveResult, SecurityChecklistRequest, SecurityChecklist, SshHardeningRequest, SshHardeningPreview, SshHardeningChangeInfo, BackupRequest, BackupInfo } from '../AgentMate.ServerCore.Contracts';
 
 /**
 * Everything the app can ask the core over the WebSocket. The desktop's typed client is
@@ -642,6 +642,49 @@ export type ICoreHub = {
     * @returns Transpiled from System.Threading.Tasks.Task
     */
     removeDnsCredential(zone: string): Promise<void>;
+    /**
+    * How safe the server is, item by item, with a score. Changes nothing.
+    * @param request Transpiled from AgentMate.ServerCore.Contracts.SecurityChecklistRequest
+    * @returns Transpiled from System.Threading.Tasks.Task<AgentMate.ServerCore.Contracts.SecurityChecklist>
+    */
+    getSecurityChecklist(request: SecurityChecklistRequest): Promise<SecurityChecklist>;
+    /**
+    * The exact drop-in and commands, and whether this connection is proven to use a key. Changes nothing.
+    * @param request Transpiled from AgentMate.ServerCore.Contracts.SshHardeningRequest
+    * @returns Transpiled from System.Threading.Tasks.Task<AgentMate.ServerCore.Contracts.SshHardeningPreview>
+    */
+    previewSshHardening(request: SshHardeningRequest): Promise<SshHardeningPreview>;
+    /**
+    * Saves the old drop-in, arms the rollback timer, writes and checks the new one, then reloads sshd.
+    * @param request Transpiled from AgentMate.ServerCore.Contracts.SshHardeningRequest
+    * @returns Transpiled from System.Threading.Tasks.Task<AgentMate.ServerCore.Contracts.SshHardeningChangeInfo>
+    */
+    applySshHardening(request: SshHardeningRequest): Promise<SshHardeningChangeInfo>;
+    /**
+    * Keeps the change. Refused over the connection that applied it, or one that did not sign in with a key.
+    * @param changeId Transpiled from System.Guid
+    * @returns Transpiled from System.Threading.Tasks.Task<AgentMate.ServerCore.Contracts.SshHardeningChangeInfo>
+    */
+    confirmSshHardening(changeId: string): Promise<SshHardeningChangeInfo>;
+    /**
+    * Puts the old drop-in back now and reloads sshd.
+    * @param changeId Transpiled from System.Guid
+    * @returns Transpiled from System.Threading.Tasks.Task<AgentMate.ServerCore.Contracts.SshHardeningChangeInfo>
+    */
+    revertSshHardening(changeId: string): Promise<SshHardeningChangeInfo>;
+    /**
+    * Encrypts the core's state with the passphrase into a file that waits an hour to be downloaded
+    * (GET /api/v1/backups/{id}). The passphrase is not kept.
+    * @param request Transpiled from AgentMate.ServerCore.Contracts.BackupRequest
+    * @returns Transpiled from System.Threading.Tasks.Task<AgentMate.ServerCore.Contracts.BackupInfo>
+    */
+    createBackup(request: BackupRequest): Promise<BackupInfo>;
+    /**
+    * Deletes a backup from the server, once the app has it. True when there was one.
+    * @param backupId Transpiled from System.Guid
+    * @returns Transpiled from System.Threading.Tasks.Task<bool>
+    */
+    deleteBackup(backupId: string): Promise<boolean>;
 }
 
 /**

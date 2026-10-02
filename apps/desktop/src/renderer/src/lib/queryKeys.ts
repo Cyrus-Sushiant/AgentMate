@@ -167,6 +167,8 @@ export const queryKeys = {
     ['deploy', 'security', serverId, 'audit', filter] as const,
   /** Until when the core takes sensitive changes without asking for the password again. */
   deployStepUp: (serverId: string) => ['deploy', 'security', serverId, 'step-up'] as const,
+  /** The Security center's checklist (E15). */
+  deployChecklist: (serverId: string) => ['deploy', 'security', serverId, 'checklist'] as const,
   /** A server's lasting connection to its core, kept current by its change events. */
   deployConnection: (serverId: string) => ['deploy', 'connection', serverId] as const,
   /** Prefix of a server's Overview reads, fetched again when its connection comes back. */

@@ -3,6 +3,7 @@ using AgentMate.ServerCore.Certificates;
 using AgentMate.ServerCore.Cloudflare;
 using AgentMate.ServerCore.Docker;
 using AgentMate.ServerCore.Firewall;
+using AgentMate.ServerCore.Hardening;
 using AgentMate.ServerCore.Nginx;
 using AgentMate.ServerCore.Platform;
 using AgentMate.ServerCore.Stacks;
@@ -32,6 +33,13 @@ internal static class FakePlatform
         services.AddSingleton<ISshdSettings, FakeSshd>();
         services.AddSingleton<ICallerConnections, FakeCallerConnections>();
         services.AddSingleton<IExposureSource, FakeExposure>();
+
+        // sshd for the Security center (E15): passwords on, every connection a key login.
+        services.AddSingleton<FakeSshMachine>();
+        services.AddSingleton<ISshMachine>(provider => provider.GetRequiredService<FakeSshMachine>());
+        services.AddSingleton<FakeSshLoginLog>();
+        services.AddSingleton<ISshLoginLog>(provider => provider.GetRequiredService<FakeSshLoginLog>());
+        services.AddSingleton<ISshHardeningTimer, FakeSshHardeningTimer>();
 
         // Docker: two compose projects with moving stats, growing logs and consoles (E06).
         services.AddSingleton(provider =>

@@ -154,6 +154,10 @@ export default defineConfig({
         'src/main/deploy/security.ts': { lines: 95, branches: 85 },
         'src/main/deploy/auditExport.ts': { lines: 95, branches: 90 },
         'src/main/ipc/deploySecurity.ts': { lines: 95, branches: 90 },
+        // The Security center (E15): SSH fixes that cannot lock the app out, backups, restores.
+        'src/main/deploy/hardening.ts': { lines: 95, branches: 85 },
+        'src/main/deploy/backups.ts': { lines: 95, branches: 85 },
+        'src/main/ipc/deployHardening.ts': { lines: 95, branches: 90 },
         'src/renderer/src/components/deploy/security/**': {
           lines: 90,
           functions: 85,

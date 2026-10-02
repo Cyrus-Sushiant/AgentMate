@@ -41,7 +41,7 @@ Plan: docs/ROADMAP.md
 | E12 | App Store | In progress | see git log | Catalog of 18 apps pinned by digest (MinIO left out: no public official image); App Store section, one-screen install sheet, post-install card with masked secrets (step-up reveal), explicit updates as server-side revisions, digest refresh script. Left: AC3 (WordPress over HTTPS on Pebble) not verified |
 | E13 | Firewall | Complete | 2a87c89, 271820e, see git log | Core (ufw and firewalld, lockout guard, safe apply), the Firewall screen (T6) and "make private" (T5): an AgentMate app is redeployed with the service on 127.0.0.1 as a revision the server copies; anything else is shown the compose or run change. AC1 to AC3 by the firewall system tests, passed locally |
 | E14 | Cloudflare | Complete | df848e5, see git log | Desktop T1 to T4, T8, T9; core and desktop T5 to T7: Origin CA (key made on the server), origin lock through firewall change sets with a daily unattended refresh and nginx real IP, DNS-01 with a zone-scoped token (migration CloudflareOriginAndDns) |
-| E15 | Security center and maintenance | In progress | c87918a | T1 (users, devices, enrollment codes) and T2 (audit viewer) done |
+| E15 | Security center and maintenance | Complete | c87918a, see git log | Checklist with a score and previewed fixes; SSH password login off only over a proven key login (two guards, timer rollback, kept over a new key login); a failed core update reconnects; backups encrypted on the core (PBKDF2 600,000, AES-256-GCM chunks) and restored over SSH as root |
 | E16 | Direct TLS mode | Not started | | |
 | E17 | Polish and full OS matrix | Not started | | |
 | E18 | Ask AI for Remote Desktop | Complete | | Input through the IronRDP session, screenshots from its canvas; verified against xrdp and XFCE; Codex image answer unverified locally |
@@ -98,6 +98,9 @@ Status values: Not started, In progress, Blocked, Complete.
   system tests (Docker). DNS-01 waits a fixed 20 seconds after adding the record and was not run
   against Cloudflare's live API; Origin CA is covered by core tests with a test-signed certificate
   and the recorded desktop fake, not by the e2e run. No visual pass in both themes.
+- E15: the SSH and restore system test (`security.int.test.ts`) ran on Ubuntu 24.04 only; Rocky 9
+  and Debian 13 rely on fixtures of their sshd output. The restore screen has no e2e test (the
+  DevHost has no SSH), and the Security center has not had a visual pass in both themes.
 
 ## Known failures outside the Deploy work
 

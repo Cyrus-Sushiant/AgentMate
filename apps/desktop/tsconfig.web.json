@@ -20,6 +20,7 @@
     "src/preload/index.d.ts",
     "src/preload/deployDocker.ts",
     "src/preload/deployRegistry.ts",
-    "src/preload/cloudflareServer.ts"
+    "src/preload/cloudflareServer.ts",
+    "src/preload/deployHardening.ts"
   ]
 }

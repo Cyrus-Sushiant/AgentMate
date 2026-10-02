@@ -6,6 +6,7 @@ using AgentMate.ServerCore.Contracts;
 using AgentMate.ServerCore.Data;
 using AgentMate.ServerCore.Docker;
 using AgentMate.ServerCore.Firewall;
+using AgentMate.ServerCore.Hardening;
 using AgentMate.ServerCore.Registries;
 using AgentMate.ServerCore.Security;
 using AgentMate.ServerCore.Stacks;
@@ -39,7 +40,8 @@ internal sealed partial class CoreHub(
     WebServices web,
     StackOperations stacks,
     RegistryCredentials registries,
-    CloudflareServices cloudflare) : Hub<ICoreHubReceiver>, ICoreHub
+    CloudflareServices cloudflare,
+    SecurityCenterServices security) : Hub<ICoreHubReceiver>, ICoreHub
 {
     public const string Path = "/hubs/core";
 

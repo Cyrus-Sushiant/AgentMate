@@ -851,6 +851,21 @@ export const IPC = {
     verifyAudit: 'deploySecurity:verifyAudit',
     exportAudit: 'deploySecurity:exportAudit',
   },
+  /** The Security center (E15): the checklist, its SSH fixes, backups and restores. */
+  deployHardening: {
+    checklist: 'deployHardening:checklist',
+    previewSsh: 'deployHardening:previewSsh',
+    applySsh: 'deployHardening:applySsh',
+    confirmSsh: 'deployHardening:confirmSsh',
+    revertSsh: 'deployHardening:revertSsh',
+    /** main -> the main window: the steps of an SSH change. */
+    onSshProgress: 'deployHardening:onSshProgress',
+    createBackup: 'deployHardening:createBackup',
+    pickBackup: 'deployHardening:pickBackup',
+    restore: 'deployHardening:restore',
+    /** main -> the main window: the steps of a restore. */
+    onRestoreProgress: 'deployHardening:onRestoreProgress',
+  },
   /** The Deploy section's Cloudflare page: the API token, zones, DNS, settings and rules. */
   cloudflare: {
     status: 'cloudflare:status',

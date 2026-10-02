@@ -422,6 +422,7 @@ import type { SpellcheckMenuPayload } from '../shared/spellcheck';
 import type { SshHostKeyStatus } from '../shared/sshHostKey';
 import { cloudflareServer } from './cloudflareServer';
 import { createDeployDocker } from './deployDocker';
+import { createDeployHardening } from './deployHardening';
 import { createDeployRegistry } from './deployRegistry';
 
 interface TerminalDataPayload {
@@ -1639,6 +1640,9 @@ const deployJobs = {
 /** Docker on a server: containers, their stats, logs and console, and Docker's resources. */
 const deployDocker = createDeployDocker(subscribe);
 
+/** The Security center (E15): the checklist, its SSH fixes, backups and restores. */
+const deployHardening = createDeployHardening(subscribe);
+
 /**
  * A server's Apps (E07). Env values never come here: the main process reads the environment,
  * renders the .env and uploads it. Changes return the job that does them (follow it with
@@ -2447,6 +2451,7 @@ const agentmatApi = {
   pipelines,
   deploy,
   deploySecurity,
+  deployHardening,
   deployFirewall,
   deploySystem,
   deployJobs,
