@@ -234,6 +234,102 @@ export type AlertStreamRequest = {
     afterRevision?: number;
 }
 
+/** Transpiled from AgentMate.ServerCore.Contracts.AssistantMode */
+export type AssistantMode = "approveEveryCommand" | "autoRunDiagnostics";
+
+/** Transpiled from AgentMate.ServerCore.Contracts.AssistantModeInfo */
+export type AssistantModeInfo = {
+    /** Transpiled from AgentMate.ServerCore.Contracts.AssistantMode */
+    mode: AssistantMode;
+    /** Transpiled from string[] */
+    allowlist: string[];
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.ExecApprovalNonce */
+export type ExecApprovalNonce = {
+    /** Transpiled from System.Guid */
+    nonceId: string;
+    /** Transpiled from string */
+    nonce: string;
+    /** Transpiled from long */
+    expiresAtUnixMs: number;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.ExecApproval */
+export type ExecApproval = {
+    /** Transpiled from System.Guid */
+    nonceId: string;
+    /** Transpiled from string */
+    signature: string;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.ExecRequest */
+export type ExecRequest = {
+    /** Transpiled from string */
+    command: string;
+    /** Transpiled from string? */
+    workingDirectory?: string;
+    /** Transpiled from int */
+    timeoutSeconds?: number;
+    /** Transpiled from bool */
+    fromAssistant: boolean;
+    /** Transpiled from AgentMate.ServerCore.Contracts.ExecApproval? */
+    approval?: ExecApproval;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.ExecOutputSource */
+export type ExecOutputSource = "out" | "err";
+
+/** Transpiled from AgentMate.ServerCore.Contracts.ExecLine */
+export type ExecLine = {
+    /** Transpiled from AgentMate.ServerCore.Contracts.ExecOutputSource */
+    stream: ExecOutputSource;
+    /** Transpiled from string */
+    text: string;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.ExecOutput */
+export type ExecOutput = {
+    /** Transpiled from AgentMate.ServerCore.Contracts.ExecLine[] */
+    lines: ExecLine[];
+    /** Transpiled from bool */
+    ended: boolean;
+    /** Transpiled from int */
+    exitCode?: number;
+    /** Transpiled from bool */
+    timedOut: boolean;
+    /** Transpiled from bool */
+    truncated: boolean;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.JournalRequest */
+export type JournalRequest = {
+    /** Transpiled from string */
+    unit: string;
+    /** Transpiled from int */
+    lines?: number;
+    /** Transpiled from long */
+    sinceUnixMs?: number;
+    /** Transpiled from bool */
+    follow: boolean;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.JournalLine */
+export type JournalLine = {
+    /** Transpiled from long */
+    atUnixMs: number;
+    /** Transpiled from int */
+    priority: number;
+    /** Transpiled from string */
+    text: string;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.JournalBatch */
+export type JournalBatch = {
+    /** Transpiled from AgentMate.ServerCore.Contracts.JournalLine[] */
+    lines: JournalLine[];
+}
+
 /** Transpiled from AgentMate.ServerCore.Contracts.AuthPurpose */
 export type AuthPurpose = "login" | "renew";
 

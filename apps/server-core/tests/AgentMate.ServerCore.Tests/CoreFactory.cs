@@ -1,3 +1,4 @@
+using AgentMate.ServerCore.Assistant;
 using AgentMate.ServerCore.Cloudflare;
 using AgentMate.ServerCore.DevHost.Fakes;
 using AgentMate.ServerCore.DirectTls;
@@ -88,6 +89,13 @@ public sealed class CoreFactory : WebApplicationFactory<Program>
             services.AddSingleton<ICloudflareDnsApi>(provider => provider.GetRequiredService<FakeCloudflareApi>());
             services.AddSingleton(OriginLockOptions.Default with { RunInBackground = false });
             services.AddSingleton(new CloudflareDns01Options(TimeSpan.Zero));
+            // StreamExec and the journal (E09): recorded and answered, nothing runs.
+            services.AddSingleton(provider => new FakeExecRunner(
+                provider.GetRequiredService<InMemoryDockerEngine>(),
+                provider.GetRequiredService<TimeProvider>())
+            { LineDelay = TimeSpan.Zero });
+            services.AddSingleton<IExecRunner>(provider => provider.GetRequiredService<FakeExecRunner>());
+            services.AddSingleton<IJournalSource, FakeJournal>();
         });
     }
 

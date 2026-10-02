@@ -211,6 +211,17 @@ export default defineConfig({
           branches: 80,
         },
         'src/renderer/src/lib/terminal/containerConsoleAdapter.ts': { lines: 95, branches: 85 },
+        // The Deploy AI and the logs center (E09): what it runs, the approvals it signs, its screens.
+        'src/main/deploy/assistant/**': { lines: 95, branches: 85 },
+        'src/main/deploy/logs/**': { lines: 95, branches: 85 },
+        'src/main/ipc/deployAssistant.ts': { lines: 95, branches: 90 },
+        'src/renderer/src/components/deploy/assistant/**': {
+          lines: 90,
+          functions: 80,
+          branches: 80,
+        },
+        'src/renderer/src/components/deploy/logs/**': { lines: 90, functions: 80, branches: 80 },
+        'src/renderer/src/stores/deployAssistantStore.ts': { lines: 95, branches: 85 },
         // The Cloudflare token lives here, and every call made with it.
         'src/main/deploy/cloudflare/**': { lines: 95, branches: 85 },
         'src/main/ipc/cloudflare.ts': { lines: 95, branches: 90 },

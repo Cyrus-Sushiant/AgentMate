@@ -203,6 +203,10 @@ export const queryKeys = {
   deployFirewallExposure: (serverId: string) =>
     ['deploy', 'firewall', serverId, 'exposure'] as const,
   /** Prefix of a server's Apps (compose stacks). */
+  // Logs center, problems feed and Deploy AI (E09).
+  deployAssistantMode: (serverId: string) => ['deploy', 'assistant', serverId, 'mode'] as const,
+  deployCertificates: (serverId: string) => ['deploy', 'web', serverId, 'certificates'] as const,
+  deployAlertsList: (serverId: string) => ['deploy', 'overview', serverId, 'alerts-list'] as const,
   deployApps: (serverId: string) => ['deploy', 'apps', serverId] as const,
   deployAppsList: (serverId: string) => ['deploy', 'apps', serverId, 'list'] as const,
   deployApp: (serverId: string, stackId: string) =>

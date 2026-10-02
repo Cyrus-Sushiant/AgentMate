@@ -13,6 +13,7 @@ import type {
   SystemInfo,
   UpdatesInfo,
 } from '../protocol/generated/AgentMate.ServerCore.Contracts';
+import { FakeAssistant } from './fakeAssistant';
 import { FakeCloudflareCore } from './fakeCloudflareCore';
 import { FakeCoreConnection } from './fakeCoreConnection';
 import { metricsSample, sampleServices, sampleSystemInfo, sampleUpdates } from './fakeCoreData';
@@ -95,6 +96,9 @@ export class FakeCore {
   private sampled = 0;
   private jobCount = 0;
   private alertCount = 0;
+
+  /** The exec stream, its approvals and the journal (E09). */
+  readonly assistant: FakeAssistant = new FakeAssistant(() => this.now());
 
   /** The host firewall (E13); a change nobody confirms in time raises firewallRolledBack. */
   readonly firewall: FakeFirewall;

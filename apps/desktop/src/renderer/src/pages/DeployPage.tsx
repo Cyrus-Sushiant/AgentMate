@@ -7,9 +7,11 @@ import { toast } from 'sonner';
 import { CloudflareMark } from '@/components/cloudflare/CloudflareMark';
 import { AppStorePanel } from '@/components/deploy/appStore/AppStorePanel';
 import { AppsPanel } from '@/components/deploy/apps/AppsPanel';
+import { AssistantLauncher } from '@/components/deploy/assistant/AssistantLauncher';
 import { ContainersPanel } from '@/components/deploy/containers/ContainersPanel';
 import { FirewallPanel } from '@/components/deploy/firewall/FirewallPanel';
 import { InstallPanel } from '@/components/deploy/InstallPanel';
+import { LogsPanel } from '@/components/deploy/logs/LogsPanel';
 import { ConnectionBadge } from '@/components/deploy/overview/ConnectionBadge';
 import { useConnectionUpdates } from '@/components/deploy/overview/hooks';
 import { OverviewPanel } from '@/components/deploy/overview/OverviewPanel';
@@ -202,6 +204,9 @@ export default function DeployPage(): React.JSX.Element {
   } else if (section === 'websites') {
     sections = true;
     content = <SitesPanel server={selected} />;
+  } else if (section === 'logs') {
+    sections = true;
+    content = <LogsPanel server={selected} />;
   } else if (section === 'firewall') {
     sections = true;
     content = <FirewallPanel server={selected} />;
@@ -267,6 +272,7 @@ export default function DeployPage(): React.JSX.Element {
         )}
         {content}
       </div>
+      {sections && <AssistantLauncher server={selected} />}
       <SshVaultUnlockDialog
         open={unlockOpen}
         onOpenChange={setUnlockOpen}

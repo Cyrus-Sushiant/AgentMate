@@ -35,7 +35,7 @@ Plan: docs/ROADMAP.md
 | E06 | Docker engine and containers | In progress | c5c0b68, see git log | Core and the desktop Containers screen (T6, T8, T9): shared stats and events streams, consoles that reopen after a connection change, redacted prompts for the project CLI; AC2, AC3 and AC5 tested |
 | E07 | Compose stacks | Complete | ea106b3, see git log | Files over REST, revisions on disk with their own project folder, compose config linted in the core with the app's finding ids; DevHost runs a simulated compose |
 | E08 | Private registries | Complete | see git log | Sign-ins sealed on this computer and sent per deploy into a tmpfs DOCKER_CONFIG wiped in a `finally` (the core refuses a non-tmpfs folder); GitHub scopes read from `X-OAuth-Scopes`, anything beyond read:packages behind a warning; write-only stored credentials (Data Protection, Admin with step-up); Containers pulls sign in through X-Registry-Auth |
-| E09 | Logs center, problems feed and Deploy AI | Not started | | |
+| E09 | Logs center, problems feed and Deploy AI | Complete | see git log | StreamExec with the read-only allowlist and device-signed approvals; the SSH AI loop takes a pluggable executor (characterization suite before and after); problems feed and log viewer in a Logs section; Deploy AI drawer on every server screen |
 | E10 | nginx websites | In progress | 77b262a, see git log | Renderer, snippet allowlist and the nginx -t harness; desktop T9 done (Websites section, site editor, Apply bar, route maps, stream proxies, live site logs) |
 | E11 | Let's Encrypt certificates | In progress | 7110a67, see git log | ACME client (RFC 8555 and ARI) tested against Pebble; desktop T6 done (SSL tab); DNS-01 through E14's Cloudflare hook |
 | E12 | App Store | In progress | see git log | Catalog of 18 apps pinned by digest (MinIO left out: no public official image); App Store section, one-screen install sheet, post-install card with masked secrets (step-up reveal), explicit updates as server-side revisions, digest refresh script. Left: AC3 (WordPress over HTTPS on Pebble) not verified |
@@ -108,6 +108,10 @@ Status values: Not started, In progress, Blocked, Complete.
 - E15: the SSH and restore system test (`security.int.test.ts`) ran on Ubuntu 24.04 only; Rocky 9
   and Debian 13 rely on fixtures of their sshd output. The restore screen has no e2e test (the
   DevHost has no SSH), and the Security center has not had a visual pass in both themes.
+- E09: the exec and journal system test (`deployExec.int.test.ts`) runs on the Ubuntu 24.04 test
+  server only, not Rocky 9, and passed locally; it has not run in CI yet. The Logs section and the
+  Deploy AI drawer have had no visual pass in both themes. The e2e spec runs against the DevHost's
+  pretend exec.
 
 ## Known failures outside the Deploy work
 

@@ -421,6 +421,7 @@ import type { RemoteInputEvent, RemoteRtcMessage } from '../shared/remoteProtoco
 import type { SpellcheckMenuPayload } from '../shared/spellcheck';
 import type { SshHostKeyStatus } from '../shared/sshHostKey';
 import { cloudflareServer } from './cloudflareServer';
+import { createDeployAssistant, createDeployLogs } from './deployAssistant';
 import { createDeployDirectTls } from './deployDirectTls';
 import { createDeployDocker } from './deployDocker';
 import { createDeployHardening } from './deployHardening';
@@ -1645,6 +1646,10 @@ const deployDirectTls = createDeployDirectTls();
 /** The Security center (E15): the checklist, its SSH fixes, backups and restores. */
 const deployHardening = createDeployHardening(subscribe);
 
+/** The Deploy AI and the logs center's journal (E09). */
+const deployAssistant = createDeployAssistant(subscribe);
+const deployLogs = createDeployLogs(subscribe);
+
 /**
  * A server's Apps (E07). Env values never come here: the main process reads the environment,
  * renders the .env and uploads it. Changes return the job that does them (follow it with
@@ -2460,6 +2465,8 @@ const agentmatApi = {
   deployAlerts,
   deployDocker,
   deployDirectTls,
+  deployAssistant,
+  deployLogs,
   deploySites,
   deployCerts,
   deployStacks,

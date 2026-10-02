@@ -1,4 +1,5 @@
 using System.Net;
+using AgentMate.ServerCore.Assistant;
 using AgentMate.ServerCore.Certificates;
 using AgentMate.ServerCore.Cloudflare;
 using AgentMate.ServerCore.Docker;
@@ -47,7 +48,8 @@ internal static class FakePlatform
             var engine = new InMemoryDockerEngine(provider.GetRequiredService<TimeProvider>());
             // A private registry (E08) whose images only pull with this sign-in.
             engine.PrivateRegistries[DevHost.DevRegistry] = (DevHost.DevRegistryUser, DevHost.DevRegistryToken);
-            return engine;
+            // E09 adds a crash-looping "newsletter" sender for the problems feed and the Deploy AI.
+            return engine.WithCrashLoop();
         });
         services.AddSingleton<IDockerEngine>(provider => provider.GetRequiredService<InMemoryDockerEngine>());
         services.AddSingleton<IDockerSetup, FakeDockerSetup>();
@@ -70,6 +72,10 @@ internal static class FakePlatform
         services.AddSingleton<ICloudflareRangeSource>(provider => provider.GetRequiredService<FakeCloudflare>());
         services.AddSingleton<ICloudflareDnsApi>(provider => provider.GetRequiredService<FakeCloudflare>());
         services.AddSingleton(new CloudflareDns01Options(TimeSpan.Zero));
+        // The Deploy AI's exec stream and the journal (E09): recorded and answered, never run.
+        services.AddSingleton<FakeExecRunner>();
+        services.AddSingleton<IExecRunner>(provider => provider.GetRequiredService<FakeExecRunner>());
+        services.AddSingleton<IJournalSource, FakeJournal>();
     }
 
     private sealed class FakeResolver : IUpstreamResolver

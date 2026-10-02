@@ -29,6 +29,8 @@ import type {
   DockerPruneRequest,
   DockerPruneResult,
   DockerStatus,
+  ExecOutput,
+  ExecRequest,
   FirewallChangeRequest,
   FirewallChangeSetQuery,
   ImageInfo,
@@ -39,6 +41,8 @@ import type {
   JobPage,
   JobQuery,
   JobStreamItem,
+  JournalBatch,
+  JournalRequest,
   ManagedService,
   MetricsHistory,
   MetricsHistoryRequest,
@@ -84,6 +88,8 @@ const LIMITS = {
   'docker-events': 2,
   console: 2,
   siteLog: 2,
+  exec: 2,
+  journal: 2,
 } as const;
 const PER_CONNECTION = 8;
 const OPERATORS = new Set(['owner', 'admin', 'operator']);
@@ -383,6 +389,60 @@ export class FakeCoreConnection implements ICoreHub {
     );
   removeDnsCredential = async (zone: string) =>
     this.web('RemoveDnsCredential', ADMINS, () => this.core.cloudflare.removeCredential(zone));
+  // Logs center and Deploy AI (E09), Admins only; the rules are FakeAssistant's.
+
+  getAssistantMode = async () => {
+    this.assertOpen();
+    this.assertRole('GetAssistantMode', ADMINS);
+    return this.core.assistant.mode();
+  };
+
+  enableAutoRunDiagnostics = async () => {
+    this.assertOpen();
+    this.assertRole('EnableAutoRunDiagnostics', ADMINS);
+    if (this.core.stepUpUntil <= this.core.now())
+      throw unauthorizedError('EnableAutoRunDiagnostics');
+    this.core.assistant.autoRun = true;
+    return this.core.assistant.mode();
+  };
+
+  disableAutoRunDiagnostics = async () => {
+    this.assertOpen();
+    this.assertRole('DisableAutoRunDiagnostics', ADMINS);
+    this.core.assistant.autoRun = false;
+    return this.core.assistant.mode();
+  };
+
+  newExecApproval = async () => {
+    this.assertOpen();
+    this.assertRole('NewExecApproval', ADMINS);
+    return this.core.assistant.issue();
+  };
+
+  streamExec = (request: ExecRequest): IStreamResult<ExecOutput> =>
+    this.open<ExecOutput>('exec', [request], (stream) => {
+      if (!this.core.roles.some((role) => ADMINS.has(role))) {
+        stream.fail(unauthorizedError('StreamExec'));
+        return;
+      }
+      const refused = this.core.assistant.admit(request);
+      if (refused) {
+        stream.fail(streamError(refused));
+        return;
+      }
+      for (const item of this.core.assistant.output(request.command)) stream.push(item);
+      stream.complete();
+    });
+
+  streamJournal = (request: JournalRequest): IStreamResult<JournalBatch> =>
+    this.open<JournalBatch>('journal', [request], (stream) => {
+      if (!this.core.roles.some((role) => ADMINS.has(role))) {
+        stream.fail(unauthorizedError('StreamJournal'));
+        return;
+      }
+      stream.push({ lines: this.core.assistant.journal.get(request.unit) ?? [] });
+      if (!request.follow) stream.complete();
+    });
 
   // Compose stacks (E07): the desktop does not call these through the fake yet.
 

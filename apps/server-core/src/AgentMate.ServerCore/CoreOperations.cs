@@ -1,4 +1,5 @@
 using AgentMate.ServerCore.Alerts;
+using AgentMate.ServerCore.Assistant;
 using AgentMate.ServerCore.Contracts;
 using AgentMate.ServerCore.Docker;
 using AgentMate.ServerCore.Execution;
@@ -107,6 +108,9 @@ internal static class CoreOperations
 
         // Compose stacks (E07): after the job engine, so its recovery runs after the jobs' own.
         services.AddCoreStacks();
+
+        // The Deploy AI's exec stream and the logs center's journal (E09).
+        services.AddCoreAssistant();
         return services;
     }
 }

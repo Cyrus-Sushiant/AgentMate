@@ -722,3 +722,19 @@ describe('DeployPage containers', () => {
     ).toBe('page');
   });
 });
+
+describe('DeployPage logs', () => {
+  it('opens the Logs section on its problems feed', async () => {
+    const { user } = renderPage({
+      'deploy.listServers': async () => [server({ core: CORE, enrolled: true })],
+      'deploy.access': async (): Promise<DeployAccess> => ({ state: 'needs-sign-in' }),
+    });
+    const sections = await screen.findByRole('navigation', { name: 'Server sections' });
+    await user.click(within(sections).getByRole('button', { name: /Logs/ }));
+    expect(await screen.findByRole('tab', { name: 'Problems' })).toBeTruthy();
+    expect(screen.getByRole('tab', { name: 'Log viewer' })).toBeTruthy();
+    expect(
+      within(sections).getByRole('button', { name: /Logs/ }).getAttribute('aria-current'),
+    ).toBe('page');
+  });
+});

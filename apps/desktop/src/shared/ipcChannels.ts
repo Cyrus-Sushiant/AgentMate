@@ -847,6 +847,37 @@ export const IPC = {
    * A server core's Security area: users and roles (Owner), devices and sessions, enrollment
    * codes (made by an Owner, redeemed on another computer) and the audit trail.
    */
+  /**
+   * The Deploy AI (E09): one run per server on the SSH AI's loop, with the server core as its
+   * shell. Progress and live output go to the main window.
+   */
+  deployAssistant: {
+    /** (DeployAssistantStartInput) -> void */
+    start: 'deployAssistant:start',
+    approve: 'deployAssistant:approve',
+    skip: 'deployAssistant:skip',
+    answer: 'deployAssistant:answer',
+    resume: 'deployAssistant:resume',
+    stop: 'deployAssistant:stop',
+    /** (serverId) -> DeployAssistantState */
+    state: 'deployAssistant:state',
+    /** (serverId) -> AssistantModeInfo */
+    getMode: 'deployAssistant:getMode',
+    /** (DeployAssistantModeInput) -> AssistantModeInfo; turning auto-run on needs a step-up. */
+    setMode: 'deployAssistant:setMode',
+    /** main -> renderer: DeployAssistantProgressEvent */
+    onProgress: 'deployAssistant:onProgress',
+    /** main -> renderer: DeployAssistantOutputEvent */
+    onOutput: 'deployAssistant:onOutput',
+  },
+  /** The logs center (E09): a systemd unit's journal; the other sources have channels already. */
+  deployLogs: {
+    /** (DeployJournalWatchInput) -> subscription id; lines arrive on onJournal. */
+    watchJournal: 'deployLogs:watchJournal',
+    unwatchJournal: 'deployLogs:unwatchJournal',
+    /** main -> the window that asked: DeployJournalEvent */
+    onJournal: 'deployLogs:onJournal',
+  },
   deploySecurity: {
     listUsers: 'deploySecurity:listUsers',
     createUser: 'deploySecurity:createUser',

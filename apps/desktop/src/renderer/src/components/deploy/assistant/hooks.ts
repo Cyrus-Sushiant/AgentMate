@@ -1,0 +1,48 @@
+import { coreErrorCode } from '@shared/coreErrors';
+import type { AssistantModeInfo } from '@shared/deploy/protocol/generated/AgentMate.ServerCore.Contracts';
+import { useQuery } from '@tanstack/react-query';
+import { useEffect } from 'react';
+import { queryKeys } from '@/lib/queryKeys';
+import { useDeployAssistantStore } from '@/stores/deployAssistantStore';
+
+/**
+ * The Deploy AI's live state in the renderer (E09 T8): the main process's progress and output
+ * events go into the store once, for every server, while the Deploy page is open; the drawer reads
+ * the session's mode from the core (Admins only, so others see the drawer explain that).
+ */
+
+export function useDeployAssistantEvents(): void {
+  useEffect(() => {
+    const { progress, output } = useDeployAssistantStore.getState();
+    const offProgress = window.agentmat.deployAssistant.onProgress((event) => progress(event));
+    const offOutput = window.agentmat.deployAssistant.onOutput((event) => output(event));
+    return () => {
+      offProgress();
+      offOutput();
+    };
+  }, []);
+}
+
+export interface AssistantModeQuery {
+  info: AssistantModeInfo | undefined;
+  loading: boolean;
+  /** True when the signed-in role cannot use the AI at all. */
+  forbidden: boolean;
+  error: unknown;
+}
+
+export function useAssistantMode(serverId: string, enabled: boolean): AssistantModeQuery {
+  const query = useQuery({
+    queryKey: queryKeys.deployAssistantMode(serverId),
+    queryFn: () => window.agentmat.deployAssistant.getMode(serverId),
+    enabled,
+    retry: false,
+    meta: { silentLoading: true },
+  });
+  return {
+    info: query.data ?? undefined,
+    loading: query.isLoading,
+    forbidden: coreErrorCode(query.error) === 'forbidden',
+    error: query.error,
+  };
+}

@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Security.Claims;
+using AgentMate.ServerCore.Assistant;
 using AgentMate.ServerCore.Audit;
 using AgentMate.ServerCore.Cloudflare;
 using AgentMate.ServerCore.Contracts;
@@ -42,7 +43,8 @@ internal sealed partial class CoreHub(
     RegistryCredentials registries,
     CloudflareServices cloudflare,
     SecurityCenterServices security,
-    DirectTls.DirectTlsManager directTls) : Hub<ICoreHubReceiver>, ICoreHub
+    DirectTls.DirectTlsManager directTls,
+    AssistantHubServices assistant) : Hub<ICoreHubReceiver>, ICoreHub
 {
     public const string Path = "/hubs/core";
 

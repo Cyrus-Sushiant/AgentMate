@@ -339,6 +339,27 @@ public interface ICoreHub
 
     /// <summary>Admin and a step-up.</summary>
     Task DeleteRegistryCredential(Guid credentialId);
+    // Logs center and Deploy AI (E09), Admin. See AssistantContracts.cs for what runs unattended.
+
+    Task<AssistantModeInfo> GetAssistantMode();
+
+    /// <summary>Needs a step-up. Lasts for this session, or until the core restarts.</summary>
+    Task<AssistantModeInfo> EnableAutoRunDiagnostics();
+
+    Task<AssistantModeInfo> DisableAutoRunDiagnostics();
+
+    /// <summary>A single-use nonce, good for two minutes, to sign one command's approval with.</summary>
+    Task<ExecApprovalNonce> NewExecApproval();
+
+    /// <summary>
+    /// Runs a command and streams its redacted output, then its exit code. Refused unless it is on
+    /// the read-only allowlist (and, from the assistant, the session auto-runs diagnostics) or it
+    /// carries a valid approval. Ending the stream stops the command and everything it started.
+    /// </summary>
+    IAsyncEnumerable<ExecOutput> StreamExec(ExecRequest request, CancellationToken cancellationToken);
+
+    /// <summary>A systemd unit's journal, redacted: the last lines, then new ones while Follow is on.</summary>
+    IAsyncEnumerable<JournalBatch> StreamJournal(JournalRequest request, CancellationToken cancellationToken);
 
     // Owner.
 

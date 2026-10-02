@@ -1,4 +1,4 @@
-import { Blocks, Docker, Globe, Lock, Shield, Store } from '@/components/icons';
+import { Blocks, Docker, FileText, Globe, Lock, Shield, Store } from '@/components/icons';
 import { cn } from '@/lib/utils';
 
 /** The parts of a server's page under Deploy. */
@@ -9,6 +9,7 @@ export type ServerSection =
   | 'store'
   | 'websites'
   | 'firewall'
+  | 'logs'
   | 'security';
 
 const SECTIONS: ReadonlyArray<{ value: ServerSection; label: string; icon?: typeof Shield }> = [
@@ -18,6 +19,7 @@ const SECTIONS: ReadonlyArray<{ value: ServerSection; label: string; icon?: type
   { value: 'store', label: 'App Store', icon: Store },
   { value: 'websites', label: 'Websites', icon: Globe },
   { value: 'firewall', label: 'Firewall', icon: Lock },
+  { value: 'logs', label: 'Logs', icon: FileText },
   { value: 'security', label: 'Security', icon: Shield },
 ];
 

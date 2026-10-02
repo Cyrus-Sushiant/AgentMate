@@ -27,6 +27,11 @@ internal sealed class StreamLimits
 
     public const string SiteLog = "site-log";
 
+    // Logs center and Deploy AI (E09).
+    public const string Exec = "exec";
+
+    public const string Journal = "journal";
+
     public const int PerConnection = 8;
 
     public static readonly IReadOnlyDictionary<string, int> PerKind = new Dictionary<string, int>(StringComparer.Ordinal)
@@ -39,6 +44,8 @@ internal sealed class StreamLimits
         [DockerEvents] = 2,
         [Console] = 2,
         [SiteLog] = 2,
+        [Exec] = 2,
+        [Journal] = 2,
     };
 
     private readonly Lock _gate = new();

@@ -66,27 +66,38 @@ const MAX_HISTORY_OUTPUT_CHARS = 8000;
  * An agent CLI would otherwise happily use its own tools, which run on the user's machine rather
  * than on the server. Every command has to go through the reply format instead.
  */
-function cliPreamble(target: ShellTarget): string {
+export function cliPreamble(target: Pick<TaskTarget, 'kind'>): string {
   return (
     'Do not use any tools, do not read or edit local files, and do not run anything yourself. ' +
     'Commands only run when you reply in the format below, and they run ' +
-    (target.kind === 'ssh'
+    (target.kind !== 'local'
       ? 'on the remote server, not on this machine.\n\n'
       : "in the user's terminal tab, where they can watch them.\n\n")
   );
 }
 
-/** The terminal a run drives: an SSH channel, or a shell running on this machine. */
-interface ShellTarget extends DisplaySink {
-  kind: 'ssh' | 'local';
+/**
+ * Where a run's commands go: an SSH channel or a local shell (typed with markers), or a server
+ * core (E09, through its exec stream). The loop only needs these; how a command runs is up to
+ * the run's `CommandExecutor`.
+ */
+export interface TaskTarget {
+  kind: 'ssh' | 'local' | 'core';
   /** How the prompt describes the shell to the AI. */
   description: string;
   /** Short label for pet notifications. */
   label: string;
   isConnected: () => boolean;
+  subscribeExit: (listener: () => void) => () => void;
+  /** What a stop because the target went away says. The SSH and local wording is the default. */
+  endedMessage?: string;
+}
+
+/** The terminal a run drives: an SSH channel, or a shell running on this machine. */
+interface ShellTarget extends TaskTarget, DisplaySink {
+  kind: 'ssh' | 'local';
   write: (data: string) => void;
   subscribeOutput: (listener: (data: string) => void) => () => void;
-  subscribeExit: (listener: () => void) => () => void;
   /** The saved login password for a sudo prompt. Always null for a local shell. */
   getPassword: () => Promise<string | null>;
   /** The line to type for a command, wrapped so the shell reports when it starts and ends. */
@@ -153,11 +164,28 @@ function localTarget(sessionId: string): ShellTarget {
   };
 }
 
+/** The end of the transcript that goes in each step's prompt. */
+function transcriptTail(transcript: string): string {
+  return transcript.length > TRANSCRIPT_TAIL_CHARS
+    ? `…(earlier output truncated)…${transcript.slice(-TRANSCRIPT_TAIL_CHARS)}`
+    : transcript || '(no commands run yet)';
+}
+
+/** What a run's own prompt builder gets each step. */
+export interface PromptInput {
+  /** The user's task, trimmed. */
+  task: string;
+  /** The transcript's end, as the shell prompt shows it. */
+  transcript: string;
+  /** True when an agent CLI decides the step, which needs `cliPreamble` first. */
+  viaCli: boolean;
+}
+
 function buildPrompt(run: RunState): string {
-  const tail =
-    run.transcript.length > TRANSCRIPT_TAIL_CHARS
-      ? `…(earlier output truncated)…${run.transcript.slice(-TRANSCRIPT_TAIL_CHARS)}`
-      : run.transcript || '(no commands run yet)';
+  const tail = transcriptTail(run.transcript);
+  if (run.buildPrompt) {
+    return run.buildPrompt({ task: run.prompt, transcript: tail, viaCli: run.cliId !== null });
+  }
   return `${run.cliId ? cliPreamble(run.target) : ''}You are operating ${run.target.description}, on behalf of a user who is watching every command execute live in their terminal.
 
 User's task: "${run.prompt}"
@@ -184,10 +212,41 @@ interface PendingApproval {
   resolve: (approved: boolean) => void;
 }
 
+/** Whether a command waits for the user before it runs, and what the approval bar says. */
+export type ApprovalPolicy = (command: string) => { pause: boolean; message?: string };
+
+/** The SSH and local modes: approve every command, only the risky ones, or none. */
+function modePolicy(mode: SshAgentMode): ApprovalPolicy {
+  return (command) => {
+    const risky = isRiskyCommand(command);
+    return {
+      pause: mode === 'approve-all' || (mode === 'approve-risky' && risky),
+      message: risky ? 'This command looks destructive.' : undefined,
+    };
+  };
+}
+
+/** Thrown by an executor whose target refused to run the command without the user's approval. */
+export class ApprovalRequiredError extends Error {}
+
+/**
+ * Runs one command for the loop and resolves once it has ended. `approved` is true when the user
+ * approved this exact command. An executor may throw `ApprovalRequiredError` when its target will
+ * not run the command unattended; the loop then asks the user and calls again with true.
+ */
+export type CommandExecutor = (
+  run: { signal: AbortSignal },
+  command: string,
+  approved: boolean,
+) => Promise<CommandResult>;
+
 interface RunState {
   sessionId: string;
-  target: ShellTarget;
-  mode: SshAgentMode;
+  target: TaskTarget;
+  policy: ApprovalPolicy;
+  executor: CommandExecutor;
+  /** A prompt of the run's own; the shell prompt (`buildPrompt`) otherwise. */
+  buildPrompt: ((input: PromptInput) => string) | null;
   /** Agent CLI deciding each step, or null for the AI provider from Settings. */
   cliId: string | null;
   /** Model and effort flags for that CLI. */
@@ -286,12 +345,31 @@ function waitForApproval(run: RunState, command: string): Promise<boolean> {
   });
 }
 
+/** Proposes the command and waits; a skip goes in the history and the transcript. */
+async function askApproval(
+  run: RunState,
+  command: string,
+  message: string | undefined,
+): Promise<boolean> {
+  emit(run, 'proposed', { command, message });
+  const approved = await waitForApproval(run, command);
+  if (run.aborted) return false;
+  if (!approved) {
+    record(run, { kind: 'skipped', command });
+    run.transcript += `\n$ ${command}\n[skipped by user, not run]\n`;
+  }
+  return approved;
+}
+
 /**
  * Asks the user before typing the saved login password into a prompt the running command opened.
  * Declining (or having no saved password) leaves the prompt for them to answer in the terminal.
  */
-async function handlePasswordPrompt(run: RunState, command: string): Promise<void> {
-  const { target } = run;
+async function handlePasswordPrompt(
+  run: RunState,
+  target: ShellTarget,
+  command: string,
+): Promise<void> {
   const password = await target.getPassword();
   if (run.aborted) return;
   const asker = target.kind === 'ssh' ? 'The server' : 'The command';
@@ -329,28 +407,26 @@ function waitForUserAnswer(run: RunState): Promise<string> {
   });
 }
 
-interface CommandResult {
+export interface CommandResult {
   output: string;
   exitCode: number | null;
   timedOut: boolean;
 }
 
 /** Types `command` into the shell and resolves once it ends. */
-function runCommand(run: RunState, command: string): Promise<CommandResult> {
+function runCommand(run: RunState, target: ShellTarget, command: string): Promise<CommandResult> {
   return new Promise((resolve) => {
     const id = randomUUID().replace(/-/g, '');
-    const marked = run.target.commandLine(command, id);
+    const marked = target.commandLine(command, id);
     const { start } = marked;
-    const display = start
-      ? new CommandDisplay(run.target, command, { ...marked, start }, id)
-      : null;
+    const display = start ? new CommandDisplay(target, command, { ...marked, start }, id) : null;
     let buffer = '';
     let settled = false;
     /** Output before this index has already been checked for a password prompt. */
     let promptScanFrom = 0;
     let askingForPassword = false;
     let timer = startTimer();
-    const unsubscribeOutput = run.target.subscribeOutput((data) => {
+    const unsubscribeOutput = target.subscribeOutput((data) => {
       buffer += data;
       display?.push(data);
       const match = buffer.match(marked.done);
@@ -367,7 +443,7 @@ function runCommand(run: RunState, command: string): Promise<CommandResult> {
         return;
       }
       // Back at a prompt without the marker: the shell never ran the rest of the line.
-      if (run.target.detectsPrompt && PROMPT_READY.test(buffer)) {
+      if (target.detectsPrompt && PROMPT_READY.test(buffer)) {
         const output = buffer.replace(PROMPT_READY, '');
         finish({
           output: start ? output : dropEcho(output, marked.line),
@@ -381,7 +457,7 @@ function runCommand(run: RunState, command: string): Promise<CommandResult> {
       promptScanFrom = buffer.length;
       // Waiting on the user isn't the command hanging, so the timeout starts over afterwards.
       clearTimeout(timer);
-      void handlePasswordPrompt(run, command).finally(() => {
+      void handlePasswordPrompt(run, target, command).finally(() => {
         askingForPassword = false;
         promptScanFrom = buffer.length;
         if (!settled) timer = startTimer();
@@ -394,7 +470,7 @@ function runCommand(run: RunState, command: string): Promise<CommandResult> {
         COMMAND_TIMEOUT_MS,
       );
     }
-    const unsubscribeExit = run.target.subscribeExit(() =>
+    const unsubscribeExit = target.subscribeExit(() =>
       finish({ output: buffer, exitCode: null, timedOut: false }),
     );
 
@@ -410,7 +486,7 @@ function runCommand(run: RunState, command: string): Promise<CommandResult> {
       resolve(result);
     }
 
-    run.target.write(marked.line);
+    target.write(marked.line);
   });
 }
 
@@ -561,25 +637,29 @@ async function runLoop(run: RunState): Promise<void> {
       }
 
       const command = allowSudoPasswordPrompt(parsed.command);
-      const risky = isRiskyCommand(command);
-      const shouldPause = run.mode === 'approve-all' || (run.mode === 'approve-risky' && risky);
+      const decision = run.policy(command);
+      let approved = false;
 
-      if (shouldPause) {
-        emit(run, 'proposed', {
-          command,
-          message: risky ? 'This command looks destructive.' : undefined,
-        });
-        const approved = await waitForApproval(run, command);
+      if (decision.pause) {
+        approved = await askApproval(run, command, decision.message);
         if (run.aborted) return;
-        if (!approved) {
-          record(run, { kind: 'skipped', command });
-          run.transcript += `\n$ ${command}\n[skipped by user, not run]\n`;
-          continue;
-        }
+        if (!approved) continue;
       }
 
       emit(run, 'running', { command });
-      const result = await runCommand(run, command);
+      let result: CommandResult;
+      try {
+        result = await run.executor({ signal: run.controller.signal }, command, approved);
+      } catch (error) {
+        if (!(error instanceof ApprovalRequiredError) || run.aborted) throw error;
+        // The target would not run it unattended: the user decides, as in any approval.
+        if (!(await askApproval(run, command, error.message))) {
+          if (run.aborted) return;
+          continue;
+        }
+        emit(run, 'running', { command });
+        result = await run.executor({ signal: run.controller.signal }, command, true);
+      }
       if (run.aborted) return;
       appendCompletedCommand(run, command, result);
     }
@@ -594,7 +674,7 @@ export function isSshTaskRunning(sessionId: string): boolean {
 }
 
 /** Model and effort flags for a CLI run, or none when the CLI should use its own defaults. */
-function cliRunArgs(input: StartSshAgentTaskInput): string[] {
+export function cliRunArgs(input: StartSshAgentTaskInput): string[] {
   if (!input.cliId || !input.modelId) return [];
   const profile = runProfileForTargetAI(input.cliId);
   const model = profile.models.find((m) => m.id === input.modelId);
@@ -605,14 +685,55 @@ export function startSshTask(
   input: StartSshAgentTaskInput,
   listener: (progress: SshAgentProgress) => void,
 ): void {
-  const { sessionId, prompt, mode } = input;
+  const { sessionId } = input;
   if (runs.has(sessionId)) throw new Error('An AI task is already running in this session.');
   const target = input.target === 'local' ? localTarget(sessionId) : sshTarget(sessionId);
+  startAgentTask(
+    {
+      key: sessionId,
+      prompt: input.prompt,
+      target,
+      policy: modePolicy(input.mode),
+      executor: (_run, command) => {
+        const run = runs.get(sessionId);
+        if (!run) throw new Error('The AI task is over.');
+        return runCommand(run, target, command);
+      },
+      cliId: input.cliId ?? null,
+      runArgs: cliRunArgs(input),
+    },
+    listener,
+  );
+}
+
+/** Everything a run needs besides the user's answers. `key` names it, as a session id does. */
+export interface AgentTaskSpec {
+  key: string;
+  prompt: string;
+  target: TaskTarget;
+  policy: ApprovalPolicy;
+  executor: CommandExecutor;
+  /** The run's own prompt; the shell prompt otherwise. */
+  buildPrompt?: (input: PromptInput) => string;
+  cliId: string | null;
+  runArgs: string[];
+  /** What it says when it is not connected; the SSH and local wording otherwise. */
+  notConnectedMessage?: string;
+}
+
+/** Starts the loop on any target with any executor. `startSshTask` is this for a terminal. */
+export function startAgentTask(
+  spec: AgentTaskSpec,
+  listener: (progress: SshAgentProgress) => void,
+): void {
+  const { key: sessionId, prompt, target } = spec;
+  if (runs.has(sessionId)) throw new Error('An AI task is already running in this session.');
   if (!target.isConnected()) {
     throw new Error(
-      target.kind === 'ssh'
-        ? 'This SSH session is not connected.'
-        : 'This terminal is not running anymore.',
+      spec.notConnectedMessage ??
+        (target.kind === 'ssh'
+          ? 'This SSH session is not connected.'
+          : 'This terminal is not running anymore.'),
     );
   }
   if (!prompt.trim()) throw new Error('Describe what you want the AI to do first.');
@@ -620,9 +741,11 @@ export function startSshTask(
   const run: RunState = {
     sessionId,
     target,
-    mode,
-    cliId: input.cliId ?? null,
-    runArgs: cliRunArgs(input),
+    policy: spec.policy,
+    executor: spec.executor,
+    buildPrompt: spec.buildPrompt ?? null,
+    cliId: spec.cliId,
+    runArgs: spec.runArgs,
     cliRequestId: null,
     prompt: prompt.trim(),
     transcript: '',
@@ -750,9 +873,8 @@ export function stopSshTask(sessionId: string, reason: 'user' | 'exited' = 'user
   const message =
     reason === 'user'
       ? 'Stopped by user.'
-      : run.target.kind === 'ssh'
-        ? 'The SSH session ended.'
-        : 'The terminal closed.';
+      : (run.target.endedMessage ??
+        (run.target.kind === 'ssh' ? 'The SSH session ended.' : 'The terminal closed.'));
   record(run, { kind: 'stopped', text: message });
   endHistory(run, 'stopped');
   emit(run, 'stopped', { message });

@@ -7,6 +7,7 @@ import { IPC } from '../../shared/ipcChannels';
 import { indexProjectFiles } from '../explorer/fileIndex';
 import { registerDeployHandlers } from '../ipc/deploy';
 import { registerDeployAppStoreHandlers } from '../ipc/deployAppStore';
+import { registerDeployAssistantHandlers } from '../ipc/deployAssistant';
 import { registerDeployDirectTlsHandlers } from '../ipc/deployDirectTls';
 import { registerDeployDockerHandlers } from '../ipc/deployDocker';
 import { registerDeployFirewallHandlers } from '../ipc/deployFirewall';
@@ -29,6 +30,8 @@ import {
 import { store } from '../store';
 import { DownloadAbortedError, ResumableDownload } from '../updater/resumableDownload';
 import { DeployAppStore } from './appStore/service';
+import { approvalSigner } from './assistant/approvals';
+import { DeployAssistant } from './assistant/service';
 import { DeployBackups } from './backups';
 import {
   githubReleaseSource,
@@ -45,6 +48,7 @@ import { DeployHardening } from './hardening';
 import { DockerLinks } from './live/dockerLinks';
 import { DockerSubscriptions } from './live/dockerSubscriptions';
 import { DeploySubscriptions } from './live/subscriptions';
+import { JournalSubscriptions } from './logs/journal';
 import { createDeployRegistries, registerDeployRegistryIpc } from './registry';
 import type { DeployRegistries } from './registry/service';
 import { DeploySecurity } from './security';
@@ -282,6 +286,34 @@ export function registerDeployIpc(): void {
     onLinkConnection: (serverId, work) => service.onLinkConnection(serverId, work),
     serverName: async (serverId) =>
       (await service.listServers()).find((server) => server.id === serverId)?.nickname ?? serverId,
+  });
+  registerDeployAssistantIpc(service, state, guard);
+}
+
+/** The Deploy AI and the logs center's journal (E09). Approvals are signed with the device key. */
+function registerDeployAssistantIpc(
+  service: DeployService,
+  state: DeployState,
+  guard: (event: IpcMainInvokeEvent) => boolean,
+): void {
+  const roles = (id: string) => service.roles(id);
+  const journals = new JournalSubscriptions({ links: service.links });
+  const ownerOf = subscriptionOwners((ownerId) => journals.dropOwner(ownerId));
+  registerDeployAssistantHandlers({
+    ipc: ipcMain,
+    assistant: new DeployAssistant({
+      links: service.links,
+      roles,
+      approve: approvalSigner({ state, unseal: decryptSecret }),
+      serverName: async (serverId) =>
+        (await service.listServers()).find((server) => server.id === serverId)?.nickname ??
+        serverId,
+      docker: new DeployDocker({ links: service.links, roles }),
+      send: (channel, payload) => sendToWindow(getMainWindow(), channel, payload),
+    }),
+    journals,
+    guard,
+    owner: (event) => ownerOf(event.sender),
   });
 }
 

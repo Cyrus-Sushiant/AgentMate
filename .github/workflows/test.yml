@@ -219,6 +219,13 @@ jobs:
         env:
           AGENTMATE_SYSTEM_TESTS: "1"
         run: pnpm --filter @agentmat/desktop exec vitest run src/main/deploy/directTls.int.test.ts
+      # The Deploy AI's shell (E09): an allowlisted check in a real transient unit, an unapproved
+      # command refused, a signed one run once and its replay refused, a stopped command's whole
+      # unit gone, and the journal from journalctl.
+      - name: Exec and journal on test servers
+        env:
+          AGENTMATE_SYSTEM_TESTS: "1"
+        run: pnpm --filter @agentmat/desktop exec vitest run src/main/deploy/deployExec.int.test.ts
 
   mobile:
     name: Mobile
