@@ -4,6 +4,9 @@ import type {
   AlertInfo,
   AlertQuery,
   AlertStreamRequest,
+  CertificateIssueRequest,
+  CertificateRemoveRequest,
+  CertificateUploadRequest,
   FirewallChangeRequest,
   FirewallChangeSetQuery,
   JobInfo,
@@ -16,7 +19,13 @@ import type {
   MetricsHistoryRequest,
   MetricsSample,
   MetricsStreamRequest,
+  SiteLogBatch,
+  SiteLogKind,
+  SiteLogRequest,
+  SiteSettings,
+  SiteSnippets,
   StepUpRequest,
+  StreamProxySettings,
 } from '../protocol/generated/AgentMate.ServerCore.Contracts';
 import type { ICoreHub } from '../protocol/generated/TypedSignalR.Client/AgentMate.ServerCore.Contracts';
 import type { FakeCore } from './fakeCore';
@@ -35,18 +44,19 @@ import {
  * stream limits (metrics 2, jobs 4, alerts 2, 8 in all). Calls the fake has no use for say so.
  */
 
-const LIMITS = { metrics: 2, job: 4, alerts: 2 } as const;
+const LIMITS = { metrics: 2, job: 4, alerts: 2, siteLog: 2 } as const;
 const PER_CONNECTION = 8;
 const OPERATORS = new Set(['owner', 'admin', 'operator']);
 const ADMINS = new Set(['owner', 'admin']);
 const VIEWERS = new Set(['owner', 'admin', 'operator', 'viewer']);
+const OWNERS = new Set(['owner']);
 
 type Kind = keyof typeof LIMITS;
 
 interface OpenStream {
   kind: Kind;
   stream: FakeStream<unknown>;
-  /** For a job stream, the job it follows. */
+  /** For a job stream, the job it follows; for a site log, `siteId:kind`. */
   jobId?: string;
 }
 
@@ -100,6 +110,14 @@ export class FakeCoreConnection implements ICoreHub {
 
   deliverAlert(alert: AlertInfo): void {
     for (const open of this.of('alerts')) open.stream.push({ ...alert });
+  }
+
+  deliverSiteLog(siteId: string, kind: SiteLogKind, lines: string[], reset: boolean): void {
+    for (const open of this.of('siteLog')) {
+      if (open.jobId === `${siteId}:${kind}`) {
+        open.stream.push({ lines: [...lines], reset } satisfies SiteLogBatch);
+      }
+    }
   }
 
   endAlertStreams(): void {
@@ -173,7 +191,7 @@ export class FakeCoreConnection implements ICoreHub {
   revertFirewallChanges = async (changeSetId: string) =>
     this.firewall('RevertFirewallChanges', true, (fw) => fw.revert(changeSetId));
 
-  // Docker, websites and certificates: the desktop does not call these yet.
+  // Docker: the desktop does not call these yet.
 
   getDockerStatus = () => this.unused('GetDockerStatus');
   listContainers = () => this.unused('ListContainers');
@@ -200,22 +218,52 @@ export class FakeCoreConnection implements ICoreHub {
   removeVolume = () => this.unused('RemoveVolume');
   pruneDocker = () => this.unused('PruneDocker');
   installDocker = () => this.unused('InstallDocker');
-  getNginxStatus = () => this.unused('GetNginxStatus');
-  listSites = () => this.unused('ListSites');
-  listStreamProxies = () => this.unused('ListStreamProxies');
-  listCertificates = () => this.unused('ListCertificates');
-  streamSiteLog = () => this.unusedStream('StreamSiteLog');
-  installNginx = () => this.unused('InstallNginx');
-  saveSite = () => this.unused('SaveSite');
-  deleteSite = () => this.unused('DeleteSite');
-  saveStreamProxy = () => this.unused('SaveStreamProxy');
-  deleteStreamProxy = () => this.unused('DeleteStreamProxy');
-  applyNginx = () => this.unused('ApplyNginx');
-  issueCertificate = () => this.unused('IssueCertificate');
-  renewCertificate = () => this.unused('RenewCertificate');
-  uploadCertificate = () => this.unused('UploadCertificate');
-  removeCertificate = () => this.unused('RemoveCertificate');
-  setSiteSnippets = () => this.unused('SetSiteSnippets');
+  // Websites and certificates: Viewers read, Admins change, Owners write snippets, and taking a
+  // certificate off needs a step-up as well.
+
+  getNginxStatus = async () => this.answer({ ...this.core.nginx.status });
+  listSites = async () =>
+    this.answer([...this.core.nginx.sites.values()].map((site) => ({ ...site })));
+  listStreamProxies = async () =>
+    this.answer([...this.core.nginx.streams.values()].map((proxy) => ({ ...proxy })));
+  listCertificates = async () => this.answer(this.core.nginx.certificates());
+  streamSiteLog = (request: SiteLogRequest): IStreamResult<SiteLogBatch> =>
+    this.open<SiteLogBatch>(
+      'siteLog',
+      [request],
+      (stream) => {
+        if (!this.core.nginx.sites.has(request.siteId)) {
+          stream.fail(streamError('There is no such site.'));
+          return;
+        }
+        const lines = this.core.nginx.tail(request.siteId, request.kind, request.tailLines);
+        stream.push({ lines, reset: false });
+        if (!request.follow) stream.complete();
+      },
+      `${request.siteId}:${request.kind}`,
+    );
+  installNginx = async () => this.web('InstallNginx', ADMINS, (nginx) => nginx.install());
+  saveSite = async (settings: SiteSettings) =>
+    this.web('SaveSite', ADMINS, (nginx) => nginx.saveSite(settings));
+  deleteSite = async (siteId: string) =>
+    this.web('DeleteSite', ADMINS, (nginx) => nginx.deleteSite(siteId));
+  saveStreamProxy = async (settings: StreamProxySettings) =>
+    this.web('SaveStreamProxy', ADMINS, (nginx) => nginx.saveStream(settings));
+  deleteStreamProxy = async (proxyId: string) =>
+    this.web('DeleteStreamProxy', ADMINS, (nginx) => nginx.deleteStream(proxyId));
+  applyNginx = async () => this.web('ApplyNginx', ADMINS, (nginx) => nginx.apply());
+  issueCertificate = async (request: CertificateIssueRequest) =>
+    this.web('IssueCertificate', ADMINS, (nginx) => nginx.issue(request));
+  renewCertificate = async (siteId: string) =>
+    this.web('RenewCertificate', ADMINS, (nginx) => nginx.renew(siteId));
+  uploadCertificate = async (request: CertificateUploadRequest) =>
+    this.web('UploadCertificate', ADMINS, (nginx) => nginx.upload(request));
+  removeCertificate = async (request: CertificateRemoveRequest) =>
+    this.web('RemoveCertificate', ADMINS, (nginx) => nginx.removeCertificate(request), {
+      stepUp: true,
+    });
+  setSiteSnippets = async (snippets: SiteSnippets) =>
+    this.web('SetSiteSnippets', OWNERS, (nginx) => nginx.setSnippets(snippets));
 
   // Reading the server.
 
@@ -387,6 +435,24 @@ export class FakeCoreConnection implements ICoreHub {
         connection: this,
         steppedUp: this.core.stepUpUntil > this.core.now(),
       });
+    } catch (error) {
+      throw invocationError(method, (error as Error).message);
+    }
+  }
+
+  private web<T>(
+    method: string,
+    allowed: ReadonlySet<string>,
+    work: (nginx: FakeCore['nginx']) => T,
+    options: { stepUp?: boolean } = {},
+  ): T {
+    this.assertOpen();
+    this.assertRole(method, allowed);
+    if (options.stepUp && this.core.stepUpUntil <= this.core.now()) {
+      throw unauthorizedError(method);
+    }
+    try {
+      return work(this.core.nginx);
     } catch (error) {
       throw invocationError(method, (error as Error).message);
     }

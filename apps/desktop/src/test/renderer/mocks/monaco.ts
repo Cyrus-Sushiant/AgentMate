@@ -28,6 +28,9 @@ class FakeModel {
   getLineCount(): number {
     return this.value.split('\n').length;
   }
+  getLineMaxColumn(line: number): number {
+    return (this.value.split('\n')[line - 1] ?? '').length + 1;
+  }
   uri = { path: '/test-model' };
 }
 
@@ -144,6 +147,11 @@ export const editor = {
   getModel: () => null,
   getModels: () => [] as FakeModel[],
   setModelLanguage: () => undefined,
+  /** Every set of markers handed to a model, newest last. */
+  markers: [] as unknown[][],
+  setModelMarkers(_model: unknown, _owner: string, markers: unknown[]) {
+    editor.markers.push(markers);
+  },
   defineTheme: () => undefined,
   setTheme: () => undefined,
   EditorOption: {},

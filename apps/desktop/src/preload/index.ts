@@ -301,6 +301,8 @@ import type {
   AlertInfo,
   AuditPage,
   AuditVerificationInfo,
+  CertificateInfo,
+  CertificateUploadResult,
   DeviceInfo,
   EnrollmentCodeInfo,
   ExposureInventory,
@@ -312,10 +314,19 @@ import type {
   JobPage,
   ManagedService,
   MetricsHistory,
+  NginxApplyResult,
+  NginxStatus,
   RecoveryCodes,
   ServiceInfo,
   SessionInfo,
+  SiteInfo,
+  SiteSaveResult,
+  SiteSettings,
+  SiteSnippets,
   StepUpResponse,
+  StreamProxyInfo,
+  StreamProxySaveResult,
+  StreamProxySettings,
   SystemInfo,
   UpdatesInfo,
   UserInfo,
@@ -339,6 +350,13 @@ import type {
   DeploySetRoleInput,
   DeployUserTarget,
 } from '../shared/deploySecurityTypes';
+import type {
+  DeployCertificateIssueInput,
+  DeployCertificateRemoveInput,
+  DeployCertificateUploadInput,
+  DeploySiteLogEvent,
+  DeploySiteLogWatchInput,
+} from '../shared/deploySitesTypes';
 import type {
   DeployAccess,
   DeployAlertsEvent,
@@ -1581,6 +1599,56 @@ const deployFirewall = {
 };
 
 /**
+ * A server's websites. Saving only stores a site; `apply` puts every saved change live (it can
+ * take some 20 seconds) or keeps nginx as it was and says why. Snippets are the Owner's alone.
+ */
+const deploySites = {
+  status: (serverId: string): Promise<NginxStatus> =>
+    ipcRenderer.invoke(IPC.deploySites.status, serverId),
+  list: (serverId: string): Promise<SiteInfo[]> =>
+    ipcRenderer.invoke(IPC.deploySites.list, serverId),
+  listStreams: (serverId: string): Promise<StreamProxyInfo[]> =>
+    ipcRenderer.invoke(IPC.deploySites.listStreams, serverId),
+  /** Installs nginx from nginx.org, or adopts the one there. A job. */
+  install: (serverId: string): Promise<JobInfo> =>
+    ipcRenderer.invoke(IPC.deploySites.install, serverId),
+  save: (serverId: string, settings: SiteSettings): Promise<SiteSaveResult> =>
+    ipcRenderer.invoke(IPC.deploySites.save, serverId, settings),
+  remove: (serverId: string, siteId: string): Promise<void> =>
+    ipcRenderer.invoke(IPC.deploySites.remove, serverId, siteId),
+  saveStream: (serverId: string, settings: StreamProxySettings): Promise<StreamProxySaveResult> =>
+    ipcRenderer.invoke(IPC.deploySites.saveStream, serverId, settings),
+  removeStream: (serverId: string, proxyId: string): Promise<void> =>
+    ipcRenderer.invoke(IPC.deploySites.removeStream, serverId, proxyId),
+  applyChanges: (serverId: string): Promise<NginxApplyResult> =>
+    ipcRenderer.invoke(IPC.deploySites.apply, serverId),
+  setSnippets: (serverId: string, snippets: SiteSnippets): Promise<SiteSaveResult> =>
+    ipcRenderer.invoke(IPC.deploySites.setSnippets, serverId, snippets),
+  /** Starts a site's access or error log for this window; lines arrive on onLog. */
+  watchLog: (input: DeploySiteLogWatchInput): Promise<string> =>
+    ipcRenderer.invoke(IPC.deploySites.watchLog, input),
+  unwatchLog: (subscriptionId: string): Promise<boolean> =>
+    ipcRenderer.invoke(IPC.deploySites.unwatchLog, subscriptionId),
+  onLog: (cb: (event: DeploySiteLogEvent) => void): (() => void) =>
+    subscribe(IPC.deploySites.onLog, cb),
+};
+
+/** A server's certificates. Removing one needs a step-up, as reboot does. */
+const deployCerts = {
+  list: (serverId: string): Promise<CertificateInfo[]> =>
+    ipcRenderer.invoke(IPC.deployCerts.list, serverId),
+  /** Orders a certificate over ACME for every domain of the site. A job. */
+  issue: (input: DeployCertificateIssueInput): Promise<JobInfo> =>
+    ipcRenderer.invoke(IPC.deployCerts.issue, input),
+  renew: (serverId: string, siteId: string): Promise<JobInfo> =>
+    ipcRenderer.invoke(IPC.deployCerts.renew, serverId, siteId),
+  upload: (input: DeployCertificateUploadInput): Promise<CertificateUploadResult> =>
+    ipcRenderer.invoke(IPC.deployCerts.upload, input),
+  remove: (input: DeployCertificateRemoveInput): Promise<NginxApplyResult> =>
+    ipcRenderer.invoke(IPC.deployCerts.remove, input),
+};
+
+/**
  * A server core's Security area. The core decides who may do what; changes to users need a
  * step-up first (deploy.stepUp). Passwords pass straight through to the core.
  */
@@ -2240,6 +2308,8 @@ const agentmatApi = {
   deploySystem,
   deployJobs,
   deployAlerts,
+  deploySites,
+  deployCerts,
   cloudflare,
   pullRequests,
   tests,

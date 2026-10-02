@@ -51,4 +51,19 @@ describe('MonacoEditor', () => {
     );
     expect(onRevealed).toHaveBeenCalledTimes(2);
   });
+
+  it('marks the lines it is told about as errors', () => {
+    const recorded = (monaco.editor as unknown as { markers: unknown[][] }).markers;
+    render(
+      <MonacoEditor value={'one\ninclude x;'} markers={[{ line: 2, message: 'Not allowed.' }]} />,
+    );
+    expect(recorded.at(-1)).toEqual([
+      expect.objectContaining({
+        message: 'Not allowed.',
+        startLineNumber: 2,
+        endLineNumber: 2,
+        endColumn: 11,
+      }),
+    ]);
+  });
 });

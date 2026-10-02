@@ -6,7 +6,7 @@ import type { ICoreHub } from '../../../shared/deploy/protocol/generated/TypedSi
 import type { DeployConnection } from '../../../shared/deployTypes';
 import type { LiveHubSession } from '../connection/liveHub';
 import { CoreLink } from './coreLink';
-import { AlertsFeed, JobFeed, type JobFeedEvents, MetricsFeed } from './feeds';
+import { AlertsFeed, JobFeed, type JobFeedEvents, type LinkFeed, MetricsFeed } from './feeds';
 import type { BlockedState } from './linkFailures';
 
 /**
@@ -150,6 +150,11 @@ export class CoreLinks {
 
   /** A feed of the caller's own on the server's link, such as the alert watcher's. */
   attachAlerts(serverId: string, feed: AlertsFeed): () => void {
+    return this.link(serverId).attach(feed);
+  }
+
+  /** Any other feed on the server's link, such as a site's log; the caller keeps its limits. */
+  attachFeed(serverId: string, feed: LinkFeed): () => void {
     return this.link(serverId).attach(feed);
   }
 

@@ -18,7 +18,7 @@ without the app being open.
 - [ ] T4 Renewal service: every 6 hours with jitter, ARI window, fallback at two thirds of the
   lifetime, exponential backoff, alerts on failure, nginx reload on success.
 - [ ] T5 Custom certificate upload (PEM validation, chain order, key match) and revoke.
-- [ ] T6 SSL tab: issue, status, expiry countdown, auto-renew state, last attempt and its log; force
+- [x] T6 SSL tab: issue, status, expiry countdown, auto-renew state, last attempt and its log; force
   HTTPS and HSTS toggles now enabled.
 - [ ] T7 Fixture: Pebble plus challtestsrv containers wired to the E10 nginx harness.
 
@@ -28,3 +28,24 @@ without the app being open.
 2. With a `FakeTimeProvider`, renewal happens inside the ARI window and backs off after failures.
 3. A failed renewal raises an alert that reaches the desktop inbox.
 4. Private keys are 0600 and the account key is stored encrypted.
+
+## Implementation notes
+
+Desktop and UI (T6), built with the E10 Websites section (see its notes):
+
+- The SSL tab shows the certificate's state in words and with a mark (not colour alone), the days
+  left, issuer and dates, what renewal will do next (or how many attempts failed and when the next
+  one is), and the last attempt with a link to its job log. Admins issue, renew now, upload a
+  certificate with its key, and remove one (with an optional revoke) after a confirm and a step-up.
+  Force HTTPS and HSTS stay off until the site has a certificate.
+- Issuing always asks for the CA's terms: the contract does not say whether this server already
+  accepted them, and the first order per CA needs them. A staging switch picks Let's Encrypt's
+  test CA.
+- Deviation: DNS-01 is not offered yet. The desktop always sends `preferDns01: false` until the
+  Cloudflare work (E14) brings the zone-scoped token.
+- No visual pass in both themes yet. The e2e spec `deploySites.e2e.ts` issues a certificate from
+  the DevHost's pretend CA and sees the site live with its lock.
+
+Acceptance criteria from the desktop side: AC3 (a failed renewal's alert reaching the desktop
+inbox) is not verified by this work; the alert watcher from E05 handles `certificateRenewalFailed`
+like any other alert, but no test raises one. AC1, AC2 and AC4 belong to the core.

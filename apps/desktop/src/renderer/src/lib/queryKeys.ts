@@ -171,6 +171,11 @@ export const queryKeys = {
   deployActiveJobs: (serverId: string) => ['deploy', 'overview', serverId, 'jobs'] as const,
   deployMetricsHistory: (serverId: string, range: string) =>
     ['deploy', 'overview', serverId, 'metrics', range] as const,
+  /** Prefix of a server's Websites section: nginx, sites, stream proxies and certificates. */
+  deployWeb: (serverId: string) => ['deploy', 'web', serverId] as const,
+  deployNginx: (serverId: string) => ['deploy', 'web', serverId, 'nginx'] as const,
+  deploySites: (serverId: string) => ['deploy', 'web', serverId, 'sites'] as const,
+  deployStreams: (serverId: string) => ['deploy', 'web', serverId, 'streams'] as const,
   /** Everything the Firewall section reads (E13), dropped at once after a change. */
   deployFirewall: (serverId: string) => ['deploy', 'firewall', serverId] as const,
   deployFirewallStatus: (serverId: string) => ['deploy', 'firewall', serverId, 'status'] as const,

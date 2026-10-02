@@ -15,6 +15,7 @@ import { ServerRail } from '@/components/deploy/ServerRail';
 import { type ServerSection, ServerSections } from '@/components/deploy/ServerSections';
 import { SetupFailure } from '@/components/deploy/SetupFailure';
 import { SecurityPanel } from '@/components/deploy/security/SecurityPanel';
+import { SitesPanel } from '@/components/deploy/sites/SitesPanel';
 import { Lock, RefreshCw, Server } from '@/components/icons';
 import { ProjectEmptyState } from '@/components/projects/ProjectDetailChrome';
 import { SshVaultUnlockDialog } from '@/components/remote/SshVaultUnlockDialog';
@@ -169,7 +170,8 @@ export default function DeployPage(): React.JSX.Element {
   const selected = servers.find((server) => server.id === params.get('server')) ?? servers[0];
   const run = runs[selected.id];
   const view = params.get('view');
-  const section: ServerSection = view === 'security' || view === 'firewall' ? view : 'overview';
+  const section: ServerSection =
+    view === 'security' || view === 'firewall' || view === 'websites' ? view : 'overview';
   const locked = vaultQuery.data?.hasPasskey === true && !vaultQuery.data.unlocked;
 
   async function remove(server: DeployServer, keepData: boolean): Promise<void> {
@@ -196,6 +198,9 @@ export default function DeployPage(): React.JSX.Element {
         onCancel={selected.core ? () => setUpdating(null) : undefined}
       />
     );
+  } else if (section === 'websites') {
+    sections = true;
+    content = <SitesPanel server={selected} />;
   } else if (section === 'firewall') {
     sections = true;
     content = <FirewallPanel server={selected} />;

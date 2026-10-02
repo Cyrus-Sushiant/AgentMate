@@ -636,6 +636,23 @@ describe('DeployPage security', () => {
     expect(await screen.findByText('Online')).toBeTruthy();
   });
 
+  it("opens the selected server's Websites section", async () => {
+    const { user } = renderPage({
+      'deploy.listServers': async () => [server({ core: CORE, enrolled: true })],
+      'deploy.access': async (): Promise<DeployAccess> => ({ state: 'needs-sign-in' }),
+    });
+
+    const sections = await screen.findByRole('navigation', { name: 'Server sections' });
+    await user.click(within(sections).getByRole('button', { name: /Websites/ }));
+
+    expect(await screen.findByText(/Sign in to see the websites on/)).toBeTruthy();
+    expect(
+      within(sections)
+        .getByRole('button', { name: /Websites/ })
+        .getAttribute('aria-current'),
+    ).toBe('page');
+  });
+
   it('opens the Security area straight from a link', async () => {
     renderPage(
       {

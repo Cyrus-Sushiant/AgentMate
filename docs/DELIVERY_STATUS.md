@@ -36,8 +36,8 @@ Plan: docs/ROADMAP.md
 | E07 | Compose stacks | In progress | ea106b3 | Libraries only: validation, env, compose lint and override, dockerignore, build context, safe tar extraction |
 | E08 | Private registries | Not started | | |
 | E09 | Logs center, problems feed and Deploy AI | Not started | | |
-| E10 | nginx websites | In progress | 77b262a | Renderer, snippet allowlist and the nginx -t harness |
-| E11 | Let's Encrypt certificates | In progress | 7110a67 | ACME client (RFC 8555 and ARI) tested against Pebble |
+| E10 | nginx websites | In progress | 77b262a, see git log | Renderer, snippet allowlist and the nginx -t harness; desktop T9 done (Websites section, site editor, Apply bar, route maps, stream proxies, live site logs) |
+| E11 | Let's Encrypt certificates | In progress | 7110a67, see git log | ACME client (RFC 8555 and ARI) tested against Pebble; desktop T6 done (SSL tab); DNS-01 in the UI waits on E14 |
 | E12 | App Store | In progress | | Catalog of 18 apps pinned by digest (MinIO left out: no public official image), pending integration |
 | E13 | Firewall | In progress | 2a87c89, see git log | Core (ufw and firewalld, lockout guard, safe apply) and the Firewall screen (T6): status hero, rules, presets, staged changes, typed SSH override, countdown to keep or revert, history, exposure view. Confirm goes over a brand-new SSH connection. Left: "Make private" for containers (part of T5) waits on app deploys, so the button is disabled with a hint |
 | E14 | Cloudflare | In progress | df848e5 | Desktop side: T1 to T4, T8, T9 and pointing a domain (part of T5); Origin CA (rest of T5), T6 and T7 wait on server work |
@@ -64,6 +64,9 @@ Status values: Not started, In progress, Blocked, Complete.
   Windows and macOS in CI run 36647129514 (E04).
 - E04 T11: minting and redeeming enrollment codes is tested in the core only. No screen uses it
   until E15 T1, which the plan gives the users and devices UI.
+- E10 and E11, desktop: the Websites e2e spec runs against the DevHost's simulated nginx and
+  pretend CA, not a real `nginx -t` or Let's Encrypt. E11 AC3 (a failed renewal's alert in the
+  desktop inbox) has no test yet. Neither screen has had a visual pass in both themes.
 - E03 and E04 system tests: all 8 now pass in CI too (run 36677124032, e3c7b94), after three
   fixes. Three SSH waits had no time limit (a command's channel opening before its timer started,
   opening a tunnel, and HTTP over a tunnel, whose socket timeout never fires). The systemd test

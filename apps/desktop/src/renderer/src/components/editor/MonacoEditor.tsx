@@ -26,7 +26,12 @@ export interface MonacoEditorProps {
   reveal?: Reveal | null;
   /** Called once the reveal is applied, so the caller can let go of it. */
   onRevealed?: () => void;
+  /** Problems to mark inline, one per line, such as what a server refused in a snippet. */
+  markers?: ReadonlyArray<{ line: number; message: string }>;
 }
+
+/** The owner name the editor's own markers go under, so other markers are left alone. */
+const MARKER_OWNER = 'agentmate';
 
 export function MonacoEditor({
   value,
@@ -36,6 +41,7 @@ export function MonacoEditor({
   className,
   reveal,
   onRevealed,
+  markers,
 }: MonacoEditorProps): React.JSX.Element {
   const containerRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
@@ -108,6 +114,24 @@ export function MonacoEditor({
     editor.focus();
     onRevealedRef.current?.();
   }, [reveal]);
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: the marks follow the text they point at
+  useEffect(() => {
+    const model = editorRef.current?.getModel();
+    if (!model) return;
+    monaco.editor.setModelMarkers(
+      model,
+      MARKER_OWNER,
+      (markers ?? []).map((marker) => ({
+        severity: monaco.MarkerSeverity.Error,
+        message: marker.message,
+        startLineNumber: marker.line,
+        startColumn: 1,
+        endLineNumber: marker.line,
+        endColumn: model.getLineMaxColumn(Math.min(marker.line, model.getLineCount())),
+      })),
+    );
+  }, [markers, value]);
 
   // The language is set at creation; this follows later changes, like a request body switched
   // from JSON to XML, without recreating the editor and losing its undo history.

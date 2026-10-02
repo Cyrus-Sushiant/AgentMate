@@ -6,6 +6,7 @@ import { IPC } from '../../shared/ipcChannels';
 import { registerDeployHandlers } from '../ipc/deploy';
 import { registerDeployFirewallHandlers } from '../ipc/deployFirewall';
 import { registerDeploySecurityHandlers } from '../ipc/deploySecurity';
+import { registerDeploySitesHandlers } from '../ipc/deploySites';
 import { registerDeploySystemHandlers, subscriptionOwners } from '../ipc/deploySystem';
 import { broadcastToWindows, sendToWindow } from '../ipc/send';
 import { getMainWindow } from '../mainWindow';
@@ -32,6 +33,8 @@ import { DeployFirewall } from './firewall';
 import { DeploySubscriptions } from './live/subscriptions';
 import { DeploySecurity } from './security';
 import { DeployService } from './service';
+import { DeploySites } from './sites/deploySites';
+import { SiteLogSubscriptions } from './sites/siteLogs';
 import { DeployState, jsonFilePort } from './state';
 import { DeploySystem } from './system';
 import { appNotificationInbox, DeployAlertWatcher } from './watcher';
@@ -178,6 +181,17 @@ export function registerDeployIpc(): void {
       progress: (event) => sendToWindow(getMainWindow(), IPC.deployFirewall.onProgress, event),
     }),
     guard,
+  });
+
+  // The Websites section (E10, E11): its site logs end with the window that opened them.
+  const siteLogs = new SiteLogSubscriptions({ links: service.links });
+  const siteLogOwnerOf = subscriptionOwners((ownerId) => siteLogs.dropOwner(ownerId));
+  registerDeploySitesHandlers({
+    ipc: ipcMain,
+    sites: new DeploySites({ links: service.links, roles: (id) => service.roles(id) }),
+    logs: siteLogs,
+    guard,
+    owner: (event) => siteLogOwnerOf(event.sender),
   });
 
   watcher = new DeployAlertWatcher({

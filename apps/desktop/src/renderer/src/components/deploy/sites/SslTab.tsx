@@ -1,0 +1,316 @@
+import { coreErrorMessage } from '@shared/coreErrors';
+import type {
+  JobInfo,
+  SiteInfo,
+} from '@shared/deploy/protocol/generated/AgentMate.ServerCore.Contracts';
+import type { DeployServer } from '@shared/deployTypes';
+import { useState } from 'react';
+import { toast } from 'sonner';
+import {
+  FileText,
+  Lock,
+  LockOpen,
+  RefreshCw,
+  Spinner,
+  Trash2,
+  TriangleAlert,
+  Upload,
+} from '@/components/icons';
+import { Button } from '@/components/ui/button';
+import {
+  certificateBadge,
+  formatDay,
+  relative,
+  renewalText,
+} from '@/lib/deploy/sites/certificates';
+import { cn } from '@/lib/utils';
+import { JobLogDialog } from '../overview/JobLogDialog';
+import { useProofStepUp } from '../overview/useProofStepUp';
+import { IssueDialog, UploadDialog } from './CertificateDialogs';
+import { FieldError, Section, TextField, ToggleRow } from './fields';
+import { RemoveCertificateDialog } from './RemoveCertificateDialog';
+import type { SiteTabProps } from './tabTypes';
+
+/**
+ * A site's certificate: its state and countdown, renewal, the last attempt and its log, issuing,
+ * uploading and removing one, and the HTTPS options that need a certificate to mean anything.
+ */
+
+const TONE = { ok: 'text-success', warn: 'text-warning', bad: 'text-destructive' } as const;
+
+export function SslTab({
+  server,
+  site,
+  admin,
+  onChanged,
+  ...tab
+}: SiteTabProps & {
+  server: DeployServer;
+  site: SiteInfo | undefined;
+  admin: boolean;
+  onChanged: () => void;
+}): React.JSX.Element {
+  const { draft, set, error, readOnly } = tab;
+  const [issuing, setIssuing] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [removing, setRemoving] = useState(false);
+  const [busy, setBusy] = useState<'renew' | 'remove' | 'log' | null>(null);
+  const [job, setJob] = useState<JobInfo | null>(null);
+  const [problem, setProblem] = useState<string | null>(null);
+  const proof = useProofStepUp(server);
+  const now = Date.now();
+  const certificate = site?.certificate;
+  const badge = certificateBadge(certificate, now);
+  const Mark = certificate ? Lock : LockOpen;
+
+  async function attempt(kind: 'renew' | 'log', work: () => Promise<JobInfo>): Promise<void> {
+    setBusy(kind);
+    setProblem(null);
+    try {
+      setJob(await work());
+    } catch (failure) {
+      setProblem(coreErrorMessage(failure));
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function remove(revoke: boolean): Promise<void> {
+    if (!site) return;
+    setBusy('remove');
+    setProblem(null);
+    try {
+      const result = await proof.run(
+        (stepUp) =>
+          window.agentmat.deployCerts.remove({
+            serverId: server.id,
+            siteId: site.settings.id,
+            revoke,
+            reason: revoke ? 'keyCompromise' : 'unspecified',
+            ...stepUp,
+          }),
+        'Removing a certificate',
+      );
+      if (result) {
+        setRemoving(false);
+        set({ redirectToHttps: false, hsts: false });
+        toast.success(
+          result.applied ? 'Certificate removed.' : 'Certificate removed. Apply to finish.',
+        );
+        onChanged();
+      }
+    } catch (failure) {
+      setProblem(coreErrorMessage(failure));
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  return (
+    <div className="space-y-4">
+      <Section title="Certificate">
+        {!site ? (
+          <p className="text-sm text-muted-foreground">
+            Save the site first, then issue a certificate for it.
+          </p>
+        ) : (
+          <div className="space-y-3">
+            <div className="flex flex-wrap items-center gap-3">
+              <span
+                className={cn('flex items-center gap-2 text-base font-medium', TONE[badge.tone])}
+              >
+                <Mark className="h-4 w-4" /> {badge.label}
+              </span>
+              <span className="text-sm text-muted-foreground">{badge.description}</span>
+            </div>
+            {certificate && (
+              <dl className="grid gap-x-6 gap-y-1 text-sm sm:grid-cols-[auto_1fr]">
+                <dt className="text-muted-foreground">Covers</dt>
+                <dd className="font-mono text-xs leading-5">{certificate.domains.join(', ')}</dd>
+                <dt className="text-muted-foreground">Issued by</dt>
+                <dd>
+                  {certificate.issuer}
+                  {certificate.source === 'uploaded' ? ' (uploaded)' : ''}
+                </dd>
+                <dt className="text-muted-foreground">Valid</dt>
+                <dd>
+                  {formatDay(certificate.notBeforeUnixMs)} to{' '}
+                  {formatDay(certificate.notAfterUnixMs)}
+                </dd>
+                <dt className="text-muted-foreground">Renewal</dt>
+                <dd>{renewalText(certificate, now)}</dd>
+                {certificate.lastAttemptAtUnixMs && (
+                  <>
+                    <dt className="text-muted-foreground">Last attempt</dt>
+                    <dd className="flex flex-wrap items-center gap-2">
+                      {relative(certificate.lastAttemptAtUnixMs, now)}
+                      {certificate.lastError ? (
+                        <span className="flex items-center gap-1 text-destructive">
+                          <TriangleAlert className="h-3 w-3" /> {certificate.lastError}
+                        </span>
+                      ) : (
+                        <span className="text-success">succeeded</span>
+                      )}
+                      {certificate.lastJobId && (
+                        <Button
+                          type="button"
+                          variant="link"
+                          size="sm"
+                          className="h-auto p-0"
+                          disabled={busy === 'log'}
+                          onClick={() =>
+                            void attempt('log', () =>
+                              window.agentmat.deployJobs.get(
+                                server.id,
+                                certificate.lastJobId as string,
+                              ),
+                            )
+                          }
+                        >
+                          <FileText className="h-3 w-3" /> Show its log
+                        </Button>
+                      )}
+                    </dd>
+                  </>
+                )}
+              </dl>
+            )}
+            {admin && (
+              <div className="flex flex-wrap gap-2">
+                <Button type="button" size="sm" onClick={() => setIssuing(true)}>
+                  <Lock className="h-3.5 w-3.5" />
+                  {certificate ? 'Issue a new certificate' : 'Issue a certificate'}
+                </Button>
+                {certificate?.source === 'acme' && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    disabled={busy === 'renew'}
+                    onClick={() =>
+                      void attempt('renew', () =>
+                        window.agentmat.deployCerts.renew(server.id, site.settings.id),
+                      )
+                    }
+                  >
+                    {busy === 'renew' ? (
+                      <Spinner className="h-3.5 w-3.5 motion-safe:animate-spin" />
+                    ) : (
+                      <RefreshCw className="h-3.5 w-3.5" />
+                    )}
+                    Renew now
+                  </Button>
+                )}
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setUploading(true)}
+                >
+                  <Upload className="h-3.5 w-3.5" /> Upload a certificate
+                </Button>
+                {certificate && (
+                  <Button type="button" size="sm" variant="ghost" onClick={() => setRemoving(true)}>
+                    <Trash2 className="h-3.5 w-3.5" /> Remove
+                  </Button>
+                )}
+              </div>
+            )}
+            <FieldError message={problem ?? undefined} />
+          </div>
+        )}
+      </Section>
+      <Section title="HTTPS" description="Takes effect once the site has a certificate.">
+        <ToggleRow
+          label="Force HTTPS"
+          description="Sends every plain HTTP visitor to the HTTPS address."
+          checked={draft.redirectToHttps}
+          onChange={(redirectToHttps) => set({ redirectToHttps })}
+          disabled={readOnly || !certificate}
+          disabledReason={certificate ? undefined : 'Needs a certificate first.'}
+        />
+        <ToggleRow
+          label="HSTS"
+          description="Tells browsers to use HTTPS only, for as long as the max-age says. Hard to take back."
+          checked={draft.hsts}
+          onChange={(hsts) => set({ hsts })}
+          disabled={readOnly || !certificate}
+          disabledReason={certificate ? undefined : 'Needs a certificate first.'}
+        />
+        {draft.hsts && (
+          <div className="space-y-2 pl-1">
+            <TextField
+              label="Max-age"
+              value={draft.hstsMaxAge}
+              onChange={(hstsMaxAge) => set({ hstsMaxAge })}
+              suffix="seconds"
+              inputMode="numeric"
+              disabled={readOnly || !certificate}
+            />
+            <ToggleRow
+              label="Include subdomains"
+              checked={draft.hstsSubdomains}
+              onChange={(hstsSubdomains) => set({ hstsSubdomains })}
+              disabled={readOnly || !certificate}
+            />
+            <ToggleRow
+              label="Preload"
+              description="Asks to be built into browsers. Needs subdomains included and a year or more."
+              checked={draft.hstsPreload}
+              onChange={(hstsPreload) => set({ hstsPreload })}
+              disabled={readOnly || !certificate}
+            />
+          </div>
+        )}
+        <FieldError message={error('hsts')} />
+        <ToggleRow
+          label="HTTP/2"
+          description="Faster page loads over HTTPS."
+          checked={draft.http2}
+          onChange={(http2) => set({ http2 })}
+          disabled={readOnly}
+        />
+      </Section>
+      {site && (
+        <>
+          <IssueDialog
+            serverId={server.id}
+            site={site}
+            open={issuing}
+            onClose={() => setIssuing(false)}
+            onStarted={(started) => {
+              setIssuing(false);
+              setJob(started);
+            }}
+          />
+          <UploadDialog
+            serverId={server.id}
+            site={site}
+            open={uploading}
+            onClose={() => setUploading(false)}
+            onUploaded={() => {
+              setUploading(false);
+              toast.success('Certificate uploaded and live.');
+              onChanged();
+            }}
+          />
+          <RemoveCertificateDialog
+            certificate={removing && certificate ? certificate : null}
+            domain={site.settings.domains[0] ?? site.settings.id}
+            busy={busy === 'remove'}
+            onCancel={() => setRemoving(false)}
+            onConfirm={(revoke) => void remove(revoke)}
+          />
+        </>
+      )}
+      <JobLogDialog
+        serverId={server.id}
+        job={job}
+        canCancel={admin}
+        onClose={() => setJob(null)}
+        onFinished={onChanged}
+      />
+      {proof.dialog}
+    </div>
+  );
+}

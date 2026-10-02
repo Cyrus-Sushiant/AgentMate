@@ -26,7 +26,7 @@ running nginx.
 - [ ] T6 `stream` proxies for public TCP and UDP ports with optional IP allowlists.
 - [ ] T7 SELinux: `httpd_can_network_connect`, `http_port_t` for custom ports.
 - [ ] T8 Per-site access and error logs in the log viewer.
-- [ ] T9 UI: Websites list (domains, target, SSL badge, cache and websocket toggles), site editor
+- [x] T9 UI: Websites list (domains, target, SSL badge, cache and websocket toggles), site editor
   (Domains, Proxy, SSL placeholder, Performance, Security, Advanced with Monaco and inline errors,
   Logs), live route map on the app detail.
 - [ ] T10 Fixture: `nginx -t` harness on nginx.org packages for Debian and Rocky with a whoami
@@ -38,3 +38,36 @@ running nginx.
 2. A broken snippet leaves the running configuration untouched and reports the line.
 3. Upstream targets pointing at link-local, metadata or the core's own socket are refused.
 4. Golden-file tests pin the rendered configuration for each option.
+
+## Implementation notes
+
+Desktop and UI (T9, plus the SSL tab of E11 T6):
+
+- Main process: `main/deploy/sites/` (calls on the lasting core link, site log feeds) and the IPC
+  groups `deploySites` and `deployCerts` (`main/ipc/deploySites.ts`), main window only, with every
+  argument checked for shape and size before the core sees it. The core judges what values mean
+  and answers with problems tied to fields, which the editor shows next to the field and on its tab.
+- Renderer: `components/deploy/sites/`, a Websites section per server: nginx setup or adoption,
+  sites as route maps (domain with lock and days left, nginx chips, upstream; each stop opens its
+  tab), a tabbed site editor, stream proxies, and an Apply bar whose problems link to their field.
+  Saving only stores a site; Apply puts every saved change live, with a busy state while nginx -t
+  and the reload run. Custom snippets are Owner only, edited in Monaco with refused lines marked,
+  and shown as a diff before saving; Monaco loads only when the Advanced tab opens.
+- Deviation: the preload method for applying is `deploySites.applyChanges`, not `apply` (the
+  channel is still `deploySites:apply`). The renderer tests' bridge is a callable Proxy, so a
+  method named `apply` resolves to `Function.prototype.apply`; the same goes for `call` and `bind`.
+- Site logs have their own subscription registry (`SiteLogSubscriptions`) and a second
+  `subscriptionOwners` instance in `main/deploy/index.ts`, so each window's logs end with it
+  without widening `DeploySubscriptions`.
+- Site logs have no cursor in the contract, so a stream opened again after a drop starts with the
+  last lines once more and is marked `reset`: the window replaces what it shows instead of showing
+  lines twice. A rotated file arrives marked the same way, and the view says it was rotated.
+- The fake core (`shared/deploy/testing/fakeNginx.ts`) answers every nginx and certificate call
+  with the core's role rules, for main and renderer tests.
+- No visual pass in both themes yet: states are asserted through the DOM, and the e2e spec
+  `deploySites.e2e.ts` covers the DevHost flow (set up nginx, add a site, apply, issue a
+  certificate and see it live) against the simulated nginx.
+
+Acceptance criteria from the desktop side: none of AC1 to AC4 is exercised by the desktop work;
+they belong to the core and its harness. The DevHost run uses simulated nginx, not a real
+`nginx -t`.

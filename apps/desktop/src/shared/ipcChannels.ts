@@ -661,6 +661,32 @@ export const IPC = {
     /** main -> the window that asked: DeployAlertsEvent, alerts in revision order. */
     onChanged: 'deployAlerts:onChanged',
   },
+  /** A server's websites (E10): nginx itself, sites, stream proxies, applying, and site logs. */
+  deploySites: {
+    status: 'deploySites:status',
+    list: 'deploySites:list',
+    listStreams: 'deploySites:listStreams',
+    install: 'deploySites:install',
+    save: 'deploySites:save',
+    remove: 'deploySites:remove',
+    saveStream: 'deploySites:saveStream',
+    removeStream: 'deploySites:removeStream',
+    apply: 'deploySites:apply',
+    setSnippets: 'deploySites:setSnippets',
+    /** (DeploySiteLogWatchInput) -> subscription id; lines arrive on onLog. */
+    watchLog: 'deploySites:watchLog',
+    unwatchLog: 'deploySites:unwatchLog',
+    /** main -> the window that asked: DeploySiteLogEvent, new lines of a site's log. */
+    onLog: 'deploySites:onLog',
+  },
+  /** A server's certificates (E11): Let's Encrypt orders and renewals, uploads and removal. */
+  deployCerts: {
+    list: 'deployCerts:list',
+    issue: 'deployCerts:issue',
+    renew: 'deployCerts:renew',
+    upload: 'deployCerts:upload',
+    remove: 'deployCerts:remove',
+  },
   /**
    * A server's host firewall (E13): status, presets, change history and exposure for every role;
    * preview, apply (safe apply: confirm over a new SSH connection, or it rolls back) for Admins.

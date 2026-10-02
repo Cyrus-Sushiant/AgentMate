@@ -170,6 +170,12 @@ export default defineConfig({
           functions: 85,
           branches: 80,
         },
+        // A server's websites and certificates: nginx, sites, applying, site logs, Let's Encrypt.
+        'src/main/deploy/sites/**': { lines: 95, branches: 85 },
+        'src/main/ipc/deploySites.ts': { lines: 95, branches: 90 },
+        'src/main/ipc/deploySitesInput.ts': { lines: 95, branches: 90 },
+        'src/renderer/src/components/deploy/sites/**': { lines: 90, functions: 80, branches: 80 },
+        'src/renderer/src/lib/deploy/sites/**': { lines: 95, branches: 90 },
         'src/renderer/src/pages/DeployPage.tsx': { lines: 85, functions: 75, branches: 75 },
         // The firewall (E13): safe apply, the rule checks and its screen.
         'src/main/deploy/firewall.ts': { lines: 95, branches: 85 },

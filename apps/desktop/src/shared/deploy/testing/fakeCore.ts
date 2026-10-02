@@ -15,6 +15,7 @@ import type {
 import { FakeCoreConnection } from './fakeCoreConnection';
 import { metricsSample, sampleServices, sampleSystemInfo, sampleUpdates } from './fakeCoreData';
 import { FakeFirewall } from './fakeFirewall';
+import { FakeNginx } from './fakeNginx';
 
 /**
  * A server core in memory for tests (T11): the machine behind the hub. Tests move it along by
@@ -71,6 +72,17 @@ export class FakeCore {
   system: SystemInfo = sampleSystemInfo();
   services: ServiceInfo[] = sampleServices();
   updates: UpdatesInfo = sampleUpdates();
+  /** nginx, its sites and certificates (E10, E11). */
+  readonly nginx: FakeNginx = new FakeNginx({
+    now: () => this.now(),
+    startJob: (kind, title, options) => this.startJob(kind, title, options),
+    finishJob: (jobId, state) => this.finishJob(jobId, state),
+    deliverSiteLog: (siteId, kind, lines, reset) => {
+      for (const connection of this.openConnections) {
+        connection.deliverSiteLog(siteId, kind, lines, reset);
+      }
+    },
+  });
   private revision = 0;
   private sampled = 0;
   private jobCount = 0;
