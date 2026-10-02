@@ -35,6 +35,17 @@ describe('sshTerminalAdapter', () => {
     });
   });
 
+  it('passes the input to type once the shell opens', async () => {
+    // A resumed conversation types its resume command into the fresh shell.
+    await sshTerminalAdapter('server-1').create({
+      sessionId: 's1',
+      initialInput: 'claude --resume abc-12345\r',
+    });
+    expect(bridge.$fn('ssh.create')).toHaveBeenCalledWith(
+      expect.objectContaining({ initialInput: 'claude --resume abc-12345\r' }),
+    );
+  });
+
   it('strips Electron is IPC boilerplate off a connect failure', async () => {
     // What is left is the line shown in the terminal pane, so it has to be the real reason.
     bridge = installAgentmatBridge({

@@ -1,7 +1,13 @@
 import { randomUUID } from 'node:crypto';
 import type { Duplex } from 'node:stream';
 import { StringDecoder } from 'node:string_decoder';
-import { Client, type ClientChannel, type SFTPWrapper } from 'ssh2';
+import {
+  Client,
+  type ClientChannel,
+  type FileEntryWithStats,
+  type SFTPWrapper,
+  type Stats,
+} from 'ssh2';
 import { buildConnectConfig, friendlyConnectError, type SshEndpoint } from './connectConfig';
 
 /**
@@ -38,6 +44,20 @@ export interface ExecResult {
 
 export type TunnelTarget = { socketPath: string } | { host: string; port: number };
 
+/** One entry of an SFTP folder listing. A link counts as whatever it points at. */
+export interface SftpEntry {
+  name: string;
+  isDirectory: boolean;
+  isFile: boolean;
+  size: number;
+  mtimeMs: number;
+}
+
+export interface SftpOptions {
+  /** How long the whole operation may take before it is given up on. */
+  timeoutMs?: number;
+}
+
 export interface UploadOptions {
   mode?: number;
   onProgress?: (sentBytes: number, totalBytes: number) => void;
@@ -64,6 +84,7 @@ const DEFAULT_TIMEOUT_MS = 5 * 60_000;
 const OPEN_TIMEOUT_MS = 30_000;
 const DEFAULT_MAX_OUTPUT_BYTES = 4 * 1024 * 1024;
 const UPLOAD_CHUNK_BYTES = 32 * 1024;
+const SFTP_TIMEOUT_MS = 30_000;
 /** What `mktemp -d -t agentmate.XXXXXXXXXX` prints: an absolute path ending in that name. */
 const STAGING_DIRECTORY = /^\/[^\s'"]*\/agentmate\.[A-Za-z0-9]{6,}$/;
 const TRUNCATED = '\n[output truncated]\n';
@@ -108,6 +129,24 @@ function seconds(ms: number): string {
 
 function describeTarget(target: TunnelTarget): string {
   return 'socketPath' in target ? target.socketPath : `${target.host}:${target.port}`;
+}
+
+/** An SFTP callback as a promise. */
+function sftpCall<T>(start: (done: (error: Error | null | undefined, value: T) => void) => void) {
+  return new Promise<T>((resolve, reject) => {
+    start((error, value) => (error ? reject(error) : resolve(value)));
+  });
+}
+
+function toEntry(name: string, attrs: Stats): SftpEntry {
+  return {
+    name,
+    isDirectory: attrs.isDirectory(),
+    isFile: attrs.isFile(),
+    size: attrs.size ?? 0,
+    // SFTP version 3 only has whole seconds.
+    mtimeMs: (attrs.mtime ?? 0) * 1000,
+  };
 }
 
 export class SshConnection {
@@ -349,6 +388,70 @@ export class SshConnection {
     return path;
   }
 
+  /**
+   * A folder's entries with their size and mtime, read over SFTP as the login user. Links are
+   * followed, and one that leads nowhere is left out. Rejects when the folder is missing.
+   */
+  sftpList(dir: string, options: SftpOptions = {}): Promise<SftpEntry[]> {
+    return this.sftpOp(`Listing ${dir}`, options, async (sftp) => {
+      const list = await sftpCall<FileEntryWithStats[]>((done) => sftp.readdir(dir, done));
+      const entries = await Promise.all(
+        list.map(async ({ filename, attrs }): Promise<SftpEntry | null> => {
+          if (!attrs.isSymbolicLink()) return toEntry(filename, attrs);
+          const path = `${dir.replace(/\/+$/, '')}/${filename}`;
+          try {
+            return toEntry(filename, await sftpCall<Stats>((done) => sftp.stat(path, done)));
+          } catch {
+            return null;
+          }
+        }),
+      );
+      return entries.filter((entry): entry is SftpEntry => entry !== null);
+    });
+  }
+
+  /**
+   * Up to `length` bytes of a file from `start`. Fewer come back when the file ends sooner,
+   * including a file that shrank since it was listed.
+   */
+  sftpReadRange(
+    path: string,
+    start: number,
+    length: number,
+    options: SftpOptions = {},
+  ): Promise<Buffer> {
+    return this.sftpOp(`Reading ${path}`, options, async (sftp) => {
+      const handle = await sftpCall<Buffer>((done) => sftp.open(path, 'r', done));
+      try {
+        const buffer = Buffer.alloc(length);
+        let filled = 0;
+        while (filled < length) {
+          // ssh2 splits a read bigger than the server's limit and reports the end of the file
+          // as zero bytes, so a short answer only means "go on from here".
+          const bytes = await sftpCall<number>((done) =>
+            sftp.read(handle, buffer, filled, length - filled, start + filled, done),
+          );
+          if (!bytes) break;
+          filled += bytes;
+        }
+        return buffer.subarray(0, filled);
+      } finally {
+        if (this.isOpen) {
+          await this.untilClosed(
+            new Promise<void>((resolve) => sftp.close(handle, () => resolve())),
+          ).catch(() => undefined);
+        }
+      }
+    });
+  }
+
+  /** The absolute form of `path` on the server. `.` is the login user's home folder. */
+  sftpRealpath(path: string, options: SftpOptions = {}): Promise<string> {
+    return this.sftpOp(`Resolving ${path}`, options, (sftp) =>
+      sftpCall<string>((done) => sftp.realpath(path, done)),
+    );
+  }
+
   close(): void {
     if (this.closed) return;
     this.markClosed();
@@ -395,11 +498,50 @@ export class SshConnection {
     );
   }
 
+  /**
+   * Runs one SFTP operation against its own deadline. The closed signal only covers a connection
+   * that ends; a server that stops answering one request would otherwise hang it forever.
+   */
+  private async sftpOp<T>(
+    what: string,
+    options: SftpOptions,
+    work: (sftp: SFTPWrapper) => Promise<T>,
+  ): Promise<T> {
+    const timeoutMs = options.timeoutMs ?? SFTP_TIMEOUT_MS;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const deadline = new Promise<never>((_resolve, reject) => {
+      timer = setTimeout(
+        () =>
+          reject(
+            new Error(
+              `${what} on ${this.endpoint.host} did not answer within ${seconds(timeoutMs)}.`,
+            ),
+          ),
+        timeoutMs,
+      );
+    });
+    try {
+      return await Promise.race([
+        this.untilClosed(this.sftp().then((sftp) => work(sftp))),
+        deadline,
+      ]);
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
   private sftp(): Promise<SFTPWrapper> {
     this.assertOpen();
-    this.sftpSession ??= new Promise((resolve, reject) => {
-      this.client.sftp((error, session) => (error ? reject(error) : resolve(session)));
-    });
+    if (!this.sftpSession) {
+      const session = new Promise<SFTPWrapper>((resolve, reject) => {
+        this.client.sftp((error, sftp) => (error ? reject(error) : resolve(sftp)));
+      });
+      this.sftpSession = session;
+      // A failed start is not kept: the connection is shared, so the next caller tries again.
+      session.catch(() => {
+        if (this.sftpSession === session) this.sftpSession = null;
+      });
+    }
     return this.sftpSession;
   }
 

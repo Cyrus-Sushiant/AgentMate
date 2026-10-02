@@ -1,4 +1,5 @@
 import type {
+  AgentHistorySession,
   AgentStatus,
   AgentType,
   AiProvider,
@@ -1922,10 +1923,21 @@ export interface CreateSshSessionOptions {
   savedServerId: string;
   cols?: number;
   rows?: number;
+  /** Typed into the shell once it opens, e.g. a command that resumes an agent conversation. */
+  initialInput?: string;
 }
 
 export interface SshAttachResult {
   sessionId: string;
+}
+
+/** Every Claude Code and Codex conversation stored on a saved server, newest first. */
+export interface SshConversationsResult {
+  sessions: AgentHistorySession[];
+  /** The login user's home folder on the server, or null when it could not be found. */
+  home: string | null;
+  /** Which agent CLIs the server has, so resuming can be offered only where it can work. */
+  clis: { claude: boolean; codex: boolean };
 }
 
 export interface SshVaultStatus {

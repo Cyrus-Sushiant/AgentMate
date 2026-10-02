@@ -128,6 +128,8 @@ export const queryKeys = {
   sshServers: ['ssh-servers'] as const,
   /** A terminal's AI task history, refetched as the running task reports progress. */
   sshAgentHistory: (sessionId: string) => ['ssh-agent-history', sessionId] as const,
+  /** The Claude Code and Codex conversations stored on a saved server. */
+  sshConversations: (serverId: string) => ['ssh-conversations', serverId] as const,
   sshVaultStatus: ['ssh-vault-status'] as const,
   rdpServers: ['rdp-servers'] as const,
   projectEnvironments: (projectId: string) => ['project-environments', projectId] as const,

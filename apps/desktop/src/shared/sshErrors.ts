@@ -2,12 +2,18 @@
  * SSH failures the renderer has to react to, rather than just show. Electron only carries an
  * error's message across IPC, so the code rides inside it, as with the Vault's errors.
  */
-export type SshErrorCode = 'host-key-changed' | 'sudo-password-required' | 'sudo-password-rejected';
+export type SshErrorCode =
+  | 'host-key-changed'
+  | 'sudo-password-required'
+  | 'sudo-password-rejected'
+  /** The Servers vault holds the server's secret and has to be unlocked with its passkey. */
+  | 'vault-locked';
 
 const CODES: ReadonlySet<string> = new Set<SshErrorCode>([
   'host-key-changed',
   'sudo-password-required',
   'sudo-password-rejected',
+  'vault-locked',
 ]);
 const CODE = /\[ssh:([a-z-]+)\]\s*/;
 const REMOTE_PREFIX = /^Error invoking remote method '[^']+': (?:\w*Error: )?/;

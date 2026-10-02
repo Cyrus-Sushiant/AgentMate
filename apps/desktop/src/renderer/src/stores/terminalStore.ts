@@ -15,6 +15,8 @@ export interface TerminalSessionMeta {
   /** Defaults to 'local'. An 'ssh' session connects to a saved server instead of spawning a shell. */
   kind?: 'local' | 'ssh' | 'container';
   sshServerId?: string;
+  /** The agent conversation this tab resumed, so opening it again goes back to this tab. */
+  conversationId?: string;
   /**
    * For a 'container' session: a console in a container on a server with the core (Deploy).
    * These panes live inside the Containers screen and are never put in the store.
@@ -29,6 +31,12 @@ export interface TerminalSessionMeta {
   restored?: boolean;
 }
 
+export interface SshSessionExtras {
+  title?: string;
+  initialInput?: string;
+  conversationId?: string;
+}
+
 interface TerminalState {
   isOpen: boolean;
   drawerHeight: number;
@@ -40,8 +48,13 @@ interface TerminalState {
   setDrawerHeight: (height: number) => void;
   openSession: (meta: Omit<TerminalSessionMeta, 'id'> & { id?: string }) => string;
   openDefaultSession: () => string;
-  /** Opens a new tab connected to a saved SSH server. */
-  openSshSession: (server: SshSavedServer) => string;
+  /**
+   * Opens a new tab connected to a saved SSH server. `extras` names the tab, gives it a command
+   * to type once the shell opens, and records the conversation that command resumes.
+   */
+  openSshSession: (server: SshSavedServer, extras?: SshSessionExtras) => string;
+  /** The open SSH tab resuming this conversation on this server, if there is one. */
+  findSshConversationTab: (serverId: string, conversationId: string) => string | null;
   /** Closes the tab and ends its shell. */
   closeSession: (id: string) => void;
   /** Drops the tab of a shell that has already ended. */
@@ -97,6 +110,7 @@ export const useTerminalStore = create<TerminalState>()(
           projectId: meta.projectId,
           kind: meta.kind,
           sshServerId: meta.sshServerId,
+          conversationId: meta.conversationId,
         };
         set((state) => ({
           sessions: [...state.sessions, session],
@@ -113,8 +127,19 @@ export const useTerminalStore = create<TerminalState>()(
           shell: next.shell,
         });
       },
-      openSshSession: (server) =>
-        get().openSession({ title: server.nickname, kind: 'ssh', sshServerId: server.id }),
+      openSshSession: (server, extras = {}) =>
+        get().openSession({
+          title: extras.title ?? server.nickname,
+          kind: 'ssh',
+          sshServerId: server.id,
+          initialInput: extras.initialInput,
+          conversationId: extras.conversationId,
+        }),
+      findSshConversationTab: (serverId, conversationId) =>
+        get().sessions.find(
+          (s) =>
+            s.kind === 'ssh' && s.sshServerId === serverId && s.conversationId === conversationId,
+        )?.id ?? null,
       closeSession: (id) => {
         // Ending the shell lives here rather than in the pane's unmount, because a pane
         // also unmounts when the app reloads or React re-runs its effects, and neither of

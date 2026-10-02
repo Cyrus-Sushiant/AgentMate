@@ -234,6 +234,7 @@ import type {
   SshAgentHistoryRun,
   SshAgentProgress,
   SshAttachResult,
+  SshConversationsResult,
   SshDataPayload,
   SshExitPayload,
   SshSavedServer,
@@ -513,6 +514,12 @@ const ssh = {
   /** Trusts the key the server presents now, provided it is still `fingerprint`. */
   trustHostKey: (serverId: string, fingerprint: string): Promise<void> =>
     ipcRenderer.invoke(IPC.ssh.trustHostKey, serverId, fingerprint),
+  /**
+   * Every Claude Code and Codex conversation stored on a saved server, read over SFTP. Rejects
+   * with an `sshErrorCode` of 'host-key-changed' or 'vault-locked' when those stand in the way.
+   */
+  conversations: (serverId: string): Promise<SshConversationsResult> =>
+    ipcRenderer.invoke(IPC.ssh.conversations, serverId),
   /** Starts a shell for a saved server, or reconnects when `sessionId` names one still running. */
   create: (options: CreateSshSessionOptions): Promise<SshAttachResult> =>
     ipcRenderer.invoke(IPC.ssh.create, options),

@@ -1,7 +1,7 @@
 import type { SshSavedServer } from '@shared/apiTypes';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { Link, Pencil, Plus, Server, Trash2 } from '@/components/icons';
+import { History, Link, Pencil, Plus, Server, Trash2 } from '@/components/icons';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { SimpleTooltip } from '@/components/ui/tooltip';
@@ -10,8 +10,11 @@ import { timeAgo } from '@/lib/time';
 import { confirmDialog } from '@/stores/confirmStore';
 import { useTerminalStore } from '@/stores/terminalStore';
 import { ServersVaultControls } from './ServersVaultControls';
+import { SshHistoryPanel } from './SshHistoryPanel';
 import { SshServerFormDialog } from './SshServerFormDialog';
 import { SshVaultUnlockDialog } from './SshVaultUnlockDialog';
+
+type ServerAction = 'connect' | 'history';
 
 function authMethodLabel(server: SshSavedServer): string {
   return server.authMethod === 'password' ? 'Password' : 'Private key';
@@ -20,11 +23,13 @@ function authMethodLabel(server: SshSavedServer): string {
 function SavedSshServerRow({
   server,
   onConnect,
+  onHistory,
   onEdit,
   onRemoved,
 }: {
   server: SshSavedServer;
   onConnect: (server: SshSavedServer) => Promise<void>;
+  onHistory: (server: SshSavedServer) => Promise<void>;
   onEdit: (server: SshSavedServer) => void;
   onRemoved: () => void;
 }): React.JSX.Element {
@@ -69,6 +74,16 @@ function SavedSshServerRow({
             : ''}
         </p>
       </div>
+      <SimpleTooltip label="AI history on this server">
+        <Button
+          size="icon"
+          variant="ghost"
+          aria-label="AI history on this server"
+          onClick={() => void onHistory(server)}
+        >
+          <History className="h-3.5 w-3.5" />
+        </Button>
+      </SimpleTooltip>
       <Button size="sm" onClick={() => void connect()} disabled={connecting}>
         <Link className="h-3.5 w-3.5" /> {connecting ? 'Connecting…' : 'Connect'}
       </Button>
@@ -93,7 +108,12 @@ export function SshServersPanel(): React.JSX.Element {
   const [editing, setEditing] = useState<SshSavedServer | undefined>(undefined);
   const [unlockOpen, setUnlockOpen] = useState(false);
   const [unlockMode, setUnlockMode] = useState<'unlock' | 'set'>('unlock');
-  const [pendingConnect, setPendingConnect] = useState<SshSavedServer | null>(null);
+  // What to do with a server once the vault is unlocked: connect to it, or show its history.
+  const [pendingAction, setPendingAction] = useState<{
+    server: SshSavedServer;
+    action: ServerAction;
+  } | null>(null);
+  const [historyServer, setHistoryServer] = useState<SshSavedServer | null>(null);
 
   const serversQuery = useQuery({
     queryKey: queryKeys.sshServers,
@@ -117,22 +137,37 @@ export function SshServersPanel(): React.JSX.Element {
     setFormOpen(true);
   }
 
-  async function handleConnect(server: SshSavedServer): Promise<void> {
-    const status = await window.agentmat.ssh.vaultStatus();
-    if (status.hasPasskey && !status.unlocked) {
-      setPendingConnect(server);
-      setUnlockMode('unlock');
-      setUnlockOpen(true);
+  function runAction(server: SshSavedServer, action: ServerAction): void {
+    if (action === 'connect') {
+      openSshSession(server);
       return;
     }
-    openSshSession(server);
+    setHistoryServer(server);
+    // Coming back from an unlock the panel may hold a vault-locked error; read again.
+    void queryClient.invalidateQueries({ queryKey: queryKeys.sshConversations(server.id) });
+  }
+
+  function askToUnlock(server: SshSavedServer, action: ServerAction): void {
+    setPendingAction({ server, action });
+    setUnlockMode('unlock');
+    setUnlockOpen(true);
+  }
+
+  /** Both actions read the server's stored secret, so a locked vault asks for its passkey first. */
+  async function withUnlockedVault(server: SshSavedServer, action: ServerAction): Promise<void> {
+    const status = await window.agentmat.ssh.vaultStatus();
+    if (status.hasPasskey && !status.unlocked) {
+      askToUnlock(server, action);
+      return;
+    }
+    runAction(server, action);
   }
 
   function handleUnlocked(): void {
     void refreshVault();
-    if (pendingConnect) {
-      openSshSession(pendingConnect);
-      setPendingConnect(null);
+    if (pendingAction) {
+      runAction(pendingAction.server, pendingAction.action);
+      setPendingAction(null);
     }
   }
 
@@ -180,7 +215,8 @@ export function SshServersPanel(): React.JSX.Element {
                 <SavedSshServerRow
                   key={server.id}
                   server={server}
-                  onConnect={handleConnect}
+                  onConnect={(s) => withUnlockedVault(s, 'connect')}
+                  onHistory={(s) => withUnlockedVault(s, 'history')}
                   onEdit={openEdit}
                   onRemoved={() => void refreshServers()}
                 />
@@ -198,9 +234,23 @@ export function SshServersPanel(): React.JSX.Element {
       />
       <SshVaultUnlockDialog
         open={unlockOpen}
-        onOpenChange={setUnlockOpen}
+        onOpenChange={(open) => {
+          setUnlockOpen(open);
+          // Backing out drops the action, so a later unlock from the header doesn't run it.
+          // `handleUnlocked` still sees it: it reads this render's value.
+          if (!open) setPendingAction(null);
+        }}
         mode={unlockMode}
         onUnlocked={handleUnlocked}
+      />
+      <SshHistoryPanel
+        server={historyServer}
+        onOpenChange={(open) => {
+          if (!open) setHistoryServer(null);
+        }}
+        onRequestUnlock={() => {
+          if (historyServer) askToUnlock(historyServer, 'history');
+        }}
       />
     </div>
   );

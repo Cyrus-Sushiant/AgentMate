@@ -51,6 +51,7 @@ export function sshTerminalAdapter(sshServerId: string): {
             savedServerId: sshServerId,
             cols: options.cols,
             rows: options.rows,
+            initialInput: options.initialInput,
           }),
         );
         return { sessionId: result.sessionId, isNew: true, snapshot: null };

@@ -1,10 +1,18 @@
-import { readFileSync } from 'node:fs';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { readFileSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { StoredSshServer } from '../../shared/apiTypes';
 import { IPC } from '../../shared/ipcChannels';
+import { sshErrorCode } from '../../shared/sshErrors';
 import type { SshHostKeyStatus } from '../../shared/sshHostKey';
-import { invoke, loadIpc, useTempUserData } from '../../test/main/ipcHarness';
-import { type FakeSshServer, startFakeSshServer } from '../ssh/testing/fakeSshServer';
+import { fakeWebContents } from '../../test/main/electronMock';
+import { tempDir } from '../../test/main/fixtures';
+import { invoke, invokeFrom, loadIpc, useTempUserData } from '../../test/main/ipcHarness';
+import {
+  type FakeSshServer,
+  generateClientKey,
+  startFakeSshServer,
+} from '../ssh/testing/fakeSshServer';
 
 /**
  * Trusting a changed host key is a security decision, so it is explicit: the renderer shows both
@@ -14,6 +22,7 @@ import { type FakeSshServer, startFakeSshServer } from '../ssh/testing/fakeSshSe
 
 const userData = useTempUserData();
 let server: FakeSshServer;
+let ssh: typeof import('./ssh');
 
 function saved(overrides: Partial<StoredSshServer> = {}): StoredSshServer {
   return {
@@ -35,13 +44,14 @@ function storedServers(): StoredSshServer[] {
 
 beforeEach(async () => {
   server = await startFakeSshServer();
-  await loadIpc(
+  ssh = await loadIpc(
     () => import('./ssh'),
     (module) => module.registerSshHandlers(),
   );
 });
 
 afterEach(async () => {
+  ssh.killAllSshSessions();
   await server.close();
 });
 
@@ -136,5 +146,68 @@ describe('ssh:saveServer and the trusted key', () => {
     });
 
     expect(storedServers()[0].hostKeyFingerprint).toBeUndefined();
+  });
+});
+
+describe('ssh:create', () => {
+  it('types the initial input into the new shell', async () => {
+    // A resumed conversation opens as an SSH tab that types its own resume command.
+    const key = generateClientKey();
+    await server.close();
+    server = await startFakeSshServer({ authorizedKey: key.publicKey });
+    const keyPath = join(tempDir(), 'id_ed25519');
+    writeFileSync(keyPath, key.privateKey);
+    userData.writeData('ssh-servers.json', [
+      saved({ authMethod: 'privateKey', privateKeyPath: keyPath }),
+    ]);
+    const sender = fakeWebContents();
+
+    await invokeFrom(sender, IPC.ssh.create, {
+      savedServerId: 'srv-1',
+      initialInput: 'claude --resume abc-12345\r',
+    });
+
+    await vi.waitFor(() => {
+      const output = sender
+        .sentOn(IPC.ssh.onData)
+        .map((args) => (args[0] as { data: string }).data)
+        .join('');
+      expect(output).toContain('claude --resume abc-12345');
+    });
+  });
+});
+
+describe('ssh:conversations', () => {
+  it.each([[42], [null], ['']])('refuses %j as a server id', async (value) => {
+    await expect(invoke(IPC.ssh.conversations, value)).rejects.toThrow(/not a saved server/);
+  });
+
+  it('refuses a server id it does not know', async () => {
+    userData.writeData('ssh-servers.json', [saved()]);
+
+    await expect(invoke(IPC.ssh.conversations, 'srv-gone')).rejects.toThrow(
+      'This saved server no longer exists.',
+    );
+  });
+
+  it('keeps the code of a changed host key, so the renderer can offer to check it', async () => {
+    userData.writeData('ssh-servers.json', [saved({ hostKeyFingerprint: 'ab'.repeat(32) })]);
+
+    await expect(invoke(IPC.ssh.conversations, 'srv-1')).rejects.toSatisfy(
+      (error) => sshErrorCode(error) === 'host-key-changed',
+    );
+  });
+
+  it('marks a locked Servers vault, so the renderer can ask for the passkey', async () => {
+    const vault = await import('../ssh/vault');
+    expect((await vault.setPasskey('a servers passkey')).ok).toBe(true);
+    userData.writeData('ssh-servers.json', [
+      saved({ secretEnvelope: await vault.encryptSecret('the login password') }),
+    ]);
+    vault.lockVault();
+
+    await expect(invoke(IPC.ssh.conversations, 'srv-1')).rejects.toSatisfy(
+      (error) => sshErrorCode(error) === 'vault-locked',
+    );
   });
 });

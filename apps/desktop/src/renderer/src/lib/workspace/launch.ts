@@ -3,14 +3,17 @@ import {
   type AgentHistoryProvider,
   type AgentHistorySession,
   buildAgentLaunchCommand,
+  type CliLaunchDefault,
   getCliDefinition,
   type Project,
+  quoteForShell,
   shellKindFor,
 } from '@agentmat/core';
+import type { SshSavedServer } from '@shared/apiTypes';
 import { toast } from 'sonner';
 import { terminalRuntime } from '@/lib/terminal/terminalRuntime';
 import { useCliStore } from '@/stores/cliStore';
-import { defaultNewSession } from '@/stores/terminalStore';
+import { defaultNewSession, useTerminalStore } from '@/stores/terminalStore';
 import { useWorkspaceStore, type WorkspaceTerminalTab } from '@/stores/workspaceStore';
 
 export interface ShellOption {
@@ -229,6 +232,73 @@ export function launchResumeTab(
     },
     groupId,
   );
+}
+
+/**
+ * The line an SSH tab types to pick up a conversation stored on that server: a `cd` into the
+ * folder it ran in (when known), then the resume command with the user's launch defaults. It runs
+ * in the server's shell, so it is quoted for POSIX. Status hooks are left out: their settings
+ * file lives on this machine, not on the server.
+ */
+export function remoteResumeCommand(
+  session: Pick<AgentHistorySession, 'provider' | 'id' | 'cwd'>,
+  launchDefaults?: CliLaunchDefault,
+): string | null {
+  const resume =
+    session.provider === 'codex'
+      ? { leadingArgs: ['resume', session.id] }
+      : { runArgs: ['--resume', session.id] };
+  const command = buildAgentLaunchCommand({
+    cliId: HISTORY_CLI_ID[session.provider],
+    shellKind: 'posix',
+    launchDefaults,
+    hookSettingsPath: null,
+    ...resume,
+  });
+  if (!command) return null;
+  return session.cwd
+    ? `cd -- ${quoteForShell(session.cwd, 'posix')} && ${command}\r`
+    : `${command}\r`;
+}
+
+/** How much of a conversation's title or first prompt fits on a remote resume tab. */
+const REMOTE_RESUME_LABEL_MAX = 40;
+
+/**
+ * Picks up a conversation stored on a saved server in an SSH tab of the terminal drawer. A tab
+ * already resuming it on that server is brought back instead of opening a second one. Returns
+ * the tab id.
+ */
+export function openRemoteResume(
+  server: SshSavedServer,
+  session: AgentHistorySession,
+): string | null {
+  const terminal = useTerminalStore.getState();
+  const existing = terminal.findSshConversationTab(server.id, session.id);
+  if (existing) {
+    terminal.setActiveSession(existing);
+    terminal.openDrawer();
+    return existing;
+  }
+  const cliId = HISTORY_CLI_ID[session.provider];
+  const initialInput = remoteResumeCommand(
+    session,
+    useCliStore.getState().cliLaunchDefaults[cliId],
+  );
+  if (!initialInput) {
+    toast.error('Unknown CLI.');
+    return null;
+  }
+  const label = session.title ?? session.firstPrompt;
+  const short =
+    label && label.length > REMOTE_RESUME_LABEL_MAX
+      ? `${label.slice(0, REMOTE_RESUME_LABEL_MAX - 1)}…`
+      : label;
+  return terminal.openSshSession(server, {
+    title: short ? `${server.nickname} · ${short}` : server.nickname,
+    initialInput,
+    conversationId: session.id,
+  });
 }
 
 /** The conversation a resume command picks up (`claude --resume <id>`, `codex resume <id>`). */

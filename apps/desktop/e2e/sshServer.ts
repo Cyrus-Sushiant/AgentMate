@@ -11,6 +11,8 @@ export const SSH_PASSWORD = 's3cret-pw';
 export interface SshTestServer {
   host: string;
   port: number;
+  /** The container's name, for tests that set files up with `docker exec`. */
+  name: string;
   stop: () => void;
 }
 
@@ -28,6 +30,33 @@ export function dockerAvailable(): boolean {
   } catch {
     return false;
   }
+}
+
+/**
+ * Runs a shell command in the server's container, as the login user unless `user` says otherwise,
+ * with `input` on its stdin. Extra `args` arrive as $1, $2 and so on, so paths need no quoting.
+ */
+export function serverExec(
+  server: SshTestServer,
+  command: string,
+  options: { user?: string; input?: string; args?: string[] } = {},
+): string {
+  return execFileSync(
+    'docker',
+    [
+      'exec',
+      '-i',
+      '-u',
+      options.user ?? SSH_USER,
+      server.name,
+      'sh',
+      '-c',
+      command,
+      'sh',
+      ...(options.args ?? []),
+    ],
+    { encoding: 'utf-8', timeout: 30_000, input: options.input ?? '', stdio: 'pipe' },
+  ).trim();
 }
 
 /** Resolves once sshd answers with its version banner, which it only sends when it's ready. */
@@ -83,7 +112,7 @@ export async function startSshServer(): Promise<SshTestServer> {
     const mapping = docker(['port', name, '22/tcp']).split(/\r?\n/)[0];
     const port = Number(mapping.slice(mapping.lastIndexOf(':') + 1));
     await waitForBanner('127.0.0.1', port, Date.now() + 30_000);
-    return { host: '127.0.0.1', port, stop };
+    return { host: '127.0.0.1', port, name, stop };
   } catch (error) {
     stop();
     throw error;

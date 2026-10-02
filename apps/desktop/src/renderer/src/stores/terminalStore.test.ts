@@ -122,6 +122,40 @@ describe('openSshSession', () => {
       sshServerId: 'srv-1',
     });
   });
+
+  it('takes a title, a command to type and the conversation it resumes', () => {
+    const id = store().openSshSession(server, {
+      title: 'build box · Fix the tests',
+      initialInput: 'claude --resume abc-12345\r',
+      conversationId: 'abc-12345',
+    });
+    expect(store().sessions[0]).toMatchObject({
+      id,
+      title: 'build box · Fix the tests',
+      kind: 'ssh',
+      sshServerId: 'srv-1',
+      initialInput: 'claude --resume abc-12345\r',
+      conversationId: 'abc-12345',
+    });
+    expect(store().activeSessionId).toBe(id);
+    expect(store().isOpen).toBe(true);
+  });
+});
+
+describe('findSshConversationTab', () => {
+  it('finds the SSH tab already resuming a conversation on that server', () => {
+    store().openSshSession(server);
+    const id = store().openSshSession(server, { conversationId: 'abc-12345' });
+    expect(store().findSshConversationTab('srv-1', 'abc-12345')).toBe(id);
+  });
+
+  it('ignores the same conversation on another server, and local tabs', () => {
+    store().openSshSession(server, { conversationId: 'abc-12345' });
+    store().openSession({ title: 'Claude Code', conversationId: 'zzz-12345' });
+    expect(store().findSshConversationTab('srv-2', 'abc-12345')).toBeNull();
+    expect(store().findSshConversationTab('srv-1', 'zzz-12345')).toBeNull();
+    expect(store().findSshConversationTab('srv-1', 'missing')).toBeNull();
+  });
 });
 
 describe('closeSession', () => {
@@ -237,5 +271,15 @@ describe('coming back from a saved drawer', () => {
     const saved = JSON.parse(localStorage.getItem('agentmate-terminal-sessions') ?? '{}');
     expect(saved.state.sessions).toHaveLength(1);
     expect(saved.state.sessions[0].kind).toBeUndefined();
+  });
+
+  it('never saves a resumed SSH tab or the command it typed', () => {
+    store().openSshSession(server, {
+      initialInput: 'claude --resume abc-12345\r',
+      conversationId: 'abc-12345',
+    });
+    const raw = localStorage.getItem('agentmate-terminal-sessions') ?? '{}';
+    expect(JSON.parse(raw).state.sessions).toEqual([]);
+    expect(raw).not.toContain('--resume');
   });
 });

@@ -37,6 +37,12 @@ describe('ssh error codes', () => {
     expect(sshErrorMessage(encodeSshError('sudo-password-rejected', 'No.'))).toBe('No.');
   });
 
+  it('carries a locked Servers vault', () => {
+    const message = encodeSshError('vault-locked', 'The vault is locked.');
+
+    expect(sshErrorCode(new Error(message))).toBe('vault-locked');
+  });
+
   it('ignores codes it does not know', () => {
     expect(sshErrorCode(new Error('[ssh:made-up] nope'))).toBeNull();
   });

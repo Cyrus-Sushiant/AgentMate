@@ -6,12 +6,15 @@ import type {
   CreateSshSessionOptions,
   SaveSshServerInput,
   SshAttachResult,
+  SshConversationsResult,
   SshSavedServer,
   SshVaultStatus,
   StoredSshServer,
 } from '../../shared/apiTypes';
 import { IPC } from '../../shared/ipcChannels';
+import { encodeSshError } from '../../shared/sshErrors';
 import { isHostKeyFingerprint, type SshHostKeyStatus } from '../../shared/sshHostKey';
+import { listRemoteAgentHistory } from '../agents/remoteSessionHistory';
 import { keepAwake } from '../power/keepAwake';
 import { probeHostKey } from '../ssh/connectConfig';
 import { findSavedServer, updateSshServer } from '../ssh/savedServers';
@@ -23,6 +26,7 @@ import {
   setPasskey,
   unlockVault,
 } from '../ssh/vault';
+import { VaultLockedError } from '../ssh/vaultErrors';
 import { store } from '../store';
 import { sendToContents } from './send';
 
@@ -256,6 +260,7 @@ export function registerSshHandlers(): void {
             storedFingerprint: server.hostKeyFingerprint,
             cols: options.cols,
             rows: options.rows,
+            initialInput: options.initialInput,
           },
           {
             onData: forwardData,
@@ -309,6 +314,25 @@ export function registerSshHandlers(): void {
         );
       }
       await updateSshServer(server.id, (s) => ({ ...s, hostKeyFingerprint: fingerprint }));
+    },
+  );
+
+  ipcMain.handle(
+    IPC.ssh.conversations,
+    async (_event, serverId: unknown): Promise<SshConversationsResult> => {
+      if (typeof serverId !== 'string' || !serverId) {
+        throw new Error('That is not a saved server.');
+      }
+      try {
+        return await listRemoteAgentHistory(serverId);
+      } catch (error) {
+        // A changed host key already carries its code; a locked vault gets one here, so the
+        // renderer can ask for the passkey instead of just showing the message.
+        if (error instanceof VaultLockedError) {
+          throw new Error(encodeSshError('vault-locked', error.message));
+        }
+        throw error;
+      }
     },
   );
 

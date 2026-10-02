@@ -15,8 +15,7 @@ import { resolveProjectEnvironment } from '../ipc/environments';
 import { broadcastToWindows, sendToWindow } from '../ipc/send';
 import { getMainWindow } from '../mainWindow';
 import { showOsNotification } from '../notifications/osNotification';
-import { SshConnectionPool } from '../ssh/pool';
-import { savedServerPoolSource } from '../ssh/savedServers';
+import { getSshPool } from '../ssh/sharedPool';
 import {
   decryptSecret,
   encryptSecret,
@@ -141,7 +140,7 @@ function devCorePort(): number | null {
 }
 
 export function registerDeployIpc(): void {
-  const pool = new SshConnectionPool(savedServerPoolSource);
+  const pool = getSshPool();
   const source = app.isPackaged ? packagedSource() : developmentSource();
   const state = new DeployState(jsonFilePort(join(app.getPath('userData'), 'data', 'deploy.json')));
   // Device keys are sealed with the Servers vault, so they move with a passkey change.

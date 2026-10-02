@@ -74,6 +74,8 @@ export const IPC = {
     hostKeyStatus: 'ssh:hostKeyStatus',
     // (serverId, fingerprint): trusts the presented key, provided it is still that fingerprint
     trustHostKey: 'ssh:trustHostKey',
+    // (serverId) -> SshConversationsResult: every Claude Code and Codex conversation on the server
+    conversations: 'ssh:conversations',
     onData: 'ssh:onData',
     onExit: 'ssh:onExit',
   },

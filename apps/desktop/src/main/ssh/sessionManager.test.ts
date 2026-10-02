@@ -220,4 +220,26 @@ describe('SshSessionManager', () => {
 
     expect(server.shells).toHaveLength(1);
   });
+
+  it('types the initial input once the shell is open, and only once', async () => {
+    server = await startFakeSshServer({ password: PASSWORD });
+    const events = listener();
+    const options = {
+      host: server.host,
+      port: server.port,
+      username: 'deploy',
+      authMethod: 'password' as const,
+      password: PASSWORD,
+      initialInput: 'claude --resume abc-12345\r',
+    };
+
+    await manager.create('s1', options, events);
+    await waitFor(() => events.data.join('').includes('claude --resume abc-12345'));
+    // A second create for the same tab (a remount) must not type the command again.
+    await manager.create('s1', options, events);
+    manager.write('s1', 'done\r');
+    await waitFor(() => events.data.join('').includes('done'));
+
+    expect(events.data.join('').split('claude --resume abc-12345')).toHaveLength(2);
+  });
 });

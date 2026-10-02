@@ -5,6 +5,8 @@ import { buildConnectConfig, friendlyConnectError, type SshEndpoint } from './co
 export interface SshConnectOptions extends SshEndpoint {
   cols?: number;
   rows?: number;
+  /** Typed into the shell once it opens, e.g. a command that resumes an agent conversation. */
+  initialInput?: string;
 }
 
 export interface SshSessionListener {
@@ -66,6 +68,7 @@ export class SshSessionManager {
                   client.end();
                   listener.onExit(sessionId);
                 });
+                if (options.initialInput) stream.write(options.initialInput);
                 resolve();
               },
             );
