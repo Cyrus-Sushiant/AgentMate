@@ -1,10 +1,10 @@
 import type { Project } from '@agentmat/core';
 import type { GitCommitInfo, WorkspaceGitState } from '@shared/apiTypes';
 import { useQuery } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { ChevronRight, Copy, GitCommit, Tag } from '@/components/icons';
 import { Skeleton } from '@/components/ui/skeleton';
-import { SimpleTooltip } from '@/components/ui/tooltip';
+import { SimpleTooltip, Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { changeStatusMeta, splitGitPath } from '@/lib/git';
 import { queryKeys } from '@/lib/queryKeys';
 import { timeAgo } from '@/lib/time';
@@ -89,6 +89,31 @@ function CommitFiles({
   );
 }
 
+/** The commit's subject, with a tooltip for the full text only when the row cut it short. */
+function CommitSubject({ subject }: { subject: string }): React.JSX.Element {
+  const ref = useRef<HTMLSpanElement>(null);
+  const [open, setOpen] = useState(false);
+  return (
+    <Tooltip
+      open={open}
+      delayDuration={300}
+      onOpenChange={(next) => {
+        const node = ref.current;
+        setOpen(next && node !== null && node.scrollWidth > node.clientWidth);
+      }}
+    >
+      <TooltipTrigger asChild>
+        <span ref={ref} className="truncate text-[12px] font-medium">
+          {subject}
+        </span>
+      </TooltipTrigger>
+      <TooltipContent side="bottom" align="start">
+        {subject}
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
 /** The branch's recent history. Expanding a commit lists its files; a file opens its diff. */
 export function CommitsSection({
   project,
@@ -164,7 +189,7 @@ export function CommitsSection({
                       open && 'rotate-90',
                     )}
                   />
-                  <span className="truncate text-[12px] font-medium">{commit.subject}</span>
+                  <CommitSubject subject={commit.subject} />
                 </span>
                 <span className="mt-0.5 flex items-center gap-1.5 pl-3.5 text-[10px] text-muted-foreground">
                   <span className="font-mono">{commit.shortHash}</span>
