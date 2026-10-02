@@ -14,12 +14,12 @@ import {
   X,
 } from '@/components/icons';
 import { CopyRunErrorButton } from '@/components/pipelines/CopyRunErrorButton';
-import { type RunnerRunTarget, RunnersPanel } from '@/components/pipelines/RunnersPanel';
 import {
   RunAnnotations,
   useRunAnnotations,
   useSeenOnce,
 } from '@/components/pipelines/RunAnnotations';
+import { type RunnerRunTarget, RunnersPanel } from '@/components/pipelines/RunnersPanel';
 import {
   type RunOutcome,
   RunStatusIcon,

@@ -1,5 +1,5 @@
-import type { GithubRunnersRunRef } from '../../shared/apiTypes';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { GithubRunnersRunRef } from '../../shared/apiTypes';
 
 /**
  * Same approach as githubActions.test.ts: only the process boundary is stubbed, so `execFile`

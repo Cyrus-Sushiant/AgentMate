@@ -19,8 +19,8 @@ import {
   Users,
   X,
 } from '@/components/icons';
-import { Badge } from '@/components/ui/badge';
 import { ipcErrorMessage } from '@/components/projects/environments/ipcError';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { SimpleTooltip, Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { useLastGoodData } from '@/hooks/useLastGoodData';
