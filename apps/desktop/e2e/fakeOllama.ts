@@ -8,6 +8,8 @@ export interface FakeOllama {
   prompts: string[];
   /** The base64 images attached to each of those prompts, empty when there were none. */
   images: string[][];
+  /** Adds replies to the end of the script, for a test that learns what to say along the way. */
+  say: (...replies: string[]) => void;
   close: () => Promise<void>;
 }
 
@@ -45,6 +47,9 @@ export async function startFakeOllama(replies: string[]): Promise<FakeOllama> {
     url: `http://127.0.0.1:${port}`,
     prompts,
     images,
+    say: (...replies) => {
+      queue.push(...replies);
+    },
     close: () => new Promise((resolve) => server.close(() => resolve())),
   };
 }

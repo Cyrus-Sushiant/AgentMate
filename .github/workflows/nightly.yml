@@ -1,7 +1,8 @@
 name: Nightly
 
 # The Deploy system tests on the full test-server matrix: every supported distro and both firewall
-# backends, one test server per job, plus the server core's own nginx and Pebble system tests.
+# backends, one test server per job, the full-stack e2e run on Ubuntu and Rocky (E17 AC1), and the
+# server core's own nginx and Pebble system tests.
 # Each `[e2e]` push runs a smaller set (Ubuntu and Rocky installs, ufw and firewalld, Ubuntu for the
 # rest; see the server-core-system job in test.yml).
 # This one runs every night and by hand, never on a push.
@@ -98,6 +99,117 @@ jobs:
           src/main/deploy/security.int.test.ts
           src/main/deploy/firewall.int.test.ts
           src/main/deploy/directTls.int.test.ts
+
+  # E17 AC1: the whole story in one run, with Playwright driving the built app against a test
+  # server (deployFullStack.e2e.ts): install, two-factor, Docker, a stack with an environment, a
+  # private pull, a site with a Pebble certificate, a firewall revert and a fix from the Deploy AI.
+  # The firewall variants of Ubuntu and Rocky, since one step needs a firewall.
+  full-stack:
+    name: Full-stack e2e (${{ matrix.image }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        image: [ubuntu-24.04-ufw, rocky-9-firewalld]
+    env:
+      DOTNET_NOLOGO: "1"
+      DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+      electron_config_cache: ${{ github.workspace }}/.cache/electron
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Display and Electron libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb libnss3 libgbm1 libasound2t64 libxss1 libxtst6
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.4xx
+          cache: true
+          cache-dependency-path: apps/server-core/**/packages.lock.json
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: pnpm
+
+      - name: Cache Electron binary
+        uses: actions/cache@v6
+        with:
+          path: .cache/electron
+          key: electron-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            electron-${{ runner.os }}-${{ runner.arch }}-
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Electron binary
+        run: |
+          for attempt in 1 2 3; do
+            pnpm --filter @agentmat/desktop exec install-electron && exit 0
+            echo "attempt $attempt failed, retrying in 15s"
+            sleep 15
+          done
+          exit 1
+
+      - name: Build workspace packages
+        run: pnpm build:packages
+
+      - name: Rebuild native modules for Electron
+        run: pnpm --filter @agentmat/desktop rebuild:native
+
+      - name: Git identity for fixtures
+        run: |
+          git config --global user.name "AgentMate CI"
+          git config --global user.email "ci@agentmate.invalid"
+
+      - name: Publish the linux-x64 release
+        run: node scripts/server-core.mjs publish linux-x64
+
+      - name: Let the Rocky test servers check passwords
+        run: |
+          if sudo grep -q '^unix-chkpwd ' /sys/kernel/security/apparmor/profiles 2>/dev/null; then
+            echo -n unix-chkpwd | sudo tee /sys/kernel/security/apparmor/.remove > /dev/null
+            echo "Unloaded the runner's unix-chkpwd AppArmor profile."
+          fi
+
+      - name: Build the test server
+        run: |
+          image="${{ matrix.image }}"
+          base="${image%-ufw}"
+          base="${base%-firewalld}"
+          docker build -q -t "agentmate-test-server:$base" "apps/server-core/test-servers/$base"
+          docker build -q -t "agentmate-test-server:$image" "apps/server-core/test-servers/$image"
+
+      - name: Full stack on ${{ matrix.image }}
+        env:
+          AGENTMATE_SYSTEM_TESTS: "1"
+          AGENTMATE_TEST_SERVER_IMAGES: ${{ matrix.image }}
+          AGENTMATE_E2E_NO_SANDBOX: "1"
+        run: >-
+          xvfb-run --auto-servernum --server-args="-screen 0 1920x1080x24"
+          pnpm --filter @agentmat/desktop test:e2e deployFullStack.e2e.ts
+
+      - name: Upload report and traces
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: full-stack-${{ matrix.image }}
+          retention-days: 14
+          if-no-files-found: ignore
+          path: |
+            apps/desktop/playwright-report
+            apps/desktop/test-results
 
   # The server core's own system tests (xUnit): every nginx renderer variant through a real
   # nginx -t on nginx.org's packages for Debian 13 and Rocky 9 (E10), and certificates issued and

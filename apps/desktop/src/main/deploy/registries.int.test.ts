@@ -1,4 +1,3 @@
-import { execFileSync } from 'node:child_process';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -21,6 +20,14 @@ import { DeployService } from './service';
 import { buildContextTarball } from './stacks/buildContext';
 import { DeployStacks } from './stacks/service';
 import { DeployState } from './state';
+import {
+  loadImage,
+  onServer as onContainer,
+  REGISTRY_PULLER as PULLER,
+  REGISTRY_HOST as REGISTRY,
+  startPrivateRegistry,
+  REGISTRY_TOKEN as TOKEN,
+} from './testing/privateRegistry';
 import {
   DISTRO_IMAGES,
   skipWhenNoServers,
@@ -50,17 +57,6 @@ const ARTIFACTS = join(REPO, 'apps', 'server-core', 'artifacts', 'release');
 const PASSWORD = 'correct horse battery staple';
 const TEST_TIMEOUT_MS = 2_400_000;
 
-/** The puller's token is what must never stay behind; the pusher only fills the registry. */
-const PULLER = 'puller';
-const TOKEN = 'regtoken-e08-pull-7f3a9c41d2b6';
-const PUSHER = 'pusher';
-const PUSH_PASSWORD = 'regpush-e08-5b1e8d';
-/** bcrypt lines (golang.org/x/crypto/bcrypt, cost 5, as registry:2 reads them) for the two users above. */
-const HTPASSWD = [
-  'puller:$2a$05$Dd4yy7wbltwZ65/oyLlsm.7t0S.MkFew0/1.JX7X/Q61FfmLfcHxW',
-  'pusher:$2a$05$7r5reuzkZNfz3B7eH5GUiOmUgxpa8tU7N0EoyQauYYaP/OPK22Swa',
-].join('\n');
-const REGISTRY = 'localhost:5000';
 const IMAGE = `${REGISTRY}/private/web:1`;
 
 const compose = (image: string) => `services:
@@ -84,42 +80,9 @@ afterEach((context) => {
   for (const server of servers.splice(0)) server.stop();
 });
 
-function containerOf(server: TestServer): string {
-  const lines = execFileSync('docker', ['ps', '--format', '{{.ID}} {{.Ports}}'], {
-    encoding: 'utf-8',
-  });
-  const mapping = `:${server.port}->22/tcp`;
-  return (
-    lines
-      .split('\n')
-      .find((entry) => entry.includes(mapping))
-      ?.split(' ')[0] ?? ''
-  );
-}
-
 /** A command on the test server; its input (if any) goes through stdin, never argv. */
 function onServer(server: TestServer, command: string, input?: string): string {
-  return execFileSync('docker', ['exec', '-i', containerOf(server), 'sh', '-c', command], {
-    encoding: 'utf-8',
-    timeout: 900_000,
-    killSignal: 'SIGKILL',
-    stdio: 'pipe',
-    ...(input === undefined ? {} : { input }),
-  }).trim();
-}
-
-function loadImage(server: TestServer, image: string): void {
-  try {
-    execFileSync('docker', ['image', 'inspect', image], { stdio: 'pipe' });
-  } catch {
-    execFileSync('docker', ['pull', image], { stdio: 'pipe', timeout: 600_000 });
-  }
-  const archive = execFileSync('docker', ['save', image], { maxBuffer: 256 * 1024 * 1024 });
-  execFileSync('docker', ['exec', '-i', containerOf(server), 'docker', 'load'], {
-    input: archive,
-    stdio: ['pipe', 'pipe', 'pipe'],
-    timeout: 300_000,
-  });
+  return onContainer(server.name, command, input);
 }
 
 function streamUntil<T>(stream: IStreamResult<T>, done: (items: T[]) => boolean, ms: number) {
@@ -278,26 +241,8 @@ describe.skipIf(!enabled)('Private registries through the server core on a real 
         expect(onServer(server, 'findmnt -T /run/agentmate-core -no FSTYPE')).toBe('tmpfs');
 
         // A registry:2 with htpasswd, and the image pushed by the other user from a throwaway config.
-        loadImage(server, 'registry:2');
-        loadImage(server, 'busybox:1.37');
-        onServer(
-          server,
-          'mkdir -p /srv/registry-auth && cat > /srv/registry-auth/htpasswd',
-          `${HTPASSWD}\n`,
-        );
-        onServer(
-          server,
-          'docker run -d --name registry --restart unless-stopped -p 127.0.0.1:5000:5000 -v /srv/registry-auth:/auth -e REGISTRY_AUTH=htpasswd -e REGISTRY_AUTH_HTPASSWD_REALM=e2e -e REGISTRY_AUTH_HTPASSWD_PATH=/auth/htpasswd registry:2',
-        );
-        onServer(
-          server,
-          'for i in $(seq 1 30); do curl -s -o /dev/null http://127.0.0.1:5000/v2/ && break; sleep 1; done',
-        );
-        onServer(
-          server,
-          `export DOCKER_CONFIG=$(mktemp -d) && docker login ${REGISTRY} -u ${PUSHER} --password-stdin && docker tag busybox:1.37 ${IMAGE} && docker push ${IMAGE} && rm -rf "$DOCKER_CONFIG" && docker rmi ${IMAGE}`,
-          PUSH_PASSWORD,
-        );
+        loadImage(server.name, 'busybox:1.37');
+        startPrivateRegistry(server.name, 'busybox:1.37', IMAGE);
         // Without a sign-in the registry refuses the pull.
         expect(onServer(server, `docker pull ${IMAGE} 2>&1 || true`)).toMatch(
           /unauthorized|no basic auth/,

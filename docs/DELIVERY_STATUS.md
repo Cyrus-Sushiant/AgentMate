@@ -38,13 +38,13 @@ Plan: docs/ROADMAP.md
 | E08 | Private registries | Complete | see git log | Sign-ins sealed on this computer and sent per deploy into a tmpfs DOCKER_CONFIG wiped in a `finally` (the core refuses a non-tmpfs folder); GitHub scopes read from `X-OAuth-Scopes`, anything beyond read:packages behind a warning; write-only stored credentials (Data Protection, Admin with step-up); Containers pulls sign in through X-Registry-Auth |
 | E09 | Logs center, problems feed and Deploy AI | Complete | see git log | StreamExec with the read-only allowlist and device-signed approvals; the SSH AI loop takes a pluggable executor (characterization suite before and after); problems feed and log viewer in a Logs section; Deploy AI drawer on every server screen |
 | E10 | nginx websites | Complete | 77b262a, 07db580, aca88a8 | Renderer, snippet allowlist, apply with rollback, stream proxies, SELinux labels; the `nginx -t` harness on Debian 13 and Rocky 9 never ran in CI before E17; in the first nightly run every variant passed, and one Rocky apply test failed (see below) |
-| E11 | Let's Encrypt certificates | Complete | 7110a67, 07db580, aca88a8 | ACME client (RFC 8555 and ARI) against Pebble, renewal service, SSL tab; AC3 tested in E17 (a failed renewal now has its own inbox title); DNS-01 through E14 |
+| E11 | Let's Encrypt certificates | Complete | 7110a67, 07db580, aca88a8 | ACME client (RFC 8555 and ARI) against Pebble, renewal service, SSL tab; AC3 tested in E17 (a failed renewal now has its own inbox title); DNS-01 through E14; HTTP-01 on an installed core fixed in E17 (its webroot folders came out 0700 under the core's umask) |
 | E12 | App Store | In progress | see git log | Catalog of 18 apps pinned by digest (MinIO left out: no public official image); App Store section, one-screen install sheet, post-install card with masked secrets (step-up reveal), explicit updates as server-side revisions, digest refresh script. Left: AC3 (WordPress over HTTPS on Pebble) not verified |
 | E13 | Firewall | Complete | 2a87c89, 271820e, see git log | Core (ufw and firewalld, lockout guard, safe apply), the Firewall screen (T6) and "make private" (T5): an AgentMate app is redeployed with the service on 127.0.0.1 as a revision the server copies; anything else is shown the compose or run change. AC1 to AC3 by the firewall system tests, in CI since run 37084799281 |
 | E14 | Cloudflare | Complete | df848e5, see git log | Desktop T1 to T4, T8, T9; core and desktop T5 to T7: Origin CA (key made on the server), origin lock through firewall change sets with a daily unattended refresh and nginx real IP, DNS-01 with a zone-scoped token (migration CloudflareOriginAndDns) |
 | E15 | Security center and maintenance | Complete | c87918a, see git log | Checklist with a score and previewed fixes; SSH password login off only over a proven key login (two guards, timer rollback, kept over a new key login); a failed core update reconnects; backups encrypted on the core (PBKDF2 600,000, AES-256-GCM chunks) and restored over SSH as root |
 | E16 | Direct TLS mode | Complete | see git log | Opt-in HTTPS listener bound and closed at runtime (Kestrel endpoint reload), P-256 certificate made on first start and pinned over SSH; desktop self-signs a client certificate with its device key, checked against the enrolled keys on every handshake and request; firewall rule through E13 change sets; direct TLS first, SSH after, a pin mismatch stops the link |
-| E17 | Polish and full OS matrix | In progress | see git log | Nightly full matrix, system tests parameterized by image, visual and keyboard pass of every Deploy screen, README; AC1 (one full-stack run on Ubuntu and Rocky) is not met, see its notes |
+| E17 | Polish and full OS matrix | Complete | see git log | Nightly full matrix, system tests parameterized by image, visual and keyboard pass of every Deploy screen, README; the full-stack e2e (`deployFullStack.e2e.ts`, AC1) passed on Ubuntu 24.04 and Rocky 9 and runs nightly |
 | E18 | Ask AI for Remote Desktop | Complete | | Input through the IronRDP session, screenshots from its canvas; verified against xrdp and XFCE; Codex image answer unverified locally |
 
 Status values: Not started, In progress, Blocked, Complete.
@@ -71,20 +71,8 @@ this machine.
 
 **Not covered by any test**
 
-- E17 AC1: a single full-stack run on Ubuntu and Rocky (install, 2FA, Docker, a stack, a private
-  pull, a site with a Pebble certificate, a firewall revert, an AI fix). Every step is covered on
-  its own, against the DevHost on every OS and on real test servers; see the E17 notes for the
-  map.
 - E12 AC3: WordPress on a domain over HTTPS on the Pebble harness. The install, the site, nginx
   apply and the certificate order are each tested, not together.
-- E03, SELinux labels: `restorecon` only runs where SELinux is on, and the Rocky 9 container runs
-  without it, so that step (and E10 T7's SELinux booleans) is covered by unit tests only. It needs
-  a Rocky VM with SELinux enforcing, which a GitHub runner without KVM cannot host.
-- E03, release path: a packaged build downloading its core from a GitHub release, and the CD job
-  that publishes both architectures, attests them and embeds the manifest, first run on the next
-  `v*` tag. Until then the download source is covered with a fake downloader, and the publish
-  script was run by hand for linux-x64 and linux-arm64.
-- E03, arm64: the linux-arm64 build cross-compiles, but no arm64 test server runs an install.
 - E05 AC3 and AC4: recovery after a real reboot and a stream across a real token expiry are tested
   with the fake core and the DevHost's pretend reboot, not a rebooting machine.
 - E14: the origin lock runs against the pretend firewalls in the e2e run and through a real
@@ -94,12 +82,37 @@ this machine.
   server have no automated run; firewalld rule matching is unit-tested only. `directTls.e2e.ts`
   is skipped on macOS (the DevHost's TLS 1.3 listener does not serve there).
 - E10 and E11, desktop: the Websites e2e spec runs against the DevHost's simulated nginx and
-  pretend CA.
+  pretend CA on every OS. Real nginx and Pebble through the app are covered by the full-stack run,
+  on Linux only.
 - E06: the container console has no e2e test (component and adapter tests only).
 - E15: the restore screen has no e2e test (the DevHost has no SSH).
 - E18: the Codex image answer for Remote Desktop was not verified locally.
 
+**Needs a VM or hardware**
+
+None of these can run in a container on a GitHub runner, so the full-stack run does not cover them
+either.
+
+- SELinux enforcing (E03, E10 T7): `restorecon` and the SELinux booleans only run where SELinux is
+  on, and the Rocky 9 container runs without it, so they are covered by unit tests only. It needs a
+  Rocky VM with SELinux enforcing, which a GitHub runner without KVM cannot host.
+- arm64 (E03): the linux-arm64 build cross-compiles, but no arm64 test server runs an install, and
+  the full-stack run uses linux-x64 only.
+- The signed release path (E03): a packaged build downloading its core from a GitHub release, and
+  the CD job that publishes both architectures, attests them and embeds the manifest, first run on
+  the next `v*` tag. Until then the download source is covered with a fake downloader, the publish
+  script was run by hand for linux-x64 and linux-arm64, and the full-stack run installs an
+  unsigned development build from `pnpm server-core:publish`.
+
 **Proven since the last review**
+
+- E17 AC1: `deployFullStack.e2e.ts` ran the whole story in one run, the built app against a real
+  test server, on Ubuntu 24.04 (ufw) and Rocky 9 (firewalld) locally on 2026-10-03: install from
+  the wizard, two-factor, Docker, a stack with an environment, a private pull from registry:2, a
+  site with a Pebble certificate over HTTP-01 through the core's nginx, a firewall change that
+  reverted by itself, and a crash loop fixed by an approved Deploy AI command. It found that
+  HTTP-01 had never worked on an installed core (the ACME webroot's folders were 0700 under the
+  core's `UMask=0077`, so nginx answered the CA with 404), now fixed and unit-tested.
 
 - In CI run 37084799281 (E09), "Server core on test servers" passed: installs on Ubuntu and Rocky
   as root and with sudo, the firewall on ufw and firewalld (E13), private registries (E08), direct

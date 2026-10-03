@@ -23,7 +23,7 @@ internal interface INginxMachine
     /// <summary>A file, link or folder (with everything in it). Nothing happens when it is not there.</summary>
     Task DeleteAsync(string path, CancellationToken cancellationToken);
 
-    /// <summary>Creates the folder and its parents; the folder itself gets the mode.</summary>
+    /// <summary>Creates the folder and its missing parents (0755, whatever the umask); the folder itself gets the mode.</summary>
     Task CreateDirectoryAsync(string path, UnixFileMode mode, CancellationToken cancellationToken);
 
     /// <summary>The names in a folder, or nothing when it does not exist.</summary>
@@ -200,11 +200,20 @@ internal sealed partial class LocalNginxMachine(IProcessRunner runner, SystemdRu
             return;
         }
 
-        var existed = Directory.Exists(path);
-        Directory.CreateDirectory(path, mode);
-        if (!existed)
+        // Each missing folder is made on its own and given its mode outright: the service's
+        // UMask=0077 would leave new parents at 0700, and nginx's workers could then not reach the
+        // ACME webroot or a site's files inside them.
+        var missing = new Stack<string>();
+        for (var folder = path; !string.IsNullOrEmpty(folder) && !Directory.Exists(folder); folder = Path.GetDirectoryName(folder))
         {
-            File.SetUnixFileMode(path, mode);
+            missing.Push(folder);
+        }
+
+        while (missing.TryPop(out var folder))
+        {
+            var folderMode = missing.Count == 0 ? mode : Folder;
+            Directory.CreateDirectory(folder, folderMode);
+            File.SetUnixFileMode(folder, folderMode);
         }
     }
 

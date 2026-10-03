@@ -9,7 +9,7 @@ the feature.
 
 ## Tasks
 
-- [ ] T1 Full-stack e2e on ubuntu-24.04 and rocky-9 (the other distros nightly): install, sign in
+- [x] T1 Full-stack e2e on ubuntu-24.04 and rocky-9 (the other distros nightly): install, sign in
   with 2FA, install Docker, deploy a fixture project stack with an environment, pull a private image
   from a local registry, add a site with a test domain, issue a Pebble certificate, apply a firewall
   change and watch it revert, break a container and fix it through the Deploy AI with a fake CLI,
@@ -27,7 +27,7 @@ the feature.
 
 ## Implementation notes
 
-### The full OS matrix (T1, partly)
+### The full OS matrix (T1)
 
 - `testing/testServers.ts` has `testServerImages(supported, defaults)`: each system test keeps its
   defaults on every `[e2e]` push, and `AGENTMATE_TEST_SERVER_IMAGES` (comma separated) runs it on
@@ -44,11 +44,85 @@ the feature.
   security, stacks and registries; Rocky 9 exec, security, stacks, registries and the podman case.
   All passed.
 
-### The end-to-end story
+### The end-to-end story (T1, AC1)
 
-There is no single spec that walks the whole story against one machine: the DevHost cannot run an
-install, and a real test server cannot run the Electron e2e on macOS or Windows. Each step has its
-own coverage instead:
+`e2e/deployFullStack.e2e.ts` walks the whole story in one run. Playwright drives the built app
+(the `out-e2e` build) against a systemd test server, booted the way the system tests boot theirs,
+with the core from `pnpm server-core:publish linux-x64`. It is gated on `AGENTMATE_SYSTEM_TESTS=1`
+and Docker for Linux containers, so ordinary e2e runs skip it, and `AGENTMATE_TEST_SERVER_IMAGES`
+picks the server. One serial describe per server, eight tests, no retries (a retry would boot
+and install everything again):
+
+1. The server is added in Remote (the Add server form, as the `deployer` user whose sudo asks for
+   the saved password), and the core is installed from the Deploy wizard with its owner.
+2. Two-factor goes on with a code generated from the key the dialog shows; after signing out, the
+   sign-in asks for the next code.
+3. Docker is installed from Containers (the job retried up to three times, since its packages come
+   over the network).
+4. A project with a compose file and a Production environment (saved through the same bridge the
+   Environments tab uses) deploys through the New App wizard; the env key shows, never its value,
+   and the page the container serves carries the value.
+5. A registry:2 with htpasswd runs on the server (`testing/privateRegistry.ts`, now shared with
+   `registries.int.test.ts`); a sign-in is added under Apps, Registries, and a second revision
+   pulls a worker from the private image. The token never shows on screen.
+6. Websites: nginx is set up, a site for `shop.agentmate.test` proxies to the app, and a
+   certificate is issued by Pebble over HTTP-01 against the server's own nginx. The list shows
+   "SSL, 90 days" and Live, and a curl on the server gets the app's page over HTTPS with a chain
+   that verifies against Pebble's root. On Rocky the HTTP preset is applied and kept first, since
+   firewalld is on there.
+7. A firewall change nobody keeps reverts by itself: ufw (off, as on a fresh VPS) is turned on with
+   the SSH preset, firewalld gets port 8081. The step-up for it takes the password. After the
+   countdown the DOM says the old rules are back, the history says rolled back, and the server's
+   own `ufw status` or `firewall-cmd` agrees.
+8. Stopping the web container sends the worker into a crash loop; the problems feed shows it,
+   "Diagnose with AI" opens the Deploy AI, and the e2e fake model (the fake Ollama, which can now
+   be given its script mid-run) proposes `docker start <web> && docker restart <worker>`. The user
+   approves it, it runs, both containers run again and the crash loop leaves the feed.
+
+What the run sets up outside the app, before the app sees the server (`e2e/fullStackServer.ts`,
+`e2e/pebble.ts`):
+
+- Pebble and pebble-challtestsrv, ported from the server core's `PebbleFixture` with the same
+  images and configuration and HTTP-01 on port 80 (as `PebbleOnPort80Fixture`). The test server
+  joins their Docker network, trusts Pebble's test CA in its system store, reaches the API as
+  `pebble` (a hosts entry; Pebble's certificate names it), and `/etc/agentmate-core/core.json`
+  sets `Core:Acme:ProductionDirectory` to it. challtestsrv is the test DNS: it maps the domain to
+  the server's address on that network.
+- busybox and registry:2 are loaded from this computer into the server's Docker, since the
+  server's way to Docker Hub can be slow.
+- Every container and network is created under a random name and removed by name afterwards; the
+  run prints them.
+
+The servers are `ubuntu-24.04-ufw` and `rocky-9-firewalld`: the Ubuntu 24.04 and Rocky 9 test
+servers with their firewall installed (ufw off, firewalld on), since step 7 needs one. Every step
+runs against the real server; none fell back to the DevHost.
+
+Found and fixed on the way:
+
+- HTTP-01 had never worked on a real install. The core runs with `UMask=0077`, and
+  `LocalNginxMachine` created missing parent folders under that umask, so `/var/www`,
+  `/var/www/agentmate` and the rest of the ACME webroot came out 0700. nginx's workers (user
+  `nginx`) could not reach the challenge file, and `try_files` answered Pebble with 404. Every
+  folder it creates now gets its mode outright (0755 for parents, whatever the umask), with a test
+  that sets umask 0077 (`LocalNginxMachineUmaskTests`, Linux only, run alone since the umask is
+  process-wide). The nginx harness tests missed it because they write through `docker exec`. A
+  server whose nginx was set up by an older build keeps its 0700 folders until they are changed by
+  hand (no release has shipped, so no real server has them).
+- The local `-ufw` and `-firewalld` images had been built from a base older than its Docker
+  volumes, so Docker inside them could not mount overlays. `startTestServer` now passes those
+  volumes itself, and removes the container with `-v` so anonymous volumes go with it.
+- `testServers.ts` split in two: everything that starts and looks at test servers moved to
+  `testServerMachines.ts`, which has no vitest import, so Playwright can load it. The old module
+  re-exports it, so the system tests import it as before.
+
+Run locally on 2026-10-03 (Docker Desktop, Windows): all eight steps passed on
+`ubuntu-24.04-ufw` (21.5 minutes, most of it the Docker install) and on `rocky-9-firewalld`
+(20.6 minutes). The nightly workflow runs it in its `full-stack` job, once per server.
+
+### Each step on its own
+
+The per-step specs and system tests from before stay. The specs run against the DevHost on every
+OS the e2e matrix has, which the full-stack run cannot, and the system tests on every `[e2e]` push:
 
 | Step | Against the DevHost (e2e, every OS) | On real servers (system tests) |
 |---|---|---|
@@ -65,9 +139,6 @@ own coverage instead:
 `docker restart newsletter-sender-1`, the DevHost's pretend exec restarts that container
 (`FakeExecRunner`, with a core test), and the crash loop leaves the problems feed. Before, the
 step ran a command the DevHost only echoed, and nothing cleared.
-
-AC1 asks for one full-stack run on Ubuntu and Rocky, which this does not give: the steps are
-proven on both, but separately. That is why T1 stays open.
 
 ### Visual and keyboard pass (T2)
 
@@ -112,8 +183,8 @@ the Deploy system tests in Testing, and the nightly workflow in CI. `DELIVERY_ST
 
 ### What is left
 
-- AC1 as written (see above).
+- The full-stack run covers Ubuntu and Rocky only. Debian 13 has no firewall image, so it gets the
+  per-step system tests nightly instead.
 - E12 AC3 (WordPress over HTTPS on Pebble) is still not one test.
-- The first nightly run (37097759993): every Deploy system test green on all five test servers;
-  the server core's nginx and Pebble tests 18 of 19, with one Rocky nginx apply failure recorded
-  in `DELIVERY_STATUS.md`.
+- What needs a VM or hardware: SELinux enforcing, arm64 and the signed release path (see the
+  unverified criteria in `DELIVERY_STATUS.md`).

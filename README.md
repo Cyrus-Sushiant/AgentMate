@@ -356,7 +356,7 @@ End-to-end runs build the app into `out-e2e/` so a running `electron-vite dev` k
 
 Tests need Node 22.13 or newer, because the SQLite stand-in uses `node:sqlite`.
 
-The Deploy system tests boot whole Linux machines, so they only run when asked. They need Docker with Linux containers and a published core: run `pnpm server-core:publish linux-x64`, then `AGENTMATE_SYSTEM_TESTS=1 pnpm --filter @agentmat/desktop exec vitest run src/main/deploy/deploy.int.test.ts` (or any other `*.int.test.ts`). Each test has its default servers; `AGENTMATE_TEST_SERVER_IMAGES=debian-13` (comma separated) runs every test that supports them on those instead.
+The Deploy system tests boot whole Linux machines, so they only run when asked. They need Docker with Linux containers and a published core: run `pnpm server-core:publish linux-x64`, then `AGENTMATE_SYSTEM_TESTS=1 pnpm --filter @agentmat/desktop exec vitest run src/main/deploy/deploy.int.test.ts` (or any other `*.int.test.ts`). Each test has its default servers; `AGENTMATE_TEST_SERVER_IMAGES=debian-13` (comma separated) runs every test that supports them on those instead. The full-stack run, `e2e/deployFullStack.e2e.ts`, drives the built app through the whole Deploy story against one of these servers (install, two-factor, Docker, a stack, a private image, a site with a Pebble certificate, a firewall revert and a Deploy AI fix): `AGENTMATE_SYSTEM_TESTS=1 AGENTMATE_TEST_SERVER_IMAGES=ubuntu-24.04-ufw pnpm --filter @agentmat/desktop test:e2e deployFullStack.e2e.ts`. Ordinary e2e runs skip it.
 
 ### CI
 
@@ -364,7 +364,7 @@ Every push and pull request runs [`.github/workflows/ci.yml`](.github/workflows/
 
 A deprecated dependency you cannot drop yet goes in [`.github/deprecated-deps-allowlist.json`](.github/deprecated-deps-allowlist.json) with a reason for keeping it.
 
-The full server matrix runs in [`.github/workflows/nightly.yml`](.github/workflows/nightly.yml), every night and on a manual dispatch, never on a push: every Deploy system test on Ubuntu 24.04, Debian 13 and Rocky 9 and on the ufw and firewalld servers, one server per job, plus the server core's nginx and Pebble system tests.
+The full server matrix runs in [`.github/workflows/nightly.yml`](.github/workflows/nightly.yml), every night and on a manual dispatch, never on a push: every Deploy system test on Ubuntu 24.04, Debian 13 and Rocky 9 and on the ufw and firewalld servers, one server per job, the full-stack e2e run on the ufw and firewalld servers, plus the server core's nginx and Pebble system tests.
 
 Releases are built and published by [`.github/workflows/cd.yml`](.github/workflows/cd.yml) when a `v*.*.*` tag is pushed, and it runs the same test workflow first, so a failing test cannot ship.
 
