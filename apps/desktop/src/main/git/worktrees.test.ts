@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { hasGit, initGitRepo, tempDir, writeTree } from '../../test/main/fixtures';
@@ -54,6 +54,23 @@ describe.runIf(hasGit())('git worktrees', () => {
       expect(entry.branch).toBe('feat/auth');
       expect(existsSync(join(at('feat'), 'README.md'))).toBe(true);
       expect((await listWorktrees(repo.dir)).map((w) => w.branch)).toEqual(['main', 'feat/auth']);
+    });
+
+    it('finds the new worktree when its folder is reached through a link', async () => {
+      // Git lists the real folder. A temp folder is often reached another way: /var is a link
+      // to /private/var on macOS, and Windows can hand out an 8.3 short name like RUNNER~1.
+      const { repo, trees } = setup();
+      const linked = tempDir('agentmate-trees-link-');
+      rmSync(linked, { recursive: true, force: true });
+      symlinkSync(trees, linked, 'junction');
+      const entry = await addWorktree(repo.dir, {
+        path: join(linked, 'feat'),
+        branch: 'feat/linked',
+        mode: 'new',
+        base: 'main',
+      });
+      expect(entry.branch).toBe('feat/linked');
+      expect(existsSync(join(trees, 'feat', 'README.md'))).toBe(true);
     });
 
     it('checks out an existing branch', async () => {

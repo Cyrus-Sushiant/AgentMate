@@ -1,6 +1,5 @@
 import { randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
-import { resolve } from 'node:path';
 import {
   defaultWorktreePath,
   type GitWorktreeEntry,
@@ -37,6 +36,7 @@ import {
   mergePreflight,
   pruneWorktrees,
   removeWorktree,
+  samePath,
   worktreeStatus,
 } from '../git/worktrees';
 import { broadcastToWindows } from '../ipc/send';
@@ -47,14 +47,6 @@ import { store } from '../store';
  * give each one a stable id (and so a workspace of its own). Git is the source of truth. A record
  * git no longer knows is dropped, and a worktree made outside AgentMate is adopted.
  */
-
-function samePath(a: string, b: string): boolean {
-  const norm = (p: string): string => {
-    const full = resolve(p);
-    return process.platform === 'win32' ? full.toLowerCase() : full;
-  };
-  return norm(a) === norm(b);
-}
 
 function newWorktreeId(): string {
   return `wt-${randomUUID().slice(0, 8)}`;

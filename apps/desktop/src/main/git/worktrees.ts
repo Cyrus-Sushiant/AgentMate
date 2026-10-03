@@ -1,4 +1,4 @@
-import { constants, existsSync, readdirSync } from 'node:fs';
+import { constants, existsSync, readdirSync, realpathSync } from 'node:fs';
 import { copyFile, mkdir, rm } from 'node:fs/promises';
 import { dirname, isAbsolute, normalize, relative, resolve } from 'node:path';
 import {
@@ -36,9 +36,20 @@ function withNativePath(entry: GitWorktreeEntry): GitWorktreeEntry {
   return { ...entry, path: normalize(entry.path) };
 }
 
-function samePath(a: string, b: string): boolean {
+/**
+ * Git lists a worktree by its real folder, which is not always how the app spells it: /var is a
+ * link to /private/var on macOS, and Windows can hand out an 8.3 short name like RUNNER~1 for a
+ * temp folder. So paths are compared once links are resolved. A folder that is gone keeps its
+ * spelling, which still matches git's entry for it.
+ */
+export function samePath(a: string, b: string): boolean {
   const norm = (p: string): string => {
-    const full = resolve(p);
+    let full = resolve(p);
+    try {
+      full = realpathSync.native(full);
+    } catch {
+      // Gone or unreadable: compare it as written.
+    }
     return process.platform === 'win32' ? full.toLowerCase() : full;
   };
   return norm(a) === norm(b);
