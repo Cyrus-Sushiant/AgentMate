@@ -129,13 +129,33 @@ async function waitForBoot(run: (command: string) => string): Promise<string> {
   return `still ${state} after ${BOOT_TIMEOUT_MS / 1000} seconds`;
 }
 
-export function systemTestsEnabled(): boolean {
-  if (process.env.AGENTMATE_SYSTEM_TESTS !== '1') return false;
-  try {
-    return docker(['info', '--format', '{{.OSType}}'], 15_000).toLowerCase() === 'linux';
-  } catch {
-    return false;
+const DOCKER_PROBES = 3;
+
+/**
+ * Whether the system tests run: asked for, and a Docker with Linux containers answers. A Docker
+ * that is busy (other test runs, image builds) can take longer than one probe allows, and a single
+ * slow answer used to skip every test in a file without a word. So it asks again, and says why
+ * when it gives up.
+ */
+export function systemTestsEnabled(
+  flag: string | undefined = process.env.AGENTMATE_SYSTEM_TESTS,
+  osType: () => string = () => docker(['info', '--format', '{{.OSType}}'], 60_000),
+  // biome-ignore lint/suspicious/noConsole: a run that skips what it was asked for has to say why
+  warn: (message: string) => void = (message) => console.warn(message),
+): boolean {
+  if (flag !== '1') return false;
+  let failure = '';
+  for (let probe = 0; probe < DOCKER_PROBES; probe++) {
+    try {
+      return osType().toLowerCase() === 'linux';
+    } catch (error) {
+      failure = String(error);
+    }
   }
+  warn(
+    `AGENTMATE_SYSTEM_TESTS=1, but Docker did not answer after ${DOCKER_PROBES} tries, so the system tests skip: ${failure}`,
+  );
+  return false;
 }
 
 function waitForBanner(host: string, port: number, deadline: number): Promise<void> {
