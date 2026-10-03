@@ -102,14 +102,18 @@ test('the theme and a rebound shortcut both survive a restart', async () => {
   // Rebind: Go to Projects gets a second binding on top of its default.
   await openSettings(page, 'shortcuts');
   await expect(page.getByRole('heading', { name: 'Keyboard shortcuts' })).toBeVisible();
-  await page.getByRole('button', { name: 'Add a shortcut for Go to Projects' }).click();
+  // Search files and code has the same default on the workspace, so look in this row only.
+  const goToProjects = page.getByRole('group', { name: 'Go to Projects', exact: true });
+  await goToProjects.getByRole('button', { name: 'Add a shortcut for Go to Projects' }).click();
   await expect(
     page.getByRole('textbox', { name: 'Press the keys for the new shortcut' }),
   ).toBeVisible();
   await page.keyboard.press('Control+Shift+J');
-  await expect(page.getByRole('button', { name: `Remove ${CTRL_SHIFT_J}` })).toBeVisible();
+  await expect(goToProjects.getByRole('button', { name: `Remove ${CTRL_SHIFT_J}` })).toBeVisible();
   // The default is kept, this is an extra binding rather than a replacement.
-  await expect(page.getByRole('button', { name: `Remove ${CTRL_P}`, exact: true })).toBeVisible();
+  await expect(
+    goToProjects.getByRole('button', { name: `Remove ${CTRL_P}`, exact: true }),
+  ).toBeVisible();
 
   const page2 = await relaunch(current);
 
@@ -140,7 +144,9 @@ test('a binding already taken by another command is refused', async () => {
   // Only the command palette has Ctrl+K to start with.
   await expect(page.getByRole('button', { name: `Remove ${CTRL_K}` })).toHaveCount(1);
 
-  await page.getByRole('button', { name: 'Add a shortcut for Go to Projects' }).click();
+  // Search files and code has the same default on the workspace, so look in this row only.
+  const goToProjects = page.getByRole('group', { name: 'Go to Projects', exact: true });
+  await goToProjects.getByRole('button', { name: 'Add a shortcut for Go to Projects' }).click();
   // Ctrl+K belongs to the command palette, in the same scope.
   await page.keyboard.press('Control+K');
   await expect(page.getByText(`${CTRL_K} is already used by "Command palette".`)).toBeVisible();

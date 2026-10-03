@@ -81,7 +81,17 @@ async function restart(
 test('the window keeps its size and position across a restart', async () => {
   launched = await launchApp({ settings: {} });
   const current = launched;
-  const bounds = { x: 60, y: 50, width: 1100, height: 720 };
+  // A spot that fits the screen. Windows won't open a window wider than its display, and the CI
+  // machine's display is only 1024 pixels wide.
+  const area = await current.app.evaluate(({ screen }) => screen.getPrimaryDisplay().workArea);
+  const width = Math.min(1100, area.width - 20);
+  const height = Math.min(720, area.height - 20);
+  const bounds = {
+    x: area.x + Math.min(60, area.width - width),
+    y: area.y + Math.min(50, area.height - height),
+    width,
+    height,
+  };
 
   await expect.poll(() => mainWindow(current.app)).not.toBeNull();
   await current.app.evaluate(({ BrowserWindow }, next) => {

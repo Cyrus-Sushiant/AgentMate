@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, readdirSync, writeFileSync } from 'node:fs';
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { join } from 'node:path';
-import { expect, type Page, test } from '@playwright/test';
+import { expect, type Locator, type Page, test } from '@playwright/test';
 import { type LaunchedApp, launchApp, openWorkspace } from './app';
 
 /**
@@ -101,9 +101,18 @@ async function rectOf(page: Page, selector: string) {
   }, selector);
 }
 
-async function openBrowserTab(page: Page, url: string): Promise<void> {
+/**
+ * Picks an item from the pane's + menu. The menu is placed after it mounts, and in the test's
+ * background window that can take a moment, so a click is only made once the item is on screen.
+ */
+async function pickFromNewTabMenu(page: Page, item: Locator): Promise<void> {
   await page.getByRole('button', { name: 'New tab' }).first().click();
-  await page.getByRole('menuitem', { name: /Browser/ }).click();
+  await expect(item).toBeInViewport();
+  await item.click();
+}
+
+async function openBrowserTab(page: Page, url: string): Promise<void> {
+  await pickFromNewTabMenu(page, page.getByRole('menuitem', { name: /Browser/ }));
   const address = page.getByRole('textbox', { name: 'Open a page' });
   await expect(address).toBeFocused();
   await shot(page, '01-start-page');
@@ -140,12 +149,13 @@ test('a page opens over its pane, keeps its state, and takes comments on its ele
 
   // Switching to another tab and back, and splitting the pane, never reloads the page.
   await inGuest(launched, "document.getElementById('buy').click()");
-  await page.getByRole('button', { name: 'New tab' }).first().click();
-  await page
-    .getByRole('menuitem')
-    .filter({ hasText: /PowerShell|Command Prompt|bash|zsh/ })
-    .first()
-    .click();
+  await pickFromNewTabMenu(
+    page,
+    page
+      .getByRole('menuitem')
+      .filter({ hasText: /PowerShell|Command Prompt|bash|zsh/ })
+      .first(),
+  );
   await expect(page.getByRole('tablist', { name: 'Tabs' }).getByRole('tab')).toHaveCount(2);
   await expect
     .poll(() =>

@@ -57,7 +57,10 @@ test('sends a request, shows the response, and saves it into a collection', asyn
     .getByRole('tab', { name: /Headers/ })
     .last()
     .click();
-  await expect(page.getByRole('table', { name: 'Response headers' })).toContainText('x-echo');
+  // Headers are listed the way the server spelled them.
+  await expect(
+    page.getByRole('table', { name: 'Response headers' }).getByRole('row', { name: /X-Echo/ }),
+  ).toContainText('yes');
 
   await page.getByRole('button', { name: /^Save/ }).click();
   const dialog = page.getByRole('dialog', { name: 'Save request' });

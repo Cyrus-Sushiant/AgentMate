@@ -35,8 +35,10 @@ function mainWindowHash(app: ElectronApplication): Promise<string | null> {
     const win = BrowserWindow.getAllWindows().find(
       (one) => !one.isDestroyed() && one.getMinimumSize()[0] === 960,
     );
-    if (!win || win.webContents.isLoading()) return null;
-    return new URL(win.webContents.getURL()).hash;
+    // Before the first load starts the URL is still empty and isLoading() is false.
+    const url = win?.webContents.getURL();
+    if (!win || !url || win.webContents.isLoading()) return null;
+    return new URL(url).hash;
   });
 }
 

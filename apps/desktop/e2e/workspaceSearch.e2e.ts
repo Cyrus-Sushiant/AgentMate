@@ -20,11 +20,15 @@ function searchBox(page: Page): Locator {
   return page.getByRole('combobox', { name: /search files, types, members and text/i });
 }
 
-/** The workspace binds its keys in an effect, so an early press is retried until it lands. */
+/**
+ * The workspace binds its keys in an effect, so an early press is retried until it lands. The key
+ * is the platform's own: on macOS Ctrl+P belongs to the editor (it moves the cursor up a line, and
+ * the editor keeps it), so a person there presses Cmd+P.
+ */
 async function openSearch(page: Page): Promise<Locator> {
   const input = searchBox(page);
   await expect(async () => {
-    await page.keyboard.press('Control+P');
+    await page.keyboard.press('ControlOrMeta+P');
     await expect(input).toBeVisible({ timeout: 3_000 });
   }).toPass({ timeout: 30_000 });
   return input;
