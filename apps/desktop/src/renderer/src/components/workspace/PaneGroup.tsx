@@ -699,8 +699,11 @@ export function PaneGroup({
           {group.tabIds.map((tabId, index) => {
             const tab = workspace.tabs[tabId];
             if (!tab) return null;
+            // The slot never gets narrower than the tab's own minimum. Below it the tab spilled
+            // out of its slot and the next tab covered it, so a click on it hit its neighbor.
+            // A strip too full for every tab scrolls instead.
             return (
-              <div key={tabId} className="relative flex min-w-0 shrink items-center">
+              <div key={tabId} className="relative flex min-w-[4.5rem] shrink items-center">
                 {insertAt === index ? (
                   <span className="absolute -left-[2px] top-1 bottom-1 w-[2px] rounded-full bg-primary" />
                 ) : null}
