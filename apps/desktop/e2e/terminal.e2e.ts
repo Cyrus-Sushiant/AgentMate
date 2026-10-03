@@ -239,12 +239,13 @@ test('quitting with no shells left takes the background host with it', async () 
     .click();
   await expect.poll(() => drawerSessions(page), { timeout: 60_000 }).toEqual([]);
 
-  // A normal quit, not the hard exit close() uses, so the host sees its client leave.
-  const exited = new Promise<void>((resolve) =>
-    current.app.process().once('exit', () => resolve()),
-  );
+  // A normal quit, not the hard exit close() uses, so the host sees its client leave. The child
+  // process is held on to first: once the app is gone Playwright can no longer hand it out, and
+  // on macOS the app is often gone before the first look.
+  const child = current.app.process();
+  const exited = new Promise<void>((resolve) => child.once('exit', () => resolve()));
   await current.app.evaluate(({ app }) => app.quit()).catch(() => undefined);
-  await expect.poll(() => current.app.process().exitCode, { timeout: 60_000 }).not.toBe(null);
+  await expect.poll(() => child.exitCode ?? child.signalCode, { timeout: 60_000 }).not.toBe(null);
   await exited;
 
   // An idle host lingers briefly before exiting on its own (IDLE_EXIT_MS in hostEntry.ts).
