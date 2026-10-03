@@ -124,7 +124,9 @@ The first nightly dispatch (37111769885, on a7e9ec1) failed at step 1 on both se
 could not reach the test server's SSH port once the server had joined Pebble's network, which
 Docker Desktop does not show. Pebble moved to the default bridge (see above); the rest of that
 run, every Deploy system test on all five servers and the server core's nginx and Pebble tests,
-passed.
+passed. The next dispatch (37116895444, on 5d10c61) passed the full-stack run on both servers:
+Ubuntu in 6.5 minutes, Rocky in 12.1 (most of it the Docker install). Every other job of that run
+passed too, the first nightly with all eight jobs green.
 
 ### Each step on its own
 

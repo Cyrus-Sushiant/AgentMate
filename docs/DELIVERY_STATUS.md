@@ -44,7 +44,7 @@ Plan: docs/ROADMAP.md
 | E14 | Cloudflare | Complete | df848e5, see git log | Desktop T1 to T4, T8, T9; core and desktop T5 to T7: Origin CA (key made on the server), origin lock through firewall change sets with a daily unattended refresh and nginx real IP, DNS-01 with a zone-scoped token (migration CloudflareOriginAndDns) |
 | E15 | Security center and maintenance | Complete | c87918a, see git log | Checklist with a score and previewed fixes; SSH password login off only over a proven key login (two guards, timer rollback, kept over a new key login); a failed core update reconnects; backups encrypted on the core (PBKDF2 600,000, AES-256-GCM chunks) and restored over SSH as root |
 | E16 | Direct TLS mode | Complete | see git log | Opt-in HTTPS listener bound and closed at runtime (Kestrel endpoint reload), P-256 certificate made on first start and pinned over SSH; desktop self-signs a client certificate with its device key, checked against the enrolled keys on every handshake and request; firewall rule through E13 change sets; direct TLS first, SSH after, a pin mismatch stops the link |
-| E17 | Polish and full OS matrix | Complete | see git log | Nightly full matrix, system tests parameterized by image, visual and keyboard pass of every Deploy screen, README; the full-stack e2e (`deployFullStack.e2e.ts`, AC1) passed on Ubuntu 24.04 and Rocky 9 and runs nightly |
+| E17 | Polish and full OS matrix | Complete | see git log | Nightly full matrix, system tests parameterized by image, visual and keyboard pass of every Deploy screen, README; the full-stack e2e (`deployFullStack.e2e.ts`, AC1) passed on Ubuntu 24.04 and Rocky 9, locally and in nightly run 37116895444 |
 | E18 | Ask AI for Remote Desktop | Complete | | Input through the IronRDP session, screenshots from its canvas; verified against xrdp and XFCE; Codex image answer unverified locally |
 
 Status values: Not started, In progress, Blocked, Complete.
@@ -105,7 +105,8 @@ either.
 **Proven since the last review**
 
 - E17 AC1: `deployFullStack.e2e.ts` ran the whole story in one run, the built app against a real
-  test server, on Ubuntu 24.04 (ufw) and Rocky 9 (firewalld) locally on 2026-10-03: install from
+  test server, on Ubuntu 24.04 (ufw) and Rocky 9 (firewalld), locally on 2026-10-03 and on
+  GitHub's runners in nightly run 37116895444: install from
   the wizard, two-factor, Docker, a stack with an environment, a private pull from registry:2, a
   site with a Pebble certificate over HTTP-01 through the core's nginx, a firewall change that
   reverted by itself, and a crash loop fixed by an approved Deploy AI command. It found that
