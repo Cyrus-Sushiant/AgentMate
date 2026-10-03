@@ -1,6 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { GitPendingOperation } from '../../shared/apiTypes';
+import { CONFLICT_KINDS, sidesNote } from '../../shared/conflictPrompts';
 
 /**
  * A conflict hunk starts with `<<<<<<<` and ends with `>>>>>>>`, each at the start of a line
@@ -23,36 +24,6 @@ export async function readConflictedText(root: string, path: string): Promise<st
   }
   if (buffer.subarray(0, 8000).includes(0)) return null;
   return buffer.toString('utf8');
-}
-
-/** Git's two-letter unmerged codes, in the words `git status` prints for them. */
-const CONFLICT_KINDS: Record<string, string> = {
-  UU: 'both modified',
-  AA: 'both added',
-  DD: 'both deleted',
-  AU: 'added by us',
-  UA: 'added by them',
-  DU: 'deleted by us',
-  UD: 'deleted by them',
-};
-
-/** What the two sides of the markers are, which flips between a merge and a rebase. */
-function sidesNote(operation: GitPendingOperation | null): string {
-  switch (operation) {
-    case 'rebase':
-      return (
-        'A rebase is in progress, so the HEAD side of each conflict is the branch being rebased ' +
-        'onto and the other side is the commit being replayed on top of it.'
-      );
-    case 'cherry-pick':
-      return 'A cherry-pick is in progress: HEAD is the current branch, the other side is the picked commit.';
-    case 'revert':
-      return 'A revert is in progress: HEAD is the current branch, the other side undoes an earlier commit.';
-    case 'merge':
-      return 'A merge is in progress: HEAD is the current branch, the other side is the branch being merged in.';
-    default:
-      return 'HEAD is the current branch.';
-  }
 }
 
 /**

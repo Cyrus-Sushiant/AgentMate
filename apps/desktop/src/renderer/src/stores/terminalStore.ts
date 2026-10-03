@@ -1,9 +1,20 @@
+import type { RunKind } from '@agentmat/core';
 import type { SshSavedServer } from '@shared/apiTypes';
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
 export const TERMINAL_MIN_HEIGHT = 160;
 export const TERMINAL_DEFAULT_HEIGHT = 288;
+
+/** The project run command a tab was opened to run, which puts it in the status bar. */
+export interface TerminalRunInfo {
+  commandId: string;
+  /** The command's name, or the command itself when it has none. */
+  label: string;
+  command: string;
+  kind: RunKind;
+  startedAt: number;
+}
 
 export interface TerminalSessionMeta {
   id: string;
@@ -29,6 +40,8 @@ export interface TerminalSessionMeta {
    * never persisted in the first place (see `partialize` below), so this is always false for them.
    */
   restored?: boolean;
+  /** Set when the tab runs a project's run command. Kept across restarts like the tab itself. */
+  run?: TerminalRunInfo;
 }
 
 export interface SshSessionExtras {
@@ -111,6 +124,7 @@ export const useTerminalStore = create<TerminalState>()(
           kind: meta.kind,
           sshServerId: meta.sshServerId,
           conversationId: meta.conversationId,
+          run: meta.run,
         };
         set((state) => ({
           sessions: [...state.sessions, session],

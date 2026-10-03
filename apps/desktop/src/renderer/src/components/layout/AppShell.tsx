@@ -19,6 +19,7 @@ import { usePetDragGuard } from '@/hooks/usePetDragGuard';
 import { useRememberRoute } from '@/hooks/useRememberRoute';
 import { useScheduledTaskRunner } from '@/hooks/useScheduledTaskRunner';
 import { useVaultEvents } from '@/hooks/useVaultEvents';
+import { startRunSessionFeed } from '@/lib/terminal/runSessionFeed';
 import { cn } from '@/lib/utils';
 import { isWorkspacePath } from '@/lib/workspace/commands';
 import { initAgentStatus } from '@/stores/agentStatusStore';
@@ -189,6 +190,8 @@ export function AppShell(): React.JSX.Element {
   useEffect(() => initAgentStatus(), []);
   // Ditto for AI-driven SSH tasks: progress must keep updating even off the Workspace page.
   useEffect(() => initSshAgentStatus(), []);
+  // Project runs are followed from their first line, whichever page is open, for the status bar.
+  useEffect(() => startRunSessionFeed(), []);
   // The desktop companion would otherwise swallow every drop in the app window.
   usePetDragGuard();
   // Main keeps the page this window is on, so the next launch can open there.

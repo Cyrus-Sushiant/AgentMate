@@ -75,6 +75,14 @@ describe('summarizeProcessTrees', () => {
     }).get(1);
     expect(usage?.processes).toHaveLength(1);
     expect(usage?.processCount).toBe(3);
+    // Every pid is still listed, so a port held by a quiet process maps back to its tree.
+    expect(usage?.pids).toEqual([1, 10, 11]);
+  });
+
+  it('lists no pids for a root that is gone', () => {
+    expect(summarizeProcessTrees([42], current, previous, { cpuCount: 1 }).get(42)?.pids).toEqual(
+      [],
+    );
   });
 });
 

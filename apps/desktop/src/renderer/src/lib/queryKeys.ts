@@ -242,6 +242,9 @@ export const queryKeys = {
     ['deploy', 'cloudflare', serverId, 'dns-tokens'] as const,
   /** Every running shell with its process tree's CPU and memory, for the Running CLIs modal. */
   terminalUsage: ['terminal-usage'] as const,
+  /** Usage and listening ports of the project runs' terminals, for the status bar. */
+  terminalRunStatus: (sessionIds: readonly string[]) =>
+    ['terminal-run-status', ...sessionIds] as const,
   vaultStatus: ['vault', 'status'] as const,
   /** Prefix of everything decrypted from the vault, removed as a whole when it locks. */
   vaultData: ['vault', 'data'] as const,

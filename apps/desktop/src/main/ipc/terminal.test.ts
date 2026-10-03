@@ -1,6 +1,10 @@
 import { BrowserWindow } from 'electron';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { TerminalAttachResult, TerminalUsageResult } from '../../shared/apiTypes';
+import type {
+  TerminalAttachResult,
+  TerminalRunStatusResult,
+  TerminalUsageResult,
+} from '../../shared/apiTypes';
 import { IPC } from '../../shared/ipcChannels';
 import { withPlatform } from '../../test/main/fixtures';
 import {
@@ -119,10 +123,21 @@ vi.mock('../system/processTree', () => ({
     trees: new Map(
       pids.map((pid) => [
         pid,
-        { cpuPercent: 12.5, memBytes: 1024, processCount: 2, processes: [] },
+        // The shell and one child, whose pid is one higher.
+        { cpuPercent: 12.5, memBytes: 1024, processCount: 2, processes: [], pids: [pid, pid + 1] },
       ]),
     ),
   }),
+}));
+
+// netstat (or lsof, or ss) is another process boundary. The child of shell 4242 serves 5173 and
+// 9229; pid 7000 belongs to no terminal at all.
+vi.mock('../system/listeningPorts', () => ({
+  sampleListeningPorts: async () =>
+    new Map([
+      [4243, [5173, 9229]],
+      [7000, [80]],
+    ]),
 }));
 
 useTempUserData();
@@ -376,6 +391,53 @@ describe('terminal:usage', () => {
     host.state.sessions = [{ sessionId: 'no-pid', pid: 0, createdAt: 1 }];
     const usage = await invoke<TerminalUsageResult>(IPC.terminal.usage);
     expect(usage.sessions[0]).toMatchObject({ sessionId: 'no-pid', cpuPercent: 0, memBytes: 0 });
+  });
+});
+
+describe('terminal:runStatus', () => {
+  it('reports usage and the ports each run listens on, only for the runs asked about', async () => {
+    await invoke(IPC.terminal.create, { sessionId: 'run-1' });
+    host.state.sessions = [
+      { sessionId: 'run-1', pid: 4242, createdAt: 1000 },
+      { sessionId: 'agent-tab', pid: 6000, createdAt: 1000 },
+    ];
+
+    const result = await invoke<TerminalRunStatusResult>(IPC.terminal.runStatus, ['run-1']);
+
+    expect(result.available).toBe(true);
+    expect(result.cpuReady).toBe(true);
+    // The port is held by the shell's child, not the shell, and still counts as the run's.
+    expect(result.sessions).toEqual([
+      {
+        sessionId: 'run-1',
+        alive: true,
+        cpuPercent: 12.5,
+        memBytes: 1024,
+        processCount: 2,
+        ports: [5173, 9229],
+      },
+    ]);
+  });
+
+  it('says a run whose shell is gone is no longer alive', async () => {
+    await invoke(IPC.terminal.create, { sessionId: 'started' });
+    host.state.sessions = [];
+
+    const result = await invoke<TerminalRunStatusResult>(IPC.terminal.runStatus, ['ended']);
+
+    expect(result.sessions).toEqual([
+      { sessionId: 'ended', alive: false, cpuPercent: 0, memBytes: 0, processCount: 0, ports: [] },
+    ]);
+  });
+
+  it('ignores ids that are not session ids, and asks nothing for an empty list', async () => {
+    const empty = await invoke<TerminalRunStatusResult>(IPC.terminal.runStatus, []);
+    expect(empty.sessions).toEqual([]);
+    const junk = await invoke<TerminalRunStatusResult>(IPC.terminal.runStatus, ['../../etc', 42]);
+    expect(junk.sessions).toEqual([]);
+    const notAList = await invoke<TerminalRunStatusResult>(IPC.terminal.runStatus, 'run-1');
+    expect(notAList.sessions).toEqual([]);
+    expect(host.state.requests).toEqual([]);
   });
 });
 

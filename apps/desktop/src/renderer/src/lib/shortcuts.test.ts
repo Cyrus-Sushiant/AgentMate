@@ -271,6 +271,22 @@ describe('the command registry', () => {
     });
   });
 
+  it('stops a project run with Shift+F5 from anywhere, beside F5 for Run', () => {
+    const stop = SHORTCUT_COMMANDS.find((command) => command.id === 'terminal.stopRun');
+    expect(stop).toMatchObject({
+      scope: 'global',
+      group: 'Terminal',
+      defaults: [{ code: 'F5', shift: true }],
+    });
+    // The workspace scope is tried first on the Workspace, so nothing there may take Shift+F5.
+    const taken = SHORTCUT_COMMANDS.filter(
+      (command) =>
+        command.id !== 'terminal.stopRun' &&
+        command.defaults.some((binding) => sameShortcut(binding, { code: 'F5', shift: true })),
+    );
+    expect(taken).toEqual([]);
+  });
+
   it('gives every command an id of its own', () => {
     const ids = SHORTCUT_COMMANDS.map((command) => command.id);
     expect(new Set(ids).size).toBe(ids.length);

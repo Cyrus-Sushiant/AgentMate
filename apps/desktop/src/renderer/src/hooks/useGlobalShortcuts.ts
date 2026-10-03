@@ -6,6 +6,7 @@ import {
   type WorkspaceShortcutCommandId,
 } from '@/lib/shortcuts';
 import { isWorkspacePath, workspaceCommands } from '@/lib/workspace/commands';
+import { stopActiveRun } from '@/stores/runSessionStore';
 import { useSearchStore } from '@/stores/searchStore';
 import { commandForEvent, useShortcutStore } from '@/stores/shortcutStore';
 import { useTerminalStore } from '@/stores/terminalStore';
@@ -69,6 +70,7 @@ export function useGlobalShortcuts(): void {
       // The drawer is the general terminal, so it works the same on every page.
       'terminal.toggle': toggleDrawer,
       'terminal.new': () => void openDefaultSession(),
+      'terminal.stopRun': stopActiveRun,
       'nav.projects': () => navigate('/projects'),
       'search.toggle': toggleSearch,
     };

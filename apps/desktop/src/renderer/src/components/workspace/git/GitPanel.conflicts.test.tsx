@@ -43,10 +43,13 @@ const state = {
   projectPrefix: '',
 } as WorkspaceGitState;
 
-function renderPanel(run: (...args: unknown[]) => Promise<unknown>) {
+function renderPanel(
+  run: (...args: unknown[]) => Promise<unknown>,
+  workspaceState: WorkspaceGitState = state,
+) {
   return renderWithProviders(<GitPanel project={project} visible />, {
     bridge: {
-      'git.workspaceState': state,
+      'git.workspaceState': workspaceState,
       'git.status': { branches: [], defaultBranch: 'main' },
       'git.resolveConflictWithAi': run,
       'settings.get': { reviewCommands: [] },
@@ -105,5 +108,45 @@ describe('GitPanel conflicts with AI', () => {
     expect(
       await within(row(/^src\/app\.ts/)).findByRole('button', { name: 'Mark as resolved' }),
     ).toBeInTheDocument();
+  });
+});
+
+describe('GitPanel Fix with AI for conflicts', () => {
+  const banner = () => screen.getByText(/in progress/).parentElement as HTMLElement;
+
+  it('offers it once, in the operation banner next to Abort', async () => {
+    renderPanel(vi.fn());
+    await screen.findByRole('option', { name: /^src\/app\.ts/ });
+
+    expect(within(banner()).getByRole('button', { name: 'Fix with AI' })).toBeInTheDocument();
+    expect(within(banner()).getByRole('button', { name: 'Abort' })).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: 'Fix with AI' })).toHaveLength(1);
+  });
+
+  it('opens the dialog with every conflicted file in the prompt', async () => {
+    const { user } = renderPanel(vi.fn());
+    await screen.findByRole('option', { name: /^src\/app\.ts/ });
+
+    await user.click(within(banner()).getByRole('button', { name: 'Fix with AI' }));
+
+    const prompt = (await screen.findByLabelText('Fix prompt')) as HTMLTextAreaElement;
+    expect(prompt.value).toContain('- src/app.ts (both modified)');
+    expect(prompt.value).toContain('- src/other.ts (both modified)');
+  });
+
+  it('moves to the commit box when conflicts have no banner, as after a stash pop', async () => {
+    renderPanel(vi.fn(), { ...state, operation: null });
+    await screen.findByText('Resolve the conflicts below before committing.');
+
+    expect(screen.queryByText(/in progress/)).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Fix with AI' })).toBeInTheDocument();
+  });
+
+  it('keeps only Abort when an operation is paused without conflicts', async () => {
+    renderPanel(vi.fn(), { ...state, operation: 'rebase', conflicts: [] });
+    await screen.findByText(/in progress/);
+
+    expect(within(banner()).getByRole('button', { name: 'Abort' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Fix with AI' })).not.toBeInTheDocument();
   });
 });

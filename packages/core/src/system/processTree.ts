@@ -39,6 +39,8 @@ export interface ProcessTreeUsage {
   processCount: number;
   /** The busiest processes in the tree, root included, highest CPU first. */
   processes: ProcessTreeProcess[];
+  /** Every pid in the tree, root first. Unlike `processes`, never capped. */
+  pids: number[];
 }
 
 export interface SummarizeOptions {
@@ -139,6 +141,7 @@ export function summarizeProcessTrees(
       memBytes,
       processCount: processes.length,
       processes: processes.slice(0, maxProcesses),
+      pids,
     });
   }
   return result;

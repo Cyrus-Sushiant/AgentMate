@@ -186,6 +186,27 @@ export interface TerminalUsageResult {
   sessions: TerminalSessionUsage[];
 }
 
+/** A project run's terminal: what its process tree uses and which ports it listens on. */
+export interface TerminalRunStatus {
+  sessionId: string;
+  /** False when the shell is no longer running. */
+  alive: boolean;
+  /** Share of all cores, 0-100, summed over the whole tree. */
+  cpuPercent: number;
+  memBytes: number;
+  processCount: number;
+  /** TCP ports any process in the tree is listening on, lowest first. */
+  ports: number[];
+}
+
+export interface TerminalRunStatusResult {
+  /** False when this system's process list could not be read. */
+  available: boolean;
+  /** False on the first reading, before there is a CPU time delta to compare. */
+  cpuReady: boolean;
+  sessions: TerminalRunStatus[];
+}
+
 /** A workspace terminal tab, as the agent status tracker needs to know it. */
 export interface AgentSessionEntry {
   sessionId: string;

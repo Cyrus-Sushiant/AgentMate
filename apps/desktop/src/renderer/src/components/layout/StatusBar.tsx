@@ -16,22 +16,31 @@ import { SparklineChart } from '@/components/dashboard/SparklineChart';
 import {
   Android,
   Check,
+  Copy,
   Cpu,
   Docker,
+  Globe,
   MemoryStick,
   MugHot,
+  Play,
+  Smartphone,
+  StopCircle,
   TerminalSquare,
   Wifi,
 } from '@/components/icons';
 import { ProviderLogo } from '@/components/providerLogos';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { AGENT_STATUS_LABEL, AgentStatusDot } from '@/components/workspace/AgentStatusDot';
+import { type RunRow, useRunRows } from '@/hooks/useRunRows';
 import { useSystemStatsHistory } from '@/hooks/useSystemStatsHistory';
+import { formatBytes as formatMemory, formatPercent } from '@/lib/format';
 import { queryKeys } from '@/lib/queryKeys';
 import { formatCountdown } from '@/lib/usageFormat';
 import { cn } from '@/lib/utils';
 import { useAgentStatusStore } from '@/stores/agentStatusStore';
 import { useRunningClisStore } from '@/stores/runningClisStore';
+import { stopRun } from '@/stores/runSessionStore';
+import { useShortcutLabel } from '@/stores/shortcutStore';
 import { useTerminalStore } from '@/stores/terminalStore';
 import { terminalTabLabel, useWorkspaceStore } from '@/stores/workspaceStore';
 
@@ -910,6 +919,237 @@ function KeepAwakeSegment(): React.JSX.Element | null {
   );
 }
 
+/** How long a run has been going: "under a minute", "4m", "1h 12m". */
+function formatRunTime(ms: number): string {
+  const minutes = Math.floor(ms / 60_000);
+  if (minutes < 1) return 'under a minute';
+  if (minutes < 60) return `${minutes}m`;
+  return `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
+}
+
+function RunStateDot({ state }: { state: RunRow['state'] }): React.JSX.Element {
+  return (
+    <span
+      data-state-dot={state}
+      className={cn(
+        'h-1.5 w-1.5 shrink-0 rounded-full',
+        state === 'running' && 'bg-success',
+        state === 'starting' && 'shimmer bg-primary/60',
+        state === 'idle' && 'bg-muted-foreground/50',
+      )}
+    />
+  );
+}
+
+function portOfUrl(url: string | null): string | null {
+  if (!url) return null;
+  try {
+    return new URL(url).port || null;
+  } catch {
+    return null;
+  }
+}
+
+/** Where a run can be reached, in a few characters: its port, or the device it went to. */
+function RunTarget({ row }: { row: RunRow }): React.JSX.Element | null {
+  if (row.mobile) {
+    return (
+      <span className="flex min-w-0 items-center gap-1">
+        <Smartphone className="h-2.5 w-2.5 shrink-0" />
+        <span className="max-w-[8rem] truncate">{row.device?.name ?? 'waiting for device'}</span>
+      </span>
+    );
+  }
+  const port = portOfUrl(row.url);
+  if (!port) return null;
+  return (
+    <span className="flex items-center gap-1 tabular-nums">
+      <Globe className="h-2.5 w-2.5 shrink-0" />:{port}
+    </span>
+  );
+}
+
+const RUN_STATE_LABEL: Record<RunRow['state'], string> = {
+  starting: 'starting',
+  running: 'running',
+  idle: 'finished, the shell is still open',
+};
+
+const runActionClass =
+  'flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring';
+
+function RunDetail({
+  row,
+  stopLabel,
+}: {
+  row: RunRow;
+  stopLabel: string | null;
+}): React.JSX.Element {
+  const navigate = useNavigate();
+  const { session, status, url, device } = row;
+  const openTerminal = (): void => {
+    const terminal = useTerminalStore.getState();
+    terminal.setActiveSession(session.id);
+    terminal.openDrawer();
+  };
+
+  return (
+    <div className="flex flex-col gap-1.5 px-2 py-2">
+      <div className="flex items-center gap-2">
+        <RunStateDot state={row.state} />
+        <span className="min-w-0 flex-1 truncate text-xs font-medium">{session.title}</span>
+        <PopoverPrimitive.Close asChild>
+          <button
+            type="button"
+            onClick={openTerminal}
+            className={cn(
+              runActionClass,
+              'text-muted-foreground hover:bg-foreground/[0.07] hover:text-foreground',
+            )}
+          >
+            <TerminalSquare className="h-2.5 w-2.5" />
+            Show terminal
+          </button>
+        </PopoverPrimitive.Close>
+        <SimpleTooltip label={stopLabel ? `Stop (${stopLabel})` : 'Stop'} side="top">
+          <button
+            type="button"
+            aria-label={`Stop ${session.run.label}`}
+            onClick={() => stopRun(session.id)}
+            className={cn(runActionClass, 'text-destructive hover:bg-destructive/10')}
+          >
+            <StopCircle className="h-2.5 w-2.5" />
+            Stop
+          </button>
+        </SimpleTooltip>
+      </div>
+      <p className="truncate text-[10px] text-muted-foreground">
+        <span className="font-mono">{session.run.command}</span> · {RUN_STATE_LABEL[row.state]} ·{' '}
+        {formatRunTime(Date.now() - session.run.startedAt)}
+      </p>
+      {status ? (
+        <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+          <Cpu className="h-2.5 w-2.5" />
+          {row.cpuReady ? (
+            <>
+              <Meter percent={status.cpuPercent} />
+              <span className="tabular-nums">{formatPercent(status.cpuPercent)}</span>
+            </>
+          ) : (
+            <span>measuring</span>
+          )}
+          <MemoryStick className="ml-1.5 h-2.5 w-2.5" />
+          <span className="tabular-nums">{formatMemory(status.memBytes)}</span>
+          <span className="ml-auto tabular-nums">
+            {status.processCount} {status.processCount === 1 ? 'process' : 'processes'}
+          </span>
+        </div>
+      ) : null}
+      {url ? (
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={() => void window.agentmat.shell.openExternal(url)}
+            className="flex min-w-0 flex-1 items-center gap-1.5 rounded px-1 py-0.5 text-left text-[11px] text-primary transition-colors hover:bg-foreground/[0.07] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          >
+            <Globe className="h-2.5 w-2.5 shrink-0" />
+            <span className="truncate">{url}</span>
+          </button>
+          <SimpleTooltip label="Copy address" side="top">
+            <button
+              type="button"
+              aria-label="Copy address"
+              onClick={() => void navigator.clipboard.writeText(url)}
+              className="rounded p-1 text-muted-foreground transition-colors hover:bg-foreground/[0.07] hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            >
+              <Copy className="h-2.5 w-2.5" />
+            </button>
+          </SimpleTooltip>
+        </div>
+      ) : null}
+      {row.ports.length > 1 ? (
+        <p className="px-1 text-[10px] tabular-nums text-muted-foreground">
+          Listening on {row.ports.map((port) => `:${port}`).join(', ')}
+        </p>
+      ) : null}
+      {row.mobile && device?.serial ? (
+        <PopoverPrimitive.Close asChild>
+          <button
+            type="button"
+            onClick={() =>
+              void navigate(`/android?device=${encodeURIComponent(device.serial ?? '')}`)
+            }
+            className="flex items-center gap-1.5 rounded px-1 py-0.5 text-left text-[11px] transition-colors hover:bg-foreground/[0.07] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          >
+            <Smartphone className="h-2.5 w-2.5 shrink-0" />
+            <span className="truncate">{device.name}</span>
+          </button>
+        </PopoverPrimitive.Close>
+      ) : row.mobile ? (
+        <p className="flex items-center gap-1.5 px-1 text-[11px] text-muted-foreground">
+          <Smartphone className="h-2.5 w-2.5 shrink-0" />
+          <span className="truncate">{device?.name ?? 'Waiting for a device'}</span>
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+/**
+ * The projects started with Run, and where each can be reached. One run gets its name, port or
+ * device and usage right in the bar; more than one collapse into a count, so the agents on the
+ * left keep their room. The panel lists every run with its own Stop button.
+ */
+function RunSegments(): React.JSX.Element | null {
+  const rows = useRunRows();
+  const stopLabel = useShortcutLabel('terminal.stopRun');
+  if (rows.length === 0) return null;
+
+  const cpuReady = rows[0].cpuReady;
+  const cpu = rows.reduce((sum, row) => sum + (row.status?.cpuPercent ?? 0), 0);
+  const mem = rows.reduce((sum, row) => sum + (row.status?.memBytes ?? 0), 0);
+  const single = rows.length === 1 ? rows[0] : null;
+
+  return (
+    <PopSegment
+      label={
+        single
+          ? `${single.session.title}: ${single.session.run.label}`
+          : `${rows.length} project runs`
+      }
+      width="w-80"
+      panel={
+        <>
+          <PanelTitle
+            title="Runs"
+            detail={stopLabel ? `${stopLabel} stops the active run` : null}
+          />
+          <div className="-mx-3 flex max-h-96 flex-col divide-y divide-border/60 overflow-y-auto px-1">
+            {rows.map((row) => (
+              <RunDetail key={row.session.id} row={row} stopLabel={stopLabel} />
+            ))}
+          </div>
+        </>
+      }
+    >
+      {single ? (
+        <>
+          <RunStateDot state={single.state} />
+          <span className="max-w-[9rem] truncate">{single.session.title}</span>
+          <RunTarget row={single} />
+        </>
+      ) : (
+        <>
+          <Play className="h-2.5 w-2.5" />
+          <span className="tabular-nums">{rows.length} runs</span>
+        </>
+      )}
+      {cpuReady ? <span className="tabular-nums">{formatPercent(Math.min(100, cpu))}</span> : null}
+      {mem > 0 ? <span className="tabular-nums">{formatMemory(mem)}</span> : null}
+    </PopSegment>
+  );
+}
+
 /**
  * How many terminals are open across the Workspace and the drawer. Counting comes from the
  * stores alone; the per-terminal CPU and memory are only sampled while the modal is open.
@@ -949,6 +1189,7 @@ export function StatusBar(): React.JSX.Element {
         <AgentSegments />
       </div>
       <div className="flex h-full shrink-0 items-center">
+        <RunSegments />
         <TerminalsSegment />
         <QuotaSegment />
         <DockerSegment />

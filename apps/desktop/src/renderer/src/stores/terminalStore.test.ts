@@ -265,6 +265,28 @@ describe('coming back from a saved drawer', () => {
     expect(saved.state.sessions[0].initialInput).toBeUndefined();
   });
 
+  it('keeps a run tab a run across a restart, without its command to type', async () => {
+    const run = {
+      commandId: 'dev',
+      label: 'Dev',
+      command: 'pnpm dev',
+      kind: 'web' as const,
+      startedAt: 1_700_000_000_000,
+    };
+    store().openSession({ title: 'Apollo', initialInput: 'pnpm dev\r', run });
+    const raw = localStorage.getItem('agentmate-terminal-sessions') ?? '{}';
+    const saved = JSON.parse(raw);
+    expect(saved.state.sessions[0].run).toEqual(run);
+    expect(saved.state.sessions[0].initialInput).toBeUndefined();
+
+    // Clearing the store writes an empty drawer, so the saved one goes back before reading it.
+    reset();
+    localStorage.setItem('agentmate-terminal-sessions', raw);
+    await useTerminalStore.persist.rehydrate();
+    // Still listed in the status bar after a restart, with the time it really started.
+    expect(store().sessions[0]).toMatchObject({ run, restored: true });
+  });
+
   it('never saves an SSH tab, which has no host to reattach to', () => {
     store().openSshSession(server);
     store().openDefaultSession();

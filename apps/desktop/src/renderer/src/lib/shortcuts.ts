@@ -20,6 +20,7 @@ export interface Shortcut {
 export type ShortcutCommandId =
   | 'terminal.toggle'
   | 'terminal.new'
+  | 'terminal.stopRun'
   | 'nav.projects'
   | 'search.toggle'
   | 'prompt.generate'
@@ -128,6 +129,15 @@ export const SHORTCUT_COMMANDS: ShortcutCommand[] = [
     group: 'Terminal',
     scope: 'global',
     defaults: [{ code: 'Backquote', mod: true, shift: true }],
+  },
+  {
+    id: 'terminal.stopRun',
+    label: 'Stop run',
+    description:
+      "Closes the project run's terminal and ends everything it started: the run open in the drawer, or else the newest run.",
+    group: 'Terminal',
+    scope: 'global',
+    defaults: [{ code: 'F5', shift: true }],
   },
   {
     id: 'nav.projects',

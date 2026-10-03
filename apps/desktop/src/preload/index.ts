@@ -258,6 +258,7 @@ import type {
   SystemStatsSample,
   TerminalAttachResult,
   TerminalClipboardPaste,
+  TerminalRunStatusResult,
   TerminalUsageResult,
   TextSearchBatch,
   TextSearchRequest,
@@ -505,6 +506,9 @@ const terminal = {
   kill: (sessionId: string): Promise<void> => ipcRenderer.invoke(IPC.terminal.kill, sessionId),
   /** Every running shell with the CPU and memory its whole process tree is using. */
   usage: (): Promise<TerminalUsageResult> => ipcRenderer.invoke(IPC.terminal.usage),
+  /** CPU, memory and listening ports for the given project runs' terminals. */
+  runStatus: (sessionIds: string[]): Promise<TerminalRunStatusResult> =>
+    ipcRenderer.invoke(IPC.terminal.runStatus, sessionIds),
   onData: (callback: (payload: TerminalDataPayload) => void): (() => void) => {
     const listener = (_event: Electron.IpcRendererEvent, payload: TerminalDataPayload): void =>
       callback(payload);

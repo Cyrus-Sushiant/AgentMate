@@ -5,6 +5,7 @@ import type {
   AgentSessionEntry,
   CreateTerminalOptions,
   TerminalAttachResult,
+  TerminalRunStatusResult,
   TerminalSurface,
   TerminalUsageResult,
 } from '../../shared/apiTypes';
@@ -22,6 +23,7 @@ import type {
 } from '../ptyHost/protocol';
 import { PtySessionManager, type SessionListener } from '../ptyHost/sessionManager';
 import { store } from '../store';
+import { sampleListeningPorts } from '../system/listeningPorts';
 import { sampleProcessTrees } from '../system/processTree';
 import { broadcastToWindows, sendToContents } from './send';
 
@@ -303,11 +305,7 @@ export function registerTerminalHandlers(): void {
   });
 
   ipcMain.handle(IPC.terminal.usage, async (): Promise<TerminalUsageResult> => {
-    // Only waits on a backend that is already starting; asking for usage never starts a host.
-    if (backendReady) await backendReady;
-    const running: HostSessionInfo[] = host
-      ? await host.request<HostSessionInfo[]>({ type: 'list' }).catch(() => [])
-      : (local?.list() ?? []);
+    const running = await listRunningSessions();
     const pids = running.map((info) => info.pid).filter((pid) => Number.isInteger(pid) && pid > 0);
     const sample = await sampleProcessTrees(pids);
     return {
@@ -332,6 +330,54 @@ export function registerTerminalHandlers(): void {
       }),
     };
   });
+
+  ipcMain.handle(
+    IPC.terminal.runStatus,
+    async (_event, sessionIds: unknown): Promise<TerminalRunStatusResult> => {
+      const wanted = Array.isArray(sessionIds)
+        ? sessionIds.filter(
+            (id): id is string => typeof id === 'string' && SESSION_ID_PATTERN.test(id),
+          )
+        : [];
+      if (wanted.length === 0) return { available: true, cpuReady: false, sessions: [] };
+      const running = new Map((await listRunningSessions()).map((info) => [info.sessionId, info]));
+      const pids = wanted
+        .map((id) => running.get(id)?.pid)
+        .filter((pid): pid is number => Number.isInteger(pid) && (pid as number) > 0);
+      const [sample, portsByPid] = await Promise.all([
+        sampleProcessTrees(pids),
+        pids.length > 0 ? sampleListeningPorts() : Promise.resolve(new Map<number, number[]>()),
+      ]);
+      return {
+        available: sample.available,
+        cpuReady: sample.cpuReady,
+        sessions: wanted.map((sessionId) => {
+          const info = running.get(sessionId);
+          const tree = info ? sample.trees.get(info.pid) : undefined;
+          const ports = new Set<number>();
+          for (const pid of tree?.pids ?? []) {
+            for (const port of portsByPid.get(pid) ?? []) ports.add(port);
+          }
+          return {
+            sessionId,
+            alive: info !== undefined,
+            cpuPercent: tree?.cpuPercent ?? 0,
+            memBytes: tree?.memBytes ?? 0,
+            processCount: tree?.processCount ?? 0,
+            ports: [...ports].sort((a, b) => a - b),
+          };
+        }),
+      };
+    },
+  );
+}
+
+/** The shells the backend is running. Only waits on a backend that is already starting. */
+async function listRunningSessions(): Promise<HostSessionInfo[]> {
+  if (backendReady) await backendReady;
+  return host
+    ? await host.request<HostSessionInfo[]>({ type: 'list' }).catch(() => [])
+    : (local?.list() ?? []);
 }
 
 /**

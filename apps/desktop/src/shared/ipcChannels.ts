@@ -55,6 +55,7 @@ export const IPC = {
     resize: 'terminal:resize',
     kill: 'terminal:kill',
     usage: 'terminal:usage',
+    runStatus: 'terminal:runStatus',
     onData: 'terminal:onData',
     onExit: 'terminal:onExit',
   },

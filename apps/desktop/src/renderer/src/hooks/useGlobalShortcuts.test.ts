@@ -165,6 +165,71 @@ describe('useGlobalShortcuts', () => {
     expect(workspace.workspaceCommands.runProject).toHaveBeenCalledTimes(1);
   });
 
+  describe('stopping a run with Shift+F5', () => {
+    const RUN = {
+      commandId: 'dev',
+      label: 'Dev',
+      command: 'pnpm dev',
+      kind: 'web' as const,
+      startedAt: 1,
+    };
+
+    function withRuns(): void {
+      useTerminalStore.setState({
+        sessions: [
+          { id: 'shell', title: 'PowerShell' },
+          { id: 'dev', title: 'Apollo', projectId: 'p1', run: RUN },
+        ],
+        activeSessionId: 'shell',
+        isOpen: true,
+      });
+    }
+
+    it('stops the run on the workspace, where bare F5 is Run', () => {
+      withRuns();
+      // The render installs the bridge the store will reach.
+      const { bridge } = renderShortcuts('/workspace/p1');
+
+      const event = press({ code: 'F5', key: 'F5', shift: true });
+
+      // Shift+F5 must not fall into F5's Run on the way.
+      expect(workspace.workspaceCommands.runProject).not.toHaveBeenCalled();
+      expect(bridge.$fn('terminal.kill')).toHaveBeenCalledWith('dev');
+      expect(useTerminalStore.getState().sessions.map((s) => s.id)).toEqual(['shell']);
+      expect(event.defaultPrevented).toBe(true);
+
+      press({ code: 'F5', key: 'F5' });
+      expect(workspace.workspaceCommands.runProject).toHaveBeenCalledTimes(1);
+    });
+
+    it('stops the run from any page, even with a terminal focused', () => {
+      withRuns();
+      const { bridge } = renderShortcuts('/settings');
+      // xterm takes its keys through a hidden textarea.
+      const terminalInput = document.createElement('textarea');
+      document.body.append(terminalInput);
+
+      press({ code: 'F5', key: 'F5', shift: true, target: terminalInput });
+
+      expect(bridge.$fn('terminal.kill')).toHaveBeenCalledWith('dev');
+      terminalInput.remove();
+    });
+
+    it('leaves plain shells running when there is no run', () => {
+      useTerminalStore.setState({
+        sessions: [{ id: 'shell', title: 'PowerShell' }],
+        activeSessionId: 'shell',
+        isOpen: true,
+      });
+      const { bridge } = renderShortcuts('/workspace/p1');
+
+      press({ code: 'F5', key: 'F5', shift: true });
+
+      expect(() => bridge.$fn('terminal.kill')).toThrow();
+      expect(useTerminalStore.getState().sessions).toHaveLength(1);
+    });
+  });
+
   // A dialog binds its keys through React further down the tree, so it gets there first and
   // calls preventDefault. That has to park this handler, which is what gives the modal the say.
   it('stands down for an event a dialog already handled', () => {

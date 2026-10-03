@@ -88,9 +88,16 @@ export interface CommitBoxProps {
   projectId: string;
   state: WorkspaceGitState;
   actions: GitActions;
+  /** Shown next to the "resolve the conflicts" notice, such as a way to hand them to an agent. */
+  conflictAction?: React.ReactNode;
 }
 
-export function CommitBox({ projectId, state, actions }: CommitBoxProps): React.JSX.Element {
+export function CommitBox({
+  projectId,
+  state,
+  actions,
+  conflictAction,
+}: CommitBoxProps): React.JSX.Element {
   const message = useCommitDrafts((s) => s.drafts[projectId] ?? '');
   const setMessage = (value: string): void =>
     useCommitDrafts.setState((s) => ({ drafts: { ...s.drafts, [projectId]: value } }));
@@ -303,9 +310,12 @@ export function CommitBox({ projectId, state, actions }: CommitBoxProps): React.
       </div>
 
       {blockedByConflicts ? (
-        <p className="text-[11px] leading-snug text-destructive">
-          Resolve the conflicts below before committing.
-        </p>
+        <div className="flex items-center gap-2">
+          <p className="min-w-0 flex-1 text-[11px] leading-snug text-destructive">
+            Resolve the conflicts below before committing.
+          </p>
+          {conflictAction}
+        </div>
       ) : null}
       {busy === 'push' ? (
         <p className="flex items-center gap-1.5 text-[11px] text-muted-foreground">

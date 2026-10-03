@@ -58,6 +58,7 @@ import { CommitsSection } from './CommitsSection';
 import { ExplorerSection } from './ExplorerSection';
 import { collapseAll, startCreateAtFocus } from './explorer/actions';
 import { ExplorerSearchToggle } from './explorer/ExplorerSearchToggle';
+import { FixConflictsButton } from './FixConflictsDialog';
 import { GitFileRow } from './GitFileRow';
 import { HistorySection } from './HistorySection';
 import { PanelNotice } from './PanelNotice';
@@ -522,7 +523,17 @@ function ChangesBody({
     state.staged.length + state.unstaged.length + state.untracked.length + state.conflicts.length;
   return (
     <>
-      {total > 0 ? <CommitBox projectId={project.id} state={state} actions={actions} /> : null}
+      {total > 0 ? (
+        <CommitBox
+          projectId={project.id}
+          state={state}
+          actions={actions}
+          // With an operation pending the banner above already offers it.
+          conflictAction={
+            state.operation ? null : <FixConflictsButton project={project} state={state} />
+          }
+        />
+      ) : null}
       {showLineStats ? <ChangesSummary state={state} /> : null}
       <div className="min-h-0 flex-1 overflow-y-auto" data-git-panel>
         {total === 0 ? (
@@ -648,7 +659,8 @@ function SourceControlBody({
       {state.operation ? (
         <div className="mx-2.5 mt-2.5 flex items-center gap-2 rounded-lg border border-warning/30 bg-warning/10 px-2.5 py-2 text-xs text-warning">
           <TriangleAlert className="h-3 w-3 shrink-0" />
-          <span className="flex-1 capitalize">{state.operation} in progress</span>
+          <span className="min-w-0 flex-1 truncate capitalize">{state.operation} in progress</span>
+          <FixConflictsButton project={project} state={state} />
           <button
             type="button"
             onClick={async () => {

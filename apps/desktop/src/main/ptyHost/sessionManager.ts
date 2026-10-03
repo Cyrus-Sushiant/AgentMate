@@ -2,6 +2,7 @@ import { release } from 'node:os';
 import { SerializeAddon } from '@xterm/addon-serialize';
 import { Terminal as HeadlessTerminal } from '@xterm/headless';
 import * as pty from 'node-pty';
+import { killShellTree } from './killTree';
 import type {
   CreateOrAttachPayload,
   CreateOrAttachResult,
@@ -121,11 +122,8 @@ export class PtySessionManager {
     if (!session) return;
     this.sessions.delete(sessionId);
     session.listener = null;
-    try {
-      session.pty.kill();
-    } catch {
-      // already gone
-    }
+    const { pty: shell } = session;
+    killShellTree(shell.pid, () => shell.kill());
     session.emulator.dispose();
     this.onSessionsChanged();
   }

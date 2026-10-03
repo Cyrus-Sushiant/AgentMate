@@ -1,5 +1,5 @@
 import type { Project, ProjectRunCommand } from '@agentmat/core';
-import { configuredRunCommands } from '@agentmat/core';
+import { classifyRunCommand, configuredRunCommands, projectRunCommandTitle } from '@agentmat/core';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { RunCommandPickerDialog } from '@/components/projects/RunCommandPickerDialog';
@@ -15,13 +15,21 @@ export function useProjectRun(): {
   const [project, setProject] = useState<Project | null>(null);
 
   function execute(target: Project, command: ProjectRunCommand): void {
+    const label = projectRunCommandTitle(command);
     openSession({
       title: target.name,
       cwd: target.folderPath,
       projectId: target.id,
-      initialInput: command.command,
+      initialInput: `${command.command}\r`,
+      run: {
+        commandId: command.id,
+        label,
+        command: command.command,
+        kind: classifyRunCommand(command.command),
+        startedAt: Date.now(),
+      },
     });
-    toast.info(`Press Enter in the terminal to run "${command.command}".`);
+    toast.info(`Running "${label}".`);
     setProject(null);
   }
 

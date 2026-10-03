@@ -1,6 +1,8 @@
 import type { AndroidSdkStatus } from '@agentmat/core';
 import { screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
+import { useRunSessionStore } from '@/stores/runSessionStore';
+import { type TerminalSessionMeta, useTerminalStore } from '@/stores/terminalStore';
 import { renderWithProviders } from '../../../../test/renderer/renderWithProviders';
 
 const navigate = vi.fn();
@@ -172,5 +174,161 @@ describe('the Android status bar entry', () => {
 
     await user.keyboard('{Escape}');
     await waitFor(() => expect(bridge.$fn('android.watchUsage')).toHaveBeenCalledWith(false));
+  });
+});
+
+/**
+ * The project runs entry: every terminal started with Run, what it is using and where it can be
+ * reached, with a way to stop it. It sits in a 24px bar next to the agents, so one run shows its
+ * detail and several collapse into a count.
+ */
+describe('the project runs entry', () => {
+  const MB = 1024 * 1024;
+
+  function runInfo(label: string, command: string, kind: 'web' | 'mobile' = 'web') {
+    return {
+      commandId: label.toLowerCase(),
+      label,
+      command,
+      kind,
+      startedAt: Date.now() - 120_000,
+    };
+  }
+
+  function status(sessionId: string, over: Record<string, unknown> = {}) {
+    return {
+      sessionId,
+      alive: true,
+      cpuPercent: 4,
+      memBytes: 200 * MB,
+      processCount: 3,
+      ports: [],
+      ...over,
+    };
+  }
+
+  function runs(
+    sessions: TerminalSessionMeta[],
+    outputs: Record<string, { urls: string[]; devices: string[] }> = {},
+  ): void {
+    useTerminalStore.setState({ sessions, activeSessionId: null, isOpen: false });
+    useRunSessionStore.setState({ outputs });
+  }
+
+  const DEV: TerminalSessionMeta = {
+    id: 'dev',
+    title: 'Apollo',
+    projectId: 'apollo',
+    run: runInfo('Dev', 'pnpm dev'),
+  };
+
+  function setupRuns(statuses: unknown[], extra: Record<string, unknown> = {}) {
+    navigate.mockClear();
+    return renderWithProviders(<StatusBar />, {
+      bridge: {
+        'android.sdk': NO_SDK,
+        'terminal.runStatus': { available: true, cpuReady: true, sessions: statuses },
+        ...extra,
+      },
+    });
+  }
+
+  it('shows one run with its port, CPU and memory', async () => {
+    runs([DEV], { dev: { urls: ['http://localhost:5173/'], devices: [] } });
+    setupRuns([status('dev', { ports: [5173] })]);
+
+    const chip = await screen.findByRole('button', { name: 'Apollo: Dev' });
+    await waitFor(() => expect(within(chip).getByText('4.0%')).toBeInTheDocument());
+    expect(within(chip).getByText('Apollo')).toBeInTheDocument();
+    expect(within(chip).getByText(/:5173/)).toBeInTheDocument();
+    expect(within(chip).getByText('200 MB')).toBeInTheDocument();
+  });
+
+  it('collapses several runs into a count with their total usage', async () => {
+    runs([DEV, { id: 'api', title: 'Zeus', run: runInfo('API', 'dotnet run') }]);
+    setupRuns([status('dev'), status('api', { cpuPercent: 6, memBytes: 300 * MB })]);
+
+    const chip = await screen.findByRole('button', { name: '2 project runs' });
+    expect(within(chip).getByText('2 runs')).toBeInTheDocument();
+    await waitFor(() => expect(within(chip).getByText('10%')).toBeInTheDocument());
+    expect(within(chip).getByText('500 MB')).toBeInTheDocument();
+  });
+
+  it('names the device a mobile run went to, as the Android page knows it', async () => {
+    runs([{ id: 'app', title: 'Hermes', run: runInfo('App', 'flutter run', 'mobile') }], {
+      app: { urls: [], devices: ['emulator-5554'] },
+    });
+    setupRuns([status('app')]);
+
+    const chip = await screen.findByRole('button', { name: 'Hermes: App' });
+    expect(within(chip).getByText('emulator-5554')).toBeInTheDocument();
+  });
+
+  it('says a mobile run is still waiting for a device', async () => {
+    runs([{ id: 'app', title: 'Hermes', run: runInfo('App', 'flutter run', 'mobile') }]);
+    setupRuns([status('app')]);
+
+    const chip = await screen.findByRole('button', { name: 'Hermes: App' });
+    expect(within(chip).getByText('waiting for device')).toBeInTheDocument();
+  });
+
+  it('marks a run whose command has finished', async () => {
+    runs([{ ...DEV, run: { ...runInfo('Dev', 'pnpm dev'), startedAt: Date.now() - 600_000 } }]);
+    setupRuns([status('dev', { processCount: 1 })]);
+
+    const chip = await screen.findByRole('button', { name: 'Apollo: Dev' });
+    await waitFor(() => expect(chip.querySelector('[data-state-dot="idle"]')).toBeInTheDocument());
+  });
+
+  it('stops a run from its panel, closing its terminal', async () => {
+    runs([DEV]);
+    const { user, bridge } = setupRuns([status('dev')]);
+
+    await user.click(await screen.findByRole('button', { name: 'Apollo: Dev' }));
+    const panel = await screen.findByRole('dialog');
+    expect(within(panel).getByText('pnpm dev')).toBeInTheDocument();
+    await user.click(within(panel).getByRole('button', { name: 'Stop Dev' }));
+
+    expect(bridge.$fn('terminal.kill')).toHaveBeenCalledWith('dev');
+    expect(useTerminalStore.getState().sessions).toEqual([]);
+    await waitFor(() =>
+      expect(screen.queryByRole('button', { name: 'Apollo: Dev' })).not.toBeInTheDocument(),
+    );
+  });
+
+  it("opens the run's terminal in the drawer", async () => {
+    runs([{ id: 'shell', title: 'PowerShell' }, DEV]);
+    const { user } = setupRuns([status('dev')]);
+
+    await user.click(await screen.findByRole('button', { name: 'Apollo: Dev' }));
+    await user.click(
+      within(await screen.findByRole('dialog')).getByRole('button', { name: /Show terminal/ }),
+    );
+
+    expect(useTerminalStore.getState()).toMatchObject({ activeSessionId: 'dev', isOpen: true });
+  });
+
+  it('opens the address in the browser', async () => {
+    runs([DEV], { dev: { urls: ['http://localhost:5173/'], devices: [] } });
+    const { user, bridge } = setupRuns([status('dev', { ports: [5173] })]);
+
+    await user.click(await screen.findByRole('button', { name: 'Apollo: Dev' }));
+    await user.click(
+      within(await screen.findByRole('dialog')).getByRole('button', {
+        name: /http:\/\/localhost:5173\//,
+      }),
+    );
+
+    expect(bridge.$fn('shell.openExternal')).toHaveBeenCalledWith('http://localhost:5173/');
+  });
+
+  it('stays out of the bar, and measures nothing, with no runs', async () => {
+    runs([{ id: 'shell', title: 'PowerShell' }]);
+    const { bridge } = setupRuns([]);
+
+    await screen.findByRole('contentinfo', { name: 'Status bar' });
+    expect(screen.queryByRole('button', { name: /project runs|: Dev/ })).not.toBeInTheDocument();
+    // Reading usage scans every process, so it never happens without a run to show.
+    expect(() => bridge.$fn('terminal.runStatus')).toThrow();
   });
 });

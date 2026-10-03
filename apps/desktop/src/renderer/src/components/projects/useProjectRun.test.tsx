@@ -25,7 +25,7 @@ function sessions() {
 }
 
 describe('useProjectRun', () => {
-  it('runCommand types the chosen command into a new terminal in the project folder', () => {
+  it('runCommand runs the chosen command in a new terminal in the project folder', () => {
     const { result } = renderHookWithProviders(() => useProjectRun());
 
     act(() => result.current.runCommand(project([dev, prod]), prod));
@@ -35,9 +35,34 @@ describe('useProjectRun', () => {
       title: 'Apollo',
       cwd: '/work/apollo',
       projectId: 'p1',
-      initialInput: 'pnpm start',
+      // Enter included: the status bar follows a run, so it starts without another key press.
+      initialInput: 'pnpm start\r',
     });
-    expect(toast.info).toHaveBeenCalledWith('Press Enter in the terminal to run "pnpm start".');
+    expect(toast.info).toHaveBeenCalledWith('Running "Prod".');
+  });
+
+  it('marks the terminal as a run, so the status bar can list it', () => {
+    const { result } = renderHookWithProviders(() => useProjectRun());
+
+    act(() => result.current.runCommand(project([dev]), dev));
+
+    expect(sessions()[0].run).toEqual({
+      commandId: 'dev',
+      label: 'Dev',
+      command: 'pnpm dev',
+      kind: 'web',
+      startedAt: expect.any(Number),
+    });
+  });
+
+  it('tells a mobile run apart from a web one', () => {
+    const flutter: ProjectRunCommand = { id: 'app', label: '', command: 'flutter run' };
+    const { result } = renderHookWithProviders(() => useProjectRun());
+
+    act(() => result.current.runCommand(project([flutter]), flutter));
+
+    // An unnamed command is listed by the command itself.
+    expect(sessions()[0].run).toMatchObject({ kind: 'mobile', label: 'flutter run' });
   });
 
   it('requestRun runs the only command straight away', () => {
@@ -45,7 +70,7 @@ describe('useProjectRun', () => {
 
     act(() => result.current.requestRun(project([dev])));
 
-    expect(sessions().map((s) => s.initialInput)).toEqual(['pnpm dev']);
+    expect(sessions().map((s) => s.initialInput)).toEqual(['pnpm dev\r']);
   });
 
   it('requestRun calls onEmpty and opens nothing when there is no command', () => {
