@@ -42,6 +42,7 @@ export type ShortcutCommandId =
   | 'workspace.zoomPane'
   | 'workspace.toggleGitPanel'
   | 'workspace.newWorktree'
+  | 'workspace.run'
   | 'workspace.search'
   | 'workspace.goToTab'
   | 'workspace.nextChange'
@@ -318,6 +319,15 @@ export const SHORTCUT_COMMANDS: ShortcutCommand[] = [
     group: 'Workspace',
     scope: 'workspace',
     defaults: [{ code: 'KeyN', mod: true, shift: true }],
+  },
+  {
+    id: 'workspace.run',
+    label: 'Run project',
+    description:
+      "Does what the header's Run button does for the project on screen: starts its run command in the terminal, or asks which one when it has several.",
+    group: 'Workspace',
+    scope: 'workspace',
+    defaults: [{ code: 'F5' }],
   },
   {
     id: 'workspace.search',

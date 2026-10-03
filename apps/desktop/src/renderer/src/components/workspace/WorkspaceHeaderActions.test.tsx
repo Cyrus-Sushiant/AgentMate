@@ -3,6 +3,7 @@ import { act, screen, waitFor, within } from '@testing-library/react';
 import { useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { RUN_PROJECT_EVENT } from '@/lib/workspace/commands';
 import { useVersionDialogStore } from '@/stores/versionDialogStore';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
 import { renderWithProviders } from '../../../../test/renderer/renderWithProviders';
@@ -172,6 +173,24 @@ describe('WorkspaceHeaderActions run menu', () => {
       onEmpty: expect.any(Function),
     });
     expect(screen.queryByRole('menu')).toBeNull();
+  });
+
+  it('runs the project on screen when the run shortcut fires', async () => {
+    await renderHeader([
+      { ...project('a'), runCommands: [dev] },
+      { ...project('b'), runCommands: [prod] },
+    ]);
+    act(() => useWorkspaceStore.getState().openProject('b'));
+    await screen.findByRole('button', { name: 'Run B (pnpm start)' });
+
+    act(() => {
+      window.dispatchEvent(new CustomEvent(RUN_PROJECT_EVENT));
+    });
+
+    expect(run.requestRun).toHaveBeenCalledTimes(1);
+    expect(run.requestRun).toHaveBeenCalledWith(expect.objectContaining({ id: 'b' }), {
+      onEmpty: expect.any(Function),
+    });
   });
 
   it('opens the project on its run commands from Edit run commands', async () => {

@@ -43,6 +43,7 @@ const WORKSPACE_ACTIONS: Record<WorkspaceShortcutCommandId, (event: KeyboardEven
   'workspace.zoomPane': workspaceCommands.toggleZoom,
   'workspace.toggleGitPanel': workspaceCommands.toggleGitPanel,
   'workspace.newWorktree': workspaceCommands.newWorktree,
+  'workspace.run': workspaceCommands.runProject,
   'workspace.search': workspaceCommands.openSearch,
 };
 

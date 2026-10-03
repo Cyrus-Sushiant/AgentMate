@@ -30,6 +30,7 @@ const workspace = vi.hoisted(() => ({
     diffChange: vi.fn(),
     toggleGitPanel: vi.fn(),
     openSearch: vi.fn(),
+    runProject: vi.fn(),
   },
 }));
 vi.mock('@/lib/workspace/commands', () => workspace);
@@ -136,6 +137,32 @@ describe('useGlobalShortcuts', () => {
     expect(workspace.workspaceCommands.openSearch).toHaveBeenCalledTimes(1);
     expect(event.defaultPrevented).toBe(true);
     expect(result.current).toBe('/workspace/p1');
+  });
+
+  it('runs the project on F5 while on the workspace, even from a text field', () => {
+    renderShortcuts('/workspace/p1');
+    const input = document.createElement('input');
+    document.body.append(input);
+    const event = press({ code: 'F5', key: 'F5', target: input });
+    expect(workspace.workspaceCommands.runProject).toHaveBeenCalledTimes(1);
+    expect(event.defaultPrevented).toBe(true);
+    input.remove();
+  });
+
+  it('leaves F5 alone off the workspace', () => {
+    renderShortcuts('/settings');
+    const event = press({ code: 'F5', key: 'F5' });
+    expect(workspace.workspaceCommands.runProject).not.toHaveBeenCalled();
+    expect(event.defaultPrevented).toBe(false);
+  });
+
+  it('runs the project on the key it was rebound to, and no longer on F5', () => {
+    useShortcutStore.setState({ overrides: { 'workspace.run': [{ code: 'KeyR', mod: true }] } });
+    renderShortcuts('/workspace/p1');
+    press({ code: 'F5', key: 'F5' });
+    expect(workspace.workspaceCommands.runProject).not.toHaveBeenCalled();
+    press({ code: 'KeyR', ctrl: true });
+    expect(workspace.workspaceCommands.runProject).toHaveBeenCalledTimes(1);
   });
 
   // A dialog binds its keys through React further down the tree, so it gets there first and

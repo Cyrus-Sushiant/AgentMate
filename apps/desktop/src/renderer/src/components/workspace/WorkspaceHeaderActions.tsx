@@ -1,4 +1,5 @@
 import { configuredRunCommands, projectRunCommandTitle } from '@agentmat/core';
+import { useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { Cpu, FolderOpen, Pencil, Play, Run, Tag } from '@/components/icons';
@@ -14,8 +15,10 @@ import {
 } from '@/components/ui/context-menu';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { useWorkspaceProject } from '@/hooks/useWorktrees';
+import { RUN_PROJECT_EVENT } from '@/lib/workspace/commands';
 import { ProjectVersionDialogs } from '@/pages/ProjectDetailPage';
 import { useRunningClisStore } from '@/stores/runningClisStore';
+import { useShortcutLabel } from '@/stores/shortcutStore';
 import { useVersionDialogStore } from '@/stores/versionDialogStore';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
 import { WorkspaceScopeSwitcher } from './worktrees/WorkspaceScopeSwitcher';
@@ -38,8 +41,33 @@ export function WorkspaceHeaderActions(): React.JSX.Element | null {
   const runningClisOpen = useRunningClisStore((s) => s.open);
   const setRunningClisOpen = useRunningClisStore((s) => s.setOpen);
   const { project } = useWorkspaceProject(activeProjectId);
+  const runShortcut = useShortcutLabel('workspace.run');
   const parentId = project?.parentId ?? null;
   const tagOpen = parentId !== null && tagDialogProjectId === parentId;
+
+  // The button and the run shortcut share this. The ref keeps the listener on the latest project
+  // without resubscribing every render, since requestRun is a new function each time.
+  const runHandler = useRef<() => void>(() => undefined);
+  runHandler.current = () => {
+    if (!project || !parentId || !activeProjectId) return;
+    requestRun(project, {
+      onEmpty: () => {
+        toast.info(`${project.name} has no run command yet`, {
+          description: 'Add one with Edit project on the project page.',
+          action: {
+            label: 'Edit run commands',
+            onClick: () => navigate(`/projects/${parentId}?edit=run`),
+          },
+        });
+      },
+    });
+  };
+  useEffect(() => {
+    const onRun = (): void => runHandler.current();
+    window.addEventListener(RUN_PROJECT_EVENT, onRun);
+    return () => window.removeEventListener(RUN_PROJECT_EVENT, onRun);
+  }, []);
+
   if (!project || !parentId || !activeProjectId) return null;
 
   const commands = configuredRunCommands(project);
@@ -58,25 +86,13 @@ export function WorkspaceHeaderActions(): React.JSX.Element | null {
     <>
       <WorkspaceScopeSwitcher scopeId={activeProjectId} />
       <ContextMenu>
-        <SimpleTooltip label={runLabel}>
+        <SimpleTooltip label={runShortcut ? `${runLabel} (${runShortcut})` : runLabel}>
           <ContextMenuTrigger asChild>
             <Button
               variant="ghost"
               size="icon"
               aria-label={runLabel}
-              onClick={() =>
-                requestRun(project, {
-                  onEmpty: () => {
-                    toast.info(`${project.name} has no run command yet`, {
-                      description: 'Add one with Edit project on the project page.',
-                      action: {
-                        label: 'Edit run commands',
-                        onClick: editRunCommands,
-                      },
-                    });
-                  },
-                })
-              }
+              onClick={() => runHandler.current()}
             >
               <Run className="h-4 w-4" />
             </Button>

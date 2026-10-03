@@ -43,6 +43,9 @@ export const usePromptDialogStore = create<PromptDialogState>((set) => ({
 /** Window event the focused diff tab listens for; `detail` is `'next'` or `'previous'`. */
 export const DIFF_CHANGE_EVENT = 'agentmate:diff-change';
 
+/** Window event the header's Run button listens for, so a shortcut presses it. */
+export const RUN_PROJECT_EVENT = 'agentmate:run-project';
+
 export function isWorkspacePath(pathname: string): boolean {
   return pathname === '/workspace' || pathname.startsWith('/workspace/');
 }
@@ -203,6 +206,11 @@ export const workspaceCommands = {
   toggleGitPanel(): void {
     const { gitPanel, setGitPanel } = useWorkspaceStore.getState();
     setGitPanel({ collapsed: !gitPanel.collapsed });
+  },
+
+  /** Presses the header's Run button for the project on screen. */
+  runProject(): void {
+    window.dispatchEvent(new CustomEvent(RUN_PROJECT_EVENT));
   },
 
   /** Opens the search dialog on the project on screen, or closes it when it is already up. */

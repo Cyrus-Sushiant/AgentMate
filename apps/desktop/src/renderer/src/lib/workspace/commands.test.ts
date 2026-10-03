@@ -11,6 +11,7 @@ import { installAgentmatBridge } from '../../../../test/renderer/agentmatBridge'
 import {
   DIFF_CHANGE_EVENT,
   isWorkspacePath,
+  RUN_PROJECT_EVENT,
   useLauncherStore,
   usePromptDialogStore,
   workspaceCommands,
@@ -378,6 +379,16 @@ describe('openSearch', () => {
   it('does nothing with no project on screen', () => {
     workspaceCommands.openSearch();
     expect(useWorkspaceSearchStore.getState().open).toBe(false);
+  });
+});
+
+describe('runProject', () => {
+  it('tells the header to press its Run button', () => {
+    const onRun = vi.fn();
+    window.addEventListener(RUN_PROJECT_EVENT, onRun);
+    workspaceCommands.runProject();
+    window.removeEventListener(RUN_PROJECT_EVENT, onRun);
+    expect(onRun).toHaveBeenCalledTimes(1);
   });
 });
 
