@@ -37,7 +37,7 @@ Plan: docs/ROADMAP.md
 | E07 | Compose stacks | Complete | ea106b3, see git log | Files over REST, revisions on disk with their own project folder, compose config linted in the core with the app's finding ids; DevHost runs a simulated compose |
 | E08 | Private registries | Complete | see git log | Sign-ins sealed on this computer and sent per deploy into a tmpfs DOCKER_CONFIG wiped in a `finally` (the core refuses a non-tmpfs folder); GitHub scopes read from `X-OAuth-Scopes`, anything beyond read:packages behind a warning; write-only stored credentials (Data Protection, Admin with step-up); Containers pulls sign in through X-Registry-Auth |
 | E09 | Logs center, problems feed and Deploy AI | Complete | see git log | StreamExec with the read-only allowlist and device-signed approvals; the SSH AI loop takes a pluggable executor (characterization suite before and after); problems feed and log viewer in a Logs section; Deploy AI drawer on every server screen |
-| E10 | nginx websites | Complete | 77b262a, 07db580, aca88a8 | Renderer, snippet allowlist, apply with rollback, stream proxies, SELinux labels; the `nginx -t` harness on Debian 13 and Rocky 9 never ran in CI before E17 and now runs nightly |
+| E10 | nginx websites | Complete | 77b262a, 07db580, aca88a8 | Renderer, snippet allowlist, apply with rollback, stream proxies, SELinux labels; the `nginx -t` harness on Debian 13 and Rocky 9 never ran in CI before E17; in the first nightly run every variant passed, and one Rocky apply test failed (see below) |
 | E11 | Let's Encrypt certificates | Complete | 7110a67, 07db580, aca88a8 | ACME client (RFC 8555 and ARI) against Pebble, renewal service, SSL tab; AC3 tested in E17 (a failed renewal now has its own inbox title); DNS-01 through E14 |
 | E12 | App Store | In progress | see git log | Catalog of 18 apps pinned by digest (MinIO left out: no public official image); App Store section, one-screen install sheet, post-install card with masked secrets (step-up reveal), explicit updates as server-side revisions, digest refresh script. Left: AC3 (WordPress over HTTPS on Pebble) not verified |
 | E13 | Firewall | Complete | 2a87c89, 271820e, see git log | Core (ufw and firewalld, lockout guard, safe apply), the Firewall screen (T6) and "make private" (T5): an AgentMate app is redeployed with the service on 127.0.0.1 as a revision the server copies; anything else is shown the compose or run change. AC1 to AC3 by the firewall system tests, in CI since run 37084799281 |
@@ -54,16 +54,20 @@ Status values: Not started, In progress, Blocked, Complete.
 Reviewed in E17 (2026-10-03). What follows is what no test has shown yet, or has shown only on
 this machine.
 
-**Never proven in CI (until the nightly workflow runs green)**
+**The first nightly run** (37097759993, dispatched on 6d498a9)
 
-- The full server matrix: Debian 13 for every Deploy system test, Rocky 9 for stacks, registries,
-  exec and the Security center, and the Rocky 9 podman case (`docker.int.test.ts`, E06 AC4). All
-  of these passed locally on Docker Desktop on 2026-10-03. Before that, Rocky and Debian relied on
-  fixtures of their sshd output (E15) and stacks and security had never run outside a laptop
-  (E12 AC1, E15).
-- The server core's own system tests (`AgentMate.ServerCore.SystemTests`): every nginx renderer
-  variant through `nginx -t` on Debian 13 and Rocky 9 (E10 AC1, AC2) and issue and renew against
-  Pebble (E11 AC1). No workflow ran that project before E17; they passed when they were written.
+- Green: every Deploy system test on Ubuntu 24.04, Debian 13 and Rocky 9 (installs as root and
+  with sudo, stacks, private registries, exec and journal, the Security center, and the Rocky 9
+  podman case, E06 AC4), ufw and direct TLS, and firewalld. Debian 13 and Rocky 9 had never run
+  these in CI before.
+- The server core's own system tests (nginx `-t` harness and Pebble, which no workflow ran
+  before): 18 of 19 passed, Pebble issue and renew included (E11 AC1). The one failure is
+  `RockyNginxApplyTests.A_release_the_core_applies_serves_with_basic_auth_and_logs_per_site`:
+  its apply came back refused with "bind() to 0.0.0.0:3000 failed (Address already in use)", the
+  error the class's port-in-use test provokes on purpose. The Debian twin passed. It looks like
+  the apply reading a stale line from error.log when the reload confirmation is slow, which would
+  be a product bug (a refused apply naming the wrong cause) as much as a test one. Not fixed;
+  E10 AC1 and AC2 stand on the Debian run and the earlier local runs until it is.
 
 **Not covered by any test**
 

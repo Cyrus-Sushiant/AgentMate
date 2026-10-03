@@ -114,4 +114,6 @@ the Deploy system tests in Testing, and the nightly workflow in CI. `DELIVERY_ST
 
 - AC1 as written (see above).
 - E12 AC3 (WordPress over HTTPS on Pebble) is still not one test.
-- The nightly matrix's first run is its first proof in CI; see `DELIVERY_STATUS.md` for its result.
+- The first nightly run (37097759993): every Deploy system test green on all five test servers;
+  the server core's nginx and Pebble tests 18 of 19, with one Rocky nginx apply failure recorded
+  in `DELIVERY_STATUS.md`.
