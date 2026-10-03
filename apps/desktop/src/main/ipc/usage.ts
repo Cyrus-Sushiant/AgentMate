@@ -37,10 +37,13 @@ export function registerUsageHandlers(): void {
   ipcMain.handle(
     IPC.usage.setProviderConfig,
     async (_e, input: SetUsageProviderConfigInput): Promise<void> => {
-      const settings = await store.getSettings();
-      const configs = { ...(settings.usageProviderConfigs ?? {}) };
-      configs[input.providerId] = input.config;
-      await store.setSettings({ ...settings, usageProviderConfigs: configs });
+      await store.updateSettings((settings) => ({
+        ...settings,
+        usageProviderConfigs: {
+          ...(settings.usageProviderConfigs ?? {}),
+          [input.providerId]: input.config,
+        },
+      }));
       clearUsageCache();
     },
   );
@@ -51,8 +54,7 @@ export function registerUsageHandlers(): void {
   ipcMain.handle(
     IPC.usage.setResetAlerts,
     async (_e, alerts: UsageResetAlertSettings): Promise<void> => {
-      const settings = await store.getSettings();
-      await store.setSettings({ ...settings, usageResetAlerts: alerts });
+      await store.updateSettings((settings) => ({ ...settings, usageResetAlerts: alerts }));
       await refreshResetAlerts();
     },
   );
@@ -66,8 +68,7 @@ export function registerUsageHandlers(): void {
   ipcMain.handle(
     IPC.usage.setThresholdAlerts,
     async (_e, alerts: UsageThresholdAlertSettings): Promise<void> => {
-      const settings = await store.getSettings();
-      await store.setSettings({ ...settings, usageThresholdAlerts: alerts });
+      await store.updateSettings((settings) => ({ ...settings, usageThresholdAlerts: alerts }));
     },
   );
 

@@ -105,6 +105,26 @@ async function writeJsonFile<T>(fileName: string, data: T): Promise<void> {
   await rename(tmpPath, filePath);
 }
 
+async function readSettings(): Promise<AppSettings> {
+  return withSettingsMigrations({
+    ...DEFAULT_SETTINGS,
+    ...(await readJsonFile<Partial<AppSettings>>('settings.json', DEFAULT_SETTINGS)),
+  });
+}
+
+/**
+ * settings.json is changed by a read, a merge and a write, from a dozen places. Run side by side,
+ * a later read could miss an earlier write and put the old value back, so every write waits its
+ * turn here.
+ */
+let settingsQueue: Promise<unknown> = Promise.resolve();
+
+function inSettingsQueue<T>(work: () => Promise<T>): Promise<T> {
+  const run = settingsQueue.then(work, work);
+  settingsQueue = run.catch(() => undefined);
+  return run;
+}
+
 /** Exported so backup import can treat its keys as the allowlist of known settings. */
 export const DEFAULT_SETTINGS: AppSettings = {
   defaultCliId: null,
@@ -341,12 +361,21 @@ export const store = {
   setWorktrees: (worktrees: WorktreeRecord[]): Promise<void> =>
     writeJsonFile('worktrees.json', worktrees),
 
-  getSettings: async (): Promise<AppSettings> =>
-    withSettingsMigrations({
-      ...DEFAULT_SETTINGS,
-      ...(await readJsonFile<Partial<AppSettings>>('settings.json', DEFAULT_SETTINGS)),
+  getSettings: readSettings,
+  setSettings: (settings: AppSettings): Promise<void> =>
+    inSettingsQueue(() => writeJsonFile('settings.json', settings)),
+  /**
+   * Reads settings.json, changes it and writes it back in one turn of the queue, so a change made
+   * at the same moment elsewhere is never lost. Resolves to what was written.
+   */
+  updateSettings: (
+    change: (current: AppSettings) => AppSettings | Promise<AppSettings>,
+  ): Promise<AppSettings> =>
+    inSettingsQueue(async () => {
+      const next = await change(await readSettings());
+      await writeJsonFile('settings.json', next);
+      return next;
     }),
-  setSettings: (settings: AppSettings): Promise<void> => writeJsonFile('settings.json', settings),
 
   getActivity: (): Promise<ActivityEvent[]> => readJsonFile('activity-log.json', []),
   setActivity: (events: ActivityEvent[]): Promise<void> =>

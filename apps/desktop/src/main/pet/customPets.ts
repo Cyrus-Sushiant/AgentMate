@@ -65,12 +65,11 @@ export async function importCustomPet(): Promise<CustomDesktopPet | null> {
   await writeFile(petFilePath(fileName), buf);
 
   const pet: CustomDesktopPet = { id, name: nameFromPath(src), fileName };
-  const settings = await store.getSettings();
-  await store.setSettings({
+  await store.updateSettings((settings) => ({
     ...settings,
     desktopPetCustoms: [...settings.desktopPetCustoms, pet],
     desktopPetCharacterId: id,
-  });
+  }));
   void petManager.syncFromSettings();
   return pet;
 }
@@ -80,13 +79,12 @@ export async function removeCustomPet(id: string): Promise<void> {
   const found = settings.desktopPetCustoms.find((pet) => pet.id === id);
   if (!found) return;
   await unlink(petFilePath(found.fileName)).catch(() => undefined);
-  const customs = settings.desktopPetCustoms.filter((pet) => pet.id !== id);
-  await store.setSettings({
-    ...settings,
-    desktopPetCustoms: customs,
+  await store.updateSettings((latest) => ({
+    ...latest,
+    desktopPetCustoms: latest.desktopPetCustoms.filter((pet) => pet.id !== id),
     desktopPetCharacterId:
-      settings.desktopPetCharacterId === id ? 'tide' : settings.desktopPetCharacterId,
-  });
+      latest.desktopPetCharacterId === id ? 'tide' : latest.desktopPetCharacterId,
+  }));
   void petManager.syncFromSettings();
 }
 

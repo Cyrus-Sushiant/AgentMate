@@ -51,8 +51,7 @@ async function readWidgets(): Promise<DesktopWidgetInstance[]> {
 }
 
 async function writeWidgets(widgets: DesktopWidgetInstance[]): Promise<void> {
-  const settings = await store.getSettings();
-  await store.setSettings({ ...settings, usageWidgets: widgets });
+  await store.updateSettings((settings) => ({ ...settings, usageWidgets: widgets }));
 }
 
 async function upsertWidget(instance: DesktopWidgetInstance): Promise<void> {

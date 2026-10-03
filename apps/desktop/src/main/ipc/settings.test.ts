@@ -163,3 +163,23 @@ describe('startupPage', () => {
     expect((await readSettingsFile()).startupPage).toBe('last');
   });
 });
+
+describe('updates made at the same time', () => {
+  it('keeps every one of them', async () => {
+    // Each update reads the file, merges, and writes it back. Run side by side without a queue,
+    // a later read could miss an earlier write and put the old value back.
+    await Promise.all([
+      ipc<AppSettings>(IPC.settings.update, { theme: 'dark' }),
+      ipc<AppSettings>(IPC.settings.update, { startupPage: '/' }),
+      ipc<AppSettings>(IPC.settings.update, { checkToolUpdatesEnabled: false }),
+      ipc<AppSettings>(IPC.settings.update, { keepAwake: 'off' }),
+    ]);
+
+    expect(await readSettingsFile()).toMatchObject({
+      theme: 'dark',
+      startupPage: '/',
+      checkToolUpdatesEnabled: false,
+      keepAwake: 'off',
+    });
+  });
+});

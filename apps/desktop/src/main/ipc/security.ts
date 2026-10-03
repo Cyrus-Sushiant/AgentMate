@@ -155,10 +155,11 @@ export function registerSecurityHandlers(): void {
   ipcMain.handle(
     IPC.security.setConfig,
     async (_event, projectId: string, config: SecurityScannerSettings): Promise<void> => {
-      const settings = await store.getSettings();
-      const configs = { ...(settings.securityScannerConfigs ?? {}) };
-      configs[projectId] = { ...configs[projectId], ...config };
-      await store.setSettings({ ...settings, securityScannerConfigs: configs });
+      await store.updateSettings((settings) => {
+        const configs = { ...(settings.securityScannerConfigs ?? {}) };
+        configs[projectId] = { ...configs[projectId], ...config };
+        return { ...settings, securityScannerConfigs: configs };
+      });
       // A new token or language changes what preflight would say, so the memo has to go.
       clearPreflightCache();
     },

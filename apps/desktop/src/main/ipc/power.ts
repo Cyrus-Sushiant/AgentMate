@@ -23,8 +23,7 @@ export function registerPowerHandlers(): void {
     async (_event, value: unknown): Promise<KeepAwakeStatus> => {
       if (isMode(value)) {
         keepAwake.setMode(value);
-        const settings = await store.getSettings();
-        await store.setSettings({ ...settings, keepAwake: value });
+        await store.updateSettings((settings) => ({ ...settings, keepAwake: value }));
       }
       return keepAwake.status();
     },

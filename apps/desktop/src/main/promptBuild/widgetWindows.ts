@@ -24,8 +24,7 @@ async function readWidgets(): Promise<DesktopPromptBuildWidgetInstance[]> {
 }
 
 async function writeWidgets(widgets: DesktopPromptBuildWidgetInstance[]): Promise<void> {
-  const settings = await store.getSettings();
-  await store.setSettings({ ...settings, promptBuildWidgets: widgets });
+  await store.updateSettings((settings) => ({ ...settings, promptBuildWidgets: widgets }));
 }
 
 async function upsertWidget(instance: DesktopPromptBuildWidgetInstance): Promise<void> {

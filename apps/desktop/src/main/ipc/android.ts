@@ -60,8 +60,10 @@ async function sdkStatus(): Promise<AndroidSdkStatus> {
 
 async function applySdkPath(path: string | null): Promise<AndroidSdkStatus> {
   const trimmed = typeof path === 'string' ? path.trim() : '';
-  const settings = await store.getSettings();
-  await store.setSettings({ ...settings, androidSdkPath: trimmed === '' ? null : trimmed });
+  await store.updateSettings((settings) => ({
+    ...settings,
+    androidSdkPath: trimmed === '' ? null : trimmed,
+  }));
   refreshAndroidSdk();
   const status = await sdkStatus();
   // Any other open window is showing a stale SDK banner until it hears about this.

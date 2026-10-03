@@ -14,9 +14,11 @@ export function registerSettingsHandlers(): void {
   ipcMain.handle(
     IPC.settings.update,
     async (_event, updates: Partial<AppSettings>): Promise<AppSettings> => {
-      const current = await store.getSettings();
-      const next = { ...current, ...updates };
-      await store.setSettings(next);
+      let current: AppSettings | undefined;
+      const next = await store.updateSettings((settings) => {
+        current = settings;
+        return { ...settings, ...updates };
+      });
       void petManager.syncFromSettings();
       if (Object.keys(updates).some((key) => key.startsWith('vault'))) {
         getVaultService().applySettings(next);
@@ -31,10 +33,11 @@ export function registerSettingsHandlers(): void {
       // wrong one to keep holding, so both are released here.
       if (updates.grammar) {
         clearGrammarCache();
-        const wasLocal = current.grammar.source === 'local';
+        const before = (current ?? next).grammar;
+        const wasLocal = before.source === 'local';
         const stillLocalOnSamePort =
-          next.grammar.source === 'local' && next.grammar.localPort === current.grammar.localPort;
-        if (wasLocal && !stillLocalOnSamePort) await stopLocalServer(current.grammar);
+          next.grammar.source === 'local' && next.grammar.localPort === before.localPort;
+        if (wasLocal && !stillLocalOnSamePort) await stopLocalServer(before);
       }
       return next;
     },
