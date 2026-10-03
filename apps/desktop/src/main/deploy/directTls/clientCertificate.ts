@@ -36,8 +36,16 @@ const bitString = (value: Buffer) => tlv(0x03, Buffer.from([0]), value);
 const explicit = (number: number, inner: Buffer) => tlv(0xa0 | number, inner);
 
 export function integer(value: Buffer): Buffer {
+  // DER wants the shortest form: OpenSSL refuses leading zero bytes as illegal padding, so they
+  // go, keeping one byte at least.
+  let start = 0;
+  while (start < value.length - 1 && value.readUInt8(start) === 0) start++;
+  const minimal = value.subarray(start);
   // Unsigned: a leading zero keeps the top bit from reading as a sign.
-  return tlv(0x02, value.readUInt8(0) & 0x80 ? Buffer.concat([Buffer.from([0]), value]) : value);
+  return tlv(
+    0x02,
+    minimal.readUInt8(0) & 0x80 ? Buffer.concat([Buffer.from([0]), minimal]) : minimal,
+  );
 }
 
 export function objectIdentifier(dotted: string): Buffer {
@@ -79,7 +87,11 @@ export interface ClientCertificate {
 }
 
 /** A certificate for the device key, valid from an hour ago (clock skew) for a day. */
-export function clientCertificate(privateKeyPem: string, now = new Date()): ClientCertificate {
+export function clientCertificate(
+  privateKeyPem: string,
+  now = new Date(),
+  serialBytes: Buffer = randomBytes(16),
+): ClientCertificate {
   const privateKey = createPrivateKey(privateKeyPem);
   if (privateKey.asymmetricKeyDetails?.namedCurve !== 'prime256v1') {
     throw new Error('A device key has to be an ECDSA P-256 key.');
@@ -89,7 +101,7 @@ export function clientCertificate(privateKeyPem: string, now = new Date()): Clie
   const name = sequence(
     set(sequence(objectIdentifier(OID.commonName), tlv(0x0c, Buffer.from('agentmate-device')))),
   );
-  const serial = randomBytes(16);
+  const serial = Buffer.from(serialBytes);
   serial.writeUInt8(serial.readUInt8(0) & 0x7f, 0);
   const tbs = sequence(
     explicit(0, integer(Buffer.from([2]))),

@@ -48,6 +48,27 @@ describe('clientCertificate', () => {
     expect(() => clientCertificate(pem)).toThrow(/P-256/);
   });
 
+  it('parses with a serial number that starts with zero bytes', () => {
+    // One draw in 256 clears the whole first byte and leaves the next one's top bit clear too.
+    // Written as is, that leading zero is padding OpenSSL refuses (ASN1 illegal padding).
+    const device = createDeviceKey();
+    const serial = Buffer.alloc(16, 0x11);
+    serial[0] = 0;
+    serial[1] = 0;
+
+    const parsed = new X509Certificate(
+      clientCertificate(device.privateKeyPem, new Date(), serial).certificate,
+    );
+
+    expect(parsed.serialNumber).toBe('11'.repeat(14).toUpperCase());
+  });
+
+  it('writes integers in their shortest form', () => {
+    expect(integer(Buffer.from([0x00, 0x10])).toString('hex')).toBe('020110');
+    expect(integer(Buffer.from([0x00, 0x00, 0x80])).toString('hex')).toBe('02020080');
+    expect(integer(Buffer.from([0x00])).toString('hex')).toBe('020100');
+  });
+
   it('keeps an integer with its top bit set positive', () => {
     expect(integer(Buffer.from([0x80])).toString('hex')).toBe('02020080');
     expect(integer(Buffer.from([0x7f])).toString('hex')).toBe('02017f');
