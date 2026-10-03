@@ -1,5 +1,5 @@
 import type { IStreamResult, ISubscription } from '@microsoft/signalr';
-import { coreErrorMessage } from '../../../shared/coreErrors';
+import { coreErrorCode, coreErrorMessage } from '../../../shared/coreErrors';
 import type { ICoreHub } from '../../../shared/deploy/protocol/generated/TypedSignalR.Client/AgentMate.ServerCore.Contracts';
 import type { DeployConnection, DeployConnectionState } from '../../../shared/deployTypes';
 import type { LiveHubSession } from '../connection/liveHub';
@@ -87,6 +87,8 @@ export class CoreLink {
   private attempt = 0;
   private wasOnline = false;
   private blocked: Error | null = null;
+  /** The transport the renderer last heard of. */
+  private shownTransport: string | undefined;
   private closedForGood = false;
   private calls = 0;
   private readonly feeds = new Map<LinkFeed, Run>();
@@ -100,12 +102,16 @@ export class CoreLink {
   }
 
   get info(): DeployConnection {
+    const transport = this.state === 'online' ? this.live?.session.transport : undefined;
+    const pinMismatch = this.blocked !== null && coreErrorCode(this.blocked) === 'tlsPinMismatch';
     return {
       serverId: this.deps.serverId,
       state: this.state,
       since: this.since,
       ...(this.message === undefined ? {} : { message: this.message }),
       ...(this.retryAt === undefined ? {} : { retryAt: this.retryAt }),
+      ...(transport === undefined ? {} : { transport }),
+      ...(pinMismatch ? { problem: 'tls-pin-mismatch' as const } : {}),
     };
   }
 
@@ -492,7 +498,14 @@ export class CoreLink {
   }
 
   private setState(state: DeployConnectionState, message?: string, retryAt?: number): void {
-    const changed = state !== this.state || message !== this.message || retryAt !== this.retryAt;
+    // A new connection over another transport (direct TLS, then SSH) is news while still online.
+    const transport = state === 'online' ? this.live?.session.transport : undefined;
+    const changed =
+      state !== this.state ||
+      message !== this.message ||
+      retryAt !== this.retryAt ||
+      transport !== this.shownTransport;
+    this.shownTransport = transport;
     if (state !== this.state) this.since = this.now();
     this.state = state;
     this.message = message;

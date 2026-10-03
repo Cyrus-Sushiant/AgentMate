@@ -28,6 +28,8 @@ export interface ScriptedMachine {
   groups: string[];
   /** The user's groups on the server now (`id -nG <user>`); null when the same as `groups`. */
   configuredGroups: string[] | null;
+  /** What `admin restore-stage` prints about the backup it checked (E15). */
+  stagedBackup: string;
 }
 
 export const UBUNTU_24 =
@@ -48,6 +50,13 @@ export function scriptedMachine(overrides: Partial<ScriptedMachine> = {}): Scrip
     ownerPasswordRefusal: null,
     groups: ['deployer', 'agentmate'],
     configuredGroups: null,
+    stagedBackup: JSON.stringify({
+      coreVersion: '1.52.0',
+      createdAtUnixMs: 1_790_000_000_000,
+      hostName: 'old-web',
+      contents: { users: 2 },
+      owners: ['maria'],
+    }),
     ...overrides,
   };
 }
@@ -146,6 +155,7 @@ export class ScriptedConnection {
       m.coreUsers.push({ userName: unquote(owner[1]), roles: ['owner'] });
       return done('{"userId":"11111111-2222-4333-8444-555555555555"}\n');
     }
+    if (/ admin restore-stage /.test(root)) return done(`${m.stagedBackup}\n`);
     if (/ admin enroll-device --user /.test(root)) {
       this.enrolledKeys.push(payload.trim());
       return done(`{"deviceId":"device-${this.enrolledKeys.length}"}\n`);

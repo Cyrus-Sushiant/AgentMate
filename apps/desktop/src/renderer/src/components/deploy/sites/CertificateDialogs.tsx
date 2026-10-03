@@ -1,9 +1,11 @@
+import { dns01Coverage } from '@shared/cloudflare/dns01';
 import { coreErrorMessage } from '@shared/coreErrors';
 import type {
   CertificateInfo,
   JobInfo,
   SiteInfo,
 } from '@shared/deploy/protocol/generated/AgentMate.ServerCore.Contracts';
+import { useQuery } from '@tanstack/react-query';
 import { useEffect, useId, useState } from 'react';
 import { Spinner } from '@/components/icons';
 import { Button } from '@/components/ui/button';
@@ -18,6 +20,7 @@ import {
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { queryKeys } from '@/lib/queryKeys';
 import { FieldError, TextField, ToggleRow } from './fields';
 
 /** Ordering a certificate from Let's Encrypt, and uploading one made elsewhere. */
@@ -41,12 +44,25 @@ export function IssueDialog({
   const [email, setEmail] = useState('');
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
+  const [dns01, setDns01] = useState(false);
+  const tokens = useQuery({
+    queryKey: queryKeys.cloudflareDnsTokens(serverId),
+    queryFn: () => window.agentmat.cloudflareServer.dnsTokens(serverId),
+    enabled: open,
+    retry: false,
+  });
+  const coverage = dns01Coverage(
+    site.settings.domains,
+    (tokens.data ?? []).map((token) => token.zone),
+  );
+  const useDns01 = coverage.covered && (dns01 || coverage.wildcard);
 
   useEffect(() => {
     if (!open) return;
     setAccepted(false);
     setStaging(false);
     setProblem(null);
+    setDns01(false);
   }, [open]);
 
   async function issue(): Promise<void> {
@@ -58,6 +74,7 @@ export function IssueDialog({
         siteId: site.settings.id,
         acceptTermsOfService: accepted,
         staging,
+        ...(useDns01 ? { preferDns01: true } : {}),
         ...(email.trim() ? { contactEmail: email.trim() } : {}),
       });
       onStarted(job);
@@ -85,6 +102,22 @@ export function IssueDialog({
           hint="Let's Encrypt writes here only about problems with your certificates."
           placeholder="ops@example.com"
           inputMode="email"
+        />
+        <ToggleRow
+          label="Validate over DNS (Cloudflare DNS-01)"
+          description={
+            coverage.wildcard
+              ? "A wildcard is always validated over DNS, with this server's Cloudflare DNS token."
+              : 'Works behind the Cloudflare proxy and with port 80 closed.'
+          }
+          checked={useDns01}
+          onChange={setDns01}
+          disabled={!coverage.covered || coverage.wildcard}
+          disabledReason={
+            coverage.covered
+              ? undefined
+              : `Needs a Cloudflare DNS token on this server for ${coverage.missing.join(', ') || 'the site'}. Send one from the Cloudflare page, under Servers.`
+          }
         />
         <ToggleRow
           label="Use the staging CA"

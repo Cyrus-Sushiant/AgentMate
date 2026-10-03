@@ -42,6 +42,7 @@ import { queryKeys } from '@/lib/queryKeys';
 import { cn } from '@/lib/utils';
 import { confirmDialog } from '@/stores/confirmStore';
 import { JobLogDialog } from '../overview/JobLogDialog';
+import { RegistryPlanCard } from '../registries/RegistryPlanCard';
 import { dateTime } from '../security/format';
 import { OPERATOR_ONLY } from './AppsList';
 import { DeployTimeline } from './DeployTimeline';
@@ -417,6 +418,7 @@ export function AppDetail({
   onBack,
   onDeployAgain,
   onDeleted,
+  onOpenRegistries,
 }: {
   serverId: string;
   stackId: string;
@@ -424,6 +426,8 @@ export function AppDetail({
   onBack: () => void;
   onDeployAgain: (details: StackDetails) => void;
   onDeleted: () => void;
+  /** The registry sign-ins for private images (E08). */
+  onOpenRegistries?: () => void;
 }): React.JSX.Element {
   const queryClient = useQueryClient();
   const [busyJob, setBusyJob] = useState<string | null>(null);
@@ -677,6 +681,13 @@ export function AppDetail({
         />
       </div>
       <RouteMap services={data.services} />
+      {latest !== null && (
+        <RegistryPlanCard
+          input={{ serverId, stackId, revision: latest }}
+          stackId={stackId}
+          onOpenRegistries={onOpenRegistries}
+        />
+      )}
       {shown && <FilesCard serverId={serverId} stackId={stackId} revision={shown.number} />}
       <JobLogDialog
         serverId={serverId}

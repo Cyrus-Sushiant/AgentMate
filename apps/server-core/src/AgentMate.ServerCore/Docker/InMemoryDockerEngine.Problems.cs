@@ -1,0 +1,32 @@
+using AgentMate.ServerCore.Contracts;
+
+namespace AgentMate.ServerCore.Docker;
+
+/// <summary>
+/// Problems the DevHost shows on purpose (E09): a "newsletter" project whose sender keeps
+/// crashing, so the problems feed and the Deploy AI have something to diagnose. Never part of the
+/// seed the tests count on.
+/// </summary>
+internal sealed partial class InMemoryDockerEngine
+{
+    public const string CrashLoopContainer = "newsletter-sender-1";
+
+    public InMemoryDockerEngine WithCrashLoop()
+    {
+        lock (_gate)
+        {
+            var sender = new Container(CrashLoopContainer, "shop-api:latest", "newsletter", "sender", Kind.Crashing)
+            {
+                Environment = [new("SMTP_URL", $"smtp://mailer:{ApiToken}@smtp.internal:587")],
+                Command = ["node", "sender.js"],
+                Load = 0.01,
+                MemoryBase = 40L * 1024 * 1024,
+            };
+            Add(sender);
+            sender.State = ContainerState.Restarting;
+            sender.RestartCount = 37;
+        }
+
+        return this;
+    }
+}

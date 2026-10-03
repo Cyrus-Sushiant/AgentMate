@@ -42,6 +42,11 @@ export interface DeployCertificateIssueInput {
   contactEmail?: string;
   /** Let's Encrypt's staging CA: untrusted certificates, generous rate limits. */
   staging: boolean;
+  /**
+   * Validate over DNS-01 with the server's Cloudflare DNS token for the zone (E14), for names
+   * behind the proxy or with port 80 closed. Wildcards always use it.
+   */
+  preferDns01?: boolean;
 }
 
 export interface DeployCertificateUploadInput {

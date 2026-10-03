@@ -1,5 +1,5 @@
-import type { DeployConnection, DeployConnectionState } from '@shared/deployTypes';
-import { Lock, Spinner } from '@/components/icons';
+import type { DeployConnection, DeployConnectionState, DeployTransport } from '@shared/deployTypes';
+import { Lock, Spinner, TriangleAlert } from '@/components/icons';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import { useDeployConnection } from './hooks';
@@ -20,15 +20,37 @@ const LABEL: Record<DeployConnectionState, string> = {
   locked: 'Servers locked',
 };
 
+/** What the connection rides on, in a word or two (E16 adds the core's own TLS port). */
+const VIA: Record<DeployTransport, string> = {
+  streamlocal: 'SSH',
+  bridge: 'SSH',
+  'dev-tcp': 'loopback',
+  'direct-tls': 'direct TLS',
+};
+
+const VIA_SENTENCE: Record<DeployTransport, string> = {
+  streamlocal: 'It runs through the SSH tunnel.',
+  bridge: "It runs through the core's bridge over SSH.",
+  'dev-tcp': 'It runs over loopback to the DevHost.',
+  'direct-tls': "It runs straight to the core's TLS port, with this computer's device key.",
+};
+
+const PIN_MISMATCH = 'Certificate mismatch';
+
 function explain(connection: DeployConnection | undefined, now: number): string {
   if (!connection) return 'Checking the connection to the server core.';
+  if (connection.problem === 'tls-pin-mismatch') {
+    return connection.message ?? 'The direct TLS certificate does not match the pinned one.';
+  }
   const retry =
     connection.retryAt !== undefined
       ? ` Trying again in ${Math.max(1, Math.round((connection.retryAt - now) / 1000))} s.`
       : '';
   switch (connection.state) {
     case 'online':
-      return 'Live: metrics, alerts and job logs arrive as they happen.';
+      return `Live: metrics, alerts and job logs arrive as they happen.${
+        connection.transport ? ` ${VIA_SENTENCE[connection.transport]}` : ''
+      }`;
     case 'connecting':
       return 'Opening a live connection to the server core.';
     case 'reconnecting':
@@ -86,23 +108,33 @@ export function ConnectionMark({
 export function ConnectionBadge({ serverId }: { serverId: string }): React.JSX.Element {
   const connection = useDeployConnection(serverId);
   const state = connection?.state;
+  const mismatch = connection?.problem === 'tls-pin-mismatch';
+  const label = mismatch ? PIN_MISMATCH : state ? LABEL[state] : 'Checking';
+  const via = state === 'online' && connection?.transport ? VIA[connection.transport] : null;
   return (
     <SimpleTooltip label={explain(connection, Date.now())}>
       <span
         role="status"
-        aria-label={`Live connection: ${state ? LABEL[state] : 'Checking'}`}
+        aria-label={`Live connection: ${label}${via ? `, ${via}` : ''}`}
         tabIndex={0}
         className={cn(
           'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-          state === 'online'
-            ? 'border-success/40 bg-success/10 text-foreground'
-            : state === 'reconnecting' || state === 'needs-sign-in' || state === 'locked'
-              ? 'border-warning/40 bg-warning/10 text-foreground'
-              : 'border-border bg-secondary/40 text-muted-foreground',
+          mismatch
+            ? 'border-destructive/40 bg-destructive/10 text-foreground'
+            : state === 'online'
+              ? 'border-success/40 bg-success/10 text-foreground'
+              : state === 'reconnecting' || state === 'needs-sign-in' || state === 'locked'
+                ? 'border-warning/40 bg-warning/10 text-foreground'
+                : 'border-border bg-secondary/40 text-muted-foreground',
         )}
       >
-        <ConnectionMark state={state} />
-        {state ? LABEL[state] : 'Checking'}
+        {mismatch ? (
+          <TriangleAlert className="h-3 w-3 text-destructive" aria-hidden />
+        ) : (
+          <ConnectionMark state={state} />
+        )}
+        {label}
+        {via && <span className="font-normal text-muted-foreground">over {via}</span>}
       </span>
     </SimpleTooltip>
   );

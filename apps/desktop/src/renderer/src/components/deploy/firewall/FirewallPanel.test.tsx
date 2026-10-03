@@ -85,7 +85,11 @@ describe('FirewallPanel', () => {
     expect(screen.queryByRole('button', { name: 'Turn off' })).toBeNull();
     expect(screen.getByText('Read only')).toBeTruthy();
     expect(await screen.findByText('shop-db-1')).toBeTruthy();
-    expect(screen.getByText(/Making them private from here is not available yet/)).toBeTruthy();
+    const db = screen.getByRole('listitem', { name: 'shop-db-1' });
+    expect(within(db).getByRole('button', { name: 'Make private' })).toHaveProperty(
+      'disabled',
+      true,
+    );
   });
 
   it('stages a rule, previews the exact commands, applies it and keeps it', async () => {

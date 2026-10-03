@@ -1,13 +1,16 @@
 using AgentMate.ServerCore.Alerts;
+using AgentMate.ServerCore.Assistant;
 using AgentMate.ServerCore.Contracts;
 using AgentMate.ServerCore.Docker;
 using AgentMate.ServerCore.Execution;
 using AgentMate.ServerCore.Firewall;
+using AgentMate.ServerCore.Hardening;
 using AgentMate.ServerCore.Hosting;
 using AgentMate.ServerCore.Hubs;
 using AgentMate.ServerCore.Jobs;
 using AgentMate.ServerCore.Metrics;
 using AgentMate.ServerCore.Platform;
+using AgentMate.ServerCore.Registries;
 using AgentMate.ServerCore.Stacks;
 using AgentMate.ServerCore.Updates;
 
@@ -97,8 +100,17 @@ internal static class CoreOperations
         // The host firewall (E13): its change sets settle themselves once the database is up.
         services.AddCoreFirewall();
 
+        // Private registries (E08): stored credentials and the per-job DOCKER_CONFIG folders.
+        services.AddCoreRegistries();
+
+        // The Security center (E15): sshd changes that undo themselves unless kept, like the firewall's.
+        services.AddCoreSecurityCenter();
+
         // Compose stacks (E07): after the job engine, so its recovery runs after the jobs' own.
         services.AddCoreStacks();
+
+        // The Deploy AI's exec stream and the logs center's journal (E09).
+        services.AddCoreAssistant();
         return services;
     }
 }

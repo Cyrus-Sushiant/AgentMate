@@ -4,6 +4,7 @@ using System.Threading.RateLimiting;
 using AgentMate.ServerCore.Audit;
 using AgentMate.ServerCore.Contracts;
 using AgentMate.ServerCore.Data;
+using AgentMate.ServerCore.DirectTls;
 using AgentMate.ServerCore.Security;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Identity;
@@ -49,6 +50,8 @@ internal static class AuthEndpoints
 
     private const int MaxPasswordLength = 1024;
 
+    private const string NotThisCertificate = "This device is not the one the client certificate belongs to.";
+
     public static IEndpointRouteBuilder MapAuthEndpoints(this IEndpointRouteBuilder endpoints)
     {
         var auth = endpoints.MapGroup(Prefix).AllowAnonymous().RequireRateLimiting(AuthThrottle.Policy);
@@ -68,10 +71,16 @@ internal static class AuthEndpoints
 
     private static async Task<Results<Ok<ChallengeResponse>, JsonHttpResult<AuthError>>> ChallengeAsync(
         ChallengeRequest request,
+        HttpContext http,
         CoreDbContext db,
         AuthChallenges challenges,
         CancellationToken cancellationToken)
     {
+        if (DirectTlsDevices.Mismatch(http, request.DeviceId))
+        {
+            return Refuse(AuthErrorCode.InvalidCredentials, NotThisCertificate, StatusCodes.Status403Forbidden);
+        }
+
         var device = await db.Devices.AsNoTracking().FirstOrDefaultAsync(d => d.Id == request.DeviceId, cancellationToken);
         if (device is null)
         {
@@ -112,6 +121,11 @@ internal static class AuthEndpoints
         AuditLog audit,
         CancellationToken cancellationToken)
     {
+        if (DirectTlsDevices.Mismatch(http, request.DeviceId))
+        {
+            return Refuse(AuthErrorCode.InvalidCredentials, NotThisCertificate, StatusCodes.Status403Forbidden);
+        }
+
         var peer = PeerCredentials.UidOf(http);
         async Task<JsonHttpResult<AuthError>> Fail(AuthErrorCode code, string message, Guid? userId = null, long? lockedOutUntil = null)
         {
@@ -250,6 +264,11 @@ internal static class AuthEndpoints
         }
 
         var device = check.Device!;
+        if (DirectTlsDevices.Mismatch(http, device.Id))
+        {
+            return Refuse(AuthErrorCode.InvalidCredentials, NotThisCertificate, StatusCodes.Status403Forbidden);
+        }
+
         if (device.Id != challenge.DeviceId)
         {
             return Refuse(AuthErrorCode.InvalidCredentials, "This challenge was issued to another device.");
@@ -285,6 +304,12 @@ internal static class AuthEndpoints
         TimeProvider time,
         CancellationToken cancellationToken)
     {
+        // A caller over direct TLS is an enrolled device already; a new one enrolls through SSH.
+        if (DirectTlsDevices.IsDirect(http))
+        {
+            return Refuse(AuthErrorCode.InvalidCredentials, "Enroll a new device over SSH, not over direct TLS.", StatusCodes.Status403Forbidden);
+        }
+
         var peer = PeerCredentials.UidOf(http);
         if (!throttle.TryAcquire(request.UserName ?? string.Empty))
         {

@@ -1,6 +1,6 @@
 import type { ICoreHub } from '../../../shared/deploy/protocol/generated/TypedSignalR.Client/AgentMate.ServerCore.Contracts';
 import { coreHub, createCoreHubConnection } from './coreHub';
-import type { CoreTransport } from './transport';
+import type { CoreTransport, CoreTransportKind } from './transport';
 
 /**
  * One lasting hub connection, as a server's link keeps it (see live/coreLink.ts). SignalR does not
@@ -15,6 +15,8 @@ export interface LiveHubSession {
   stop: () => Promise<void>;
   /** When its access token runs out, on the core's clock, or null when that is not known. */
   expiresAt: number | null;
+  /** What it rides on, for the connection pill. */
+  transport?: CoreTransportKind;
 }
 
 /** A hub connection that did not start; `status` is the HTTP answer to a refused upgrade. */
@@ -62,5 +64,11 @@ export async function startLiveHub(
     if (openError) throw openError;
     throw new HubStartError(error instanceof Error ? error.message : String(error), status);
   }
-  return { hub: coreHub(connection), closed, stop: () => connection.stop(), expiresAt };
+  return {
+    hub: coreHub(connection),
+    closed,
+    stop: () => connection.stop(),
+    expiresAt,
+    transport: transport.kind,
+  };
 }

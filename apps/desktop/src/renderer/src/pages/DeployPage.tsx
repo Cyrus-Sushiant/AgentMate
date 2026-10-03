@@ -5,10 +5,13 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import { CloudflareMark } from '@/components/cloudflare/CloudflareMark';
+import { AppStorePanel } from '@/components/deploy/appStore/AppStorePanel';
 import { AppsPanel } from '@/components/deploy/apps/AppsPanel';
+import { AssistantLauncher } from '@/components/deploy/assistant/AssistantLauncher';
 import { ContainersPanel } from '@/components/deploy/containers/ContainersPanel';
 import { FirewallPanel } from '@/components/deploy/firewall/FirewallPanel';
 import { InstallPanel } from '@/components/deploy/InstallPanel';
+import { LogsPanel } from '@/components/deploy/logs/LogsPanel';
 import { ConnectionBadge } from '@/components/deploy/overview/ConnectionBadge';
 import { useConnectionUpdates } from '@/components/deploy/overview/hooks';
 import { OverviewPanel } from '@/components/deploy/overview/OverviewPanel';
@@ -25,6 +28,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { queryKeys } from '@/lib/queryKeys';
+import { cn } from '@/lib/utils';
 import { confirmDialog } from '@/stores/confirmStore';
 import { useDeploySetupStore } from '@/stores/deploySetupStore';
 import { usePageHeader } from '@/stores/pageHeaderStore';
@@ -201,18 +205,29 @@ export default function DeployPage(): React.JSX.Element {
   } else if (section === 'websites') {
     sections = true;
     content = <SitesPanel server={selected} />;
+  } else if (section === 'logs') {
+    sections = true;
+    content = <LogsPanel server={selected} />;
   } else if (section === 'firewall') {
     sections = true;
     content = <FirewallPanel server={selected} />;
   } else if (section === 'security') {
     sections = true;
-    content = <SecurityPanel server={selected} />;
+    content = (
+      <SecurityPanel
+        server={selected}
+        onUpdateCore={selected.dev ? undefined : () => setUpdating(selected.id)}
+      />
+    );
   } else if (section === 'containers') {
     sections = true;
     content = <ContainersPanel server={selected} />;
   } else if (section === 'apps') {
     sections = true;
     content = <AppsPanel server={selected} />;
+  } else if (section === 'store') {
+    sections = true;
+    content = <AppStorePanel server={selected} />;
   } else {
     sections = true;
     content = (
@@ -232,7 +247,8 @@ export default function DeployPage(): React.JSX.Element {
         selectedId={selected.id}
         onSelect={(serverId) => setParams({ server: serverId }, { replace: true })}
       />
-      <div className="min-w-0 space-y-4">
+      {/* Room at the bottom so the Deploy AI button never covers the last controls. */}
+      <div className={cn('min-w-0 space-y-4', sections && 'pb-16')}>
         {locked && (
           <div className="flex flex-wrap items-center gap-3 rounded-lg border border-warning/40 bg-warning/10 px-3 py-2.5">
             <Lock className="h-4 w-4 shrink-0 text-warning" />
@@ -258,6 +274,7 @@ export default function DeployPage(): React.JSX.Element {
         )}
         {content}
       </div>
+      {sections && <AssistantLauncher server={selected} />}
       <SshVaultUnlockDialog
         open={unlockOpen}
         onOpenChange={setUnlockOpen}

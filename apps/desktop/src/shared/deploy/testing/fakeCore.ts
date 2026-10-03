@@ -2,6 +2,7 @@ import type {
   AlertInfo,
   AlertKind,
   AlertSeverity,
+  DirectTlsStatus,
   JobInfo,
   JobKind,
   JobLogLine,
@@ -12,6 +13,8 @@ import type {
   SystemInfo,
   UpdatesInfo,
 } from '../protocol/generated/AgentMate.ServerCore.Contracts';
+import { FakeAssistant } from './fakeAssistant';
+import { FakeCloudflareCore } from './fakeCloudflareCore';
 import { FakeCoreConnection } from './fakeCoreConnection';
 import { metricsSample, sampleServices, sampleSystemInfo, sampleUpdates } from './fakeCoreData';
 import { FakeDocker } from './fakeDocker';
@@ -28,6 +31,9 @@ import { FakeNginx } from './fakeNginx';
  */
 
 export const FAKE_CORE_PASSWORD = 'correct horse battery staple';
+
+/** The pin of the fake core's direct TLS certificate (any 32 bytes, base64). */
+export const FAKE_CORE_TLS_PIN = 'q83vEjRWeJq83vEjRWeJq83vEjRWeJq83vEjRWeJq80=';
 
 /** How long the core keeps live samples for a reconnecting client to catch up on. */
 const LIVE_WINDOW_MS = 15 * 60_000;
@@ -91,8 +97,25 @@ export class FakeCore {
   private jobCount = 0;
   private alertCount = 0;
 
+  /** The exec stream, its approvals and the journal (E09). */
+  readonly assistant: FakeAssistant = new FakeAssistant(() => this.now());
+
   /** The host firewall (E13); a change nobody confirms in time raises firewallRolledBack. */
   readonly firewall: FakeFirewall;
+
+  /** Cloudflare on the server (E14): the origin lock, Origin CA certificates and DNS tokens. */
+  readonly cloudflare: FakeCloudflareCore;
+
+  /** Direct TLS (E16): off until an Owner turns it on. */
+  directTls: DirectTlsStatus = {
+    enabled: false,
+    port: 7443,
+    sources: [],
+    listening: false,
+    pin: FAKE_CORE_TLS_PIN,
+    certificateNotAfterUnixMs: Date.UTC(2046, 0, 1),
+    defaultPort: 7443,
+  };
 
   constructor(readonly now: () => number = Date.now) {
     this.firewall = new FakeFirewall(now, (change) =>
@@ -103,6 +126,7 @@ export class FakeCore {
         `A firewall change nobody confirmed was rolled back: ${change.summary}.`,
       ),
     );
+    this.cloudflare = new FakeCloudflareCore({ now, firewall: this.firewall, nginx: this.nginx });
   }
 
   get openConnections(): FakeCoreConnection[] {

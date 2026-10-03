@@ -1,5 +1,5 @@
 import { Agent, type ClientRequest, type ClientRequestArgs, request } from 'node:http';
-import type { Duplex, Readable } from 'node:stream';
+import type { Duplex, Readable, Writable } from 'node:stream';
 import type { HealthResponse } from '../../../shared/deploy/protocol/generated/AgentMate.ServerCore.Contracts';
 import type { CoreTransport } from './transport';
 
@@ -45,6 +45,12 @@ export interface CoreStreamOptions extends CoreRequestOptions {
   headers?: Record<string, string>;
   /** Bytes handed to the transport so far. */
   onProgress?: (sentBytes: number) => void;
+}
+
+/** A streamed response body: a backup (E15). */
+export interface CoreDownloadOptions extends CoreRequestOptions {
+  /** Bytes received so far. */
+  onProgress?: (receivedBytes: number) => void;
 }
 
 /** A refusal from the core, with its status and (when it sent JSON) the body. */
@@ -96,6 +102,65 @@ export class CoreHttpClient {
       });
       body.on('error', (error) => outgoing.destroy(error));
       body.pipe(outgoing);
+    });
+  }
+
+  /**
+   * Streams a GET's body into `destination` (a backup, E15), never holding it in memory, and
+   * resolves with the number of bytes written once the destination has them all. A refusal
+   * rejects with a CoreHttpError as the other calls do.
+   */
+  download(
+    path: string,
+    destination: Writable,
+    options: CoreDownloadOptions = {},
+  ): Promise<number> {
+    const headers: Record<string, string> = {
+      host: CORE_HOST,
+      accept: 'application/octet-stream',
+    };
+    if (options.token) headers.authorization = `Bearer ${options.token}`;
+    return new Promise<number>((resolve, reject) => {
+      let settled = false;
+      const finish = (error: Error | null, bytes = 0) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(deadline);
+        if (error) reject(error);
+        else resolve(bytes);
+      };
+      const outgoing = request(
+        { agent: this.agent, host: CORE_HOST, path, method: 'GET', headers },
+        (response) => {
+          const status = response.statusCode ?? 0;
+          if (status < 200 || status >= 300) {
+            response.resume();
+            finish(
+              new CoreHttpError(`The server core refused GET ${path} (${status}).`, status, null),
+            );
+            return;
+          }
+          let received = 0;
+          response.on('data', (chunk: Buffer) => {
+            received += chunk.length;
+            options.onProgress?.(received);
+          });
+          response.on('error', (error) => finish(error));
+          destination.on('error', (error) => {
+            outgoing.destroy(error);
+            finish(error);
+          });
+          destination.on('finish', () => finish(null, received));
+          response.pipe(destination);
+        },
+      );
+      const deadline = setTimeout(() => {
+        const error = new Error(`The server core did not finish sending ${path} in time.`);
+        outgoing.destroy(error);
+        finish(error);
+      }, options.timeoutMs ?? DEFAULT_TIMEOUT_MS);
+      outgoing.on('error', (error) => finish(error));
+      outgoing.end();
     });
   }
 

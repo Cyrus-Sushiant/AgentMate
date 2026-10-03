@@ -187,7 +187,7 @@ function ContainerItem({
     <div
       role="listitem"
       aria-label={container.name}
-      className="grid h-full grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-lg border border-border/70 bg-card/60 px-3 md:grid-cols-[minmax(0,1.6fr)_9rem_9rem_minmax(0,1fr)_auto]"
+      className="grid h-full grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-lg border border-border/70 bg-card/60 px-3 md:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)_auto] xl:grid-cols-[minmax(0,1.6fr)_9rem_9rem_minmax(0,1fr)_auto]"
     >
       <button
         type="button"
@@ -204,7 +204,7 @@ function ContainerItem({
         </span>
       </button>
       <div
-        className="hidden items-center gap-2 md:flex"
+        className="hidden items-center gap-2 xl:flex"
         aria-label={`Processor for ${container.name}`}
       >
         <Sparkline values={samples.map((s) => s.cpuPercent)} color={categorical[0]} />
@@ -213,7 +213,7 @@ function ContainerItem({
         </span>
       </div>
       <div
-        className="hidden items-center gap-2 md:flex"
+        className="hidden items-center gap-2 xl:flex"
         aria-label={`Memory for ${container.name}`}
       >
         <Sparkline values={samples.map((s) => memoryShare(s))} max={100} color={categorical[1]} />

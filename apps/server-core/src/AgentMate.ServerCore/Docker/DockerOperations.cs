@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Runtime.CompilerServices;
 using AgentMate.ServerCore.Contracts;
 using AgentMate.ServerCore.Jobs;
+using AgentMate.ServerCore.Registries;
 using AgentMate.ServerCore.Security;
 using AgentMate.ServerCore.Updates;
 
@@ -19,7 +20,8 @@ internal sealed partial class DockerOperations(
     JobEngine jobs,
     Redactor redactor,
     TimeProvider time,
-    ILogger<DockerOperations> logger)
+    ILogger<DockerOperations> logger,
+    RegistryCredentials registries)
 {
     public const string DockerLock = "docker";
 
@@ -350,18 +352,32 @@ internal sealed partial class DockerOperations(
             (job, token) => setup.InstallAsync(removeConflicting, job, token),
             cancellationToken);
 
-    public Task<JobInfo> PullAsync(ImageReference image, Requester who, CancellationToken cancellationToken)
+    /// <param name="login">
+    /// A sign-in the app sent for the image's registry (E08); without one, the credential stored on
+    /// this server for that registry is used, if there is one.
+    /// </param>
+    public Task<JobInfo> PullAsync(ImageReference image, Requester who, CancellationToken cancellationToken, RegistryLogin? login = null)
     {
         ArgumentNullException.ThrowIfNull(image);
         var name = image.ToString();
+        var registry = RegistryNames.HostOfRepository(image.Repository);
         return jobs.StartAsync(
             new JobRequest(JobKind.ImagePull, $"Pull {name}", [$"image:{name}"], name, who.UserId, who.UserName),
             async (job, token) =>
             {
+                var signIn = login ?? (await registries.UnsealAsync([registry], token)).FirstOrDefault();
+                if (signIn is not null)
+                {
+                    job.Seed([signIn.Secret, RegistryAuthFolders.BasicAuth(signIn)]);
+                    job.Log(signIn.Source == RegistryLoginSource.Request
+                        ? $"Signing in to {signIn.Registry} as {signIn.Username} with the sign-in this pull brought."
+                        : $"Signing in to {signIn.Registry} as {signIn.Username} with the credential stored on this server.");
+                }
+
                 var log = new PullLog(job, time);
                 try
                 {
-                    await engine.PullImageAsync(image, log.Report, token);
+                    await engine.PullImageAsync(image, log.Report, token, signIn);
                 }
                 catch (Exception error) when (error is DockerRequestException or DockerNotFoundException or DockerUnavailableException)
                 {

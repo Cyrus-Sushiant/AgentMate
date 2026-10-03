@@ -6,6 +6,8 @@ import type {
 import type { DeployServer } from '@shared/deployTypes';
 import { useState } from 'react';
 import { toast } from 'sonner';
+import { CloudflareMark } from '@/components/cloudflare/CloudflareMark';
+import { GuidedFix } from '@/components/cloudflare/server/GuidedFix';
 import {
   FileText,
   Lock,
@@ -24,6 +26,7 @@ import {
   renewalText,
 } from '@/lib/deploy/sites/certificates';
 import { cn } from '@/lib/utils';
+import { confirmDialog } from '@/stores/confirmStore';
 import { JobLogDialog } from '../overview/JobLogDialog';
 import { useProofStepUp } from '../overview/useProofStepUp';
 import { IssueDialog, UploadDialog } from './CertificateDialogs';
@@ -54,7 +57,8 @@ export function SslTab({
   const [issuing, setIssuing] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [removing, setRemoving] = useState(false);
-  const [busy, setBusy] = useState<'renew' | 'remove' | 'log' | null>(null);
+  const [busy, setBusy] = useState<'renew' | 'remove' | 'log' | 'origin' | null>(null);
+  const [originError, setOriginError] = useState<unknown>(null);
   const [job, setJob] = useState<JobInfo | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
   const proof = useProofStepUp(server);
@@ -106,6 +110,40 @@ export function SslTab({
     }
   }
 
+  /**
+   * A Cloudflare Origin CA certificate (E14 T5): the core makes the key, Cloudflare signs it
+   * with the account token, the core installs it. Trusted by Cloudflare's edge only.
+   */
+  async function originCertificate(): Promise<void> {
+    if (!site) return;
+    const confirmed = await confirmDialog({
+      title: 'Install a Cloudflare Origin CA certificate?',
+      description:
+        "Cloudflare signs a certificate for a key this server makes; the key never leaves it. Only Cloudflare trusts it, so keep the site's records proxied and set SSL/TLS to Full (strict). It replaces the current certificate.",
+      confirmLabel: 'Make and install it',
+    });
+    if (!confirmed) return;
+    setBusy('origin');
+    setOriginError(null);
+    setProblem(null);
+    try {
+      const result = await window.agentmat.cloudflareServer.originCertificate({
+        serverId: server.id,
+        siteId: site.settings.id,
+      });
+      if (result.problems.length > 0) {
+        setProblem(result.problems.join(' '));
+      } else {
+        toast.success('Origin CA certificate installed and live.');
+        onChanged();
+      }
+    } catch (failure) {
+      setOriginError(failure);
+    } finally {
+      setBusy(null);
+    }
+  }
+
   return (
     <div className="space-y-4">
       <Section title="Certificate">
@@ -130,7 +168,11 @@ export function SslTab({
                 <dt className="text-muted-foreground">Issued by</dt>
                 <dd>
                   {certificate.issuer}
-                  {certificate.source === 'uploaded' ? ' (uploaded)' : ''}
+                  {certificate.source === 'uploaded'
+                    ? ' (uploaded)'
+                    : certificate.source === 'cloudflareOrigin'
+                      ? ' (Cloudflare Origin CA, trusted by Cloudflare only)'
+                      : ''}
                 </dd>
                 <dt className="text-muted-foreground">Valid</dt>
                 <dd>
@@ -209,6 +251,20 @@ export function SslTab({
                 >
                   <Upload className="h-3.5 w-3.5" /> Upload a certificate
                 </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled={busy === 'origin'}
+                  onClick={() => void originCertificate()}
+                >
+                  {busy === 'origin' ? (
+                    <Spinner className="h-3.5 w-3.5 motion-safe:animate-spin" />
+                  ) : (
+                    <CloudflareMark className="h-3.5 w-3.5" />
+                  )}
+                  Cloudflare Origin CA
+                </Button>
                 {certificate && (
                   <Button type="button" size="sm" variant="ghost" onClick={() => setRemoving(true)}>
                     <Trash2 className="h-3.5 w-3.5" /> Remove
@@ -217,6 +273,7 @@ export function SslTab({
               </div>
             )}
             <FieldError message={problem ?? undefined} />
+            <GuidedFix error={originError} />
           </div>
         )}
       </Section>

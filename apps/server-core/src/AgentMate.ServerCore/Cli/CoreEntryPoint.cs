@@ -2,8 +2,8 @@ namespace AgentMate.ServerCore.Cli;
 
 /// <summary>
 /// One binary serves the API, answers the installer's admin commands, bridges stdio to the socket
-/// and rolls back an unconfirmed firewall change (what its timer runs). Only an exact "admin",
-/// "bridge" or "firewall-revert" first argument leaves the web host path: the test
+/// and rolls back an unconfirmed firewall or SSH change (what their timers run). Only an exact
+/// "admin", "bridge", "firewall-revert" or "ssh-revert" first argument leaves the web host path: the test
 /// factory and other tooling call the entry point with arguments of their own, and those must
 /// always reach the host.
 /// </summary>
@@ -28,6 +28,7 @@ internal static class CoreEntryPoint
                 error,
                 CancellationToken.None),
             [FirewallRevertCommand.Name, ..] => FirewallRevertCommand.RunAsync(args, output, error),
+            [SshRevertCommand.Name, ..] => SshRevertCommand.RunAsync(args, output, error),
             ["serve", .. var hostArgs] => serve(hostArgs),
             _ => serve(args),
         };

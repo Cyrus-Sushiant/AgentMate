@@ -1,7 +1,10 @@
 using System.Net;
+using AgentMate.ServerCore.Assistant;
 using AgentMate.ServerCore.Certificates;
+using AgentMate.ServerCore.Cloudflare;
 using AgentMate.ServerCore.Docker;
 using AgentMate.ServerCore.Firewall;
+using AgentMate.ServerCore.Hardening;
 using AgentMate.ServerCore.Nginx;
 using AgentMate.ServerCore.Platform;
 using AgentMate.ServerCore.Stacks;
@@ -32,8 +35,22 @@ internal static class FakePlatform
         services.AddSingleton<ICallerConnections, FakeCallerConnections>();
         services.AddSingleton<IExposureSource, FakeExposure>();
 
+        // sshd for the Security center (E15): passwords on, every connection a key login.
+        services.AddSingleton<FakeSshMachine>();
+        services.AddSingleton<ISshMachine>(provider => provider.GetRequiredService<FakeSshMachine>());
+        services.AddSingleton<FakeSshLoginLog>();
+        services.AddSingleton<ISshLoginLog>(provider => provider.GetRequiredService<FakeSshLoginLog>());
+        services.AddSingleton<ISshHardeningTimer, FakeSshHardeningTimer>();
+
         // Docker: two compose projects with moving stats, growing logs and consoles (E06).
-        services.AddSingleton(provider => new InMemoryDockerEngine(provider.GetRequiredService<TimeProvider>()));
+        services.AddSingleton(provider =>
+        {
+            var engine = new InMemoryDockerEngine(provider.GetRequiredService<TimeProvider>());
+            // A private registry (E08) whose images only pull with this sign-in.
+            engine.PrivateRegistries[DevHost.DevRegistry] = (DevHost.DevRegistryUser, DevHost.DevRegistryToken);
+            // E09 adds a crash-looping "newsletter" sender for the problems feed and the Deploy AI.
+            return engine.WithCrashLoop();
+        });
         services.AddSingleton<IDockerEngine>(provider => provider.GetRequiredService<InMemoryDockerEngine>());
         services.AddSingleton<IDockerSetup, FakeDockerSetup>();
 
@@ -49,6 +66,16 @@ internal static class FakePlatform
         services.AddSingleton<INginxMachine>(provider => provider.GetRequiredService<SimulatedNginxMachine>());
         services.AddSingleton<ICertificateAuthorities, FakeCertificateAuthorities>();
         services.AddSingleton<IUpstreamResolver, FakeResolver>();
+
+        // Cloudflare (E14): its ranges and a DNS API in memory, and DNS-01 records without the wait.
+        services.AddSingleton<FakeCloudflare>();
+        services.AddSingleton<ICloudflareRangeSource>(provider => provider.GetRequiredService<FakeCloudflare>());
+        services.AddSingleton<ICloudflareDnsApi>(provider => provider.GetRequiredService<FakeCloudflare>());
+        services.AddSingleton(new CloudflareDns01Options(TimeSpan.Zero));
+        // The Deploy AI's exec stream and the journal (E09): recorded and answered, never run.
+        services.AddSingleton<FakeExecRunner>();
+        services.AddSingleton<IExecRunner>(provider => provider.GetRequiredService<FakeExecRunner>());
+        services.AddSingleton<IJournalSource, FakeJournal>();
     }
 
     private sealed class FakeResolver : IUpstreamResolver

@@ -5,7 +5,8 @@ import type {
 } from '@shared/deploy/protocol/generated/AgentMate.ServerCore.Contracts';
 import type { DeployServer } from '@shared/deployTypes';
 import { useQuery } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import { Skeleton } from '@/components/ui/skeleton';
 import type { SiteTab } from '@/lib/deploy/sites/problems';
@@ -30,6 +31,21 @@ interface Editing {
   /** Null for a new site. */
   siteId: string | null;
   tab: SiteTab;
+  /** For a new site: the domains it starts with (from Cloudflare's "point domain"). */
+  domains?: string[];
+}
+
+const DOMAIN = /^(\*\.)?[a-z0-9-]+(\.[a-z0-9-]+)+$/;
+
+/** `?newSite=a.example.com,www.a.example.com`, as the Cloudflare page links here. */
+function domainsFrom(param: string | null): string[] | null {
+  if (!param) return null;
+  const domains = param
+    .split(',')
+    .map((domain) => domain.trim().toLowerCase())
+    .filter((domain) => DOMAIN.test(domain))
+    .slice(0, 10);
+  return domains.length > 0 ? domains : null;
 }
 
 export function SitesPanel({ server }: { server: DeployServer }): React.JSX.Element {
@@ -44,7 +60,22 @@ export function SitesPanel({ server }: { server: DeployServer }): React.JSX.Elem
   const sites = useSites(server.id, signedIn);
   const streams = useStreams(server.id, signedIn);
   const refresh = useRefreshWeb(server.id);
-  const [editing, setEditing] = useState<Editing | null>(null);
+  const [params, setParams] = useSearchParams();
+  const linkedDomains = domainsFrom(params.get('newSite'));
+  const [editing, setEditing] = useState<Editing | null>(() =>
+    linkedDomains ? { siteId: null, tab: 'domains', domains: linkedDomains } : null,
+  );
+  useEffect(() => {
+    if (!params.has('newSite')) return;
+    setParams(
+      (current) => {
+        const next = new URLSearchParams(current);
+        next.delete('newSite');
+        return next;
+      },
+      { replace: true },
+    );
+  }, [params, setParams]);
   const [applying, setApplying] = useState(false);
   const [applied, setApplied] = useState<NginxApplyResult | null>(null);
   const [installJob, setInstallJob] = useState<JobInfo | null>(null);
@@ -131,6 +162,7 @@ export function SitesPanel({ server }: { server: DeployServer }): React.JSX.Elem
           owner={owner}
           applyProblems={applyProblems}
           initialTab={editing.tab}
+          initialDomains={editing.domains}
           onClose={() => setEditing(null)}
           onSaved={(site) => {
             void refresh();

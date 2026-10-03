@@ -9,8 +9,9 @@ namespace AgentMate.ServerCore.Hubs;
 /// <summary>
 /// Compose stacks (E07), the Apps of a server. Every role reads them; Operators create apps,
 /// acknowledge findings, deploy, roll back, run the lifecycle and delete; deleting an app with its
-/// volumes (its data) is for Admins. Files arrive over REST (StackEndpoints). Every change and
-/// every refusal lands in the audit trail; env values never leave the core.
+/// volumes (its data) is for Admins. Files arrive over REST (StackEndpoints), or are copied on the
+/// server from an earlier revision (ReviseStack). Every change and every refusal lands in the audit
+/// trail; env values leave the core only through RevealStackEnv (Admins, after a step-up).
 /// </summary>
 internal sealed partial class CoreHub
 {
@@ -49,6 +50,15 @@ internal sealed partial class CoreHub
             request.Action,
             StackCaller,
             Context.ConnectionAborted));
+
+    [Authorize(Policy = CorePolicies.Operator)]
+    public Task<StackRevisionInfo> ReviseStack(ReviseStackRequest request) =>
+        StackCallAsync(() => stacks.ReviseAsync(request, StackCaller, Context.ConnectionAborted));
+
+    [Authorize(Policy = CorePolicies.Admin)]
+    [Authorize(Policy = CorePolicies.StepUp)]
+    public Task<StackEnvEntry[]> RevealStackEnv(StackRevisionRef revision) =>
+        StackCallAsync(() => stacks.RevealEnvAsync(revision, StackCaller, Context.ConnectionAborted));
 
     [Authorize(Policy = CorePolicies.Operator)]
     public Task<JobInfo> DeleteStack(Guid stackId) =>

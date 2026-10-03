@@ -1,5 +1,5 @@
 import type { StackInfo } from '@shared/deploy/protocol/generated/AgentMate.ServerCore.Contracts';
-import { Blocks, FileCode, Plus, RefreshCw } from '@/components/icons';
+import { Blocks, FileCode, Key, Plus, RefreshCw } from '@/components/icons';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -88,6 +88,7 @@ export function AppsList({
   onRetry,
   onOpen,
   onNew,
+  onRegistries,
 }: {
   apps: StackInfo[] | undefined;
   loading: boolean;
@@ -96,6 +97,8 @@ export function AppsList({
   onRetry: () => void;
   onOpen: (stackId: string) => void;
   onNew: () => void;
+  /** Opens the registry sign-ins for private images (E08). */
+  onRegistries?: () => void;
 }): React.JSX.Element {
   return (
     <section aria-labelledby="apps-heading" className="space-y-3">
@@ -109,6 +112,11 @@ export function AppsList({
             through Websites.
           </p>
         </div>
+        {onRegistries && (
+          <Button size="sm" variant="outline" onClick={onRegistries}>
+            <Key className="h-3.5 w-3.5" /> Registries
+          </Button>
+        )}
         {apps && apps.length > 0 && <NewAppButton canOperate={canOperate} onNew={onNew} />}
       </div>
       {loading ? (

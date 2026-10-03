@@ -2,11 +2,16 @@ import { existsSync, readFileSync } from 'node:fs';
 import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { app, dialog, type IpcMainInvokeEvent, ipcMain } from 'electron';
+import { registryOfImage } from '../../shared/deploy/registries';
 import { IPC } from '../../shared/ipcChannels';
 import { indexProjectFiles } from '../explorer/fileIndex';
 import { registerDeployHandlers } from '../ipc/deploy';
+import { registerDeployAppStoreHandlers } from '../ipc/deployAppStore';
+import { registerDeployAssistantHandlers } from '../ipc/deployAssistant';
+import { registerDeployDirectTlsHandlers } from '../ipc/deployDirectTls';
 import { registerDeployDockerHandlers } from '../ipc/deployDocker';
 import { registerDeployFirewallHandlers } from '../ipc/deployFirewall';
+import { registerDeployHardeningHandlers } from '../ipc/deployHardening';
 import { registerDeploySecurityHandlers } from '../ipc/deploySecurity';
 import { registerDeploySitesHandlers } from '../ipc/deploySites';
 import { registerDeployStacksHandlers } from '../ipc/deployStacks';
@@ -24,6 +29,10 @@ import {
 } from '../ssh/vault';
 import { store } from '../store';
 import { DownloadAbortedError, ResumableDownload } from '../updater/resumableDownload';
+import { DeployAppStore } from './appStore/service';
+import { approvalSigner } from './assistant/approvals';
+import { DeployAssistant } from './assistant/service';
+import { DeployBackups } from './backups';
 import {
   githubReleaseSource,
   localArtifactSource,
@@ -32,11 +41,16 @@ import {
   repoReleaseDirectory,
 } from './bootstrap/releaseSource';
 import { registerCloudflareIpc } from './cloudflare';
+import { DeployDirectTls } from './directTls/service';
 import { DeployDocker } from './docker';
 import { DeployFirewall } from './firewall';
+import { DeployHardening } from './hardening';
 import { DockerLinks } from './live/dockerLinks';
 import { DockerSubscriptions } from './live/dockerSubscriptions';
 import { DeploySubscriptions } from './live/subscriptions';
+import { JournalSubscriptions } from './logs/journal';
+import { createDeployRegistries, registerDeployRegistryIpc } from './registry';
+import type { DeployRegistries } from './registry/service';
 import { DeploySecurity } from './security';
 import { DeployService } from './service';
 import { DeploySites } from './sites/deploySites';
@@ -191,26 +205,41 @@ export function registerDeployIpc(): void {
     guard,
   });
 
-  registerDeployStacksHandlers({
+  // Direct TLS (E16): read and changed over SSH only, so the pin never comes from the port it guards.
+  registerDeployDirectTlsHandlers({
     ipc: ipcMain,
-    stacks: new DeployStacks({
-      links: service.links,
-      roles: (id) => service.roles(id),
-      http: (serverId, work) => service.withCoreHttp(serverId, work),
-      source: {
-        project: async (projectId) => {
-          const project = (await store.getProjects()).find((item) => item.id === projectId);
-          if (!project) throw new Error('That project no longer exists.');
-          return project;
-        },
-        index: indexProjectFiles,
-        environment: resolveProjectEnvironment,
-      },
-      pack: buildContextTarball,
-      progress: (event) => sendToWindow(getMainWindow(), IPC.deployStacks.onUploadProgress, event),
-    }),
+    directTls: new DeployDirectTls({ service, state, roles: (id) => service.roles(id) }),
     guard,
   });
+
+  // Private registries (E08): this computer's sign-ins go with each deploy that pulls from them.
+  const registries = createDeployRegistries();
+  const stacks = new DeployStacks({
+    links: service.links,
+    roles: (id) => service.roles(id),
+    http: (serverId, work) => service.withCoreHttp(serverId, work),
+    source: {
+      project: async (projectId) => {
+        const project = (await store.getProjects()).find((item) => item.id === projectId);
+        if (!project) throw new Error('That project no longer exists.');
+        return project;
+      },
+      index: indexProjectFiles,
+      environment: resolveProjectEnvironment,
+    },
+    pack: buildContextTarball,
+    progress: (event) => sendToWindow(getMainWindow(), IPC.deployStacks.onUploadProgress, event),
+    registryAuths: (serverId, stackId, hosts) => registries.authsFor(serverId, stackId, hosts),
+  });
+  registerDeployStacksHandlers({ ipc: ipcMain, stacks, guard });
+  registerDeployRegistryIpc({
+    registries,
+    core: { links: service.links, roles: (id) => service.roles(id) },
+    stacks,
+    guard,
+  });
+  // The App Store (E12) installs and updates through the same stacks.
+  registerDeployAppStoreHandlers({ ipc: ipcMain, store: new DeployAppStore({ stacks }), guard });
 
   // The Websites section (E10, E11): its site logs end with the window that opened them.
   const siteLogs = new SiteLogSubscriptions({ links: service.links });
@@ -249,8 +278,43 @@ export function registerDeployIpc(): void {
     pool.closeAll();
   });
   registerDeploySecurityIpc(service, guard);
-  registerDeployDockerIpc(service, guard);
-  registerCloudflareIpc();
+  registerDeployHardeningIpc(service, guard);
+  registerDeployDockerIpc(service, guard, registries);
+  registerCloudflareIpc({
+    call: (serverId, work) => service.links.call(serverId, work),
+    roles: (serverId) => service.roles(serverId),
+    onLinkConnection: (serverId, work) => service.onLinkConnection(serverId, work),
+    serverName: async (serverId) =>
+      (await service.listServers()).find((server) => server.id === serverId)?.nickname ?? serverId,
+  });
+  registerDeployAssistantIpc(service, state, guard);
+}
+
+/** The Deploy AI and the logs center's journal (E09). Approvals are signed with the device key. */
+function registerDeployAssistantIpc(
+  service: DeployService,
+  state: DeployState,
+  guard: (event: IpcMainInvokeEvent) => boolean,
+): void {
+  const roles = (id: string) => service.roles(id);
+  const journals = new JournalSubscriptions({ links: service.links });
+  const ownerOf = subscriptionOwners((ownerId) => journals.dropOwner(ownerId));
+  registerDeployAssistantHandlers({
+    ipc: ipcMain,
+    assistant: new DeployAssistant({
+      links: service.links,
+      roles,
+      approve: approvalSigner({ state, unseal: decryptSecret }),
+      serverName: async (serverId) =>
+        (await service.listServers()).find((server) => server.id === serverId)?.nickname ??
+        serverId,
+      docker: new DeployDocker({ links: service.links, roles }),
+      send: (channel, payload) => sendToWindow(getMainWindow(), channel, payload),
+    }),
+    journals,
+    guard,
+    owner: (event) => ownerOf(event.sender),
+  });
 }
 
 /** The Security area: users, devices, sessions, enrollment codes and the audit trail. */
@@ -284,17 +348,83 @@ function registerDeploySecurityIpc(
   registerDeploySecurityHandlers({ ipc: ipcMain, security, service, guard });
 }
 
+/**
+ * The Security center (E15): the checklist and its SSH fixes, which go over new SSH connections
+ * of their own (pool.openSeparate), and backups, saved where the user picks.
+ */
+function registerDeployHardeningIpc(
+  service: DeployService,
+  guard: (event: IpcMainInvokeEvent) => boolean,
+): void {
+  const dialogOwner = () => getMainWindow();
+  const backups = new DeployBackups({
+    withHub: (serverId, work) => service.withHub(serverId, work),
+    withCoreHttp: (serverId, work) => service.withCoreHttp(serverId, work),
+    serverName: async (serverId) =>
+      (await service.listServers()).find((server) => server.id === serverId)?.nickname ?? serverId,
+    pickSavePath: async (suggestedName) => {
+      const options = {
+        title: 'Save the server backup',
+        defaultPath: suggestedName,
+        filters: [{ name: 'AgentMate server backup', extensions: ['ambackup'] }],
+      };
+      const win = dialogOwner();
+      const result = win
+        ? await dialog.showSaveDialog(win, options)
+        : await dialog.showSaveDialog(options);
+      return result.canceled ? null : (result.filePath ?? null);
+    },
+    pickOpenPath: async () => {
+      const options = {
+        title: 'Restore a server backup',
+        properties: ['openFile' as const],
+        filters: [{ name: 'AgentMate server backup', extensions: ['ambackup'] }],
+      };
+      const win = dialogOwner();
+      const result = win
+        ? await dialog.showOpenDialog(win, options)
+        : await dialog.showOpenDialog(options);
+      return result.canceled ? null : (result.filePaths[0] ?? null);
+    },
+  });
+  registerDeployHardeningHandlers({
+    ipc: ipcMain,
+    hardening: new DeployHardening({
+      links: service.links,
+      service: {
+        withFreshHub: (serverId, work, step) => service.withFreshHub(serverId, work, step),
+        availableCoreVersion: () => service.availableCoreVersion(),
+        loginMethod: (serverId) => service.loginMethod(serverId),
+      },
+      roles: (id) => service.roles(id),
+      progress: (event) => sendToWindow(getMainWindow(), IPC.deployHardening.onSshProgress, event),
+    }),
+    backups,
+    service,
+    restoreProgress: (_event, serverId, progress) =>
+      sendToWindow(getMainWindow(), IPC.deployHardening.onRestoreProgress, { serverId, progress }),
+    guard,
+  });
+}
+
 /** Docker on each server (E06): containers, their live stats, logs and consoles, and resources. */
 function registerDeployDockerIpc(
   service: DeployService,
   guard: (event: IpcMainInvokeEvent) => boolean,
+  registries: DeployRegistries,
 ): void {
   const links = new DockerLinks(service.links);
   const subscriptions = new DockerSubscriptions({ links });
   const ownerOf = subscriptionOwners((ownerId) => subscriptions.dropOwner(ownerId));
   registerDeployDockerHandlers({
     ipc: ipcMain,
-    docker: new DeployDocker({ links: service.links, roles: (id) => service.roles(id) }),
+    docker: new DeployDocker({
+      links: service.links,
+      roles: (id) => service.roles(id),
+      // An image pull on the Containers screen signs in with this computer's sign-in too (E08).
+      registryAuth: async (reference) =>
+        (await registries.authsForRegistries([registryOfImage(reference)]))[0] ?? null,
+    }),
     subscriptions,
     guard,
     owner: (event) => ownerOf(event.sender),

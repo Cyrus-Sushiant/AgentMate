@@ -40,6 +40,18 @@ describe('StatusHero', () => {
     expect(onToggle).toHaveBeenCalledWith(true);
   });
 
+  it('wraps its settings instead of cutting them off in a narrow window', () => {
+    const view = hero();
+
+    const settings = view.container.querySelector('dl') as HTMLElement;
+    expect(settings.className).toContain('auto-fill');
+    for (const value of settings.querySelectorAll('dd')) {
+      expect(value.className).not.toContain('truncate');
+    }
+    // The select is the value itself, so nothing clips it either.
+    expect(screen.getByLabelText('Incoming by default').closest('dd')).toBeTruthy();
+  });
+
   it('stages a new incoming default', async () => {
     const onDefaultIncoming = vi.fn();
     const { user } = hero({ onDefaultIncoming });
@@ -167,7 +179,7 @@ describe('HistoryCard', () => {
 });
 
 describe('ExposureCard', () => {
-  it('marks what goes around the firewall, and says making it private is not available', () => {
+  it('marks what goes around the firewall, with make private off without the role', () => {
     renderWithProviders(<ExposureCard exposure={EXPOSURE} loading={false} error={null} />);
 
     const db = screen.getByRole('listitem', { name: 'shop-db-1' });

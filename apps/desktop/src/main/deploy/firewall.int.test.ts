@@ -18,6 +18,7 @@ import {
   TEST_LOGINS,
   type TestServer,
   type TestServerImage,
+  testServerImages,
 } from './testing/testServers';
 
 /**
@@ -30,6 +31,9 @@ import {
  */
 
 const enabled = systemTestsEnabled();
+/** Each test needs its own firewall; the nightly matrix runs one test server per job. */
+const onUfw = testServerImages(['ubuntu-24.04-ufw'], ['ubuntu-24.04-ufw']).length > 0;
+const onFirewalld = testServerImages(['rocky-9-firewalld'], ['rocky-9-firewalld']).length > 0;
 const REPO = fileURLToPath(new URL('../../../../../', import.meta.url));
 const ARTIFACTS = join(REPO, 'apps', 'server-core', 'artifacts', 'release');
 const TEST_TIMEOUT_MS = 900_000;
@@ -216,7 +220,7 @@ async function unconfirmedChangeRevertsWithTheCoreKilled(
 }
 
 describe.skipIf(!enabled)('the firewall on real servers', () => {
-  it(
+  it.skipIf(!onUfw)(
     "applies over the app's lasting connection and keeps the change over a brand-new SSH connection",
     async () => {
       const core = await installCore('ubuntu-24.04-ufw');
@@ -261,7 +265,7 @@ describe.skipIf(!enabled)('the firewall on real servers', () => {
     TEST_TIMEOUT_MS,
   );
 
-  it(
+  it.skipIf(!onUfw)(
     'manages ufw for IPv4 and IPv6, refuses to cut SSH off, confirms over a new connection and rolls back with the core killed',
     async () => {
       const core = await installCore('ubuntu-24.04-ufw');
@@ -342,7 +346,7 @@ describe.skipIf(!enabled)('the firewall on real servers', () => {
     TEST_TIMEOUT_MS,
   );
 
-  it(
+  it.skipIf(!onFirewalld)(
     'manages firewalld for IPv4 and IPv6, confirms over a new connection and rolls back with the core killed',
     async () => {
       const core = await installCore('rocky-9-firewalld');

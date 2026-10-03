@@ -5,6 +5,7 @@ using AgentMate.ServerCore.Contracts;
 using AgentMate.ServerCore.Data;
 using AgentMate.ServerCore.Docker;
 using AgentMate.ServerCore.Execution;
+using AgentMate.ServerCore.Registries;
 using AgentMate.ServerCore.Uploads;
 using Microsoft.EntityFrameworkCore;
 
@@ -231,7 +232,8 @@ internal sealed partial class StackOperations
         return ToInfo(row);
     }
 
-    internal sealed record CheckedConfig(string[] Services, bool Builds, List<StackRisk> Findings, IReadOnlyList<StackPortBinding> Bindings);
+    /// <param name="Registries">The registries of the images a pull fetches (E08), canonical hosts.</param>
+    internal sealed record CheckedConfig(string[] Services, bool Builds, List<StackRisk> Findings, IReadOnlyList<StackPortBinding> Bindings, string[] Registries);
 
     /// <summary>
     /// docker compose config on the revision, the loopback override written from it, and Compose's
@@ -269,7 +271,7 @@ internal sealed partial class StackOperations
         if (rendered.Text is null)
         {
             var findings = ComposeConfigLint.Lint(config, proxied, plain.ProjectDirectory, directories.Data);
-            return new CheckedConfig([.. config.Services.Select(s => s.Name)], config.Builds, findings, rendered.Bindings);
+            return new CheckedConfig([.. config.Services.Select(s => s.Name)], config.Builds, findings, rendered.Bindings, RegistriesOf(config));
         }
 
         await WritePrivateAsync(overridePath, Encoding.UTF8.GetBytes(rendered.Text), cancellationToken);
@@ -284,8 +286,17 @@ internal sealed partial class StackOperations
         }
 
         var lint = ComposeConfigLint.Lint(final, proxied, withOverride.ProjectDirectory, directories.Data);
-        return new CheckedConfig([.. final.Services.Select(s => s.Name)], final.Builds, lint, rendered.Bindings);
+        return new CheckedConfig([.. final.Services.Select(s => s.Name)], final.Builds, lint, rendered.Bindings, RegistriesOf(final));
     }
+
+    /// <summary>Where the images that docker compose pull fetches come from (built services are skipped, as pull skips them).</summary>
+    private static string[] RegistriesOf(ComposeConfig config) =>
+        [.. config.Services
+            .Where(s => !s.Builds && s.Image is { Length: > 0 })
+            .Select(s => DockerNames.TryParseReference(s.Image, out var image) ? RegistryNames.HostOfRepository(image.Repository) : null)
+            .OfType<string>()
+            .Distinct(StringComparer.Ordinal)
+            .Order(StringComparer.Ordinal)];
 
     internal static ComposeProject Project(string name, string folder, bool withOverride)
     {

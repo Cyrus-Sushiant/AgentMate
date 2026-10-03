@@ -53,6 +53,14 @@ internal sealed partial class NginxControl(INginxMachine machine, TimeProvider t
 
     public TimeSpan PollInterval { get; init; } = TimeSpan.FromMilliseconds(200);
 
+    /// <summary>
+    /// How long error.log has to stay as it is, once it shows a refused reload, before that reload
+    /// counts as over. nginx tries a bind() in use five times, 500 ms apart, writing the error each
+    /// time; stopping at the first line left the rest to land after the next reload's signal,
+    /// where it read as that reload's cause.
+    /// </summary>
+    public TimeSpan SettleTime { get; init; } = TimeSpan.FromSeconds(1);
+
     public INginxMachine Machine => machine;
 
     /// <summary>The layout for this server: the OS family's paths, and IPv6 only where the host has it.</summary>
@@ -169,16 +177,28 @@ internal sealed partial class NginxControl(INginxMachine machine, TimeProvider t
         }
 
         var deadline = time.GetUtcNow() + ReloadDeadline;
+        string? refusal = null;
+        var unchangedSince = DateTimeOffset.MinValue;
         while (true)
         {
-            var now = await WorkersAsync(master.Value, cancellationToken);
-            if (now.Any(pid => !before.Contains(pid)))
+            if (refusal is null)
             {
-                return new NginxReloadOutcome(true, string.Empty);
+                var now = await WorkersAsync(master.Value, cancellationToken);
+                if (now.Any(pid => !before.Contains(pid)))
+                {
+                    return new NginxReloadOutcome(true, string.Empty);
+                }
             }
 
             var log = await ReadSinceAsync(errorLog, offset, cancellationToken);
-            if (NginxErrorInLog().IsMatch(log) || time.GetUtcNow() >= deadline)
+            var at = time.GetUtcNow();
+            if (refusal is null ? NginxErrorInLog().IsMatch(log) : log.Length != refusal.Length)
+            {
+                (refusal, unchangedSince) = (log, at);
+            }
+
+            // Refused: over once nginx has stopped writing about it, so none of it is left for the next reload.
+            if ((refusal is not null && at - unchangedSince >= SettleTime) || at >= deadline)
             {
                 return new NginxReloadOutcome(false, log.Length > 0 ? log : "nginx started no new workers after the reload signal, so it kept the old configuration.");
             }

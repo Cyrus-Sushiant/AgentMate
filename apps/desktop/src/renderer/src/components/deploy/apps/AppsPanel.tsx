@@ -2,6 +2,7 @@ import { coreErrorMessage } from '@shared/coreErrors';
 import type { DeployServer } from '@shared/deployTypes';
 import { useSearchParams } from 'react-router-dom';
 import { Skeleton } from '@/components/ui/skeleton';
+import { RegistriesPanel } from '../registries/RegistriesPanel';
 import { AppDetail } from './AppDetail';
 import { AppsList } from './AppsList';
 import { useAppsAccess, useStack, useStacks } from './hooks';
@@ -53,6 +54,7 @@ export function AppsPanel({ server }: { server: DeployServer }): React.JSX.Eleme
   const apps = useStacks(serverId, access.signedIn);
   const appId = params.get('app');
   const wizard = params.get('new') === '1';
+  const registries = params.get('registries') === '1';
 
   const show = (extra: Record<string, string>) =>
     setParams({ server: serverId, view: 'apps', ...extra }, { replace: false });
@@ -66,6 +68,16 @@ export function AppsPanel({ server }: { server: DeployServer }): React.JSX.Eleme
       <p className="text-sm text-muted-foreground">
         Sign in to {server.nickname} on its Overview to see and deploy its apps.
       </p>
+    );
+  }
+
+  if (registries) {
+    return (
+      <RegistriesPanel
+        server={server}
+        access={access}
+        onBack={() => show(appId ? { app: appId } : {})}
+      />
     );
   }
 
@@ -101,6 +113,7 @@ export function AppsPanel({ server }: { server: DeployServer }): React.JSX.Eleme
         onBack={() => show({})}
         onDeployAgain={(details) => show({ app: details.stack.id, new: '1' })}
         onDeleted={() => show({})}
+        onOpenRegistries={() => show({ app: appId, registries: '1' })}
       />
     );
   }
@@ -114,6 +127,7 @@ export function AppsPanel({ server }: { server: DeployServer }): React.JSX.Eleme
       onRetry={() => void apps.refetch()}
       onOpen={(stackId) => show({ app: stackId })}
       onNew={() => show({ new: '1' })}
+      onRegistries={() => show({ registries: '1' })}
     />
   );
 }

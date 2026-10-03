@@ -204,7 +204,7 @@ export function InstallPanel({
             sudo will use the saved login password.{' '}
             <button
               type="button"
-              className="cursor-pointer text-primary underline-offset-4 hover:underline"
+              className="cursor-pointer text-primary underline-offset-4 hover:underline rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               onClick={() => setAskPassword(true)}
             >
               Use a different password

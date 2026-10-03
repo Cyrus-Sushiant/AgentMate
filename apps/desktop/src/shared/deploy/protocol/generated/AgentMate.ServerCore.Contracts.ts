@@ -187,7 +187,7 @@ export type AuditVerificationInfo = {
 }
 
 /** Transpiled from AgentMate.ServerCore.Contracts.AlertKind */
-export type AlertKind = "diskPressure" | "jobFailed" | "rebootRequired" | "firewallRolledBack" | "firewallRollbackFailed" | "certificateRenewalFailed";
+export type AlertKind = "diskPressure" | "jobFailed" | "rebootRequired" | "firewallRolledBack" | "firewallRollbackFailed" | "certificateRenewalFailed" | "originLockRefreshFailed";
 
 /** Transpiled from AgentMate.ServerCore.Contracts.AlertSeverity */
 export type AlertSeverity = "info" | "warning" | "critical";
@@ -232,6 +232,102 @@ export type AlertQuery = {
 export type AlertStreamRequest = {
     /** Transpiled from long */
     afterRevision?: number;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.AssistantMode */
+export type AssistantMode = "approveEveryCommand" | "autoRunDiagnostics";
+
+/** Transpiled from AgentMate.ServerCore.Contracts.AssistantModeInfo */
+export type AssistantModeInfo = {
+    /** Transpiled from AgentMate.ServerCore.Contracts.AssistantMode */
+    mode: AssistantMode;
+    /** Transpiled from string[] */
+    allowlist: string[];
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.ExecApprovalNonce */
+export type ExecApprovalNonce = {
+    /** Transpiled from System.Guid */
+    nonceId: string;
+    /** Transpiled from string */
+    nonce: string;
+    /** Transpiled from long */
+    expiresAtUnixMs: number;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.ExecApproval */
+export type ExecApproval = {
+    /** Transpiled from System.Guid */
+    nonceId: string;
+    /** Transpiled from string */
+    signature: string;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.ExecRequest */
+export type ExecRequest = {
+    /** Transpiled from string */
+    command: string;
+    /** Transpiled from string? */
+    workingDirectory?: string;
+    /** Transpiled from int */
+    timeoutSeconds?: number;
+    /** Transpiled from bool */
+    fromAssistant: boolean;
+    /** Transpiled from AgentMate.ServerCore.Contracts.ExecApproval? */
+    approval?: ExecApproval;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.ExecOutputSource */
+export type ExecOutputSource = "out" | "err";
+
+/** Transpiled from AgentMate.ServerCore.Contracts.ExecLine */
+export type ExecLine = {
+    /** Transpiled from AgentMate.ServerCore.Contracts.ExecOutputSource */
+    stream: ExecOutputSource;
+    /** Transpiled from string */
+    text: string;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.ExecOutput */
+export type ExecOutput = {
+    /** Transpiled from AgentMate.ServerCore.Contracts.ExecLine[] */
+    lines: ExecLine[];
+    /** Transpiled from bool */
+    ended: boolean;
+    /** Transpiled from int */
+    exitCode?: number;
+    /** Transpiled from bool */
+    timedOut: boolean;
+    /** Transpiled from bool */
+    truncated: boolean;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.JournalRequest */
+export type JournalRequest = {
+    /** Transpiled from string */
+    unit: string;
+    /** Transpiled from int */
+    lines?: number;
+    /** Transpiled from long */
+    sinceUnixMs?: number;
+    /** Transpiled from bool */
+    follow: boolean;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.JournalLine */
+export type JournalLine = {
+    /** Transpiled from long */
+    atUnixMs: number;
+    /** Transpiled from int */
+    priority: number;
+    /** Transpiled from string */
+    text: string;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.JournalBatch */
+export type JournalBatch = {
+    /** Transpiled from AgentMate.ServerCore.Contracts.JournalLine[] */
+    lines: JournalLine[];
 }
 
 /** Transpiled from AgentMate.ServerCore.Contracts.AuthPurpose */
@@ -322,8 +418,52 @@ export type AuthError = {
     lockedOutUntilUnixMs?: number;
 }
 
+/** Transpiled from AgentMate.ServerCore.Contracts.BackupRequest */
+export type BackupRequest = {
+    /** Transpiled from string */
+    passphrase: string;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.BackupContents */
+export type BackupContents = {
+    /** Transpiled from int */
+    users: number;
+    /** Transpiled from int */
+    devices: number;
+    /** Transpiled from int */
+    stacks: number;
+    /** Transpiled from int */
+    sites: number;
+    /** Transpiled from int */
+    certificates: number;
+    /** Transpiled from long */
+    databaseBytes: number;
+    /** Transpiled from int */
+    files: number;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.BackupInfo */
+export type BackupInfo = {
+    /** Transpiled from System.Guid */
+    id: string;
+    /** Transpiled from string */
+    fileName: string;
+    /** Transpiled from long */
+    sizeBytes: number;
+    /** Transpiled from string */
+    sha256: string;
+    /** Transpiled from long */
+    createdAtUnixMs: number;
+    /** Transpiled from long */
+    expiresAtUnixMs: number;
+    /** Transpiled from string */
+    coreVersion: string;
+    /** Transpiled from AgentMate.ServerCore.Contracts.BackupContents */
+    contents: BackupContents;
+}
+
 /** Transpiled from AgentMate.ServerCore.Contracts.CertificateSource */
-export type CertificateSource = "acme" | "uploaded";
+export type CertificateSource = "acme" | "uploaded" | "cloudflareOrigin";
 
 /** Transpiled from AgentMate.ServerCore.Contracts.CertificateState */
 export type CertificateState = "valid" | "expiringSoon" | "expired" | "revoked";
@@ -411,6 +551,177 @@ export type CertificateUploadResult = {
     certificate?: CertificateInfo;
     /** Transpiled from AgentMate.ServerCore.Contracts.NginxApplyResult? */
     apply?: NginxApplyResult;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.CloudflareRanges */
+export type CloudflareRanges = {
+    /** Transpiled from string[] */
+    ipv4: string[];
+    /** Transpiled from string[] */
+    ipv6: string[];
+    /** Transpiled from long */
+    fetchedAtUnixMs: number;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.OriginLockState */
+export type OriginLockState = "off" | "pending" | "on" | "drifted";
+
+/** Transpiled from AgentMate.ServerCore.Contracts.OriginLockStatus */
+export type OriginLockStatus = {
+    /** Transpiled from bool */
+    enabled: boolean;
+    /** Transpiled from bool */
+    authenticatedOriginPulls: boolean;
+    /** Transpiled from AgentMate.ServerCore.Contracts.OriginLockState */
+    state: OriginLockState;
+    /** Transpiled from int[] */
+    ports: number[];
+    /** Transpiled from string[] */
+    missingRules: string[];
+    /** Transpiled from string[] */
+    openRules: string[];
+    /** Transpiled from string[] */
+    staleRules: string[];
+    /** Transpiled from string[] */
+    warnings: string[];
+    /** Transpiled from AgentMate.ServerCore.Contracts.CloudflareRanges? */
+    ranges?: CloudflareRanges;
+    /** Transpiled from long */
+    lastRefreshAtUnixMs?: number;
+    /** Transpiled from string? */
+    lastRefreshError?: string;
+    /** Transpiled from System.Guid */
+    changeSetId?: string;
+    /** Transpiled from AgentMate.ServerCore.Contracts.FirewallChangeState */
+    changeState?: FirewallChangeState;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.OriginLockRequest */
+export type OriginLockRequest = {
+    /** Transpiled from bool */
+    enabled: boolean;
+    /** Transpiled from bool */
+    authenticatedOriginPulls: boolean;
+    /** Transpiled from string? */
+    sshConnection?: string;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.OriginLockPreview */
+export type OriginLockPreview = {
+    /** Transpiled from AgentMate.ServerCore.Contracts.FirewallChange[] */
+    changes: FirewallChange[];
+    /** Transpiled from string[] */
+    notes: string[];
+    /** Transpiled from AgentMate.ServerCore.Contracts.CloudflareRanges */
+    ranges: CloudflareRanges;
+    /** Transpiled from AgentMate.ServerCore.Contracts.FirewallChangePreview? */
+    firewall?: FirewallChangePreview;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.OriginLockResult */
+export type OriginLockResult = {
+    /** Transpiled from AgentMate.ServerCore.Contracts.OriginLockStatus */
+    status: OriginLockStatus;
+    /** Transpiled from AgentMate.ServerCore.Contracts.NginxApplyResult */
+    nginx: NginxApplyResult;
+    /** Transpiled from AgentMate.ServerCore.Contracts.FirewallChangeSetInfo? */
+    changeSet?: FirewallChangeSetInfo;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.OriginCertificateRequestInfo */
+export type OriginCertificateRequestInfo = {
+    /** Transpiled from string */
+    siteId: string;
+    /** Transpiled from string */
+    csrPem: string;
+    /** Transpiled from string[] */
+    hostnames: string[];
+    /** Transpiled from string */
+    requestType: string;
+    /** Transpiled from long */
+    createdAtUnixMs: number;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.OriginCertificateInstall */
+export type OriginCertificateInstall = {
+    /** Transpiled from string */
+    siteId: string;
+    /** Transpiled from string */
+    certificatePem: string;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.DnsCredentialRequest */
+export type DnsCredentialRequest = {
+    /** Transpiled from string */
+    zone: string;
+    /** Transpiled from string */
+    zoneId: string;
+    /** Transpiled from string */
+    token: string;
+    /** Transpiled from string? */
+    tokenId?: string;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.DnsCredentialInfo */
+export type DnsCredentialInfo = {
+    /** Transpiled from string */
+    zone: string;
+    /** Transpiled from string */
+    zoneId: string;
+    /** Transpiled from string */
+    provider: string;
+    /** Transpiled from long */
+    createdAtUnixMs: number;
+    /** Transpiled from long */
+    updatedAtUnixMs: number;
+    /** Transpiled from string? */
+    tokenId?: string;
+    /** Transpiled from string? */
+    createdBy?: string;
+    /** Transpiled from long */
+    lastUsedAtUnixMs?: number;
+    /** Transpiled from string? */
+    lastError?: string;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.DnsCredentialSaveResult */
+export type DnsCredentialSaveResult = {
+    /** Transpiled from string[] */
+    problems: string[];
+    /** Transpiled from AgentMate.ServerCore.Contracts.DnsCredentialInfo? */
+    credential?: DnsCredentialInfo;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.DirectTlsStatus */
+export type DirectTlsStatus = {
+    /** Transpiled from bool */
+    enabled: boolean;
+    /** Transpiled from int */
+    port: number;
+    /** Transpiled from string[] */
+    sources: string[];
+    /** Transpiled from bool */
+    listening: boolean;
+    /** Transpiled from string */
+    pin: string;
+    /** Transpiled from long */
+    certificateNotAfterUnixMs: number;
+    /** Transpiled from int */
+    defaultPort: number;
+    /** Transpiled from long */
+    changedAtUnixMs?: number;
+    /** Transpiled from string? */
+    changedBy?: string;
+    /** Transpiled from string? */
+    error?: string;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.DirectTlsRequest */
+export type DirectTlsRequest = {
+    /** Transpiled from int */
+    port: number;
+    /** Transpiled from string[]? */
+    sources?: string[];
 }
 
 /** Transpiled from AgentMate.ServerCore.Contracts.DockerStatus */
@@ -738,6 +1049,8 @@ export type ImageInfo = {
 export type ImagePullRequest = {
     /** Transpiled from string */
     reference: string;
+    /** Transpiled from AgentMate.ServerCore.Contracts.RegistryAuth? */
+    auth?: RegistryAuth;
 }
 
 /** Transpiled from AgentMate.ServerCore.Contracts.ImageRemoveRequest */
@@ -1244,6 +1557,181 @@ export type JobPage = {
     nextBeforeCreatedAtUnixMs?: number;
 }
 
+/** Transpiled from AgentMate.ServerCore.Contracts.RegistryAuth */
+export type RegistryAuth = {
+    /** Transpiled from string */
+    registry: string;
+    /** Transpiled from string */
+    username: string;
+    /** Transpiled from string */
+    secret: string;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.StackDeployRequest */
+export type StackDeployRequest = {
+    /** Transpiled from System.Guid */
+    stackId: string;
+    /** Transpiled from int */
+    revision: number;
+    /** Transpiled from AgentMate.ServerCore.Contracts.RegistryAuth[]? */
+    registries?: RegistryAuth[];
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.RegistryCredentialInfo */
+export type RegistryCredentialInfo = {
+    /** Transpiled from System.Guid */
+    id: string;
+    /** Transpiled from string */
+    registry: string;
+    /** Transpiled from string */
+    username: string;
+    /** Transpiled from long */
+    createdAtUnixMs: number;
+    /** Transpiled from long */
+    updatedAtUnixMs: number;
+    /** Transpiled from string? */
+    createdBy?: string;
+    /** Transpiled from long */
+    lastUsedAtUnixMs?: number;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.SaveRegistryCredentialRequest */
+export type SaveRegistryCredentialRequest = {
+    /** Transpiled from string */
+    registry: string;
+    /** Transpiled from string */
+    username: string;
+    /** Transpiled from string */
+    secret: string;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.SshPolicyInfo */
+export type SshPolicyInfo = {
+    /** Transpiled from bool */
+    passwordLogin?: boolean;
+    /** Transpiled from bool */
+    keyboardInteractiveLogin?: boolean;
+    /** Transpiled from bool */
+    keyLogin?: boolean;
+    /** Transpiled from string? */
+    rootLogin?: string;
+    /** Transpiled from bool */
+    managedByAgentMate: boolean;
+    /** Transpiled from string? */
+    error?: string;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.SshLoginProof */
+export type SshLoginProof = {
+    /** Transpiled from bool */
+    keyLoginProven: boolean;
+    /** Transpiled from string */
+    explanation: string;
+    /** Transpiled from string? */
+    method?: string;
+    /** Transpiled from string? */
+    userName?: string;
+    /** Transpiled from long */
+    atUnixMs?: number;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.SshHardeningRequest */
+export type SshHardeningRequest = {
+    /** Transpiled from bool */
+    disablePasswordLogin: boolean;
+    /** Transpiled from bool */
+    restrictRootLogin: boolean;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.SshHardeningPreview */
+export type SshHardeningPreview = {
+    /** Transpiled from string */
+    summary: string;
+    /** Transpiled from string */
+    path: string;
+    /** Transpiled from string */
+    content: string;
+    /** Transpiled from string[] */
+    commands: string[];
+    /** Transpiled from AgentMate.ServerCore.Contracts.SshLoginProof */
+    proof: SshLoginProof;
+    /** Transpiled from bool */
+    allowed: boolean;
+    /** Transpiled from int */
+    confirmWithinSeconds: number;
+    /** Transpiled from string[] */
+    notes: string[];
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.SshHardeningState */
+export type SshHardeningState = "awaitingConfirmation" | "confirmed" | "rolledBack" | "failed";
+
+/** Transpiled from AgentMate.ServerCore.Contracts.SshHardeningChangeInfo */
+export type SshHardeningChangeInfo = {
+    /** Transpiled from System.Guid */
+    id: string;
+    /** Transpiled from AgentMate.ServerCore.Contracts.SshHardeningState */
+    state: SshHardeningState;
+    /** Transpiled from string */
+    summary: string;
+    /** Transpiled from long */
+    createdAtUnixMs: number;
+    /** Transpiled from long */
+    deadlineUnixMs: number;
+    /** Transpiled from string */
+    requestedBy: string;
+    /** Transpiled from long */
+    finishedAtUnixMs?: number;
+    /** Transpiled from string? */
+    error?: string;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.ChecklistStatus */
+export type ChecklistStatus = "pass" | "warn" | "fail" | "unknown";
+
+/** Transpiled from AgentMate.ServerCore.Contracts.ChecklistFix */
+export type ChecklistFix = "none" | "enableFirewall" | "disableSshPasswordLogin" | "restrictRootLogin" | "enableAutomaticUpdates" | "reboot" | "reviewExposure" | "renewCertificates" | "updateCore" | "enableTwoFactor";
+
+/** Transpiled from AgentMate.ServerCore.Contracts.ChecklistItem */
+export type ChecklistItem = {
+    /** Transpiled from string */
+    id: string;
+    /** Transpiled from string */
+    title: string;
+    /** Transpiled from AgentMate.ServerCore.Contracts.ChecklistStatus */
+    status: ChecklistStatus;
+    /** Transpiled from int */
+    weight: number;
+    /** Transpiled from string */
+    detail: string;
+    /** Transpiled from AgentMate.ServerCore.Contracts.ChecklistFix */
+    fix: ChecklistFix;
+    /** Transpiled from string[] */
+    targets: string[];
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.SecurityChecklist */
+export type SecurityChecklist = {
+    /** Transpiled from int */
+    score: number;
+    /** Transpiled from AgentMate.ServerCore.Contracts.ChecklistItem[] */
+    items: ChecklistItem[];
+    /** Transpiled from AgentMate.ServerCore.Contracts.SshPolicyInfo */
+    ssh: SshPolicyInfo;
+    /** Transpiled from string */
+    coreVersion: string;
+    /** Transpiled from long */
+    checkedAtUnixMs: number;
+    /** Transpiled from AgentMate.ServerCore.Contracts.SshHardeningChangeInfo? */
+    pendingSshChange?: SshHardeningChangeInfo;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.SecurityChecklistRequest */
+export type SecurityChecklistRequest = {
+    /** Transpiled from string? */
+    availableCoreVersion?: string;
+}
+
 /** Transpiled from AgentMate.ServerCore.Contracts.StackStatus */
 export type StackStatus = "new" | "busy" | "running" | "degraded" | "stopped" | "down" | "failed";
 
@@ -1480,6 +1968,33 @@ export type StackRevisionUpload = {
     buildContext: boolean;
     /** Transpiled from AgentMate.ServerCore.Contracts.StackSource? */
     source?: StackSource;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.StackRevisionPurpose */
+export type StackRevisionPurpose = "edit" | "makePrivate" | "update";
+
+/** Transpiled from AgentMate.ServerCore.Contracts.ReviseStackRequest */
+export type ReviseStackRequest = {
+    /** Transpiled from System.Guid */
+    stackId: string;
+    /** Transpiled from int */
+    revision: number;
+    /** Transpiled from string[] */
+    proxiedServices: string[];
+    /** Transpiled from string? */
+    compose?: string;
+    /** Transpiled from string[]? */
+    acknowledgedRisks?: string[];
+    /** Transpiled from AgentMate.ServerCore.Contracts.StackRevisionPurpose */
+    purpose: StackRevisionPurpose;
+}
+
+/** Transpiled from AgentMate.ServerCore.Contracts.StackEnvEntry */
+export type StackEnvEntry = {
+    /** Transpiled from string */
+    key: string;
+    /** Transpiled from string */
+    value: string;
 }
 
 /** Transpiled from AgentMate.ServerCore.Contracts.StackUploadError */

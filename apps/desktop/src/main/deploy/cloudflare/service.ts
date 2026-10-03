@@ -16,6 +16,7 @@ import type {
   CloudflareAccessRule,
   CloudflareAccessRuleInput,
   CloudflareAccessTarget,
+  CloudflareAnyPermissionId,
   CloudflareCustomRule,
   CloudflareCustomRuleInput,
   CloudflareDnsRecord,
@@ -47,8 +48,8 @@ import { checkToken } from './tokenCheck';
  * show exactly what to add to the token.
  *
  * Origin CA certificates (T5), the Cloudflare-only origin lock (T6) and DNS-01 tokens for a
- * server (T7) need the server core's certificate and firewall features; they will be methods
- * here that hand the result to the core, next to `pointDomain`.
+ * server (T7) involve the server core too; they live in serverOps.ts and use this service's
+ * `useApi`, so the token is handled in one place.
  */
 
 export interface CloudflareServiceDeps {
@@ -62,11 +63,18 @@ export interface CloudflareServiceDeps {
   addresses: (serverId: string) => Promise<ServerAddresses>;
   /** The SDK's fetch; tests pass the fake Cloudflare API. */
   fetch?: CloudflareFetch;
+  /** The API's base URL; only the e2e run sets it, to reach the recorded fake on loopback. */
+  baseURL?: string;
   maxRetries?: number;
   now?: () => number;
 }
 
 const CUSTOM_PHASE = 'http_request_firewall_custom';
+
+/** The permissions the saved report tracks (the extra ones are only named when refused). */
+function isMainPermission(id: CloudflareAnyPermissionId): id is CloudflarePermissionId {
+  return id !== 'sslCertificates' && id !== 'apiTokens';
+}
 const PAGE_SIZE = 100;
 const MAX_PAGES = 50;
 const EDITABLE: ReadonlySet<string> = new Set(['A', 'AAAA', 'CNAME', 'TXT', 'MX', 'CAA', 'SRV']);
@@ -604,7 +612,42 @@ export class CloudflareService {
   }
 
   private api(token: string): CloudflareApi {
-    return createCloudflareApi(token, { fetch: this.deps.fetch, maxRetries: this.deps.maxRetries });
+    return createCloudflareApi(token, {
+      fetch: this.deps.fetch,
+      maxRetries: this.deps.maxRetries,
+      ...(this.deps.baseURL ? { baseURL: this.deps.baseURL } : {}),
+    });
+  }
+
+  /**
+   * The saved token's API for the server-side flows (serverOps.ts), with the same refusal
+   * handling as the page's own calls. The token never leaves this process.
+   */
+  useApi<T>(
+    permission: CloudflareAnyPermissionId | undefined,
+    work: (api: CloudflareApi) => Promise<T>,
+  ): Promise<T> {
+    return this.withApi(permission, work);
+  }
+
+  /** A client for a token the user pasted for a server (never saved here); errors scrub it. */
+  async withPastedToken<T>(token: string, work: (api: CloudflareApi) => Promise<T>): Promise<T> {
+    try {
+      return await work(this.api(token));
+    } catch (error) {
+      throw cloudflareFailure(error, token);
+    }
+  }
+
+  /** Whether this is the saved account token, which must never go to a server. */
+  async isSavedToken(token: string): Promise<boolean> {
+    const stored = await this.deps.state.token();
+    if (!stored || this.deps.isLocked(stored.envelope)) return false;
+    try {
+      return (await this.deps.unseal(stored.envelope)) === token;
+    } catch {
+      return false;
+    }
   }
 
   /**
@@ -612,7 +655,7 @@ export class CloudflareService {
    * call needs: a refusal names it in the error and marks it missing in the saved report.
    */
   private async withApi<T>(
-    permission: CloudflarePermissionId | undefined,
+    permission: CloudflareAnyPermissionId | undefined,
     work: (api: CloudflareApi) => Promise<T>,
   ): Promise<T> {
     const stored = await this.deps.state.token();
@@ -628,7 +671,9 @@ export class CloudflareService {
     try {
       return await work(this.api(token));
     } catch (error) {
-      if (permission && isPermissionDenied(error)) await this.deps.state.markMissing(permission);
+      if (permission && isPermissionDenied(error) && isMainPermission(permission)) {
+        await this.deps.state.markMissing(permission);
+      }
       throw cloudflareFailure(error, token, permission);
     }
   }

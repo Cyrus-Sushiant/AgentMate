@@ -50,6 +50,34 @@ describe('ConnectionBadge', () => {
     ).toBeInTheDocument();
   });
 
+  it('says which transport carries it while connected', async () => {
+    const { user } = renderWithProviders(<Badge />, {
+      bridge: { 'deploy.connection': connection('online', { transport: 'direct-tls' }) },
+    });
+    const badge = await screen.findByRole('status', {
+      name: 'Live connection: Connected, direct TLS',
+    });
+    expect(badge).toHaveTextContent(/Connected\s*over direct TLS/);
+    await user.hover(badge);
+    expect((await screen.findAllByText(/core's TLS port/)).length).toBeGreaterThan(0);
+  });
+
+  it('calls a pin mismatch what it is, with the reason in the tooltip', async () => {
+    const { user } = renderWithProviders(<Badge />, {
+      bridge: {
+        'deploy.connection': connection('offline', {
+          problem: 'tls-pin-mismatch',
+          message: 'The certificate does not match the one pinned over SSH.',
+        }),
+      },
+    });
+    const badge = await screen.findByRole('status', {
+      name: 'Live connection: Certificate mismatch',
+    });
+    await user.hover(badge);
+    expect((await screen.findAllByText(/pinned over SSH/)).length).toBeGreaterThan(0);
+  });
+
   it('explains itself before the first answer too', async () => {
     const { user } = renderWithProviders(<Badge />, {
       bridge: { 'deploy.connection': () => new Promise(() => undefined) },

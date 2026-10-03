@@ -1,7 +1,8 @@
 namespace AgentMate.ServerCore.Nginx;
 
 /// <summary>Everything AgentMate manages in nginx on one server: its websites and its TCP and UDP proxies.</summary>
-internal sealed record NginxConfiguration(IReadOnlyList<NginxSite> Sites, IReadOnlyList<NginxStreamProxy> Streams)
+/// <param name="OriginLock">Set while the Cloudflare origin lock is on (E14): every site takes the visitor's address from Cloudflare.</param>
+internal sealed record NginxConfiguration(IReadOnlyList<NginxSite> Sites, IReadOnlyList<NginxStreamProxy> Streams, NginxOriginLock? OriginLock = null)
 {
     public static NginxConfiguration Empty { get; } = new([], []);
 }
@@ -180,3 +181,11 @@ internal sealed class NginxConfigurationException(IReadOnlyList<NginxProblem> pr
 {
     public IReadOnlyList<NginxProblem> Problems { get; } = problems;
 }
+
+/// <summary>
+/// Sites behind Cloudflare (E14): requests from Cloudflare's networks carry the visitor's address
+/// in CF-Connecting-IP, which nginx then uses as the client address (for logs, IP rules and rate
+/// limits); a request from anywhere else keeps its own. With Authenticated Origin Pulls, HTTPS
+/// only completes for a client presenting Cloudflare's origin pull certificate.
+/// </summary>
+internal sealed record NginxOriginLock(IReadOnlyList<string> CloudflareNetworks, bool AuthenticatedOriginPulls = false);

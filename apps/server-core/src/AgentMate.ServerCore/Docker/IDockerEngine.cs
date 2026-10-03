@@ -1,4 +1,5 @@
 using AgentMate.ServerCore.Contracts;
+using AgentMate.ServerCore.Registries;
 
 namespace AgentMate.ServerCore.Docker;
 
@@ -45,8 +46,11 @@ internal interface IDockerEngine
 
     Task<IReadOnlyList<ImageInfo>> ListImagesAsync(CancellationToken cancellationToken);
 
-    /// <summary>Pulls one tag (or digest) and reports the engine's progress messages.</summary>
-    Task PullImageAsync(ImageReference image, Action<PullProgress> progress, CancellationToken cancellationToken);
+    /// <summary>
+    /// Pulls one tag (or digest) and reports the engine's progress messages. A login goes to the
+    /// engine in the request's X-Registry-Auth header (E08), so it never touches a disk.
+    /// </summary>
+    Task PullImageAsync(ImageReference image, Action<PullProgress> progress, CancellationToken cancellationToken, RegistryLogin? login = null);
 
     Task RemoveImageAsync(string image, bool force, CancellationToken cancellationToken);
 

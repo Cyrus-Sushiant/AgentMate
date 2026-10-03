@@ -10,26 +10,26 @@ running nginx.
 
 ## Tasks
 
-- [ ] T1 Install from the nginx.org stable repo (pinned GPG key) on both families, or adopt an
+- [x] T1 Install from the nginx.org stable repo (pinned GPG key) on both families, or adopt an
   existing nginx with the stock default site backed up and disabled.
-- [ ] T2 Managed layout: one include wired into `nginx.conf` once, `/etc/nginx/agentmate/current`
+- [x] T2 Managed layout: one include wired into `nginx.conf` once, `/etc/nginx/agentmate/current`
   symlinked to numbered release directories, default server returning 444, ACME challenge location.
-- [ ] T3 Typed site model and deterministic renderer: domains (IDNA), upstream from a stack service
+- [x] T3 Typed site model and deterministic renderer: domains (IDNA), upstream from a stack service
   port picker, websocket upgrade map, proxy cache zone per site (TTL, bypass, purge), gzip,
   `client_max_body_size`, timeouts, custom headers, security headers, HSTS, HTTP/2, IP allow and
   deny, basic auth, rate limits; HTTP-only rendering until a certificate exists.
-- [ ] T4 Custom snippet: directive allowlist parser (no `include`, `load_module`, `*_log` paths,
+- [x] T4 Custom snippet: directive allowlist parser (no `include`, `load_module`, `*_log` paths,
   `alias` or `root` outside the site directory, `lua`, `perl`), Owner-only, shown as a diff.
-- [ ] T5 Apply: render a new release, swap the symlink, `nginx -t`, reload, or swap back and return
+- [x] T5 Apply: render a new release, swap the symlink, `nginx -t`, reload, or swap back and return
   the parsed error with the line mapped to the user's snippet; crash-safe (a marker file lets the
   core finish or undo an interrupted apply on start).
-- [ ] T6 `stream` proxies for public TCP and UDP ports with optional IP allowlists.
-- [ ] T7 SELinux: `httpd_can_network_connect`, `http_port_t` for custom ports.
-- [ ] T8 Per-site access and error logs in the log viewer.
+- [x] T6 `stream` proxies for public TCP and UDP ports with optional IP allowlists.
+- [x] T7 SELinux: `httpd_can_network_connect`, `http_port_t` for custom ports.
+- [x] T8 Per-site access and error logs in the log viewer.
 - [x] T9 UI: Websites list (domains, target, SSL badge, cache and websocket toggles), site editor
   (Domains, Proxy, SSL placeholder, Performance, Security, Advanced with Monaco and inline errors,
   Logs), live route map on the app detail.
-- [ ] T10 Fixture: `nginx -t` harness on nginx.org packages for Debian and Rocky with a whoami
+- [x] T10 Fixture: `nginx -t` harness on nginx.org packages for Debian and Rocky with a whoami
   upstream and curl checks.
 
 ## Acceptance criteria
@@ -71,3 +71,43 @@ Desktop and UI (T9, plus the SSL tab of E11 T6):
 Acceptance criteria from the desktop side: none of AC1 to AC4 is exercised by the desktop work;
 they belong to the core and its harness. The DevHost run uses simulated nginx, not a real
 `nginx -t`.
+
+E17 review (2026-10-03):
+
+- T1 to T8 and T10 were built in 77b262a (renderer, snippet allowlist, harness) and 07db580
+  (install, apply, stream proxies, SELinux, site logs); their boxes are ticked now.
+- AC1 and AC2 are the server core's system tests (`AgentMate.ServerCore.SystemTests`, nginx.org
+  packages on Debian 13 and Rocky 9). They passed when they were written but had never run in CI:
+  no workflow ran that project. The nightly workflow now has a job for it. AC3 and AC4 are unit and
+  golden-file tests that run on every push.
+- Visual and keyboard pass of the Websites section done in E17 (both themes, 1440 and 960 wide).
+
+Rocky apply failure in nightly run 37097759993 (fixed 2026-10-03):
+
+- `RockyNginxApplyTests.A_release_the_core_applies_serves_with_basic_auth_and_logs_per_site` got
+  its apply refused with "bind() to 0.0.0.0:3000 failed (Address already in use)", the error the
+  class's port-in-use test causes on purpose. It was a product bug, not the harness. When a port
+  is taken, nginx's master tries bind() five times, 500 ms apart, writing the error each time, and
+  only then gives up (the log shows all five with the same second, since nginx's clock is cached
+  while it sleeps). `NginxControl.ReloadAsync` called the reload refused at the first line and
+  returned, so the rollback's reload and the next apply measured their place in error.log while
+  nginx was still writing about the old attempt, and the leftover lines read as their own cause.
+  A real server would have shown the same wrong reason for an apply that came within a few
+  seconds of a refused one. On this machine each `docker exec` is slow enough to hide the window,
+  which is why the local runs passed; the Linux runner is fast enough to hit it. The shared
+  container per test class (and xUnit ordering the Rocky class differently from the Debian one)
+  only decided which test caught it.
+- Fix: once error.log shows a refused reload, the reload is over only after the log has stopped
+  growing for a second (`NginxControl.SettleTime`, longer than nginx's retry gap), still bounded
+  by the reload deadline. Repeated identical lines become one problem, so a port in use reads as
+  the bind error plus "still could not bind()".
+- Tests: the unit test `A_refused_reload_is_over_before_the_apply_returns_so_the_next_apply_gets_no_stale_error`
+  failed with the nightly's exact message before the fix (`SimulatedNginxMachine` now retries a
+  refused reload like nginx when `BindRetries` is set, and holds back a reload signalled
+  meanwhile). The port-in-use system test now also applies again straight after the refusal and
+  expects it to go through. All 18 server core system tests pass locally on Docker Desktop.
+
+The E12 AC3 system test also hit the 0700 folders above the ACME webroot (every HTTP-01 order a
+404 from the server's own nginx). The E17 full-stack run found the same bug at the same time and
+its fix landed first (a7e9ec1, `LocalNginxMachineUmaskTests`); this work kept that fix and dropped
+its own copy.

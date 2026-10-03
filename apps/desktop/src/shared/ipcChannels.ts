@@ -726,6 +726,20 @@ export const IPC = {
     onProgress: 'deployFirewall:onProgress',
   },
   /**
+   * Direct TLS (E16): the core's opt-in HTTPS port with mutual TLS. Reads and changes go over SSH
+   * only, which is where the pin comes from; the firewall rule goes through deployFirewall.
+   */
+  deployDirectTls: {
+    /** (serverId) -> DeployDirectTlsInfo: the core's account, the pin kept here, and whether it changed. */
+    status: 'deployDirectTls:status',
+    /** (DeployDirectTlsEnableInput) -> DeployDirectTlsInfo; Owner, may need a step-up. */
+    enable: 'deployDirectTls:enable',
+    /** (serverId) -> DeployDirectTlsInfo, after this computer stopped using the port. */
+    disable: 'deployDirectTls:disable',
+    /** (serverId) -> DeployDirectTlsInfo, with the key the core presents now pinned. */
+    acceptPin: 'deployDirectTls:acceptPin',
+  },
+  /**
    * Docker on a server (E06): the engine and its install, containers and their lifecycle, live
    * stats, logs and engine events, a console, and images, volumes, networks and disk use.
    */
@@ -791,13 +805,81 @@ export const IPC = {
     rollback: 'deployStacks:rollback',
     action: 'deployStacks:action',
     delete: 'deployStacks:delete',
+    /** (DeployMakePrivateInput) -> DeployRevisionResult: services moved to 127.0.0.1 (E13). */
+    makePrivate: 'deployStacks:makePrivate',
     /** main -> renderer: DeployStackUploadProgress while files go up. */
     onUploadProgress: 'deployStacks:onUploadProgress',
+  },
+  /**
+   * A server's App Store (E12): an app installed from the catalog, its update to newer images and
+   * its generated passwords revealed (Admins, after a step-up). The main process renders the
+   * files itself from what was picked.
+   */
+  deployAppStore: {
+    /** (DeployAppInstallInput) -> DeployAppInstallResult: the app, its revision and deploy job. */
+    install: 'deployAppStore:install',
+    /** (DeployAppUpdateInput) -> DeployRevisionResult: a copy of the live revision on newer images. */
+    update: 'deployAppStore:update',
+    /** (DeployAppRevealInput) -> the app's .env as a map of key to value. */
+    revealSecrets: 'deployAppStore:revealSecrets',
+  },
+  /**
+   * Private registries (E08): sign-ins kept on this computer (GitHub packages token, the gh
+   * sign-in behind a warning, Docker Hub, custom registries), each app's choice to send them with
+   * its deploys, and the write-only credentials stored on a server. No channel returns a secret.
+   */
+  deployRegistry: {
+    list: 'deployRegistry:list',
+    /** (token) -> DeployGithubTokenCheck: what GitHub says the token can do. Nothing is saved. */
+    checkGithubToken: 'deployRegistry:checkGithubToken',
+    saveGithubToken: 'deployRegistry:saveGithubToken',
+    githubCliStatus: 'deployRegistry:githubCliStatus',
+    saveGithubCli: 'deployRegistry:saveGithubCli',
+    saveCredential: 'deployRegistry:saveCredential',
+    remove: 'deployRegistry:remove',
+    /** (DeployAppRegistryChoice) -> void */
+    setAppChoice: 'deployRegistry:setAppChoice',
+    /** ({ serverId, stackId?, revision?, images? }) -> DeployRegistryPlan */
+    plan: 'deployRegistry:plan',
+    serverList: 'deployRegistry:serverList',
+    serverSave: 'deployRegistry:serverSave',
+    serverRemove: 'deployRegistry:serverRemove',
   },
   /**
    * A server core's Security area: users and roles (Owner), devices and sessions, enrollment
    * codes (made by an Owner, redeemed on another computer) and the audit trail.
    */
+  /**
+   * The Deploy AI (E09): one run per server on the SSH AI's loop, with the server core as its
+   * shell. Progress and live output go to the main window.
+   */
+  deployAssistant: {
+    /** (DeployAssistantStartInput) -> void */
+    start: 'deployAssistant:start',
+    approve: 'deployAssistant:approve',
+    skip: 'deployAssistant:skip',
+    answer: 'deployAssistant:answer',
+    resume: 'deployAssistant:resume',
+    stop: 'deployAssistant:stop',
+    /** (serverId) -> DeployAssistantState */
+    state: 'deployAssistant:state',
+    /** (serverId) -> AssistantModeInfo */
+    getMode: 'deployAssistant:getMode',
+    /** (DeployAssistantModeInput) -> AssistantModeInfo; turning auto-run on needs a step-up. */
+    setMode: 'deployAssistant:setMode',
+    /** main -> renderer: DeployAssistantProgressEvent */
+    onProgress: 'deployAssistant:onProgress',
+    /** main -> renderer: DeployAssistantOutputEvent */
+    onOutput: 'deployAssistant:onOutput',
+  },
+  /** The logs center (E09): a systemd unit's journal; the other sources have channels already. */
+  deployLogs: {
+    /** (DeployJournalWatchInput) -> subscription id; lines arrive on onJournal. */
+    watchJournal: 'deployLogs:watchJournal',
+    unwatchJournal: 'deployLogs:unwatchJournal',
+    /** main -> the window that asked: DeployJournalEvent */
+    onJournal: 'deployLogs:onJournal',
+  },
   deploySecurity: {
     listUsers: 'deploySecurity:listUsers',
     createUser: 'deploySecurity:createUser',
@@ -815,6 +897,21 @@ export const IPC = {
     queryAudit: 'deploySecurity:queryAudit',
     verifyAudit: 'deploySecurity:verifyAudit',
     exportAudit: 'deploySecurity:exportAudit',
+  },
+  /** The Security center (E15): the checklist, its SSH fixes, backups and restores. */
+  deployHardening: {
+    checklist: 'deployHardening:checklist',
+    previewSsh: 'deployHardening:previewSsh',
+    applySsh: 'deployHardening:applySsh',
+    confirmSsh: 'deployHardening:confirmSsh',
+    revertSsh: 'deployHardening:revertSsh',
+    /** main -> the main window: the steps of an SSH change. */
+    onSshProgress: 'deployHardening:onSshProgress',
+    createBackup: 'deployHardening:createBackup',
+    pickBackup: 'deployHardening:pickBackup',
+    restore: 'deployHardening:restore',
+    /** main -> the main window: the steps of a restore. */
+    onRestoreProgress: 'deployHardening:onRestoreProgress',
   },
   /** The Deploy section's Cloudflare page: the API token, zones, DNS, settings and rules. */
   cloudflare: {
@@ -839,6 +936,16 @@ export const IPC = {
     deleteAccessRule: 'cloudflare:deleteAccessRule',
     planPointDomain: 'cloudflare:planPointDomain',
     pointDomain: 'cloudflare:pointDomain',
+  },
+  /** Cloudflare work on one server (E14): origin lock, Origin CA certificates, DNS-01 tokens. */
+  cloudflareServer: {
+    originLock: 'cloudflareServer:originLock',
+    previewOriginLock: 'cloudflareServer:previewOriginLock',
+    applyOriginLock: 'cloudflareServer:applyOriginLock',
+    originCertificate: 'cloudflareServer:originCertificate',
+    dnsTokens: 'cloudflareServer:dnsTokens',
+    provisionDnsToken: 'cloudflareServer:provisionDnsToken',
+    removeDnsToken: 'cloudflareServer:removeDnsToken',
   },
   /** The workspace Pull request tab: the current branch's PR, its checks, review and merge. */
   pullRequests: {

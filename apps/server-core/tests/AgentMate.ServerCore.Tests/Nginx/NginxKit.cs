@@ -38,7 +38,7 @@ internal sealed class NginxKit : IDisposable
     {
         Machine = new SimulatedNginxMachine(installed);
         Machine.WriteText("/etc/os-release", "ID=ubuntu\nVERSION_ID=\"24.04\"\nVERSION_CODENAME=noble\n");
-        Control = new NginxControl(Machine, Clock) { ReloadDeadline = TimeSpan.FromSeconds(2), PollInterval = TimeSpan.FromMilliseconds(10) };
+        Control = new NginxControl(Machine, Clock) { ReloadDeadline = TimeSpan.FromSeconds(2), PollInterval = TimeSpan.FromMilliseconds(10), SettleTime = TimeSpan.FromMilliseconds(250) };
         SeLinux = new NginxSeLinux(Machine);
         Applier = new NginxApplier(Control, SeLinux, Resolver, UpstreamPolicy.Default, Clock, NullLogger<NginxApplier>.Instance);
         SigningKey = new FixedSigningKey(signingKey ?? Fixtures.Read("nginx/nginx_signing.key"));

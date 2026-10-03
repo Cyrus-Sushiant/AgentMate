@@ -11,8 +11,11 @@ import type {
  * carries a secret: sudo passwords only travel from the renderer into an install call.
  */
 
-/** How the app reaches a server's core: a tunnel to its socket, its stdio bridge, or the DevHost. */
-export type DeployTransport = 'streamlocal' | 'bridge' | 'dev-tcp';
+/**
+ * How the app reaches a server's core: a tunnel to its socket, its stdio bridge, the DevHost, or
+ * the core's own HTTPS port (direct TLS, E16).
+ */
+export type DeployTransport = 'streamlocal' | 'bridge' | 'dev-tcp' | 'direct-tls';
 
 /** What the app remembers about the core it installed on a server. */
 export interface DeployCoreRecord {
@@ -208,6 +211,10 @@ export interface DeployConnection {
   message?: string;
   /** When the next attempt is due, while it keeps trying. */
   retryAt?: number;
+  /** What the connection rides on, while online (direct TLS or an SSH channel). */
+  transport?: DeployTransport;
+  /** Why it stopped for good: the direct TLS certificate is not the one pinned over SSH. */
+  problem?: 'tls-pin-mismatch';
 }
 
 /** Live metrics for a server; `sinceUnixMs` asks for the samples after it first, to join history. */

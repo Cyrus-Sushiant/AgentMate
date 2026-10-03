@@ -174,6 +174,25 @@ describe('DeployPage states', () => {
     expect(await within(rail).findByText('Online, core 1.53.0')).toBeTruthy();
   });
 
+  it('leaves room under a server section for the Deploy AI button', async () => {
+    renderPage({ 'deploy.listServers': async () => [server({ core: CORE })] });
+
+    const sections = await screen.findByRole('navigation', { name: 'Server sections' });
+    expect(sections.parentElement?.className).toContain('pb-16');
+  });
+
+  it('scrolls the section strip in a narrow window instead of cutting sections off', async () => {
+    renderPage({ 'deploy.listServers': async () => [server({ core: CORE })] });
+
+    const sections = await screen.findByRole('navigation', { name: 'Server sections' });
+    expect(sections.className).toContain('overflow-x-auto');
+    for (const button of within(sections).getAllByRole('button')) {
+      expect(button.className).toContain('whitespace-nowrap');
+      expect(button.className).toContain('shrink-0');
+    }
+    expect(within(sections).getByRole('button', { name: 'Security' })).toBeTruthy();
+  });
+
   it('says so, in words, when the core stops answering', async () => {
     renderPage({
       'deploy.listServers': async () => [server({ core: CORE })],
@@ -719,6 +738,22 @@ describe('DeployPage containers', () => {
       within(sections)
         .getByRole('button', { name: /Containers/ })
         .getAttribute('aria-current'),
+    ).toBe('page');
+  });
+});
+
+describe('DeployPage logs', () => {
+  it('opens the Logs section on its problems feed', async () => {
+    const { user } = renderPage({
+      'deploy.listServers': async () => [server({ core: CORE, enrolled: true })],
+      'deploy.access': async (): Promise<DeployAccess> => ({ state: 'needs-sign-in' }),
+    });
+    const sections = await screen.findByRole('navigation', { name: 'Server sections' });
+    await user.click(within(sections).getByRole('button', { name: /Logs/ }));
+    expect(await screen.findByRole('tab', { name: 'Problems' })).toBeTruthy();
+    expect(screen.getByRole('tab', { name: 'Log viewer' })).toBeTruthy();
+    expect(
+      within(sections).getByRole('button', { name: /Logs/ }).getAttribute('aria-current'),
     ).toBe('page');
   });
 });

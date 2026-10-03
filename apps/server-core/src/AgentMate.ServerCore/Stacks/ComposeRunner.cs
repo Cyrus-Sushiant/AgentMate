@@ -11,7 +11,15 @@ internal sealed record ComposeProject(string Name, string ProjectDirectory, IRea
 
 /// <summary>How one docker compose call runs.</summary>
 /// <param name="UnitName">A transient unit to run it in (a job's step), or null for a quick call run directly.</param>
-internal sealed record ComposeRunOptions(TimeSpan Timeout, string? UnitName = null, int MaxOutputBytes = 1024 * 1024);
+/// <param name="Environment">
+/// Extra variables for the call. Only DOCKER_CONFIG goes here (the path of a job's registry
+/// sign-ins, E08); a value in it is never a secret, since it reaches systemd-run's argv.
+/// </param>
+internal sealed record ComposeRunOptions(
+    TimeSpan Timeout,
+    string? UnitName = null,
+    int MaxOutputBytes = 1024 * 1024,
+    IReadOnlyDictionary<string, string>? Environment = null);
 
 /// <summary>
 /// Runs `docker compose` for a stack. The real one goes through <see cref="IProcessRunner"/> and,
@@ -71,6 +79,7 @@ internal sealed class DockerComposeRunner(IProcessRunner runner, SystemdRunner u
             WorkingDirectory = project.ProjectDirectory,
             Timeout = options.Timeout,
             MaxOutputBytes = options.MaxOutputBytes,
+            Environment = options.Environment ?? new Dictionary<string, string>(),
         };
         return options.UnitName is { } unit
             ? units.RunAsync(unit, $"AgentMate: docker compose {(arguments.Count > 0 ? arguments[0] : "run")} for {project.Name}", spec, onLine, cancellationToken)

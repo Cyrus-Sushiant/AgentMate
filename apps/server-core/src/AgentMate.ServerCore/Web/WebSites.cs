@@ -299,8 +299,12 @@ internal sealed partial class WebSites(
         }
 
         var streamStates = streams.ToDictionary(p => p.Id, p => SiteMapping.Fingerprint(p.Settings), StringComparer.Ordinal);
-        var configuration = new NginxConfiguration(models, [.. streams.Select(p => SiteMapping.ToModel(SiteMapping.Deserialize<StreamProxySettings>(p.Settings)))]);
-        var hash = SiteMapping.Fingerprint([.. siteStates.Select(e => $"s:{e.Key}={e.Value}"), .. streamStates.Select(e => $"t:{e.Key}={e.Value}")]);
+        var originLock = Cloudflare.OriginLockRows.ToModel(await db.OriginLock.AsNoTracking().FirstOrDefaultAsync(setting => setting.Id == OriginLockSetting.SingletonId, cancellationToken));
+        var configuration = new NginxConfiguration(models, [.. streams.Select(p => SiteMapping.ToModel(SiteMapping.Deserialize<StreamProxySettings>(p.Settings)))], originLock);
+        var hash = SiteMapping.Fingerprint([
+            .. siteStates.Select(e => $"s:{e.Key}={e.Value}"),
+            .. streamStates.Select(e => $"t:{e.Key}={e.Value}"),
+            .. originLock is null ? [] : new[] { $"o:{originLock.AuthenticatedOriginPulls}:{string.Join(',', originLock.CloudflareNetworks)}" }]);
         var state = new NginxAppliedState(hash, siteStates, streamStates);
         return (new NginxApplyPlan(configuration, files, state), state);
     }

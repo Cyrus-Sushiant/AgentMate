@@ -44,6 +44,7 @@ internal static class CertificateViews
 {
     public const string AcmeSource = "acme";
     public const string UploadedSource = "uploaded";
+    public const string CloudflareOriginSource = "cloudflare-origin";
 
     /// <summary>A certificate with less than this left shows as expiring.</summary>
     public static readonly TimeSpan ExpiringSoon = TimeSpan.FromDays(14);
@@ -58,7 +59,12 @@ internal static class CertificateViews
             : CertificateState.Valid;
         return new CertificateInfo(
             row.SiteId,
-            row.Source == UploadedSource ? CertificateSource.Uploaded : CertificateSource.Acme,
+            row.Source switch
+            {
+                UploadedSource => CertificateSource.Uploaded,
+                CloudflareOriginSource => CertificateSource.CloudflareOrigin,
+                _ => CertificateSource.Acme,
+            },
             state,
             DomainsOf(row),
             row.Issuer,

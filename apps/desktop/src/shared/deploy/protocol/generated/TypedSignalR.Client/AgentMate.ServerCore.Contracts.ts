@@ -3,7 +3,7 @@
 /* tslint:disable */
 // @ts-nocheck
 import type { IStreamResult, Subject } from '@microsoft/signalr';
-import type { PingResponse, AccountInfo, StepUpRequest, StepUpResponse, DeviceInfo, SessionInfo, TotpSetup, RecoveryCodes, CreateEnrollmentCodeRequest, EnrollmentCodeInfo, UserInfo, CreateUserRequest, ResetUserPasswordRequest, AuditQuery, AuditPage, AuditVerificationInfo, SystemInfo, ServiceInfo, MetricsHistoryRequest, MetricsHistory, MetricsStreamRequest, MetricsSample, UpdatesInfo, JobQuery, JobPage, JobInfo, JobStreamItem, AlertQuery, AlertInfo, AlertStreamRequest, ManagedService, FirewallStatus, FirewallPreset, FirewallChangeSetQuery, FirewallChangeSetInfo, ExposureInventory, FirewallChangeRequest, FirewallChangePreview, DockerStatus, ContainerList, ContainerDetails, ContainerStatsRequest, ContainerStatsBatch, ContainerLogsRequest, ContainerLogBatch, ImageInfo, VolumeInfo, NetworkInfo, DockerDiskUsage, DockerEventsRequest, DockerEvent, ContainerSummary, ContainerRemoveRequest, ImagePullRequest, ImageRemoveRequest, ContainerEnvVariable, ConsoleRequest, ConsoleInput, ConsoleOutput, DockerPruneRequest, DockerPruneResult, DockerInstallRequest, NginxStatus, SiteInfo, StreamProxyInfo, CertificateInfo, SiteLogRequest, SiteLogBatch, SiteSettings, SiteSaveResult, StreamProxySettings, StreamProxySaveResult, NginxApplyResult, CertificateIssueRequest, CertificateUploadRequest, CertificateUploadResult, CertificateRemoveRequest, StackInfo, StackDetails, StackRevisionRef, StackRevisionFiles, CreateStackRequest, AcknowledgeStackRisksRequest, StackRevisionInfo, StackActionRequest, SiteSnippets } from '../AgentMate.ServerCore.Contracts';
+import type { PingResponse, AccountInfo, StepUpRequest, StepUpResponse, DeviceInfo, SessionInfo, TotpSetup, RecoveryCodes, CreateEnrollmentCodeRequest, EnrollmentCodeInfo, UserInfo, CreateUserRequest, ResetUserPasswordRequest, AuditQuery, AuditPage, AuditVerificationInfo, SystemInfo, ServiceInfo, MetricsHistoryRequest, MetricsHistory, MetricsStreamRequest, MetricsSample, UpdatesInfo, JobQuery, JobPage, JobInfo, JobStreamItem, AlertQuery, AlertInfo, AlertStreamRequest, ManagedService, FirewallStatus, FirewallPreset, FirewallChangeSetQuery, FirewallChangeSetInfo, ExposureInventory, FirewallChangeRequest, FirewallChangePreview, DockerStatus, ContainerList, ContainerDetails, ContainerStatsRequest, ContainerStatsBatch, ContainerLogsRequest, ContainerLogBatch, ImageInfo, VolumeInfo, NetworkInfo, DockerDiskUsage, DockerEventsRequest, DockerEvent, ContainerSummary, ContainerRemoveRequest, ImagePullRequest, ImageRemoveRequest, ContainerEnvVariable, ConsoleRequest, ConsoleInput, ConsoleOutput, DockerPruneRequest, DockerPruneResult, DockerInstallRequest, NginxStatus, SiteInfo, StreamProxyInfo, CertificateInfo, SiteLogRequest, SiteLogBatch, SiteSettings, SiteSaveResult, StreamProxySettings, StreamProxySaveResult, NginxApplyResult, CertificateIssueRequest, CertificateUploadRequest, CertificateUploadResult, CertificateRemoveRequest, StackInfo, StackDetails, StackRevisionRef, StackRevisionFiles, CreateStackRequest, AcknowledgeStackRisksRequest, StackRevisionInfo, StackActionRequest, ReviseStackRequest, StackEnvEntry, StackDeployRequest, RegistryCredentialInfo, SaveRegistryCredentialRequest, AssistantModeInfo, ExecApprovalNonce, ExecRequest, ExecOutput, JournalRequest, JournalBatch, SiteSnippets, OriginLockStatus, OriginLockRequest, OriginLockPreview, OriginLockResult, OriginCertificateRequestInfo, OriginCertificateInstall, DnsCredentialInfo, DnsCredentialRequest, DnsCredentialSaveResult, SecurityChecklistRequest, SecurityChecklist, SshHardeningRequest, SshHardeningPreview, SshHardeningChangeInfo, BackupRequest, BackupInfo, DirectTlsStatus, DirectTlsRequest } from '../AgentMate.ServerCore.Contracts';
 
 /**
 * Everything the app can ask the core over the WebSocket. The desktop's typed client is
@@ -533,6 +533,18 @@ export type ICoreHub = {
     */
     runStackAction(request: StackActionRequest): Promise<JobInfo>;
     /**
+    * A new revision copied from another on the server, with other proxied services or a new compose file.
+    * @param request Transpiled from AgentMate.ServerCore.Contracts.ReviseStackRequest
+    * @returns Transpiled from System.Threading.Tasks.Task<AgentMate.ServerCore.Contracts.StackRevisionInfo>
+    */
+    reviseStack(request: ReviseStackRequest): Promise<StackRevisionInfo>;
+    /**
+    * A revision's .env with its values. Admin, after a step-up; only the count is audited.
+    * @param revision Transpiled from AgentMate.ServerCore.Contracts.StackRevisionRef
+    * @returns Transpiled from System.Threading.Tasks.Task<AgentMate.ServerCore.Contracts.StackEnvEntry[]>
+    */
+    revealStackEnv(revision: StackRevisionRef): Promise<StackEnvEntry[]>;
+    /**
     * docker compose down, then the stack's files and records go. Its volumes stay.
     * @param stackId Transpiled from System.Guid
     * @returns Transpiled from System.Threading.Tasks.Task<AgentMate.ServerCore.Contracts.JobInfo>
@@ -545,11 +557,184 @@ export type ICoreHub = {
     */
     deleteStackWithVolumes(stackId: string): Promise<JobInfo>;
     /**
+    * As DeployStack, signing in to the registries the request names (stored credentials fill the rest).
+    * @param request Transpiled from AgentMate.ServerCore.Contracts.StackDeployRequest
+    * @returns Transpiled from System.Threading.Tasks.Task<AgentMate.ServerCore.Contracts.JobInfo>
+    */
+    deployStackWithRegistries(request: StackDeployRequest): Promise<JobInfo>;
+    /**
+    * As RollbackStack, with the request's registry sign-ins.
+    * @param request Transpiled from AgentMate.ServerCore.Contracts.StackDeployRequest
+    * @returns Transpiled from System.Threading.Tasks.Task<AgentMate.ServerCore.Contracts.JobInfo>
+    */
+    rollbackStackWithRegistries(request: StackDeployRequest): Promise<JobInfo>;
+    /**
+    * The credentials stored on this server, without their secrets. Operator.
+    * @returns Transpiled from System.Threading.Tasks.Task<AgentMate.ServerCore.Contracts.RegistryCredentialInfo[]>
+    */
+    listRegistryCredentials(): Promise<RegistryCredentialInfo[]>;
+    /**
+    * Stores or replaces the credential for a registry. Admin and a step-up.
+    * @param request Transpiled from AgentMate.ServerCore.Contracts.SaveRegistryCredentialRequest
+    * @returns Transpiled from System.Threading.Tasks.Task<AgentMate.ServerCore.Contracts.RegistryCredentialInfo>
+    */
+    saveRegistryCredential(request: SaveRegistryCredentialRequest): Promise<RegistryCredentialInfo>;
+    /**
+    * Admin and a step-up.
+    * @param credentialId Transpiled from System.Guid
+    * @returns Transpiled from System.Threading.Tasks.Task
+    */
+    deleteRegistryCredential(credentialId: string): Promise<void>;
+    /**
+    * @returns Transpiled from System.Threading.Tasks.Task<AgentMate.ServerCore.Contracts.AssistantModeInfo>
+    */
+    getAssistantMode(): Promise<AssistantModeInfo>;
+    /**
+    * Needs a step-up. Lasts for this session, or until the core restarts.
+    * @returns Transpiled from System.Threading.Tasks.Task<AgentMate.ServerCore.Contracts.AssistantModeInfo>
+    */
+    enableAutoRunDiagnostics(): Promise<AssistantModeInfo>;
+    /**
+    * @returns Transpiled from System.Threading.Tasks.Task<AgentMate.ServerCore.Contracts.AssistantModeInfo>
+    */
+    disableAutoRunDiagnostics(): Promise<AssistantModeInfo>;
+    /**
+    * A single-use nonce, good for two minutes, to sign one command's approval with.
+    * @returns Transpiled from System.Threading.Tasks.Task<AgentMate.ServerCore.Contracts.ExecApprovalNonce>
+    */
+    newExecApproval(): Promise<ExecApprovalNonce>;
+    /**
+    * Runs a command and streams its redacted output, then its exit code. Refused unless it is on
+    * the read-only allowlist (and, from the assistant, the session auto-runs diagnostics) or it
+    * carries a valid approval. Ending the stream stops the command and everything it started.
+    * @param request Transpiled from AgentMate.ServerCore.Contracts.ExecRequest
+    * @param cancellationToken Transpiled from System.Threading.CancellationToken
+    * @returns Transpiled from System.Collections.Generic.IAsyncEnumerable<AgentMate.ServerCore.Contracts.ExecOutput>
+    */
+    streamExec(request: ExecRequest): IStreamResult<ExecOutput>;
+    /**
+    * A systemd unit's journal, redacted: the last lines, then new ones while Follow is on.
+    * @param request Transpiled from AgentMate.ServerCore.Contracts.JournalRequest
+    * @param cancellationToken Transpiled from System.Threading.CancellationToken
+    * @returns Transpiled from System.Collections.Generic.IAsyncEnumerable<AgentMate.ServerCore.Contracts.JournalBatch>
+    */
+    streamJournal(request: JournalRequest): IStreamResult<JournalBatch>;
+    /**
     * A site's custom snippets, checked against the directive allowlist.
     * @param snippets Transpiled from AgentMate.ServerCore.Contracts.SiteSnippets
     * @returns Transpiled from System.Threading.Tasks.Task<AgentMate.ServerCore.Contracts.SiteSaveResult>
     */
     setSiteSnippets(snippets: SiteSnippets): Promise<SiteSaveResult>;
+    /**
+    * The origin lock and how the firewall compares with Cloudflare's ranges.
+    * @returns Transpiled from System.Threading.Tasks.Task<AgentMate.ServerCore.Contracts.OriginLockStatus>
+    */
+    getOriginLock(): Promise<OriginLockStatus>;
+    /**
+    * What turning the lock on or off would change, with the firewall's own preview. Changes nothing.
+    * @param request Transpiled from AgentMate.ServerCore.Contracts.OriginLockRequest
+    * @returns Transpiled from System.Threading.Tasks.Task<AgentMate.ServerCore.Contracts.OriginLockPreview>
+    */
+    previewOriginLock(request: OriginLockRequest): Promise<OriginLockPreview>;
+    /**
+    * Turns the lock on or off: the firewall change waits for its confirmation like any other
+    * (ConfirmFirewallChanges), and nginx takes the real visitor address and the client check at once.
+    * @param request Transpiled from AgentMate.ServerCore.Contracts.OriginLockRequest
+    * @returns Transpiled from System.Threading.Tasks.Task<AgentMate.ServerCore.Contracts.OriginLockResult>
+    */
+    applyOriginLock(request: OriginLockRequest): Promise<OriginLockResult>;
+    /**
+    * Fetches Cloudflare's ranges now (the core also does daily) and brings a lock that is on up to date.
+    * @returns Transpiled from System.Threading.Tasks.Task<AgentMate.ServerCore.Contracts.OriginLockStatus>
+    */
+    refreshCloudflareRanges(): Promise<OriginLockStatus>;
+    /**
+    * Makes a key on this server for a site and returns the signing request for Cloudflare's Origin CA.
+    * @param siteId Transpiled from string
+    * @returns Transpiled from System.Threading.Tasks.Task<AgentMate.ServerCore.Contracts.OriginCertificateRequestInfo>
+    */
+    createOriginCertificateRequest(siteId: string): Promise<OriginCertificateRequestInfo>;
+    /**
+    * Checks the signed certificate against the key made for it, stores it and applies.
+    * @param request Transpiled from AgentMate.ServerCore.Contracts.OriginCertificateInstall
+    * @returns Transpiled from System.Threading.Tasks.Task<AgentMate.ServerCore.Contracts.CertificateUploadResult>
+    */
+    installOriginCertificate(request: OriginCertificateInstall): Promise<CertificateUploadResult>;
+    /**
+    * The zones this server holds a DNS token for. The tokens never come back.
+    * @returns Transpiled from System.Threading.Tasks.Task<AgentMate.ServerCore.Contracts.DnsCredentialInfo[]>
+    */
+    listDnsCredentials(): Promise<DnsCredentialInfo[]>;
+    /**
+    * Checks the token with Cloudflare and stores it sealed, replacing the zone's earlier one.
+    * @param request Transpiled from AgentMate.ServerCore.Contracts.DnsCredentialRequest
+    * @returns Transpiled from System.Threading.Tasks.Task<AgentMate.ServerCore.Contracts.DnsCredentialSaveResult>
+    */
+    saveDnsCredential(request: DnsCredentialRequest): Promise<DnsCredentialSaveResult>;
+    /**
+    * @param zone Transpiled from string
+    * @returns Transpiled from System.Threading.Tasks.Task
+    */
+    removeDnsCredential(zone: string): Promise<void>;
+    /**
+    * How safe the server is, item by item, with a score. Changes nothing.
+    * @param request Transpiled from AgentMate.ServerCore.Contracts.SecurityChecklistRequest
+    * @returns Transpiled from System.Threading.Tasks.Task<AgentMate.ServerCore.Contracts.SecurityChecklist>
+    */
+    getSecurityChecklist(request: SecurityChecklistRequest): Promise<SecurityChecklist>;
+    /**
+    * The exact drop-in and commands, and whether this connection is proven to use a key. Changes nothing.
+    * @param request Transpiled from AgentMate.ServerCore.Contracts.SshHardeningRequest
+    * @returns Transpiled from System.Threading.Tasks.Task<AgentMate.ServerCore.Contracts.SshHardeningPreview>
+    */
+    previewSshHardening(request: SshHardeningRequest): Promise<SshHardeningPreview>;
+    /**
+    * Saves the old drop-in, arms the rollback timer, writes and checks the new one, then reloads sshd.
+    * @param request Transpiled from AgentMate.ServerCore.Contracts.SshHardeningRequest
+    * @returns Transpiled from System.Threading.Tasks.Task<AgentMate.ServerCore.Contracts.SshHardeningChangeInfo>
+    */
+    applySshHardening(request: SshHardeningRequest): Promise<SshHardeningChangeInfo>;
+    /**
+    * Keeps the change. Refused over the connection that applied it, or one that did not sign in with a key.
+    * @param changeId Transpiled from System.Guid
+    * @returns Transpiled from System.Threading.Tasks.Task<AgentMate.ServerCore.Contracts.SshHardeningChangeInfo>
+    */
+    confirmSshHardening(changeId: string): Promise<SshHardeningChangeInfo>;
+    /**
+    * Puts the old drop-in back now and reloads sshd.
+    * @param changeId Transpiled from System.Guid
+    * @returns Transpiled from System.Threading.Tasks.Task<AgentMate.ServerCore.Contracts.SshHardeningChangeInfo>
+    */
+    revertSshHardening(changeId: string): Promise<SshHardeningChangeInfo>;
+    /**
+    * Encrypts the core's state with the passphrase into a file that waits an hour to be downloaded
+    * (GET /api/v1/backups/{id}). The passphrase is not kept.
+    * @param request Transpiled from AgentMate.ServerCore.Contracts.BackupRequest
+    * @returns Transpiled from System.Threading.Tasks.Task<AgentMate.ServerCore.Contracts.BackupInfo>
+    */
+    createBackup(request: BackupRequest): Promise<BackupInfo>;
+    /**
+    * Deletes a backup from the server, once the app has it. True when there was one.
+    * @param backupId Transpiled from System.Guid
+    * @returns Transpiled from System.Threading.Tasks.Task<bool>
+    */
+    deleteBackup(backupId: string): Promise<boolean>;
+    /**
+    * The listener's setting and state, and the pin of the certificate it presents.
+    * @returns Transpiled from System.Threading.Tasks.Task<AgentMate.ServerCore.Contracts.DirectTlsStatus>
+    */
+    getDirectTls(): Promise<DirectTlsStatus>;
+    /**
+    * Opens (or moves) the port. Owner, with a step-up. The firewall rule is a change set of its own.
+    * @param request Transpiled from AgentMate.ServerCore.Contracts.DirectTlsRequest
+    * @returns Transpiled from System.Threading.Tasks.Task<AgentMate.ServerCore.Contracts.DirectTlsStatus>
+    */
+    enableDirectTls(request: DirectTlsRequest): Promise<DirectTlsStatus>;
+    /**
+    * Closes the port. Owner.
+    * @returns Transpiled from System.Threading.Tasks.Task<AgentMate.ServerCore.Contracts.DirectTlsStatus>
+    */
+    disableDirectTls(): Promise<DirectTlsStatus>;
 }
 
 /**

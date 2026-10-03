@@ -349,6 +349,52 @@ namespace AgentMate.ServerCore.Data.Migrations
                     b.ToTable("DeviceSessions");
                 });
 
+            modelBuilder.Entity("AgentMate.ServerCore.Data.DnsCredential", b =>
+                {
+                    b.Property<string>("Zone")
+                        .HasMaxLength(253)
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("CreatedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("LastError")
+                        .HasMaxLength(1000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<long?>("LastUsedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("ProtectedToken")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Provider")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("TokenId")
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("UpdatedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("ZoneId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Zone");
+
+                    b.ToTable("DnsCredentials");
+                });
+
             modelBuilder.Entity("AgentMate.ServerCore.Data.EnrollmentCode", b =>
                 {
                     b.Property<Guid>("Id")
@@ -611,6 +657,109 @@ namespace AgentMate.ServerCore.Data.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("NginxReleases");
+                });
+
+            modelBuilder.Entity("AgentMate.ServerCore.Data.OriginCertificateKey", b =>
+                {
+                    b.Property<string>("SiteId")
+                        .HasMaxLength(63)
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("CreatedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Hostnames")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ProtectedKey")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("SiteId");
+
+                    b.ToTable("OriginCertificateKeys");
+                });
+
+            modelBuilder.Entity("AgentMate.ServerCore.Data.OriginLockSetting", b =>
+                {
+                    b.Property<int>("Id")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("AuthenticatedOriginPulls")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<Guid?>("ChangeSetId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("Enabled")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Ipv4")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Ipv6")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<long?>("LastRefreshAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("LastRefreshError")
+                        .HasMaxLength(1000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<long?>("RangesFetchedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("UpdatedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("OriginLock");
+                });
+
+            modelBuilder.Entity("AgentMate.ServerCore.Data.RegistryCredentialRecord", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("CreatedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("TEXT");
+
+                    b.Property<long?>("LastUsedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Registry")
+                        .IsRequired()
+                        .HasMaxLength(260)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("SealedSecret")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("UpdatedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Username")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Registry")
+                        .IsUnique();
+
+                    b.ToTable("RegistryCredentials");
                 });
 
             modelBuilder.Entity("AgentMate.ServerCore.Data.Site", b =>

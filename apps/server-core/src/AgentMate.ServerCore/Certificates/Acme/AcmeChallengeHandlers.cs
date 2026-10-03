@@ -39,3 +39,13 @@ internal interface IDns01ChallengeHook
     /// <summary>Removes this value (and only this one) again.</summary>
     Task RemoveAsync(string domain, string recordName, string value, CancellationToken cancellationToken);
 }
+
+/// <summary>
+/// A DNS-01 hook that can only answer for some names (the Cloudflare one needs a token for the
+/// zone). Issuance asks first, so a wildcard without a token is refused with a reason at once
+/// instead of failing halfway through an order.
+/// </summary>
+internal interface IDns01Coverage
+{
+    Task<bool> CoversAsync(string domain, CancellationToken cancellationToken);
+}

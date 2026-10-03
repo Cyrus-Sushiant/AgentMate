@@ -1,9 +1,11 @@
 import { BaseCache } from 'cloudflare/resources/cache/cache';
 import { BaseRecords } from 'cloudflare/resources/dns/records';
 import { BaseAccessRules } from 'cloudflare/resources/firewall/access-rules';
+import { BaseOriginCACertificates } from 'cloudflare/resources/origin-ca-certificates/origin-ca-certificates';
 import { BasePhases } from 'cloudflare/resources/rulesets/phases/phases';
 import { BaseRules } from 'cloudflare/resources/rulesets/rules';
 import { BaseRulesets } from 'cloudflare/resources/rulesets/rulesets';
+import { BasePermissionGroups } from 'cloudflare/resources/user/tokens/permission-groups';
 import { BaseTokens } from 'cloudflare/resources/user/tokens/tokens';
 import { BaseSettings } from 'cloudflare/resources/zones/settings';
 import { BaseZones } from 'cloudflare/resources/zones/zones';
@@ -28,6 +30,11 @@ export interface CloudflareClientOptions {
   fetch?: CloudflareFetch;
   maxRetries?: number;
   timeoutMs?: number;
+  /**
+   * Only the e2e run sets this (see `cloudflareApiBase`), to reach the recorded fake on loopback;
+   * nothing in the user's environment can.
+   */
+  baseURL?: string;
 }
 
 const silent = {
@@ -49,12 +56,14 @@ export function createCloudflareApi(token: string, options: CloudflareClientOpti
       BasePhases,
       BaseRules,
       BaseAccessRules,
+      BaseOriginCACertificates,
+      BasePermissionGroups,
     ],
     apiToken: token,
     apiKey: null,
     apiEmail: null,
     userServiceKey: null,
-    baseURL: CLOUDFLARE_API,
+    baseURL: options.baseURL ?? CLOUDFLARE_API,
     fetch: options.fetch ?? ((url, init) => globalThis.fetch(url, init)),
     maxRetries: options.maxRetries ?? 2,
     timeout: options.timeoutMs ?? 30_000,

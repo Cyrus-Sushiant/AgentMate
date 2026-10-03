@@ -346,6 +346,14 @@ import type {
   UserInfo,
 } from '../shared/deploy/protocol/generated/AgentMate.ServerCore.Contracts';
 import type {
+  DeployAppInstallInput,
+  DeployAppInstallResult,
+  DeployAppRevealInput,
+  DeployAppUpdateInput,
+  DeployMakePrivateInput,
+  DeployRevisionResult,
+} from '../shared/deployAppStoreTypes';
+import type {
   DeployFirewallApplyInput,
   DeployFirewallChangesInput,
   DeployFirewallDecisionInput,
@@ -414,7 +422,12 @@ import type { PetPipelineMessage, PetSnoozeState, PetWorkArea } from '../shared/
 import type { RemoteInputEvent, RemoteRtcMessage } from '../shared/remoteProtocol';
 import type { SpellcheckMenuPayload } from '../shared/spellcheck';
 import type { SshHostKeyStatus } from '../shared/sshHostKey';
+import { cloudflareServer } from './cloudflareServer';
+import { createDeployAssistant, createDeployLogs } from './deployAssistant';
+import { createDeployDirectTls } from './deployDirectTls';
 import { createDeployDocker } from './deployDocker';
+import { createDeployHardening } from './deployHardening';
+import { createDeployRegistry } from './deployRegistry';
 
 interface TerminalDataPayload {
   sessionId: string;
@@ -1635,6 +1648,14 @@ const deployJobs = {
 
 /** Docker on a server: containers, their stats, logs and console, and Docker's resources. */
 const deployDocker = createDeployDocker(subscribe);
+const deployDirectTls = createDeployDirectTls();
+
+/** The Security center (E15): the checklist, its SSH fixes, backups and restores. */
+const deployHardening = createDeployHardening(subscribe);
+
+/** The Deploy AI and the logs center's journal (E09). */
+const deployAssistant = createDeployAssistant(subscribe);
+const deployLogs = createDeployLogs(subscribe);
 
 /**
  * A server's Apps (E07). Env values never come here: the main process reads the environment,
@@ -1666,9 +1687,30 @@ const deployStacks = {
     ipcRenderer.invoke(IPC.deployStacks.action, input),
   delete: (input: DeployStackDeleteInput): Promise<JobInfo> =>
     ipcRenderer.invoke(IPC.deployStacks.delete, input),
+  /** Redeploys the app as a new revision with these services on 127.0.0.1 (E13). */
+  makePrivate: (input: DeployMakePrivateInput): Promise<DeployRevisionResult> =>
+    ipcRenderer.invoke(IPC.deployStacks.makePrivate, input),
   onUploadProgress: (cb: (event: DeployStackUploadProgress) => void): (() => void) =>
     subscribe(IPC.deployStacks.onUploadProgress, cb),
 };
+
+/**
+ * A server's App Store (E12). The catalog is read from @agentmat/core in the renderer; these
+ * send what was picked, and the main process renders the files itself.
+ */
+const deployAppStore = {
+  install: (input: DeployAppInstallInput): Promise<DeployAppInstallResult> =>
+    ipcRenderer.invoke(IPC.deployAppStore.install, input),
+  /** A copy of the live revision on newer images, deployed; the .env stays on the server. */
+  update: (input: DeployAppUpdateInput): Promise<DeployRevisionResult> =>
+    ipcRenderer.invoke(IPC.deployAppStore.update, input),
+  /** Admins, after a step-up: the app's .env as a map of key to value. */
+  revealSecrets: (input: DeployAppRevealInput): Promise<Record<string, string>> =>
+    ipcRenderer.invoke(IPC.deployAppStore.revealSecrets, input),
+};
+
+/** Private registries (E08): sign-ins on this computer and credentials stored on a server. */
+const deployRegistry = createDeployRegistry();
 
 /** A server core's alerts: disk pressure, failed jobs, a reboot waiting. */
 const deployAlerts = {
@@ -2423,15 +2465,22 @@ const agentmatApi = {
   pipelines,
   deploy,
   deploySecurity,
+  deployHardening,
   deployFirewall,
   deploySystem,
   deployJobs,
   deployAlerts,
   deployDocker,
+  deployDirectTls,
+  deployAssistant,
+  deployLogs,
   deploySites,
   deployCerts,
   deployStacks,
+  deployAppStore,
+  deployRegistry,
   cloudflare,
+  cloudflareServer,
   pullRequests,
   tests,
   appNotifications,

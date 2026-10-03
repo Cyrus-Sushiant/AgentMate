@@ -135,3 +135,12 @@ describe('AppsPanel list', () => {
     ).toBeInTheDocument();
   });
 });
+
+describe('AppsPanel registries', () => {
+  it('opens the registry sign-ins from the list, in the address', async () => {
+    const { user } = renderApps({ 'deployRegistry.list': [], 'deployRegistry.serverList': [] });
+    await user.click(await screen.findByRole('button', { name: /Registries/ }));
+    expect(await screen.findByRole('heading', { name: /Registries/ })).toBeVisible();
+    expect(screen.getByTestId('where')).toHaveTextContent('registries=1');
+  });
+});

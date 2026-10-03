@@ -90,6 +90,7 @@ export default defineConfig({
         'src/main/vault/index.ts',
         'src/main/deploy/index.ts',
         'src/main/deploy/cloudflare/index.ts',
+        'src/main/deploy/registry/index.ts',
         'src/renderer/src/main.tsx',
         'src/main/usage/usageScanWorker.ts',
         'src/main/security/codeqlExtractWorker.ts',
@@ -153,6 +154,10 @@ export default defineConfig({
         'src/main/deploy/security.ts': { lines: 95, branches: 85 },
         'src/main/deploy/auditExport.ts': { lines: 95, branches: 90 },
         'src/main/ipc/deploySecurity.ts': { lines: 95, branches: 90 },
+        // The Security center (E15): SSH fixes that cannot lock the app out, backups, restores.
+        'src/main/deploy/hardening.ts': { lines: 95, branches: 85 },
+        'src/main/deploy/backups.ts': { lines: 95, branches: 85 },
+        'src/main/ipc/deployHardening.ts': { lines: 95, branches: 90 },
         'src/renderer/src/components/deploy/security/**': {
           lines: 90,
           functions: 85,
@@ -186,6 +191,14 @@ export default defineConfig({
           functions: 85,
           branches: 80,
         },
+        // The App Store (E12): installs rendered again in main, updates, the install sheet and card.
+        'src/main/deploy/appStore/**': { lines: 95, branches: 85 },
+        'src/main/ipc/deployAppStore.ts': { lines: 95, branches: 90 },
+        'src/renderer/src/components/deploy/appStore/**': {
+          lines: 90,
+          functions: 80,
+          branches: 80,
+        },
         'src/renderer/src/stores/deploySetupStore.ts': { lines: 95, branches: 85 },
         'src/renderer/src/lib/deploy/**': { lines: 95, branches: 90 },
         // Docker on a server (E06): its calls, live streams and consoles, and the Containers screen.
@@ -198,12 +211,43 @@ export default defineConfig({
           branches: 80,
         },
         'src/renderer/src/lib/terminal/containerConsoleAdapter.ts': { lines: 95, branches: 85 },
+        // The Deploy AI and the logs center (E09): what it runs, the approvals it signs, its screens.
+        'src/main/deploy/assistant/**': { lines: 95, branches: 85 },
+        'src/main/deploy/logs/**': { lines: 95, branches: 85 },
+        'src/main/ipc/deployAssistant.ts': { lines: 95, branches: 90 },
+        'src/renderer/src/components/deploy/assistant/**': {
+          lines: 90,
+          functions: 80,
+          branches: 80,
+        },
+        'src/renderer/src/components/deploy/logs/**': { lines: 90, functions: 80, branches: 80 },
+        'src/renderer/src/stores/deployAssistantStore.ts': { lines: 95, branches: 85 },
         // The Cloudflare token lives here, and every call made with it.
         'src/main/deploy/cloudflare/**': { lines: 95, branches: 85 },
         'src/main/ipc/cloudflare.ts': { lines: 95, branches: 90 },
+        'src/main/ipc/cloudflareServer.ts': { lines: 95, branches: 90 },
+        'src/shared/cloudflare/dns01.ts': { lines: 95, branches: 90 },
         'src/renderer/src/components/cloudflare/**': { lines: 85, functions: 75, branches: 75 },
         'src/renderer/src/pages/CloudflarePage.tsx': { lines: 85, functions: 75, branches: 75 },
         'src/renderer/src/lib/cloudflare/**': { lines: 95, branches: 90 },
+        // Registry sign-ins (E08): sealed here, sent with each deploy, never shown again.
+        'src/main/deploy/registry/**': { lines: 95, branches: 85 },
+        'src/main/ipc/deployRegistry.ts': { lines: 95, branches: 85 },
+        'src/shared/deploy/registries.ts': { lines: 95, branches: 90 },
+        'src/renderer/src/components/deploy/registries/**': {
+          lines: 85,
+          functions: 80,
+          branches: 70,
+        },
+        // Direct TLS (E16): client certificates, the pin check, the fallback and its screen.
+        'src/main/deploy/directTls/**': { lines: 95, branches: 85 },
+        'src/main/ipc/deployDirectTls.ts': { lines: 95, branches: 90 },
+        'src/shared/deploy/directTlsValidation.ts': { lines: 95, branches: 90 },
+        'src/renderer/src/components/deploy/security/directTls/**': {
+          lines: 90,
+          functions: 80,
+          branches: 75,
+        },
       },
     },
   },

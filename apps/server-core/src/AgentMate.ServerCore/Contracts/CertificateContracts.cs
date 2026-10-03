@@ -10,6 +10,12 @@ public enum CertificateSource
 {
     Acme,
     Uploaded,
+
+    /// <summary>
+    /// Signed by Cloudflare's Origin CA (E14): trusted by Cloudflare's edge only, so the site has
+    /// to stay proxied. The key was made on this server and never left it.
+    /// </summary>
+    CloudflareOrigin,
 }
 
 [TranspilationSource]

@@ -6,16 +6,20 @@ import { AccessRulesCard } from './AccessRulesCard';
 import { CustomRulesCard } from './CustomRulesCard';
 import { DnsRecordsCard } from './DnsRecordsCard';
 import { PurgeCard } from './PurgeCard';
+import { DnsTokensCard } from './server/DnsTokensCard';
 import { zoneStateText } from './ZoneRail';
 import { ZoneSettingsCard } from './ZoneSettingsCard';
 
-export type ZoneTab = 'dns' | 'settings' | 'security';
+export type ZoneTab = 'dns' | 'settings' | 'security' | 'servers';
 
 export function isZoneTab(value: string | null): value is ZoneTab {
-  return value === 'dns' || value === 'settings' || value === 'security';
+  return value === 'dns' || value === 'settings' || value === 'security' || value === 'servers';
 }
 
-/** One zone: its state and, by tab, its DNS records, its settings and cache, and its rules. */
+/**
+ * One zone: its state and, by tab, its DNS records, its settings and cache, its rules, and the
+ * DNS tokens its servers hold for DNS-01.
+ */
 export function ZonePanel({
   zone,
   tab,
@@ -53,6 +57,7 @@ export function ZonePanel({
           <TabsTrigger value="dns">DNS</TabsTrigger>
           <TabsTrigger value="settings">Settings</TabsTrigger>
           <TabsTrigger value="security">Security</TabsTrigger>
+          <TabsTrigger value="servers">Servers</TabsTrigger>
         </TabsList>
         <TabsContent value="dns" className="pt-4">
           <DnsRecordsCard zone={zone} />
@@ -64,6 +69,9 @@ export function ZonePanel({
         <TabsContent value="security" className="space-y-4 pt-4">
           <CustomRulesCard zone={zone} />
           <AccessRulesCard zone={zone} />
+        </TabsContent>
+        <TabsContent value="servers" className="space-y-4 pt-4">
+          <DnsTokensCard zone={zone} />
         </TabsContent>
       </Tabs>
     </div>

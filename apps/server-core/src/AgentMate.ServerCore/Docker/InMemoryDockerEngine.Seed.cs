@@ -144,6 +144,9 @@ internal sealed partial class InMemoryDockerEngine
         Prometheus,
         Quiet,
         Migration,
+
+        /// <summary>Exits a few seconds after each start and is restarted: a crash loop (E09, DevHost only).</summary>
+        Crashing,
     }
 
     private sealed record LogEntry(long Sequence, long AtMs, ContainerLogSource Stream, string Text);
@@ -318,7 +321,8 @@ internal sealed partial class InMemoryDockerEngine
         /// <summary>Writes the log lines a running container would have written since the last look.</summary>
         public void CatchUp(DateTimeOffset now)
         {
-            if (State != ContainerState.Running || kind is Kind.Quiet or Kind.Migration)
+            var crashing = kind == Kind.Crashing && State == ContainerState.Restarting;
+            if ((State != ContainerState.Running && !crashing) || kind is Kind.Quiet or Kind.Migration)
             {
                 return;
             }
@@ -398,6 +402,11 @@ internal sealed partial class InMemoryDockerEngine
                     }
 
                     break;
+                case Kind.Crashing when n % 5 == 0:
+                    yield return (ContainerLogSource.Stdout, "mailer: connecting to smtp.internal:587");
+                    yield return (ContainerLogSource.Stderr, "Error: connect ECONNREFUSED 10.0.4.12:587");
+                    yield return (ContainerLogSource.Stderr, "mailer exited with code 1");
+                    break;
                 case Kind.Prometheus:
                     if (n % 4 == 0)
                     {
@@ -426,6 +435,7 @@ internal sealed partial class InMemoryDockerEngine
                 ContainerState.Paused => $"Up {ago} (Paused)",
                 ContainerState.Exited => $"Exited ({ExitCode}) {ago} ago",
                 ContainerState.Created => "Created",
+                ContainerState.Restarting => $"Restarting (1) {Math.Max(1, since % 9)} seconds ago",
                 _ => State.ToString(),
             };
         }

@@ -167,6 +167,8 @@ export const queryKeys = {
     ['deploy', 'security', serverId, 'audit', filter] as const,
   /** Until when the core takes sensitive changes without asking for the password again. */
   deployStepUp: (serverId: string) => ['deploy', 'security', serverId, 'step-up'] as const,
+  /** The Security center's checklist (E15). */
+  deployChecklist: (serverId: string) => ['deploy', 'security', serverId, 'checklist'] as const,
   /** A server's lasting connection to its core, kept current by its change events. */
   deployConnection: (serverId: string) => ['deploy', 'connection', serverId] as const,
   /** Prefix of a server's Overview reads, fetched again when its connection comes back. */
@@ -194,12 +196,17 @@ export const queryKeys = {
   deployStreams: (serverId: string) => ['deploy', 'web', serverId, 'streams'] as const,
   /** Everything the Firewall section reads (E13), dropped at once after a change. */
   deployFirewall: (serverId: string) => ['deploy', 'firewall', serverId] as const,
+  deployDirectTls: (serverId: string) => ['deploy', 'directTls', serverId] as const,
   deployFirewallStatus: (serverId: string) => ['deploy', 'firewall', serverId, 'status'] as const,
   deployFirewallPresets: (serverId: string) => ['deploy', 'firewall', serverId, 'presets'] as const,
   deployFirewallHistory: (serverId: string) => ['deploy', 'firewall', serverId, 'history'] as const,
   deployFirewallExposure: (serverId: string) =>
     ['deploy', 'firewall', serverId, 'exposure'] as const,
   /** Prefix of a server's Apps (compose stacks). */
+  // Logs center, problems feed and Deploy AI (E09).
+  deployAssistantMode: (serverId: string) => ['deploy', 'assistant', serverId, 'mode'] as const,
+  deployCertificates: (serverId: string) => ['deploy', 'web', serverId, 'certificates'] as const,
+  deployAlertsList: (serverId: string) => ['deploy', 'overview', serverId, 'alerts-list'] as const,
   deployApps: (serverId: string) => ['deploy', 'apps', serverId] as const,
   deployAppsList: (serverId: string) => ['deploy', 'apps', serverId, 'list'] as const,
   deployApp: (serverId: string, stackId: string) =>
@@ -210,6 +217,14 @@ export const queryKeys = {
   deployComposeFiles: (projectId: string) => ['deploy', 'compose-files', projectId] as const,
   /** The wizard's look at a compose file with an environment and its exposure choices. */
   deployAppPreview: (input: object) => ['deploy', 'app-preview', input] as const,
+  /** Private registries (E08): everything below is dropped at once after a change. */
+  deployRegistries: ['deploy', 'registries'] as const,
+  /** The registry sign-ins kept on this computer (never their secrets). */
+  deployRegistryLocal: ['deploy', 'registries', 'local'] as const,
+  /** The credentials a server stores, write-only. */
+  deployRegistryServer: (serverId: string) => ['deploy', 'registries', 'server', serverId] as const,
+  /** Which sign-in goes with an app's deploys, per registry it pulls from. */
+  deployRegistryPlan: (input: object) => ['deploy', 'registries', 'plan', input] as const,
   /** Whether a Cloudflare token is saved, and what its last check found. */
   cloudflareStatus: ['cloudflare', 'status'] as const,
   /** Prefix of everything read with the Cloudflare token, dropped when the token changes. */
@@ -219,6 +234,12 @@ export const queryKeys = {
   cloudflareSettings: (zoneId: string) => ['cloudflare', 'data', 'settings', zoneId] as const,
   cloudflareCustomRules: (zoneId: string) => ['cloudflare', 'data', 'customRules', zoneId] as const,
   cloudflareAccessRules: (zoneId: string) => ['cloudflare', 'data', 'accessRules', zoneId] as const,
+  /** A server's Cloudflare origin lock, as its core reports it (E14). */
+  cloudflareOriginLock: (serverId: string) =>
+    ['deploy', 'cloudflare', serverId, 'origin-lock'] as const,
+  /** The zones a server holds a DNS token for (never the tokens). */
+  cloudflareDnsTokens: (serverId: string) =>
+    ['deploy', 'cloudflare', serverId, 'dns-tokens'] as const,
   /** Every running shell with its process tree's CPU and memory, for the Running CLIs modal. */
   terminalUsage: ['terminal-usage'] as const,
   vaultStatus: ['vault', 'status'] as const,

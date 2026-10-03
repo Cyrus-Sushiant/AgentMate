@@ -204,6 +204,39 @@ public sealed record StackRevisionUpload(
     bool BuildContext = false,
     StackSource? Source = null);
 
+/// <summary>Why a revision was made from another one on the server, for the audit trail.</summary>
+[TranspilationSource]
+public enum StackRevisionPurpose
+{
+    /// <summary>Anything else: the same files with other proxied services.</summary>
+    Edit,
+
+    /// <summary>Services that published beyond 127.0.0.1 move to loopback (E13).</summary>
+    MakePrivate,
+
+    /// <summary>An App Store app on newer images: a new compose file, the same .env (E12).</summary>
+    Update,
+}
+
+/// <summary>
+/// A new revision copied from Revision on the server, its .env and project files included, so
+/// no env value travels. Compose replaces the compose file when set (an App Store update);
+/// ProxiedServices replaces the loopback set; AcknowledgedRisks defaults to the source's.
+/// The revision is validated like an upload and deployed with DeployStack.
+/// </summary>
+[TranspilationSource]
+public sealed record ReviseStackRequest(
+    Guid StackId,
+    int Revision,
+    string[] ProxiedServices,
+    string? Compose = null,
+    string[]? AcknowledgedRisks = null,
+    StackRevisionPurpose Purpose = StackRevisionPurpose.Edit);
+
+/// <summary>One entry of a revision's .env. Only RevealStackEnv returns these (Admin, step-up).</summary>
+[TranspilationSource]
+public sealed record StackEnvEntry(string Key, string Value);
+
 /// <summary>What a refused upload answers with (status 400, 404 or 409).</summary>
 [TranspilationSource]
 public sealed record StackUploadError(string Message);

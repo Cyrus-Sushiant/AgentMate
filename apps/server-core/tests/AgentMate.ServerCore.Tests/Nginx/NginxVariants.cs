@@ -81,6 +81,7 @@ internal static class NginxVariants
         "everything",
         "stream-tcp",
         "stream-udp",
+        "cloudflare-origin-lock",
     ];
 
     /// <summary>The layout a variant renders with, starting from the server's own.</summary>
@@ -186,6 +187,10 @@ internal static class NginxVariants
             AllowFrom = ["127.0.0.1", "::1"],
             IdleTimeoutSeconds = 10,
         }),
+        "cloudflare-origin-lock" => new NginxConfiguration(
+            [Site("proxied", "proxied.test") with { Certificate = _certificate }],
+            [],
+            new NginxOriginLock(["173.245.48.0/20", "103.21.244.0/22", "2400:cb00::/32"], AuthenticatedOriginPulls: true)),
         _ => throw new ArgumentOutOfRangeException(nameof(name), name, "No such variant."),
     };
 

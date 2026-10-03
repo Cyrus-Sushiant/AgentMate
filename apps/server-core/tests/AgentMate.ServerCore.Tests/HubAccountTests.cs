@@ -381,7 +381,11 @@ public sealed class HubAccountTests
         ];
         // Compose stacks (E07): the apps, their revisions and the uploaded files (never env values).
         string[] stacks = ["GetStack", "GetStackRevisionFiles", "ListStacks"];
-        reads = [.. reads, .. docker, .. stacks];
+        // Cloudflare (E14): the origin lock and which zones have a DNS token (never the tokens).
+        string[] cloudflare = ["GetOriginLock", "ListDnsCredentials"];
+        // Direct TLS (E16): how the listener stands and the pin of its certificate.
+        string[] directTls = ["GetDirectTls"];
+        reads = [.. reads, .. docker, .. stacks, .. cloudflare, .. directTls];
         Assert.Equal(account.Concat(reads).Concat(firewallReads).Order(StringComparer.Ordinal), open.Order(StringComparer.Ordinal));
     }
 
@@ -437,6 +441,8 @@ public sealed class HubAccountTests
         await hub.InvokeAsync<SiteInfo[]>(nameof(ICoreHub.ListSites), Cancel);
         await hub.InvokeAsync<StreamProxyInfo[]>(nameof(ICoreHub.ListStreamProxies), Cancel);
         await hub.InvokeAsync<CertificateInfo[]>(nameof(ICoreHub.ListCertificates), Cancel);
+        await hub.InvokeAsync<OriginLockStatus>(nameof(ICoreHub.GetOriginLock), Cancel);
+        await hub.InvokeAsync<DnsCredentialInfo[]>(nameof(ICoreHub.ListDnsCredentials), Cancel);
 
         Assert.Empty(harness.Services.GetRequiredService<InMemoryDockerEngine>().Changes);
         Assert.Empty(mutations.Entries);

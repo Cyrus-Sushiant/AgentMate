@@ -12,6 +12,7 @@ import type {
   ImageInfo,
   JobInfo,
   NetworkInfo,
+  RegistryAuth,
   VolumeInfo,
 } from '../../shared/deploy/protocol/generated/AgentMate.ServerCore.Contracts';
 import type { ICoreHub } from '../../shared/deploy/protocol/generated/TypedSignalR.Client/AgentMate.ServerCore.Contracts';
@@ -39,8 +40,16 @@ const DEFAULT_TAIL = 200;
 /** A log tail that has not finished by then is cut short with what came. */
 const TAIL_WAIT_MS = 15_000;
 
+export interface DeployDockerDeps extends CoreCallDeps {
+  /**
+   * This computer's sign-in for an image's registry (E08), sent with that one pull. The engine
+   * gets it in the request's X-Registry-Auth header, so it never lands on the server's disk.
+   */
+  registryAuth?: (reference: string) => Promise<RegistryAuth | null>;
+}
+
 export class DeployDocker {
-  constructor(private readonly deps: CoreCallDeps) {}
+  constructor(private readonly deps: DeployDockerDeps) {}
 
   status(serverId: string): Promise<DockerStatus> {
     return this.run(serverId, (hub) => hub.getDockerStatus());
@@ -125,8 +134,11 @@ export class DeployDocker {
     return this.run(serverId, (hub) => hub.listImages());
   }
 
-  pullImage(input: DeployImagePullInput): Promise<JobInfo> {
-    return this.run(input.serverId, (hub) => hub.pullImage({ reference: input.reference }));
+  async pullImage(input: DeployImagePullInput): Promise<JobInfo> {
+    const auth = (await this.deps.registryAuth?.(input.reference)) ?? null;
+    return this.run(input.serverId, (hub) =>
+      hub.pullImage(auth ? { reference: input.reference, auth } : { reference: input.reference }),
+    );
   }
 
   removeImage(input: DeployImageRemoveInput): Promise<void> {

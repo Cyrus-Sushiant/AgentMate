@@ -201,9 +201,13 @@ public sealed record ImageInfo(
     long SizeBytes,
     int Containers);
 
-/// <summary>An image reference such as nginx, nginx:1.29 or ghcr.io/org/app@sha256:... (latest when no tag).</summary>
+/// <summary>
+/// An image reference such as nginx, nginx:1.29 or ghcr.io/org/app@sha256:... (latest when no tag).
+/// Auth, when the app sends one, signs in to the image's registry for this pull only (E08); without
+/// it the credential stored on the server for that registry is used, if there is one.
+/// </summary>
 [TranspilationSource]
-public sealed record ImagePullRequest(string Reference);
+public sealed record ImagePullRequest(string Reference, RegistryAuth? Auth = null);
 
 [TranspilationSource]
 public sealed record ImageRemoveRequest(string Image, bool Force = false);

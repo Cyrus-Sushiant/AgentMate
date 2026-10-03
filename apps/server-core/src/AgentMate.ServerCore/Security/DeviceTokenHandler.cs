@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using System.Text.Encodings.Web;
 using AgentMate.ServerCore.Data;
+using AgentMate.ServerCore.DirectTls;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Options;
@@ -54,6 +55,13 @@ internal sealed class DeviceTokenHandler(
             || check.Session!.DeviceId != payload.DeviceId)
         {
             return AuthenticateResult.Fail("The session behind this token has ended.");
+        }
+
+        // Over direct TLS the token has to belong to the device whose key made the handshake, so a
+        // token copied off one computer is useless on another computer's certificate.
+        if (DirectTlsDevices.Mismatch(Context, payload.DeviceId))
+        {
+            return AuthenticateResult.Fail("This token belongs to another device than the client certificate.");
         }
 
         var claims = new List<Claim>

@@ -2,7 +2,7 @@ namespace AgentMate.ServerCore.SystemTests;
 
 /// <summary>
 /// System tests drive real Linux machinery (Docker, the test-server containers, nginx, Pebble).
-/// They only run on a Linux host with a Docker daemon, which CI provides in its [e2e] job.
+/// They only run on a Linux host with a Docker daemon, which the nightly workflow provides.
 /// </summary>
 internal static class SystemTestEnvironment
 {

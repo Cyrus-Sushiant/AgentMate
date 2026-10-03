@@ -20,6 +20,8 @@ import type {
   ContainerStatsBatch,
   ContainerStatsRequest,
   ContainerSummary,
+  DirectTlsRequest,
+  DnsCredentialRequest,
   DockerDiskUsage,
   DockerEvent,
   DockerEventsRequest,
@@ -27,6 +29,8 @@ import type {
   DockerPruneRequest,
   DockerPruneResult,
   DockerStatus,
+  ExecOutput,
+  ExecRequest,
   FirewallChangeRequest,
   FirewallChangeSetQuery,
   ImageInfo,
@@ -37,12 +41,16 @@ import type {
   JobPage,
   JobQuery,
   JobStreamItem,
+  JournalBatch,
+  JournalRequest,
   ManagedService,
   MetricsHistory,
   MetricsHistoryRequest,
   MetricsSample,
   MetricsStreamRequest,
   NetworkInfo,
+  OriginCertificateInstall,
+  OriginLockRequest,
   SiteLogBatch,
   SiteLogKind,
   SiteLogRequest,
@@ -80,6 +88,8 @@ const LIMITS = {
   'docker-events': 2,
   console: 2,
   siteLog: 2,
+  exec: 2,
+  journal: 2,
 } as const;
 const PER_CONNECTION = 8;
 const OPERATORS = new Set(['owner', 'admin', 'operator']);
@@ -267,6 +277,44 @@ export class FakeCoreConnection implements ICoreHub {
   revertFirewallChanges = async (changeSetId: string) =>
     this.firewall('RevertFirewallChanges', true, (fw) => fw.revert(changeSetId));
 
+  // Direct TLS (E16): every role reads it, Owners change it, turning it on needs a step-up.
+
+  getDirectTls = async () => {
+    this.assertOpen();
+    this.assertRole('GetDirectTls', VIEWERS);
+    return this.answer({ ...this.core.directTls });
+  };
+  enableDirectTls = async (request: DirectTlsRequest) => {
+    this.assertOpen();
+    this.assertRole('EnableDirectTls', OWNERS);
+    if (this.core.stepUpUntil <= this.core.now()) throw unauthorizedError('EnableDirectTls');
+    if (!Number.isInteger(request.port) || request.port < 1024 || request.port > 65535) {
+      throw invocationError('EnableDirectTls', 'Pick a port from 1024 up.');
+    }
+    this.core.directTls = {
+      ...this.core.directTls,
+      enabled: true,
+      listening: true,
+      port: request.port,
+      sources: request.sources ?? [],
+      changedAtUnixMs: this.core.now(),
+      changedBy: this.core.userName,
+    };
+    return this.answer({ ...this.core.directTls });
+  };
+  disableDirectTls = async () => {
+    this.assertOpen();
+    this.assertRole('DisableDirectTls', OWNERS);
+    this.core.directTls = {
+      ...this.core.directTls,
+      enabled: false,
+      listening: false,
+      changedAtUnixMs: this.core.now(),
+      changedBy: this.core.userName,
+    };
+    return this.answer({ ...this.core.directTls });
+  };
+
   // Websites and certificates: Viewers read, Admins change, Owners write snippets, and taking a
   // certificate off needs a step-up as well.
 
@@ -314,6 +362,88 @@ export class FakeCoreConnection implements ICoreHub {
   setSiteSnippets = async (snippets: SiteSnippets) =>
     this.web('SetSiteSnippets', OWNERS, (nginx) => nginx.setSnippets(snippets));
 
+  // Cloudflare (E14): every role reads the lock and the DNS token list; Admins change them. The
+  // lock's firewall change is the fake firewall's own, so ConfirmFirewallChanges settles it.
+
+  getOriginLock = async () =>
+    this.firewall('GetOriginLock', false, () => this.core.cloudflare.status());
+  previewOriginLock = async (request: OriginLockRequest) =>
+    this.firewall('PreviewOriginLock', true, () => this.core.cloudflare.preview(request));
+  applyOriginLock = async (request: OriginLockRequest) =>
+    this.firewall('ApplyOriginLock', true, (_fw, caller) =>
+      this.core.cloudflare.apply(request, caller),
+    );
+  refreshCloudflareRanges = async () =>
+    this.firewall('RefreshCloudflareRanges', true, () => this.core.cloudflare.status());
+  createOriginCertificateRequest = async (siteId: string) =>
+    this.web('CreateOriginCertificateRequest', ADMINS, () =>
+      this.core.cloudflare.createRequest(siteId),
+    );
+  installOriginCertificate = async (request: OriginCertificateInstall) =>
+    this.web('InstallOriginCertificate', ADMINS, () => this.core.cloudflare.install(request));
+  listDnsCredentials = async () =>
+    this.web('ListDnsCredentials', VIEWERS, () => this.core.cloudflare.listCredentials());
+  saveDnsCredential = async (request: DnsCredentialRequest) =>
+    this.web('SaveDnsCredential', ADMINS, () =>
+      this.core.cloudflare.saveCredential(request, this.core.userName),
+    );
+  removeDnsCredential = async (zone: string) =>
+    this.web('RemoveDnsCredential', ADMINS, () => this.core.cloudflare.removeCredential(zone));
+  // Logs center and Deploy AI (E09), Admins only; the rules are FakeAssistant's.
+
+  getAssistantMode = async () => {
+    this.assertOpen();
+    this.assertRole('GetAssistantMode', ADMINS);
+    return this.core.assistant.mode();
+  };
+
+  enableAutoRunDiagnostics = async () => {
+    this.assertOpen();
+    this.assertRole('EnableAutoRunDiagnostics', ADMINS);
+    if (this.core.stepUpUntil <= this.core.now())
+      throw unauthorizedError('EnableAutoRunDiagnostics');
+    this.core.assistant.autoRun = true;
+    return this.core.assistant.mode();
+  };
+
+  disableAutoRunDiagnostics = async () => {
+    this.assertOpen();
+    this.assertRole('DisableAutoRunDiagnostics', ADMINS);
+    this.core.assistant.autoRun = false;
+    return this.core.assistant.mode();
+  };
+
+  newExecApproval = async () => {
+    this.assertOpen();
+    this.assertRole('NewExecApproval', ADMINS);
+    return this.core.assistant.issue();
+  };
+
+  streamExec = (request: ExecRequest): IStreamResult<ExecOutput> =>
+    this.open<ExecOutput>('exec', [request], (stream) => {
+      if (!this.core.roles.some((role) => ADMINS.has(role))) {
+        stream.fail(unauthorizedError('StreamExec'));
+        return;
+      }
+      const refused = this.core.assistant.admit(request);
+      if (refused) {
+        stream.fail(streamError(refused));
+        return;
+      }
+      for (const item of this.core.assistant.output(request.command)) stream.push(item);
+      stream.complete();
+    });
+
+  streamJournal = (request: JournalRequest): IStreamResult<JournalBatch> =>
+    this.open<JournalBatch>('journal', [request], (stream) => {
+      if (!this.core.roles.some((role) => ADMINS.has(role))) {
+        stream.fail(unauthorizedError('StreamJournal'));
+        return;
+      }
+      stream.push({ lines: this.core.assistant.journal.get(request.unit) ?? [] });
+      if (!request.follow) stream.complete();
+    });
+
   // Compose stacks (E07): the desktop does not call these through the fake yet.
 
   listStacks = () => this.unused('ListStacks');
@@ -324,8 +454,28 @@ export class FakeCoreConnection implements ICoreHub {
   deployStack = () => this.unused('DeployStack');
   rollbackStack = () => this.unused('RollbackStack');
   runStackAction = () => this.unused('RunStackAction');
+  reviseStack = () => this.unused('ReviseStack');
+  revealStackEnv = () => this.unused('RevealStackEnv');
   deleteStack = () => this.unused('DeleteStack');
   deleteStackWithVolumes = () => this.unused('DeleteStackWithVolumes');
+
+  // Private registries (E08): the desktop's tests use their own hub doubles for these.
+
+  deployStackWithRegistries = () => this.unused('DeployStackWithRegistries');
+  rollbackStackWithRegistries = () => this.unused('RollbackStackWithRegistries');
+  listRegistryCredentials = () => this.unused('ListRegistryCredentials');
+  saveRegistryCredential = () => this.unused('SaveRegistryCredential');
+  deleteRegistryCredential = () => this.unused('DeleteRegistryCredential');
+
+  // The Security center (E15): its tests use hub stubs of their own.
+
+  getSecurityChecklist = () => this.unused('GetSecurityChecklist');
+  previewSshHardening = () => this.unused('PreviewSshHardening');
+  applySshHardening = () => this.unused('ApplySshHardening');
+  confirmSshHardening = () => this.unused('ConfirmSshHardening');
+  revertSshHardening = () => this.unused('RevertSshHardening');
+  createBackup = () => this.unused('CreateBackup');
+  deleteBackup = () => this.unused('DeleteBackup');
 
   // Reading the server.
 

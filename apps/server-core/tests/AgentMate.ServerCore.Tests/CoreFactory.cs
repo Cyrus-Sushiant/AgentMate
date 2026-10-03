@@ -1,9 +1,14 @@
+using AgentMate.ServerCore.Assistant;
+using AgentMate.ServerCore.Cloudflare;
 using AgentMate.ServerCore.DevHost.Fakes;
+using AgentMate.ServerCore.DirectTls;
 using AgentMate.ServerCore.Docker;
 using AgentMate.ServerCore.Firewall;
+using AgentMate.ServerCore.Hardening;
 using AgentMate.ServerCore.Nginx;
 using AgentMate.ServerCore.Platform;
 using AgentMate.ServerCore.Stacks;
+using AgentMate.ServerCore.Tests.Cloudflare;
 using AgentMate.ServerCore.Tests.Docker;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -27,6 +32,10 @@ public sealed class CoreFactory : WebApplicationFactory<Program>
         ArgumentNullException.ThrowIfNull(builder);
         builder.UseEnvironment("Testing");
         builder.UseSetting("Core:DataDirectory", _dataDirectory);
+        // Registry sign-ins (E08) go to a plain folder here: test machines have no tmpfs to spare.
+        builder.UseSetting("Core:RuntimeDirectory", Path.Combine(_dataDirectory, "run"));
+        builder.UseSetting("Core:RegistryAuthOnDisk", "allow");
+        builder.UseSetting("Core:DirectTls:LoopbackOnly", "true");
         builder.ConfigureServices(services =>
         {
             services.AddSingleton<MutationLog>();
@@ -46,6 +55,17 @@ public sealed class CoreFactory : WebApplicationFactory<Program>
             services.AddSingleton<ICallerConnections>(provider => provider.GetRequiredService<FakeCallerConnections>());
             services.AddSingleton<IExposureSource, FakeExposure>();
 
+            // sshd for the Security center: passwords on, connections signed in with a key unless a test says otherwise.
+            services.AddSingleton<FakeSshMachine>();
+            services.AddSingleton<ISshMachine>(provider => provider.GetRequiredService<FakeSshMachine>());
+            services.AddSingleton<FakeSshLoginLog>();
+            services.AddSingleton<ISshLoginLog>(provider => provider.GetRequiredService<FakeSshLoginLog>());
+            services.AddSingleton<FakeSshHardeningTimer>();
+            services.AddSingleton<ISshHardeningTimer>(provider => provider.GetRequiredService<FakeSshHardeningTimer>());
+            // Direct TLS: the in-memory server binds no ports, so the listener counts as open
+            // whenever the mode asks for it.
+            services.AddSingleton<IDirectTlsBinding, FakeDirectTlsBinding>();
+
             // Docker: the pretend engine (shared with the DevHost) and an installer that only records.
             services.AddSingleton(provider => new InMemoryDockerEngine(provider.GetRequiredService<TimeProvider>()) { Tick = TimeSpan.FromMilliseconds(50) });
             services.AddSingleton<IDockerEngine>(provider => provider.GetRequiredService<InMemoryDockerEngine>());
@@ -62,6 +82,20 @@ public sealed class CoreFactory : WebApplicationFactory<Program>
             // nginx on a simulated server, installed and running but not set up for AgentMate.
             services.AddSingleton(_ => new SimulatedNginxMachine(installed: true));
             services.AddSingleton<INginxMachine>(provider => provider.GetRequiredService<SimulatedNginxMachine>());
+
+            // Cloudflare (E14): never the real API, and no refresh unless a test asks for one.
+            services.AddSingleton<FakeCloudflareApi>();
+            services.AddSingleton<ICloudflareRangeSource>(provider => provider.GetRequiredService<FakeCloudflareApi>());
+            services.AddSingleton<ICloudflareDnsApi>(provider => provider.GetRequiredService<FakeCloudflareApi>());
+            services.AddSingleton(OriginLockOptions.Default with { RunInBackground = false });
+            services.AddSingleton(new CloudflareDns01Options(TimeSpan.Zero));
+            // StreamExec and the journal (E09): recorded and answered, nothing runs.
+            services.AddSingleton(provider => new FakeExecRunner(
+                provider.GetRequiredService<InMemoryDockerEngine>(),
+                provider.GetRequiredService<TimeProvider>())
+            { LineDelay = TimeSpan.Zero });
+            services.AddSingleton<IExecRunner>(provider => provider.GetRequiredService<FakeExecRunner>());
+            services.AddSingleton<IJournalSource, FakeJournal>();
         });
     }
 

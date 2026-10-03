@@ -56,6 +56,14 @@ function titleOf(alert: AlertInfo, server: string): string {
       return `A job failed on ${server}`;
     case 'rebootRequired':
       return `${server} needs a reboot`;
+    case 'certificateRenewalFailed':
+      return `A certificate did not renew on ${server}`;
+    case 'firewallRolledBack':
+      return `A firewall change was rolled back on ${server}`;
+    case 'firewallRollbackFailed':
+      return `A firewall change could not be rolled back on ${server}`;
+    case 'originLockRefreshFailed':
+      return `The Cloudflare lock could not be refreshed on ${server}`;
     default:
       return `Alert on ${server}`;
   }

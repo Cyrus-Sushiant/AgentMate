@@ -23,6 +23,7 @@ import {
   systemTestsEnabled,
   TEST_LOGINS,
   type TestServer,
+  testServerImages,
 } from './testing/testServers';
 
 /**
@@ -35,6 +36,8 @@ import {
  */
 
 const enabled = systemTestsEnabled();
+/** The podman conflict is a RHEL-family case, so this stays on Rocky. */
+const onRocky = testServerImages(['rocky-9'], ['rocky-9']).length > 0;
 const REPO = fileURLToPath(new URL('../../../../../', import.meta.url));
 const ARTIFACTS = join(REPO, 'apps', 'server-core', 'artifacts', 'release');
 const PASSWORD = 'correct horse battery staple';
@@ -239,7 +242,7 @@ async function runJob(hub: ICoreHub, job: JobInfo, timeoutMs: number) {
 }
 
 describe.skipIf(!enabled)('Docker through the server core on a real server', () => {
-  it(
+  it.skipIf(!onRocky)(
     'replaces podman on Rocky 9 with Docker, then streams a container’s stats and redacted logs',
     async () => {
       const server = await startTestServer('rocky-9');

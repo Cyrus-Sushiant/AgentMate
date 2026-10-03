@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Net;
 using AgentMate.ServerCore.Contracts;
+using AgentMate.ServerCore.Docker;
 using AgentMate.ServerCore.Execution;
 using AgentMate.ServerCore.Firewall;
 using AgentMate.ServerCore.Hosting;
@@ -232,8 +233,12 @@ internal sealed class FakeCallerConnections : ICallerConnections
     }
 }
 
-/// <summary>What listens on the pretend server, judged against the pretend firewall as it is now.</summary>
-internal sealed class FakeExposure(FakeFirewall firewall, TimeProvider time) : IExposureSource
+/// <summary>
+/// What listens on the pretend server, judged against the pretend firewall as it is now, and the
+/// ports the pretend Docker Engine publishes: its seeded projects and whatever the simulated
+/// compose started, so "make private" can be seen to work.
+/// </summary>
+internal sealed class FakeExposure(FakeFirewall firewall, InMemoryDockerEngine engine, TimeProvider time) : IExposureSource
 {
     private static readonly (FirewallProtocol Protocol, string Address, int Port, string Process, int Pid)[] _sockets =
     [
@@ -248,7 +253,7 @@ internal sealed class FakeExposure(FakeFirewall firewall, TimeProvider time) : I
         (FirewallProtocol.Udp, "0.0.0.0", 51820, "wg-quick", 1702),
     ];
 
-    public Task<ExposureInventory> ReadAsync(CancellationToken cancellationToken)
+    public async Task<ExposureInventory> ReadAsync(CancellationToken cancellationToken)
     {
         var state = firewall.State;
         ListeningSocketInfo[] sockets =
@@ -266,11 +271,29 @@ internal sealed class FakeExposure(FakeFirewall firewall, TimeProvider time) : I
                     socket.Pid);
             }),
         ];
+        var running = (await engine.ListContainersAsync(cancellationToken))
+            .Select(container => container.Summary)
+            .Where(container => container.State == ContainerState.Running);
         ContainerPortInfo[] containers =
         [
-            new("3f1c0a9e7b2d", "shop-db-1", "postgres:17", FirewallProtocol.Tcp, "0.0.0.0", 15432, 5432, ExposureScope.Public, ExposureFirewall.Bypassed),
-            new("9a8b7c6d5e4f", "shop-cache-1", "redis:8", FirewallProtocol.Tcp, "127.0.0.1", 16379, 6379, ExposureScope.Local, ExposureFirewall.NotApplicable),
+            .. running.SelectMany(container => container.Ports
+                .Where(port => port.HostPort is not null)
+                .Select(port =>
+                {
+                    var host = port.HostIp ?? "0.0.0.0";
+                    var scope = ExposureParsers.Scope(IPAddress.Parse(host));
+                    return new ContainerPortInfo(
+                        container.Id,
+                        container.Name,
+                        container.Image,
+                        port.Protocol == "udp" ? FirewallProtocol.Udp : FirewallProtocol.Tcp,
+                        host,
+                        port.HostPort!.Value,
+                        port.PrivatePort,
+                        scope,
+                        scope == ExposureScope.Local ? ExposureFirewall.NotApplicable : ExposureFirewall.Bypassed);
+                })),
         ];
-        return Task.FromResult(new ExposureInventory(sockets, containers, DockerAvailable: true, time.GetUtcNow().ToUnixTimeMilliseconds()));
+        return new ExposureInventory(sockets, containers, DockerAvailable: true, time.GetUtcNow().ToUnixTimeMilliseconds());
     }
 }

@@ -58,6 +58,16 @@ internal static class NginxValidator
             ValidateStream(stream, upstreams, streamIds, listeners, problems);
         }
 
+        if (configuration.OriginLock is { } originLock)
+        {
+            if (originLock.CloudflareNetworks.Count == 0)
+            {
+                problems.Add(new NginxProblem("originLock", "The origin lock needs Cloudflare's networks; fetch them again."));
+            }
+
+            ValidateNetworks(originLock.CloudflareNetworks, "originLock.cloudflareNetworks", (field, message, line) => problems.Add(new NginxProblem(field, message, line)));
+        }
+
         return problems;
     }
 

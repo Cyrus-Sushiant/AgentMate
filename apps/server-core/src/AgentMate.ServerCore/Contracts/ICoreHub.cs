@@ -309,16 +309,136 @@ public interface ICoreHub
 
     Task<JobInfo> RunStackAction(StackActionRequest request);
 
+    /// <summary>A new revision copied from another on the server, with other proxied services or a new compose file.</summary>
+    Task<StackRevisionInfo> ReviseStack(ReviseStackRequest request);
+
+    /// <summary>A revision's .env with its values. Admin, after a step-up; only the count is audited.</summary>
+    Task<StackEnvEntry[]> RevealStackEnv(StackRevisionRef revision);
+
     /// <summary>docker compose down, then the stack's files and records go. Its volumes stay.</summary>
     Task<JobInfo> DeleteStack(Guid stackId);
 
     /// <summary>As DeleteStack, with docker compose down --volumes: the app's data goes too. Admin.</summary>
     Task<JobInfo> DeleteStackWithVolumes(Guid stackId);
 
+    // Private registries (E08). The sign-ins a deploy carries live in a tmpfs DOCKER_CONFIG for
+    // that job only. Stored credentials are write-only; saving or removing one is for Admins with
+    // a recent step-up.
+
+    /// <summary>As DeployStack, signing in to the registries the request names (stored credentials fill the rest).</summary>
+    Task<JobInfo> DeployStackWithRegistries(StackDeployRequest request);
+
+    /// <summary>As RollbackStack, with the request's registry sign-ins.</summary>
+    Task<JobInfo> RollbackStackWithRegistries(StackDeployRequest request);
+
+    /// <summary>The credentials stored on this server, without their secrets. Operator.</summary>
+    Task<RegistryCredentialInfo[]> ListRegistryCredentials();
+
+    /// <summary>Stores or replaces the credential for a registry. Admin and a step-up.</summary>
+    Task<RegistryCredentialInfo> SaveRegistryCredential(SaveRegistryCredentialRequest request);
+
+    /// <summary>Admin and a step-up.</summary>
+    Task DeleteRegistryCredential(Guid credentialId);
+    // Logs center and Deploy AI (E09), Admin. See AssistantContracts.cs for what runs unattended.
+
+    Task<AssistantModeInfo> GetAssistantMode();
+
+    /// <summary>Needs a step-up. Lasts for this session, or until the core restarts.</summary>
+    Task<AssistantModeInfo> EnableAutoRunDiagnostics();
+
+    Task<AssistantModeInfo> DisableAutoRunDiagnostics();
+
+    /// <summary>A single-use nonce, good for two minutes, to sign one command's approval with.</summary>
+    Task<ExecApprovalNonce> NewExecApproval();
+
+    /// <summary>
+    /// Runs a command and streams its redacted output, then its exit code. Refused unless it is on
+    /// the read-only allowlist (and, from the assistant, the session auto-runs diagnostics) or it
+    /// carries a valid approval. Ending the stream stops the command and everything it started.
+    /// </summary>
+    IAsyncEnumerable<ExecOutput> StreamExec(ExecRequest request, CancellationToken cancellationToken);
+
+    /// <summary>A systemd unit's journal, redacted: the last lines, then new ones while Follow is on.</summary>
+    IAsyncEnumerable<JournalBatch> StreamJournal(JournalRequest request, CancellationToken cancellationToken);
+
     // Owner.
 
     /// <summary>A site's custom snippets, checked against the directive allowlist.</summary>
     Task<SiteSaveResult> SetSiteSnippets(SiteSnippets snippets);
+
+    // Cloudflare (E14). Every role reads the origin lock and which zones have a DNS token; Admins
+    // change them and handle Origin CA certificates. The account token never reaches the core.
+
+    /// <summary>The origin lock and how the firewall compares with Cloudflare's ranges.</summary>
+    Task<OriginLockStatus> GetOriginLock();
+
+    /// <summary>What turning the lock on or off would change, with the firewall's own preview. Changes nothing.</summary>
+    Task<OriginLockPreview> PreviewOriginLock(OriginLockRequest request);
+
+    /// <summary>
+    /// Turns the lock on or off: the firewall change waits for its confirmation like any other
+    /// (ConfirmFirewallChanges), and nginx takes the real visitor address and the client check at once.
+    /// </summary>
+    Task<OriginLockResult> ApplyOriginLock(OriginLockRequest request);
+
+    /// <summary>Fetches Cloudflare's ranges now (the core also does daily) and brings a lock that is on up to date.</summary>
+    Task<OriginLockStatus> RefreshCloudflareRanges();
+
+    /// <summary>Makes a key on this server for a site and returns the signing request for Cloudflare's Origin CA.</summary>
+    Task<OriginCertificateRequestInfo> CreateOriginCertificateRequest(string siteId);
+
+    /// <summary>Checks the signed certificate against the key made for it, stores it and applies.</summary>
+    Task<CertificateUploadResult> InstallOriginCertificate(OriginCertificateInstall request);
+
+    /// <summary>The zones this server holds a DNS token for. The tokens never come back.</summary>
+    Task<DnsCredentialInfo[]> ListDnsCredentials();
+
+    /// <summary>Checks the token with Cloudflare and stores it sealed, replacing the zone's earlier one.</summary>
+    Task<DnsCredentialSaveResult> SaveDnsCredential(DnsCredentialRequest request);
+
+    Task RemoveDnsCredential(string zone);
+
+    // Security center (E15). Admins read the checklist; Owners make its SSH changes, which need a
+    // step-up and only run over an SSH connection that signed in with a key. A change rolls itself
+    // back after ConfirmWithinSeconds unless ConfirmSshHardening arrives over another new
+    // connection that signed in with a key too.
+
+    /// <summary>How safe the server is, item by item, with a score. Changes nothing.</summary>
+    Task<SecurityChecklist> GetSecurityChecklist(SecurityChecklistRequest request);
+
+    /// <summary>The exact drop-in and commands, and whether this connection is proven to use a key. Changes nothing.</summary>
+    Task<SshHardeningPreview> PreviewSshHardening(SshHardeningRequest request);
+
+    /// <summary>Saves the old drop-in, arms the rollback timer, writes and checks the new one, then reloads sshd.</summary>
+    Task<SshHardeningChangeInfo> ApplySshHardening(SshHardeningRequest request);
+
+    /// <summary>Keeps the change. Refused over the connection that applied it, or one that did not sign in with a key.</summary>
+    Task<SshHardeningChangeInfo> ConfirmSshHardening(Guid changeId);
+
+    /// <summary>Puts the old drop-in back now and reloads sshd.</summary>
+    Task<SshHardeningChangeInfo> RevertSshHardening(Guid changeId);
+
+    // Backups (E15), Owners only. Making one needs a step-up: it holds every secret the core keeps.
+
+    /// <summary>
+    /// Encrypts the core's state with the passphrase into a file that waits an hour to be downloaded
+    /// (GET /api/v1/backups/{id}). The passphrase is not kept.
+    /// </summary>
+    Task<BackupInfo> CreateBackup(BackupRequest request);
+
+    /// <summary>Deletes a backup from the server, once the app has it. True when there was one.</summary>
+    Task<bool> DeleteBackup(Guid backupId);
+
+    // Direct TLS (E16): every role reads it; Owners change it, turning it on needs a step-up.
+
+    /// <summary>The listener's setting and state, and the pin of the certificate it presents.</summary>
+    Task<DirectTlsStatus> GetDirectTls();
+
+    /// <summary>Opens (or moves) the port. Owner, with a step-up. The firewall rule is a change set of its own.</summary>
+    Task<DirectTlsStatus> EnableDirectTls(DirectTlsRequest request);
+
+    /// <summary>Closes the port. Owner.</summary>
+    Task<DirectTlsStatus> DisableDirectTls();
 }
 
 /// <summary>Everything the core can push to the app without being asked.</summary>

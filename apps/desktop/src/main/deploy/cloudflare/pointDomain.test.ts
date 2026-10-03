@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { CloudflareDnsRecord } from '../../../shared/cloudflareTypes';
-import { addressesOfHost, planChanges, pointedNames } from './pointDomain';
+import { addressesFromCore, addressesOfHost, planChanges, pointedNames } from './pointDomain';
 
 /**
  * T5 and AC2: "point domain to this server" works out which address records to create, change
@@ -197,5 +197,21 @@ describe('addressesOfHost', () => {
         throw new Error('ENOTFOUND');
       }),
     ).rejects.toThrow('Could not look up gone.example.net');
+  });
+});
+
+describe('addressesFromCore', () => {
+  it('keeps the public addresses the core reports, by family', () => {
+    expect(
+      addressesFromCore(['203.0.113.10', '10.0.0.4', '2001:db8::10', 'fe80::1', '203.0.113.10']),
+    ).toEqual({
+      ipv4: ['203.0.113.10'],
+      ipv6: ['2001:db8::10'],
+    });
+  });
+
+  it('gives up when the core knows of no public address', () => {
+    expect(addressesFromCore(['10.0.0.4', '192.168.1.2'])).toBeNull();
+    expect(addressesFromCore([])).toBeNull();
   });
 });

@@ -1,7 +1,7 @@
 import { APIConnectionError, APIConnectionTimeoutError, APIError } from 'cloudflare/core/error';
 import { permissionDeniedMessage } from '../../../shared/cloudflare/permissions';
 import { encodeCloudflareError } from '../../../shared/cloudflareErrors';
-import type { CloudflarePermissionId } from '../../../shared/cloudflareTypes';
+import type { CloudflareAnyPermissionId } from '../../../shared/cloudflareTypes';
 
 /**
  * Turns whatever a Cloudflare call threw into an Error the page can show. The SDK's own message
@@ -24,7 +24,7 @@ function scrub(text: string, token: string): string {
   return token ? text.split(token).join(SCRUBBED) : text;
 }
 
-function explain(error: unknown, permission?: CloudflarePermissionId): string {
+function explain(error: unknown, permission?: CloudflareAnyPermissionId): string {
   if (error instanceof APIConnectionTimeoutError) {
     return 'Cloudflare took too long to answer. Try again in a moment.';
   }
@@ -63,7 +63,7 @@ function explain(error: unknown, permission?: CloudflarePermissionId): string {
 export function cloudflareFailure(
   error: unknown,
   token: string,
-  permission?: CloudflarePermissionId,
+  permission?: CloudflareAnyPermissionId,
 ): Error {
   return new Error(scrub(explain(error, permission), token));
 }

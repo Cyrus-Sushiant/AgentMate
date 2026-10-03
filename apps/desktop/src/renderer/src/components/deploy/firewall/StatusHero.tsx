@@ -16,13 +16,14 @@ import { cn } from '@/lib/utils';
  * and change the incoming default from here; both go through the preview like any change.
  */
 
+/** A label over its value. Values wrap rather than cut off, so a narrow window loses no words. */
 function Fact({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="min-w-0">
       <dt className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
         {label}
       </dt>
-      <dd className="mt-0.5 truncate text-sm text-foreground">{children}</dd>
+      <dd className="mt-0.5 text-sm text-foreground [overflow-wrap:anywhere]">{children}</dd>
     </div>
   );
 }
@@ -101,7 +102,7 @@ export function StatusHero({
           </div>
         </div>
 
-        <dl className="grid min-w-0 flex-1 grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-5">
+        <dl className="grid min-w-0 flex-1 grid-cols-[repeat(auto-fill,minmax(8.5rem,1fr))] gap-x-6 gap-y-3">
           <Fact label="Backend">
             {BACKEND_LABEL[status.backend]}
             {status.zone ? ` (zone ${status.zone})` : ''}

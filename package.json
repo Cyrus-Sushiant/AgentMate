@@ -31,6 +31,7 @@
     "server-core:format": "node scripts/server-core.mjs format",
     "server-core:format:check": "node scripts/server-core.mjs format:check",
     "server-core:contracts": "node scripts/server-core.mjs contracts",
+    "catalog:refresh-digests": "node scripts/refresh-catalog-digests.mjs",
     "server-core:publish": "node scripts/server-core.mjs publish"
   },
   "devDependencies": {
