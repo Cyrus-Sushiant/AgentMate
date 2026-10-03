@@ -112,7 +112,7 @@ internal static class AdminCli
         }
         finally
         {
-            Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+            CoreDatabase.ReleasePool(path);
             CoreDatabase.RestrictFiles(path);
         }
     }
@@ -438,7 +438,7 @@ internal static class AdminCli
                 }));
         }
 
-        Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+        CoreDatabase.ReleasePool(CoreDatabase.PathIn(staged.DataDirectory));
         BackupArchive.Restrict(staged.DataDirectory);
     }
 

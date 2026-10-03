@@ -2,6 +2,7 @@ using System.Formats.Tar;
 using System.IO.Compression;
 using AgentMate.ServerCore.Backups;
 using AgentMate.ServerCore.Data;
+using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 
 namespace AgentMate.ServerCore.Tests.Backups;
@@ -29,7 +30,7 @@ public sealed class BackupArchiveTests : IDisposable
         Directory.CreateDirectory(work);
         using var output = new MemoryStream();
         await BackupArchive.WriteAsync(data, work, output, "1.2.0", "web-01", 42, Cancel);
-        Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+        CoreDatabase.ReleasePool(CoreDatabase.PathIn(data));
         return (data, output.ToArray());
     }
 
@@ -58,6 +59,36 @@ public sealed class BackupArchiveTests : IDisposable
         Assert.Contains("keys/key-1.xml", names);
         Assert.Contains("stacks/shop/1/compose.yaml", names);
         Assert.DoesNotContain(names, name => name.StartsWith("jobs", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task A_backup_leaves_the_running_cores_pooled_connections_alone()
+    {
+        // The core keeps serving requests while it writes a backup. Emptying every SQLite pool in
+        // the process races with their connection opens and can dispose a handle under one of
+        // them (dotnet/efcore#39008), so a backup only lets go of the copies it opened itself.
+        var data = Path.Combine(_root, "data");
+        await CoreDatabase.PrepareAsync(CoreDatabase.PathIn(data), Cancel);
+        var live = CoreDatabase.ConnectionString(CoreDatabase.PathIn(data));
+        SQLitePCL.sqlite3? before;
+        await using (var connection = new SqliteConnection(live))
+        {
+            await connection.OpenAsync(Cancel);
+            before = connection.Handle;
+        }
+
+        var work = Path.Combine(_root, "work");
+        Directory.CreateDirectory(work);
+        using var output = new MemoryStream();
+        await BackupArchive.WriteAsync(data, work, output, "1.2.0", "web-01", 42, Cancel);
+        await using var db = new CoreDbContext(CoreDatabase.Options(CoreDatabase.PathIn(data)));
+        var into = Path.Combine(_root, "stage");
+        await BackupArchive.StageAsync(new MemoryStream(output.ToArray()), into, db.Database.GetMigrations().ToList(), 42, Cancel);
+        await BackupArchive.OwnersAsync(into, Cancel);
+
+        await using var reopened = new SqliteConnection(live);
+        await reopened.OpenAsync(Cancel);
+        Assert.Same(before, reopened.Handle);
     }
 
     [Fact]

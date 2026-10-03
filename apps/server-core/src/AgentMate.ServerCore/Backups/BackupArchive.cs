@@ -128,13 +128,13 @@ internal static class BackupArchive
                         cancellationToken);
             }
 
-            SqliteConnection.ClearAllPools();
+            CoreDatabase.ReleasePool(database);
             Restrict(into);
             return manifest;
         }
         catch
         {
-            SqliteConnection.ClearAllPools();
+            CoreDatabase.ReleasePool(CoreDatabase.PathIn(into));
             TryDelete(into);
             throw;
         }
@@ -149,7 +149,7 @@ internal static class BackupArchive
             .Join(db.Users, id => id, user => user.Id, (_, user) => user.UserName)
             .ToListAsync(cancellationToken);
         await db.Database.CloseConnectionAsync();
-        SqliteConnection.ClearAllPools();
+        CoreDatabase.ReleasePool(CoreDatabase.PathIn(folder));
         return [.. owners.OfType<string>().Order(StringComparer.Ordinal)];
     }
 
@@ -238,7 +238,7 @@ internal static class BackupArchive
                 : 0));
         var migration = (await db.Database.GetAppliedMigrationsAsync(cancellationToken)).LastOrDefault();
         await db.Database.CloseConnectionAsync();
-        SqliteConnection.ClearAllPools();
+        CoreDatabase.ReleasePool(snapshot);
         return (contents, migration);
     }
 

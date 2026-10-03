@@ -70,7 +70,7 @@ public sealed class RestoreGuardTests : IDisposable
             AppliedOver = "ssh a",
         });
         await db.SaveChangesAsync(Cancel);
-        Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+        CoreDatabase.ReleasePool(CoreDatabase.PathIn(_server));
         return id;
     }
 

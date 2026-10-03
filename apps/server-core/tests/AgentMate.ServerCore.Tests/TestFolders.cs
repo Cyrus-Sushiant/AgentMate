@@ -1,4 +1,4 @@
-using Microsoft.Data.Sqlite;
+using AgentMate.ServerCore.Data;
 
 namespace AgentMate.ServerCore.Tests;
 
@@ -10,11 +10,21 @@ internal static class TestFolders
 
     /// <summary>
     /// SQLite's connection pool keeps the database file open, which Windows will not delete, so the
-    /// pool is emptied first. A few retries cover a handle that is still being let go.
+    /// pools of the databases in the folder are emptied first. Only theirs: emptying every pool
+    /// would reach into tests still running in parallel and can dispose a connection one of them
+    /// is using (see <see cref="CoreDatabase.ReleasePool"/>). A few retries cover a handle that
+    /// is still being let go.
     /// </summary>
     public static void Delete(string path)
     {
-        SqliteConnection.ClearAllPools();
+        if (Directory.Exists(path))
+        {
+            foreach (var database in Directory.EnumerateFiles(path, "*.db", SearchOption.AllDirectories))
+            {
+                CoreDatabase.ReleasePool(database);
+            }
+        }
+
         for (var attempt = 1; ; attempt++)
         {
             try

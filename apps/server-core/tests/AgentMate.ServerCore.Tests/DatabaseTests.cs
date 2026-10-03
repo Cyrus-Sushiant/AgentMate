@@ -45,9 +45,11 @@ public sealed class DatabaseTests
         await first.OpenAsync(TestContext.Current.CancellationToken);
         await using var holding = CoreDatabase.BeginWrite(first);
 
-        // One second, not zero: in ADO.NET a zero timeout means wait for ever.
+        // One second, not zero: in ADO.NET a zero timeout means wait for ever. Unpooled, since its
+        // own pool would keep the file open past the test's clean-up, which only empties the
+        // core's pool for this file.
         await using var second = new SqliteConnection(
-            new SqliteConnectionStringBuilder(CoreDatabase.ConnectionString(database.Path)) { DefaultTimeout = 1 }.ToString());
+            new SqliteConnectionStringBuilder(CoreDatabase.ConnectionString(database.Path)) { DefaultTimeout = 1, Pooling = false }.ToString());
         await second.OpenAsync(TestContext.Current.CancellationToken);
         await using var attempt = second.CreateCommand();
         attempt.CommandText = "BEGIN IMMEDIATE";

@@ -38,6 +38,19 @@ internal static class CoreDatabase
         options.UseSqlite(ConnectionString(path));
     }
 
+    /// <summary>
+    /// Closes the pooled connections to one database file, so it can be moved or deleted. Never
+    /// <see cref="SqliteConnection.ClearAllPools"/> in the core: that empties every pool in the
+    /// process, and Microsoft.Data.Sqlite 10.0.12 can then take back a connection another thread
+    /// is still using and dispose its handle under it (dotnet/efcore#39008). The core's own database
+    /// is pooled the whole time it serves requests, a backup included.
+    /// </summary>
+    public static void ReleasePool(string path)
+    {
+        using var connection = new SqliteConnection(ConnectionString(path));
+        SqliteConnection.ClearPool(connection);
+    }
+
     /// <summary>BEGIN IMMEDIATE: the write lock is held from the first statement until commit.</summary>
     public static SqliteTransaction BeginWrite(SqliteConnection connection)
     {
