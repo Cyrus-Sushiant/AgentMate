@@ -3,6 +3,12 @@ import { SerializeAddon } from '@xterm/addon-serialize';
 import { Terminal as HeadlessTerminal } from '@xterm/headless';
 import * as pty from 'node-pty';
 import { killShellTree } from './killTree';
+import {
+  consoleClients,
+  createPasteBoost,
+  PASTE_BOOST_MIN_CHARS,
+  type PasteBoost,
+} from './pasteBoost';
 import type {
   CreateOrAttachPayload,
   CreateOrAttachResult,
@@ -76,6 +82,10 @@ export class PtySessionManager {
     /** Where notes about a shell that misbehaved go. The host writes its own log file; the
      * in-process fallback has main's console. */
     private readonly log: (message: string) => void = () => undefined,
+    /** Raises the console's processes while a large paste is read. Only Windows needs it. */
+    private readonly pasteBoost: PasteBoost | null = process.platform === 'win32'
+      ? createPasteBoost()
+      : null,
   ) {}
 
   get size(): number {
@@ -109,6 +119,11 @@ export class PtySessionManager {
       session.pty.write(data);
     } catch {
       // the shell exited between the lookup and the write
+      return;
+    }
+    // The write goes out first: the boost only has to land before the program has read it all.
+    if (data.length >= PASTE_BOOST_MIN_CHARS) {
+      this.pasteBoost?.boost(sessionId, () => consoleClients(session.pty), data.length);
     }
   }
 
@@ -125,11 +140,13 @@ export class PtySessionManager {
     const { pty: shell } = session;
     killShellTree(shell.pid, () => shell.kill());
     session.emulator.dispose();
+    this.pasteBoost?.consolesChanged();
     this.onSessionsChanged();
   }
 
   killAll(): void {
     for (const id of [...this.sessions.keys()]) this.kill(id);
+    this.pasteBoost?.dispose();
   }
 
   /** Stops sending output to this listener. The shells keep running. */
@@ -195,6 +212,7 @@ export class PtySessionManager {
     });
 
     if (options.initialInput) ptyProcess.write(options.initialInput);
+    this.pasteBoost?.consolesChanged();
     this.onSessionsChanged();
   }
 
@@ -260,6 +278,7 @@ export class PtySessionManager {
     session.listener?.onExit(session.id, session.exitCode ?? 0);
     session.listener = null;
     session.emulator.dispose();
+    this.pasteBoost?.consolesChanged();
     this.onSessionsChanged();
   }
 }

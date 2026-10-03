@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { TerminalSnapshot } from '../../shared/apiTypes';
+import { PASTE_BOOST_MIN_CHARS, type PasteBoost } from './pasteBoost';
 import type { SessionListener } from './sessionManager';
 
 /**
@@ -207,6 +208,54 @@ describe.skipIf(!ptyLoads)('PtySessionManager', async () => {
     manager.killAll();
 
     expect(manager.size).toBe(0);
+  });
+
+  describe('paste boost', () => {
+    const fakeBoost = () => ({
+      boost: vi.fn<PasteBoost['boost']>(),
+      consolesChanged: vi.fn(),
+      dispose: vi.fn(),
+    });
+
+    it('boosts a large write and leaves keystrokes alone', async () => {
+      const boost = fakeBoost();
+      const boosted = new PtySessionManager(undefined, undefined, boost);
+      const listener = recorder();
+      try {
+        await boosted.createOrAttach(
+          { sessionId: 's1', shell: process.execPath, cwd: dir, env: envFor('interactive') },
+          listener,
+        );
+        await vi.waitFor(() => expect(listener.text()).toContain('READY'), { timeout: 15_000 });
+        // Spawning a console makes the cached conhost list stale.
+        expect(boost.consolesChanged).toHaveBeenCalledTimes(1);
+
+        boosted.write('s1', 'ls\r');
+        boosted.write('s1', 'x'.repeat(PASTE_BOOST_MIN_CHARS - 1));
+        expect(boost.boost).not.toHaveBeenCalled();
+
+        const paste = `\x1b[200~${'y'.repeat(PASTE_BOOST_MIN_CHARS)}\x1b[201~`;
+        boosted.write('s1', paste);
+        expect(boost.boost).toHaveBeenCalledTimes(1);
+        const [sessionId, clients, chars] = boost.boost.mock.calls[0];
+        expect(sessionId).toBe('s1');
+        expect(chars).toBe(paste.length);
+        // The clients are looked up from the live console, so the shell itself is among them.
+        await expect(clients()).resolves.toContain(boosted.list()[0].pid);
+      } finally {
+        boosted.killAll();
+      }
+      expect(boost.dispose).toHaveBeenCalled();
+    });
+
+    it('does not boost a write to a session that is gone', () => {
+      const boost = fakeBoost();
+      const boosted = new PtySessionManager(undefined, undefined, boost);
+
+      boosted.write('nope', 'x'.repeat(PASTE_BOOST_MIN_CHARS * 4));
+
+      expect(boost.boost).not.toHaveBeenCalled();
+    });
   });
 
   describe('attach', () => {
