@@ -9,12 +9,15 @@ import { join } from 'node:path';
  * Let's Encrypt's Pebble and pebble-challtestsrv for the full-stack run: the server core's own
  * Pebble harness (PebbleFixture.cs in the system tests) with the same images and configuration,
  * HTTP-01 on port 80 as in PebbleOnPort80Fixture, so Pebble checks a domain against the nginx the
- * core runs. Both sit on a Docker network of their own, which a test server joins; challtestsrv is
- * the test DNS Pebble asks for every name, and `mapDomain` points a name at the test server.
+ * core runs. challtestsrv is the test DNS Pebble asks for every name, and `mapDomain` points a
+ * name at the test server.
  *
- * The test server reaches Pebble's API as `https://pebble:14000/dir` (Pebble's own certificate
- * names `pebble`), and trusts Pebble's test CA once `trustOn` has added it to the system store.
- * Everything here is created with a random suffix and removed by `stop`.
+ * Unlike the harness, both run on Docker's default bridge, next to the test server, rather than
+ * on a network of their own. A test server joined to a second network lost its published SSH port
+ * on GitHub's Linux runners (its default route moves to the network whose name sorts first), so
+ * the app could not reach it. The test server reaches Pebble's API
+ * as `https://pebble:14000/dir` (Pebble's own certificate names `pebble`) through a hosts entry,
+ * once it trusts Pebble's test CA. Both containers get a random suffix and are removed by `stop`.
  */
 
 const PEBBLE_IMAGE = 'ghcr.io/letsencrypt/pebble:2.10.1';
@@ -39,19 +42,19 @@ const CONFIGURATION = JSON.stringify({
   },
 });
 
-/** The directory URL a test server uses, through the `pebble` name `trustOn` writes to /etc/hosts. */
+/** The directory URL a test server uses, through a `pebble` entry in its /etc/hosts. */
 export const PEBBLE_DIRECTORY = 'https://pebble:14000/dir';
 
 export interface Pebble {
-  /** The Docker network Pebble, challtestsrv and the test server share. */
-  network: string;
-  /** Joins a test server to Pebble's network, and returns its address there. */
-  connect: (container: string) => string;
+  /** The containers this started, for a cleanup by hand. */
+  names: string[];
+  /** A container's address on the default bridge, where Pebble reaches it. */
+  addressOf: (container: string) => string;
   /** Points `domain` at `address` in the test DNS, as a real A record would. */
   mapDomain: (domain: string, address: string) => Promise<void>;
   /** Pebble's test CA, PEM, for the test server's trust store. */
   rootPem: string;
-  /** Pebble's own address on its network, for the test server's /etc/hosts. */
+  /** Pebble's own address on the default bridge, for the test server's /etc/hosts. */
   address: string;
   stop: () => void;
 }
@@ -83,11 +86,11 @@ function ensureImage(image: string): void {
   }
 }
 
-function addressOn(container: string, network: string): string {
+function addressOf(container: string): string {
   return docker([
     'inspect',
     '--format',
-    `{{(index .NetworkSettings.Networks "${network}").IPAddress}}`,
+    '{{.NetworkSettings.Networks.bridge.IPAddress}}',
     container,
   ]);
 }
@@ -116,20 +119,10 @@ export async function startPebble(): Promise<Pebble> {
   ensureImage(PEBBLE_IMAGE);
   ensureImage(CHALLTESTSRV_IMAGE);
   const suffix = randomBytes(5).toString('hex');
-  const network = `agentmate-acme-${suffix}`;
   const pebble = `agentmate-pebble-${suffix}`;
   const challenges = `agentmate-challtestsrv-${suffix}`;
   const created: string[] = [];
-  const joined: string[] = [];
-  let networkCreated = false;
   const stop = () => {
-    for (const container of joined.splice(0)) {
-      try {
-        docker(['network', 'disconnect', '--force', network, container]);
-      } catch {
-        // The test server is gone already.
-      }
-    }
     for (const container of created.splice(0)) {
       try {
         docker(['rm', '--force', container]);
@@ -137,20 +130,9 @@ export async function startPebble(): Promise<Pebble> {
         // Already gone.
       }
     }
-    if (networkCreated) {
-      try {
-        docker(['network', 'rm', network]);
-      } catch {
-        // Left behind only if something still holds it.
-      }
-      networkCreated = false;
-    }
   };
 
   try {
-    docker(['network', 'create', network]);
-    networkCreated = true;
-
     // challtestsrv: DNS on 8053 and HTTP-01 on 5002 for every name, no AAAA answers (so Pebble
     // never tries IPv6), and the HTTPS, TLS-ALPN and DoH servers off.
     created.push(challenges);
@@ -159,8 +141,6 @@ export async function startPebble(): Promise<Pebble> {
       '--detach',
       '--name',
       challenges,
-      '--network',
-      network,
       '--publish',
       `127.0.0.1::${MANAGEMENT_PORT}`,
       CHALLTESTSRV_IMAGE,
@@ -173,7 +153,7 @@ export async function startPebble(): Promise<Pebble> {
       '-doh',
       '',
     ]);
-    const challengeAddress = addressOn(challenges, network);
+    const challengeAddress = addressOf(challenges);
     const mapping = docker(['port', challenges, `${MANAGEMENT_PORT}/tcp`]).split('\n')[0] ?? '';
     const managementPort = Number(mapping.slice(mapping.lastIndexOf(':') + 1));
     const deadline = Date.now() + 30_000;
@@ -194,8 +174,6 @@ export async function startPebble(): Promise<Pebble> {
       'create',
       '--name',
       pebble,
-      '--network',
-      network,
       '--env',
       'PEBBLE_VA_NOSLEEP=1',
       PEBBLE_IMAGE,
@@ -216,17 +194,13 @@ export async function startPebble(): Promise<Pebble> {
       rmSync(folder, { recursive: true, force: true });
     }
     docker(['start', pebble]);
-    const address = addressOn(pebble, network);
+    const address = addressOf(pebble);
 
     return {
-      connect: (container) => {
-        docker(['network', 'connect', network, container]);
-        joined.push(container);
-        return addressOn(container, network);
-      },
+      names: [...created],
+      addressOf,
       mapDomain: (domain, target) =>
         postChecked(managementPort, 'add-a', { host: `${domain}.`, addresses: [target] }),
-      network,
       rootPem,
       address,
       stop,

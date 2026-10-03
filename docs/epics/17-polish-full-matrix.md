@@ -83,15 +83,17 @@ What the run sets up outside the app, before the app sees the server (`e2e/fullS
 `e2e/pebble.ts`):
 
 - Pebble and pebble-challtestsrv, ported from the server core's `PebbleFixture` with the same
-  images and configuration and HTTP-01 on port 80 (as `PebbleOnPort80Fixture`). The test server
-  joins their Docker network, trusts Pebble's test CA in its system store, reaches the API as
-  `pebble` (a hosts entry; Pebble's certificate names it), and `/etc/agentmate-core/core.json`
-  sets `Core:Acme:ProductionDirectory` to it. challtestsrv is the test DNS: it maps the domain to
-  the server's address on that network.
+  images and configuration and HTTP-01 on port 80 (as `PebbleOnPort80Fixture`). They run on
+  Docker's default bridge next to the test server, not on a network of their own: on GitHub's
+  runners a test server joined to a second network lost its published SSH port, since its default
+  route moved to the new network. The test server trusts Pebble's test CA in its system store,
+  reaches the API as `pebble` (a hosts entry; Pebble's certificate names it), and
+  `/etc/agentmate-core/core.json` sets `Core:Acme:ProductionDirectory` to it. challtestsrv is the
+  test DNS: it maps the domain to the server's address.
 - busybox and registry:2 are loaded from this computer into the server's Docker, since the
   server's way to Docker Hub can be slow.
-- Every container and network is created under a random name and removed by name afterwards; the
-  run prints them.
+- Every container is created under a random name and removed by name afterwards; the run prints
+  them.
 
 The servers are `ubuntu-24.04-ufw` and `rocky-9-firewalld`: the Ubuntu 24.04 and Rocky 9 test
 servers with their firewall installed (ufw off, firewalld on), since step 7 needs one. Every step
@@ -118,6 +120,11 @@ Found and fixed on the way:
 Run locally on 2026-10-03 (Docker Desktop, Windows): all eight steps passed on
 `ubuntu-24.04-ufw` (21.5 minutes, most of it the Docker install) and on `rocky-9-firewalld`
 (20.6 minutes). The nightly workflow runs it in its `full-stack` job, once per server.
+The first nightly dispatch (37111769885, on a7e9ec1) failed at step 1 on both servers: the app
+could not reach the test server's SSH port once the server had joined Pebble's network, which
+Docker Desktop does not show. Pebble moved to the default bridge (see above); the rest of that
+run, every Deploy system test on all five servers and the server core's nginx and Pebble tests,
+passed.
 
 ### Each step on its own
 
@@ -185,6 +192,5 @@ the Deploy system tests in Testing, and the nightly workflow in CI. `DELIVERY_ST
 
 - The full-stack run covers Ubuntu and Rocky only. Debian 13 has no firewall image, so it gets the
   per-step system tests nightly instead.
-- E12 AC3 (WordPress over HTTPS on Pebble) is still not one test.
 - What needs a VM or hardware: SELinux enforcing, arm64 and the signed release path (see the
   unverified criteria in `DELIVERY_STATUS.md`).

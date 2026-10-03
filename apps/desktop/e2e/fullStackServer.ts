@@ -9,11 +9,11 @@ import { PEBBLE_DIRECTORY, type Pebble, startPebble } from './pebble';
 
 /**
  * The machine side of the full-stack run (deployFullStack.e2e.ts): a systemd test server, the
- * same as the system tests boot, joined to a Pebble of its own. Before the app sees the server,
+ * same as the system tests boot, next to a Pebble of its own. Before the app sees the server,
  * it trusts Pebble's test CA, reaches Pebble as `pebble`, and has the core's ACME directory
  * pointed at it in /etc/agentmate-core/core.json (which the installer leaves alone), the way a
- * staging setup would. The test DNS maps the site's domain to the server's address on Pebble's
- * network, so Pebble's HTTP-01 check lands on the nginx the core runs there.
+ * staging setup would. The test DNS maps the site's domain to the server's address, so Pebble's
+ * HTTP-01 check lands on the nginx the core runs there.
  */
 
 /** The site's domain, mapped in the test DNS. */
@@ -34,9 +34,9 @@ export async function startFullStackServer(image: TestServerImage): Promise<Full
     server = await startTestServer(image);
     const name = server.name;
     const sh = (command: string, input?: string) => onServer(name, command, input);
-    const address = pebble.connect(name);
+    const address = pebble.addressOf(name);
     // biome-ignore lint/suspicious/noConsole: names what this run created, for a cleanup by hand
-    console.log(`Test server ${name} on Pebble's network ${pebble.network}`);
+    console.log(`Test server ${name}, with ${pebble.names.join(' and ')}`);
     sh('cat >> /etc/hosts', `${pebble.address} pebble\n`);
     sh(
       [
