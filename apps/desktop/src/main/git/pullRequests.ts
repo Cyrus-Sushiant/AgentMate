@@ -8,7 +8,7 @@ import {
 import type { MergeStep, MergeStepResult } from '../../shared/apiTypes';
 import { githubRepoForFolder } from '../pipelines/githubActions';
 import { ghErrorMessage, ghGraphql, runGh } from './githubCli';
-import { checkoutBranch, deleteBranch, git } from './plumbing';
+import { checkoutBranch, deleteBranch, git, primaryRemote, worktreeHolding } from './plumbing';
 
 /** What `gh pr view` is asked for; everything the Pull request tab shows comes from this. */
 const PR_FIELDS = [
@@ -122,11 +122,18 @@ function failure(step: MergeStep, error: unknown): MergeStepResult {
 /**
  * After a merge: switch to the base branch, bring it up to date, and delete the merged branch
  * here and on GitHub. Stops at the first step that fails, since each needs the one before it.
+ *
+ * In a linked worktree the base is often checked out in another worktree (the main checkout,
+ * usually), and git refuses to check one branch out twice. Then this worktree is parked on the
+ * base's latest commit instead, and the base is pulled where it is open.
  */
 export async function cleanupAfterMerge(
   cwd: string,
   { base, head }: { base: string; head: string },
 ): Promise<MergeStepResult[]> {
+  const holder = await worktreeHolding(cwd, base);
+  if (holder) return cleanupBesideWorktree(cwd, { base, head, holder });
+
   const steps: MergeStepResult[] = [];
   try {
     await checkoutBranch(cwd, base);
@@ -145,27 +152,71 @@ export async function cleanupAfterMerge(
     return steps;
   }
 
-  if (head === base) {
+  steps.push(await deleteMergedBranch(cwd, base, head));
+  return steps;
+}
+
+/**
+ * Cleanup for when `base` is open in the worktree at `holder`: detach this one at the remote's
+ * `base`, delete `head`, then pull `base` over in `holder`. The pull goes last because that
+ * checkout is one the user is not looking at (it may have changes of its own or no upstream),
+ * and a failure there should not stop the branch from being deleted.
+ */
+async function cleanupBesideWorktree(
+  cwd: string,
+  { base, head, holder }: { base: string; head: string; holder: string },
+): Promise<MergeStepResult[]> {
+  const steps: MergeStepResult[] = [];
+  try {
+    const remote = await primaryRemote(cwd);
+    if (remote) await git(cwd, ['fetch', '--prune', remote], PR_WRITE_TIMEOUT_MS);
+    await git(cwd, ['checkout', '--detach', remote ? `${remote}/${base}` : base]);
     steps.push({
-      step: 'delete',
-      ok: false,
-      message: `Not deleting ${head}, it is the base branch.`,
+      step: 'checkout',
+      ok: true,
+      message: `${base} is open in the worktree at ${holder}, so this worktree now sits on its latest commit (detached). Remove the worktree once you are done with it.`,
     });
+  } catch (error) {
+    steps.push(failure('checkout', error));
     return steps;
+  }
+
+  const deleted = await deleteMergedBranch(cwd, base, head);
+  steps.push(deleted);
+  if (!deleted.ok) return steps;
+
+  try {
+    await git(holder, ['pull', '--ff-only', '--prune'], PR_WRITE_TIMEOUT_MS);
+    steps.push({ step: 'pull', ok: true, message: `${base} is up to date in ${holder}.` });
+  } catch (error) {
+    steps.push({
+      step: 'pull',
+      ok: false,
+      message: `Could not update ${base} in ${holder}: ${ghErrorMessage(error)}`,
+    });
+  }
+  return steps;
+}
+
+async function deleteMergedBranch(
+  cwd: string,
+  base: string,
+  head: string,
+): Promise<MergeStepResult> {
+  if (head === base) {
+    return { step: 'delete', ok: false, message: `Not deleting ${head}, it is the base branch.` };
   }
   try {
     // Forced: a squash or rebase merge leaves the branch looking unmerged to git.
     const message = await deleteBranch(cwd, head, { deleteRemote: true, force: true });
-    steps.push({ step: 'delete', ok: true, message });
+    return { step: 'delete', ok: true, message };
   } catch (error) {
     const reason = ghErrorMessage(error);
     if (/remote ref does not exist|was not found/i.test(reason)) {
-      steps.push({ step: 'delete', ok: true, message: `${head} was already deleted.` });
-    } else {
-      steps.push({ step: 'delete', ok: false, message: reason });
+      return { step: 'delete', ok: true, message: `${head} was already deleted.` };
     }
+    return { step: 'delete', ok: false, message: reason };
   }
-  return steps;
 }
 
 export interface MergePullRequestInput {

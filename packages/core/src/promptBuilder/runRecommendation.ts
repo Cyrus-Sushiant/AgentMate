@@ -485,6 +485,21 @@ export function runChoiceArgs(profile: TargetRunProfile, choice: RunChoice): str
   return args;
 }
 
+/**
+ * Model and effort flags for a CLI the user picked by hand, or none when no model was picked
+ * (the CLI then runs on its own defaults) or the model isn't one this CLI's profile knows.
+ */
+export function runArgsFor(
+  cliId: string | null | undefined,
+  modelId: string | null | undefined,
+  effort: EffortLevel | null | undefined,
+): string[] {
+  if (!cliId || !modelId) return [];
+  const profile = runProfileForTargetAI(cliId);
+  const model = profile.models.find((m) => m.id === modelId);
+  return model ? runChoiceArgs(profile, { model, effort: effort ?? undefined }) : [];
+}
+
 function matchReportedModel(
   profile: TargetRunProfile,
   rawModel: string,

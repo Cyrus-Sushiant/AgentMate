@@ -891,6 +891,28 @@ export interface AskAiResult {
   cancelled?: boolean;
 }
 
+export interface AskCliInput {
+  prompt: string;
+  /** The agent CLI to answer with. No other CLI is tried when it isn't installed. */
+  cliId: string;
+  /** Model id from that CLI's run profile, or null for whatever the CLI is set up with. */
+  modelId?: string | null;
+  /** Ignored when the model has no effort setting. */
+  effort?: EffortLevel | null;
+  /** Caller-generated id that ai.cancelAskCli(requestId) can stop this run with. */
+  requestId?: string;
+}
+
+export interface AskCliResult {
+  ok: boolean;
+  text: string;
+  /** Display name of the CLI that answered (or that we tried to use). */
+  cliName: string | null;
+  error?: string;
+  cancelled?: boolean;
+  timedOut?: boolean;
+}
+
 export interface AssessRunInput {
   /** The generated prompt (or translation) to size. */
   prompt: string;

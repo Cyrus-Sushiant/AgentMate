@@ -163,3 +163,72 @@ describe('runAiPrompt with Ollama', () => {
     expect(body.messages[2]).toEqual({ role: 'user', content: 'what now?', images: [PNG] });
   });
 });
+
+describe('askCli', () => {
+  async function headless() {
+    const mod = await import('../cli/headlessPrompt');
+    return vi.mocked(mod.runHeadlessCliPrompt);
+  }
+
+  beforeEach(async () => {
+    (await headless()).mockReset();
+  });
+
+  it('runs only the picked CLI, with its model and effort flags, outside any repo', async () => {
+    const run = await headless();
+    run.mockResolvedValue({ ok: true, text: 'the prompt', cliName: 'Claude Code CLI' });
+    const { askCli } = await import('./ai');
+
+    const result = await askCli({
+      prompt: 'write it',
+      cliId: 'claude-code',
+      modelId: 'opus',
+      effort: 'high',
+      requestId: 'r1',
+    });
+
+    expect(result).toMatchObject({ ok: true, text: 'the prompt', cliName: 'Claude Code CLI' });
+    const [prompt, cwd, options] = run.mock.calls[0] ?? [];
+    expect(prompt).toBe('write it');
+    expect(cwd).toBe((await import('node:os')).tmpdir());
+    expect(options).toMatchObject({
+      requestId: 'r1',
+      preferredCliId: 'claude-code',
+      strictCli: true,
+      runArgs: ['--model', 'opus', '--effort', 'high'],
+    });
+  });
+
+  it('leaves the model to the CLI when none was picked', async () => {
+    const run = await headless();
+    run.mockResolvedValue({ ok: true, text: 'x', cliName: 'Codex CLI' });
+    const { askCli } = await import('./ai');
+
+    await askCli({ prompt: 'p', cliId: 'codex-cli', modelId: null, effort: 'high' });
+
+    expect(run.mock.calls[0]?.[2]).toMatchObject({ runArgs: [] });
+  });
+
+  it('passes a failure through without any half-written text', async () => {
+    const run = await headless();
+    run.mockResolvedValue({
+      ok: false,
+      text: 'partial',
+      cliName: 'Claude Code CLI',
+      timedOut: true,
+      error: 'Claude Code CLI was still working after 5 minutes and was stopped.',
+    });
+    const { askCli } = await import('./ai');
+
+    const result = await askCli({ prompt: 'p', cliId: 'claude-code' });
+
+    expect(result).toEqual({
+      ok: false,
+      text: '',
+      cliName: 'Claude Code CLI',
+      timedOut: true,
+      cancelled: undefined,
+      error: 'Claude Code CLI was still working after 5 minutes and was stopped.',
+    });
+  });
+});

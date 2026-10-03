@@ -341,6 +341,8 @@ export const IPC = {
     listGeminiModels: 'ai:listGeminiModels',
     assessRun: 'ai:assessRun',
     cancelAssessRun: 'ai:cancelAssessRun',
+    askCli: 'ai:askCli',
+    cancelAskCli: 'ai:cancelAskCli',
   },
   projectDrafts: {
     listByProject: 'projectDrafts:listByProject',

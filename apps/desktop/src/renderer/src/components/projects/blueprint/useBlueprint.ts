@@ -9,13 +9,15 @@ import {
   blueprintTextHash,
   buildBlueprintGenerationRequest,
   buildBlueprintPrompt,
+  getCliDefinition,
   targetAIForProject,
 } from '@agentmat/core';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { queryKeys } from '@/lib/queryKeys';
 import { containsPersian } from '@/lib/rtl';
+import type { BlueprintGeneratorChoice } from '@/stores/blueprintGeneratorStore';
 
 /**
  * Section saves and attachment writes happen constantly while the wizard is
@@ -30,6 +32,8 @@ export function useProjectBlueprint(project: Project) {
   const projectId = project.id;
   const queryClient = useQueryClient();
   const [generateStage, setGenerateStage] = useState<GenerateStage>('idle');
+  // The generation in flight, so Cancel can stop the right request on the right path.
+  const activeRequest = useRef<{ id: string; viaCli: boolean; sent: boolean } | null>(null);
   // Files that have just been written and are waiting for the editor to place
   // them at the caret. The editor clears the queue once it has.
   const [pendingInserts, setPendingInserts] = useState<BlueprintAttachment[]>([]);
@@ -228,14 +232,21 @@ export function useProjectBlueprint(project: Project) {
     return english;
   }
 
-  async function generate(): Promise<void> {
+  /**
+   * Writes the prompt with `choice` and saves it. Resolves to the saved prompt, or null when
+   * nothing was saved (no steps filled in, the user cancelled, or the save failed). The caller
+   * announces success, since it is the one that can offer to run the prompt.
+   */
+  async function generate(choice: BlueprintGeneratorChoice): Promise<string | null> {
     const blueprint = blueprintQuery.data;
-    if (!blueprint) return;
+    if (!blueprint) return null;
     if (!blueprint.sections.some((section) => section.text.trim())) {
       toast.error('Fill in at least one step before generating the prompt.');
-      return;
+      return null;
     }
 
+    const requestId = crypto.randomUUID();
+    activeRequest.current = { id: requestId, viaCli: !!choice.cliId, sent: false };
     setGenerateStage('translating');
     try {
       const english = await englishSections(blueprint);
@@ -254,17 +265,46 @@ export function useProjectBlueprint(project: Project) {
           })),
       };
 
+      // Cancelled while translating: stop before anything is sent to the AI.
+      if (activeRequest.current?.id !== requestId) return null;
+      activeRequest.current.sent = true;
       setGenerateStage('writing');
-      const prompt = await writePrompt(input);
-      // `mutate` rather than `mutateAsync`: it reports its own failure and never
-      // rejects, so nothing escapes the click handler that started this.
-      saveFinalPrompt.mutate(prompt);
+      const prompt = await writePrompt(input, choice, requestId);
+      // A cancel that lost the race with the answer still means the user didn't want it.
+      if (prompt === null || activeRequest.current?.id !== requestId) return null;
+
+      // Saved directly rather than through saveFinalPrompt, whose "Prompt saved." toast would
+      // land on top of the caller's "Prompt ready" one.
+      try {
+        cache(await window.agentmat.blueprints.setFinalPrompt(projectId, prompt));
+        refreshRevisions();
+      } catch {
+        toast.error('Could not save the prompt.');
+        return null;
+      }
       void logHistory(projectId, input.targetAI, prompt);
+      return prompt;
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Could not generate the prompt.');
+      return null;
     } finally {
+      if (activeRequest.current?.id === requestId) activeRequest.current = null;
       setGenerateStage('idle');
     }
+  }
+
+  /** Stops the generation in flight. Nothing is saved and no template is put in its place. */
+  function cancelGenerate(): void {
+    const request = activeRequest.current;
+    if (!request) return;
+    activeRequest.current = null;
+    // Still translating: nothing went to the AI yet, and the check after translation stops it.
+    if (!request.sent) return;
+    void (
+      request.viaCli
+        ? window.agentmat.ai.cancelAskCli(request.id)
+        : window.agentmat.ai.cancel(request.id)
+    ).catch(() => undefined);
   }
 
   return {
@@ -285,18 +325,52 @@ export function useProjectBlueprint(project: Project) {
     removeAttachment,
     syncAgentFile,
     generate,
+    cancelGenerate,
     generateStage,
   };
 }
 
+/** "<what went wrong>. Assembled the prompt here instead." without doubling the full stop. */
+function fellBack(message: string): void {
+  toast.warning(`${message.trim().replace(/\.$/, '')}. Assembled the prompt here instead.`);
+}
+
 /**
- * Asks the configured provider to write the prompt, and falls back to the local
- * template when there is no provider or the request fails. Translation needs no
- * key but generation does, so without the fallback the whole feature would be
- * dead for anyone who never set one up.
+ * Asks the chosen CLI, or the provider set in Settings, to write the prompt, and
+ * falls back to the local template when there is no model or the request fails.
+ * Translation needs no key but generation does, so without the fallback the
+ * whole feature would be dead for anyone who never set one up. Resolves to null
+ * when the user cancelled, so nothing is saved in its place.
  */
-async function writePrompt(input: Parameters<typeof buildBlueprintPrompt>[0]): Promise<string> {
+async function writePrompt(
+  input: Parameters<typeof buildBlueprintPrompt>[0],
+  choice: BlueprintGeneratorChoice,
+  requestId: string,
+): Promise<string | null> {
   const local = buildBlueprintPrompt(input);
+
+  if (choice.cliId) {
+    const name = getCliDefinition(choice.cliId)?.label ?? 'The CLI';
+    try {
+      const result = await window.agentmat.ai.askCli({
+        prompt: buildBlueprintGenerationRequest(input),
+        cliId: choice.cliId,
+        modelId: choice.modelId,
+        effort: choice.effort,
+        requestId,
+      });
+      if (result.cancelled) return null;
+      if (!result.ok || !result.text.trim()) {
+        fellBack(result.error || `${name} did not answer`);
+        return local;
+      }
+      return result.text.trim();
+    } catch (error) {
+      fellBack(error instanceof Error ? error.message : `${name} did not answer`);
+      return local;
+    }
+  }
+
   const settings = await window.agentmat.settings.get();
   const provider = settings.promptBuilderProvider;
   const model =
@@ -318,18 +392,16 @@ async function writePrompt(input: Parameters<typeof buildBlueprintPrompt>[0]): P
       provider,
       model,
       prompt: buildBlueprintGenerationRequest(input),
+      requestId,
     });
+    if (result.cancelled) return null;
     if (!result.ok || !result.text.trim()) {
-      toast.warning(
-        `${result.error || 'The AI request failed'}. Assembled the prompt here instead.`,
-      );
+      fellBack(result.error || 'The AI request failed');
       return local;
     }
     return result.text.trim();
   } catch (error) {
-    toast.warning(
-      `${error instanceof Error ? error.message : 'The AI request failed'}. Assembled the prompt here instead.`,
-    );
+    fellBack(error instanceof Error ? error.message : 'The AI request failed');
     return local;
   }
 }

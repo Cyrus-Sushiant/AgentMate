@@ -3,12 +3,7 @@ import { mkdtempSync } from 'node:fs';
 import { rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import {
-  getCliDefinition,
-  runChoiceArgs,
-  runProfileForTargetAI,
-  supportsPromptImages,
-} from '@agentmat/core';
+import { getCliDefinition, runArgsFor, supportsPromptImages } from '@agentmat/core';
 import type {
   AiProvider,
   RdpAgentFrame,
@@ -444,14 +439,6 @@ export function isRdpTaskRunning(sessionId: string): boolean {
   return runs.has(sessionId);
 }
 
-/** Model and effort flags for a CLI run, or none when the CLI should use its own defaults. */
-function cliRunArgs(input: StartRdpAgentTaskInput): string[] {
-  if (!input.cliId || !input.modelId) return [];
-  const profile = runProfileForTargetAI(input.cliId);
-  const model = profile.models.find((m) => m.id === input.modelId);
-  return model ? runChoiceArgs(profile, { model, effort: input.effort ?? undefined }) : [];
-}
-
 /** How the chosen AI takes a screenshot. Throws for a CLI that can't take one at all. */
 function imageModeFor(cliId: string | null): RdpImageMode {
   if (!cliId) return 'api';
@@ -480,7 +467,7 @@ export function startRdpTask(
     sessionId,
     mode,
     cliId,
-    runArgs: cliRunArgs(input),
+    runArgs: runArgsFor(input.cliId, input.modelId, input.effort),
     imageMode,
     // Made up front, so a stop can never race its creation and leave it behind.
     runDir: cliId ? mkdtempSync(join(tmpdir(), 'agentmate-rdp-')) : null,

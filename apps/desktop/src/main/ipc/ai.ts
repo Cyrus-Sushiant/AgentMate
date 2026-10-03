@@ -1,11 +1,13 @@
 import { tmpdir } from 'node:os';
-import { buildRunAssessmentPrompt, parseRunAssessment } from '@agentmat/core';
+import { buildRunAssessmentPrompt, parseRunAssessment, runArgsFor } from '@agentmat/core';
 import { ipcMain } from 'electron';
 import type {
   AiProvider,
   AskAiHistoryMessage,
   AskAiInput,
   AskAiResult,
+  AskCliInput,
+  AskCliResult,
   AssessRunInput,
   AssessRunResult,
   OllamaConnectionTest,
@@ -324,6 +326,35 @@ async function assessRun(input: AssessRunInput): Promise<AssessRunResult> {
   return { ok: true, assessment, cliName: result.cliName };
 }
 
+/**
+ * A written-out prompt is a long answer, and a high effort setting can spend minutes thinking
+ * before the first word. Five minutes covers that with room to spare.
+ */
+const ASK_CLI_TIMEOUT_MS = 5 * 60_000;
+
+/**
+ * Answers a one-off prompt with the CLI, model and effort the user picked. Strict, so a missing
+ * CLI fails with a clear message instead of quietly answering with a different one (whose model
+ * flags wouldn't fit). Runs from the temp dir for the same reason assessRun() does.
+ */
+export async function askCli(input: AskCliInput): Promise<AskCliResult> {
+  const result = await runHeadlessCliPrompt(input.prompt, tmpdir(), {
+    requestId: input.requestId,
+    preferredCliId: input.cliId,
+    strictCli: true,
+    runArgs: runArgsFor(input.cliId, input.modelId, input.effort),
+    timeoutMs: ASK_CLI_TIMEOUT_MS,
+  });
+  return {
+    ok: result.ok,
+    text: result.ok ? result.text : '',
+    cliName: result.cliName,
+    error: result.error,
+    cancelled: result.cancelled,
+    timedOut: result.timedOut,
+  };
+}
+
 /** In-flight requests that carried a requestId, so the renderer can abort them. */
 const inFlightRequests = new Map<string, AbortController>();
 
@@ -382,6 +413,13 @@ export function registerAiHandlers(): void {
     (_event, input: AssessRunInput): Promise<AssessRunResult> => assessRun(input),
   );
   ipcMain.handle(IPC.ai.cancelAssessRun, (_event, requestId: string): boolean =>
+    cancelHeadlessPrompt(requestId),
+  );
+  ipcMain.handle(
+    IPC.ai.askCli,
+    (_event, input: AskCliInput): Promise<AskCliResult> => askCli(input),
+  );
+  ipcMain.handle(IPC.ai.cancelAskCli, (_event, requestId: string): boolean =>
     cancelHeadlessPrompt(requestId),
   );
 }

@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { tmpdir } from 'node:os';
-import { getCliDefinition, runChoiceArgs, runProfileForTargetAI } from '@agentmat/core';
+import { getCliDefinition, runArgsFor } from '@agentmat/core';
 import type {
   AiProvider,
   SshAgentHistoryEntry,
@@ -593,14 +593,6 @@ export function isSshTaskRunning(sessionId: string): boolean {
   return runs.has(sessionId);
 }
 
-/** Model and effort flags for a CLI run, or none when the CLI should use its own defaults. */
-function cliRunArgs(input: StartSshAgentTaskInput): string[] {
-  if (!input.cliId || !input.modelId) return [];
-  const profile = runProfileForTargetAI(input.cliId);
-  const model = profile.models.find((m) => m.id === input.modelId);
-  return model ? runChoiceArgs(profile, { model, effort: input.effort ?? undefined }) : [];
-}
-
 export function startSshTask(
   input: StartSshAgentTaskInput,
   listener: (progress: SshAgentProgress) => void,
@@ -622,7 +614,7 @@ export function startSshTask(
     target,
     mode,
     cliId: input.cliId ?? null,
-    runArgs: cliRunArgs(input),
+    runArgs: runArgsFor(input.cliId, input.modelId, input.effort),
     cliRequestId: null,
     prompt: prompt.trim(),
     transcript: '',

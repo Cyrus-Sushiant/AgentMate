@@ -206,8 +206,7 @@ vi.mock('../notifications/osNotification', () => ({ showOsNotification: vi.fn(()
 vi.mock('../mainWindow', () => ({ getMainWindow: () => null }));
 vi.mock('@agentmat/core', () => ({
   getCliDefinition: vi.fn(),
-  runChoiceArgs: vi.fn(() => []),
-  runProfileForTargetAI: vi.fn(),
+  runArgsFor: vi.fn(() => []),
 }));
 vi.mock('../ipc/terminal', () => ({
   hasAttachedTerminalSession: () => true,

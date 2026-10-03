@@ -3,15 +3,30 @@ import { blueprintStep, targetAIForProject } from '@agentmat/core';
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
+import { CliLogo } from '@/components/cliLogos';
 import { MarkdownEditor } from '@/components/editor/MarkdownEditor';
-import { Check, Copy, History, Save, Sparkles, Spinner } from '@/components/icons';
+import {
+  Check,
+  ChevronDown,
+  Copy,
+  History,
+  Save,
+  Sparkles,
+  Spinner,
+  StopCircle,
+  TerminalSquare,
+} from '@/components/icons';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Popover, PopoverAnchor, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Switch } from '@/components/ui/switch';
 import { SimpleTooltip } from '@/components/ui/tooltip';
+import { FixWithAiDialog } from '@/components/workspace/FixWithAiDialog';
 import { queryKeys } from '@/lib/queryKeys';
 import { containsPersian, persianTextProps } from '@/lib/rtl';
+import type { BlueprintGeneratorChoice } from '@/stores/blueprintGeneratorStore';
+import { BlueprintGeneratorFields, useBlueprintGenerator } from './BlueprintGenerator';
 import type { GenerateStage } from './useBlueprint';
 
 export function BlueprintReviewStep({
@@ -19,6 +34,7 @@ export function BlueprintReviewStep({
   blueprint,
   generateStage,
   onGenerate,
+  onCancelGenerate,
   onSavePrompt,
   onDocsFolderChange,
   onConfirmBeforeWritingChange,
@@ -28,7 +44,9 @@ export function BlueprintReviewStep({
   project: Project;
   blueprint: ProjectBlueprint;
   generateStage: GenerateStage;
-  onGenerate: () => void;
+  /** Resolves to the saved prompt, or null when nothing was written. */
+  onGenerate: (choice: BlueprintGeneratorChoice) => Promise<string | null>;
+  onCancelGenerate: () => void;
   onSavePrompt: (text: string) => void;
   onDocsFolderChange: (folder: string) => void;
   onConfirmBeforeWritingChange: (value: boolean) => void;
@@ -39,6 +57,11 @@ export function BlueprintReviewStep({
   const [prompt, setPrompt] = useState(blueprint.finalPrompt);
   const [docsFolder, setDocsFolder] = useState(blueprint.docsFolder);
   const [copied, setCopied] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [runOpen, setRunOpen] = useState(false);
+  // The run dialog sizes the prompt as soon as it mounts, so it waits for the first opening.
+  const [runMounted, setRunMounted] = useState(false);
+  const generator = useBlueprintGenerator(project);
 
   useEffect(() => setPrompt(blueprint.finalPrompt), [blueprint.finalPrompt]);
   useEffect(() => setDocsFolder(blueprint.docsFolder), [blueprint.docsFolder]);
@@ -47,11 +70,32 @@ export function BlueprintReviewStep({
   const filled = blueprint.sections.filter((section) => section.text.trim().length > 0);
   const persianSections = filled.filter((section) => containsPersian(section.text));
   const dirty = prompt !== blueprint.finalPrompt;
+  const canGenerate = !busy && filled.length > 0 && generator.choice !== null;
+  const generateLabel = blueprint.finalPrompt ? 'Regenerate prompt' : 'Generate prompt';
+  const runJobKey = `blueprint:${project.id}:${blueprint.finalPromptUpdatedAt ?? 'draft'}`;
 
   async function copyPrompt(): Promise<void> {
     await navigator.clipboard.writeText(prompt);
     setCopied(true);
     setTimeout(() => setCopied(false), 1600);
+  }
+
+  function openRun(): void {
+    setRunMounted(true);
+    setRunOpen(true);
+  }
+
+  async function handleGenerate(): Promise<void> {
+    const choice = generator.choice;
+    if (!choice || busy) return;
+    setPickerOpen(false);
+    const hadPrompt = !!blueprint.finalPrompt;
+    const written = await onGenerate(choice);
+    if (!written) return;
+    toast.success(hadPrompt ? 'Prompt regenerated' : 'Prompt ready', {
+      description: 'Run it in an agent CLI now, or read it over and edit it first.',
+      action: { label: 'Run in CLI', onClick: openRun },
+    });
   }
 
   async function saveAsDraft(): Promise<void> {
@@ -149,21 +193,81 @@ export function BlueprintReviewStep({
       ) : null}
 
       <div className="flex flex-wrap items-center gap-2">
-        <SimpleTooltip
-          label={filled.length === 0 ? 'Fill in at least one step first' : undefined}
-          wrapTrigger={filled.length === 0}
-        >
-          <Button onClick={onGenerate} disabled={busy || filled.length === 0}>
-            {busy ? <Spinner className="animate-spin" /> : <Sparkles />}
-            {generateStage === 'translating'
-              ? 'Translating…'
-              : generateStage === 'writing'
-                ? 'Writing the prompt…'
-                : blueprint.finalPrompt
-                  ? 'Regenerate prompt'
-                  : 'Generate prompt'}
+        <Popover open={pickerOpen} onOpenChange={setPickerOpen}>
+          <SimpleTooltip
+            label={filled.length === 0 ? 'Fill in at least one step first' : undefined}
+            wrapTrigger={filled.length === 0}
+          >
+            <PopoverAnchor asChild>
+              <div className="flex">
+                <Button
+                  className="rounded-r-none"
+                  onClick={() => void handleGenerate()}
+                  disabled={!canGenerate}
+                >
+                  {busy ? <Spinner className="animate-spin" /> : <Sparkles />}
+                  {generateStage === 'translating'
+                    ? 'Translating…'
+                    : generateStage === 'writing'
+                      ? `Writing with ${generator.engineName}…`
+                      : generateLabel}
+                </Button>
+                <PopoverTrigger asChild>
+                  <Button
+                    className="w-9 rounded-l-none border-l border-primary-foreground/20 px-0"
+                    disabled={busy || filled.length === 0}
+                    aria-label="Choose the model and effort for generating"
+                  >
+                    <ChevronDown className="h-3.5 w-3.5" />
+                  </Button>
+                </PopoverTrigger>
+              </div>
+            </PopoverAnchor>
+          </SimpleTooltip>
+          <PopoverContent align="start" className="w-80 p-0">
+            <div className="border-b border-border/70 px-3 py-2.5">
+              <p className="text-sm font-medium">Generate with</p>
+              <p className="text-[11px] leading-snug text-muted-foreground">
+                Remembered for this project. Change it any time before you generate.
+              </p>
+            </div>
+            <div className="px-3 py-3">
+              <BlueprintGeneratorFields generator={generator} />
+            </div>
+            <div className="border-t border-border/70 px-3 py-2.5">
+              <Button
+                className="w-full"
+                size="sm"
+                onClick={() => void handleGenerate()}
+                disabled={!canGenerate}
+              >
+                <Sparkles />
+                {generateLabel}
+              </Button>
+            </div>
+          </PopoverContent>
+        </Popover>
+
+        {busy ? (
+          <Button variant="ghost" size="sm" onClick={onCancelGenerate}>
+            <StopCircle /> Cancel
           </Button>
-        </SimpleTooltip>
+        ) : (
+          <SimpleTooltip label="Change the model and effort">
+            <button
+              type="button"
+              onClick={() => setPickerOpen(true)}
+              disabled={filled.length === 0}
+              className="inline-flex h-8 max-w-[18rem] items-center gap-1.5 rounded-md px-2 text-xs text-muted-foreground transition-colors hover:bg-foreground/[0.06] hover:text-foreground disabled:pointer-events-none disabled:opacity-50"
+            >
+              {generator.choice?.cliId ? (
+                <CliLogo cliId={generator.choice.cliId} className="h-3.5 w-3.5 shrink-0" />
+              ) : null}
+              <span className="truncate">{generator.label}</span>
+            </button>
+          </SimpleTooltip>
+        )}
+
         <Button variant="ghost" size="sm" onClick={onOpenHistory}>
           <History /> History
         </Button>
@@ -183,6 +287,20 @@ export function BlueprintReviewStep({
           >
             Use as standing prompt
           </Button>
+          <SimpleTooltip
+            label={
+              !prompt
+                ? 'Generate a prompt first'
+                : dirty
+                  ? 'Runs the text in the editor, unsaved edits included'
+                  : 'Pick the model and effort, then run it in an agent CLI'
+            }
+            wrapTrigger={!prompt}
+          >
+            <Button variant="outline" size="sm" disabled={!prompt || busy} onClick={openRun}>
+              <TerminalSquare /> Run in CLI
+            </Button>
+          </SimpleTooltip>
           <Button disabled={!dirty || savingPrompt} onClick={() => onSavePrompt(prompt)}>
             {savingPrompt ? <Spinner className="animate-spin" /> : <Save />}
             Save prompt
@@ -196,6 +314,23 @@ export function BlueprintReviewStep({
         onSave={() => onSavePrompt(prompt)}
         defaultHeight={460}
       />
+
+      {/* Keyed by the generated prompt, so a regenerate starts the dialog fresh while closing
+          and reopening keeps the sizing and the model the user picked in it. */}
+      {runMounted ? (
+        <FixWithAiDialog
+          key={runJobKey}
+          project={project}
+          open={runOpen}
+          onOpenChange={setRunOpen}
+          title="Run the Blueprint prompt"
+          description="Pick the model and effort, then the agent opens in a workspace tab with the prompt typed in. Press Enter there to start it."
+          jobKey={runJobKey}
+          source={{ prompt }}
+          promptType="Product"
+          promptLabel="Blueprint prompt"
+        />
+      ) : null}
     </div>
   );
 }

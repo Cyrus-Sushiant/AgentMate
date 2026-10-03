@@ -18,6 +18,8 @@ const plumbing = vi.hoisted(() => ({
   git: vi.fn(),
   checkoutBranch: vi.fn(),
   deleteBranch: vi.fn(),
+  primaryRemote: vi.fn(),
+  worktreeHolding: vi.fn(),
 }));
 vi.mock('./plumbing', () => plumbing);
 
@@ -49,6 +51,8 @@ beforeEach(() => {
   plumbing.deleteBranch.mockResolvedValue(
     "Deleted local branch 'feature'. Deleted 'feature' on origin.",
   );
+  plumbing.primaryRemote.mockResolvedValue('origin');
+  plumbing.worktreeHolding.mockResolvedValue(null);
   gh.runGh.mockResolvedValue({ stdout: '', stderr: '' });
 });
 
@@ -268,5 +272,91 @@ describe('cleanupAfterMerge', () => {
     const steps = await cleanupAfterMerge(CWD, { base: 'feature', head: 'feature' });
     expect(plumbing.deleteBranch).not.toHaveBeenCalled();
     expect(steps.at(-1)).toMatchObject({ step: 'delete', ok: false });
+  });
+
+  describe('when the base is open in another worktree', () => {
+    const HOLDER = 'C:/repo-main';
+
+    beforeEach(() => {
+      plumbing.worktreeHolding.mockResolvedValue(HOLDER);
+    });
+
+    it('parks this worktree on the base, deletes the branch, then pulls where the base is open', async () => {
+      const calls: string[] = [];
+      plumbing.git.mockImplementation(async (cwd: string, args: string[]) => {
+        calls.push(`${cwd}: ${args.join(' ')}`);
+        return '';
+      });
+      plumbing.deleteBranch.mockImplementation(async () => {
+        calls.push('delete');
+        return 'Deleted.';
+      });
+
+      const steps = await cleanupAfterMerge(CWD, { base: 'master', head: 'feature' });
+
+      // A plain checkout is what failed here before: git refuses a branch open elsewhere.
+      expect(plumbing.checkoutBranch).not.toHaveBeenCalled();
+      expect(calls).toEqual([
+        `${CWD}: fetch --prune origin`,
+        `${CWD}: checkout --detach origin/master`,
+        'delete',
+        `${HOLDER}: pull --ff-only --prune`,
+      ]);
+      expect(steps.map((s) => [s.step, s.ok])).toEqual([
+        ['checkout', true],
+        ['delete', true],
+        ['pull', true],
+      ]);
+      expect(steps[0]?.message).toContain(HOLDER);
+      expect(plumbing.deleteBranch).toHaveBeenCalledWith(CWD, 'feature', {
+        deleteRemote: true,
+        force: true,
+      });
+    });
+
+    it('still deletes the branch when the other worktree cannot be pulled', async () => {
+      plumbing.git.mockImplementation(async (cwd: string, args: string[]) => {
+        if (cwd === HOLDER && args[0] === 'pull') {
+          throw ghFailure('error: Your local changes would be overwritten by merge.');
+        }
+        return '';
+      });
+
+      const steps = await cleanupAfterMerge(CWD, { base: 'master', head: 'feature' });
+
+      expect(plumbing.deleteBranch).toHaveBeenCalled();
+      expect(steps.map((s) => [s.step, s.ok])).toEqual([
+        ['checkout', true],
+        ['delete', true],
+        ['pull', false],
+      ]);
+      expect(steps.at(-1)?.message).toBe(
+        `Could not update master in ${HOLDER}: error: Your local changes would be overwritten by merge.`,
+      );
+    });
+
+    it('stops before deleting when this worktree cannot be detached', async () => {
+      plumbing.git.mockImplementation(async (_cwd: string, args: string[]) => {
+        if (args[0] === 'checkout') throw ghFailure('error: unable to detach');
+        return '';
+      });
+
+      const steps = await cleanupAfterMerge(CWD, { base: 'master', head: 'feature' });
+
+      expect(plumbing.deleteBranch).not.toHaveBeenCalled();
+      expect(steps).toEqual([{ step: 'checkout', ok: false, message: 'error: unable to detach' }]);
+    });
+
+    it('goes through the same path when merging with cleanup', async () => {
+      const result = await mergePullRequest(CWD, {
+        number: 7,
+        base: 'master',
+        head: 'feature',
+        method: 'squash',
+        cleanup: true,
+      });
+      expect(plumbing.checkoutBranch).not.toHaveBeenCalled();
+      expect(result).toMatchObject({ ok: true, merged: true });
+    });
   });
 });

@@ -155,6 +155,12 @@ async function branchesInOtherWorktrees(
   return held;
 }
 
+/** The folder of the other worktree that has `branch` checked out, or null when none does. */
+export async function worktreeHolding(cwd: string, branch: string): Promise<string | null> {
+  const held = await branchesInOtherWorktrees(cwd, await currentBranch(cwd));
+  return held.get(branch) ?? null;
+}
+
 /**
  * `remote` and `branch` are optional so a caller that already resolved them (see
  * `readStatus`) doesn't pay for the same two subprocesses twice.

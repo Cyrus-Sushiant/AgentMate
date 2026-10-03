@@ -37,6 +37,7 @@ export function BlueprintTab({ project }: { project: Project }): React.JSX.Eleme
     renameAttachment,
     removeAttachment,
     generate,
+    cancelGenerate,
     generateStage,
   } = useProjectBlueprint(project);
 
@@ -80,7 +81,8 @@ export function BlueprintTab({ project }: { project: Project }): React.JSX.Eleme
             project={project}
             blueprint={blueprint}
             generateStage={generateStage}
-            onGenerate={() => void generate()}
+            onGenerate={generate}
+            onCancelGenerate={cancelGenerate}
             onSavePrompt={(text) => saveFinalPrompt.mutate(text)}
             onDocsFolderChange={(folder) => setDocsFolder.mutate(folder)}
             onConfirmBeforeWritingChange={(value) => setConfirmBeforeWriting.mutate(value)}

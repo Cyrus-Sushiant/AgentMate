@@ -91,6 +91,8 @@ import type {
   ApplyVersionResult,
   AskAiInput,
   AskAiResult,
+  AskCliInput,
+  AskCliResult,
   AssessRunInput,
   AssessRunResult,
   AuditSourcePreview,
@@ -1153,6 +1155,11 @@ const ai = {
   /** Stops an assessRun() that was given the same requestId. */
   cancelAssessRun: (requestId: string): Promise<boolean> =>
     ipcRenderer.invoke(IPC.ai.cancelAssessRun, requestId),
+  /** Answers a one-off prompt with the agent CLI, model and effort the user picked. */
+  askCli: (input: AskCliInput): Promise<AskCliResult> => ipcRenderer.invoke(IPC.ai.askCli, input),
+  /** Stops an askCli() that was given the same requestId. */
+  cancelAskCli: (requestId: string): Promise<boolean> =>
+    ipcRenderer.invoke(IPC.ai.cancelAskCli, requestId),
 };
 
 const speech = {

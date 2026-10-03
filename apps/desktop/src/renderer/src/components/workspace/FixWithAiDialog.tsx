@@ -4,6 +4,7 @@ import {
   findGroup,
   getCliDefinition,
   type Project,
+  type PromptType,
   runChoiceArgs,
   targetAIForCliId,
 } from '@agentmat/core';
@@ -37,9 +38,10 @@ export interface FixSource {
 }
 
 /**
- * Turns a failure into a ready-to-run agent prompt. The prompt is shown for a last look (and can
- * be edited), and a quick sizing picks the model and effort. Running it opens a tab with the
- * command typed and waiting for Enter. Used for failed pipeline runs and failing tests.
+ * Hands a ready prompt to an agent CLI. The prompt is shown for a last look (and can be edited),
+ * and a quick sizing picks the model and effort. Running it opens a tab with the command typed
+ * and waiting for Enter. Used for failed pipeline runs and failing tests, and for running a
+ * project's Blueprint prompt.
  */
 export function FixWithAiDialog({
   project,
@@ -49,15 +51,21 @@ export function FixWithAiDialog({
   description,
   jobKey,
   source,
+  promptType = 'Bug Fix',
+  promptLabel = 'Fix prompt',
 }: {
   project: Project;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   title: string;
   description?: string;
-  /** Identifies this failure, so the sizing survives the dialog closing and reopening. */
+  /** Identifies this prompt, so the sizing survives the dialog closing and reopening. */
   jobKey: string;
   source: FixSource;
+  /** What kind of work the prompt is, which shapes the sizing. */
+  promptType?: PromptType;
+  /** Accessible name for the prompt box. */
+  promptLabel?: string;
 }): React.JSX.Element {
   const navigate = useNavigate();
   // Until the user types, the prompt follows the source; after that it belongs to them.
@@ -71,7 +79,7 @@ export function FixWithAiDialog({
   const recommendation = useRunRecommendation({
     jobKey,
     generated: prompt,
-    promptType: 'Bug Fix',
+    promptType,
     targetAI,
   });
 
@@ -163,7 +171,7 @@ export function FixWithAiDialog({
                 value={prompt}
                 onChange={(event) => setPrompt(event.target.value)}
                 spellCheck={false}
-                aria-label="Fix prompt"
+                aria-label={promptLabel}
                 className="min-h-[18rem] flex-1 resize-none rounded-lg border border-border/70 bg-background/60 p-3 font-mono text-[12px] leading-relaxed outline-none focus:border-primary/50 focus:ring-2 focus:ring-primary/15"
               />
             )}

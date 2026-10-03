@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { configuredArgsWithout } from './runRecommendation.js';
+import { configuredArgsWithout, runArgsFor } from './runRecommendation.js';
 
 describe('configuredArgsWithout', () => {
   it('drops a saved model so the picked one is used', () => {
@@ -40,5 +40,32 @@ describe('configuredArgsWithout', () => {
 
   it('leaves the saved arguments alone when there is nothing to override', () => {
     expect(configuredArgsWithout('--model haiku', [])).toBe('--model haiku');
+  });
+});
+
+describe('runArgsFor', () => {
+  it("passes the picked model and effort in the CLI's own flags", () => {
+    expect(runArgsFor('claude-code', 'opus', 'high')).toEqual([
+      '--model',
+      'opus',
+      '--effort',
+      'high',
+    ]);
+    expect(runArgsFor('codex-cli', 'luna', 'low')).toEqual([
+      '--model',
+      'gpt-6-luna',
+      '-c',
+      'model_reasoning_effort=low',
+    ]);
+  });
+
+  it('drops an effort the model has no setting for', () => {
+    expect(runArgsFor('claude-code', 'haiku', 'high')).toEqual(['--model', 'haiku']);
+  });
+
+  it('adds nothing when no model was picked or the model is unknown', () => {
+    expect(runArgsFor('claude-code', null, 'high')).toEqual([]);
+    expect(runArgsFor('claude-code', 'not-a-model', 'high')).toEqual([]);
+    expect(runArgsFor(null, 'opus', 'high')).toEqual([]);
   });
 });
