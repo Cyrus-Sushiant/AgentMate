@@ -22,10 +22,13 @@ import { buildContextTarball } from './stacks/buildContext';
 import { DeployStacks } from './stacks/service';
 import { DeployState } from './state';
 import {
+  DISTRO_IMAGES,
+  skipWhenNoServers,
   startTestServer,
   systemTestsEnabled,
   TEST_LOGINS,
   type TestServer,
+  testServerImages,
 } from './testing/testServers';
 
 /**
@@ -39,6 +42,9 @@ import {
  */
 
 const enabled = systemTestsEnabled();
+
+/** Ubuntu on every `[e2e]` push; the nightly matrix runs it on each distro. */
+const IMAGES = testServerImages(DISTRO_IMAGES, ['ubuntu-24.04']);
 const REPO = fileURLToPath(new URL('../../../../../', import.meta.url));
 const ARTIFACTS = join(REPO, 'apps', 'server-core', 'artifacts', 'release');
 const PASSWORD = 'correct horse battery staple';
@@ -245,131 +251,134 @@ function tokenTraces(server: TestServer): string {
 }
 
 describe.skipIf(!enabled)('Private registries through the server core on a real server', () => {
-  it(
-    'pulls a private image with a per-deploy token and leaves no trace of it, even after a failure',
-    async () => {
-      const server = await startTestServer('ubuntu-24.04');
-      servers.push(server);
-      const { hub, transport, sessions, stop } = await installAndConnect(server);
-      cleanups.push(stop);
+  skipWhenNoServers(IMAGES);
+  for (const image of IMAGES) {
+    it(
+      `pulls a private image with a per-deploy token and leaves no trace of it, even after a failure on ${image}`,
+      async () => {
+        const server = await startTestServer(image);
+        servers.push(server);
+        const { hub, transport, sessions, stop } = await installAndConnect(server);
+        cleanups.push(stop);
 
-      let docker = await runJob(
-        hub,
-        await hub.installDocker({ removeConflictingPackages: true }),
-        1_200_000,
-      );
-      for (let attempt = 1; attempt < 3 && docker.final?.state !== 'succeeded'; attempt++) {
-        docker = await runJob(
+        let docker = await runJob(
           hub,
           await hub.installDocker({ removeConflictingPackages: true }),
           1_200_000,
         );
-      }
-      expect(docker.final?.state, docker.log.slice(-40).join('\n')).toBe('succeeded');
-      // The sign-in folder lives in the core's runtime directory, which must be a tmpfs.
-      expect(onServer(server, 'findmnt -T /run/agentmate-core -no FSTYPE')).toBe('tmpfs');
+        for (let attempt = 1; attempt < 3 && docker.final?.state !== 'succeeded'; attempt++) {
+          docker = await runJob(
+            hub,
+            await hub.installDocker({ removeConflictingPackages: true }),
+            1_200_000,
+          );
+        }
+        expect(docker.final?.state, docker.log.slice(-40).join('\n')).toBe('succeeded');
+        // The sign-in folder lives in the core's runtime directory, which must be a tmpfs.
+        expect(onServer(server, 'findmnt -T /run/agentmate-core -no FSTYPE')).toBe('tmpfs');
 
-      // A registry:2 with htpasswd, and the image pushed by the other user from a throwaway config.
-      loadImage(server, 'registry:2');
-      loadImage(server, 'busybox:1.37');
-      onServer(
-        server,
-        'mkdir -p /srv/registry-auth && cat > /srv/registry-auth/htpasswd',
-        `${HTPASSWD}\n`,
-      );
-      onServer(
-        server,
-        'docker run -d --name registry --restart unless-stopped -p 127.0.0.1:5000:5000 -v /srv/registry-auth:/auth -e REGISTRY_AUTH=htpasswd -e REGISTRY_AUTH_HTPASSWD_REALM=e2e -e REGISTRY_AUTH_HTPASSWD_PATH=/auth/htpasswd registry:2',
-      );
-      onServer(
-        server,
-        'for i in $(seq 1 30); do curl -s -o /dev/null http://127.0.0.1:5000/v2/ && break; sleep 1; done',
-      );
-      onServer(
-        server,
-        `export DOCKER_CONFIG=$(mktemp -d) && docker login ${REGISTRY} -u ${PUSHER} --password-stdin && docker tag busybox:1.37 ${IMAGE} && docker push ${IMAGE} && rm -rf "$DOCKER_CONFIG" && docker rmi ${IMAGE}`,
-        PUSH_PASSWORD,
-      );
-      // Without a sign-in the registry refuses the pull.
-      expect(onServer(server, `docker pull ${IMAGE} 2>&1 || true`)).toMatch(
-        /unauthorized|no basic auth/,
-      );
+        // A registry:2 with htpasswd, and the image pushed by the other user from a throwaway config.
+        loadImage(server, 'registry:2');
+        loadImage(server, 'busybox:1.37');
+        onServer(
+          server,
+          'mkdir -p /srv/registry-auth && cat > /srv/registry-auth/htpasswd',
+          `${HTPASSWD}\n`,
+        );
+        onServer(
+          server,
+          'docker run -d --name registry --restart unless-stopped -p 127.0.0.1:5000:5000 -v /srv/registry-auth:/auth -e REGISTRY_AUTH=htpasswd -e REGISTRY_AUTH_HTPASSWD_REALM=e2e -e REGISTRY_AUTH_HTPASSWD_PATH=/auth/htpasswd registry:2',
+        );
+        onServer(
+          server,
+          'for i in $(seq 1 30); do curl -s -o /dev/null http://127.0.0.1:5000/v2/ && break; sleep 1; done',
+        );
+        onServer(
+          server,
+          `export DOCKER_CONFIG=$(mktemp -d) && docker login ${REGISTRY} -u ${PUSHER} --password-stdin && docker tag busybox:1.37 ${IMAGE} && docker push ${IMAGE} && rm -rf "$DOCKER_CONFIG" && docker rmi ${IMAGE}`,
+          PUSH_PASSWORD,
+        );
+        // Without a sign-in the registry refuses the pull.
+        expect(onServer(server, `docker pull ${IMAGE} 2>&1 || true`)).toMatch(
+          /unauthorized|no basic auth/,
+        );
 
-      // The search finds a planted copy, so an empty answer later means there is none.
-      onServer(server, 'cat > /var/tmp/token-canary', TOKEN);
-      expect(tokenTraces(server)).toContain('/var/tmp/token-canary');
-      onServer(server, 'rm -f /var/tmp/token-canary');
-      expect(tokenTraces(server)).toBe('');
+        // The search finds a planted copy, so an empty answer later means there is none.
+        onServer(server, 'cat > /var/tmp/token-canary', TOKEN);
+        expect(tokenTraces(server)).toContain('/var/tmp/token-canary');
+        onServer(server, 'rm -f /var/tmp/token-canary');
+        expect(tokenTraces(server)).toBe('');
 
-      const folder = tempDir('agentmate-registry-system-');
-      const write = (text: string) => {
-        mkdirSync(dirname(join(folder, 'compose.yaml')), { recursive: true });
-        writeFileSync(join(folder, 'compose.yaml'), text);
-      };
-      write(compose(IMAGE));
-      const sent: string[][] = [];
-      const stacks = new DeployStacks({
-        links: { call: (_serverId, work) => work(hub) },
-        roles: () => ['owner'],
-        http: async (_serverId, work) =>
-          work(new CoreHttpClient(transport), await sessions.accessToken('srv')),
-        source: {
-          project: async () => ({ id: 'p1', name: 'Private', folderPath: folder }) as Project,
-          index: async (root) => ({ root, files: ['compose.yaml'], truncated: false }),
-          environment: async () => ({ id: 'e1', name: 'Production', files: [], entries: [] }),
-        },
-        pack: buildContextTarball,
-        registryAuths: async (_serverId, _stackId, registries) => {
-          sent.push(registries);
-          return registries.includes(REGISTRY)
-            ? [{ registry: REGISTRY, username: PULLER, secret: TOKEN }]
-            : [];
-        },
-      });
-      const source = { projectId: 'p1', composePath: 'compose.yaml', environmentId: 'e1' };
-      const preview = await stacks.preview(source);
-      const first = await stacks.create({
-        ...source,
-        serverId: 'srv',
-        name: 'private',
-        proxiedServices: ['web'],
-        acknowledgedRisks: preview.requiresAcknowledgment,
-      });
-      expect(first.revision.state, first.revision.error).toBe('ready');
+        const folder = tempDir('agentmate-registry-system-');
+        const write = (text: string) => {
+          mkdirSync(dirname(join(folder, 'compose.yaml')), { recursive: true });
+          writeFileSync(join(folder, 'compose.yaml'), text);
+        };
+        write(compose(IMAGE));
+        const sent: string[][] = [];
+        const stacks = new DeployStacks({
+          links: { call: (_serverId, work) => work(hub) },
+          roles: () => ['owner'],
+          http: async (_serverId, work) =>
+            work(new CoreHttpClient(transport), await sessions.accessToken('srv')),
+          source: {
+            project: async () => ({ id: 'p1', name: 'Private', folderPath: folder }) as Project,
+            index: async (root) => ({ root, files: ['compose.yaml'], truncated: false }),
+            environment: async () => ({ id: 'e1', name: 'Production', files: [], entries: [] }),
+          },
+          pack: buildContextTarball,
+          registryAuths: async (_serverId, _stackId, registries) => {
+            sent.push(registries);
+            return registries.includes(REGISTRY)
+              ? [{ registry: REGISTRY, username: PULLER, secret: TOKEN }]
+              : [];
+          },
+        });
+        const source = { projectId: 'p1', composePath: 'compose.yaml', environmentId: 'e1' };
+        const preview = await stacks.preview(source);
+        const first = await stacks.create({
+          ...source,
+          serverId: 'srv',
+          name: 'private',
+          proxiedServices: ['web'],
+          acknowledgedRisks: preview.requiresAcknowledgment,
+        });
+        expect(first.revision.state, first.revision.error).toBe('ready');
 
-      const deployed = await runJob(hub, await stacks.deploy('srv', first.stack.id, 1), 900_000);
-      expect(deployed.final?.state, deployed.log.slice(-60).join('\n')).toBe('succeeded');
-      expect(sent).toEqual([[REGISTRY]]);
-      expect(deployed.log.join('\n')).toContain(`Signing in to ${REGISTRY} as ${PULLER}`);
-      expect(deployed.log.join('\n')).not.toContain(TOKEN);
-      expect(onServer(server, `docker image inspect -f '{{.Id}}' ${IMAGE}`)).toMatch(/^sha256:/);
-      expect(onServer(server, 'ls -A /run/agentmate-core/registry-auth 2>/dev/null || true')).toBe(
-        '',
-      );
-      expect(tokenTraces(server)).toBe('');
+        const deployed = await runJob(hub, await stacks.deploy('srv', first.stack.id, 1), 900_000);
+        expect(deployed.final?.state, deployed.log.slice(-60).join('\n')).toBe('succeeded');
+        expect(sent).toEqual([[REGISTRY]]);
+        expect(deployed.log.join('\n')).toContain(`Signing in to ${REGISTRY} as ${PULLER}`);
+        expect(deployed.log.join('\n')).not.toContain(TOKEN);
+        expect(onServer(server, `docker image inspect -f '{{.Id}}' ${IMAGE}`)).toMatch(/^sha256:/);
+        expect(
+          onServer(server, 'ls -A /run/agentmate-core/registry-auth 2>/dev/null || true'),
+        ).toBe('');
+        expect(tokenTraces(server)).toBe('');
 
-      // A deploy that fails after signing in (the tag does not exist) leaves nothing either.
-      write(compose(`${REGISTRY}/private/web:missing`));
-      const second = await stacks.upload({
-        ...source,
-        serverId: 'srv',
-        stackId: first.stack.id,
-        proxiedServices: ['web'],
-        acknowledgedRisks: preview.requiresAcknowledgment,
-      });
-      const failed = await runJob(
-        hub,
-        await stacks.deploy('srv', first.stack.id, second.revision.number),
-        900_000,
-      );
-      expect(failed.final?.state, failed.log.slice(-60).join('\n')).toBe('failed');
-      expect(failed.log.join('\n')).toContain(`Signing in to ${REGISTRY}`);
-      expect(failed.log.join('\n')).not.toContain(TOKEN);
-      expect(onServer(server, 'ls -A /run/agentmate-core/registry-auth 2>/dev/null || true')).toBe(
-        '',
-      );
-      expect(tokenTraces(server)).toBe('');
-    },
-    TEST_TIMEOUT_MS,
-  );
+        // A deploy that fails after signing in (the tag does not exist) leaves nothing either.
+        write(compose(`${REGISTRY}/private/web:missing`));
+        const second = await stacks.upload({
+          ...source,
+          serverId: 'srv',
+          stackId: first.stack.id,
+          proxiedServices: ['web'],
+          acknowledgedRisks: preview.requiresAcknowledgment,
+        });
+        const failed = await runJob(
+          hub,
+          await stacks.deploy('srv', first.stack.id, second.revision.number),
+          900_000,
+        );
+        expect(failed.final?.state, failed.log.slice(-60).join('\n')).toBe('failed');
+        expect(failed.log.join('\n')).toContain(`Signing in to ${REGISTRY}`);
+        expect(failed.log.join('\n')).not.toContain(TOKEN);
+        expect(
+          onServer(server, 'ls -A /run/agentmate-core/registry-auth 2>/dev/null || true'),
+        ).toBe('');
+        expect(tokenTraces(server)).toBe('');
+      },
+      TEST_TIMEOUT_MS,
+    );
+  }
 });

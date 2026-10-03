@@ -14,11 +14,14 @@ import { DeployService } from './service';
 import { DeployState } from './state';
 import { DeploySystem } from './system';
 import {
+  DISTRO_IMAGES,
+  skipWhenNoServers,
   startTestServer,
   systemTestsEnabled,
   TEST_LOGINS,
   type TestServer,
   type TestServerImage,
+  testServerImages,
 } from './testing/testServers';
 
 /**
@@ -28,6 +31,7 @@ import {
  */
 
 const enabled = systemTestsEnabled();
+const onUbuntu = testServerImages(['ubuntu-24.04'], ['ubuntu-24.04']).length > 0;
 const REPO = fileURLToPath(new URL('../../../../../', import.meta.url));
 const ARTIFACTS = join(REPO, 'apps', 'server-core', 'artifacts', 'release');
 const UNIT = join(REPO, 'apps', 'server-core', 'packaging', 'agentmate-core.service');
@@ -164,8 +168,12 @@ async function freshInstall(image: TestServerImage, login: Login, options = {}) 
   return { server, service, pool, events, result, health };
 }
 
+/** Ubuntu and Rocky on every `[e2e]` push; the nightly matrix adds Debian. */
+const INSTALL_IMAGES = testServerImages(DISTRO_IMAGES, ['ubuntu-24.04', 'rocky-9']);
+
 describe.skipIf(!enabled)('installing the server core on real servers', () => {
-  for (const image of ['ubuntu-24.04', 'rocky-9'] as const) {
+  skipWhenNoServers(INSTALL_IMAGES);
+  for (const image of INSTALL_IMAGES) {
     for (const login of ['root', 'deployer'] as const) {
       it(
         `goes from nothing to a core that answers on ${image} as ${login}`,
@@ -192,7 +200,10 @@ describe.skipIf(!enabled)('installing the server core on real servers', () => {
       );
     }
   }
+});
 
+// The rest checks the core itself rather than the distro, so it stays on Ubuntu.
+describe.skipIf(!enabled || !onUbuntu)('the server core on a real Ubuntu server', () => {
   it(
     'creates the owner, enrolls this computer and signs in through the tunnel and the hub',
     async () => {

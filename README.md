@@ -119,6 +119,7 @@ Everything else is support around that, so you don't leave the app to go and get
 - **Remote**: control another AgentMate over your local network, AnyDesk-style, over WebSockets, including from the companion mobile app, with a remote file manager and resumable transfers.
 - **SSH**: saved servers in the vault, terminal sessions in the drawer, and an AI task runner that prompts an agent in a RUN / FINISHED / NEEDS_INPUT loop, executes the commands in the live session, and stops for your approval on anything risky.
 - **RDP**: saved Remote Desktop servers and full sessions in their own window, built on Devolutions Iron Remote Desktop.
+- **Deploy**: a server panel for your own Linux servers, from install to apps, containers, websites, certificates, the firewall and an AI that can look at logs. See [Deploy](#deploy).
 
 ### The rest
 
@@ -189,6 +190,52 @@ Skill security checks the instructions you hand an agent. The project Security t
 
 AgentMate checks the prerequisites before a run and walks you through whatever is missing. Every scanner's output is normalized into one report, so severity, scoring, and filtering work the same whichever one you ran. Findings are redacted before they are stored, per-scanner logs are kept with the run, and a scan keeps going in the main process if you navigate away, so a reopened tab rejoins it instead of starting over. CodeQL is downloaded, verified, and unpacked into AgentMate's own tools folder when it is not already on PATH. Any finding can be copied to an agent as a prompt.
 
+## Deploy
+
+Deploy turns a Linux server you can SSH into into one you can manage from AgentMate, a bit like aaPanel but without a web panel open to the internet. Pick a saved SSH server, click Install, and AgentMate puts a small service on it (the server core, a .NET 10 program under systemd). From then on the Deploy page shows that server's sections:
+
+| Section | What you do there |
+|---|---|
+| Overview | Live CPU, memory, disk and network, a health score, alerts, package updates and reboots |
+| Apps | Deploy a project's compose file with its environment, follow each deploy step by step, roll back to an earlier revision, and sign in to private registries (GitHub Packages, Docker Hub, your own) |
+| Containers | Docker's containers, images, volumes and networks, with live stats, logs and a console. Docker itself installs from here |
+| App Store | Eighteen ready-made apps (databases, WordPress, monitoring and more), pinned by image digest, installed from one sheet |
+| Websites | nginx sites and TCP or UDP proxies in front of your apps, checked with `nginx -t` before they go live, and Let's Encrypt certificates that renew themselves |
+| Firewall | ufw or firewalld rules, a list of containers that publish ports past the firewall with a "make private" fix, and a change that rolls itself back unless you confirm it |
+| Logs | A problems feed (crash loops, failed deploys, expiring certificates, exposed ports), any log on the server, and the Deploy AI drawer to diagnose a problem |
+| Security | A checklist with a score and previewed fixes, users and roles, devices and sessions, the audit trail, encrypted backups, and the connection (SSH or direct TLS) |
+
+Cloudflare has its own page: connect an account with a scoped API token, manage DNS records, zone settings and WAF rules, issue Origin CA certificates for a server, and lock a server's web ports to Cloudflare's addresses.
+
+**Security model, in short**
+
+- **No open port.** The core listens on a Unix socket only reachable by root and its own group. The app reaches it through your SSH connection, so the server's attack surface does not grow. Direct TLS (with a client certificate per computer) is an opt-in for later.
+- **Every computer is enrolled.** Each AgentMate install has its own device key, sealed on the computer. Signing in takes that key's signature plus the account password, and two-factor codes if they are on. Access tokens last 15 minutes and there is no refresh secret to steal.
+- **Roles and an audit trail.** Owner, Admin, Operator and Viewer, checked by the core on every request and hub call. Sensitive actions ask for the password again, and every change lands in an audit trail that is chained so edits show.
+- **Changes you can take back.** Firewall and SSH changes are previewed, then rolled back by a systemd timer unless you confirm them over a fresh SSH connection, so a mistake does not lock you out.
+- **The AI cannot run anything risky on its own.** The Deploy AI may run a short list of read-only checks unattended. Anything else needs your approval, signed with this computer's key over the exact command, and the core refuses commands without one. Logs reach the model as untrusted data, with secrets taken out.
+- **Secrets stay where they belong.** Registry tokens travel per deploy into a memory-only folder that is wiped afterwards, compose environment values never leave the server in API answers, and the Cloudflare account token stays on your computer (a server only gets a token scoped to one zone, and only if you ask for DNS checks).
+
+**Supported servers**
+
+Ubuntu 22.04, 24.04 and 26.04, Debian 12 and 13, and RHEL, Rocky, AlmaLinux and CentOS Stream 9 and 10, on x64 or arm64, with systemd. The test servers cover Ubuntu 24.04, Debian 13 and Rocky 9, with ufw and firewalld variants (see `apps/server-core/test-servers`).
+
+**Try it without a server**
+
+The DevHost is the real core on `127.0.0.1` with a pretend machine behind it (moving metrics, Docker with a few projects, nginx, a firewall, updates). It needs the .NET 10 SDK and works on Windows and macOS too:
+
+```bash
+# Terminal 1: start the DevHost on port 7810
+dotnet run --project apps/server-core/src/AgentMate.ServerCore.DevHost
+
+# Terminal 2: start the app pointed at it (development builds only)
+AGENTMATE_DEPLOY_DEV_CORE=7810 pnpm dev
+```
+
+Open Deploy, pick DevHost, and sign in with its development password, `agentmate-local-password`. Packaged builds ignore `AGENTMATE_DEPLOY_DEV_CORE`.
+
+The delivery plan, each epic's notes and what is still unverified are in [`docs/`](docs/DELIVERY_STATUS.md).
+
 ## Tech stack
 
 | Layer | Stack |
@@ -217,6 +264,22 @@ AgentMate/
 │   ├── core/        Shared business logic (@agentmat/core)
 │   └── protocol/    Shared types and wire protocol (@agentmat/protocol)
 └── patches/         pnpm patches for third-party packages
+```
+
+The Deploy section spans three places:
+
+```
+apps/server-core/
+├── src/AgentMate.ServerCore/          The server core: REST and SignalR API, identity, Docker, compose,
+│                                      nginx, ACME, firewall, security checklist, backups, exec for the AI
+├── src/AgentMate.ServerCore.DevHost/  The core on loopback with a pretend machine, for development and e2e
+├── tests/                             xUnit v3: the core in memory, and system tests that need Linux
+├── test-servers/                      Dockerfiles for systemd test servers (Ubuntu, Debian, Rocky, ufw,
+│                                      firewalld) and the nginx harness
+└── packaging/                         The systemd unit
+apps/desktop/src/main/deploy/          SSH tunnel and install, the live hub link, IPC, and the system tests
+                                       (`*.int.test.ts`) that install on the test servers
+apps/desktop/src/renderer/src/components/deploy/   The Deploy screens, one folder per section
 ```
 
 `apps/server-core` is a .NET solution rather than a pnpm package, so it has no `package.json`; the root `server-core:*` scripts drive it. Its C# contracts are the source of truth for the desktop's typed client: `pnpm server-core:contracts` regenerates `apps/desktop/src/shared/deploy/protocol/generated` with Tapper and TypedSignalR.Client.TypeScript, and CI fails when the committed TypeScript is out of date.
@@ -274,7 +337,8 @@ Tests live next to the code they cover (`foo.ts` has `foo.test.ts` beside it). E
 | End to end | `apps/desktop/e2e` | Playwright, driving the built Electron app |
 | Mobile | `apps/mobile` | Jest (`jest-expo`) plus React Native Testing Library |
 | Server core | `apps/server-core/tests/AgentMate.ServerCore.Tests` | xUnit v3 on Microsoft.Testing.Platform, with the real web host in memory |
-| Server core system | `apps/server-core/tests/AgentMate.ServerCore.SystemTests` | xUnit v3, Linux with Docker only (CI's `[e2e]` job) |
+| Server core system | `apps/server-core/tests/AgentMate.ServerCore.SystemTests` | xUnit v3, Linux with Docker only (the nightly workflow) |
+| Deploy system | `apps/desktop/src/main/deploy/*.int.test.ts` | Vitest against systemd test servers in Docker, with the published core (`AGENTMATE_SYSTEM_TESTS=1`) |
 
 The desktop suite is split into two Vitest projects, configured in `apps/desktop/vitest.config.mts`:
 
@@ -292,11 +356,17 @@ End-to-end runs build the app into `out-e2e/` so a running `electron-vite dev` k
 
 Tests need Node 22.13 or newer, because the SQLite stand-in uses `node:sqlite`.
 
+The Deploy system tests boot whole Linux machines, so they only run when asked. They need Docker with Linux containers and a published core: run `pnpm server-core:publish linux-x64`, then `AGENTMATE_SYSTEM_TESTS=1 pnpm --filter @agentmat/desktop exec vitest run src/main/deploy/deploy.int.test.ts` (or any other `*.int.test.ts`). Each test has its default servers; `AGENTMATE_TEST_SERVER_IMAGES=debian-13` (comma separated) runs every test that supports them on those instead.
+
 ### CI
 
-Every push and pull request runs [`.github/workflows/ci.yml`](.github/workflows/ci.yml): Biome (formatting, lint, import order), the two deprecation gates above, a type-check of every package, a real build of the desktop app, and the test suites in [`.github/workflows/test.yml`](.github/workflows/test.yml). That reusable workflow has four jobs: unit and integration with coverage, the server core (locked restore, `dotnet format`, build, tests, and a check that the generated TypeScript contracts are current), the mobile Jest suite, and the end-to-end matrix on Linux, Windows and macOS. The E2E matrix is the slow one, so it runs when the commit message carries `[e2e]` or when you ask for it on a manual dispatch. `All checks passed` is the single status to require in branch protection. Running `pnpm check && pnpm check:deprecated-code && pnpm check:deprecated-deps && pnpm typecheck && pnpm build && pnpm test:unit` reproduces most of it locally.
+Every push and pull request runs [`.github/workflows/ci.yml`](.github/workflows/ci.yml): Biome (formatting, lint, import order), the two deprecation gates above, a type-check of every package, a real build of the desktop app, and the test suites in [`.github/workflows/test.yml`](.github/workflows/test.yml). That reusable workflow has four jobs: unit and integration with coverage, the server core (locked restore, `dotnet format`, build, tests, and a check that the generated TypeScript contracts are current), the mobile Jest suite, and the end-to-end matrix on Linux, Windows and macOS. The E2E matrix and the Deploy system tests on the Ubuntu and Rocky test servers are the slow ones, so they run when the commit message carries `[e2e]` or when you ask for them on a manual dispatch. `All checks passed` is the single status to require in branch protection. Running `pnpm check && pnpm check:deprecated-code && pnpm check:deprecated-deps && pnpm typecheck && pnpm build && pnpm test:unit` reproduces most of it locally.
 
-A deprecated dependency you cannot drop yet goes in [`.github/deprecated-deps-allowlist.json`](.github/deprecated-deps-allowlist.json) with a reason for keeping it. Releases are built and published by [`.github/workflows/cd.yml`](.github/workflows/cd.yml) when a `v*.*.*` tag is pushed, and it runs the same test workflow first, so a failing test cannot ship.
+A deprecated dependency you cannot drop yet goes in [`.github/deprecated-deps-allowlist.json`](.github/deprecated-deps-allowlist.json) with a reason for keeping it.
+
+The full server matrix runs in [`.github/workflows/nightly.yml`](.github/workflows/nightly.yml), every night and on a manual dispatch, never on a push: every Deploy system test on Ubuntu 24.04, Debian 13 and Rocky 9 and on the ufw and firewalld servers, one server per job, plus the server core's nginx and Pebble system tests.
+
+Releases are built and published by [`.github/workflows/cd.yml`](.github/workflows/cd.yml) when a `v*.*.*` tag is pushed, and it runs the same test workflow first, so a failing test cannot ship.
 
 ## License
 

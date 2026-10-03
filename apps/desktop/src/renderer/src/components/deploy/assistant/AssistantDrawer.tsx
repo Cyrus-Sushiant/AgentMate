@@ -138,7 +138,7 @@ export function AssistantDrawer({ server }: { server: DeployServer }): React.JSX
               <button
                 type="button"
                 onClick={clearDraft}
-                className="text-xs text-muted-foreground underline-offset-2 hover:underline"
+                className="text-xs text-muted-foreground underline-offset-2 hover:underline cursor-pointer rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 Clear
               </button>

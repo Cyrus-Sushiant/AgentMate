@@ -155,6 +155,20 @@ public sealed class AssistantHubTests
     }
 
     [Fact]
+    public async Task On_the_DevHost_an_approved_restart_brings_the_crash_looping_container_back()
+    {
+        await using var connected = await ConnectAsync();
+        var engine = connected.Harness.Services.GetRequiredService<InMemoryDockerEngine>().WithCrashLoop();
+        const string command = "docker restart " + InMemoryDockerEngine.CrashLoopContainer;
+
+        var output = await ExecAsync(connected.Hub, new ExecRequest(command, FromAssistant: true, Approval: await ApproveAsync(connected, command)));
+
+        Assert.True(output[^1].Ended);
+        var sender = Assert.Single(await engine.ListContainersAsync(Cancel), c => c.Summary.Name == InMemoryDockerEngine.CrashLoopContainer);
+        Assert.Equal(ContainerState.Running, sender.Summary.State);
+    }
+
+    [Fact]
     public async Task A_wrong_signature_a_replayed_nonce_and_a_changed_command_are_all_refused()
     {
         await using var connected = await ConnectAsync();

@@ -35,8 +35,9 @@
 }
 
 /* Light theme mirrors the dark design language: a flat neutral canvas, gray
-   boxes one step darker than it, and the same green accent (deepened for
-   contrast against light surfaces). */
+   boxes one step darker than it, and the same green accent. The accent and the
+   status colours are deepened until small text in them reads at 4.5:1 (WCAG AA)
+   on the gray cards, and white text on them does too. */
 :root {
   --background: 0 0% 96%;
   --foreground: 0 0% 9%;
@@ -44,7 +45,7 @@
   --card-foreground: 0 0% 9%;
   --popover: 0 0% 94%;
   --popover-foreground: 0 0% 9%;
-  --primary: 150 100% 30%;
+  --primary: 150 100% 23%;
   --primary-foreground: 0 0% 100%;
   --secondary: 0 0% 88%;
   --secondary-foreground: 0 0% 12%;
@@ -52,15 +53,15 @@
   --muted-foreground: 0 0% 40%;
   --accent: 0 0% 84%;
   --accent-foreground: 0 0% 12%;
-  --destructive: 4 78% 50%;
+  --destructive: 4 78% 41%;
   --destructive-foreground: 0 0% 100%;
-  --success: 150 100% 27%;
+  --success: 150 100% 22%;
   --success-foreground: 0 0% 100%;
-  --warning: 38 92% 40%;
+  --warning: 38 92% 27%;
   --warning-foreground: 0 0% 100%;
   --border: 0 0% 83%;
   --input: 0 0% 83%;
-  --ring: 150 100% 30%;
+  --ring: 150 100% 23%;
   --radius: 0.625rem;
 }
 
@@ -82,8 +83,8 @@
   --muted-foreground: 0 0% 62%;
   --accent: 0 0% 18%;
   --accent-foreground: 0 0% 95%;
-  --destructive: 4 72% 58%;
-  --destructive-foreground: 0 0% 100%;
+  --destructive: 4 72% 60%;
+  --destructive-foreground: 0 0% 4%;
   --success: 150 100% 42%;
   --success-foreground: 0 0% 4%;
   --warning: 38 92% 50%;

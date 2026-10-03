@@ -64,19 +64,17 @@ function TopBar(): React.JSX.Element {
     Object.values(s.sessions).some((session) => isSshAgentWaitingOnUser(session)),
   );
 
+  const sidebarLabel =
+    sidebarMode === 'expanded'
+      ? 'Collapse sidebar'
+      : sidebarMode === 'collapsed'
+        ? 'Hide sidebar'
+        : 'Show sidebar';
   return (
     <div className="flex h-14 shrink-0 items-center justify-between gap-3 border-b border-border/80 px-4">
       <div className="flex min-w-0 items-center gap-3">
-        <SimpleTooltip
-          label={
-            sidebarMode === 'expanded'
-              ? 'Collapse sidebar'
-              : sidebarMode === 'collapsed'
-                ? 'Hide sidebar'
-                : 'Show sidebar'
-          }
-        >
-          <Button variant="ghost" size="icon" onClick={cycleSidebarMode}>
+        <SimpleTooltip label={sidebarLabel}>
+          <Button variant="ghost" size="icon" aria-label={sidebarLabel} onClick={cycleSidebarMode}>
             {sidebarMode === 'hidden' ? (
               <AnglesRight className="h-4 w-4" />
             ) : (
@@ -159,7 +157,7 @@ function TopBar(): React.JSX.Element {
           </Button>
         </SimpleTooltip>
         <SimpleTooltip label="Ask AI">
-          <Button variant="ghost" size="icon" onClick={openAskAi}>
+          <Button variant="ghost" size="icon" aria-label="Ask AI" onClick={openAskAi}>
             <MessageSquare className="h-4 w-4" />
           </Button>
         </SimpleTooltip>

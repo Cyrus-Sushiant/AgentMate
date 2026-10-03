@@ -19,10 +19,13 @@ import { streamLocalTransport } from './connection/transport';
 import { DeployService } from './service';
 import { DeployState } from './state';
 import {
+  DISTRO_IMAGES,
+  skipWhenNoServers,
   startTestServer,
   systemTestsEnabled,
   TEST_LOGINS,
   type TestServer,
+  testServerImages,
 } from './testing/testServers';
 
 /**
@@ -35,6 +38,9 @@ import {
  */
 
 const enabled = systemTestsEnabled();
+
+/** Ubuntu on every `[e2e]` push; the nightly matrix runs it on each distro. */
+const IMAGES = testServerImages(DISTRO_IMAGES, ['ubuntu-24.04']);
 const REPO = fileURLToPath(new URL('../../../../../', import.meta.url));
 const ARTIFACTS = join(REPO, 'apps', 'server-core', 'artifacts', 'release');
 const SETUP_TIMEOUT_MS = 900_000;
@@ -99,184 +105,197 @@ const execUnits = () =>
   server?.run("systemctl list-units --all --no-legend --plain 'agentmate-exec-*' || true") ?? '';
 
 describe.skipIf(!enabled)('StreamExec and the journal on a real server', () => {
-  beforeAll(async () => {
-    server = await startTestServer('ubuntu-24.04');
-    const target = server;
-    const { username, password } = TEST_LOGINS.root;
-    pool = new SshConnectionPool({
-      endpoint: async () => ({
-        host: target.host,
-        port: target.port,
-        username,
-        authMethod: 'password',
-        password,
-      }),
-      trustHostKey: async () => undefined,
-    });
-    let file: unknown = null;
-    const state = new DeployState({
-      read: async () => file,
-      write: async (value) => {
-        file = value;
-      },
-    });
-    const unseal = async (envelope: { ciphertext: string }) =>
-      Buffer.from(envelope.ciphertext, 'base64').toString();
-    const service = new DeployService({
-      servers: async () => [
-        {
-          id: 'srv',
-          nickname: 'Test server',
-          host: target.host,
-          port: target.port,
-          username: 'root',
-          authMethod: 'password',
-          secretEnvelope: 'saved',
-        },
-      ],
-      pool,
-      state,
-      releases: localArtifactSource(ARTIFACTS),
-      seal: async (plaintext) => ({
-        mode: 'safeStorage',
-        ciphertext: Buffer.from(plaintext).toString('base64'),
-      }),
-      unseal,
-      deviceName: () => 'Integration test',
-      availableVersion: async () => '0.0.0-dev',
-      devCorePort: null,
-      progress: () => undefined,
-    });
-    const result = await service.install({
-      serverId: 'srv',
-      sudoPassword: null,
-      account: { userName: 'maria', password: PASSWORD },
-    });
-    expect(result.enrollmentError).toBeUndefined();
-    const owned = pool;
-    const sessions = new CoreSessions({
-      state,
-      unseal,
-      withCore: async (serverId, work) => {
-        const lease = await owned.acquire(serverId);
-        try {
-          return await work(new CoreHttpClient(streamLocalTransport(lease.connection)));
-        } finally {
+  skipWhenNoServers(IMAGES);
+  for (const image of IMAGES) {
+    describe(image, () => {
+      beforeAll(async () => {
+        await stopHub();
+        pool?.closeAll();
+        server?.stop();
+        server = await startTestServer(image);
+        const target = server;
+        const { username, password } = TEST_LOGINS.root;
+        pool = new SshConnectionPool({
+          endpoint: async () => ({
+            host: target.host,
+            port: target.port,
+            username,
+            authMethod: 'password',
+            password,
+          }),
+          trustHostKey: async () => undefined,
+        });
+        let file: unknown = null;
+        const state = new DeployState({
+          read: async () => file,
+          write: async (value) => {
+            file = value;
+          },
+        });
+        const unseal = async (envelope: { ciphertext: string }) =>
+          Buffer.from(envelope.ciphertext, 'base64').toString();
+        const service = new DeployService({
+          servers: async () => [
+            {
+              id: 'srv',
+              nickname: 'Test server',
+              host: target.host,
+              port: target.port,
+              username: 'root',
+              authMethod: 'password',
+              secretEnvelope: 'saved',
+            },
+          ],
+          pool,
+          state,
+          releases: localArtifactSource(ARTIFACTS),
+          seal: async (plaintext) => ({
+            mode: 'safeStorage',
+            ciphertext: Buffer.from(plaintext).toString('base64'),
+          }),
+          unseal,
+          deviceName: () => 'Integration test',
+          availableVersion: async () => '0.0.0-dev',
+          devCorePort: null,
+          progress: () => undefined,
+        });
+        const result = await service.install({
+          serverId: 'srv',
+          sudoPassword: null,
+          account: { userName: 'maria', password: PASSWORD },
+        });
+        expect(result.enrollmentError).toBeUndefined();
+        const owned = pool;
+        const sessions = new CoreSessions({
+          state,
+          unseal,
+          withCore: async (serverId, work) => {
+            const lease = await owned.acquire(serverId);
+            try {
+              return await work(new CoreHttpClient(streamLocalTransport(lease.connection)));
+            } finally {
+              lease.release();
+            }
+          },
+        });
+        const lease = await pool.acquire('srv');
+        const connection = createCoreHubConnection(streamLocalTransport(lease.connection), () =>
+          sessions.accessToken('srv'),
+        );
+        await connection.start();
+        hub = coreHub(connection);
+        stopHub = async () => {
+          await connection.stop().catch(() => undefined);
           lease.release();
-        }
-      },
+        };
+        const sign = approvalSigner({ state, unseal });
+        approve = (command) => sign('srv', hub, command);
+      }, SETUP_TIMEOUT_MS);
+
+      it(
+        'runs an allowlisted check in a real transient unit and streams its output and exit code',
+        async () => {
+          const items = await collect(hub.streamExec({ command: 'df -h /', fromAssistant: false }));
+          expect(text(items)).toMatch(/Filesystem\s+Size\s+Used/);
+          expect(items.at(-1)).toMatchObject({ ended: true, exitCode: 0, timedOut: false });
+          // systemd started the command as a unit of its own and collected it afterwards.
+          expect(
+            server?.run("journalctl --no-pager -q -o cat | grep -c 'agentmate-exec-' || true"),
+          ).not.toBe('0');
+          expect(execUnits()).toBe('');
+
+          const failing = await collect(
+            hub.streamExec({ command: 'df -h /no-such-folder', fromAssistant: false }),
+          );
+          expect(failing.at(-1)?.exitCode).toBe(1);
+        },
+        TEST_TIMEOUT_MS,
+      );
+
+      it(
+        'refuses a command without an approval, and nothing runs',
+        async () => {
+          server?.run('rm -f /tmp/e09-unapproved');
+          for (const fromAssistant of [false, true]) {
+            await expect(
+              collect(hub.streamExec({ command: 'touch /tmp/e09-unapproved', fromAssistant })),
+            ).rejects.toThrow(NEEDS_APPROVAL);
+          }
+          expect(server?.run('test -e /tmp/e09-unapproved && echo there || echo absent')).toBe(
+            'absent',
+          );
+        },
+        TEST_TIMEOUT_MS,
+      );
+
+      it(
+        'runs a signed command once and refuses the same nonce again',
+        async () => {
+          server?.run('rm -f /tmp/e09-count');
+          const command = 'echo run >> /tmp/e09-count && echo signed';
+          const approval = await approve(command);
+          const items = await collect(hub.streamExec({ command, fromAssistant: true, approval }));
+          expect(text(items)).toContain('signed');
+          expect(items.at(-1)?.exitCode).toBe(0);
+
+          await expect(
+            collect(hub.streamExec({ command, fromAssistant: true, approval })),
+          ).rejects.toThrow(APPROVAL_INVALID);
+          const other = await approve('true');
+          await expect(
+            collect(hub.streamExec({ command, fromAssistant: true, approval: other })),
+          ).rejects.toThrow(APPROVAL_INVALID);
+          expect(server?.run('wc -l < /tmp/e09-count')).toBe('1');
+        },
+        TEST_TIMEOUT_MS,
+      );
+
+      it(
+        'stopping a command ends its whole unit, children included',
+        async () => {
+          const command = 'sleep 301 & sleep 302';
+          const approval = await approve(command);
+          const subscription = hub
+            .streamExec({ command, fromAssistant: true, approval, timeoutSeconds: 600 })
+            .subscribe({
+              next: () => undefined,
+              complete: () => undefined,
+              error: () => undefined,
+            });
+          await waitFor('both sleeps to run', () =>
+            /sleep 301[\s\S]*sleep 302|sleep 302[\s\S]*sleep 301/.test(
+              server?.run("pgrep -a -f 'sleep 30[12]' || true") ?? '',
+            ),
+          );
+          expect(execUnits()).toContain('agentmate-exec-');
+
+          subscription.dispose();
+          await waitFor(
+            'the unit and every process in it to go',
+            () =>
+              (server?.run("pgrep -f 'sleep 30[12]' || true") ?? 'x') === '' && execUnits() === '',
+          );
+        },
+        TEST_TIMEOUT_MS,
+      );
+
+      it(
+        "reads a unit's journal from journalctl",
+        async () => {
+          const batches = await collect<JournalBatch>(
+            hub.streamJournal({ unit: 'agentmate-core.service', lines: 50, follow: false }),
+          );
+          const lines = batches.flatMap((batch) => batch.lines);
+          expect(lines.length).toBeGreaterThan(0);
+          expect(lines.every((line) => line.atUnixMs > 1_600_000_000_000)).toBe(true);
+          expect(lines.some((line) => line.text.length > 0)).toBe(true);
+
+          await expect(collect(hub.streamJournal({ unit: '-f', follow: false }))).rejects.toThrow(
+            /systemd unit/,
+          );
+        },
+        TEST_TIMEOUT_MS,
+      );
     });
-    const lease = await pool.acquire('srv');
-    const connection = createCoreHubConnection(streamLocalTransport(lease.connection), () =>
-      sessions.accessToken('srv'),
-    );
-    await connection.start();
-    hub = coreHub(connection);
-    stopHub = async () => {
-      await connection.stop().catch(() => undefined);
-      lease.release();
-    };
-    const sign = approvalSigner({ state, unseal });
-    approve = (command) => sign('srv', hub, command);
-  }, SETUP_TIMEOUT_MS);
-
-  it(
-    'runs an allowlisted check in a real transient unit and streams its output and exit code',
-    async () => {
-      const items = await collect(hub.streamExec({ command: 'df -h /', fromAssistant: false }));
-      expect(text(items)).toMatch(/Filesystem\s+Size\s+Used/);
-      expect(items.at(-1)).toMatchObject({ ended: true, exitCode: 0, timedOut: false });
-      // systemd started the command as a unit of its own and collected it afterwards.
-      expect(
-        server?.run("journalctl --no-pager -q -o cat | grep -c 'agentmate-exec-' || true"),
-      ).not.toBe('0');
-      expect(execUnits()).toBe('');
-
-      const failing = await collect(
-        hub.streamExec({ command: 'df -h /no-such-folder', fromAssistant: false }),
-      );
-      expect(failing.at(-1)?.exitCode).toBe(1);
-    },
-    TEST_TIMEOUT_MS,
-  );
-
-  it(
-    'refuses a command without an approval, and nothing runs',
-    async () => {
-      server?.run('rm -f /tmp/e09-unapproved');
-      for (const fromAssistant of [false, true]) {
-        await expect(
-          collect(hub.streamExec({ command: 'touch /tmp/e09-unapproved', fromAssistant })),
-        ).rejects.toThrow(NEEDS_APPROVAL);
-      }
-      expect(server?.run('test -e /tmp/e09-unapproved && echo there || echo absent')).toBe(
-        'absent',
-      );
-    },
-    TEST_TIMEOUT_MS,
-  );
-
-  it(
-    'runs a signed command once and refuses the same nonce again',
-    async () => {
-      server?.run('rm -f /tmp/e09-count');
-      const command = 'echo run >> /tmp/e09-count && echo signed';
-      const approval = await approve(command);
-      const items = await collect(hub.streamExec({ command, fromAssistant: true, approval }));
-      expect(text(items)).toContain('signed');
-      expect(items.at(-1)?.exitCode).toBe(0);
-
-      await expect(
-        collect(hub.streamExec({ command, fromAssistant: true, approval })),
-      ).rejects.toThrow(APPROVAL_INVALID);
-      const other = await approve('true');
-      await expect(
-        collect(hub.streamExec({ command, fromAssistant: true, approval: other })),
-      ).rejects.toThrow(APPROVAL_INVALID);
-      expect(server?.run('wc -l < /tmp/e09-count')).toBe('1');
-    },
-    TEST_TIMEOUT_MS,
-  );
-
-  it(
-    'stopping a command ends its whole unit, children included',
-    async () => {
-      const command = 'sleep 301 & sleep 302';
-      const approval = await approve(command);
-      const subscription = hub
-        .streamExec({ command, fromAssistant: true, approval, timeoutSeconds: 600 })
-        .subscribe({ next: () => undefined, complete: () => undefined, error: () => undefined });
-      await waitFor('both sleeps to run', () =>
-        /sleep 301[\s\S]*sleep 302|sleep 302[\s\S]*sleep 301/.test(
-          server?.run("pgrep -a -f 'sleep 30[12]' || true") ?? '',
-        ),
-      );
-      expect(execUnits()).toContain('agentmate-exec-');
-
-      subscription.dispose();
-      await waitFor(
-        'the unit and every process in it to go',
-        () => (server?.run("pgrep -f 'sleep 30[12]' || true") ?? 'x') === '' && execUnits() === '',
-      );
-    },
-    TEST_TIMEOUT_MS,
-  );
-
-  it(
-    "reads a unit's journal from journalctl",
-    async () => {
-      const batches = await collect<JournalBatch>(
-        hub.streamJournal({ unit: 'agentmate-core.service', lines: 50, follow: false }),
-      );
-      const lines = batches.flatMap((batch) => batch.lines);
-      expect(lines.length).toBeGreaterThan(0);
-      expect(lines.every((line) => line.atUnixMs > 1_600_000_000_000)).toBe(true);
-      expect(lines.some((line) => line.text.length > 0)).toBe(true);
-
-      await expect(collect(hub.streamJournal({ unit: '-f', follow: false }))).rejects.toThrow(
-        /systemd unit/,
-      );
-    },
-    TEST_TIMEOUT_MS,
-  );
+  }
 });

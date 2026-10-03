@@ -10,26 +10,26 @@ running nginx.
 
 ## Tasks
 
-- [ ] T1 Install from the nginx.org stable repo (pinned GPG key) on both families, or adopt an
+- [x] T1 Install from the nginx.org stable repo (pinned GPG key) on both families, or adopt an
   existing nginx with the stock default site backed up and disabled.
-- [ ] T2 Managed layout: one include wired into `nginx.conf` once, `/etc/nginx/agentmate/current`
+- [x] T2 Managed layout: one include wired into `nginx.conf` once, `/etc/nginx/agentmate/current`
   symlinked to numbered release directories, default server returning 444, ACME challenge location.
-- [ ] T3 Typed site model and deterministic renderer: domains (IDNA), upstream from a stack service
+- [x] T3 Typed site model and deterministic renderer: domains (IDNA), upstream from a stack service
   port picker, websocket upgrade map, proxy cache zone per site (TTL, bypass, purge), gzip,
   `client_max_body_size`, timeouts, custom headers, security headers, HSTS, HTTP/2, IP allow and
   deny, basic auth, rate limits; HTTP-only rendering until a certificate exists.
-- [ ] T4 Custom snippet: directive allowlist parser (no `include`, `load_module`, `*_log` paths,
+- [x] T4 Custom snippet: directive allowlist parser (no `include`, `load_module`, `*_log` paths,
   `alias` or `root` outside the site directory, `lua`, `perl`), Owner-only, shown as a diff.
-- [ ] T5 Apply: render a new release, swap the symlink, `nginx -t`, reload, or swap back and return
+- [x] T5 Apply: render a new release, swap the symlink, `nginx -t`, reload, or swap back and return
   the parsed error with the line mapped to the user's snippet; crash-safe (a marker file lets the
   core finish or undo an interrupted apply on start).
-- [ ] T6 `stream` proxies for public TCP and UDP ports with optional IP allowlists.
-- [ ] T7 SELinux: `httpd_can_network_connect`, `http_port_t` for custom ports.
-- [ ] T8 Per-site access and error logs in the log viewer.
+- [x] T6 `stream` proxies for public TCP and UDP ports with optional IP allowlists.
+- [x] T7 SELinux: `httpd_can_network_connect`, `http_port_t` for custom ports.
+- [x] T8 Per-site access and error logs in the log viewer.
 - [x] T9 UI: Websites list (domains, target, SSL badge, cache and websocket toggles), site editor
   (Domains, Proxy, SSL placeholder, Performance, Security, Advanced with Monaco and inline errors,
   Logs), live route map on the app detail.
-- [ ] T10 Fixture: `nginx -t` harness on nginx.org packages for Debian and Rocky with a whoami
+- [x] T10 Fixture: `nginx -t` harness on nginx.org packages for Debian and Rocky with a whoami
   upstream and curl checks.
 
 ## Acceptance criteria
@@ -71,3 +71,13 @@ Desktop and UI (T9, plus the SSL tab of E11 T6):
 Acceptance criteria from the desktop side: none of AC1 to AC4 is exercised by the desktop work;
 they belong to the core and its harness. The DevHost run uses simulated nginx, not a real
 `nginx -t`.
+
+E17 review (2026-10-03):
+
+- T1 to T8 and T10 were built in 77b262a (renderer, snippet allowlist, harness) and 07db580
+  (install, apply, stream proxies, SELinux, site logs); their boxes are ticked now.
+- AC1 and AC2 are the server core's system tests (`AgentMate.ServerCore.SystemTests`, nginx.org
+  packages on Debian 13 and Rocky 9). They passed when they were written but had never run in CI:
+  no workflow ran that project. The nightly workflow now has a job for it. AC3 and AC4 are unit and
+  golden-file tests that run on every push.
+- Visual and keyboard pass of the Websites section done in E17 (both themes, 1440 and 960 wide).

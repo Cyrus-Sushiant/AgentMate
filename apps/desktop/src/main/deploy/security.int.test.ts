@@ -11,10 +11,14 @@ import { DeployHardening, PASSWORD_LOGIN_REFUSAL } from './hardening';
 import { DeployService } from './service';
 import { DeployState } from './state';
 import {
+  DISTRO_IMAGES,
+  skipWhenNoServers,
   startTestServer,
   systemTestsEnabled,
   TEST_LOGINS,
   type TestServer,
+  type TestServerImage,
+  testServerImages,
 } from './testing/testServers';
 
 /**
@@ -31,6 +35,9 @@ import {
  */
 
 const enabled = systemTestsEnabled();
+
+/** Ubuntu on every `[e2e]` push; the nightly matrix runs it on each distro. */
+const IMAGES = testServerImages(DISTRO_IMAGES, ['ubuntu-24.04']);
 const REPO = fileURLToPath(new URL('../../../../../', import.meta.url));
 const ARTIFACTS = join(REPO, 'apps', 'server-core', 'artifacts', 'release');
 const TEST_TIMEOUT_MS = 900_000;
@@ -57,8 +64,8 @@ interface Installed {
 }
 
 /** Installs the core as root over a password login, creates the owner and signs in. */
-async function install(owner: string): Promise<Installed> {
-  const server = await startTestServer('ubuntu-24.04');
+async function install(owner: string, image: TestServerImage): Promise<Installed> {
+  const server = await startTestServer(image);
   servers.push(server);
   const login: Installed['login'] = { method: 'password' };
   const pool = new SshConnectionPool({
@@ -167,139 +174,144 @@ async function waitFor(what: string, check: () => boolean, timeoutMs = 150_000) 
 }
 
 describe.skipIf(!enabled)('the Security center on real servers', () => {
-  it(
-    'turns SSH password login off only once key login is proven, and refuses otherwise',
-    async () => {
-      const { server, service, login, pool } = await install('maria');
-      const steps: string[] = [];
-      const hardening = hardeningOf(service, steps);
-      const passwordsOff = {
-        serverId: 'srv',
-        disablePasswordLogin: true,
-        restrictRootLogin: false,
-      };
-      await service.stepUp({ serverId: 'srv', password: PASSWORD });
+  skipWhenNoServers(IMAGES);
+  for (const image of IMAGES) {
+    it(
+      `turns SSH password login off only once key login is proven, and refuses otherwise, on ${image}`,
+      async () => {
+        const { server, service, login, pool } = await install('maria', image);
+        const steps: string[] = [];
+        const hardening = hardeningOf(service, steps);
+        const passwordsOff = {
+          serverId: 'srv',
+          disablePasswordLogin: true,
+          restrictRootLogin: false,
+        };
+        await service.stepUp({ serverId: 'srv', password: PASSWORD });
 
-      // Over a password login: the app refuses, and so does the core when asked anyway.
-      const preview = await hardening.previewSsh(passwordsOff);
-      expect(preview.allowed).toBe(false);
-      expect(preview.proof.keyLoginProven).toBe(false);
-      expect(preview.proof.method).toBe('password');
-      await expect(hardening.applySsh(passwordsOff)).rejects.toThrow(PASSWORD_LOGIN_REFUSAL);
-      await expect(
-        service.withFreshHub('srv', (hub) =>
-          hub.applySshHardening({ disablePasswordLogin: true, restrictRootLogin: false }),
-        ),
-      ).rejects.toThrow(/Nothing was changed/);
-      expect(sshd(server, 'passwordauthentication')).toBe('yes');
-      expect(
-        server.run('test -e /etc/ssh/sshd_config.d/00-agentmate.conf && echo there || echo absent'),
-      ).toBe('absent');
-      expect(await passwordGetsIn(server)).toBe(true);
+        // Over a password login: the app refuses, and so does the core when asked anyway.
+        const preview = await hardening.previewSsh(passwordsOff);
+        expect(preview.allowed).toBe(false);
+        expect(preview.proof.keyLoginProven).toBe(false);
+        expect(preview.proof.method).toBe('password');
+        await expect(hardening.applySsh(passwordsOff)).rejects.toThrow(PASSWORD_LOGIN_REFUSAL);
+        await expect(
+          service.withFreshHub('srv', (hub) =>
+            hub.applySshHardening({ disablePasswordLogin: true, restrictRootLogin: false }),
+          ),
+        ).rejects.toThrow(/Nothing was changed/);
+        expect(sshd(server, 'passwordauthentication')).toBe('yes');
+        expect(
+          server.run(
+            'test -e /etc/ssh/sshd_config.d/00-agentmate.conf && echo there || echo absent',
+          ),
+        ).toBe('absent');
+        expect(await passwordGetsIn(server)).toBe(true);
 
-      // A key for this computer, and the saved server switched to it.
-      const keys = utils.generateKeyPairSync('ed25519');
-      const keyPath = join(tempDir(), 'id_ed25519');
-      writeFileSync(keyPath, keys.private, { mode: 0o600 });
-      server.run(
-        `mkdir -p /root/.ssh && chmod 700 /root/.ssh && echo '${keys.public}' >> /root/.ssh/authorized_keys && chmod 600 /root/.ssh/authorized_keys`,
-      );
-      login.method = 'privateKey';
-      login.keyPath = keyPath;
+        // A key for this computer, and the saved server switched to it.
+        const keys = utils.generateKeyPairSync('ed25519');
+        const keyPath = join(tempDir(), 'id_ed25519');
+        writeFileSync(keyPath, keys.private, { mode: 0o600 });
+        server.run(
+          `mkdir -p /root/.ssh && chmod 700 /root/.ssh && echo '${keys.public}' >> /root/.ssh/authorized_keys && chmod 600 /root/.ssh/authorized_keys`,
+        );
+        login.method = 'privateKey';
+        login.keyPath = keyPath;
 
-      const proven = await hardening.previewSsh(passwordsOff);
-      expect(proven.proof.keyLoginProven).toBe(true);
-      expect(proven.allowed).toBe(true);
-      const change = await hardening.applySsh(passwordsOff);
-      expect(change.state).toBe('awaitingConfirmation');
-      expect(server.run('systemctl list-timers --all --no-legend')).toContain(
-        'agentmate-sshrevert',
-      );
-      const kept = await hardening.confirmSsh({ serverId: 'srv', changeId: change.id });
-      expect(kept.state).toBe('confirmed');
-      expect(steps).toContain('confirm:confirming:done');
-      expect(server.run('systemctl list-timers --all --no-legend')).not.toContain(
-        'agentmate-sshrevert',
-      );
+        const proven = await hardening.previewSsh(passwordsOff);
+        expect(proven.proof.keyLoginProven).toBe(true);
+        expect(proven.allowed).toBe(true);
+        const change = await hardening.applySsh(passwordsOff);
+        expect(change.state).toBe('awaitingConfirmation');
+        expect(server.run('systemctl list-timers --all --no-legend')).toContain(
+          'agentmate-sshrevert',
+        );
+        const kept = await hardening.confirmSsh({ serverId: 'srv', changeId: change.id });
+        expect(kept.state).toBe('confirmed');
+        expect(steps).toContain('confirm:confirming:done');
+        expect(server.run('systemctl list-timers --all --no-legend')).not.toContain(
+          'agentmate-sshrevert',
+        );
 
-      expect(sshd(server, 'passwordauthentication')).toBe('no');
-      expect(sshd(server, 'kbdinteractiveauthentication')).toBe('no');
-      expect(await passwordGetsIn(server)).toBe(false);
-      // The key still gets in, and the app still reaches its core through it.
-      service.links.closeAll();
-      pool.closeAll();
-      expect((await service.health('srv')).version).toBe('0.0.0-dev');
-      const checklist = await hardening.checklist('srv');
-      expect(checklist.items.find((item) => item.id === 'ssh-passwords')?.status).toBe('pass');
+        expect(sshd(server, 'passwordauthentication')).toBe('no');
+        expect(sshd(server, 'kbdinteractiveauthentication')).toBe('no');
+        expect(await passwordGetsIn(server)).toBe(false);
+        // The key still gets in, and the app still reaches its core through it.
+        service.links.closeAll();
+        pool.closeAll();
+        expect((await service.health('srv')).version).toBe('0.0.0-dev');
+        const checklist = await hardening.checklist('srv');
+        expect(checklist.items.find((item) => item.id === 'ssh-passwords')?.status).toBe('pass');
 
-      // A change nobody keeps goes back by its systemd timer.
-      const unkept = await hardening.applySsh({
-        serverId: 'srv',
-        disablePasswordLogin: false,
-        restrictRootLogin: true,
-      });
-      expect(sshd(server, 'permitrootlogin')).toMatch(/^(prohibit-password|without-password)$/);
-      await waitFor(
-        'the timer to put the old drop-in back',
-        () => sshd(server, 'permitrootlogin') === 'yes',
-      );
-      expect(sshd(server, 'passwordauthentication')).toBe('no');
-      const after = await hardening.checklist('srv');
-      expect(after.pendingSshChange).toBeUndefined();
-      await expect(hardening.confirmSsh({ serverId: 'srv', changeId: unkept.id })).rejects.toThrow(
-        /rolled back|deadline/,
-      );
-    },
-    TEST_TIMEOUT_MS,
-  );
+        // A change nobody keeps goes back by its systemd timer.
+        const unkept = await hardening.applySsh({
+          serverId: 'srv',
+          disablePasswordLogin: false,
+          restrictRootLogin: true,
+        });
+        expect(sshd(server, 'permitrootlogin')).toMatch(/^(prohibit-password|without-password)$/);
+        await waitFor(
+          'the timer to put the old drop-in back',
+          () => sshd(server, 'permitrootlogin') === 'yes',
+        );
+        expect(sshd(server, 'passwordauthentication')).toBe('no');
+        const after = await hardening.checklist('srv');
+        expect(after.pendingSshChange).toBeUndefined();
+        await expect(
+          hardening.confirmSsh({ serverId: 'srv', changeId: unkept.id }),
+        ).rejects.toThrow(/rolled back|deadline/);
+      },
+      TEST_TIMEOUT_MS,
+    );
 
-  it(
-    'restores a backup from one server onto another, which then runs as the first did',
-    async () => {
-      const first = await install('maria');
-      await first.service.stepUp({ serverId: 'srv', password: PASSWORD });
-      const backup = await first.service.withHub('srv', (hub) =>
-        hub.createBackup({ passphrase: PASSPHRASE }),
-      );
-      const file = join(tempDir(), 'first.ambackup');
-      await first.service.withCoreHttp('srv', (client, token) =>
-        client.download(`/api/v1/backups/${backup.id}`, createWriteStream(file), {
-          token,
-          timeoutMs: 120_000,
-        }),
-      );
-      expect(await first.service.withHub('srv', (hub) => hub.deleteBackup(backup.id))).toBe(true);
+    it(
+      `restores a backup from one server onto another, which then runs as the first did, on ${image}`,
+      async () => {
+        const first = await install('maria', image);
+        await first.service.stepUp({ serverId: 'srv', password: PASSWORD });
+        const backup = await first.service.withHub('srv', (hub) =>
+          hub.createBackup({ passphrase: PASSPHRASE }),
+        );
+        const file = join(tempDir(), 'first.ambackup');
+        await first.service.withCoreHttp('srv', (client, token) =>
+          client.download(`/api/v1/backups/${backup.id}`, createWriteStream(file), {
+            token,
+            timeoutMs: 120_000,
+          }),
+        );
+        expect(await first.service.withHub('srv', (hub) => hub.deleteBackup(backup.id))).toBe(true);
 
-      const second = await install('sam');
-      const restore = {
-        serverId: 'srv',
-        file,
-        sudoPassword: null,
-        userName: 'maria',
-        password: PASSWORD,
-      };
-      await expect(
-        second.service.restore(
-          { ...restore, passphrase: 'lemon tractor bicycle lamp' },
+        const second = await install('sam', image);
+        const restore = {
+          serverId: 'srv',
+          file,
+          sudoPassword: null,
+          userName: 'maria',
+          password: PASSWORD,
+        };
+        await expect(
+          second.service.restore(
+            { ...restore, passphrase: 'lemon tractor bicycle lamp' },
+            () => undefined,
+          ),
+        ).rejects.toThrow(/passphrase is wrong/);
+        // Nothing changed: the second server still answers as itself.
+        expect((await second.service.account('srv')).userName).toBe('sam');
+
+        const result = await second.service.restore(
+          { ...restore, passphrase: PASSPHRASE },
           () => undefined,
-        ),
-      ).rejects.toThrow(/passphrase is wrong/);
-      // Nothing changed: the second server still answers as itself.
-      expect((await second.service.account('srv')).userName).toBe('sam');
-
-      const result = await second.service.restore(
-        { ...restore, passphrase: PASSPHRASE },
-        () => undefined,
-      );
-      expect(result.signInError).toBeUndefined();
-      expect(result.backupCoreVersion).toBe('0.0.0-dev');
-      expect((await second.service.account('srv')).userName).toBe('maria');
-      expect(
-        second.server.run('test -d /var/lib/agentmate-core-restore/previous && echo kept'),
-      ).toBe('kept');
-      expect(second.server.run('stat -c %a /var/lib/agentmate-core')).toBe('700');
-      expect(second.server.run('stat -c %a /var/lib/agentmate-core/core.db')).toBe('600');
-    },
-    TEST_TIMEOUT_MS,
-  );
+        );
+        expect(result.signInError).toBeUndefined();
+        expect(result.backupCoreVersion).toBe('0.0.0-dev');
+        expect((await second.service.account('srv')).userName).toBe('maria');
+        expect(
+          second.server.run('test -d /var/lib/agentmate-core-restore/previous && echo kept'),
+        ).toBe('kept');
+        expect(second.server.run('stat -c %a /var/lib/agentmate-core')).toBe('700');
+        expect(second.server.run('stat -c %a /var/lib/agentmate-core/core.db')).toBe('600');
+      },
+      TEST_TIMEOUT_MS,
+    );
+  }
 });

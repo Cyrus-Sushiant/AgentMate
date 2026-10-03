@@ -12,9 +12,9 @@ const badgeVariants = cva(
         secondary: 'border-border bg-secondary text-secondary-foreground',
         outline: 'border-border bg-transparent text-foreground',
         success:
-          'border-success/30 bg-success/15 text-success shadow-[0_0_12px_-2px_hsl(var(--success)/0.5)]',
+          'border-success/30 bg-success/10 dark:bg-success/15 text-success shadow-[0_0_12px_-2px_hsl(var(--success)/0.5)]',
         warning:
-          'border-warning/30 bg-warning/15 text-warning shadow-[0_0_12px_-2px_hsl(var(--warning)/0.5)]',
+          'border-warning/30 bg-warning/10 dark:bg-warning/15 text-warning shadow-[0_0_12px_-2px_hsl(var(--warning)/0.5)]',
         destructive: 'border-transparent bg-destructive text-destructive-foreground',
       },
     },

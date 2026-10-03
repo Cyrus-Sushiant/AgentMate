@@ -62,6 +62,22 @@ beforeEach(() => {
 });
 
 describe('ProblemsFeed', () => {
+  it('shimmers per card while its sources answer for the first time', async () => {
+    const never = () => new Promise(() => undefined);
+    renderWithProviders(<ProblemsFeed server={SERVER} />, {
+      bridge: bridge({
+        'deployDocker.listContainers': never,
+        'deployStacks.list': never,
+        'deployFirewall.exposure': never,
+        'deployAlerts.list': never,
+      }),
+    });
+
+    const list = await screen.findByRole('list', { name: 'Problems' });
+    expect(list.getAttribute('aria-busy')).toBe('true');
+    expect(within(list).queryByRole('listitem', { name: /keeps restarting/ })).toBeNull();
+  });
+
   it('lists each problem with its severity in words, critical first', async () => {
     renderWithProviders(<ProblemsFeed server={SERVER} />, { bridge: bridge() });
 

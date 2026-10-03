@@ -10,27 +10,27 @@ and networks. Any log excerpt can be sent to the project's coding CLI.
 
 ## Tasks
 
-- [ ] T1 Docker install job per family from `download.docker.com` with the pinned GPG fingerprint;
+- [x] T1 Docker install job per family from `download.docker.com` with the pinned GPG fingerprint;
   on RHEL, detect podman, buildah and runc and remove them after confirmation; enable and start the
   service; report the engine and compose versions (compose must be at least 2.24.4).
-- [ ] T2 Engine client (`Docker.DotNet.Enhanced` over the Unix socket, API version negotiation)
+- [x] T2 Engine client (`Docker.DotNet.Enhanced` over the Unix socket, API version negotiation)
   behind `IDockerEngine`.
-- [ ] T3 Containers: list with compose grouping, inspect (env keys only, values behind step-up),
+- [x] T3 Containers: list with compose grouping, inspect (env keys only, values behind step-up),
   start, stop, restart, pause, kill, remove with an optional volume removal.
-- [ ] T4 Stats stream with the `docker stats` math for cgroup v1 and v2, hub
+- [x] T4 Stats stream with the `docker stats` math for cgroup v1 and v2, hub
   `StreamContainerStats`.
-- [ ] T5 Log stream (tail, since, follow, timestamps, stdout and stderr), hub
+- [x] T5 Log stream (tail, since, follow, timestamps, stdout and stderr), hub
   `StreamContainerLogs`.
 - [x] T6 Console: docker exec with a TTY over a bidirectional hub stream, rendered with
   `TerminalPane` through a new adapter.
-- [ ] T7 Images (list, pull with progress, remove, prune), volumes, networks, system df and prune,
+- [x] T7 Images (list, pull with progress, remove, prune), volumes, networks, system df and prune,
   events stream feeding live UI updates.
 - [x] T8 Containers UI: grouped, virtualized list with live sparklines and state chips, detail
   drawer (overview, stats, logs, inspect, mounts, ports, console), resources tabs.
 - [x] T9 "Send logs to project CLI": build a redacted prompt (log tail, container and image facts,
   no env values) in `packages/core/src/deploy/prompts.ts` and hand it to `FixWithAiDialog`; pick a
   project when the container is not linked to one yet.
-- [ ] T10 Fixture: fake Docker Engine (Kestrel on a Unix socket replaying recorded Docker 29
+- [x] T10 Fixture: fake Docker Engine (Kestrel on a Unix socket replaying recorded Docker 29
   payloads, including v1 and v2 stats) for integration tests; real Docker inside the systemd test
   servers for system tests.
 
@@ -75,3 +75,12 @@ Desktop side (T6, T8, T9), on the core from c5c0b68:
   had no visual pass in both themes yet; it uses the app's tokens and the dataviz palette.
 - Acceptance: AC2 and AC3 have their own tests; AC5 passes with `deployContainers.e2e.ts` against
   the DevHost.
+
+E17 review (2026-10-03):
+
+- T1 to T5, T7 and T10 were built in c5c0b68 (the core side); their boxes are ticked now.
+- AC1: the stats math fixtures run with the core's unit tests on every push. AC4: the Rocky 9
+  system test (`docker.int.test.ts`) passed locally on 2026-10-03 (about 7 minutes) and runs in the
+  nightly workflow from now on.
+- Visual and keyboard pass done in E17: below the `xl` width the row drops its CPU and memory
+  sparklines so the name and ports keep their room. The console still has no e2e test.

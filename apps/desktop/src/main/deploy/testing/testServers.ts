@@ -1,6 +1,7 @@
 import { execFileSync } from 'node:child_process';
 import { connect } from 'node:net';
 import { fileURLToPath } from 'node:url';
+import { it } from 'vitest';
 
 /**
  * Disposable Linux servers for system tests: the images in `apps/server-core/test-servers`, with
@@ -20,6 +21,64 @@ export type TestServerImage =
   | 'rocky-9'
   | 'ubuntu-24.04-ufw'
   | 'rocky-9-firewalld';
+
+/** The plain distro servers, without a firewall: what the nightly matrix runs most tests on. */
+export const DISTRO_IMAGES = ['ubuntu-24.04', 'debian-13', 'rocky-9'] as const;
+
+const ALL_IMAGES: readonly TestServerImage[] = [
+  'ubuntu-24.04',
+  'debian-13',
+  'rocky-9',
+  'ubuntu-24.04-ufw',
+  'rocky-9-firewalld',
+];
+
+/**
+ * The images named in AGENTMATE_TEST_SERVER_IMAGES (comma separated), or null when it is unset.
+ * The nightly workflow sets it to run each system test on one server of the full matrix.
+ */
+export function requestedImages(
+  value: string | undefined = process.env.AGENTMATE_TEST_SERVER_IMAGES,
+): TestServerImage[] | null {
+  if (!value?.trim()) return null;
+  const names = value
+    .split(',')
+    .map((name) => name.trim())
+    .filter(Boolean);
+  const unknown = names.filter((name) => !ALL_IMAGES.includes(name as TestServerImage));
+  if (unknown.length > 0) {
+    throw new Error(
+      `Unknown test server image ${unknown.join(', ')}; expected one of ${ALL_IMAGES.join(', ')}`,
+    );
+  }
+  return names as TestServerImage[];
+}
+
+/**
+ * The servers a system test runs on: its defaults (what every `[e2e]` push runs), or, when
+ * images are asked for, those of them the test supports.
+ */
+export function testServerImages<T extends TestServerImage>(
+  supported: readonly T[],
+  defaults: readonly T[],
+  value: string | undefined = process.env.AGENTMATE_TEST_SERVER_IMAGES,
+): T[] {
+  const requested = requestedImages(value);
+  if (!requested) return [...defaults];
+  return supported.filter((image) => requested.includes(image));
+}
+
+/**
+ * Call inside a describe that loops over test servers: when the run asked for none of them, it
+ * leaves a skipped test behind, since vitest fails a suite that declares no tests at all.
+ */
+export function skipWhenNoServers(images: readonly TestServerImage[]): void {
+  if (images.length === 0) {
+    it.skip('runs on none of the test servers asked for', () => {
+      // Nothing to run here.
+    });
+  }
+}
 
 /** Images built on top of another test server's image, which has to exist first. */
 const BASE_IMAGES: Partial<Record<TestServerImage, TestServerImage>> = {

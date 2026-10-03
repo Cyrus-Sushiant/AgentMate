@@ -104,6 +104,45 @@ describe('DeployAlertWatcher', () => {
     ]);
   });
 
+  it('puts a failed certificate renewal in the inbox (E11 AC3)', async () => {
+    const { core, inbox, toasts, watcher } = setup();
+    core.raise(
+      'certificateRenewalFailed',
+      'shop.example.com',
+      'critical',
+      'Renewing the certificate for shop.example.com failed 3 times: port 80 did not answer.',
+    );
+
+    await watcher.sync();
+    await settle();
+
+    expect(inbox).toEqual([
+      expect.objectContaining({
+        title: 'A certificate did not renew on Production',
+        body: 'Renewing the certificate for shop.example.com failed 3 times: port 80 did not answer.',
+        route: '/deploy?server=srv-1',
+        read: false,
+      }),
+    ]);
+    expect(toasts).toHaveLength(1);
+  });
+
+  it('names the firewall and Cloudflare alerts in the inbox', async () => {
+    const { core, inbox, watcher } = setup();
+    core.raise('firewallRolledBack', 'change-7', 'warning', 'Nobody kept change 7.');
+    core.raise('firewallRollbackFailed', 'change-8', 'critical', 'Change 8 could not be undone.');
+    core.raise('originLockRefreshFailed', 'cloudflare', 'warning', 'The ranges did not load.');
+
+    await watcher.sync();
+    await settle();
+
+    expect(inbox.map((entry) => entry.title).sort()).toEqual([
+      'A firewall change could not be rolled back on Production',
+      'A firewall change was rolled back on Production',
+      'The Cloudflare lock could not be refreshed on Production',
+    ]);
+  });
+
   it('leaves the toast to the app while its window has focus', async () => {
     const { core, inbox, toasts, watcher } = setup({ focused: true });
     await watcher.sync();

@@ -174,6 +174,25 @@ describe('DeployPage states', () => {
     expect(await within(rail).findByText('Online, core 1.53.0')).toBeTruthy();
   });
 
+  it('leaves room under a server section for the Deploy AI button', async () => {
+    renderPage({ 'deploy.listServers': async () => [server({ core: CORE })] });
+
+    const sections = await screen.findByRole('navigation', { name: 'Server sections' });
+    expect(sections.parentElement?.className).toContain('pb-16');
+  });
+
+  it('scrolls the section strip in a narrow window instead of cutting sections off', async () => {
+    renderPage({ 'deploy.listServers': async () => [server({ core: CORE })] });
+
+    const sections = await screen.findByRole('navigation', { name: 'Server sections' });
+    expect(sections.className).toContain('overflow-x-auto');
+    for (const button of within(sections).getAllByRole('button')) {
+      expect(button.className).toContain('whitespace-nowrap');
+      expect(button.className).toContain('shrink-0');
+    }
+    expect(within(sections).getByRole('button', { name: 'Security' })).toBeTruthy();
+  });
+
   it('says so, in words, when the core stops answering', async () => {
     renderPage({
       'deploy.listServers': async () => [server({ core: CORE })],

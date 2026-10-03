@@ -8,7 +8,8 @@ import { type FakeOllama, startFakeOllama } from './fakeOllama';
  * Docker has a sender that keeps crashing, so the problems feed shows a crash loop. "Diagnose
  * with AI" opens the drawer on it; with auto-run diagnostics on, the scripted model's read-only
  * check runs at once, and its next command, which is not on the allowlist, waits for approval
- * until the user runs it. The model is a fake Ollama, as in the SSH AI's spec. Visual states are
+ * until the user runs it. That restart brings the sender back, and the crash loop leaves the
+ * feed. The model is a fake Ollama, as in the SSH AI's spec. Visual states are
  * checked through the DOM.
  */
 
@@ -43,8 +44,8 @@ test('a crash loop, diagnosed: a check runs by itself, a change waits for approv
   if (!devHost) throw new Error('DevHost did not start');
   ollama = await startFakeOllama([
     `RUN: docker logs --tail 50 ${CRASHING}`,
-    'RUN: systemctl restart newsletter-relay',
-    'FINISHED: The sender cannot reach its SMTP relay; restarted the relay.',
+    `RUN: docker restart ${CRASHING}`,
+    'FINISHED: The sender cannot reach its SMTP relay; restarted it.',
   ]);
   launched = await launchApp({
     settings: {
@@ -107,21 +108,21 @@ test('a crash loop, diagnosed: a check runs by itself, a change waits for approv
 
   // The change is not on the allowlist: the core refused it unsigned, so it waits for the user.
   const approval = drawer.getByRole('group', { name: 'Approve the command' });
-  await expect(approval).toContainText('systemctl restart newsletter-relay', { timeout: 60_000 });
+  await expect(approval).toContainText(`docker restart ${CRASHING}`, { timeout: 60_000 });
   await expect(approval).toContainText('read-only checks');
   await expect(page.getByRole('button', { name: /Deploy AI, waiting for you/ })).toHaveCount(0);
   await approval.getByRole('button', { name: 'Run it' }).click();
 
   const change = drawer.getByRole('listitem', {
-    name: 'Step 2: systemctl restart newsletter-relay',
+    name: `Step 2: docker restart ${CRASHING}`,
   });
-  await expect(change.getByLabel('Output of step 2')).toContainText(
-    'ran: systemctl restart newsletter-relay',
-    { timeout: 60_000 },
-  );
+  await expect(change.getByLabel('Output of step 2')).toContainText(CRASHING, { timeout: 60_000 });
   await expect(drawer.getByText(/Finished: The sender cannot reach its SMTP relay/)).toBeVisible({
     timeout: 60_000,
   });
+
+  // The sender runs again, so the feed drops the crash loop on its next look (every 30 seconds).
+  await expect(crash).toHaveCount(0, { timeout: 75_000 });
 
   // The log entered the prompt as untrusted data, after the rules.
   const first = ollama.prompts[0] ?? '';

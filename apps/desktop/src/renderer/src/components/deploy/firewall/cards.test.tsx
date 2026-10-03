@@ -40,6 +40,18 @@ describe('StatusHero', () => {
     expect(onToggle).toHaveBeenCalledWith(true);
   });
 
+  it('wraps its settings instead of cutting them off in a narrow window', () => {
+    const view = hero();
+
+    const settings = view.container.querySelector('dl') as HTMLElement;
+    expect(settings.className).toContain('auto-fill');
+    for (const value of settings.querySelectorAll('dd')) {
+      expect(value.className).not.toContain('truncate');
+    }
+    // The select is the value itself, so nothing clips it either.
+    expect(screen.getByLabelText('Incoming by default').closest('dd')).toBeTruthy();
+  });
+
   it('stages a new incoming default', async () => {
     const onDefaultIncoming = vi.fn();
     const { user } = hero({ onDefaultIncoming });

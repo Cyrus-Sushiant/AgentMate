@@ -28,6 +28,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { queryKeys } from '@/lib/queryKeys';
+import { cn } from '@/lib/utils';
 import { confirmDialog } from '@/stores/confirmStore';
 import { useDeploySetupStore } from '@/stores/deploySetupStore';
 import { usePageHeader } from '@/stores/pageHeaderStore';
@@ -246,7 +247,8 @@ export default function DeployPage(): React.JSX.Element {
         selectedId={selected.id}
         onSelect={(serverId) => setParams({ server: serverId }, { replace: true })}
       />
-      <div className="min-w-0 space-y-4">
+      {/* Room at the bottom so the Deploy AI button never covers the last controls. */}
+      <div className={cn('min-w-0 space-y-4', sections && 'pb-16')}>
         {locked && (
           <div className="flex flex-wrap items-center gap-3 rounded-lg border border-warning/40 bg-warning/10 px-3 py-2.5">
             <Lock className="h-4 w-4 shrink-0 text-warning" />

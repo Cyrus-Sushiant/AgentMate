@@ -40,6 +40,18 @@ function renderStore(
 const sheetRoute = (id: string) => `/deploy?server=${SERVER.id}&view=store&install=${id}`;
 
 describe('AppStorePanel', () => {
+  it('shimmers while it finds out who is signed in, and then while its apps load', async () => {
+    const never = () => new Promise(() => undefined);
+    const first = renderStore({ 'deploy.access': never });
+    expect(first.container.querySelector('[aria-busy="true"]')).toBeTruthy();
+    first.unmount();
+
+    const second = renderStore({ 'deployStacks.list': never });
+    await screen.findByRole('region', { name: 'Catalog' });
+    expect(second.container.querySelector('[aria-busy="true"]')).toBeTruthy();
+    expect(screen.queryByRole('region', { name: 'Installed from the App Store' })).toBeNull();
+  });
+
   it('asks for a sign-in first', async () => {
     renderStore({ 'deploy.access': { state: 'needs-sign-in' } });
     expect(await screen.findByText(/Sign in to Production on its Overview/)).toBeTruthy();

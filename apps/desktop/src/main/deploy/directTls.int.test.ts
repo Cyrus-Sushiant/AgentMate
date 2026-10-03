@@ -19,6 +19,7 @@ import {
   systemTestsEnabled,
   TEST_LOGINS,
   type TestServer,
+  testServerImages,
 } from './testing/testServers';
 
 /**
@@ -32,6 +33,7 @@ import {
  */
 
 const enabled = systemTestsEnabled();
+const onUfw = testServerImages(['ubuntu-24.04-ufw'], ['ubuntu-24.04-ufw']).length > 0;
 const REPO = fileURLToPath(new URL('../../../../../', import.meta.url));
 const ARTIFACTS = join(REPO, 'apps', 'server-core', 'artifacts', 'release');
 const TEST_TIMEOUT_MS = 900_000;
@@ -93,7 +95,7 @@ function rawRequest(port: number, key?: string, certificate?: string): Promise<s
 }
 
 describe.skipIf(!enabled)('direct TLS on a real server', () => {
-  it(
+  it.skipIf(!onUfw)(
     'opens the port behind ufw, connects with the device key, refuses strangers and closes again',
     async () => {
       const tlsPort = await freePort();

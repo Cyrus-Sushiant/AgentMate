@@ -69,6 +69,24 @@ internal sealed class FakeExecRunner(InMemoryDockerEngine engine, TimeProvider t
     {
         var words = plan.Program == ExecPlan.Shell ? ["sh", .. plan.Arguments] : (string[])[plan.Program, .. plan.Arguments];
         var head = string.Join(' ', words.Take(2));
+
+        // A restart is the fix the Deploy AI reaches for: the pretend container comes back up, so
+        // the problems feed clears the way it would on a real server. An approved command comes as
+        // one line for the shell, so it is read from there too.
+        var text = plan.Program == ExecPlan.Shell ? string.Join(' ', plan.Arguments.Skip(1)) : string.Join(' ', words);
+        if (text.Split(' ', StringSplitOptions.RemoveEmptyEntries) is ["docker", "restart", var name])
+        {
+            try
+            {
+                await engine.RestartContainerAsync(name, timeoutSeconds: null, cancellationToken);
+                return ([name], 0);
+            }
+            catch (Exception error) when (error is DockerRequestException or DockerNotFoundException)
+            {
+                return ([$"Error response from daemon: {error.Message}"], 1);
+            }
+        }
+
         switch (head)
         {
             case "docker ps":
