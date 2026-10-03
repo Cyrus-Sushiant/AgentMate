@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using System.Net.Sockets;
 using System.Security.Cryptography;
 using System.Text;
 using AgentMate.ServerCore.Contracts;
@@ -167,10 +168,17 @@ public sealed class DirectTlsListenerTests : IAsyncLifetime
     public async Task An_address_outside_the_sources_never_gets_a_handshake()
     {
         var status = await EnableAsync(["192.0.2.0/24"]);
+        string? seen = null;
         using var certificate = DirectTlsClient.CertificateFor(_key);
-        using var client = DirectTlsClient.Create(_tlsPort, status.Pin, certificate);
+        using var client = DirectTlsClient.Create(_tlsPort, status.Pin, certificate, pin => seen = pin);
 
-        await Assert.ThrowsAnyAsync<HttpRequestException>(() => client.GetAsync(new Uri("/api/v1/health", UriKind.Relative), Cancel));
+        var refused = await Record.ExceptionAsync(() => client.GetAsync(new Uri("/api/v1/health", UriKind.Relative), Cancel));
+
+        // The core resets the connection right after accepting it. When the reset lands before
+        // HttpClient reads the socket's remote address, that read throws a bare SocketException
+        // instead of an HttpRequestException. Either way the server never sent its certificate.
+        Assert.True(refused is HttpRequestException or SocketException, refused?.ToString() ?? "The request went through.");
+        Assert.Null(seen);
 
         var widened = await EnableAsync(["192.0.2.0/24", "127.0.0.0/8"]);
         using var again = DirectTlsClient.Create(_tlsPort, status.Pin, certificate);

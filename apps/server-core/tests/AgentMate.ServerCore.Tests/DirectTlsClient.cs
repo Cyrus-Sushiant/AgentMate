@@ -13,6 +13,14 @@ namespace AgentMate.ServerCore.Tests;
 /// </summary>
 internal static class DirectTlsClient
 {
+    private const int FirstPort = 20000;
+
+    private const int PortCount = 12000;
+
+    private static readonly Lock _portGate = new();
+
+    private static int _nextPort = Random.Shared.Next(PortCount);
+
     /// <summary>A self-signed client certificate for a key, usable by SslStream on every OS.</summary>
     public static X509Certificate2 CertificateFor(ECDsa key)
     {
@@ -60,11 +68,48 @@ internal static class DirectTlsClient
         };
     }
 
+    /// <summary>
+    /// A loopback port nothing is bound to, never the same one twice in this process. It comes from
+    /// below the OS's dynamic range (32768 and up on Linux, 49152 and up on Windows and macOS). A
+    /// port from bind(0) comes from that range, so before the test binds it, any outgoing connection
+    /// can take it as its source port. Below the range only an explicit bind takes a port. The start
+    /// is random so two test runs on one machine rarely walk the same ports.
+    /// </summary>
     public static int FreePort()
     {
-        using var listener = new TcpListener(IPAddress.Loopback, 0);
-        listener.Start();
-        return ((IPEndPoint)listener.LocalEndpoint).Port;
+        lock (_portGate)
+        {
+            for (var tried = 0; tried < PortCount; tried++)
+            {
+                var port = FirstPort + _nextPort;
+                _nextPort = (_nextPort + 1) % PortCount;
+                if (CanBind(port))
+                {
+                    return port;
+                }
+            }
+        }
+
+        throw new InvalidOperationException($"No free loopback port from {FirstPort} to {FirstPort + PortCount - 1}.");
+    }
+
+    private static bool CanBind(int port)
+    {
+        var listener = new TcpListener(IPAddress.Loopback, port);
+        try
+        {
+            listener.Start();
+            return true;
+        }
+        catch (SocketException)
+        {
+            // Taken, or reserved by Windows (Hyper-V keeps blocks of ports).
+            return false;
+        }
+        finally
+        {
+            listener.Stop();
+        }
     }
 
     public static bool Accepts(int port)
