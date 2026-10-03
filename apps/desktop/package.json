@@ -10,6 +10,7 @@
   },
   "main": "./out/main/index.mjs",
   "scripts": {
+    "postinstall": "node scripts/fix-node-pty-spawn-helper.mjs",
     "dev": "pnpm rebuild:native && electron-vite dev --watch",
     "build": "electron-vite build",
     "preview": "electron-vite preview",
