@@ -97,9 +97,11 @@ export function showMainWindow(win: BrowserWindow, state: MainWindowState): void
  * Remembers the window's size, position and maximized state as it changes, so
  * the next launch opens the way this one was left.
  *
- * Maximized is tracked from the maximize/unmaximize events rather than asked for
- * at close time: a maximized window that was minimized and then closed from the
- * taskbar reports `isMaximized() === false`, and it should still come back maximized.
+ * Maximized is asked of the window when it is saved, since the events can't be relied on:
+ * macOS only sends `maximize` at the end of a live resize, and a zoom does not always have one.
+ * While the window is minimized or full screen it reports `isMaximized() === false` whatever it
+ * was before, so then the last state the events gave is kept: a maximized window that was
+ * minimized and then closed from the taskbar should still come back maximized.
  */
 export function trackMainWindowState(win: BrowserWindow, startMaximized: boolean): void {
   let isMaximized = startMaximized;
@@ -109,6 +111,8 @@ export function trackMainWindowState(win: BrowserWindow, startMaximized: boolean
     if (timer) clearTimeout(timer);
     timer = null;
     if (win.isDestroyed()) return;
+    const hidden = win.isMinimized() || win.isFullScreen();
+    if (!hidden) isMaximized = win.isMaximized();
     // Full screen is a passing mode; the bounds from before it are what to keep.
     const bounds = win.isFullScreen() ? (cached?.bounds ?? null) : win.getNormalBounds();
     writeState({ bounds, isMaximized });

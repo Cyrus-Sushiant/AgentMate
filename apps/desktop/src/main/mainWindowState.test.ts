@@ -38,6 +38,7 @@ describe('main window state', () => {
     win.bounds = { x: 100, y: 80, width: 1200, height: 800 };
     first.trackMainWindowState(win as unknown as BrowserWindow, false);
 
+    vi.spyOn(win, 'isMaximized').mockReturnValue(true);
     win.emit('maximize');
     win.emit('close');
 
@@ -53,12 +54,35 @@ describe('main window state', () => {
     expect(next.mainWindowBounds(restored)).toEqual({ x: 100, y: 80, width: 1200, height: 800 });
   });
 
+  it('remembers a maximize that came without a maximize event', async () => {
+    // macOS only sends the event at the end of a live resize, which a zoom does not always have.
+    const state = await import('./mainWindowState');
+    const win = new FakeBrowserWindow();
+    state.trackMainWindowState(win as unknown as BrowserWindow, false);
+
+    vi.spyOn(win, 'isMaximized').mockReturnValue(true);
+    win.emit('close');
+
+    expect(savedFile()).toMatchObject({ isMaximized: true });
+  });
+
+  it('forgets a maximize undone without an unmaximize event', async () => {
+    const state = await import('./mainWindowState');
+    const win = new FakeBrowserWindow();
+    state.trackMainWindowState(win as unknown as BrowserWindow, true);
+
+    win.emit('close');
+
+    expect(savedFile()).toMatchObject({ isMaximized: false });
+  });
+
   it('stays maximized when minimized from maximized and then closed', async () => {
     const state = await import('./mainWindowState');
     const win = new FakeBrowserWindow();
     state.trackMainWindowState(win as unknown as BrowserWindow, true);
 
     // A minimized window reports isMaximized() false; that must not be what gets saved.
+    vi.spyOn(win, 'isMinimized').mockReturnValue(true);
     win.emit('minimize');
     win.emit('close');
 
