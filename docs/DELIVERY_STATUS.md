@@ -37,9 +37,9 @@ Plan: docs/ROADMAP.md
 | E07 | Compose stacks | Complete | ea106b3, see git log | Files over REST, revisions on disk with their own project folder, compose config linted in the core with the app's finding ids; DevHost runs a simulated compose |
 | E08 | Private registries | Complete | see git log | Sign-ins sealed on this computer and sent per deploy into a tmpfs DOCKER_CONFIG wiped in a `finally` (the core refuses a non-tmpfs folder); GitHub scopes read from `X-OAuth-Scopes`, anything beyond read:packages behind a warning; write-only stored credentials (Data Protection, Admin with step-up); Containers pulls sign in through X-Registry-Auth |
 | E09 | Logs center, problems feed and Deploy AI | Complete | see git log | StreamExec with the read-only allowlist and device-signed approvals; the SSH AI loop takes a pluggable executor (characterization suite before and after); problems feed and log viewer in a Logs section; Deploy AI drawer on every server screen |
-| E10 | nginx websites | Complete | 77b262a, 07db580, aca88a8 | Renderer, snippet allowlist, apply with rollback, stream proxies, SELinux labels; the `nginx -t` harness on Debian 13 and Rocky 9 never ran in CI before E17; in the first nightly run every variant passed, and one Rocky apply test failed (see below) |
+| E10 | nginx websites | Complete | 77b262a, 07db580, aca88a8, see git log | Renderer, snippet allowlist, apply with rollback, stream proxies, SELinux labels; the `nginx -t` harness on Debian 13 and Rocky 9 runs nightly. The Rocky apply failure of the first nightly run was a product bug (a refused reload ended before nginx stopped retrying the port, so the next apply read its leftovers as its own cause), fixed with a test |
 | E11 | Let's Encrypt certificates | Complete | 7110a67, 07db580, aca88a8 | ACME client (RFC 8555 and ARI) against Pebble, renewal service, SSL tab; AC3 tested in E17 (a failed renewal now has its own inbox title); DNS-01 through E14; HTTP-01 on an installed core fixed in E17 (its webroot folders came out 0700 under the core's umask) |
-| E12 | App Store | In progress | see git log | Catalog of 18 apps pinned by digest (MinIO left out: no public official image); App Store section, one-screen install sheet, post-install card with masked secrets (step-up reveal), explicit updates as server-side revisions, digest refresh script. Left: AC3 (WordPress over HTTPS on Pebble) not verified |
+| E12 | App Store | Complete | see git log | Catalog of 18 apps pinned by digest (MinIO left out: no public official image); App Store section, one-screen install sheet, post-install card with masked secrets (step-up reveal), explicit updates as server-side revisions, digest refresh script. AC3 by `appStoreHttps.int.test.ts` (WordPress on a domain over HTTPS with a Pebble certificate, nightly), which found and fixed the install sheet's invalid upstream service name |
 | E13 | Firewall | Complete | 2a87c89, 271820e, see git log | Core (ufw and firewalld, lockout guard, safe apply), the Firewall screen (T6) and "make private" (T5): an AgentMate app is redeployed with the service on 127.0.0.1 as a revision the server copies; anything else is shown the compose or run change. AC1 to AC3 by the firewall system tests, in CI since run 37084799281 |
 | E14 | Cloudflare | Complete | df848e5, see git log | Desktop T1 to T4, T8, T9; core and desktop T5 to T7: Origin CA (key made on the server), origin lock through firewall change sets with a daily unattended refresh and nginx real IP, DNS-01 with a zone-scoped token (migration CloudflareOriginAndDns) |
 | E15 | Security center and maintenance | Complete | c87918a, see git log | Checklist with a score and previewed fixes; SSH password login off only over a proven key login (two guards, timer rollback, kept over a new key login); a failed core update reconnects; backups encrypted on the core (PBKDF2 600,000, AES-256-GCM chunks) and restored over SSH as root |
@@ -61,18 +61,16 @@ this machine.
   podman case, E06 AC4), ufw and direct TLS, and firewalld. Debian 13 and Rocky 9 had never run
   these in CI before.
 - The server core's own system tests (nginx `-t` harness and Pebble, which no workflow ran
-  before): 18 of 19 passed, Pebble issue and renew included (E11 AC1). The one failure is
-  `RockyNginxApplyTests.A_release_the_core_applies_serves_with_basic_auth_and_logs_per_site`:
-  its apply came back refused with "bind() to 0.0.0.0:3000 failed (Address already in use)", the
-  error the class's port-in-use test provokes on purpose. The Debian twin passed. It looks like
-  the apply reading a stale line from error.log when the reload confirmation is slow, which would
-  be a product bug (a refused apply naming the wrong cause) as much as a test one. Not fixed;
-  E10 AC1 and AC2 stand on the Debian run and the earlier local runs until it is.
+  before): 18 of 19 passed, Pebble issue and renew included (E11 AC1). The one failure,
+  `RockyNginxApplyTests.A_release_the_core_applies_serves_with_basic_auth_and_logs_per_site`, was
+  a product bug: nginx retries a port in use five times, 500 ms apart, and the core called the
+  reload refused at the first line, so the next apply read the rest as its own cause. Fixed on
+  2026-10-03 with a unit test that failed with the nightly's message first, and the port-in-use
+  system test now applies again straight after (see the E10 notes). All 18 pass locally; the
+  next nightly run is the CI check.
 
 **Not covered by any test**
 
-- E12 AC3: WordPress on a domain over HTTPS on the Pebble harness. The install, the site, nginx
-  apply and the certificate order are each tested, not together.
 - E05 AC3 and AC4: recovery after a real reboot and a stream across a real token expiry are tested
   with the fake core and the DevHost's pretend reboot, not a rebooting machine.
 - E14: the origin lock runs against the pretend firewalls in the e2e run and through a real
@@ -113,6 +111,12 @@ either.
   reverted by itself, and a crash loop fixed by an approved Deploy AI command. It found that
   HTTP-01 had never worked on an installed core (the ACME webroot's folders were 0700 under the
   core's `UMask=0077`, so nginx answered the CA with 404), now fixed and unit-tested.
+- E12 AC3 (2026-10-03): `appStoreHttps.int.test.ts` installs WordPress from the App Store on a
+  test server, puts it on a domain and issues its certificate from Pebble through nginx; curl
+  gets the WordPress setup page over HTTPS, verified against Pebble's root. Passed locally; it runs
+  in the nightly Ubuntu 24.04 job. It found that the install sheet named the site's upstream
+  service with a space, which the core refuses, so "put it on a domain" always stopped at the
+  site; fixed. It also hit the 0700 webroot folders that the full-stack run fixed.
 
 - In CI run 37084799281 (E09), "Server core on test servers" passed: installs on Ubuntu and Rocky
   as root and with sudo, the firewall on ufw and firewalld (E13), private registries (E08), direct

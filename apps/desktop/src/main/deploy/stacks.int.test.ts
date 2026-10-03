@@ -1,37 +1,24 @@
 import { execFileSync } from 'node:child_process';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import {
   CATALOG_TEMPLATES,
   generateCatalogSecrets,
   type Project,
   renderCatalogApp,
 } from '@agentmat/core';
-import type { HubConnection, IStreamResult } from '@microsoft/signalr';
 import { afterEach, describe, expect, it } from 'vitest';
-import type {
-  JobInfo,
-  JobStreamItem,
-} from '../../shared/deploy/protocol/generated/AgentMate.ServerCore.Contracts';
-import type { ICoreHub } from '../../shared/deploy/protocol/generated/TypedSignalR.Client/AgentMate.ServerCore.Contracts';
+import type { JobInfo } from '../../shared/deploy/protocol/generated/AgentMate.ServerCore.Contracts';
 import { tempDir } from '../../test/main/fixtures';
-import { SshConnectionPool } from '../ssh/pool';
-import { CoreSessions } from './auth/coreSessions';
-import { localArtifactSource } from './bootstrap/releaseSource';
 import { CoreHttpClient } from './connection/coreHttp';
-import { coreHub, createCoreHubConnection } from './connection/coreHub';
-import { streamLocalTransport } from './connection/transport';
-import { DeployService } from './service';
 import { buildContextTarball } from './stacks/buildContext';
 import { DeployStacks } from './stacks/service';
-import { DeployState } from './state';
+import { installAndConnect, installDocker, runJob } from './testing/coreSession';
 import {
   DISTRO_IMAGES,
   skipWhenNoServers,
   startTestServer,
   systemTestsEnabled,
-  TEST_LOGINS,
   type TestServer,
   testServerImages,
 } from './testing/testServers';
@@ -53,9 +40,6 @@ const enabled = systemTestsEnabled();
 
 /** Ubuntu on every `[e2e]` push; the nightly matrix runs it on each distro. */
 const IMAGES = testServerImages(DISTRO_IMAGES, ['ubuntu-24.04']);
-const REPO = fileURLToPath(new URL('../../../../../', import.meta.url));
-const ARTIFACTS = join(REPO, 'apps', 'server-core', 'artifacts', 'release');
-const PASSWORD = 'correct horse battery staple';
 const TEST_TIMEOUT_MS = 2_400_000;
 
 /** Quotes, a `$`, a backslash, a `#`, a newline and spaces at both ends: what .env files get wrong. */
@@ -130,123 +114,6 @@ function loadImage(server: TestServer, image: string): void {
   });
 }
 
-function streamUntil<T>(
-  stream: IStreamResult<T>,
-  done: (items: T[]) => boolean,
-  timeoutMs: number,
-): Promise<T[]> {
-  return new Promise((resolve, reject) => {
-    const items: T[] = [];
-    const timer = setTimeout(() => {
-      subscription.dispose();
-      reject(new Error(`The stream did not finish: ${JSON.stringify(items).slice(-3_000)}`));
-    }, timeoutMs);
-    const finish = (error?: unknown) => {
-      clearTimeout(timer);
-      subscription.dispose();
-      if (error) reject(error);
-      else resolve(items);
-    };
-    const subscription = stream.subscribe({
-      next: (item) => {
-        items.push(item);
-        if (done(items)) finish();
-      },
-      error: (error) => finish(error),
-      complete: () => (done(items) ? finish() : finish(new Error('The stream ended early.'))),
-    });
-  });
-}
-
-async function runJob(hub: ICoreHub, job: JobInfo, timeoutMs: number) {
-  const items = await streamUntil<JobStreamItem>(
-    hub.streamJob(job.id, 0),
-    (seen) => seen.some((item) => item.job && item.job.state !== 'running'),
-    timeoutMs,
-  );
-  const final = [...items].reverse().find((item) => item.job)?.job;
-  return { final, log: items.flatMap((item) => item.lines.map((line) => line.text)) };
-}
-
-async function installAndConnect(server: TestServer) {
-  const { username, password } = TEST_LOGINS.root;
-  const pool = new SshConnectionPool({
-    endpoint: async () => ({
-      host: server.host,
-      port: server.port,
-      username,
-      authMethod: 'password',
-      password,
-    }),
-    trustHostKey: async () => undefined,
-  });
-  let file: unknown = null;
-  const state = new DeployState({
-    read: async () => file,
-    write: async (value) => {
-      file = value;
-    },
-  });
-  const seal = async (plaintext: string) => ({
-    mode: 'safeStorage' as const,
-    ciphertext: Buffer.from(plaintext).toString('base64'),
-  });
-  const unseal = async (envelope: { ciphertext: string }) =>
-    Buffer.from(envelope.ciphertext, 'base64').toString();
-  const service = new DeployService({
-    servers: async () => [
-      {
-        id: 'srv',
-        nickname: 'Test server',
-        host: server.host,
-        port: server.port,
-        username,
-        authMethod: 'password',
-        secretEnvelope: 'saved',
-      },
-    ],
-    pool,
-    state,
-    releases: localArtifactSource(ARTIFACTS),
-    seal,
-    unseal,
-    deviceName: () => 'Stacks system test',
-    availableVersion: async () => '0.0.0-dev',
-    devCorePort: null,
-    progress: () => undefined,
-  });
-  const installed = await service.install({
-    serverId: 'srv',
-    sudoPassword: null,
-    account: { userName: 'maria', password: PASSWORD },
-  });
-  expect(installed.enrollmentError).toBeUndefined();
-
-  const lease = await pool.acquire('srv');
-  const transport = streamLocalTransport(lease.connection);
-  const sessions = new CoreSessions({
-    state,
-    unseal,
-    withCore: (_serverId, work) => work(new CoreHttpClient(transport)),
-  });
-  await sessions.signIn('srv', { password: PASSWORD });
-  const connection: HubConnection = createCoreHubConnection(transport, () =>
-    sessions.accessToken('srv'),
-  );
-  await connection.start();
-  const hub = coreHub(connection);
-  return {
-    hub,
-    transport,
-    sessions,
-    stop: () => {
-      void connection.stop();
-      lease.release();
-      pool.closeAll();
-    },
-  };
-}
-
 function writeProject(files: Record<string, string>): string {
   const folder = tempDir('agentmate-stack-system-');
   for (const [path, content] of Object.entries(files)) {
@@ -264,23 +131,13 @@ describe.skipIf(!enabled)('Compose stacks through the server core on a real serv
       async () => {
         const server = await startTestServer(image);
         servers.push(server);
-        const { hub, transport, sessions, stop } = await installAndConnect(server);
+        const { hub, transport, sessions, stop } = await installAndConnect(
+          server,
+          'Stacks system test',
+        );
         cleanups.push(stop);
 
-        // Docker's repository over a slow network can time out once; the install is safe to repeat.
-        let docker = await runJob(
-          hub,
-          await hub.installDocker({ removeConflictingPackages: true }),
-          1_200_000,
-        );
-        for (let attempt = 1; attempt < 3 && docker.final?.state !== 'succeeded'; attempt++) {
-          docker = await runJob(
-            hub,
-            await hub.installDocker({ removeConflictingPackages: true }),
-            1_200_000,
-          );
-        }
-        expect(docker.final?.state, docker.log.slice(-40).join('\n')).toBe('succeeded');
+        await installDocker(hub);
         loadImage(server, 'busybox:1.37');
 
         const folder = writeProject({

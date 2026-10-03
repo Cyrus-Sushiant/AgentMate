@@ -219,7 +219,12 @@ describe('the install sheet', () => {
       expect.objectContaining({
         id: 'status-example-com',
         domains: ['status.example.com'],
-        upstream: expect.objectContaining({ kind: 'servicePort', port: expect.any(Number) }),
+        // The core takes a service name of letters, digits, '.', '_' and '-' only.
+        upstream: expect.objectContaining({
+          kind: 'servicePort',
+          service: 'uptime-kuma-uptime-kuma',
+          port: expect.any(Number),
+        }),
         websocket: true,
       }),
     );

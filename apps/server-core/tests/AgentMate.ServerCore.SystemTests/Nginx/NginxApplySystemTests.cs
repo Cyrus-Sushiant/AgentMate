@@ -96,7 +96,7 @@ public abstract class NginxApplySystemTests(NginxHarnessFixture fixture)
     }
 
     [Fact]
-    public async Task A_port_in_use_passes_nginx_t_but_not_the_reload_and_is_rolled_back()
+    public async Task A_port_in_use_passes_nginx_t_but_not_the_reload_is_rolled_back_and_leaves_nothing_for_the_next_apply()
     {
         var core = await StartAsync();
         var before = await core.Machine.ReadLinkAsync(core.Layout.CurrentLink, Cancel);
@@ -115,6 +115,11 @@ public abstract class NginxApplySystemTests(NginxHarnessFixture fixture)
         Assert.Equal(before, await core.Machine.ReadLinkAsync(core.Layout.CurrentLink, Cancel));
         Assert.True((await core.Harness.TestConfigurationAsync(Cancel)).Succeeded);
         Assert.Equal(401, (await core.Harness.CurlAsync(Cancel, Http())).Status);
+
+        // The refusal was over when the apply returned: nginx's last tries at the port do not
+        // reach the next apply as its cause (nightly run 37097759993).
+        var next = await core.ApplyAsync(new NginxConfiguration([Site()], []));
+        Assert.True(next.Applied, string.Join("\n", next.Problems));
     }
 
     [Fact]

@@ -45,7 +45,10 @@ internal sealed class SimulatedNginxMachine : INginxMachine
     private readonly HashSet<string> _directories = new(StringComparer.Ordinal) { "/" };
     private readonly Dictionary<string, string> _links = new(StringComparer.Ordinal);
     private readonly List<string> _commands = [];
+    private readonly Queue<(DateTimeOffset At, string Text)> _retryLines = new();
     private int _nextPid = MasterPid + 1;
+    private bool _pendingReload;
+    private bool _advancing;
 
     /// <param name="installed">Start with nginx.org's nginx installed and running.</param>
     public SimulatedNginxMachine(bool installed = true)
@@ -85,6 +88,17 @@ internal sealed class SimulatedNginxMachine : INginxMachine
 
     /// <summary>What error.log gets when a reload is refused (a port in use, say); null means reloads work.</summary>
     public Func<SimulatedNginxMachine, string?>? ReloadFailure { get; set; }
+
+    /// <summary>
+    /// Refused reloads the way nginx refuses a port in use: the master tries bind() this many more
+    /// times, <see cref="BindRetryInterval"/> apart, writing the failure each time, and then says
+    /// it gives up. A reload signalled meanwhile waits until it has. Zero refuses at once.
+    /// </summary>
+    public int BindRetries { get; set; }
+
+    public TimeSpan BindRetryInterval { get; set; } = TimeSpan.FromMilliseconds(500);
+
+    public TimeProvider Clock { get; init; } = TimeProvider.System;
 
     /// <summary>Called before each command; a result answers it instead of the simulation.</summary>
     public Func<ProcessSpec, ProcessResult?>? Intercept { get; set; }
@@ -128,6 +142,7 @@ internal sealed class SimulatedNginxMachine : INginxMachine
     {
         lock (_gate)
         {
+            Advance();
             return Task.FromResult(_files.TryGetValue(Resolve(path), out var bytes) ? Encoding.UTF8.GetString(bytes) : null);
         }
     }
@@ -236,6 +251,7 @@ internal sealed class SimulatedNginxMachine : INginxMachine
     {
         lock (_gate)
         {
+            Advance();
             return Task.FromResult(_files.TryGetValue(Resolve(path), out var bytes) ? bytes.Length : (long?)null);
         }
     }
@@ -244,6 +260,7 @@ internal sealed class SimulatedNginxMachine : INginxMachine
     {
         lock (_gate)
         {
+            Advance();
             if (!_files.TryGetValue(Resolve(path), out var bytes))
             {
                 throw new FileNotFoundException($"{path} does not exist.");
@@ -284,6 +301,7 @@ internal sealed class SimulatedNginxMachine : INginxMachine
         var line = string.Join(' ', [program, .. spec.Arguments]);
         lock (_gate)
         {
+            Advance();
             _commands.Add(line);
         }
 
@@ -329,14 +347,77 @@ internal sealed class SimulatedNginxMachine : INginxMachine
         }
 
         Reloads++;
-        if (ReloadFailure?.Invoke(this) is { } failure)
+        lock (_gate)
         {
-            AppendText("/var/log/nginx/error.log", $"2026/10/01 12:00:00 [notice] {MasterPid}#{MasterPid}: signal process started\n{failure}\n");
-            return Result(0);
+            Advance();
+            if (_retryLines.Count > 0)
+            {
+                // The master is still busy with the last one; it takes this signal afterwards.
+                _pendingReload = true;
+                return Result(0);
+            }
+
+            TakeReload();
         }
 
-        SpawnWorkers();
         return Result(0);
+    }
+
+    private void TakeReload()
+    {
+        if (ReloadFailure?.Invoke(this) is not { } failure)
+        {
+            SpawnWorkers();
+            return;
+        }
+
+        AppendLog($"2026/10/01 12:00:00 [notice] {MasterPid}#{MasterPid}: signal process started\n{failure}\n");
+        if (BindRetries > 0)
+        {
+            var now = Clock.GetUtcNow();
+            for (var retry = 1; retry <= BindRetries; retry++)
+            {
+                _retryLines.Enqueue((now + (BindRetryInterval * retry), failure + "\n"));
+            }
+
+            _retryLines.Enqueue((now + (BindRetryInterval * (BindRetries + 1)), $"2026/10/01 12:00:00 [emerg] {MasterPid}#{MasterPid}: still could not bind()\n"));
+        }
+    }
+
+    /// <summary>Writes the retry lines that are due and, once a refused reload is over, takes the one signalled meanwhile.</summary>
+    private void Advance()
+    {
+        if (_advancing || (_retryLines.Count == 0 && !_pendingReload))
+        {
+            return;
+        }
+
+        _advancing = true;
+        try
+        {
+            var now = Clock.GetUtcNow();
+            while (_retryLines.TryPeek(out var due) && due.At <= now)
+            {
+                AppendLog(_retryLines.Dequeue().Text);
+            }
+
+            if (_retryLines.Count == 0 && _pendingReload)
+            {
+                _pendingReload = false;
+                TakeReload();
+            }
+        }
+        finally
+        {
+            _advancing = false;
+        }
+    }
+
+    private void AppendLog(string text)
+    {
+        var path = Resolve("/var/log/nginx/error.log");
+        var before = _files.TryGetValue(path, out var bytes) ? bytes : [];
+        _files[path] = [.. before, .. Encoding.UTF8.GetBytes(text)];
     }
 
     private void Start()

@@ -80,6 +80,30 @@ public sealed class NginxApplierTests
     }
 
     [Fact]
+    public async Task A_refused_reload_is_over_before_the_apply_returns_so_the_next_apply_gets_no_stale_error()
+    {
+        // nginx retries a bind() in use five times, 500 ms apart, writing the error each time. An
+        // apply that returned at the first line left the rest to land in the next reload's window,
+        // which then reported this port as its own cause (nightly run 37097759993).
+        using var kit = await ReadyAsync();
+        kit.Machine.BindRetries = 4;
+        kit.Machine.BindRetryInterval = TimeSpan.FromMilliseconds(100);
+        kit.Machine.ReloadFailure = machine => machine.Exists(kit.Layout.CurrentLink + "/sites/taken.conf")
+            ? "2026/10/01 12:00:01 [emerg] 4100#4100: bind() to 0.0.0.0:3000 failed (98: Address already in use)"
+            : null;
+
+        var refused = await kit.ApplyAsync(Config(Site("taken", "taken.example.com")));
+        var next = await kit.ApplyAsync(Config(Site()));
+
+        Assert.True(next.Applied, string.Join("; ", next.Problems));
+        Assert.False(refused.Applied);
+        Assert.Equal(
+            ["bind() to 0.0.0.0:3000 failed (98: Address already in use)", "still could not bind()"],
+            refused.Problems.Select(problem => problem.Message));
+        Assert.Equal("releases/2", await kit.Machine.ReadLinkAsync(kit.Layout.CurrentLink, Cancel));
+    }
+
+    [Fact]
     public async Task Nothing_reaches_nginx_when_the_model_is_refused()
     {
         using var kit = await ReadyAsync();

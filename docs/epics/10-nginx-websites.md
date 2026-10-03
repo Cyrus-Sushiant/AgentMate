@@ -81,3 +81,33 @@ E17 review (2026-10-03):
   no workflow ran that project. The nightly workflow now has a job for it. AC3 and AC4 are unit and
   golden-file tests that run on every push.
 - Visual and keyboard pass of the Websites section done in E17 (both themes, 1440 and 960 wide).
+
+Rocky apply failure in nightly run 37097759993 (fixed 2026-10-03):
+
+- `RockyNginxApplyTests.A_release_the_core_applies_serves_with_basic_auth_and_logs_per_site` got
+  its apply refused with "bind() to 0.0.0.0:3000 failed (Address already in use)", the error the
+  class's port-in-use test causes on purpose. It was a product bug, not the harness. When a port
+  is taken, nginx's master tries bind() five times, 500 ms apart, writing the error each time, and
+  only then gives up (the log shows all five with the same second, since nginx's clock is cached
+  while it sleeps). `NginxControl.ReloadAsync` called the reload refused at the first line and
+  returned, so the rollback's reload and the next apply measured their place in error.log while
+  nginx was still writing about the old attempt, and the leftover lines read as their own cause.
+  A real server would have shown the same wrong reason for an apply that came within a few
+  seconds of a refused one. On this machine each `docker exec` is slow enough to hide the window,
+  which is why the local runs passed; the Linux runner is fast enough to hit it. The shared
+  container per test class (and xUnit ordering the Rocky class differently from the Debian one)
+  only decided which test caught it.
+- Fix: once error.log shows a refused reload, the reload is over only after the log has stopped
+  growing for a second (`NginxControl.SettleTime`, longer than nginx's retry gap), still bounded
+  by the reload deadline. Repeated identical lines become one problem, so a port in use reads as
+  the bind error plus "still could not bind()".
+- Tests: the unit test `A_refused_reload_is_over_before_the_apply_returns_so_the_next_apply_gets_no_stale_error`
+  failed with the nightly's exact message before the fix (`SimulatedNginxMachine` now retries a
+  refused reload like nginx when `BindRetries` is set, and holds back a reload signalled
+  meanwhile). The port-in-use system test now also applies again straight after the refusal and
+  expects it to go through. All 18 server core system tests pass locally on Docker Desktop.
+
+The E12 AC3 system test also hit the 0700 folders above the ACME webroot (every HTTP-01 order a
+404 from the server's own nginx). The E17 full-stack run found the same bug at the same time and
+its fix landed first (a7e9ec1, `LocalNginxMachineUmaskTests`); this work kept that fix and dropped
+its own copy.

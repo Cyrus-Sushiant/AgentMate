@@ -99,6 +99,7 @@ jobs:
           src/main/deploy/security.int.test.ts
           src/main/deploy/firewall.int.test.ts
           src/main/deploy/directTls.int.test.ts
+          src/main/deploy/appStoreHttps.int.test.ts
 
   # E17 AC1: the whole story in one run, with Playwright driving the built app against a test
   # server (deployFullStack.e2e.ts): install, two-factor, Docker, a stack with an environment, a

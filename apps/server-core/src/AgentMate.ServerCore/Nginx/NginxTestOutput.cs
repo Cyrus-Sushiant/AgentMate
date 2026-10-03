@@ -31,14 +31,14 @@ internal static partial class NginxTestOutput
 
             var message = match.Groups["message"].Value;
             var located = Located().Match(message);
-            if (located.Success && Map(located.Groups["path"].Value, layout, release) is { } file)
+            var problem = located.Success && Map(located.Groups["path"].Value, layout, release) is { } file
+                ? ToProblem(file, int.Parse(located.Groups["line"].Value, CultureInfo.InvariantCulture), Clip(message[..located.Index]))
+                : new NginxProblem(NginxField, Clip(message));
+
+            // nginx writes a bind() it retries once per try; one line says it.
+            if (!problems.Contains(problem))
             {
-                var line = int.Parse(located.Groups["line"].Value, CultureInfo.InvariantCulture);
-                problems.Add(ToProblem(file, line, Clip(message[..located.Index])));
-            }
-            else
-            {
-                problems.Add(new NginxProblem(NginxField, Clip(message)));
+                problems.Add(problem);
             }
         }
 

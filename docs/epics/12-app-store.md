@@ -83,12 +83,39 @@ Acceptance criteria:
 2. Secrets come from Web Crypto and meet the rules (`secrets.test.ts`); they are only ever in the
    .env, which the core's redactor is seeded with. The compose file and the facts' masked text
    never hold one (tests in `catalog.test.ts` and `installed.test.ts`).
-3. Not verified: WordPress on a domain over HTTPS on the Pebble harness. The site, apply and
-   certificate calls are covered by component tests and the E10/E11 harnesses, not by one test
-   that installs WordPress end to end.
+3. `appStoreHttps.int.test.ts` (system test, nightly on Ubuntu 24.04): the core is installed
+   with its ACME directories pointed at Pebble, Docker and nginx come through the core's jobs,
+   WordPress is installed from the catalog through `DeployAppStore` and deployed, the site is
+   saved and nginx applied as the install sheet's "put it on a domain" does, and the certificate
+   is issued over HTTP-01 through nginx. curl on the server then gets WordPress's setup page over
+   HTTPS, verified against Pebble's root alone, and the served certificate names Pebble as its
+   issuer. Passed locally on 2026-10-03 in about 18 minutes.
 
 Tests: catalog and install unit tests in `packages/core`; `main/deploy/appStore/service.test.ts`,
 `main/ipc/deployAppStore.test.ts`, `main/deploy/stacks/service.revise.test.ts`; component tests for
 the catalog, the sheet, the install with and without a domain, the card (masked, revealed, updates,
 rollback); `e2e/deployAppStore.e2e.ts` installs Redis from the store against the DevHost and checks
 the card. The DevHost's simulated compose now understands `${VAR:?message}`.
+
+AC3 (2026-10-03):
+
+- Pebble and challtestsrv run inside the test server's network namespace
+  (`main/deploy/testing/pebble.ts`, the same images, flags and configuration as the server core's
+  `PebbleFixture`). The core dials `https://127.0.0.1:14000/dir`, which Pebble's certificate
+  names; every DNS name answers 127.0.0.1, so Pebble validates against the server's own nginx on
+  port 80. Pebble's test CA goes into the server's trust store before the install, and
+  `/etc/agentmate-core/core.json` points both ACME directories at Pebble.
+- The test found two bugs:
+  - The install sheet named the site's upstream service "`<app> <service>`", with a space, which
+    the core refuses ("is not a service name"), so putting any App Store app on a domain stopped
+    at the site step. It is "`<app>-<service>`" now (`AppStorePanel.tsx`, with its test).
+  - On a server without `/var/www`, nginx setup left the folders above the ACME webroot at 0700
+    (the core's umask), so every HTTP-01 order failed with a 404. The E17 full-stack run found
+    it too and fixed it first (a7e9ec1); see the E10 notes.
+- The shared helpers moved out of `stacks.int.test.ts` into `main/deploy/testing/coreSession.ts`
+  (install and connect, run a job, install Docker). A hub connection there reconnects when the
+  core closes it at the end of its access token (15 minutes), and a job's stream starts over on
+  the new connection: Docker, nginx.org's nginx and the WordPress and MySQL pulls take longer
+  than one token.
+- Nightly only (the Ubuntu 24.04 job of `nightly.yml`). It needs well over the 3 minutes the
+  every-push job allows.

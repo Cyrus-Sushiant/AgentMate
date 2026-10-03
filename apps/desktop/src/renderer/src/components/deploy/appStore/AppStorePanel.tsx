@@ -90,7 +90,8 @@ export function AppStorePanel({ server }: { server: DeployServer }): React.JSX.E
         domains: [domain],
         upstream: {
           kind: 'servicePort',
-          service: `${request.draft.name} ${web.service}`,
+          // A label the core takes (letters, digits, '.', '_', '-', at most 63).
+          service: `${request.draft.name}-${web.service}`.slice(0, 63),
           port: port.published,
           verifyCertificate: true,
           sendUpstreamHost: false,
