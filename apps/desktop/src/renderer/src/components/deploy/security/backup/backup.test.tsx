@@ -40,7 +40,7 @@ function renderCard(bridge: Record<string, unknown> = {}, server = SERVER) {
       }),
       'deployHardening.pickBackup': async () => FILE,
       'deployHardening.restore': async () => ({
-        backupCoreVersion: '1.52.0',
+        backupCoreVersion: '1.53.0',
         backupHostName: 'old-web',
         backupCreatedAtUnixMs: Date.UTC(2026, 8, 30),
         previousStateFolder: '/var/lib/agentmate-core-restore/previous',

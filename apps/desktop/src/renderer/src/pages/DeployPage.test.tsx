@@ -315,7 +315,7 @@ describe('DeployPage install', () => {
     const { user } = renderPage({
       'deploy.install': async () => {
         throw new Error(
-          'Server core 1.53.0 did not start. The server went back to 1.52.0.\n\nWhat the core logged:\nUnhandled exception. Boom.',
+          'Server core 1.53.0 did not start. The server went back to 1.53.0.\n\nWhat the core logged:\nUnhandled exception. Boom.',
         );
       },
     });
@@ -324,7 +324,7 @@ describe('DeployPage install', () => {
     await user.click(await screen.findByRole('button', { name: /Install core/ }));
 
     expect(
-      await screen.findByText(/did not start\. The server went back to 1\.52\.0\./),
+      await screen.findByText(/did not start\. The server went back to 1\.53\.0\./),
     ).toBeTruthy();
     expect(screen.getByText('What the core logged')).toBeTruthy();
     expect(screen.getByRole('button', { name: /Check the server again/ })).toBeTruthy();
@@ -449,8 +449,8 @@ describe('DeployPage checks and updates', () => {
 
   it('offers an update from the health card and lets the user back out', async () => {
     const { user } = renderPage({
-      'deploy.listServers': async () => [server({ core: { ...CORE, version: '1.52.0' } })],
-      'deploy.preflight': async () => ({ ...PREFLIGHT, installed: { version: '1.52.0' } }),
+      'deploy.listServers': async () => [server({ core: { ...CORE, version: '1.53.0' } })],
+      'deploy.preflight': async () => ({ ...PREFLIGHT, installed: { version: '1.53.0' } }),
     });
 
     await user.click(await screen.findByRole('button', { name: 'More actions' }));
@@ -464,8 +464,8 @@ describe('DeployPage checks and updates', () => {
 
   it('lets an update join a core this computer is not on, or leave that for later', async () => {
     const { user, bridge } = renderPage({
-      'deploy.listServers': async () => [server({ core: { ...CORE, version: '1.52.0' } })],
-      'deploy.preflight': async () => ({ ...PREFLIGHT, installed: { version: '1.52.0' } }),
+      'deploy.listServers': async () => [server({ core: { ...CORE, version: '1.53.0' } })],
+      'deploy.preflight': async () => ({ ...PREFLIGHT, installed: { version: '1.53.0' } }),
       'deploy.install': () => new Promise(() => undefined),
     });
 
@@ -486,8 +486,8 @@ describe('DeployPage checks and updates', () => {
 
   it('sends the account along when one is given during an update', async () => {
     const { user, bridge } = renderPage({
-      'deploy.listServers': async () => [server({ core: { ...CORE, version: '1.52.0' } })],
-      'deploy.preflight': async () => ({ ...PREFLIGHT, installed: { version: '1.52.0' } }),
+      'deploy.listServers': async () => [server({ core: { ...CORE, version: '1.53.0' } })],
+      'deploy.preflight': async () => ({ ...PREFLIGHT, installed: { version: '1.53.0' } }),
       'deploy.install': () => new Promise(() => undefined),
     });
 
@@ -509,9 +509,9 @@ describe('DeployPage checks and updates', () => {
   it('asks for no account when this computer is already on the core', async () => {
     const { user } = renderPage({
       'deploy.listServers': async () => [
-        server({ core: { ...CORE, version: '1.52.0' }, enrolled: true }),
+        server({ core: { ...CORE, version: '1.53.0' }, enrolled: true }),
       ],
-      'deploy.preflight': async () => ({ ...PREFLIGHT, installed: { version: '1.52.0' } }),
+      'deploy.preflight': async () => ({ ...PREFLIGHT, installed: { version: '1.53.0' } }),
     });
 
     await user.click(await screen.findByRole('button', { name: 'More actions' }));
@@ -717,7 +717,7 @@ describe('DeployPage security', () => {
   it('offers no code path when this computer is already on the core', async () => {
     renderPage({
       'deploy.listServers': async () => [server({ enrolled: true })],
-      'deploy.preflight': async () => ({ ...PREFLIGHT, installed: { version: '1.52.0' } }),
+      'deploy.preflight': async () => ({ ...PREFLIGHT, installed: { version: '1.53.0' } }),
     });
 
     expect(await screen.findByRole('button', { name: /Update to core 1.53.0/ })).toBeTruthy();

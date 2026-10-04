@@ -114,12 +114,12 @@ describe('runPreflight', () => {
 
   it('notices an existing install and its version', async () => {
     const report = await preflight({
-      installed: { release: '/opt/agentmate-core/releases/1.52.0-abcdef012345', version: '1.52.0' },
+      installed: { release: '/opt/agentmate-core/releases/1.53.0-abcdef012345', version: '1.53.0' },
     });
 
     expect(report.installed).toEqual({
-      version: '1.52.0',
-      release: '/opt/agentmate-core/releases/1.52.0-abcdef012345',
+      version: '1.53.0',
+      release: '/opt/agentmate-core/releases/1.53.0-abcdef012345',
     });
   });
 

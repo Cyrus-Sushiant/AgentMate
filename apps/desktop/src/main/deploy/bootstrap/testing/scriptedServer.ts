@@ -51,7 +51,7 @@ export function scriptedMachine(overrides: Partial<ScriptedMachine> = {}): Scrip
     groups: ['deployer', 'agentmate'],
     configuredGroups: null,
     stagedBackup: JSON.stringify({
-      coreVersion: '1.52.0',
+      coreVersion: '1.53.0',
       createdAtUnixMs: 1_790_000_000_000,
       hostName: 'old-web',
       contents: { users: 2 },

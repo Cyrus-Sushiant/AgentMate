@@ -118,11 +118,11 @@ describe('installSteps', () => {
 
   it('keeps the previous release when cleaning up', () => {
     const cleanup =
-      installSteps(input({ previousRelease: `${CORE_ROOT}/releases/1.52.0-cdcdcdcdcdcd` })).find(
+      installSteps(input({ previousRelease: `${CORE_ROOT}/releases/1.53.0-cdcdcdcdcdcd` })).find(
         (step) => step.id === 'cleanup',
       )?.command ?? '';
 
-    expect(cleanup).toContain('1.52.0-cdcdcdcdcdcd');
+    expect(cleanup).toContain('1.53.0-cdcdcdcdcdcd');
     expect(cleanup).toContain('1.53.0-abababababab');
     expect(cleanup).toContain(`rm -rf ${CORE_ROOT}/incoming`);
   });
@@ -144,7 +144,7 @@ describe('installSteps', () => {
 
 describe('rollbackSteps', () => {
   it('points current back at the previous release and restarts it', () => {
-    const previous = `${CORE_ROOT}/releases/1.52.0-cdcdcdcdcdcd`;
+    const previous = `${CORE_ROOT}/releases/1.53.0-cdcdcdcdcdcd`;
 
     const rollback = rollbackSteps(previous)
       .map((step) => step.command)
