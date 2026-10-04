@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Globalization;
 using AgentMate.ServerCore.Execution;
 
@@ -95,6 +96,76 @@ public sealed class ProcessRunnerTests
         var result = await _runner.RunAsync(spec with { StandardInput = "from stdin\n" }, cancellationToken: Cancel);
 
         Assert.Equal("from stdin", result.StandardOutput.Trim());
+    }
+
+    [Fact]
+    public async Task Every_line_is_read_before_the_result_even_when_reading_is_slow()
+    {
+        // The program is long gone while the first line is still being handled. Its output is all
+        // in the pipe, so the result waits for it, however long the reader takes to get there.
+        var spec = OperatingSystem.IsWindows()
+            ? new ProcessSpec { Program = WindowsTool("cmd.exe"), Arguments = ["/d", "/c", "echo one& echo two"] }
+            : new ProcessSpec { Program = "sh", Arguments = ["-c", "printf 'one\\ntwo\\n'"] };
+        var lines = new System.Collections.Concurrent.ConcurrentQueue<string>();
+
+        var result = await _runner.RunAsync(
+            spec,
+            line =>
+            {
+                lines.Enqueue(line.Text);
+                if (line.Text.Trim() == "one")
+                {
+                    Thread.Sleep(TimeSpan.FromSeconds(4));
+                }
+            },
+            Cancel);
+
+        Assert.Equal(["one", "two"], result.StandardOutput.Split('\n', StringSplitOptions.RemoveEmptyEntries).Select(text => text.Trim()));
+        Assert.Equal(["one", "two"], lines.Select(text => text.Trim()).Where(text => text.Length > 0));
+    }
+
+    [Fact]
+    public async Task A_background_child_holding_the_output_does_not_hold_the_result()
+    {
+        Assert.SkipUnless(OperatingSystem.IsLinux(), "Linux process groups");
+        var started = TimeProvider.System.GetTimestamp();
+
+        var result = await _runner.RunAsync(
+            new ProcessSpec { Program = "sh", Arguments = ["-c", "echo started; sleep 30 &"] },
+            cancellationToken: Cancel);
+
+        Assert.Equal(0, result.ExitCode);
+        Assert.Equal("started", result.StandardOutput.Trim());
+        Assert.True(TimeProvider.System.GetElapsedTime(started) < TimeSpan.FromSeconds(15));
+    }
+
+    [Fact]
+    public async Task A_daemon_that_left_the_group_with_the_output_is_not_waited_for()
+    {
+        Assert.SkipUnless(OperatingSystem.IsLinux(), "Linux sessions");
+        var pidFile = Path.GetTempFileName();
+        var started = TimeProvider.System.GetTimestamp();
+        try
+        {
+            // setsid puts the sleep in a session of its own, out of reach of the run's group kill.
+            var result = await _runner.RunAsync(
+                new ProcessSpec { Program = "sh", Arguments = ["-c", "setsid sleep 60 & echo $! > \"$1\"", "sh", pidFile] },
+                cancellationToken: Cancel);
+            var elapsed = TimeProvider.System.GetElapsedTime(started);
+
+            Assert.Equal(0, result.ExitCode);
+            Assert.True(elapsed < TimeSpan.FromSeconds(45));
+        }
+        finally
+        {
+            if (int.TryParse(File.ReadAllText(pidFile).Trim(), CultureInfo.InvariantCulture, out var pid))
+            {
+                using var daemon = Process.GetProcessById(pid);
+                daemon.Kill();
+            }
+
+            File.Delete(pidFile);
+        }
     }
 
     [Fact]

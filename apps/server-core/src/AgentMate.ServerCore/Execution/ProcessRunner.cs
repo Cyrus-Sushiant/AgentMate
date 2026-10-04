@@ -1,8 +1,10 @@
 using System.ComponentModel;
 using System.Diagnostics;
+using System.IO.Pipes;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.RegularExpressions;
+using Microsoft.Win32.SafeHandles;
 
 namespace AgentMate.ServerCore.Execution;
 
@@ -86,10 +88,13 @@ internal sealed partial class ProcessRunner(TimeProvider time) : IProcessRunner
 
     public static readonly TimeSpan MaxTimeout = TimeSpan.FromHours(24);
 
-    /// <summary>After an exit, how long output still being written by a straggler is waited for.</summary>
+    /// <summary>After an exit, how long a pipe that a straggler still holds open is waited for.</summary>
     private static readonly TimeSpan _drainGrace = TimeSpan.FromSeconds(2);
 
     private static readonly TimeSpan _killGrace = TimeSpan.FromSeconds(10);
+
+    /// <summary>While a pipe stays held open, how long readers still working through output are given.</summary>
+    private static readonly TimeSpan _busyReadLimit = TimeSpan.FromSeconds(30);
 
     private static readonly UTF8Encoding _utf8 = new(encoderShouldEmitUTF8Identifier: false);
 
@@ -193,9 +198,11 @@ internal sealed partial class ProcessRunner(TimeProvider time) : IProcessRunner
         started?.Invoke(process.Id);
         var output = new Capture(spec.MaxOutputBytes);
         var errors = new Capture(spec.MaxOutputBytes);
-        var reading = Task.WhenAll(
-            ReadLinesAsync(process.StandardOutput, OutputStream.Out, output, onLine),
-            ReadLinesAsync(process.StandardError, OutputStream.Err, errors, onLine));
+        OutputReader[] readers =
+        [
+            new(process.StandardOutput, OutputStream.Out, output, onLine),
+            new(process.StandardError, OutputStream.Err, errors, onLine),
+        ];
         var writing = WriteInputAsync(process.StandardInput, spec.StandardInput);
 
         using var timeout = new CancellationTokenSource(spec.Timeout, time);
@@ -219,18 +226,15 @@ internal sealed partial class ProcessRunner(TimeProvider time) : IProcessRunner
             }
         }
 
+        await DrainAsync(process, inGroup, stopped: timedOut || cancellationToken.IsCancellationRequested, readers, cancellationToken);
         try
         {
-            // The pipes stay open while anything the program started still holds them; a
-            // daemon that kept them is not waited for.
-            await Task.WhenAll(reading, writing).WaitAsync(_drainGrace, CancellationToken.None);
+            // A program that is gone takes no more input; a straggler that holds stdin is not waited for.
+            await writing.WaitAsync(_drainGrace, CancellationToken.None);
         }
         catch (TimeoutException)
         {
-            if (!timedOut && !cancellationToken.IsCancellationRequested && inGroup)
-            {
-                Kill(process, inGroup);
-            }
+            // Left to fail when the straggler goes.
         }
 
         cancellationToken.ThrowIfCancellationRequested();
@@ -358,63 +362,64 @@ internal sealed partial class ProcessRunner(TimeProvider time) : IProcessRunner
         }
     }
 
-    private static async Task ReadLinesAsync(
-        StreamReader reader,
-        OutputStream stream,
-        Capture capture,
-        Action<OutputLine>? onLine)
+    /// <summary>
+    /// Waits until the output the program wrote has all been read. A reader can be left
+    /// unscheduled for seconds after the exit on a busy machine, so the clock alone cannot say
+    /// that the output is finished: once nothing holds the pipes open any more, their end is in
+    /// them and the readers are waited for, however long they take. Only a pipe that something
+    /// else still holds (a child the program left running) gets a grace period. Then the run's
+    /// group is killed, which closes the pipe. A daemon that left the group is waited for only while
+    /// the readers are still working through output, and not for ever.
+    /// </summary>
+    private static async Task DrainAsync(
+        Process process,
+        bool inGroup,
+        bool stopped,
+        OutputReader[] readers,
+        CancellationToken cancellationToken)
     {
-        var buffer = new char[4096];
-        var line = new StringBuilder();
-        var afterCarriageReturn = false;
-
-        void Emit()
+        var reading = Task.WhenAll(readers.Select(reader => reader.Completion));
+        // A run that was stopped has had its group killed already.
+        var killed = stopped;
+        var waited = TimeSpan.Zero;
+        while (true)
         {
-            var text = line.ToString();
-            line.Clear();
-            capture.Add(text);
-            onLine?.Invoke(new OutputLine(stream, text));
-        }
-
-        try
-        {
-            int read;
-            while ((read = await reader.ReadAsync(buffer.AsMemory())) > 0)
+            try
             {
-                for (var i = 0; i < read; i++)
-                {
-                    var character = buffer[i];
-                    if (character == '\n' && afterCarriageReturn)
-                    {
-                        // The second half of a CRLF; the line already ended at the CR.
-                        afterCarriageReturn = false;
-                        continue;
-                    }
-
-                    afterCarriageReturn = character == '\r';
-                    if (character is '\n' or '\r')
-                    {
-                        // A lone CR is how progress output rewrites its line; each state becomes a line.
-                        Emit();
-                        continue;
-                    }
-
-                    line.Append(character);
-                    if (line.Length >= MaxLineChars)
-                    {
-                        Emit();
-                    }
-                }
+                await reading.WaitAsync(_drainGrace, cancellationToken);
+                return;
             }
-        }
-        catch (Exception error) when (error is IOException or ObjectDisposedException)
-        {
-            // The pipe went away with the process.
-        }
+            catch (TimeoutException)
+            {
+                waited += _drainGrace;
+            }
 
-        if (line.Length > 0)
-        {
-            Emit();
+            var unfinished = readers.Where(reader => !reader.Completion.IsCompleted).ToArray();
+            var pipes = unfinished.Select(reader => reader.Pipe()).ToArray();
+            if (pipes.All(pipe => pipe is { WritersOpen: false }))
+            {
+                // Nothing can write any more: what is left is in the pipes, up to their end.
+                await reading.WaitAsync(cancellationToken);
+                return;
+            }
+
+            if (!killed && inGroup)
+            {
+                // Something the program started still holds a pipe. Ending the run's group closes it.
+                Kill(process, inGroup);
+                killed = true;
+                continue;
+            }
+
+            if ((unfinished.Any(reader => reader.Busy) || pipes.Any(pipe => pipe is { DataWaiting: true }))
+                && waited < _busyReadLimit)
+            {
+                // A daemon that left the group still holds the pipe (or it cannot be asked, on
+                // Windows), but the readers are not through what was written yet.
+                continue;
+            }
+
+            return;
         }
     }
 
@@ -487,6 +492,112 @@ internal sealed partial class ProcessRunner(TimeProvider time) : IProcessRunner
             }
         }
     }
+
+    /// <summary>One output pipe, read into lines as the program writes them.</summary>
+    private sealed class OutputReader
+    {
+        private readonly StreamReader _reader;
+        private readonly OutputStream _stream;
+        private readonly Capture _capture;
+        private readonly Action<OutputLine>? _onLine;
+        private volatile bool _busy;
+
+        public OutputReader(StreamReader reader, OutputStream stream, Capture capture, Action<OutputLine>? onLine)
+        {
+            _reader = reader;
+            _stream = stream;
+            _capture = capture;
+            _onLine = onLine;
+            Completion = ReadAsync();
+        }
+
+        /// <summary>Done once the pipe reached its end (or went away) and every line was handled.</summary>
+        public Task Completion { get; }
+
+        /// <summary>Between reads: handling what the last one returned, the line callback included.</summary>
+        public bool Busy => _busy;
+
+        /// <summary>
+        /// What the pipe says about itself. Null where it cannot be asked: on Windows, or if the
+        /// stream is not the pipe it is on Linux.
+        /// </summary>
+        public PipeState? Pipe()
+        {
+            if (!OperatingSystem.IsLinux() || _reader.BaseStream is not PipeStream pipe)
+            {
+                return null;
+            }
+
+            try
+            {
+                return UnixPipes.State(pipe.SafePipeHandle);
+            }
+            catch (Exception error) when (error is ObjectDisposedException or InvalidOperationException)
+            {
+                return null;
+            }
+        }
+
+        private async Task ReadAsync()
+        {
+            var buffer = new char[4096];
+            var line = new StringBuilder();
+            var afterCarriageReturn = false;
+
+            void Emit()
+            {
+                var text = line.ToString();
+                line.Clear();
+                _capture.Add(text);
+                _onLine?.Invoke(new OutputLine(_stream, text));
+            }
+
+            try
+            {
+                int read;
+                while ((read = await _reader.ReadAsync(buffer.AsMemory())) > 0)
+                {
+                    _busy = true;
+                    for (var i = 0; i < read; i++)
+                    {
+                        var character = buffer[i];
+                        if (character == '\n' && afterCarriageReturn)
+                        {
+                            // The second half of a CRLF; the line already ended at the CR.
+                            afterCarriageReturn = false;
+                            continue;
+                        }
+
+                        afterCarriageReturn = character == '\r';
+                        if (character is '\n' or '\r')
+                        {
+                            // A lone CR is how progress output rewrites its line; each state becomes a line.
+                            Emit();
+                            continue;
+                        }
+
+                        line.Append(character);
+                        if (line.Length >= MaxLineChars)
+                        {
+                            Emit();
+                        }
+                    }
+
+                    _busy = false;
+                }
+            }
+            catch (Exception error) when (error is IOException or ObjectDisposedException)
+            {
+                // The pipe went away with the process.
+            }
+
+            _busy = true;
+            if (line.Length > 0)
+            {
+                Emit();
+            }
+        }
+    }
 }
 
 /// <summary>Signals for a whole process group, which .NET has no API for.</summary>
@@ -500,4 +611,55 @@ internal static partial class UnixSignals
 
     [LibraryImport("libc", EntryPoint = "kill", SetLastError = true)]
     private static partial int SendSignal(int pid, int signal);
+}
+
+/// <summary>A pipe as its reading end sees it.</summary>
+internal readonly record struct PipeState(bool WritersOpen, bool DataWaiting);
+
+/// <summary>What poll(2) says about a pipe, which .NET has no API for.</summary>
+internal static partial class UnixPipes
+{
+    private const short PollIn = 0x1;
+    private const short PollHangUp = 0x10;
+
+    /// <summary>
+    /// Whether some process still holds the write end of the pipe this handle reads, and whether
+    /// unread data is waiting in it. A pipe whose writers have all closed it reports a hang-up,
+    /// with or without data left. Null when poll fails.
+    /// </summary>
+    public static PipeState? State(SafePipeHandle handle)
+    {
+        var added = false;
+        try
+        {
+            handle.DangerousAddRef(ref added);
+            var descriptor = new PollDescriptor { Descriptor = (int)handle.DangerousGetHandle(), Events = PollIn };
+            if (Poll(ref descriptor, 1, 0) < 0)
+            {
+                return null;
+            }
+
+            return new PipeState(
+                WritersOpen: (descriptor.ReturnedEvents & PollHangUp) == 0,
+                DataWaiting: (descriptor.ReturnedEvents & PollIn) != 0);
+        }
+        finally
+        {
+            if (added)
+            {
+                handle.DangerousRelease();
+            }
+        }
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct PollDescriptor
+    {
+        public int Descriptor;
+        public short Events;
+        public short ReturnedEvents;
+    }
+
+    [LibraryImport("libc", EntryPoint = "poll", SetLastError = true)]
+    private static partial int Poll(ref PollDescriptor descriptors, nuint count, int timeout);
 }
