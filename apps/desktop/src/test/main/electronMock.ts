@@ -618,6 +618,8 @@ export function resetElectronMock(): void {
   electronState.powerBlockers = [];
   electronState.isPackaged = false;
   electronState.tempRoot = null;
+  nativeTheme.shouldUseDarkColors = true;
+  nativeTheme.themeSource = 'system';
   FakeBrowserWindow.instances = [];
   ipcRenderer.invoke.mockClear();
   ipcRenderer.send.mockClear();

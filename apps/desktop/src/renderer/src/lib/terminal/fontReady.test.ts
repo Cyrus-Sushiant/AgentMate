@@ -12,6 +12,7 @@ async function load(): Promise<FontReady> {
 }
 
 interface FakeFontFaceSet {
+  add?: ReturnType<typeof vi.fn>;
   load: ReturnType<typeof vi.fn>;
   ready: Promise<unknown>;
   addEventListener: ReturnType<typeof vi.fn>;
@@ -107,5 +108,53 @@ describe('onFontsLoaded', () => {
     const refit = vi.fn();
     expect(() => onFontsLoaded(refit)()).not.toThrow();
     expect(refit).not.toHaveBeenCalled();
+  });
+});
+
+describe('addTerminalRtlFont', () => {
+  class FakeFontFace {
+    constructor(
+      readonly family: string,
+      readonly source: string,
+      readonly descriptors: FontFaceDescriptors,
+    ) {}
+  }
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('adds Vazirmatn for Persian and Arabic letters only, so Latin keeps the terminal face', async () => {
+    const fonts = fakeFonts({ add: vi.fn() });
+    installFonts(fonts);
+    vi.stubGlobal('FontFace', FakeFontFace);
+    const { addTerminalRtlFont, TERMINAL_RTL_FONT } = await load();
+    addTerminalRtlFont();
+
+    expect(fonts.add).toHaveBeenCalledTimes(1);
+    const face = fonts.add?.mock.calls[0][0] as FakeFontFace;
+    expect(face.family).toBe(TERMINAL_RTL_FONT);
+    expect(face.source).toMatch(/vazirmatn-arabic-wght-normal.*\.woff2/);
+    // The zero-width non-joiner has to come from the same face as the letters it separates.
+    expect(face.descriptors.unicodeRange).toContain('U+0600-06FF');
+    expect(face.descriptors.unicodeRange).toContain('U+200C');
+    expect(face.descriptors.unicodeRange).not.toContain('U+0000');
+    expect(face.descriptors.weight).toBe('100 900');
+  });
+
+  it('adds the face once, however many terminals open', async () => {
+    const fonts = fakeFonts({ add: vi.fn() });
+    installFonts(fonts);
+    vi.stubGlobal('FontFace', FakeFontFace);
+    const { addTerminalRtlFont } = await load();
+    addTerminalRtlFont();
+    addTerminalRtlFont();
+    expect(fonts.add).toHaveBeenCalledTimes(1);
+  });
+
+  it('does nothing in a browser with no font loading API', async () => {
+    installFonts(undefined);
+    const { addTerminalRtlFont } = await load();
+    expect(() => addTerminalRtlFont()).not.toThrow();
   });
 });

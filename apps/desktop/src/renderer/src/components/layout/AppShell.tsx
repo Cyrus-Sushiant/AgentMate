@@ -72,7 +72,7 @@ function TopBar(): React.JSX.Element {
         ? 'Hide sidebar'
         : 'Show sidebar';
   return (
-    <div className="flex h-14 shrink-0 items-center justify-between gap-3 border-b border-border/80 px-4">
+    <div className="flex h-14 shrink-0 items-center justify-between gap-3 px-4">
       <div className="flex min-w-0 items-center gap-3">
         <SimpleTooltip label={sidebarLabel}>
           <Button variant="ghost" size="icon" aria-label={sidebarLabel} onClick={cycleSidebarMode}>
@@ -241,7 +241,7 @@ export function AppShell(): React.JSX.Element {
   }, [navigate]);
 
   return (
-    <div className="relative flex h-full w-full flex-col overflow-hidden bg-background text-foreground">
+    <div className="relative flex h-full w-full flex-col overflow-hidden bg-background text-foreground glass:bg-transparent">
       <TitleBar />
       <CommandPalette />
       <AskAiModal />
@@ -251,7 +251,14 @@ export function AppShell(): React.JSX.Element {
         <Sidebar />
         <div className="relative flex min-w-0 flex-1 flex-col">
           <TopBar />
-          <div className="relative flex min-h-0 flex-1 flex-col">
+          {/* Pages sit in a rounded island inset from the window edge. The Workspace draws
+              its own islands (the panes and the project panel), so there this is a plain box. */}
+          <div
+            className={cn(
+              'relative flex min-h-0 flex-1 flex-col',
+              !onWorkspace && 'chrome-island mx-2 mb-1.5',
+            )}
+          >
             <div
               ref={scrollRef}
               className={cn(

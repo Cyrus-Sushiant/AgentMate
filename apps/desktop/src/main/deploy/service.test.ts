@@ -44,8 +44,8 @@ const SAVED = [
 ];
 
 const RECORD: DeployCoreRecord = {
-  version: '1.53.0',
-  release: '/opt/agentmate-core/releases/1.53.0-cdcdcdcdcdcd',
+  version: '1.52.0',
+  release: '/opt/agentmate-core/releases/1.52.0-cdcdcdcdcdcd',
   transport: 'bridge',
   installedAt: 5,
   os: 'Rocky Linux 9.4 (Blue Onyx)',

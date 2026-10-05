@@ -11,6 +11,7 @@ import { claimTerminalFocus, releaseTerminalFocus } from './focusClaim';
 import { onFontsLoaded, whenTerminalFontReady } from './fontReady';
 import { attachTerminalPaste } from './pasteFiles';
 import { createResizeSync, type ResizeSync } from './resizeSync';
+import { attachRtlRendering } from './terminalRtl';
 import {
   attachFocusOnClick,
   attachTerminalContextMenu,
@@ -436,6 +437,7 @@ export const terminalRuntime = {
           shell: () => spec.shell,
         }),
         attachFocusOnClick(entry.host, entry.term),
+        attachRtlRendering(entry.term),
       );
       if (entry.focusWhenOpen) {
         entry.focusWhenOpen = false;

@@ -24,7 +24,7 @@ import {
 
 const SHA = 'ab'.repeat(32);
 const STAGING = '/tmp/agentmate.Test123456';
-const PREVIOUS = '/opt/agentmate-core/releases/1.53.0-cdcdcdcdcdcd';
+const PREVIOUS = '/opt/agentmate-core/releases/1.52.0-cdcdcdcdcdcd';
 
 function releaseSource(version = '1.53.0'): ReleaseSource {
   const localPath = join(tempDir(), `agentmate-core-${version}-linux-x64.tar.gz`);
@@ -189,13 +189,13 @@ describe('installCore', () => {
 
   it('goes back to the previous release when the new one will not start', async () => {
     const { server, install } = setup({
-      installed: { release: PREVIOUS, version: '1.53.0' },
+      installed: { release: PREVIOUS, version: '1.52.0' },
       failures: [
         { match: 'enable agentmate-core', stderr: 'Job for agentmate-core.service failed' },
       ],
     });
 
-    await expect(install('deployer-pw')).rejects.toThrow(/did not start.*back to 1\.53\.0/s);
+    await expect(install('deployer-pw')).rejects.toThrow(/did not start.*back to 1\.52\.0/s);
     expect(server.rootCommands.some((command) => command.startsWith(`ln -sfn ${PREVIOUS} `))).toBe(
       true,
     );
@@ -203,7 +203,7 @@ describe('installCore', () => {
 
   it('says so when going back fails too', async () => {
     const { progress, install } = setup({
-      installed: { release: PREVIOUS, version: '1.53.0' },
+      installed: { release: PREVIOUS, version: '1.52.0' },
       failures: [
         { match: 'enable agentmate-core', stderr: 'failed' },
         { match: `ln -sfn ${PREVIOUS}`, stderr: 'ln: Read-only file system' },
@@ -211,7 +211,7 @@ describe('installCore', () => {
     });
 
     await expect(install('deployer-pw')).rejects.toThrow(
-      /Going back to 1\.53\.0 failed too: ln: Read-only file system/,
+      /Going back to 1\.52\.0 failed too: ln: Read-only file system/,
     );
     expect(progress.at(-1)).toMatchObject({ phase: 'rollback', status: 'failed' });
   });
@@ -248,12 +248,12 @@ describe('installCore', () => {
 
   it('goes back to the previous release when the new one does not answer', async () => {
     const { server, connect, install } = setup(
-      { installed: { release: PREVIOUS, version: '1.53.0' } },
+      { installed: { release: PREVIOUS, version: '1.52.0' } },
       { healthError: new Error('The server core did not answer GET /api/v1/health in time.') },
     );
 
     await expect(install('deployer-pw')).rejects.toThrow(
-      /cannot reach it: The server core did not answer.*back to 1\.53\.0/s,
+      /cannot reach it: The server core did not answer.*back to 1\.52\.0/s,
     );
     // Going back needs root again, on the new login.
     expect(connect).toHaveBeenCalledTimes(2);

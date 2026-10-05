@@ -60,7 +60,7 @@ describe('restoreCore', () => {
     const restored = await run('Maria');
 
     expect(restored.backup).toMatchObject({
-      coreVersion: '1.53.0',
+      coreVersion: '1.52.0',
       hostName: 'old-web',
       owners: ['maria'],
     });

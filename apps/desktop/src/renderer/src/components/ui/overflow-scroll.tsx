@@ -19,7 +19,12 @@ export function OverflowScroll({
   rootClassName?: string;
   /** Stretch to the parent (dialog body). Leave off for a max-height list. */
   fill?: boolean;
-  surface?: 'popover' | 'card' | 'background';
+  /**
+   * What the fades blend into. `chrome` is the window frame: the canvas colour normally, and
+   * the see-through native material on a glass window, where an opaque fade would show as a
+   * band, so the fades are left out there.
+   */
+  surface?: 'popover' | 'card' | 'background' | 'chrome';
 }): React.JSX.Element {
   const ref = useRef<HTMLDivElement>(null);
   const [overflow, setOverflow] = useState({ up: false, down: false });
@@ -55,7 +60,9 @@ export function OverflowScroll({
       ? 'from-card'
       : surface === 'background'
         ? 'from-background'
-        : 'from-popover';
+        : surface === 'chrome'
+          ? 'from-background glass:hidden'
+          : 'from-popover';
 
   return (
     <div className={cn('relative min-h-0', fill && 'h-full', rootClassName)}>

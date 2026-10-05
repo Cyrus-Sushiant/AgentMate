@@ -7,6 +7,7 @@ import { applyProxySettings } from '../network/proxy';
 import { petManager } from '../pet/petWindow';
 import { store } from '../store';
 import { getVaultService } from '../vault';
+import { applyWindowTheme } from '../windowGlass';
 
 export function registerSettingsHandlers(): void {
   ipcMain.handle(IPC.settings.get, (): Promise<AppSettings> => store.getSettings());
@@ -20,6 +21,8 @@ export function registerSettingsHandlers(): void {
         return { ...settings, ...updates };
       });
       void petManager.syncFromSettings();
+      // Retints the window's Mica right away instead of on the next launch.
+      if (updates.theme) applyWindowTheme(next.theme);
       if (Object.keys(updates).some((key) => key.startsWith('vault'))) {
         getVaultService().applySettings(next);
       }

@@ -120,14 +120,16 @@ export function CommandPalette(): React.JSX.Element {
   return (
     <DialogPrimitive.Root open={open} onOpenChange={setOpen}>
       <DialogPrimitive.Portal>
-        <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-black/40 backdrop-blur-md data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0" />
+        <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-black/30 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0" />
+        {/* Drops from just under the title bar's search pill, drawn as the same island surface
+            as the page content. */}
         <DialogPrimitive.Content
           onOpenAutoFocus={(e) => e.preventDefault()}
           className={cn(
-            'fixed left-1/2 top-[14%] z-50 w-full max-w-xl -translate-x-1/2 overflow-hidden rounded-xl',
-            'border border-border/60 bg-popover/60 text-popover-foreground shadow-2xl shadow-black/20 backdrop-blur-2xl backdrop-saturate-150',
+            'search-panel fixed left-1/2 top-12 z-50 w-full max-w-xl -translate-x-1/2 text-popover-foreground',
             'data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0',
             'data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95',
+            'data-[state=open]:slide-in-from-top-2',
           )}
         >
           <DialogPrimitive.Title className="sr-only">Search AgentMate</DialogPrimitive.Title>
@@ -135,34 +137,36 @@ export function CommandPalette(): React.JSX.Element {
             Search projects, prompt history, and skills.
           </DialogPrimitive.Description>
           <CommandPrimitive className="flex flex-col" loop>
-            <div className="flex items-center gap-2 border-b border-border/60 px-4">
-              <Search className="h-4 w-4 shrink-0 text-muted-foreground" />
-              <CommandPrimitive.Input
-                autoFocus
-                value={query}
-                onValueChange={setQuery}
-                placeholder="Search projects, prompt history, skills…"
-                className="h-12 w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground"
-              />
-              <kbd className="hidden shrink-0 rounded border border-border px-1.5 py-0.5 text-[10px] text-muted-foreground sm:inline-block">
-                Esc
-              </kbd>
+            <div className="p-2 pb-0">
+              <div className="search-pill flex items-center gap-2.5 rounded-full pl-4 pr-2">
+                <Search className="h-4 w-4 shrink-0 text-muted-foreground" />
+                <CommandPrimitive.Input
+                  autoFocus
+                  value={query}
+                  onValueChange={setQuery}
+                  placeholder="Search projects, prompt history, skills…"
+                  className="h-10 w-full bg-transparent text-[15px] outline-none placeholder:text-muted-foreground"
+                />
+                <kbd className="hidden shrink-0 rounded-full bg-foreground/[0.07] px-2 py-0.5 font-sans text-[10px] font-medium text-muted-foreground sm:inline-block">
+                  Esc
+                </kbd>
+              </div>
             </div>
-            <CommandPrimitive.List className="max-h-[60vh] overflow-y-auto p-2">
+            <CommandPrimitive.List className="rail-scroll max-h-[60vh] overflow-y-auto p-2">
               <CommandPrimitive.Empty className="py-10 text-center text-sm text-muted-foreground">
                 No results found.
               </CommandPrimitive.Empty>
 
               <CommandPrimitive.Group
                 heading="Pages"
-                className="px-1 py-1 text-xs font-medium text-muted-foreground [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5"
+                className="px-1 py-1 text-xs font-medium text-muted-foreground [&_[cmdk-group-heading]]:px-2.5 [&_[cmdk-group-heading]]:pb-1 [&_[cmdk-group-heading]]:pt-2 [&_[cmdk-group-heading]]:text-[10px] [&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-[0.08em] [&_[cmdk-group-heading]]:text-muted-foreground/60"
               >
                 {NAV_ITEMS.map((item) => (
                   <CommandPrimitive.Item
                     key={item.to}
                     value={`page ${item.label}`}
                     onSelect={() => selectPage(item.to)}
-                    className="flex cursor-pointer select-none items-center gap-2.5 rounded-md px-2 py-2 text-sm outline-none aria-selected:bg-primary/12 aria-selected:text-foreground"
+                    className="flex cursor-pointer select-none items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm outline-none transition-colors aria-selected:bg-foreground/[0.07] aria-selected:text-foreground"
                   >
                     <item.icon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                     {item.label}
@@ -171,7 +175,7 @@ export function CommandPalette(): React.JSX.Element {
                 <CommandPrimitive.Item
                   value="page recent messages toast history alerts"
                   onSelect={selectToastHistory}
-                  className="flex cursor-pointer select-none items-center gap-2.5 rounded-md px-2 py-2 text-sm outline-none aria-selected:bg-primary/12 aria-selected:text-foreground"
+                  className="flex cursor-pointer select-none items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm outline-none transition-colors aria-selected:bg-foreground/[0.07] aria-selected:text-foreground"
                 >
                   <Bell className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                   Recent messages
@@ -179,7 +183,7 @@ export function CommandPalette(): React.JSX.Element {
                 <CommandPrimitive.Item
                   value="running clis terminals processes cpu memory ram usage"
                   onSelect={selectRunningClis}
-                  className="flex cursor-pointer select-none items-center gap-2.5 rounded-md px-2 py-2 text-sm outline-none aria-selected:bg-primary/12 aria-selected:text-foreground"
+                  className="flex cursor-pointer select-none items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm outline-none transition-colors aria-selected:bg-foreground/[0.07] aria-selected:text-foreground"
                 >
                   <Cpu className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                   Running CLIs
@@ -191,14 +195,14 @@ export function CommandPalette(): React.JSX.Element {
               {(projectsQuery.data?.length ?? 0) > 0 && (
                 <CommandPrimitive.Group
                   heading="Projects"
-                  className="px-1 py-1 text-xs font-medium text-muted-foreground [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5"
+                  className="px-1 py-1 text-xs font-medium text-muted-foreground [&_[cmdk-group-heading]]:px-2.5 [&_[cmdk-group-heading]]:pb-1 [&_[cmdk-group-heading]]:pt-2 [&_[cmdk-group-heading]]:text-[10px] [&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-[0.08em] [&_[cmdk-group-heading]]:text-muted-foreground/60"
                 >
                   {projectsQuery.data!.map((project) => (
                     <CommandPrimitive.Item
                       key={project.id}
                       value={`project ${project.name} ${project.description} ${project.folderPath} ${project.tags.join(' ')}`}
                       onSelect={() => selectProject(project.id)}
-                      className="flex cursor-pointer select-none items-center gap-2.5 rounded-md px-2 py-2 text-sm outline-none aria-selected:bg-primary/12 aria-selected:text-foreground"
+                      className="flex cursor-pointer select-none items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm outline-none transition-colors aria-selected:bg-foreground/[0.07] aria-selected:text-foreground"
                     >
                       <Folder className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                       <div className="min-w-0">
@@ -216,7 +220,7 @@ export function CommandPalette(): React.JSX.Element {
               {query.trim() && (projectsQuery.data?.length ?? 0) > 0 && (
                 <CommandPrimitive.Group
                   heading="Open workspace"
-                  className="px-1 py-1 text-xs font-medium text-muted-foreground [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5"
+                  className="px-1 py-1 text-xs font-medium text-muted-foreground [&_[cmdk-group-heading]]:px-2.5 [&_[cmdk-group-heading]]:pb-1 [&_[cmdk-group-heading]]:pt-2 [&_[cmdk-group-heading]]:text-[10px] [&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-[0.08em] [&_[cmdk-group-heading]]:text-muted-foreground/60"
                 >
                   {projectsQuery
                     .data!.filter((project) => !project.archived)
@@ -225,7 +229,7 @@ export function CommandPalette(): React.JSX.Element {
                         key={`workspace-${project.id}`}
                         value={`workspace terminal agent ${project.name} ${project.folderPath}`}
                         onSelect={() => selectPage(`/workspace/${project.id}`)}
-                        className="flex cursor-pointer select-none items-center gap-2.5 rounded-md px-2 py-2 text-sm outline-none aria-selected:bg-primary/12 aria-selected:text-foreground"
+                        className="flex cursor-pointer select-none items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm outline-none transition-colors aria-selected:bg-foreground/[0.07] aria-selected:text-foreground"
                       >
                         <Workspace className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                         <span className="truncate">
@@ -240,7 +244,7 @@ export function CommandPalette(): React.JSX.Element {
               {query.trim() && (activeParent || worktreeResults.length > 0) ? (
                 <CommandPrimitive.Group
                   heading="Worktrees"
-                  className="px-1 py-1 text-xs font-medium text-muted-foreground [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5"
+                  className="px-1 py-1 text-xs font-medium text-muted-foreground [&_[cmdk-group-heading]]:px-2.5 [&_[cmdk-group-heading]]:pb-1 [&_[cmdk-group-heading]]:pt-2 [&_[cmdk-group-heading]]:text-[10px] [&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-[0.08em] [&_[cmdk-group-heading]]:text-muted-foreground/60"
                 >
                   {activeParent ? (
                     <CommandPrimitive.Item
@@ -251,7 +255,7 @@ export function CommandPalette(): React.JSX.Element {
                           .getState()
                           .openCreate({ projectId: activeParent.id });
                       }}
-                      className="flex cursor-pointer select-none items-center gap-2.5 rounded-md px-2 py-2 text-sm outline-none aria-selected:bg-primary/12 aria-selected:text-foreground"
+                      className="flex cursor-pointer select-none items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm outline-none transition-colors aria-selected:bg-foreground/[0.07] aria-selected:text-foreground"
                     >
                       <Plus className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                       <span className="truncate">New worktree of {activeParent.name}</span>
@@ -262,7 +266,7 @@ export function CommandPalette(): React.JSX.Element {
                       key={`worktree-${project.id}-${worktree.id}`}
                       value={`worktree ${project.name} ${worktree.branch ?? ''} ${worktree.path}`}
                       onSelect={() => selectPage(`/workspace/${project.id}~${worktree.id}`)}
-                      className="flex cursor-pointer select-none items-center gap-2.5 rounded-md px-2 py-2 text-sm outline-none aria-selected:bg-primary/12 aria-selected:text-foreground"
+                      className="flex cursor-pointer select-none items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm outline-none transition-colors aria-selected:bg-foreground/[0.07] aria-selected:text-foreground"
                     >
                       <GitBranch className="h-3.5 w-3.5 shrink-0 text-primary" />
                       <span className="flex min-w-0 items-baseline gap-1.5">
@@ -279,7 +283,7 @@ export function CommandPalette(): React.JSX.Element {
               {(historyQuery.data?.length ?? 0) > 0 && (
                 <CommandPrimitive.Group
                   heading="Prompt History"
-                  className="px-1 py-1 text-xs font-medium text-muted-foreground [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5"
+                  className="px-1 py-1 text-xs font-medium text-muted-foreground [&_[cmdk-group-heading]]:px-2.5 [&_[cmdk-group-heading]]:pb-1 [&_[cmdk-group-heading]]:pt-2 [&_[cmdk-group-heading]]:text-[10px] [&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-[0.08em] [&_[cmdk-group-heading]]:text-muted-foreground/60"
                 >
                   {historyQuery.data!.map((entry) => (
                     <CommandPrimitive.Item
@@ -290,7 +294,7 @@ export function CommandPalette(): React.JSX.Element {
                           : `history ${entry.promptType} ${entry.targetAI} ${entry.content} ${entry.tags.join(' ')}`
                       }
                       onSelect={() => selectHistoryEntry(entry.id)}
-                      className="flex cursor-pointer select-none items-center gap-2.5 rounded-md px-2 py-2 text-sm outline-none aria-selected:bg-primary/12 aria-selected:text-foreground"
+                      className="flex cursor-pointer select-none items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm outline-none transition-colors aria-selected:bg-foreground/[0.07] aria-selected:text-foreground"
                     >
                       <History className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                       <div className="min-w-0">
@@ -311,14 +315,14 @@ export function CommandPalette(): React.JSX.Element {
               {skillResults.length > 0 && (
                 <CommandPrimitive.Group
                   heading="Skills"
-                  className="px-1 py-1 text-xs font-medium text-muted-foreground [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5"
+                  className="px-1 py-1 text-xs font-medium text-muted-foreground [&_[cmdk-group-heading]]:px-2.5 [&_[cmdk-group-heading]]:pb-1 [&_[cmdk-group-heading]]:pt-2 [&_[cmdk-group-heading]]:text-[10px] [&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-[0.08em] [&_[cmdk-group-heading]]:text-muted-foreground/60"
                 >
                   {skillResults.map(({ skill, repo }) => (
                     <CommandPrimitive.Item
                       key={`${repo.id}-${skill.id}`}
                       value={`skill ${skill.name} ${skill.description} ${skill.category} ${skill.tags.join(' ')}`}
                       onSelect={() => selectSkill(repo.id, skill.name)}
-                      className="flex cursor-pointer select-none items-center gap-2.5 rounded-md px-2 py-2 text-sm outline-none aria-selected:bg-primary/12 aria-selected:text-foreground"
+                      className="flex cursor-pointer select-none items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm outline-none transition-colors aria-selected:bg-foreground/[0.07] aria-selected:text-foreground"
                     >
                       <Blocks className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                       <div className="min-w-0">

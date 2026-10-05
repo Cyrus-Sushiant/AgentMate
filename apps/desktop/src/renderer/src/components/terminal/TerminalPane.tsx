@@ -6,6 +6,7 @@ import { onFontsLoaded, whenTerminalFontReady } from '@/lib/terminal/fontReady';
 import { attachTerminalPaste } from '@/lib/terminal/pasteFiles';
 import { createResizeSync } from '@/lib/terminal/resizeSync';
 import { sshTerminalAdapter } from '@/lib/terminal/sshAdapter';
+import { attachRtlRendering } from '@/lib/terminal/terminalRtl';
 import {
   attachFocusOnClick,
   attachTerminalContextMenu,
@@ -86,6 +87,8 @@ export function TerminalPane({ meta, active, onExit }: TerminalPaneProps): React
     const stopFontWatch = onFontsLoaded(() => resizeSync.schedule());
 
     const detachFocusOnClick = attachFocusOnClick(paneRef.current ?? container, term);
+    // Set once the terminal opens, since it needs xterm's rows to exist.
+    let detachRtl = (): void => undefined;
     const detachContextMenu = attachTerminalContextMenu(
       container,
       term,
@@ -125,6 +128,7 @@ export function TerminalPane({ meta, active, onExit }: TerminalPaneProps): React
       .then(() => {
         if (disposed) throw new Error('disposed');
         term.open(container);
+        detachRtl = attachRtlRendering(term);
         if (hasSize()) fitAddon.fit();
       })
       .then(() =>
@@ -190,6 +194,7 @@ export function TerminalPane({ meta, active, onExit }: TerminalPaneProps): React
       detachContextMenu();
       detachFilePaste();
       detachFocusOnClick();
+      detachRtl();
       chipMode?.dispose();
       imagePreview.dispose();
       unsubscribeTheme();

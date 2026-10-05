@@ -22,7 +22,7 @@ const toast = vi.hoisted(() =>
 );
 vi.mock('sonner', () => ({ toast, Toaster: () => null }));
 
-const { NAV_ITEMS, Sidebar } = await import('./Sidebar');
+const { NAV_GROUPS, NAV_ITEMS, Sidebar } = await import('./Sidebar');
 
 function renderSidebar(route = '/', bridge: Record<string, unknown> = {}) {
   return renderWithProviders(<Sidebar />, { route, bridge });
@@ -79,6 +79,34 @@ describe('Sidebar navigation', () => {
     expect(screen.queryByText('Token Usage')).toBeNull();
     expect(screen.getAllByRole('link')).toHaveLength(NAV_ITEMS.length);
     expect(currentLink().getAttribute('href')).toContain('/usage');
+  });
+
+  it('sorts the tools under headed groups', () => {
+    renderSidebar();
+
+    for (const group of NAV_GROUPS) {
+      const section = screen.getByRole('group', { name: group });
+      expect(within(section).getByText(group)).toBeTruthy();
+    }
+    const ship = screen.getByRole('group', { name: 'Ship' });
+    expect(within(ship).getByRole('link', { name: /Pipelines/ })).toBeTruthy();
+    expect(within(ship).queryByRole('link', { name: /Dashboard/ })).toBeNull();
+  });
+
+  it('keeps Settings out of the scrolling list, pinned below it', () => {
+    renderSidebar('/settings');
+
+    const list = screen.getByRole('navigation');
+    expect(within(list).queryByRole('link', { name: /Settings/ })).toBeNull();
+    expect(currentLink().textContent).toContain('Settings');
+  });
+
+  it('keeps the groups apart with plain dividers once collapsed', () => {
+    renderSidebar();
+    act(() => useUiStore.setState({ sidebarMode: 'collapsed' }));
+
+    expect(screen.getByRole('group', { name: 'Build' })).toBeTruthy();
+    expect(screen.queryByText('Build')).toBeNull();
   });
 
   it('empties out when hidden, so the page gets the full width', () => {

@@ -114,6 +114,7 @@ import { startResetAlertWatcher, stopResetAlertWatcher } from './usage/resetAler
 import { startThresholdAlertWatcher, stopThresholdAlertWatcher } from './usage/thresholdAlerts';
 import { widgetManager } from './usage/widgetWindows';
 import { getVaultService, registerVaultIpc, startVault } from './vault';
+import { applyWindowTheme, glassWindowOptions, mainWindowGlass } from './windowGlass';
 
 // Chromium normally deprioritizes timers, rendering, and IPC delivery for a
 // minimized/occluded window (and Windows' own efficiency-mode throttling
@@ -194,6 +195,7 @@ function createMainWindow(): BrowserWindow {
   const behindSplash = revealAfterSplash;
   revealAfterSplash = false;
   const savedState = loadMainWindowState();
+  const glass = mainWindowGlass();
   const win = new BrowserWindow({
     ...mainWindowBounds(savedState),
     minWidth: MAIN_WINDOW_MIN_SIZE.width,
@@ -201,7 +203,7 @@ function createMainWindow(): BrowserWindow {
     show: false,
     frame: false,
     autoHideMenuBar: true,
-    backgroundColor: windowBackground,
+    ...glassWindowOptions(glass, windowBackground),
     icon,
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
@@ -272,10 +274,13 @@ function createMainWindow(): BrowserWindow {
   // once the page is up.
   const route = takeStartupRoute();
   const hash = route === '/' ? undefined : route;
+  // The page reads `glass` before its first paint, to know whether its chrome sits on a material.
   if (process.env.ELECTRON_RENDERER_URL) {
-    void win.loadURL(`${process.env.ELECTRON_RENDERER_URL}${hash ? `#${hash}` : ''}`);
+    void win.loadURL(
+      `${process.env.ELECTRON_RENDERER_URL}?glass=${glass}${hash ? `#${hash}` : ''}`,
+    );
   } else {
-    void win.loadFile(join(__dirname, '../renderer/index.html'), { hash });
+    void win.loadFile(join(__dirname, '../renderer/index.html'), { hash, query: { glass } });
   }
 
   return win;
@@ -348,6 +353,7 @@ app.whenReady().then(async () => {
   // theme, and the settings file is small, so that one read comes before it.
   const { theme } = await store.getSettings();
   windowBackground = themeBackground(theme);
+  applyWindowTheme(theme);
   let splashUp: Promise<void> = Promise.resolve();
   if (!keepWindowsHidden) {
     splashUp = showSplash(theme);

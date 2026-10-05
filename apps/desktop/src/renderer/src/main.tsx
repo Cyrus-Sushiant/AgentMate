@@ -7,6 +7,10 @@ import App from './App';
 import '@fontsource-variable/inter';
 import '@fontsource-variable/vazirmatn';
 import './index.css';
+import { applyWindowGlass } from './lib/windowGlass';
+
+// Before React renders, so the first frame already lets the native material show through.
+applyWindowGlass(document.documentElement, window.location.search);
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>

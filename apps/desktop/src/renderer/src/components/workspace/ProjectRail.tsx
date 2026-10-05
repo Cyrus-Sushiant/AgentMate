@@ -412,11 +412,11 @@ export function ProjectRail({
           before ? railProjectIds.indexOf(before.id) : railProjectIds.length,
         );
       }}
-      className="flex w-14 shrink-0 flex-col items-center border-r border-border/70 bg-card/30 pb-3"
+      className="flex w-14 shrink-0 flex-col items-center border-r border-border/70 bg-card/30 pb-3 glass:border-r-0 glass:bg-transparent"
     >
       {/* Only the projects scroll; the open button stays pinned right under them. */}
       <OverflowScroll
-        surface="background"
+        surface="chrome"
         rootClassName="flex w-full flex-col"
         className="rail-scroll flex w-full flex-col items-center gap-2.5 pb-2.5 pt-3"
       >

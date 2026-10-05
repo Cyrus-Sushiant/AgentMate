@@ -190,7 +190,8 @@ export function WorkspaceHost({ visible }: { visible: boolean }): React.JSX.Elem
   return (
     <div
       className={cn(
-        'absolute inset-0 z-10 flex bg-background',
+        // On glass the project rail sits on the window material; the panes are the islands.
+        'absolute inset-0 z-10 flex bg-background glass:bg-transparent',
         visible ? 'workspace-enter' : 'hidden',
       )}
     >

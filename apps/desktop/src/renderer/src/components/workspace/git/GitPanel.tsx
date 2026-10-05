@@ -957,7 +957,7 @@ export function GitPanel({
 
   if (collapsed) {
     return (
-      <aside className="flex w-10 shrink-0 flex-col items-center gap-0.5 border-l border-border/70 bg-card/30 py-2">
+      <aside className="chrome-island my-1.5 mr-1.5 flex w-10 shrink-0 flex-col items-center gap-0.5 py-2">
         <SimpleTooltip
           label={toggleLabel ? `Show the panel (${toggleLabel})` : 'Show the panel'}
           side="left"
@@ -999,8 +999,10 @@ export function GitPanel({
     <aside
       aria-label="Project panel"
       style={{ width }}
-      className="relative flex shrink-0 flex-col border-l border-border/70 bg-card/30"
+      className="relative my-1.5 mr-1.5 flex shrink-0 flex-col"
     >
+      {/* The island is an inner box so its clipping doesn't cut off the resize handle,
+          which straddles the island's left edge. */}
       <div
         role="separator"
         aria-orientation="vertical"
@@ -1017,17 +1019,19 @@ export function GitPanel({
         />
       </div>
 
-      <PanelTabs
-        tabs={tabs}
-        trailing={
-          <PanelIconButton
-            label={toggleLabel ? `Hide the panel (${toggleLabel})` : 'Hide the panel'}
-            onClick={() => setGitPanel({ collapsed: true })}
-          >
-            <AnglesRight className="h-3 w-3" />
-          </PanelIconButton>
-        }
-      />
+      <div className="chrome-island flex min-h-0 flex-1 flex-col">
+        <PanelTabs
+          tabs={tabs}
+          trailing={
+            <PanelIconButton
+              label={toggleLabel ? `Hide the panel (${toggleLabel})` : 'Hide the panel'}
+              onClick={() => setGitPanel({ collapsed: true })}
+            >
+              <AnglesRight className="h-3 w-3" />
+            </PanelIconButton>
+          }
+        />
+      </div>
     </aside>
   );
 }

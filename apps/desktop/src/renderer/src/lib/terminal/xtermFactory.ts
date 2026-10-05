@@ -4,6 +4,7 @@ import { WebLinksAddon } from '@xterm/addon-web-links';
 import { type ITerminalOptions, type ITheme, Terminal } from '@xterm/xterm';
 import '@xterm/xterm/css/xterm.css';
 import { type ChipPasteController, createChipPasteController } from '@/lib/terminal/chipPasteMode';
+import { addTerminalRtlFont, TERMINAL_RTL_FONT } from '@/lib/terminal/fontReady';
 import { createImageChipPreview, type ImageChipPreview } from '@/lib/terminal/imageChipPreview';
 import { pasteClipboardIntoTerminal } from '@/lib/terminal/pasteFiles';
 import { isTerminalCopyKey, isTerminalPasteKey } from '@/lib/terminal/terminalKeys';
@@ -271,11 +272,15 @@ export function createXterm({
   // newlines into CR LF where it means to. A bare LF that still gets through means "down one row,
   // same column" (curses programs move the cursor that way), and converting it sent the cursor
   // to the start of the line, so the next redraw landed in the wrong place.
+  addTerminalRtlFont();
   const term = new Terminal({
     fontSize: 13,
     lineHeight: 1.35,
-    fontFamily:
-      "'Cascadia Code', 'Cascadia Mono', 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+    // The first face only covers Persian and Arabic letters (see addTerminalRtlFont).
+    fontFamily: `'${TERMINAL_RTL_FONT}', 'Cascadia Code', 'Cascadia Mono', 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace`,
+    // Right-to-left text is drawn through registerCharacterJoiner, which xterm still files
+    // under its proposed API (see attachRtlRendering).
+    allowProposedApi: true,
     theme,
     // Programs pick their own truecolor pairs, which the theme can't touch. Claude Code's sticky
     // prompt header (gray text on a gray bar) came out barely readable. xterm lightens or darkens

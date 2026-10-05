@@ -94,7 +94,7 @@ describe('PreflightChecklist', () => {
           transport: 'bridge',
           selinux: 'permissive',
           freeDiskMb: null,
-          installed: { version: '1.53.0' },
+          installed: { version: '1.52.0' },
         }}
       />,
     );
@@ -102,7 +102,7 @@ describe('PreflightChecklist', () => {
     expect(row('Connection').textContent).toContain("The core's own bridge");
     expect(row('SELinux').textContent).toContain('Permissive, so the files get labelled');
     expect(row('Free space').textContent).toContain('Could not tell');
-    expect(row('Installed now').textContent).toContain('Server core 1.53.0');
+    expect(row('Installed now').textContent).toContain('Server core 1.52.0');
     expect(row('Installed now').textContent).toContain('note');
   });
 });

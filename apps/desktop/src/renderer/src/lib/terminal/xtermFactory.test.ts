@@ -6,10 +6,14 @@ const fake = vi.hoisted(() => ({
   keyHandler: null as KeyHandler | null,
   paste: vi.fn(async () => undefined),
   hasSelection: false,
+  options: null as Record<string, unknown> | null,
 }));
 
 vi.mock('@xterm/xterm', () => ({
   Terminal: class {
+    constructor(options: Record<string, unknown>) {
+      fake.options = options;
+    }
     loadAddon = vi.fn();
     onData = vi.fn();
     paste = vi.fn();
@@ -93,5 +97,26 @@ describe('createXterm key handling', () => {
     const event = keydown({ key: 'ز', code: '', keyCode: 67, ctrlKey: true });
     expect(fake.keyHandler?.(event)).toBe(true);
     expect(fake.paste).not.toHaveBeenCalled();
+  });
+});
+
+describe('createXterm options', () => {
+  beforeEach(() => {
+    vi.stubGlobal('window', {
+      matchMedia: () => ({ matches: false }),
+      agentmat: { platform: 'win32', windowsBuild: 26200, terminal: { write: vi.fn() } },
+    });
+  });
+
+  it('draws Persian and Arabic letters in Vazirmatn and keeps the monospace face for the rest', async () => {
+    const { TERMINAL_RTL_FONT } = await import('./fontReady');
+    createXterm({ sessionId: () => 'session' });
+    const family = String(fake.options?.fontFamily);
+    expect(family.startsWith(`'${TERMINAL_RTL_FONT}', 'Cascadia Code'`)).toBe(true);
+  });
+
+  it('turns on the joiner API that right-to-left runs are drawn through', () => {
+    createXterm({ sessionId: () => 'session' });
+    expect(fake.options?.allowProposedApi).toBe(true);
   });
 });

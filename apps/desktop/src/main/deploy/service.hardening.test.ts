@@ -26,8 +26,8 @@ import { DeployState } from './state';
  */
 
 const RECORD: DeployCoreRecord = {
-  version: '1.53.0',
-  release: '/opt/agentmate-core/releases/1.53.0-cdcdcdcdcdcd',
+  version: '1.52.0',
+  release: '/opt/agentmate-core/releases/1.52.0-cdcdcdcdcdcd',
   transport: 'streamlocal',
   installedAt: 1,
   os: 'Ubuntu 24.04.1 LTS',
@@ -167,7 +167,7 @@ describe('DeployService.restore', () => {
 
     const result = await service.restore({ ...RESTORE, file }, (event) => progress.push(event));
 
-    expect(result).toMatchObject({ backupHostName: 'old-web', backupCoreVersion: '1.53.0' });
+    expect(result).toMatchObject({ backupHostName: 'old-web', backupCoreVersion: '1.52.0' });
     expect(result.signInError).toBeUndefined();
     expect(await state.device('srv-1')).toMatchObject({ deviceId: 'device-1', userName: 'maria' });
     expect(progress.at(-1)).toMatchObject({ phase: 'sign-in', status: 'done' });

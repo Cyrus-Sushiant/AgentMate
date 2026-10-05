@@ -125,12 +125,12 @@ function SearchTrigger(): React.JSX.Element {
     <button
       type="button"
       onClick={() => openSearch(true)}
-      className="flex h-7 w-full cursor-pointer items-center gap-2 rounded-lg border border-input/80 bg-background/50 px-3 text-sm text-muted-foreground shadow-[inset_0_1px_0_0_hsl(0_0%_100%/0.06)] transition-colors hover:border-primary/40 hover:bg-background hover:text-foreground"
+      className="search-pill flex h-8 w-full cursor-pointer items-center gap-2 rounded-full pl-3.5 pr-1.5 text-[13px] text-muted-foreground transition-colors hover:text-foreground"
     >
       <Search className="h-3.5 w-3.5 shrink-0" />
       <span className="flex-1 truncate text-left">Search projects, history, skills…</span>
       {searchShortcut ? (
-        <kbd className="hidden shrink-0 items-center gap-0.5 rounded-md border border-border/80 bg-background/60 px-1.5 py-0.5 text-[10px] font-medium sm:flex">
+        <kbd className="hidden shrink-0 items-center gap-0.5 rounded-full bg-foreground/[0.07] px-2 py-0.5 font-sans text-[10px] font-medium text-muted-foreground sm:flex">
           {searchShortcut}
         </kbd>
       ) : null}
@@ -157,7 +157,7 @@ export function TitleBar(): React.JSX.Element {
 
   return (
     <div
-      className="relative flex h-11 shrink-0 items-center justify-between border-b border-border/80 pl-4 [-webkit-app-region:drag]"
+      className="relative flex h-11 shrink-0 items-center justify-between border-b border-border/80 pl-4 [-webkit-app-region:drag] glass:border-b-0"
       onDoubleClick={() => void window.agentmat.window.maximizeToggle()}
     >
       <div className="flex items-center gap-3">

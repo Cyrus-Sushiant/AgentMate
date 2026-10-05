@@ -4,6 +4,8 @@
 @plugin "tailwindcss-animate";
 
 @custom-variant dark (&:where(.dark, .dark *));
+/* The main window sits on a native material (Mica, or vibrancy on macOS); see lib/windowGlass.ts. */
+@custom-variant glass (&:where(:root[data-glass] *));
 
 @theme inline {
   --color-background: hsl(var(--background));
@@ -177,6 +179,12 @@ body {
   overflow: hidden;
 }
 
+/* On a glass window the page is see-through, so the native material shows behind the
+   chrome. The content islands below stay opaque. */
+:root[data-glass] body {
+  background-color: transparent;
+}
+
 ::selection {
   background-color: hsl(var(--primary) / 0.28);
   color: hsl(var(--foreground));
@@ -263,6 +271,106 @@ body {
     hsl(255 22% 17%) 50%,
     hsl(265 45% 24%) 100%
   );
+}
+
+/* On a glass window the same washes go thin, so the material shows through while each
+   theme keeps its colour. */
+:root[data-glass] .sidebar-gradient {
+  background: linear-gradient(
+    180deg,
+    hsl(0 0% 96% / 0.25) 0%,
+    hsl(150 20% 92% / 0.3) 55%,
+    hsl(152 38% 84% / 0.35) 100%
+  );
+}
+
+:root[data-glass].dark .sidebar-gradient {
+  background: linear-gradient(
+    180deg,
+    hsl(0 0% 4% / 0.25) 0%,
+    hsl(160 22% 6% / 0.3) 50%,
+    hsl(159 45% 12% / 0.35) 100%
+  );
+}
+
+:root[data-glass].dark.theme-vscode-dark .sidebar-gradient {
+  background: linear-gradient(
+    180deg,
+    hsl(0 0% 12% / 0.25) 0%,
+    hsl(206 25% 16% / 0.3) 50%,
+    hsl(206 45% 22% / 0.35) 100%
+  );
+}
+
+:root[data-glass].dark.theme-vs2026 .sidebar-gradient {
+  background: linear-gradient(
+    180deg,
+    hsl(230 16% 11% / 0.25) 0%,
+    hsl(255 22% 17% / 0.3) 50%,
+    hsl(265 45% 24% / 0.35) 100%
+  );
+}
+
+/* A rounded content panel ("island") set into the window chrome: page content, workspace
+   panes and the project panel. It is opaque, so it reads the same with or without glass
+   behind it, and its corners follow each theme's --radius. In the components layer so a
+   utility on the element (like the focused pane's glow) can still override it. */
+@layer components {
+  .chrome-island {
+    background-color: hsl(var(--background));
+    border-width: 1px;
+    border-style: solid;
+    border-radius: calc(var(--radius) + 4px);
+    box-shadow:
+      0 1px 2px hsl(0 0% 0% / 0.04),
+      0 4px 16px -8px hsl(0 0% 0% / 0.12);
+    overflow: hidden;
+  }
+
+  .dark .chrome-island {
+    box-shadow:
+      0 1px 2px hsl(0 0% 0% / 0.3),
+      0 8px 24px -12px hsl(0 0% 0% / 0.5);
+  }
+}
+
+/* Outside the layer, or the global `* { border-color }` rule above would win. */
+.chrome-island {
+  border-color: hsl(var(--border) / 0.6);
+}
+
+/* The main menu as its own rounded panel beside the content island, with the same corners and
+   hairline. It keeps its gradient, so on glass it stays a light tint over the material. */
+.sidebar-panel {
+  border: 1px solid hsl(var(--border) / 0.6);
+  border-radius: calc(var(--radius) + 4px);
+}
+
+/* The soft pill the search box is drawn as, in the title bar and at the top of the search
+   panel. A faint wash of the text colour rather than a filled field, so it sits on the glass
+   chrome and on an island alike. */
+.search-pill {
+  background-color: hsl(var(--foreground) / 0.05);
+  border: 1px solid hsl(var(--foreground) / 0.07);
+}
+
+button.search-pill:hover {
+  background-color: hsl(var(--foreground) / 0.08);
+}
+
+.search-pill:focus-within {
+  border-color: hsl(var(--primary) / 0.45);
+}
+
+/* The search panel: the island surface lifted off the page, with a deeper shadow. */
+.search-panel {
+  overflow: hidden;
+  border: 1px solid hsl(var(--border) / 0.7);
+  border-radius: calc(var(--radius) + 8px);
+  background-color: hsl(var(--popover));
+  box-shadow:
+    0 2px 6px hsl(0 0% 0% / 0.08),
+    0 24px 64px -16px hsl(0 0% 0% / 0.35);
 }
 
 /* Placeholder surface for content that is still loading (see ui/skeleton.tsx):

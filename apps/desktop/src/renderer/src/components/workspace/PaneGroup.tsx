@@ -673,7 +673,7 @@ export function PaneGroup({
         if (!focused) focusGroup(projectId, group.id);
       }}
       className={cn(
-        'relative flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden rounded-lg border bg-card/40 transition-[border-color,box-shadow] duration-150',
+        'chrome-island relative flex h-full min-h-0 w-full min-w-0 flex-col transition-[border-color,box-shadow] duration-150',
         multiPane && focused
           ? 'border-primary/35 shadow-[0_0_0_1px_hsl(var(--primary)/0.12),0_0_24px_-12px_hsl(var(--primary)/0.45)]'
           : 'border-border/70',

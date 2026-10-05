@@ -13,6 +13,8 @@ import { IPC } from '../../shared/ipcChannels';
 
 const userData = { dir: '' };
 const handlers = new Map<string, (event: unknown, ...args: unknown[]) => unknown>();
+/** Hoisted, so every fresh copy of the module graph after `vi.resetModules()` sees this one. */
+const nativeTheme = vi.hoisted(() => ({ themeSource: 'system', shouldUseDarkColors: true }));
 
 vi.mock('electron', () => ({
   app: { getPath: () => userData.dir },
@@ -20,6 +22,7 @@ vi.mock('electron', () => ({
     handle: (channel: string, fn: (event: unknown, ...args: unknown[]) => unknown) =>
       handlers.set(channel, fn),
   },
+  nativeTheme,
 }));
 vi.mock('../blueprintFileStore', () => ({
   referencedAttachmentFiles: () => new Set(),
@@ -64,6 +67,7 @@ function claudeCommand(settings: AppSettings): string | null {
 beforeEach(async () => {
   userData.dir = await mkdtemp(join(tmpdir(), 'agentmate-settings-'));
   handlers.clear();
+  nativeTheme.themeSource = 'system';
   vi.resetModules();
   const { registerSettingsHandlers } = await import('./settings');
   registerSettingsHandlers();
@@ -161,6 +165,25 @@ describe('startupPage', () => {
     const last = await ipc<AppSettings>(IPC.settings.update, { startupPage: 'last' });
     expect(last.startupPage).toBe('last');
     expect((await readSettingsFile()).startupPage).toBe('last');
+  });
+});
+
+describe('theme', () => {
+  it('retints the window when the theme changes', async () => {
+    await ipc(IPC.settings.update, { theme: 'light' });
+    expect(nativeTheme.themeSource).toBe('light');
+
+    await ipc(IPC.settings.update, { theme: 'vs2026' });
+    expect(nativeTheme.themeSource).toBe('dark');
+
+    await ipc(IPC.settings.update, { theme: 'system' });
+    expect(nativeTheme.themeSource).toBe('system');
+  });
+
+  it('leaves the window alone when something else changes', async () => {
+    nativeTheme.themeSource = 'light';
+    await ipc(IPC.settings.update, { startupPage: '/' });
+    expect(nativeTheme.themeSource).toBe('light');
   });
 });
 

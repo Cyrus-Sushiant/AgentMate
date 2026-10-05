@@ -1,10 +1,10 @@
-import { release } from 'node:os';
 import { join } from 'node:path';
 import type { ThemeMode } from '@agentmat/core';
 import { app, BrowserWindow, ipcMain, nativeTheme } from 'electron';
 import icon from '../../resources/icon.ico?asset';
 import { IPC } from '../shared/ipcChannels';
 import { sendToWindow } from './ipc/send';
+import { supportsBackgroundMaterial } from './windowGlass';
 
 /** Long enough to read the logo on a fast machine instead of seeing it blink. */
 const MIN_VISIBLE_MS = 700;
@@ -39,16 +39,6 @@ export function themeBackground(theme: ThemeMode): string {
 }
 
 /**
- * Windows 11 22H2 (build 22621) is the first release where Electron's
- * `backgroundMaterial` paints real acrylic. Older Windows gets a CSS tint instead.
- */
-function supportsAcrylic(): boolean {
-  if (process.platform !== 'win32') return false;
-  const build = Number(release().split('.')[2] ?? 0);
-  return build >= 22621;
-}
-
-/**
  * The small glass window shown while the app starts, the way Visual Studio
  * does it. It is a static page rather than the React bundle, so it paints
  * right away, and it goes as soon as the main window reports it has loaded.
@@ -62,7 +52,7 @@ function supportsAcrylic(): boolean {
 export function showSplash(theme: ThemeMode): Promise<void> {
   if (getSplash()) return Promise.resolve();
   const dark = resolveStartupTheme(theme) !== 'light';
-  const acrylic = supportsAcrylic();
+  const acrylic = supportsBackgroundMaterial();
   const mac = process.platform === 'darwin';
   // Native blur on Windows 11 and macOS; everywhere else the page draws its own tint.
   const glass = acrylic || mac ? 'native' : 'css';

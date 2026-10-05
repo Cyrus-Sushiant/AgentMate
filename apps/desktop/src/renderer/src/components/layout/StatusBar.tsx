@@ -1183,7 +1183,7 @@ export function StatusBar(): React.JSX.Element {
   return (
     <footer
       aria-label="Status bar"
-      className="flex h-6 shrink-0 items-center justify-between gap-2 border-t border-border/70 bg-card/40 px-1 text-[11px] text-muted-foreground"
+      className="flex h-6 shrink-0 items-center justify-between gap-2 border-t border-border/70 bg-card/40 px-1 text-[11px] text-muted-foreground glass:border-t-0 glass:bg-transparent"
     >
       <div className="flex h-full min-w-0 items-center overflow-hidden">
         <AgentSegments />
