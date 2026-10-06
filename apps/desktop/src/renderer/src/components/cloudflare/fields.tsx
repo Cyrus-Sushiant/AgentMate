@@ -13,7 +13,8 @@ export function NativeSelect({
     <select
       {...props}
       className={cn(
-        'flex h-9 w-full cursor-pointer rounded-lg border border-input bg-background px-2 text-sm transition-colors hover:border-foreground/20 focus-visible:border-primary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50',
+        // The shared field surface (see index.css), so it matches ui/input and the combobox.
+        'field-surface flex h-9 w-full cursor-pointer rounded-full pl-3 pr-2 text-sm disabled:cursor-not-allowed',
         className,
       )}
     />

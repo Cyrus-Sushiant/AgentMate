@@ -72,10 +72,10 @@ export function BlueprintTab({ project }: { project: Project }): React.JSX.Eleme
         : '';
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-2">
       <BlueprintStepRail step={step} filled={filled} onSelect={setStep} />
 
-      <div className="rounded-xl border border-border bg-card/40 p-4">
+      <div className="glass rounded-[calc(var(--radius)+2px)] p-4">
         {step === 'review' || !section ? (
           <BlueprintReviewStep
             project={project}

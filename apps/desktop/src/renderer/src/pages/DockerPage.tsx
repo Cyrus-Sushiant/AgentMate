@@ -6,13 +6,19 @@ import { toast } from 'sonner';
 import { DockerContainerRow } from '@/components/docker/DockerContainerRow';
 import { RemoveContainerDialog } from '@/components/docker/RemoveContainerDialog';
 import { useDockerContainerActions } from '@/components/docker/useDockerContainerActions';
-import { Docker, RefreshCw, Search, StopCircle, X } from '@/components/icons';
-import { ProjectEmptyState } from '@/components/projects/ProjectDetailChrome';
+import { Docker, RefreshCw, Search, StopCircle } from '@/components/icons';
+import {
+  CountChip,
+  EmptyState,
+  GLASS_CARD,
+  PILL_SOFT,
+  SECTION_HEADING,
+  SearchPill,
+} from '@/components/pageKit';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
-import { StatTile } from '@/components/ui/stat-tile';
 import { queryKeys } from '@/lib/queryKeys';
+import { cn } from '@/lib/utils';
 
 function matchesQuery(container: DockerContainer, query: string): boolean {
   if (!query) return true;
@@ -41,19 +47,20 @@ function groupByComposeProject(
   return groups;
 }
 
-function DockerPageSkeleton(): React.JSX.Element {
+/** The container list's card, shimmering row by row until the first list arrives. */
+function ContainerListSkeleton(): React.JSX.Element {
   return (
-    <div className="space-y-4">
-      <div className="grid grid-cols-3 gap-3">
-        {Array.from({ length: 3 }, (_, i) => (
-          <Skeleton key={i} className="h-20 w-full rounded-lg" />
-        ))}
-      </div>
-      <div className="space-y-2">
-        {Array.from({ length: 4 }, (_, i) => (
-          <Skeleton key={i} className="h-20 w-full rounded-lg" />
-        ))}
-      </div>
+    <div className={cn(GLASS_CARD, 'settings-rows')} role="status" aria-label="Loading containers">
+      {Array.from({ length: 4 }, (_, i) => (
+        <div key={i} className="flex items-center gap-3 px-3.5 py-3">
+          <Skeleton className="h-8 w-8 shrink-0 rounded-md" />
+          <div className="min-w-0 flex-1 space-y-2">
+            <Skeleton className="h-3.5 w-40" />
+            <Skeleton className="h-3 w-64 max-w-full" />
+          </div>
+          <Skeleton className="h-6 w-20 rounded-full" />
+        </div>
+      ))}
     </div>
   );
 }
@@ -132,20 +139,24 @@ export default function DockerPage(): React.JSX.Element {
 
   if (availabilityQuery.isLoading) {
     return (
-      <div className="space-y-6 p-6">
-        <DockerPageSkeleton />
+      <div className="flex flex-col gap-2 p-2">
+        <Skeleton className="h-12 w-full rounded-[calc(var(--radius)+2px)]" />
+        <ContainerListSkeleton />
       </div>
     );
   }
 
   if (available === false) {
     return (
-      <div className="space-y-6 p-6">
-        <ProjectEmptyState
-          icon={Docker}
-          title="Docker isn't available"
-          description="AgentMate couldn't find the docker command on PATH. Install Docker Desktop (or the Docker Engine CLI) and reopen this page."
-        />
+      <div className="flex flex-col gap-2 p-2">
+        <div className={GLASS_CARD}>
+          <EmptyState
+            size="lg"
+            icon={Docker}
+            title="Docker isn't available"
+            description="AgentMate couldn't find the docker command on PATH. Install Docker Desktop (or the Docker Engine CLI) and reopen this page."
+          />
+        </div>
       </div>
     );
   }
@@ -154,106 +165,102 @@ export default function DockerPage(): React.JSX.Element {
   const search = query.trim();
   const visible = containers.filter((c) => matchesQuery(c, search));
   const groups = groupByComposeProject(visible);
+  const hasComposeGroups = groups.some((group) => group.label !== null);
 
   return (
-    <div className="space-y-6 p-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="grid grid-cols-3 gap-3">
-          <StatTile
-            icon={<Docker className="h-3.5 w-3.5" />}
+    <div className="flex flex-col gap-2 p-2">
+      {/* The toolbar is its own glass card, the way the API Client's URL bar heads its card. */}
+      <div className={cn(GLASS_CARD, 'flex flex-wrap items-center gap-2 px-2.5 py-2')}>
+        <SearchPill
+          label="Search containers"
+          placeholder="Search containers or images"
+          value={query}
+          onValueChange={setQuery}
+          className="w-full min-w-48 max-w-xs flex-1"
+        />
+        <div className="flex flex-wrap items-center gap-1.5">
+          <CountChip
             label="Running"
-            value={listQuery.isLoading ? <Skeleton className="h-6 w-8" /> : runningCount}
+            value={runningCount}
+            tone="success"
+            loading={listQuery.isLoading}
           />
-          <StatTile
-            icon={<Docker className="h-3.5 w-3.5" />}
+          <CountChip
             label="Stopped"
-            value={
-              listQuery.isLoading ? (
-                <Skeleton className="h-6 w-8" />
-              ) : (
-                containers.length - runningCount
-              )
-            }
+            value={containers.length - runningCount}
+            loading={listQuery.isLoading}
           />
-          <StatTile
-            icon={<Docker className="h-3.5 w-3.5" />}
-            label="Total"
-            value={listQuery.isLoading ? <Skeleton className="h-6 w-8" /> : containers.length}
-          />
+          <CountChip label="Total" value={containers.length} loading={listQuery.isLoading} />
         </div>
         <Button
-          variant="outline"
+          variant="ghost"
           size="sm"
+          className={cn(PILL_SOFT, 'ml-auto')}
           disabled={listQuery.isFetching}
           aria-busy={listQuery.isFetching}
           onClick={() => void listQuery.refetch()}
         >
-          <RefreshCw className={`h-3.5 w-3.5 ${listQuery.isFetching ? 'animate-spin' : ''}`} />
+          <RefreshCw className={cn('h-3.5 w-3.5', listQuery.isFetching && 'animate-spin')} />
           Refresh
         </Button>
       </div>
 
-      <div className="relative max-w-sm">
-        <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          type="text"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search containers or images"
-          aria-label="Search containers"
-          className="h-8 pl-8 pr-8"
-        />
-        {query && (
-          <button
-            type="button"
-            aria-label="Clear search"
-            className="absolute right-1.5 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
-            onClick={() => setQuery('')}
-          >
-            <X className="h-3 w-3" />
-          </button>
-        )}
-      </div>
-
       {listQuery.isLoading ? (
-        <DockerPageSkeleton />
+        <ContainerListSkeleton />
       ) : containers.length === 0 ? (
-        <ProjectEmptyState
-          icon={Docker}
-          title="No containers on this machine"
-          description="Containers you create or run with Docker will show up here."
-        />
+        <div className={GLASS_CARD}>
+          <EmptyState
+            size="lg"
+            icon={Docker}
+            title="No containers on this machine"
+            description="Containers you create or run with Docker will show up here."
+          />
+        </div>
       ) : visible.length === 0 ? (
-        <p className="text-sm text-muted-foreground">No containers match "{search}".</p>
+        <div className={GLASS_CARD}>
+          <EmptyState
+            size="sm"
+            icon={Search}
+            title="Nothing found"
+            description={`No containers match "${search}".`}
+          />
+        </div>
       ) : (
-        <div className="space-y-4">
-          {groups.map((group) => {
-            const runningContainers = group.containers.filter((c) => c.state === 'running');
-            return (
-              <div key={group.label ?? 'ungrouped'} className="space-y-2">
-                {group.label && (
-                  <div className="flex items-center justify-between gap-2 px-1">
-                    <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                      {group.label}
-                    </p>
-                    {runningContainers.length > 0 && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-6 gap-1 px-2 text-xs text-muted-foreground hover:text-foreground"
-                        onClick={() =>
-                          actions.stopMany(runningContainers, group.label ?? undefined)
-                        }
-                      >
-                        <StopCircle className="h-3 w-3" />
-                        Stop all
-                      </Button>
-                    )}
-                  </div>
-                )}
+        groups.map((group) => {
+          const runningContainers = group.containers.filter((c) => c.state === 'running');
+          return (
+            <section
+              key={group.label ?? 'ungrouped'}
+              aria-label={group.label ?? 'Other containers'}
+              className={cn(GLASS_CARD, 'overflow-hidden')}
+            >
+              {/* Loose containers only get a heading when compose groups sit above them. */}
+              {(group.label || hasComposeGroups) && (
+                <div className="flex h-10 items-center gap-2 pl-3.5 pr-2 shadow-[inset_0_-1px_0_hsl(var(--foreground)/0.08)]">
+                  <p className={cn(SECTION_HEADING, 'min-w-0 truncate')}>
+                    {group.label ?? 'Other containers'}
+                  </p>
+                  <span className="rounded-full bg-foreground/[0.06] px-1.5 text-[10px] leading-4 tabular-nums text-muted-foreground">
+                    {group.containers.length}
+                  </span>
+                  {group.label && runningContainers.length > 0 && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="ml-auto h-6 gap-1 rounded-full px-2.5 text-xs text-muted-foreground hover:bg-foreground/[0.06] hover:text-foreground"
+                      onClick={() => actions.stopMany(runningContainers, group.label ?? undefined)}
+                    >
+                      <StopCircle className="h-3 w-3" />
+                      Stop all
+                    </Button>
+                  )}
+                </div>
+              )}
+              <div className="settings-rows">
                 {group.containers.map((container) => (
                   <DockerContainerRow
                     key={container.id}
+                    variant="row"
                     container={container}
                     pending={actions.pendingIds.has(container.id)}
                     focused={focusedContainerId === container.id}
@@ -265,9 +272,9 @@ export default function DockerPage(): React.JSX.Element {
                   />
                 ))}
               </div>
-            );
-          })}
-        </div>
+            </section>
+          );
+        })
       )}
 
       <RemoveContainerDialog

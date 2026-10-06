@@ -20,6 +20,7 @@ import {
 import { NAV_ITEMS, type NavItem } from '@/components/layout/mainNav';
 import { Button } from '@/components/ui/button';
 import { queryKeys } from '@/lib/queryKeys';
+import { scrollContainerToTop, scrollToInContainer } from '@/lib/scrollContainer';
 import { cn } from '@/lib/utils';
 import { useAskAiStore } from '@/stores/askAiStore';
 import { useHelpStore } from '@/stores/helpStore';
@@ -59,6 +60,15 @@ const QUICK_SEARCHES = [
   'Restore a backup',
 ];
 
+/** A hash can carry a stray percent sign; fall back to the raw text instead of throwing. */
+function safeDecode(value: string): string {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+}
+
 function useGuideAvailable(): boolean {
   const provider = useAskAiStore((s) => s.provider);
   const ollamaModel = useAskAiStore((s) => s.ollamaModel);
@@ -78,20 +88,25 @@ export default function HelpPage(): React.JSX.Element {
   const chatOpen = useHelpStore((s) => s.chatOpen);
   const setChatOpen = useHelpStore((s) => s.setChatOpen);
   const rootRef = useRef<HTMLDivElement>(null);
+  // The article last scrolled to, so a fresh open jumps and a jump within it glides.
+  const shownSlug = useRef<string | undefined>(undefined);
   const searchRef = useRef<HelpSearchBoxHandle>(null);
 
   usePageHeader('Help', 'Guides for every part of AgentMate, with search and a guide you can ask.');
 
   // Land on the heading a link points at, or at the top of a newly opened article.
-  // biome-ignore lint/correctness/useExhaustiveDependencies: runs when the article or anchor changes
   useEffect(() => {
     // A frame later, because the shell resets the scroll to the top on every route change and its
     // effect runs after this one; scrolling now would be undone straight away.
     const frame = requestAnimationFrame(() => {
-      const id = decodeURIComponent(hash.slice(1));
+      // Only the page's own scroller moves. scrollIntoView would also scroll the shell's
+      // overflow-hidden wrappers and push the page header out of sight.
+      const justOpened = shownSlug.current !== slug;
+      shownSlug.current = slug;
+      const id = safeDecode(hash.slice(1));
       const target = id ? document.getElementById(id) : null;
-      if (target) target.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
-      else rootRef.current?.scrollIntoView?.({ block: 'start' });
+      if (target) scrollToInContainer(target, { smooth: !justOpened });
+      else if (rootRef.current) scrollContainerToTop(rootRef.current);
     });
     return () => cancelAnimationFrame(frame);
   }, [slug, hash]);

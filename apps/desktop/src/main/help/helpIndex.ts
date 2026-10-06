@@ -217,6 +217,30 @@ export class HelpIndex {
     return rows.map(rowToChunk);
   }
 
+  /** Every embedder that has vectors stored, so models no longer in use can be dropped. */
+  embedderIds(): string[] {
+    const rows = this.db
+      .prepare(
+        'SELECT embedder FROM embeddings UNION SELECT embedder FROM vec_tables ORDER BY embedder',
+      )
+      .all() as Array<{ embedder: string }>;
+    return rows.map((r) => r.embedder);
+  }
+
+  /** Forgets every vector from `embedder`, so the next run embeds all passages again. */
+  clearEmbeddings(embedder: string): void {
+    this.db.transaction(() => {
+      this.db.prepare('DELETE FROM embeddings WHERE embedder = ?').run(embedder);
+      const row = this.db.prepare('SELECT name FROM vec_tables WHERE embedder = ?').get(embedder) as
+        | { name: string }
+        | undefined;
+      if (row) {
+        if (this.vectorBackend === 'sqlite-vec') this.db.exec(`DROP TABLE IF EXISTS ${row.name}`);
+        this.db.prepare('DELETE FROM vec_tables WHERE embedder = ?').run(embedder);
+      }
+    })();
+  }
+
   embeddedCount(embedder: string): number {
     return (
       this.db.prepare('SELECT COUNT(*) AS n FROM embeddings WHERE embedder = ?').get(embedder) as {

@@ -158,7 +158,7 @@ export function GitActionsCard({
   }
 
   return (
-    <div className="glass space-y-3 rounded-xl p-4">
+    <div className="glass space-y-3 rounded-[calc(var(--radius)+2px)] p-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex min-w-0 items-start gap-3">
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
@@ -201,7 +201,7 @@ export function GitActionsCard({
           Reading workflows…
         </div>
       ) : status?.error ? (
-        <div className="rounded-lg border border-dashed border-border px-3 py-4 text-sm text-muted-foreground">
+        <div className="rounded-xl bg-foreground/[0.03] px-3 py-4 text-sm text-muted-foreground ring-1 ring-inset ring-foreground/[0.07]">
           <p>{status.error}</p>
           {!status.cliAvailable ? (
             <Button variant="outline" size="sm" className="mt-3" onClick={handleInstallGh}>
@@ -214,7 +214,7 @@ export function GitActionsCard({
           ) : null}
         </div>
       ) : !status || status.workflows.length === 0 ? (
-        <p className="rounded-lg border border-dashed border-border px-3 py-4 text-sm text-muted-foreground">
+        <p className="rounded-xl bg-foreground/[0.03] px-3 py-4 text-sm text-muted-foreground ring-1 ring-inset ring-foreground/[0.07]">
           No GitHub Actions workflows in this repository yet.
         </p>
       ) : (
@@ -268,10 +268,11 @@ function WorkflowRow({
   return (
     <div
       className={cn(
-        'flex items-center gap-3 rounded-lg border px-3 py-2.5',
+        // Rings, not border colours, which the theme's global border rule would override.
+        'flex items-center gap-3 rounded-xl px-3 py-2.5',
         watched
-          ? 'border-border/70 bg-background/30'
-          : 'border-dashed border-border/60 bg-background/10',
+          ? 'bg-foreground/[0.03] ring-1 ring-inset ring-foreground/[0.08]'
+          : 'ring-1 ring-inset ring-foreground/[0.05]',
       )}
     >
       <span

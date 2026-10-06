@@ -349,6 +349,9 @@ export const IPC = {
     ask: 'help:ask',
     cancel: 'help:cancel',
     status: 'help:status',
+    reindex: 'help:reindex',
+    cancelReindex: 'help:cancelReindex',
+    embeddingModels: 'help:embeddingModels',
     onIndexProgress: 'help:onIndexProgress',
   },
   projectDrafts: {
@@ -922,6 +925,34 @@ export const IPC = {
     restore: 'deployHardening:restore',
     /** main -> the main window: the steps of a restore. */
     onRestoreProgress: 'deployHardening:onRestoreProgress',
+  },
+  /**
+   * WordPress sites connected through the AgentMate Connector plugin (E19 to E21): connecting
+   * with a key, the site's items and deploy history, and pulling and deploying WordPress projects.
+   */
+  deployWordPress: {
+    listSites: 'deployWordPress:listSites',
+    connect: 'deployWordPress:connect',
+    disconnect: 'deployWordPress:disconnect',
+    updateSettings: 'deployWordPress:updateSettings',
+    siteInfo: 'deployWordPress:siteInfo',
+    listItems: 'deployWordPress:listItems',
+    history: 'deployWordPress:history',
+    rollback: 'deployWordPress:rollback',
+    audit: 'deployWordPress:audit',
+    planPull: 'deployWordPress:planPull',
+    pull: 'deployWordPress:pull',
+    planDeploy: 'deployWordPress:planDeploy',
+    deploy: 'deployWordPress:deploy',
+    cancel: 'deployWordPress:cancel',
+    createProject: 'deployWordPress:createProject',
+    setProjectItems: 'deployWordPress:setProjectItems',
+    unlinkProject: 'deployWordPress:unlinkProject',
+    localChanges: 'deployWordPress:localChanges',
+    remoteFile: 'deployWordPress:remoteFile',
+    saveConnectorZip: 'deployWordPress:saveConnectorZip',
+    /** main -> the main window: the steps of a pull, deploy, rollback or new project. */
+    onProgress: 'deployWordPress:onProgress',
   },
   /** The Deploy section's Cloudflare page: the API token, zones, DNS, settings and rules. */
   cloudflare: {

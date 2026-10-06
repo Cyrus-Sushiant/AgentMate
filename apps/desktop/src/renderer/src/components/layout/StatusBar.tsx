@@ -4,6 +4,7 @@ import {
   getUsageProvider,
   type KeepAwakeMode,
   type Project,
+  STATUS_BAR_USAGE_PROVIDERS,
   type SubscriptionWindow,
 } from '@agentmat/core';
 import * as PopoverPrimitive from '@radix-ui/react-popover';
@@ -280,12 +281,89 @@ function AgentSegments(): React.JSX.Element {
   );
 }
 
+/** The window that rolls over next, falling back to the first when none has a reset time. */
+function soonestWindow(windows: SubscriptionWindow[]): SubscriptionWindow | undefined {
+  return (
+    [...windows]
+      .filter((w) => w.resetAt)
+      .sort((a, b) => Date.parse(a.resetAt ?? '') - Date.parse(b.resetAt ?? ''))[0] ?? windows[0]
+  );
+}
+
+interface ProviderLimits {
+  providerId: string;
+  name: string;
+  plan: string | null;
+  windows: SubscriptionWindow[];
+}
+
 /**
- * The soonest rolling limit to roll over, across every provider on a subscription. This is
- * the "when do my tokens come back" number the Token Usage cards count down to.
+ * One provider's plan limits: the share used of its soonest-resetting limit and a countdown to
+ * it, the "when do my tokens come back" number the Token Usage cards count down to.
  */
-function QuotaSegment(): React.JSX.Element | null {
+function ProviderLimitSegment({
+  provider,
+}: {
+  provider: ProviderLimits;
+}): React.JSX.Element | null {
   const navigate = useNavigate();
+  const next = soonestWindow(provider.windows);
+  if (!next) return null;
+  const countdown = formatCountdown(next.resetAt);
+  const openUsage = (): void => {
+    void navigate(`/usage?provider=${encodeURIComponent(provider.providerId)}`);
+  };
+
+  return (
+    <PopSegment
+      label={`${provider.name}: ${next.label} limit`}
+      width="w-80"
+      panel={
+        <>
+          <PanelTitle title={provider.name} detail={provider.plan} />
+          <div className="flex flex-col gap-1">
+            {provider.windows.map((w) => (
+              <span key={w.key} className="flex items-center gap-2">
+                <span className="w-24 shrink-0 truncate text-[10px] text-muted-foreground">
+                  {w.label}
+                </span>
+                <Meter percent={w.percent} />
+                <span className="w-8 shrink-0 text-right text-[10px] tabular-nums">
+                  {Math.round(w.percent)}%
+                </span>
+                <span className="min-w-0 flex-1 truncate text-right text-[10px] text-muted-foreground">
+                  {formatCountdown(w.resetAt) ?? 'no reset time'}
+                </span>
+              </span>
+            ))}
+          </div>
+          <PopoverPrimitive.Close asChild>
+            <button
+              type="button"
+              onClick={openUsage}
+              className="mt-2 w-full border-t border-border/60 pt-2 text-left text-[10px] text-muted-foreground hover:text-foreground"
+            >
+              Open Token Usage
+            </button>
+          </PopoverPrimitive.Close>
+        </>
+      }
+    >
+      <ProviderLogo providerId={provider.providerId} className="h-3 w-3 shrink-0" />
+      <span className="tabular-nums">{Math.round(next.percent)}%</span>
+      {countdown ? (
+        <span className="tabular-nums text-muted-foreground/80">{countdown}</span>
+      ) : null}
+    </PopSegment>
+  );
+}
+
+/**
+ * A limits item for each AI subscription that reports one, in a fixed order, minus any the user
+ * switched off in Settings. A provider with nothing to count down to (an unlimited Cursor plan,
+ * Codex on an API key) stays out of the bar.
+ */
+function UsageLimitSegments(): React.JSX.Element {
   const usageQuery = useQuery({
     queryKey: queryKeys.usageList,
     queryFn: () => window.agentmat.usage.list(),
@@ -293,79 +371,35 @@ function QuotaSegment(): React.JSX.Element | null {
     staleTime: 30_000,
     meta: { silentLoading: true },
   });
-
-  const providers = (usageQuery.data ?? []).flatMap((usage) => {
-    const windows = (usage.subscription?.windows ?? []).filter((w) => w.resetAt || w.percent > 0);
-    return windows.length > 0
-      ? [{ providerId: usage.providerId, plan: usage.subscription?.plan?.label ?? null, windows }]
-      : [];
+  const settingsQuery = useQuery({
+    queryKey: queryKeys.settings,
+    queryFn: () => window.agentmat.settings.get(),
+    meta: { silentLoading: true },
   });
-  const lead = providers[0];
-  if (!lead) return null;
+  // Until settings load every provider counts as on, so the bar does not flash empty.
+  const shown = settingsQuery.data?.statusBarUsage;
 
-  const soonest = (windows: SubscriptionWindow[]): SubscriptionWindow | undefined =>
-    [...windows]
-      .filter((w) => w.resetAt)
-      .sort((a, b) => Date.parse(a.resetAt ?? '') - Date.parse(b.resetAt ?? ''))[0];
-  const next = soonest(lead.windows) ?? lead.windows[0];
-  if (!next) return null;
-  const countdown = formatCountdown(next.resetAt);
-  const providerName = (id: string): string => getUsageProvider(id)?.name ?? id;
+  const providers = STATUS_BAR_USAGE_PROVIDERS.flatMap((providerId): ProviderLimits[] => {
+    if (shown?.[providerId] === false) return [];
+    const usage = usageQuery.data?.find((u) => u.providerId === providerId);
+    const windows = (usage?.subscription?.windows ?? []).filter((w) => w.resetAt || w.percent > 0);
+    if (windows.length === 0) return [];
+    return [
+      {
+        providerId,
+        name: getUsageProvider(providerId)?.name ?? providerId,
+        plan: usage?.subscription?.plan?.label ?? null,
+        windows,
+      },
+    ];
+  });
 
   return (
-    <PopSegment
-      label={`${providerName(lead.providerId)}: ${next.label} limit`}
-      width="w-80"
-      panel={
-        <>
-          <PanelTitle title="Cloud limits" detail="Click for the full picture" />
-          <div className="-mx-1 flex flex-col">
-            {providers.map((provider) => (
-              <button
-                key={provider.providerId}
-                type="button"
-                onClick={() => navigate('/usage')}
-                className="rounded-md px-2 py-1.5 text-left transition-colors hover:bg-foreground/[0.07] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-              >
-                <span className="flex items-center justify-between gap-2">
-                  <span className="flex min-w-0 items-center gap-1.5">
-                    <ProviderLogo providerId={provider.providerId} className="h-3 w-3 shrink-0" />
-                    <span className="truncate text-xs font-medium">
-                      {providerName(provider.providerId)}
-                    </span>
-                  </span>
-                  {provider.plan ? (
-                    <span className="shrink-0 text-[10px] text-muted-foreground">
-                      {provider.plan}
-                    </span>
-                  ) : null}
-                </span>
-                {provider.windows.map((w) => (
-                  <span key={w.key} className="mt-1 flex items-center gap-2">
-                    <span className="w-20 shrink-0 truncate text-[10px] text-muted-foreground">
-                      {w.label}
-                    </span>
-                    <Meter percent={w.percent} />
-                    <span className="w-8 shrink-0 text-right text-[10px] tabular-nums">
-                      {Math.round(w.percent)}%
-                    </span>
-                    <span className="min-w-0 flex-1 truncate text-right text-[10px] text-muted-foreground">
-                      {formatCountdown(w.resetAt) ?? 'no reset time'}
-                    </span>
-                  </span>
-                ))}
-              </button>
-            ))}
-          </div>
-        </>
-      }
-    >
-      <ProviderLogo providerId={lead.providerId} className="h-3 w-3 shrink-0" />
-      <span className="tabular-nums">{Math.round(next.percent)}%</span>
-      {countdown ? (
-        <span className="tabular-nums text-muted-foreground/80">{countdown}</span>
-      ) : null}
-    </PopSegment>
+    <>
+      {providers.map((provider) => (
+        <ProviderLimitSegment key={provider.providerId} provider={provider} />
+      ))}
+    </>
   );
 }
 
@@ -1191,7 +1225,7 @@ export function StatusBar(): React.JSX.Element {
       <div className="flex h-full shrink-0 items-center">
         <RunSegments />
         <TerminalsSegment />
-        <QuotaSegment />
+        <UsageLimitSegments />
         <DockerSegment />
         <AndroidSegment />
         <SystemSegments />

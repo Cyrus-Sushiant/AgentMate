@@ -11,25 +11,25 @@ import { SdkSetupPanel } from '@/components/android/SdkSetupPanel';
 import { useAndroidActions } from '@/components/android/useAndroidActions';
 import { useAndroidState } from '@/components/android/useAndroidState';
 import { WirelessPairDialog } from '@/components/android/WirelessPairDialog';
+import { Android, Copy, Plus, RefreshCw, Search, TriangleAlert, Wifi } from '@/components/icons';
 import {
-  Android,
-  Plus,
-  RefreshCw,
-  Search,
-  Smartphone,
-  TriangleAlert,
-  Wifi,
-  X,
-} from '@/components/icons';
-import { ProjectEmptyState } from '@/components/projects/ProjectDetailChrome';
-import { Badge } from '@/components/ui/badge';
+  CARD_GRID,
+  CARD_PILL_SOFT,
+  CatalogCardShimmer,
+  Chip,
+  CountChip,
+  EmptyState,
+  GLASS_CARD,
+  PILL_PRIMARY,
+  PILL_SOFT,
+  PillTabs,
+  SearchPill,
+} from '@/components/pageKit';
 import { Button } from '@/components/ui/button';
-import { GooeyNav } from '@/components/ui/gooey-nav';
-import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
-import { StatTile } from '@/components/ui/stat-tile';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { queryKeys } from '@/lib/queryKeys';
+import { cn } from '@/lib/utils';
 import { usePageHeader } from '@/stores/pageHeaderStore';
 
 /** The SDK packages a card needs, named the way sdkmanager names them. */
@@ -40,18 +40,15 @@ const TOOL_PACKAGES: { key: keyof AndroidSdkStatus['tools']; label: string; pkg:
 ];
 
 const VIEWS = ['All', 'Running', 'Virtual', 'Physical'] as const;
+type View = (typeof VIEWS)[number];
 
-function AndroidPageSkeleton(): React.JSX.Element {
+/** The device grid, one shimmering card per slot until the first snapshot lands. */
+function DeviceGridSkeleton(): React.JSX.Element {
   return (
-    <div className="space-y-4">
-      <div className="grid grid-cols-3 gap-3">
-        {Array.from({ length: 3 }, (_, i) => (
-          <Skeleton key={i} className="h-20 w-full rounded-lg" />
-        ))}
-      </div>
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+    <div className="@container/grid">
+      <div className={CARD_GRID} role="status" aria-label="Loading devices">
         {Array.from({ length: 6 }, (_, i) => (
-          <Skeleton key={i} className="h-44 w-full rounded-xl" />
+          <CatalogCardShimmer key={i} className="h-44" />
         ))}
       </div>
     </div>
@@ -66,8 +63,15 @@ function PartialSdkBanner({ sdk }: { sdk: AndroidSdkStatus }): React.JSX.Element
   const command = `sdkmanager ${packages.map((name) => `"${name}"`).join(' ')}`;
 
   return (
-    <div className="glass flex flex-wrap items-center gap-3 rounded-xl border-l-2 border-l-warning p-4">
-      <TriangleAlert className="h-4 w-4 shrink-0 text-warning" />
+    <div
+      className={cn(
+        GLASS_CARD,
+        'flex flex-wrap items-center gap-3 px-3.5 py-3 ring-1 ring-inset ring-warning/30',
+      )}
+    >
+      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-warning/12 text-warning">
+        <TriangleAlert className="h-4 w-4" />
+      </div>
       <div className="min-w-0 flex-1 space-y-1">
         <p className="text-sm font-medium">
           This SDK has no {missing.map((tool) => tool.label).join(', ')}
@@ -78,13 +82,15 @@ function PartialSdkBanner({ sdk }: { sdk: AndroidSdkStatus }): React.JSX.Element
         </p>
       </div>
       <Button
-        variant="outline"
+        variant="ghost"
         size="sm"
+        className={PILL_SOFT}
         onClick={() => {
           void navigator.clipboard.writeText(command);
           toast.success('Command copied.');
         }}
       >
+        <Copy className="h-3.5 w-3.5" />
         Copy command
       </Button>
     </div>
@@ -111,7 +117,7 @@ export default function AndroidPage(): React.JSX.Element {
   usePageHeader('Android', 'Run emulators, manage virtual devices and work with connected phones.');
   const queryClient = useQueryClient();
   const [query, setQuery] = useState('');
-  const [viewIndex, setViewIndex] = useState(0);
+  const [view, setView] = useState<View>('All');
   const [creating, setCreating] = useState(false);
   const [pairing, setPairing] = useState(false);
   const [editing, setEditing] = useState<string | null>(null);
@@ -162,7 +168,6 @@ export default function AndroidPage(): React.JSX.Element {
   const state = useAndroidState(usable);
   const actions = useAndroidActions();
 
-  const view = VIEWS[viewIndex];
   const search = query.trim().toLowerCase();
   const visible = useMemo(
     () => state.devices.filter((device) => inView(device, view) && matches(device, search)),
@@ -176,7 +181,7 @@ export default function AndroidPage(): React.JSX.Element {
     const serial = searchParams.get('device');
     if (!serial) return;
     setQuery('');
-    setViewIndex(0);
+    setView('All');
     setSearchParams({}, { replace: true });
     setPendingFocus(serial);
   }, [searchParams, setSearchParams]);
@@ -225,15 +230,16 @@ export default function AndroidPage(): React.JSX.Element {
 
   if (!sdk) {
     return (
-      <div className="space-y-6 p-6">
-        <AndroidPageSkeleton />
+      <div className="flex flex-col gap-2 p-2">
+        <Skeleton className="h-[5.5rem] w-full rounded-[calc(var(--radius)+2px)]" />
+        <DeviceGridSkeleton />
       </div>
     );
   }
 
   if (!usable) {
     return (
-      <div className="space-y-6 p-6">
+      <div className="flex flex-col gap-2 p-2">
         <SdkSetupPanel
           sdk={sdk}
           busy={sdkQuery.isFetching || setSdkPath.isPending}
@@ -252,109 +258,104 @@ export default function AndroidPage(): React.JSX.Element {
   );
 
   return (
-    <div className="space-y-6 p-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="grid grid-cols-3 gap-3">
-          <StatTile
-            icon={<Android className="h-3.5 w-3.5" />}
-            label="Running"
-            value={state.loading ? <Skeleton className="h-6 w-8" /> : runningCount}
-          />
-          <StatTile
-            icon={<Android className="h-3.5 w-3.5" />}
-            label="Virtual devices"
-            value={state.loading ? <Skeleton className="h-6 w-8" /> : virtualCount}
-          />
-          <StatTile
-            icon={<Smartphone className="h-3.5 w-3.5" />}
-            label="Connected"
-            value={state.loading ? <Skeleton className="h-6 w-8" /> : physicalCount}
-          />
+    <div className="flex flex-col gap-2 p-2">
+      {/* One glass card heads the page: what is on this machine on top, and how to narrow it
+          down and what to do next underneath, split by a hairline like the Settings rows. */}
+      <div className={cn(GLASS_CARD, 'settings-rows')}>
+        <div className="flex flex-wrap items-center gap-1.5 px-2.5 py-2">
+          <CountChip label="Running" value={runningCount} tone="success" loading={state.loading} />
+          <CountChip label="Virtual devices" value={virtualCount} loading={state.loading} />
+          <CountChip label="Connected" value={physicalCount} loading={state.loading} />
+          <div className="ml-auto flex items-center gap-1.5">
+            <SimpleTooltip label={sdk.root ?? ''}>
+              <Chip className="h-6 gap-1.5 px-2.5">
+                <Android className="h-3 w-3" />
+                <span className="tabular-nums">platform-tools {sdk.adbVersion ?? 'unknown'}</span>
+              </Chip>
+            </SimpleTooltip>
+            <Button
+              variant="ghost"
+              size="sm"
+              className={CARD_PILL_SOFT}
+              disabled={busy}
+              aria-busy={busy}
+              onClick={state.refresh}
+            >
+              <RefreshCw className={cn('h-3.5 w-3.5', busy && 'animate-spin')} />
+              Refresh
+            </Button>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          <SimpleTooltip label={sdk.root ?? ''}>
-            <Badge variant="outline" className="gap-1.5">
-              <Android className="h-3 w-3" />
-              <span className="tabular-nums">platform-tools {sdk.adbVersion ?? 'unknown'}</span>
-            </Badge>
-          </SimpleTooltip>
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={busy}
-            aria-busy={busy}
-            onClick={state.refresh}
-          >
-            <RefreshCw className={`h-3.5 w-3.5 ${busy ? 'animate-spin' : ''}`} />
-            Refresh
-          </Button>
+        <div className="flex flex-wrap items-center gap-2 px-2.5 py-2">
+          <SearchPill
+            label="Search devices"
+            placeholder="Search devices"
+            value={query}
+            onValueChange={setQuery}
+            className="w-full min-w-44 max-w-64 flex-1"
+          />
+          <PillTabs
+            id="android-views"
+            label="Device views"
+            items={VIEWS.map((item) => ({ value: item, label: item }))}
+            value={view}
+            onChange={setView}
+          />
+          <div className="ml-auto flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              className={PILL_SOFT}
+              onClick={() => setPairing(true)}
+            >
+              <Wifi className="h-3.5 w-3.5" />
+              Pair over Wi-Fi
+            </Button>
+            {/* Never disabled. When avdmanager is missing the dialog says so and how to get it,
+                which a greyed-out button never could. */}
+            <Button size="sm" className={PILL_PRIMARY} onClick={() => setCreating(true)}>
+              <Plus className="h-3.5 w-3.5" />
+              New device
+            </Button>
+          </div>
         </div>
       </div>
 
       <PartialSdkBanner sdk={sdk} />
 
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="relative max-w-sm flex-1">
-          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            type="text"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search devices"
-            aria-label="Search devices"
-            className="h-8 pl-8 pr-8"
-          />
-          {query && (
-            <button
-              type="button"
-              aria-label="Clear search"
-              className="absolute right-1.5 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
-              onClick={() => setQuery('')}
-            >
-              <X className="h-3 w-3" />
-            </button>
-          )}
-        </div>
-        <GooeyNav
-          aria-label="Device views"
-          items={[...VIEWS]}
-          value={viewIndex}
-          onChange={setViewIndex}
-          size="sm"
-        />
-        <div className="ml-auto flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => setPairing(true)}>
-            <Wifi className="h-3.5 w-3.5" />
-            Pair over Wi-Fi
-          </Button>
-          {/* Never disabled. When avdmanager is missing the dialog says so and how to get it,
-              which a greyed-out button never could. */}
-          <Button size="sm" onClick={() => setCreating(true)}>
-            <Plus className="h-3.5 w-3.5" />
-            New device
-          </Button>
-        </div>
-      </div>
-
       {state.loading ? (
-        <AndroidPageSkeleton />
+        <DeviceGridSkeleton />
       ) : state.devices.length === 0 ? (
-        <ProjectEmptyState
-          icon={Android}
-          title="No devices yet"
-          description="Virtual devices you create, and phones you plug in with USB debugging turned on, show up here."
-        />
+        <div className={GLASS_CARD}>
+          <EmptyState
+            size="lg"
+            icon={Android}
+            title="No devices yet"
+            description="Virtual devices you create, and phones you plug in with USB debugging turned on, show up here."
+            action={
+              <Button className={PILL_PRIMARY} onClick={() => setCreating(true)}>
+                <Plus /> Create a virtual device
+              </Button>
+            }
+          />
+        </div>
       ) : visible.length === 0 ? (
-        <p className="text-sm text-muted-foreground">
-          {search ? `No devices match "${query.trim()}".` : 'Nothing in this view.'}
-        </p>
+        <div className={GLASS_CARD}>
+          <EmptyState
+            size="sm"
+            icon={Search}
+            title="Nothing to show"
+            description={search ? `No devices match "${query.trim()}".` : 'Nothing in this view.'}
+          />
+        </div>
       ) : (
         <ApkDropZone
           targets={installTargets}
           onInstall={(serial, label, paths) => actions.installApk(serial, label, paths)}
           onReject={(message) => toast.error(message)}
+          className="@container/grid"
         >
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+          <div className={CARD_GRID}>
             {visible.map((device) => {
               const key = device.kind === 'emulator' ? device.avd.name : device.device.serial;
               return (

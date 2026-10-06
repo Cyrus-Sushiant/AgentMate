@@ -7,6 +7,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useId, useState } from 'react';
 import { FolderOpen, GitBranch } from '@/components/icons';
+import { CARD_PILL_SOFT } from '@/components/pageKit';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -141,7 +142,7 @@ export function WorktreeSettingsForm(): React.JSX.Element {
           <Button
             variant="ghost"
             size="sm"
-            className="h-7 gap-1.5 px-2 text-xs"
+            className={cn(CARD_PILL_SOFT, 'gap-1.5')}
             onClick={() => void pickFolder()}
           >
             <FolderOpen className="h-3.5 w-3.5" />

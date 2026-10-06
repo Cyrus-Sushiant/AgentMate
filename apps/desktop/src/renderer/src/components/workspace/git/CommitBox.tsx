@@ -9,6 +9,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { MULTILINE_FIELD_RADIUS } from '@/components/ui/textarea';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { sanitizeCommitMessage } from '@/lib/git';
 import { cn } from '@/lib/utils';
@@ -230,7 +231,8 @@ export function CommitBox({
           }}
           style={{ lineHeight: `${LINE_HEIGHT}px`, minHeight: LINE_HEIGHT + CHROME_HEIGHT }}
           className={cn(
-            'block w-full resize-none overflow-hidden rounded-lg border border-input bg-background/60 py-2 pl-2.5 pr-9 text-[13px] outline-none transition-colors [scrollbar-width:none] placeholder:text-muted-foreground/70 focus:border-primary/50 focus:ring-2 focus:ring-primary/15 disabled:opacity-60 [&::-webkit-scrollbar]:hidden',
+            'field-surface block w-full resize-none overflow-hidden py-2 pl-3 pr-9 text-[13px] outline-none [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
+            MULTILINE_FIELD_RADIUS,
             generating && 'shimmer',
           )}
         />
@@ -242,7 +244,7 @@ export function CommitBox({
             }
             onClick={() => void generate()}
             disabled={nothingToCommit && !generating}
-            className="absolute right-1.5 top-1.5 flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary disabled:pointer-events-none disabled:opacity-40"
+            className="absolute right-1.5 top-1.5 flex h-6 w-6 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary disabled:pointer-events-none disabled:opacity-40"
           >
             {generating ? (
               <Spinner className="h-3.5 w-3.5 animate-spin text-primary motion-reduce:animate-none" />

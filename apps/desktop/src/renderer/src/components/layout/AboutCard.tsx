@@ -1,8 +1,52 @@
+import icon28 from '@/assets/app-icon-28.webp';
+import icon56 from '@/assets/app-icon-56.webp';
+import icon72 from '@/assets/app-icon-72.webp';
+import icon144 from '@/assets/app-icon-144.webp';
+import iconLight28 from '@/assets/app-icon-light-28.webp';
+import iconLight56 from '@/assets/app-icon-light-56.webp';
+import iconLight72 from '@/assets/app-icon-light-72.webp';
+import iconLight144 from '@/assets/app-icon-light-144.webp';
 import { SimpleTooltip } from '@/components/ui/tooltip';
+import { useIsDarkMode } from '@/lib/chartColors';
 import { cn } from '@/lib/utils';
 import { openAbout } from '@/stores/aboutStore';
 import { PUBLISHER, useUpdateCheck } from './mainNav';
-import { SmartCloudsLogo } from './SmartCloudsLogo';
+
+/*
+ * Small copies of the app icon (assets/app-icon*.png is 512px). They come in the widths these
+ * spots draw at, 28 and 72, plus double for HiDPI, and the browser picks from `sizes`, so a
+ * 150% Windows display gets the next size up instead of a blurry stretch. The light theme gets
+ * the variant with the dark stroke, the same switch the title bar makes.
+ */
+const APP_ICON_DARK = `${icon28} 28w, ${icon56} 56w, ${icon72} 72w, ${icon144} 144w`;
+const APP_ICON_LIGHT = `${iconLight28} 28w, ${iconLight56} 56w, ${iconLight72} 72w, ${iconLight144} 144w`;
+
+/** AgentMate's own icon in the colours that suit the current theme, drawn `size` px square. */
+export function AppIcon({
+  size,
+  alt = '',
+  className,
+}: {
+  size: number;
+  /** Empty when the icon sits inside something that already says AgentMate. */
+  alt?: string;
+  className?: string;
+}): React.JSX.Element {
+  const isDark = useIsDarkMode();
+  return (
+    <img
+      src={isDark ? icon72 : iconLight72}
+      srcSet={isDark ? APP_ICON_DARK : APP_ICON_LIGHT}
+      sizes={`${size}px`}
+      width={size}
+      height={size}
+      alt={alt}
+      decoding="async"
+      draggable={false}
+      className={cn('shrink-0 select-none', className)}
+    />
+  );
+}
 
 /**
  * The version chip, shared by the sidebar's about card and the top menu bar so the two read as
@@ -61,8 +105,8 @@ const HOVER_WASH =
   'pointer-events-none absolute inset-0 rounded-[inherit] bg-primary/0 transition-colors group-hover:bg-primary/[0.07]';
 
 /**
- * The foot of the sidebar: the SmartClouds logo, the app's name and maker, and the running
- * version. The whole card opens the About dialog. On the icon rail it shrinks to just the logo.
+ * The foot of the sidebar: the AgentMate icon, the app's name and maker, and the running
+ * version. The whole card opens the About dialog. On the icon rail it shrinks to just the icon.
  */
 export function AboutCard({ collapsed }: { collapsed: boolean }): React.JSX.Element {
   const { label, tooltip, versionText, checking, updatePending } = useUpdateCheck();
@@ -77,16 +121,15 @@ export function AboutCard({ collapsed }: { collapsed: boolean }): React.JSX.Elem
           aria-busy={checking}
           onClick={openAbout}
           // The same 34px square and corner as the nav entries above it, so the rail reads as one
-          // column. The dark brand tile keeps it apart as the about card.
+          // column. The glass and the icon keep it apart as the about card.
           className={cn(
             CARD_BASE,
             'mx-auto mt-1 flex h-8.5 w-8.5 shrink-0 items-center justify-center rounded-lg',
           )}
         >
-          <span aria-hidden className="brand-tile absolute inset-0 rounded-[inherit]" />
           <span aria-hidden className={HOVER_WASH} />
-          <SmartCloudsLogo
-            size="sm"
+          <AppIcon
+            size={24}
             className={cn(
               'relative transition-transform group-hover:scale-105',
               checking && 'motion-safe:animate-pulse',
@@ -112,9 +155,9 @@ export function AboutCard({ collapsed }: { collapsed: boolean }): React.JSX.Elem
         )}
       >
         <span aria-hidden className={HOVER_WASH} />
-        <span className="brand-tile relative flex h-8 w-8 shrink-0 items-center justify-center rounded-lg">
-          <SmartCloudsLogo
-            size="sm"
+        <span className="relative flex h-8 w-8 shrink-0 items-center justify-center">
+          <AppIcon
+            size={28}
             className={cn(
               'transition-transform group-hover:scale-105',
               checking && 'motion-safe:animate-pulse',

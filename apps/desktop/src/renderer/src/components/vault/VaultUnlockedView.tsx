@@ -8,10 +8,12 @@ import { useQuery } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Vault } from '@/components/icons';
+import { ResizeHandle } from '@/components/ui/ResizeHandle';
 import { Skeleton } from '@/components/ui/skeleton';
 import { queryKeys } from '@/lib/queryKeys';
 import type { VaultShortcutCommandId } from '@/lib/shortcuts';
 import { cn } from '@/lib/utils';
+import { PANE_WIDTHS, usePaneWidth } from '@/stores/paneLayoutStore';
 import { commandForEvent, useShortcutLabel, useShortcutStore } from '@/stores/shortcutStore';
 import { useVaultStore } from '@/stores/vaultStore';
 import { ChangeMasterPasswordDialog } from './ChangeMasterPasswordDialog';
@@ -40,12 +42,16 @@ function isDialogOpen(): boolean {
   return document.querySelector('[role="dialog"][data-state="open"]') !== null;
 }
 
+/** The list and the detail are two glass cards, rounded like the API Client's. */
+const PANEL = 'glass flex min-h-0 flex-col overflow-hidden rounded-[calc(var(--radius)+2px)]';
+
 function ListSkeleton(): React.JSX.Element {
   return (
-    <div className="space-y-2 p-3">
+    <div role="status" aria-label="Loading entries" className="flex flex-col gap-1 p-2">
+      <Skeleton className="mb-1 h-8 w-full rounded-full" />
       {Array.from({ length: 6 }, (_, i) => (
-        <div key={i} className="flex items-center gap-3 px-2.5 py-2">
-          <Skeleton className="h-9 w-9 rounded-lg" />
+        <div key={i} className="flex h-12 items-center gap-3 px-2.5">
+          <Skeleton className="h-8 w-8 rounded-lg" />
           <div className="flex-1 space-y-1.5">
             <Skeleton className="h-3.5 w-2/3" />
             <Skeleton className="h-3 w-1/3" />
@@ -64,13 +70,13 @@ function EmptyDetail(): React.JSX.Element {
     ['Lock', useShortcutLabel('vault.lock')],
   ].filter((pair): pair is [string, string] => Boolean(pair[1]));
   return (
-    <div className="flex flex-1 flex-col items-center justify-center gap-5 p-8 text-center">
-      <div className="flex h-14 w-14 items-center justify-center rounded-full border border-primary/25 bg-primary/5">
-        <Vault className="h-5 w-5 text-primary/80" />
+    <div className="flex flex-1 flex-col items-center justify-center gap-4 p-8 text-center">
+      <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/12 text-primary shadow-[0_0_40px_-12px_hsl(var(--primary)/0.7)]">
+        <Vault className="h-6 w-6" />
       </div>
-      <div className="space-y-1">
-        <p className="text-sm font-medium">Pick an entry to see its details</p>
-        <p className="text-xs text-muted-foreground">
+      <div className="max-w-sm space-y-1.5">
+        <p className="text-base font-semibold tracking-tight">Pick an entry to see its details</p>
+        <p className="text-sm text-muted-foreground">
           Passwords stay hidden until you ask for them.
         </p>
       </div>
@@ -80,7 +86,7 @@ function EmptyDetail(): React.JSX.Element {
             <div key={label} className="contents">
               <dt className="text-right text-muted-foreground">{label}</dt>
               <dd className="text-left">
-                <kbd className="rounded border border-border bg-muted/50 px-1.5 py-0.5 font-sans text-[11px]">
+                <kbd className="rounded-md border border-border bg-foreground/[0.05] px-1.5 py-0.5 font-sans text-[10px] font-medium">
                   {keys}
                 </kbd>
               </dd>
@@ -102,6 +108,7 @@ export function VaultUnlockedView(): React.JSX.Element {
   const searchRef = useRef<HTMLInputElement>(null);
   const [dialog, setDialog] = useState<VaultDialogState>(null);
   const [detailOpen, setDetailOpen] = useState(false);
+  const [listWidth, setListWidth] = usePaneWidth('vaultList');
 
   const query = useVaultStore((s) => s.query);
   const setQuery = useVaultStore((s) => s.setQuery);
@@ -298,10 +305,16 @@ export function VaultUnlockedView(): React.JSX.Element {
 
   return (
     <div className="@container/vault relative flex-1">
-      <div className="absolute inset-0 flex">
+      {/* Two glass cards with the resize handle as the gap between them, like the API Client.
+          On a narrow island only one shows at a time, and the detail has a back button. */}
+      <div className="absolute inset-0 flex p-2">
         <div
+          // The width only applies side by side. The cap keeps a wide saved width from
+          // squeezing the detail card on a narrow window.
+          style={{ '--vault-list-w': `${listWidth}px` } as React.CSSProperties}
           className={cn(
-            'flex min-h-0 w-full shrink-0 flex-col border-border/70 @3xl/vault:w-80 @3xl/vault:border-r @6xl/vault:w-96',
+            PANEL,
+            'w-full shrink-0 @3xl/vault:w-[var(--vault-list-w)] @3xl/vault:max-w-[46%]',
             detailOpen && selected && 'hidden @3xl/vault:flex',
           )}
           onKeyDown={onListKeyDown}
@@ -331,10 +344,22 @@ export function VaultUnlockedView(): React.JSX.Element {
             />
           )}
         </div>
+        <ResizeHandle
+          orientation="vertical"
+          label="Resize entry list"
+          size={listWidth}
+          min={PANE_WIDTHS.vaultList.min}
+          max={PANE_WIDTHS.vaultList.max}
+          defaultSize={PANE_WIDTHS.vaultList.default}
+          onSizeChange={setListWidth}
+          quiet
+          className="hidden w-2 @3xl/vault:flex"
+        />
 
         <div
           className={cn(
-            'min-w-0 flex-1 flex-col',
+            PANEL,
+            'min-w-0 flex-1',
             detailOpen && selected ? 'flex' : 'hidden @3xl/vault:flex',
           )}
         >

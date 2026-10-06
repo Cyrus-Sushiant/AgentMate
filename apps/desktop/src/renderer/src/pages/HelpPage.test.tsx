@@ -1,7 +1,7 @@
 import { HELP_ARTICLES, helpArticlesByCategory } from '@shared/help/articles';
 import { act, screen, waitFor, within } from '@testing-library/react';
 import { useLocation } from 'react-router-dom';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { useAskAiStore } from '@/stores/askAiStore';
 import { useHelpStore } from '@/stores/helpStore';
 import { renderWithProviders } from '../../../test/renderer/renderWithProviders';
@@ -144,6 +144,27 @@ describe('Help article', () => {
     const target = link!.getAttribute('href')!;
     await user.click(link!);
     expect(path()).toBe(target);
+  });
+
+  it('never calls scrollIntoView, which would push the shell header out of view', async () => {
+    // jsdom lacks scrollIntoView, so define it for the spy; restored afterwards.
+    const original = Element.prototype.scrollIntoView;
+    const spy = vi.fn();
+    Element.prototype.scrollIntoView = spy;
+    try {
+      const home = renderHelp('/help');
+      await act(async () => {
+        await new Promise((resolve) => requestAnimationFrame(() => resolve(null)));
+      });
+      home.unmount();
+      renderHelp('/help/vault#where-to-find-it');
+      await act(async () => {
+        await new Promise((resolve) => requestAnimationFrame(() => resolve(null)));
+      });
+      expect(spy).not.toHaveBeenCalled();
+    } finally {
+      Element.prototype.scrollIntoView = original;
+    }
   });
 
   it('offers the way back for an unknown article', () => {

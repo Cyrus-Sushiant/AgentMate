@@ -160,7 +160,13 @@ Provider cards, the **All agents** card and the four summary tiles can be pinned
 
 ## The status bar
 
-When a tracked account reports plan limits, the status bar at the bottom shows the provider's logo, the percent used of its soonest-resetting limit and a countdown. Click it to open a **Cloud limits** panel listing each provider's windows with a meter, the percent and a reset countdown. Click a provider in that panel to open Token Usage.
+Claude Code, Codex and Cursor each get their own item in the status bar at the bottom, in that order, whenever the account reports plan limits. An item shows the provider's logo, the percent used of its soonest-resetting limit and a countdown to that reset. Click it to open a panel with the plan name and every limit the provider reports, each with a meter, the percent and a reset countdown. **Open Token Usage** in that panel takes you to the provider's card.
+
+- **Claude Code** shows its 5-hour session and weekly limits.
+- **Codex** reads its limits from its own session logs: a ChatGPT plan has a 5-hour session and a weekly limit, while a free account has a single monthly one. The numbers are as of your last Codex turn. A limit whose reset time has passed shows 0% until your next turn, and if it was the account's only limit, the Codex item leaves the bar until then.
+- **Cursor** shows how much of the plan's included usage is spent this billing cycle, in total and split into Auto and API, with a countdown to the end of the cycle. An older request-based plan shows its monthly request limit instead.
+
+To hide a provider's item, turn off its switch under **Status bar limits** on the General tab of [Settings](settings.md#status-bar-limits).
 
 ## Tips
 

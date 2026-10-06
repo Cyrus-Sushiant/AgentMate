@@ -33,6 +33,10 @@ These come from Ask AI, Prompt Builder and the other features that call OpenAI, 
 3. If it says "Connected, but no models are installed", run `ollama pull` with a model name in a terminal, then click the refresh button next to **Default model**.
 4. If Ollama runs on another computer, type its address in **Server URL**. If you use a proxy, remember that the proxy's **Skip the proxy for** list should include local addresses (`<local>` does).
 
+### The guide answers from keyword search only
+
+With Ollama, the **Ask the guide** chat needs an embedding model on your server to search by meaning. If it is missing, the answer carries a note that it came from keyword search only, and **Settings** > **AI** > **Help search** marks the model **(not installed)**. Run `ollama pull` with the model name shown there (by default `nomic-embed-text`), then click **Update index**. See [Help center](help-center.md#choose-the-search-model).
+
 ### CLI answers fail
 
 When a helper runs an agent CLI in the background, you may see "(CLI) was still working after N minutes and was stopped", "(CLI) exited without answering", or "(CLI) can't look at screenshots". Pick another CLI for that task, or check that the CLI is installed and signed in by running it once in a terminal.

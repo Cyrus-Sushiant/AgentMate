@@ -468,3 +468,39 @@ describe('PromptBuilderPage scheduled series', () => {
     );
   });
 });
+
+describe('PromptBuilderPage composer', () => {
+  it('generates from the keyboard with Ctrl+Enter in the request box', async () => {
+    const { user, bridge } = renderPage({
+      'translate.text': async () => 'add a login form',
+      'ai.ask': async () => ({ ok: true, text: '# Login form' }),
+    });
+    await screen.findByRole('button', { name: /Generate Prompt/ });
+
+    await user.type(request(), 'add a login form');
+    await user.keyboard('{Control>}{Enter}{/Control}');
+
+    await waitFor(() => expect(output()).toHaveValue('# Login form'));
+    expect(bridge.$fn('ai.ask')).toHaveBeenCalledTimes(1);
+    // The shortcut sends the request rather than adding a line to it.
+    expect(request()).toHaveValue('add a login form');
+  });
+
+  it('switches between a draft and a scheduled series from the status pills', async () => {
+    usePromptBuilderStore.setState({ status: 'draft' });
+    const { user } = renderPage();
+
+    const draft = await screen.findByRole('button', { name: 'Draft' });
+    const scheduled = screen.getByRole('button', { name: 'Scheduled' });
+    expect(draft).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: /Save draft to project/ })).toBeInTheDocument();
+
+    await user.click(scheduled);
+
+    expect(scheduled).toHaveAttribute('aria-pressed', 'true');
+    expect(draft).toHaveAttribute('aria-pressed', 'false');
+    expect(usePromptBuilderStore.getState().status).toBe('scheduled');
+    expect(screen.getByRole('button', { name: /Add task/ })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Save draft to project/ })).toBeNull();
+  });
+});

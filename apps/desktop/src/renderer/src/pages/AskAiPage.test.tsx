@@ -1,4 +1,4 @@
-import { screen, waitFor } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { type AskAiMessage, useAskAiStore } from '@/stores/askAiStore';
 import { renderWithProviders } from '../../../test/renderer/renderWithProviders';
@@ -116,6 +116,48 @@ describe('AskAiPage with a thread', () => {
     ).toBeTruthy();
     expect(useAskAiStore.getState().messages).toEqual([]);
     expect(clearButton().disabled).toBe(true);
+  });
+});
+
+describe('AskAiPage composer', () => {
+  it('switches the provider from the pills under the question box', async () => {
+    useAskAiStore.setState({ provider: 'openai' });
+    const { user } = renderWithProviders(<AskAiPage />, { bridge: { 'settings.get': settings } });
+
+    const providers = await screen.findByRole('group', { name: 'Provider' });
+    expect(within(providers).getByRole('button', { name: 'OpenAI' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+
+    await user.click(within(providers).getByRole('button', { name: 'Gemini' }));
+
+    expect(within(providers).getByRole('button', { name: 'Gemini' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+    expect(
+      await screen.findByText('Ask anything, responses come straight from Gemini.'),
+    ).toBeTruthy();
+    useAskAiStore.setState({ provider: 'openai' });
+  });
+
+  it('sends with the round button inside the composer, once there is a question', async () => {
+    const { user, bridge } = renderWithProviders(<AskAiPage />, {
+      bridge: {
+        'settings.get': settings,
+        'ai.ask': async () => ({ ok: true, text: 'Sent by button.' }),
+      },
+    });
+    await waitForModel();
+
+    expect(screen.getByRole('button', { name: 'Send' })).toBeDisabled();
+    await user.type(askBox(), 'Hello there');
+    // Read again: the tooltip wraps a disabled button in a span, so the node is new.
+    await user.click(screen.getByRole('button', { name: 'Send' }));
+
+    await waitFor(() => expect(bridge.$fn('ai.ask')).toHaveBeenCalledTimes(1));
+    expect(await screen.findByText('Sent by button.')).toBeTruthy();
   });
 });
 

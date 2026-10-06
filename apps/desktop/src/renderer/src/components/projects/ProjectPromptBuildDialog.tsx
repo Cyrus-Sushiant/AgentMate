@@ -565,11 +565,11 @@ export function ProjectPromptBuildDialog({
                   value={generated}
                   onChange={(e) => setGenerated(e.target.value)}
                   placeholder="Generate or translate to fill this."
-                  className="absolute inset-0 min-h-0 resize-none bg-background/60 font-mono text-sm leading-relaxed"
+                  className="absolute inset-0 min-h-0 resize-none font-mono text-sm leading-relaxed"
                   aria-busy={isBusy}
                 />
                 {isBusy && (
-                  <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 rounded-lg bg-background/70 backdrop-blur-[2px]">
+                  <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 rounded-[calc(var(--radius)+6px)] bg-background/70 backdrop-blur-[2px]">
                     <Spinner className="h-5 w-5 animate-spin text-primary" />
                     <p className="text-sm text-muted-foreground">
                       {isGenerating ? 'Generating prompt…' : 'Translating…'}

@@ -3,17 +3,40 @@ import { ChevronDown, ChevronUp } from '@/components/icons';
 import { containsPersian } from '@/lib/rtl';
 import { cn } from '@/lib/utils';
 
-/** Border, height, and surface shared by the plain field and the number field's shell. */
-const fieldShell =
-  'flex h-9 w-full rounded-lg border border-input bg-background text-sm shadow-[inset_0_1px_0_0_hsl(0_0%_100%/0.04)] transition-colors';
+/**
+ * The shared field look, the same soft pill the search boxes use. The unlayered
+ * `.field-surface` rule in index.css draws the wash, the edge, and the hover, focus, invalid,
+ * and disabled states, so only shape and size are set here.
+ */
+export const FIELD_SURFACE = 'field-surface';
+
+/**
+ * A native colour input drawn as a small field pill, with Chromium's swatch rounded to match.
+ * Callers add the width.
+ */
+export const COLOR_FIELD = cn(
+  FIELD_SURFACE,
+  'h-8 w-12 cursor-pointer rounded-full p-1 [&::-webkit-color-swatch-wrapper]:p-0 [&::-webkit-color-swatch]:rounded-full [&::-webkit-color-swatch]:border-0',
+);
+
+/** Height and shape shared by the plain field and the number field's shell. */
+const fieldShell = cn(FIELD_SURFACE, 'flex h-9 w-full rounded-full text-sm');
 
 /* Chromium's own spinner is a pair of tiny white arrows that ignore the theme, so number
    fields hide it and draw their own buttons instead (see NumberInput below). */
 const hideNativeSpinner =
   '[appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none';
 
-const Input = React.forwardRef<HTMLInputElement, React.InputHTMLAttributes<HTMLInputElement>>(
-  ({ className, type, value, ...props }, ref) => {
+export interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
+  /**
+   * `bare` drops the field surface, for an input that sits inside a container which already
+   * draws one (a composer pill, say). Utilities can't strip it, since the rule is unlayered.
+   */
+  variant?: 'default' | 'bare';
+}
+
+const Input = React.forwardRef<HTMLInputElement, InputProps>(
+  ({ className, type, value, variant = 'default', ...props }, ref) => {
     const isPersian = typeof value === 'string' && containsPersian(value);
     if (type === 'number') {
       return <NumberInput className={className} value={value} ref={ref} {...props} />;
@@ -25,8 +48,10 @@ const Input = React.forwardRef<HTMLInputElement, React.InputHTMLAttributes<HTMLI
         dir={isPersian ? 'rtl' : undefined}
         ref={ref}
         className={cn(
-          fieldShell,
-          'px-3 py-1 placeholder:text-muted-foreground hover:border-foreground/20 focus-visible:border-primary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50',
+          variant === 'bare'
+            ? 'flex h-9 w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground/70'
+            : fieldShell,
+          'px-3.5 py-1 disabled:cursor-not-allowed disabled:opacity-50',
           isPersian && 'font-vazirmatn',
           className,
         )}
@@ -79,21 +104,15 @@ const NumberInput = React.forwardRef<HTMLInputElement, React.InputHTMLAttributes
     const steppable = !disabled && !readOnly;
 
     return (
-      <div
-        className={cn(
-          fieldShell,
-          'items-center py-1 pl-3 pr-1 hover:border-foreground/20 focus-within:border-primary/50 focus-within:ring-2 focus-within:ring-ring/50',
-          disabled && 'cursor-not-allowed opacity-50',
-          className,
-        )}
-      >
+      // The shell's `.field-surface` rule dims it while the input inside is disabled.
+      <div className={cn(fieldShell, 'items-center py-1 pl-3.5 pr-2', className)}>
         <input
           type="number"
           ref={setRefs}
           disabled={disabled}
           readOnly={readOnly}
           className={cn(
-            'h-full w-full min-w-0 bg-transparent outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed',
+            'h-full w-full min-w-0 bg-transparent outline-none disabled:cursor-not-allowed',
             hideNativeSpinner,
           )}
           {...props}
@@ -131,7 +150,7 @@ function StepButton({
       // Keeping focus on the field means the value stays selectable and arrow keys keep working.
       onMouseDown={(event) => event.preventDefault()}
       onClick={onClick}
-      className="flex h-3.5 w-5 cursor-pointer items-center justify-center rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground active:bg-accent/70"
+      className="flex h-3.5 w-5 cursor-pointer items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground active:bg-accent/70"
     >
       {children}
     </button>

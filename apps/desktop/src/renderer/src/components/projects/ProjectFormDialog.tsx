@@ -32,9 +32,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
+import { COLOR_FIELD, Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { MULTILINE_FIELD_RADIUS } from '@/components/ui/textarea';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 
@@ -507,7 +508,10 @@ export function ProjectFormDialog({
                 {/* A label so a click anywhere in the empty space lands in the input. */}
                 <label
                   htmlFor={`${ids}-tags`}
-                  className="flex min-h-9 w-full flex-wrap items-center gap-1.5 rounded-lg border border-input bg-background px-2 py-1.5 transition-colors focus-within:border-primary/50 focus-within:ring-2 focus-within:ring-ring/50"
+                  className={cn(
+                    'field-surface flex min-h-9 w-full flex-wrap items-center gap-1.5 py-1.5 pl-2 pr-3',
+                    MULTILINE_FIELD_RADIUS,
+                  )}
                 >
                   {tags.map((tag) => (
                     <span
@@ -532,7 +536,7 @@ export function ProjectFormDialog({
                     onKeyDown={handleTagKeyDown}
                     onBlur={commitTagDraft}
                     placeholder={tags.length ? 'Add another…' : 'frontend, web'}
-                    className="h-6 min-w-32 flex-1 bg-transparent px-1 text-sm outline-none placeholder:text-muted-foreground"
+                    className="h-6 min-w-32 flex-1 bg-transparent px-1 text-sm outline-none"
                   />
                 </label>
               </Field>
@@ -996,7 +1000,7 @@ function ColorSwatches({
               // stripped on the way in and put back on the way out.
               value={baseColor(current)}
               onChange={(e) => onChange(withOpacity(e.target.value, opacity))}
-              className="h-9 w-full cursor-pointer rounded-md border border-border/70 bg-transparent p-1"
+              className={cn(COLOR_FIELD, 'h-9 w-full')}
             />
 
             <div className="space-y-1.5">

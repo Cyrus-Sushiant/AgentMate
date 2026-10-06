@@ -3,7 +3,7 @@ title: Help center
 category: Getting started
 order: 60
 summary: Search these guides, read them next to the app, and ask the guide questions in your own words.
-keywords: help, docs, documentation, manual, guide, search, ask, question, chat, how to, faq, support, F1, rag, answers
+keywords: help, docs, documentation, manual, guide, search, ask, question, chat, how to, faq, support, F1, answers, embedding, model, index, reindex, rebuild, multilingual
 route: /help
 ---
 
@@ -90,12 +90,42 @@ The first time you ask with a provider, the guide reads all the help articles an
 For each question the guide looks up the most relevant sections two ways at once:
 
 - **By keywords**, using a full-text index that also matches word forms (so "splitting" finds "split").
-- **By meaning**, using embeddings from your provider, so a question phrased differently from the article still finds it. OpenAI uses `text-embedding-3-small`, Gemini uses `gemini-embedding-001`, and Ollama uses the `nomic-embed-text` model.
+- **By meaning**, using embeddings from your provider, so a question phrased differently from the article still finds it. By default OpenAI uses `text-embedding-3-small`, Gemini uses `gemini-embedding-001`, and Ollama uses the `nomic-embed-text` model. You can pick another model for each provider in **Settings** > **AI** > **Help search**, which indexes the help again with it. See [Choose the search model](#choose-the-search-model).
 
 The two result lists are merged, and the best few sections are sent to the chat model with your question. The index is a SQLite database in AgentMate's data folder (`help-index.db`), searched with the sqlite-vec extension.
 
 > [!NOTE]
-> With Ollama, the meaning search needs the `nomic-embed-text` model. If you have not pulled it, the guide still answers from the keyword search and adds a note under the answer. Run `ollama pull nomic-embed-text` to turn on the meaning search.
+> With Ollama, the meaning search needs an embedding model on your server, `nomic-embed-text` unless you chose another one. If it is not installed, the guide still answers from the keyword search and adds a note under the answer. Run `ollama pull` with the model name (for example `ollama pull nomic-embed-text`) to turn on the meaning search.
+
+### Choose the search model
+
+The **Help search** card in **Settings** > **AI** has one row each for **OpenAI**, **Gemini** and **Ollama**. Each row shows the embedding model that provider uses to find articles, with a progress bar and a line such as "120 of 120 passages indexed with text-embedding-3-small". An **Indexed** badge appears once every passage is done. A row is dimmed and says **Add an API key above first** until you have saved a key for OpenAI or Gemini in **Providers**. Ollama is always available.
+
+1. Open **Settings** > **AI** and find the **Help search** card.
+2. In the row for your provider, open the model list and pick a model.
+3. The choice is saved at once and AgentMate starts indexing the help with the new model. Watch the progress bar until it is full.
+
+What the model list shows:
+
+- **OpenAI** offers `text-embedding-3-small` (fast, low cost) and `text-embedding-3-large` (most accurate). **Gemini** offers `gemini-embedding-001`.
+- **Ollama** lists the embedding models that are already on your Ollama server first, then a few suggestions: `nomic-embed-text` (English), `nomic-embed-text-v2-moe` (multilingual), `bge-m3` (multilingual) and `mxbai-embed-large` (English).
+- You can type any model name and choose **Use "name"**. This works for every provider.
+- An Ollama model that is not on your server is marked **(not installed)**. When the model you picked is not installed, the row says to run `ollama pull` with that name, then click **Update index**.
+
+The button next to the model list depends on the state of the index:
+
+- **Update index** appears while some passages are not indexed yet. It indexes only those.
+- **Rebuild index** appears once everything is indexed. It throws away the vectors for the current model and indexes every passage again.
+- **Stop** replaces the button while indexing runs. What was finished is kept, so **Update index** carries on from there later. The model list is locked while indexing runs.
+
+Both buttons also remove the stored vectors of that provider's earlier models, since nothing searches them any more.
+
+If you ask the guide before indexing has finished, it indexes what is missing first, so the first answer can be slow.
+
+> [!TIP]
+> If you ask the guide in a language other than English, pick a multilingual model, such as `nomic-embed-text-v2-moe` or `bge-m3` with Ollama. The ones marked English are meant for English text.
+
+The model only changes how the guide searches. It does not change which provider or chat model writes the answer.
 
 ### What leaves your computer
 
@@ -105,7 +135,7 @@ When you ask a question, your question, the last few messages of the conversatio
 
 - **"Set an OpenAI API key in Settings first."** or a similar message for Gemini: the key is missing. Add it in **Settings** > **AI**.
 - **"Could not reach Ollama"**: Ollama is not running or the server address in **Settings** > **AI** is wrong.
-- **A note saying the answer came from keyword search only**: the provider could not make embeddings (for example, Ollama is missing `nomic-embed-text`, or the network failed). The answer is still based on the help, just found by keywords.
+- **A note saying the answer came from keyword search only**: the provider could not make embeddings (for example, the Ollama embedding model is not installed, or the network failed). The answer is still based on the help, just found by keywords.
 - **"No answer in time, so the request was stopped."**: check your connection and ask again. A first question on a slow connection or a slow computer can take a while because it also builds the index. Ask again if it stops: the index is saved as it goes, so the next try carries on where the last one ended.
 
 For other problems, see [Troubleshooting and FAQ](troubleshooting.md).

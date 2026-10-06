@@ -1,7 +1,9 @@
 // @vitest-environment jsdom
 import type { RemoteFileManagerEntry, RemoteState } from '@shared/apiTypes';
 import { screen, waitFor, within } from '@testing-library/react';
+import { useLocation } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { useRemoteFileManagerStore } from '@/stores/remoteFileManagerStore';
 import { useRemoteStore } from '@/stores/remoteStore';
 import { renderWithProviders } from '../../../test/renderer/renderWithProviders';
 
@@ -97,8 +99,21 @@ function headerIconButton(index: number): HTMLElement {
   return found;
 }
 
+/**
+ * The folder card. The roots are listed in the Places card beside it too, so a click on a root
+ * by name has to say which of the two it means.
+ */
+function files() {
+  return within(screen.getByRole('region', { name: 'Files' }));
+}
+
+function places() {
+  return within(screen.getByRole('navigation', { name: 'Places on the remote machine' }));
+}
+
 beforeEach(() => {
   useRemoteStore.setState({ state: null, logs: [], transfers: [] });
+  useRemoteFileManagerStore.setState({ path: null, entries: [], roots: [], error: null });
 });
 
 describe('RemoteFileManagerPage without a session', () => {
@@ -116,6 +131,73 @@ describe('RemoteFileManagerPage without a session', () => {
     expect(await screen.findByText(/Not connected\./)).toBeInTheDocument();
     expect(bridge.remote.fmRoots).not.toHaveBeenCalled();
   });
+
+  it('takes you to the Remote page to connect', async () => {
+    function Harness(): React.JSX.Element {
+      const location = useLocation();
+      return (
+        <>
+          <RemoteFileManagerPage />
+          <p data-testid="location">{location.pathname}</p>
+        </>
+      );
+    }
+    const { user } = renderWithProviders(<Harness />, { route: '/remote-files' });
+
+    await user.click(await screen.findByRole('button', { name: 'Open Remote' }));
+
+    expect(screen.getByTestId('location').textContent).toBe('/remote');
+  });
+});
+
+describe('RemoteFileManagerPage places', () => {
+  it('lists the peer and its roots, and opens a root from there', async () => {
+    connected();
+    const { user, bridge } = renderWithProviders(<RemoteFileManagerPage />, {
+      route: '/remote-files',
+      bridge: { 'remote.fmRoots': [drive], 'remote.fmList': ROOT_LISTING },
+    });
+
+    // The peer itself stands for the roots view, which is where the page opens.
+    const peer = await places().findByRole('button', { name: 'Studio' });
+    expect(peer).toHaveAttribute('aria-current', 'location');
+
+    await user.click(await places().findByRole('button', { name: 'C:' }));
+
+    await waitFor(() => expect(bridge.$fn('remote.fmList')).toHaveBeenCalledWith('C:/'));
+    await files().findByText('notes.md');
+    expect(places().getByRole('button', { name: 'C:' })).toHaveAttribute(
+      'aria-current',
+      'location',
+    );
+    expect(peer).not.toHaveAttribute('aria-current');
+  });
+
+  it('keeps the root lit while browsing a folder inside it', async () => {
+    connected();
+    const { user } = renderWithProviders(<RemoteFileManagerPage />, {
+      route: '/remote-files',
+      bridge: {
+        'remote.fmRoots': [drive],
+        'remote.fmList': async (path: unknown) =>
+          path === 'C:/projects'
+            ? {
+                path: 'C:/projects',
+                entries: [entry({ name: 'app.ts', path: 'C:/projects/app.ts' })],
+              }
+            : ROOT_LISTING,
+      },
+    });
+
+    await user.click(await files().findByRole('button', { name: 'C:' }));
+    await user.click(await files().findByRole('button', { name: 'projects' }));
+    await files().findByText('app.ts');
+
+    expect(places().getByRole('button', { name: 'C:' })).toHaveAttribute(
+      'aria-current',
+      'location',
+    );
+  });
 });
 
 describe('RemoteFileManagerPage listing', () => {
@@ -126,7 +208,7 @@ describe('RemoteFileManagerPage listing', () => {
       bridge: { 'remote.fmRoots': [drive] },
     });
 
-    expect(await screen.findByText('C:')).toBeInTheDocument();
+    expect(await files().findByText('C:')).toBeInTheDocument();
     expect(bridge.$fn('remote.fmRoots')).toHaveBeenCalled();
     // Roots are not a folder, so there is nothing to upload into and no way further up.
     expect(screen.getByText('This computer')).toBeInTheDocument();
@@ -164,7 +246,7 @@ describe('RemoteFileManagerPage navigation', () => {
       bridge: { 'remote.fmRoots': [drive], 'remote.fmList': ROOT_LISTING },
     });
 
-    await user.click(await screen.findByRole('button', { name: 'C:' }));
+    await user.click(await files().findByRole('button', { name: 'C:' }));
 
     expect(await screen.findByText('notes.md')).toBeInTheDocument();
     expect(bridge.$fn('remote.fmList')).toHaveBeenCalledWith('C:/');
@@ -190,7 +272,7 @@ describe('RemoteFileManagerPage navigation', () => {
       },
     });
 
-    await user.click(await screen.findByRole('button', { name: 'C:' }));
+    await user.click(await files().findByRole('button', { name: 'C:' }));
     await user.click(await screen.findByRole('button', { name: 'projects' }));
     await screen.findByText('app.ts');
     expect(screen.getByText('C:/projects')).toBeInTheDocument();
@@ -211,7 +293,7 @@ describe('RemoteFileManagerPage navigation', () => {
       },
     });
 
-    await user.click(await screen.findByRole('button', { name: '/' }));
+    await user.click(await files().findByRole('button', { name: '/' }));
     await screen.findByText('etc');
 
     await user.click(headerIconButton(0));
@@ -230,12 +312,12 @@ describe('RemoteFileManagerPage navigation', () => {
       },
     });
 
-    await user.click(await screen.findByRole('button', { name: 'C:' }));
+    await user.click(await files().findByRole('button', { name: 'C:' }));
 
     await waitFor(() =>
       expect(toast.error).toHaveBeenCalledWith('Could not open that folder: EACCES'),
     );
-    expect(screen.getByText('C:')).toBeInTheDocument();
+    expect(files().getByText('C:')).toBeInTheDocument();
   });
 });
 
@@ -246,7 +328,7 @@ describe('RemoteFileManagerPage transfers', () => {
       route: '/remote-files',
       bridge: { 'remote.fmRoots': [drive], 'remote.fmList': ROOT_LISTING },
     });
-    await user.click(await screen.findByRole('button', { name: 'C:' }));
+    await user.click(await files().findByRole('button', { name: 'C:' }));
     await screen.findByText('notes.md');
 
     await user.click(screen.getByRole('button', { name: /Upload/ }));
@@ -260,7 +342,7 @@ describe('RemoteFileManagerPage transfers', () => {
       route: '/remote-files',
       bridge: { 'remote.fmRoots': [drive], 'remote.fmList': ROOT_LISTING },
     });
-    await user.click(await screen.findByRole('button', { name: 'C:' }));
+    await user.click(await files().findByRole('button', { name: 'C:' }));
     await screen.findByText('notes.md');
 
     // Download comes first in a file row; a folder row has no download button at all.
@@ -284,7 +366,7 @@ describe('RemoteFileManagerPage transfers', () => {
         'remote.fmDownload': () => Promise.reject(new Error('Disk full')),
       },
     });
-    await user.click(await screen.findByRole('button', { name: 'C:' }));
+    await user.click(await files().findByRole('button', { name: 'C:' }));
     await screen.findByText('notes.md');
 
     await user.click(iconButton(row('notes.md'), 0));
@@ -325,7 +407,7 @@ describe('RemoteFileManagerPage entry actions', () => {
       route: '/remote-files',
       bridge: { 'remote.fmRoots': [drive], 'remote.fmList': ROOT_LISTING },
     });
-    await user.click(await screen.findByRole('button', { name: 'C:' }));
+    await user.click(await files().findByRole('button', { name: 'C:' }));
     await screen.findByText('notes.md');
 
     // Download, rename, delete: delete is last in a file row.
@@ -344,7 +426,7 @@ describe('RemoteFileManagerPage entry actions', () => {
       route: '/remote-files',
       bridge: { 'remote.fmRoots': [drive], 'remote.fmList': ROOT_LISTING },
     });
-    await user.click(await screen.findByRole('button', { name: 'C:' }));
+    await user.click(await files().findByRole('button', { name: 'C:' }));
     await screen.findByText('notes.md');
 
     await user.click(iconButton(row('notes.md'), 2));
@@ -360,7 +442,7 @@ describe('RemoteFileManagerPage entry actions', () => {
       route: '/remote-files',
       bridge: { 'remote.fmRoots': [drive], 'remote.fmList': ROOT_LISTING },
     });
-    await user.click(await screen.findByRole('button', { name: 'C:' }));
+    await user.click(await files().findByRole('button', { name: 'C:' }));
     await screen.findByText('notes.md');
 
     await user.click(iconButton(row('notes.md'), 1));
@@ -379,7 +461,7 @@ describe('RemoteFileManagerPage entry actions', () => {
       route: '/remote-files',
       bridge: { 'remote.fmRoots': [drive], 'remote.fmList': ROOT_LISTING },
     });
-    await user.click(await screen.findByRole('button', { name: 'C:' }));
+    await user.click(await files().findByRole('button', { name: 'C:' }));
     await screen.findByText('notes.md');
 
     await user.click(screen.getByRole('button', { name: /New folder/ }));

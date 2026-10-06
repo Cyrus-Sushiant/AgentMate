@@ -2,6 +2,7 @@ import { DEFAULT_REVIEW_COMMANDS } from '@agentmat/core';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Plus, X } from '@/components/icons';
+import { Input } from '@/components/ui/input';
 import { queryKeys } from '@/lib/queryKeys';
 
 /**
@@ -69,9 +70,10 @@ export function ReviewCommandsSettings(): React.JSX.Element {
       )}
 
       <div className="flex items-center gap-2">
-        <input
+        <Input
           value={draft}
           aria-label="New review command"
+          aria-invalid={problem ? true : undefined}
           placeholder="@bot review"
           onChange={(event) => {
             setDraft(event.target.value);
@@ -83,13 +85,13 @@ export function ReviewCommandsSettings(): React.JSX.Element {
               add();
             }
           }}
-          className="h-8 min-w-0 flex-1 rounded-md border border-input bg-background/60 px-2.5 font-mono text-xs outline-none placeholder:text-muted-foreground/70 focus:border-primary/50 focus:ring-2 focus:ring-primary/15"
+          className="h-8 min-w-0 flex-1 font-mono text-xs"
         />
         <button
           type="button"
           onClick={add}
           disabled={!draft.trim()}
-          className="inline-flex h-8 items-center gap-1 rounded-md bg-primary px-3 text-xs font-semibold text-primary-foreground transition-all hover:brightness-110 disabled:bg-foreground/[0.08] disabled:text-muted-foreground"
+          className="inline-flex h-8 items-center gap-1 rounded-full bg-primary px-3.5 text-xs font-semibold text-primary-foreground transition-all hover:brightness-110 disabled:bg-foreground/[0.08] disabled:text-muted-foreground"
         >
           <Plus className="h-3 w-3" />
           Add

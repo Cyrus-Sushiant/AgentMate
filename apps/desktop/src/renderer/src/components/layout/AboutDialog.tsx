@@ -1,21 +1,23 @@
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import { Download, ExternalLink, RefreshCw, Spinner } from '@/components/icons';
+import { Download, ExternalLink, Github, RefreshCw, Spinner } from '@/components/icons';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
 import { closeAbout, openAbout, useAboutStore } from '@/stores/aboutStore';
 import { openUpdateDialog, useUpdateStore } from '@/stores/updateStore';
-import { VERSION_CHIP } from './AboutCard';
+import { AppIcon, VERSION_CHIP } from './AboutCard';
 import { PUBLISHER, useUpdateCheck } from './mainNav';
 import { SmartCloudsLogo } from './SmartCloudsLogo';
 
 export const SMARTCLOUDS_URL = 'https://smartclouds.co';
+/** The repository, the same as `homepage` in package.json. */
+export const SOURCE_URL = 'https://github.com/Cyrus-Sushiant/AgentMate';
 
 /**
- * About AgentMate: who makes it, the running version, a way to check for updates and a link to
- * the SmartClouds site. Opened from the sidebar's about card or the top bar's version chip, and
- * mounted once in AppShell.
+ * About AgentMate: what the app is, the running version, a way to check for updates, a link to
+ * the source, and a credit to SmartClouds, who make it. Opened from the sidebar's about card or
+ * the top bar's version chip, and mounted once in AppShell.
  */
 export function AboutDialog(): React.JSX.Element {
   const open = useAboutStore((s) => s.open);
@@ -58,24 +60,30 @@ function AboutBody(): React.JSX.Element {
     }
   }
 
-  function openSite(event: React.MouseEvent<HTMLAnchorElement>): void {
-    // A plain link would load the site inside the app window, so it goes to the browser instead.
-    event.preventDefault();
-    void window.agentmat.shell.openExternal(SMARTCLOUDS_URL);
-  }
+  // A plain link would load the page inside the app window, so it goes to the browser instead.
+  const openInBrowser =
+    (url: string) =>
+    (event: React.MouseEvent<HTMLAnchorElement>): void => {
+      event.preventDefault();
+      void window.agentmat.shell.openExternal(url);
+    };
 
   return (
     <div className="flex flex-col">
       <div className="relative flex flex-col items-center px-8 pb-6 pt-10 text-center">
+        {/* A wide wash of the accent, and a tighter one right behind the icon so it seems lit
+            from behind rather than pasted on. */}
         <span
           aria-hidden
-          className="pointer-events-none absolute left-1/2 top-3 h-32 w-60 -translate-x-1/2 rounded-full bg-primary/20 blur-3xl"
+          className="pointer-events-none absolute left-1/2 top-3 h-32 w-60 -translate-x-1/2 rounded-full bg-primary/15 blur-3xl"
         />
-        <span className="brand-tile relative flex h-20 w-20 items-center justify-center rounded-2xl">
-          <SmartCloudsLogo size="lg" alt={PUBLISHER} />
-        </span>
+        <span
+          aria-hidden
+          className="pointer-events-none absolute left-1/2 top-12 h-16 w-16 -translate-x-1/2 rounded-full bg-primary/30 blur-2xl"
+        />
+        <AppIcon size={72} alt="AgentMate" className="relative" />
 
-        <div className="relative mt-5 flex items-center gap-2">
+        <div className="relative mt-4 flex items-center gap-2">
           {/* It reads as "AgentMate" on screen, and as "About AgentMate" to a screen reader. */}
           <DialogTitle
             aria-label="About AgentMate"
@@ -87,26 +95,18 @@ function AboutBody(): React.JSX.Element {
             <span className={cn(VERSION_CHIP, 'h-5 px-2 text-[11px]')}>{versionText}</span>
           )}
         </div>
-        <p className="relative mt-1 text-xs text-muted-foreground">by {PUBLISHER}</p>
 
-        {/* The classes go on the primitive, whose cn() replaces its own text-sm; on the div they
-            would only be added next to it. */}
-        <DialogDescription
-          asChild
-          className="relative mt-4 space-y-2 text-[13px] leading-relaxed text-muted-foreground"
-        >
-          <div>
-            <p>
-              We're {PUBLISHER}, a full-stack digital partner for web, cloud, marketing, design and
-              AI, all under one roof. We started as a handful of developers and marketers, and we
-              still work the same way: the same people from kickoff to launch, and no black boxes.
-            </p>
-            <p className="text-foreground/80">
-              AgentMate is our control center for AI coding agents, one place for every AI coding
-              tool you run.
-            </p>
-          </div>
+        {/* The primitive's cn() replaces its own text-sm with the size given here. Only this
+            paragraph is the dialog's description; the license line below is extra. */}
+        <DialogDescription className="relative mt-4 text-[13px] leading-relaxed text-muted-foreground">
+          AgentMate is an Agentic Development Environment (ADE) for AI coding agents. Run Claude
+          Code, Codex, Cursor, Gemini, Grok, OpenCode or a plain shell side by side in workspace
+          panes. The git panel, diffs, editor, tests and pipelines sit right next to them, so a
+          change goes from prompt to review to commit without leaving the app.
         </DialogDescription>
+        <p className="relative mt-2 text-[13px] leading-relaxed text-foreground/80">
+          It's free and open source under the MIT license.
+        </p>
 
         <div className="relative mt-6 flex flex-wrap items-center justify-center gap-2">
           {updatePending && !busy ? (
@@ -125,21 +125,57 @@ function AboutBody(): React.JSX.Element {
               {busy ? 'Checking…' : 'Check for updates'}
             </Button>
           )}
+          {/* The credit at the foot already links to smartclouds.co, so the second action here
+              is the source code. */}
           <Button variant="outline" asChild>
-            <a href={SMARTCLOUDS_URL} onClick={openSite}>
-              smartclouds.co
+            <a href={SOURCE_URL} onClick={openInBrowser(SOURCE_URL)}>
+              <Github />
+              Source on GitHub
               <span className="sr-only">, opens in your browser</span>
               <ExternalLink className="opacity-70" />
             </a>
           </Button>
         </div>
+
+        <p className="relative mt-6 text-xs text-muted-foreground">
+          AgentMate is built and maintained by {PUBLISHER}.
+        </p>
       </div>
 
       {/* A hairline drawn as a fill: the app's global border colour would win over a utility. */}
       <div aria-hidden className="h-px bg-foreground/[0.08]" />
-      <p className="px-6 py-3 text-center text-xs tabular-nums text-muted-foreground">
-        © {new Date().getFullYear()} {PUBLISHER}
-      </p>
+      {/* The maker's credit. It names SmartClouds once, so the copyright beside it only needs
+          the year. */}
+      <div className="flex items-center justify-between gap-3 px-4 py-3">
+        <a
+          href={SMARTCLOUDS_URL}
+          onClick={openInBrowser(SMARTCLOUDS_URL)}
+          // An explicit name, so the logo's alt and the word beside it aren't read out twice.
+          aria-label={`A product of ${PUBLISHER}, opens in your browser`}
+          className="flex items-center gap-2.5 rounded-lg px-2 py-1.5 outline-hidden transition-colors hover:bg-foreground/[0.05] focus-visible:outline-2 focus-visible:outline-ring/60"
+        >
+          {/* The logo is white and grey and sits straight on the panel. On the light theme a
+              thin shadow traces its edge so the cloud doesn't fade into the glass; the dark
+              theme only needs a hint of one. */}
+          <SmartCloudsLogo
+            size="md"
+            alt={PUBLISHER}
+            className="[filter:drop-shadow(0_0_0.75px_hsl(var(--foreground)/0.55))_drop-shadow(0_1px_2px_hsl(var(--foreground)/0.25))] dark:[filter:drop-shadow(0_1px_1px_hsl(0_0%_0%/0.35))]"
+          />
+
+          <span className="flex flex-col text-left">
+            <span className="text-[10px] font-medium uppercase leading-tight tracking-wider text-muted-foreground">
+              A product of
+            </span>
+            <span className="text-[13px] font-semibold leading-tight text-foreground">
+              {PUBLISHER}
+            </span>
+          </span>
+        </a>
+        <p className="px-2 text-xs tabular-nums text-muted-foreground">
+          © {new Date().getFullYear()}
+        </p>
+      </div>
     </div>
   );
 }

@@ -209,7 +209,7 @@ describe('Sidebar version and updates', () => {
     expect(await screen.findByRole('button', { name: /AgentMate v2\.4\.1/ })).toBeTruthy();
   });
 
-  it('shows the SmartClouds logo, the maker and the version chip on the about card', async () => {
+  it('shows the AgentMate icon, the maker and the version chip on the about card', async () => {
     renderSidebar('/', { 'app.getVersion': async () => '2.4.1' });
 
     const card = await screen.findByRole('button', { name: /AgentMate v2\.4\.1/ });
@@ -217,11 +217,13 @@ describe('Sidebar version and updates', () => {
     expect(card).toHaveAttribute('aria-haspopup', 'dialog');
     expect(within(card).getByText('by SmartClouds')).toBeInTheDocument();
     expect(within(card).getByText('v2.4.1')).toBeInTheDocument();
-    // The name beside it already says SmartClouds, so the logo itself stays silent.
-    const logo = card.querySelector('img');
-    expect(logo).toHaveAttribute('alt', '');
-    expect(logo?.getAttribute('src')).toContain('smartclouds-logo');
-    expect(logo?.getAttribute('srcset')).toMatch(/ 2x$/);
+    // The name beside it already says AgentMate, so the icon itself stays silent.
+    const icon = card.querySelector('img');
+    expect(icon).toHaveAttribute('alt', '');
+    expect(icon?.getAttribute('src')).toContain('app-icon');
+    expect(icon).toHaveAttribute('sizes', '28px');
+    expect(icon?.getAttribute('srcset')).toMatch(/ 56w, .+ 144w$/);
+    expect(card.querySelector('.brand-tile')).toBeNull();
   });
 
   it('opens About when the card is clicked, without starting an update check', async () => {
@@ -278,15 +280,15 @@ describe('Sidebar version and updates', () => {
     expect(card).toHaveAccessibleName('AgentMate v2.4.1, by SmartClouds, update available, about');
   });
 
-  it('shrinks to the SmartClouds logo on the icon rail, still opening About', async () => {
+  it('shrinks to the AgentMate icon on the icon rail, still opening About', async () => {
     const { user } = renderSidebar('/', { 'app.getVersion': async () => '2.4.1' });
     act(() => useUiStore.setState({ sidebarMode: 'collapsed' }));
 
     const icon = await screen.findByRole('button', { name: /AgentMate v2\.4\.1, by SmartClouds/ });
-    // The words go with the labels; only the logo is left on the rail.
+    // The words go with the labels; only the icon is left on the rail.
     expect(screen.queryByText('by SmartClouds')).toBeNull();
     expect(screen.queryByText('v2.4.1')).toBeNull();
-    expect(icon.querySelector('img')?.getAttribute('src')).toContain('smartclouds-logo');
+    expect(icon.querySelector('img')?.getAttribute('src')).toContain('app-icon');
 
     await user.hover(icon);
     expect((await screen.findAllByText('About AgentMate')).length).toBeGreaterThan(0);

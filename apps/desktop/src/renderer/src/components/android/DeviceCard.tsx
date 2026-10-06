@@ -19,7 +19,14 @@ import {
   Video,
   Wifi,
 } from '@/components/icons';
-import { Badge } from '@/components/ui/badge';
+import {
+  CARD_PILL,
+  CARD_PILL_SOFT,
+  Chip,
+  FOOTER_HAIRLINE,
+  GLASS_CARD,
+  TILE_ACTION,
+} from '@/components/pageKit';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card';
 import {
@@ -44,10 +51,24 @@ import { ResourceMeters } from './ResourceMeters';
 
 const BOOTING_STATES = new Set(['launching', 'connecting', 'booting', 'finishing']);
 
+/**
+ * The card's parts. A state is marked with an inset ring rather than a tinted border, because
+ * the app's global border colour wins over a border colour utility.
+ */
+const CARD_SHELL = cn(GLASS_CARD, 'flex flex-col transition-shadow');
+const HEADER = 'p-4 pb-3';
+const CONTENT = 'mt-auto px-4 pb-3 pt-0';
+const FOOTER = cn('mt-auto gap-2 px-3 py-2.5', FOOTER_HAIRLINE);
+
+/** The record button glows red while it is recording, so it is clear the screen is captured. */
+function recordingButton(key: string, recording: boolean): string | undefined {
+  return key === 'record' && recording ? 'bg-destructive/12 hover:bg-destructive/15' : undefined;
+}
+
 function DeviceGlyph({ device }: { device: string | null }): React.JSX.Element {
   const Icon = device?.includes('tablet') || device?.includes('pad') ? Tablet : Smartphone;
   return (
-    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/12 text-primary">
       <Icon className="h-4 w-4" />
     </div>
   );
@@ -124,7 +145,7 @@ function DeviceMenu({
     <DropdownMenu>
       <SimpleTooltip label="More actions">
         <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="icon" className="h-7 w-7" aria-label="More actions">
+          <Button variant="ghost" size="icon" className={TILE_ACTION} aria-label="More actions">
             <EllipsisVertical className="h-3.5 w-3.5" />
           </Button>
         </DropdownMenuTrigger>
@@ -219,7 +240,7 @@ function DeviceActions({
           <Button
             variant="ghost"
             size="icon"
-            className="h-7 w-7"
+            className={cn(TILE_ACTION, recordingButton(button.key, recording))}
             aria-label={button.label}
             aria-pressed={button.key === 'record' ? recording : undefined}
             onClick={button.onClick}
@@ -253,13 +274,13 @@ function EmulatorCard({
       aria-label={emulator.avd.displayName}
       data-focused={focused ? 'true' : undefined}
       className={cn(
-        'glass flex flex-col transition-colors',
-        booting && 'border-primary/40',
-        failed && 'border-l-2 border-l-destructive',
+        CARD_SHELL,
+        booting && 'ring-1 ring-inset ring-primary/35',
+        failed && 'ring-1 ring-inset ring-destructive/40',
         focused && 'ring-2 ring-primary/60',
       )}
     >
-      <CardHeader className="pb-3">
+      <CardHeader className={HEADER}>
         <div className="flex items-start gap-3">
           <DeviceGlyph device={emulator.avd.device} />
           <div className="min-w-0 flex-1">
@@ -272,9 +293,13 @@ function EmulatorCard({
               <p className="truncate text-[11px] text-muted-foreground">{emulator.avd.name}</p>
             )}
           </div>
-          <Badge variant={running ? 'success' : failed ? 'destructive' : 'outline'}>
+          <Chip
+            tone={running ? 'success' : failed ? 'destructive' : booting ? 'primary' : 'neutral'}
+            dot
+            pulse={booting}
+          >
             {running ? 'Running' : failed ? 'Failed' : booting ? 'Starting' : 'Stopped'}
-          </Badge>
+          </Chip>
         </div>
         <p className="mt-2 text-xs text-muted-foreground">
           {[
@@ -287,7 +312,7 @@ function EmulatorCard({
         </p>
       </CardHeader>
 
-      <CardContent className="mt-auto space-y-3">
+      <CardContent className={cn(CONTENT, 'space-y-3')}>
         {booting && <BootProgress emulator={emulator} />}
         {running && emulator.usage && <ResourceMeters usage={emulator.usage} />}
         {failed && emulator.error && (
@@ -298,11 +323,12 @@ function EmulatorCard({
         )}
       </CardContent>
 
-      <CardFooter className="mt-auto gap-2 border-t border-border/70 pt-3">
+      <CardFooter className={FOOTER}>
         {booting ? (
           <Button
-            variant="outline"
+            variant="ghost"
             size="sm"
+            className={CARD_PILL_SOFT}
             disabled={pending}
             onClick={() => onCancelBoot(emulator.avd.name)}
           >
@@ -310,8 +336,9 @@ function EmulatorCard({
           </Button>
         ) : running ? (
           <Button
-            variant="outline"
+            variant="ghost"
             size="sm"
+            className={CARD_PILL_SOFT}
             disabled={pending}
             onClick={() => emulator.serial && onStop(emulator.serial)}
           >
@@ -319,7 +346,12 @@ function EmulatorCard({
             Stop
           </Button>
         ) : (
-          <Button size="sm" disabled={pending} onClick={() => onStart(emulator.avd.name)}>
+          <Button
+            size="sm"
+            className={CARD_PILL}
+            disabled={pending}
+            onClick={() => onStart(emulator.avd.name)}
+          >
             <Play className="h-3.5 w-3.5" />
             Start
           </Button>
@@ -358,21 +390,21 @@ function PhysicalCard({
       aria-label={model ?? serial}
       data-focused={focused ? 'true' : undefined}
       className={cn(
-        'glass flex flex-col',
-        !ready && 'border-l-2 border-l-warning',
+        CARD_SHELL,
+        !ready && 'ring-1 ring-inset ring-warning/40',
         focused && 'ring-2 ring-primary/60',
       )}
     >
-      <CardHeader className="pb-3">
+      <CardHeader className={HEADER}>
         <div className="flex items-start gap-3">
           <DeviceGlyph device={null} />
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-semibold leading-tight">{model ?? serial}</p>
             <SerialChip serial={serial} />
           </div>
-          <Badge variant={ready ? 'secondary' : 'warning'}>
+          <Chip tone={ready ? 'neutral' : 'warning'} dot={!ready}>
             {ready ? 'Physical' : state === 'unauthorized' ? 'Unauthorized' : 'Offline'}
-          </Badge>
+          </Chip>
         </div>
         <p className="mt-2 flex items-center gap-1.5 text-xs text-muted-foreground">
           {kind === 'wifi' && <Wifi className="h-3 w-3" />}
@@ -390,7 +422,7 @@ function PhysicalCard({
         </p>
       </CardHeader>
 
-      <CardContent className="mt-auto">
+      <CardContent className={CONTENT}>
         {!ready && (
           <p className="text-xs text-muted-foreground">
             {state === 'unauthorized'
@@ -401,7 +433,7 @@ function PhysicalCard({
       </CardContent>
 
       {ready && (
-        <CardFooter className="mt-auto gap-2 border-t border-border/70 pt-3">
+        <CardFooter className={FOOTER}>
           <DeviceActions serial={serial} label={model ?? serial} actions={actions} />
         </CardFooter>
       )}

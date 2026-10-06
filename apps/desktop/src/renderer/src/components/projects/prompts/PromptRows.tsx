@@ -90,8 +90,10 @@ function RowShell({
   return (
     <div
       className={cn(
-        'group flex gap-3 rounded-lg border bg-card px-3 py-2.5 transition-colors hover:border-foreground/15',
-        highlighted ? 'border-destructive/40 bg-destructive/[0.04]' : 'border-border',
+        // Glass like the rest of the project page; the edges are rings, since the glass border
+        // is unlayered CSS that a border colour utility can't override.
+        'glass group flex gap-3 rounded-[calc(var(--radius)+2px)] px-3 py-2.5 transition-shadow hover:ring-1 hover:ring-foreground/10',
+        highlighted && 'ring-1 ring-destructive/40 hover:ring-destructive/50',
       )}
     >
       <div

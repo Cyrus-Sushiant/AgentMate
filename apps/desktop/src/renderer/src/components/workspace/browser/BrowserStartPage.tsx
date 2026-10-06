@@ -83,7 +83,7 @@ export function BrowserStartPage({
             spellCheck={false}
             autoComplete="off"
             placeholder="localhost:3000, a site, or a search"
-            className="h-10 w-full rounded-xl border border-border bg-background/70 px-4 text-sm shadow-[inset_0_1px_0_0_hsl(0_0%_100%/0.04)] outline-none transition-colors placeholder:text-muted-foreground/70 hover:border-foreground/20 focus:border-primary/50 focus:ring-2 focus:ring-primary/15"
+            className="field-surface h-10 w-full rounded-full px-4 text-sm outline-none"
           />
         </form>
 

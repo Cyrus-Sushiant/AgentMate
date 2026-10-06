@@ -219,7 +219,7 @@ export default function PromptBuildWidgetRoute(): React.JSX.Element {
                 aria-busy={isBusy}
               />
               {isBusy && (
-                <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 rounded-lg bg-background/70 backdrop-blur-[2px]">
+                <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 rounded-[calc(var(--radius)+6px)] bg-background/70 backdrop-blur-[2px]">
                   <Spinner className="h-4 w-4 animate-spin text-primary" />
                   <Button
                     type="button"

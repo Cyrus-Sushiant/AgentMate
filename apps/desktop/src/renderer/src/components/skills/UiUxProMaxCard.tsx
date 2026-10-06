@@ -26,7 +26,7 @@ import {
   Spinner,
   TriangleAlert,
 } from '@/components/icons';
-import { Badge } from '@/components/ui/badge';
+import { Chip, PILL_PRIMARY, PILL_SOFT, TILE_ACTION } from '@/components/pageKit';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
@@ -58,6 +58,9 @@ const PIPELINE = [
     detail: 'Pattern, style, colors, type, effects, anti-patterns, pre-delivery checklist.',
   },
 ];
+
+/** The hero's actions stay a size up from the kit's pills, to match its larger heading. */
+const HERO_SIZE = 'h-9 text-sm';
 
 /** Keeps the check off the app's loading overlay: it reports progress on its own button. */
 const UPDATE_CHECK_META = { silentLoading: true } as const;
@@ -160,17 +163,21 @@ export function UiUxProMaxCard(): React.JSX.Element {
 
   return (
     <>
-      <Card className="glass overflow-hidden">
-        <div className="h-1 w-full bg-gradient-to-r from-primary via-purple-500 to-pink-500" />
+      <Card className="glass overflow-hidden rounded-[calc(var(--radius)+2px)]">
+        <div className="h-1 w-full bg-gradient-to-r from-primary via-primary/50 to-transparent" />
         <CardHeader>
           <div className="flex flex-wrap items-start justify-between gap-2">
             <CardTitle className="flex items-center gap-2">
               <Sparkles className="h-4 w-4 text-primary" /> UI UX Pro Max
             </CardTitle>
             <div className="flex flex-wrap items-center gap-1.5">
-              <Badge variant="default">Featured</Badge>
-              <Badge variant="outline">MIT</Badge>
-              {globalRecord && <Badge variant="secondary">Installed globally</Badge>}
+              <Chip tone="primary">Featured</Chip>
+              <Chip>MIT</Chip>
+              {globalRecord && (
+                <Chip tone="success" dot>
+                  Installed globally
+                </Chip>
+              )}
             </div>
           </div>
           <CardDescription>
@@ -184,7 +191,7 @@ export function UiUxProMaxCard(): React.JSX.Element {
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
             {UI_UX_PRO_MAX_HIGHLIGHTS.map((highlight) => (
               <SimpleTooltip key={highlight.label} label={highlight.detail}>
-                <div className="rounded-lg border border-border bg-card/60 px-3 py-2">
+                <div className="rounded-lg bg-foreground/[0.04] px-3 py-2">
                   <p className="text-lg font-semibold text-foreground">{highlight.count}</p>
                   <p className="text-xs text-muted-foreground">{highlight.label}</p>
                 </div>
@@ -193,14 +200,19 @@ export function UiUxProMaxCard(): React.JSX.Element {
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            <Button onClick={() => setWizardOpen(true)}>
+            <Button className={cn(PILL_PRIMARY, HERO_SIZE)} onClick={() => setWizardOpen(true)}>
               <Download className="h-4 w-4" /> {globalRecord ? 'Install again' : 'Install'}
             </Button>
-            <Button variant="outline" onClick={() => setDetailsOpen(true)}>
+            <Button
+              variant="ghost"
+              className={cn(PILL_SOFT, HERO_SIZE)}
+              onClick={() => setDetailsOpen(true)}
+            >
               <Eye className="h-4 w-4" /> What it does
             </Button>
             <Button
-              variant="outline"
+              variant="ghost"
+              className={cn(PILL_SOFT, HERO_SIZE)}
               disabled={updateCheck.isPending}
               onClick={() => updateCheck.mutate()}
             >
@@ -215,6 +227,8 @@ export function UiUxProMaxCard(): React.JSX.Element {
               <Button
                 variant="ghost"
                 size="icon"
+                className={cn(TILE_ACTION, 'h-9 w-9 [&_svg]:size-4')}
+                aria-label="Open the repository on GitHub"
                 onClick={() => void window.agentmat.shell.openExternal(UI_UX_PRO_MAX_GITHUB_URL)}
               >
                 <ExternalLink className="h-4 w-4" />
@@ -224,6 +238,8 @@ export function UiUxProMaxCard(): React.JSX.Element {
               <Button
                 variant="ghost"
                 size="icon"
+                className={cn(TILE_ACTION, 'h-9 w-9 [&_svg]:size-4')}
+                aria-label="Open uupm.cc"
                 onClick={() => void window.agentmat.shell.openExternal(UI_UX_PRO_MAX_HOMEPAGE)}
               >
                 <Globe className="h-4 w-4" />
@@ -234,10 +250,10 @@ export function UiUxProMaxCard(): React.JSX.Element {
           {status && (
             <div
               className={cn(
-                'flex flex-wrap items-center gap-3 rounded-lg border px-3 py-2.5',
+                'flex flex-wrap items-center gap-3 rounded-lg px-3 py-2.5 ring-1 ring-inset',
                 status.kind === 'update'
-                  ? 'border-primary/60 bg-primary/10'
-                  : 'border-border bg-card/60',
+                  ? 'bg-primary/10 ring-primary/40'
+                  : 'bg-foreground/[0.04] ring-transparent',
               )}
             >
               {status.kind === 'update' ? (
@@ -258,7 +274,7 @@ export function UiUxProMaxCard(): React.JSX.Element {
               </div>
 
               {status.kind === 'missing' ? (
-                <Button size="sm" onClick={() => setWizardOpen(true)}>
+                <Button size="sm" className={PILL_PRIMARY} onClick={() => setWizardOpen(true)}>
                   <Download className="h-4 w-4" /> Install
                 </Button>
               ) : (
@@ -266,7 +282,8 @@ export function UiUxProMaxCard(): React.JSX.Element {
                 status.kind !== 'offline' && (
                   <Button
                     size="sm"
-                    variant={status.kind === 'update' ? 'default' : 'outline'}
+                    variant={status.kind === 'update' ? 'default' : 'ghost'}
+                    className={status.kind === 'update' ? PILL_PRIMARY : PILL_SOFT}
                     onClick={runUpdate}
                   >
                     <CloudDownload className="h-4 w-4" />
@@ -320,10 +337,7 @@ export function UiUxProMaxCard(): React.JSX.Element {
               <h3 className="text-sm font-medium">161 reasoning rules, by sector</h3>
               <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
                 {UI_UX_PRO_MAX_RULE_CATEGORIES.map((entry) => (
-                  <div
-                    key={entry.category}
-                    className="rounded-lg border border-border bg-card/60 px-3 py-2"
-                  >
+                  <div key={entry.category} className="rounded-lg bg-foreground/[0.04] px-3 py-2">
                     <p className="text-sm font-medium text-foreground">{entry.category}</p>
                     <p className="text-xs text-muted-foreground">{entry.examples}</p>
                   </div>
@@ -357,7 +371,7 @@ export function UiUxProMaxCard(): React.JSX.Element {
                 {UI_UX_PRO_MAX_EXAMPLE_PROMPTS.map((prompt) => (
                   <p
                     key={prompt}
-                    className="rounded-md border border-border bg-muted/30 px-2.5 py-1.5 text-xs text-foreground"
+                    className="rounded-md bg-foreground/[0.04] px-2.5 py-1.5 text-xs text-foreground"
                   >
                     {prompt}
                   </p>
@@ -367,7 +381,7 @@ export function UiUxProMaxCard(): React.JSX.Element {
 
             <section className="space-y-2">
               <h3 className="text-sm font-medium">Driving the generator directly</h3>
-              <p className="break-all rounded-md border border-border bg-muted/30 px-2.5 py-1.5 font-mono text-xs">
+              <p className="break-all rounded-md bg-foreground/[0.04] px-2.5 py-1.5 font-mono text-xs">
                 {buildUiProDesignSystemCommand(
                   '.claude/skills',
                   'beauty spa wellness',

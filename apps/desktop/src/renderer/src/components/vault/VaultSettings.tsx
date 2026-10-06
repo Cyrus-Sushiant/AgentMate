@@ -7,6 +7,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { Key, Trash2, Vault } from '@/components/icons';
+import { PILL_DESTRUCTIVE, PILL_SOFT, SEGMENT_TRACK, segmentClass } from '@/components/pageKit';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
@@ -52,7 +53,11 @@ function Choices({
         <p className="text-sm font-medium">{label}</p>
         <p className="text-xs text-muted-foreground">{hint}</p>
       </div>
-      <div role="radiogroup" aria-label={label} className="flex flex-wrap gap-1.5">
+      <div
+        role="radiogroup"
+        aria-label={label}
+        className={cn(SEGMENT_TRACK, 'max-w-full flex-wrap')}
+      >
         {options.map((option) => {
           const checked = value === option;
           return (
@@ -63,12 +68,7 @@ function Choices({
               aria-checked={checked}
               data-value={option}
               onClick={() => onChange(option)}
-              className={cn(
-                'rounded-full border px-3 py-1 text-xs transition-colors',
-                checked
-                  ? 'border-primary/50 bg-primary/15 text-foreground'
-                  : 'border-border text-muted-foreground hover:border-foreground/30 hover:text-foreground',
-              )}
+              className={cn(segmentClass(checked), 'px-3 text-xs')}
             >
               {format(option)}
             </button>
@@ -177,8 +177,9 @@ export function VaultSettings({ settings }: { settings: AppSettings }): React.JS
             wrapTrigger
           >
             <Button
-              variant="outline"
+              variant="ghost"
               size="sm"
+              className={PILL_SOFT}
               disabled={state !== 'unlocked'}
               onClick={() => setChangeOpen(true)}
             >
@@ -189,7 +190,7 @@ export function VaultSettings({ settings }: { settings: AppSettings }): React.JS
           <Button
             variant="ghost"
             size="sm"
-            className="text-destructive hover:text-destructive"
+            className={PILL_DESTRUCTIVE}
             disabled={state === 'uninitialized'}
             onClick={() => setResetOpen(true)}
           >

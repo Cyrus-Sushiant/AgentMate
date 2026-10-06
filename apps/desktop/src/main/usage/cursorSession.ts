@@ -14,6 +14,7 @@ import {
   toEntry,
 } from './cursor';
 import { getCursorAccount } from './cursorAccount';
+import { cursorPlanLimits } from './cursorSummary';
 import { connectUsage } from './shared';
 
 // Cursor usage read through the session the Cursor app already holds, so the
@@ -30,8 +31,11 @@ import { connectUsage } from './shared';
 //   /api/dashboard/get-filtered-usage-events  the per-call feed. Carries the
 //     same event shape as the Admin API, so the Auto+Composer / API split, the
 //     periods and the sparkline all reuse the parsing in `cursor.ts`.
-//   /api/usage                                the plan's request quota, used
-//     only for the limit bar, so it fails quietly.
+//   /api/usage-summary                        a usage-based plan's limits:
+//     the share of included usage spent this billing cycle (total, Auto, API).
+//   /api/usage                                an older request-based plan's
+//     request quota, the fallback when the summary has no limits.
+// Both only decorate the card with limit bars, so they fail quietly.
 //
 // Cost comes from the events themselves (Cursor prices each call in `totalCents`),
 // so no separate invoice call is needed.
@@ -197,40 +201,50 @@ export async function fetchCursorSessionUsage(): Promise<ProviderUsage> {
 
   const cookie = sessionCookie(account.userId, account.accessToken);
 
+  // The plan's limits only decorate the card with limit bars, so they degrade
+  // quietly to "no window" if the endpoint moves. Asked for alongside the event
+  // feed rather than after it, since the feed can take several pages.
+  const summaryRequest = request('/api/usage-summary', cookie).then(cursorPlanLimits, () => null);
+
   // The event feed is the substance of the card: tokens, cost, the
   // Auto+Composer/API split and the sparkline all come from it, so a failure
   // here is a real error rather than something to paper over.
   const entries = await fetchEvents(cookie);
   const now = Date.now();
+  const planLimits = await summaryRequest;
 
-  // The plan quota lives on a different endpoint and only decorates the card
-  // with a limit bar, so it degrades quietly to "no window" if it moves.
+  // An older request-based plan has no summary limits, only a request quota.
   let quota: { requests: number; maxRequests: number | null; startOfMonth: string | null } = {
     requests: 0,
     maxRequests: null,
     startOfMonth: null,
   };
-  try {
-    const payload = await request(`/api/usage?user=${encodeURIComponent(account.userId)}`, cookie);
-    const { buckets, startOfMonth } = collectBuckets(payload);
-    quota = {
-      requests: buckets.reduce((sum, b) => sum + b.requests, 0),
-      // Only the plan bucket is capped; usage-based ones report no maximum.
-      maxRequests: buckets.reduce<number | null>(
-        (max, b) => (b.maxRequests != null && b.maxRequests > (max ?? 0) ? b.maxRequests : max),
-        null,
-      ),
-      startOfMonth,
-    };
-  } catch {
-    /* limit bar is optional */
+  if (!planLimits) {
+    try {
+      const payload = await request(
+        `/api/usage?user=${encodeURIComponent(account.userId)}`,
+        cookie,
+      );
+      const { buckets, startOfMonth } = collectBuckets(payload);
+      quota = {
+        requests: buckets.reduce((sum, b) => sum + b.requests, 0),
+        // Only the plan bucket is capped; usage-based ones report no maximum.
+        maxRequests: buckets.reduce<number | null>(
+          (max, b) => (b.maxRequests != null && b.maxRequests > (max ?? 0) ? b.maxRequests : max),
+          null,
+        ),
+        startOfMonth,
+      };
+    } catch {
+      /* limit bar is optional */
+    }
   }
 
   const resetAt = monthResetAt(quota.startOfMonth);
 
-  let window: UsageWindow | undefined;
-  const subscriptionWindows: SubscriptionWindow[] = [];
-  if (quota.maxRequests != null && quota.maxRequests > 0) {
+  let window: UsageWindow | undefined = planLimits?.window;
+  const subscriptionWindows: SubscriptionWindow[] = planLimits ? [...planLimits.windows] : [];
+  if (!planLimits && quota.maxRequests != null && quota.maxRequests > 0) {
     const percent = Math.max(0, Math.min(100, (quota.requests / quota.maxRequests) * 100));
     window = {
       label: 'Requests',

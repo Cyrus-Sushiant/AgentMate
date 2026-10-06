@@ -14,6 +14,7 @@ import { useId, useState } from 'react';
 import { EffortPicker } from '@/components/cli/RunSettingsFields';
 import { CliLogo } from '@/components/cliLogos';
 import { Check, ChevronDown, ChevronRight, TriangleAlert, Undo } from '@/components/icons';
+import { CARD_PILL_SOFT } from '@/components/pageKit';
 import { Button } from '@/components/ui/button';
 import { Combobox } from '@/components/ui/combobox';
 import { SimpleTooltip } from '@/components/ui/tooltip';
@@ -209,6 +210,7 @@ function LaunchDefaultsRow({
             <Button
               variant="ghost"
               size="sm"
+              className={CARD_PILL_SOFT}
               disabled={!isSet}
               onClick={() => clearDefault(cli.id)}
             >

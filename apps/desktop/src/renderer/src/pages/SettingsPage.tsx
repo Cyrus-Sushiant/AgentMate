@@ -59,6 +59,13 @@ import {
   X,
 } from '@/components/icons';
 import { NAV_ITEMS } from '@/components/layout/Sidebar';
+import {
+  CARD_PILL_SOFT,
+  PILL_DESTRUCTIVE,
+  PILL_PRIMARY,
+  PILL_SOFT,
+  TILE_ACTION,
+} from '@/components/pageKit';
 import { CompanionSettings } from '@/components/pet/CompanionSettings';
 import { AndroidSdkSettings } from '@/components/settings/AndroidSdkSettings';
 import { BackupEnvironmentsPasswordDialog } from '@/components/settings/BackupEnvironmentsPasswordDialog';
@@ -66,9 +73,11 @@ import { BlueprintPresetSettings } from '@/components/settings/BlueprintPresetSe
 import { CliLaunchDefaultsSettings } from '@/components/settings/CliLaunchDefaultsSettings';
 import { CliOrderSettings } from '@/components/settings/CliOrderSettings';
 import { CommitMessageSettingsForm } from '@/components/settings/CommitMessageSettingsCard';
+import { HelpSearchSettings } from '@/components/settings/HelpSearchSettings';
 import { ProxySettings } from '@/components/settings/ProxySettings';
 import { ReviewCommandsSettings } from '@/components/settings/ReviewCommandsSettings';
 import { ShortcutSettings } from '@/components/settings/ShortcutSettings';
+import { StatusBarUsageSettings } from '@/components/settings/StatusBarUsageSettings';
 import { WorktreeSettingsForm } from '@/components/settings/WorktreeSettings';
 import { WritingCheckSettings } from '@/components/settings/WritingCheckSettings';
 import { formatUpdateBytes, UpdateProgressTrack, updatePercent } from '@/components/UpdateManager';
@@ -76,11 +85,12 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Combobox, type ComboboxOption } from '@/components/ui/combobox';
-import { Input } from '@/components/ui/input';
+import { COLOR_FIELD, Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { SecretInput } from '@/components/ui/secret-input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Switch } from '@/components/ui/switch';
+import { MULTILINE_FIELD_RADIUS } from '@/components/ui/textarea';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { VaultSettings } from '@/components/vault/VaultSettings';
 import { queryKeys } from '@/lib/queryKeys';
@@ -274,6 +284,12 @@ const SECTIONS = {
     keywords:
       'appearance theme dark light system vscode visual studio vs2026 code look main menu sidebar top bar menu bar navigation position layout',
   },
+  statusBarUsage: {
+    tab: 'general',
+    title: 'Status bar limits',
+    keywords:
+      'status bar bottom limits usage quota plan session weekly reset countdown claude code codex cursor',
+  },
   startupPage: { tab: 'general', title: 'Startup page', keywords: STARTUP_PAGE_KEYWORDS },
   keepTerminals: {
     tab: 'general',
@@ -365,6 +381,12 @@ const SECTIONS = {
     tab: 'ai',
     title: 'Voice input',
     keywords: 'voice whisper speech microphone transcription',
+  },
+  helpSearch: {
+    tab: 'ai',
+    title: 'Help search',
+    keywords:
+      'help guide ask the guide rag embedding embeddings model vector search index reindex rebuild sqlite-vec nomic bge multilingual',
   },
   writingCheck: { tab: 'ai', title: 'Writing check', keywords: WRITING_CHECK_KEYWORDS },
   translationRetries: {
@@ -690,16 +712,22 @@ function HostChips({
   }
 
   return (
-    <div className="flex min-h-9 flex-wrap items-center gap-1.5 rounded-lg border border-input bg-background px-2 py-1.5 shadow-[inset_0_1px_0_0_hsl(0_0%_100%/0.04)] transition-colors focus-within:border-primary/50 focus-within:ring-2 focus-within:ring-ring/50">
+    // The multi-line corner reads as a pill on one line and a rounded box once the chips wrap.
+    <div
+      className={cn(
+        'field-surface flex min-h-9 flex-wrap items-center gap-1.5 py-1.5 pl-2 pr-3',
+        MULTILINE_FIELD_RADIUS,
+      )}
+    >
       {hosts.map((host) => (
         <span
           key={host}
-          className="inline-flex items-center gap-1 rounded-md bg-secondary px-2 py-0.5 font-mono text-xs"
+          className="inline-flex items-center gap-1 rounded-full bg-foreground/[0.07] py-0.5 pl-2.5 pr-1 font-mono text-xs"
         >
           {host}
           <button
             type="button"
-            className="cursor-pointer rounded-sm p-0.5 text-muted-foreground hover:bg-accent hover:text-foreground"
+            className="cursor-pointer rounded-full p-0.5 text-muted-foreground hover:bg-foreground/10 hover:text-foreground"
             aria-label={`Remove ${host}`}
             onClick={() => remove(host)}
           >
@@ -721,7 +749,7 @@ function HostChips({
         onBlur={() => commit(draft)}
         aria-label={ariaLabel}
         placeholder={hosts.length === 0 ? placeholder : 'Add another'}
-        className="min-w-[8rem] flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+        className="min-w-[8rem] flex-1 bg-transparent pl-1 text-sm outline-none"
       />
     </div>
   );
@@ -1519,7 +1547,12 @@ export default function SettingsPage(): React.JSX.Element {
                 <p className="max-w-sm text-sm text-muted-foreground">
                   Something went wrong reading this machine's defaults.
                 </p>
-                <Button variant="outline" size="sm" onClick={() => void settingsQuery.refetch()}>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className={PILL_SOFT}
+                  onClick={() => void settingsQuery.refetch()}
+                >
                   Try again
                 </Button>
               </div>
@@ -1534,7 +1567,7 @@ export default function SettingsPage(): React.JSX.Element {
                     Try theme, AI Pet, API key, Telegram, backup, or a category name.
                   </p>
                 </div>
-                <Button variant="outline" size="sm" onClick={clearSearch}>
+                <Button variant="ghost" size="sm" className={PILL_SOFT} onClick={clearSearch}>
                   Clear search
                 </Button>
               </div>
@@ -1623,6 +1656,10 @@ export default function SettingsPage(): React.JSX.Element {
                     </div>
                   </SettingsCard>
                 )}
+
+                {show('statusBarUsage') && settingsQuery.data ? (
+                  <StatusBarUsageSettings settings={settingsQuery.data} />
+                ) : null}
 
                 {/* The one-control settings share a card as hairline-separated rows, so their
                   switches line up down one edge instead of each filling a card of its own. */}
@@ -1752,7 +1789,7 @@ export default function SettingsPage(): React.JSX.Element {
                               aria-label="Workspace terminal background color"
                               value={terminalBackgroundColor}
                               onChange={(event) => setTerminalBackgroundColor(event.target.value)}
-                              className="h-8 w-12 cursor-pointer rounded-md border border-border/70 bg-transparent p-1"
+                              className={COLOR_FIELD}
                             />
                             <span className="font-mono text-xs text-muted-foreground">
                               {terminalBackgroundColor}
@@ -1783,8 +1820,9 @@ export default function SettingsPage(): React.JSX.Element {
                         spellCheck={false}
                       />
                       <Button
-                        variant="outline"
+                        variant="ghost"
                         size="sm"
+                        className={cn(PILL_SOFT, 'h-9 shrink-0')}
                         onClick={() => void handleBrowseProjectsRoot()}
                       >
                         <FolderOpen /> Browse…
@@ -1803,7 +1841,12 @@ export default function SettingsPage(): React.JSX.Element {
                         : `${repoCount} repositor${repoCount === 1 ? 'y' : 'ies'} configured. Add and sync sources from the Skills page.`
                     }
                     action={
-                      <Button variant="outline" size="sm" onClick={() => navigate('/skills')}>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className={PILL_SOFT}
+                        onClick={() => navigate('/skills')}
+                      >
                         <Blocks /> Manage
                       </Button>
                     }
@@ -2085,9 +2128,9 @@ export default function SettingsPage(): React.JSX.Element {
                               spellCheck={false}
                             />
                             <Button
-                              variant="outline"
+                              variant="ghost"
                               size="sm"
-                              className="shrink-0"
+                              className={cn(PILL_SOFT, 'h-9 shrink-0')}
                               disabled={testingOllama}
                               onClick={() => void handleTestOllama()}
                             >
@@ -2119,9 +2162,10 @@ export default function SettingsPage(): React.JSX.Element {
                               />
                               <SimpleTooltip label="Refresh model list" wrapTrigger>
                                 <Button
-                                  variant="outline"
+                                  variant="ghost"
                                   size="icon"
-                                  className="shrink-0"
+                                  className={cn(TILE_ACTION, 'shrink-0')}
+                                  aria-label="Refresh model list"
                                   disabled={ollamaModelsQuery.isFetching}
                                   onClick={() => void ollamaModelsQuery.refetch()}
                                 >
@@ -2220,6 +2264,10 @@ export default function SettingsPage(): React.JSX.Element {
                   </SettingsCard>
                 )}
 
+                {show('helpSearch') && settingsQuery.data ? (
+                  <HelpSearchSettings settings={settingsQuery.data} />
+                ) : null}
+
                 {show('writingCheck') && settingsQuery.data ? (
                   <WritingCheckSettings settings={settingsQuery.data} />
                 ) : null}
@@ -2306,8 +2354,9 @@ export default function SettingsPage(): React.JSX.Element {
                           />
                           <Button
                             type="button"
-                            variant="outline"
+                            variant="ghost"
                             size="sm"
+                            className={cn(PILL_SOFT, 'h-9 shrink-0')}
                             disabled={detectingChatId || !botToken.trim()}
                             onClick={() => void handleDetectChatId()}
                           >
@@ -2336,7 +2385,8 @@ export default function SettingsPage(): React.JSX.Element {
 
                       <Button
                         size="sm"
-                        variant="outline"
+                        variant="ghost"
+                        className={PILL_SOFT}
                         disabled={
                           sendingTest || (!botToken.trim() && !settingsQuery.data?.telegramBotToken)
                         }
@@ -2416,7 +2466,7 @@ export default function SettingsPage(): React.JSX.Element {
                             <Button
                               variant="ghost"
                               size="sm"
-                              className="h-7 px-2 text-xs"
+                              className={CARD_PILL_SOFT}
                               onClick={() => {
                                 setPingUrlsText(DEFAULT_PING_URL);
                                 setPingUrlsDirty(true);
@@ -2553,9 +2603,9 @@ export default function SettingsPage(): React.JSX.Element {
                             </div>
                           )}
                           <Button
-                            variant="outline"
+                            variant="ghost"
                             size="sm"
-                            className="mt-3"
+                            className={cn(PILL_SOFT, 'mt-3')}
                             disabled={exportingBackup || backupPasswordProblem !== null}
                             onClick={() => void handleExportBackup()}
                           >
@@ -2569,9 +2619,9 @@ export default function SettingsPage(): React.JSX.Element {
                             Replaces current data. This cannot be undone.
                           </p>
                           <Button
-                            variant="outline"
+                            variant="ghost"
                             size="sm"
-                            className="mt-8"
+                            className={cn(PILL_DESTRUCTIVE, 'mt-8')}
                             disabled={importingBackup}
                             onClick={() => void handleImportBackup()}
                           >
@@ -2603,20 +2653,30 @@ export default function SettingsPage(): React.JSX.Element {
                     description={`AgentMate ${versionLabel}`}
                     action={
                       updateStatus.state === 'downloaded' ? (
-                        <Button size="sm" onClick={() => void window.agentmat.app.quitAndInstall()}>
+                        <Button
+                          size="sm"
+                          className={PILL_PRIMARY}
+                          onClick={() => void window.agentmat.app.quitAndInstall()}
+                        >
                           Restart now
                         </Button>
                       ) : updateStatus.state === 'downloading' ? (
                         <div className="flex items-center gap-2">
                           <Button
-                            variant="outline"
+                            variant="ghost"
                             size="sm"
+                            className={PILL_SOFT}
                             onClick={() => void window.agentmat.app.pauseDownload()}
                           >
                             <Pause className="h-4 w-4" />
                             Pause
                           </Button>
-                          <Button variant="outline" size="sm" onClick={() => openUpdateDialog()}>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className={PILL_SOFT}
+                            onClick={() => openUpdateDialog()}
+                          >
                             Show
                           </Button>
                         </div>
@@ -2625,6 +2685,7 @@ export default function SettingsPage(): React.JSX.Element {
                         updateStatus.state === 'available' ? (
                         <Button
                           size="sm"
+                          className={PILL_PRIMARY}
                           onClick={() => {
                             openUpdateDialog();
                             void window.agentmat.app.downloadUpdate();
@@ -2644,8 +2705,9 @@ export default function SettingsPage(): React.JSX.Element {
                         </Button>
                       ) : (
                         <Button
-                          variant="outline"
+                          variant="ghost"
                           size="sm"
+                          className={PILL_SOFT}
                           disabled={checkingForUpdates}
                           onClick={() => void handleCheckForUpdates()}
                         >
@@ -2687,11 +2749,22 @@ export default function SettingsPage(): React.JSX.Element {
               <span className="ml-2 hidden text-xs sm:inline">({saveShortcutLabel()} to save)</span>
             </p>
             <div className="flex items-center gap-2">
-              <Button variant="ghost" size="sm" disabled={saving} onClick={handleDiscardAll}>
+              <Button
+                variant="ghost"
+                size="sm"
+                className={PILL_SOFT}
+                disabled={saving}
+                onClick={handleDiscardAll}
+              >
                 Discard
               </Button>
               <SimpleTooltip label={`Save all changes (${saveShortcutLabel()})`}>
-                <Button size="sm" disabled={saving} onClick={() => void handleSaveAll()}>
+                <Button
+                  size="sm"
+                  className={PILL_PRIMARY}
+                  disabled={saving}
+                  onClick={() => void handleSaveAll()}
+                >
                   <Save className="h-4 w-4" />
                   {saving ? 'Saving…' : 'Save changes'}
                 </Button>

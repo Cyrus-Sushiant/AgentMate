@@ -62,13 +62,21 @@ describe('CliManagerPage detection', () => {
   it('renders with nothing detected and offers the full catalogue instead', async () => {
     renderPage();
 
-    expect(
-      await screen.findByText(/No AI CLIs installed yet\. Click "Show all CLIs"/),
-    ).toBeTruthy();
+    expect(await screen.findByText('No AI CLIs installed yet')).toBeTruthy();
+    expect(screen.getByText(/Click "Show all CLIs" above/)).toBeTruthy();
     // Every registry entry counts as missing when the scan found none of them.
     expect(
       screen.getByRole('button', { name: `Show all CLIs (${CLI_REGISTRY.length} not installed)` }),
     ).toBeTruthy();
+  });
+
+  it('opens the whole catalogue from the empty state', async () => {
+    const { user } = renderPage();
+
+    await user.click(await screen.findByRole('button', { name: /Browse the catalogue/ }));
+
+    expect(screen.getByRole('heading', { name: 'Gemini CLI' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Hide not installed' })).toBeTruthy();
   });
 
   it('falls back to the same empty state when detection itself fails', async () => {
@@ -107,6 +115,34 @@ describe('CliManagerPage detection', () => {
 
     await user.click(screen.getByRole('button', { name: 'Hide not installed' }));
     expect(screen.queryByRole('heading', { name: 'Gemini CLI' })).toBeNull();
+  });
+
+  it('narrows the cards to the CLIs whose name or description matches the filter', async () => {
+    const { user } = renderPage({ 'cli.detectAll': [claudeInstalled] });
+    await screen.findByRole('heading', { name: 'Claude Code CLI' });
+    await user.click(screen.getByRole('button', { name: /^Show all CLIs/ }));
+
+    const filter = screen.getByRole('searchbox', { name: 'Filter CLIs' });
+    await user.type(filter, 'gemini');
+
+    expect(screen.getByRole('heading', { name: 'Gemini CLI' })).toBeTruthy();
+    expect(screen.queryByRole('heading', { name: 'Claude Code CLI' })).toBeNull();
+
+    // Escape clears the filter and brings every card back.
+    await user.keyboard('{Escape}');
+    expect(filter).toHaveValue('');
+    expect(screen.getByRole('heading', { name: 'Claude Code CLI' })).toBeTruthy();
+  });
+
+  it('says so when the filter matches nothing, and clears it on request', async () => {
+    const { user } = renderPage({ 'cli.detectAll': [claudeInstalled] });
+    await screen.findByRole('heading', { name: 'Claude Code CLI' });
+
+    await user.type(screen.getByRole('searchbox', { name: 'Filter CLIs' }), 'zzz-nothing');
+
+    expect(screen.getByText('Nothing matches “zzz-nothing”.')).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'Clear filter' }));
+    expect(screen.getByRole('heading', { name: 'Claude Code CLI' })).toBeTruthy();
   });
 
   it('re-scans without the main process cache when asked to refresh', async () => {

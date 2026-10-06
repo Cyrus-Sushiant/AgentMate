@@ -1,25 +1,24 @@
 import { GEMINI_API_MODELS, OPENAI_API_MODELS } from '@agentmat/core';
 import { useQuery } from '@tanstack/react-query';
+import { LayoutGroup, motion, useReducedMotion } from 'framer-motion';
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { GrammarTextarea } from '@/components/grammar/GrammarTextarea';
 import {
+  ArrowUp,
   Bookmark,
   Copy,
   History,
   MessageSquare,
   RefreshCw,
   Robot,
-  Send,
   SettingsIcon,
   Trash2,
   TriangleAlert,
 } from '@/components/icons';
 import { Button } from '@/components/ui/button';
 import { Combobox } from '@/components/ui/combobox';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { queryKeys } from '@/lib/queryKeys';
 import { cn } from '@/lib/utils';
@@ -47,6 +46,13 @@ const SUGGESTIONS = [
   'Help me write a commit message',
   'Explain an error I ran into',
 ];
+
+/** The model picker in the composer's bottom row: a small pill rather than a form field. */
+const MODEL_PICKER = 'search-pill h-7 w-44 rounded-full px-3 text-xs';
+
+/** A round icon-only button in the composer row. */
+const ROUND_ICON =
+  'h-7 w-7 shrink-0 rounded-full text-muted-foreground hover:bg-foreground/[0.06] hover:text-foreground';
 
 export interface AskAiChatProps {
   className?: string;
@@ -79,6 +85,7 @@ export function AskAiChat({
   const [sending, setSending] = useState(false);
   const scrollEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const reduceMotion = useReducedMotion();
 
   const settingsQuery = useQuery({
     queryKey: queryKeys.settings,
@@ -231,124 +238,50 @@ export function AskAiChat({
         ? !!settingsQuery.data?.geminiApiKey
         : true;
 
+  const isModal = variant === 'modal';
+  const providerItems: { value: AiProvider; label: string }[] = [
+    { value: 'openai', label: 'OpenAI' },
+    { value: 'gemini', label: 'Gemini' },
+    { value: 'ollama', label: 'Ollama' },
+  ];
+  const pillTransition = reduceMotion
+    ? { duration: 0 }
+    : { type: 'spring' as const, stiffness: 420, damping: 32 };
+
   return (
-    <div className={cn('flex flex-1 flex-col gap-3 overflow-hidden', className)}>
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-background/40 p-2">
-        <Tabs value={provider} onValueChange={(v) => setProvider(v as AiProvider)}>
-          <TabsList
-            containerClassName="border-b-0"
-            className="mb-0 h-8 w-auto border-none bg-foreground/[0.06] p-1 rounded-lg"
-          >
-            <TabsTrigger
-              value="openai"
-              className="h-6 rounded-md border-none px-2.5 text-xs data-[state=active]:bg-background data-[state=active]:shadow-sm"
-            >
-              OpenAI
-            </TabsTrigger>
-            <TabsTrigger
-              value="gemini"
-              className="h-6 rounded-md border-none px-2.5 text-xs data-[state=active]:bg-background data-[state=active]:shadow-sm"
-            >
-              Gemini
-            </TabsTrigger>
-            <TabsTrigger
-              value="ollama"
-              className="h-6 rounded-md border-none px-2.5 text-xs data-[state=active]:bg-background data-[state=active]:shadow-sm"
-            >
-              Ollama
-            </TabsTrigger>
-          </TabsList>
-        </Tabs>
-
-        <div className="flex items-center gap-2">
-          {provider === 'openai' && (
-            <Combobox
-              className="w-44"
-              value={openaiModel}
-              onChange={setOpenaiModel}
-              options={withCurrent(OPENAI_MODEL_OPTIONS, openaiModel)}
-              placeholder="Model"
-            />
-          )}
-          {provider === 'gemini' && (
-            <>
-              <Combobox
-                className="w-44"
-                value={geminiModel}
-                onChange={setGeminiModel}
-                options={geminiModelOptions}
-                placeholder={geminiModelsQuery.isFetching ? 'Loading models…' : 'Model'}
-                emptyText={
-                  geminiModelsQuery.isError
-                    ? 'Could not load models, check your API key.'
-                    : 'No models found.'
-                }
-              />
-              {!!settingsQuery.data?.geminiApiKey && (
-                <Button
-                  variant="outline"
-                  size="icon"
-                  disabled={geminiModelsQuery.isFetching}
-                  onClick={() => void geminiModelsQuery.refetch()}
-                >
-                  <RefreshCw className="h-3.5 w-3.5" />
-                </Button>
-              )}
-            </>
-          )}
-          {provider === 'ollama' && (
-            <>
-              <Combobox
-                className="w-44"
-                value={ollamaModel}
-                onChange={setOllamaModel}
-                options={(ollamaModelsQuery.data ?? []).map((name) => ({
-                  value: name,
-                  label: name,
-                }))}
-                placeholder={ollamaModelsQuery.isFetching ? 'Loading models…' : 'Choose a model'}
-                emptyText="No models found. Is Ollama running?"
-              />
-              <Button
-                variant="outline"
-                size="icon"
-                disabled={ollamaModelsQuery.isFetching}
-                onClick={() => void ollamaModelsQuery.refetch()}
-              >
-                <RefreshCw className="h-3.5 w-3.5" />
-              </Button>
-            </>
-          )}
-          {!configured && (
-            <Button variant="outline" size="sm" onClick={() => navigate('/settings')}>
-              <SettingsIcon className="h-3.5 w-3.5" /> Add API key
-            </Button>
-          )}
-        </div>
-      </div>
-
-      <ScrollArea
+    <div className={cn('flex min-h-0 flex-1 flex-col overflow-hidden', className)}>
+      <div
         className={cn(
-          'flex-1 rounded-xl border border-border bg-background/40',
-          variant === 'modal' && 'h-[420px] flex-none',
+          'rail-scroll min-h-0 overflow-y-auto',
+          isModal
+            ? 'h-[420px] flex-none rounded-2xl bg-foreground/[0.025] ring-1 ring-inset ring-foreground/[0.06]'
+            : 'flex-1',
         )}
       >
-        <div className="flex flex-col gap-4 p-4">
+        <div
+          className={cn(
+            'mx-auto flex w-full flex-col gap-5',
+            isModal ? 'p-4' : 'min-h-full max-w-3xl px-5 pb-6 pt-6',
+          )}
+        >
           {messages.length === 0 ? (
-            <div className="flex flex-1 flex-col items-center justify-center gap-4 py-14 text-center">
-              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-foreground/[0.06] text-muted-foreground">
-                <MessageSquare className="h-5 w-5 opacity-70" />
+            <div className="flex flex-1 flex-col items-center justify-center gap-4 py-12 text-center">
+              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/12 text-primary shadow-[0_0_40px_-12px_hsl(var(--primary)/0.7)]">
+                <MessageSquare className="h-6 w-6" />
               </div>
-              <p className="text-sm text-muted-foreground">
-                Ask anything, responses come straight from {PROVIDER_LABEL[provider]}.
-              </p>
+              <div className="max-w-sm space-y-1.5">
+                <p className="text-base font-semibold tracking-tight">What can I help with?</p>
+                <p className="text-sm text-muted-foreground">
+                  Ask anything, responses come straight from {PROVIDER_LABEL[provider]}.
+                </p>
+              </div>
               <div className="flex flex-wrap justify-center gap-2 px-4">
                 {SUGGESTIONS.map((s) => (
                   <button
                     key={s}
                     type="button"
                     onClick={() => handleSuggestionClick(s)}
-                    className="rounded-full border border-border bg-background/60 px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground"
+                    className="search-pill cursor-pointer rounded-full px-3.5 py-1.5 text-xs text-foreground/80 transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   >
                     {s}
                   </button>
@@ -358,8 +291,8 @@ export function AskAiChat({
           ) : (
             messages.map((m) =>
               m.role === 'user' ? (
-                <div key={m.id} className="ml-auto flex max-w-[85%] flex-col items-end gap-1">
-                  <div className="whitespace-pre-wrap rounded-2xl rounded-br-sm bg-primary px-3.5 py-2 text-sm text-primary-foreground">
+                <div key={m.id} className="group ml-auto flex max-w-[80%] flex-col items-end gap-1">
+                  <div className="whitespace-pre-wrap break-words rounded-[20px] rounded-br-md bg-primary/12 px-4 py-2.5 text-sm text-foreground ring-1 ring-inset ring-primary/15">
                     {m.content}
                   </div>
                   <MessageActions
@@ -369,37 +302,33 @@ export function AskAiChat({
                   />
                 </div>
               ) : (
-                <div key={m.id} className="mr-auto flex max-w-[85%] items-start gap-2">
+                <div key={m.id} className="group mr-auto flex w-full items-start gap-3">
                   <div
                     className={cn(
-                      'mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full',
+                      'mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg',
                       m.role === 'error'
-                        ? 'bg-destructive/10 text-destructive'
-                        : 'bg-foreground/[0.08] text-foreground',
+                        ? 'bg-destructive/12 text-destructive'
+                        : 'bg-primary/12 text-primary shadow-[0_0_24px_-10px_hsl(var(--primary)/0.8)]',
                     )}
                   >
                     {m.role === 'error' ? (
-                      <TriangleAlert className="h-3 w-3" />
+                      <TriangleAlert className="h-3.5 w-3.5" />
                     ) : (
-                      <Robot className="h-3 w-3" />
+                      <Robot className="h-3.5 w-3.5" />
                     )}
                   </div>
-                  <div className="flex flex-col gap-1">
-                    <div
-                      className={cn(
-                        'rounded-2xl rounded-tl-sm px-3.5 py-2',
-                        m.role === 'error'
-                          ? 'border border-destructive/40 bg-destructive/10 text-sm text-destructive'
-                          : 'bg-foreground/[0.06] text-foreground',
-                      )}
-                    >
-                      {m.role === 'error' ? (
+                  <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+                    {m.role === 'error' ? (
+                      // A ring rather than a border, so the red is not lost to the theme's border colour.
+                      <div className="rounded-2xl bg-destructive/[0.06] px-4 py-2.5 text-sm text-destructive ring-1 ring-inset ring-destructive/25">
                         <span className="whitespace-pre-wrap">{m.content}</span>
-                      ) : (
+                      </div>
+                    ) : (
+                      <div className="pt-0.5 text-foreground">
                         <MarkdownMessage content={m.content} />
-                      )}
-                    </div>
-                    <div className="flex items-center gap-2 pl-1">
+                      </div>
+                    )}
+                    <div className="flex items-center gap-2">
                       <span className="text-[11px] text-muted-foreground">
                         {PROVIDER_LABEL[m.provider]} · {m.model}
                       </span>
@@ -408,7 +337,7 @@ export function AskAiChat({
                           type="button"
                           disabled={sending}
                           onClick={() => void handleRetry(m)}
-                          className="flex items-center gap-1 text-[11px] font-medium text-destructive transition-colors hover:text-destructive/80 disabled:opacity-50"
+                          className="flex cursor-pointer items-center gap-1 rounded-full bg-destructive/10 px-2 py-0.5 text-[11px] font-medium text-destructive transition-colors hover:bg-destructive/15 disabled:opacity-50"
                         >
                           <RefreshCw className="h-2.5 w-2.5" /> Retry
                         </button>
@@ -425,11 +354,15 @@ export function AskAiChat({
             )
           )}
           {sending && (
-            <div className="mr-auto flex items-center gap-2">
-              <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-foreground/[0.08] text-foreground">
-                <Robot className="h-3 w-3" />
+            <div
+              role="status"
+              aria-label="Waiting for the answer"
+              className="mr-auto flex items-center gap-3"
+            >
+              <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-primary/12 text-primary">
+                <Robot className="h-3.5 w-3.5" />
               </div>
-              <div className="flex items-center gap-1 rounded-2xl rounded-tl-sm bg-foreground/[0.06] px-3.5 py-2.5">
+              <div className="flex items-center gap-1 rounded-full bg-foreground/[0.06] px-3.5 py-2.5">
                 <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-muted-foreground [animation-delay:-0.3s]" />
                 <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-muted-foreground [animation-delay:-0.15s]" />
                 <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-muted-foreground" />
@@ -438,36 +371,182 @@ export function AskAiChat({
           )}
           <div ref={scrollEndRef} />
         </div>
-      </ScrollArea>
-
-      <div className="flex items-end gap-2 rounded-2xl border border-input bg-background p-1.5 pl-3 transition-colors focus-within:border-primary/50 focus-within:ring-2 focus-within:ring-inset focus-within:ring-ring/50">
-        <GrammarTextarea
-          ref={textareaRef}
-          containerClassName="flex-1"
-          // The counter would sit on top of the last line of a short question,
-          // and the right-click menu is the useful part in a chat box anyway.
-          hideCounter
-          className="min-h-[40px] w-full resize-none border-none bg-transparent p-1.5 shadow-none focus-visible:ring-0"
-          placeholder="Type your question… (Enter to send, Shift+Enter for a new line)"
-          value={prompt}
-          onChange={(e) => setPrompt(e.target.value)}
-          onKeyDown={handleKeyDown}
-        />
-        <Button
-          size="icon"
-          className="mb-0.5 h-9 w-9 shrink-0 rounded-full"
-          disabled={sending || !prompt.trim()}
-          onClick={() => void handleSend()}
-        >
-          <Send className="h-4 w-4" />
-        </Button>
       </div>
 
-      {variant === 'modal' && messages.length > 0 && (
-        <div className="flex items-center justify-center gap-4">
+      {/* The composer: one rounded pill like the search box, the question on top and the
+          provider, the model and Send along its bottom edge, the way ChatGPT's reads. */}
+      <div className={cn('shrink-0', isModal ? 'pt-3' : 'px-4 pb-4 pt-1')}>
+        <div className={cn('mx-auto w-full', !isModal && 'max-w-3xl')}>
+          <div className="search-pill flex flex-col gap-1 rounded-[26px] p-2 transition-colors">
+            <GrammarTextarea
+              ref={textareaRef}
+              containerClassName="w-full"
+              // The counter would sit on top of the last line of a short question,
+              // and the right-click menu is the useful part in a chat box anyway.
+              hideCounter
+              aria-label="Ask a question"
+              className="max-h-48 min-h-[44px] w-full resize-none border-none bg-transparent px-2.5 py-2 text-[15px] shadow-none [field-sizing:content] placeholder:text-muted-foreground/70 hover:border-transparent focus-visible:ring-0"
+              placeholder="Ask anything"
+              value={prompt}
+              onChange={(e) => setPrompt(e.target.value)}
+              onKeyDown={handleKeyDown}
+            />
+            <div className="flex flex-wrap items-center gap-1.5">
+              <LayoutGroup id={`ask-ai-provider-${variant}`}>
+                <div
+                  role="group"
+                  aria-label="Provider"
+                  className="flex items-center gap-0.5 rounded-full bg-foreground/[0.05] p-0.5"
+                >
+                  {providerItems.map((item) => {
+                    const active = provider === item.value;
+                    return (
+                      <button
+                        key={item.value}
+                        type="button"
+                        aria-pressed={active}
+                        onClick={() => setProvider(item.value)}
+                        className={cn(
+                          'relative isolate flex h-7 cursor-pointer items-center rounded-full px-3 text-xs font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring',
+                          active ? 'text-primary' : 'text-muted-foreground hover:text-foreground',
+                        )}
+                      >
+                        {active && (
+                          <motion.span
+                            aria-hidden
+                            layoutId={`ask-ai-provider-active-${variant}`}
+                            transition={pillTransition}
+                            className="absolute inset-0 -z-10 rounded-full bg-primary/12 ring-1 ring-inset ring-primary/20"
+                          />
+                        )}
+                        {item.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </LayoutGroup>
+
+              {provider === 'openai' && (
+                <Combobox
+                  className={MODEL_PICKER}
+                  value={openaiModel}
+                  onChange={setOpenaiModel}
+                  options={withCurrent(OPENAI_MODEL_OPTIONS, openaiModel)}
+                  placeholder="Model"
+                  ariaLabel="Model"
+                />
+              )}
+              {provider === 'gemini' && (
+                <>
+                  <Combobox
+                    className={MODEL_PICKER}
+                    value={geminiModel}
+                    onChange={setGeminiModel}
+                    options={geminiModelOptions}
+                    placeholder={geminiModelsQuery.isFetching ? 'Loading models…' : 'Model'}
+                    ariaLabel="Model"
+                    emptyText={
+                      geminiModelsQuery.isError
+                        ? 'Could not load models, check your API key.'
+                        : 'No models found.'
+                    }
+                  />
+                  {!!settingsQuery.data?.geminiApiKey && (
+                    <SimpleTooltip label="Reload the model list">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        aria-label="Reload the model list"
+                        className={ROUND_ICON}
+                        disabled={geminiModelsQuery.isFetching}
+                        onClick={() => void geminiModelsQuery.refetch()}
+                      >
+                        <RefreshCw
+                          className={cn(
+                            'h-3.5 w-3.5',
+                            geminiModelsQuery.isFetching && 'animate-spin',
+                          )}
+                        />
+                      </Button>
+                    </SimpleTooltip>
+                  )}
+                </>
+              )}
+              {provider === 'ollama' && (
+                <>
+                  <Combobox
+                    className={MODEL_PICKER}
+                    value={ollamaModel}
+                    onChange={setOllamaModel}
+                    options={(ollamaModelsQuery.data ?? []).map((name) => ({
+                      value: name,
+                      label: name,
+                    }))}
+                    placeholder={
+                      ollamaModelsQuery.isFetching ? 'Loading models…' : 'Choose a model'
+                    }
+                    ariaLabel="Model"
+                    emptyText="No models found. Is Ollama running?"
+                  />
+                  <SimpleTooltip label="Reload the model list">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      aria-label="Reload the model list"
+                      className={ROUND_ICON}
+                      disabled={ollamaModelsQuery.isFetching}
+                      onClick={() => void ollamaModelsQuery.refetch()}
+                    >
+                      <RefreshCw
+                        className={cn(
+                          'h-3.5 w-3.5',
+                          ollamaModelsQuery.isFetching && 'animate-spin',
+                        )}
+                      />
+                    </Button>
+                  </SimpleTooltip>
+                </>
+              )}
+              {!configured && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 rounded-full bg-warning/12 px-3 text-xs text-warning hover:bg-warning/20 hover:text-warning"
+                  onClick={() => navigate('/settings')}
+                >
+                  <SettingsIcon className="h-3 w-3" /> Add API key
+                </Button>
+              )}
+
+              {/* Its own box, because a disabled button's tooltip wraps it in a span. */}
+              <div className="ml-auto flex shrink-0">
+                <SimpleTooltip label="Send (Enter)" wrapTrigger={sending || !prompt.trim()}>
+                  <Button
+                    size="icon"
+                    aria-label="Send"
+                    className="h-9 w-9 shrink-0 rounded-full"
+                    disabled={sending || !prompt.trim()}
+                    onClick={() => void handleSend()}
+                  >
+                    <ArrowUp className="h-4 w-4" />
+                  </Button>
+                </SimpleTooltip>
+              </div>
+            </div>
+          </div>
+          {!isModal && (
+            <p className="pt-2 text-center text-[11px] text-muted-foreground/80">
+              Enter to send, Shift+Enter for a new line.
+            </p>
+          )}
+        </div>
+      </div>
+
+      {isModal && messages.length > 0 && (
+        <div className="flex items-center justify-center gap-2 pt-3">
           <button
             type="button"
-            className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+            className="flex cursor-pointer items-center gap-1 rounded-full px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:bg-foreground/[0.06] hover:text-foreground"
             onClick={clearMessages}
           >
             <Trash2 className="h-3 w-3" /> Clear
@@ -475,7 +554,7 @@ export function AskAiChat({
           {onRequestViewHistory && (
             <button
               type="button"
-              className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+              className="flex cursor-pointer items-center gap-1 rounded-full px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:bg-foreground/[0.06] hover:text-foreground"
               onClick={onRequestViewHistory}
             >
               <History className="h-3 w-3" /> View full history
@@ -493,18 +572,26 @@ interface MessageActionsProps {
   onToggleBookmark: (id: string) => void;
 }
 
+const MESSAGE_ACTION =
+  'flex h-6 w-6 cursor-pointer items-center justify-center rounded-md transition-colors hover:bg-foreground/[0.06] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring';
+
 function MessageActions({
   message,
   onCopy,
   onToggleBookmark,
 }: MessageActionsProps): React.JSX.Element {
   return (
-    <div className="flex items-center gap-1">
+    // Quiet until the message is hovered or focused, except a bookmark, which stays in view.
+    <div className="flex items-center gap-0.5">
       <SimpleTooltip label="Copy message">
         <button
           type="button"
+          aria-label="Copy message"
           onClick={() => onCopy(message.content)}
-          className="rounded p-0.5 text-muted-foreground transition-colors hover:text-foreground"
+          className={cn(
+            MESSAGE_ACTION,
+            'text-muted-foreground opacity-0 group-focus-within:opacity-100 group-hover:opacity-100 focus-visible:opacity-100',
+          )}
         >
           <Copy className="h-3 w-3" />
         </button>
@@ -512,10 +599,14 @@ function MessageActions({
       <SimpleTooltip label={message.bookmarked ? 'Remove bookmark' : 'Bookmark message'}>
         <button
           type="button"
+          aria-label={message.bookmarked ? 'Remove bookmark' : 'Bookmark message'}
+          aria-pressed={message.bookmarked ?? false}
           onClick={() => onToggleBookmark(message.id)}
           className={cn(
-            'rounded p-0.5 transition-colors hover:text-foreground',
-            message.bookmarked ? 'text-primary' : 'text-muted-foreground',
+            MESSAGE_ACTION,
+            message.bookmarked
+              ? 'text-primary'
+              : 'text-muted-foreground opacity-0 group-focus-within:opacity-100 group-hover:opacity-100 focus-visible:opacity-100',
           )}
         >
           <Bookmark className="h-3 w-3" />

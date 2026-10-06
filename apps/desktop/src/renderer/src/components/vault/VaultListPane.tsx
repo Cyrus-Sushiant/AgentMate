@@ -1,4 +1,5 @@
 import type { VaultEntrySummary, VaultSearchHit, VaultSort } from '@agentmat/core';
+import { LayoutGroup, motion, useReducedMotion } from 'framer-motion';
 import { forwardRef } from 'react';
 import {
   ChevronsUpDown,
@@ -13,7 +14,6 @@ import {
   Vault,
   X,
 } from '@/components/icons';
-import { ProjectEmptyState } from '@/components/projects/ProjectDetailChrome';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -24,7 +24,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Input } from '@/components/ui/input';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import { useShortcutLabel } from '@/stores/shortcutStore';
@@ -42,11 +41,20 @@ const SORT_LABELS: Record<VaultSort, string> = {
   created: 'Newest first',
 };
 
+/** The same small uppercase heading the main menu puts over its groups. */
+const SECTION_HEADING =
+  'select-none text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground/60';
+
+/** A small square icon button for the card header, with the main menu's hover wash. */
+const HEADER_BUTTON =
+  'flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-foreground/[0.06] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring data-[state=open]:bg-foreground/[0.06] data-[state=open]:text-foreground';
+
 export interface VaultListGroup {
   label: string | null;
   hits: VaultSearchHit[];
 }
 
+/** A tag or favorites filter. Rings rather than borders, so the tint is not lost to the theme's border colour. */
 function Chip({
   pressed,
   onClick,
@@ -62,10 +70,10 @@ function Chip({
       aria-pressed={pressed}
       onClick={onClick}
       className={cn(
-        'inline-flex shrink-0 items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs transition-colors',
+        'inline-flex h-6 shrink-0 cursor-pointer items-center gap-1 rounded-full px-2.5 text-[11px] font-medium ring-1 ring-inset transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
         pressed
-          ? 'border-primary/50 bg-primary/15 text-foreground'
-          : 'border-border text-muted-foreground hover:border-foreground/30 hover:text-foreground',
+          ? 'bg-primary/12 text-primary ring-primary/30'
+          : 'text-muted-foreground ring-foreground/[0.1] hover:bg-foreground/[0.06] hover:text-foreground',
       )}
     >
       {children}
@@ -124,6 +132,10 @@ export const VaultListPane = forwardRef<
   const newShortcut = useShortcutLabel('vault.new');
   const lockShortcut = useShortcutLabel('vault.lock');
   const searchShortcut = useShortcutLabel('vault.search');
+  const reduceMotion = useReducedMotion();
+  const pillTransition = reduceMotion
+    ? { duration: 0 }
+    : { type: 'spring' as const, stiffness: 420, damping: 32 };
 
   const counts = new Map<VaultTypeFilter, number>([['all', entries.length]]);
   for (const entry of entries) counts.set(entry.type, (counts.get(entry.type) ?? 0) + 1);
@@ -133,112 +145,131 @@ export const VaultListPane = forwardRef<
 
   return (
     <aside className={cn('flex min-h-0 flex-col', className)}>
-      <div className="space-y-3 border-b border-border/70 p-3">
-        <div className="flex items-center gap-1.5">
-          <div className="relative flex-1">
-            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              ref={searchRef}
-              type="search"
-              role="searchbox"
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              onKeyDown={onSearchKeyDown}
-              placeholder={`Search${searchShortcut ? ` (${searchShortcut})` : ''}`}
-              aria-label="Search the vault"
-              aria-controls={VAULT_LISTBOX_ID}
-              autoComplete="off"
-              spellCheck={false}
-              className="h-8 pl-8 pr-8 [&::-webkit-search-cancel-button]:hidden"
-            />
-            {query && (
-              <button
-                type="button"
-                aria-label="Clear search"
-                className="absolute right-1.5 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
-                onClick={() => setQuery('')}
-              >
-                <X className="h-3 w-3" />
+      <div className="flex h-10 shrink-0 items-center gap-0.5 pl-3.5 pr-1.5">
+        <h2 className={cn(SECTION_HEADING, 'min-w-0 flex-1 truncate')}>Vault</h2>
+        <SimpleTooltip label={newShortcut ? `New entry (${newShortcut})` : 'New entry'}>
+          <button
+            type="button"
+            aria-label="New entry"
+            onClick={() => onNew()}
+            className={HEADER_BUTTON}
+          >
+            <Plus className="h-3.5 w-3.5" />
+          </button>
+        </SimpleTooltip>
+        <DropdownMenu>
+          <SimpleTooltip label="More">
+            <DropdownMenuTrigger asChild>
+              <button type="button" aria-label="More vault actions" className={HEADER_BUTTON}>
+                <EllipsisVertical className="h-3.5 w-3.5" />
               </button>
-            )}
-          </div>
-          <SimpleTooltip label={newShortcut ? `New entry (${newShortcut})` : 'New entry'}>
-            <Button size="icon" className="h-8 w-8" aria-label="New entry" onClick={() => onNew()}>
-              <Plus className="h-3.5 w-3.5" />
-            </Button>
+            </DropdownMenuTrigger>
           </SimpleTooltip>
-          <DropdownMenu>
-            <SimpleTooltip label="More">
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8"
-                  aria-label="More vault actions"
-                >
-                  <EllipsisVertical className="h-3.5 w-3.5" />
-                </Button>
-              </DropdownMenuTrigger>
-            </SimpleTooltip>
-            <DropdownMenuContent align="end" className="w-56">
-              <DropdownMenuItem onSelect={onImport}>
-                <Upload className="h-3.5 w-3.5" />
-                Import from CSV
-              </DropdownMenuItem>
-              <DropdownMenuItem onSelect={onExport} disabled={entries.length === 0}>
-                <Download className="h-3.5 w-3.5" />
-                Export to CSV
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onSelect={onChangePassword}>
-                <Key className="h-3.5 w-3.5" />
-                Change master password
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-          <SimpleTooltip label={lockShortcut ? `Lock vault (${lockShortcut})` : 'Lock vault'}>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8"
-              aria-label="Lock vault"
-              onClick={() => void actions.lock()}
+          <DropdownMenuContent align="end" className="w-56">
+            <DropdownMenuItem onSelect={onImport}>
+              <Upload className="h-3.5 w-3.5" />
+              Import from CSV
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={onExport} disabled={entries.length === 0}>
+              <Download className="h-3.5 w-3.5" />
+              Export to CSV
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onSelect={onChangePassword}>
+              <Key className="h-3.5 w-3.5" />
+              Change master password
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+        <SimpleTooltip label={lockShortcut ? `Lock vault (${lockShortcut})` : 'Lock vault'}>
+          <button
+            type="button"
+            aria-label="Lock vault"
+            onClick={() => void actions.lock()}
+            className={HEADER_BUTTON}
+          >
+            <Lock className="h-3.5 w-3.5" />
+          </button>
+        </SimpleTooltip>
+      </div>
+
+      <div className="shrink-0 space-y-2.5 px-2 pb-2">
+        <div className="search-pill flex h-8 items-center gap-1.5 rounded-full pl-3 pr-1 transition-colors">
+          <Search className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+          <input
+            ref={searchRef}
+            type="search"
+            role="searchbox"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            onKeyDown={onSearchKeyDown}
+            placeholder={`Search${searchShortcut ? ` (${searchShortcut})` : ''}`}
+            aria-label="Search the vault"
+            aria-controls={VAULT_LISTBOX_ID}
+            autoComplete="off"
+            spellCheck={false}
+            className="h-full min-w-0 flex-1 bg-transparent text-[13px] outline-none placeholder:text-muted-foreground/70 [&::-webkit-search-cancel-button]:appearance-none"
+          />
+          {query && (
+            <button
+              type="button"
+              aria-label="Clear search"
+              className="flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-foreground/10 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              onClick={() => setQuery('')}
             >
-              <Lock className="h-3.5 w-3.5" />
-            </Button>
-          </SimpleTooltip>
+              <X className="h-3 w-3" />
+            </button>
+          )}
         </div>
 
         {entries.length > 0 && (
           <>
-            <div role="tablist" aria-label="Entry types" className="flex gap-1 overflow-x-auto">
-              {(['all', ...ENTRY_TYPE_ORDER] as VaultTypeFilter[])
-                .filter((type) => type === 'all' || (counts.get(type) ?? 0) > 0)
-                .map((type) => {
-                  const selected = typeFilter === type;
-                  const label = type === 'all' ? 'All' : ENTRY_TYPE_META[type].plural;
-                  return (
-                    <button
-                      key={type}
-                      type="button"
-                      role="tab"
-                      aria-selected={selected}
-                      onClick={() => setTypeFilter(type)}
-                      className={cn(
-                        'flex shrink-0 items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium transition-colors',
-                        selected
-                          ? 'bg-secondary text-foreground'
-                          : 'text-muted-foreground hover:text-foreground',
-                      )}
-                    >
-                      {label}
-                      <span className="tabular-nums text-muted-foreground">
-                        {counts.get(type) ?? 0}
-                      </span>
-                    </button>
-                  );
-                })}
-            </div>
+            {/* A pill group, the same shape as the segmented controls elsewhere. */}
+            <LayoutGroup id="vault-types">
+              <div
+                role="tablist"
+                aria-label="Entry types"
+                className="search-pill flex gap-0.5 overflow-x-auto rounded-full p-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+              >
+                {(['all', ...ENTRY_TYPE_ORDER] as VaultTypeFilter[])
+                  .filter((type) => type === 'all' || (counts.get(type) ?? 0) > 0)
+                  .map((type) => {
+                    const selected = typeFilter === type;
+                    const label = type === 'all' ? 'All' : ENTRY_TYPE_META[type].plural;
+                    return (
+                      <button
+                        key={type}
+                        type="button"
+                        role="tab"
+                        aria-selected={selected}
+                        onClick={() => setTypeFilter(type)}
+                        className={cn(
+                          'relative isolate flex h-6 shrink-0 cursor-pointer items-center gap-1.5 rounded-full px-2.5 text-[11px] font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring',
+                          selected ? 'text-primary' : 'text-muted-foreground hover:text-foreground',
+                        )}
+                      >
+                        {selected && (
+                          <motion.span
+                            aria-hidden
+                            layoutId="vault-type-active"
+                            transition={pillTransition}
+                            className="absolute inset-0 -z-10 rounded-full bg-primary/12 ring-1 ring-inset ring-primary/20"
+                          />
+                        )}
+                        {label}
+                        <span
+                          className={cn(
+                            'tabular-nums',
+                            selected ? 'text-primary/70' : 'text-muted-foreground/70',
+                          )}
+                        >
+                          {counts.get(type) ?? 0}
+                        </span>
+                      </button>
+                    );
+                  })}
+              </div>
+            </LayoutGroup>
 
             {(hasFavorites || knownTags.length > 0) && (
               <div className="flex flex-wrap items-center gap-1.5">
@@ -256,8 +287,8 @@ export const VaultListPane = forwardRef<
               </div>
             )}
 
-            <div className="flex items-center justify-between text-xs text-muted-foreground">
-              <span aria-live="polite">
+            <div className="flex items-center justify-between px-1 text-[11px] text-muted-foreground">
+              <span aria-live="polite" className="tabular-nums">
                 {searching || filtered
                   ? `${visibleCount} ${visibleCount === 1 ? 'result' : 'results'}`
                   : `${entries.length} ${entries.length === 1 ? 'entry' : 'entries'}`}
@@ -266,7 +297,7 @@ export const VaultListPane = forwardRef<
                 <DropdownMenuTrigger asChild>
                   <button
                     type="button"
-                    className="inline-flex items-center gap-1 rounded px-1 py-0.5 hover:text-foreground"
+                    className="inline-flex cursor-pointer items-center gap-1 rounded-full px-2 py-0.5 transition-colors hover:bg-foreground/[0.06] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                     aria-label={`Sort: ${SORT_LABELS[sort]}`}
                   >
                     {searching ? 'Best match' : SORT_LABELS[sort]}
@@ -291,83 +322,92 @@ export const VaultListPane = forwardRef<
         )}
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto p-2">
+      <div className="rail-scroll min-h-0 flex-1 overflow-y-auto px-2 pb-2">
         {entries.length === 0 ? (
-          <div className="p-2">
-            <ProjectEmptyState
-              icon={Vault}
-              title="Your vault is empty"
-              description="Add logins, API keys and private notes, or bring them over from your browser or another password manager."
-              action={
-                <div className="flex flex-wrap justify-center gap-2">
-                  <Button size="sm" onClick={() => onNew()}>
-                    <Plus className="h-3 w-3" />
-                    Add your first entry
-                  </Button>
-                  <Button size="sm" variant="outline" onClick={onImport}>
-                    <Upload className="h-3 w-3" />
-                    Import from CSV
-                  </Button>
-                </div>
-              }
-            />
+          <div className="flex flex-col items-center gap-3 px-3 pb-6 pt-10 text-center">
+            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-primary/12 text-primary shadow-[0_0_40px_-12px_hsl(var(--primary)/0.7)]">
+              <Vault className="h-5 w-5" />
+            </div>
+            <div className="space-y-1">
+              <p className="text-sm font-medium">Your vault is empty</p>
+              <p className="text-xs leading-relaxed text-muted-foreground">
+                Add logins, API keys and private notes, or bring them over from your browser or
+                another password manager.
+              </p>
+            </div>
+            <div className="flex flex-wrap justify-center gap-2">
+              <Button size="sm" className="rounded-full" onClick={() => onNew()}>
+                <Plus className="h-3 w-3" />
+                Add your first entry
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="search-pill rounded-full text-foreground/85 hover:text-foreground"
+                onClick={onImport}
+              >
+                <Upload className="h-3 w-3" />
+                Import from CSV
+              </Button>
+            </div>
           </div>
         ) : visibleCount === 0 ? (
           <div className="flex flex-col items-center gap-3 px-4 py-10 text-center">
-            <p className="text-sm text-muted-foreground">
+            <Search className="h-4 w-4 text-muted-foreground/60" />
+            <p className="text-xs text-muted-foreground">
               {trimmed ? `Nothing matches "${trimmed}"` : 'Nothing matches these filters'}
             </p>
             <div className="flex flex-wrap justify-center gap-2">
               {trimmed && (
-                <Button size="sm" variant="outline" onClick={() => onNew(trimmed)}>
+                <Button size="sm" className="rounded-full" onClick={() => onNew(trimmed)}>
                   <Plus className="h-3 w-3" />
                   Create "{trimmed}"
                 </Button>
               )}
               {filtered && (
-                <Button size="sm" variant="ghost" onClick={clearFilters}>
+                <Button size="sm" variant="ghost" className="rounded-full" onClick={clearFilters}>
                   Clear filters
                 </Button>
               )}
             </div>
           </div>
         ) : (
-          <div
-            id={VAULT_LISTBOX_ID}
-            role="listbox"
-            aria-label="Vault entries"
-            aria-activedescendant={selectedId ? vaultOptionId(selectedId) : undefined}
-            tabIndex={0}
-            className="space-y-3 outline-none"
-          >
-            {groups.map((group) => (
-              <div
-                key={group.label ?? 'all'}
-                role="group"
-                aria-label={group.label ?? 'Entries'}
-                className="space-y-0.5"
-              >
-                {group.label && (
-                  <p
-                    aria-hidden="true"
-                    className="px-2.5 pb-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground"
-                  >
-                    {group.label}
-                  </p>
-                )}
-                {group.hits.map((hit) => (
-                  <VaultEntryRow
-                    key={hit.summary.id}
-                    entry={hit.summary}
-                    titleRanges={hit.titleRanges}
-                    selected={hit.summary.id === selectedId}
-                    onSelect={() => onSelect(hit.summary.id)}
-                    actions={actions}
-                  />
-                ))}
-              </div>
-            ))}
-          </div>
+          <LayoutGroup id="vault-entries">
+            <div
+              id={VAULT_LISTBOX_ID}
+              role="listbox"
+              aria-label="Vault entries"
+              aria-activedescendant={selectedId ? vaultOptionId(selectedId) : undefined}
+              tabIndex={0}
+              className="space-y-3 rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+            >
+              {groups.map((group) => (
+                <div
+                  key={group.label ?? 'all'}
+                  role="group"
+                  aria-label={group.label ?? 'Entries'}
+                  className="flex flex-col gap-px"
+                >
+                  {group.label && (
+                    <p aria-hidden="true" className={cn(SECTION_HEADING, 'px-2.5 pb-1 pt-1')}>
+                      {group.label}
+                    </p>
+                  )}
+                  {group.hits.map((hit) => (
+                    <VaultEntryRow
+                      key={hit.summary.id}
+                      entry={hit.summary}
+                      titleRanges={hit.titleRanges}
+                      selected={hit.summary.id === selectedId}
+                      onSelect={() => onSelect(hit.summary.id)}
+                      actions={actions}
+                      pillTransition={pillTransition}
+                    />
+                  ))}
+                </div>
+              ))}
+            </div>
+          </LayoutGroup>
         )}
       </div>
     </aside>

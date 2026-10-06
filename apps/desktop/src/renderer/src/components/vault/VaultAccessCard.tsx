@@ -33,15 +33,18 @@ export function VaultAccessCard({
     <div className="flex min-h-full flex-1 items-center justify-center p-6">
       <motion.div
         animate={controls}
-        className="glass w-full max-w-md rounded-2xl border border-border/70 p-8 shadow-xl shadow-black/10"
+        className="glass w-full max-w-md rounded-[calc(var(--radius)+2px)] px-8 pb-8 pt-9"
       >
         <div className="mb-6 flex flex-col items-center text-center">
-          <div className="relative mb-5 flex h-16 w-16 items-center justify-center">
-            <span className="absolute inset-0 rounded-full border border-primary/25" />
-            <span className="absolute inset-2 rounded-full border border-primary/40 bg-primary/10" />
-            <Icon className="relative h-5 w-5 text-primary" />
+          {/* The glowing tile every empty state uses, with a faint keyhole ring around it. */}
+          <div className="relative mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/12 text-primary shadow-[0_0_40px_-12px_hsl(var(--primary)/0.7)]">
+            <span
+              aria-hidden
+              className="absolute -inset-2 rounded-[1.25rem] ring-1 ring-inset ring-primary/20"
+            />
+            <Icon className="relative h-6 w-6" />
           </div>
-          <h2 className="text-lg font-semibold">{title}</h2>
+          <h2 className="text-lg font-semibold tracking-tight">{title}</h2>
           {description && (
             <p className="mt-1.5 max-w-sm text-sm text-muted-foreground">{description}</p>
           )}

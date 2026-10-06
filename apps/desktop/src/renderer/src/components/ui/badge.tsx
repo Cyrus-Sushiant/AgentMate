@@ -2,20 +2,21 @@ import { cva, type VariantProps } from 'class-variance-authority';
 import * as React from 'react';
 import { cn } from '@/lib/utils';
 
+// Badges are borderless tinted chips like the page kit's. A border would only ever show the
+// global `--border` colour, since the unlayered `* { border-color }` rule beats any border
+// colour utility, so the outline variant draws its edge with an inset ring instead.
 const badgeVariants = cva(
-  'inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium transition-colors',
+  'inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium transition-colors',
   {
     variants: {
       variant: {
         default:
-          'border-transparent bg-primary text-primary-foreground shadow-[0_0_12px_-4px_hsl(var(--primary)/0.55)]',
-        secondary: 'border-border bg-secondary text-secondary-foreground',
-        outline: 'border-border bg-transparent text-foreground',
-        success:
-          'border-success/30 bg-success/10 dark:bg-success/15 text-success shadow-[0_0_12px_-2px_hsl(var(--success)/0.5)]',
-        warning:
-          'border-warning/30 bg-warning/10 dark:bg-warning/15 text-warning shadow-[0_0_12px_-2px_hsl(var(--warning)/0.5)]',
-        destructive: 'border-transparent bg-destructive text-destructive-foreground',
+          'bg-primary text-primary-foreground shadow-[0_0_12px_-4px_hsl(var(--primary)/0.55)]',
+        secondary: 'bg-foreground/[0.06] text-foreground/80',
+        outline: 'text-muted-foreground ring-1 ring-inset ring-foreground/[0.12]',
+        success: 'bg-success/12 text-success',
+        warning: 'bg-warning/12 text-warning',
+        destructive: 'bg-destructive/12 text-destructive',
       },
     },
     defaultVariants: { variant: 'default' },

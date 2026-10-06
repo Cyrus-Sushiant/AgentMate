@@ -9,6 +9,7 @@ import {
 } from '@agentmat/core';
 import { useMemo } from 'react';
 import { CircleCheck, Shield, Sparkles, TriangleAlert } from '@/components/icons';
+import { Chip } from '@/components/pageKit';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import type { SkillAuditRecord } from '../../../../shared/apiTypes';
@@ -19,22 +20,22 @@ const VERDICT_STYLE: Record<
 > = {
   safe: {
     badge: 'success',
-    frame: 'border-success/40 bg-success/10',
+    frame: 'ring-success/30 bg-success/10',
     blurb: 'Nothing in this skill matched a known attack pattern.',
   },
   caution: {
     badge: 'warning',
-    frame: 'border-warning/40 bg-warning/10',
+    frame: 'ring-warning/30 bg-warning/10',
     blurb: 'A few things are worth reading before you trust this skill.',
   },
   risky: {
     badge: 'destructive',
-    frame: 'border-destructive/40 bg-destructive/10',
+    frame: 'ring-destructive/30 bg-destructive/10',
     blurb: 'This skill can do real damage if the findings below are what they look like.',
   },
   dangerous: {
     badge: 'destructive',
-    frame: 'border-destructive/50 bg-destructive/15',
+    frame: 'ring-destructive/40 bg-destructive/15',
     blurb: 'Several serious patterns matched. Do not install this without reading every finding.',
   },
 };
@@ -59,15 +60,11 @@ export function SkillAuditVerdictBadge({
   className?: string;
 }): React.JSX.Element {
   return (
-    <Badge variant={VERDICT_STYLE[verdict].badge} className={cn('gap-1.5', className)}>
-      {verdict === 'safe' ? (
-        <CircleCheck className="h-3 w-3" />
-      ) : (
-        <TriangleAlert className="h-3 w-3" />
-      )}
+    <Chip tone={VERDICT_STYLE[verdict].badge} className={className}>
+      {verdict === 'safe' ? <CircleCheck /> : <TriangleAlert />}
       {SKILL_AUDIT_VERDICT_LABEL[verdict]}
       {score !== undefined ? ` · ${score}` : ''}
-    </Badge>
+    </Chip>
   );
 }
 
@@ -118,7 +115,12 @@ export function SkillAuditReport({ record }: { record: SkillAuditRecord }): Reac
 
   return (
     <div className="space-y-4">
-      <div className={cn('flex items-center gap-4 rounded-lg border px-4 py-3', style.frame)}>
+      <div
+        className={cn(
+          'flex items-center gap-4 rounded-lg px-4 py-3 ring-1 ring-inset',
+          style.frame,
+        )}
+      >
         <Shield className="h-7 w-7 shrink-0 text-foreground" />
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">

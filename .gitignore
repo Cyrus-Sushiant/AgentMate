@@ -25,3 +25,8 @@ apps/desktop/playwright-report/
 apps/server-core/**/bin/
 apps/server-core/**/obj/
 apps/server-core/artifacts/
+
+# WordPress connector plugin: Composer dev tools, PHPUnit cache, and the file activation writes
+apps/wordpress-connector/vendor/
+apps/wordpress-connector/.phpunit.cache/
+apps/wordpress-connector/rescue-config.php

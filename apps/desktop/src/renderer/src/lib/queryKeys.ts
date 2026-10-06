@@ -225,6 +225,27 @@ export const queryKeys = {
   deployRegistryServer: (serverId: string) => ['deploy', 'registries', 'server', serverId] as const,
   /** Which sign-in goes with an app's deploys, per registry it pulls from. */
   deployRegistryPlan: (input: object) => ['deploy', 'registries', 'plan', input] as const,
+  /**
+   * WordPress sites connected through the AgentMate Connector (E19 to E21). Under `deploy`, so
+   * unlocking the Servers vault refreshes them with everything else.
+   */
+  deployWordPressSites: ['deploy', 'wordpress', 'sites'] as const,
+  /** Prefix of everything read from one site. */
+  deployWordPressSite: (siteId: string) => ['deploy', 'wordpress', 'site', siteId] as const,
+  deployWordPressSiteInfo: (siteId: string) =>
+    ['deploy', 'wordpress', 'site', siteId, 'info'] as const,
+  deployWordPressItems: (siteId: string) =>
+    ['deploy', 'wordpress', 'site', siteId, 'items'] as const,
+  deployWordPressHistory: (siteId: string) =>
+    ['deploy', 'wordpress', 'site', siteId, 'history'] as const,
+  deployWordPressAudit: (siteId: string, filter: object) =>
+    ['deploy', 'wordpress', 'site', siteId, 'audit', filter] as const,
+  /** How far a WordPress project's folder has moved from its last sync. */
+  projectWordPressChanges: (projectId: string) =>
+    ['deploy', 'wordpress', 'project', projectId, 'changes'] as const,
+  /** A site file for the diff view in a WordPress project. */
+  projectWordPressRemoteFile: (projectId: string, itemKey: string, path: string) =>
+    ['deploy', 'wordpress', 'project', projectId, 'remote-file', itemKey, path] as const,
   /** Whether a Cloudflare token is saved, and what its last check found. */
   cloudflareStatus: ['cloudflare', 'status'] as const,
   /** Prefix of everything read with the Cloudflare token, dropped when the token changes. */

@@ -60,6 +60,8 @@ function codexTokenCount(fields: {
   reasoning?: number;
   usedPercent?: number;
   resetsAt?: number;
+  /** The whole `rate_limits` object, for snapshots with more than a primary window. */
+  rateLimits?: Record<string, unknown>;
 }): string {
   return `${JSON.stringify({
     timestamp: new Date(fields.at).toISOString(),
@@ -75,9 +77,10 @@ function codexTokenCount(fields: {
         },
       },
       rate_limits:
-        fields.usedPercent === undefined
+        fields.rateLimits ??
+        (fields.usedPercent === undefined
           ? null
-          : { primary: { used_percent: fields.usedPercent, resets_at: fields.resetsAt } },
+          : { primary: { used_percent: fields.usedPercent, resets_at: fields.resetsAt } }),
     },
   })}\n`;
 }
@@ -430,5 +433,73 @@ describe('Codex logs', () => {
     const result = await scanCodex();
 
     expect(result.window?.percent).toBe(80);
+  });
+
+  it('keeps both the session and the weekly limit, and the plan they belong to', async () => {
+    const sessionReset = Math.floor((now + 2 * HOUR_MS) / 1000);
+    const weekReset = Math.floor((now + 50 * HOUR_MS) / 1000);
+    writeCodexLog('rollout.jsonl', [
+      codexTokenCount({
+        at: now - HOUR_MS,
+        input: 10,
+        output: 1,
+        rateLimits: {
+          primary: { used_percent: 22, window_minutes: 300, resets_at: sessionReset },
+          secondary: { used_percent: 140, window_minutes: 10080, resets_at: weekReset },
+          plan_type: 'plus',
+        },
+      }),
+    ]);
+
+    const result = await scanCodex();
+
+    expect(result.limits).toEqual({
+      windows: [
+        { minutes: 300, percent: 22, resetAt: new Date(sessionReset * 1000).toISOString() },
+        { minutes: 10080, percent: 100, resetAt: new Date(weekReset * 1000).toISOString() },
+      ],
+      planType: 'plus',
+      at: now - HOUR_MS,
+    });
+  });
+
+  it('reads a free plan with a single 30-day limit and no second window', async () => {
+    writeCodexLog('rollout.jsonl', [
+      codexTokenCount({
+        at: now,
+        input: 10,
+        output: 1,
+        rateLimits: {
+          primary: { used_percent: 21, window_minutes: 43200 },
+          secondary: null,
+          plan_type: 'free',
+        },
+      }),
+    ]);
+
+    const result = await scanCodex();
+
+    expect(result.limits?.windows).toEqual([{ minutes: 43200, percent: 21, resetAt: null }]);
+    expect(result.limits?.planType).toBe('free');
+  });
+
+  it('takes the limits from the newest snapshot across several session files', async () => {
+    writeCodexLog('older.jsonl', [
+      codexTokenCount({ at: now - 5 * HOUR_MS, input: 10, output: 1, usedPercent: 10 }),
+    ]);
+    writeCodexLog('newer.jsonl', [
+      codexTokenCount({ at: now - HOUR_MS, input: 10, output: 1, usedPercent: 80 }),
+    ]);
+
+    const result = await scanCodex();
+
+    expect(result.limits?.windows.map((w) => w.percent)).toEqual([80]);
+    expect(result.limits?.planType).toBeNull();
+  });
+
+  it('reports no limits when the logs carry none, as with an API key login', async () => {
+    writeCodexLog('rollout.jsonl', [codexTokenCount({ at: now, input: 10, output: 1 })]);
+
+    expect((await scanCodex()).limits).toBeUndefined();
   });
 });

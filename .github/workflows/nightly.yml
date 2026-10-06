@@ -212,6 +212,82 @@ jobs:
             apps/desktop/playwright-report
             apps/desktop/test-results
 
+  # E19 to E21: Playwright driving the built app against the AgentMate Connector on WordPress in
+  # Docker (deployWordPress.e2e.ts): connect with a key, a WordPress project, a deploy that leaves
+  # agent files behind, a refused syntax error, a rollback by the site's guard and one by hand.
+  wordpress-e2e:
+    name: WordPress e2e
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      electron_config_cache: ${{ github.workspace }}/.cache/electron
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Display and Electron libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb libnss3 libgbm1 libasound2t64 libxss1 libxtst6
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: pnpm
+
+      - name: Cache Electron binary
+        uses: actions/cache@v6
+        with:
+          path: .cache/electron
+          key: electron-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            electron-${{ runner.os }}-${{ runner.arch }}-
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Electron binary
+        run: |
+          for attempt in 1 2 3; do
+            pnpm --filter @agentmat/desktop exec install-electron && exit 0
+            echo "attempt $attempt failed, retrying in 15s"
+            sleep 15
+          done
+          exit 1
+
+      - name: Build workspace packages
+        run: pnpm build:packages
+
+      - name: Rebuild native modules for Electron
+        run: pnpm --filter @agentmat/desktop rebuild:native
+
+      - name: Build the connector zip
+        run: node scripts/wordpress-connector.mjs build
+
+      - name: WordPress end to end
+        env:
+          AGENTMATE_SYSTEM_TESTS: "1"
+          AGENTMATE_E2E_NO_SANDBOX: "1"
+        run: >-
+          xvfb-run --auto-servernum --server-args="-screen 0 1920x1080x24"
+          pnpm --filter @agentmat/desktop test:e2e deployWordPress.e2e.ts
+
+      - name: Upload report and traces
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: wordpress-e2e
+          retention-days: 14
+          if-no-files-found: ignore
+          path: |
+            apps/desktop/playwright-report
+            apps/desktop/test-results
+
   # The server core's own system tests (xUnit): every nginx renderer variant through a real
   # nginx -t on nginx.org's packages for Debian 13 and Rocky 9 (E10), and certificates issued and
   # renewed by Pebble through real nginx (E11). They need Linux with Docker, which no push runs.

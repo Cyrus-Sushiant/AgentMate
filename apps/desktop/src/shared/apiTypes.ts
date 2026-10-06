@@ -19,6 +19,7 @@ import type {
   ProjectDraft,
   ProjectNotificationSettings,
   ProjectRunCommand,
+  ProjectWordPressLink,
   ProjectWorktreeSetup,
   ProxyMode,
   PullRequestInfo,
@@ -307,6 +308,11 @@ export interface CreateProjectInput {
   prompt?: string;
   /** What new worktrees of this project get: a setup command and files to copy. */
   worktreeSetup?: ProjectWorktreeSetup;
+  /**
+   * The WordPress site and items the project mirrors (E21). Only the WordPress project flow sets
+   * it, through `deployWordPress.createProject`; `projects.create` ignores it.
+   */
+  wordpress?: ProjectWordPressLink;
 }
 
 export interface FaviconResult {
@@ -952,6 +958,25 @@ export interface HelpIndexStatus {
   backend: 'sqlite-vec' | 'js';
   /** `<provider>:<model>`, or null when the provider is not set up. */
   embedder: string | null;
+}
+
+export interface HelpReindexResult {
+  ok: boolean;
+  /** Passages that now have a vector from the provider's current model. */
+  embedded: number;
+  total: number;
+  /** Earlier models of the provider whose vectors were dropped, as `<provider>:<model>`. */
+  removedModels: string[];
+  error?: string;
+  cancelled?: boolean;
+}
+
+/** An embedding model the help search can use, for the picker in Settings. */
+export interface HelpEmbeddingModelOption {
+  value: string;
+  label: string;
+  /** Set for Ollama models already on the server. */
+  installed?: boolean;
 }
 
 export interface HelpIndexProgress {

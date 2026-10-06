@@ -10,6 +10,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { MULTILINE_FIELD_RADIUS } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
 
 type Phase =
@@ -100,7 +101,8 @@ export function LocalReviewDialog({
             onChange={(event) => setText(event.target.value)}
             rows={14}
             className={cn(
-              'block w-full resize-y rounded-lg border border-input bg-background/60 px-3 py-2 font-mono text-[12px] leading-relaxed outline-none focus:border-primary/50 focus:ring-2 focus:ring-primary/15',
+              'field-surface block w-full resize-y px-3.5 py-2 font-mono text-[12px] leading-relaxed outline-none',
+              MULTILINE_FIELD_RADIUS,
               phase.kind === 'reviewing' && 'shimmer',
             )}
           />

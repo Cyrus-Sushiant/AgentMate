@@ -240,6 +240,42 @@ describe('SettingsPage general rows', () => {
   });
 });
 
+describe('SettingsPage status bar limits', () => {
+  it('has a switch per provider, all on for a settings file that predates them', async () => {
+    renderSettings();
+    await screen.findByText('Status bar limits');
+
+    for (const name of ['Claude Code', 'Codex', 'Cursor']) {
+      expect(
+        screen.getByRole('switch', { name: `Show ${name} limits in the status bar` }),
+      ).toBeChecked();
+    }
+  });
+
+  it('hides one provider and keeps the others as they were', async () => {
+    const { user, bridge } = renderSettings();
+    await screen.findByText('Status bar limits');
+
+    await user.click(screen.getByRole('switch', { name: 'Show Codex limits in the status bar' }));
+
+    await waitFor(() =>
+      expect(bridge.$fn('settings.update')).toHaveBeenCalledWith({
+        statusBarUsage: { 'claude-code': true, codex: false, cursor: true },
+      }),
+    );
+  });
+
+  it('is found by searching for the status bar', async () => {
+    const { user } = renderSettings();
+    await screen.findByText('Status bar limits');
+
+    await user.type(screen.getByLabelText('Search settings'), 'status bar');
+
+    expect(await screen.findByText('Status bar limits')).toBeInTheDocument();
+    expect(screen.queryByText('Keep terminals running')).toBeNull();
+  });
+});
+
 describe('SettingsPage startup page', () => {
   it('opens on the last page unless the user picks another', async () => {
     renderSettings();
@@ -690,5 +726,30 @@ describe('SettingsPage unsaved changes', () => {
 
     await waitFor(() => expect(screen.queryByText('Unsaved changes')).toBeNull());
     expect(bridge.settings.update).not.toHaveBeenCalled();
+  });
+
+  it('draws the save bar as pills, with Save as the primary one and Discard as a soft one', async () => {
+    const { user } = renderSettings();
+    await screen.findByText('Projects folder');
+    await user.type(within(card('Projects folder')).getByRole('textbox'), 'C:/Work');
+    await screen.findByText('Unsaved changes');
+
+    const save = screen.getByRole('button', { name: /Save changes/ });
+    const discard = screen.getByRole('button', { name: 'Discard' });
+    expect(save).toHaveClass('rounded-full', 'bg-primary');
+    expect(discard).toHaveClass('rounded-full', 'search-pill');
+    expect(discard).not.toHaveClass('bg-primary');
+  });
+});
+
+describe('SettingsPage help search', () => {
+  it('is found by searching for embedding', async () => {
+    const { user } = renderSettings();
+    await screen.findByText('Appearance');
+
+    await user.type(screen.getByLabelText('Search settings'), 'embedding');
+
+    expect(await screen.findByText('Help search')).toBeInTheDocument();
+    expect(screen.queryByText('Appearance')).toBeNull();
   });
 });

@@ -208,6 +208,30 @@ describe('settings migrations', () => {
     expect((await store.getSettings()).desktopPetNetworkQuality).toBe(true);
   });
 
+  it('gives every status bar provider an on or off, keeping only a saved false as off', async () => {
+    userData.writeData('settings.json', {
+      statusBarUsage: { codex: false, cursor: 'no', gemini: false },
+    });
+    const { store } = await loadStore();
+
+    expect((await store.getSettings()).statusBarUsage).toEqual({
+      'claude-code': true,
+      codex: false,
+      cursor: true,
+    });
+  });
+
+  it('shows every status bar provider when the saved value is not an object', async () => {
+    userData.writeData('settings.json', { statusBarUsage: 'off' });
+    const { store } = await loadStore();
+
+    expect((await store.getSettings()).statusBarUsage).toEqual({
+      'claude-code': true,
+      codex: true,
+      cursor: true,
+    });
+  });
+
   it('falls back to the system theme when the saved value is not a theme', async () => {
     userData.writeData('settings.json', { theme: 'neon' });
     const { store } = await loadStore();
@@ -780,5 +804,48 @@ describe('worktree records', () => {
 
     await store.setWorktrees([{ ...good, branch: null }]);
     expect(await store.getWorktrees()).toEqual([{ ...good, branch: null }]);
+  });
+});
+
+describe('help embedding models', () => {
+  it('starts with no model picked for any provider', async () => {
+    const { store } = await loadStore();
+
+    expect((await store.getSettings()).helpEmbeddingModels).toEqual({});
+  });
+
+  it('cleans a hand-edited value on read', async () => {
+    userData.writeData('settings.json', {
+      helpEmbeddingModels: {
+        openai: '  text-embedding-3-large  ',
+        gemini: 7,
+        ollama: '   ',
+        anthropic: 'not-a-provider',
+      },
+    });
+    const { store } = await loadStore();
+
+    // Anything unusable is dropped, so search falls back to the catalog default for it.
+    expect((await store.getSettings()).helpEmbeddingModels).toEqual({
+      openai: 'text-embedding-3-large',
+    });
+  });
+
+  it('reads a block that is not an object as no picks', async () => {
+    userData.writeData('settings.json', { helpEmbeddingModels: ['bge-m3'] });
+    const { store } = await loadStore();
+
+    expect((await store.getSettings()).helpEmbeddingModels).toEqual({});
+  });
+
+  it('keeps a picked model through a save and reload', async () => {
+    const { store } = await loadStore();
+
+    await store.updateSettings((current) => ({
+      ...current,
+      helpEmbeddingModels: { ...current.helpEmbeddingModels, ollama: 'bge-m3' },
+    }));
+
+    expect((await store.getSettings()).helpEmbeddingModels).toEqual({ ollama: 'bge-m3' });
   });
 });

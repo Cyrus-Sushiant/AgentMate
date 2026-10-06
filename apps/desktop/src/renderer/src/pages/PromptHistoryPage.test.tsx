@@ -295,3 +295,20 @@ describe('PromptHistoryPage tags', () => {
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith('Could not update tags.'));
   });
 });
+
+describe('PromptHistoryPage search box', () => {
+  it('clears the search with Escape and lists everything again', async () => {
+    const { user } = renderWithProviders(<PromptHistoryPage />, {
+      bridge: { 'promptHistory.list': [entry()], 'promptHistory.search': [] },
+    });
+
+    await screen.findByText('You are a senior engineer. Build a login form.');
+    await user.type(searchBox(), 'nope');
+    expect(await screen.findByText('No matching prompts found.')).toBeTruthy();
+
+    await user.keyboard('{Escape}');
+
+    expect(searchBox()).toHaveValue('');
+    expect(await screen.findByText('You are a senior engineer. Build a login form.')).toBeTruthy();
+  });
+});

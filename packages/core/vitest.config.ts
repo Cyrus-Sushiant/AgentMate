@@ -28,6 +28,8 @@ export default defineConfig({
         'src/deploy/catalog/**': { lines: 90, branches: 85 },
         // The prompt a container's log turns into, which must never carry an environment value.
         'src/deploy/prompts.ts': { lines: 95, branches: 90 },
+        // The WordPress connector protocol (E19): what is signed, what is refused, what syncs.
+        'src/deploy/wordpress/**': { lines: 95, branches: 90 },
       },
     },
   },

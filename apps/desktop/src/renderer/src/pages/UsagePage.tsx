@@ -35,10 +35,20 @@ import {
   TriangleAlert,
   X,
 } from '@/components/icons';
+import {
+  Chip,
+  GLASS_CARD,
+  MetricTile,
+  PILL_PRIMARY,
+  PILL_SOFT,
+  PILL_SOFT_ICON,
+  SearchPill,
+  TILE_ACTION,
+  TileHeader,
+  TOOLBAR,
+} from '@/components/pageKit';
 import { ProviderLogo } from '@/components/providerLogos';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
 import {
   Dialog,
   DialogContent,
@@ -49,7 +59,6 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
-import { StatTile } from '@/components/ui/stat-tile';
 import { Switch } from '@/components/ui/switch';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { AllAgentsCharts } from '@/components/usage/AllAgentsCharts';
@@ -247,10 +256,10 @@ export default function UsagePage(): React.JSX.Element {
         <Button
           variant="ghost"
           size="icon"
-          className={cn('h-5 w-5', pinned && 'text-primary')}
+          className={cn(TILE_ACTION, pinned && 'text-primary hover:text-primary')}
           onClick={() => void toggleSummaryDashboard(id, label)}
         >
-          <LayoutDashboard className="h-3 w-3" />
+          <LayoutDashboard />
         </Button>
       </SimpleTooltip>
     );
@@ -330,31 +339,36 @@ export default function UsagePage(): React.JSX.Element {
   }
 
   return (
-    <div className="space-y-6 p-6">
-      <div className="flex flex-wrap items-center gap-2">
-        <Button onClick={() => setAddOpen(true)}>
+    <div className="flex flex-col gap-2 p-2">
+      <div className={TOOLBAR}>
+        <Button className={PILL_PRIMARY} onClick={() => setAddOpen(true)}>
           <Plus /> Add provider
         </Button>
-        <Button variant="outline" onClick={() => void refreshAll()}>
+        <Button variant="ghost" className={PILL_SOFT} onClick={() => void refreshAll()}>
           <RefreshCw className={usageQuery.isFetching ? 'animate-spin' : undefined} /> Refresh
         </Button>
+        {editing && (
+          <span className="hidden pl-1 text-xs text-muted-foreground sm:inline">
+            Drag a card by its handle to move it.
+          </span>
+        )}
         <SimpleTooltip label={editing ? 'Done editing' : 'Edit card order'}>
           <Button
-            variant={editing ? 'default' : 'outline'}
+            variant={editing ? 'default' : 'ghost'}
             size="icon"
-            className="ml-auto"
+            className={cn('ml-auto', editing ? 'h-8 w-8 rounded-full' : PILL_SOFT_ICON)}
             aria-label={editing ? 'Done editing' : 'Edit card order'}
             onClick={() => setEditing(!editing)}
           >
-            {editing ? <Check className="h-4 w-4" /> : <Pencil className="h-4 w-4" />}
+            {editing ? <Check /> : <Pencil />}
           </Button>
         </SimpleTooltip>
       </div>
 
       {/* Summary tiles: each waits on its own query rather than the page. */}
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-        <StatTile
-          icon={<ChartColumn className="h-3.5 w-3.5" />}
+      <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
+        <MetricTile
+          icon={<ChartColumn />}
           label="Tokens today"
           action={summaryPinAction('tokens-today', 'Tokens today')}
           value={
@@ -365,8 +379,8 @@ export default function UsagePage(): React.JSX.Element {
             )
           }
         />
-        <StatTile
-          icon={<Bolt className="h-3.5 w-3.5" />}
+        <MetricTile
+          icon={<Bolt />}
           label="Tokens (7 days)"
           action={summaryPinAction('tokens-week', 'Tokens (7 days)')}
           value={
@@ -377,8 +391,8 @@ export default function UsagePage(): React.JSX.Element {
             )
           }
         />
-        <StatTile
-          icon={<ChartColumn className="h-3.5 w-3.5" />}
+        <MetricTile
+          icon={<ChartColumn />}
           label="Cost today"
           action={summaryPinAction('cost-today', 'Cost today')}
           value={
@@ -389,8 +403,8 @@ export default function UsagePage(): React.JSX.Element {
             )
           }
         />
-        <StatTile
-          icon={<Pin className="h-3.5 w-3.5" />}
+        <MetricTile
+          icon={<Pin />}
           label="Providers tracked"
           action={summaryPinAction('providers-tracked', 'Providers tracked')}
           value={
@@ -404,6 +418,7 @@ export default function UsagePage(): React.JSX.Element {
       </div>
 
       <AllAgentsCharts
+        className={GLASS_CARD}
         actions={
           <>
             <SimpleTooltip
@@ -416,17 +431,24 @@ export default function UsagePage(): React.JSX.Element {
               <Button
                 variant="ghost"
                 size="icon"
-                className={
-                  dashboardCards.includes(ALL_AGENTS_WIDGET_ID) ? 'text-primary' : undefined
-                }
+                className={cn(
+                  TILE_ACTION,
+                  dashboardCards.includes(ALL_AGENTS_WIDGET_ID) &&
+                    'text-primary hover:text-primary',
+                )}
                 onClick={() => void toggleDashboard(ALL_AGENTS_WIDGET_ID)}
               >
-                <LayoutDashboard className="h-3.5 w-3.5" />
+                <LayoutDashboard />
               </Button>
             </SimpleTooltip>
             <SimpleTooltip label="Add to desktop">
-              <Button variant="ghost" size="icon" onClick={() => popOut(ALL_AGENTS_WIDGET_ID)}>
-                <Pin className="h-3.5 w-3.5" />
+              <Button
+                variant="ghost"
+                size="icon"
+                className={TILE_ACTION}
+                onClick={() => popOut(ALL_AGENTS_WIDGET_ID)}
+              >
+                <Pin />
               </Button>
             </SimpleTooltip>
           </>
@@ -434,20 +456,18 @@ export default function UsagePage(): React.JSX.Element {
       />
 
       {/* Provider cards */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">
         {/* Which providers are tracked comes from settings, so until those land
             there are no cards to shimmer individually, so stand in for a few. */}
         {settingsQuery.isPending &&
           Array.from({ length: 3 }, (_, i) => (
-            <Card key={`placeholder-${i}`} className="glass h-full">
-              <CardContent className="flex h-full flex-col p-4">
-                <div className="mb-2 flex items-center gap-2">
-                  <Skeleton className="h-5 w-5 rounded-full" />
-                  <Skeleton className="h-4 w-24" />
-                </div>
-                <UsageCardBodySkeleton />
-              </CardContent>
-            </Card>
+            <div key={`placeholder-${i}`} className={cn(GLASS_CARD, 'flex h-full flex-col p-4')}>
+              <div className="mb-2 flex h-7 items-center gap-2">
+                <Skeleton className="h-5 w-5 rounded-full" />
+                <Skeleton className="h-4 w-24" />
+              </div>
+              <UsageCardBodySkeleton />
+            </div>
           ))}
         {displayedIds.map((id) => {
           const def = getUsageProvider(id);
@@ -470,141 +490,162 @@ export default function UsagePage(): React.JSX.Element {
               layout
               transition={{ type: 'spring', stiffness: 400, damping: 35 }}
             >
-              <Card
+              <div
                 className={cn(
-                  'glass h-full transition-shadow duration-300',
+                  GLASS_CARD,
+                  'flex h-full flex-col p-4 transition-shadow duration-300',
                   dragId === id && 'opacity-50',
                   focusedProviderId === id && 'ring-2 ring-primary',
                 )}
                 onDragOver={(e) => e.preventDefault()}
                 onDrop={() => handleDrop(id)}
               >
-                <CardContent className="flex h-full flex-col p-4">
-                  <div className="mb-2 flex items-center gap-1">
-                    <div className="mr-auto flex min-w-0 items-center gap-2">
-                      <ProviderLogo providerId={id} className="h-5 w-5 shrink-0" />
-                      <span className="truncate text-sm font-semibold">{def.name}</span>
-                      {/* The body hides its own header here, so the plan badge
-                          rides along with the title, plan-limits view only. */}
-                      {cardMode === 'subscription' && usage?.subscription?.plan && (
-                        <Badge variant="outline" className="shrink-0">
-                          {usage.subscription.plan.label}
-                        </Badge>
+                <TileHeader
+                  className="mb-2"
+                  icon={<ProviderLogo providerId={id} className="h-5 w-5 shrink-0" />}
+                  iconClassName="text-foreground [&_svg]:size-5"
+                  title={def.name}
+                  // The body hides its own header here, so the plan badge
+                  // rides along with the title, plan-limits view only.
+                  extra={
+                    cardMode === 'subscription' && usage?.subscription?.plan ? (
+                      <Chip tone="primary">{usage.subscription.plan.label}</Chip>
+                    ) : null
+                  }
+                  actions={
+                    <>
+                      {editing && (
+                        <SimpleTooltip label="Drag to reorder">
+                          <span
+                            draggable
+                            onDragStart={(e) => {
+                              e.dataTransfer.effectAllowed = 'move';
+                              setDragId(id);
+                            }}
+                            className="flex h-7 w-5 cursor-grab items-center justify-center text-muted-foreground/50 hover:text-foreground active:cursor-grabbing"
+                          >
+                            <GripVertical className="h-3.5 w-3.5" />
+                          </span>
+                        </SimpleTooltip>
                       )}
-                    </div>
-                    {editing && (
-                      <SimpleTooltip label="Drag to reorder">
-                        <span
-                          draggable
-                          onDragStart={(e) => {
-                            e.dataTransfer.effectAllowed = 'move';
-                            setDragId(id);
-                          }}
-                          className="cursor-grab text-muted-foreground/50 hover:text-foreground active:cursor-grabbing"
+                      {ownsResetAlerts && (
+                        <SimpleTooltip
+                          label={
+                            resetAlerts.enabled
+                              ? `Telegram reset alert · on${
+                                  nextReset ? ` · ${formatReset(nextReset.resetAt) ?? 'idle'}` : ''
+                                }`
+                              : 'Telegram reset alert · off'
+                          }
                         >
-                          <GripVertical className="h-3.5 w-3.5" />
-                        </span>
-                      </SimpleTooltip>
-                    )}
-                    {ownsResetAlerts && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            disabled={!settings}
+                            className={cn(
+                              TILE_ACTION,
+                              resetAlerts.enabled && 'text-primary hover:text-primary',
+                            )}
+                            onClick={() => setAlertsOpen(true)}
+                          >
+                            <Bell />
+                          </Button>
+                        </SimpleTooltip>
+                      )}
+                      {ownsThresholdAlerts && (
+                        <SimpleTooltip
+                          label={
+                            thresholdAlerts.enabled
+                              ? `Usage threshold alert · on · ${thresholdAlerts.threshold}%`
+                              : 'Usage threshold alert · off'
+                          }
+                        >
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            disabled={!settings}
+                            className={cn(
+                              TILE_ACTION,
+                              thresholdAlerts.enabled && 'text-primary hover:text-primary',
+                            )}
+                            onClick={() => setThresholdAlertsOpen(true)}
+                          >
+                            <TriangleAlert />
+                          </Button>
+                        </SimpleTooltip>
+                      )}
+                      {/* Switches this card between tokens and plan limits in place;
+                          the pin below then pins whichever view is showing. */}
+                      {usage && hasSubscriptionView(usage) && (
+                        <SimpleTooltip
+                          label={
+                            cardMode === 'subscription'
+                              ? 'Show tokens and cost'
+                              : 'Show plan limits'
+                          }
+                        >
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className={TILE_ACTION}
+                            onClick={() => void toggleCardMode(id)}
+                          >
+                            {cardMode === 'subscription' ? <ChartColumn /> : <Clock />}
+                          </Button>
+                        </SimpleTooltip>
+                      )}
+                      {/* Same card, shown on the Dashboard page alongside the
+                          system charts. It follows this card's tokens/limits view. */}
                       <SimpleTooltip
-                        label={
-                          resetAlerts.enabled
-                            ? `Telegram reset alert · on${
-                                nextReset ? ` · ${formatReset(nextReset.resetAt) ?? 'idle'}` : ''
-                              }`
-                            : 'Telegram reset alert · off'
-                        }
+                        label={onDashboard ? 'Remove from dashboard' : 'Add to dashboard'}
                       >
                         <Button
                           variant="ghost"
                           size="icon"
-                          disabled={!settings}
-                          className={resetAlerts.enabled ? 'text-primary' : undefined}
-                          onClick={() => setAlertsOpen(true)}
-                        >
-                          <Bell className="h-3.5 w-3.5" />
-                        </Button>
-                      </SimpleTooltip>
-                    )}
-                    {ownsThresholdAlerts && (
-                      <SimpleTooltip
-                        label={
-                          thresholdAlerts.enabled
-                            ? `Usage threshold alert · on · ${thresholdAlerts.threshold}%`
-                            : 'Usage threshold alert · off'
-                        }
-                      >
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          disabled={!settings}
-                          className={thresholdAlerts.enabled ? 'text-primary' : undefined}
-                          onClick={() => setThresholdAlertsOpen(true)}
-                        >
-                          <TriangleAlert className="h-3.5 w-3.5" />
-                        </Button>
-                      </SimpleTooltip>
-                    )}
-                    {/* Switches this card between tokens and plan limits in place;
-                        the pin below then pins whichever view is showing. */}
-                    {usage && hasSubscriptionView(usage) && (
-                      <SimpleTooltip
-                        label={
-                          cardMode === 'subscription' ? 'Show tokens and cost' : 'Show plan limits'
-                        }
-                      >
-                        <Button variant="ghost" size="icon" onClick={() => void toggleCardMode(id)}>
-                          {cardMode === 'subscription' ? (
-                            <ChartColumn className="h-3.5 w-3.5" />
-                          ) : (
-                            <Clock className="h-3.5 w-3.5" />
+                          className={cn(
+                            TILE_ACTION,
+                            onDashboard && 'text-primary hover:text-primary',
                           )}
+                          onClick={() => void toggleDashboard(id)}
+                        >
+                          <LayoutDashboard />
                         </Button>
                       </SimpleTooltip>
-                    )}
-                    {/* Same card, shown on the Dashboard page alongside the
-                        system charts. It follows this card's tokens/limits view. */}
-                    <SimpleTooltip
-                      label={onDashboard ? 'Remove from dashboard' : 'Add to dashboard'}
-                    >
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className={onDashboard ? 'text-primary' : undefined}
-                        onClick={() => void toggleDashboard(id)}
-                      >
-                        <LayoutDashboard className="h-3.5 w-3.5" />
-                      </Button>
-                    </SimpleTooltip>
-                    <SimpleTooltip label="Add to desktop">
-                      <Button variant="ghost" size="icon" onClick={() => popOut(id)}>
-                        <Pin className="h-3.5 w-3.5" />
-                      </Button>
-                    </SimpleTooltip>
-                    {removable && (
-                      <SimpleTooltip label="Remove">
+                      <SimpleTooltip label="Add to desktop">
                         <Button
                           variant="ghost"
                           size="icon"
-                          onClick={() => void setConfig(id, { ...configs[id], enabled: false })}
+                          className={TILE_ACTION}
+                          onClick={() => popOut(id)}
                         >
-                          <X className="h-3.5 w-3.5" />
+                          <Pin />
                         </Button>
                       </SimpleTooltip>
-                    )}
+                      {removable && (
+                        <SimpleTooltip label="Remove">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className={TILE_ACTION}
+                            onClick={() => void setConfig(id, { ...configs[id], enabled: false })}
+                          >
+                            <X />
+                          </Button>
+                        </SimpleTooltip>
+                      )}
+                    </>
+                  }
+                />
+                {usage ? (
+                  <UsageCardBody usage={usage} def={def} hideHeader mode={cardMode} />
+                ) : usageQuery.isError ? (
+                  <div className="flex flex-1 items-center gap-2 text-sm text-destructive">
+                    {(usageQuery.error as Error).message}
                   </div>
-                  {usage ? (
-                    <UsageCardBody usage={usage} def={def} hideHeader mode={cardMode} />
-                  ) : usageQuery.isError ? (
-                    <div className="flex flex-1 items-center gap-2 text-sm text-destructive">
-                      {(usageQuery.error as Error).message}
-                    </div>
-                  ) : (
-                    <UsageCardBodySkeleton />
-                  )}
-                </CardContent>
-              </Card>
+                ) : (
+                  <UsageCardBodySkeleton />
+                )}
+              </div>
             </motion.div>
           );
         })}
@@ -722,7 +763,7 @@ function ResetAlertDialog({
 
         {/* The on/off switch lives here now, next to what it turns on, instead of
             sitting in the page toolbar away from the provider it watches. */}
-        <div className="flex items-center gap-3 rounded-lg border border-border bg-card/60 px-3 py-2">
+        <div className="flex items-center gap-3 rounded-xl bg-foreground/[0.04] px-3 py-2.5">
           <Bell className="h-4 w-4 shrink-0 text-muted-foreground" />
           <div className="min-w-0 flex-1">
             <Label htmlFor="usage-reset-alerts" className="cursor-pointer text-sm font-medium">
@@ -743,14 +784,16 @@ function ResetAlertDialog({
           />
         </div>
 
-        <div className={cn('space-y-2', !alerts.enabled && 'opacity-60')}>
+        <div
+          className={cn(
+            'settings-rows rounded-xl bg-foreground/[0.04]',
+            !alerts.enabled && 'opacity-60',
+          )}
+        >
           {RESET_WINDOW_OPTIONS.map((option) => {
             const unavailable = usage != null && !reported.has(option.key);
             return (
-              <div
-                key={option.key}
-                className="flex items-center gap-3 rounded-lg border border-border bg-card/60 px-3 py-2"
-              >
+              <div key={option.key} className="flex items-center gap-3 px-3 py-2.5">
                 <div className="min-w-0 flex-1">
                   <Label
                     htmlFor={`reset-window-${option.key}`}
@@ -787,7 +830,12 @@ function ResetAlertDialog({
           </p>
         </div>
 
-        <Button variant="outline" disabled={testing} onClick={() => void sendTest()}>
+        <Button
+          variant="ghost"
+          className={cn(PILL_SOFT, 'justify-self-start')}
+          disabled={testing}
+          onClick={() => void sendTest()}
+        >
           <Send className="h-3.5 w-3.5" /> {testing ? 'Sending…' : 'Send a test alert'}
         </Button>
       </DialogContent>
@@ -853,7 +901,7 @@ function ThresholdAlertDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="flex items-center gap-3 rounded-lg border border-border bg-card/60 px-3 py-2">
+        <div className="flex items-center gap-3 rounded-xl bg-foreground/[0.04] px-3 py-2.5">
           <TriangleAlert className="h-4 w-4 shrink-0 text-muted-foreground" />
           <div className="min-w-0 flex-1">
             <Label htmlFor="usage-threshold-alerts" className="cursor-pointer text-sm font-medium">
@@ -886,14 +934,16 @@ function ThresholdAlertDialog({
           />
         </div>
 
-        <div className={cn('space-y-2', !alerts.enabled && 'opacity-60')}>
+        <div
+          className={cn(
+            'settings-rows rounded-xl bg-foreground/[0.04]',
+            !alerts.enabled && 'opacity-60',
+          )}
+        >
           {RESET_WINDOW_OPTIONS.map((option) => {
             const unavailable = usage != null && !reported.has(option.key);
             return (
-              <div
-                key={option.key}
-                className="flex items-center gap-3 rounded-lg border border-border bg-card/60 px-3 py-2"
-              >
+              <div key={option.key} className="flex items-center gap-3 px-3 py-2.5">
                 <div className="min-w-0 flex-1">
                   <Label
                     htmlFor={`threshold-window-${option.key}`}
@@ -915,7 +965,12 @@ function ThresholdAlertDialog({
           })}
         </div>
 
-        <Button variant="outline" disabled={testing} onClick={() => void sendTest()}>
+        <Button
+          variant="ghost"
+          className={cn(PILL_SOFT, 'justify-self-start')}
+          disabled={testing}
+          onClick={() => void sendTest()}
+        >
           <Send className="h-3.5 w-3.5" /> {testing ? 'Sending…' : 'Send a test alert'}
         </Button>
       </DialogContent>
@@ -951,13 +1006,15 @@ function AddProviderDialog({
             key; the rest are registered and coming soon.
           </DialogDescription>
         </DialogHeader>
-        <Input
-          placeholder="Search 63 providers…"
+        <SearchPill
+          type="search"
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="mb-2"
+          onValueChange={setSearch}
+          clearLabel="Clear filter"
+          label="Search providers"
+          placeholder="Search 63 providers…"
         />
-        <div className="max-h-[50vh] space-y-1.5 overflow-y-auto pr-1">
+        <div className="rail-scroll -mx-2 max-h-[50vh] space-y-0.5 overflow-y-auto px-2">
           {filtered.map((def) => {
             const enabled = isAutoConnected(def) || configs[def.id]?.enabled;
             const isApi = def.dataSource === 'api-key';
@@ -965,15 +1022,13 @@ function AddProviderDialog({
             return (
               <div
                 key={def.id}
-                className="flex items-center gap-3 rounded-lg border border-border bg-card/60 px-3 py-2"
+                className="flex items-center gap-3 rounded-lg px-2.5 py-2 transition-colors hover:bg-foreground/[0.04]"
               >
                 <ProviderLogo providerId={def.id} className="h-6 w-6" />
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
                     <span className="truncate text-sm font-medium">{def.name}</span>
-                    <Badge variant="outline" className="capitalize">
-                      {def.category.replace('-', ' ')}
-                    </Badge>
+                    <Chip className="capitalize">{def.category.replace('-', ' ')}</Chip>
                   </div>
                   <div className="text-xs text-muted-foreground">
                     {def.dataSource === 'local-log'
@@ -987,7 +1042,7 @@ function AddProviderDialog({
                 </div>
                 {isApi &&
                   (enabled ? (
-                    <Badge variant="success">Added</Badge>
+                    <Chip tone="success">Added</Chip>
                   ) : (
                     <div className="flex items-center gap-2">
                       <Input
@@ -1008,8 +1063,8 @@ function AddProviderDialog({
                       </Button>
                     </div>
                   ))}
-                {isAutoConnected(def) && <Badge variant="success">Auto</Badge>}
-                {unsupported && <Badge variant="outline">Soon</Badge>}
+                {isAutoConnected(def) && <Chip tone="success">Auto</Chip>}
+                {unsupported && <Chip>Soon</Chip>}
               </div>
             );
           })}

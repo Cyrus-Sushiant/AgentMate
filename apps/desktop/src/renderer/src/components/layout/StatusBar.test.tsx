@@ -332,3 +332,102 @@ describe('the project runs entry', () => {
     expect(() => bridge.$fn('terminal.runStatus')).toThrow();
   });
 });
+
+/**
+ * The plan limits entries. Each AI subscription gets its own item, so the order is fixed, a
+ * provider the user switched off in Settings stays out, and a provider with nothing to count
+ * down to (an unlimited Cursor plan) never takes room in the bar.
+ */
+describe('the plan limits entries', () => {
+  const inHours = (hours: number): string => new Date(Date.now() + hours * 3_600_000).toISOString();
+
+  function usage(providerId: string, windows: unknown[], plan: string | null = null) {
+    return {
+      providerId,
+      status: 'ok',
+      subscription: {
+        mode: 'subscription',
+        plan: plan ? { id: plan.toLowerCase(), label: plan } : null,
+        windows,
+        source: 'account',
+      },
+    };
+  }
+
+  const LIST = [
+    // The usage list comes back in registry order, with Cursor first.
+    // A usage-based plan: three limits sharing the cycle's end, the total first.
+    usage('cursor', [
+      { key: 'month', label: 'Monthly usage', percent: 41, resetAt: inHours(300) },
+      { key: 'month-auto', label: 'Auto', percent: 38, resetAt: inHours(300) },
+      { key: 'month-api', label: 'API', percent: 100, resetAt: inHours(300) },
+    ]),
+    usage(
+      'claude-code',
+      [
+        { key: 'session', label: 'Session (5h)', percent: 64, resetAt: inHours(3) },
+        { key: 'week', label: 'Weekly', percent: 71, resetAt: inHours(13) },
+      ],
+      'Max 5×',
+    ),
+    usage(
+      'codex',
+      [
+        { key: 'session', label: 'Session (5h)', percent: 22, resetAt: inHours(2) },
+        { key: 'week', label: 'Weekly', percent: 9, resetAt: inHours(90) },
+      ],
+      'Plus',
+    ),
+  ];
+
+  function setupLimits(list: unknown[], statusBarUsage?: Record<string, boolean>) {
+    return setup({
+      'android.sdk': NO_SDK,
+      'usage.list': list,
+      'settings.get': statusBarUsage ? { statusBarUsage } : {},
+    });
+  }
+
+  const limitButtons = () =>
+    screen.queryAllByRole('button', { name: /^(Claude Code|Codex|Cursor): .* limit$/ });
+
+  it('gives each provider its own item, in a fixed order', async () => {
+    setupLimits(LIST);
+
+    await waitFor(() => expect(limitButtons()).toHaveLength(3));
+    expect(limitButtons().map((b) => b.getAttribute('aria-label'))).toEqual([
+      'Claude Code: Session (5h) limit',
+      'Codex: Session (5h) limit',
+      'Cursor: Monthly usage limit',
+    ]);
+    expect(within(limitButtons()[1]).getByText('22%')).toBeInTheDocument();
+    expect(within(limitButtons()[2]).getByText('41%')).toBeInTheDocument();
+  });
+
+  it('leaves out a provider switched off in Settings', async () => {
+    setupLimits(LIST, { 'claude-code': true, codex: false, cursor: true });
+
+    await waitFor(() => expect(limitButtons()).toHaveLength(2));
+    expect(screen.queryByRole('button', { name: /^Codex:/ })).not.toBeInTheDocument();
+  });
+
+  it('leaves out a provider that reports no limit', async () => {
+    setupLimits([usage('cursor', []), LIST[1]]);
+
+    await waitFor(() => expect(limitButtons()).toHaveLength(1));
+    expect(screen.queryByRole('button', { name: /^Cursor:/ })).not.toBeInTheDocument();
+  });
+
+  it("lists the provider's limits and opens its Token Usage card", async () => {
+    const { user } = setupLimits(LIST);
+
+    await user.click(await screen.findByRole('button', { name: 'Codex: Session (5h) limit' }));
+    const panel = await screen.findByRole('dialog');
+    expect(within(panel).getByText('Plus')).toBeInTheDocument();
+    expect(within(panel).getByText('Weekly')).toBeInTheDocument();
+    expect(within(panel).getByText('9%')).toBeInTheDocument();
+
+    await user.click(within(panel).getByRole('button', { name: 'Open Token Usage' }));
+    expect(navigate).toHaveBeenCalledWith('/usage?provider=codex');
+  });
+});

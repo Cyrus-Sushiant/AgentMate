@@ -442,7 +442,8 @@ export function HelpChat({ onClose }: HelpChatProps): React.JSX.Element {
               void ask(draft);
             }}
           >
-            <div className="flex items-end gap-2 rounded-xl border border-input bg-background/80 p-1.5 pl-3 transition-colors focus-within:border-primary/50">
+            {/* The composer draws the shared field surface; the textarea inside stays bare. */}
+            <div className="field-surface flex items-end gap-2 rounded-[22px] p-1.5 pl-3.5">
               <textarea
                 ref={inputRef}
                 aria-label="Ask a question"
@@ -456,14 +457,14 @@ export function HelpChat({ onClose }: HelpChatProps): React.JSX.Element {
                   }
                 }}
                 placeholder="How do I…"
-                className="max-h-32 min-h-[34px] flex-1 resize-none bg-transparent py-1.5 text-[13px] outline-none placeholder:text-muted-foreground/70"
+                className="max-h-32 min-h-[34px] flex-1 resize-none bg-transparent py-1.5 text-[13px] outline-none"
               />
               {pendingId ? (
                 <Button
                   type="button"
                   size="icon"
                   variant="outline"
-                  className="h-8 w-8 shrink-0 rounded-lg"
+                  className="h-8 w-8 shrink-0 rounded-full"
                   aria-label="Stop"
                   onClick={stop}
                 >
@@ -473,7 +474,7 @@ export function HelpChat({ onClose }: HelpChatProps): React.JSX.Element {
                 <Button
                   type="submit"
                   size="icon"
-                  className="h-8 w-8 shrink-0 rounded-lg"
+                  className="h-8 w-8 shrink-0 rounded-full"
                   aria-label="Send"
                   disabled={!draft.trim() || !model}
                 >

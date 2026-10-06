@@ -58,9 +58,21 @@ import {
   Wrench,
   X,
 } from '@/components/icons';
-import { Badge } from '@/components/ui/badge';
+import {
+  CARD_PILL_SOFT,
+  Chip,
+  GLASS_CARD,
+  MetricTile,
+  PILL_PRIMARY,
+  PILL_SOFT,
+  PILL_SOFT_ICON,
+  SEGMENT_TRACK,
+  segmentClass,
+  TILE_ACTION,
+  TileHeader,
+  TOOLBAR,
+} from '@/components/pageKit';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Dialog,
   DialogContent,
@@ -78,7 +90,6 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Skeleton } from '@/components/ui/skeleton';
-import { StatTile } from '@/components/ui/stat-tile';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { AllAgentsCharts } from '@/components/usage/AllAgentsCharts';
@@ -186,6 +197,39 @@ const SUMMARY_LABELS: Record<DashboardUsageSummaryId, string> = {
   'providers-tracked': 'Providers tracked',
 };
 
+/** A Radix tab drawn as one option of a segmented pill, like the usage period chips. */
+const SEGMENT_TAB = cn(
+  segmentClass(false),
+  'border-none data-[state=active]:bg-background/80 data-[state=active]:text-foreground data-[state=active]:shadow-sm',
+);
+
+/**
+ * The frame every chart card shares: the glass card, the header row (icon, title, actions)
+ * and the same padding, so cards line up whichever ones end up side by side in a row.
+ */
+function ChartCard({
+  className,
+  icon,
+  title,
+  actions,
+  children,
+}: {
+  className: string;
+  icon: React.ReactNode;
+  title: string;
+  actions?: React.ReactNode;
+  children: React.ReactNode;
+}): React.JSX.Element {
+  return (
+    <div className={className}>
+      <div className="flex h-full flex-col p-4">
+        <TileHeader className="mb-2" icon={icon} title={title} actions={actions} />
+        {children}
+      </div>
+    </div>
+  );
+}
+
 function EmptyChartState({ message }: { message: React.ReactNode }): React.JSX.Element {
   return (
     <div
@@ -266,7 +310,7 @@ function ChartDragHandle({
         // Fires for drops outside any target too, so a cancelled drag doesn't
         // leave the card stuck at half opacity.
         onDragEnd={onDragEnd}
-        className="cursor-grab text-muted-foreground/50 hover:text-foreground active:cursor-grabbing"
+        className="flex h-7 w-5 cursor-grab items-center justify-center text-muted-foreground/50 hover:text-foreground active:cursor-grabbing"
       >
         <GripVertical className="h-3.5 w-3.5" />
       </span>
@@ -302,6 +346,47 @@ function useIdleAfterMount(): boolean {
   return ready;
 }
 
+/** One outdated CLI or tool, as a hairline row of the updates card. */
+function UpdateRow({
+  icon,
+  name,
+  currentVersion,
+  latestVersion,
+  onUpdate,
+}: {
+  icon: React.ReactNode;
+  name: string;
+  currentVersion: string | null;
+  latestVersion: string;
+  onUpdate: () => void;
+}): React.JSX.Element {
+  return (
+    <div className="flex items-center justify-between gap-3 px-4 py-2.5">
+      <div className="flex min-w-0 items-center gap-3">
+        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-foreground/[0.05] ring-1 ring-inset ring-foreground/[0.06]">
+          {icon}
+        </span>
+        <div className="min-w-0">
+          <div className="truncate text-sm font-medium">{name}</div>
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <span className="font-mono">{currentVersion ?? 'unknown version'}</span>
+            <ArrowRight className="h-2.5 w-2.5" />
+            <span className="font-mono font-semibold text-primary">v{latestVersion}</span>
+          </div>
+        </div>
+      </div>
+      <Button
+        size="sm"
+        variant="ghost"
+        className={cn(CARD_PILL_SOFT, 'shrink-0')}
+        onClick={onUpdate}
+      >
+        <CloudDownload /> Update
+      </Button>
+    </div>
+  );
+}
+
 function CliUpdateRow({
   cli,
   status,
@@ -324,22 +409,13 @@ function CliUpdateRow({
   }
 
   return (
-    <div className="flex items-center justify-between gap-2 rounded-lg border border-border bg-card px-3 py-2">
-      <div className="flex min-w-0 items-center gap-2">
-        <CliLogo cliId={cli.id} className="h-4 w-4 shrink-0" />
-        <div className="min-w-0">
-          <div className="truncate text-sm font-medium">{cli.name}</div>
-          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            <span>{status.version ?? 'unknown version'}</span>
-            <ArrowRight className="h-3 w-3" />
-            <span className="font-medium text-foreground">v{latestVersion}</span>
-          </div>
-        </div>
-      </div>
-      <Button size="sm" variant="outline" className="shrink-0" onClick={() => void handleUpdate()}>
-        <CloudDownload className="h-3.5 w-3.5" /> Update
-      </Button>
-    </div>
+    <UpdateRow
+      icon={<CliLogo cliId={cli.id} className="h-4 w-4 shrink-0" />}
+      name={cli.name}
+      currentVersion={status.version}
+      latestVersion={latestVersion}
+      onUpdate={() => void handleUpdate()}
+    />
   );
 }
 
@@ -365,22 +441,13 @@ function ToolUpdateRow({
   }
 
   return (
-    <div className="flex items-center justify-between gap-2 rounded-lg border border-border bg-card px-3 py-2">
-      <div className="flex min-w-0 items-center gap-2">
-        <Wrench className="h-4 w-4 shrink-0 text-muted-foreground" />
-        <div className="min-w-0">
-          <div className="truncate text-sm font-medium">{tool.name}</div>
-          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            <span>{status.version ?? 'unknown version'}</span>
-            <ArrowRight className="h-3 w-3" />
-            <span className="font-medium text-foreground">v{latestVersion}</span>
-          </div>
-        </div>
-      </div>
-      <Button size="sm" variant="outline" className="shrink-0" onClick={() => void handleUpdate()}>
-        <CloudDownload className="h-3.5 w-3.5" /> Update
-      </Button>
-    </div>
+    <UpdateRow
+      icon={<Wrench className="h-4 w-4 shrink-0 text-muted-foreground" />}
+      name={tool.name}
+      currentVersion={status.version}
+      latestVersion={latestVersion}
+      onUpdate={() => void handleUpdate()}
+    />
   );
 }
 
@@ -463,70 +530,90 @@ function UpdatesCard({
     (q) => q.isError || (q.data != null && (!q.data.supported || !q.data.latestVersion)),
   ).length;
 
+  const linkClass =
+    'font-medium text-foreground underline decoration-foreground/30 underline-offset-2 transition-colors hover:text-primary hover:decoration-primary/60';
+
   return (
-    <Card className="glass">
-      <CardHeader className="flex flex-row items-center justify-between space-y-0">
-        <div className="flex items-center gap-2">
-          <CardTitle>Update AI CLIs & tools</CardTitle>
-          {outdatedCount > 0 && (
-            <Badge variant="warning">
-              {outdatedCount} update{outdatedCount > 1 ? 's' : ''}
-            </Badge>
-          )}
+    <div className={GLASS_CARD}>
+      <div className="p-4 pb-3">
+        <TileHeader
+          icon={<CloudDownload />}
+          title="Update AI CLIs & tools"
+          extra={
+            outdatedCount > 0 ? (
+              <Chip tone="warning">
+                {outdatedCount} update{outdatedCount > 1 ? 's' : ''}
+              </Chip>
+            ) : null
+          }
+          actions={
+            <SimpleTooltip
+              label="Re-check for updates"
+              wrapTrigger={checking || installedCount === 0}
+            >
+              <Button
+                variant="ghost"
+                size="icon"
+                className={TILE_ACTION}
+                disabled={checking || installedCount === 0}
+                onClick={() => {
+                  void queryClient.invalidateQueries({ queryKey: ['cli-update-check'] });
+                  void queryClient.invalidateQueries({ queryKey: ['tool-update-check'] });
+                  toast.info('Checking installed CLIs and tools for updates…');
+                }}
+              >
+                <RefreshCw className={cn(checking && 'animate-spin')} />
+              </Button>
+            </SimpleTooltip>
+          }
+        />
+      </div>
+
+      {/* The outdated ones are rows of the card itself, under a hairline like Settings. */}
+      {outdatedCount > 0 && (
+        <div className="settings-rows shadow-[inset_0_1px_0_hsl(var(--foreground)/0.08)]">
+          {outdatedClis.map(({ cli, status, latestVersion }) => (
+            <CliUpdateRow key={cli.id} cli={cli} status={status} latestVersion={latestVersion} />
+          ))}
+          {outdatedTools.map(({ tool, status, latestVersion }) => (
+            <ToolUpdateRow
+              key={tool.id}
+              tool={tool}
+              status={status}
+              latestVersion={latestVersion}
+            />
+          ))}
         </div>
-        <SimpleTooltip label="Re-check for updates" wrapTrigger={checking || installedCount === 0}>
-          <Button
-            variant="ghost"
-            size="icon"
-            disabled={checking || installedCount === 0}
-            onClick={() => {
-              void queryClient.invalidateQueries({ queryKey: ['cli-update-check'] });
-              void queryClient.invalidateQueries({ queryKey: ['tool-update-check'] });
-              toast.info('Checking installed CLIs and tools for updates…');
-            }}
-          >
-            <RefreshCw className={cn('h-3.5 w-3.5', checking && 'animate-spin')} />
-          </Button>
-        </SimpleTooltip>
-      </CardHeader>
-      <CardContent className="space-y-2">
+      )}
+
+      <div className={cn('space-y-1 px-4 pb-4', outdatedCount > 0 && 'pt-1')}>
         {installedCount === 0 && !checking ? (
           <p className="text-sm text-muted-foreground">
             No AI CLIs or agent tools detected yet. Visit the{' '}
-            <button
-              className="underline underline-offset-2"
-              onClick={() => navigate('/cli-manager')}
-            >
+            <button type="button" className={linkClass} onClick={() => navigate('/cli-manager')}>
               CLI Manager
             </button>{' '}
             or{' '}
-            <button className="underline underline-offset-2" onClick={() => navigate('/tools')}>
+            <button type="button" className={linkClass} onClick={() => navigate('/tools')}>
               Agent Tools
             </button>{' '}
             to install one.
           </p>
         ) : (
           <>
-            {outdatedClis.map(({ cli, status, latestVersion }) => (
-              <CliUpdateRow key={cli.id} cli={cli} status={status} latestVersion={latestVersion} />
-            ))}
-            {outdatedTools.map(({ tool, status, latestVersion }) => (
-              <ToolUpdateRow
-                key={tool.id}
-                tool={tool}
-                status={status}
-                latestVersion={latestVersion}
-              />
-            ))}
             {checking && outdatedCount === 0 && (
-              <p className="text-sm text-muted-foreground">
+              <div role="status" className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Skeleton className="h-2 w-2 shrink-0 rounded-full" />
                 Checking installed CLIs and agent tools for updates…
-              </p>
+              </div>
             )}
             {!checking && outdatedCount === 0 && (
-              <p className="text-sm text-muted-foreground">
-                All {installedCount} installed CLI{installedCount === 1 ? '' : 's'} and agent tool
-                {installedCount === 1 ? ' is' : 's are'} up to date.
+              <p className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Check className="h-3.5 w-3.5 shrink-0 text-success" />
+                <span>
+                  All {installedCount} installed CLI{installedCount === 1 ? '' : 's'} and agent tool
+                  {installedCount === 1 ? ' is' : 's are'} up to date.
+                </span>
               </p>
             )}
             {!checking && uncheckable > 0 && (
@@ -536,8 +623,8 @@ function UpdatesCard({
             )}
           </>
         )}
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }
 
@@ -690,7 +777,7 @@ export default function DashboardPage(): React.JSX.Element {
   }
 
   function cardClass(id: DashboardItemId): string {
-    return cn('glass h-full', dragChartId === id && 'opacity-50');
+    return cn(GLASS_CARD, 'h-full', dragChartId === id && 'opacity-50');
   }
 
   // Handles only exist in edit mode, so the everyday dashboard has no chrome
@@ -715,8 +802,13 @@ export default function DashboardPage(): React.JSX.Element {
     if (!editing) return null;
     return (
       <SimpleTooltip label="Remove from dashboard">
-        <Button variant="ghost" size="icon" onClick={() => removeChartCard(id, CHART_LABELS[id])}>
-          <X className="h-3.5 w-3.5" />
+        <Button
+          variant="ghost"
+          size="icon"
+          className={TILE_ACTION}
+          onClick={() => removeChartCard(id, CHART_LABELS[id])}
+        >
+          <X />
         </Button>
       </SimpleTooltip>
     );
@@ -738,16 +830,32 @@ export default function DashboardPage(): React.JSX.Element {
 
   const chartCards: Record<DashboardChartId, React.ReactNode> = {
     cpu: (
-      <Card className={cardClass('cpu')}>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="flex items-center gap-2 text-xs text-muted-foreground">
-            <Cpu className="h-3.5 w-3.5" /> CPU Usage
-          </CardTitle>
-          <div className="flex items-center gap-2">
+      <ChartCard
+        className={cardClass('cpu')}
+        icon={<Cpu />}
+        title="CPU Usage"
+        actions={
+          <>
+            {latest && latest.cpuCoreCount > 1 && (
+              <Tabs value={cpuView} onValueChange={(v) => setCpuView(v as 'total' | 'cores')}>
+                <TabsList
+                  containerClassName="mr-1 border-b-0"
+                  className={cn(SEGMENT_TRACK, 'mb-0 h-7 w-auto gap-0 border-none')}
+                >
+                  <TabsTrigger value="total" className={SEGMENT_TAB}>
+                    Total
+                  </TabsTrigger>
+                  <TabsTrigger value="cores" className={SEGMENT_TAB}>
+                    Per core
+                  </TabsTrigger>
+                </TabsList>
+              </Tabs>
+            )}
             <SimpleTooltip label="Top apps using CPU">
               <Button
                 variant="ghost"
                 size="icon"
+                className={TILE_ACTION}
                 onClick={() => {
                   setTopAppsResource('cpu');
                   setTopAppsOpen(true);
@@ -756,110 +864,89 @@ export default function DashboardPage(): React.JSX.Element {
                 <ListUnordered className="h-3.5 w-3.5" />
               </Button>
             </SimpleTooltip>
-            {latest && latest.cpuCoreCount > 1 && (
-              <Tabs value={cpuView} onValueChange={(v) => setCpuView(v as 'total' | 'cores')}>
-                <TabsList
-                  containerClassName="border-b-0"
-                  className="mb-0 h-6 w-auto border-none bg-foreground/[0.06] p-0.5 rounded-md"
-                >
-                  <TabsTrigger
-                    value="total"
-                    className="h-5 rounded-sm border-none px-2 text-[10px] data-[state=active]:bg-background data-[state=active]:shadow-sm"
-                  >
-                    Total
-                  </TabsTrigger>
-                  <TabsTrigger
-                    value="cores"
-                    className="h-5 rounded-sm border-none px-2 text-[10px] data-[state=active]:bg-background data-[state=active]:shadow-sm"
-                  >
-                    Per core
-                  </TabsTrigger>
-                </TabsList>
-              </Tabs>
-            )}
             {dragHandle('cpu')}
             {chartRemove('cpu')}
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="mb-2 flex h-8 items-baseline gap-2">
-            {latest ? (
-              <>
-                <span className="text-2xl font-semibold">{formatPercent(latest.cpuPercent)}</span>
-                <span className="truncate text-xs text-muted-foreground">
-                  {latest.cpuModel} · {latest.cpuCoreCount} cores
-                </span>
-              </>
-            ) : (
-              <>
-                <StatSkeleton className="w-16" />
-                <Skeleton className="h-3 w-40 self-center" />
-              </>
-            )}
-          </div>
-          {latest && cpuView === 'cores' ? (
-            <div className="mb-2 grid grid-cols-4 gap-x-2 gap-y-1 sm:grid-cols-6">
-              {latest.cpuCorePercents.map((p, i) => (
-                <div key={i} className="flex items-center gap-1 text-xs">
-                  <span
-                    className="inline-block h-1.5 w-1.5 shrink-0 rounded-full"
-                    style={{
-                      backgroundColor: chartColors.categorical[i % chartColors.categorical.length],
-                    }}
-                  />
-                  <span className="truncate text-muted-foreground">
-                    C{i} <span className="font-medium text-foreground">{formatPercent(p)}</span>
-                  </span>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="mb-2 h-6" />
-          )}
+          </>
+        }
+      >
+        <div className="mb-2 flex h-8 items-baseline gap-2">
           {latest ? (
-            <SparklineChart
-              height={CHART_HEIGHT}
-              timestamps={timestamps}
-              domainMin={0}
-              domainMax={100}
-              formatValue={formatPercent}
-              formatTime={formatClockTime}
-              series={
-                cpuView === 'cores'
-                  ? latest.cpuCorePercents.map((_, i) => ({
-                      key: `core-${i}`,
-                      label: `Core ${i}`,
-                      color: chartColors.categorical[i % chartColors.categorical.length],
-                      values: statsHistory.map((s) => s.cpuCorePercents[i] ?? 0),
-                    }))
-                  : [
-                      {
-                        key: 'cpu',
-                        label: 'CPU',
-                        color: 'hsl(var(--primary))',
-                        values: statsHistory.map((s) => s.cpuPercent),
-                      },
-                    ]
-              }
-            />
+            <>
+              <span className="text-2xl font-semibold">{formatPercent(latest.cpuPercent)}</span>
+              <span className="truncate text-xs text-muted-foreground">
+                {latest.cpuModel} · {latest.cpuCoreCount} cores
+              </span>
+            </>
           ) : (
-            <ChartSkeleton />
+            <>
+              <StatSkeleton className="w-16" />
+              <Skeleton className="h-3 w-40 self-center" />
+            </>
           )}
-        </CardContent>
-      </Card>
+        </div>
+        {latest && cpuView === 'cores' ? (
+          <div className="mb-2 grid grid-cols-4 gap-x-2 gap-y-1 sm:grid-cols-6">
+            {latest.cpuCorePercents.map((p, i) => (
+              <div key={i} className="flex items-center gap-1 text-xs">
+                <span
+                  className="inline-block h-1.5 w-1.5 shrink-0 rounded-full"
+                  style={{
+                    backgroundColor: chartColors.categorical[i % chartColors.categorical.length],
+                  }}
+                />
+                <span className="truncate text-muted-foreground">
+                  C{i} <span className="font-medium text-foreground">{formatPercent(p)}</span>
+                </span>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="mb-2 h-6" />
+        )}
+        {latest ? (
+          <SparklineChart
+            height={CHART_HEIGHT}
+            timestamps={timestamps}
+            domainMin={0}
+            domainMax={100}
+            formatValue={formatPercent}
+            formatTime={formatClockTime}
+            series={
+              cpuView === 'cores'
+                ? latest.cpuCorePercents.map((_, i) => ({
+                    key: `core-${i}`,
+                    label: `Core ${i}`,
+                    color: chartColors.categorical[i % chartColors.categorical.length],
+                    values: statsHistory.map((s) => s.cpuCorePercents[i] ?? 0),
+                  }))
+                : [
+                    {
+                      key: 'cpu',
+                      label: 'CPU',
+                      color: 'hsl(var(--primary))',
+                      values: statsHistory.map((s) => s.cpuPercent),
+                    },
+                  ]
+            }
+          />
+        ) : (
+          <ChartSkeleton />
+        )}
+      </ChartCard>
     ),
 
     memory: (
-      <Card className={cardClass('memory')}>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="flex items-center gap-2 text-xs text-muted-foreground">
-            <MemoryStick className="h-3.5 w-3.5" /> Memory Usage
-          </CardTitle>
-          <div className="flex items-center gap-2">
+      <ChartCard
+        className={cardClass('memory')}
+        icon={<MemoryStick />}
+        title="Memory Usage"
+        actions={
+          <>
             <SimpleTooltip label="Top apps using memory">
               <Button
                 variant="ghost"
                 size="icon"
+                className={TILE_ACTION}
                 onClick={() => {
                   setTopAppsResource('memory');
                   setTopAppsOpen(true);
@@ -870,60 +957,60 @@ export default function DashboardPage(): React.JSX.Element {
             </SimpleTooltip>
             {dragHandle('memory')}
             {chartRemove('memory')}
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="mb-2 flex h-8 items-baseline gap-2">
-            {latest ? (
-              <>
-                <span className="text-2xl font-semibold">{formatPercent(latest.memPercent)}</span>
-                <span className="text-xs text-muted-foreground">
-                  {formatBytes(latest.memUsedBytes)} / {formatBytes(latest.memTotalBytes)}
-                </span>
-              </>
-            ) : (
-              <>
-                <StatSkeleton className="w-16" />
-                <Skeleton className="h-3 w-24 self-center" />
-              </>
-            )}
-          </div>
-          <div className="mb-2 h-6" />
+          </>
+        }
+      >
+        <div className="mb-2 flex h-8 items-baseline gap-2">
           {latest ? (
-            <SparklineChart
-              height={CHART_HEIGHT}
-              timestamps={timestamps}
-              domainMin={0}
-              domainMax={100}
-              formatValue={formatPercent}
-              formatTime={formatClockTime}
-              series={[
-                {
-                  key: 'mem',
-                  label: 'Memory',
-                  color: 'hsl(var(--primary))',
-                  values: statsHistory.map((s) => s.memPercent),
-                },
-              ]}
-            />
+            <>
+              <span className="text-2xl font-semibold">{formatPercent(latest.memPercent)}</span>
+              <span className="text-xs text-muted-foreground">
+                {formatBytes(latest.memUsedBytes)} / {formatBytes(latest.memTotalBytes)}
+              </span>
+            </>
           ) : (
-            <ChartSkeleton />
+            <>
+              <StatSkeleton className="w-16" />
+              <Skeleton className="h-3 w-24 self-center" />
+            </>
           )}
-        </CardContent>
-      </Card>
+        </div>
+        <div className="mb-2 h-6" />
+        {latest ? (
+          <SparklineChart
+            height={CHART_HEIGHT}
+            timestamps={timestamps}
+            domainMin={0}
+            domainMax={100}
+            formatValue={formatPercent}
+            formatTime={formatClockTime}
+            series={[
+              {
+                key: 'mem',
+                label: 'Memory',
+                color: 'hsl(var(--primary))',
+                values: statsHistory.map((s) => s.memPercent),
+              },
+            ]}
+          />
+        ) : (
+          <ChartSkeleton />
+        )}
+      </ChartCard>
     ),
 
     disk: (
-      <Card className={cardClass('disk')}>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="flex items-center gap-2 text-xs text-muted-foreground">
-            <HardDrive className="h-3.5 w-3.5" /> Disk I/O
-          </CardTitle>
-          <div className="flex items-center gap-2">
+      <ChartCard
+        className={cardClass('disk')}
+        icon={<HardDrive />}
+        title="Disk I/O"
+        actions={
+          <>
             <SimpleTooltip label="Top apps using disk">
               <Button
                 variant="ghost"
                 size="icon"
+                className={TILE_ACTION}
                 onClick={() => {
                   setTopAppsResource('disk');
                   setTopAppsOpen(true);
@@ -934,78 +1021,78 @@ export default function DashboardPage(): React.JSX.Element {
             </SimpleTooltip>
             {dragHandle('disk')}
             {chartRemove('disk')}
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="mb-2 flex h-8 items-baseline gap-2">
-            {latest ? (
-              <>
-                <span className="text-2xl font-semibold">
-                  {formatBytesPerSec(totalDiskBytesPerSec)}
-                </span>
-                <span className="text-xs text-muted-foreground">combined read + write</span>
-              </>
-            ) : (
-              <>
-                <StatSkeleton className="w-24" />
-                <Skeleton className="h-3 w-28 self-center" />
-              </>
-            )}
-          </div>
-          <div className="mb-2 flex h-6 items-center gap-4 overflow-x-auto overflow-y-hidden whitespace-nowrap">
-            {!latest && <Skeleton className="h-3 w-32" />}
-            {disks.map((d, i) => (
-              <div key={d.id} className="flex shrink-0 items-center gap-1.5 text-sm">
-                <span
-                  className="inline-block h-2 w-2 shrink-0 rounded-full"
-                  style={{
-                    backgroundColor: chartColors.categorical[i % chartColors.categorical.length],
-                  }}
-                />
-                <span className="font-medium">{d.label}</span>
-                <span className="text-xs text-muted-foreground">
-                  {formatBytesPerSec(d.readBytesPerSec + d.writeBytesPerSec)}
-                </span>
-              </div>
-            ))}
-          </div>
-          {!latest ? (
-            <ChartSkeleton />
-          ) : disks.length === 0 ? (
-            <EmptyChartState message="No disk activity detected." />
+          </>
+        }
+      >
+        <div className="mb-2 flex h-8 items-baseline gap-2">
+          {latest ? (
+            <>
+              <span className="text-2xl font-semibold">
+                {formatBytesPerSec(totalDiskBytesPerSec)}
+              </span>
+              <span className="text-xs text-muted-foreground">combined read + write</span>
+            </>
           ) : (
-            <SparklineChart
-              height={CHART_HEIGHT}
-              timestamps={timestamps}
-              domainMin={0}
-              formatValue={formatBytesPerSec}
-              formatTime={formatClockTime}
-              series={disks.map((d, i) => ({
-                key: d.id,
-                label: d.label,
-                color: chartColors.categorical[i % chartColors.categorical.length],
-                values: statsHistory.map((s) => {
-                  const found = s.disks.find((x) => x.id === d.id);
-                  return found ? found.readBytesPerSec + found.writeBytesPerSec : 0;
-                }),
-              }))}
-            />
+            <>
+              <StatSkeleton className="w-24" />
+              <Skeleton className="h-3 w-28 self-center" />
+            </>
           )}
-        </CardContent>
-      </Card>
+        </div>
+        <div className="mb-2 flex h-6 items-center gap-4 overflow-x-auto overflow-y-hidden whitespace-nowrap">
+          {!latest && <Skeleton className="h-3 w-32" />}
+          {disks.map((d, i) => (
+            <div key={d.id} className="flex shrink-0 items-center gap-1.5 text-sm">
+              <span
+                className="inline-block h-2 w-2 shrink-0 rounded-full"
+                style={{
+                  backgroundColor: chartColors.categorical[i % chartColors.categorical.length],
+                }}
+              />
+              <span className="font-medium">{d.label}</span>
+              <span className="text-xs text-muted-foreground">
+                {formatBytesPerSec(d.readBytesPerSec + d.writeBytesPerSec)}
+              </span>
+            </div>
+          ))}
+        </div>
+        {!latest ? (
+          <ChartSkeleton />
+        ) : disks.length === 0 ? (
+          <EmptyChartState message="No disk activity detected." />
+        ) : (
+          <SparklineChart
+            height={CHART_HEIGHT}
+            timestamps={timestamps}
+            domainMin={0}
+            formatValue={formatBytesPerSec}
+            formatTime={formatClockTime}
+            series={disks.map((d, i) => ({
+              key: d.id,
+              label: d.label,
+              color: chartColors.categorical[i % chartColors.categorical.length],
+              values: statsHistory.map((s) => {
+                const found = s.disks.find((x) => x.id === d.id);
+                return found ? found.readBytesPerSec + found.writeBytesPerSec : 0;
+              }),
+            }))}
+          />
+        )}
+      </ChartCard>
     ),
 
     gpu: (
-      <Card className={cardClass('gpu')}>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="flex items-center gap-2 text-xs text-muted-foreground">
-            <Gpu className="h-3.5 w-3.5" /> GPU Usage
-          </CardTitle>
-          <div className="flex items-center gap-2">
+      <ChartCard
+        className={cardClass('gpu')}
+        icon={<Gpu />}
+        title="GPU Usage"
+        actions={
+          <>
             <SimpleTooltip label="Top apps using GPU">
               <Button
                 variant="ghost"
                 size="icon"
+                className={TILE_ACTION}
                 onClick={() => {
                   setTopAppsResource('gpu');
                   setTopAppsOpen(true);
@@ -1016,247 +1103,252 @@ export default function DashboardPage(): React.JSX.Element {
             </SimpleTooltip>
             {dragHandle('gpu')}
             {chartRemove('gpu')}
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="mb-2 flex h-8 items-baseline gap-2">
-            {!latest ? (
-              <StatSkeleton className="w-16" />
-            ) : (
-              <>
-                <span className="text-2xl font-semibold">
-                  {gpus.length > 0 ? formatPercent(avgGpuPercent) : 'N/A'}
-                </span>
-                {gpus.length > 1 && (
-                  <span className="text-xs text-muted-foreground">
-                    avg across {gpus.length} GPUs
-                  </span>
-                )}
-              </>
-            )}
-          </div>
-          <div className="mb-2 flex flex-wrap items-center gap-x-4 gap-y-1">
-            {!latest && <Skeleton className="h-4 w-40" />}
-            {gpus.map((g, i) => (
-              <div key={g.id} className="flex items-center gap-1.5 text-sm">
-                <span
-                  className="inline-block h-2 w-2 shrink-0 rounded-full"
-                  style={{
-                    backgroundColor: chartColors.categorical[i % chartColors.categorical.length],
-                  }}
-                />
-                <span className="font-medium">{g.label}</span>
-                <span className="text-xs text-muted-foreground">
-                  {formatPercent(g.percent)} · {formatBytes(g.memUsedBytes)}/
-                  {formatBytes(g.memTotalBytes)}
-                </span>
-              </div>
-            ))}
-          </div>
+          </>
+        }
+      >
+        <div className="mb-2 flex h-8 items-baseline gap-2">
           {!latest ? (
-            <ChartSkeleton />
-          ) : gpus.length === 0 ? (
-            <EmptyChartState message="No supported GPU detected." />
+            <StatSkeleton className="w-16" />
           ) : (
-            <SparklineChart
-              height={CHART_HEIGHT}
-              timestamps={timestamps}
-              domainMin={0}
-              domainMax={100}
-              formatValue={formatPercent}
-              formatTime={formatClockTime}
-              series={gpus.map((g, i) => ({
-                key: g.id,
-                label: g.label,
-                color: chartColors.categorical[i % chartColors.categorical.length],
-                values: statsHistory.map((s) => s.gpus.find((x) => x.id === g.id)?.percent ?? 0),
-              }))}
-            />
+            <>
+              <span className="text-2xl font-semibold">
+                {gpus.length > 0 ? formatPercent(avgGpuPercent) : 'N/A'}
+              </span>
+              {gpus.length > 1 && (
+                <span className="text-xs text-muted-foreground">avg across {gpus.length} GPUs</span>
+              )}
+            </>
           )}
-        </CardContent>
-      </Card>
+        </div>
+        <div className="mb-2 flex flex-wrap items-center gap-x-4 gap-y-1">
+          {!latest && <Skeleton className="h-4 w-40" />}
+          {gpus.map((g, i) => (
+            <div key={g.id} className="flex items-center gap-1.5 text-sm">
+              <span
+                className="inline-block h-2 w-2 shrink-0 rounded-full"
+                style={{
+                  backgroundColor: chartColors.categorical[i % chartColors.categorical.length],
+                }}
+              />
+              <span className="font-medium">{g.label}</span>
+              <span className="text-xs text-muted-foreground">
+                {formatPercent(g.percent)} · {formatBytes(g.memUsedBytes)}/
+                {formatBytes(g.memTotalBytes)}
+              </span>
+            </div>
+          ))}
+        </div>
+        {!latest ? (
+          <ChartSkeleton />
+        ) : gpus.length === 0 ? (
+          <EmptyChartState message="No supported GPU detected." />
+        ) : (
+          <SparklineChart
+            height={CHART_HEIGHT}
+            timestamps={timestamps}
+            domainMin={0}
+            domainMax={100}
+            formatValue={formatPercent}
+            formatTime={formatClockTime}
+            series={gpus.map((g, i) => ({
+              key: g.id,
+              label: g.label,
+              color: chartColors.categorical[i % chartColors.categorical.length],
+              values: statsHistory.map((s) => s.gpus.find((x) => x.id === g.id)?.percent ?? 0),
+            }))}
+          />
+        )}
+      </ChartCard>
     ),
 
     network: (
-      <Card className={cardClass('network')}>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="flex items-center gap-2 text-xs text-muted-foreground">
-            <NetworkIcon className="h-3.5 w-3.5" /> Network Throughput
-          </CardTitle>
-          <div className="flex items-center gap-2">
-            {dragHandle('network')}
-            {chartRemove('network')}
+      <ChartCard
+        className={cardClass('network')}
+        icon={<NetworkIcon />}
+        title="Network Throughput"
+        actions={
+          <>
             <SimpleTooltip label="Test network speed">
-              <Button variant="ghost" size="icon" onClick={() => setSpeedTestOpen(true)}>
+              <Button
+                variant="ghost"
+                size="icon"
+                className={TILE_ACTION}
+                onClick={() => setSpeedTestOpen(true)}
+              >
                 <Bolt className="h-3.5 w-3.5" />
               </Button>
             </SimpleTooltip>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="mb-2 flex h-8 items-baseline gap-2">
-            {latest ? (
-              <>
-                <span className="text-2xl font-semibold">
-                  {formatBytesPerSec(latest.netRxBytesPerSec)}
-                </span>
-                <span className="text-xs text-muted-foreground">down</span>
-              </>
-            ) : (
-              <StatSkeleton className="w-24" />
-            )}
-          </div>
-          <div className="mb-2 flex h-6 items-center gap-4 overflow-x-auto overflow-y-hidden whitespace-nowrap text-xs text-muted-foreground">
-            <span className="flex shrink-0 items-center gap-1">
-              <span
-                className="inline-block h-0.5 w-3 rounded-full"
-                style={{ backgroundColor: chartColors.green }}
-              />
-              Download
-            </span>
-            <span className="flex shrink-0 items-center gap-1">
-              <span
-                className="inline-block h-0.5 w-3 rounded-full"
-                style={{ backgroundColor: chartColors.blue }}
-              />
-              Upload
-            </span>
-          </div>
+            {dragHandle('network')}
+            {chartRemove('network')}
+          </>
+        }
+      >
+        <div className="mb-2 flex h-8 items-baseline gap-2">
           {latest ? (
-            <SparklineChart
-              height={CHART_HEIGHT}
-              timestamps={timestamps}
-              domainMin={0}
-              formatValue={formatBytesPerSec}
-              formatTime={formatClockTime}
-              series={[
-                {
-                  key: 'rx',
-                  label: 'Download',
-                  color: chartColors.green,
-                  values: statsHistory.map((s) => s.netRxBytesPerSec),
-                },
-                {
-                  key: 'tx',
-                  label: 'Upload',
-                  color: chartColors.blue,
-                  values: statsHistory.map((s) => s.netTxBytesPerSec),
-                },
-              ]}
-            />
+            <>
+              <span className="text-2xl font-semibold">
+                {formatBytesPerSec(latest.netRxBytesPerSec)}
+              </span>
+              <span className="text-xs text-muted-foreground">down</span>
+            </>
           ) : (
-            <ChartSkeleton />
+            <StatSkeleton className="w-24" />
           )}
-        </CardContent>
-      </Card>
+        </div>
+        <div className="mb-2 flex h-6 items-center gap-4 overflow-x-auto overflow-y-hidden whitespace-nowrap text-xs text-muted-foreground">
+          <span className="flex shrink-0 items-center gap-1">
+            <span
+              className="inline-block h-0.5 w-3 rounded-full"
+              style={{ backgroundColor: chartColors.green }}
+            />
+            Download
+          </span>
+          <span className="flex shrink-0 items-center gap-1">
+            <span
+              className="inline-block h-0.5 w-3 rounded-full"
+              style={{ backgroundColor: chartColors.blue }}
+            />
+            Upload
+          </span>
+        </div>
+        {latest ? (
+          <SparklineChart
+            height={CHART_HEIGHT}
+            timestamps={timestamps}
+            domainMin={0}
+            formatValue={formatBytesPerSec}
+            formatTime={formatClockTime}
+            series={[
+              {
+                key: 'rx',
+                label: 'Download',
+                color: chartColors.green,
+                values: statsHistory.map((s) => s.netRxBytesPerSec),
+              },
+              {
+                key: 'tx',
+                label: 'Upload',
+                color: chartColors.blue,
+                values: statsHistory.map((s) => s.netTxBytesPerSec),
+              },
+            ]}
+          />
+        ) : (
+          <ChartSkeleton />
+        )}
+      </ChartCard>
     ),
 
     pings: (
-      <Card className={cardClass('pings')}>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="flex items-center gap-2 text-xs text-muted-foreground">
-            <SatelliteDish className="h-3.5 w-3.5" /> Network Status
-          </CardTitle>
-          <div className="flex items-center gap-2">
-            {dragHandle('pings')}
-            {chartRemove('pings')}
+      <ChartCard
+        className={cardClass('pings')}
+        icon={<SatelliteDish />}
+        title="Network Status"
+        actions={
+          <>
             <SimpleTooltip label="Manage ping targets">
-              <Button variant="ghost" size="icon" onClick={() => navigate('/settings?tab=data')}>
+              <Button
+                variant="ghost"
+                size="icon"
+                className={TILE_ACTION}
+                onClick={() => navigate('/settings?tab=data')}
+              >
                 <SettingsIcon className="h-3.5 w-3.5" />
               </Button>
             </SimpleTooltip>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="mb-2 flex h-8 items-baseline gap-2">
-            {!latest ? (
-              <StatSkeleton className="w-16" />
-            ) : (
-              <>
-                <span className="text-2xl font-semibold">
-                  {pings.length > 0 ? `${aliveTargetCount}/${pings.length}` : 'N/A'}
-                </span>
-                {pings.length > 0 && (
-                  <span className="text-xs text-muted-foreground">targets online</span>
-                )}
-                {pings.length > 0 && pingQualityPercent != null && networkQualityInfo && (
-                  <SimpleTooltip
-                    label={`${formatPercent(pingQualityPercent)} quality over last ${formatDurationShort(historyDurationMs)}`}
-                  >
-                    <Badge variant={networkQualityInfo.variant}>{networkQualityInfo.label}</Badge>
-                  </SimpleTooltip>
-                )}
-              </>
-            )}
-          </div>
-          <div className="mb-2 flex h-6 items-center gap-4 overflow-x-auto overflow-y-hidden whitespace-nowrap">
-            {!latest && <Skeleton className="h-3 w-36" />}
-            {pings.map((p, i) => (
-              <div key={p.host} className="flex shrink-0 items-center gap-1.5 text-sm">
-                <span
-                  className="inline-block h-2 w-2 shrink-0 rounded-full"
-                  style={{
-                    backgroundColor: chartColors.categorical[i % chartColors.categorical.length],
-                  }}
-                />
-                {isHttpProbeTarget(p.host) ? (
-                  <SimpleTooltip label={p.host}>
-                    <span className="font-medium">{probeTargetLabel(p.host)}</span>
-                  </SimpleTooltip>
-                ) : (
-                  <button
-                    type="button"
-                    className="font-medium underline-offset-2 hover:underline"
-                    onClick={() => setDiagnoseHost(p.host)}
-                  >
-                    {p.host}
-                  </button>
-                )}
-                <span className="text-xs text-muted-foreground">
-                  {p.latencyMs != null ? formatMs(p.latencyMs) : 'N/A'}
-                </span>
-                <Badge variant={p.alive ? 'success' : 'destructive'}>
-                  {p.alive ? 'Online' : 'Offline'}
-                </Badge>
-              </div>
-            ))}
-          </div>
+            {dragHandle('pings')}
+            {chartRemove('pings')}
+          </>
+        }
+      >
+        <div className="mb-2 flex h-8 items-baseline gap-2">
           {!latest ? (
-            <ChartSkeleton />
-          ) : pings.length === 0 ? (
-            <EmptyChartState
-              message={
-                <>
-                  No ping targets configured. Add one in{' '}
-                  <button
-                    className="underline underline-offset-2"
-                    onClick={() => navigate('/settings?tab=data')}
-                  >
-                    Settings
-                  </button>
-                  .
-                </>
-              }
-            />
+            <StatSkeleton className="w-16" />
           ) : (
-            <SparklineChart
-              height={CHART_HEIGHT}
-              timestamps={timestamps}
-              domainMin={0}
-              formatValue={formatMs}
-              formatTime={formatClockTime}
-              series={pings.map((p, i) => ({
-                key: p.host,
-                label: probeTargetLabel(p.host),
-                color: chartColors.categorical[i % chartColors.categorical.length],
-                values: statsHistory.map(
-                  (s) => s.pings.find((x) => x.host === p.host)?.latencyMs ?? 0,
-                ),
-              }))}
-            />
+            <>
+              <span className="text-2xl font-semibold">
+                {pings.length > 0 ? `${aliveTargetCount}/${pings.length}` : 'N/A'}
+              </span>
+              {pings.length > 0 && (
+                <span className="text-xs text-muted-foreground">targets online</span>
+              )}
+              {pings.length > 0 && pingQualityPercent != null && networkQualityInfo && (
+                <SimpleTooltip
+                  label={`${formatPercent(pingQualityPercent)} quality over last ${formatDurationShort(historyDurationMs)}`}
+                >
+                  <Chip tone={networkQualityInfo.variant}>{networkQualityInfo.label}</Chip>
+                </SimpleTooltip>
+              )}
+            </>
           )}
-        </CardContent>
-      </Card>
+        </div>
+        <div className="mb-2 flex h-6 items-center gap-4 overflow-x-auto overflow-y-hidden whitespace-nowrap">
+          {!latest && <Skeleton className="h-3 w-36" />}
+          {pings.map((p, i) => (
+            <div key={p.host} className="flex shrink-0 items-center gap-1.5 text-sm">
+              <span
+                className="inline-block h-2 w-2 shrink-0 rounded-full"
+                style={{
+                  backgroundColor: chartColors.categorical[i % chartColors.categorical.length],
+                }}
+              />
+              {isHttpProbeTarget(p.host) ? (
+                <SimpleTooltip label={p.host}>
+                  <span className="font-medium">{probeTargetLabel(p.host)}</span>
+                </SimpleTooltip>
+              ) : (
+                <button
+                  type="button"
+                  className="font-medium underline-offset-2 hover:underline"
+                  onClick={() => setDiagnoseHost(p.host)}
+                >
+                  {p.host}
+                </button>
+              )}
+              <span className="text-xs text-muted-foreground">
+                {p.latencyMs != null ? formatMs(p.latencyMs) : 'N/A'}
+              </span>
+              <Chip tone={p.alive ? 'success' : 'destructive'}>
+                {p.alive ? 'Online' : 'Offline'}
+              </Chip>
+            </div>
+          ))}
+        </div>
+        {!latest ? (
+          <ChartSkeleton />
+        ) : pings.length === 0 ? (
+          <EmptyChartState
+            message={
+              <>
+                No ping targets configured. Add one in{' '}
+                <button
+                  className="underline underline-offset-2"
+                  onClick={() => navigate('/settings?tab=data')}
+                >
+                  Settings
+                </button>
+                .
+              </>
+            }
+          />
+        ) : (
+          <SparklineChart
+            height={CHART_HEIGHT}
+            timestamps={timestamps}
+            domainMin={0}
+            formatValue={formatMs}
+            formatTime={formatClockTime}
+            series={pings.map((p, i) => ({
+              key: p.host,
+              label: probeTargetLabel(p.host),
+              color: chartColors.categorical[i % chartColors.categorical.length],
+              values: statsHistory.map(
+                (s) => s.pings.find((x) => x.host === p.host)?.latencyMs ?? 0,
+              ),
+            }))}
+          />
+        )}
+      </ChartCard>
     ),
 
     github: (
@@ -1284,7 +1376,7 @@ export default function DashboardPage(): React.JSX.Element {
 
   const statTiles: Record<DashboardStatId, React.ReactNode> = {
     'installed-clis': (
-      <StatTile
+      <MetricTile
         className={cardClass(statItemId('installed-clis'))}
         icon={<TerminalSquare className="h-3.5 w-3.5" />}
         label="Installed CLIs"
@@ -1300,7 +1392,7 @@ export default function DashboardPage(): React.JSX.Element {
       />
     ),
     'active-projects': (
-      <StatTile
+      <MetricTile
         className={cardClass(statItemId('active-projects'))}
         icon={<FolderKanban className="h-3.5 w-3.5" />}
         label="Active Projects"
@@ -1316,7 +1408,7 @@ export default function DashboardPage(): React.JSX.Element {
       />
     ),
     'skill-repos': (
-      <StatTile
+      <MetricTile
         className={cardClass(statItemId('skill-repos'))}
         icon={<Blocks className="h-3.5 w-3.5" />}
         label="Skill Repositories"
@@ -1328,7 +1420,7 @@ export default function DashboardPage(): React.JSX.Element {
       />
     ),
     location: (
-      <StatTile
+      <MetricTile
         className={cardClass(statItemId('location'))}
         icon={<Globe className="h-3.5 w-3.5" />}
         label="Your Location"
@@ -1338,14 +1430,12 @@ export default function DashboardPage(): React.JSX.Element {
           <Button
             variant="ghost"
             size="icon"
-            className="h-5 w-5"
+            className={TILE_ACTION}
             onClick={refreshIpGeo}
             disabled={ipGeoSpinning || ipGeoQuery.isFetching}
           >
             <RefreshCw
-              className={
-                ipGeoSpinning || ipGeoQuery.isFetching ? 'h-3 w-3 animate-spin' : 'h-3 w-3'
-              }
+              className={ipGeoSpinning || ipGeoQuery.isFetching ? 'animate-spin' : undefined}
             />
           </Button>
         }
@@ -1392,7 +1482,7 @@ export default function DashboardPage(): React.JSX.Element {
 
   const summaryTiles: Record<DashboardUsageSummaryId, React.ReactNode> = {
     'tokens-today': (
-      <StatTile
+      <MetricTile
         className={cardClass(summaryItemId('tokens-today'))}
         icon={<ChartColumn className="h-3.5 w-3.5" />}
         label="Tokens today"
@@ -1408,7 +1498,7 @@ export default function DashboardPage(): React.JSX.Element {
       />
     ),
     'tokens-week': (
-      <StatTile
+      <MetricTile
         className={cardClass(summaryItemId('tokens-week'))}
         icon={<Bolt className="h-3.5 w-3.5" />}
         label="Tokens (7 days)"
@@ -1424,7 +1514,7 @@ export default function DashboardPage(): React.JSX.Element {
       />
     ),
     'cost-today': (
-      <StatTile
+      <MetricTile
         className={cardClass(summaryItemId('cost-today'))}
         icon={<ChartColumn className="h-3.5 w-3.5" />}
         label="Cost today"
@@ -1440,7 +1530,7 @@ export default function DashboardPage(): React.JSX.Element {
       />
     ),
     'providers-tracked': (
-      <StatTile
+      <MetricTile
         className={cardClass(summaryItemId('providers-tracked'))}
         icon={<Pin className="h-3.5 w-3.5" />}
         label="Providers tracked"
@@ -1460,18 +1550,18 @@ export default function DashboardPage(): React.JSX.Element {
   };
 
   return (
-    <div className="space-y-6 p-6">
-      <div className="flex flex-wrap gap-2">
-        <Button onClick={() => navigate('/projects?new=1')}>
+    <div className="flex flex-col gap-2 p-2">
+      <div className={TOOLBAR}>
+        <Button className={PILL_PRIMARY} onClick={() => navigate('/projects?new=1')}>
           <FolderPlus /> New Project
         </Button>
-        <Button variant="secondary" onClick={() => navigate('/prompt-builder')}>
+        <Button variant="ghost" className={PILL_SOFT} onClick={() => navigate('/prompt-builder')}>
           <Sparkles /> Open Prompt Builder
         </Button>
         {editing && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" className="ml-auto">
+              <Button variant="ghost" className={cn(PILL_SOFT, 'ml-auto')}>
                 <Plus /> Add card
               </Button>
             </DropdownMenuTrigger>
@@ -1523,26 +1613,26 @@ export default function DashboardPage(): React.JSX.Element {
         )}
         <SimpleTooltip label={editing ? 'Done editing' : 'Edit layout'}>
           <Button
-            variant={editing ? 'default' : 'outline'}
+            variant={editing ? 'default' : 'ghost'}
             size="icon"
-            className={editing ? undefined : 'ml-auto'}
+            className={editing ? 'h-8 w-8 rounded-full' : cn(PILL_SOFT_ICON, 'ml-auto')}
             aria-label={editing ? 'Done editing' : 'Edit layout'}
             onClick={() => setEditing(!editing)}
           >
-            {editing ? <Check className="h-4 w-4" /> : <Pencil className="h-4 w-4" />}
+            {editing ? <Check /> : <Pencil />}
           </Button>
         </SimpleTooltip>
+        {/* What edit mode lets you do, on a line of its own under the actions. */}
+        {editing && (
+          <p className="w-full px-1.5 pb-0.5 text-xs leading-relaxed text-muted-foreground">
+            Drag a card by its handle to move it within a row or into another one, drag a row by its
+            handle to reorder rows, choose how many columns each row uses, hide cards you don't
+            want, and bring them back from "Add card".
+          </p>
+        )}
       </div>
 
-      {editing && (
-        <p className="text-sm text-muted-foreground">
-          Drag a card by its handle to move it within a row or into another one, drag a row by its
-          handle to reorder rows, choose how many columns each row uses, hide cards you don't want,
-          and bring them back from "Add card".
-        </p>
-      )}
-
-      <div className="space-y-4">
+      <div className="space-y-2">
         {rows.map((row) => {
           // Rows the user emptied are kept as drop targets while editing, but
           // leave no gap on the finished dashboard.
@@ -1551,7 +1641,8 @@ export default function DashboardPage(): React.JSX.Element {
             <div
               key={row.id}
               className={cn(
-                editing && 'rounded-xl border border-dashed border-border p-3',
+                editing &&
+                  'rounded-[calc(var(--radius)+6px)] border border-dashed border-border bg-foreground/[0.02] p-2',
                 dragRowId === row.id && 'opacity-50',
               )}
               onDragOver={(e) => {
@@ -1562,30 +1653,29 @@ export default function DashboardPage(): React.JSX.Element {
               }}
             >
               {editing && (
-                <div className="mb-3 flex flex-wrap items-center gap-1">
+                <div className="mb-2 flex flex-wrap items-center gap-1.5 pl-0.5">
                   <ChartDragHandle
                     label="Drag to reorder rows"
                     onDragStart={() => setDragRowId(row.id)}
                     onDragEnd={() => setDragRowId(null)}
                   />
-                  <span className="mr-auto text-xs text-muted-foreground">
+                  <span className="mr-auto text-xs font-medium text-muted-foreground">
                     {row.items.length === 0
                       ? 'Empty row'
                       : `${row.items.length} card${row.items.length > 1 ? 's' : ''}`}
                   </span>
-                  <div className="flex items-center gap-1 rounded-lg border border-border bg-card p-1">
-                    <span className="px-1.5 text-xs text-muted-foreground">Columns</span>
+                  <div role="group" aria-label="Columns" className={SEGMENT_TRACK}>
+                    <span className="px-2 text-[11px] text-muted-foreground">Columns</span>
                     {DASHBOARD_COLUMN_OPTIONS.map((count) => (
                       <SimpleTooltip key={count} label={`${count} per row`}>
-                        <Button
-                          variant={row.columns === count ? 'secondary' : 'ghost'}
-                          size="sm"
-                          className="h-7 w-8 px-0"
+                        <button
+                          type="button"
+                          className={cn(segmentClass(row.columns === count), 'w-7 px-0')}
                           aria-pressed={row.columns === count}
                           onClick={() => setRowColumns(row.id, count)}
                         >
                           {count}
-                        </Button>
+                        </button>
                       </SimpleTooltip>
                     ))}
                   </div>
@@ -1600,16 +1690,17 @@ export default function DashboardPage(): React.JSX.Element {
                     <Button
                       variant="ghost"
                       size="icon"
+                      className={TILE_ACTION}
                       disabled={rows.length === 1}
                       onClick={() => removeRow(row.id)}
                     >
-                      <Trash2 className="h-3.5 w-3.5" />
+                      <Trash2 />
                     </Button>
                   </SimpleTooltip>
                 </div>
               )}
 
-              <div className={cn('grid gap-4', GRID_COLUMN_CLASS[row.columns])}>
+              <div className={cn('grid gap-2', GRID_COLUMN_CLASS[row.columns])}>
                 {row.items.map((rawId) => {
                   const id = rawId as DashboardItemId;
                   const providerId = usageProviderIdOf(id);
@@ -1629,21 +1720,23 @@ export default function DashboardPage(): React.JSX.Element {
                           className={cardClass(id)}
                           actions={
                             <>
-                              {dragHandle(id)}
                               <SimpleTooltip label="Open Token Usage">
                                 <Button
                                   variant="ghost"
                                   size="icon"
+                                  className={TILE_ACTION}
                                   onClick={() => navigate('/usage')}
                                 >
-                                  <ExternalLink className="h-3.5 w-3.5" />
+                                  <ExternalLink />
                                 </Button>
                               </SimpleTooltip>
+                              {dragHandle(id)}
                               {editing && (
                                 <SimpleTooltip label="Remove from dashboard">
                                   <Button
                                     variant="ghost"
                                     size="icon"
+                                    className={TILE_ACTION}
                                     onClick={() => {
                                       toggleUsageCard(ALL_AGENTS_WIDGET_ID);
                                       toast.info('All agents removed from the dashboard.');
@@ -1693,7 +1786,7 @@ export default function DashboardPage(): React.JSX.Element {
                     onDragOver={(e) => e.preventDefault()}
                     onDrop={() => handleChartDrop(row.id, null)}
                     className={cn(
-                      'flex min-h-24 items-center justify-center rounded-xl border border-dashed border-border px-3 text-center text-xs text-muted-foreground',
+                      'flex min-h-24 items-center justify-center rounded-[calc(var(--radius)+2px)] border border-dashed border-border bg-foreground/[0.02] px-3 text-center text-xs text-muted-foreground',
                       row.items.length === 0 && 'col-span-full',
                     )}
                   >
@@ -1711,14 +1804,14 @@ export default function DashboardPage(): React.JSX.Element {
           <div
             onDragOver={(e) => e.preventDefault()}
             onDrop={() => handleRowDrop(null)}
-            className="flex min-h-10 items-center justify-center rounded-xl border border-dashed border-border px-3 text-center text-xs text-muted-foreground"
+            className="flex min-h-10 items-center justify-center rounded-[calc(var(--radius)+2px)] border border-dashed border-border bg-foreground/[0.02] px-3 text-center text-xs text-muted-foreground"
           >
             Drop here to move row to the end
           </div>
         )}
 
         {editing && (
-          <Button variant="outline" onClick={addRow}>
+          <Button variant="ghost" className={PILL_SOFT} onClick={addRow}>
             <Plus /> Add row
           </Button>
         )}

@@ -1,0 +1,25 @@
+<?xml version="1.0"?>
+<ruleset name="AgentMate Connector">
+    <description>PHP 7.4+ compatibility, plus the WordPress security and SQL sniffs.</description>
+
+    <file>agentmate-connector.php</file>
+    <file>uninstall.php</file>
+    <file>rescue.php</file>
+    <file>guard</file>
+    <file>src</file>
+
+    <arg name="extensions" value="php"/>
+    <arg value="sp"/>
+
+    <config name="testVersion" value="7.4-"/>
+    <config name="minimum_wp_version" value="6.0"/>
+
+    <rule ref="PHPCompatibilityWP"/>
+    <rule ref="WordPress.Security">
+        <!-- Exception messages here go into signed JSON frames or WP-CLI, never into HTML. Every
+             admin page output is escaped where it is printed. -->
+        <exclude name="WordPress.Security.EscapeOutput.ExceptionNotEscaped"/>
+    </rule>
+    <rule ref="WordPress.DB.PreparedSQL"/>
+    <rule ref="WordPress.DB.PreparedSQLPlaceholders"/>
+</ruleset>

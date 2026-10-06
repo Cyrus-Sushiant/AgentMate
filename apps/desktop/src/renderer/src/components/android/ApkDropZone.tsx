@@ -40,6 +40,7 @@ interface ApkDropZoneProps {
   onInstall: (serial: string, label: string, paths: string[]) => void;
   onReject: (message: string) => void;
   children: React.ReactNode;
+  className?: string;
 }
 
 function labelOf(device: AndroidDevice): { serial: string; label: string } {
@@ -53,6 +54,7 @@ export function ApkDropZone({
   onInstall,
   onReject,
   children,
+  className,
 }: ApkDropZoneProps): React.JSX.Element {
   const [dragging, setDragging] = useState(false);
   const only = targets.length === 1 ? labelOf(targets[0]) : null;
@@ -87,7 +89,7 @@ export function ApkDropZone({
 
   return (
     <div
-      className="relative"
+      className={cn('relative', className)}
       onDragOver={(event) => {
         if (!carriesFiles(event)) return;
         event.preventDefault();
@@ -105,11 +107,13 @@ export function ApkDropZone({
         <div
           aria-hidden
           className={cn(
-            'glass pointer-events-none absolute inset-0 z-20 flex flex-col items-center justify-center gap-3 rounded-xl',
-            'border-2 border-dashed border-primary/50',
+            'glass pointer-events-none absolute inset-0 z-20 flex flex-col items-center justify-center gap-3 rounded-[calc(var(--radius)+2px)]',
+            // An outline rather than a border: the global border colour would win over a tinted
+            // border utility and leave the dashes grey.
+            'outline-2 -outline-offset-4 outline-dashed outline-primary/50',
           )}
         >
-          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary">
+          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/12 text-primary shadow-[0_0_40px_-12px_hsl(var(--primary)/0.7)]">
             <Upload className="h-5 w-5" />
           </div>
           <p className="text-sm font-medium">

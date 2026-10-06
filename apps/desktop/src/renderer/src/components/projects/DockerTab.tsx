@@ -4,7 +4,7 @@ import { DockerContainerRow } from '@/components/docker/DockerContainerRow';
 import { RemoveContainerDialog } from '@/components/docker/RemoveContainerDialog';
 import { useDockerContainerActions } from '@/components/docker/useDockerContainerActions';
 import { Docker, StopCircle } from '@/components/icons';
-import { ProjectEmptyState } from '@/components/projects/ProjectDetailChrome';
+import { SectionEmptyState } from '@/components/projects/ProjectDetailChrome';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { queryKeys } from '@/lib/queryKeys';
@@ -40,7 +40,7 @@ export function DockerTab({ project }: { project: Project }): React.JSX.Element 
 
   if (available === false) {
     return (
-      <ProjectEmptyState
+      <SectionEmptyState
         icon={Docker}
         title="Docker isn't available"
         description="Install Docker and make sure it's on PATH to manage this project's containers here."
@@ -54,7 +54,7 @@ export function DockerTab({ project }: { project: Project }): React.JSX.Element 
 
   if (containers.length === 0) {
     return (
-      <ProjectEmptyState
+      <SectionEmptyState
         icon={Docker}
         title="No containers for this project"
         description="Only containers started with docker compose from this exact folder show up here. Run docker compose up -d in the project's folder to see them, or manage every container from the Docker page in the sidebar."

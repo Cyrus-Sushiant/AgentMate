@@ -47,7 +47,8 @@ export function EffortPicker({
       role="radiogroup"
       aria-label="Effort"
       className={cn(
-        'flex h-9 w-full items-stretch gap-0.5 rounded-lg border border-input bg-background p-0.5',
+        // A segmented control drawn on the shared field surface, so it lines up with the fields beside it.
+        'field-surface flex h-9 w-full items-stretch gap-0.5 rounded-full p-0.5',
         noEffort && 'opacity-50',
       )}
     >
@@ -64,7 +65,7 @@ export function EffortPicker({
             disabled={disabled}
             onClick={() => onChange(choice.id)}
             className={cn(
-              'min-w-0 flex-1 truncate rounded-md px-1.5 text-xs transition-colors disabled:pointer-events-none disabled:opacity-40',
+              'min-w-0 flex-1 cursor-pointer truncate rounded-full px-1.5 text-xs transition-colors disabled:pointer-events-none disabled:opacity-40',
               selected
                 ? 'bg-primary/15 font-medium text-foreground shadow-[inset_0_0_0_1px_hsl(var(--primary)/0.35)]'
                 : 'text-muted-foreground hover:bg-foreground/[0.06] hover:text-foreground',

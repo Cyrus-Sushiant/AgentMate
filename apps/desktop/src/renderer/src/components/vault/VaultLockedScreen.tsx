@@ -105,6 +105,7 @@ export function VaultLockedScreen({ status }: { status: VaultStatus }): React.JS
           value={password}
           onChange={setPassword}
           placeholder="Master password"
+          className="h-10 pl-4"
           aria-invalid={error ? true : undefined}
           aria-describedby={error ? `${inputId}-error` : undefined}
         />
@@ -122,14 +123,18 @@ export function VaultLockedScreen({ status }: { status: VaultStatus }): React.JS
             <p className="text-muted-foreground">Try again in {secondsLeft}s.</p>
           )}
         </div>
-        <Button type="submit" className="w-full" disabled={!password || busy || secondsLeft > 0}>
+        <Button
+          type="submit"
+          className="h-10 w-full rounded-full"
+          disabled={!password || busy || secondsLeft > 0}
+        >
           {busy && <Spinner className="h-3.5 w-3.5 animate-spin" />}
           Unlock
         </Button>
         <div className="text-center">
           <button
             type="button"
-            className="text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+            className="cursor-pointer rounded-full px-2 py-0.5 text-xs text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             onClick={() => setResetOpen(true)}
           >
             Forgot your master password?

@@ -30,6 +30,11 @@ const toast = vi.hoisted(() =>
 );
 vi.mock('sonner', () => ({ toast }));
 
+// A WordPress site's deploy review shows diffs; the real editor needs Monaco's web workers.
+vi.mock('@/components/editor/MonacoDiffEditor', () => ({
+  MonacoDiffEditor: () => null,
+}));
+
 const { default: DeployPage } = await import('./DeployPage');
 
 const CORE: DeployCoreRecord = {
@@ -755,5 +760,147 @@ describe('DeployPage logs', () => {
     expect(
       within(sections).getByRole('button', { name: /Logs/ }).getAttribute('aria-current'),
     ).toBe('page');
+  });
+});
+
+describe('DeployPage WordPress sites', () => {
+  const SITE = {
+    id: 'site-1',
+    label: 'Bakery',
+    siteUrl: 'https://bakery.example',
+    siteName: 'The Bakery',
+    scope: 'write' as const,
+    transport: 'https' as const,
+    allowPlainHttp: false,
+    hasHttpAuth: false,
+    pluginVersion: '1.0.0',
+    protocol: 1,
+    connectedAt: Date.now() - 86_400_000,
+    lastSeenAt: Date.now() - 60_000,
+  };
+
+  it('offers a WordPress site, Remote and Cloudflare when there is nothing yet', async () => {
+    const { user } = renderPage({
+      'deploy.listServers': async () => [],
+      'deployWordPress.listSites': async () => [],
+    });
+
+    expect(await screen.findByText('No servers yet')).toBeTruthy();
+    expect(screen.getByRole('button', { name: /Open Remote/ })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /Manage Cloudflare/ })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /Download the plugin/ })).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: /Connect a WordPress site/ }));
+    expect(await screen.findByLabelText('Connection key')).toBeTruthy();
+  });
+
+  it('shows the first site, with no empty state and no Deploy AI, when there are only sites', async () => {
+    renderPage({
+      'deploy.listServers': async () => [],
+      'deployWordPress.listSites': async () => [SITE],
+      'deployWordPress.siteInfo': () => new Promise(() => undefined),
+    });
+
+    expect(await screen.findByRole('heading', { name: 'Bakery' })).toBeTruthy();
+    expect(screen.queryByText('No servers yet')).toBeNull();
+    expect(screen.getByRole('navigation', { name: 'Site sections' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /Deploy AI/ })).toBeNull();
+    const rail = screen.getByRole('navigation', { name: 'Servers' });
+    expect(within(rail).getByText('No servers yet.')).toBeTruthy();
+  });
+
+  it('keeps the first server selected when there are servers and sites', async () => {
+    renderPage({
+      'deploy.listServers': async () => [server({ core: CORE })],
+      'deployWordPress.listSites': async () => [SITE],
+    });
+
+    expect(await screen.findByRole('heading', { name: 'Production' })).toBeTruthy();
+    const sites = await screen.findByRole('list', { name: 'WordPress sites' });
+    expect(within(sites).getByText('Bakery')).toBeTruthy();
+    expect(screen.getByRole('button', { name: /Deploy AI/ })).toBeTruthy();
+  });
+
+  it('opens a site and its section from the address', async () => {
+    renderPage(
+      {
+        'deploy.listServers': async () => [server({ core: CORE })],
+        'deployWordPress.listSites': async () => [SITE],
+        'deployWordPress.audit': async () => [],
+      },
+      '/deploy?site=site-1&view=access',
+    );
+
+    expect(await screen.findByRole('heading', { name: 'Bakery' })).toBeTruthy();
+    const sections = screen.getByRole('navigation', { name: 'Site sections' });
+    expect(
+      within(sections)
+        .getByRole('button', { name: /Access/ })
+        .getAttribute('aria-current'),
+    ).toBe('page');
+    expect(screen.getByText('Read and write key')).toBeTruthy();
+    expect(screen.queryByRole('heading', { name: 'Production' })).toBeNull();
+    expect(screen.queryByRole('button', { name: /Deploy AI/ })).toBeNull();
+  });
+
+  it('switches between a server and a site from the rail', async () => {
+    const { user } = renderPage({
+      'deploy.listServers': async () => [server({ core: CORE })],
+      'deployWordPress.listSites': async () => [SITE],
+      'deployWordPress.history': async () => [],
+    });
+
+    const sites = await screen.findByRole('list', { name: 'WordPress sites' });
+    await user.click(within(sites).getByRole('button', { name: /Bakery/ }));
+    expect(await screen.findByRole('heading', { name: 'Bakery' })).toBeTruthy();
+    const sections = screen.getByRole('navigation', { name: 'Site sections' });
+    await user.click(within(sections).getByRole('button', { name: /Deploys/ }));
+    expect(await screen.findByText(/Nothing has been deployed to this site yet/)).toBeTruthy();
+
+    const rail = screen.getByRole('navigation', { name: 'Servers' });
+    await user.click(within(rail).getByRole('button', { name: /Production/ }));
+    expect(await screen.findByRole('heading', { name: 'Production' })).toBeTruthy();
+  });
+
+  it('shimmers instead of flashing a server while a linked site loads', () => {
+    const { container } = renderPage(
+      {
+        'deploy.listServers': async () => [server({ core: CORE })],
+        'deployWordPress.listSites': () => new Promise(() => undefined),
+      },
+      '/deploy?site=site-1',
+    );
+
+    expect(container.querySelector('[aria-busy="true"] .shimmer')).not.toBeNull();
+    expect(screen.queryByRole('heading', { name: 'Production' })).toBeNull();
+  });
+
+  it('asks to unlock the vault for a site too', async () => {
+    renderPage(
+      {
+        'deploy.listServers': async () => [],
+        'deployWordPress.listSites': async () => [SITE],
+        'deployWordPress.siteInfo': async () => {
+          throw new Error('[wp:vaultLocked] locked');
+        },
+        'ssh.vaultStatus': async () => ({ hasPasskey: true, unlocked: false }),
+      },
+      '/deploy?site=site-1',
+    );
+
+    expect(await screen.findByText(/WordPress sites are locked with a passkey/)).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Unlock' })).toBeTruthy();
+    expect(await screen.findByText(/this site's key with them/)).toBeTruthy();
+  });
+
+  it('says why the sites did not load in the rail, and keeps the servers', async () => {
+    renderPage({
+      'deploy.listServers': async () => [server({ core: CORE })],
+      'deployWordPress.listSites': async () => {
+        throw new Error('[wp:vaultLocked] locked');
+      },
+    });
+
+    expect(await screen.findByRole('heading', { name: 'Production' })).toBeTruthy();
+    expect(await screen.findByText(/The WordPress sites did not load/)).toBeTruthy();
   });
 });

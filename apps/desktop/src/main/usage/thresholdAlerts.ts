@@ -20,6 +20,8 @@ const WINDOW_LABELS: Record<SubscriptionWindowKey, string> = {
   week: 'Weekly',
   'week-fable': FABLE_WEEK_LABEL,
   month: 'Monthly',
+  'month-auto': 'Auto',
+  'month-api': 'API',
 };
 
 let timer: NodeJS.Timeout | null = null;

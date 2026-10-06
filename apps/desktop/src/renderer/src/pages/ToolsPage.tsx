@@ -10,28 +10,48 @@ import {
   type ToolSettingsValues,
 } from '@agentmat/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { LayoutGroup, motion, useReducedMotion } from 'framer-motion';
 import { useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import {
+  Bolt,
   CloudDownload,
+  Code,
   Download,
   ExternalLink,
   FolderOpen,
   GitBranch,
   Globe,
+  Package,
   Play,
   RefreshCw,
+  Server,
   Shield,
+  SpellCheck,
   StopCircle,
   TerminalSquare,
   Trash2,
+  Wand2,
   Wrench,
 } from '@/components/icons';
+import {
+  CARD_PILL,
+  CARD_PILL_SOFT,
+  Chip,
+  type ChipTone,
+  GLASS_CARD,
+  NoMatches,
+  PILL_PRIMARY,
+  PILL_SOFT,
+  SECTION_HEADING,
+  SearchPill,
+  TILE_ACTION,
+  TOOLBAR,
+  UpdateSummary,
+} from '@/components/pageKit';
 import { CodeqlInstallCard } from '@/components/tools/CodeqlInstallCard';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Combobox } from '@/components/ui/combobox';
 import {
   Dialog,
@@ -41,13 +61,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { GooeyNav, GooeyNavCount } from '@/components/ui/gooey-nav';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Switch } from '@/components/ui/switch';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { queryKeys } from '@/lib/queryKeys';
+import { cn } from '@/lib/utils';
 import { usePageHeader } from '@/stores/pageHeaderStore';
 import { useTerminalStore } from '@/stores/terminalStore';
 
@@ -60,11 +80,6 @@ interface PendingToolUpdate {
   command: string;
 }
 
-/**
- * Category names read well on a card badge but are too long for a tab, so the tab shows the
- * distinctive half. "Security & Code Scanning" becomes "Security", "Token & Cost Optimization"
- * becomes "Token & Cost".
- */
 /**
  * Names the install button after whatever actually runs, rather than assuming npm. Every tool
  * with a Docker option used to be npm-installed, so the button was hardcoded to "Install (npm)",
@@ -93,10 +108,41 @@ function installLabel(command: string | undefined): string {
   return manager ? `Install (${manager})` : 'Install';
 }
 
+/**
+ * Category names read well on a card chip but are too long for the nav, so the nav shows the
+ * distinctive half. "Security & Code Scanning" becomes "Security", "Token & Cost Optimization"
+ * becomes "Token & Cost".
+ */
 function shortCategoryLabel(category: string): string {
   const first = category.split(' & ')[0];
   return first === 'Token' ? 'Token & Cost' : first;
 }
+
+/** One icon per category for the side nav. A category added later falls back to a box. */
+const CATEGORY_ICONS: Record<string, typeof Wrench> = {
+  [SECURITY_TOOL_CATEGORY]: Shield,
+  'Token & Cost Optimization': Bolt,
+  'Agent Behavior & Prompting': Wand2,
+  'Code Intelligence': Code,
+  'Agent Runtimes & Gateways': Server,
+  'Writing & Docs': SpellCheck,
+};
+
+/** Does a tool match the filter box, by its name, what it does, who makes it or a tag? */
+function matchesFilter(tool: AgentToolDefinition, needle: string): boolean {
+  return [tool.name, tool.description, tool.author, ...tool.tags].some((text) =>
+    text.toLowerCase().includes(needle),
+  );
+}
+
+const DOCKER_TONES: Record<string, ChipTone> = {
+  running: 'success',
+  stopped: 'warning',
+};
+
+/** One of the container controls inside the Docker pill. */
+const DOCKER_ACTION =
+  'h-6 w-6 rounded-full text-muted-foreground hover:bg-foreground/[0.08] hover:text-foreground [&_svg]:size-3';
 
 export default function ToolsPage(): React.JSX.Element {
   const queryClient = useQueryClient();
@@ -413,36 +459,35 @@ export default function ToolsPage(): React.JSX.Element {
     );
   }
 
-  // The nav reports the index it was given, so these two arrays stay in step: one drives the
-  // tiles, the other maps a click back to the category it filters by.
-  const navValues = useMemo(
-    () => ['all', ...categories.map(({ category }) => category)],
-    [categories],
-  );
-
-  const navItems = useMemo(
+  const navEntries = useMemo(
     () => [
-      {
-        label: 'All',
-        icon: <Wrench />,
-        badge: <GooeyNavCount value={AGENT_TOOL_REGISTRY.length} />,
-      },
+      { value: 'all', label: 'All', icon: Wrench, count: AGENT_TOOL_REGISTRY.length },
       ...categories.map(({ category, count }) => ({
+        value: category,
         label: shortCategoryLabel(category),
-        icon: category === SECURITY_TOOL_CATEGORY ? <Shield /> : undefined,
-        badge: <GooeyNavCount value={count} />,
+        icon: CATEGORY_ICONS[category] ?? Package,
+        count,
       })),
     ],
     [categories],
   );
 
-  const visibleTools = useMemo(
-    () =>
+  // The filter works inside the open category, and the nav keeps counting the whole registry so
+  // its numbers don't jump around while typing.
+  const [query, setQuery] = useState('');
+  const needle = query.trim().toLowerCase();
+  const visibleTools = useMemo(() => {
+    const inCategory =
       activeCategory === 'all'
         ? AGENT_TOOL_REGISTRY
-        : AGENT_TOOL_REGISTRY.filter((tool) => tool.category === activeCategory),
-    [activeCategory],
-  );
+        : AGENT_TOOL_REGISTRY.filter((tool) => tool.category === activeCategory);
+    return needle ? inCategory.filter((tool) => matchesFilter(tool, needle)) : inCategory;
+  }, [activeCategory, needle]);
+
+  const reduceMotion = useReducedMotion();
+  const pillTransition = reduceMotion
+    ? { duration: 0 }
+    : { type: 'spring' as const, stiffness: 420, damping: 32 };
 
   usePageHeader(
     'Agent Tools',
@@ -450,375 +495,504 @@ export default function ToolsPage(): React.JSX.Element {
   );
 
   return (
-    <div className="space-y-6 p-6">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div className="space-y-1.5">
-          <Label>Target project</Label>
-          <Combobox
-            className="w-56"
-            value={selectedProjectId}
-            onChange={setSelectedProjectId}
-            placeholder="Choose a project"
-            searchPlaceholder="Search projects…"
-            options={projectsQuery.data?.map((p) => ({ value: p.id, label: p.name })) ?? []}
-            clearable
+    // A container, so the category nav moves from the side to the top when the island is narrow.
+    <div className="@container/tools">
+      <div className="flex flex-col gap-2 p-2 @3xl/tools:flex-row @3xl/tools:items-start">
+        <aside
+          aria-label="Tool filters"
+          className={cn(
+            GLASS_CARD,
+            'flex shrink-0 flex-col gap-2 p-2 @3xl/tools:sticky @3xl/tools:top-2 @3xl/tools:w-56',
+          )}
+        >
+          <SearchPill
+            type="search"
+            value={query}
+            onValueChange={setQuery}
+            clearLabel="Clear filter"
+            label="Filter tools"
+            placeholder="Filter tools"
           />
-        </div>
-        <div className="flex gap-2">
-          <Button
-            variant="outline"
-            disabled={checkingAll}
-            onClick={() => void handleCheckAllForUpdates()}
-          >
-            <CloudDownload className={checkingAll ? 'animate-pulse' : undefined} />
-            {checkingAll ? 'Checking updates…' : 'Check all for updates'}
-          </Button>
-          <Button
-            variant="outline"
-            onClick={() => {
-              void queryClient.invalidateQueries({ queryKey: queryKeys.toolsStatus });
-              toast.info('Re-checking installed tools…');
-            }}
-          >
-            <RefreshCw /> Refresh
-          </Button>
-        </div>
-      </div>
 
-      <p className="text-sm text-muted-foreground">
-        Some actions (initializing a tool in a project, writing its config) need a target project
-        above. Docker and global setup actions don't.
-      </p>
+          <nav aria-label="Tool categories" className="flex flex-col gap-1">
+            <h2 className={cn(SECTION_HEADING, 'hidden px-2.5 pt-1.5 @3xl/tools:block')}>
+              Categories
+            </h2>
+            <LayoutGroup id="tool-categories">
+              <ul className="flex flex-wrap gap-0.5 @3xl/tools:flex-col @3xl/tools:flex-nowrap @3xl/tools:gap-px">
+                {navEntries.map((entry) => {
+                  const active = entry.value === activeCategory;
+                  return (
+                    <li key={entry.value} className="shrink-0">
+                      <button
+                        type="button"
+                        aria-current={active ? 'true' : undefined}
+                        onClick={() => setActiveCategory(entry.value)}
+                        className={cn(
+                          'relative flex h-8 w-full cursor-pointer items-center gap-2 whitespace-nowrap rounded-lg px-2.5 text-[13px] font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/60',
+                          active
+                            ? 'font-semibold text-primary'
+                            : 'text-muted-foreground hover:bg-foreground/[0.06] hover:text-foreground',
+                        )}
+                      >
+                        {active && (
+                          <motion.span
+                            aria-hidden
+                            layoutId="tool-category-active"
+                            transition={pillTransition}
+                            className="absolute inset-0 rounded-lg bg-primary/12"
+                          >
+                            <span className="absolute left-0 top-1/2 hidden h-4 w-[3px] -translate-y-1/2 rounded-full bg-primary shadow-[0_0_8px_hsl(var(--primary)/0.7)] @3xl/tools:block" />
+                          </motion.span>
+                        )}
+                        <entry.icon className="relative h-3.5 w-3.5 shrink-0" />
+                        <span className="relative flex-1 text-left">{entry.label}</span>
+                        <span
+                          className={cn(
+                            'relative rounded-full px-1.5 text-[10px] font-medium leading-4 tabular-nums',
+                            active
+                              ? 'bg-primary/15 text-primary'
+                              : 'bg-foreground/[0.06] text-muted-foreground',
+                          )}
+                        >
+                          {entry.count}
+                        </span>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            </LayoutGroup>
+          </nav>
 
-      <GooeyNav
-        size="sm"
-        className="max-w-full overflow-x-auto"
-        aria-label="Tool categories"
-        items={navItems}
-        value={Math.max(0, navValues.indexOf(activeCategory))}
-        onChange={(index) => setActiveCategory(navValues[index])}
-      />
+          {/* The project the "in a project" actions write to, under a hairline of its own. */}
+          <div className="space-y-1.5 px-0.5 pb-0.5 pt-2.5 shadow-[inset_0_1px_0_hsl(var(--foreground)/0.08)]">
+            <h2 className={cn(SECTION_HEADING, 'px-2')}>Target project</h2>
+            <Combobox
+              ariaLabel="Target project"
+              className="w-full"
+              value={selectedProjectId}
+              onChange={setSelectedProjectId}
+              placeholder="Choose a project"
+              searchPlaceholder="Search projects…"
+              options={projectsQuery.data?.map((p) => ({ value: p.id, label: p.name })) ?? []}
+              clearable
+            />
+            <p className="px-2 text-[11px] leading-relaxed text-muted-foreground">
+              Initializing a tool in a project or writing its config needs one. Docker and global
+              setup actions don't.
+            </p>
+          </div>
+        </aside>
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {visibleTools.map((tool) => {
-          const isLanguageTool = tool.id === LANGUAGETOOL_TOOL_ID;
-          const isCodeql = tool.id === CODEQL_TOOL_ID;
-          // A shell tool with no command for this OS must not offer an Install button that
-          // can only fail; it falls back to its written instructions instead.
-          const osInstallCommand = tool.installCommand?.[window.agentmat.platform as SupportedOS];
-          const canShellInstall = tool.installKind === 'shell' && Boolean(osInstallCommand);
-          const languageTool = isLanguageTool ? languageToolQuery.data : undefined;
-          const codeql = isCodeql ? codeqlQuery.data : undefined;
-          const status = isLanguageTool
-            ? {
-                id: tool.id,
-                installed: Boolean(languageTool?.installPath),
-                version: languageTool?.version ? `v${languageTool.version}` : null,
-                dockerStatus: 'unavailable' as const,
-                lastCheckedAt: '',
-              }
-            : isCodeql
-              ? {
-                  id: tool.id,
-                  installed: Boolean(codeql?.installed),
-                  version: codeql?.version ?? null,
-                  dockerStatus: 'unavailable' as const,
-                  lastCheckedAt: '',
-                }
-              : statusFor(tool.id);
-          return (
-            <Card key={tool.id} className="glass flex flex-col hover:border-primary/30">
-              <CardHeader>
-                <div className="flex items-start justify-between gap-2">
-                  <CardTitle>{tool.name}</CardTitle>
-                  <Badge variant="outline">{tool.category}</Badge>
-                </div>
-                <CardDescription>{tool.description}</CardDescription>
-              </CardHeader>
-              <CardContent className="mt-auto space-y-3">
-                <div className="flex flex-wrap gap-1.5">
-                  {/* "Not detected" is a result, not a starting state, so shimmer
-                      the badge until the scan actually says so. */}
-                  {(
-                    isLanguageTool
-                      ? languageToolQuery.isPending
-                      : isCodeql
-                        ? codeqlQuery.isPending
-                        : statusQuery.isPending
-                  ) ? (
-                    <Skeleton className="h-5 w-24 rounded-full" />
-                  ) : (
-                    <Badge variant={status?.installed ? 'success' : 'secondary'}>
-                      {status?.installed
-                        ? (status.version ?? 'Installed')
-                        : isLanguageTool
-                          ? 'Not in tools folder'
-                          : isCodeql
-                            ? 'Not downloaded'
-                            : 'Not detected'}
-                    </Badge>
-                  )}
-                  {isLanguageTool && languageTool?.serverState === 'running' ? (
-                    <Badge variant="success">Server running</Badge>
-                  ) : null}
-                  {tool.docker && statusQuery.isPending && (
-                    <Skeleton className="h-5 w-28 rounded-full" />
-                  )}
-                  {tool.docker && !statusQuery.isPending && (
-                    <Badge
-                      variant={
-                        status?.dockerStatus === 'running'
-                          ? 'success'
-                          : status?.dockerStatus === 'stopped'
-                            ? 'warning'
-                            : 'secondary'
+        <div className="flex min-w-0 flex-1 flex-col gap-2">
+          <div className={TOOLBAR}>
+            <div className="flex min-w-0 items-center gap-2 pl-2">
+              <h2 className="truncate text-sm font-semibold">
+                {activeCategory === 'all' ? 'All tools' : activeCategory}
+              </h2>
+              <Chip>{visibleTools.length}</Chip>
+            </div>
+            <div className="ml-auto flex items-center gap-2">
+              <Button
+                variant="ghost"
+                className={PILL_SOFT}
+                disabled={checkingAll}
+                onClick={() => void handleCheckAllForUpdates()}
+              >
+                <CloudDownload className={checkingAll ? 'animate-pulse' : undefined} />
+                {checkingAll ? 'Checking updates…' : 'Check all for updates'}
+              </Button>
+              <Button
+                variant="ghost"
+                className={PILL_SOFT}
+                onClick={() => {
+                  void queryClient.invalidateQueries({ queryKey: queryKeys.toolsStatus });
+                  toast.info('Re-checking installed tools…');
+                }}
+              >
+                <RefreshCw /> Refresh
+              </Button>
+            </div>
+          </div>
+
+          {visibleTools.length === 0 ? (
+            <div className={GLASS_CARD}>
+              <NoMatches query={query} />
+            </div>
+          ) : (
+            // Columns follow the width this area actually has, not the window's, since the
+            // category nav takes a share of it on a wide island.
+            <div className="@container/toolgrid">
+              <div className="grid grid-cols-1 gap-2 @2xl/toolgrid:grid-cols-2 @5xl/toolgrid:grid-cols-3">
+                {visibleTools.map((tool) => {
+                  const isLanguageTool = tool.id === LANGUAGETOOL_TOOL_ID;
+                  const isCodeql = tool.id === CODEQL_TOOL_ID;
+                  // A shell tool with no command for this OS must not offer an Install button
+                  // that can only fail; it falls back to its written instructions instead.
+                  const osInstallCommand =
+                    tool.installCommand?.[window.agentmat.platform as SupportedOS];
+                  const canShellInstall = tool.installKind === 'shell' && Boolean(osInstallCommand);
+                  const languageTool = isLanguageTool ? languageToolQuery.data : undefined;
+                  const codeql = isCodeql ? codeqlQuery.data : undefined;
+                  const status = isLanguageTool
+                    ? {
+                        id: tool.id,
+                        installed: Boolean(languageTool?.installPath),
+                        version: languageTool?.version ? `v${languageTool.version}` : null,
+                        dockerStatus: 'unavailable' as const,
+                        lastCheckedAt: '',
                       }
-                    >
-                      Docker: {status?.dockerStatus ?? 'unknown'}
-                    </Badge>
-                  )}
-                  {tool.tags.map((tag) => (
-                    <Badge key={tag} variant="secondary">
-                      {tag}
-                    </Badge>
-                  ))}
-                </div>
-                <div className="text-xs text-muted-foreground">{tool.author}</div>
-
-                <div className="flex flex-wrap items-center gap-2">
-                  {isCodeql ? (
-                    <CodeqlInstallCard />
-                  ) : isLanguageTool ? (
-                    <>
-                      <Button
-                        size="sm"
-                        variant={status?.installed ? 'outline' : 'default'}
-                        onClick={() =>
-                          void window.agentmat.shell.openExternal(LANGUAGETOOL_DOWNLOAD_URL)
+                    : isCodeql
+                      ? {
+                          id: tool.id,
+                          installed: Boolean(codeql?.installed),
+                          version: codeql?.version ?? null,
+                          dockerStatus: 'unavailable' as const,
+                          lastCheckedAt: '',
                         }
-                      >
-                        <Download /> Download zip
-                      </Button>
-                      <SimpleTooltip label="Extract the zip here, then start the server">
-                        <Button size="sm" variant="outline" onClick={() => void openToolsFolder()}>
-                          <FolderOpen /> Open tools folder
-                        </Button>
-                      </SimpleTooltip>
-                      {languageTool?.serverState === 'running' ? (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => void toggleLanguageToolServer('stop')}
-                        >
-                          <StopCircle /> Stop server
-                        </Button>
-                      ) : (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          disabled={!status?.installed}
-                          onClick={() => void toggleLanguageToolServer('start')}
-                        >
-                          <Play /> Start server
-                        </Button>
-                      )}
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => navigate('/settings?tab=ai')}
-                      >
-                        <Wrench /> Writing settings
-                      </Button>
-                    </>
-                  ) : canShellInstall ? (
-                    status?.installed ? (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => void handleUninstall(tool)}
-                      >
-                        <Trash2 /> Uninstall
-                      </Button>
-                    ) : (
-                      <Button size="sm" onClick={() => void handleInstall(tool)}>
-                        <TerminalSquare /> {installLabel(osInstallCommand)}
-                      </Button>
-                    )
-                  ) : tool.installKind === 'interactive' ? (
-                    <SimpleTooltip
-                      label={`Opens a terminal running ${tool.name}'s target agent and copies the setup commands to paste in`}
-                    >
-                      <Button size="sm" onClick={() => void handleInteractiveInstall(tool)}>
-                        <TerminalSquare /> Install
-                      </Button>
-                    </SimpleTooltip>
-                  ) : (
-                    <SimpleTooltip
-                      label={
-                        tool.installKind === 'shell'
-                          ? `${tool.name} has no install command for this operating system. Copies its setup notes instead.`
-                          : ''
-                      }
-                    >
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleCopyManualInstructions(tool)}
-                      >
-                        <TerminalSquare />
-                        {tool.installKind === 'shell'
-                          ? 'Setup instructions'
-                          : 'Copy setup commands'}
-                      </Button>
-                    </SimpleTooltip>
-                  )}
-                  {tool.updateCheck && status?.installed && (
-                    <SimpleTooltip
-                      label="Check for updates"
-                      wrapTrigger={checkingToolId === tool.id}
-                    >
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        disabled={checkingToolId === tool.id}
-                        onClick={() => void handleCheckForUpdate(tool, status.version)}
-                      >
-                        <CloudDownload
-                          className={
-                            checkingToolId === tool.id ? 'h-4 w-4 animate-pulse' : 'h-4 w-4'
-                          }
-                        />
-                      </Button>
-                    </SimpleTooltip>
-                  )}
+                      : statusFor(tool.id);
+                  return (
+                    <div key={tool.id} className={cn(GLASS_CARD, 'flex flex-col')}>
+                      <div className="space-y-2 p-4 pb-3">
+                        <div className="flex items-start gap-2">
+                          <h3 className="min-w-0 flex-1 text-sm font-semibold leading-5">
+                            {tool.name}
+                          </h3>
+                          {/* Inside one category every card would repeat it. */}
+                          {activeCategory === 'all' && (
+                            <Chip className="mt-px">{shortCategoryLabel(tool.category)}</Chip>
+                          )}
+                        </div>
+                        <p className="text-xs leading-relaxed text-muted-foreground">
+                          {tool.description}
+                        </p>
+                        <div className="flex flex-wrap gap-1">
+                          {/* "Not detected" is a result, not a starting state, so shimmer
+                              the chip until the scan actually says so. */}
+                          {(
+                            isLanguageTool
+                              ? languageToolQuery.isPending
+                              : isCodeql
+                                ? codeqlQuery.isPending
+                                : statusQuery.isPending
+                          ) ? (
+                            <Skeleton className="h-5 w-24 rounded-full" />
+                          ) : (
+                            <Chip tone={status?.installed ? 'success' : 'neutral'}>
+                              {status?.installed
+                                ? (status.version ?? 'Installed')
+                                : isLanguageTool
+                                  ? 'Not in tools folder'
+                                  : isCodeql
+                                    ? 'Not downloaded'
+                                    : 'Not detected'}
+                            </Chip>
+                          )}
+                          {isLanguageTool && languageTool?.serverState === 'running' ? (
+                            <Chip tone="success">Server running</Chip>
+                          ) : null}
+                          {tool.docker && statusQuery.isPending && (
+                            <Skeleton className="h-5 w-28 rounded-full" />
+                          )}
+                          {tool.docker && !statusQuery.isPending && (
+                            <Chip tone={DOCKER_TONES[status?.dockerStatus ?? ''] ?? 'neutral'}>
+                              Docker: {status?.dockerStatus ?? 'unknown'}
+                            </Chip>
+                          )}
+                          {tool.tags.map((tag) => (
+                            <Chip
+                              key={tag}
+                              className="bg-transparent ring-1 ring-inset ring-foreground/10"
+                            >
+                              {tag}
+                            </Chip>
+                          ))}
+                        </div>
+                      </div>
 
-                  {tool.manualUninstallInstructions && (
-                    <SimpleTooltip label="Copy uninstall commands">
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        onClick={() => handleCopyManualUninstall(tool)}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </SimpleTooltip>
-                  )}
-
-                  {tool.docker &&
-                    (status?.dockerStatus === 'unavailable' ? (
-                      <SimpleTooltip label="Docker isn't installed on this machine">
-                        <Button variant="outline" size="sm" disabled>
-                          Install with Docker
-                        </Button>
-                      </SimpleTooltip>
-                    ) : status?.dockerStatus === 'not-created' ? (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => void handleDockerAction(tool, 'run')}
-                      >
-                        <Play /> Install with Docker
-                      </Button>
-                    ) : (
-                      <>
-                        <SimpleTooltip label="Start container">
-                          <Button
-                            variant="outline"
-                            size="icon"
-                            disabled={status?.dockerStatus === 'running'}
-                            onClick={() => void handleDockerAction(tool, 'start')}
-                          >
-                            <Play className="h-4 w-4" />
-                          </Button>
-                        </SimpleTooltip>
-                        <SimpleTooltip label="Stop container">
-                          <Button
-                            variant="outline"
-                            size="icon"
-                            disabled={status?.dockerStatus === 'stopped'}
-                            onClick={() => void handleDockerAction(tool, 'stop')}
-                          >
-                            <StopCircle className="h-4 w-4" />
-                          </Button>
-                        </SimpleTooltip>
-                        <SimpleTooltip label="Reset container (recreate from image)">
-                          <Button
-                            variant="outline"
-                            size="icon"
-                            onClick={() => void handleDockerAction(tool, 'reset')}
-                          >
-                            <RefreshCw className="h-4 w-4" />
-                          </Button>
-                        </SimpleTooltip>
-                        <SimpleTooltip label="Delete container">
-                          <Button
-                            variant="outline"
-                            size="icon"
-                            onClick={() => void handleDockerAction(tool, 'remove')}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </SimpleTooltip>
-                        {tool.docker.dashboardUrl && status?.dockerStatus === 'running' && (
-                          <SimpleTooltip label="Open dashboard">
+                      <div className="mt-auto flex flex-wrap items-center gap-1.5 px-4 pb-3">
+                        {isCodeql ? (
+                          <CodeqlInstallCard />
+                        ) : isLanguageTool ? (
+                          <>
                             <Button
-                              variant="outline"
-                              size="icon"
+                              size="sm"
+                              variant={status?.installed ? 'ghost' : 'default'}
+                              className={status?.installed ? CARD_PILL_SOFT : CARD_PILL}
                               onClick={() =>
-                                void window.agentmat.shell.openExternal(tool.docker!.dashboardUrl!)
+                                void window.agentmat.shell.openExternal(LANGUAGETOOL_DOWNLOAD_URL)
                               }
                             >
-                              <Globe className="h-4 w-4" />
+                              <Download /> Download zip
+                            </Button>
+                            <SimpleTooltip label="Extract the zip here, then start the server">
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className={CARD_PILL_SOFT}
+                                onClick={() => void openToolsFolder()}
+                              >
+                                <FolderOpen /> Open tools folder
+                              </Button>
+                            </SimpleTooltip>
+                            {languageTool?.serverState === 'running' ? (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className={CARD_PILL_SOFT}
+                                onClick={() => void toggleLanguageToolServer('stop')}
+                              >
+                                <StopCircle /> Stop server
+                              </Button>
+                            ) : (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className={CARD_PILL_SOFT}
+                                disabled={!status?.installed}
+                                onClick={() => void toggleLanguageToolServer('start')}
+                              >
+                                <Play /> Start server
+                              </Button>
+                            )}
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-7 rounded-full px-3 text-muted-foreground hover:bg-foreground/[0.06] hover:text-foreground"
+                              onClick={() => navigate('/settings?tab=ai')}
+                            >
+                              <Wrench /> Writing settings
+                            </Button>
+                          </>
+                        ) : canShellInstall ? (
+                          status?.installed ? (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className={CARD_PILL_SOFT}
+                              onClick={() => void handleUninstall(tool)}
+                            >
+                              <Trash2 /> Uninstall
+                            </Button>
+                          ) : (
+                            <Button
+                              size="sm"
+                              className={CARD_PILL}
+                              onClick={() => void handleInstall(tool)}
+                            >
+                              <TerminalSquare /> {installLabel(osInstallCommand)}
+                            </Button>
+                          )
+                        ) : tool.installKind === 'interactive' ? (
+                          <SimpleTooltip
+                            label={`Opens a terminal running ${tool.name}'s target agent and copies the setup commands to paste in`}
+                          >
+                            <Button
+                              size="sm"
+                              className={CARD_PILL}
+                              onClick={() => void handleInteractiveInstall(tool)}
+                            >
+                              <TerminalSquare /> Install
+                            </Button>
+                          </SimpleTooltip>
+                        ) : (
+                          <SimpleTooltip
+                            label={
+                              tool.installKind === 'shell'
+                                ? `${tool.name} has no install command for this operating system. Copies its setup notes instead.`
+                                : ''
+                            }
+                          >
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className={CARD_PILL_SOFT}
+                              onClick={() => handleCopyManualInstructions(tool)}
+                            >
+                              <TerminalSquare />
+                              {tool.installKind === 'shell'
+                                ? 'Setup instructions'
+                                : 'Copy setup commands'}
                             </Button>
                           </SimpleTooltip>
                         )}
-                      </>
-                    ))}
 
-                  {tool.settingsFields && tool.settingsFields.length > 0 && (
-                    <SimpleTooltip label="Configure">
-                      <Button variant="outline" size="icon" onClick={() => openSettings(tool)}>
-                        <Wrench className="h-4 w-4" />
-                      </Button>
-                    </SimpleTooltip>
-                  )}
+                        {tool.quickActions?.map((qa) => (
+                          <Button
+                            key={qa.id}
+                            variant="ghost"
+                            size="sm"
+                            className={CARD_PILL_SOFT}
+                            onClick={() => void runAction(qa.action, tool, qa.label)}
+                          >
+                            {qa.label}
+                          </Button>
+                        ))}
 
-                  {tool.quickActions?.map((qa) => (
-                    <Button
-                      key={qa.id}
-                      variant="outline"
-                      size="sm"
-                      onClick={() => void runAction(qa.action, tool, qa.label)}
-                    >
-                      {qa.label}
-                    </Button>
-                  ))}
+                        {tool.docker &&
+                          (status?.dockerStatus === 'unavailable' ? (
+                            <SimpleTooltip label="Docker isn't installed on this machine">
+                              <Button variant="ghost" size="sm" className={CARD_PILL_SOFT} disabled>
+                                Install with Docker
+                              </Button>
+                            </SimpleTooltip>
+                          ) : status?.dockerStatus === 'not-created' ? (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className={CARD_PILL_SOFT}
+                              onClick={() => void handleDockerAction(tool, 'run')}
+                            >
+                              <Play /> Install with Docker
+                            </Button>
+                          ) : (
+                            // The container's own controls share one pill, so they read as a
+                            // group apart from the tool's install actions.
+                            <div className="search-pill inline-flex h-7 items-center gap-px rounded-full px-0.5">
+                              <SimpleTooltip label="Start container">
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className={DOCKER_ACTION}
+                                  disabled={status?.dockerStatus === 'running'}
+                                  onClick={() => void handleDockerAction(tool, 'start')}
+                                >
+                                  <Play />
+                                </Button>
+                              </SimpleTooltip>
+                              <SimpleTooltip label="Stop container">
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className={DOCKER_ACTION}
+                                  disabled={status?.dockerStatus === 'stopped'}
+                                  onClick={() => void handleDockerAction(tool, 'stop')}
+                                >
+                                  <StopCircle />
+                                </Button>
+                              </SimpleTooltip>
+                              <SimpleTooltip label="Reset container (recreate from image)">
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className={DOCKER_ACTION}
+                                  onClick={() => void handleDockerAction(tool, 'reset')}
+                                >
+                                  <RefreshCw />
+                                </Button>
+                              </SimpleTooltip>
+                              <SimpleTooltip label="Delete container">
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className={DOCKER_ACTION}
+                                  onClick={() => void handleDockerAction(tool, 'remove')}
+                                >
+                                  <Trash2 />
+                                </Button>
+                              </SimpleTooltip>
+                              {tool.docker.dashboardUrl && status?.dockerStatus === 'running' && (
+                                <SimpleTooltip label="Open dashboard">
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className={DOCKER_ACTION}
+                                    onClick={() =>
+                                      void window.agentmat.shell.openExternal(
+                                        tool.docker!.dashboardUrl!,
+                                      )
+                                    }
+                                  >
+                                    <Globe />
+                                  </Button>
+                                </SimpleTooltip>
+                              )}
+                            </div>
+                          ))}
+                      </div>
 
-                  {tool.websiteUrl && (
-                    <SimpleTooltip label="Website">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => void window.agentmat.shell.openExternal(tool.websiteUrl!)}
-                      >
-                        <ExternalLink className="h-4 w-4" />
-                      </Button>
-                    </SimpleTooltip>
-                  )}
-                  <SimpleTooltip label="GitHub">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => void window.agentmat.shell.openExternal(tool.repositoryUrl)}
-                    >
-                      <GitBranch className="h-4 w-4" />
-                    </Button>
-                  </SimpleTooltip>
-                </div>
-              </CardContent>
-            </Card>
-          );
-        })}
+                      {/* Who makes it, and the small actions every card has, under a hairline. */}
+                      <div className="flex min-h-10 items-center gap-0.5 py-1.5 pl-4 pr-2 shadow-[inset_0_1px_0_hsl(var(--foreground)/0.08)]">
+                        <span className="mr-auto min-w-0 truncate text-[11px] text-muted-foreground">
+                          {tool.author}
+                        </span>
+                        {tool.updateCheck && status?.installed && (
+                          <SimpleTooltip
+                            label="Check for updates"
+                            wrapTrigger={checkingToolId === tool.id}
+                          >
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className={TILE_ACTION}
+                              disabled={checkingToolId === tool.id}
+                              onClick={() => void handleCheckForUpdate(tool, status.version)}
+                            >
+                              <CloudDownload
+                                className={checkingToolId === tool.id ? 'animate-pulse' : undefined}
+                              />
+                            </Button>
+                          </SimpleTooltip>
+                        )}
+                        {tool.manualUninstallInstructions && (
+                          <SimpleTooltip label="Copy uninstall commands">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className={TILE_ACTION}
+                              onClick={() => handleCopyManualUninstall(tool)}
+                            >
+                              <Trash2 />
+                            </Button>
+                          </SimpleTooltip>
+                        )}
+                        {tool.settingsFields && tool.settingsFields.length > 0 && (
+                          <SimpleTooltip label="Configure">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className={TILE_ACTION}
+                              onClick={() => openSettings(tool)}
+                            >
+                              <Wrench />
+                            </Button>
+                          </SimpleTooltip>
+                        )}
+                        {tool.websiteUrl && (
+                          <SimpleTooltip label="Website">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className={TILE_ACTION}
+                              onClick={() =>
+                                void window.agentmat.shell.openExternal(tool.websiteUrl!)
+                              }
+                            >
+                              <ExternalLink />
+                            </Button>
+                          </SimpleTooltip>
+                        )}
+                        <SimpleTooltip label="GitHub">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className={TILE_ACTION}
+                            onClick={() =>
+                              void window.agentmat.shell.openExternal(tool.repositoryUrl)
+                            }
+                          >
+                            <GitBranch />
+                          </Button>
+                        </SimpleTooltip>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
       <Dialog
@@ -832,24 +1006,18 @@ export default function ToolsPage(): React.JSX.Element {
               This opens a terminal session and runs the update command below.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-2 text-sm">
-            <p>
-              <span className="text-muted-foreground">Current version:</span>{' '}
-              {pendingUpdate?.currentVersion ?? 'unknown'}
-            </p>
-            <p>
-              <span className="text-muted-foreground">Latest version:</span>{' '}
-              {pendingUpdate?.latestVersion}
-            </p>
-            <code className="block overflow-x-auto rounded bg-muted px-3 py-2 font-mono text-xs">
-              {pendingUpdate?.command}
-            </code>
-          </div>
+          <UpdateSummary
+            currentVersion={pendingUpdate?.currentVersion ?? null}
+            latestVersion={pendingUpdate?.latestVersion ?? ''}
+            command={pendingUpdate?.command ?? ''}
+          />
           <DialogFooter>
-            <Button variant="outline" onClick={dismissPendingUpdate}>
+            <Button variant="ghost" className={PILL_SOFT} onClick={dismissPendingUpdate}>
               Cancel
             </Button>
-            <Button onClick={handleConfirmUpdate}>Update</Button>
+            <Button className={PILL_PRIMARY} onClick={handleConfirmUpdate}>
+              Update
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -861,7 +1029,7 @@ export default function ToolsPage(): React.JSX.Element {
             <DialogDescription>
               {settingsTool?.settingsScope === 'global'
                 ? 'This applies machine-wide, not to a specific project.'
-                : 'This applies to the target project selected above.'}
+                : 'This applies to the chosen target project.'}
             </DialogDescription>
           </DialogHeader>
           <div className="min-h-0 space-y-3 overflow-y-auto">
@@ -904,19 +1072,18 @@ export default function ToolsPage(): React.JSX.Element {
                   {preview.kind === 'write-project-file' && `File: ${preview.relativePath}`}
                   {preview.kind === 'copy-text' && preview.instructions}
                 </Label>
-                <code className="block overflow-x-auto whitespace-pre rounded bg-muted px-3 py-2 font-mono text-xs">
+                <code className="block overflow-x-auto whitespace-pre rounded-lg bg-foreground/[0.05] px-3 py-2 font-mono text-xs">
                   {preview.kind === 'command' ? preview.command : preview.content}
                 </code>
                 {requiresProject && !selectedProject && (
-                  <p className="text-xs text-amber-500">
-                    Choose a target project above before applying.
-                  </p>
+                  <p className="text-xs text-warning">Choose a target project before applying.</p>
                 )}
               </div>
             )}
           </div>
           <DialogFooter>
             <Button
+              className={PILL_PRIMARY}
               disabled={!preview || (requiresProject && !selectedProject)}
               onClick={() => void handleApplySettings()}
             >

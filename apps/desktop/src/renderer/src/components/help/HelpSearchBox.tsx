@@ -123,10 +123,11 @@ export const HelpSearchBox = forwardRef<HelpSearchBoxHandle, HelpSearchBoxProps>
       <div className={cn('relative', className)}>
         <div
           className={cn(
-            'flex items-center gap-2.5 border bg-background/70 transition-[border-color,box-shadow] focus-within:border-primary/50 focus-within:ring-4 focus-within:ring-primary/10',
+            // The shared field surface (see index.css), so it reads like every other search pill.
+            'field-surface flex items-center gap-2.5 rounded-full',
             hero
-              ? 'h-14 rounded-2xl border-border px-5 shadow-[0_1px_0_0_hsl(var(--foreground)/0.04),0_12px_32px_-18px_hsl(0_0%_0%/0.35)]'
-              : 'h-9 rounded-lg border-border/80 px-3',
+              ? 'h-14 px-5 shadow-[0_1px_0_0_hsl(var(--foreground)/0.04),0_12px_32px_-18px_hsl(0_0%_0%/0.35)]'
+              : 'h-9 pl-3.5 pr-3',
           )}
         >
           <Search

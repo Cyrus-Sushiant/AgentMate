@@ -1,21 +1,27 @@
-import { formatBytes } from '@shared/remoteProtocol';
 import { useState } from 'react';
 import { Broadcast, Link, Monitor, Server } from '@/components/icons';
+import { Chip, PillTabs, SECTION_HEADING } from '@/components/pageKit';
 import { ControllerPanel } from '@/components/remote/ControllerPanel';
 import { HostPanel } from '@/components/remote/HostPanel';
 import { RdpServersPanel } from '@/components/remote/RdpServersPanel';
+import { REMOTE_CARD } from '@/components/remote/remoteCard';
 import { SshServersPanel } from '@/components/remote/SshServersPanel';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { GooeyNav } from '@/components/ui/gooey-nav';
+import { TransfersCard } from '@/components/remote/TransfersCard';
 import { cn } from '@/lib/utils';
 import { usePageHeader } from '@/stores/pageHeaderStore';
 import { useRemoteStore } from '@/stores/remoteStore';
 
-const REMOTE_TABS = ['host', 'connect', 'ssh', 'rdp'] as const;
-type RemoteTab = (typeof REMOTE_TABS)[number];
+type RemoteTab = 'host' | 'connect' | 'ssh' | 'rdp';
 
-const LOG_COLOR = {
-  info: 'text-muted-foreground',
+const LOG_DOT = {
+  info: 'bg-muted-foreground/50',
+  success: 'bg-success',
+  warning: 'bg-warning',
+  error: 'bg-destructive',
+} as const;
+
+const LOG_TEXT = {
+  info: 'text-foreground/85',
   success: 'text-success',
   warning: 'text-warning',
   error: 'text-destructive',
@@ -24,6 +30,8 @@ const LOG_COLOR = {
 export default function RemotePage(): React.JSX.Element {
   const logs = useRemoteStore((s) => s.logs);
   const transfers = useRemoteStore((s) => s.transfers);
+  const hosting = useRemoteStore((s) => s.state?.hosting ?? false);
+  const connection = useRemoteStore((s) => s.state?.connection);
   const [activeTab, setActiveTab] = useState<RemoteTab>('host');
 
   usePageHeader(
@@ -31,88 +39,101 @@ export default function RemotePage(): React.JSX.Element {
     'Control another AgentMate over your local network, AnyDesk-style, over WebSockets.',
   );
 
+  const connected = connection?.status === 'connected';
+  const connecting = connection?.status === 'connecting';
+
   return (
-    <div className="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-4 p-6">
-      <GooeyNav
-        size="sm"
-        className="self-start"
-        aria-label="Remote views"
-        items={[
-          { label: 'Host', icon: <Broadcast /> },
-          { label: 'Connect', icon: <Link /> },
-          { label: 'SSH', icon: <Server /> },
-          { label: 'Remote Desktop', icon: <Monitor /> },
-        ]}
-        value={REMOTE_TABS.indexOf(activeTab)}
-        onChange={(index) => setActiveTab(REMOTE_TABS[index])}
-      />
-      {activeTab === 'host' && <HostPanel />}
-      {activeTab === 'connect' && <ControllerPanel />}
-      {activeTab === 'ssh' && <SshServersPanel />}
-      {activeTab === 'rdp' && <RdpServersPanel />}
-
-      {transfers.length > 0 && (
-        <Card className="glass">
-          <CardHeader>
-            <CardTitle>File transfers</CardTitle>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-2">
-            {transfers.map((t) => {
-              const pct = t.total > 0 ? Math.round((t.transferred / t.total) * 100) : 0;
-              return (
-                <div key={t.transferId} className="flex flex-col gap-1">
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="truncate font-medium">
-                      {t.direction === 'incoming' ? '↓' : '↑'} {t.name}
-                    </span>
-                    <span className="flex shrink-0 items-center gap-1.5 text-muted-foreground">
-                      {t.resuming && <span className="text-warning">Reconnecting…</span>}
-                      {t.error
-                        ? t.error
-                        : t.done
-                          ? (t.verified ?? true)
-                            ? 'Verified ✓'
-                            : 'Hash mismatch ✗'
-                          : `${formatBytes(t.transferred)} / ${formatBytes(t.total)}`}
-                    </span>
-                  </div>
-                  <div className="h-1.5 overflow-hidden rounded-full bg-secondary">
-                    <div
-                      className={cn(
-                        'h-full rounded-full',
-                        t.error || t.verified === false ? 'bg-destructive' : 'bg-primary',
-                      )}
-                      style={{ width: `${pct}%` }}
-                    />
-                  </div>
-                </div>
-              );
-            })}
-          </CardContent>
-        </Card>
-      )}
-
-      <Card className="glass">
-        <CardHeader>
-          <CardTitle>Activity</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {logs.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Nothing yet.</p>
-          ) : (
-            <ul className="flex flex-col gap-1 font-mono text-xs">
-              {logs.map((log, i) => (
-                <li key={`${log.at}-${i}`} className={cn('flex gap-2', LOG_COLOR[log.level])}>
-                  <span className="shrink-0 text-muted-foreground/60">
-                    {new Date(log.at).toLocaleTimeString()}
-                  </span>
-                  <span>{log.message}</span>
-                </li>
-              ))}
-            </ul>
+    // Activity and transfers sit in a rail beside the view on a wide island, and below it on a
+    // narrow one.
+    <div className="@container/remote flex flex-1 flex-col gap-2 p-2">
+      <div className="flex flex-wrap items-center gap-2 px-1 pt-1">
+        <PillTabs<RemoteTab>
+          id="remote-views"
+          label="Remote views"
+          value={activeTab}
+          onChange={setActiveTab}
+          items={[
+            { value: 'host', label: 'Host', icon: <Broadcast /> },
+            { value: 'connect', label: 'Connect', icon: <Link /> },
+            { value: 'ssh', label: 'SSH', icon: <Server /> },
+            { value: 'rdp', label: 'Remote Desktop', icon: <Monitor /> },
+          ]}
+        />
+        {/* What is live right now, whichever view is open. */}
+        <div className="ml-auto flex flex-wrap items-center gap-1.5">
+          {hosting && (
+            <Chip tone="success" dot>
+              Hosting
+            </Chip>
           )}
-        </CardContent>
-      </Card>
+          {(connected || connecting) && (
+            <Chip tone={connected ? 'success' : 'warning'} dot pulse={connecting}>
+              {connected
+                ? `Connected to ${connection?.remoteDeviceName ?? 'a remote device'}`
+                : 'Connecting…'}
+            </Chip>
+          )}
+        </div>
+      </div>
+
+      <div className="grid items-start gap-2 @4xl/remote:grid-cols-[minmax(0,1fr)_19rem]">
+        <div className="min-w-0">
+          {activeTab === 'host' && <HostPanel />}
+          {activeTab === 'connect' && <ControllerPanel />}
+          {activeTab === 'ssh' && <SshServersPanel />}
+          {activeTab === 'rdp' && <RdpServersPanel />}
+        </div>
+
+        <div className="flex min-w-0 flex-col gap-2 @4xl/remote:sticky @4xl/remote:top-2">
+          {transfers.length > 0 && (
+            <TransfersCard
+              title="File transfers"
+              transfers={transfers}
+              assumeVerified
+              className="max-h-80"
+            />
+          )}
+
+          <section aria-label="Activity" className={cn(REMOTE_CARD, 'flex max-h-[28rem] flex-col')}>
+            <div className="flex h-9 shrink-0 items-center gap-2 px-4">
+              <h2 className={SECTION_HEADING}>Activity</h2>
+              {logs.length > 0 && (
+                <span className="rounded-full bg-foreground/[0.06] px-1.5 text-[10px] font-semibold leading-4 tabular-nums text-muted-foreground">
+                  {logs.length}
+                </span>
+              )}
+            </div>
+            {logs.length === 0 ? (
+              <p className="px-4 pb-4 text-xs text-muted-foreground">Nothing yet.</p>
+            ) : (
+              <ul className="rail-scroll min-h-0 overflow-y-auto px-2 pb-2">
+                {logs.map((log, i) => (
+                  <li
+                    key={`${log.at}-${i}`}
+                    className="flex gap-2.5 rounded-lg px-2 py-1.5 text-xs transition-colors hover:bg-foreground/[0.04]"
+                  >
+                    <span
+                      aria-hidden
+                      className={cn(
+                        'mt-[5px] h-1.5 w-1.5 shrink-0 rounded-full',
+                        LOG_DOT[log.level],
+                      )}
+                    />
+                    <span className="min-w-0 flex-1">
+                      <span className={cn('block break-words leading-snug', LOG_TEXT[log.level])}>
+                        {log.message}
+                      </span>
+                      <span className="font-mono text-[10px] tabular-nums text-muted-foreground/70">
+                        {new Date(log.at).toLocaleTimeString()}
+                      </span>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+        </div>
+      </div>
     </div>
   );
 }

@@ -10,15 +10,14 @@ import { useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import { CalendarDays, FileText, History, Plus, Search, Sparkles } from '@/components/icons';
+import { PILL_PRIMARY, PILL_SOFT, PillTabs, SearchPill } from '@/components/pageKit';
 import { Button } from '@/components/ui/button';
-import { GooeyNav, GooeyNavCount } from '@/components/ui/gooey-nav';
-import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { queryKeys } from '@/lib/queryKeys';
 import { runPromptInTerminal } from '@/lib/runScheduledPrompt';
 import { cn } from '@/lib/utils';
 import { confirmDialog } from '@/stores/confirmStore';
-import { ProjectEmptyState } from '../ProjectDetailChrome';
+import { SectionEmptyState } from '../ProjectDetailChrome';
 import { MoveEntryDialog } from './MoveEntryDialog';
 import {
   type ComposerInitial,
@@ -33,7 +32,6 @@ import {
   isPromptView,
   matchesSearch,
   mergePromptItems,
-  PROMPT_VIEWS,
   type PromptItem,
   type PromptView,
   taskPromptText,
@@ -358,60 +356,57 @@ export function ProjectPrompts({ project }: { project: Project }): React.JSX.Ele
   const composerProps = composerDialogProps(composer);
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <p className="max-w-xl text-sm text-muted-foreground">
+        <p className="max-w-xl px-1 text-sm text-muted-foreground">
           Everything you've sent, are still writing, or have lined up to run on this project.
         </p>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => navigate('/prompt-builder')}>
+        <div className="flex items-center gap-1.5">
+          <Button
+            variant="ghost"
+            size="sm"
+            className={PILL_SOFT}
+            onClick={() => navigate('/prompt-builder')}
+          >
             <Sparkles /> Prompt Builder
           </Button>
-          <Button size="sm" onClick={openNew}>
+          <Button size="sm" className={PILL_PRIMARY} onClick={openNew}>
             <Plus /> New prompt
           </Button>
         </div>
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <GooeyNav
-          size="sm"
-          className="min-w-0 max-w-full overflow-x-auto"
-          aria-label="Prompt views"
+        <PillTabs
+          id="prompt-views"
+          label="Prompt views"
           items={[
             {
+              value: 'all',
               label: 'History',
               icon: <History />,
-              badge: <GooeyNavCount value={history.length + drafts.length + tasks.length} />,
+              count: history.length + drafts.length + tasks.length,
             },
+            { value: 'drafts', label: 'Drafts', icon: <FileText />, count: openDraftCount },
             {
-              label: 'Drafts',
-              icon: <FileText />,
-              badge: <GooeyNavCount value={openDraftCount} />,
-            },
-            {
+              value: 'scheduled',
               label: 'Scheduled',
               icon: <CalendarDays />,
-              badge:
-                missedCount > 0 ? (
-                  <MissedCount value={waitingCount} />
-                ) : (
-                  <GooeyNavCount value={waitingCount} />
-                ),
+              count: waitingCount,
+              // The count turns red while a prompt has missed its time.
+              countTone: missedCount > 0 ? 'destructive' : undefined,
             },
           ]}
-          value={PROMPT_VIEWS.indexOf(view)}
-          onChange={(index) => setView(PROMPT_VIEWS[index])}
+          value={view}
+          onChange={setView}
         />
-        <div className="relative w-full max-w-xs">
-          <Search className="pointer-events-none absolute left-2.5 top-2.5 z-10 h-4 w-4 text-muted-foreground" />
-          <Input
-            className="h-9 pl-8"
-            placeholder="Search prompts…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-        </div>
+        <SearchPill
+          label="Search prompts"
+          placeholder="Search prompts…"
+          value={search}
+          onValueChange={setSearch}
+          className="w-full max-w-xs"
+        />
       </div>
 
       {view === 'all' ? (
@@ -422,7 +417,7 @@ export function ProjectPrompts({ project }: { project: Project }): React.JSX.Ele
             searching ? (
               <NoMatches query={search} />
             ) : (
-              <ProjectEmptyState
+              <SectionEmptyState
                 icon={History}
                 title="No prompts yet"
                 description="Prompts you generate or translate for this project, plus its drafts and scheduled prompts, show up here."
@@ -451,7 +446,7 @@ export function ProjectPrompts({ project }: { project: Project }): React.JSX.Ele
             searching ? (
               <NoMatches query={search} />
             ) : (
-              <ProjectEmptyState
+              <SectionEmptyState
                 icon={FileText}
                 title="No drafts"
                 description="Park a prompt you haven't finished yet. When it's ready, schedule it to run."
@@ -498,7 +493,7 @@ export function ProjectPrompts({ project }: { project: Project }): React.JSX.Ele
             searching ? (
               <NoMatches query={search} />
             ) : (
-              <ProjectEmptyState
+              <SectionEmptyState
                 icon={CalendarDays}
                 title="Nothing scheduled"
                 description="Schedule a finished prompt to run when you press Run, or automatically at a set time, in the CLI, model and effort you pick."
@@ -604,15 +599,6 @@ function composerDialogProps(state: ComposerState | null): {
   return { title: 'New prompt', initial: state.initial };
 }
 
-/** The Scheduled count turns red while a prompt missed its time. */
-function MissedCount({ value }: { value: number }): React.JSX.Element {
-  return (
-    <span className="min-w-4 rounded-full bg-destructive/20 px-1.5 text-center text-[10px] font-medium tabular-nums text-destructive">
-      {value}
-    </span>
-  );
-}
-
 function Group({
   label,
   tone,
@@ -639,18 +625,19 @@ function Group({
 
 function ListSkeleton(): React.JSX.Element {
   return (
-    <div className="space-y-2">
-      <Skeleton className="h-16 w-full rounded-lg" />
-      <Skeleton className="h-16 w-full rounded-lg" />
-      <Skeleton className="h-16 w-full rounded-lg" />
+    <div role="status" aria-label="Loading prompts" className="space-y-2">
+      <Skeleton className="h-16 w-full rounded-[calc(var(--radius)+2px)]" />
+      <Skeleton className="h-16 w-full rounded-[calc(var(--radius)+2px)]" />
+      <Skeleton className="h-16 w-full rounded-[calc(var(--radius)+2px)]" />
     </div>
   );
 }
 
 function NoMatches({ query }: { query: string }): React.JSX.Element {
   return (
-    <p className="rounded-lg border border-dashed border-border py-10 text-center text-sm text-muted-foreground">
-      No prompts match "{query.trim()}".
-    </p>
+    <div className="glass flex flex-col items-center gap-2 rounded-[calc(var(--radius)+2px)] py-10 text-center">
+      <Search className="h-4 w-4 text-muted-foreground/60" />
+      <p className="text-sm text-muted-foreground">No prompts match "{query.trim()}".</p>
+    </div>
   );
 }

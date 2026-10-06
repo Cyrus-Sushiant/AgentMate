@@ -2,6 +2,7 @@ import type { KeyValueRow } from '@agentmat/core';
 import { useState } from 'react';
 import { Trash2 } from '@/components/icons';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Textarea } from '@/components/ui/textarea';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 
@@ -97,13 +98,13 @@ export function KeyValueTable({
     return (
       <div className="flex flex-col gap-1.5">
         {toggle}
-        <textarea
+        <Textarea
           aria-label={`${label} bulk edit`}
           value={bulk}
           onChange={(event) => setBulk(event.target.value)}
           spellCheck={false}
           placeholder={'key:value\n//disabled:value'}
-          className="min-h-[160px] w-full resize-y rounded-lg border border-input bg-background px-3 py-2 font-mono text-xs leading-5 placeholder:text-muted-foreground focus-visible:border-primary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+          className="min-h-[160px] resize-y font-mono text-xs leading-5"
         />
       </div>
     );

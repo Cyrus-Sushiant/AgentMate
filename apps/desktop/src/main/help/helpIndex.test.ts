@@ -165,5 +165,90 @@ for (const vector of [true, false]) {
         index.getChunks(['deploy#intro#0', 'nope', 'vault#unlock#0']).map((c) => c.id),
       ).toEqual(['deploy#intro#0', 'vault#unlock#0']);
     });
+
+    it('lists the embedders that have vectors, sorted, and none on a new index', () => {
+      index.sync(BASE);
+      expect(index.embedderIds()).toEqual([]);
+      index.storeEmbeddings('openai:b', [{ id: 'vault#unlock#0', vector: vec(1, 0, 0) }]);
+      index.storeEmbeddings('ollama:a', [{ id: 'deploy#intro#0', vector: vec(1, 0) }]);
+      expect(index.embedderIds()).toEqual(['ollama:a', 'openai:b']);
+    });
+
+    it('stops listing an embedder once its vectors are cleared', () => {
+      index.sync(BASE);
+      index.storeEmbeddings('e1', [{ id: 'vault#unlock#0', vector: vec(1, 0, 0) }]);
+      index.storeEmbeddings('e2', [{ id: 'vault#unlock#0', vector: vec(1, 0) }]);
+      index.clearEmbeddings('e1');
+      expect(index.embedderIds()).toEqual(['e2']);
+    });
+
+    it('clears one embedder and makes every passage pending for it again', () => {
+      index.sync(BASE);
+      index.storeEmbeddings(
+        'e1',
+        BASE.map((c, i) => ({ id: c.id, vector: vec(1, i, 0) })),
+      );
+      expect(index.pendingEmbeddings('e1')).toHaveLength(0);
+      index.clearEmbeddings('e1');
+      expect(index.embeddedCount('e1')).toBe(0);
+      expect(index.pendingEmbeddings('e1').map((c) => c.id)).toEqual(BASE.map((c) => c.id));
+    });
+
+    it('finds nothing for a cleared embedder, even when asked with the old vector size', () => {
+      index.sync(BASE);
+      index.storeEmbeddings('e1', [{ id: 'vault#unlock#0', vector: vec(1, 0, 0) }]);
+      expect(index.searchVector('e1', vec(1, 0, 0), 5)).toEqual(['vault#unlock#0']);
+      index.clearEmbeddings('e1');
+      expect(index.searchVector('e1', vec(1, 0, 0), 5)).toEqual([]);
+    });
+
+    it('leaves the other embedders and the passages themselves alone', () => {
+      index.sync(BASE);
+      index.storeEmbeddings('e1', [{ id: 'vault#unlock#0', vector: vec(1, 0, 0) }]);
+      index.storeEmbeddings('e2', [
+        { id: 'workspace#split#0', vector: vec(1, 0) },
+        { id: 'deploy#intro#0', vector: vec(0, 1) },
+      ]);
+      index.clearEmbeddings('e1');
+      expect(index.embeddedCount('e2')).toBe(2);
+      expect(index.pendingEmbeddings('e2').map((c) => c.id)).toEqual(['vault#unlock#0']);
+      expect(index.searchVector('e2', vec(1, 0), 5)[0]).toBe('workspace#split#0');
+      expect(index.count()).toBe(3);
+      expect(index.searchText('master password', 5)[0]).toBe('vault#unlock#0');
+    });
+
+    it('does nothing for an embedder it has never seen', () => {
+      index.sync(BASE);
+      index.storeEmbeddings('e1', [{ id: 'vault#unlock#0', vector: vec(1, 0, 0) }]);
+      expect(() => index.clearEmbeddings('nobody')).not.toThrow();
+      expect(index.embeddedCount('e1')).toBe(1);
+    });
+
+    it('takes vectors of a different size after a clear', () => {
+      index.sync(BASE);
+      index.storeEmbeddings('e1', [{ id: 'vault#unlock#0', vector: vec(1, 0, 0) }]);
+      // Switching to a model with another vector size is the whole point of clearing: the old
+      // table is tied to the old size, so it has to go before the new vectors can be stored.
+      index.clearEmbeddings('e1');
+      index.storeEmbeddings('e1', [
+        { id: 'vault#unlock#0', vector: vec(1, 0) },
+        { id: 'workspace#split#0', vector: vec(0, 1) },
+      ]);
+      expect(index.embeddedCount('e1')).toBe(2);
+      expect(index.searchVector('e1', vec(0.1, 1), 1)).toEqual(['workspace#split#0']);
+      expect(index.searchVector('e1', vec(1, 0, 0), 5)).toEqual([]);
+    });
+
+    it('keeps a clear across a reopen', () => {
+      index.sync(BASE);
+      index.storeEmbeddings('e1', [{ id: 'vault#unlock#0', vector: vec(1, 0, 0) }]);
+      index.clearEmbeddings('e1');
+      index.close();
+      index = open();
+      expect(index.embedderIds()).toEqual([]);
+      expect(index.searchVector('e1', vec(1, 0, 0), 5)).toEqual([]);
+      index.storeEmbeddings('e1', [{ id: 'vault#unlock#0', vector: vec(1, 0) }]);
+      expect(index.searchVector('e1', vec(1, 0), 5)).toEqual(['vault#unlock#0']);
+    });
   });
 }

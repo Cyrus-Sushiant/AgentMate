@@ -278,15 +278,62 @@ describe('PipelinesPage run list', () => {
     const { user } = renderPage(withRuns);
     await screen.findByText('Tighten the retry loop');
 
-    await user.click(screen.getByRole('combobox'));
-    // The repo name is on the rows too, so the pick has to come from the open list.
-    await user.click(within(await screen.findByRole('listbox')).getByText('acme/borealis'));
+    // The repo name is on the rows too, so the pick has to come from the filter card's list.
+    const repos = screen.getByRole('group', { name: 'Repositories' });
+    expect(within(repos).getByRole('button', { name: /^All repos/ })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+    const borealis = within(repos).getByRole('button', { name: /^acme\/borealis/ });
+    // Each repo says how many of the loaded runs are its own.
+    expect(borealis.textContent).toBe('acme/borealis1');
+    await user.click(borealis);
 
     await waitFor(() => expect(screen.queryByText('Tighten the retry loop')).toBeNull());
+    expect(borealis).toHaveAttribute('aria-pressed', 'true');
 
     await user.click(screen.getByRole('button', { name: 'Clear' }));
 
     expect(await screen.findByText('Tighten the retry loop')).toBeTruthy();
+    expect(within(repos).getByRole('button', { name: /^All repos/ })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+  });
+
+  it('marks the status filter that is on', async () => {
+    const { user } = renderPage(withRuns);
+    await screen.findByText('Tighten the retry loop');
+
+    expect(filterTab('All')).toHaveAttribute('aria-pressed', 'true');
+    await user.click(filterTab('Running'));
+
+    expect(filterTab('Running')).toHaveAttribute('aria-pressed', 'true');
+    expect(filterTab('All')).toHaveAttribute('aria-pressed', 'false');
+  });
+
+  it('lays the filters and the run list out as two resizable cards', async () => {
+    const { user } = renderPage(withRuns);
+    await screen.findByText('Tighten the retry loop');
+
+    const filters = screen.getByRole('complementary', { name: 'Run filters' });
+    expect(within(filters).getByRole('group', { name: 'Status' })).toBeTruthy();
+    expect(screen.getByRole('region', { name: 'Runs' })).toBeTruthy();
+
+    const handle = screen.getByRole('separator', { name: 'Resize filters' });
+    const before = Number(handle.getAttribute('aria-valuenow'));
+    handle.focus();
+    await user.keyboard('{ArrowRight}');
+    expect(Number(handle.getAttribute('aria-valuenow'))).toBe(before + 16);
+  });
+
+  it('keeps the filter card out of the way until there are runs to filter', async () => {
+    renderPage({ 'pipelines.dashboardActivity': async () => activity({ runs: [] }) });
+
+    expect(await screen.findByText('No workflow runs yet.')).toBeTruthy();
+    expect(screen.queryByRole('complementary', { name: 'Run filters' })).toBeNull();
+    // Refresh stays on the run card, so an empty answer can be asked for again.
+    expect(screen.getByRole('button', { name: 'Refresh runs' })).toBeTruthy();
   });
 
   it('opens a run in the browser when its row is clicked', async () => {

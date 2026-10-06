@@ -20,7 +20,6 @@ import {
   X,
 } from '@/components/icons';
 import { ipcErrorMessage } from '@/components/projects/environments/ipcError';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { SimpleTooltip, Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { useLastGoodData } from '@/hooks/useLastGoodData';
@@ -51,11 +50,13 @@ const STATE_LABEL: Record<GithubRunnerState, string> = {
   seen: 'Live status unknown',
 };
 
+// Theme tokens, and rings rather than tinted borders: the theme's global border colour would
+// win over a border-colour utility and leave the hollow dots grey.
 const DOT_CLASS: Record<GithubRunnerState, string> = {
-  idle: 'bg-emerald-500 ring-2 ring-emerald-500/20',
-  busy: 'bg-amber-500 ring-2 ring-amber-500/25 motion-safe:animate-pulse',
-  offline: 'border-[1.5px] border-muted-foreground/60',
-  seen: 'border-[1.5px] border-sky-500 bg-sky-500/15 dark:border-sky-400',
+  idle: 'bg-success ring-2 ring-success/20',
+  busy: 'bg-warning ring-2 ring-warning/25 motion-safe:animate-pulse',
+  offline: 'ring-[1.5px] ring-inset ring-muted-foreground/60',
+  seen: 'bg-primary/15 ring-[1.5px] ring-inset ring-primary',
 };
 
 const GRANT_HINT =
@@ -196,7 +197,7 @@ function SummaryChip({
   return (
     <span
       className={cn(
-        'inline-flex items-center gap-1.5 rounded-full border border-border/70 bg-foreground/[0.03] px-2 py-0.5 text-[11px] text-muted-foreground',
+        'inline-flex items-center gap-1.5 rounded-full bg-foreground/[0.06] px-2 py-0.5 text-[11px] font-medium text-muted-foreground',
         className,
       )}
     >
@@ -248,7 +249,7 @@ function WaitingAlert({
       onClick={() =>
         onFocusRun({ runId: oldest.runId, repo: oldest.repo, htmlUrl: oldest.htmlUrl })
       }
-      className="group flex w-full cursor-pointer items-start gap-2.5 rounded-lg border border-warning/30 bg-warning/[0.08] px-3 py-2 text-left text-xs leading-relaxed text-foreground transition-colors hover:bg-warning/[0.13] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-warning/60"
+      className="group flex w-full cursor-pointer items-start gap-2.5 rounded-xl bg-warning/[0.08] px-3 py-2 text-left text-xs leading-relaxed text-foreground ring-1 ring-inset ring-warning/30 transition-colors hover:bg-warning/[0.13] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-warning/60"
     >
       <TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0 text-warning" />
       <span className="min-w-0 flex-1">
@@ -288,7 +289,7 @@ function StatusLine({
         <button
           type="button"
           onClick={() => onFocusRun({ runId: job.runId, repo: job.repo, htmlUrl: job.htmlUrl })}
-          className="-mx-1.5 flex min-w-0 max-w-[calc(100%+0.75rem)] cursor-pointer items-center gap-1 self-start rounded-md px-1.5 py-0.5 text-[11px] font-medium text-amber-700 transition-colors hover:bg-amber-500/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/50 dark:text-amber-300"
+          className="-mx-1.5 flex min-w-0 max-w-[calc(100%+0.75rem)] cursor-pointer items-center gap-1 self-start rounded-md px-1.5 py-0.5 text-[11px] font-medium text-warning transition-colors hover:bg-warning/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-warning/50"
         >
           <span className="truncate">{text}</span>
           <ArrowRight className="h-2.5 w-2.5 shrink-0 opacity-70" />
@@ -297,12 +298,10 @@ function StatusLine({
     );
   }
   if (runner.state === 'busy') {
-    return <span className="text-[11px] font-medium text-amber-700 dark:text-amber-300">Busy</span>;
+    return <span className="text-[11px] font-medium text-warning">Busy</span>;
   }
   if (runner.state === 'idle') {
-    return (
-      <span className="text-[11px] font-medium text-emerald-700 dark:text-emerald-400">Idle</span>
-    );
+    return <span className="text-[11px] font-medium text-success">Idle</span>;
   }
   if (runner.state === 'offline') {
     return <span className="text-[11px] text-muted-foreground">Offline</span>;
@@ -336,10 +335,10 @@ function RunnerTile({
   return (
     <li
       className={cn(
-        'flex min-w-0 flex-col gap-1.5 rounded-lg border px-3 py-2.5 transition-colors',
+        'flex min-w-0 flex-col gap-1.5 rounded-xl px-3 py-2.5 ring-1 ring-inset transition-colors',
         runner.state === 'busy'
-          ? 'border-amber-500/35 bg-amber-500/[0.06]'
-          : 'border-border/70 bg-foreground/[0.02]',
+          ? 'bg-warning/[0.06] ring-warning/35'
+          : 'bg-foreground/[0.025] ring-foreground/[0.08]',
         runner.state === 'offline' && 'opacity-70',
       )}
     >
@@ -360,13 +359,12 @@ function RunnerTile({
       {runner.customLabels.length > 0 ? (
         <div className="flex flex-wrap gap-1">
           {runner.customLabels.map((label) => (
-            <Badge
+            <span
               key={label}
-              variant="outline"
-              className="h-[18px] px-1.5 font-mono text-[10px] font-normal text-muted-foreground"
+              className="inline-flex h-[18px] items-center rounded-full bg-foreground/[0.06] px-1.5 font-mono text-[10px] text-muted-foreground"
             >
               {label}
-            </Badge>
+            </span>
           ))}
         </div>
       ) : null}
@@ -511,29 +509,32 @@ export function RunnersPanel({
   const shown = overflow && !showAll ? runners.slice(0, VISIBLE_TILES) : runners;
 
   return (
-    <section aria-label="Self-hosted runners" className="glass rounded-xl">
-      <div className="flex items-center gap-3 px-4 py-3">
+    <section
+      aria-label="Self-hosted runners"
+      className="glass flex max-h-[45%] shrink-0 flex-col overflow-hidden rounded-[calc(var(--radius)+2px)]"
+    >
+      <div className="flex shrink-0 items-center gap-3 px-4 py-2.5">
         <PanelTitle />
         <div className="flex min-w-0 flex-wrap items-center gap-1.5">
           {/* Zero counts are left out: "0 busy, 0 offline" next to one seen runner is just noise. */}
           {counts.idle > 0 ? (
-            <SummaryChip count={counts.idle} label="idle" dotClassName="bg-emerald-500" />
+            <SummaryChip count={counts.idle} label="idle" dotClassName="bg-success" />
           ) : null}
           {counts.busy > 0 ? (
-            <SummaryChip count={counts.busy} label="busy" dotClassName="bg-amber-500" />
+            <SummaryChip count={counts.busy} label="busy" dotClassName="bg-warning" />
           ) : null}
           {counts.offline > 0 ? (
             <SummaryChip
               count={counts.offline}
               label="offline"
-              dotClassName="border border-muted-foreground/70"
+              dotClassName="ring-1 ring-inset ring-muted-foreground/70"
             />
           ) : null}
           {counts.seen > 0 ? (
             <SummaryChip
               count={counts.seen}
               label="seen"
-              dotClassName="border border-sky-500 dark:border-sky-400"
+              dotClassName="ring-1 ring-inset ring-primary"
             />
           ) : null}
           {waitingCount > 0 ? (
@@ -541,7 +542,7 @@ export function RunnersPanel({
               count={waitingCount}
               label="waiting"
               dotClassName="bg-warning"
-              className="border-warning/35 bg-warning/[0.08] text-foreground"
+              className="bg-warning/12 text-warning"
             />
           ) : null}
         </div>
@@ -549,7 +550,7 @@ export function RunnersPanel({
           <Button
             variant="ghost"
             size="icon"
-            className="ml-auto h-7 w-7 shrink-0"
+            className="ml-auto h-7 w-7 shrink-0 rounded-full text-muted-foreground hover:bg-foreground/[0.06] hover:text-foreground"
             aria-label={collapsed ? 'Show runners' : 'Hide runners'}
             aria-expanded={!collapsed}
             aria-controls={collapsed ? undefined : bodyId}
@@ -566,7 +567,11 @@ export function RunnersPanel({
       </div>
 
       {collapsed ? null : (
-        <div id={bodyId} className="space-y-2.5 px-4 pb-4">
+        // Scrolls inside the card, so a big fleet never pushes the run list off the page.
+        <div
+          id={bodyId}
+          className="rail-scroll min-h-0 space-y-2.5 overflow-y-auto px-4 pb-4 pt-0.5"
+        >
           {waitingGroups.map((jobs) => (
             <WaitingAlert
               key={`${jobs[0].liveStatusKnown}|${jobs[0].labels.join(',')}`}
@@ -593,7 +598,7 @@ export function RunnersPanel({
                 type="button"
                 aria-expanded={showAll}
                 onClick={() => setShowAll((value) => !value)}
-                className="flex cursor-pointer items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-foreground/[0.05] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="flex cursor-pointer items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-foreground/[0.06] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 {showAll ? 'Show fewer' : `Show all ${runners.length}`}
                 <ChevronDown
@@ -609,7 +614,7 @@ export function RunnersPanel({
           {hiddenOrgs.map((org) => (
             <div
               key={org}
-              className="flex items-center gap-2.5 rounded-lg border border-dashed border-border/80 py-1.5 pl-3 pr-1.5 text-[11px] text-muted-foreground"
+              className="flex items-center gap-2.5 rounded-xl bg-foreground/[0.025] py-1.5 pl-3 pr-1.5 text-[11px] text-muted-foreground ring-1 ring-inset ring-foreground/[0.08]"
             >
               <CircleInfo className="h-3.5 w-3.5 shrink-0" />
               <span className="min-w-0 flex-1">
@@ -618,9 +623,9 @@ export function RunnersPanel({
               {granted.includes(org) ? (
                 <SimpleTooltip label={CHECK_HINT} className="max-w-xs">
                   <Button
-                    variant="outline"
+                    variant="ghost"
                     size="sm"
-                    className="h-7 shrink-0 gap-1.5 px-2.5 text-[11px] [&_svg]:size-3"
+                    className="search-pill h-7 shrink-0 gap-1.5 rounded-full px-3 text-[11px] text-foreground/85 hover:text-foreground [&_svg]:size-3"
                     onClick={checkAgain}
                   >
                     <RefreshCw className={cn('h-3 w-3', query.isFetching && 'animate-spin')} />
@@ -630,9 +635,8 @@ export function RunnersPanel({
               ) : (
                 <SimpleTooltip label={GRANT_HINT} className="max-w-xs">
                   <Button
-                    variant="outline"
                     size="sm"
-                    className="h-7 shrink-0 gap-1.5 px-2.5 text-[11px] [&_svg]:size-3"
+                    className="h-7 shrink-0 gap-1.5 rounded-full px-3 text-[11px] [&_svg]:size-3"
                     onClick={() => grantAccess(org)}
                   >
                     <Key className="h-3 w-3" />
@@ -644,7 +648,7 @@ export function RunnersPanel({
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-7 w-7 shrink-0 [&_svg]:size-3"
+                  className="h-7 w-7 shrink-0 rounded-full hover:bg-foreground/[0.06] [&_svg]:size-3"
                   aria-label={`Dismiss the ${org} hint`}
                   onClick={() => dismissOrg(org)}
                 >

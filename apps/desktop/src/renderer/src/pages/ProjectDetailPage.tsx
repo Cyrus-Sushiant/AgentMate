@@ -33,6 +33,7 @@ import {
   ArrowLeft,
   ArrowRight,
   ArrowUp,
+  Bell,
   Blocks,
   Check,
   CircleCheck,
@@ -69,6 +70,7 @@ import {
   Wand2,
   X,
 } from '@/components/icons';
+import { Chip, type ChipTone } from '@/components/pageKit';
 import {
   type BootstrapDescription,
   BootstrapDescriptionDialog,
@@ -87,13 +89,18 @@ import { PackagesTab } from '@/components/projects/PackagesTab';
 import {
   AGENT_TYPE_LABELS,
   isProjectSectionId,
+  PILL_GHOST,
+  PROJECT_CARD,
   ProjectDetailHeader,
   ProjectDetailSkeleton,
-  ProjectEmptyState,
   ProjectNotesCard,
   type ProjectSectionId,
   ProjectSectionNav,
+  SECTION_HEADING,
+  SECTION_WELL,
   type SectionBadge,
+  SectionCard,
+  SectionEmptyState,
 } from '@/components/projects/ProjectDetailChrome';
 import { ProjectFileBrowser } from '@/components/projects/ProjectFileBrowser';
 import { ProjectFormDialog, type ProjectFormValues } from '@/components/projects/ProjectFormDialog';
@@ -106,6 +113,7 @@ import {
   VersionChangeReview,
   type VersionReviews,
 } from '@/components/projects/VersionChangeReview';
+import { WordPressProjectSection } from '@/components/projects/wordpress/WordPressProjectSection';
 import { ProjectWorktreeSetupCard } from '@/components/settings/WorktreeSettings';
 import { SkillAuditVerdictBadge } from '@/components/skills/SkillAuditReport';
 import {
@@ -224,6 +232,20 @@ export default function ProjectDetailPage(): React.JSX.Element {
     );
   }, [editParam, setSearchParams]);
   const project = projectsQuery.data?.find((p) => p.id === projectId);
+
+  // The WordPress section only exists for a linked project; an old link to it lands on Overview.
+  const strayWordPressTab = section === 'wordpress' && project !== undefined && !project.wordpress;
+  useEffect(() => {
+    if (!strayWordPressTab) return;
+    setSearchParams(
+      (prev) => {
+        const params = new URLSearchParams(prev);
+        params.delete('tab');
+        return params;
+      },
+      { replace: true },
+    );
+  }, [strayWordPressTab, setSearchParams]);
 
   usePageHeader(project?.name ?? '', project ? AGENT_TYPE_LABELS[project.agentType] : undefined);
 
@@ -601,16 +623,21 @@ export default function ProjectDetailPage(): React.JSX.Element {
 
   if (!project) {
     return (
-      <div className="space-y-4 p-6">
-        <Button variant="ghost" size="sm" onClick={() => navigate('/projects')} className="-ml-2">
+      <div className="space-y-2 p-2">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => navigate('/projects')}
+          className="h-7 rounded-full px-2.5 text-xs text-muted-foreground hover:bg-foreground/[0.06]"
+        >
           <ArrowLeft /> Back to Projects
         </Button>
-        <ProjectEmptyState
+        <SectionEmptyState
           icon={FileText}
           title="Project not found"
           description="It may have been removed, or this link is out of date."
           action={
-            <Button variant="outline" onClick={() => navigate('/projects')}>
+            <Button className="rounded-full px-5" onClick={() => navigate('/projects')}>
               <ArrowLeft /> Back to Projects
             </Button>
           }
@@ -620,7 +647,9 @@ export default function ProjectDetailPage(): React.JSX.Element {
   }
 
   return (
-    <div className="flex min-h-full flex-1 flex-col gap-5 p-6">
+    // Like the API Client: the header, the section list and each section are glass cards on the
+    // content island with the same small gap between them.
+    <div className="flex min-h-full flex-1 flex-col gap-2 p-2">
       <ProjectDetailHeader
         project={project}
         onBack={() => navigate('/projects')}
@@ -637,7 +666,7 @@ export default function ProjectDetailPage(): React.JSX.Element {
 
       <div
         ref={workspaceRef}
-        className="flex min-w-0 flex-1 flex-col gap-4 lg:flex-row lg:items-start"
+        className="flex min-w-0 flex-1 flex-col gap-2 lg:flex-row lg:items-start"
       >
         <ProjectSectionNav
           section={section}
@@ -645,34 +674,52 @@ export default function ProjectDetailPage(): React.JSX.Element {
           badges={sectionBadges}
           createdAt={project.createdAt}
           updatedAt={project.updatedAt}
-          hiddenIds={diffrayInstalled ? [] : ['review']}
+          hiddenIds={[
+            ...(diffrayInstalled ? [] : (['review'] as const)),
+            ...(project.wordpress ? [] : (['wordpress'] as const)),
+          ]}
         />
 
         <div className="min-w-0 flex-1">
           {section === 'overview' && (
-            <div className="space-y-5">
-              <section className="space-y-2">
-                <div className="flex items-center justify-between gap-2">
-                  <h2 className="text-xs font-medium text-muted-foreground">Standing prompt</h2>
-                  <Button variant="ghost" size="sm" onClick={() => setPromptOpen(true)}>
-                    <MessageSquare /> {project.prompt ? 'Edit prompt' : 'Define prompt'}
-                  </Button>
-                </div>
+            <div className="space-y-2">
+              <SectionCard
+                icon={MessageSquare}
+                title="Standing prompt"
+                description="The context agents start from every time they work on this project."
+                actions={
+                  project.prompt ? (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className={PILL_GHOST}
+                      onClick={() => setPromptOpen(true)}
+                    >
+                      <MessageSquare /> Edit prompt
+                    </Button>
+                  ) : null
+                }
+              >
                 {project.prompt ? (
                   <CollapsibleText text={project.prompt} />
                 ) : (
-                  <ProjectEmptyState
+                  <SectionEmptyState
+                    inset
                     icon={MessageSquare}
                     title="No standing prompt"
                     description="Set the context agents should start from every time they work on this project."
                     action={
-                      <Button variant="outline" size="sm" onClick={() => setPromptOpen(true)}>
+                      <Button
+                        size="sm"
+                        className="h-8 rounded-full px-4"
+                        onClick={() => setPromptOpen(true)}
+                      >
                         <MessageSquare /> Define prompt
                       </Button>
                     }
                   />
                 )}
-              </section>
+              </SectionCard>
 
               <ProjectNotesCard
                 notes={project.notes}
@@ -688,10 +735,12 @@ export default function ProjectDetailPage(): React.JSX.Element {
           )}
 
           {section === 'bootstrap' && (
-            <div className="space-y-4">
-              <div className="flex items-start justify-between gap-4">
-                <p className="text-sm text-muted-foreground">
-                  {bootstrapPlanQuery.data ? (
+            <div className="space-y-2">
+              <SectionCard
+                icon={Wand2}
+                title="Bootstrap"
+                description={
+                  bootstrapPlanQuery.data ? (
                     <>
                       Scaffolds this project the way{' '}
                       <span className="font-medium">{bootstrapPlanQuery.data.agentLabel}</span>{' '}
@@ -708,88 +757,91 @@ export default function ProjectDetailPage(): React.JSX.Element {
                     </>
                   ) : (
                     'Scaffolds this project the way its agent expects it. Existing files are never overwritten.'
-                  )}
-                </p>
-                <Button
-                  className="shrink-0"
-                  onClick={() => setDescribeOpen(true)}
-                  disabled={
-                    bootstrapMutation.isPending || (planBridgeReady && !bootstrapPlanQuery.data)
-                  }
-                >
-                  <Wand2 />
-                  {bootstrapMutation.isPending ? 'Bootstrapping…' : 'Bootstrap Project'}
-                </Button>
-              </div>
-
-              {bootstrapMutation.isError && (
-                <p className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-xs text-destructive">
-                  Bootstrap failed: {(bootstrapMutation.error as Error).message}
-                </p>
-              )}
-
-              <div className="rounded-md border bg-muted/30 p-3">
-                {bootstrapResult ? (
-                  <>
-                    <p className="mb-2 text-xs font-medium text-muted-foreground">Result</p>
-                    <ul className="space-y-0.5 font-mono text-xs">
-                      {[
-                        ...bootstrapResult.createdFiles.map((f) => ({ path: f, created: true })),
-                        ...bootstrapResult.skippedFiles.map((f) => ({ path: f, created: false })),
-                      ].map((file) => (
-                        <li
-                          key={file.path}
-                          className={file.created ? 'text-foreground' : 'text-muted-foreground'}
-                        >
-                          {file.created ? '+ ' : '· '}
-                          {file.path}
-                          {file.created ? '' : ' (already existed)'}
-                        </li>
-                      ))}
-                    </ul>
-                  </>
-                ) : !planBridgeReady ? (
-                  <p className="text-xs text-muted-foreground">
-                    Preview unavailable. This window is running an older preload script. Fully quit
-                    the app and start it again (<code className="font-mono">pnpm dev</code>) to see
-                    it. Bootstrapping still works.
+                  )
+                }
+                actions={
+                  <Button
+                    size="sm"
+                    className="h-8 rounded-full px-4"
+                    onClick={() => setDescribeOpen(true)}
+                    disabled={
+                      bootstrapMutation.isPending || (planBridgeReady && !bootstrapPlanQuery.data)
+                    }
+                  >
+                    <Wand2 />
+                    {bootstrapMutation.isPending ? 'Bootstrapping…' : 'Bootstrap Project'}
+                  </Button>
+                }
+                bodyClassName="space-y-2"
+              >
+                {bootstrapMutation.isError && (
+                  <p className="rounded-xl bg-destructive/[0.08] p-3 text-xs text-destructive ring-1 ring-inset ring-destructive/25">
+                    Bootstrap failed: {(bootstrapMutation.error as Error).message}
                   </p>
-                ) : bootstrapPlanQuery.isError ? (
-                  <p className="text-xs text-destructive">
-                    Could not load the plan: {(bootstrapPlanQuery.error as Error).message}
-                  </p>
-                ) : bootstrapPlanQuery.isPending ? (
-                  <div className="space-y-2">
-                    <Skeleton className="h-3 w-40" />
-                    <Skeleton className="h-3 w-56" />
-                    <Skeleton className="h-3 w-32" />
-                  </div>
-                ) : (
-                  <>
-                    <p className="mb-2 text-xs font-medium text-muted-foreground">
-                      Files it will create
-                    </p>
-                    <ul className="space-y-0.5 font-mono text-xs text-muted-foreground">
-                      {bootstrapPlanQuery.data?.files.map((file) => (
-                        <li key={file.relativePath}>{file.relativePath}</li>
-                      ))}
-                    </ul>
-                    <p className="mb-1 mt-3 text-xs font-medium text-muted-foreground">
-                      Folders it will create
-                    </p>
-                    <ul className="space-y-0.5 font-mono text-xs text-muted-foreground">
-                      {bootstrapPlanQuery.data?.folders.map((folder) => (
-                        <li key={folder}>{folder}/</li>
-                      ))}
-                    </ul>
-                  </>
                 )}
-              </div>
 
-              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                <FolderTree className="h-3.5 w-3.5" /> Browse and edit project files
-              </div>
-              <ProjectFileBrowser rootPath={project.folderPath} revision={fileBrowserRevision} />
+                <div className={SECTION_WELL}>
+                  {bootstrapResult ? (
+                    <>
+                      <p className={cn(SECTION_HEADING, 'mb-2')}>Result</p>
+                      <ul className="space-y-0.5 font-mono text-xs">
+                        {[
+                          ...bootstrapResult.createdFiles.map((f) => ({ path: f, created: true })),
+                          ...bootstrapResult.skippedFiles.map((f) => ({ path: f, created: false })),
+                        ].map((file) => (
+                          <li
+                            key={file.path}
+                            className={file.created ? 'text-foreground' : 'text-muted-foreground'}
+                          >
+                            {file.created ? '+ ' : '· '}
+                            {file.path}
+                            {file.created ? '' : ' (already existed)'}
+                          </li>
+                        ))}
+                      </ul>
+                    </>
+                  ) : !planBridgeReady ? (
+                    <p className="text-xs text-muted-foreground">
+                      Preview unavailable. This window is running an older preload script. Fully
+                      quit the app and start it again (<code className="font-mono">pnpm dev</code>)
+                      to see it. Bootstrapping still works.
+                    </p>
+                  ) : bootstrapPlanQuery.isError ? (
+                    <p className="text-xs text-destructive">
+                      Could not load the plan: {(bootstrapPlanQuery.error as Error).message}
+                    </p>
+                  ) : bootstrapPlanQuery.isPending ? (
+                    <div className="space-y-2">
+                      <Skeleton className="h-3 w-40" />
+                      <Skeleton className="h-3 w-56" />
+                      <Skeleton className="h-3 w-32" />
+                    </div>
+                  ) : (
+                    <>
+                      <p className={cn(SECTION_HEADING, 'mb-2')}>Files it will create</p>
+                      <ul className="space-y-0.5 font-mono text-xs text-muted-foreground">
+                        {bootstrapPlanQuery.data?.files.map((file) => (
+                          <li key={file.relativePath}>{file.relativePath}</li>
+                        ))}
+                      </ul>
+                      <p className={cn(SECTION_HEADING, 'mb-2 mt-3')}>Folders it will create</p>
+                      <ul className="space-y-0.5 font-mono text-xs text-muted-foreground">
+                        {bootstrapPlanQuery.data?.folders.map((folder) => (
+                          <li key={folder}>{folder}/</li>
+                        ))}
+                      </ul>
+                    </>
+                  )}
+                </div>
+              </SectionCard>
+
+              <SectionCard
+                icon={FolderTree}
+                title="Project files"
+                description="Browse and edit project files."
+              >
+                <ProjectFileBrowser rootPath={project.folderPath} revision={fileBrowserRevision} />
+              </SectionCard>
             </div>
           )}
 
@@ -798,249 +850,273 @@ export default function ProjectDetailPage(): React.JSX.Element {
           {section === 'prompts' && <ProjectPrompts project={project} />}
 
           {section === 'skills' && (
-            <div className="space-y-3">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <p className="text-sm text-muted-foreground">Skills installed into this project.</p>
-                <div className="flex items-center gap-2">
-                  {allProjectSkillSubjects.length > 0 && (
+            <div className="space-y-2">
+              <SectionCard
+                icon={Blocks}
+                title="Skills"
+                description="Skills installed into this project."
+                actions={
+                  <>
+                    {allProjectSkillSubjects.length > 0 && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className={PILL_GHOST}
+                        disabled={checkAllSkillsMutation.isPending}
+                        onClick={() => checkAllSkillsMutation.mutate(allProjectSkillSubjects)}
+                      >
+                        {checkAllSkillsMutation.isPending ? (
+                          <>
+                            <Spinner className="h-3.5 w-3.5 animate-spin" />
+                            {skillCheckProgress
+                              ? `Checking ${skillCheckProgress.done + 1} of ${skillCheckProgress.total}…`
+                              : 'Checking…'}
+                          </>
+                        ) : (
+                          <>
+                            <Shield /> Check all ({allProjectSkillSubjects.length})
+                          </>
+                        )}
+                      </Button>
+                    )}
                     <Button
-                      variant="outline"
+                      variant="ghost"
                       size="sm"
-                      disabled={checkAllSkillsMutation.isPending}
-                      onClick={() => checkAllSkillsMutation.mutate(allProjectSkillSubjects)}
-                    >
-                      {checkAllSkillsMutation.isPending ? (
-                        <>
-                          <Spinner className="h-3.5 w-3.5 animate-spin" />
-                          {skillCheckProgress
-                            ? `Checking ${skillCheckProgress.done + 1} of ${skillCheckProgress.total}…`
-                            : 'Checking…'}
-                        </>
-                      ) : (
-                        <>
-                          <Shield /> Check all ({allProjectSkillSubjects.length})
-                        </>
-                      )}
-                    </Button>
-                  )}
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => navigate(`/skills?projectId=${project.id}`)}
-                  >
-                    <Blocks /> Browse marketplace
-                  </Button>
-                </div>
-              </div>
-
-              {allProjectSkillSubjects.length > 0 && (
-                <div className="rounded-lg border border-border bg-card/60 px-3 py-2.5">
-                  <SkillDeepReviewOptions
-                    enabled={skillDeepReview}
-                    onEnabledChange={setSkillDeepReview}
-                    cliId={skillReviewCliId}
-                    onCliIdChange={setSkillReviewCliId}
-                    disabled={checkAllSkillsMutation.isPending}
-                    batchHint={
-                      allProjectSkillSubjects.length > 1
-                        ? `Check all runs the CLI once per skill, so ${allProjectSkillSubjects.length} skills will take a while.`
-                        : undefined
-                    }
-                  />
-                </div>
-              )}
-              {installedSkillsQuery.data?.length === 0 ? (
-                <ProjectEmptyState
-                  icon={Blocks}
-                  title="No skills installed"
-                  description="Pull skills from the marketplace so agents on this project can use them."
-                  action={
-                    <Button
-                      variant="outline"
-                      size="sm"
+                      className={PILL_GHOST}
                       onClick={() => navigate(`/skills?projectId=${project.id}`)}
                     >
                       <Blocks /> Browse marketplace
                     </Button>
-                  }
-                />
-              ) : (
-                <div className="space-y-2">
-                  {installedSkillsQuery.data?.map((skill) => {
-                    const update = skillUpdateBySkillId.get(skill.skillId);
-                    return (
-                      <div
-                        key={skill.skillId}
-                        className="flex items-center justify-between gap-3 rounded-lg border border-border bg-card px-3 py-2.5 text-sm"
+                  </>
+                }
+                bodyClassName="space-y-3"
+              >
+                {allProjectSkillSubjects.length > 0 && (
+                  <div className={SECTION_WELL}>
+                    <SkillDeepReviewOptions
+                      enabled={skillDeepReview}
+                      onEnabledChange={setSkillDeepReview}
+                      cliId={skillReviewCliId}
+                      onCliIdChange={setSkillReviewCliId}
+                      disabled={checkAllSkillsMutation.isPending}
+                      batchHint={
+                        allProjectSkillSubjects.length > 1
+                          ? `Check all runs the CLI once per skill, so ${allProjectSkillSubjects.length} skills will take a while.`
+                          : undefined
+                      }
+                    />
+                  </div>
+                )}
+                {installedSkillsQuery.data?.length === 0 ? (
+                  <SectionEmptyState
+                    inset
+                    icon={Blocks}
+                    title="No skills installed"
+                    description="Pull skills from the marketplace so agents on this project can use them."
+                    action={
+                      <Button
+                        size="sm"
+                        className="h-8 rounded-full px-4"
+                        onClick={() => navigate(`/skills?projectId=${project.id}`)}
                       >
-                        <div className="min-w-0 space-y-1">
-                          <p className="truncate font-medium">{skill.skillId}</p>
-                          <div className="flex flex-wrap items-center gap-2">
-                            <p className="text-xs text-muted-foreground">v{skill.version}</p>
-                            {auditBySkillId.has(skill.skillId) && (
-                              <SkillAuditVerdictBadge
-                                verdict={auditBySkillId.get(skill.skillId)!.verdict}
-                                score={auditBySkillId.get(skill.skillId)!.score}
-                              />
+                        <Blocks /> Browse marketplace
+                      </Button>
+                    }
+                  />
+                ) : installedSkillsQuery.isPending ? (
+                  <ListSkeleton />
+                ) : (
+                  <div className={ROWS}>
+                    {installedSkillsQuery.data?.map((skill) => {
+                      const update = skillUpdateBySkillId.get(skill.skillId);
+                      return (
+                        <div key={skill.skillId} className={ROW}>
+                          <div className="min-w-0 space-y-1">
+                            <p className="truncate font-medium">{skill.skillId}</p>
+                            <div className="flex flex-wrap items-center gap-2">
+                              <p className="text-xs tabular-nums text-muted-foreground">
+                                v{skill.version}
+                              </p>
+                              {auditBySkillId.has(skill.skillId) && (
+                                <SkillAuditVerdictBadge
+                                  verdict={auditBySkillId.get(skill.skillId)!.verdict}
+                                  score={auditBySkillId.get(skill.skillId)!.score}
+                                />
+                              )}
+                            </div>
+                          </div>
+                          <div className="flex shrink-0 items-center gap-1">
+                            {update?.hasUpdate && (
+                              <>
+                                <ToneChip tone="warning">
+                                  v{update.latestVersion} available
+                                </ToneChip>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className={cn(PILL_GHOST, 'h-7 px-3')}
+                                  disabled={
+                                    updateSkillMutation.isPending &&
+                                    updateSkillMutation.variables?.skillId === skill.skillId
+                                  }
+                                  onClick={() => updateSkillMutation.mutate(update)}
+                                >
+                                  <RefreshCw className="h-3.5 w-3.5" /> Update
+                                </Button>
+                              </>
                             )}
+                            <SimpleTooltip label={`Check ${skill.skillId} for unsafe instructions`}>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className={ROW_ICON_BUTTON}
+                                aria-label={`Check ${skill.skillId}`}
+                                onClick={() =>
+                                  setSecuritySubject({
+                                    skillId: skill.skillId,
+                                    skillName: skill.skillId.split('/').pop() ?? skill.skillId,
+                                    target: {
+                                      kind: 'installed',
+                                      projectId: project.id,
+                                      skillId: skill.skillId,
+                                    },
+                                  })
+                                }
+                              >
+                                <Shield className="h-3.5 w-3.5" />
+                              </Button>
+                            </SimpleTooltip>
+                            <SimpleTooltip label={`Remove ${skill.skillId}`}>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className={cn(
+                                  ROW_ICON_BUTTON,
+                                  'hover:bg-destructive/10 hover:text-destructive',
+                                )}
+                                aria-label={`Remove ${skill.skillId}`}
+                                onClick={() => {
+                                  void confirmDialog({
+                                    title: `Remove "${skill.skillId}"?`,
+                                    description: 'This removes it from this project.',
+                                    confirmLabel: 'Remove',
+                                    variant: 'destructive',
+                                  }).then((confirmed) => {
+                                    if (confirmed) removeSkillMutation.mutate(skill.skillId);
+                                  });
+                                }}
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            </SimpleTooltip>
                           </div>
                         </div>
-                        <div className="flex shrink-0 items-center gap-1">
-                          <SimpleTooltip label={`Check ${skill.skillId} for unsafe instructions`}>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              aria-label={`Check ${skill.skillId}`}
-                              onClick={() =>
-                                setSecuritySubject({
-                                  skillId: skill.skillId,
-                                  skillName: skill.skillId.split('/').pop() ?? skill.skillId,
-                                  target: {
-                                    kind: 'installed',
-                                    projectId: project.id,
-                                    skillId: skill.skillId,
-                                  },
-                                })
-                              }
-                            >
-                              <Shield className="h-4 w-4" />
-                            </Button>
-                          </SimpleTooltip>
-                          {update?.hasUpdate && (
-                            <>
-                              <Badge variant="warning">v{update.latestVersion} available</Badge>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                disabled={
-                                  updateSkillMutation.isPending &&
-                                  updateSkillMutation.variables?.skillId === skill.skillId
-                                }
-                                onClick={() => updateSkillMutation.mutate(update)}
-                              >
-                                <RefreshCw className="h-3.5 w-3.5" /> Update
-                              </Button>
-                            </>
-                          )}
-                          <SimpleTooltip label={`Remove ${skill.skillId}`}>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              aria-label={`Remove ${skill.skillId}`}
-                              onClick={() => {
-                                void confirmDialog({
-                                  title: `Remove "${skill.skillId}"?`,
-                                  description: 'This removes it from this project.',
-                                  confirmLabel: 'Remove',
-                                  variant: 'destructive',
-                                }).then((confirmed) => {
-                                  if (confirmed) removeSkillMutation.mutate(skill.skillId);
-                                });
-                              }}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </SimpleTooltip>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
+                      );
+                    })}
+                  </div>
+                )}
+              </SectionCard>
 
               {projectSkillRows.length > 0 && (
-                <div className="space-y-2 border-t border-border pt-3">
-                  <div className="space-y-0.5">
-                    <p className="text-sm font-medium text-foreground">Also in this project</p>
-                    <p className="text-xs text-muted-foreground">
-                      Skills found in this project's agent folders that AgentMate did not install,
-                      for example ones that came with the repository. Agents read these too.
-                    </p>
-                  </div>
-                  {projectSkillRows.map((skill) => {
-                    const audit = auditBySkillId.get(skill.name);
-                    return (
-                      <div
-                        key={skill.location}
-                        className="flex items-center justify-between gap-3 rounded-lg border border-border bg-card px-3 py-2.5 text-sm"
-                      >
-                        <div className="min-w-0 space-y-1">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <span className="truncate font-medium">{skill.name}</span>
-                            {audit && (
-                              <SkillAuditVerdictBadge verdict={audit.verdict} score={audit.score} />
-                            )}
+                <SectionCard
+                  icon={FolderTree}
+                  title="Also in this project"
+                  description="Skills found in this project's agent folders that AgentMate did not install, for example ones that came with the repository. Agents read these too."
+                >
+                  <div className={ROWS}>
+                    {projectSkillRows.map((skill) => {
+                      const audit = auditBySkillId.get(skill.name);
+                      return (
+                        <div key={skill.location} className={ROW}>
+                          <div className="min-w-0 space-y-1">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="truncate font-medium">{skill.name}</span>
+                              {audit && (
+                                <SkillAuditVerdictBadge
+                                  verdict={audit.verdict}
+                                  score={audit.score}
+                                />
+                              )}
+                            </div>
+                            <p className="truncate font-mono text-xs text-muted-foreground">
+                              {skill.location}
+                            </p>
                           </div>
-                          <p className="truncate font-mono text-xs text-muted-foreground">
-                            {skill.location}
-                          </p>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className={cn(PILL_GHOST, 'h-7 shrink-0 px-3')}
+                            onClick={() =>
+                              setSecuritySubject({
+                                skillId: skill.name,
+                                skillName: skill.name,
+                                target: skill.target,
+                              })
+                            }
+                          >
+                            <Shield /> Check
+                          </Button>
                         </div>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="shrink-0"
-                          onClick={() =>
-                            setSecuritySubject({
-                              skillId: skill.name,
-                              skillName: skill.name,
-                              target: skill.target,
-                            })
-                          }
-                        >
-                          <Shield /> Check
-                        </Button>
-                      </div>
-                    );
-                  })}
-                </div>
+                      );
+                    })}
+                  </div>
+                </SectionCard>
               )}
             </div>
           )}
 
           {section === 'mcp' && (
-            <div className="space-y-3">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <p className="text-sm text-muted-foreground">
-                  MCP servers installed into this project.
-                </p>
+            <SectionCard
+              icon={Plug}
+              title="MCP servers"
+              description="MCP servers installed into this project."
+              actions={
                 <Button
-                  variant="outline"
+                  variant="ghost"
                   size="sm"
+                  className={PILL_GHOST}
                   onClick={() => navigate(`/mcp?projectId=${project.id}`)}
                 >
                   <Plug /> Browse marketplace
                 </Button>
-              </div>
+              }
+            >
               {installedMcpServersQuery.data?.length === 0 ? (
-                <ProjectEmptyState
+                <SectionEmptyState
+                  inset
                   icon={Plug}
                   title="No MCP servers installed"
                   description="Install servers from the marketplace to give this project's agents extra tools."
                   action={
                     <Button
-                      variant="outline"
                       size="sm"
+                      className="h-8 rounded-full px-4"
                       onClick={() => navigate(`/mcp?projectId=${project.id}`)}
                     >
                       <Plug /> Browse marketplace
                     </Button>
                   }
                 />
+              ) : installedMcpServersQuery.isPending ? (
+                <ListSkeleton />
               ) : (
-                <div className="space-y-2">
+                <div className={ROWS}>
                   {installedMcpServersQuery.data?.map((server) => (
-                    <div
-                      key={server.serverId}
-                      className="flex items-center justify-between gap-3 rounded-lg border border-border bg-card px-3 py-2.5 text-sm"
-                    >
+                    <div key={server.serverId} className={ROW}>
                       <div className="min-w-0 space-y-1">
                         <p className="truncate font-medium">{server.serverId}</p>
-                        <p className="text-xs text-muted-foreground">v{server.version}</p>
+                        <p className="text-xs tabular-nums text-muted-foreground">
+                          v{server.version}
+                        </p>
                       </div>
                       <SimpleTooltip label={`Remove ${server.serverId}`}>
                         <Button
                           variant="ghost"
                           size="icon"
+                          className={cn(
+                            ROW_ICON_BUTTON,
+                            'hover:bg-destructive/10 hover:text-destructive',
+                          )}
                           aria-label={`Remove ${server.serverId}`}
                           onClick={() => {
                             void confirmDialog({
@@ -1053,19 +1129,23 @@ export default function ProjectDetailPage(): React.JSX.Element {
                             });
                           }}
                         >
-                          <Trash2 className="h-4 w-4" />
+                          <Trash2 className="h-3.5 w-3.5" />
                         </Button>
                       </SimpleTooltip>
                     </div>
                   ))}
                 </div>
               )}
-            </div>
+            </SectionCard>
           )}
 
           {section === 'packages' && <PackagesTab projectId={project.id} />}
 
           {section === 'docker' && <DockerTab project={project} />}
+
+          {section === 'wordpress' && project.wordpress && (
+            <WordPressProjectSection project={project} />
+          )}
 
           {section === 'git' && (
             <GitTab
@@ -1153,6 +1233,40 @@ export default function ProjectDetailPage(): React.JSX.Element {
   );
 }
 
+/**
+ * Rows that run edge to edge under a section's header, split by the hairline Settings uses. The
+ * negative margins undo the card body's padding so the rows meet the card's own edges.
+ */
+const ROWS = 'settings-rows -mx-4 -mb-4 shadow-[inset_0_1px_0_hsl(var(--foreground)/0.08)]';
+
+/** One of those rows: what it is on the left, what you can do with it on the right. */
+const ROW =
+  'flex items-center justify-between gap-3 px-4 py-2.5 text-sm transition-colors hover:bg-foreground/[0.03]';
+
+/** A small round icon button inside a row, with the main menu's hover wash. */
+const ROW_ICON_BUTTON =
+  'h-7 w-7 rounded-full text-muted-foreground hover:bg-foreground/[0.08] hover:text-foreground';
+
+/** A status or count as a small tinted chip: the page kit's one chip. */
+const ToneChip = Chip;
+
+/** Shimmering rows standing in for a list that is still loading. */
+function ListSkeleton({ rows = 3 }: { rows?: number }): React.JSX.Element {
+  return (
+    <div role="status" aria-label="Loading" className={ROWS}>
+      {Array.from({ length: rows }, (_, i) => (
+        <div key={i} className="flex items-center gap-3 px-4 py-3">
+          <div className="min-w-0 flex-1 space-y-1.5">
+            <Skeleton className="h-4 w-40" />
+            <Skeleton className="h-3 w-16" />
+          </div>
+          <Skeleton className="h-7 w-7 rounded-full" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function ProjectTerminalSection({
   project,
   onOpenHere,
@@ -1178,73 +1292,78 @@ function ProjectTerminalSection({
   }
 
   return (
-    <div className="overflow-hidden rounded-lg border border-border">
-      <div className="flex items-start gap-3 border-b border-border bg-card/80 px-5 py-4">
-        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-          <TerminalSquare className="h-4 w-4" />
-        </div>
-        <div className="min-w-0 flex-1">
-          <h2 className="text-sm font-medium">Project terminal</h2>
-          <p className="mt-0.5 text-sm text-muted-foreground">
-            Opens in this folder. Hide the panel from the top bar and the shell keeps running.
-          </p>
-          <p className="mt-2 flex items-center gap-1.5 truncate font-mono text-xs text-muted-foreground">
+    <SectionCard
+      icon={TerminalSquare}
+      title="Project terminal"
+      description={
+        <>
+          <p>Opens in this folder. Hide the panel from the top bar and the shell keeps running.</p>
+          <p className="mt-1.5 flex items-center gap-1.5 truncate font-mono text-[11px]">
             <Folder className="h-3 w-3 shrink-0" />
             {project.folderPath}
           </p>
-        </div>
-      </div>
-
+        </>
+      }
+      bodyClassName="space-y-3"
+    >
       {projectSessions.length > 0 && (
-        <div className="space-y-1.5 border-b border-border px-5 py-3">
-          <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-            Open here
-          </p>
-          {projectSessions.map((session) => (
-            <button
-              key={session.id}
-              type="button"
-              onClick={() => showSession(session.id)}
-              className={cn(
-                'flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-sm transition-colors hover:bg-accent',
-                session.id === activeSessionId && 'bg-primary/10',
-              )}
-            >
-              <span
-                className={cn(
-                  'h-1.5 w-1.5 shrink-0 rounded-full',
-                  session.id === activeSessionId
-                    ? 'terminal-live-dot bg-primary shadow-[0_0_6px_hsl(var(--primary))]'
-                    : 'bg-foreground/25',
-                )}
-              />
-              <span className="min-w-0 flex-1 truncate">{session.title}</span>
-              <span className="text-xs text-muted-foreground">Show</span>
-            </button>
-          ))}
+        <div className="space-y-1.5">
+          <p className={cn(SECTION_HEADING, 'px-1')}>Open here</p>
+          <div className={cn(SECTION_WELL, 'flex flex-col gap-px p-1')}>
+            {projectSessions.map((session) => {
+              const active = session.id === activeSessionId;
+              return (
+                <button
+                  key={session.id}
+                  type="button"
+                  onClick={() => showSession(session.id)}
+                  className={cn(
+                    'flex h-8 w-full items-center gap-2 rounded-lg px-2.5 text-left text-[13px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                    active
+                      ? 'bg-primary/12 font-medium text-primary'
+                      : 'hover:bg-foreground/[0.06]',
+                  )}
+                >
+                  <span
+                    className={cn(
+                      'h-1.5 w-1.5 shrink-0 rounded-full',
+                      active
+                        ? 'terminal-live-dot bg-primary shadow-[0_0_6px_hsl(var(--primary))]'
+                        : 'bg-foreground/25',
+                    )}
+                  />
+                  <span className="min-w-0 flex-1 truncate">{session.title}</span>
+                  <span className="text-xs text-muted-foreground">Show</span>
+                </button>
+              );
+            })}
+          </div>
         </div>
       )}
 
-      <div className="flex flex-wrap items-center gap-2 px-5 py-4">
-        <Button onClick={onOpenHere}>
+      <div className="flex flex-wrap items-center gap-1.5">
+        <Button size="sm" className="h-8 rounded-full px-4" onClick={onOpenHere}>
           <TerminalSquare /> Open terminal here
         </Button>
         {runCommands.length > 0 ? (
-          <Button variant="outline" onClick={onRun}>
+          <Button variant="ghost" size="sm" className={PILL_GHOST} onClick={onRun}>
             <Run /> {runCommands.length === 1 ? `Run ${runCommands[0].command}` : 'Run'}
           </Button>
         ) : (
-          <Button variant="outline" onClick={onSetRun}>
+          <Button variant="ghost" size="sm" className={PILL_GHOST} onClick={onSetRun}>
             Set a run command
           </Button>
         )}
         {terminalShortcut ? (
-          <span className="text-xs text-muted-foreground">
-            {terminalShortcut} toggles the panel
+          <span className="ml-1 text-xs text-muted-foreground">
+            <kbd className="rounded-full bg-foreground/[0.07] px-2 py-0.5 font-sans text-[10px] font-medium">
+              {terminalShortcut}
+            </kbd>{' '}
+            toggles the panel
           </span>
         ) : null}
       </div>
-    </div>
+    </SectionCard>
   );
 }
 
@@ -1284,32 +1403,33 @@ function ProjectConfigEditor({
     toast.success('Config saved.');
   }
 
-  if (!loaded) {
-    return (
-      <div className="space-y-2">
-        <Skeleton className="h-4 w-48" />
-        <Skeleton className="h-80 w-full rounded-lg" />
-      </div>
-    );
-  }
-
   return (
-    <div className="space-y-2">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-          <FileCog className="h-3.5 w-3.5" /> .agentmate/config.json
-        </div>
-        <Button size="sm" onClick={() => void handleSave()}>
-          Save
+    <SectionCard
+      icon={FileCog}
+      title="Config"
+      description={<span className="font-mono">.agentmate/config.json</span>}
+      actions={
+        <Button
+          size="sm"
+          className="h-8 rounded-full px-4"
+          disabled={!loaded}
+          onClick={() => void handleSave()}
+        >
+          <Save /> Save
         </Button>
-      </div>
-      <MonacoEditor
-        value={content}
-        onChange={setContent}
-        language="json"
-        className="min-h-[320px]"
-      />
-    </div>
+      }
+    >
+      {loaded ? (
+        <MonacoEditor
+          value={content}
+          onChange={setContent}
+          language="json"
+          className="min-h-[320px] rounded-xl border-0 ring-1 ring-foreground/[0.08]"
+        />
+      ) : (
+        <Skeleton className="h-80 w-full rounded-xl" />
+      )}
+    </SectionCard>
   );
 }
 
@@ -1491,19 +1611,24 @@ function gitFileKind(x: string, y: string): GitFileKind {
   return 'modified';
 }
 
+/** Which theme colour a changed file's kind is tinted with, in its chip and its edge mark. */
+function gitFileTone(kind: GitFileKind): ChipTone {
+  return kind === 'deleted'
+    ? 'destructive'
+    : kind === 'added'
+      ? 'success'
+      : kind === 'modified'
+        ? 'warning'
+        : kind === 'renamed'
+          ? 'primary'
+          : 'neutral';
+}
+
 function GitStatusBadge({ kind }: { kind: GitFileKind }): React.JSX.Element {
-  const variant =
-    kind === 'deleted'
-      ? 'destructive'
-      : kind === 'added'
-        ? 'success'
-        : kind === 'modified'
-          ? 'warning'
-          : 'outline';
   return (
-    <Badge variant={variant} className="shrink-0 font-mono text-[10px] uppercase tracking-wide">
+    <ToneChip tone={gitFileTone(kind)} className="font-mono text-[10px] uppercase tracking-wide">
       {kind}
-    </Badge>
+    </ToneChip>
   );
 }
 
@@ -1612,6 +1737,7 @@ function AiSuggestButton({
   label,
   pendingLabel,
   pendingTooltip,
+  pill = false,
 }: {
   pending: boolean;
   onStart: () => void;
@@ -1622,6 +1748,8 @@ function AiSuggestButton({
   /** What the AI is doing right now, e.g. "Thinking…". */
   pendingLabel: string;
   pendingTooltip: string;
+  /** Draws it as the Git tab's pill; the dialogs keep the plain button. */
+  pill?: boolean;
 }): React.JSX.Element {
   const iconSize = size === 'sm' ? 'h-3.5 w-3.5' : 'h-4 w-4';
 
@@ -1629,11 +1757,15 @@ function AiSuggestButton({
     return (
       <SimpleTooltip label={pendingTooltip}>
         <Button
-          variant="outline"
+          variant={pill ? 'ghost' : 'outline'}
           size={size}
           onClick={onCancel}
           aria-label={`${pendingLabel} Click to cancel.`}
-          className="border-destructive/40 hover:bg-destructive/10"
+          className={
+            pill
+              ? 'h-8 rounded-full bg-destructive/10 px-3.5 text-xs text-foreground ring-1 ring-inset ring-destructive/30 hover:bg-destructive/15'
+              : 'border-destructive/40 hover:bg-destructive/10'
+          }
         >
           <Spinner className={`${iconSize} animate-spin`} />
           {pendingLabel}
@@ -1644,7 +1776,13 @@ function AiSuggestButton({
   }
 
   return (
-    <Button variant="outline" size={size} disabled={disabled} onClick={onStart}>
+    <Button
+      variant={pill ? 'ghost' : 'outline'}
+      size={size}
+      disabled={disabled}
+      onClick={onStart}
+      className={pill ? PILL_GHOST : undefined}
+    >
       <Sparkles className={iconSize} /> {label}
     </Button>
   );
@@ -1676,6 +1814,7 @@ function GitOpButton({
   onClick,
   variant,
   size,
+  pill = false,
 }: {
   icon?: React.ComponentType<{ className?: string }>;
   label: string;
@@ -1686,15 +1825,20 @@ function GitOpButton({
   onClick: () => void;
   variant?: 'outline' | 'destructive';
   size?: 'sm';
+  /** Draws it as the Git tab's pill; the dialogs keep the plain button. */
+  pill?: boolean;
 }): React.JSX.Element {
   const iconSize = size === 'sm' ? 'h-3.5 w-3.5' : 'h-4 w-4';
   return (
     <Button
-      variant={variant}
+      variant={pill && variant === 'outline' ? 'ghost' : variant}
       size={size}
       disabled={disabled || pending}
       onClick={onClick}
       aria-busy={pending}
+      className={
+        pill ? (variant === 'outline' ? PILL_GHOST : 'h-8 rounded-full px-3.5 text-xs') : undefined
+      }
     >
       {pending ? (
         <Spinner className={`${iconSize} animate-spin`} />
@@ -1708,8 +1852,8 @@ function GitOpButton({
 
 function GitTabSkeleton(): React.JSX.Element {
   return (
-    <div className="space-y-4">
-      <div className="glass flex flex-wrap items-center justify-between gap-3 rounded-xl p-4">
+    <div role="status" aria-label="Loading git status" className="space-y-2">
+      <div className={cn(PROJECT_CARD, 'flex flex-wrap items-center justify-between gap-3 p-4')}>
         <div className="flex items-center gap-3">
           <Skeleton className="h-9 w-9 rounded-lg" />
           <div className="space-y-1.5">
@@ -1717,16 +1861,16 @@ function GitTabSkeleton(): React.JSX.Element {
             <Skeleton className="h-3 w-44" />
           </div>
         </div>
-        <div className="flex gap-2">
-          <Skeleton className="h-8 w-16 rounded-md" />
-          <Skeleton className="h-8 w-14 rounded-md" />
-          <Skeleton className="h-8 w-14 rounded-md" />
-          <Skeleton className="h-8 w-16 rounded-md" />
+        <div className="flex gap-1.5">
+          <Skeleton className="h-8 w-16 rounded-full" />
+          <Skeleton className="h-8 w-14 rounded-full" />
+          <Skeleton className="h-8 w-14 rounded-full" />
+          <Skeleton className="h-8 w-16 rounded-full" />
         </div>
       </div>
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-        <Skeleton className="h-40 rounded-xl" />
-        <Skeleton className="h-40 rounded-xl" />
+      <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+        <Skeleton className="h-40 rounded-[calc(var(--radius)+2px)]" />
+        <Skeleton className="h-40 rounded-[calc(var(--radius)+2px)]" />
       </div>
     </div>
   );
@@ -1946,12 +2090,12 @@ function GitTab({
   if (!statusQuery.data?.isRepo) {
     return (
       <>
-        <ProjectEmptyState
+        <SectionEmptyState
           icon={GitBranch}
           title="This folder isn't a git repository yet"
           description="Start one on a master branch, then publish it to a GitHub account or organization without leaving the app."
           action={
-            <Button onClick={() => setSetupOpen(true)}>
+            <Button className="rounded-full px-5" onClick={() => setSetupOpen(true)}>
               <GitBranch className="h-4 w-4" /> Initialize repository
             </Button>
           }
@@ -2012,8 +2156,8 @@ function GitTab({
   });
 
   return (
-    <div className="space-y-4">
-      <div className="glass flex flex-wrap items-center justify-between gap-3 rounded-xl p-4">
+    <div className="space-y-2">
+      <div className={cn(PROJECT_CARD, 'flex flex-wrap items-center justify-between gap-3 p-4')}>
         <div className="flex min-w-0 items-center gap-3">
           <GitIconWell>
             <GitBranch className="h-4 w-4" />
@@ -2041,7 +2185,7 @@ function GitTab({
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="h-8 w-8"
+                    className="h-8 w-8 rounded-full text-muted-foreground hover:bg-foreground/[0.08] hover:text-foreground"
                     disabled={anyOpPending}
                     onClick={() => setHistoryBranch(status.branch)}
                     aria-label="Branch chart and history"
@@ -2053,40 +2197,41 @@ function GitTab({
             </div>
             <div className="flex flex-wrap items-center gap-1.5">
               {status.hasRemote && status.ahead === 0 && status.behind === 0 && (
-                <Badge variant="success" className="gap-1">
-                  <CircleCheck className="h-3 w-3" /> In sync
-                </Badge>
+                <ToneChip tone="success">
+                  <CircleCheck /> In sync
+                </ToneChip>
               )}
               {status.hasRemote && status.ahead > 0 && (
-                <Badge variant="warning" className="gap-1">
-                  <ArrowUp className="h-3 w-3" /> {status.ahead} ahead
-                </Badge>
+                <ToneChip tone="warning">
+                  <ArrowUp /> {status.ahead} ahead
+                </ToneChip>
               )}
               {status.hasRemote && status.behind > 0 && (
-                <Badge variant="warning" className="gap-1">
-                  <ArrowDown className="h-3 w-3" /> {status.behind} behind
-                </Badge>
+                <ToneChip tone="warning">
+                  <ArrowDown /> {status.behind} behind
+                </ToneChip>
               )}
               {!status.hasRemote && (
-                <Badge variant="outline" className="gap-1">
-                  <LinkOff className="h-3 w-3" /> No remote
-                </Badge>
+                <ToneChip>
+                  <LinkOff /> No remote
+                </ToneChip>
               )}
               {status.files.length > 0 ? (
-                <Badge variant="outline">
+                <ToneChip>
                   {status.files.length} changed file{status.files.length === 1 ? '' : 's'}
-                </Badge>
+                </ToneChip>
               ) : (
-                <Badge variant="success">Clean</Badge>
+                <ToneChip tone="success">Clean</ToneChip>
               )}
             </div>
           </div>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-1.5">
           {diffrayInstalled && (
             <Button
               size="sm"
-              variant="outline"
+              variant="ghost"
+              className={PILL_GHOST}
               onClick={onReviewWithDiffray}
               disabled={anyOpPending}
             >
@@ -2094,6 +2239,7 @@ function GitTab({
             </Button>
           )}
           <GitOpButton
+            pill
             size="sm"
             variant="outline"
             icon={CloudDownload}
@@ -2104,6 +2250,7 @@ function GitTab({
             onClick={() => fetchMutation.mutate()}
           />
           <GitOpButton
+            pill
             size="sm"
             variant={pullPrimary ? undefined : 'outline'}
             icon={Download}
@@ -2114,6 +2261,7 @@ function GitTab({
             onClick={() => pullMutation.mutate()}
           />
           <GitOpButton
+            pill
             size="sm"
             variant={pushPrimary ? undefined : 'outline'}
             icon={CloudUpload}
@@ -2125,6 +2273,7 @@ function GitTab({
           />
           {status.hasRemote ? (
             <GitOpButton
+              pill
               size="sm"
               variant={pullPrimary || pushPrimary ? 'outline' : undefined}
               icon={RefreshCw}
@@ -2135,7 +2284,11 @@ function GitTab({
               onClick={() => syncMutation.mutate()}
             />
           ) : (
-            <Button size="sm" onClick={() => setSetupOpen(true)}>
+            <Button
+              size="sm"
+              className="h-8 rounded-full px-3.5 text-xs"
+              onClick={() => setSetupOpen(true)}
+            >
               <CloudUpload className="h-3.5 w-3.5" /> Connect to GitHub
             </Button>
           )}
@@ -2143,27 +2296,34 @@ function GitTab({
       </div>
 
       {status.files.length > 0 && (
-        <div className="glass space-y-2.5 rounded-xl p-4">
-          <div className="flex items-center justify-between gap-2">
-            <p className="text-sm font-medium">Changed files</p>
-            <span className="text-xs text-muted-foreground">{status.files.length}</span>
+        <div className={cn(PROJECT_CARD, 'space-y-2.5 p-4')}>
+          <div className="flex items-center gap-2">
+            <p className={SECTION_HEADING}>Changed files</p>
+            <span className="rounded-full bg-foreground/[0.06] px-1.5 text-[10px] leading-4 tabular-nums text-muted-foreground">
+              {status.files.length}
+            </span>
           </div>
-          <OverflowScroll className="max-h-56 space-y-1 pr-1" surface="card">
+          <OverflowScroll className="max-h-56 space-y-px pr-1" surface="card">
             {status.files.map((file) => {
               const kind = gitFileKind(file.x, file.y);
               const { dir, name } = splitGitPath(file.path);
+              const tone = gitFileTone(kind);
               return (
                 <SimpleTooltip key={file.path} label={file.path}>
-                  <div
-                    className={cn(
-                      'flex items-center justify-between gap-2 rounded-md border-l-2 px-2.5 py-1.5 transition-colors hover:bg-foreground/5',
-                      kind === 'deleted' && 'border-l-destructive',
-                      kind === 'added' && 'border-l-success',
-                      kind === 'modified' && 'border-l-warning',
-                      kind === 'renamed' && 'border-l-primary',
-                      kind === 'untracked' && 'border-l-muted-foreground/50',
-                    )}
-                  >
+                  <div className="relative flex items-center justify-between gap-2 rounded-lg py-1.5 pl-3 pr-1.5 transition-colors hover:bg-foreground/[0.05]">
+                    {/* A coloured edge, drawn as its own mark: a border colour would lose to
+                        the theme's global border rule. */}
+                    <span
+                      aria-hidden
+                      className={cn(
+                        'absolute left-0 top-1/2 h-4 w-[3px] -translate-y-1/2 rounded-full',
+                        tone === 'destructive' && 'bg-destructive',
+                        tone === 'success' && 'bg-success',
+                        tone === 'warning' && 'bg-warning',
+                        tone === 'primary' && 'bg-primary',
+                        tone === 'neutral' && 'bg-muted-foreground/50',
+                      )}
+                    />
                     <p className="min-w-0 truncate font-mono text-xs">
                       {dir ? <span className="text-muted-foreground">{dir}</span> : null}
                       <span className="text-foreground">{name}</span>
@@ -2177,8 +2337,8 @@ function GitTab({
         </div>
       )}
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-        <div className="glass space-y-3 rounded-xl p-4">
+      <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+        <div className={cn(PROJECT_CARD, 'space-y-3 p-4')}>
           <div className="flex items-start gap-3">
             <GitIconWell>
               <GitBranch className="h-4 w-4" />
@@ -2192,16 +2352,37 @@ function GitTab({
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="git-branch-name">New branch</Label>
-            <Input
-              id="git-branch-name"
-              value={branchName}
-              onChange={(e) => setBranchName(e.target.value)}
-              placeholder="feat/my-change"
-              className="font-mono"
-            />
+            {/* The name and Create share one pill, like the API Client's URL bar. */}
+            <div className="search-pill flex h-10 items-center gap-1 rounded-full p-1 pl-3.5 transition-colors">
+              <input
+                id="git-branch-name"
+                value={branchName}
+                onChange={(e) => setBranchName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && branchName.trim() && !anyOpPending) {
+                    e.preventDefault();
+                    createBranchMutation.mutate(branchName);
+                  }
+                }}
+                placeholder="feat/my-change"
+                spellCheck={false}
+                autoComplete="off"
+                className="h-full min-w-0 flex-1 bg-transparent font-mono text-[13px] outline-none placeholder:font-sans placeholder:text-muted-foreground/70"
+              />
+              <GitOpButton
+                pill
+                size="sm"
+                label="Create"
+                pendingLabel="Creating…"
+                pending={createBranchMutation.isPending}
+                disabled={anyOpPending || !branchName.trim()}
+                onClick={() => createBranchMutation.mutate(branchName)}
+              />
+            </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <AiSuggestButton
+              pill
               size="sm"
               label="Suggest with AI"
               pendingLabel="Thinking…"
@@ -2212,14 +2393,6 @@ function GitTab({
               onCancel={() =>
                 cancelSuggestion(branchRequestRef, window.agentmat.git.cancelSuggestBranchName)
               }
-            />
-            <GitOpButton
-              size="sm"
-              label="Create"
-              pendingLabel="Creating…"
-              pending={createBranchMutation.isPending}
-              disabled={anyOpPending || !branchName.trim()}
-              onClick={() => createBranchMutation.mutate(branchName)}
             />
           </div>
           <Separator />
@@ -2256,6 +2429,7 @@ function GitTab({
                 wrapTrigger
               >
                 <GitOpButton
+                  pill
                   size="sm"
                   label="Set default"
                   pendingLabel="Updating…"
@@ -2270,11 +2444,13 @@ function GitTab({
             <>
               <Separator />
               <div className="space-y-1.5">
-                <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
                   <Label>All branches</Label>
-                  <span className="text-xs text-muted-foreground">{listedBranches.length}</span>
+                  <span className="rounded-full bg-foreground/[0.06] px-1.5 text-[10px] leading-4 tabular-nums text-muted-foreground">
+                    {listedBranches.length}
+                  </span>
                 </div>
-                <OverflowScroll className="max-h-56 space-y-0.5 pr-1" surface="card">
+                <OverflowScroll className="max-h-56 space-y-px pr-1" surface="card">
                   {listedBranches.map((branch) => {
                     const isCurrent = branch.name === status.branch;
                     const isDefault = branch.name === status.defaultBranch;
@@ -2282,38 +2458,36 @@ function GitTab({
                     return (
                       <div
                         key={branch.name}
-                        className="flex items-center gap-1 rounded-md px-1 py-0.5 hover:bg-foreground/5"
+                        className="flex h-8 items-center gap-1 rounded-lg pl-2 pr-0.5 transition-colors hover:bg-foreground/[0.05]"
                       >
-                        <button
-                          type="button"
-                          className="min-w-0 flex-1 truncate text-left font-mono text-xs disabled:cursor-default"
-                          disabled={anyOpPending || isCurrent}
-                          onClick={() => checkoutBranchMutation.mutate(branch.name)}
-                          title={isCurrent ? 'Current branch' : `Switch to ${branch.name}`}
+                        {/* The tooltip sits on a wrapper so it still shows while the button is
+                            disabled, which it is for the branch you are already on. */}
+                        <SimpleTooltip
+                          label={isCurrent ? 'Current branch' : `Switch to ${branch.name}`}
                         >
-                          {branch.name}
-                        </button>
+                          <div className="min-w-0 flex-1">
+                            <button
+                              type="button"
+                              className={cn(
+                                'block w-full truncate text-left font-mono text-xs disabled:cursor-default',
+                                isCurrent && 'font-semibold text-primary',
+                              )}
+                              disabled={anyOpPending || isCurrent}
+                              onClick={() => checkoutBranchMutation.mutate(branch.name)}
+                            >
+                              {branch.name}
+                            </button>
+                          </div>
+                        </SimpleTooltip>
                         <div className="flex shrink-0 items-center gap-1">
-                          {isCurrent ? (
-                            <Badge variant="secondary" className="h-5 px-1.5 text-[10px]">
-                              current
-                            </Badge>
-                          ) : null}
-                          {isDefault ? (
-                            <Badge variant="outline" className="h-5 px-1.5 text-[10px]">
-                              default
-                            </Badge>
-                          ) : null}
-                          {!branch.local && branch.remote ? (
-                            <Badge variant="outline" className="h-5 px-1.5 text-[10px]">
-                              remote
-                            </Badge>
-                          ) : null}
+                          {isCurrent ? <ToneChip tone="primary">current</ToneChip> : null}
+                          {isDefault ? <ToneChip>default</ToneChip> : null}
+                          {!branch.local && branch.remote ? <ToneChip>remote</ToneChip> : null}
                           <SimpleTooltip label="Chart and history">
                             <Button
                               variant="ghost"
                               size="icon"
-                              className="h-7 w-7"
+                              className={ROW_ICON_BUTTON}
                               disabled={anyOpPending}
                               onClick={() => setHistoryBranch(branch.name)}
                               aria-label={`History of ${branch.name}`}
@@ -2326,7 +2500,7 @@ function GitTab({
                               <Button
                                 variant="ghost"
                                 size="icon"
-                                className="h-7 w-7"
+                                className={ROW_ICON_BUTTON}
                                 disabled={anyOpPending}
                                 aria-label={`Actions for ${branch.name}`}
                               >
@@ -2373,7 +2547,8 @@ function GitTab({
 
         <div
           className={cn(
-            'glass space-y-3 rounded-xl p-4',
+            PROJECT_CARD,
+            'space-y-3 p-4',
             status.files.length > 0 && 'ring-1 ring-primary/25',
           )}
         >
@@ -2392,42 +2567,54 @@ function GitTab({
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="git-commit-message">Commit message</Label>
-            <GrammarTextarea
-              id="git-commit-message"
-              value={commitMessage}
-              onChange={(e) => setCommitMessage(e.target.value)}
-              placeholder="Describe what changed…"
-              rows={3}
-              disabled={status.files.length === 0}
-            />
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <AiSuggestButton
-              size="sm"
-              label="Suggest with AI"
-              pendingLabel="Thinking…"
-              pendingTooltip="Writing a commit message, click to cancel"
-              pending={suggestingCommit}
-              disabled={status.files.length === 0}
-              onStart={() => void handleSuggestCommitMessage()}
-              onCancel={() =>
-                cancelSuggestion(commitRequestRef, window.agentmat.git.cancelSuggestCommitMessage)
-              }
-            />
-            <GitOpButton
-              size="sm"
-              label="Commit all changes"
-              pendingLabel="Committing…"
-              pending={commitMutation.isPending}
-              disabled={anyOpPending || !commitMessage.trim() || status.files.length === 0}
-              onClick={() => commitMutation.mutate(commitMessage)}
-            />
+            {/* The message and the commit button are one composed field, like the Prompt
+                Builder's request: write at the top, act from the bottom row. */}
+            <div className="search-pill flex flex-col rounded-[1.25rem] transition-colors">
+              <GrammarTextarea
+                id="git-commit-message"
+                value={commitMessage}
+                onChange={(e) => setCommitMessage(e.target.value)}
+                placeholder="Describe what changed…"
+                rows={3}
+                disabled={status.files.length === 0}
+                className="min-h-[5rem] resize-none rounded-[1.25rem] border-0 bg-transparent px-4 pt-3 shadow-none focus-visible:ring-0"
+              />
+              <div className="flex flex-wrap items-center gap-1.5 p-1.5 pl-2">
+                <AiSuggestButton
+                  pill
+                  size="sm"
+                  label="Suggest with AI"
+                  pendingLabel="Thinking…"
+                  pendingTooltip="Writing a commit message, click to cancel"
+                  pending={suggestingCommit}
+                  disabled={status.files.length === 0}
+                  onStart={() => void handleSuggestCommitMessage()}
+                  onCancel={() =>
+                    cancelSuggestion(
+                      commitRequestRef,
+                      window.agentmat.git.cancelSuggestCommitMessage,
+                    )
+                  }
+                />
+                <span className="ml-auto">
+                  <GitOpButton
+                    pill
+                    size="sm"
+                    label="Commit all changes"
+                    pendingLabel="Committing…"
+                    pending={commitMutation.isPending}
+                    disabled={anyOpPending || !commitMessage.trim() || status.files.length === 0}
+                    onClick={() => commitMutation.mutate(commitMessage)}
+                  />
+                </span>
+              </div>
+            </div>
           </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-        <div className="glass flex flex-col gap-3 rounded-xl p-4">
+      <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+        <div className={cn(PROJECT_CARD, 'flex flex-col gap-3 p-4')}>
           <div className="flex items-start gap-3">
             <GitIconWell>
               <Tag className="h-4 w-4" />
@@ -2449,22 +2636,27 @@ function GitTab({
           {tagInfo && tagInfo.recentTags.length > 0 && (
             <div className="flex flex-wrap gap-1.5">
               {tagInfo.recentTags.slice(0, 4).map((existing) => (
-                <Badge
+                <ToneChip
                   key={existing}
-                  variant={existing === tagInfo.latestTag ? 'secondary' : 'outline'}
+                  tone={existing === tagInfo.latestTag ? 'primary' : 'neutral'}
                   className="font-mono text-[10px]"
                 >
                   {existing}
-                </Badge>
+                </ToneChip>
               ))}
             </div>
           )}
-          <Button variant="outline" className="mt-auto self-start" onClick={() => setTagOpen(true)}>
+          <Button
+            variant="ghost"
+            size="sm"
+            className={cn(PILL_GHOST, 'mt-auto self-start')}
+            onClick={() => setTagOpen(true)}
+          >
             <Tag className="h-3.5 w-3.5" /> Tag a version
           </Button>
         </div>
 
-        <div className="glass flex flex-col gap-3 rounded-xl p-4">
+        <div className={cn(PROJECT_CARD, 'flex flex-col gap-3 p-4')}>
           <div className="flex items-start gap-3">
             <GitIconWell>
               <GitPullRequest className="h-4 w-4" />
@@ -2482,8 +2674,9 @@ function GitTab({
             wrapTrigger
           >
             <Button
-              variant="outline"
-              className="mt-auto self-start"
+              variant="ghost"
+              size="sm"
+              className={cn(PILL_GHOST, 'mt-auto self-start')}
               onClick={() => setPrOpen(true)}
               disabled={!status.hasRemote}
             >
@@ -3860,19 +4053,24 @@ function HooksTab({ project }: { project: Project }): React.JSX.Element {
   });
 
   return (
-    <div className="space-y-4">
-      <p className="text-sm text-muted-foreground">
+    <div className="space-y-2">
+      <p className="px-1 pb-1 text-sm text-muted-foreground">
         Wire an installed agent to a notification for this project. Completion, confirmation, and
         the desktop companion are configured as three independent hooks.
       </p>
 
       {!telegramConfigured && (
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-muted/40 px-3 py-2 text-sm">
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-[calc(var(--radius)+2px)] bg-warning/[0.08] py-2 pl-3.5 pr-2 text-sm ring-1 ring-inset ring-warning/25">
           <div className="flex items-center gap-2">
-            <TriangleAlert className="h-4 w-4 text-muted-foreground" />
+            <TriangleAlert className="h-4 w-4 shrink-0 text-warning" />
             Set up your Telegram bot in Settings before enabling the Telegram hooks.
           </div>
-          <Button variant="outline" size="sm" onClick={() => navigate('/settings')}>
+          <Button
+            variant="ghost"
+            size="sm"
+            className={PILL_GHOST}
+            onClick={() => navigate('/settings')}
+          >
             Open Settings
           </Button>
         </div>
@@ -3910,73 +4108,86 @@ function HooksTab({ project }: { project: Project }): React.JSX.Element {
         saving={saveMutation.isPending}
       />
 
-      <Separator />
-
-      <div className="space-y-1">
-        <p className="text-sm font-medium">Other hooks</p>
-        <p className="text-xs text-muted-foreground">
-          Hooks found in this project's{' '}
-          <code className="rounded bg-muted px-1">.claude/settings.json</code> and{' '}
-          <code className="rounded bg-muted px-1">settings.local.json</code> that AgentMate didn't
-          create.
-        </p>
-      </div>
-
-      {otherHooks.length === 0 ? (
-        <p className="text-sm text-muted-foreground">No other hooks found.</p>
-      ) : (
-        <div className="space-y-2">
-          {otherHooks.map((hook) => (
-            <div
-              key={hook.id}
-              className="flex items-start justify-between gap-3 rounded-lg border border-border bg-card px-3 py-2 text-sm"
-            >
-              <div className="min-w-0 space-y-0.5">
-                <div className="flex flex-wrap items-center gap-1.5 text-muted-foreground">
-                  <HookAgentIcon cliId={hook.cliId} className="h-3.5 w-3.5 shrink-0" />
-                  <span className="font-medium text-foreground">{hook.event}</span>
-                  {hook.matcher && <span>· {hook.matcher}</span>}
-                  <Badge variant="outline" className="text-[10px]">
-                    {sourceFileLabel(hook.id)}
-                  </Badge>
-                </div>
-                {/* The command is often far wider than the row, so the tooltip
+      <SectionCard
+        icon={Bell}
+        title="Other hooks"
+        description={
+          <>
+            Hooks found in this project's{' '}
+            <code className="rounded bg-foreground/[0.06] px-1">.claude/settings.json</code> and{' '}
+            <code className="rounded bg-foreground/[0.06] px-1">settings.local.json</code> that
+            AgentMate didn't create.
+          </>
+        }
+      >
+        {otherHooks.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No other hooks found.</p>
+        ) : (
+          <div className={ROWS}>
+            {otherHooks.map((hook) => (
+              <div key={hook.id} className={cn(ROW, 'items-start')}>
+                <div className="min-w-0 space-y-0.5">
+                  <div className="flex flex-wrap items-center gap-1.5 text-muted-foreground">
+                    <HookAgentIcon cliId={hook.cliId} className="h-3.5 w-3.5 shrink-0" />
+                    <span className="font-medium text-foreground">{hook.event}</span>
+                    {hook.matcher && <span>· {hook.matcher}</span>}
+                    <ToneChip className="font-mono text-[10px]">
+                      {sourceFileLabel(hook.id)}
+                    </ToneChip>
+                  </div>
+                  {/* The command is often far wider than the row, so the tooltip
                     is where you actually read it, so let it wrap generously. */}
-                <SimpleTooltip label={summarizeHook(hook.hook)} align="start" className="font-mono">
-                  <p className="truncate font-mono text-xs text-muted-foreground/80">
-                    {summarizeHook(hook.hook)}
-                  </p>
-                </SimpleTooltip>
-              </div>
-              <div className="flex shrink-0 items-center gap-1">
-                <SimpleTooltip label="Edit hook">
-                  <Button variant="ghost" size="icon" onClick={() => setEditingHook(hook)}>
-                    <Pencil className="h-3.5 w-3.5" />
-                  </Button>
-                </SimpleTooltip>
-                <SimpleTooltip label="Delete hook">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => {
-                      void confirmDialog({
-                        title: `Remove ${hook.event} hook?`,
-                        description: `This removes it from ${sourceFileLabel(hook.id)}.`,
-                        confirmLabel: 'Remove',
-                        variant: 'destructive',
-                      }).then((confirmed) => {
-                        if (confirmed) deleteHookMutation.mutate(hook.id);
-                      });
-                    }}
+                  <SimpleTooltip
+                    label={summarizeHook(hook.hook)}
+                    align="start"
+                    className="font-mono"
                   >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </Button>
-                </SimpleTooltip>
+                    <p className="truncate font-mono text-xs text-muted-foreground/80">
+                      {summarizeHook(hook.hook)}
+                    </p>
+                  </SimpleTooltip>
+                </div>
+                <div className="flex shrink-0 items-center gap-1">
+                  <SimpleTooltip label="Edit hook">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      aria-label={`Edit ${hook.event} hook`}
+                      className={ROW_ICON_BUTTON}
+                      onClick={() => setEditingHook(hook)}
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </Button>
+                  </SimpleTooltip>
+                  <SimpleTooltip label="Delete hook">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      aria-label={`Delete ${hook.event} hook`}
+                      className={cn(
+                        ROW_ICON_BUTTON,
+                        'hover:bg-destructive/10 hover:text-destructive',
+                      )}
+                      onClick={() => {
+                        void confirmDialog({
+                          title: `Remove ${hook.event} hook?`,
+                          description: `This removes it from ${sourceFileLabel(hook.id)}.`,
+                          confirmLabel: 'Remove',
+                          variant: 'destructive',
+                        }).then((confirmed) => {
+                          if (confirmed) deleteHookMutation.mutate(hook.id);
+                        });
+                      }}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </SimpleTooltip>
+                </div>
               </div>
-            </div>
-          ))}
-        </div>
-      )}
+            ))}
+          </div>
+        )}
+      </SectionCard>
 
       <EditClaudeHookDialog
         projectId={project.id}
@@ -4061,22 +4272,23 @@ function NotificationHookCard({
   }
 
   return (
-    <div className="glass rounded-lg p-5">
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2 text-sm font-semibold">
-          <Icon className="h-4 w-4" /> {title}
-        </div>
+    <SectionCard
+      icon={Icon}
+      title={title}
+      description={description}
+      actions={
         <Switch
+          aria-label={`${title} hook`}
           checked={enabled}
           onCheckedChange={(v) => {
             setEnabled(v);
             setDirty(true);
           }}
         />
-      </div>
-      <p className="mt-1 text-sm text-muted-foreground">{description}</p>
-
-      <div className="mt-4 space-y-3">
+      }
+      className={cn(dirty && 'ring-1 ring-primary/35')}
+    >
+      <div className="space-y-3">
         <div className="space-y-1.5">
           <Label>Installed agent</Label>
           <Combobox
@@ -4121,24 +4333,39 @@ function NotificationHookCard({
             rows={2}
           />
           <p className="text-xs text-muted-foreground">
-            Use <code className="rounded bg-muted px-1">{'{{project}}'}</code> to insert the project
-            name.
+            Use <code className="rounded bg-foreground/[0.06] px-1">{'{{project}}'}</code> to insert
+            the project name.
           </p>
         </div>
 
         {channel === 'pet' && !petEnabled && (
-          <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+          <div
+            className={cn(
+              SECTION_WELL,
+              'flex flex-wrap items-center justify-between gap-2 py-2 pr-2 text-xs text-muted-foreground',
+            )}
+          >
             <span>
               The desktop companion is off, so this hook stays quiet until you turn it back on.
             </span>
-            <Button variant="outline" size="sm" onClick={() => navigate('/settings')}>
+            <Button
+              variant="ghost"
+              size="sm"
+              className={cn(PILL_GHOST, 'h-7')}
+              onClick={() => navigate('/settings')}
+            >
               Open Settings
             </Button>
           </div>
         )}
 
         {saved.enabled && (
-          <div className="flex items-start gap-2 rounded-lg border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+          <div
+            className={cn(
+              SECTION_WELL,
+              'flex items-start gap-2 py-2 text-xs text-muted-foreground',
+            )}
+          >
             <CliLogo cliId={saved.cliId ?? ''} className="mt-0.5 h-3.5 w-3.5 shrink-0" />
             {wiredAutomatically ? (
               <span>
@@ -4162,9 +4389,10 @@ function NotificationHookCard({
           </div>
         )}
 
-        <div className="flex items-center gap-2 pt-1">
+        <div className="flex items-center gap-1.5 pt-1">
           <Button
             size="sm"
+            className="h-8 rounded-full px-4"
             disabled={!dirty || saving}
             onClick={() => {
               onSave({ enabled, cliId: cliId || null, message });
@@ -4175,7 +4403,8 @@ function NotificationHookCard({
           </Button>
           <Button
             size="sm"
-            variant="outline"
+            variant="ghost"
+            className={PILL_GHOST}
             disabled={testing || !message.trim()}
             onClick={() => void handleTest()}
           >
@@ -4184,7 +4413,7 @@ function NotificationHookCard({
           </Button>
         </div>
       </div>
-    </div>
+    </SectionCard>
   );
 }
 

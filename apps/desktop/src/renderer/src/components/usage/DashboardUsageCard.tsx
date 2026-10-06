@@ -1,10 +1,9 @@
 import { getUsageProvider, type ProviderUsage, type WidgetMode } from '@agentmat/core';
 import { useNavigate } from 'react-router-dom';
 import { ExternalLink, X } from '@/components/icons';
+import { Chip, TILE_ACTION, TileHeader } from '@/components/pageKit';
 import { ProviderLogo } from '@/components/providerLogos';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { UsageCardBody, UsageCardBodySkeleton } from '@/components/usage/UsageCard';
 
@@ -19,6 +18,7 @@ export interface DashboardUsageCardProps {
   onRemove?: () => void;
   /** The shared drag handle, so these cards reorder alongside the stat charts. */
   dragHandle?: React.ReactNode;
+  /** The dashboard's glass card classes. */
   className?: string;
 }
 
@@ -41,32 +41,41 @@ export function DashboardUsageCard({
   if (!def) return null;
 
   return (
-    <Card className={className}>
-      <CardContent className="flex h-full flex-col p-4">
-        <div className="mb-2 flex items-center gap-1">
-          <div className="mr-auto flex min-w-0 items-center gap-2">
-            <ProviderLogo providerId={providerId} className="h-5 w-5 shrink-0" />
-            <span className="truncate text-sm font-semibold">{def.name}</span>
-            {mode === 'subscription' && usage?.subscription?.plan && (
-              <Badge variant="outline" className="shrink-0">
-                {usage.subscription.plan.label}
-              </Badge>
-            )}
-          </div>
-          {dragHandle}
-          <SimpleTooltip label="Open Token Usage">
-            <Button variant="ghost" size="icon" onClick={() => navigate('/usage')}>
-              <ExternalLink className="h-3.5 w-3.5" />
-            </Button>
-          </SimpleTooltip>
-          {onRemove && (
-            <SimpleTooltip label="Remove from dashboard">
-              <Button variant="ghost" size="icon" onClick={onRemove}>
-                <X className="h-3.5 w-3.5" />
-              </Button>
-            </SimpleTooltip>
-          )}
-        </div>
+    <div className={className}>
+      <div className="flex h-full flex-col p-4">
+        <TileHeader
+          className="mb-2"
+          icon={<ProviderLogo providerId={providerId} className="h-5 w-5 shrink-0" />}
+          iconClassName="text-foreground [&_svg]:size-5"
+          title={def.name}
+          extra={
+            mode === 'subscription' && usage?.subscription?.plan ? (
+              <Chip tone="primary">{usage.subscription.plan.label}</Chip>
+            ) : null
+          }
+          actions={
+            <>
+              <SimpleTooltip label="Open Token Usage">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className={TILE_ACTION}
+                  onClick={() => navigate('/usage')}
+                >
+                  <ExternalLink />
+                </Button>
+              </SimpleTooltip>
+              {dragHandle}
+              {onRemove && (
+                <SimpleTooltip label="Remove from dashboard">
+                  <Button variant="ghost" size="icon" className={TILE_ACTION} onClick={onRemove}>
+                    <X />
+                  </Button>
+                </SimpleTooltip>
+              )}
+            </>
+          }
+        />
         {usage ? (
           <UsageCardBody usage={usage} def={def} hideHeader mode={mode} />
         ) : loading ? (
@@ -76,7 +85,7 @@ export function DashboardUsageCard({
             No longer tracked on the Token Usage page.
           </div>
         )}
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }

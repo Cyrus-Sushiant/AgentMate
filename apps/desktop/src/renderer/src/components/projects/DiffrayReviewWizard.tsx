@@ -57,8 +57,7 @@ import {
   TriangleAlert,
   Wrench,
 } from '@/components/icons';
-import { ProjectEmptyState } from '@/components/projects/ProjectDetailChrome';
-import { Badge } from '@/components/ui/badge';
+import { SectionEmptyState } from '@/components/projects/ProjectDetailChrome';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Combobox } from '@/components/ui/combobox';
@@ -144,20 +143,19 @@ export function DiffrayReviewLaunchCard({
     <button
       type="button"
       onClick={onOpen}
-      className="group relative w-full overflow-hidden rounded-xl border border-border bg-card px-4 py-3.5 text-left transition-colors hover:border-primary/40 hover:bg-card/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      // A ring for the hover edge: the glass card's own border is unlayered CSS and would win.
+      className="glass group relative w-full overflow-hidden rounded-[calc(var(--radius)+2px)] p-4 text-left transition-shadow hover:ring-1 hover:ring-primary/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
     >
-      <span className="absolute inset-y-0 left-0 w-1 overflow-hidden" aria-hidden>
-        <span className="block h-1/2 bg-primary" />
-        <span className="block h-1/2 bg-destructive/70" />
-      </span>
-      <span className="flex items-start gap-3 pl-2">
-        <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+      <span className="flex items-start gap-3">
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary/12 text-primary">
           <GitPullRequest className="h-4 w-4" />
         </span>
         <span className="min-w-0 flex-1">
           <span className="flex items-center gap-2">
-            <span className="text-sm font-medium text-foreground">Review with diffray</span>
-            <Badge variant="secondary">Multi-agent</Badge>
+            <span className="text-sm font-semibold text-foreground">Review with diffray</span>
+            <span className="inline-flex h-5 items-center rounded-full bg-primary/12 px-2 text-[11px] font-medium text-primary">
+              Multi-agent
+            </span>
           </span>
           <span className="mt-0.5 block text-xs text-muted-foreground">
             Run specialized agents over this project's git changes or its whole source tree, then
@@ -526,12 +524,13 @@ export function DiffrayReviewWizard({
   if (!installed) {
     return (
       <div className={compact ? 'p-6 pr-12' : undefined}>
-        <ProjectEmptyState
+        <SectionEmptyState
+          inset={compact}
           icon={GitPullRequest}
           title="diffray is not installed yet"
           description="Install the CLI from Agent Tools, then come back here to review this project's changes with specialized agents."
           action={
-            <Button variant="outline" onClick={goToTools}>
+            <Button className="rounded-full px-5" onClick={goToTools}>
               <Wrench /> Open Agent Tools
             </Button>
           }
@@ -545,7 +544,7 @@ export function DiffrayReviewWizard({
       <div
         className={cn(
           'flex items-center gap-2 text-sm text-muted-foreground',
-          compact ? 'px-6 py-10 pr-12' : 'rounded-xl border border-border px-4 py-10',
+          compact ? 'px-6 py-10 pr-12' : 'glass rounded-[calc(var(--radius)+2px)] px-4 py-10',
         )}
       >
         <Spinner className="h-4 w-4 animate-spin" /> Reading git status…
@@ -556,12 +555,13 @@ export function DiffrayReviewWizard({
   if (!status?.isRepo) {
     return (
       <div className={compact ? 'p-6 pr-12' : undefined}>
-        <ProjectEmptyState
+        <SectionEmptyState
+          inset={compact}
           icon={GitBranch}
           title="This folder is not a git repository"
           description="diffray reviews git diffs. Initialize a repository on the Git tab first."
           action={
-            <Button variant="outline" onClick={goToGit}>
+            <Button className="rounded-full px-5" onClick={goToGit}>
               <GitBranch /> Open Git
             </Button>
           }
@@ -574,7 +574,7 @@ export function DiffrayReviewWizard({
     <div
       className={cn(
         'relative flex flex-col overflow-hidden',
-        compact ? 'min-h-0 flex-1' : 'rounded-xl border border-border bg-card',
+        compact ? 'min-h-0 flex-1' : 'glass rounded-[calc(var(--radius)+2px)]',
       )}
     >
       <div className="absolute inset-y-0 left-0 w-1 overflow-hidden" aria-hidden>

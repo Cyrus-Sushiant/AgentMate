@@ -49,7 +49,7 @@ function IconAction({
         type="button"
         variant="ghost"
         size="icon"
-        className="h-8 w-8 text-muted-foreground hover:text-foreground"
+        className="h-8 w-8 rounded-full text-muted-foreground hover:bg-foreground/[0.06] hover:text-foreground"
         aria-label={label}
         onClick={onClick}
       >
@@ -59,6 +59,15 @@ function IconAction({
   );
 }
 
+/** The same small uppercase heading the main menu puts over its groups. */
+const SECTION_HEADING =
+  'select-none px-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground/60';
+
+/** A group of rows inside the detail card: a faint inset well, hairlines between its rows. */
+const ROWS_BOX =
+  'settings-rows rounded-xl bg-foreground/[0.025] ring-1 ring-inset ring-foreground/[0.08]';
+
+/** One field: its name on the left, the value beside it and the row's buttons on the right. */
 function FieldRow({
   label,
   children,
@@ -71,13 +80,13 @@ function FieldRow({
   hint?: ReactNode;
 }): React.JSX.Element {
   return (
-    <div className="group flex items-start gap-3 px-4 py-3">
-      <div className="min-w-0 flex-1">
-        <p className="text-xs text-muted-foreground">{label}</p>
-        <div className="mt-0.5 min-h-[1.5rem] break-words text-sm leading-6">{children}</div>
-        {hint && <div className="mt-0.5 text-xs text-muted-foreground">{hint}</div>}
+    <div className="group flex flex-wrap items-center gap-x-4 gap-y-0.5 px-4 py-2.5">
+      <p className="w-28 shrink-0 text-xs text-muted-foreground">{label}</p>
+      <div className="min-w-[min(100%,10rem)] flex-1">
+        <div className="min-h-[1.5rem] break-words text-sm leading-6">{children}</div>
+        {hint && <div className="text-[11px] text-muted-foreground">{hint}</div>}
       </div>
-      {actions && <div className="flex shrink-0 items-center gap-0.5 pt-2">{actions}</div>}
+      {actions && <div className="ml-auto flex shrink-0 items-center gap-0.5">{actions}</div>}
     </div>
   );
 }
@@ -271,11 +280,11 @@ export function VaultDetailPane({
 
   return (
     <section aria-label={entry.title} className="flex min-h-0 flex-1 flex-col">
-      <div className="flex items-start gap-4 border-b border-border/70 px-6 py-5">
+      <div className="flex shrink-0 items-center gap-3.5 px-5 py-4 shadow-[inset_0_-1px_0_hsl(var(--border)/0.6)]">
         <Button
           variant="ghost"
           size="icon"
-          className="-ml-2 h-8 w-8 @3xl/vault:hidden"
+          className="-ml-2 h-8 w-8 rounded-full @3xl/vault:hidden"
           aria-label="Back to the list"
           onClick={onBack}
         >
@@ -283,16 +292,13 @@ export function VaultDetailPane({
         </Button>
         <EntryAvatar entry={entry} size="lg" />
         <div className="min-w-0 flex-1">
-          <h2 className="truncate text-lg font-semibold leading-7">{entry.title}</h2>
-          <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
-            <typeMeta.icon className="h-3 w-3" />
-            <span>{typeMeta.label}</span>
-            {entry.host && (
-              <>
-                <span aria-hidden="true">·</span>
-                <span className="truncate">{entry.host}</span>
-              </>
-            )}
+          <h2 className="truncate text-lg font-semibold leading-7 tracking-tight">{entry.title}</h2>
+          <p className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
+            <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-primary/12 px-2 py-0.5 text-[11px] font-medium text-primary">
+              <typeMeta.icon className="h-2.5 w-2.5" />
+              {typeMeta.label}
+            </span>
+            {entry.host && <span className="truncate">{entry.host}</span>}
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-0.5">
@@ -308,76 +314,84 @@ export function VaultDetailPane({
           <IconAction label="Delete" onClick={() => void actions.remove(entry)}>
             <Trash2 className="h-3.5 w-3.5" />
           </IconAction>
-          <Button variant="outline" size="sm" className="ml-1.5" onClick={onEdit}>
+          <Button size="sm" className="ml-1.5 rounded-full px-4" onClick={onEdit}>
             <Pencil className="h-3 w-3" />
             Edit
           </Button>
         </div>
       </div>
 
-      <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-6 py-5">
+      <div className="rail-scroll min-h-0 flex-1 space-y-5 overflow-y-auto px-5 py-5">
         {rows.length > 0 && (
-          <div className="divide-y divide-border/60 rounded-xl border border-border/70 bg-card/40">
-            {rows}
+          <div className="space-y-2">
+            <h3 className={SECTION_HEADING}>Details</h3>
+            <div className={ROWS_BOX}>{rows}</div>
           </div>
         )}
 
         {entry.hasNotes && (
-          <div className="rounded-xl border border-border/70 bg-card/40">
-            <div className="flex items-center justify-between px-4 py-2.5">
-              <p className="text-xs text-muted-foreground">
-                {entry.type === 'note' ? 'Note' : 'Notes'}
-              </p>
-              <div className="flex items-center gap-0.5">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-7 gap-1.5 px-2 text-xs"
-                  aria-label={notesShown === undefined ? 'Show notes' : 'Hide notes'}
-                  onClick={() => void toggleReveal('notes')}
-                >
+          <div className="space-y-2">
+            <h3 className={SECTION_HEADING}>{entry.type === 'note' ? 'Note' : 'Notes'}</h3>
+            <div className={ROWS_BOX}>
+              <div className="flex items-center gap-3 px-4 py-2.5">
+                <p className="min-w-0 flex-1 text-sm">
                   {notesShown === undefined ? (
-                    <Eye className="h-3 w-3" />
+                    <span className="text-muted-foreground">
+                      Hidden. Notes often hold recovery codes.
+                    </span>
                   ) : (
-                    <EyeOff className="h-3 w-3" />
+                    <span className="block whitespace-pre-wrap break-words">{notesShown}</span>
                   )}
-                  {notesShown === undefined ? 'Show' : 'Hide'}
-                </Button>
-                <IconAction
-                  label="Copy notes"
-                  onClick={() => void actions.copy(entry.id, 'notes', 'Notes')}
-                >
-                  <Copy className="h-3.5 w-3.5" />
-                </IconAction>
+                </p>
+                <div className="flex shrink-0 items-center gap-0.5 self-start">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="search-pill h-7 gap-1.5 rounded-full px-2.5 text-xs text-foreground/85 hover:text-foreground"
+                    aria-label={notesShown === undefined ? 'Show notes' : 'Hide notes'}
+                    onClick={() => void toggleReveal('notes')}
+                  >
+                    {notesShown === undefined ? (
+                      <Eye className="h-3 w-3" />
+                    ) : (
+                      <EyeOff className="h-3 w-3" />
+                    )}
+                    {notesShown === undefined ? 'Show' : 'Hide'}
+                  </Button>
+                  <IconAction
+                    label="Copy notes"
+                    onClick={() => void actions.copy(entry.id, 'notes', 'Notes')}
+                  >
+                    <Copy className="h-3.5 w-3.5" />
+                  </IconAction>
+                </div>
               </div>
-            </div>
-            <div className="border-t border-border/60 px-4 py-3 text-sm">
-              {notesShown === undefined ? (
-                <p className="text-muted-foreground">Hidden. Notes often hold recovery codes.</p>
-              ) : (
-                <p className="whitespace-pre-wrap break-words">{notesShown}</p>
-              )}
             </div>
           </div>
         )}
 
         {entry.tags.length > 0 && (
-          <div className="flex flex-wrap items-center gap-1.5">
-            <Tag className="mr-1 h-3 w-3 text-muted-foreground" />
-            {entry.tags.map((tag) => (
-              <button
-                key={tag}
-                type="button"
-                onClick={() => onTagClick(tag)}
-                className="rounded-full border border-border bg-secondary px-2.5 py-0.5 text-xs hover:border-primary/40 hover:bg-primary/10"
-              >
-                {tag}
-              </button>
-            ))}
+          <div className="space-y-2">
+            <h3 className={cn(SECTION_HEADING, 'flex items-center gap-1.5')}>
+              <Tag className="h-2.5 w-2.5" />
+              Tags
+            </h3>
+            <div className="flex flex-wrap items-center gap-1.5">
+              {entry.tags.map((tag) => (
+                <button
+                  key={tag}
+                  type="button"
+                  onClick={() => onTagClick(tag)}
+                  className="h-6 cursor-pointer rounded-full bg-foreground/[0.05] px-2.5 text-[11px] font-medium text-foreground/85 ring-1 ring-inset ring-foreground/[0.08] transition-colors hover:bg-primary/12 hover:text-primary hover:ring-primary/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  {tag}
+                </button>
+              ))}
+            </div>
           </div>
         )}
 
-        <p className="text-xs text-muted-foreground">
+        <p className="px-1 text-[11px] text-muted-foreground">
           Created {relativeDate(entry.createdAt)} · Updated {relativeDate(entry.updatedAt)}
           {entry.lastUsedAt !== null && ` · Last used ${relativeDate(entry.lastUsedAt)}`}
         </p>

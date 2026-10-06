@@ -335,3 +335,38 @@ describe('ProjectsPage when the bridge refuses', () => {
     expect(await screen.findByText('No projects yet')).toBeTruthy();
   });
 });
+
+describe('ProjectsPage WordPress projects', () => {
+  it('opens the WordPress flow when the page is reached with ?new=wordpress', async () => {
+    renderWithProviders(<ProjectsPage />, {
+      route: '/projects?new=wordpress',
+      path: '*',
+      bridge: { 'deployWordPress.listSites': [] },
+    });
+
+    expect(
+      await screen.findByRole('dialog', { name: 'New project from a WordPress site' }),
+    ).toBeTruthy();
+    expect(await screen.findByText(/No WordPress sites are connected yet/)).toBeTruthy();
+  });
+
+  it('offers an empty project or a WordPress site next to New Project', async () => {
+    const { user } = renderWithProviders(<ProjectsPage />, {
+      bridge: { 'deployWordPress.listSites': [] },
+    });
+    await screen.findByText('No projects yet');
+
+    await user.click(screen.getByRole('button', { name: 'More kinds of project' }));
+    await user.click(await screen.findByRole('menuitem', { name: /WordPress site/ }));
+    expect(
+      await screen.findByRole('dialog', { name: 'New project from a WordPress site' }),
+    ).toBeTruthy();
+    await user.keyboard('{Escape}');
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+
+    await user.click(screen.getByRole('button', { name: 'More kinds of project' }));
+    await user.click(await screen.findByRole('menuitem', { name: /Empty project/ }));
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByText('New project')).toBeTruthy();
+  });
+});

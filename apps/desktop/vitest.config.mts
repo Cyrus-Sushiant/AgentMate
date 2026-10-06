@@ -91,6 +91,7 @@ export default defineConfig({
         'src/main/deploy/index.ts',
         'src/main/deploy/cloudflare/index.ts',
         'src/main/deploy/registry/index.ts',
+        'src/main/deploy/wordpress/index.ts',
         'src/renderer/src/main.tsx',
         'src/main/usage/usageScanWorker.ts',
         'src/main/security/codeqlExtractWorker.ts',
@@ -194,6 +195,9 @@ export default defineConfig({
         // The App Store (E12): installs rendered again in main, updates, the install sheet and card.
         'src/main/deploy/appStore/**': { lines: 95, branches: 85 },
         'src/main/ipc/deployAppStore.ts': { lines: 95, branches: 90 },
+        // WordPress sites (E19): the signed client, pairing, the sync engine and their IPC.
+        'src/main/deploy/wordpress/**': { lines: 90, branches: 80 },
+        'src/main/ipc/deployWordPress.ts': { lines: 90, branches: 80 },
         'src/renderer/src/components/deploy/appStore/**': {
           lines: 90,
           functions: 80,

@@ -211,7 +211,7 @@ export function VaultImportDialog({
                             onChange={(event) =>
                               void remap(index, event.target.value as GenericColumnTarget)
                             }
-                            className="h-7 rounded-md border border-input bg-background px-2 text-xs"
+                            className="field-surface h-7 cursor-pointer rounded-full pl-2.5 pr-1.5 text-xs"
                           >
                             {GENERIC_COLUMN_TARGETS.map((target) => (
                               <option key={target} value={target}>

@@ -23,6 +23,7 @@ import {
   StopCircle,
   X,
 } from '@/components/icons';
+import { PILL_PRIMARY, PILL_SOFT } from '@/components/pageKit';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -300,23 +301,26 @@ export function WritingCheckSettings({ settings }: { settings: AppSettings }): R
 
             <div className="flex flex-wrap items-center gap-2">
               <Button
-                variant="outline"
+                variant="ghost"
                 size="sm"
+                className={PILL_SOFT}
                 onClick={() => void window.agentmat.shell.openExternal(LANGUAGETOOL_DOWNLOAD_URL)}
               >
                 <Download /> Download
               </Button>
               <Button
-                variant="outline"
+                variant="ghost"
                 size="sm"
+                className={PILL_SOFT}
                 onClick={() => void window.agentmat.grammar.openToolsFolder()}
               >
                 <FolderOpen /> Open tools folder
               </Button>
               {status?.serverState === 'running' ? (
                 <Button
-                  variant="outline"
+                  variant="ghost"
                   size="sm"
+                  className={PILL_SOFT}
                   disabled={busy !== null}
                   onClick={() => void runServerAction('stop')}
                 >
@@ -333,6 +337,7 @@ export function WritingCheckSettings({ settings }: { settings: AppSettings }): R
                 >
                   <Button
                     size="sm"
+                    className={PILL_PRIMARY}
                     disabled={busy !== null || !installed || javaMissing}
                     onClick={() => void runServerAction('start')}
                   >
@@ -344,6 +349,7 @@ export function WritingCheckSettings({ settings }: { settings: AppSettings }): R
               <Button
                 variant="ghost"
                 size="sm"
+                className={PILL_SOFT}
                 onClick={() => void statusQuery.refetch()}
                 disabled={statusQuery.isFetching}
               >

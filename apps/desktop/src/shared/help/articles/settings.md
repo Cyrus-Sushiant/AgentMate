@@ -3,7 +3,7 @@ title: Settings
 category: Settings
 order: 10
 summary: A tour of every tab and card in Settings, from the theme and startup page to default agents, shortcuts, AI keys, Telegram, proxy, backups and updates.
-keywords: settings, preferences, options, theme, dark mode, startup page, default cli, launch defaults, projects folder, proxy, telegram, backup, update, about, vault, ping, network, ai pet, search settings
+keywords: settings, preferences, theme, dark mode, startup page, default cli, projects folder, proxy, telegram, backup, vault, network, ai pet, status bar, embedding, model, index, reindex, rebuild, multilingual
 route: /settings
 ---
 
@@ -25,7 +25,7 @@ Some cards write your change as soon as you make it. Others keep a draft until y
 
 | Saves immediately | Waits for **Save changes** |
 | --- | --- |
-| Appearance and Main menu, the switches in the top card of General, Android SDK, everything on **Agents**, **Shortcuts**, **AI Pet**, Writing check, **Vault**, the Network ping method | Projects folder, Providers, Voice input, Translation retries, Telegram bot, Proxy, Network ping targets |
+| Appearance and Main menu, Status bar limits, the switches in the top card of General, Android SDK, everything on **Agents**, **Shortcuts**, **AI Pet**, Help search, Writing check, **Vault**, the Network ping method | Projects folder, Providers, Voice input, Translation retries, Telegram bot, Proxy, Network ping targets |
 
 When something is waiting to be saved, its card shows an **Unsaved** badge, its tab gets a dot, the page subtitle reads "You have unsaved changes." and a bar appears at the bottom with **Discard** and **Save changes**. You can also press `Ctrl+S` (`Cmd+S` on macOS) to save everything at once. **Discard** throws away every draft on the page.
 
@@ -38,6 +38,10 @@ The **General** tab covers how AgentMate looks, where it opens and the everyday 
 Pick a theme by clicking one of the five preview tiles: **Light** (bright canvas), **Dark** (near-black canvas), **System** (follow this machine), **VS Code Dark** (blue accent, editor-inspired) and **VS 2026** (violet accent, modern IDE). The change applies instantly.
 
 Below the themes, **Main menu** chooses where the navigation lives. **Left** puts it in a sidebar down the left edge. **Top** moves it to a menu bar under the title bar so pages get the full width. The menu moves as soon as you click.
+
+### Status bar limits
+
+**Status bar limits** has a switch for each of **Claude Code**, **Codex** and **Cursor**. A switch that is on (the default) lets that provider show its plan limits in the status bar at the bottom of the window. Turn one off to take its item out of the bar. A provider only shows up when its account reports a limit, so Codex signed in with an API key, or an unlimited Cursor plan, stays out of the bar either way. See [Token Usage](token-usage.md#the-status-bar).
 
 ### Startup page
 
@@ -139,7 +143,7 @@ The **AI Pet** tab controls the desktop companion, a character that lives on you
 
 ## AI
 
-The **AI** tab has API keys, local models, voice input and writing checks.
+The **AI** tab has API keys, local models, voice input, the Help search model and writing checks.
 
 ### Providers
 
@@ -148,6 +152,10 @@ The **AI** tab has API keys, local models, voice input and writing checks.
 ### Voice input
 
 **Voice input** sets the local Whisper model and the spoken language for dictation in Prompt Builder. **Model** is **Tiny** (fastest, about 75 MB), **Base** (balanced, about 145 MB, the default) or **Small** (most accurate, about 490 MB). The model downloads once and stays cached. **Spoken language** is **Auto-detect** or one of English, Persian, Spanish, French, German, Arabic, Chinese, Russian, Hindi or Turkish. This card waits for **Save changes**. See [Writing, voice and translation](writing-voice-translation.md).
+
+### Help search
+
+**Help search** sets the embedding model the **Ask the guide** chat uses to find the right articles, with a row each for **OpenAI**, **Gemini** and **Ollama**. Each row starts on a default model and has a model list (type any name to use your own), a progress bar, and an **Update index** or **Rebuild index** button, with **Stop** while indexing runs. Picking a model saves it at once and indexes the help again with it. The row says **Add an API key above first** until an OpenAI or Gemini key is saved. A multilingual model helps when you ask the guide in a language other than English. This card saves as you change it. The steps are in [Help center](help-center.md#choose-the-search-model).
 
 ### Writing check
 

@@ -23,13 +23,13 @@ export function SkillFavoriteButton({
         variant="ghost"
         size="icon"
         aria-pressed={starred}
-        className={className}
+        className={cn('h-7 w-7 rounded-full hover:bg-foreground/[0.06]', className)}
         onClick={onToggle}
       >
         <Star
           className={cn(
-            'h-4 w-4 transition-colors',
-            starred ? 'text-amber-400' : 'text-muted-foreground/50',
+            'h-3.5 w-3.5 transition-colors',
+            starred ? 'text-warning' : 'text-muted-foreground/50',
           )}
         />
       </Button>

@@ -60,7 +60,7 @@ export function PasswordGeneratorPopover({
             type="button"
             variant="ghost"
             size="icon"
-            className="h-7 w-7 text-muted-foreground hover:text-foreground"
+            className="h-7 w-7 rounded-full text-muted-foreground hover:text-foreground"
             aria-label="Generate a password"
           >
             <Dice className="h-3.5 w-3.5" />

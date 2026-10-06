@@ -5,11 +5,15 @@ import type {
   HelpAskResult,
   HelpIndexProgress,
   HelpIndexStatus,
+  HelpReindexResult,
   HelpSource,
 } from '../../shared/apiTypes';
 import type { HelpChunk } from './chunker';
-import type { Embedder, EmbedderSettings } from './embedders';
-import { createEmbedder as defaultCreateEmbedder } from './embedders';
+import type { Embedder, EmbedderSettings, EmbeddingModelOption } from './embedders';
+import {
+  createEmbedder as defaultCreateEmbedder,
+  listEmbeddingModels as defaultListEmbeddingModels,
+} from './embedders';
 import { reciprocalRankFusion } from './fusion';
 import { HelpIndex, type HelpIndexOptions } from './helpIndex';
 
@@ -59,6 +63,10 @@ export interface HelpServiceDeps {
     system: string,
   ) => Promise<string>;
   createEmbedder?: (provider: AiProvider, settings: EmbedderSettings) => Embedder | null;
+  listEmbeddingModels?: (
+    provider: AiProvider,
+    settings: EmbedderSettings,
+  ) => Promise<EmbeddingModelOption[]>;
   onProgress?: (progress: HelpIndexProgress) => void;
   indexOptions?: HelpIndexOptions;
 }
@@ -66,6 +74,18 @@ export interface HelpServiceDeps {
 export interface HelpService {
   ask(input: HelpAskInput, signal?: AbortSignal): Promise<HelpAskResult>;
   status(provider: AiProvider): Promise<HelpIndexStatus>;
+  /**
+   * Embeds every passage that has no vector yet from the provider's current model. With `fresh`
+   * the model's vectors are thrown away first, so everything is embedded again. Vectors from the
+   * provider's earlier models are dropped either way, since nothing searches them any more.
+   */
+  reindex(
+    provider: AiProvider,
+    options?: { fresh?: boolean },
+    signal?: AbortSignal,
+  ): Promise<HelpReindexResult>;
+  /** The embedding models Settings can offer for the provider. */
+  embeddingModels(provider: AiProvider): Promise<EmbeddingModelOption[]>;
   close(): void;
 }
 
@@ -177,6 +197,7 @@ function isAbort(error: unknown, signal?: AbortSignal): boolean {
 
 export function createHelpService(deps: HelpServiceDeps): HelpService {
   const makeEmbedder = deps.createEmbedder ?? defaultCreateEmbedder;
+  const listModels = deps.listEmbeddingModels ?? defaultListEmbeddingModels;
   let index: HelpIndex | null = null;
   /** One embedding run per embedder at a time; a second question waits for the first run. */
   const running = new Map<string, Promise<void>>();
@@ -215,13 +236,26 @@ export function createHelpService(deps: HelpServiceDeps): HelpService {
     }
   }
 
-  function ensureEmbedded(idx: HelpIndex, embedder: Embedder, signal?: AbortSignal): Promise<void> {
-    let run = running.get(embedder.id);
-    if (!run) {
-      run = embedPending(idx, embedder, signal).finally(() => running.delete(embedder.id));
-      running.set(embedder.id, run);
+  async function ensureEmbedded(
+    idx: HelpIndex,
+    embedder: Embedder,
+    signal?: AbortSignal,
+  ): Promise<void> {
+    for (;;) {
+      const existing = running.get(embedder.id);
+      const run =
+        existing ?? embedPending(idx, embedder, signal).finally(() => running.delete(embedder.id));
+      if (!existing) running.set(embedder.id, run);
+      try {
+        return await run;
+      } catch (error) {
+        // A run that someone else started is stopped by that caller's signal, not ours (a rebuild
+        // replaced by a newer one, say). Take the work over instead of reporting their stop as ours.
+        const stoppedByOther =
+          existing && !signal?.aborted && (error as Error | undefined)?.name === 'AbortError';
+        if (!stoppedByOther) throw error;
+      }
     }
-    return run;
   }
 
   /**
@@ -340,6 +374,49 @@ export function createHelpService(deps: HelpServiceDeps): HelpService {
         backend: idx.vectorBackend,
         embedder: embedder?.id ?? null,
       };
+    },
+
+    async reindex(provider, options = {}, signal) {
+      const idx = openIndex();
+      const embedder = makeEmbedder(provider, await deps.getSettings());
+      if (!embedder) {
+        return {
+          ok: false,
+          embedded: 0,
+          total: idx.count(),
+          removedModels: [],
+          error: 'Set up this provider in Settings first.',
+        };
+      }
+      // Earlier models of this provider are never searched again, so their vectors only take space.
+      const removedModels = idx
+        .embedderIds()
+        .filter((id) => id !== embedder.id && id.startsWith(`${provider}:`));
+      for (const id of removedModels) idx.clearEmbeddings(id);
+      if (options.fresh) idx.clearEmbeddings(embedder.id);
+      try {
+        await ensureEmbedded(idx, embedder, signal);
+        return {
+          ok: true,
+          embedded: idx.embeddedCount(embedder.id),
+          total: idx.count(),
+          removedModels,
+        };
+      } catch (error) {
+        const result = {
+          ok: false,
+          embedded: idx.embeddedCount(embedder.id),
+          total: idx.count(),
+          removedModels,
+        };
+        if (isAbort(error, signal))
+          return { ...result, cancelled: true, error: 'Indexing stopped.' };
+        return { ...result, error: (error as Error).message };
+      }
+    },
+
+    async embeddingModels(provider) {
+      return listModels(provider, await deps.getSettings());
     },
 
     close() {

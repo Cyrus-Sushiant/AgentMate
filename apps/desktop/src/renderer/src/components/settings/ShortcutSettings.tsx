@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Keyboard, Plus, RefreshCw, X } from '@/components/icons';
+import { PILL_SOFT } from '@/components/pageKit';
 import { Button } from '@/components/ui/button';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import {
@@ -52,7 +53,8 @@ function ShortcutRecorder({
         // Modifier-only presses just mean the user is mid-chord, keep waiting.
         if (captured) onCapture(captured);
       }}
-      className="flex h-7 items-center rounded-md border border-primary bg-primary/10 px-2.5 text-[11px] font-medium text-primary outline-none ring-2 ring-primary/30"
+      // Drawn as a field, which shows its focus ring the whole time it is listening.
+      className="field-surface flex h-7 items-center rounded-full px-3 text-[11px] font-medium text-primary outline-none"
     >
       Press keys… (Esc to cancel)
     </div>
@@ -123,7 +125,7 @@ function CommandRow({ command }: { command: ShortcutCommand }): React.JSX.Elemen
         {bindings.map((binding) => (
           <span
             key={shortcutId(binding)}
-            className="flex h-7 items-center gap-1 rounded-md border border-border bg-background/60 pl-2.5 pr-1 text-[11px] font-medium"
+            className="flex h-7 items-center gap-1 rounded-full bg-foreground/[0.07] pl-3 pr-1 text-[11px] font-medium"
           >
             {formatCommandShortcut(command, binding)}
             <SimpleTooltip label="Remove">
@@ -131,7 +133,7 @@ function CommandRow({ command }: { command: ShortcutCommand }): React.JSX.Elemen
                 type="button"
                 aria-label={`Remove ${formatCommandShortcut(command, binding)}`}
                 onClick={() => remove(binding)}
-                className="flex h-5 w-5 cursor-pointer items-center justify-center rounded text-muted-foreground transition-colors hover:bg-destructive/15 hover:text-destructive"
+                className="flex h-5 w-5 cursor-pointer items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-destructive/15 hover:text-destructive"
               >
                 <X className="h-2.5 w-2.5" />
               </button>
@@ -160,7 +162,7 @@ function CommandRow({ command }: { command: ShortcutCommand }): React.JSX.Elemen
                 setError(null);
                 setRecording(true);
               }}
-              className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-md border border-dashed border-border text-muted-foreground transition-colors hover:border-primary/50 hover:text-foreground"
+              className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-full border border-dashed text-muted-foreground transition-colors hover:bg-foreground/[0.06] hover:text-foreground"
             >
               <Plus className="h-3 w-3" />
             </button>
@@ -177,7 +179,7 @@ function CommandRow({ command }: { command: ShortcutCommand }): React.JSX.Elemen
               setError(null);
             }}
             className={cn(
-              'flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors',
+              'flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground transition-colors',
               customized
                 ? 'cursor-pointer hover:bg-accent hover:text-foreground'
                 : 'pointer-events-none opacity-30',
@@ -205,11 +207,11 @@ export function ShortcutSettings(): React.JSX.Element {
           open.
         </p>
         <Button
-          variant="outline"
+          variant="ghost"
           size="sm"
           disabled={!anyCustom}
           onClick={() => resetAll()}
-          className="shrink-0"
+          className={cn(PILL_SOFT, 'shrink-0')}
         >
           <RefreshCw /> Restore defaults
         </Button>

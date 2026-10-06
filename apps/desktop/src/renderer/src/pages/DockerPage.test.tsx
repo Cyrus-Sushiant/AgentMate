@@ -193,8 +193,14 @@ describe('DockerPage container list', () => {
     const headingRow = heading.parentElement;
     if (!headingRow) throw new Error('The compose heading has no row around it');
     expect(within(headingRow).getByRole('button', { name: /Stop all/ })).toBeTruthy();
-    // `web` was not started by compose, so it sits outside the group.
+    // `web` was not started by compose, so it sits outside the group, in a card of its own.
     expect(screen.getByText('web')).toBeTruthy();
+    const others = screen.getByRole('region', { name: 'Other containers' });
+    expect(within(others).getByText('web')).toBeTruthy();
+    expect(within(others).queryByText('infra-db')).toBeNull();
+    expect(
+      within(screen.getByRole('region', { name: 'infra' })).getByText('infra-db'),
+    ).toBeTruthy();
   });
 
   it('tells the user when a container reached by a deep link is gone', async () => {

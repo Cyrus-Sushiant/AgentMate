@@ -7,13 +7,14 @@ import { create } from 'zustand';
 import { GitPullRequest, Sparkles, Spinner, TriangleAlert } from '@/components/icons';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Combobox } from '@/components/ui/combobox';
+import { MULTILINE_FIELD_RADIUS } from '@/components/ui/textarea';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { queryKeys } from '@/lib/queryKeys';
 import { cn } from '@/lib/utils';
 import { PR_GHOST_BUTTON, useRevealInPanel } from './PrCard';
 
-const FIELD =
-  'block w-full rounded-lg border border-input bg-background/60 px-2.5 py-1.5 text-[13px] outline-none transition-colors placeholder:text-muted-foreground/70 focus:border-primary/50 focus:ring-2 focus:ring-primary/15 disabled:opacity-60';
+/** The shared field surface (see index.css); the title adds the pill, the body the box corner. */
+const FIELD = 'field-surface block w-full px-3 py-1.5 text-[13px] outline-none';
 
 interface PrDraft {
   title: string;
@@ -208,7 +209,12 @@ export function CreatePrForm({
           placeholder="Title"
           disabled={creating}
           onChange={(event) => setDraftTitle(project.id, event.target.value)}
-          className={cn(FIELD, 'pr-9', roomy && 'py-2 text-sm font-medium', writing && 'shimmer')}
+          className={cn(
+            FIELD,
+            'rounded-full pr-9',
+            roomy && 'py-2 text-sm font-medium',
+            writing && 'shimmer',
+          )}
         />
         <SimpleTooltip label={writing ? 'Stop writing' : 'Write the title and description with AI'}>
           <button
@@ -217,7 +223,7 @@ export function CreatePrForm({
             onClick={() => void write()}
             disabled={creating}
             className={cn(
-              'absolute right-1 flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary disabled:opacity-40',
+              'absolute right-1 flex h-6 w-6 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary disabled:opacity-40',
               roomy ? 'top-1.5' : 'top-1',
             )}
           >
@@ -237,7 +243,12 @@ export function CreatePrForm({
         placeholder="What changed and why (optional)"
         disabled={creating}
         onChange={(event) => setDraftBody(project.id, event.target.value)}
-        className={cn(FIELD, 'resize-y text-[12px] leading-relaxed', writing && 'shimmer')}
+        className={cn(
+          FIELD,
+          MULTILINE_FIELD_RADIUS,
+          'resize-y text-[12px] leading-relaxed',
+          writing && 'shimmer',
+        )}
       />
 
       <label className="flex cursor-pointer items-center gap-2 text-[11.5px]">

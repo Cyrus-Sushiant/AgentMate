@@ -175,10 +175,16 @@ describe('McpPage catalogue', () => {
     const { user } = renderPage(withCatalog);
     await screen.findByText('Filesystem');
 
-    await user.click(screen.getByRole('button', { name: 'Databases' }));
+    // Categories are rows in the sidebar, and each one says how many servers it holds.
+    const categories = within(screen.getByRole('group', { name: 'Categories' }));
+    await user.click(categories.getByRole('button', { name: /^Databases/ }));
     await waitFor(() => expect(screen.queryByText('Filesystem')).toBeNull());
+    expect(categories.getByRole('button', { name: /^Databases/ })).toHaveAttribute(
+      'aria-current',
+      'true',
+    );
 
-    await user.click(screen.getByRole('button', { name: 'All' }));
+    await user.click(categories.getByRole('button', { name: /^All/ }));
     await user.click(screen.getByRole('button', { name: 'Official' }));
 
     await waitFor(() => expect(screen.queryByText('Postgres')).toBeNull());

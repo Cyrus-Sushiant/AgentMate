@@ -55,6 +55,7 @@ export function VaultSetupScreen(): React.JSX.Element {
             value={password}
             onChange={setPassword}
             placeholder={`At least ${MASTER_PASSWORD_MIN_LENGTH} characters`}
+            className="h-10 pl-4"
             autoFocus
             aria-invalid={problem ? true : undefined}
           />
@@ -68,12 +69,14 @@ export function VaultSetupScreen(): React.JSX.Element {
             id={confirmId}
             value={confirm}
             onChange={setConfirm}
+            className="h-10 pl-4"
             aria-invalid={mismatch ? true : undefined}
           />
           {mismatch && <p className="text-xs text-destructive">The passwords don't match.</p>}
         </div>
 
-        <div className="flex items-start gap-2.5 rounded-lg border border-warning/30 bg-warning/10 p-3">
+        {/* A ring, not a border: the theme's global border colour would win over a tinted one. */}
+        <div className="flex items-start gap-2.5 rounded-xl bg-warning/10 p-3 ring-1 ring-inset ring-warning/30">
           <Checkbox
             id={ackId}
             checked={acknowledged}
@@ -92,7 +95,7 @@ export function VaultSetupScreen(): React.JSX.Element {
           </p>
         )}
 
-        <Button type="submit" className="w-full" disabled={!ready}>
+        <Button type="submit" className="h-10 w-full rounded-full" disabled={!ready}>
           {busy && <Spinner className="h-3.5 w-3.5 animate-spin" />}
           Create vault
         </Button>

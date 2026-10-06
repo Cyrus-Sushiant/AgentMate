@@ -17,9 +17,8 @@ import {
   Tag,
   X,
 } from '@/components/icons';
-import { Badge } from '@/components/ui/badge';
+import { CARD_PILL_SOFT, Chip, TILE_ACTION, TileHeader } from '@/components/pageKit';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Dialog,
   DialogContent,
@@ -277,9 +276,7 @@ function NotificationRow({
             <span className="truncate font-mono text-[11px] text-muted-foreground">
               {item.repo}
             </span>
-            <Badge variant="outline" className="h-5 px-1.5 text-[10px] font-normal">
-              {typeLabel}
-            </Badge>
+            <Chip>{typeLabel}</Chip>
             <span className="text-[11px] text-muted-foreground">{reason}</span>
           </span>
         </span>
@@ -412,49 +409,52 @@ export function GithubActivityCard({
 
   return (
     <>
-      <Card className={className}>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="flex items-center gap-2 text-xs text-muted-foreground">
-            <Github className="h-3.5 w-3.5 shrink-0" /> GitHub Activity
-          </CardTitle>
-          <div className="flex items-center gap-1">
-            <SimpleTooltip label={medalLabel}>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="relative"
-                onClick={() => setNotificationsOpen(true)}
-                aria-label={medalLabel}
-              >
-                <Medal className="h-3.5 w-3.5" />
-                {unreadCount > 0 && (
-                  <span className="absolute right-1 top-1 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-primary px-1 text-[9px] font-semibold leading-none text-primary-foreground">
-                    {unreadCount > 99 ? '99+' : unreadCount}
-                  </span>
+      <div className={className}>
+        <div className="flex h-full flex-col p-4">
+          <TileHeader
+            className="mb-2"
+            icon={<Github />}
+            title="GitHub Activity"
+            actions={
+              <>
+                <SimpleTooltip label={medalLabel}>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className={cn(TILE_ACTION, 'relative')}
+                    onClick={() => setNotificationsOpen(true)}
+                    aria-label={medalLabel}
+                  >
+                    <Medal className="h-3.5 w-3.5" />
+                    {unreadCount > 0 && (
+                      <span className="absolute -right-0.5 -top-0.5 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-primary px-1 text-[9px] font-semibold leading-none text-primary-foreground">
+                        {unreadCount > 99 ? '99+' : unreadCount}
+                      </span>
+                    )}
+                  </Button>
+                </SimpleTooltip>
+                <SimpleTooltip label="Refresh GitHub activity">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className={TILE_ACTION}
+                    onClick={() => void refreshAll()}
+                    disabled={refreshing}
+                  >
+                    <RefreshCw className={cn('h-3.5 w-3.5', refreshing && 'animate-spin')} />
+                  </Button>
+                </SimpleTooltip>
+                {dragHandle}
+                {onRemove && (
+                  <SimpleTooltip label="Remove from dashboard">
+                    <Button variant="ghost" size="icon" className={TILE_ACTION} onClick={onRemove}>
+                      <X className="h-3.5 w-3.5" />
+                    </Button>
+                  </SimpleTooltip>
                 )}
-              </Button>
-            </SimpleTooltip>
-            <SimpleTooltip label="Refresh GitHub activity">
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => void refreshAll()}
-                disabled={refreshing}
-              >
-                <RefreshCw className={cn('h-3.5 w-3.5', refreshing && 'animate-spin')} />
-              </Button>
-            </SimpleTooltip>
-            {dragHandle}
-            {onRemove && (
-              <SimpleTooltip label="Remove from dashboard">
-                <Button variant="ghost" size="icon" onClick={onRemove}>
-                  <X className="h-3.5 w-3.5" />
-                </Button>
-              </SimpleTooltip>
-            )}
-          </div>
-        </CardHeader>
-        <CardContent>
+              </>
+            }
+          />
           <div className="mb-2 flex h-8 items-baseline gap-2">
             {loading ? (
               <>
@@ -510,8 +510,8 @@ export function GithubActivityCard({
               />
             </div>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       <Dialog
         open={notificationsOpen}
@@ -587,8 +587,9 @@ export function GithubActivityCard({
           >
             {unreadCount > 0 && (
               <Button
-                variant="outline"
+                variant="ghost"
                 size="sm"
+                className={CARD_PILL_SOFT}
                 disabled={markAll.isPending}
                 onClick={() => markAll.mutate()}
               >
@@ -601,8 +602,9 @@ export function GithubActivityCard({
               </Button>
             )}
             <Button
-              variant="outline"
+              variant="ghost"
               size="sm"
+              className={CARD_PILL_SOFT}
               onClick={() => {
                 void window.agentmat.shell.openExternal(GH_NOTIFICATIONS_URL);
               }}

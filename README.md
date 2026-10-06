@@ -85,6 +85,7 @@ Everything else is support around that, so you don't leave the app to go and get
 ### Projects
 
 - **Project workspace**: bootstrap a repo, keep notes, pin and reorder projects, archive the ones you are done with, and launch a project's run commands from its card.
+- **WordPress projects**: make a project from a connected WordPress site. AgentMate pulls the themes and plugins you pick into a folder that keeps the site's layout (`wp-content/themes/...`), so agents work on them like any other code. Review and deploy shows every file that will go, any conflicts with changes made on the site, and what stays behind: agent settings, skills and AgentMate's own files never leave your computer.
 - **Git and releases**: status, branches, tags, and branch history with the tags on each commit. Bump the version in your files with a headless CLI run, review the bump file by file (or hunk by hunk), then commit, tag and push from the app. AgentMate warns before you tag a version you never bumped, and monorepo workspaces get scoped tag prefixes.
 - **Security**: scan the project with Semgrep, Trivy, Bearer, SonarQube, CodeQL or Strix. See [Project security scanning](#project-security-scanning).
 - **Packages**: see and update dependencies for npm, pnpm, Yarn, NuGet and Dart/Flutter pub, with an outdated-only view.
@@ -206,6 +207,15 @@ Deploy turns a Linux server you can SSH into into one you can manage from AgentM
 | Security | A checklist with a score and previewed fixes, users and roles, devices and sessions, the audit trail, encrypted backups, and the connection (SSH or direct TLS) |
 
 Cloudflare has its own page: connect an account with a scoped API token, manage DNS records, zone settings and WAF rules, issue Origin CA certificates for a server, and lock a server's web ports to Cloudflare's addresses.
+
+**WordPress sites without SSH or FTP**
+
+Many WordPress sites live on hosting where there is no way in but wp-admin. For those, install the AgentMate Connector plugin (Deploy, Connect a WordPress site, Download the plugin; it is also attached to every GitHub release), make a connection key in Tools, AgentMate Connector, and paste it into AgentMate. The site then shows up in Deploy next to your servers, with its themes and plugins, its deploy history and its audit log.
+
+- **Keys are one-time and scoped.** A key works once, for 15 minutes, and is read-only or read-write as the site's admin chose. The admin can see and revoke every connection in wp-admin, or switch everything off with `DISALLOW_FILE_MODS`.
+- **Every call is signed.** Each request is signed with a key that only this computer holds (sealed like your SSH passwords), checked for freshness and replay, and every reply is signed by the site. Plain HTTP is refused unless you allow it for that site.
+- **A deploy never leaves the site down.** Changes are staged where the web server cannot run them, PHP files are syntax checked, every file is snapshotted, and a health check runs afterwards. If the site breaks, even badly enough to stop answering, it puts the old files back on its own.
+- **Only theme, plugin and mu-plugin files move.** Uploads, the database, WordPress core and `wp-config.php` are never touched, and nothing is ever activated.
 
 **Security model, in short**
 

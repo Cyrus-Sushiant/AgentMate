@@ -5,10 +5,11 @@ import { useUpdateStore } from '@/stores/updateStore';
 import { renderWithProviders } from '../../../../test/renderer/renderWithProviders';
 
 /**
- * About AgentMate is where the version, the update check and the SmartClouds link live now that
- * the about card and the version chip open it. What matters: it says who made the app and which
- * version is running, the update check behaves the same as it did from the card, and the site
- * opens in the browser rather than inside the app window.
+ * About AgentMate is where the version, the update check, the source link and the SmartClouds
+ * credit live now that the about card and the version chip open it. What matters: it says what
+ * the app is, that it's open source and who makes it, which version is running, the update check
+ * behaves the same as it did from the card, and links open in the browser rather than inside the
+ * app window.
  */
 
 const toast = vi.hoisted(() =>
@@ -22,7 +23,7 @@ const toast = vi.hoisted(() =>
 );
 vi.mock('sonner', () => ({ toast, Toaster: () => null }));
 
-const { AboutDialog, SMARTCLOUDS_URL } = await import('./AboutDialog');
+const { AboutDialog, SMARTCLOUDS_URL, SOURCE_URL } = await import('./AboutDialog');
 
 const AVAILABLE = {
   state: 'available',
@@ -40,22 +41,56 @@ function renderAbout(bridge: Record<string, unknown> = {}) {
 const dialog = (): Promise<HTMLElement> => screen.findByRole('dialog', { name: 'About AgentMate' });
 
 describe('AboutDialog contents', () => {
-  it('shows the logo, the version, who makes the app and a link to their site', async () => {
+  it('shows the app icon, the version, what the app is and who makes it', async () => {
     renderAbout();
     const about = await dialog();
 
-    const logo = within(about).getByRole('img', { name: 'SmartClouds' });
-    expect(logo.getAttribute('srcset')).toMatch(/ 1x, .+ 2x$/);
+    const icon = within(about).getByRole('img', { name: 'AgentMate' });
+    expect(icon.getAttribute('src')).toContain('app-icon');
+    expect(icon).toHaveAttribute('sizes', '72px');
     expect(await within(about).findByText('v2.4.1')).toBeInTheDocument();
-    expect(within(about).getByText('by SmartClouds')).toBeInTheDocument();
-    expect(about).toHaveAccessibleDescription(/We're SmartClouds, a full-stack digital partner/);
-    expect(about).toHaveAccessibleDescription(/AgentMate is our control center/);
-    expect(within(about).getByRole('link', { name: /smartclouds\.co/ })).toHaveAttribute(
-      'href',
-      'https://smartclouds.co',
+    // The description is about the app itself, not the company.
+    expect(about).toHaveAccessibleDescription(
+      /^AgentMate is an Agentic Development Environment \(ADE\) for AI coding agents\./,
     );
+    expect(about).toHaveAccessibleDescription(
+      /Claude Code, Codex, Cursor, Gemini, Grok, OpenCode or a plain shell/,
+    );
+    expect(about).toHaveAccessibleDescription(/from prompt to review to commit/);
+    expect(about).not.toHaveAccessibleDescription(/SmartClouds/);
     expect(
-      within(about).getByText(`© ${new Date().getFullYear()} SmartClouds`),
+      within(about).getByText('AgentMate is built and maintained by SmartClouds.'),
+    ).toBeInTheDocument();
+    expect(within(about).getByText(`© ${new Date().getFullYear()}`)).toBeInTheDocument();
+  });
+
+  it('credits SmartClouds at the foot, with their logo and name, linking to their site', async () => {
+    const { bridge } = renderAbout();
+    const about = await dialog();
+
+    const credit = within(about).getByRole('link', { name: /^A product of SmartClouds/ });
+    const logo = within(credit).getByRole('img', { name: 'SmartClouds' });
+    expect(logo.getAttribute('src')).toContain('smartclouds-logo');
+    expect(logo.getAttribute('srcset')).toMatch(/ 1x, .+ 2x$/);
+    // The logo sits on the panel itself, with no dark box around it.
+    expect(logo.parentElement).toBe(credit);
+    expect(within(credit).getByText('A product of')).toBeInTheDocument();
+    expect(within(credit).getByText('SmartClouds')).toBeInTheDocument();
+    // The credit replaces the old "by SmartClouds" line and the name in the copyright.
+    expect(within(about).queryByText('by SmartClouds')).toBeNull();
+    expect(within(about).queryByText(/© \d{4} SmartClouds/)).toBeNull();
+
+    const click = createEvent.click(credit);
+    fireEvent(credit, click);
+    expect(click.defaultPrevented).toBe(true);
+    expect(bridge.$fn('shell.openExternal')).toHaveBeenCalledWith(SMARTCLOUDS_URL);
+  });
+
+  it('says the app is free and open source under the MIT license', async () => {
+    renderAbout();
+
+    expect(
+      within(await dialog()).getByText("It's free and open source under the MIT license."),
     ).toBeInTheDocument();
   });
 
@@ -150,24 +185,31 @@ describe('AboutDialog update check', () => {
   });
 });
 
-describe('AboutDialog site link', () => {
-  it('opens smartclouds.co in the browser, not in the app window', async () => {
+describe('AboutDialog links', () => {
+  it('opens the source on GitHub in the browser, not in the app window', async () => {
     const { bridge } = renderAbout();
-    const link = within(await dialog()).getByRole('link', { name: /smartclouds\.co/ });
+    const link = within(await dialog()).getByRole('link', { name: /^Source on GitHub/ });
+    expect(link).toHaveAttribute('href', 'https://github.com/Cyrus-Sushiant/AgentMate');
 
     const click = createEvent.click(link);
     fireEvent(link, click);
 
     expect(click.defaultPrevented).toBe(true);
-    expect(bridge.$fn('shell.openExternal')).toHaveBeenCalledWith(SMARTCLOUDS_URL);
+    expect(bridge.$fn('shell.openExternal')).toHaveBeenCalledWith(SOURCE_URL);
+    expect(bridge.$fn('shell.openExternal')).toHaveBeenCalledTimes(1);
+    expect(SOURCE_URL).toBe('https://github.com/Cyrus-Sushiant/AgentMate');
     expect(SMARTCLOUDS_URL).toBe('https://smartclouds.co');
   });
 
-  it('says the link leaves the app', async () => {
+  it('says the links leave the app', async () => {
     renderAbout();
+    const about = await dialog();
 
-    expect(within(await dialog()).getByRole('link')).toHaveAccessibleName(
-      'smartclouds.co, opens in your browser',
+    expect(within(about).getByRole('link', { name: /^Source on GitHub/ })).toHaveAccessibleName(
+      'Source on GitHub, opens in your browser',
+    );
+    expect(within(about).getByRole('link', { name: /^A product of/ })).toHaveAccessibleName(
+      'A product of SmartClouds, opens in your browser',
     );
   });
 });
@@ -196,8 +238,8 @@ describe('AboutDialog dismissal and focus', () => {
     const about = await dialog();
 
     expect(about).toContainElement(document.activeElement as HTMLElement);
-    // The check, the site link and Close, then round again.
-    for (let i = 0; i < 4; i++) {
+    // The check, the source link, the credit and Close, then round again.
+    for (let i = 0; i < 5; i++) {
       await user.tab();
       expect(about).toContainElement(document.activeElement as HTMLElement);
     }

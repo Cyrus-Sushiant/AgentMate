@@ -85,7 +85,7 @@ The strip along the bottom of the window shows what is running. The left side is
 | --- | --- |
 | Project runs | Projects started with **Run**. A single run shows its name and the port it listens on (or the device it went to), plus its CPU and memory. More than one collapses into a count such as "2 runs". The panel lists each run with **Show terminal** and **Stop** buttons. |
 | Terminals | The number of open terminals, for example "3 terminals". Click it to open the **Running CLIs** dialog, which shows CPU and memory for every terminal. |
-| Cloud limits | The soonest limit reset across your AI subscriptions, as a percentage used and a countdown. The panel lists each provider's limits. Click a provider to open [Token Usage](token-usage.md). |
+| Plan limits | One item each for Claude Code, Codex and Cursor when the account reports plan limits, showing the percentage used of the next limit to reset and a countdown. The panel lists that provider's limits, and **Open Token Usage** goes to [Token Usage](token-usage.md). Each one can be turned off under **Status bar limits** in [Settings](settings.md#status-bar-limits). |
 | Docker | "N running" containers. The panel lists up to eight, and **Open the Docker page** goes to [Docker](docker.md). Hidden when Docker is not available. |
 | Android | "N running" emulators. The panel lists them with their memory and CPU. **Open the Android page** goes to [Android](android.md). Hidden when no Android SDK is found. |
 | CPU | Current CPU use with a meter. The panel adds a chart, per-core bars, the busiest apps and any GPU. |

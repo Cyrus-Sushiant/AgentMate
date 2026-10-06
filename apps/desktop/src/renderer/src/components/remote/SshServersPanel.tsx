@@ -2,13 +2,15 @@ import type { SshSavedServer } from '@shared/apiTypes';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { History, Link, Pencil, Plus, Server, Trash2 } from '@/components/icons';
+import { EmptyState, FOOTER_HAIRLINE } from '@/components/pageKit';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { queryKeys } from '@/lib/queryKeys';
 import { timeAgo } from '@/lib/time';
+import { cn } from '@/lib/utils';
 import { confirmDialog } from '@/stores/confirmStore';
 import { useTerminalStore } from '@/stores/terminalStore';
+import { REMOTE_CARD, RemoteCardHeader, ROUND_ICON, ServerRowsSkeleton } from './remoteCard';
 import { ServersVaultControls } from './ServersVaultControls';
 import { SshHistoryPanel } from './SshHistoryPanel';
 import { SshServerFormDialog } from './SshServerFormDialog';
@@ -63,40 +65,70 @@ function SavedSshServerRow({
   }
 
   return (
-    <li className="flex items-center gap-3 rounded-md border border-border bg-secondary/30 px-3 py-2">
-      <Server className="h-4 w-4 shrink-0 text-muted-foreground" />
-      <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-medium text-foreground">{server.nickname}</p>
-        <p className="truncate text-xs text-muted-foreground">
-          {server.username}@{server.host}:{server.port} · {authMethodLabel(server)}
-          {server.lastConnectedAt
-            ? ` · last connected ${timeAgo(new Date(server.lastConnectedAt).toISOString())}`
-            : ''}
+    <li className="flex flex-wrap items-center gap-x-3 gap-y-2 px-5 py-3">
+      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-foreground/[0.06] text-muted-foreground">
+        <Server className="h-4 w-4" />
+      </span>
+      <div className="min-w-[min(100%,12rem)] flex-1">
+        <p className="truncate text-[13px] font-medium text-foreground">{server.nickname}</p>
+        <p className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
+          <span className="truncate font-mono">
+            {server.username}@{server.host}:{server.port}
+          </span>
+          <span className="shrink-0 rounded-full bg-foreground/[0.06] px-1.5 text-[10px] font-medium leading-4">
+            {authMethodLabel(server)}
+          </span>
+          {server.lastConnectedAt ? (
+            <span className="truncate">
+              last connected {timeAgo(new Date(server.lastConnectedAt).toISOString())}
+            </span>
+          ) : null}
         </p>
       </div>
-      <SimpleTooltip label="AI history on this server">
+      <div className="ml-auto flex shrink-0 items-center gap-1">
+        <SimpleTooltip label="AI history on this server">
+          <Button
+            size="icon"
+            variant="ghost"
+            className={ROUND_ICON}
+            aria-label="AI history on this server"
+            onClick={() => void onHistory(server)}
+          >
+            <History className="h-3.5 w-3.5" />
+          </Button>
+        </SimpleTooltip>
+        <SimpleTooltip label="Edit this server">
+          <Button
+            size="icon"
+            variant="ghost"
+            className={ROUND_ICON}
+            aria-label={`Edit ${server.nickname}`}
+            onClick={() => onEdit(server)}
+          >
+            <Pencil className="h-3.5 w-3.5" />
+          </Button>
+        </SimpleTooltip>
+        <SimpleTooltip label="Remove this server">
+          <Button
+            size="icon"
+            variant="ghost"
+            className={cn(ROUND_ICON, 'hover:bg-destructive/10 hover:text-destructive')}
+            aria-label={`Remove ${server.nickname}`}
+            onClick={() => void remove()}
+            disabled={removing}
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </Button>
+        </SimpleTooltip>
         <Button
-          size="icon"
-          variant="ghost"
-          aria-label="AI history on this server"
-          onClick={() => void onHistory(server)}
+          size="sm"
+          className="ml-1 rounded-full px-3.5"
+          onClick={() => void connect()}
+          disabled={connecting}
         >
-          <History className="h-3.5 w-3.5" />
+          <Link className="h-3.5 w-3.5" /> {connecting ? 'Connecting…' : 'Connect'}
         </Button>
-      </SimpleTooltip>
-      <Button size="sm" onClick={() => void connect()} disabled={connecting}>
-        <Link className="h-3.5 w-3.5" /> {connecting ? 'Connecting…' : 'Connect'}
-      </Button>
-      <SimpleTooltip label="Edit this server">
-        <Button size="icon" variant="ghost" onClick={() => onEdit(server)}>
-          <Pencil className="h-3.5 w-3.5" />
-        </Button>
-      </SimpleTooltip>
-      <SimpleTooltip label="Remove this server">
-        <Button size="icon" variant="ghost" onClick={() => void remove()} disabled={removing}>
-          <Trash2 className="h-3.5 w-3.5" />
-        </Button>
-      </SimpleTooltip>
+      </div>
     </li>
   );
 }
@@ -172,45 +204,45 @@ export function SshServersPanel(): React.JSX.Element {
   }
 
   return (
-    <div className="flex flex-col gap-4">
-      <Card className="glass">
-        <CardHeader className="flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <CardTitle className="flex items-center gap-2">
-              <Server className="h-4 w-4 text-primary" /> Saved servers
-            </CardTitle>
-            <CardDescription>Connect over SSH with one click, no terminal typing.</CardDescription>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <ServersVaultControls
-              onRequestDialog={(mode) => {
-                setUnlockMode(mode);
-                setUnlockOpen(true);
-              }}
+    <div className="flex flex-col gap-2">
+      <section className={REMOTE_CARD}>
+        <RemoteCardHeader
+          icon={Server}
+          title="Saved servers"
+          description="Connect over SSH with one click, no terminal typing."
+          actions={
+            <>
+              <ServersVaultControls
+                onRequestDialog={(mode) => {
+                  setUnlockMode(mode);
+                  setUnlockOpen(true);
+                }}
+              />
+              {servers.length > 0 ? (
+                <Button size="sm" className="rounded-full px-3.5" onClick={openAdd}>
+                  <Plus className="h-3.5 w-3.5" /> Add server
+                </Button>
+              ) : null}
+            </>
+          }
+        />
+        <div className={FOOTER_HAIRLINE}>
+          {serversQuery.isPending ? (
+            <ServerRowsSkeleton />
+          ) : servers.length === 0 ? (
+            <EmptyState
+              size="sm"
+              icon={Server}
+              title="No servers yet"
+              description="Add one to connect with a click, right from a terminal tab."
+              action={
+                <Button size="sm" className="rounded-full px-4" onClick={openAdd}>
+                  <Plus className="h-3.5 w-3.5" /> Add server
+                </Button>
+              }
             />
-            <Button size="sm" onClick={openAdd}>
-              <Plus className="h-3.5 w-3.5" /> Add server
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent>
-          {servers.length === 0 ? (
-            <div className="flex flex-col items-center gap-3 py-8 text-center">
-              <div className="flex h-11 w-11 items-center justify-center rounded-full bg-primary/15 text-primary">
-                <Server className="h-5 w-5" />
-              </div>
-              <div className="space-y-1">
-                <p className="text-sm font-medium">No servers yet</p>
-                <p className="max-w-sm text-xs leading-relaxed text-muted-foreground">
-                  Add one to connect with a click, right from a terminal tab.
-                </p>
-              </div>
-              <Button size="sm" onClick={openAdd}>
-                <Plus className="h-3.5 w-3.5" /> Add server
-              </Button>
-            </div>
           ) : (
-            <ul className="flex flex-col gap-2">
+            <ul className="settings-rows">
               {servers.map((server) => (
                 <SavedSshServerRow
                   key={server.id}
@@ -223,8 +255,8 @@ export function SshServersPanel(): React.JSX.Element {
               ))}
             </ul>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </section>
 
       <SshServerFormDialog
         open={formOpen}

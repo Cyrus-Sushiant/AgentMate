@@ -817,7 +817,7 @@ export function TestsSection({ project }: { project: Project }): React.JSX.Eleme
           placeholder="Filter tests"
           value={query}
           onChange={(event) => setQuery(event.target.value)}
-          className="h-6 min-w-0 flex-1 rounded-md border border-border/70 bg-background/60 px-2 text-[11px] outline-none focus:border-primary/50"
+          className="field-surface h-6 min-w-0 flex-1 rounded-full px-2.5 text-[11px] outline-none"
         />
         <div role="radiogroup" aria-label="Show" className="flex shrink-0 items-center gap-0.5">
           {(['all', 'failed', 'passed', 'skipped'] as const).map((value) => {

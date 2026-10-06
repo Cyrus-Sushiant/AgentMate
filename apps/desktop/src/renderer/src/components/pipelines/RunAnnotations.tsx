@@ -161,14 +161,15 @@ export function RunAnnotations({
     counts.failure > 0 ? 'failure' : counts.warning > 0 ? 'warning' : 'notice';
 
   return (
-    <div className="pb-2 pl-4 pr-3">
+    // Lined up under the run title, past the status glyph.
+    <div className="pb-2.5 pl-[3.125rem] pr-3">
       <div className="flex items-center gap-1">
         <button
           type="button"
           aria-expanded={open}
           onClick={() => setOpen((value) => !value)}
           className={cn(
-            'flex cursor-pointer items-center gap-1.5 rounded-md px-2 py-1 text-[11px] font-medium transition-colors hover:bg-foreground/[0.06]',
+            'flex cursor-pointer items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-medium transition-colors hover:bg-foreground/[0.06]',
             strongest === 'failure'
               ? 'text-destructive'
               : strongest === 'warning'
@@ -186,7 +187,7 @@ export function RunAnnotations({
           <Button
             variant="ghost"
             size="sm"
-            className="ml-auto h-7 gap-1 px-2 text-[11px]"
+            className="ml-auto h-7 gap-1 rounded-full px-2.5 text-[11px]"
             onClick={() =>
               void copyText(
                 allAnnotationsText(run, annotations),
@@ -209,12 +210,13 @@ export function RunAnnotations({
                 // Annotations have no id of their own, and the list never reorders once loaded.
                 key={index}
                 className={cn(
-                  'flex items-start gap-2.5 rounded-lg border px-3 py-2',
+                  // Rings, not borders: the theme's global border colour would hide the tint.
+                  'flex items-start gap-2.5 rounded-xl px-3 py-2 ring-1 ring-inset',
                   item.level === 'failure'
-                    ? 'border-destructive/25 bg-destructive/[0.04]'
+                    ? 'bg-destructive/[0.04] ring-destructive/25'
                     : item.level === 'warning'
-                      ? 'border-warning/30 bg-warning/[0.06]'
-                      : 'border-border bg-foreground/[0.02]',
+                      ? 'bg-warning/[0.06] ring-warning/30'
+                      : 'bg-foreground/[0.025] ring-foreground/[0.08]',
                 )}
               >
                 <LevelIcon level={item.level} className="mt-0.5 shrink-0" />

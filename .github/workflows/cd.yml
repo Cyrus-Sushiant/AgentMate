@@ -205,6 +205,20 @@ jobs:
           name: server-core-manifest
           path: apps/desktop/build
 
+      # The AgentMate Connector plugin zip (E19). electron-builder.yml copies it into the app's
+      # resources, so Deploy can hand it to the user to upload in wp-admin. Plain Node, no Docker.
+      - name: Build the WordPress connector zip
+        run: node scripts/wordpress-connector.mjs build
+
+      # One copy goes on the GitHub Release, so a site owner can get it without the app.
+      - name: Upload the WordPress connector zip
+        if: matrix.os == 'ubuntu-latest'
+        uses: actions/upload-artifact@v7
+        with:
+          name: wordpress-connector
+          path: apps/wordpress-connector/dist/agentmate-connector.zip
+          if-no-files-found: error
+
       # Spotlight indexes the disk image dmgbuild mounts while it is still
       # open, which keeps the volume busy and makes the unmount at the end of
       # the dmg build fail ("hdiutil: couldn't eject diskN - Resource busy").
@@ -412,6 +426,12 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           name: server-core-release
+          path: dist-release
+
+      - name: Download the WordPress connector zip
+        uses: actions/download-artifact@v8
+        with:
+          name: wordpress-connector
           path: dist-release
 
       # electron-updater's macOS auto-updater needs a single `latest-mac.yml`,

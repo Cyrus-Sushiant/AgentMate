@@ -5,12 +5,11 @@ import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { SparklineChart } from '@/components/dashboard/SparklineChart';
 import { ExternalLink, Github, History, RefreshCw, X } from '@/components/icons';
+import { CARD_PILL_SOFT, Chip, TILE_ACTION, TileHeader } from '@/components/pageKit';
 import { CopyRunErrorButton } from '@/components/pipelines/CopyRunErrorButton';
 import { RunStatusIcon, runTone } from '@/components/pipelines/runStatus';
 import { StopRunButton } from '@/components/pipelines/StopRunButton';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Dialog,
   DialogContent,
@@ -115,9 +114,7 @@ function HistoryRow({ item }: { item: GithubActionsHistoryItem }): React.JSX.Ele
             <span className="truncate font-mono text-[11px] text-muted-foreground">
               {item.repo}
             </span>
-            <Badge variant={tone.variant} className="h-5 px-1.5 text-[10px] font-normal">
-              {tone.label}
-            </Badge>
+            <Chip tone={tone.variant === 'outline' ? 'neutral' : tone.variant}>{tone.label}</Chip>
             {item.headBranch ? (
               <span className="text-[11px] text-muted-foreground">{item.headBranch}</span>
             ) : null}
@@ -220,45 +217,51 @@ export function GithubActionsCard({
 
   return (
     <>
-      <Card className={className}>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="flex items-center gap-2 text-xs text-muted-foreground">
-            <Github className="h-3.5 w-3.5 shrink-0" /> GitHub Actions
-          </CardTitle>
-          <div className="flex items-center gap-1">
-            <SimpleTooltip label="Actions history">
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => setHistoryOpen(true)}
-                aria-label="Actions history"
-              >
-                <History className="h-3.5 w-3.5" />
-              </Button>
-            </SimpleTooltip>
-            <SimpleTooltip label="Refresh GitHub Actions">
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => {
-                  void queryClient.invalidateQueries({ queryKey: queryKeys.githubActionsActivity });
-                }}
-                disabled={refreshing}
-              >
-                <RefreshCw className={cn('h-3.5 w-3.5', refreshing && 'animate-spin')} />
-              </Button>
-            </SimpleTooltip>
-            {dragHandle}
-            {onRemove && (
-              <SimpleTooltip label="Remove from dashboard">
-                <Button variant="ghost" size="icon" onClick={onRemove}>
-                  <X className="h-3.5 w-3.5" />
-                </Button>
-              </SimpleTooltip>
-            )}
-          </div>
-        </CardHeader>
-        <CardContent>
+      <div className={className}>
+        <div className="flex h-full flex-col p-4">
+          <TileHeader
+            className="mb-2"
+            icon={<Github />}
+            title="GitHub Actions"
+            actions={
+              <>
+                <SimpleTooltip label="Actions history">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className={TILE_ACTION}
+                    onClick={() => setHistoryOpen(true)}
+                    aria-label="Actions history"
+                  >
+                    <History className="h-3.5 w-3.5" />
+                  </Button>
+                </SimpleTooltip>
+                <SimpleTooltip label="Refresh GitHub Actions">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className={TILE_ACTION}
+                    onClick={() => {
+                      void queryClient.invalidateQueries({
+                        queryKey: queryKeys.githubActionsActivity,
+                      });
+                    }}
+                    disabled={refreshing}
+                  >
+                    <RefreshCw className={cn('h-3.5 w-3.5', refreshing && 'animate-spin')} />
+                  </Button>
+                </SimpleTooltip>
+                {dragHandle}
+                {onRemove && (
+                  <SimpleTooltip label="Remove from dashboard">
+                    <Button variant="ghost" size="icon" className={TILE_ACTION} onClick={onRemove}>
+                      <X className="h-3.5 w-3.5" />
+                    </Button>
+                  </SimpleTooltip>
+                )}
+              </>
+            }
+          />
           <div className="mb-2 flex h-8 items-baseline gap-2">
             {loading ? (
               <>
@@ -330,8 +333,8 @@ export function GithubActionsCard({
               {setupHint}
             </div>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       <Dialog
         open={historyOpen}
@@ -388,7 +391,12 @@ export function GithubActionsCard({
             >
               All runs and filters
             </Button>
-            <Button variant="outline" size="sm" onClick={() => setHistoryOpen(false)}>
+            <Button
+              variant="ghost"
+              size="sm"
+              className={CARD_PILL_SOFT}
+              onClick={() => setHistoryOpen(false)}
+            >
               Close
             </Button>
           </DialogFooter>

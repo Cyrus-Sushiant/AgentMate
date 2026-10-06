@@ -60,6 +60,7 @@ import { DeployStacks } from './stacks/service';
 import { DeployState, jsonFilePort } from './state';
 import { DeploySystem } from './system';
 import { appNotificationInbox, DeployAlertWatcher } from './watcher';
+import { registerDeployWordPressIpc } from './wordpress';
 
 /**
  * Wires the Deploy service into Electron. Packaged builds install the core release published
@@ -288,6 +289,7 @@ export function registerDeployIpc(): void {
       (await service.listServers()).find((server) => server.id === serverId)?.nickname ?? serverId,
   });
   registerDeployAssistantIpc(service, state, guard);
+  registerDeployWordPressIpc({ guard });
 }
 
 /** The Deploy AI and the logs center's journal (E09). Approvals are signed with the device key. */

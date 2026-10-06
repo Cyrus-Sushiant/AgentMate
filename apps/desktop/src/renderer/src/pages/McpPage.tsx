@@ -9,17 +9,37 @@ import {
   FolderOpen,
   GitBranch,
   Globe,
+  LayoutDashboard,
   Plug,
   Plus,
   RefreshCw,
   Search,
   Spinner,
+  Tag,
   Trash2,
-  X,
+  TriangleAlert,
 } from '@/components/icons';
-import { Badge } from '@/components/ui/badge';
+import {
+  CARD_GRID,
+  CARD_PILL,
+  CARD_PILL_SOFT,
+  CatalogCardShimmer,
+  CatalogSplit,
+  Chip,
+  EmptyState,
+  FilterChip,
+  FOOTER_HAIRLINE,
+  GLASS_CARD,
+  HEADER_ICON_BUTTON,
+  PILL_PRIMARY,
+  PILL_SOFT,
+  RepositorySourceIcon,
+  SECTION_HEADING,
+  SearchPill,
+  SideNavRow,
+  TILE_ACTION,
+} from '@/components/pageKit';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Combobox } from '@/components/ui/combobox';
 import {
   Dialog,
@@ -46,79 +66,17 @@ const SOURCE_TYPES: { value: McpRepositorySourceType; label: string }[] = [
 
 const EMPTY_SERVERS: McpServer[] = [];
 
+/** How a repository's source reads under its name in the catalog header. */
+const SOURCE_LABEL: Record<McpRepositorySourceType, string> = {
+  bundled: 'Bundled with AgentMate',
+  url: 'JSON index',
+  git: 'Git repository',
+  'local-folder': 'Local folder',
+};
+
 function monogramLetter(name: string): string {
   const match = name.match(/[A-Za-z0-9]/);
   return (match?.[0] ?? '?').toUpperCase();
-}
-
-function FilterChip({
-  active,
-  onClick,
-  children,
-}: {
-  active: boolean;
-  onClick: () => void;
-  children: React.ReactNode;
-}): React.JSX.Element {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn(
-        'h-7 shrink-0 cursor-pointer rounded-full border px-2.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-        active
-          ? 'border-primary/40 bg-primary/15 text-primary'
-          : 'border-border text-muted-foreground hover:border-foreground/20 hover:text-foreground',
-      )}
-    >
-      {children}
-    </button>
-  );
-}
-
-function MarketplaceEmpty({
-  title,
-  description,
-  action,
-}: {
-  title: string;
-  description: string;
-  action?: React.ReactNode;
-}): React.JSX.Element {
-  return (
-    <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed border-border px-4 py-16 text-center">
-      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary">
-        <Plug className="h-5 w-5" />
-      </div>
-      <div className="space-y-1">
-        <p className="text-sm font-medium">{title}</p>
-        <p className="max-w-sm text-sm text-muted-foreground">{description}</p>
-      </div>
-      {action}
-    </div>
-  );
-}
-
-function McpCardSkeleton(): React.JSX.Element {
-  return (
-    <Card className="glass flex flex-col">
-      <CardHeader className="pb-3">
-        <div className="flex items-start gap-3">
-          <Skeleton className="h-9 w-9 shrink-0 rounded-lg" />
-          <div className="min-w-0 flex-1 space-y-2">
-            <Skeleton className="h-4 w-36" />
-            <Skeleton className="h-3 w-24" />
-          </div>
-        </div>
-        <Skeleton className="mt-3 h-3 w-full" />
-        <Skeleton className="h-3 w-4/5" />
-      </CardHeader>
-      <CardContent className="mt-auto space-y-3">
-        <Skeleton className="h-3 w-28" />
-        <Skeleton className="h-8 w-24 rounded-md" />
-      </CardContent>
-    </Card>
-  );
 }
 
 const McpServerCard = memo(function McpServerCard({
@@ -145,114 +103,123 @@ const McpServerCard = memo(function McpServerCard({
   const installDisabled = !canInstall || isInstalling;
 
   return (
-    <Card
+    <article
+      aria-label={server.name}
       className={cn(
-        'glass flex flex-col transition-all duration-150 hover:-translate-y-0.5',
-        isInstalled ? 'border-success/35 hover:border-success/55' : 'hover:border-primary/40',
+        GLASS_CARD,
+        // The edge is an inset ring, because the global border colour wins over a tinted border.
+        'flex flex-col ring-1 ring-inset transition-[box-shadow,transform] duration-150 hover:-translate-y-0.5 motion-reduce:hover:translate-y-0',
+        isInstalled
+          ? 'ring-success/35 hover:ring-success/55'
+          : 'ring-transparent hover:ring-primary/30',
       )}
     >
-      <CardHeader className="pb-3">
+      <div className="flex flex-1 flex-col gap-2.5 p-4 pb-3">
         <div className="flex items-start gap-3">
           <div
             aria-hidden
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/12 font-semibold text-primary"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary/12 font-semibold text-primary"
           >
             {monogramLetter(server.name)}
           </div>
           <div className="min-w-0 flex-1">
             <div className="flex items-start justify-between gap-2">
-              <CardTitle className="flex min-w-0 items-center gap-1.5">
+              <h3 className="flex min-w-0 items-center gap-1.5 text-sm font-semibold leading-tight">
                 <span className="truncate">{server.name}</span>
                 {server.official && (
                   <SimpleTooltip label="Official, maintained by the vendor or organization behind this integration">
-                    <CircleCheck className="h-3.5 w-3.5 shrink-0 text-blue-500" />
+                    <CircleCheck className="h-3.5 w-3.5 shrink-0 text-primary" />
                   </SimpleTooltip>
                 )}
-              </CardTitle>
-              {isInstalled ? (
-                <Badge variant="success">Installed</Badge>
-              ) : (
-                showCategory && (
-                  <span className="shrink-0 text-xs text-muted-foreground">{server.category}</span>
-                )
+              </h3>
+              {isInstalled && (
+                <Chip tone="success" dot>
+                  Installed
+                </Chip>
               )}
             </div>
-            {isInstalled && showCategory && (
-              <p className="mt-0.5 text-xs text-muted-foreground">{server.category}</p>
-            )}
+            <p className="mt-0.5 truncate text-xs text-muted-foreground">
+              {server.author}
+              {server.version && server.version !== 'latest' ? ` · v${server.version}` : ''}
+              {` · ${server.config.transport}`}
+            </p>
           </div>
         </div>
-        <CardDescription className="line-clamp-2">{server.description}</CardDescription>
-      </CardHeader>
-      <CardContent className="mt-auto space-y-3">
-        <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
-          <span>
-            {server.author}
-            {server.version && server.version !== 'latest' ? ` · v${server.version}` : ''}
-            {` · ${server.config.transport}`}
-          </span>
-          {!canAutoInstall && <Badge variant="outline">Manual setup</Badge>}
-        </div>
-        <div className="flex items-center gap-2">
-          {isInstalled ? (
+        <p className="line-clamp-2 text-sm text-muted-foreground">{server.description}</p>
+        {(showCategory || !canAutoInstall) && (
+          <div className="mt-auto flex flex-wrap items-center gap-1.5">
+            {showCategory && <Chip>{server.category}</Chip>}
+            {!canAutoInstall && <Chip tone="warning">Manual setup</Chip>}
+          </div>
+        )}
+      </div>
+      <div className={cn('flex items-center gap-2 px-3 py-2.5', FOOTER_HAIRLINE)}>
+        {isInstalled ? (
+          <Button
+            variant="ghost"
+            size="sm"
+            className={CARD_PILL_SOFT}
+            disabled={isRemoving}
+            onClick={() => onRemove(server)}
+          >
+            {isRemoving ? <Spinner className="animate-spin" /> : <Trash2 />}
+            {isRemoving ? 'Removing…' : 'Remove'}
+          </Button>
+        ) : canAutoInstall ? (
+          <SimpleTooltip
+            label={canInstall ? undefined : 'Choose a project first'}
+            wrapTrigger={installDisabled}
+          >
             <Button
-              variant="outline"
               size="sm"
-              disabled={isRemoving}
-              onClick={() => onRemove(server)}
+              className={CARD_PILL}
+              disabled={installDisabled}
+              onClick={() => onInstall(server)}
             >
-              {isRemoving ? <Spinner className="animate-spin" /> : <Trash2 />}
-              {isRemoving ? 'Removing…' : 'Remove'}
+              {isInstalling ? <Spinner className="animate-spin" /> : <Plug />}
+              {isInstalling ? 'Installing…' : 'Install'}
             </Button>
-          ) : canAutoInstall ? (
-            <SimpleTooltip
-              label={canInstall ? undefined : 'Choose a project first'}
-              wrapTrigger={installDisabled}
-            >
-              <Button size="sm" disabled={installDisabled} onClick={() => onInstall(server)}>
-                {isInstalling ? <Spinner className="animate-spin" /> : <Plug />}
-                {isInstalling ? 'Installing…' : 'Install'}
-              </Button>
-            </SimpleTooltip>
-          ) : (
-            <SimpleTooltip
-              label="No install command available yet. See the server's docs to set it up manually."
-              wrapTrigger
-            >
-              <Button size="sm" disabled>
-                <Plug /> Install
+          </SimpleTooltip>
+        ) : (
+          <SimpleTooltip
+            label="No install command available yet. See the server's docs to set it up manually."
+            wrapTrigger
+          >
+            <Button size="sm" className={CARD_PILL} disabled>
+              <Plug /> Install
+            </Button>
+          </SimpleTooltip>
+        )}
+        <div className="ml-auto flex items-center gap-0.5">
+          {server.websiteUrl && (
+            <SimpleTooltip label="Website">
+              <Button
+                variant="ghost"
+                size="icon"
+                className={TILE_ACTION}
+                aria-label={`Open ${server.name} website`}
+                onClick={() => void window.agentmat.shell.openExternal(server.websiteUrl!)}
+              >
+                <Globe className="h-3.5 w-3.5" />
               </Button>
             </SimpleTooltip>
           )}
-          <div className="ml-auto flex items-center">
-            {server.websiteUrl && (
-              <SimpleTooltip label="Website">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  aria-label={`Open ${server.name} website`}
-                  onClick={() => void window.agentmat.shell.openExternal(server.websiteUrl!)}
-                >
-                  <Globe className="h-4 w-4" />
-                </Button>
-              </SimpleTooltip>
-            )}
-            {server.repositoryUrl && (
-              <SimpleTooltip label="Source repository">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  aria-label={`Open ${server.name} source repository`}
-                  onClick={() => void window.agentmat.shell.openExternal(server.repositoryUrl!)}
-                >
-                  <GitBranch className="h-4 w-4" />
-                </Button>
-              </SimpleTooltip>
-            )}
-          </div>
+          {server.repositoryUrl && (
+            <SimpleTooltip label="Source repository">
+              <Button
+                variant="ghost"
+                size="icon"
+                className={TILE_ACTION}
+                aria-label={`Open ${server.name} source repository`}
+                onClick={() => void window.agentmat.shell.openExternal(server.repositoryUrl!)}
+              >
+                <GitBranch className="h-3.5 w-3.5" />
+              </Button>
+            </SimpleTooltip>
+          )}
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </article>
   );
 });
 
@@ -472,215 +439,306 @@ export default function McpPage(): React.JSX.Element {
     'Plug extra tools into a project from a repository of MCP servers.',
   );
 
-  return (
-    <div className="space-y-5 p-6">
-      <div className="flex flex-wrap items-end gap-3">
-        <div className="space-y-1.5">
-          <Label>Project</Label>
-          <Combobox
-            className={cn('w-56', !selectedProjectId && 'border-warning/40')}
-            value={selectedProjectId}
-            onChange={(id) => {
-              setSelectedProjectId(id);
-              if (!id) setOnlyInstalled(false);
-            }}
-            placeholder="Choose a project"
-            searchPlaceholder="Search projects…"
-            options={projectsQuery.data?.map((p) => ({ value: p.id, label: p.name })) ?? []}
-            clearable
-          />
-        </div>
+  const categoryCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const server of allServers) {
+      counts.set(server.category, (counts.get(server.category) ?? 0) + 1);
+    }
+    return counts;
+  }, [allServers]);
 
-        <div className="space-y-1.5">
-          <Label>Repository</Label>
-          <div className="flex items-center gap-2">
-            <Combobox
-              className="w-56"
-              value={selectedRepoId}
-              onChange={(id) => {
-                setSelectedRepoId(id);
-                setCategoryFilter('all');
-              }}
-              placeholder="Choose a repository"
-              searchPlaceholder="Search repositories…"
-              options={reposQuery.data?.map((r) => ({ value: r.id, label: r.name })) ?? []}
-            />
+  const repositories = reposQuery.data ?? [];
+
+  return (
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden p-2">
+      <CatalogSplit
+        sidebar="mcpRepositories"
+        sidebarLabel="MCP repositories"
+        resizeLabel="Resize repositories"
+        aside={
+          <>
+            <div className="flex h-10 shrink-0 items-center gap-0.5 pl-3.5 pr-2">
+              <h2 className={cn(SECTION_HEADING, 'min-w-0 flex-1 truncate')}>Repositories</h2>
+              <SimpleTooltip label="Add repository">
+                <button
+                  type="button"
+                  aria-label="Add repository"
+                  onClick={() => setAddRepoOpen(true)}
+                  className={HEADER_ICON_BUTTON}
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                </button>
+              </SimpleTooltip>
+            </div>
+            <div className="rail-scroll min-h-0 flex-1 overflow-y-auto px-2 pb-2">
+              {reposQuery.isPending ? (
+                <div role="status" aria-label="Loading repositories" className="space-y-1">
+                  <Skeleton className="h-8 w-full rounded-lg" />
+                  <Skeleton className="h-8 w-4/5 rounded-lg" />
+                </div>
+              ) : repositories.length === 0 ? (
+                <p className="px-2.5 py-2 text-xs leading-relaxed text-muted-foreground">
+                  No repositories yet. Add one to browse its servers.
+                </p>
+              ) : (
+                <nav aria-label="Repositories" className="flex flex-col gap-px">
+                  {repositories.map((repo) => (
+                    <SideNavRow
+                      key={repo.id}
+                      group="mcp-repositories"
+                      active={repo.id === selectedRepoId}
+                      icon={
+                        <RepositorySourceIcon
+                          sourceType={repo.sourceType}
+                          builtIn={repo.id === BOWORA_MCP_REPOSITORY_ID}
+                        />
+                      }
+                      label={repo.name}
+                      onSelect={() => {
+                        setSelectedRepoId(repo.id);
+                        setCategoryFilter('all');
+                      }}
+                    />
+                  ))}
+                </nav>
+              )}
+
+              {/* A repository with only one category has nothing to narrow down. */}
+              {categories.length > 1 && (
+                <>
+                  <h3 className={cn(SECTION_HEADING, 'px-2.5 pb-1.5 pt-5')}>Categories</h3>
+                  <div role="group" aria-label="Categories" className="flex flex-col gap-px">
+                    <SideNavRow
+                      group="mcp-categories"
+                      active={categoryFilter === 'all'}
+                      icon={<LayoutDashboard />}
+                      label="All"
+                      count={allServers.length}
+                      onSelect={() => setCategoryFilter('all')}
+                    />
+                    {categories.map((category) => (
+                      <SideNavRow
+                        key={category}
+                        group="mcp-categories"
+                        active={categoryFilter === category}
+                        icon={<Tag />}
+                        label={category}
+                        count={categoryCounts.get(category) ?? 0}
+                        onSelect={() =>
+                          setCategoryFilter(category === categoryFilter ? 'all' : category)
+                        }
+                      />
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+          </>
+        }
+      >
+        {/* The catalog's header card: which repository this is, where to install, and the
+            filters, split by hairlines like the rows of a Settings card. */}
+        <div className={cn(GLASS_CARD, 'settings-rows shrink-0')}>
+          <div className="flex min-h-12 flex-wrap items-center gap-x-3 gap-y-1.5 px-3 py-2">
+            <div className="flex min-w-0 flex-1 items-center gap-2.5">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-primary/12 text-primary">
+                {selectedRepo ? (
+                  <RepositorySourceIcon
+                    sourceType={selectedRepo.sourceType}
+                    builtIn={isBuiltIn}
+                    className="h-4 w-4"
+                  />
+                ) : (
+                  <Plug className="h-4 w-4" />
+                )}
+              </div>
+              <div className="min-w-0">
+                <div className="flex min-w-0 items-center gap-2">
+                  <h2 className="truncate text-sm font-semibold">
+                    {selectedRepo?.name ?? 'MCP servers'}
+                  </h2>
+                  {isBuiltIn && (
+                    <SimpleTooltip label="Bundled with AgentMate, always available with no network fetch needed">
+                      <Chip tone="primary">Built-in</Chip>
+                    </SimpleTooltip>
+                  )}
+                </div>
+                {selectedRepo && !isBuiltIn && (
+                  <p className="truncate text-xs text-muted-foreground">
+                    {SOURCE_LABEL[selectedRepo.sourceType]} · {selectedRepo.source}
+                  </p>
+                )}
+              </div>
+            </div>
+            <span className="text-xs text-muted-foreground">
+              {isLoadingIndex
+                ? 'Loading…'
+                : filtersActive
+                  ? `${filteredServers.length} of ${allServers.length}`
+                  : `${allServers.length} server${allServers.length === 1 ? '' : 's'}`}
+              {selectedProject && installedInCatalog > 0 && !onlyInstalled && (
+                <>
+                  {' · '}
+                  {installedInCatalog} in {selectedProject.name}
+                </>
+              )}
+            </span>
             {selectedRepoId && !isBuiltIn && (
-              <>
+              <div className="flex items-center gap-0.5">
                 <SimpleTooltip label="Refresh">
                   <Button
-                    variant="outline"
+                    variant="ghost"
                     size="icon"
+                    className={TILE_ACTION}
                     aria-label="Refresh repository"
                     disabled={refreshRepoMutation.isPending}
                     onClick={() => refreshRepoMutation.mutate(selectedRepoId)}
                   >
                     <RefreshCw
-                      className={cn('h-4 w-4', refreshRepoMutation.isPending && 'animate-spin')}
+                      className={cn('h-3.5 w-3.5', refreshRepoMutation.isPending && 'animate-spin')}
                     />
                   </Button>
                 </SimpleTooltip>
                 <SimpleTooltip label="Remove repository">
                   <Button
-                    variant="outline"
+                    variant="ghost"
                     size="icon"
+                    className={cn(TILE_ACTION, 'hover:text-destructive')}
                     aria-label="Remove repository"
                     onClick={() => void handleRemoveRepo(selectedRepoId)}
                   >
-                    <Trash2 className="h-4 w-4" />
+                    <Trash2 className="h-3.5 w-3.5" />
                   </Button>
                 </SimpleTooltip>
-              </>
-            )}
-            {isBuiltIn && (
-              <SimpleTooltip label="Bundled with AgentMate, always available with no network fetch needed">
-                <Badge variant="secondary">Built-in</Badge>
-              </SimpleTooltip>
+              </div>
             )}
           </div>
-        </div>
 
-        <div className="relative min-w-64 flex-1">
-          <Search className="pointer-events-none absolute left-2.5 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            className="pl-8 pr-8"
-            placeholder="Search by name, author, tag…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            aria-label="Search MCP servers"
-          />
-          {search && (
-            <button
-              type="button"
-              aria-label="Clear search"
-              className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-0.5 text-muted-foreground hover:text-foreground"
-              onClick={() => setSearch('')}
-            >
-              <X className="h-3.5 w-3.5" />
-            </button>
-          )}
-        </div>
-
-        <Button onClick={() => setAddRepoOpen(true)}>
-          <Plus /> Add repository
-        </Button>
-      </div>
-
-      <div className="flex flex-wrap items-center gap-2">
-        {categories.length > 1 && (
-          <>
-            <FilterChip active={categoryFilter === 'all'} onClick={() => setCategoryFilter('all')}>
-              All
-            </FilterChip>
-            {categories.map((category) => (
-              <FilterChip
-                key={category}
-                active={categoryFilter === category}
-                onClick={() => setCategoryFilter(category === categoryFilter ? 'all' : category)}
-              >
-                {category}
-              </FilterChip>
-            ))}
-            <span className="mx-1 h-4 w-px bg-border" aria-hidden />
-          </>
-        )}
-        <FilterChip active={onlyOfficial} onClick={() => setOnlyOfficial((v) => !v)}>
-          Official
-        </FilterChip>
-        {selectedProjectId && (
-          <FilterChip active={onlyInstalled} onClick={() => setOnlyInstalled((v) => !v)}>
-            Installed{installedInCatalog > 0 ? ` (${installedInCatalog})` : ''}
-          </FilterChip>
-        )}
-        <span className="ml-auto text-xs text-muted-foreground">
-          {isLoadingIndex
-            ? 'Loading…'
-            : filtersActive
-              ? `${filteredServers.length} of ${allServers.length}`
-              : `${allServers.length} server${allServers.length === 1 ? '' : 's'}`}
-          {selectedProject && installedInCatalog > 0 && !onlyInstalled && (
-            <>
-              {' · '}
-              {installedInCatalog} in {selectedProject.name}
-            </>
-          )}
-        </span>
-      </div>
-
-      {!selectedProjectId && (
-        <p className="text-sm text-muted-foreground">
-          Choose a project to install servers into it.
-        </p>
-      )}
-
-      {repoIndexQuery.isError && (
-        <div className="flex flex-wrap items-center gap-3 text-sm text-destructive">
-          <span>Couldn't load this repository.</span>
-          {!isBuiltIn && selectedRepoId && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => refreshRepoMutation.mutate(selectedRepoId)}
-            >
-              <RefreshCw /> Try again
-            </Button>
-          )}
-        </div>
-      )}
-
-      {isLoadingIndex ? (
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {Array.from({ length: 6 }, (_, i) => (
-            <McpCardSkeleton key={i} />
-          ))}
-        </div>
-      ) : filteredServers.length === 0 ? (
-        <MarketplaceEmpty
-          title={
-            allServers.length === 0
-              ? selectedRepo
-                ? `${selectedRepo.name} is empty`
-                : 'No servers yet'
-              : 'No servers match'
-          }
-          description={
-            allServers.length === 0
-              ? 'Refresh this repository, or add a different one to browse its servers.'
-              : 'Try a different search or clear the filters.'
-          }
-          action={
-            filtersActive ? (
-              <Button variant="outline" size="sm" onClick={clearFilters}>
-                Clear filters
-              </Button>
-            ) : (
-              <Button variant="outline" size="sm" onClick={() => setAddRepoOpen(true)}>
-                <Plus /> Add repository
-              </Button>
-            )
-          }
-        />
-      ) : (
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {filteredServers.map((server) => (
-            <McpServerCard
-              key={server.id}
-              server={server}
-              isInstalled={installedIds.has(server.id)}
-              canInstall={!!selectedProjectId}
-              isInstalling={
-                installMutation.isPending && installMutation.variables?.serverId === server.id
-              }
-              showCategory={categories.length > 1}
-              isRemoving={
-                removeServerMutation.isPending && removeServerMutation.variables === server.id
-              }
-              onInstall={handleInstallClick}
-              onRemove={handleRemoveServer}
+          <div className="flex flex-wrap items-center gap-2 px-3 py-2">
+            <Combobox
+              ariaLabel="Project"
+              className={cn(
+                'h-8 w-52 text-[13px]',
+                !selectedProjectId && 'ring-1 ring-inset ring-warning/40',
+              )}
+              value={selectedProjectId}
+              onChange={(id) => {
+                setSelectedProjectId(id);
+                if (!id) setOnlyInstalled(false);
+              }}
+              placeholder="Choose a project"
+              searchPlaceholder="Search projects…"
+              options={projectsQuery.data?.map((p) => ({ value: p.id, label: p.name })) ?? []}
+              clearable
             />
-          ))}
+            <SearchPill
+              label="Search MCP servers"
+              placeholder="Search by name, author, tag…"
+              value={search}
+              onValueChange={setSearch}
+              className="min-w-48 flex-1"
+            />
+            <FilterChip active={onlyOfficial} onClick={() => setOnlyOfficial((v) => !v)}>
+              Official
+            </FilterChip>
+            {selectedProjectId && (
+              <FilterChip active={onlyInstalled} onClick={() => setOnlyInstalled((v) => !v)}>
+                Installed{installedInCatalog > 0 ? ` (${installedInCatalog})` : ''}
+              </FilterChip>
+            )}
+          </div>
+
+          {!selectedProjectId && (
+            <p className="flex items-center gap-2 px-3.5 py-2 text-xs text-muted-foreground">
+              <TriangleAlert className="h-3.5 w-3.5 shrink-0 text-warning" />
+              Choose a project to install servers into it.
+            </p>
+          )}
         </div>
-      )}
+
+        {repoIndexQuery.isError && (
+          <div
+            className={cn(
+              GLASS_CARD,
+              'flex shrink-0 flex-wrap items-center gap-3 px-3.5 py-2.5 text-sm ring-1 ring-inset ring-destructive/30',
+            )}
+          >
+            <TriangleAlert className="h-4 w-4 shrink-0 text-destructive" />
+            <span className="text-destructive">Couldn't load this repository.</span>
+            {!isBuiltIn && selectedRepoId && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className={cn(CARD_PILL_SOFT, 'ml-auto')}
+                onClick={() => refreshRepoMutation.mutate(selectedRepoId)}
+              >
+                <RefreshCw /> Try again
+              </Button>
+            )}
+          </div>
+        )}
+
+        {/* The cards scroll on their own, under the header card, like a Settings page. */}
+        <div className="rail-scroll @container/grid min-h-0 flex-1 overflow-y-auto">
+          {isLoadingIndex ? (
+            <div className={CARD_GRID} role="status" aria-label="Loading servers">
+              {Array.from({ length: 6 }, (_, i) => (
+                <CatalogCardShimmer key={i} />
+              ))}
+            </div>
+          ) : filteredServers.length === 0 ? (
+            <div className={GLASS_CARD}>
+              <EmptyState
+                size="lg"
+                icon={filtersActive ? Search : Plug}
+                title={
+                  allServers.length === 0
+                    ? selectedRepo
+                      ? `${selectedRepo.name} is empty`
+                      : 'No servers yet'
+                    : 'No servers match'
+                }
+                description={
+                  allServers.length === 0
+                    ? 'Refresh this repository, or add a different one to browse its servers.'
+                    : 'Try a different search or clear the filters.'
+                }
+                action={
+                  filtersActive ? (
+                    <Button variant="ghost" size="sm" className={PILL_SOFT} onClick={clearFilters}>
+                      Clear filters
+                    </Button>
+                  ) : (
+                    <Button size="sm" className={PILL_PRIMARY} onClick={() => setAddRepoOpen(true)}>
+                      <Plus /> Add repository
+                    </Button>
+                  )
+                }
+              />
+            </div>
+          ) : (
+            <div className={CARD_GRID}>
+              {filteredServers.map((server) => (
+                <McpServerCard
+                  key={server.id}
+                  server={server}
+                  isInstalled={installedIds.has(server.id)}
+                  canInstall={!!selectedProjectId}
+                  isInstalling={
+                    installMutation.isPending && installMutation.variables?.serverId === server.id
+                  }
+                  showCategory={categories.length > 1}
+                  isRemoving={
+                    removeServerMutation.isPending && removeServerMutation.variables === server.id
+                  }
+                  onInstall={handleInstallClick}
+                  onRemove={handleRemoveServer}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      </CatalogSplit>
 
       <Dialog
         open={addRepoOpen}

@@ -50,9 +50,9 @@ export function withWarnings(tone: RunTone, warningCount: number): RunTone {
 export function runStripeClass(tone: RunTone): string {
   if (tone.outcome === 'failed') return 'bg-destructive';
   if (tone.warned) return 'bg-warning';
-  if (tone.outcome === 'passed') return 'bg-emerald-500';
-  if (tone.outcome === 'running' || tone.outcome === 'queued') return 'bg-amber-500';
-  return 'bg-border';
+  if (tone.outcome === 'passed') return 'bg-success';
+  if (tone.outcome === 'running' || tone.outcome === 'queued') return 'bg-warning';
+  return 'bg-muted-foreground/40';
 }
 
 /** True while GitHub can still be asked to stop the run. */
@@ -86,13 +86,13 @@ export function RunStatusIcon({
       className={cn(
         'flex h-8 w-8 shrink-0 items-center justify-center rounded-lg',
         tone.outcome === 'failed'
-          ? 'bg-destructive/10 text-destructive'
+          ? 'bg-destructive/12 text-destructive'
           : tone.warned
-            ? 'bg-warning/10 text-warning'
+            ? 'bg-warning/12 text-warning'
             : tone.outcome === 'passed'
-              ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+              ? 'bg-success/12 text-success'
               : tone.outcome === 'running' || tone.outcome === 'queued'
-                ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400'
+                ? 'bg-warning/12 text-warning'
                 : 'bg-foreground/[0.06] text-muted-foreground',
         className,
       )}

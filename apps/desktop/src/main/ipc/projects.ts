@@ -6,6 +6,7 @@ import type {
   DetectedClaudeHook,
   Project,
   ProjectNotificationSettings,
+  ProjectWordPressLink,
 } from '@agentmat/core';
 import {
   DEFAULT_PROJECT_WORKTREE_SETUP,
@@ -13,6 +14,7 @@ import {
   getBootstrapPlan,
   normalizeProjectColor,
   normalizeProjectRunCommands,
+  normalizeProjectWordPressLink,
   normalizeProjectWorktreeSetup,
 } from '@agentmat/core';
 import { dialog, ipcMain } from 'electron';
@@ -80,51 +82,79 @@ function planFor(project: Project): BootstrapPlan {
   });
 }
 
+/**
+ * Saves a new project at the top of the list and logs it. `projects.create` and the WordPress
+ * project flow (deployWordPress.createProject) both make projects here; only the latter passes a
+ * `wordpress` link, which is normalized before it is kept.
+ */
+export async function createProjectRecord(input: CreateProjectInput): Promise<Project> {
+  const now = new Date().toISOString();
+  const wordpress = normalizeProjectWordPressLink(input.wordpress);
+  const project: Project = {
+    id: randomUUID(),
+    name: input.name,
+    folderPath: input.folderPath,
+    description: input.description,
+    tags: input.tags,
+    agentType: input.agentType,
+    notes: input.notes,
+    runCommands: normalizeProjectRunCommands(input),
+    prompt: input.prompt ?? '',
+    notifications: defaultProjectNotifications(),
+    cliId: input.cliId ?? null,
+    iconDataUrl: input.iconDataUrl ?? null,
+    iconFile: null,
+    iconBgColor: normalizeProjectColor(input.iconBgColor),
+    iconColor: normalizeProjectColor(input.iconColor),
+    websiteUrl: input.websiteUrl ?? '',
+    repoUrl: input.repoUrl ?? '',
+    githubActionsMuted: [],
+    worktreeSetup: { ...DEFAULT_PROJECT_WORKTREE_SETUP },
+    pinned: false,
+    archived: false,
+    ...(wordpress ? { wordpress } : {}),
+    createdAt: now,
+    updatedAt: now,
+  };
+  const projects = await store.getProjects();
+  projects.unshift(project);
+  await store.setProjects(projects);
+  await logActivity('project-created', `Created project "${project.name}"`, {
+    projectId: project.id,
+  });
+  return project;
+}
+
+/** Sets or removes a project's WordPress link (deployWordPress channels only). */
+export async function setProjectWordPressLink(
+  projectId: string,
+  link: ProjectWordPressLink | undefined,
+): Promise<Project> {
+  const wordpress = link === undefined ? undefined : normalizeProjectWordPressLink(link);
+  if (link !== undefined && !wordpress) throw new Error('That WordPress link is not valid.');
+  return mutateProject(projectId, (current) => {
+    const { wordpress: _old, ...rest } = current;
+    return wordpress ? { ...rest, wordpress } : rest;
+  });
+}
+
 export function registerProjectHandlers(): void {
   ipcMain.handle(IPC.projects.list, (): Promise<Project[]> => store.getProjects());
 
+  // A WordPress link is only ever set through the deployWordPress channels.
   ipcMain.handle(
     IPC.projects.create,
     async (_event, input: CreateProjectInput): Promise<Project> => {
-      const now = new Date().toISOString();
-      const project: Project = {
-        id: randomUUID(),
-        name: input.name,
-        folderPath: input.folderPath,
-        description: input.description,
-        tags: input.tags,
-        agentType: input.agentType,
-        notes: input.notes,
-        runCommands: normalizeProjectRunCommands(input),
-        prompt: input.prompt ?? '',
-        notifications: defaultProjectNotifications(),
-        cliId: input.cliId ?? null,
-        iconDataUrl: input.iconDataUrl ?? null,
-        iconFile: null,
-        iconBgColor: normalizeProjectColor(input.iconBgColor),
-        iconColor: normalizeProjectColor(input.iconColor),
-        websiteUrl: input.websiteUrl ?? '',
-        repoUrl: input.repoUrl ?? '',
-        githubActionsMuted: [],
-        worktreeSetup: { ...DEFAULT_PROJECT_WORKTREE_SETUP },
-        pinned: false,
-        archived: false,
-        createdAt: now,
-        updatedAt: now,
-      };
-      const projects = await store.getProjects();
-      projects.unshift(project);
-      await store.setProjects(projects);
-      await logActivity('project-created', `Created project "${project.name}"`, {
-        projectId: project.id,
-      });
-      return project;
+      const { wordpress: _wordpress, ...plain } = input;
+      return createProjectRecord(plain);
     },
   );
 
   ipcMain.handle(
     IPC.projects.update,
-    async (_event, projectId: string, updates: Partial<CreateProjectInput>): Promise<Project> => {
+    async (_event, projectId: string, changes: Partial<CreateProjectInput>): Promise<Project> => {
+      // The WordPress link is left alone here; only the deployWordPress channels change it.
+      const { wordpress: _wordpress, ...updates } = changes;
       return mutateProject(projectId, (current) => ({
         ...current,
         ...updates,

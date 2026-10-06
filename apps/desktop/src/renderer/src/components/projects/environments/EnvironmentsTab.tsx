@@ -20,7 +20,7 @@ import {
   Trash2,
   Upload,
 } from '@/components/icons';
-import { ProjectEmptyState } from '@/components/projects/ProjectDetailChrome';
+import { SectionEmptyState } from '@/components/projects/ProjectDetailChrome';
 import { ServersVaultControls } from '@/components/remote/ServersVaultControls';
 import { SshVaultUnlockDialog } from '@/components/remote/SshVaultUnlockDialog';
 import { Button } from '@/components/ui/button';
@@ -290,7 +290,7 @@ export function EnvironmentsTab({ project }: { project: Project }): React.JSX.El
       )}
 
       {environmentsQuery.isSuccess && environments.length === 0 && (
-        <ProjectEmptyState
+        <SectionEmptyState
           icon={Key}
           title="No environments yet"
           description="Add production, staging or test, then save their .env files and credentials. Or pull in the .env files already in the project folder."

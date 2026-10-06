@@ -251,7 +251,7 @@ export function ExplorerSearch({
             value={query}
             onChange={(event) => patchExplorer(project.id, { search: event.target.value })}
             onKeyDown={onKeyDown}
-            className="h-6 w-full rounded-md border border-border/60 bg-background/60 pl-6 pr-[4.5rem] text-[12px] outline-none placeholder:text-muted-foreground/70 focus:border-primary/50 focus:ring-1 focus:ring-primary/30"
+            className="field-surface h-6 w-full rounded-full pl-6 pr-[4.5rem] text-[12px] outline-none"
           />
           {query ? (
             <span className="pointer-events-none absolute right-10 text-[10px] tabular-nums text-muted-foreground">

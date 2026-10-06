@@ -2,7 +2,6 @@ import type { InstalledAgentTool } from '@agentmat/core';
 import { AGENT_TOOL_REGISTRY, SECURITY_TOOL_CATEGORY } from '@agentmat/core';
 import { screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import type { GooeyNavProps } from '@/components/ui/gooey-nav';
 import { useTerminalStore } from '@/stores/terminalStore';
 import { renderWithProviders } from '../../../test/renderer/renderWithProviders';
 
@@ -22,33 +21,6 @@ const toast = vi.hoisted(() =>
   }),
 );
 vi.mock('sonner', () => ({ toast, Toaster: () => null }));
-
-/**
- * The category switcher, as a plain row of buttons. The real one animates with a Framer Motion
- * spring, and the renderer suite's Framer stand-in has no `jump()` on a spring value, so the
- * real component throws on mount. The contract used here is the same: a labelled button per
- * category, the index handed back on click.
- */
-vi.mock('@/components/ui/gooey-nav', () => ({
-  GooeyNav: ({ items, value, onChange, ...rest }: GooeyNavProps) => (
-    <nav aria-label={rest['aria-label']}>
-      {items.map((item, index) => {
-        const label = typeof item === 'string' ? item : item.label;
-        return (
-          <button
-            key={label}
-            type="button"
-            aria-current={index === value ? true : undefined}
-            onClick={() => onChange?.(index)}
-          >
-            {label}
-          </button>
-        );
-      })}
-    </nav>
-  ),
-  GooeyNavCount: ({ value }: { value: number }) => <span>{value}</span>,
-}));
 
 const { default: ToolsPage } = await import('./ToolsPage');
 
@@ -152,6 +124,43 @@ describe('ToolsPage catalogue', () => {
     const security = AGENT_TOOL_REGISTRY.filter((tool) => tool.category === SECURITY_TOOL_CATEGORY);
     await waitFor(() => expect(screen.getAllByText(security[0].name).length).toBeGreaterThan(0));
     expect(screen.queryByText(ROUTER.name)).toBeNull();
+  });
+
+  it('counts each category in the nav and names the open one over the cards', async () => {
+    renderPage({}, '/tools?tab=security');
+
+    const security = AGENT_TOOL_REGISTRY.filter((tool) => tool.category === SECURITY_TOOL_CATEGORY);
+    const tab = within(categoryTabs()).getByRole('button', { name: /^Security/ });
+    expect(tab).toHaveAttribute('aria-current', 'true');
+    expect(tab).toHaveTextContent(String(security.length));
+    expect(screen.getByRole('heading', { name: SECURITY_TOOL_CATEGORY })).toBeTruthy();
+  });
+
+  it('narrows the cards to the tools the filter matches, inside the open category', async () => {
+    const { user } = renderPage();
+    await screen.findByText(ROUTER.name);
+
+    const filter = screen.getByRole('searchbox', { name: 'Filter tools' });
+    await user.type(filter, 'semgrep');
+
+    expect(screen.getAllByText('Semgrep').length).toBeGreaterThan(0);
+    expect(screen.queryByText(ROUTER.name)).toBeNull();
+
+    // Escape clears the filter and every card comes back.
+    await user.keyboard('{Escape}');
+    expect(filter).toHaveValue('');
+    expect(screen.getByText(ROUTER.name)).toBeTruthy();
+  });
+
+  it('says so when the filter matches nothing, and clears it on request', async () => {
+    const { user } = renderPage();
+    await screen.findByText(ROUTER.name);
+
+    await user.type(screen.getByRole('searchbox', { name: 'Filter tools' }), 'zzz-nothing');
+
+    expect(screen.getByText('Nothing matches “zzz-nothing”.')).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'Clear filter' }));
+    expect(screen.getByText(ROUTER.name)).toBeTruthy();
   });
 
   it('re-runs the detection scan on refresh', async () => {

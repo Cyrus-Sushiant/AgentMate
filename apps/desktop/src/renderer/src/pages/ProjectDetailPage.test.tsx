@@ -536,3 +536,87 @@ describe('ProjectDetailPage edit run commands link', () => {
     expect(screen.queryByRole('dialog')).toBeNull();
   });
 });
+
+describe('ProjectDetailPage WordPress section', () => {
+  const linked = project({
+    wordpress: {
+      siteId: 'site-1',
+      items: [{ kind: 'theme', slug: 'storefront' }],
+      linkedAt: '2026-10-01T00:00:00.000Z',
+    },
+  });
+  const site = {
+    id: 'site-1',
+    label: 'Acme Shop',
+    siteUrl: 'https://shop.example.com',
+    siteName: 'Acme Shop',
+    scope: 'write',
+    transport: 'https',
+    allowPlainHttp: false,
+    hasHttpAuth: false,
+    pluginVersion: '1.0.0',
+    protocol: 1,
+    connectedAt: 1,
+    lastSeenAt: null,
+  };
+
+  it('hides the WordPress section for a project with no site', async () => {
+    renderPage();
+    await screen.findByRole('heading', { name: 'Apollo' });
+    expect(within(sectionNav()).queryByRole('button', { name: /^WordPress/ })).toBeNull();
+  });
+
+  it('shows the WordPress section for a project linked to a site', async () => {
+    const { user } = renderPage(
+      {
+        'deployWordPress.listSites': [site],
+        'deployWordPress.listItems': [],
+        'deployWordPress.localChanges': {
+          projectId: 'p1',
+          added: 0,
+          modified: 3,
+          deleted: 0,
+          checkedAt: 1,
+        },
+      },
+      [linked],
+    );
+    await screen.findByRole('heading', { name: 'Apollo' });
+
+    await openSection(user, /^WordPress/);
+    expect(await screen.findByText('Changes since the last sync')).toBeTruthy();
+    expect(await screen.findByText('shop.example.com')).toBeTruthy();
+    expect(screen.getByRole('button', { name: /Review and deploy/ })).toBeTruthy();
+  });
+
+  it('opens the WordPress section from the query string', async () => {
+    renderWithProviders(<ProjectDetailPage />, {
+      route: '/projects/p1?tab=wordpress',
+      path: 'projects/:projectId',
+      bridge: { 'projects.list': [linked], 'deployWordPress.listSites': [site] },
+    });
+
+    expect(
+      await within(await screen.findByRole('navigation', { name: 'Project sections' })).findByRole(
+        'button',
+        { name: /^WordPress/, current: 'page' },
+      ),
+    ).toBeTruthy();
+    expect(await screen.findByRole('region', { name: 'Linked site' })).toBeTruthy();
+  });
+
+  it('sends an old WordPress link on an unlinked project to Overview', async () => {
+    renderWithProviders(<ProjectDetailPage />, {
+      route: '/projects/p1?tab=wordpress',
+      path: 'projects/:projectId',
+      bridge: { 'projects.list': [project()] },
+    });
+
+    expect(
+      await within(await screen.findByRole('navigation', { name: 'Project sections' })).findByRole(
+        'button',
+        { name: /^Overview/, current: 'page' },
+      ),
+    ).toBeTruthy();
+  });
+});

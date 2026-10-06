@@ -100,8 +100,17 @@ export interface SubscriptionPlan {
   label: string;
 }
 
-/** Which rate-limit window a `SubscriptionWindow` describes. */
-export type SubscriptionWindowKey = 'session' | 'week' | 'week-fable' | 'month';
+/**
+ * Which rate-limit window a `SubscriptionWindow` describes. `month-auto` and
+ * `month-api` are the two halves of a Cursor usage-based plan's monthly limit.
+ */
+export type SubscriptionWindowKey =
+  | 'session'
+  | 'week'
+  | 'week-fable'
+  | 'month'
+  | 'month-auto'
+  | 'month-api';
 
 /**
  * Label for the weekly bucket that meters Claude's top model on top of the shared one. The model
@@ -269,7 +278,7 @@ export function widgetBackgroundColor(value: string | null | undefined): string 
  */
 export interface UsageResetAlertSettings {
   enabled: boolean;
-  /** Provider whose windows are watched. Only Claude Code reports them today. */
+  /** Provider whose windows are watched: Claude Code, Codex or Cursor. */
   providerId: string;
   /** Windows to announce; a window missing from the account's plan is skipped. */
   windows: SubscriptionWindowKey[];
@@ -314,7 +323,7 @@ export function normalizeUsageResetAlerts(
  */
 export interface UsageThresholdAlertSettings {
   enabled: boolean;
-  /** Provider whose windows are watched. Only Claude Code reports them today. */
+  /** Provider whose windows are watched: Claude Code, Codex or Cursor. */
   providerId: string;
   /** Windows to watch; a window missing from the account's plan is skipped. */
   windows: SubscriptionWindowKey[];
@@ -346,6 +355,34 @@ export function normalizeUsageThresholdAlerts(
       ? Math.min(100, Math.max(1, threshold))
       : defaults.threshold,
   };
+}
+
+// --- Status bar limits -----------------------------------------------------
+
+/**
+ * Providers that can show their plan limits in the bottom status bar, in the
+ * order the bar and the Settings switches list them.
+ */
+export const STATUS_BAR_USAGE_PROVIDERS = ['claude-code', 'codex', 'cursor'] as const;
+
+export type StatusBarUsageProviderId = (typeof STATUS_BAR_USAGE_PROVIDERS)[number];
+
+/** Whether each provider's limits item shows in the status bar, keyed by provider id. */
+export type StatusBarUsageSettings = Record<StatusBarUsageProviderId, boolean>;
+
+export function defaultStatusBarUsage(): StatusBarUsageSettings {
+  return { 'claude-code': true, codex: true, cursor: true };
+}
+
+/**
+ * Every provider gets an explicit on or off, and anything that isn't a plain
+ * `false` counts as on, so a provider added later shows up for everyone.
+ */
+export function normalizeStatusBarUsage(value: unknown): StatusBarUsageSettings {
+  const saved = value && typeof value === 'object' ? (value as Record<string, unknown>) : {};
+  const next = defaultStatusBarUsage();
+  for (const id of STATUS_BAR_USAGE_PROVIDERS) next[id] = saved[id] !== false;
+  return next;
 }
 
 /** Per-provider user configuration (enabled + optional API key). */

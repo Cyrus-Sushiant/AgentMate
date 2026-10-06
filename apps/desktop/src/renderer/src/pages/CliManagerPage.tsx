@@ -2,13 +2,31 @@ import { CLI_REGISTRY, type CliDefinition } from '@agentmat/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { toast } from 'sonner';
-import { CatalogCardSkeleton } from '@/components/CatalogCardSkeleton';
 import { CliArgsField } from '@/components/CliArgsField';
 import { CliLogo } from '@/components/cliLogos';
-import { CloudDownload, ExternalLink, RefreshCw, TerminalSquare } from '@/components/icons';
-import { Badge } from '@/components/ui/badge';
+import {
+  Check,
+  CloudDownload,
+  ExternalLink,
+  RefreshCw,
+  Search,
+  TerminalSquare,
+} from '@/components/icons';
+import {
+  CARD_PILL,
+  CARD_PILL_SOFT,
+  Chip,
+  EmptyState,
+  GLASS_CARD,
+  NoMatches,
+  PILL_PRIMARY,
+  PILL_SOFT,
+  SearchPill,
+  TILE_ACTION,
+  TOOLBAR,
+  UpdateSummary,
+} from '@/components/pageKit';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Dialog,
   DialogContent,
@@ -17,9 +35,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { Skeleton } from '@/components/ui/skeleton';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { openCliInTerminal } from '@/lib/openCli';
 import { queryKeys } from '@/lib/queryKeys';
+import { cn } from '@/lib/utils';
 import { useCliStore } from '@/stores/cliStore';
 import { usePageHeader } from '@/stores/pageHeaderStore';
 import { useTerminalStore } from '@/stores/terminalStore';
@@ -47,9 +67,18 @@ export default function CliManagerPage(): React.JSX.Element {
     queryFn: () => window.agentmat.cli.detectAll(),
   });
 
-  const visibleClis = showAll
+  const [query, setQuery] = useState('');
+
+  const shownClis = showAll
     ? CLI_REGISTRY
     : CLI_REGISTRY.filter((cli) => cliQuery.data?.find((c) => c.id === cli.id)?.installed);
+  const needle = query.trim().toLowerCase();
+  const visibleClis = needle
+    ? shownClis.filter(
+        (cli) =>
+          cli.name.toLowerCase().includes(needle) || cli.description.toLowerCase().includes(needle),
+      )
+    : shownClis;
   const notInstalledCount =
     CLI_REGISTRY.length - (cliQuery.data?.filter((c) => c.installed).length ?? 0);
 
@@ -162,18 +191,30 @@ export default function CliManagerPage(): React.JSX.Element {
   );
 
   return (
-    <div className="space-y-6 p-6">
-      <div className="flex justify-end">
-        <div className="flex gap-2">
-          {notInstalledCount > 0 && (
-            <Button variant="outline" onClick={() => setShowAll((v) => !v)}>
-              {showAll
-                ? 'Hide not installed'
-                : `Show all CLIs (${notInstalledCount} not installed)`}
-            </Button>
-          )}
+    <div className="flex flex-col gap-2 p-2">
+      <div className={TOOLBAR}>
+        <SearchPill
+          type="search"
+          value={query}
+          onValueChange={setQuery}
+          clearLabel="Clear filter"
+          label="Filter CLIs"
+          placeholder="Filter CLIs"
+          className="w-full sm:w-60"
+        />
+        {notInstalledCount > 0 && (
           <Button
-            variant="outline"
+            variant="ghost"
+            className={cn(PILL_SOFT, showAll && 'text-primary hover:text-primary')}
+            onClick={() => setShowAll((v) => !v)}
+          >
+            {showAll ? 'Hide not installed' : `Show all CLIs (${notInstalledCount} not installed)`}
+          </Button>
+        )}
+        <div className="ml-auto flex items-center gap-2">
+          <Button
+            variant="ghost"
+            className={PILL_SOFT}
             disabled={checkingAll}
             onClick={() => void handleCheckAllForUpdates()}
           >
@@ -181,7 +222,8 @@ export default function CliManagerPage(): React.JSX.Element {
             {checkingAll ? 'Checking updates…' : 'Check all for updates'}
           </Button>
           <Button
-            variant="outline"
+            variant="ghost"
+            className={PILL_SOFT}
             onClick={() => {
               toast.info('Re-scanning installed CLIs…');
               // `true` skips the main process's detection cache, which is what
@@ -198,75 +240,105 @@ export default function CliManagerPage(): React.JSX.Element {
 
       {/* Until the scan lands nothing is known to be installed, which is not
           the same as nothing being installed. */}
-      {!cliQuery.isPending && visibleClis.length === 0 && (
-        <p className="text-sm text-muted-foreground">
-          No AI CLIs installed yet. Click "Show all CLIs" above to discover and install one.
-        </p>
-      )}
+      {!cliQuery.isPending && shownClis.length === 0 ? (
+        <div className={GLASS_CARD}>
+          <EmptyState
+            icon={TerminalSquare}
+            title="No AI CLIs installed yet"
+            description='Click "Show all CLIs" above to discover and install one.'
+            action={
+              <Button className={PILL_PRIMARY} onClick={() => setShowAll(true)}>
+                <Search /> Browse the catalogue
+              </Button>
+            }
+          />
+        </div>
+      ) : !cliQuery.isPending && visibleClis.length === 0 ? (
+        <div className={GLASS_CARD}>
+          <NoMatches query={query} />
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-3">
+          {cliQuery.isPending &&
+            Array.from({ length: 6 }, (_, i) => <CliCardSkeleton key={`skeleton-${i}`} />)}
+          {visibleClis.map((cli) => {
+            const status = cliQuery.data?.find((c) => c.id === cli.id);
+            const isDefault = defaultCliId === cli.id;
+            const title = <h3 className="truncate text-sm font-semibold">{cli.name}</h3>;
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {cliQuery.isPending && Array.from({ length: 6 }, (_, i) => <CatalogCardSkeleton key={i} />)}
-        {visibleClis.map((cli) => {
-          const status = cliQuery.data?.find((c) => c.id === cli.id);
-          const isDefault = defaultCliId === cli.id;
-
-          return (
-            <Card key={cli.id} className="glass flex flex-col hover:border-primary/30">
-              <CardHeader>
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex items-center gap-2">
-                    {status?.installed ? (
-                      <SimpleTooltip label={`Open ${cli.name} in the terminal`}>
-                        <button
-                          type="button"
-                          className="flex min-w-0 cursor-pointer items-center gap-2 rounded-sm text-left hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                          onClick={() => openCliInTerminal({ cliId: cli.id })}
-                        >
-                          <CliLogo cliId={cli.id} className="h-4 w-4" />
-                          <CardTitle>{cli.name}</CardTitle>
-                        </button>
-                      </SimpleTooltip>
-                    ) : (
-                      <>
-                        <CliLogo cliId={cli.id} className="h-4 w-4" />
-                        <CardTitle>{cli.name}</CardTitle>
-                      </>
-                    )}
+            return (
+              <div
+                key={cli.id}
+                className={cn(GLASS_CARD, 'flex flex-col', isDefault && 'ring-1 ring-primary/35')}
+              >
+                <div className="flex items-start gap-3 p-4 pb-3">
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-foreground/[0.05] ring-1 ring-inset ring-foreground/[0.06]">
+                    <CliLogo cliId={cli.id} className="h-5 w-5" />
+                  </span>
+                  <div className="min-w-0 flex-1 space-y-1">
+                    <div className="flex min-h-5 items-center gap-2">
+                      {status?.installed ? (
+                        <SimpleTooltip label={`Open ${cli.name} in the terminal`}>
+                          <button
+                            type="button"
+                            className="min-w-0 cursor-pointer rounded-sm text-left transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                            onClick={() => openCliInTerminal({ cliId: cli.id })}
+                          >
+                            {title}
+                          </button>
+                        </SimpleTooltip>
+                      ) : (
+                        title
+                      )}
+                      <Chip className="ml-auto" tone={status?.installed ? 'success' : 'neutral'}>
+                        {status?.installed ? (status.version ?? 'Installed') : 'Not installed'}
+                      </Chip>
+                    </div>
+                    <p className="text-xs leading-relaxed text-muted-foreground">
+                      {cli.description}
+                    </p>
                   </div>
-                  <Badge variant={status?.installed ? 'success' : 'outline'}>
-                    {status?.installed ? (status.version ?? 'Installed') : 'Not installed'}
-                  </Badge>
                 </div>
-                <CardDescription>{cli.description}</CardDescription>
-              </CardHeader>
-              <CardContent className="mt-auto space-y-3">
-                <div className="flex items-center gap-2">
+
+                <div className="mt-auto flex flex-wrap items-center gap-1.5 px-4 pb-4">
                   {status?.installed ? (
                     <>
                       <Button
-                        variant={isDefault ? 'secondary' : 'outline'}
+                        variant="ghost"
                         size="sm"
+                        className={
+                          isDefault
+                            ? cn(
+                                CARD_PILL,
+                                'bg-primary/12 text-primary hover:bg-primary/18 hover:text-primary',
+                              )
+                            : CARD_PILL_SOFT
+                        }
                         onClick={() => setDefaultCliId(isDefault ? null : cli.id)}
                       >
+                        {isDefault && <Check />}
                         {isDefault ? 'Default CLI' : 'Set as default'}
                       </Button>
                       <SimpleTooltip label="Check for updates">
                         <Button
-                          variant="outline"
+                          variant="ghost"
                           size="icon"
+                          className={TILE_ACTION}
                           disabled={checkingCliId === cli.id}
                           onClick={() => void handleCheckForUpdate(cli, status.version)}
                         >
                           <CloudDownload
-                            className={
-                              checkingCliId === cli.id ? 'h-4 w-4 animate-pulse' : 'h-4 w-4'
-                            }
+                            className={checkingCliId === cli.id ? 'animate-pulse' : undefined}
                           />
                         </Button>
                       </SimpleTooltip>
                     </>
                   ) : (
-                    <Button size="sm" onClick={() => void handleInstall(cli.id, cli.name)}>
+                    <Button
+                      size="sm"
+                      className={CARD_PILL}
+                      onClick={() => void handleInstall(cli.id, cli.name)}
+                    >
                       <TerminalSquare /> Install
                     </Button>
                   )}
@@ -275,19 +347,26 @@ export default function CliManagerPage(): React.JSX.Element {
                       <Button
                         variant="ghost"
                         size="icon"
+                        className={TILE_ACTION}
                         onClick={() => void window.agentmat.shell.openExternal(cli.homepageUrl!)}
                       >
-                        <ExternalLink className="h-4 w-4" />
+                        <ExternalLink />
                       </Button>
                     </SimpleTooltip>
                   )}
                 </div>
-                {status?.installed && <CliArgsField cliId={cli.id} />}
-              </CardContent>
-            </Card>
-          );
-        })}
-      </div>
+
+                {/* The flags sit under a hairline, as the card's own settings row. */}
+                {status?.installed && (
+                  <div className="px-4 pb-4 pt-3 shadow-[inset_0_1px_0_hsl(var(--foreground)/0.08)]">
+                    <CliArgsField cliId={cli.id} />
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       <Dialog
         open={pendingUpdate !== null}
@@ -300,27 +379,44 @@ export default function CliManagerPage(): React.JSX.Element {
               This opens a terminal session and runs the update command below.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-2 text-sm">
-            <p>
-              <span className="text-muted-foreground">Current version:</span>{' '}
-              {pendingUpdate?.currentVersion ?? 'unknown'}
-            </p>
-            <p>
-              <span className="text-muted-foreground">Latest version:</span>{' '}
-              {pendingUpdate?.latestVersion}
-            </p>
-            <code className="block overflow-x-auto rounded bg-muted px-3 py-2 font-mono text-xs">
-              {pendingUpdate?.command}
-            </code>
-          </div>
+          <UpdateSummary
+            currentVersion={pendingUpdate?.currentVersion ?? null}
+            latestVersion={pendingUpdate?.latestVersion ?? ''}
+            command={pendingUpdate?.command ?? ''}
+          />
           <DialogFooter>
-            <Button variant="outline" onClick={dismissPendingUpdate}>
+            <Button variant="ghost" className={PILL_SOFT} onClick={dismissPendingUpdate}>
               Cancel
             </Button>
-            <Button onClick={handleConfirmUpdate}>Update</Button>
+            <Button className={PILL_PRIMARY} onClick={handleConfirmUpdate}>
+              Update
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+    </div>
+  );
+}
+
+/** Stands in for one CLI card while the scan runs, in the same shape as the real one. */
+function CliCardSkeleton(): React.JSX.Element {
+  return (
+    <div className={cn(GLASS_CARD, 'flex flex-col gap-3 p-4')}>
+      <div className="flex items-start gap-3">
+        <Skeleton className="h-9 w-9 shrink-0 rounded-lg" />
+        <div className="min-w-0 flex-1 space-y-2">
+          <div className="flex items-center justify-between gap-2">
+            <Skeleton className="h-4 w-32" />
+            <Skeleton className="h-5 w-16 rounded-full" />
+          </div>
+          <Skeleton className="h-3 w-full" />
+          <Skeleton className="h-3 w-4/5" />
+        </div>
+      </div>
+      <div className="flex gap-1.5">
+        <Skeleton className="h-7 w-24 rounded-full" />
+        <Skeleton className="h-7 w-7 rounded-lg" />
+      </div>
     </div>
   );
 }

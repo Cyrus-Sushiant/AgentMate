@@ -1,18 +1,26 @@
 import type { AppNotification } from '@agentmat/core';
 import type { GithubActionsActivity, GithubActionsHistoryItem } from '@shared/apiTypes';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { LayoutGroup, motion, useReducedMotion } from 'framer-motion';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import {
+  Ban,
   Check,
+  CircleCheck,
+  Clock,
   ExternalLink,
   FolderKanban,
+  GitBranch,
   Github,
+  Play,
   RefreshCw,
   Search,
+  TriangleAlert,
   X,
 } from '@/components/icons';
+import { Chip, type ChipTone } from '@/components/pageKit';
 import { CopyRunErrorButton } from '@/components/pipelines/CopyRunErrorButton';
 import {
   RunAnnotations,
@@ -22,17 +30,14 @@ import {
 import { type RunnerRunTarget, RunnersPanel } from '@/components/pipelines/RunnersPanel';
 import {
   type RunOutcome,
-  RunStatusIcon,
+  type RunTone,
   runDuration,
-  runStripeClass,
   runTone,
   withWarnings,
 } from '@/components/pipelines/runStatus';
 import { StopRunButton } from '@/components/pipelines/StopRunButton';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Combobox, type ComboboxOption } from '@/components/ui/combobox';
-import { Input } from '@/components/ui/input';
+import { ResizeHandle } from '@/components/ui/ResizeHandle';
 import { RefreshFailureBell, refreshTooltip } from '@/components/ui/refresh-failure-bell';
 import { Skeleton } from '@/components/ui/skeleton';
 import { SimpleTooltip } from '@/components/ui/tooltip';
@@ -42,9 +47,21 @@ import { queryKeys } from '@/lib/queryKeys';
 import { timeAgo } from '@/lib/time';
 import { cn } from '@/lib/utils';
 import { usePageHeader } from '@/stores/pageHeaderStore';
+import { PANE_WIDTHS, usePaneWidth } from '@/stores/paneLayoutStore';
 import { useTerminalStore } from '@/stores/terminalStore';
 
 const GH_INSTALL_URL = 'https://cli.github.com/';
+
+/** The page's cards: the app's glass card, rounded like the API Client and Settings cards. */
+const PANEL = 'glass flex min-h-0 flex-col overflow-hidden rounded-[calc(var(--radius)+2px)]';
+
+/** The same small uppercase heading the main menu puts over its groups. */
+const SECTION_HEADING =
+  'select-none text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground/60';
+
+/** A card's title bar, with the request tab strip's soft hairline under it. */
+const CARD_HEADER =
+  'flex h-11 shrink-0 items-center gap-2 pl-4 pr-2 shadow-[inset_0_-1px_0_hsl(var(--border)/0.6)]';
 
 type FilterKey = 'all' | 'running' | 'passed' | 'failed' | 'other';
 
@@ -63,6 +80,65 @@ const FILTERS: { key: FilterKey; label: string; matches: (outcome: RunOutcome) =
     matches: (outcome) => outcome === 'cancelled' || outcome === 'other',
   },
 ];
+
+/** The dot in front of each status filter, in the colour its runs are drawn in. */
+const FILTER_DOT: Record<FilterKey, string> = {
+  all: 'bg-primary',
+  running: 'bg-warning',
+  passed: 'bg-success',
+  failed: 'bg-destructive',
+  other: 'bg-muted-foreground/60',
+};
+
+/**
+ * A run's colours from the theme tokens. runStatus.tsx is shared with the dashboard and draws
+ * with fixed palette colours, so this page maps the tone itself.
+ */
+function toneColours(tone: RunTone): { chip: ChipTone; tile: string; bar: string } {
+  if (tone.outcome === 'failed') {
+    return {
+      chip: 'destructive',
+      tile: 'bg-destructive/12 text-destructive',
+      bar: 'bg-destructive',
+    };
+  }
+  if (tone.warned || tone.outcome === 'running' || tone.outcome === 'queued') {
+    return { chip: 'warning', tile: 'bg-warning/12 text-warning', bar: 'bg-warning' };
+  }
+  if (tone.outcome === 'passed') {
+    return { chip: 'success', tile: 'bg-success/12 text-success', bar: 'bg-success' };
+  }
+  return {
+    chip: 'neutral',
+    tile: 'bg-foreground/[0.06] text-muted-foreground',
+    bar: 'bg-muted-foreground/40',
+  };
+}
+
+function RunGlyph({ tone }: { tone: RunTone }): React.JSX.Element {
+  const icon =
+    tone.outcome === 'failed' || tone.warned ? (
+      <TriangleAlert className="h-3.5 w-3.5" />
+    ) : tone.outcome === 'running' ? (
+      <Play className="h-3.5 w-3.5" />
+    ) : tone.outcome === 'queued' ? (
+      <Clock className="h-3.5 w-3.5" />
+    ) : tone.outcome === 'passed' ? (
+      <CircleCheck className="h-3.5 w-3.5" />
+    ) : (
+      <Ban className="h-3.5 w-3.5" />
+    );
+  return (
+    <span
+      className={cn(
+        'mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg',
+        toneColours(tone).tile,
+      )}
+    >
+      {icon}
+    </span>
+  );
+}
 
 function matchesSearch(item: GithubActionsHistoryItem, query: string): boolean {
   const haystack = [
@@ -104,7 +180,7 @@ function SetupHint({
         Install the{' '}
         <button
           type="button"
-          className="underline underline-offset-2"
+          className="cursor-pointer font-medium text-primary underline-offset-2 hover:underline"
           onClick={() => void window.agentmat.shell.openExternal(GH_INSTALL_URL)}
         >
           GitHub CLI
@@ -116,7 +192,11 @@ function SetupHint({
     body = (
       <>
         Run{' '}
-        <button type="button" className="underline underline-offset-2" onClick={onSignIn}>
+        <button
+          type="button"
+          className="cursor-pointer rounded-md bg-foreground/[0.06] px-1.5 py-0.5 font-mono text-[12px] text-foreground transition-colors hover:bg-primary/12 hover:text-primary"
+          onClick={onSignIn}
+        >
           gh auth login
         </button>{' '}
         to load runs from your repos.
@@ -138,13 +218,16 @@ function SetupHint({
   }
 
   return (
-    <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed border-border px-4 py-16 text-center">
-      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary">
-        <Github className="h-5 w-5" />
+    <div className="flex flex-1 flex-col items-center justify-center gap-4 px-6 py-14 text-center">
+      <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/12 text-primary shadow-[0_0_40px_-12px_hsl(var(--primary)/0.7)]">
+        <Github className="h-6 w-6" />
       </div>
-      <p className="max-w-sm text-sm text-muted-foreground">{body}</p>
+      <div className="max-w-sm space-y-1.5">
+        <p className="text-base font-semibold tracking-tight">GitHub Actions</p>
+        <p className="text-sm text-muted-foreground">{body}</p>
+      </div>
       {failed ? (
-        <Button variant="outline" size="sm" disabled={retrying} onClick={onRetry}>
+        <Button className="rounded-full px-5" disabled={retrying} onClick={onRetry}>
           <RefreshCw className={cn('h-3.5 w-3.5', retrying && 'animate-spin')} />
           {retrying ? 'Retrying...' : 'Try again'}
         </Button>
@@ -173,6 +256,7 @@ function RunRow({
   const annotationsQuery = useRunAnnotations(item, seen);
   const annotations = annotationsQuery.data?.ok ? annotationsQuery.data : null;
   const tone = withWarnings(runTone(item), annotations?.counts.warning ?? 0);
+  const colours = toneColours(tone);
   const failed = tone.outcome === 'failed';
   const duration = runDuration(item);
 
@@ -183,42 +267,43 @@ function RunRow({
         seenRef(node);
       }}
       className={cn(
-        'glass relative overflow-hidden rounded-xl transition-shadow',
-        unread && 'ring-1 ring-destructive/35',
+        'relative rounded-lg transition-shadow',
+        unread && 'bg-destructive/[0.04]',
         focused && 'run-blink ring-2 ring-primary shadow-[0_0_0_4px_hsl(var(--primary)/0.15)]',
       )}
     >
-      <span className={cn('absolute inset-y-0 left-0 w-1', runStripeClass(tone))} aria-hidden />
-      <div className="flex items-start gap-1 py-2 pl-2 pr-3">
+      {/* The main menu's small accent bar, in the run's colour. */}
+      <span
+        aria-hidden
+        className={cn('absolute left-0 top-4 h-5 w-[3px] rounded-full', colours.bar)}
+      />
+      <div className="flex items-start gap-1 py-1.5 pl-1.5 pr-1.5">
         <button
           type="button"
           disabled={!item.htmlUrl}
           onClick={onOpen}
-          className="flex min-w-0 flex-1 cursor-pointer items-start gap-3 rounded-lg px-2 py-2 text-left outline-none transition-colors hover:bg-foreground/[0.05] focus:outline-none focus-visible:bg-foreground/[0.06] disabled:cursor-default disabled:hover:bg-transparent"
+          className="group/run flex min-w-0 flex-1 cursor-pointer items-start gap-3 rounded-lg px-2 py-1.5 text-left outline-none transition-colors hover:bg-foreground/[0.05] focus:outline-none focus-visible:bg-foreground/[0.06] disabled:cursor-default disabled:hover:bg-transparent"
         >
-          <RunStatusIcon tone={tone} className="mt-0.5" />
+          <RunGlyph tone={tone} />
           <span className="min-w-0 flex-1">
-            <span className="flex flex-wrap items-center gap-2">
-              <span className="text-sm font-medium leading-snug">
+            <span className="flex flex-wrap items-center gap-1.5">
+              <span className="mr-0.5 text-[13px] font-medium leading-snug">
                 {item.displayTitle || item.workflowName}
               </span>
-              <Badge variant={tone.variant} className="h-5 px-1.5 text-[10px] font-normal">
-                {tone.label}
-              </Badge>
-              {unread ? (
-                <Badge variant="destructive" className="h-5 px-1.5 text-[10px] font-normal">
-                  New
-                </Badge>
-              ) : null}
+              <Chip tone={colours.chip}>{tone.label}</Chip>
+              {unread ? <Chip tone="destructive">New</Chip> : null}
             </span>
-            <span className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-muted-foreground">
+            <span className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-muted-foreground">
               <span className="truncate font-mono">{item.repo}</span>
               <span aria-hidden>·</span>
               <span className="truncate">{item.workflowName}</span>
               {item.headBranch ? (
                 <>
                   <span aria-hidden>·</span>
-                  <span className="truncate">{item.headBranch}</span>
+                  <span className="inline-flex min-w-0 items-center gap-1">
+                    <GitBranch className="h-2.5 w-2.5 shrink-0 opacity-70" />
+                    <span className="truncate">{item.headBranch}</span>
+                  </span>
                 </>
               ) : null}
               <span aria-hidden>·</span>
@@ -234,10 +319,10 @@ function RunRow({
             </span>
           </span>
           {item.htmlUrl ? (
-            <ExternalLink className="mt-1.5 h-3.5 w-3.5 shrink-0 text-muted-foreground/50" />
+            <ExternalLink className="mt-2 h-3.5 w-3.5 shrink-0 text-muted-foreground/40 transition-colors group-hover/run:text-muted-foreground" />
           ) : null}
         </button>
-        <div className="flex shrink-0 items-center gap-1 pt-1.5">
+        <div className="flex shrink-0 items-center gap-0.5 pt-1.5">
           {failed ? (
             <CopyRunErrorButton
               input={{
@@ -256,7 +341,7 @@ function RunRow({
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-8 w-8"
+                className="h-8 w-8 rounded-full text-muted-foreground hover:bg-foreground/[0.06] hover:text-foreground"
                 aria-label={`Open ${item.projectName}`}
                 onClick={onOpenProject}
               >
@@ -274,6 +359,90 @@ function RunRow({
         />
       ) : null}
     </li>
+  );
+}
+
+/** One row in the filter card: the main menu's row, with its sliding pill and accent bar. */
+function FilterRow({
+  active,
+  label,
+  count,
+  leading,
+  mono = false,
+  layoutId,
+  pillTransition,
+  onClick,
+}: {
+  active: boolean;
+  label: string;
+  count: number;
+  leading: React.ReactNode;
+  mono?: boolean;
+  layoutId: string;
+  pillTransition: React.ComponentProps<typeof motion.span>['transition'];
+  onClick: () => void;
+}): React.JSX.Element {
+  return (
+    <button
+      type="button"
+      aria-pressed={active}
+      onClick={onClick}
+      className={cn(
+        // `isolate` keeps the pill behind the row's text without lifting every child.
+        'relative isolate flex h-7 w-full shrink-0 cursor-pointer items-center gap-2 rounded-lg pl-2.5 pr-1.5 text-left text-[13px] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring',
+        active
+          ? 'font-medium text-primary'
+          : 'text-foreground/85 hover:bg-foreground/[0.06] hover:text-foreground',
+      )}
+    >
+      {active && (
+        <motion.span
+          aria-hidden
+          layoutId={layoutId}
+          transition={pillTransition}
+          className="absolute inset-0 -z-10 rounded-lg bg-primary/12"
+        >
+          <span className="absolute left-0 top-1/2 h-4 w-[3px] -translate-y-1/2 rounded-full bg-primary shadow-[0_0_8px_hsl(var(--primary)/0.7)]" />
+        </motion.span>
+      )}
+      {leading}
+      <span className={cn('min-w-0 flex-1 truncate', mono && 'font-mono text-xs')}>{label}</span>
+      <span
+        className={cn(
+          'shrink-0 rounded-full px-1.5 text-[10px] font-semibold leading-4 tabular-nums',
+          active ? 'bg-primary/15 text-primary' : 'bg-foreground/[0.06] text-muted-foreground',
+        )}
+      >
+        {count}
+      </span>
+    </button>
+  );
+}
+
+function ListSkeleton(): React.JSX.Element {
+  return (
+    <div role="status" aria-label="Loading runs" className="flex flex-col gap-1 p-2">
+      {Array.from({ length: 6 }, (_, index) => (
+        <div key={index} className="flex items-start gap-3 px-3 py-2.5">
+          <Skeleton className="h-8 w-8 rounded-lg" />
+          <div className="min-w-0 flex-1 space-y-2 pt-0.5">
+            <Skeleton className="h-4 w-2/5" />
+            <Skeleton className="h-3 w-3/5" />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function FiltersSkeleton(): React.JSX.Element {
+  return (
+    <div className="flex flex-col gap-1.5 p-2 pt-3">
+      <Skeleton className="mb-2 h-8 w-full rounded-full" />
+      {Array.from({ length: 5 }, (_, index) => (
+        <Skeleton key={index} className="h-7 w-full rounded-lg" />
+      ))}
+    </div>
   );
 }
 
@@ -299,6 +468,11 @@ export default function PipelinesPage(): React.JSX.Element {
   /** Bumped by the Refresh button, which tells the runner panel to look again too. */
   const [runnersRefresh, setRunnersRefresh] = useState(0);
   const rowNodes = useRef(new Map<number, HTMLLIElement>());
+  const [sidebarWidth, setSidebarWidth] = usePaneWidth('pipelinesFilters');
+  const reduceMotion = useReducedMotion();
+  const pillTransition = reduceMotion
+    ? { duration: 0 }
+    : { type: 'spring' as const, stiffness: 420, damping: 32 };
 
   const bindRow = useCallback((runId: number) => {
     return (node: HTMLLIElement | null): void => {
@@ -420,9 +594,18 @@ export default function PipelinesPage(): React.JSX.Element {
     return tally;
   }, [runs]);
 
-  const repoOptions: ComboboxOption[] = useMemo(() => {
-    const names = [...new Set(runs.map((run) => run.repo))].sort((a, b) => a.localeCompare(b));
-    return names.map((name) => ({ value: name, label: name }));
+  /** Every repo with a run in the list, by name, with how many runs it has and how many failed. */
+  const repos = useMemo(() => {
+    const tally = new Map<string, { count: number; failed: number }>();
+    for (const run of runs) {
+      const entry = tally.get(run.repo) ?? { count: 0, failed: 0 };
+      entry.count += 1;
+      if (runTone(run).outcome === 'failed') entry.failed += 1;
+      tally.set(run.repo, entry);
+    }
+    return [...tally.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([name, entry]) => ({ name, ...entry }));
   }, [runs]);
 
   const visible = useMemo(() => {
@@ -487,6 +670,13 @@ export default function PipelinesPage(): React.JSX.Element {
   const connected = activity?.ok === true && activity.cliAvailable && activity.authenticated;
   const ready = connected && runs.length > 0;
   const filtersDirty = filter !== 'all' || repo !== '' || search.trim() !== '';
+  const repoCount = activity?.repoCount ?? 0;
+
+  function clearFilters(): void {
+    setFilter('all');
+    setRepo('');
+    setSearch('');
+  }
 
   function handleSignIn(): void {
     openSession({ title: 'GitHub login', initialInput: 'gh auth login' });
@@ -509,9 +699,7 @@ export default function PipelinesPage(): React.JSX.Element {
       if (htmlUrl) void window.agentmat.shell.openExternal(htmlUrl);
       return;
     }
-    setFilter('all');
-    setRepo('');
-    setSearch('');
+    clearFilters();
     setPendingFocus({ runId, repo: runRepo });
   }
 
@@ -529,121 +717,76 @@ export default function PipelinesPage(): React.JSX.Element {
     if (item.htmlUrl) void window.agentmat.shell.openExternal(item.htmlUrl);
   }
 
-  return (
-    <div className="flex min-h-full flex-1 flex-col gap-4 p-6">
-      {connected ? (
-        <RunnersPanel
-          runs={runs}
-          refreshCount={runnersRefresh}
-          onFocusRun={focusRun}
-          onGrantAccess={handleGrantAccess}
-        />
+  // The run card's title bar. Refresh is always there: it is how a failed or missing load is
+  // asked for again, whatever the card below it shows.
+  const runsHeader = (
+    <div className={CARD_HEADER}>
+      <h2 className="text-sm font-semibold tracking-tight">Runs</h2>
+      {ready ? (
+        <span className="rounded-full bg-foreground/[0.06] px-2 text-[11px] font-medium leading-5 tabular-nums text-muted-foreground">
+          {visible.length}
+        </span>
       ) : null}
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="flex flex-wrap items-center gap-1 rounded-xl border border-border p-1">
-          {FILTERS.map((entry) => (
-            <button
-              key={entry.key}
-              type="button"
-              onClick={() => setFilter(entry.key)}
-              className={cn(
-                'flex cursor-pointer items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors',
-                filter === entry.key
-                  ? 'bg-primary/12 text-primary'
-                  : 'text-muted-foreground hover:bg-foreground/[0.06] hover:text-foreground',
-              )}
-            >
-              {entry.label}
-              <span className="tabular-nums opacity-70">{counts[entry.key]}</span>
-            </button>
-          ))}
-        </div>
-
-        <div className="ml-auto flex flex-wrap items-center gap-2">
-          <div className="relative">
-            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search runs"
-              className="h-9 w-52 pl-8"
-            />
-          </div>
-          <Combobox
-            options={repoOptions}
-            value={repo}
-            onChange={setRepo}
-            placeholder="All repos"
-            searchPlaceholder="Search repos…"
-            emptyText="No repos found."
-            className="w-56"
-            clearable
-          />
-          {filtersDirty ? (
+      <div className="ml-auto flex items-center gap-1">
+        {unreadCount > 0 ? (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="search-pill h-7 rounded-full px-3 text-foreground/85 hover:text-foreground"
+            disabled={markAllRead.isPending}
+            onClick={() => markAllRead.mutate()}
+          >
+            <Check className="h-3.5 w-3.5" /> Mark all read
+          </Button>
+        ) : null}
+        <SimpleTooltip
+          label={refreshTooltip('Refresh runs', lastGood.failure, lastGood.savedAt)}
+          className="max-w-sm"
+        >
+          <span className="relative inline-flex">
             <Button
               variant="ghost"
-              size="sm"
-              onClick={() => {
-                setFilter('all');
-                setRepo('');
-                setSearch('');
-              }}
+              size="icon"
+              className="h-8 w-8 rounded-full text-muted-foreground hover:bg-foreground/[0.06] hover:text-foreground"
+              disabled={activityQuery.isFetching}
+              aria-label={lastGood.failure ? 'Refresh runs, last refresh failed' : 'Refresh runs'}
+              onClick={handleRefresh}
             >
-              <X className="h-3.5 w-3.5" /> Clear
+              <RefreshCw
+                className={cn('h-3.5 w-3.5', activityQuery.isFetching && 'animate-spin')}
+              />
             </Button>
-          ) : null}
-          {unreadCount > 0 ? (
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={markAllRead.isPending}
-              onClick={() => markAllRead.mutate()}
-            >
-              <Check className="h-3.5 w-3.5" /> Mark all read
-            </Button>
-          ) : null}
-          <SimpleTooltip
-            label={refreshTooltip('Refresh runs', lastGood.failure, lastGood.savedAt)}
-            className="max-w-sm"
-          >
-            <span className="relative inline-flex">
-              <Button
-                variant="ghost"
-                size="icon"
-                disabled={activityQuery.isFetching}
-                aria-label={lastGood.failure ? 'Refresh runs, last refresh failed' : 'Refresh runs'}
-                onClick={handleRefresh}
-              >
-                <RefreshCw
-                  className={cn('h-3.5 w-3.5', activityQuery.isFetching && 'animate-spin')}
-                />
-              </Button>
-              <RefreshFailureBell failure={lastGood.failure} />
-            </span>
-          </SimpleTooltip>
-        </div>
+            <RefreshFailureBell failure={lastGood.failure} />
+          </span>
+        </SimpleTooltip>
       </div>
+    </div>
+  );
 
-      {elsewhere.length > 0 ? (
-        <ul aria-label="Other notices" className="space-y-2">
+  const notices =
+    elsewhere.length > 0 ? (
+      <div className="space-y-1.5 px-2 pb-1 pt-2">
+        <h3 className={cn(SECTION_HEADING, 'px-2')}>Needs attention</h3>
+        <ul aria-label="Other notices" className="space-y-1">
           {elsewhere.map(({ item, route }) => (
-            <li key={item.id} className="glass rounded-xl ring-1 ring-destructive/35">
+            <li
+              key={item.id}
+              className="rounded-lg bg-destructive/[0.05] ring-1 ring-inset ring-destructive/25"
+            >
               <button
                 type="button"
                 onClick={() => {
                   markRead.mutate(item.id);
                   navigate(route);
                 }}
-                className="flex w-full cursor-pointer items-start gap-3 rounded-xl px-4 py-3 text-left transition-colors hover:bg-foreground/[0.05] focus-visible:bg-foreground/[0.06] focus-visible:outline-none"
+                className="flex w-full cursor-pointer items-start gap-3 rounded-lg px-3 py-2.5 text-left transition-colors hover:bg-destructive/[0.06] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 <span className="min-w-0 flex-1">
-                  <span className="flex flex-wrap items-center gap-2">
-                    <span className="text-sm font-medium leading-snug">{item.title}</span>
-                    <Badge variant="destructive" className="h-5 px-1.5 text-[10px] font-normal">
-                      New
-                    </Badge>
+                  <span className="flex flex-wrap items-center gap-1.5">
+                    <span className="text-[13px] font-medium leading-snug">{item.title}</span>
+                    <Chip tone="destructive">New</Chip>
                   </span>
-                  <span className="mt-1 block text-xs text-muted-foreground">{item.body}</span>
+                  <span className="mt-0.5 block text-xs text-muted-foreground">{item.body}</span>
                 </span>
                 <span className="shrink-0 text-[11px] tabular-nums text-muted-foreground">
                   {timeAgo(item.createdAt)}
@@ -652,60 +795,228 @@ export default function PipelinesPage(): React.JSX.Element {
             </li>
           ))}
         </ul>
+      </div>
+    ) : null;
+
+  const runsBody = loading ? (
+    <ListSkeleton />
+  ) : !ready ? (
+    <SetupHint
+      activity={activity}
+      onSignIn={handleSignIn}
+      onRetry={handleRefresh}
+      retrying={activityQuery.isFetching}
+    />
+  ) : visible.length === 0 ? (
+    <div className="flex flex-1 flex-col items-center justify-center gap-3 px-4 py-14 text-center">
+      <Search className="h-5 w-5 text-muted-foreground/60" />
+      <div className="space-y-1">
+        <p className="text-sm font-medium">No runs match these filters</p>
+        <p className="max-w-sm text-sm text-muted-foreground">
+          {runs.length} run{runs.length === 1 ? '' : 's'} loaded across {repoCount} repo
+          {repoCount === 1 ? '' : 's'}.
+        </p>
+      </div>
+      <Button
+        size="sm"
+        variant="ghost"
+        className="search-pill rounded-full px-3.5 text-foreground/85 hover:text-foreground"
+        onClick={clearFilters}
+      >
+        <X className="h-3.5 w-3.5" /> Clear filters
+      </Button>
+    </div>
+  ) : (
+    <>
+      <ul aria-label="Workflow runs" className="settings-rows px-2 pt-1">
+        {visible.map((item) => (
+          <RunRow
+            key={`${item.repo}-${item.id}`}
+            item={item}
+            unread={item.htmlUrl ? unreadByUrl.has(item.htmlUrl) : false}
+            focused={focusedRunId === item.id}
+            rowRef={bindRow(item.id)}
+            onOpen={() => handleOpenRun(item)}
+            onOpenProject={() => {
+              if (item.projectId) navigate(`/projects/${item.projectId}?tab=git`);
+            }}
+          />
+        ))}
+      </ul>
+      <p className="px-4 pb-4 pt-2 text-center text-[11px] text-muted-foreground">
+        Showing {visible.length} of {runs.length} runs across {repoCount} repo
+        {repoCount === 1 ? '' : 's'}.
+      </p>
+    </>
+  );
+
+  const runsCard = (
+    <section aria-label="Runs" className={cn(PANEL, 'min-w-0 flex-1')}>
+      {runsHeader}
+      <div className="rail-scroll flex min-h-0 flex-1 flex-col overflow-y-auto">
+        {notices}
+        {runsBody}
+      </div>
+    </section>
+  );
+
+  // Filters only make sense once there are runs to filter; until then the run card stands alone.
+  const showFilters = loading || ready;
+
+  return (
+    // The page already sits in the content island, so its areas are glass cards on it with a
+    // small gap between them, the way the API Client lays out its sidebar and request area.
+    <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden p-2">
+      {connected ? (
+        <RunnersPanel
+          runs={runs}
+          refreshCount={runnersRefresh}
+          onFocusRun={focusRun}
+          onGrantAccess={handleGrantAccess}
+        />
       ) : null}
 
-      {loading ? (
-        <ul className="space-y-2">
-          {Array.from({ length: 6 }, (_, index) => (
-            <li key={index} className="glass rounded-xl p-4">
-              <div className="flex items-start gap-3">
-                <Skeleton className="h-8 w-8 rounded-lg" />
-                <div className="min-w-0 flex-1 space-y-2">
-                  <Skeleton className="h-4 w-64" />
-                  <Skeleton className="h-3 w-80" />
-                </div>
-              </div>
-            </li>
-          ))}
-        </ul>
-      ) : !ready ? (
-        <SetupHint
-          activity={activity}
-          onSignIn={handleSignIn}
-          onRetry={handleRefresh}
-          retrying={activityQuery.isFetching}
-        />
-      ) : visible.length === 0 ? (
-        <div className="flex flex-col items-center gap-2 rounded-xl border border-dashed border-border px-4 py-16 text-center">
-          <p className="text-sm font-medium">No runs match these filters</p>
-          <p className="max-w-sm text-sm text-muted-foreground">
-            {runs.length} run{runs.length === 1 ? '' : 's'} loaded across {activity?.repoCount ?? 0}{' '}
-            repo{activity?.repoCount === 1 ? '' : 's'}.
-          </p>
-        </div>
-      ) : (
-        <>
-          <ul className="space-y-2">
-            {visible.map((item) => (
-              <RunRow
-                key={`${item.repo}-${item.id}`}
-                item={item}
-                unread={item.htmlUrl ? unreadByUrl.has(item.htmlUrl) : false}
-                focused={focusedRunId === item.id}
-                rowRef={bindRow(item.id)}
-                onOpen={() => handleOpenRun(item)}
-                onOpenProject={() => {
-                  if (item.projectId) navigate(`/projects/${item.projectId}?tab=git`);
-                }}
-              />
-            ))}
-          </ul>
-          <p className="pb-2 text-center text-xs text-muted-foreground">
-            Showing {visible.length} of {runs.length} runs across {activity?.repoCount ?? 0} repo
-            {activity?.repoCount === 1 ? '' : 's'}.
-          </p>
-        </>
-      )}
+      <div className="flex min-h-0 flex-1">
+        {showFilters ? (
+          <>
+            <aside
+              aria-label="Run filters"
+              // The cap keeps a wide saved width from squeezing the run list on a narrow window.
+              style={{ width: sidebarWidth, maxWidth: '38%' }}
+              className={cn(PANEL, 'shrink-0')}
+            >
+              {loading ? (
+                <FiltersSkeleton />
+              ) : (
+                <>
+                  <div className="flex h-11 shrink-0 items-center gap-1 pl-3.5 pr-2">
+                    <h2 className={cn(SECTION_HEADING, 'min-w-0 flex-1 truncate')}>Filters</h2>
+                    {filtersDirty ? (
+                      <button
+                        type="button"
+                        onClick={clearFilters}
+                        className="flex h-6 shrink-0 cursor-pointer items-center gap-1 rounded-full px-2 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-foreground/[0.06] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      >
+                        Clear
+                      </button>
+                    ) : null}
+                  </div>
+                  <div className="shrink-0 px-2 pb-2">
+                    <div className="search-pill flex h-8 items-center gap-1.5 rounded-full pl-3 pr-1 transition-colors">
+                      <Search className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                      <input
+                        value={search}
+                        onChange={(event) => setSearch(event.target.value)}
+                        onKeyDown={(event) => {
+                          if (event.key === 'Escape' && search) {
+                            event.preventDefault();
+                            event.stopPropagation();
+                            setSearch('');
+                          }
+                        }}
+                        placeholder="Search runs"
+                        aria-label="Search runs"
+                        spellCheck={false}
+                        className="h-full min-w-0 flex-1 bg-transparent text-[13px] outline-none placeholder:text-muted-foreground/70"
+                      />
+                      {search ? (
+                        <button
+                          type="button"
+                          aria-label="Clear search"
+                          onClick={() => setSearch('')}
+                          className="flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-foreground/10 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      ) : null}
+                    </div>
+                  </div>
+                  <div className="rail-scroll min-h-0 flex-1 overflow-y-auto px-2 pb-2">
+                    <LayoutGroup id="pipelines-status">
+                      <div role="group" aria-label="Status" className="flex flex-col gap-px">
+                        <h3 className={cn(SECTION_HEADING, 'px-2.5 pb-1 pt-1')}>Status</h3>
+                        {FILTERS.map((entry) => (
+                          <FilterRow
+                            key={entry.key}
+                            active={filter === entry.key}
+                            label={entry.label}
+                            count={counts[entry.key]}
+                            layoutId="pipelines-status-active"
+                            pillTransition={pillTransition}
+                            leading={
+                              <span
+                                aria-hidden
+                                className={cn(
+                                  'h-1.5 w-1.5 shrink-0 rounded-full',
+                                  FILTER_DOT[entry.key],
+                                )}
+                              />
+                            }
+                            onClick={() => setFilter(entry.key)}
+                          />
+                        ))}
+                      </div>
+                    </LayoutGroup>
+                    <LayoutGroup id="pipelines-repos">
+                      <div
+                        role="group"
+                        aria-label="Repositories"
+                        className="mt-3 flex flex-col gap-px"
+                      >
+                        <h3 className={cn(SECTION_HEADING, 'px-2.5 pb-1 pt-1')}>Repositories</h3>
+                        <FilterRow
+                          active={repo === ''}
+                          label="All repos"
+                          count={runs.length}
+                          layoutId="pipelines-repo-active"
+                          pillTransition={pillTransition}
+                          leading={
+                            <Github className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                          }
+                          onClick={() => setRepo('')}
+                        />
+                        {repos.map((entry) => (
+                          <FilterRow
+                            key={entry.name}
+                            active={repo === entry.name}
+                            label={entry.name}
+                            count={entry.count}
+                            mono
+                            layoutId="pipelines-repo-active"
+                            pillTransition={pillTransition}
+                            leading={
+                              <span
+                                aria-hidden
+                                className={cn(
+                                  'h-1.5 w-1.5 shrink-0 rounded-full',
+                                  entry.failed > 0 ? 'bg-destructive' : 'bg-success',
+                                )}
+                              />
+                            }
+                            onClick={() => setRepo(entry.name)}
+                          />
+                        ))}
+                      </div>
+                    </LayoutGroup>
+                  </div>
+                </>
+              )}
+            </aside>
+            <ResizeHandle
+              orientation="vertical"
+              label="Resize filters"
+              size={sidebarWidth}
+              min={PANE_WIDTHS.pipelinesFilters.min}
+              max={PANE_WIDTHS.pipelinesFilters.max}
+              defaultSize={PANE_WIDTHS.pipelinesFilters.default}
+              onSizeChange={setSidebarWidth}
+              quiet
+              className="w-2"
+            />
+          </>
+        ) : null}
+        {runsCard}
+      </div>
     </div>
   );
 }

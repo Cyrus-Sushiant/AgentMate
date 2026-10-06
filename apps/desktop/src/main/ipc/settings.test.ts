@@ -156,6 +156,26 @@ describe('checkToolUpdatesEnabled', () => {
   });
 });
 
+describe('statusBarUsage', () => {
+  it('shows every provider on a fresh install', async () => {
+    const settings = await ipc<AppSettings>(IPC.settings.get);
+    expect(settings.statusBarUsage).toEqual({ 'claude-code': true, codex: true, cursor: true });
+  });
+
+  it('persists hiding one provider without touching the others', async () => {
+    const next = await ipc<AppSettings>(IPC.settings.update, {
+      statusBarUsage: { 'claude-code': true, codex: false, cursor: true },
+    });
+    expect(next.statusBarUsage.codex).toBe(false);
+    expect(next.statusBarUsage['claude-code']).toBe(true);
+    expect((await readSettingsFile()).statusBarUsage).toEqual({
+      'claude-code': true,
+      codex: false,
+      cursor: true,
+    });
+  });
+});
+
 describe('startupPage', () => {
   it('persists a picked page, and going back to the last page', async () => {
     const dashboard = await ipc<AppSettings>(IPC.settings.update, { startupPage: '/' });

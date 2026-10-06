@@ -7,8 +7,10 @@ import {
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { Check, MessageSquare, Robot, Send, Spinner, Wand2 } from '@/components/icons';
+import { MULTILINE_FIELD_RADIUS } from '@/components/ui/textarea';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { queryKeys } from '@/lib/queryKeys';
+import { cn } from '@/lib/utils';
 import { FixWithAiDialog } from '../../FixWithAiDialog';
 import { LocalReviewDialog } from './LocalReviewDialog';
 import { isSubmitKey, PR_AI_BUTTON, PR_GHOST_BUTTON, PrCard, PrPill, type PrTone } from './PrCard';
@@ -195,7 +197,10 @@ function CommentBox({ onPost }: { onPost: (body: string) => Promise<boolean> }):
             void post();
           }
         }}
-        className="block w-full resize-y rounded-md border border-input bg-background/60 px-2 py-1.5 text-[12px] outline-none placeholder:text-muted-foreground/70 focus:border-primary/50 focus:ring-2 focus:ring-primary/15"
+        className={cn(
+          'field-surface block w-full resize-y px-3 py-1.5 text-[12px] outline-none',
+          MULTILINE_FIELD_RADIUS,
+        )}
       />
       <div className="flex items-center justify-end gap-2">
         {posted ? (

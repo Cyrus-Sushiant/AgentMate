@@ -3,22 +3,24 @@ import { toast } from 'sonner';
 import {
   Broadcast,
   Copy,
+  Monitor,
   Power,
   QrCode,
   Send,
   TriangleAlert,
   Upload,
-  Wifi,
+  Users,
 } from '@/components/icons';
-import { Badge } from '@/components/ui/badge';
+import { Chip, EmptyState, FOOTER_HAIRLINE, PILL_SOFT } from '@/components/pageKit';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Combobox } from '@/components/ui/combobox';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { describeHostQuality, formatMbps } from '@/lib/remoteQuality';
 import { type HostQualitySnapshot, subscribeHostQuality } from '@/lib/rtcHost';
+import { cn } from '@/lib/utils';
 import { useRemoteStore } from '@/stores/remoteStore';
+import { REMOTE_CARD, RemoteCardHeader, RemoteRow } from './remoteCard';
 
 export function HostPanel(): React.JSX.Element {
   const state = useRemoteStore((s) => s.state);
@@ -74,48 +76,50 @@ export function HostPanel(): React.JSX.Element {
   }
 
   const pairing = state?.pairing ?? null;
+  const hostQuality = peers.length > 0 && quality ? describeHostQuality(quality) : null;
 
   return (
-    <div className="flex flex-col gap-4">
-      <Card className="glass">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Broadcast className="h-4 w-4 text-primary" /> Allow this machine to be controlled
-          </CardTitle>
-          <CardDescription>
-            Bind a WebSocket server to one of your network addresses, then share a one-time code so
-            another AgentMate can connect and control this device.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-4">
-          <div className="grid gap-3 sm:grid-cols-[1fr_auto]">
-            <div className="flex flex-col gap-1.5">
-              <Label className="flex items-center gap-1.5">
-                <Wifi className="h-3.5 w-3.5" /> Network address
-              </Label>
+    <div className="flex flex-col gap-2">
+      <section className={REMOTE_CARD}>
+        <RemoteCardHeader
+          icon={Broadcast}
+          title="Allow this machine to be controlled"
+          description="Bind a WebSocket server to one of your network addresses, then share a one-time code so another AgentMate can connect and control this device."
+        />
+        <div className={cn('settings-rows', FOOTER_HAIRLINE)}>
+          <RemoteRow
+            label="Network address"
+            description="The address on your local network other devices reach this one at."
+            control={
               <Combobox
+                ariaLabel="Network address"
+                className="w-64"
                 options={options}
                 value={ip}
                 onChange={setIp}
                 placeholder={options.length ? 'Select an IP…' : 'No network interfaces found'}
                 disabled={hosting || options.length === 0}
               />
-            </div>
-            <div className="flex w-full flex-col gap-1.5 sm:w-32">
-              <Label>Port</Label>
+            }
+          />
+          <RemoteRow
+            label="Port"
+            description="Between 1024 and 65535."
+            control={
               <Input
                 type="number"
+                aria-label="Port"
                 value={port}
                 min={1024}
                 max={65535}
                 disabled={hosting}
                 onChange={(e) => setPort(Number(e.target.value) || 7900)}
+                className="w-28"
               />
-            </div>
-          </div>
-
+            }
+          />
           {!inputSupported && (
-            <div className="flex items-start gap-2 rounded-md border border-warning/30 bg-warning/10 p-2.5 text-xs text-warning">
+            <div className="flex items-start gap-2.5 bg-warning/[0.06] px-5 py-3 text-xs text-warning">
               <TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" />
               <span>
                 Keyboard/mouse control isn&apos;t available on this platform yet. Connected
@@ -124,71 +128,78 @@ export function HostPanel(): React.JSX.Element {
               </span>
             </div>
           )}
-
-          <div className="flex items-center gap-2">
-            <Button
-              onClick={() => void toggleHosting()}
-              variant={hosting ? 'destructive' : 'default'}
-              disabled={!ip && !hosting}
-            >
-              <Power className="h-4 w-4" />
-              {hosting ? 'Stop hosting' : 'Start hosting'}
-            </Button>
-            {hosting && (
-              <Badge variant="success" className="gap-1.5">
-                <span className="h-1.5 w-1.5 rounded-full bg-current" /> Listening on{' '}
-                {state?.hostIp}:{state?.hostPort}
-              </Badge>
-            )}
-            {peers.length > 0 && quality && (
-              <Badge variant={describeHostQuality(quality).variant} className="gap-1.5">
-                {describeHostQuality(quality).label} · {formatMbps(quality.kbps)} ·{' '}
-                {quality.rttMs ?? '–'} ms
-              </Badge>
-            )}
-          </div>
-        </CardContent>
-      </Card>
+          <RemoteRow
+            label="Hosting"
+            description={
+              hosting
+                ? 'Other devices on your network can pair with this one now.'
+                : 'Off. Nothing is listening for connections.'
+            }
+            control={
+              <>
+                {hosting && (
+                  <Chip tone="success" dot pulse>
+                    Listening on {state?.hostIp}:{state?.hostPort}
+                  </Chip>
+                )}
+                {hostQuality && quality && (
+                  <Chip tone={hostQuality.variant}>
+                    {hostQuality.label} · {formatMbps(quality.kbps)} · {quality.rttMs ?? '–'} ms
+                  </Chip>
+                )}
+                <Button
+                  onClick={() => void toggleHosting()}
+                  variant={hosting ? 'destructive' : 'default'}
+                  className="rounded-full px-4"
+                  disabled={!ip && !hosting}
+                >
+                  <Power className="h-4 w-4" />
+                  {hosting ? 'Stop hosting' : 'Start hosting'}
+                </Button>
+              </>
+            }
+          />
+        </div>
+      </section>
 
       {hosting && (
-        <Card className="glass">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <QrCode className="h-4 w-4 text-primary" /> Pairing code
-            </CardTitle>
-            <CardDescription>
-              Each code contains a single-use token and expires shortly. Generate a fresh one for
-              every connection.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
+        <section className={REMOTE_CARD}>
+          <RemoteCardHeader
+            icon={QrCode}
+            title="Pairing code"
+            description="Each code contains a single-use token and expires shortly. Generate a fresh one for every connection."
+          />
+          <div className={cn('px-5 py-4', FOOTER_HAIRLINE)}>
             {pairing ? (
               <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+                {/* The QR stays on white whatever the theme, or phones cannot read it. */}
                 <img
                   src={pairing.qrDataUrl}
                   alt="Pairing QR code"
-                  className="h-40 w-40 shrink-0 rounded-lg bg-white p-2"
+                  className="h-40 w-40 shrink-0 rounded-xl bg-white p-2 shadow-[0_0_40px_-16px_hsl(var(--primary)/0.6)]"
                 />
                 <div className="flex min-w-0 flex-1 flex-col gap-3">
                   <div className="flex flex-col gap-1.5">
-                    <Label>Code (paste on the other device)</Label>
-                    <div className="flex gap-2">
-                      <textarea
-                        readOnly
-                        spellCheck={false}
-                        value={pairing.code}
-                        onFocus={(e) => e.currentTarget.select()}
-                        className="h-20 flex-1 resize-none rounded-md border border-input bg-background p-2 font-mono text-[11px] leading-tight"
-                      />
-                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Code (paste on the other device)
+                    </p>
+                    <Textarea
+                      readOnly
+                      spellCheck={false}
+                      aria-label="Pairing code"
+                      value={pairing.code}
+                      onFocus={(e) => e.currentTarget.select()}
+                      className="h-20 resize-none p-3 font-mono text-[11px] leading-tight"
+                    />
                   </div>
                   <div className="flex gap-2">
-                    <Button size="sm" variant="secondary" onClick={copyCode}>
+                    <Button size="sm" className="rounded-full px-3.5" onClick={copyCode}>
                       <Copy className="h-3.5 w-3.5" /> Copy code
                     </Button>
                     <Button
                       size="sm"
-                      variant="outline"
+                      variant="ghost"
+                      className={PILL_SOFT}
                       onClick={() => void generateCode()}
                       disabled={generating}
                     >
@@ -198,57 +209,69 @@ export function HostPanel(): React.JSX.Element {
                 </div>
               </div>
             ) : (
-              <Button onClick={() => void generateCode()} disabled={generating}>
+              <Button
+                className="rounded-full px-5"
+                onClick={() => void generateCode()}
+                disabled={generating}
+              >
                 <QrCode className="h-4 w-4" /> Generate pairing code
               </Button>
             )}
-          </CardContent>
-        </Card>
+          </div>
+        </section>
       )}
 
       {hosting && (
-        <Card className="glass">
-          <CardHeader>
-            <CardTitle>Connected controllers ({peers.length})</CardTitle>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-3">
-            {peers.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                No one is connected yet. Share the pairing code above to let a device connect.
-              </p>
-            ) : (
-              <ul className="flex flex-col gap-2">
-                {peers.map((peer) => (
-                  <li
-                    key={peer.id}
-                    className="flex items-center justify-between rounded-md border border-border bg-secondary/40 px-3 py-2 text-sm"
+        <section className={REMOTE_CARD}>
+          <RemoteCardHeader
+            icon={Users}
+            title={`Connected controllers (${peers.length})`}
+            actions={
+              peers.length > 0 ? (
+                <>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className={PILL_SOFT}
+                    onClick={() => void window.agentmat.remote.sendClipboard()}
                   >
-                    <span className="font-medium">{peer.deviceName}</span>
-                    <span className="text-xs text-muted-foreground">{peer.address}</span>
+                    <Send className="h-3.5 w-3.5" /> Send clipboard
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className={PILL_SOFT}
+                    onClick={() => void window.agentmat.remote.sendFile()}
+                  >
+                    <Upload className="h-3.5 w-3.5" /> Send file
+                  </Button>
+                </>
+              ) : null
+            }
+          />
+          <div className={FOOTER_HAIRLINE}>
+            {peers.length === 0 ? (
+              <EmptyState
+                size="sm"
+                icon={Users}
+                title="Waiting for a controller"
+                description="No one is connected yet. Share the pairing code above to let a device connect."
+              />
+            ) : (
+              <ul className="settings-rows">
+                {peers.map((peer) => (
+                  <li key={peer.id} className="flex items-center gap-3 px-5 py-3 text-sm">
+                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-foreground/[0.06] text-muted-foreground">
+                      <Monitor className="h-3.5 w-3.5" />
+                    </span>
+                    <span className="min-w-0 flex-1 truncate font-medium">{peer.deviceName}</span>
+                    <span className="font-mono text-xs text-muted-foreground">{peer.address}</span>
                   </li>
                 ))}
               </ul>
             )}
-            {peers.length > 0 && (
-              <div className="flex gap-2">
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  onClick={() => void window.agentmat.remote.sendClipboard()}
-                >
-                  <Send className="h-3.5 w-3.5" /> Send clipboard
-                </Button>
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  onClick={() => void window.agentmat.remote.sendFile()}
-                >
-                  <Upload className="h-3.5 w-3.5" /> Send file
-                </Button>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+          </div>
+        </section>
       )}
     </div>
   );

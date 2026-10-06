@@ -5,8 +5,10 @@ import type {
   AiProvider,
   HelpAskInput,
   HelpAskResult,
+  HelpEmbeddingModelOption,
   HelpIndexProgress,
   HelpIndexStatus,
+  HelpReindexResult,
 } from '../../shared/apiTypes';
 import { HELP_ARTICLES } from '../../shared/help/articles';
 import { IPC } from '../../shared/ipcChannels';
@@ -47,6 +49,8 @@ export function closeHelpIndex(): void {
 }
 
 const inFlight = new Map<string, AbortController>();
+/** The index rebuild running for each provider, so a second request replaces it and Stop can end it. */
+const reindexing = new Map<AiProvider, AbortController>();
 
 export function registerHelpHandlers(): void {
   ipcMain.handle(IPC.help.ask, async (_event, input: HelpAskInput): Promise<HelpAskResult> => {
@@ -73,5 +77,39 @@ export function registerHelpHandlers(): void {
   ipcMain.handle(
     IPC.help.status,
     (_event, provider: AiProvider): Promise<HelpIndexStatus> => helpService().status(provider),
+  );
+
+  // No time limit: embedding every article on a slow local model can take minutes, and the
+  // Settings card shows its progress and a button to stop it.
+  ipcMain.handle(
+    IPC.help.reindex,
+    async (
+      _event,
+      provider: AiProvider,
+      options?: { fresh?: boolean },
+    ): Promise<HelpReindexResult> => {
+      reindexing.get(provider)?.abort();
+      const controller = new AbortController();
+      reindexing.set(provider, controller);
+      try {
+        return await helpService().reindex(provider, options, controller.signal);
+      } finally {
+        if (reindexing.get(provider) === controller) reindexing.delete(provider);
+      }
+    },
+  );
+
+  ipcMain.handle(IPC.help.cancelReindex, (_event, provider: AiProvider): boolean => {
+    const controller = reindexing.get(provider);
+    if (!controller) return false;
+    controller.abort();
+    reindexing.delete(provider);
+    return true;
+  });
+
+  ipcMain.handle(
+    IPC.help.embeddingModels,
+    (_event, provider: AiProvider): Promise<HelpEmbeddingModelOption[]> =>
+      helpService().embeddingModels(provider),
   );
 }

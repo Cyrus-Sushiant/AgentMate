@@ -4,13 +4,16 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { Check, Pencil, Plus, Spinner, Trash2, X } from '@/components/icons';
+import { CARD_PILL_SOFT, PILL_PRIMARY, TILE_ACTION } from '@/components/pageKit';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Combobox } from '@/components/ui/combobox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { SimpleTooltip } from '@/components/ui/tooltip';
 import { queryKeys } from '@/lib/queryKeys';
+import { cn } from '@/lib/utils';
 import { confirmDialog } from '@/stores/confirmStore';
 
 const STEP_OPTIONS = BLUEPRINT_STEPS.map((step) => ({
@@ -131,24 +134,28 @@ export function BlueprintPresetSettings(): React.JSX.Element {
                 <p className="line-clamp-2 text-xs text-muted-foreground">{preset.text}</p>
               </div>
               <div className="flex shrink-0 items-center gap-1">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-7 w-7 p-0"
-                  aria-label={`Edit ${preset.label}`}
-                  onClick={() => startEdit(preset)}
-                >
-                  <Pencil className="h-3.5 w-3.5" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
-                  aria-label={`Remove ${preset.label}`}
-                  onClick={() => void handleDelete(preset)}
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </Button>
+                <SimpleTooltip label="Edit">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className={TILE_ACTION}
+                    aria-label={`Edit ${preset.label}`}
+                    onClick={() => startEdit(preset)}
+                  >
+                    <Pencil />
+                  </Button>
+                </SimpleTooltip>
+                <SimpleTooltip label="Remove">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className={cn(TILE_ACTION, 'hover:bg-destructive/10 hover:text-destructive')}
+                    aria-label={`Remove ${preset.label}`}
+                    onClick={() => void handleDelete(preset)}
+                  >
+                    <Trash2 />
+                  </Button>
+                </SimpleTooltip>
               </div>
             </div>
           ))
@@ -161,7 +168,7 @@ export function BlueprintPresetSettings(): React.JSX.Element {
             {isEditing ? 'Edit preset' : 'New preset'}
           </Label>
           {isEditing ? (
-            <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={resetForm}>
+            <Button variant="ghost" size="sm" className={CARD_PILL_SOFT} onClick={resetForm}>
               <X className="h-3 w-3" /> Cancel
             </Button>
           ) : null}
@@ -180,6 +187,7 @@ export function BlueprintPresetSettings(): React.JSX.Element {
         />
         <Button
           size="sm"
+          className={PILL_PRIMARY}
           disabled={!canSave || saveMutation.isPending}
           onClick={() => saveMutation.mutate()}
         >

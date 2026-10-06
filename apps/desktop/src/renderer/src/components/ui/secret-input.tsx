@@ -36,11 +36,12 @@ export const SecretInput = forwardRef<
         {...rest}
         className={cn(trailing ? 'pr-16' : 'pr-9', 'font-mono placeholder:font-sans', className)}
       />
-      <div className="absolute right-1.5 top-1/2 flex -translate-y-1/2 items-center gap-0.5">
+      {/* Inset by the field's edge plus a hair, so the round buttons sit inside its round end. */}
+      <div className="absolute right-1 top-1/2 flex -translate-y-1/2 items-center gap-0.5">
         {trailing}
         <button
           type="button"
-          className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+          className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
           onClick={() => setVisible((current) => !current)}
           aria-label={visible ? 'Hide value' : 'Show value'}
         >

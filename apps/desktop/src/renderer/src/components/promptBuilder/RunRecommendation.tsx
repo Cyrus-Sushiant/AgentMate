@@ -710,7 +710,7 @@ export function RunRecommendationChip({
           <button
             type="button"
             className={cn(
-              'flex h-7 min-w-0 items-center gap-1.5 rounded-lg border border-input bg-background px-2 text-xs transition-colors hover:border-foreground/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 data-[state=open]:border-primary/50',
+              'field-surface flex h-7 min-w-0 items-center gap-1.5 rounded-full pl-2.5 pr-2 text-xs focus:outline-none',
               className,
             )}
           >

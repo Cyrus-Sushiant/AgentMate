@@ -2,6 +2,7 @@ import type { AppSettings } from '@agentmat/core';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { Android, CircleCheck, CircleX, FolderOpen } from '@/components/icons';
+import { PILL_SOFT } from '@/components/pageKit';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
@@ -91,8 +92,9 @@ export function AndroidSdkSettings({ settings }: { settings: AppSettings }): Rea
           </div>
           <div className="flex shrink-0 items-center gap-2">
             <Button
-              variant="outline"
+              variant="ghost"
               size="sm"
+              className={PILL_SOFT}
               disabled={setSdkPath.isPending}
               onClick={() => void browse()}
             >
@@ -103,6 +105,7 @@ export function AndroidSdkSettings({ settings }: { settings: AppSettings }): Rea
               <Button
                 variant="ghost"
                 size="sm"
+                className={PILL_SOFT}
                 disabled={setSdkPath.isPending}
                 onClick={() => setSdkPath.mutate(null)}
               >

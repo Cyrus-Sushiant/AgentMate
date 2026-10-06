@@ -79,6 +79,72 @@ jobs:
             apps/desktop/coverage
             apps/desktop/test-results
 
+  # The AgentMate Connector WordPress plugin (apps/wordpress-connector, E19). PHP runs in Docker
+  # containers, the same way as on a developer's machine: PHPUnit (including the shared protocol
+  # vectors), `php -l` on PHP 7.4, 8.0, 8.3 and 8.4, the PHP 7.4+ compatibility and WordPress
+  # security sniffs, and the zip build with its version check.
+  wordpress-connector:
+    name: WordPress connector
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+
+      - name: Unit tests
+        run: node scripts/wordpress-connector.mjs test
+
+      - name: Lint on every supported PHP
+        run: node scripts/wordpress-connector.mjs lint
+
+      - name: Compatibility and security sniffs
+        run: node scripts/wordpress-connector.mjs compat
+
+      - name: Build the plugin zip
+        run: node scripts/wordpress-connector.mjs build
+
+      - name: Smoke test on real WordPress
+        run: node scripts/wordpress-connector.mjs smoke
+
+  # The desktop's WordPress sync engine against the real plugin on WordPress in Docker (E19 T10):
+  # pairing, a new project, a deploy with agent files left in the theme (none may reach the site),
+  # a refused syntax error, a fatal error rolled back by the site's guard, a manual rollback and a
+  # read-only key. Runs with the other system tests, on [e2e].
+  wordpress-integration:
+    name: WordPress sync on real WordPress
+    if: ${{ inputs.e2e }}
+    needs: wordpress-connector
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build workspace packages
+        run: pnpm build:packages
+
+      - name: Sync engine against the connector
+        env:
+          AGENTMATE_SYSTEM_TESTS: "1"
+        run: pnpm --filter @agentmat/desktop exec vitest run src/main/deploy/wordpress/wordpress.int.test.ts
+
   # The .NET server core (apps/server-core). Its global.json pins the SDK feature band and the
   # Microsoft.Testing.Platform runner, so every dotnet command runs from that folder. System tests
   # (real Docker, test servers) are not part of this job; they run in the [e2e] job instead.

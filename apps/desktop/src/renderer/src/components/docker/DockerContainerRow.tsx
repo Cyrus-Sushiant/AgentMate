@@ -1,17 +1,17 @@
 import type { DockerContainer } from '@shared/apiTypes';
 import { Docker as DockerIcon, Play, RefreshCw, StopCircle, Trash2 } from '@/components/icons';
-import { Badge, type BadgeProps } from '@/components/ui/badge';
+import { Chip, type ChipTone, SECTION_WELL, TILE_ACTION } from '@/components/pageKit';
 import { Button } from '@/components/ui/button';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 
-const STATE_BADGE_VARIANT: Record<DockerContainer['state'], BadgeProps['variant']> = {
+const STATE_TONE: Record<DockerContainer['state'], ChipTone> = {
   running: 'success',
   restarting: 'warning',
-  exited: 'outline',
-  dead: 'outline',
-  paused: 'outline',
-  created: 'outline',
+  exited: 'neutral',
+  dead: 'neutral',
+  paused: 'neutral',
+  created: 'neutral',
 };
 
 const STATE_LABEL: Record<DockerContainer['state'], string> = {
@@ -43,11 +43,13 @@ function UsageBar({ percent }: { percent: number }): React.JSX.Element {
 
 /**
  * One container, shared between the machine-wide Docker page and a project's Docker tab so the
- * two views can't drift apart.
+ * two views can't drift apart. The `card` variant stands on its own; the `row` variant is flat,
+ * for a list inside a glass card whose `.settings-rows` hairlines separate the rows.
  */
 export function DockerContainerRow({
   container,
   pending,
+  variant = 'card',
   focused = false,
   rowRef,
   onStart,
@@ -57,6 +59,7 @@ export function DockerContainerRow({
 }: {
   container: DockerContainer;
   pending: boolean;
+  variant?: 'card' | 'row';
   /** True when this row was opened via a deep link (e.g. the status bar popover); rings briefly. */
   focused?: boolean;
   rowRef?: (node: HTMLDivElement | null) => void;
@@ -76,11 +79,17 @@ export function DockerContainerRow({
     <div
       ref={rowRef}
       className={cn(
-        'flex items-start gap-3 rounded-lg border border-border bg-card/60 px-3 py-2.5 transition-shadow',
-        focused && 'ring-2 ring-primary shadow-[0_0_0_4px_hsl(var(--primary)/0.15)]',
+        'flex items-start gap-3 transition-[box-shadow,background-color]',
+        variant === 'card'
+          ? cn(SECTION_WELL, 'rounded-lg px-3 py-2.5')
+          : 'px-3.5 py-3 hover:bg-foreground/[0.03]',
+        focused &&
+          (variant === 'card'
+            ? 'ring-2 ring-primary shadow-[0_0_0_4px_hsl(var(--primary)/0.15)]'
+            : 'ring-2 ring-inset ring-primary'),
       )}
     >
-      <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
+      <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/12 text-primary">
         <DockerIcon className="h-4 w-4" />
       </span>
       <div className="min-w-0 flex-1 space-y-1.5">
@@ -88,17 +97,10 @@ export function DockerContainerRow({
           <SimpleTooltip label={container.name}>
             <span className="truncate text-sm font-medium">{container.name}</span>
           </SimpleTooltip>
-          <Badge
-            variant={STATE_BADGE_VARIANT[container.state]}
-            className="px-1.5 py-0 text-[10px] leading-4"
-          >
+          <Chip tone={STATE_TONE[container.state]} dot={container.state === 'running'}>
             {STATE_LABEL[container.state]}
-          </Badge>
-          {container.composeProject && (
-            <Badge variant="outline" className="px-1.5 py-0 text-[10px] leading-4">
-              {container.composeProject}
-            </Badge>
-          )}
+          </Chip>
+          {container.composeProject && <Chip>{container.composeProject}</Chip>}
         </div>
         <div className="truncate text-xs text-muted-foreground">
           {container.image} · {container.status}
@@ -132,7 +134,7 @@ export function DockerContainerRow({
             <Button
               variant="ghost"
               size="icon"
-              className="h-7 w-7"
+              className={TILE_ACTION}
               disabled={pending}
               aria-label={`Stop ${container.name}`}
               onClick={onStop}
@@ -145,7 +147,7 @@ export function DockerContainerRow({
             <Button
               variant="ghost"
               size="icon"
-              className="h-7 w-7"
+              className={TILE_ACTION}
               disabled={pending}
               aria-label={`Start ${container.name}`}
               onClick={onStart}
@@ -158,7 +160,7 @@ export function DockerContainerRow({
           <Button
             variant="ghost"
             size="icon"
-            className="h-7 w-7"
+            className={TILE_ACTION}
             disabled={pending}
             aria-label={`Restart ${container.name}`}
             onClick={onRestart}
@@ -170,7 +172,7 @@ export function DockerContainerRow({
           <Button
             variant="ghost"
             size="icon"
-            className="h-7 w-7 text-muted-foreground hover:text-destructive"
+            className={cn(TILE_ACTION, 'hover:bg-destructive/10 hover:text-destructive')}
             disabled={pending}
             aria-label={`Remove ${container.name}`}
             onClick={onRemove}

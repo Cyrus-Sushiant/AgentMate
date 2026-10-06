@@ -307,8 +307,10 @@ body {
 
 /* The soft pill the search box is drawn as, in the title bar and at the top of the search
    panel. A faint wash of the text colour rather than a filled field, so it sits on the glass
-   chrome and on an island alike. */
-.search-pill {
+   chrome and on an island alike. Form fields share the same wash and edge (see .field-surface
+   below), so a search box and a settings field read as one family. */
+.search-pill,
+.field-surface {
   background-color: hsl(var(--foreground) / 0.05);
   border: 1px solid hsl(var(--foreground) / 0.07);
 }
@@ -319,6 +321,71 @@ button.search-pill:hover {
 
 .search-pill:focus-within {
   border-color: hsl(var(--primary) / 0.45);
+}
+
+/* Every form field: ui/input, ui/textarea, the combobox trigger, and the few raw fields that
+   can't use those. It lives outside a layer like .search-pill, so the global border-color rule
+   can't repaint its edge. A caller that needs a field without it uses the primitives' `bare`
+   variant rather than fighting it with utilities, which lose to unlayered rules. */
+.field-surface {
+  transition:
+    background-color 150ms ease,
+    border-color 150ms ease,
+    box-shadow 150ms ease;
+}
+
+.field-surface::placeholder,
+.field-surface ::placeholder {
+  color: hsl(var(--muted-foreground) / 0.7);
+}
+
+/* :where() keeps this at the base rule's weight, so the invalid tint below still wins. */
+.field-surface:hover:where(
+  :not(
+    :disabled,
+    :focus-within,
+    [aria-disabled="true"],
+    :has(> :is(input, textarea, select):disabled)
+  )
+) {
+  background-color: hsl(var(--foreground) / 0.08);
+}
+
+.field-surface:focus-within,
+.field-surface[data-state="open"] {
+  border-color: hsl(var(--primary) / 0.45);
+}
+
+/* The edge alone is too quiet to find the caret by, so keyboard focus also gets a soft ring.
+   Text fields count as keyboard focus however they were focused, the same as Chromium's own. */
+.field-surface:focus-visible,
+.field-surface:has(:focus-visible) {
+  outline: none;
+  box-shadow: 0 0 0 3px hsl(var(--ring) / 0.22);
+}
+
+.field-surface[aria-invalid="true"],
+.field-surface:has([aria-invalid="true"]) {
+  background-color: hsl(var(--destructive) / 0.06);
+  border-color: hsl(var(--destructive) / 0.6);
+}
+
+.field-surface[aria-invalid="true"]:focus-visible,
+.field-surface:has([aria-invalid="true"]:focus-visible) {
+  box-shadow: 0 0 0 3px hsl(var(--destructive) / 0.22);
+}
+
+/* A wrapper such as the number field's shell dims with the input it holds. */
+.field-surface:disabled,
+.field-surface[aria-disabled="true"],
+.field-surface:has(> :is(input, textarea, select):disabled) {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+/* Native date pickers, colour pickers, and select popups follow this, not the page colours. */
+.dark .field-surface {
+  color-scheme: dark;
 }
 
 /* Rows inside one Settings card, each separated from the one above by a hairline drawn like
@@ -348,26 +415,6 @@ button.search-pill:hover {
     inset 0 1px 0 0 hsl(0 0% 100% / 0.07),
     0 2px 6px hsl(0 0% 0% / 0.2),
     0 24px 64px -16px hsl(0 0% 0% / 0.6);
-}
-
-/* SmartClouds brand tile (layout/SmartCloudsLogo.tsx): the dark rounded square from the company's
-   favicon, so the white cloud logo stays visible on the light theme. A soft white bloom sits behind
-   the cloud the way it does on the favicon. The light theme takes its dark from the text colour,
-   the dark themes from the canvas, so the tile reads as recessed there instead of as a hole. */
-.brand-tile {
-  background:
-    radial-gradient(closest-side, hsl(0 0% 100% / 0.16), transparent), hsl(var(--foreground) / 0.9);
-  box-shadow:
-    inset 0 1px 0 0 hsl(0 0% 100% / 0.14),
-    0 1px 3px hsl(0 0% 0% / 0.18);
-}
-
-.dark .brand-tile {
-  background:
-    radial-gradient(closest-side, hsl(0 0% 100% / 0.1), transparent), hsl(var(--background) / 0.8);
-  box-shadow:
-    inset 0 1px 0 0 hsl(0 0% 100% / 0.08),
-    inset 0 0 0 1px hsl(var(--foreground) / 0.08);
 }
 
 /* Placeholder surface for content that is still loading (see ui/skeleton.tsx):

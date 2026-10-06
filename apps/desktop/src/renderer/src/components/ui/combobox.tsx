@@ -3,6 +3,7 @@ import { Command as CommandPrimitive } from 'cmdk';
 import * as React from 'react';
 import { Check, ChevronsUpDown, Search, X } from '@/components/icons';
 import { cn } from '@/lib/utils';
+import { FIELD_SURFACE } from './input';
 
 export interface ComboboxOption {
   value: string;
@@ -31,6 +32,13 @@ export interface ComboboxProps {
   customLabel?: (text: string) => string;
   /** What the field is, for screen readers, when no visible label points at it. */
   ariaLabel?: string;
+  /** Marks the value as rejected, which tints the trigger the way an invalid input is. */
+  invalid?: boolean;
+  /**
+   * `bare` drops the field surface, for a trigger that sits inside a pill which already draws
+   * one. Utilities can't strip it, since the rule is unlayered.
+   */
+  variant?: 'default' | 'bare';
 }
 
 export function Combobox({
@@ -46,6 +54,8 @@ export function Combobox({
   allowCustom,
   customLabel = (text) => `Use "${text}"`,
   ariaLabel,
+  invalid,
+  variant = 'default',
 }: ComboboxProps): React.JSX.Element {
   const [open, setOpen] = React.useState(false);
   const [search, setSearch] = React.useState('');
@@ -72,9 +82,11 @@ export function Combobox({
           role="combobox"
           aria-expanded={open}
           aria-label={ariaLabel}
+          aria-invalid={invalid || undefined}
           disabled={disabled}
           className={cn(
-            'flex h-9 w-full cursor-pointer items-center justify-between gap-2 rounded-lg border border-input bg-background px-3 py-2 text-sm shadow-[inset_0_1px_0_0_hsl(0_0%_100%/0.04)] transition-colors hover:border-foreground/20 focus:outline-none focus-visible:border-primary/50 focus-visible:ring-2 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50 data-[state=open]:border-primary/50',
+            'flex h-9 w-full cursor-pointer items-center justify-between gap-2 rounded-full py-2 pl-3.5 pr-2.5 text-sm focus:outline-none disabled:cursor-not-allowed disabled:opacity-50',
+            variant === 'bare' ? 'bg-transparent' : FIELD_SURFACE,
             className,
           )}
         >
@@ -93,7 +105,7 @@ export function Combobox({
                 e.stopPropagation();
                 onChange('');
               }}
-              className="shrink-0 rounded p-0.5 opacity-50 hover:bg-foreground/10 hover:opacity-100"
+              className="shrink-0 rounded-full p-0.5 opacity-50 hover:bg-foreground/10 hover:opacity-100"
             >
               <X className="h-3.5 w-3.5" />
             </span>

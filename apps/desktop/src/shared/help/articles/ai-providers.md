@@ -75,7 +75,7 @@ Ask AI is the exception. It has its own provider tabs and model picker, so you c
 | Project **Blueprint** (see [Projects](projects.md)) | The **Written by** choice **AI provider (Settings)**, which is the fallback when no suitable AI CLI is installed. |
 | Deploy **Assistant** | The AI choice **AI provider (Settings)** in its composer (selected by default). See [Deploy: Assistant and logs](deploy-assistant-logs.md). |
 | The **Ask AI** dialog on an SSH terminal and on a Remote Desktop session | The choice **AI provider (Settings)**. Remote Desktop needs a model that can see images, because it sends screenshots. See [Remote](remote.md) and [Remote Desktop](remote-desktop.md). |
-| The Help page's **Ask the guide** chat | Whichever provider you set up here. See [Help center](help-center.md). |
+| The Help page's **Ask the guide** chat | Whichever provider you set up here. It also uses that provider's embedding model to find the right articles, which you can change in **Settings** > **AI** > **Help search**. See [Help center](help-center.md#choose-the-search-model). |
 
 Translation, voice input and the writing check do not use these providers. They have their own settings, see [Writing, voice and translation](writing-voice-translation.md).
 

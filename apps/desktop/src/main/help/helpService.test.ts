@@ -289,6 +289,228 @@ describe('createHelpService', () => {
   });
 });
 
+describe('reindex', () => {
+  it('embeds every passage and reports progress as it goes', async () => {
+    const result = await service.reindex('openai');
+    expect(result).toEqual({
+      ok: true,
+      embedded: chunks.length,
+      total: chunks.length,
+      removedModels: [],
+    });
+    expect(progress[0]).toEqual({ done: 0, total: chunks.length, embedder: 'fake:1' });
+    expect(progress.at(-1)).toEqual({
+      done: chunks.length,
+      total: chunks.length,
+      embedder: 'fake:1',
+    });
+    expect((await service.status('openai')).embedded).toBe(chunks.length);
+  });
+
+  it('does not embed again when everything already has a vector', async () => {
+    await service.reindex('openai');
+    const callsBefore = embedder.calls.length;
+    progress = [];
+    const result = await service.reindex('openai');
+    expect(result).toMatchObject({ ok: true, embedded: chunks.length, total: chunks.length });
+    expect(embedder.calls).toHaveLength(callsBefore);
+    expect(progress).toEqual([]);
+  });
+
+  it('embeds only what is missing', async () => {
+    await service.reindex('openai');
+    service.close();
+    // An article edited between runs: only the changed passages should go to the provider.
+    const edited = chunks.map((c, i) =>
+      i === 0 ? { ...c, text: `${c.text} More.`, hash: 'new' } : c,
+    );
+    embedder = fakeEmbedder();
+    service = make({ chunks: () => edited });
+    const result = await service.reindex('openai');
+    expect(result.ok).toBe(true);
+    expect(embedder.calls.flat()).toEqual([edited[0]!.text]);
+  });
+
+  it('with fresh, throws the current vectors away and embeds everything again', async () => {
+    await service.reindex('openai');
+    embedder.calls.length = 0;
+    const result = await service.reindex('openai', { fresh: true });
+    expect(result).toMatchObject({ ok: true, embedded: chunks.length, total: chunks.length });
+    expect(embedder.calls.flat()).toEqual(chunks.map((c) => c.text));
+  });
+
+  it('without fresh, ignores an options object that does not ask for it', async () => {
+    await service.reindex('openai');
+    embedder.calls.length = 0;
+    await service.reindex('openai', { fresh: false });
+    expect(embedder.calls).toEqual([]);
+  });
+
+  it("drops the vectors of the provider's earlier models and says which", async () => {
+    let current = fakeEmbedder('openai:old');
+    service.close();
+    service = make({ createEmbedder: () => current });
+    await service.reindex('openai');
+    expect((await service.status('openai')).embedded).toBe(chunks.length);
+
+    current = fakeEmbedder('openai:new');
+    const result = await service.reindex('openai');
+    expect(result).toEqual({
+      ok: true,
+      embedded: chunks.length,
+      total: chunks.length,
+      removedModels: ['openai:old'],
+    });
+    // The old model is gone from the index, so switching back has to embed again.
+    current = fakeEmbedder('openai:old');
+    expect((await service.status('openai')).embedded).toBe(0);
+  });
+
+  it('keeps the vectors of another provider', async () => {
+    let current = fakeEmbedder('gemini:g1');
+    service.close();
+    service = make({ createEmbedder: () => current });
+    await service.reindex('gemini');
+
+    current = fakeEmbedder('openai:o1');
+    const result = await service.reindex('openai');
+    expect(result.removedModels).toEqual([]);
+
+    current = fakeEmbedder('gemini:g1');
+    expect((await service.status('gemini')).embedded).toBe(chunks.length);
+  });
+
+  it('does not mistake a provider whose name starts the same for the same provider', async () => {
+    // "ollama:" must not match an id like "ollama-cloud:..." from some other source.
+    let current = fakeEmbedder('ollama-extra:x');
+    service.close();
+    service = make({ createEmbedder: () => current });
+    await service.reindex('ollama');
+
+    current = fakeEmbedder('ollama:nomic-embed-text');
+    const result = await service.reindex('ollama');
+    expect(result.removedModels).toEqual([]);
+  });
+
+  it('asks for the provider to be set up when it has no embedder', async () => {
+    service.close();
+    service = make({ createEmbedder: () => null });
+    const result = await service.reindex('gemini');
+    expect(result).toEqual({
+      ok: false,
+      embedded: 0,
+      total: chunks.length,
+      removedModels: [],
+      error: expect.stringMatching(/Set up this provider in Settings/),
+    });
+  });
+
+  it('leaves existing vectors alone when the provider has no embedder', async () => {
+    let current: Embedder | null = fakeEmbedder('openai:old');
+    service.close();
+    service = make({ createEmbedder: () => current });
+    await service.reindex('openai');
+    // The key was removed in Settings: nothing is searched, but nothing should be thrown away.
+    current = null;
+    await service.reindex('openai');
+    current = fakeEmbedder('openai:old');
+    expect((await service.status('openai')).embedded).toBe(chunks.length);
+  });
+
+  it('reports the embedder error and how much is embedded', async () => {
+    embedder.embed = async () => {
+      throw new Error('Ollama has no bge-m3 model for search.');
+    };
+    const result = await service.reindex('ollama');
+    expect(result).toMatchObject({
+      ok: false,
+      embedded: 0,
+      total: chunks.length,
+      error: 'Ollama has no bge-m3 model for search.',
+    });
+    expect(result.cancelled).toBeUndefined();
+  });
+
+  it('can be run again after a failure', async () => {
+    const working = embedder.embed;
+    embedder.embed = async () => {
+      throw new Error('rate limited');
+    };
+    expect((await service.reindex('openai')).ok).toBe(false);
+    embedder.embed = working;
+    expect(await service.reindex('openai')).toMatchObject({ ok: true, embedded: chunks.length });
+  });
+
+  it('reports a stopped run as cancelled, not as an error', async () => {
+    const controller = new AbortController();
+    embedder.embed = async () => {
+      controller.abort();
+      throw Object.assign(new Error('aborted'), { name: 'AbortError' });
+    };
+    const result = await service.reindex('openai', {}, controller.signal);
+    expect(result).toMatchObject({ ok: false, cancelled: true, embedded: 0, total: chunks.length });
+    expect(result.error).toMatch(/stopped/i);
+  });
+
+  it('takes over the work of a run that was stopped when a newer request replaced it', async () => {
+    const first = new AbortController();
+    const working = embedder.embed;
+    embedder.embed = (_texts, _kind, signal) =>
+      new Promise((_, reject) => {
+        signal?.addEventListener('abort', () =>
+          reject(Object.assign(new Error('aborted'), { name: 'AbortError' })),
+        );
+      });
+    const stopped = service.reindex('openai', {}, first.signal);
+    await vi.waitFor(() => expect(progress).toHaveLength(1));
+
+    // The newer request joins the run that is still winding down, as the IPC layer does when it
+    // aborts the old request and starts the new one in the same turn.
+    embedder.embed = working;
+    first.abort();
+    const replacement = service.reindex('openai', { fresh: true }, new AbortController().signal);
+
+    expect(await stopped).toMatchObject({ ok: false, cancelled: true });
+    expect(await replacement).toMatchObject({ ok: true, embedded: chunks.length });
+  });
+
+  it('does not treat a timeout as the user stopping the run', async () => {
+    const controller = new AbortController();
+    embedder.embed = async () => {
+      controller.abort(new DOMException('timed out', 'TimeoutError'));
+      throw new DOMException('timed out', 'TimeoutError');
+    };
+    const result = await service.reindex('openai', {}, controller.signal);
+    expect(result.ok).toBe(false);
+    expect(result.cancelled).toBeUndefined();
+  });
+
+  it('still reports the dropped models when the run then fails', async () => {
+    let current = fakeEmbedder('openai:old');
+    service.close();
+    service = make({ createEmbedder: () => current });
+    await service.reindex('openai');
+
+    current = fakeEmbedder('openai:new');
+    current.embed = async () => {
+      throw new Error('boom');
+    };
+    const result = await service.reindex('openai');
+    expect(result).toMatchObject({ ok: false, removedModels: ['openai:old'] });
+  });
+});
+
+describe('embeddingModels', () => {
+  it('asks the model lister for the provider, with the current settings', async () => {
+    const options = [{ value: 'bge-m3', label: 'bge-m3', installed: true }];
+    const listEmbeddingModels = vi.fn(async () => options);
+    service.close();
+    service = make({ listEmbeddingModels });
+    expect(await service.embeddingModels('ollama')).toBe(options);
+    expect(listEmbeddingModels).toHaveBeenCalledWith('ollama', settings);
+  });
+});
+
 describe('buildHelpPrompt', () => {
   it('numbers the passages and puts the question last', () => {
     const prompt = buildHelpPrompt('Q?', chunks.slice(0, 2));

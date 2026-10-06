@@ -18,10 +18,13 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { Paw, Plus, Trash2 } from '@/components/icons';
+import { CARD_PILL_SOFT } from '@/components/pageKit';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
+import { SimpleTooltip } from '@/components/ui/tooltip';
 import { queryKeys } from '@/lib/queryKeys';
 import { cn } from '@/lib/utils';
 import { confirmDialog } from '@/stores/confirmStore';
@@ -229,13 +232,14 @@ export function CompanionSettings({ settings }: { settings: AppSettings }): Reac
                 </span>
                 .
               </p>
-              <button
-                type="button"
-                className="shrink-0 cursor-pointer rounded-md border border-border px-2.5 py-1 text-xs font-medium hover:bg-accent"
+              <Button
+                variant="ghost"
+                size="sm"
+                className={cn(CARD_PILL_SOFT, 'shrink-0')}
                 onClick={() => void window.agentmat.pet.cancelSnooze()}
               >
                 Show now
-              </button>
+              </Button>
             </div>
           </CardContent>
         ) : null}
@@ -284,14 +288,16 @@ export function CompanionSettings({ settings }: { settings: AppSettings }): Reac
                       {isAnimatedPetFile(custom.fileName) ? 'Your animated pet' : 'Your pet'}
                     </p>
                   </button>
-                  <button
-                    type="button"
-                    className="absolute right-1.5 top-1.5 z-10 flex h-6 w-6 cursor-pointer items-center justify-center rounded-md text-muted-foreground hover:bg-destructive/15 hover:text-destructive"
-                    aria-label={`Remove ${custom.name}`}
-                    onClick={() => void handleRemovePet(custom.id, custom.name)}
-                  >
-                    <Trash2 className="h-3 w-3" />
-                  </button>
+                  <SimpleTooltip label="Remove">
+                    <button
+                      type="button"
+                      className="absolute right-1.5 top-1.5 z-10 flex h-6 w-6 cursor-pointer items-center justify-center rounded-full text-muted-foreground hover:bg-destructive/15 hover:text-destructive"
+                      aria-label={`Remove ${custom.name}`}
+                      onClick={() => void handleRemovePet(custom.id, custom.name)}
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </button>
+                  </SimpleTooltip>
                 </div>
               );
             })}

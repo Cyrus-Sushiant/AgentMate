@@ -11,6 +11,7 @@ import {
   type VaultApiMock,
 } from '@/components/vault/testing/mockVaultApi';
 import { useVaultEvents } from '@/hooks/useVaultEvents';
+import { usePaneLayoutStore } from '@/stores/paneLayoutStore';
 import { useVaultStore } from '@/stores/vaultStore';
 
 installDomShims();
@@ -112,6 +113,30 @@ describe('VaultPage states', () => {
     expect(await screen.findByRole('heading', { name: 'Vault is locked' })).toBeTruthy();
     expect(document.body.textContent).not.toContain('GitHub');
     expect(document.body.textContent).not.toContain('octocat');
+  });
+});
+
+describe('VaultPage layout', () => {
+  it('resizes the entry list from the keyboard and remembers the width', async () => {
+    renderPage();
+    await screen.findByRole('listbox', { name: 'Vault entries' });
+
+    const handle = screen.getByRole('separator', { name: 'Resize entry list' });
+    const before = Number(handle.getAttribute('aria-valuenow'));
+    fireEvent.keyDown(handle, { key: 'ArrowRight' });
+
+    expect(Number(handle.getAttribute('aria-valuenow'))).toBe(before + 16);
+    expect(usePaneLayoutStore.getState().widths.vaultList).toBe(before + 16);
+  });
+
+  it('marks the type filter that is on', async () => {
+    renderPage();
+    await screen.findByRole('listbox', { name: 'Vault entries' });
+
+    expect(screen.getByRole('tab', { name: /All/ })).toHaveAttribute('aria-selected', 'true');
+    fireEvent.click(screen.getByRole('tab', { name: /API keys/ }));
+    expect(screen.getByRole('tab', { name: /API keys/ })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('tab', { name: /All/ })).toHaveAttribute('aria-selected', 'false');
   });
 });
 

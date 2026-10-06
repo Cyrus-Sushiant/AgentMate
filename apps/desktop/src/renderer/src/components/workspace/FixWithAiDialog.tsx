@@ -25,6 +25,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { Textarea } from '@/components/ui/textarea';
 import { launchPromptTab, projectCliId } from '@/lib/workspace/launch';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
 
@@ -167,12 +168,12 @@ export function FixWithAiDialog({
                 ) : null}
               </div>
             ) : (
-              <textarea
+              <Textarea
                 value={prompt}
                 onChange={(event) => setPrompt(event.target.value)}
                 spellCheck={false}
                 aria-label={promptLabel}
-                className="min-h-[18rem] flex-1 resize-none rounded-lg border border-border/70 bg-background/60 p-3 font-mono text-[12px] leading-relaxed outline-none focus:border-primary/50 focus:ring-2 focus:ring-primary/15"
+                className="min-h-[18rem] flex-1 resize-none p-3 font-mono text-[12px] leading-relaxed"
               />
             )}
           </div>

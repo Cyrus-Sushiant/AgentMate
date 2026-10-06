@@ -3,7 +3,6 @@ import type { RemoteSavedServer, RemoteState } from '@shared/apiTypes';
 import { screen, waitFor, within } from '@testing-library/react';
 import type { UserEvent } from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { GooeyNavProps } from '@/components/ui/gooey-nav';
 import { useRemoteStore } from '@/stores/remoteStore';
 import { renderWithProviders } from '../../../test/renderer/renderWithProviders';
 
@@ -25,33 +24,6 @@ vi.mock('sonner', () => ({ toast, Toaster: () => null }));
 
 const confirm = vi.hoisted(() => ({ confirmDialog: vi.fn(async () => true) }));
 vi.mock('@/stores/confirmStore', () => confirm);
-
-/**
- * The view switcher, as a plain row of buttons. The real one animates its selection with a
- * Framer Motion spring, and the renderer suite's Framer stand-in has no `jump()` on a spring
- * value, so the real component throws the moment it mounts. The contract used here is the same:
- * a labelled button per view, the index handed back on click.
- */
-vi.mock('@/components/ui/gooey-nav', () => ({
-  GooeyNav: ({ items, value, onChange, ...rest }: GooeyNavProps) => (
-    <nav aria-label={rest['aria-label']}>
-      {items.map((item, index) => {
-        const label = typeof item === 'string' ? item : item.label;
-        return (
-          <button
-            key={label}
-            type="button"
-            aria-current={index === value ? true : undefined}
-            onClick={() => onChange?.(index)}
-          >
-            {label}
-          </button>
-        );
-      })}
-    </nav>
-  ),
-  GooeyNavCount: ({ value }: { value: number }) => <span>{value}</span>,
-}));
 
 const { default: RemotePage } = await import('./RemotePage');
 
@@ -136,6 +108,42 @@ describe('RemotePage with nothing set up', () => {
     // No interfaces have arrived from main, so there is nothing to bind to and hosting is off.
     expect(screen.getByText('No network interfaces found')).toBeInTheDocument();
     expect(action(/Start hosting/)).toBeDisabled();
+  });
+});
+
+describe('RemotePage views', () => {
+  it('marks the open view and switches to another', async () => {
+    const { user } = renderWithProviders(<RemotePage />, { route: '/remote' });
+
+    const host = within(viewSwitcher()).getByRole('button', { name: 'Host' });
+    expect(host).toHaveAttribute('aria-current', 'true');
+
+    await openView(user, 'SSH');
+
+    expect(within(viewSwitcher()).getByRole('button', { name: 'SSH' })).toHaveAttribute(
+      'aria-current',
+      'true',
+    );
+    expect(host).not.toHaveAttribute('aria-current');
+    expect(
+      await screen.findByText('Connect over SSH with one click, no terminal typing.'),
+    ).toBeInTheDocument();
+  });
+
+  it('says who this machine is connected to, whichever view is open', async () => {
+    useRemoteStore.setState({
+      state: remoteState({
+        connection: {
+          status: 'connected',
+          remoteDeviceName: 'Studio',
+          remoteScreen: null,
+          intent: 'control',
+        },
+      }),
+    });
+    renderWithProviders(<RemotePage />, { route: '/remote' });
+
+    expect(await screen.findByText('Connected to Studio')).toBeInTheDocument();
   });
 });
 

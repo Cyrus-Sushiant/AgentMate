@@ -1,9 +1,7 @@
 import type { FavoriteSkillRecord, SkillAuditRecord } from '@shared/apiTypes';
 import { useMemo, useState } from 'react';
-import { CatalogCardSkeleton } from '@/components/CatalogCardSkeleton';
 import {
   ChartSimple,
-  CircleCheck,
   Copy,
   Download,
   ExternalLink,
@@ -11,15 +9,24 @@ import {
   Shield,
   Star,
 } from '@/components/icons';
+import {
+  CARD_GRID,
+  CARD_PILL,
+  CatalogCardShimmer,
+  Chip,
+  EmptyState,
+  GLASS_CARD,
+  SearchPill,
+  TILE_ACTION,
+} from '@/components/pageKit';
 import { SkillAuditVerdictBadge } from '@/components/skills/SkillAuditReport';
+import { SkillCatalogCard } from '@/components/skills/SkillCatalogCard';
 import { SkillFavoriteButton } from '@/components/skills/SkillFavoriteButton';
 import type { SkillSecurityTarget } from '@/components/skills/SkillSecurityDialog';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import type { SkillFavorites } from '@/hooks/useSkillFavorites';
+import { cn } from '@/lib/utils';
 
 /** How each kind of favorite is labelled on its card. */
 const SOURCE_BADGE: Record<FavoriteSkillRecord['source'], string> = {
@@ -94,136 +101,150 @@ export function SkillFavoritesTab({
 
   if (favorites.isPending) {
     return (
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {Array.from({ length: 3 }, (_, index) => (
-          <CatalogCardSkeleton key={index} />
-        ))}
+      <div className="@container/grid">
+        <div className={CARD_GRID} role="status" aria-label="Loading favorites">
+          {Array.from({ length: 3 }, (_, index) => (
+            <CatalogCardShimmer key={index} />
+          ))}
+        </div>
       </div>
     );
   }
 
   if (favorites.favorites.length === 0) {
     return (
-      <div className="rounded-lg border border-dashed border-border px-6 py-12 text-center">
-        <Star className="mx-auto h-6 w-6 text-muted-foreground/50" />
-        <p className="mt-3 text-sm font-medium text-foreground">No favorites yet.</p>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Use the star on any skill in the Directory, Repositories or Usage tab to keep it here.
-        </p>
+      <div className={GLASS_CARD}>
+        <EmptyState
+          size="lg"
+          icon={Star}
+          title="No favorites yet."
+          description="Use the star on any skill in the Directory, Repositories or Usage tab to keep it here."
+        />
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-end gap-3">
-        <div className="relative min-w-64 flex-1 space-y-1.5">
-          <div className="relative">
-            <Search className="pointer-events-none absolute left-2.5 top-2.5 z-10 h-4 w-4 text-muted-foreground" />
-            <Input
-              className="pl-8"
-              placeholder="Search favorites…"
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-            />
-          </div>
-        </div>
-        <p className="pb-2 text-sm text-muted-foreground">
+    <div className="@container/grid flex flex-col gap-2">
+      <div className={cn(GLASS_CARD, 'flex flex-wrap items-center gap-3 px-3 py-2')}>
+        <SearchPill
+          label="Search favorites"
+          placeholder="Search favorites…"
+          value={search}
+          onValueChange={setSearch}
+          className="min-w-56 flex-1"
+        />
+        <p className="text-xs text-muted-foreground">
           {favorites.favorites.length} starred skill
           {favorites.favorites.length === 1 ? '' : 's'}
         </p>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {filtered.map((favorite) => {
-          const audit = auditBySkillId.get(favorite.skillId);
-          const uses = usageBySkillName.get(favorite.name) ?? 0;
-          const securityTarget = securityTargetFor(favorite);
-          const installable = favorite.source === 'skills-sh' || favorite.source === 'repository';
-          return (
-            <Card key={favorite.skillId} className="flex flex-col hover:border-primary/30">
-              <CardHeader>
-                <div className="flex items-start justify-between gap-2">
-                  <CardTitle className="flex items-center gap-1.5">
-                    {favorite.name}
-                    {favorite.official && (
-                      <SimpleTooltip label="Official: skills.sh has verified this publisher">
-                        <CircleCheck className="h-4 w-4 shrink-0 text-blue-500" />
-                      </SimpleTooltip>
-                    )}
-                  </CardTitle>
+      {filtered.length > 0 && (
+        <div className={CARD_GRID}>
+          {filtered.map((favorite) => {
+            const audit = auditBySkillId.get(favorite.skillId);
+            const uses = usageBySkillName.get(favorite.name) ?? 0;
+            const securityTarget = securityTargetFor(favorite);
+            const installable = favorite.source === 'skills-sh' || favorite.source === 'repository';
+            return (
+              <SkillCatalogCard
+                key={favorite.skillId}
+                title={favorite.name}
+                official={favorite.official}
+                trailing={
                   <SkillFavoriteButton
                     starred
                     onToggle={() => favorites.toggleFavorite(favorite)}
-                    className="-mr-2 -mt-1 shrink-0"
+                    className="-mr-1.5 -mt-1 shrink-0"
                   />
-                </div>
-                <CardDescription className="line-clamp-3">
-                  {favorite.description ?? 'No description saved for this skill.'}
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="mt-auto space-y-3">
-                <div className="flex flex-wrap items-center gap-1.5">
-                  <Badge variant="secondary">{SOURCE_BADGE[favorite.source]}</Badge>
-                  {uses > 0 && (
-                    <Badge variant="outline" className="gap-1">
-                      <ChartSimple className="h-3 w-3" />
-                      {uses} use{uses === 1 ? '' : 's'}
-                    </Badge>
-                  )}
-                  {audit && <SkillAuditVerdictBadge verdict={audit.verdict} score={audit.score} />}
-                </div>
-                <div className="truncate text-xs text-muted-foreground">
-                  {favorite.sourceLabel} · starred {new Date(favorite.addedAt).toLocaleDateString()}
-                </div>
-                <div className="flex items-center gap-2">
-                  {installable && (
-                    <Button size="sm" onClick={() => onInstall(favorite)}>
-                      <Download /> Install
-                    </Button>
-                  )}
-                  {favorite.installCommand && (
-                    <SimpleTooltip label="Copy the install command">
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        onClick={() => onCopyInstallCommand(favorite.installCommand!)}
-                      >
-                        <Copy className="h-4 w-4" />
+                }
+                description={favorite.description ?? 'No description saved for this skill.'}
+                chips={
+                  <>
+                    <Chip tone="primary">{SOURCE_BADGE[favorite.source]}</Chip>
+                    {uses > 0 && (
+                      <Chip>
+                        <ChartSimple className="h-3 w-3" />
+                        {uses} use{uses === 1 ? '' : 's'}
+                      </Chip>
+                    )}
+                    {audit && (
+                      <SkillAuditVerdictBadge verdict={audit.verdict} score={audit.score} />
+                    )}
+                  </>
+                }
+                meta={
+                  <>
+                    {favorite.sourceLabel} · starred{' '}
+                    {new Date(favorite.addedAt).toLocaleDateString()}
+                  </>
+                }
+                actions={
+                  <>
+                    {installable && (
+                      <Button size="sm" className={CARD_PILL} onClick={() => onInstall(favorite)}>
+                        <Download /> Install
                       </Button>
-                    </SimpleTooltip>
-                  )}
-                  {securityTarget && (
-                    <SimpleTooltip label="Check this skill for unsafe instructions">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => onCheckSecurity(securityTarget)}
-                      >
-                        <Shield className="h-4 w-4" />
-                      </Button>
-                    </SimpleTooltip>
-                  )}
-                  {favorite.url && (
-                    <SimpleTooltip label="Open on skills.sh">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => void window.agentmat.shell.openExternal(favorite.url!)}
-                      >
-                        <ExternalLink className="h-4 w-4" />
-                      </Button>
-                    </SimpleTooltip>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          );
-        })}
-      </div>
+                    )}
+                    <div className="ml-auto flex items-center gap-0.5">
+                      {favorite.installCommand && (
+                        <SimpleTooltip label="Copy the install command">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className={TILE_ACTION}
+                            aria-label={`Copy the install command for ${favorite.name}`}
+                            onClick={() => onCopyInstallCommand(favorite.installCommand!)}
+                          >
+                            <Copy className="h-3.5 w-3.5" />
+                          </Button>
+                        </SimpleTooltip>
+                      )}
+                      {securityTarget && (
+                        <SimpleTooltip label="Check this skill for unsafe instructions">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className={TILE_ACTION}
+                            aria-label={`Check ${favorite.name} for unsafe instructions`}
+                            onClick={() => onCheckSecurity(securityTarget)}
+                          >
+                            <Shield className="h-3.5 w-3.5" />
+                          </Button>
+                        </SimpleTooltip>
+                      )}
+                      {favorite.url && (
+                        <SimpleTooltip label="Open on skills.sh">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className={TILE_ACTION}
+                            aria-label={`Open ${favorite.name} on skills.sh`}
+                            onClick={() => void window.agentmat.shell.openExternal(favorite.url!)}
+                          >
+                            <ExternalLink className="h-3.5 w-3.5" />
+                          </Button>
+                        </SimpleTooltip>
+                      )}
+                    </div>
+                  </>
+                }
+              />
+            );
+          })}
+        </div>
+      )}
 
       {filtered.length === 0 && (
-        <p className="text-sm text-muted-foreground">No favorites match your search.</p>
+        <div className={GLASS_CARD}>
+          <EmptyState
+            size="sm"
+            icon={Search}
+            title="Nothing found"
+            description="No favorites match your search."
+          />
+        </div>
       )}
     </div>
   );

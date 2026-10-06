@@ -8,15 +8,15 @@ import {
   Folder,
   History,
   Languages,
+  Plus,
   Search,
   Sparkles,
-  Tag,
   Trash2,
+  TriangleAlert,
   X,
 } from '@/components/icons';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardDescription, CardTitle } from '@/components/ui/card';
 import {
   Dialog,
   DialogContent,
@@ -24,7 +24,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { queryKeys } from '@/lib/queryKeys';
 import { persianTextProps } from '@/lib/rtl';
@@ -32,6 +31,88 @@ import { cn } from '@/lib/utils';
 import { confirmDialog } from '@/stores/confirmStore';
 import { usePageHeader } from '@/stores/pageHeaderStore';
 import type { PromptHistoryEntry } from '../../../shared/apiTypes';
+
+/** The glass card each entry sits on, rounded like the Settings and API Client cards. */
+const CARD = 'glass rounded-[calc(var(--radius)+2px)]';
+
+/** The same small uppercase heading the main menu puts over its groups. */
+const SECTION_HEADING =
+  'select-none text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground/60';
+
+/** A quiet pill for the secondary actions on a card. */
+const GHOST_PILL =
+  'h-7 gap-1.5 rounded-full px-2.5 text-xs font-medium text-muted-foreground hover:bg-foreground/[0.06] hover:text-foreground';
+
+type ChipTone = 'primary' | 'success' | 'neutral';
+
+/** A small rounded label, tinted with a theme colour so it reads on every theme. */
+function Chip({
+  tone = 'neutral',
+  children,
+}: {
+  tone?: ChipTone;
+  children: React.ReactNode;
+}): React.JSX.Element {
+  return (
+    <span
+      className={cn(
+        'inline-flex h-5 items-center gap-1 rounded-full px-2 text-[11px] font-medium [&_svg]:h-3 [&_svg]:w-3 [&_svg]:shrink-0',
+        tone === 'primary' && 'bg-primary/12 text-primary',
+        tone === 'success' && 'bg-success/12 text-success',
+        tone === 'neutral' && 'bg-foreground/[0.06] text-foreground/80',
+      )}
+    >
+      {children}
+    </span>
+  );
+}
+
+/** What kind of entry this is: the chips next to its title, the same on the card and in the dialog. */
+function EntryChips({
+  entry,
+  projectName,
+}: {
+  entry: PromptHistoryEntry;
+  projectName: string | null;
+}): React.JSX.Element {
+  return (
+    <>
+      {entry.source === 'translate' ? (
+        <Chip tone="success">
+          <Languages /> Translated
+        </Chip>
+      ) : (
+        <>
+          <Chip>{entry.targetAI}</Chip>
+          <Chip tone="primary">
+            <Sparkles /> Generated
+          </Chip>
+        </>
+      )}
+      {projectName ? (
+        <Chip>
+          <Folder /> {projectName}
+        </Chip>
+      ) : null}
+    </>
+  );
+}
+
+/** The tinted square that starts each card, so translations and generated prompts tell apart at a glance. */
+function EntryIcon({ entry }: { entry: PromptHistoryEntry }): React.JSX.Element {
+  const translated = entry.source === 'translate';
+  return (
+    <div
+      aria-hidden
+      className={cn(
+        'flex h-9 w-9 shrink-0 items-center justify-center rounded-xl',
+        translated ? 'bg-success/12 text-success' : 'bg-primary/12 text-primary',
+      )}
+    >
+      {translated ? <Languages className="h-4 w-4" /> : <Sparkles className="h-4 w-4" />}
+    </div>
+  );
+}
 
 function TagEditor({ entry }: { entry: PromptHistoryEntry }): React.JSX.Element {
   const [adding, setAdding] = useState(false);
@@ -59,24 +140,27 @@ function TagEditor({ entry }: { entry: PromptHistoryEntry }): React.JSX.Element 
   }
 
   return (
-    <div className="flex flex-wrap items-center gap-1.5">
+    <div className="flex min-w-0 flex-wrap items-center gap-1.5">
       {entry.tags.map((tag) => (
-        <Badge key={tag} variant="outline" className="gap-1 pr-1">
+        <span
+          key={tag}
+          className="inline-flex h-6 items-center gap-0.5 rounded-full bg-foreground/[0.06] pl-2.5 pr-0.5 text-[11px] font-medium text-foreground/80"
+        >
           {tag}
           <button
             type="button"
             onClick={() => removeTag(tag)}
-            className="rounded-full p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+            className="flex h-5 w-5 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-foreground/10 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             aria-label={`Remove tag ${tag}`}
           >
             <X className="h-2.5 w-2.5" />
           </button>
-        </Badge>
+        </span>
       ))}
       {adding ? (
-        <Input
+        <input
           autoFocus
-          className="h-6 w-28 px-2 text-xs"
+          className="field-surface h-6 w-28 rounded-full px-2.5 text-[11px] outline-none"
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={(e) => {
@@ -90,15 +174,48 @@ function TagEditor({ entry }: { entry: PromptHistoryEntry }): React.JSX.Element 
           placeholder="Tag name…"
         />
       ) : (
-        <Button
-          variant="ghost"
-          size="sm"
-          className="h-6 gap-1 px-2 text-xs text-muted-foreground"
+        <button
+          type="button"
+          className="inline-flex h-6 cursor-pointer items-center gap-1 rounded-full px-2 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-foreground/[0.06] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           onClick={() => setAdding(true)}
         >
-          <Tag className="h-3 w-3" /> Add tag
-        </Button>
+          <Plus className="h-3 w-3" /> Add tag
+        </button>
       )}
+    </div>
+  );
+}
+
+function StatusPanel({
+  icon,
+  tone = 'primary',
+  title,
+  description,
+  action,
+}: {
+  icon: React.ReactNode;
+  tone?: 'primary' | 'destructive';
+  title: string;
+  description: string;
+  action?: React.ReactNode;
+}): React.JSX.Element {
+  return (
+    <div className={cn(CARD, 'flex flex-col items-center gap-4 px-6 py-14 text-center')}>
+      <div
+        className={cn(
+          'flex h-14 w-14 items-center justify-center rounded-2xl',
+          tone === 'destructive'
+            ? 'bg-destructive/12 text-destructive shadow-[0_0_40px_-12px_hsl(var(--destructive)/0.7)]'
+            : 'bg-primary/12 text-primary shadow-[0_0_40px_-12px_hsl(var(--primary)/0.7)]',
+        )}
+      >
+        {icon}
+      </div>
+      <div className="max-w-sm space-y-1.5">
+        <p className="text-base font-semibold tracking-tight">{title}</p>
+        <p className="text-sm text-muted-foreground">{description}</p>
+      </div>
+      {action}
     </div>
   );
 }
@@ -156,111 +273,135 @@ export default function PromptHistoryPage(): React.JSX.Element {
   const entries = historyQuery.data ?? [];
 
   return (
-    <div className="mx-auto max-w-5xl space-y-6 p-6">
-      <div className="relative max-w-sm">
-        <Search className="pointer-events-none absolute left-2.5 top-2.5 z-10 h-4 w-4 text-muted-foreground" />
-        <Input
-          className="pl-8"
-          placeholder="Search prompt history…"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
+    // w-full: the page wrapper is a flex column, so without it the column shrinks to its content.
+    <div className="mx-auto w-full max-w-5xl space-y-4 p-4">
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="search-pill flex h-9 w-full items-center gap-2 rounded-full pl-3.5 pr-1.5 transition-colors sm:w-80">
+          <Search className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+          <input
+            className="h-full min-w-0 flex-1 bg-transparent text-[13px] outline-none placeholder:text-muted-foreground/70"
+            placeholder="Search prompt history…"
+            aria-label="Search prompt history"
+            spellCheck={false}
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape' && search) {
+                e.preventDefault();
+                setSearch('');
+              }
+            }}
+          />
+          {search ? (
+            <button
+              type="button"
+              aria-label="Clear search"
+              className="flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-foreground/[0.08] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              onClick={() => setSearch('')}
+            >
+              <X className="h-3 w-3" />
+            </button>
+          ) : null}
+        </div>
+        {historyQuery.isSuccess && entries.length > 0 ? (
+          <span className="rounded-full bg-foreground/[0.06] px-2.5 py-1 text-[11px] font-medium tabular-nums text-muted-foreground">
+            {entries.length} {entries.length === 1 ? 'prompt' : 'prompts'}
+          </span>
+        ) : null}
       </div>
 
       {historyQuery.isLoading ? (
-        <div className="space-y-3">
+        <div role="status" aria-label="Loading prompt history" className="space-y-2">
           {Array.from({ length: 4 }, (_, i) => (
-            <Card key={i} className="glass">
-              <CardHeader className="space-y-2">
-                <Skeleton className="h-4 w-48" />
-                <Skeleton className="h-3 w-28" />
-              </CardHeader>
-              <CardContent className="space-y-2">
+            <div key={i} className={cn(CARD, 'space-y-3 p-4')}>
+              <div className="flex items-center gap-3">
+                <Skeleton className="h-9 w-9 shrink-0 rounded-xl" />
+                <Skeleton className="h-4 w-28" />
+                <Skeleton className="h-5 w-20 rounded-full" />
+                <Skeleton className="ml-auto h-3 w-24" />
+              </div>
+              <div className="space-y-2">
                 <Skeleton className="h-3 w-full" />
                 <Skeleton className="h-3 w-4/5" />
-              </CardContent>
-            </Card>
+              </div>
+              <div className="flex items-center gap-2 pt-1">
+                <Skeleton className="h-6 w-16 rounded-full" />
+                <Skeleton className="ml-auto h-7 w-24 rounded-full" />
+                <Skeleton className="h-7 w-16 rounded-full" />
+              </div>
+            </div>
           ))}
         </div>
       ) : historyQuery.isError ? (
-        <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed border-destructive/40 py-16 text-center">
-          <p className="text-sm font-medium">Couldn't load prompt history.</p>
-          <p className="max-w-sm text-sm text-muted-foreground">
-            {historyQuery.error instanceof Error
+        <StatusPanel
+          tone="destructive"
+          icon={<TriangleAlert className="h-6 w-6" />}
+          title="Couldn't load prompt history."
+          description={
+            historyQuery.error instanceof Error
               ? historyQuery.error.message
-              : 'An unexpected error occurred.'}
-          </p>
-          <Button variant="outline" size="sm" onClick={() => void historyQuery.refetch()}>
-            Try again
-          </Button>
-        </div>
+              : 'An unexpected error occurred.'
+          }
+          action={
+            <Button className="rounded-full px-5" onClick={() => void historyQuery.refetch()}>
+              Try again
+            </Button>
+          }
+        />
       ) : entries.length === 0 ? (
-        <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed border-border py-16 text-center">
-          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary">
-            <History className="h-5 w-5" />
-          </div>
-          <div className="space-y-1">
-            <p className="text-sm font-medium">
-              {search.trim() ? 'No matching prompts found.' : 'Nothing here yet'}
-            </p>
-            <p className="max-w-sm text-sm text-muted-foreground">
-              {search.trim()
-                ? `No prompts match "${search.trim()}".`
-                : 'Generate or translate a prompt in Prompt Builder and it will show up here.'}
-            </p>
-          </div>
-        </div>
+        <StatusPanel
+          icon={search.trim() ? <Search className="h-6 w-6" /> : <History className="h-6 w-6" />}
+          title={search.trim() ? 'No matching prompts found.' : 'Nothing here yet'}
+          description={
+            search.trim()
+              ? `No prompts match "${search.trim()}".`
+              : 'Generate or translate a prompt in Prompt Builder and it will show up here.'
+          }
+        />
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-2">
           {entries.map((entry) => {
             const contentPersian = persianTextProps(entry.content);
             return (
-              <Card key={entry.id} className="glass">
-                <CardHeader>
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      {entry.source === 'translate' ? (
-                        <>
-                          <CardTitle className="text-sm">Translation</CardTitle>
-                          <Badge variant="secondary">
-                            <Languages className="h-3 w-3" /> Translated
-                          </Badge>
-                        </>
-                      ) : (
-                        <>
-                          <CardTitle className="text-sm">{entry.promptType}</CardTitle>
-                          <Badge variant="outline">{entry.targetAI}</Badge>
-                          <Badge variant="secondary">
-                            <Sparkles className="h-3 w-3" /> Generated
-                          </Badge>
-                        </>
-                      )}
-                      {projectName(entry.projectId) ? (
-                        <Badge variant="outline">
-                          <Folder className="h-3 w-3" /> {projectName(entry.projectId)}
-                        </Badge>
-                      ) : null}
+              <Card key={entry.id} className={cn(CARD, 'overflow-hidden')}>
+                <div className="space-y-3 p-4">
+                  <div className="flex items-start gap-3">
+                    <EntryIcon entry={entry} />
+                    <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1 pt-1.5">
+                      <CardTitle className="text-sm">
+                        {entry.source === 'translate' ? 'Translation' : entry.promptType}
+                      </CardTitle>
+                      <EntryChips entry={entry} projectName={projectName(entry.projectId)} />
                     </div>
-                    <span className="shrink-0 text-xs text-muted-foreground">
+                    <span className="shrink-0 pt-2 text-[11px] tabular-nums text-muted-foreground">
                       {new Date(entry.createdAt).toLocaleString()}
                     </span>
                   </div>
                   <CardDescription
                     dir={contentPersian.dir}
-                    className={cn('line-clamp-3 whitespace-pre-wrap', contentPersian.className)}
+                    className={cn(
+                      'line-clamp-3 whitespace-pre-wrap text-[13px] leading-relaxed',
+                      contentPersian.className,
+                    )}
                   >
                     {entry.content}
                   </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-3">
+                </div>
+                <div className="flex flex-wrap items-center gap-2 px-4 py-2 shadow-[inset_0_1px_0_hsl(var(--foreground)/0.08)]">
                   <TagEditor entry={entry} />
-                  <div className="flex items-center gap-2">
-                    <Button variant="outline" size="sm" onClick={() => setSelectedEntry(entry)}>
+                  <div className="ml-auto flex items-center gap-0.5">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className={GHOST_PILL}
+                      onClick={() => setSelectedEntry(entry)}
+                    >
                       <Eye /> View details
                     </Button>
                     <Button
-                      variant="outline"
+                      variant="ghost"
                       size="sm"
+                      className={GHOST_PILL}
                       onClick={() => void handleCopy(entry.content)}
                     >
                       <Copy /> Copy
@@ -268,6 +409,7 @@ export default function PromptHistoryPage(): React.JSX.Element {
                     <Button
                       variant="ghost"
                       size="sm"
+                      className={cn(GHOST_PILL, 'hover:bg-destructive/10 hover:text-destructive')}
                       onClick={() => {
                         void confirmDialog({
                           title: 'Delete this prompt history entry?',
@@ -283,7 +425,7 @@ export default function PromptHistoryPage(): React.JSX.Element {
                       <Trash2 /> Delete
                     </Button>
                   </div>
-                </CardContent>
+                </div>
               </Card>
             );
           })}
@@ -298,28 +440,16 @@ export default function PromptHistoryPage(): React.JSX.Element {
           {selectedEntry ? (
             <>
               <DialogHeader>
-                <div className="flex flex-wrap items-center gap-1.5">
-                  {selectedEntry.source === 'translate' ? (
-                    <>
-                      <DialogTitle>Translation</DialogTitle>
-                      <Badge variant="secondary">
-                        <Languages className="h-3 w-3" /> Translated
-                      </Badge>
-                    </>
-                  ) : (
-                    <>
-                      <DialogTitle>{selectedEntry.promptType}</DialogTitle>
-                      <Badge variant="outline">{selectedEntry.targetAI}</Badge>
-                      <Badge variant="secondary">
-                        <Sparkles className="h-3 w-3" /> Generated
-                      </Badge>
-                    </>
-                  )}
-                  {projectName(selectedEntry.projectId) ? (
-                    <Badge variant="outline">
-                      <Folder className="h-3 w-3" /> {projectName(selectedEntry.projectId)}
-                    </Badge>
-                  ) : null}
+                <div className="flex flex-wrap items-center gap-2">
+                  <DialogTitle>
+                    {selectedEntry.source === 'translate'
+                      ? 'Translation'
+                      : selectedEntry.promptType}
+                  </DialogTitle>
+                  <EntryChips
+                    entry={selectedEntry}
+                    projectName={projectName(selectedEntry.projectId)}
+                  />
                 </div>
                 <DialogDescription>
                   {new Date(selectedEntry.createdAt).toLocaleString()}
@@ -328,8 +458,8 @@ export default function PromptHistoryPage(): React.JSX.Element {
               <SelectedEntryBody entry={selectedEntry} />
               <div className="flex items-center gap-2">
                 <Button
-                  variant="outline"
                   size="sm"
+                  className="rounded-full px-4"
                   onClick={() => void handleCopy(selectedEntry.content)}
                 >
                   <Copy /> Copy
@@ -346,40 +476,29 @@ export default function PromptHistoryPage(): React.JSX.Element {
 function SelectedEntryBody({ entry }: { entry: PromptHistoryEntry }): React.JSX.Element {
   const rawPersian = persianTextProps(entry.rawInput);
   const contentPersian = persianTextProps(entry.content);
+  // A soft inset well rather than a bordered box, so the two texts read as part of the dialog.
+  const well =
+    'whitespace-pre-wrap rounded-xl bg-foreground/[0.04] p-3 text-sm leading-relaxed ring-1 ring-inset ring-foreground/[0.06]';
   return (
     <div className="max-h-[60vh] space-y-4 overflow-y-auto">
       {entry.tags.length > 0 ? (
         <div className="flex flex-wrap gap-1.5">
           {entry.tags.map((tag) => (
-            <Badge key={tag} variant="outline">
-              {tag}
-            </Badge>
+            <Chip key={tag}>{tag}</Chip>
           ))}
         </div>
       ) : null}
       <div className="space-y-1.5">
-        <p className="text-xs font-medium text-muted-foreground">Original input</p>
-        <p
-          dir={rawPersian.dir}
-          className={cn(
-            'whitespace-pre-wrap rounded-lg border border-border bg-muted/40 p-3 text-sm',
-            rawPersian.className,
-          )}
-        >
+        <p className={SECTION_HEADING}>Original input</p>
+        <p dir={rawPersian.dir} className={cn(well, rawPersian.className)}>
           {entry.rawInput}
         </p>
       </div>
       <div className="space-y-1.5">
-        <p className="text-xs font-medium text-muted-foreground">
+        <p className={SECTION_HEADING}>
           {entry.source === 'translate' ? 'Translated prompt' : 'Generated prompt'}
         </p>
-        <p
-          dir={contentPersian.dir}
-          className={cn(
-            'whitespace-pre-wrap rounded-lg border border-border bg-muted/40 p-3 text-sm',
-            contentPersian.className,
-          )}
-        >
+        <p dir={contentPersian.dir} className={cn(well, contentPersian.className)}>
           {entry.content}
         </p>
       </div>

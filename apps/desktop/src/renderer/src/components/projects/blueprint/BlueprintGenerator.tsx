@@ -233,7 +233,7 @@ export function BlueprintGeneratorFields({
               role="radiogroup"
               aria-label="Effort"
               className={cn(
-                'flex h-8 w-full items-stretch gap-0.5 rounded-lg border border-input bg-background p-0.5',
+                'field-surface flex h-8 w-full items-stretch gap-0.5 rounded-full p-0.5',
                 efforts.length === 0 && 'opacity-50',
               )}
             >
@@ -249,7 +249,7 @@ export function BlueprintGeneratorFields({
                     disabled={efforts.length === 0}
                     onClick={() => generator.selectEffort(level)}
                     className={cn(
-                      'min-w-0 flex-1 truncate rounded-md px-1.5 text-xs transition-colors disabled:pointer-events-none',
+                      'min-w-0 flex-1 cursor-pointer truncate rounded-full px-1.5 text-xs transition-colors disabled:pointer-events-none',
                       selected
                         ? 'bg-primary/15 font-medium text-foreground shadow-[inset_0_0_0_1px_hsl(var(--primary)/0.35)]'
                         : 'text-muted-foreground hover:bg-foreground/[0.06] hover:text-foreground',

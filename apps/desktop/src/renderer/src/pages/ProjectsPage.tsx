@@ -7,6 +7,7 @@ import {
   projectRunCommandHint,
 } from '@agentmat/core';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { LayoutGroup, motion, useReducedMotion } from 'framer-motion';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -34,10 +35,9 @@ import { ProjectFormDialog, type ProjectFormValues } from '@/components/projects
 import { ProjectIcon } from '@/components/projects/ProjectIcon';
 import { ProjectPromptBuildDialog } from '@/components/projects/ProjectPromptBuildDialog';
 import { useProjectRun } from '@/components/projects/useProjectRun';
-import { Badge } from '@/components/ui/badge';
+import { NewProjectButton } from '@/components/projects/wordpress/NewProjectButton';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
+import { Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { openCliInTerminal } from '@/lib/openCli';
@@ -126,6 +126,10 @@ export default function ProjectsPage(): React.JSX.Element {
   const searchRef = useRef<HTMLInputElement>(null);
   const queryClient = useQueryClient();
   const { requestRun, runPicker } = useProjectRun();
+  const reduceMotion = useReducedMotion();
+  const pillTransition = reduceMotion
+    ? { duration: 0 }
+    : { type: 'spring' as const, stiffness: 420, damping: 32 };
 
   const projectsQuery = useQuery({
     queryKey: queryKeys.projects,
@@ -333,14 +337,18 @@ export default function ProjectsPage(): React.JSX.Element {
     return <ProjectItem key={project.id} {...cardProps} />;
   }
 
+  const groupClass =
+    view === 'list' ? LIST_CARD : 'grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-3';
+
   return (
-    <div className="space-y-5 p-6">
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="relative min-w-[12rem] flex-1 sm:max-w-sm">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-          <Input
+    <div className="space-y-5 p-4">
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="search-pill flex h-9 w-full min-w-[12rem] items-center gap-2 rounded-full pl-3.5 pr-1.5 transition-colors sm:w-72">
+          <Search className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+          <input
             ref={searchRef}
             autoComplete="off"
+            spellCheck={false}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             onKeyDown={(e) => {
@@ -351,30 +359,30 @@ export default function ProjectsPage(): React.JSX.Element {
             }}
             placeholder="Search projects…"
             aria-label="Search projects"
-            className="pl-8 pr-10"
+            className="h-full min-w-0 flex-1 bg-transparent text-[13px] outline-none placeholder:text-muted-foreground/70"
           />
           {search ? (
             <button
               type="button"
               aria-label="Clear search"
-              className="absolute right-1.5 top-1/2 flex h-7 w-7 -translate-y-1/2 cursor-pointer items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
+              className="flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-foreground/[0.08] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               onClick={() => setSearch('')}
             >
-              <X className="h-3.5 w-3.5" />
+              <X className="h-3 w-3" />
             </button>
           ) : (
-            <kbd className="pointer-events-none absolute right-2.5 top-1/2 hidden -translate-y-1/2 rounded border border-border px-1.5 py-px text-[10px] font-medium text-muted-foreground sm:inline-block">
+            <kbd className="pointer-events-none hidden shrink-0 rounded-full bg-foreground/[0.07] px-2 py-0.5 font-sans text-[10px] font-medium text-muted-foreground sm:inline-block">
               /
             </kbd>
           )}
         </div>
 
         {visible.length > 0 && (
-          <p className="text-xs tabular-nums text-muted-foreground">
+          <span className="rounded-full bg-foreground/[0.06] px-2.5 py-1 text-[11px] font-medium tabular-nums text-muted-foreground">
             {filtered.length === visible.length
               ? `${visible.length} ${visible.length === 1 ? 'project' : 'projects'}`
               : `${filtered.length} of ${visible.length}`}
-          </p>
+          </span>
         )}
 
         <div className="ml-auto flex items-center gap-2">
@@ -382,199 +390,198 @@ export default function ProjectsPage(): React.JSX.Element {
             <SimpleTooltip
               label={showArchived ? 'Back to active projects' : 'Show archived projects'}
             >
-              <Button
-                variant="outline"
+              <button
+                type="button"
                 aria-pressed={showArchived}
-                className={cn(showArchived && 'border-primary/40 bg-primary/10 text-primary')}
+                className={cn(
+                  'inline-flex h-9 shrink-0 cursor-pointer items-center gap-2 rounded-full px-3.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                  // The pill wash is unlayered CSS and would cover a tint, so the pressed state
+                  // swaps it out for the primary one instead of layering on top.
+                  showArchived
+                    ? 'bg-primary/12 text-primary ring-1 ring-inset ring-primary/25'
+                    : 'search-pill text-foreground/85 hover:text-foreground',
+                )}
                 onClick={toggleArchivedView}
               >
                 <Archive className="h-4 w-4" /> Archived
-                <span className="tabular-nums opacity-70">{archivedProjects.length}</span>
-              </Button>
+                <span className="rounded-full bg-current/10 px-1.5 text-[10px] leading-4 tabular-nums">
+                  {archivedProjects.length}
+                </span>
+              </button>
             </SimpleTooltip>
           )}
           {projects.length > 0 && (
-            <div className="flex h-9 items-center rounded-lg border border-border p-0.5">
-              <SimpleTooltip label="Grid view">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  aria-label="Grid view"
-                  aria-pressed={view === 'grid'}
-                  className={cn('h-8 w-8', view === 'grid' && 'bg-accent text-foreground')}
+            <LayoutGroup id="projects-view">
+              <div className="search-pill flex h-9 items-center gap-0.5 rounded-full p-0.5">
+                <ViewToggle
+                  label="Grid view"
+                  active={view === 'grid'}
                   onClick={() => setView('grid')}
+                  transition={pillTransition}
                 >
                   <FolderKanban className="h-4 w-4" />
-                </Button>
-              </SimpleTooltip>
-              <SimpleTooltip label="List view">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  aria-label="List view"
-                  aria-pressed={view === 'list'}
-                  className={cn('h-8 w-8', view === 'list' && 'bg-accent text-foreground')}
+                </ViewToggle>
+                <ViewToggle
+                  label="List view"
+                  active={view === 'list'}
                   onClick={() => setView('list')}
+                  transition={pillTransition}
                 >
                   <ListUnordered className="h-4 w-4" />
-                </Button>
-              </SimpleTooltip>
-            </div>
+                </ViewToggle>
+              </div>
+            </LayoutGroup>
           )}
-          <Button onClick={() => setDialogOpen(true)}>
-            <Plus /> New Project
-          </Button>
+          <NewProjectButton onNewEmpty={() => setDialogOpen(true)} />
         </div>
       </div>
 
       {visible.length > 0 && agentTypesPresent.length > 1 && (
-        <div
-          className="flex flex-wrap items-center gap-1.5"
-          role="group"
-          aria-label="Filter by agent"
-        >
-          <FilterChip active={agentFilter === 'all'} onClick={() => setAgentFilter('all')}>
-            All agents
-          </FilterChip>
-          {agentTypesPresent.map((type) => {
-            const cliId = AGENT_TYPE_CLI_ID[type];
-            return (
-              <FilterChip
-                key={type}
-                active={agentFilter === type}
-                onClick={() => setAgentFilter(agentFilter === type ? 'all' : type)}
-              >
-                {cliId ? <CliLogo cliId={cliId} className="h-3 w-3" /> : null}
-                {AGENT_TYPE_LABELS[type]}
-              </FilterChip>
-            );
-          })}
-        </div>
+        <LayoutGroup id="projects-agent-filter">
+          <div
+            className="search-pill inline-flex max-w-full flex-wrap items-center gap-0.5 rounded-[1.1rem] p-0.5"
+            role="group"
+            aria-label="Filter by agent"
+          >
+            <FilterChip
+              active={agentFilter === 'all'}
+              onClick={() => setAgentFilter('all')}
+              transition={pillTransition}
+            >
+              All agents
+            </FilterChip>
+            {agentTypesPresent.map((type) => {
+              const cliId = AGENT_TYPE_CLI_ID[type];
+              return (
+                <FilterChip
+                  key={type}
+                  active={agentFilter === type}
+                  onClick={() => setAgentFilter(agentFilter === type ? 'all' : type)}
+                  transition={pillTransition}
+                >
+                  {cliId ? <CliLogo cliId={cliId} className="h-3 w-3" /> : null}
+                  {AGENT_TYPE_LABELS[type]}
+                </FilterChip>
+              );
+            })}
+          </div>
+        </LayoutGroup>
       )}
 
       {projectsQuery.isLoading ? (
         view === 'list' ? (
-          <div className="space-y-2">
+          <div role="status" aria-label="Loading projects" className={LIST_CARD}>
             {Array.from({ length: 6 }, (_, i) => (
-              <Card key={i} className="glass flex items-center gap-3 px-3 py-2.5">
+              <div key={i} className="flex items-center gap-3 px-3 py-2.5">
                 <Skeleton className="h-9 w-9 shrink-0 rounded-lg" />
                 <div className="min-w-0 flex-1 space-y-1.5">
                   <Skeleton className="h-4 w-40" />
                   <Skeleton className="h-3 w-56" />
                 </div>
-                <Skeleton className="h-5 w-20 rounded-full" />
-                <Skeleton className="h-8 w-16 rounded-md" />
-              </Card>
+                <Skeleton className="hidden h-6 w-24 rounded-full md:block" />
+                <Skeleton className="h-8 w-8 rounded-full" />
+                <Skeleton className="h-8 w-[5.5rem] rounded-full" />
+              </div>
             ))}
           </div>
         ) : (
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+          <div
+            role="status"
+            aria-label="Loading projects"
+            className="grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-3"
+          >
             {Array.from({ length: 6 }, (_, i) => (
-              <Card key={i} className="glass flex flex-col">
-                <CardHeader className="pb-3">
+              <Card key={i} className={cn(CARD, 'flex flex-col')}>
+                <div className="space-y-3 p-4 pb-3">
                   <div className="flex items-center gap-3">
-                    <Skeleton className="h-11 w-11 shrink-0 rounded-lg" />
+                    <Skeleton className="h-10 w-10 shrink-0 rounded-xl" />
                     <div className="min-w-0 flex-1 space-y-1.5">
                       <Skeleton className="h-4 w-32" />
                       <Skeleton className="h-3 w-20" />
                     </div>
                   </div>
-                  <Skeleton className="mt-3 h-3 w-full" />
-                </CardHeader>
-                <CardContent className="mt-auto space-y-3">
-                  <Skeleton className="h-5 w-24 rounded-full" />
-                  <Skeleton className="h-3 w-2/3" />
-                </CardContent>
-                <CardFooter className="gap-2 border-t border-border/70 pt-3">
-                  <Skeleton className="h-8 w-16 rounded-md" />
-                  <Skeleton className="ml-auto h-8 w-[5.5rem] rounded-lg" />
-                </CardFooter>
+                  <Skeleton className="h-3 w-full" />
+                  <div className="flex gap-1.5">
+                    <Skeleton className="h-6 w-24 rounded-full" />
+                    <Skeleton className="h-6 w-12 rounded-full" />
+                  </div>
+                </div>
+                <div className={cn(CARD_FOOTER, 'mt-auto')}>
+                  <Skeleton className="h-8 w-16 rounded-full" />
+                  <Skeleton className="ml-auto h-8 w-[5.5rem] rounded-full" />
+                </div>
               </Card>
             ))}
           </div>
         )
       ) : projects.length === 0 ? (
-        <div className="flex flex-col items-center gap-4 rounded-xl border border-dashed border-border px-6 py-20 text-center">
-          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 text-primary">
-            <FolderPlus className="h-6 w-6" />
-          </div>
-          <div className="space-y-1.5">
-            <p className="text-sm font-medium">No projects yet</p>
-            <p className="max-w-sm text-sm leading-relaxed text-muted-foreground">
-              Add a folder AgentMate can bootstrap and work in. You can pin it, run it, and build
-              prompts from here.
-            </p>
-          </div>
-          <Button onClick={() => setDialogOpen(true)}>
-            <Plus /> New Project
-          </Button>
+        <div className={cn(CARD, 'px-6 py-16')}>
+          <EmptyState
+            icon={<FolderPlus className="h-6 w-6" />}
+            title="No projects yet"
+            description="Add a folder AgentMate can bootstrap and work in. You can pin it, run it, and build prompts from here."
+            action={
+              <Button className="rounded-full px-5" onClick={() => setDialogOpen(true)}>
+                <Plus /> New Project
+              </Button>
+            }
+          />
         </div>
       ) : filtered.length === 0 ? (
-        <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed border-border px-6 py-16 text-center">
-          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted text-muted-foreground">
-            <Search className="h-5 w-5" />
-          </div>
-          <div className="space-y-1">
-            <p className="text-sm font-medium">No matching projects</p>
-            <p className="max-w-sm text-sm text-muted-foreground">
-              {query
+        <div className={cn(CARD, 'px-6 py-14')}>
+          <EmptyState
+            icon={<Search className="h-5 w-5" />}
+            title="No matching projects"
+            description={
+              query
                 ? `Nothing matches “${search.trim()}”${agentFilter === 'all' ? '' : ` in ${agentFilterLabel(agentFilter)}`}.`
-                : `No ${agentFilterLabel(agentFilter)} projects yet.`}
-            </p>
-          </div>
-          <Button variant="outline" onClick={clearFilters}>
-            Clear filters
-          </Button>
+                : `No ${agentFilterLabel(agentFilter)} projects yet.`
+            }
+            action={
+              <Button
+                variant="ghost"
+                className="search-pill rounded-full px-4 text-foreground/85 hover:text-foreground"
+                onClick={clearFilters}
+              >
+                <X /> Clear filters
+              </Button>
+            }
+          />
         </div>
       ) : (
-        <div className="space-y-8">
-          {pinnedProjects.length > 0 && (
-            <section className="space-y-3">
-              <div className="flex items-center gap-2">
-                <p className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                  <Pin className="h-3 w-3 text-primary" /> Pinned
-                </p>
-                <span className="text-xs tabular-nums text-muted-foreground/70">
-                  {pinnedProjects.length}
-                </span>
-              </div>
-              <div
-                className={
-                  view === 'list'
-                    ? 'space-y-2'
-                    : 'grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3'
-                }
-              >
-                {pinnedProjects.map((project) => renderProject(project, 'pinned'))}
-              </div>
-            </section>
-          )}
-
-          {unpinnedProjects.length > 0 && (
-            <section className="space-y-3">
-              {pinnedProjects.length > 0 || showArchived ? (
-                <div className="flex items-center gap-2">
-                  <p className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                    {showArchived ? <Archive className="h-3 w-3" /> : null}
-                    {showArchived ? 'Archived' : filtersActive ? 'Matches' : 'All projects'}
-                  </p>
-                  <span className="text-xs tabular-nums text-muted-foreground/70">
-                    {unpinnedProjects.length}
-                  </span>
+        <LayoutGroup id="projects-cards">
+          <div className="space-y-5">
+            {pinnedProjects.length > 0 && (
+              <section className="space-y-2">
+                <GroupHeading
+                  icon={<Pin className="h-3 w-3 text-primary" />}
+                  count={pinnedProjects.length}
+                >
+                  Pinned
+                </GroupHeading>
+                <div className={groupClass}>
+                  {pinnedProjects.map((project) => renderProject(project, 'pinned'))}
                 </div>
-              ) : null}
-              <div
-                className={
-                  view === 'list'
-                    ? 'space-y-2'
-                    : 'grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3'
-                }
-              >
-                {unpinnedProjects.map((project) => renderProject(project, 'unpinned'))}
-              </div>
-            </section>
-          )}
-        </div>
+              </section>
+            )}
+
+            {unpinnedProjects.length > 0 && (
+              <section className="space-y-2">
+                {pinnedProjects.length > 0 || showArchived ? (
+                  <GroupHeading
+                    icon={showArchived ? <Archive className="h-3 w-3" /> : null}
+                    count={unpinnedProjects.length}
+                  >
+                    {showArchived ? 'Archived' : filtersActive ? 'Matches' : 'All projects'}
+                  </GroupHeading>
+                ) : null}
+                <div className={groupClass}>
+                  {unpinnedProjects.map((project) => renderProject(project, 'unpinned'))}
+                </div>
+              </section>
+            )}
+          </div>
+        </LayoutGroup>
       )}
 
       <ProjectFormDialog
@@ -608,13 +615,122 @@ export default function ProjectsPage(): React.JSX.Element {
   );
 }
 
+/** The glass card every project sits on, rounded like the Settings and API Client cards. */
+const CARD = 'glass rounded-[calc(var(--radius)+2px)]';
+
+/** List view: one card per group, its rows split by the same hairline Settings uses. */
+const LIST_CARD = cn(CARD, 'settings-rows overflow-hidden');
+
+/** A grid card's footer, set off by a hairline drawn as a shadow so the theme border rule can't recolour it. */
+const CARD_FOOTER =
+  'flex items-center gap-2 px-4 py-2.5 shadow-[inset_0_1px_0_hsl(var(--foreground)/0.08)]';
+
+/** The same small uppercase heading the main menu puts over its groups. */
+const SECTION_HEADING =
+  'select-none text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground/60';
+
+/** A small round icon button with the main menu's hover wash. */
+const ROUND_ICON_BUTTON =
+  'inline-flex shrink-0 cursor-pointer items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-foreground/[0.08] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring';
+
+type PillTransition = React.ComponentProps<typeof motion.span>['transition'];
+
+function GroupHeading({
+  icon,
+  count,
+  children,
+}: {
+  icon: React.ReactNode;
+  count: number;
+  children: React.ReactNode;
+}): React.JSX.Element {
+  return (
+    <div className="flex items-center gap-2 px-1">
+      <h2 className={cn(SECTION_HEADING, 'flex items-center gap-1.5')}>
+        {icon}
+        {children}
+      </h2>
+      <span className="rounded-full bg-foreground/[0.06] px-1.5 text-[10px] leading-4 tabular-nums text-muted-foreground">
+        {count}
+      </span>
+    </div>
+  );
+}
+
+function EmptyState({
+  icon,
+  title,
+  description,
+  action,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  description: string;
+  action: React.ReactNode;
+}): React.JSX.Element {
+  return (
+    <div className="flex flex-col items-center gap-4 text-center">
+      <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/12 text-primary shadow-[0_0_40px_-12px_hsl(var(--primary)/0.7)]">
+        {icon}
+      </div>
+      <div className="max-w-sm space-y-1.5">
+        <p className="text-base font-semibold tracking-tight">{title}</p>
+        <p className="text-sm leading-relaxed text-muted-foreground">{description}</p>
+      </div>
+      {action}
+    </div>
+  );
+}
+
+/** One segment of the grid/list switch; the active one carries the sliding pill. */
+function ViewToggle({
+  label,
+  active,
+  onClick,
+  transition,
+  children,
+}: {
+  label: string;
+  active: boolean;
+  onClick: () => void;
+  transition: PillTransition;
+  children: React.ReactNode;
+}): React.JSX.Element {
+  return (
+    <SimpleTooltip label={label}>
+      <button
+        type="button"
+        aria-label={label}
+        aria-pressed={active}
+        onClick={onClick}
+        className={cn(
+          'relative isolate flex h-8 w-8 cursor-pointer items-center justify-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+          active ? 'text-primary' : 'text-muted-foreground hover:text-foreground',
+        )}
+      >
+        {active && (
+          <motion.span
+            aria-hidden
+            layoutId="projects-view-active"
+            transition={transition}
+            className="absolute inset-0 -z-10 rounded-full bg-primary/12"
+          />
+        )}
+        {children}
+      </button>
+    </SimpleTooltip>
+  );
+}
+
 function FilterChip({
   active,
   onClick,
+  transition,
   children,
 }: {
   active: boolean;
   onClick: () => void;
+  transition: PillTransition;
   children: React.ReactNode;
 }): React.JSX.Element {
   return (
@@ -623,12 +739,20 @@ function FilterChip({
       onClick={onClick}
       aria-pressed={active}
       className={cn(
-        'inline-flex h-7 shrink-0 cursor-pointer items-center gap-1.5 rounded-full border px-2.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+        'relative isolate inline-flex h-7 shrink-0 cursor-pointer items-center gap-1.5 rounded-full px-3 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
         active
-          ? 'border-primary/40 bg-primary/15 text-primary'
-          : 'border-border text-muted-foreground hover:border-foreground/20 hover:text-foreground',
+          ? 'text-primary'
+          : 'text-muted-foreground hover:bg-foreground/[0.06] hover:text-foreground',
       )}
     >
+      {active && (
+        <motion.span
+          aria-hidden
+          layoutId="projects-agent-filter-active"
+          transition={transition}
+          className="absolute inset-0 -z-10 rounded-full bg-primary/12"
+        />
+      )}
       {children}
     </button>
   );
@@ -656,18 +780,6 @@ interface ProjectItemProps {
 
 function ProjectItem(props: ProjectItemProps): React.JSX.Element {
   return props.view === 'list' ? <ProjectRow {...props} /> : <ProjectCard {...props} />;
-}
-
-function projectSurfaceClass({
-  project,
-  isDragging,
-}: Pick<ProjectItemProps, 'project' | 'isDragging'>): string {
-  return cn(
-    'glass group relative cursor-pointer transition-all duration-150 motion-reduce:transition-none',
-    'hover:border-primary/40 focus-within:border-primary/40',
-    project.pinned && 'border-l-2 border-l-primary',
-    isDragging && 'opacity-50',
-  );
 }
 
 function projectDragHandlers(props: ProjectItemProps): {
@@ -709,10 +821,24 @@ function DropIndicator({
     <span
       aria-hidden
       className={cn(
-        'pointer-events-none absolute z-10 rounded-full bg-primary',
+        'pointer-events-none absolute z-10 rounded-full bg-primary shadow-[0_0_8px_hsl(var(--primary)/0.7)]',
+        // Rows sit inside one clipped card, so their line stays on the row's own edge.
         view === 'list'
-          ? cn('inset-x-1 h-0.5', place === 'before' ? '-top-1' : '-bottom-1')
-          : cn('inset-y-1 w-0.5', place === 'before' ? '-left-2.5' : '-right-2.5'),
+          ? cn('inset-x-2 h-0.5', place === 'before' ? 'top-0' : 'bottom-0')
+          : cn('inset-y-2 w-0.5', place === 'before' ? '-left-[5px]' : '-right-[5px]'),
+      )}
+    />
+  );
+}
+
+/** The main menu's active marker, reused to say a project is pinned. */
+function PinnedAccent({ className }: { className?: string }): React.JSX.Element {
+  return (
+    <span
+      aria-hidden
+      className={cn(
+        'pointer-events-none absolute left-0 h-5 w-[3px] rounded-full bg-primary shadow-[0_0_8px_hsl(var(--primary)/0.7)]',
+        className,
       )}
     />
   );
@@ -742,11 +868,11 @@ function DragGrip({
         <span
           onClick={(e) => e.stopPropagation()}
           className={cn(
-            'flex shrink-0 cursor-not-allowed items-center justify-center rounded-md text-muted-foreground/25',
+            'flex shrink-0 cursor-not-allowed items-center justify-center rounded-full text-muted-foreground/25',
             className,
           )}
         >
-          <GripVertical className="h-4 w-4" />
+          <GripVertical className="h-3.5 w-3.5" />
         </span>
       </SimpleTooltip>
     );
@@ -766,11 +892,11 @@ function DragGrip({
         }}
         onDragEnd={onDragEnd}
         className={cn(
-          'flex shrink-0 cursor-grab items-center justify-center rounded-md text-muted-foreground/50 transition-opacity hover:bg-accent hover:text-accent-foreground active:cursor-grabbing',
+          'flex shrink-0 cursor-grab items-center justify-center rounded-full text-muted-foreground/50 transition-[opacity,background-color] hover:bg-foreground/[0.08] hover:text-foreground active:cursor-grabbing',
           className,
         )}
       >
-        <GripVertical className="h-4 w-4" />
+        <GripVertical className="h-3.5 w-3.5" />
       </span>
     </SimpleTooltip>
   );
@@ -785,70 +911,71 @@ function ProjectCard(props: ProjectItemProps): React.JSX.Element {
   return (
     <Card
       className={cn(
-        projectSurfaceClass(props),
-        'flex flex-col hover:-translate-y-0.5 motion-reduce:hover:translate-y-0',
+        CARD,
+        'group relative flex cursor-pointer flex-col transition-[transform,box-shadow,opacity] duration-150 motion-reduce:transition-none',
+        // A ring rather than a border colour: the card's glass edge is unlayered CSS and would win.
+        'hover:-translate-y-0.5 hover:ring-1 hover:ring-primary/30 focus-within:ring-1 focus-within:ring-primary/30 motion-reduce:hover:translate-y-0',
+        props.isDragging && 'opacity-50',
       )}
       onClick={onNavigate}
       {...drag}
     >
       <DropIndicator view="grid" place={props.dropPlace} />
-      <CardHeader className="pb-3">
-        <div className="flex items-start justify-between gap-2">
-          <div className="flex min-w-0 items-center gap-3">
-            <ProjectIcon
-              iconDataUrl={project.iconDataUrl}
-              bgColor={project.iconBgColor}
-              iconColor={project.iconColor}
-              className="h-11 w-11"
-              glyphClassName="h-5 w-5"
-            />
-            <div className="min-w-0">
-              <button
-                type="button"
-                className="block max-w-full truncate rounded-sm text-left text-sm font-semibold leading-tight hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onNavigate();
-                }}
-              >
-                {project.name}
-              </button>
-              <p className="mt-1 text-xs tabular-nums text-muted-foreground">
-                Updated {timeAgo(project.updatedAt)}
-              </p>
-            </div>
+      {project.pinned && <PinnedAccent className="top-[1.6rem]" />}
+      <div className="space-y-3 p-4 pb-3">
+        <div className="flex items-start gap-3">
+          <ProjectIcon
+            iconDataUrl={project.iconDataUrl}
+            bgColor={project.iconBgColor}
+            iconColor={project.iconColor}
+            className="h-10 w-10 rounded-xl"
+            glyphClassName="h-[18px] w-[18px]"
+          />
+          <div className="min-w-0 flex-1 pt-px">
+            <button
+              type="button"
+              className="block max-w-full truncate rounded-sm text-left text-sm font-semibold leading-tight hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              onClick={(e) => {
+                e.stopPropagation();
+                onNavigate();
+              }}
+            >
+              {project.name}
+            </button>
+            <ProjectMetaLinks project={project} className="mt-1" />
           </div>
           <ProjectQuickActions {...props} compact />
         </div>
         {project.description ? (
           <p
             dir={description.dir}
-            className={cn('line-clamp-2 text-sm text-muted-foreground', description.className)}
+            className={cn(
+              'line-clamp-2 text-[13px] leading-relaxed text-muted-foreground',
+              description.className,
+            )}
           >
             {project.description}
           </p>
         ) : null}
-      </CardHeader>
-      <CardContent className="mt-auto space-y-3">
         <div className="flex flex-wrap gap-1.5">
           <AgentBadge project={project} />
           {project.tags.slice(0, MAX_VISIBLE_TAGS).map((tag) => (
-            <Badge key={tag} variant="outline">
-              {tag}
-            </Badge>
+            <TagChip key={tag}>{tag}</TagChip>
           ))}
           {extraTags > 0 && (
             <SimpleTooltip label={project.tags.slice(MAX_VISIBLE_TAGS).join(', ')} wrapTrigger>
-              <Badge variant="outline">+{extraTags}</Badge>
+              <TagChip>+{extraTags}</TagChip>
             </SimpleTooltip>
           )}
         </div>
-        <ProjectMetaLinks project={project} />
-      </CardContent>
-      <CardFooter className="mt-auto gap-2 border-t border-border/70 pt-3">
+      </div>
+      <div className={cn(CARD_FOOTER, 'mt-auto')}>
         <RunButton project={project} onRun={props.onRun} />
-        <ProjectSecondaryActions {...props} compact className="ml-auto" />
-      </CardFooter>
+        <span className="min-w-0 truncate text-[11px] tabular-nums text-muted-foreground">
+          Updated {timeAgo(project.updatedAt)}
+        </span>
+        <ProjectSecondaryActions {...props} className="ml-auto" />
+      </div>
     </Card>
   );
 }
@@ -859,16 +986,22 @@ function ProjectRow(props: ProjectItemProps): React.JSX.Element {
   const description = persianTextProps(project.description);
 
   return (
-    <Card
-      className={cn(projectSurfaceClass(props), 'flex items-center gap-3 px-3 py-2.5')}
+    // Rows share one card, so each is a plain row with the menu's hover wash rather than a box.
+    <div
+      className={cn(
+        'group relative flex cursor-pointer items-center gap-3 px-3 py-2.5 transition-[background-color,opacity] hover:bg-foreground/[0.04] focus-within:bg-foreground/[0.04]',
+        props.isDragging && 'opacity-50',
+      )}
       onClick={onNavigate}
       {...drag}
     >
       <DropIndicator view="list" place={props.dropPlace} />
+      {project.pinned && <PinnedAccent className="top-1/2 -translate-y-1/2" />}
       <ProjectIcon
         iconDataUrl={project.iconDataUrl}
         bgColor={project.iconBgColor}
         iconColor={project.iconColor}
+        className="rounded-[10px]"
       />
       <div className="min-w-0 flex-1">
         <div className="flex min-w-0 items-center gap-0.5">
@@ -900,8 +1033,8 @@ function ProjectRow(props: ProjectItemProps): React.JSX.Element {
         <AgentBadge project={project} />
       </div>
       <RunButton project={project} onRun={props.onRun} iconOnly />
-      <ProjectSecondaryActions {...props} compact={false} />
-    </Card>
+      <ProjectSecondaryActions {...props} />
+    </div>
   );
 }
 
@@ -913,17 +1046,16 @@ interface SecondaryAction {
 }
 
 /**
- * Git, Review and Prompt share one segmented cluster: it keeps Run as the only
- * button with real weight, and stops four side-by-side buttons from wrapping
- * onto a second row in narrow cards.
+ * Git, Review and Prompt share one pill: it keeps Run as the only button with
+ * real weight, and stops four side-by-side buttons from wrapping onto a second
+ * row in narrow cards.
  */
 function ProjectSecondaryActions({
   onOpenGit,
   onReview,
   onBuildPrompt,
-  compact,
   className,
-}: ProjectItemProps & { compact: boolean; className?: string }): React.JSX.Element {
+}: ProjectItemProps & { className?: string }): React.JSX.Element {
   const actions: SecondaryAction[] = [
     { key: 'git', label: 'Open the Git section', icon: GitBranch, onSelect: onOpenGit },
     { key: 'review', label: 'Review with diffray', icon: GitPullRequest, onSelect: onReview },
@@ -938,28 +1070,23 @@ function ProjectSecondaryActions({
   return (
     <div
       className={cn(
-        'flex shrink-0 items-center rounded-lg border border-border p-0.5',
-        compact ? 'h-8' : 'h-9',
+        'search-pill flex h-8 shrink-0 items-center gap-px rounded-full p-0.5',
         className,
       )}
     >
       {actions.map(({ key, label, icon: Icon, onSelect }) => (
         <SimpleTooltip key={key} label={label}>
-          <Button
-            variant="ghost"
-            size="icon"
+          <button
+            type="button"
             aria-label={label}
-            className={cn(
-              'text-muted-foreground hover:text-foreground',
-              compact ? 'h-7 w-7' : 'h-8 w-8',
-            )}
+            className={cn(ROUND_ICON_BUTTON, 'h-7 w-7')}
             onClick={(e) => {
               e.stopPropagation();
               onSelect();
             }}
           >
-            <Icon className="h-4 w-4" />
-          </Button>
+            <Icon className="h-3.5 w-3.5" />
+          </button>
         </SimpleTooltip>
       ))}
     </div>
@@ -975,38 +1102,40 @@ function ProjectQuickActions({
   onToggleArchive,
   compact,
 }: ProjectItemProps & { compact: boolean }): React.JSX.Element {
+  // Hidden until the card is hovered or focused, so a grid of cards stays quiet.
+  const reveal = compact
+    ? 'opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100'
+    : undefined;
+
   const grip = (
     <DragGrip
       projectId={project.id}
       disabled={!draggable}
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
-      className={cn(
-        'h-9 w-9',
-        compact && 'opacity-0 group-hover:opacity-100 group-focus-within:opacity-100',
-      )}
+      className={cn('h-7 w-7', reveal)}
     />
   );
 
   const pin = (
     <SimpleTooltip label={project.pinned ? 'Unpin project' : 'Pin to top'}>
-      <Button
-        variant="ghost"
-        size="icon"
+      <button
+        type="button"
         aria-label={project.pinned ? 'Unpin project' : 'Pin to top'}
         aria-pressed={project.pinned}
         className={cn(
-          compact &&
-            'opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100',
-          project.pinned && 'text-primary opacity-100',
+          ROUND_ICON_BUTTON,
+          'h-7 w-7',
+          reveal,
+          project.pinned && 'text-primary opacity-100 hover:text-primary',
         )}
         onClick={(e) => {
           e.stopPropagation();
           onTogglePin();
         }}
       >
-        <Pin className="h-4 w-4" />
-      </Button>
+        <Pin className="h-3.5 w-3.5" />
+      </button>
     </SimpleTooltip>
   );
 
@@ -1014,29 +1143,24 @@ function ProjectQuickActions({
   const ArchiveIcon = project.archived ? ArchiveRestore : Archive;
   const archive = (
     <SimpleTooltip label={archiveLabel}>
-      <Button
-        variant="ghost"
-        size="icon"
+      <button
+        type="button"
         aria-label={archiveLabel}
-        className={cn(
-          compact &&
-            'opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100',
-          project.archived && 'opacity-100',
-        )}
+        className={cn(ROUND_ICON_BUTTON, 'h-7 w-7', reveal, project.archived && 'opacity-100')}
         onClick={(e) => {
           e.stopPropagation();
           onToggleArchive();
         }}
       >
-        <ArchiveIcon className="h-4 w-4" />
-      </Button>
+        <ArchiveIcon className="h-3.5 w-3.5" />
+      </button>
     </SimpleTooltip>
   );
 
   // An archived project has no order to drag and no pin to toggle, so it only
   // carries the way back out.
   return (
-    <div className="flex shrink-0 items-center">
+    <div className="-mr-1 -mt-0.5 flex shrink-0 items-center">
       {project.archived ? null : grip}
       {project.archived ? null : pin}
       {archive}
@@ -1064,43 +1188,51 @@ function RunButton({
     <SimpleTooltip label={label}>
       <Button
         size={iconOnly ? 'icon' : 'sm'}
-        variant={iconOnly ? 'outline' : 'default'}
+        variant={iconOnly ? 'ghost' : 'default'}
         aria-label={iconOnly ? 'Run' : undefined}
+        className={cn(
+          'shrink-0 rounded-full',
+          iconOnly ? 'search-pill h-8 w-8 text-foreground/85 hover:text-primary' : 'px-3.5',
+        )}
         onClick={(e) => {
           e.stopPropagation();
           onRun();
         }}
       >
-        <Run className={iconOnly ? 'h-4 w-4' : undefined} />
+        <Run className={iconOnly ? 'h-3.5 w-3.5' : undefined} />
         {iconOnly ? null : 'Run'}
       </Button>
     </SimpleTooltip>
   );
 }
 
+/** A tag on a card: a small neutral chip, so the agent chip next to it stays the one with weight. */
+function TagChip({ children }: { children: React.ReactNode }): React.JSX.Element {
+  return (
+    <span className="inline-flex h-6 max-w-[10rem] items-center truncate rounded-full bg-foreground/[0.05] px-2.5 text-[11px] font-medium text-muted-foreground">
+      {children}
+    </span>
+  );
+}
+
 function AgentBadge({ project }: { project: Project }): React.JSX.Element {
   const cliId = AGENT_TYPE_CLI_ID[project.agentType];
   const label = AGENT_TYPE_LABELS[project.agentType];
-  const inner = (
-    <>
-      {cliId ? <CliLogo cliId={cliId} className="h-3 w-3" /> : null}
-      {label}
-    </>
-  );
+  const chip =
+    'inline-flex h-6 items-center gap-1.5 rounded-full bg-foreground/[0.07] px-2.5 text-[11px] font-medium text-foreground/85';
 
   if (!cliId) {
-    return (
-      <Badge variant="secondary" className="gap-1.5">
-        {inner}
-      </Badge>
-    );
+    return <span className={chip}>{label}</span>;
   }
 
   return (
     <SimpleTooltip label={`Open ${label} in the terminal`}>
       <button
         type="button"
-        className="rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className={cn(
+          chip,
+          'cursor-pointer transition-colors hover:bg-primary/12 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+        )}
         onClick={(e) => {
           e.stopPropagation();
           openCliInTerminal({
@@ -1110,24 +1242,27 @@ function AgentBadge({ project }: { project: Project }): React.JSX.Element {
           });
         }}
       >
-        <Badge
-          variant="secondary"
-          className="cursor-pointer gap-1.5 hover:border-primary/40 hover:bg-primary/10"
-        >
-          {inner}
-        </Badge>
+        <CliLogo cliId={cliId} className="h-3 w-3" />
+        {label}
       </button>
     </SimpleTooltip>
   );
 }
 
-function ProjectMetaLinks({ project }: { project: Project }): React.JSX.Element {
+/** The folder (and site and repo, when set) under a card's name, muted like a path. */
+function ProjectMetaLinks({
+  project,
+  className,
+}: {
+  project: Project;
+  className?: string;
+}): React.JSX.Element {
   return (
-    <div className="flex min-w-0 items-center gap-1">
+    <div className={cn('flex min-w-0 items-center gap-0.5', className)}>
       <SimpleTooltip label={`Open folder: ${project.folderPath}`}>
         <button
           type="button"
-          className="flex min-w-0 max-w-full cursor-pointer items-center gap-1.5 rounded-md px-1.5 py-1 text-xs text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="-ml-1 flex min-w-0 max-w-full cursor-pointer items-center gap-1 rounded-md px-1 py-0.5 text-xs text-muted-foreground transition-colors hover:bg-foreground/[0.06] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           onClick={(e) => {
             e.stopPropagation();
             void window.agentmat.shell.openPath(project.folderPath);
@@ -1142,13 +1277,13 @@ function ProjectMetaLinks({ project }: { project: Project }): React.JSX.Element 
           <button
             type="button"
             aria-label={`Open ${stripUrl(project.websiteUrl)}`}
-            className="flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className={cn(ROUND_ICON_BUTTON, 'h-6 w-6')}
             onClick={(e) => {
               e.stopPropagation();
               void window.agentmat.shell.openExternal(project.websiteUrl);
             }}
           >
-            <Globe className="h-3.5 w-3.5" />
+            <Globe className="h-3 w-3" />
           </button>
         </SimpleTooltip>
       ) : null}
@@ -1157,13 +1292,13 @@ function ProjectMetaLinks({ project }: { project: Project }): React.JSX.Element 
           <button
             type="button"
             aria-label={`Open ${stripUrl(project.repoUrl)}`}
-            className="flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className={cn(ROUND_ICON_BUTTON, 'h-6 w-6')}
             onClick={(e) => {
               e.stopPropagation();
               void window.agentmat.shell.openExternal(project.repoUrl);
             }}
           >
-            <GitBranch className="h-3.5 w-3.5" />
+            <GitBranch className="h-3 w-3" />
           </button>
         </SimpleTooltip>
       ) : null}

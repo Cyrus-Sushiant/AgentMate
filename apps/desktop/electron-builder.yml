@@ -23,6 +23,11 @@ extraResources:
   # fine (electron-builder only warns) and its Deploy section says it has no core to install.
   - from: build/server-core-manifest.json
     to: server-core-manifest.json
+  # The AgentMate Connector WordPress plugin (E19), built by `node scripts/wordpress-connector.mjs
+  # build` (CD runs it before packaging). Deploy offers it as a download for wp-admin. Without
+  # it the app still packages; the download button then says the zip is missing.
+  - from: ../wordpress-connector/dist/agentmate-connector.zip
+    to: wordpress-connector/agentmate-connector.zip
 
 # node-pty ships native .node/.dll/.exe files that must exist as real files on
 # disk (it also spawns conpty/winpty helper executables at runtime); they

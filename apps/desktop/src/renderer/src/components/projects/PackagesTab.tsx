@@ -17,7 +17,7 @@ import {
   TriangleAlert,
   X,
 } from '@/components/icons';
-import { ProjectEmptyState } from '@/components/projects/ProjectDetailChrome';
+import { SectionEmptyState } from '@/components/projects/ProjectDetailChrome';
 import {
   type BumpKind,
   buildPackageNames,
@@ -123,7 +123,7 @@ const PACKAGE_SKELETON_WIDTHS = ['w-40', 'w-56', 'w-32', 'w-48', 'w-36', 'w-52']
 
 function PackageRowSkeleton({ nameWidth }: { nameWidth: string }): React.JSX.Element {
   return (
-    <div className="flex items-center gap-3 rounded-lg border border-transparent border-l-2 bg-card/60 px-3 py-2.5">
+    <div className="flex items-center gap-3 rounded-lg bg-foreground/[0.03] px-3 py-2.5">
       <Skeleton className="h-[18px] w-[18px] shrink-0 rounded-[5px]" />
       <div className="min-w-0 flex-1 space-y-1.5">
         <Skeleton className={`h-3.5 ${nameWidth}`} />
@@ -136,7 +136,7 @@ function PackageRowSkeleton({ nameWidth }: { nameWidth: string }): React.JSX.Ele
 
 function PackagesSectionSkeleton({ rows }: { rows: number }): React.JSX.Element {
   return (
-    <div className="glass space-y-3 rounded-xl p-4">
+    <div className="glass space-y-3 rounded-[calc(var(--radius)+2px)] p-4">
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <Skeleton className="h-9 w-9 shrink-0 rounded-lg" />
@@ -162,7 +162,7 @@ function PackagesSectionSkeleton({ rows }: { rows: number }): React.JSX.Element 
 function PackagesTabSkeleton(): React.JSX.Element {
   return (
     <div className="space-y-4">
-      <div className="glass flex flex-wrap items-center justify-between gap-3 rounded-xl p-4">
+      <div className="glass flex flex-wrap items-center justify-between gap-3 rounded-[calc(var(--radius)+2px)] p-4">
         <div className="flex items-center gap-3">
           <Skeleton className="h-9 w-9 rounded-lg" />
           <div className="space-y-1.5">
@@ -265,12 +265,19 @@ function PackageRow({
   return (
     <div
       className={cn(
-        'flex items-center gap-3 rounded-lg border border-transparent border-l-2 px-3 py-2.5 transition-colors',
-        pkg.isOutdated ? 'border-l-warning bg-card/60' : 'border-l-transparent bg-card/40',
-        selected && 'border-primary/20 bg-primary/5',
-        selectable && 'hover:bg-card',
+        'relative flex items-center gap-3 rounded-lg bg-foreground/[0.03] px-3 py-2.5 transition-colors',
+        selectable && 'hover:bg-foreground/[0.05]',
+        // A ring, not a border: the theme's global border colour would repaint a tinted one.
+        selected && 'bg-primary/[0.06] ring-1 ring-inset ring-primary/20 hover:bg-primary/[0.08]',
       )}
     >
+      {pkg.isOutdated && (
+        // The outdated mark is drawn as its own edge, like the Git list's changed files.
+        <span
+          aria-hidden
+          className="absolute left-0 top-1/2 h-4 w-[3px] -translate-y-1/2 rounded-full bg-warning"
+        />
+      )}
       {selectable ? (
         <Checkbox
           id={checkboxId}
@@ -486,7 +493,7 @@ export function PackagesTab({ projectId }: { projectId: string }): React.JSX.Ele
   }
 
   const toolbar = (
-    <div className="glass relative overflow-hidden rounded-xl p-4">
+    <div className="glass relative overflow-hidden rounded-[calc(var(--radius)+2px)] p-4">
       {isRefreshing && <Skeleton className="absolute inset-x-0 top-0 h-0.5 rounded-none" />}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-3">
@@ -538,7 +545,7 @@ export function PackagesTab({ projectId }: { projectId: string }): React.JSX.Ele
     return (
       <div className="space-y-4">
         {toolbar}
-        <ProjectEmptyState
+        <SectionEmptyState
           icon={Package}
           title="No package manifests in this folder"
           description="AgentMate looks for package.json, yarn.lock, pnpm-lock.yaml, pubspec.yaml, and .NET project files."
@@ -653,7 +660,7 @@ export function PackagesTab({ projectId }: { projectId: string }): React.JSX.Ele
         return (
           <div
             key={sectionKey(section)}
-            className="glass relative space-y-3 overflow-hidden rounded-xl p-4"
+            className="glass relative space-y-3 overflow-hidden rounded-[calc(var(--radius)+2px)] p-4"
           >
             {isRefreshing && <Skeleton className="absolute inset-x-0 top-0 h-0.5 rounded-none" />}
             {updateMutation.isPending && batchProgress && updatingThisSection && (

@@ -5,6 +5,7 @@ import { Worker } from 'node:worker_threads';
 import type { ProviderUsage, SubscriptionUsage, UsageWindow } from '@agentmat/core';
 import { app } from 'electron';
 import { getLiveWindows, readClaudeAccount } from './claudeAccount';
+import { codexSubscription } from './codexLimits';
 import {
   type LocalLogProvider,
   retentionSinceMs,
@@ -21,7 +22,8 @@ import type { ScanWorkerInput, ScanWorkerMessage } from './usageScanWorker';
 // per-file byte offsets + extracted events are cached on disk so a restart
 // doesn't re-read hundreds of MB of transcripts.
 
-const CACHE_VERSION = 1;
+// 2: Codex files also keep their full rate-limit snapshot (`limits`).
+const CACHE_VERSION = 2;
 const WORKER_TIMEOUT_MS = 120_000;
 
 interface CacheFile {
@@ -191,6 +193,8 @@ export async function scanLocalProvider(provider: LocalLogProvider): Promise<Pro
   const usage = buildUsageFromEntries(provider, entries, toUsageWindow(result.window));
   if (provider === 'claude-code') {
     usage.subscription = await claudeSubscription(entries);
+  } else if (provider === 'codex') {
+    usage.subscription = codexSubscription(result.limits);
   }
   return usage;
 }

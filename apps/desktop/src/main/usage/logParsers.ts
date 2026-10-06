@@ -43,6 +43,22 @@ export interface RawWindow {
   at: number;
 }
 
+/** One rolling limit from a Codex rate-limit snapshot. */
+export interface RawLimit {
+  /** How long the window runs (300 for the 5h session, 10080 for a week). */
+  minutes: number | null;
+  /** 0-100 consumed. */
+  percent: number;
+  resetAt: string | null;
+}
+
+/** Every rolling limit Codex reported in one snapshot, plus the plan it named. */
+export interface RawLimits {
+  windows: RawLimit[];
+  planType: string | null;
+  at: number;
+}
+
 /** Everything we remember about one already-parsed log file. */
 export interface FileScanState {
   /** Bytes consumed so far, always landing on a line boundary. */
@@ -53,6 +69,7 @@ export interface FileScanState {
   model?: string;
   entries: RawUsageEntry[];
   window?: RawWindow;
+  limits?: RawLimits;
 }
 
 /** Scan cache for one provider, keyed by absolute file path. */
@@ -61,6 +78,8 @@ export type ScanCache = Record<string, FileScanState>;
 export interface ScanResult {
   entries: RawUsageEntry[];
   window?: RawWindow;
+  /** The newest full rate-limit snapshot (Codex only). */
+  limits?: RawLimits;
   /** The cache to persist for the next scan. */
   cache: ScanCache;
 }
@@ -232,6 +251,7 @@ interface CodexLine {
     rate_limits?: {
       primary?: CodexRateLimitWindow | null;
       secondary?: CodexRateLimitWindow | null;
+      plan_type?: string | null;
     } | null;
   };
 }
@@ -249,6 +269,15 @@ function windowFromRateLimit(
     percent: Math.max(0, Math.min(100, rl.used_percent)),
     resetAt: rl.resets_at ? new Date(rl.resets_at * 1000).toISOString() : null,
     at,
+  };
+}
+
+function limitFromRateLimit(rl: CodexRateLimitWindow | null | undefined): RawLimit | null {
+  if (!rl || typeof rl.used_percent !== 'number') return null;
+  return {
+    minutes: typeof rl.window_minutes === 'number' ? rl.window_minutes : null,
+    percent: Math.max(0, Math.min(100, rl.used_percent)),
+    resetAt: rl.resets_at ? new Date(rl.resets_at * 1000).toISOString() : null,
   };
 }
 
@@ -296,6 +325,19 @@ function parseCodexLine(line: string, state: FileScanState): void {
     const w = windowFromRateLimit(primary, 'Quota', at);
     if (w) state.window = w;
   }
+
+  // The whole snapshot, for the plan's limits: a ChatGPT plan reports a 5h
+  // session and a weekly window, a free one a single 30-day window.
+  const rateLimits = payload.rate_limits;
+  if (rateLimits && (!state.limits || at > state.limits.at)) {
+    const windows = [rateLimits.primary, rateLimits.secondary].flatMap((rl) => {
+      const limit = limitFromRateLimit(rl);
+      return limit ? [limit] : [];
+    });
+    if (windows.length > 0) {
+      state.limits = { windows, planType: rateLimits.plan_type ?? null, at };
+    }
+  }
 }
 
 // --- driver ---------------------------------------------------------------
@@ -321,6 +363,7 @@ export async function scanProviderLogs(
   const next: ScanCache = {};
   const entries: RawUsageEntry[] = [];
   let window: RawWindow | undefined;
+  let limits: RawLimits | undefined;
 
   for (const root of parser.roots()) {
     for (const file of await collectLogFiles(root, sinceMs)) {
@@ -353,8 +396,9 @@ export async function scanProviderLogs(
 
       for (const entry of state.entries) entries.push(entry);
       if (state.window && (!window || state.window.at > window.at)) window = state.window;
+      if (state.limits && (!limits || state.limits.at > limits.at)) limits = state.limits;
     }
   }
 
-  return { entries, window, cache: next };
+  return { entries, window, limits, cache: next };
 }

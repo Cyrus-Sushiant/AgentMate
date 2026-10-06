@@ -21,12 +21,19 @@ import { ServerSections, sectionFromView } from '@/components/deploy/ServerSecti
 import { SetupFailure } from '@/components/deploy/SetupFailure';
 import { SecurityPanel } from '@/components/deploy/security/SecurityPanel';
 import { SitesPanel } from '@/components/deploy/sites/SitesPanel';
+import { ConnectorDownloadCard } from '@/components/deploy/wordpress/ConnectorDownloadCard';
+import { useSiteListUpdate, useWordPressSites } from '@/components/deploy/wordpress/hooks';
+import { wpProblem } from '@/components/deploy/wordpress/messages';
+import { siteSectionFromView } from '@/components/deploy/wordpress/SiteSections';
+import { SiteView } from '@/components/deploy/wordpress/SiteView';
 import { Lock, RefreshCw, Server } from '@/components/icons';
 import { ProjectEmptyState } from '@/components/projects/ProjectDetailChrome';
 import { SshVaultUnlockDialog } from '@/components/remote/SshVaultUnlockDialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import { ConnectSiteDialog } from '@/components/wordpress/ConnectSiteDialog';
+import { WordPressMark } from '@/components/wordpress/WordPressMark';
 import { queryKeys } from '@/lib/queryKeys';
 import { cn } from '@/lib/utils';
 import { confirmDialog } from '@/stores/confirmStore';
@@ -46,6 +53,25 @@ function DeployPageSkeleton(): React.JSX.Element {
         <Skeleton className="h-10 w-64" />
         <Skeleton className="h-64 w-full rounded-lg" />
       </div>
+    </div>
+  );
+}
+
+/** The Servers vault holds the cores' keys and the WordPress sites' keys alike. */
+function VaultLockedBanner({
+  onUnlock,
+  children,
+}: {
+  onUnlock: () => void;
+  children: React.ReactNode;
+}): React.JSX.Element {
+  return (
+    <div className="flex flex-wrap items-center gap-3 rounded-lg border border-warning/40 bg-warning/10 px-3 py-2.5">
+      <Lock className="h-4 w-4 shrink-0 text-warning" />
+      <p className="min-w-0 flex-1 text-sm text-foreground">{children}</p>
+      <Button size="sm" onClick={onUnlock}>
+        Unlock
+      </Button>
     </div>
   );
 }
@@ -134,10 +160,21 @@ export default function DeployPage(): React.JSX.Element {
     queryKey: queryKeys.sshVaultStatus,
     queryFn: () => window.agentmat.ssh.vaultStatus(),
   });
+  const sitesQuery = useWordPressSites();
+  const updateSiteList = useSiteListUpdate();
+  const [connectOpen, setConnectOpen] = useState(false);
   useConnectionUpdates();
   useFinishedRuns((serverId) => setUpdating((current) => (current === serverId ? null : current)));
 
-  if (serversQuery.isPending) return <DeployPageSkeleton />;
+  const siteParam = params.get('site');
+  // A site asked for by the address, or no servers to fall back on: wait for the sites rather
+  // than flash a server (and start its health checks) or an empty state.
+  if (
+    serversQuery.isPending ||
+    (sitesQuery.isPending && (siteParam !== null || serversQuery.data?.length === 0))
+  ) {
+    return <DeployPageSkeleton />;
+  }
 
   if (serversQuery.isError) {
     return (
@@ -151,17 +188,55 @@ export default function DeployPage(): React.JSX.Element {
   }
 
   const servers = serversQuery.data;
-  if (servers.length === 0) {
+  const sites = sitesQuery.data ?? [];
+  const connectDialog = (
+    <ConnectSiteDialog
+      open={connectOpen}
+      onOpenChange={setConnectOpen}
+      onConnected={(site) => {
+        updateSiteList(site);
+        setParams({ site: site.id }, { replace: true });
+      }}
+    />
+  );
+  const unlockDialog = (
+    <SshVaultUnlockDialog
+      open={unlockOpen}
+      onOpenChange={setUnlockOpen}
+      mode="unlock"
+      onUnlocked={() => {
+        void queryClient.invalidateQueries({ queryKey: queryKeys.sshVaultStatus });
+        void queryClient.invalidateQueries({ queryKey: ['deploy'] });
+      }}
+    />
+  );
+
+  if (servers.length === 0 && sitesQuery.isError) {
     return (
-      <div className="p-6">
+      <div className="space-y-3 p-6">
+        <SetupFailure message={wpProblem(sitesQuery.error)} />
+        <Button size="sm" variant="outline" onClick={() => void sitesQuery.refetch()}>
+          <RefreshCw className="h-3.5 w-3.5" /> Try again
+        </Button>
+        {unlockDialog}
+      </div>
+    );
+  }
+
+  if (servers.length === 0 && sites.length === 0) {
+    return (
+      <div className="space-y-4 p-6">
         <ProjectEmptyState
           icon={Server}
           title="No servers yet"
-          description="Deploy works with the servers you save in Remote. Add one there, then come back to install the server core on it."
+          description="Deploy works with the servers you save in Remote, and with WordPress sites that run the AgentMate Connector plugin. Add a server in Remote, or connect a site."
           action={
             <div className="flex flex-wrap justify-center gap-2">
               <Button size="sm" onClick={() => navigate('/remote')}>
                 <Server className="h-3.5 w-3.5" /> Open Remote
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => setConnectOpen(true)}>
+                <WordPressMark className="h-3.5 w-3.5" /> Connect a WordPress site
               </Button>
               <Button size="sm" variant="outline" onClick={() => navigate('/deploy/cloudflare')}>
                 <CloudflareMark className="h-3.5 w-3.5" /> Manage Cloudflare
@@ -169,6 +244,55 @@ export default function DeployPage(): React.JSX.Element {
             </div>
           }
         />
+        <ConnectorDownloadCard />
+        {connectDialog}
+      </div>
+    );
+  }
+
+  const locked = vaultQuery.data?.hasPasskey === true && !vaultQuery.data.unlocked;
+  const railProps = {
+    servers,
+    onSelect: (serverId: string) => setParams({ server: serverId }, { replace: true }),
+    sites,
+    sitesLoading: sitesQuery.isPending,
+    sitesError: sitesQuery.isError ? wpProblem(sitesQuery.error) : null,
+    onSelectSite: (siteId: string) => setParams({ site: siteId }, { replace: true }),
+    onRetrySites: () => void sitesQuery.refetch(),
+    onConnectSite: () => setConnectOpen(true),
+  };
+
+  const selectedSite =
+    sites.find((site) => site.id === siteParam) ?? (servers.length === 0 ? sites[0] : undefined);
+  if (selectedSite) {
+    // No Deploy AI here: the assistant works on a server's core, which a WordPress site has not.
+    return (
+      <div className="grid gap-6 p-6 lg:grid-cols-[17rem_minmax(0,1fr)]">
+        <ServerRail {...railProps} selectedId={null} selectedSiteId={selectedSite.id} />
+        <div className="min-w-0 space-y-4">
+          {locked && (
+            <VaultLockedBanner onUnlock={() => setUnlockOpen(true)}>
+              Your saved servers and WordPress sites are locked with a passkey. Unlock them to reach
+              this site.
+            </VaultLockedBanner>
+          )}
+          <SiteView
+            key={selectedSite.id}
+            site={selectedSite}
+            section={siteSectionFromView(params.get('view'))}
+            onSectionChange={(next) =>
+              setParams(
+                next === 'overview'
+                  ? { site: selectedSite.id }
+                  : { site: selectedSite.id, view: next },
+                { replace: true },
+              )
+            }
+            onDisconnected={() => setParams({}, { replace: true })}
+          />
+        </div>
+        {connectDialog}
+        {unlockDialog}
       </div>
     );
   }
@@ -176,7 +300,6 @@ export default function DeployPage(): React.JSX.Element {
   const selected = servers.find((server) => server.id === params.get('server')) ?? servers[0];
   const run = runs[selected.id];
   const section = sectionFromView(params.get('view'));
-  const locked = vaultQuery.data?.hasPasskey === true && !vaultQuery.data.unlocked;
 
   async function remove(server: DeployServer, keepData: boolean): Promise<void> {
     const confirmed = await confirmDialog({
@@ -242,23 +365,13 @@ export default function DeployPage(): React.JSX.Element {
 
   return (
     <div className="grid gap-6 p-6 lg:grid-cols-[17rem_minmax(0,1fr)]">
-      <ServerRail
-        servers={servers}
-        selectedId={selected.id}
-        onSelect={(serverId) => setParams({ server: serverId }, { replace: true })}
-      />
+      <ServerRail {...railProps} selectedId={selected.id} />
       {/* Room at the bottom so the Deploy AI button never covers the last controls. */}
       <div className={cn('min-w-0 space-y-4', sections && 'pb-16')}>
         {locked && (
-          <div className="flex flex-wrap items-center gap-3 rounded-lg border border-warning/40 bg-warning/10 px-3 py-2.5">
-            <Lock className="h-4 w-4 shrink-0 text-warning" />
-            <p className="min-w-0 flex-1 text-sm text-foreground">
-              Your saved servers are locked with a passkey. Unlock them to reach their cores.
-            </p>
-            <Button size="sm" onClick={() => setUnlockOpen(true)}>
-              Unlock
-            </Button>
-          </div>
+          <VaultLockedBanner onUnlock={() => setUnlockOpen(true)}>
+            Your saved servers are locked with a passkey. Unlock them to reach their cores.
+          </VaultLockedBanner>
         )}
         <ServerHeader server={selected} />
         {sections && (
@@ -275,15 +388,8 @@ export default function DeployPage(): React.JSX.Element {
         {content}
       </div>
       {sections && <AssistantLauncher server={selected} />}
-      <SshVaultUnlockDialog
-        open={unlockOpen}
-        onOpenChange={setUnlockOpen}
-        mode="unlock"
-        onUnlocked={() => {
-          void queryClient.invalidateQueries({ queryKey: queryKeys.sshVaultStatus });
-          void queryClient.invalidateQueries({ queryKey: ['deploy'] });
-        }}
-      />
+      {connectDialog}
+      {unlockDialog}
     </div>
   );
 }

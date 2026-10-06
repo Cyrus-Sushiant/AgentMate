@@ -172,8 +172,10 @@ import type {
   GitTagInfo,
   HelpAskInput,
   HelpAskResult,
+  HelpEmbeddingModelOption,
   HelpIndexProgress,
   HelpIndexStatus,
+  HelpReindexResult,
   ImageFileData,
   InstalledMcpServerRecord,
   InstalledSkillRecord,
@@ -433,6 +435,7 @@ import { createDeployDirectTls } from './deployDirectTls';
 import { createDeployDocker } from './deployDocker';
 import { createDeployHardening } from './deployHardening';
 import { createDeployRegistry } from './deployRegistry';
+import { createDeployWordPress } from './deployWordPress';
 
 interface TerminalDataPayload {
   sessionId: string;
@@ -1191,6 +1194,17 @@ const help = {
   /** How much of the Help index the provider's embedder has covered. */
   status: (provider: HelpAskInput['provider']): Promise<HelpIndexStatus> =>
     ipcRenderer.invoke(IPC.help.status, provider),
+  /** Embeds the articles with the provider's current model; `fresh` starts over from nothing. */
+  reindex: (
+    provider: HelpAskInput['provider'],
+    options?: { fresh?: boolean },
+  ): Promise<HelpReindexResult> => ipcRenderer.invoke(IPC.help.reindex, provider, options),
+  /** Stops a reindex() running for the provider. */
+  cancelReindex: (provider: HelpAskInput['provider']): Promise<boolean> =>
+    ipcRenderer.invoke(IPC.help.cancelReindex, provider),
+  /** The embedding models the help search can use with the provider. */
+  embeddingModels: (provider: HelpAskInput['provider']): Promise<HelpEmbeddingModelOption[]> =>
+    ipcRenderer.invoke(IPC.help.embeddingModels, provider),
   onIndexProgress: (callback: (progress: HelpIndexProgress) => void): (() => void) =>
     subscribe(IPC.help.onIndexProgress, callback),
 };
@@ -1672,6 +1686,9 @@ const deployDirectTls = createDeployDirectTls();
 
 /** The Security center (E15): the checklist, its SSH fixes, backups and restores. */
 const deployHardening = createDeployHardening(subscribe);
+
+/** WordPress sites through the AgentMate Connector plugin, and WordPress projects (E19 to E21). */
+const deployWordPress = createDeployWordPress(subscribe);
 
 /** The Deploy AI and the logs center's journal (E09). */
 const deployAssistant = createDeployAssistant(subscribe);
@@ -2494,6 +2511,7 @@ const agentmatApi = {
   deploy,
   deploySecurity,
   deployHardening,
+  deployWordPress,
   deployFirewall,
   deploySystem,
   deployJobs,

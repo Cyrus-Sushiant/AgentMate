@@ -9,12 +9,18 @@ import {
   Search,
   Sparkles,
 } from '@/components/icons';
+import {
+  Chip,
+  EmptyState,
+  GLASS_CARD,
+  PILL_SOFT,
+  PillTabs,
+  SECTION_HEADING,
+  SearchPill,
+} from '@/components/pageKit';
 import { AddUsedSkillDialog } from '@/components/skills/AddUsedSkillDialog';
 import { SkillFavoriteButton } from '@/components/skills/SkillFavoriteButton';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { StatTile } from '@/components/ui/stat-tile';
 import { SimpleTooltip } from '@/components/ui/tooltip';
@@ -34,11 +40,14 @@ const SORT_OPTIONS: { value: UsageSort; label: string }[] = [
 /** How many rows to show before the "Show more" button. */
 const PAGE_SIZE = 25;
 
-/** Medal tints for the top three, so the busiest skills read at a glance. */
+/**
+ * Tints for the top three, so the busiest skills read at a glance. They come from the theme, so
+ * they follow every theme the app has rather than one fixed medal palette.
+ */
 const RANK_STYLES = [
-  'bg-amber-400/15 text-amber-500 ring-1 ring-amber-400/30',
-  'bg-slate-400/15 text-slate-400 ring-1 ring-slate-400/30',
-  'bg-orange-500/15 text-orange-500 ring-1 ring-orange-500/30',
+  'bg-warning/15 text-warning ring-1 ring-inset ring-warning/30',
+  'bg-primary/12 text-primary ring-1 ring-inset ring-primary/25',
+  'bg-foreground/[0.08] text-foreground ring-1 ring-inset ring-foreground/15',
 ];
 
 function sortStats(stats: SkillUsageStat[], sort: UsageSort): SkillUsageStat[] {
@@ -80,7 +89,7 @@ function ActivityChart({ days, counts }: { days: string[]; counts: number[] }): 
                     'w-full rounded-sm transition-colors',
                     count > 0
                       ? 'bg-primary/70 hover:bg-primary'
-                      : 'bg-muted hover:bg-muted-foreground/30',
+                      : 'bg-foreground/[0.08] hover:bg-foreground/20',
                   )}
                   style={{ height: count > 0 ? `${Math.max((count / max) * 100, 8)}%` : '2px' }}
                 />
@@ -106,7 +115,7 @@ function MiniTrend({ daily }: { daily: number[] }): React.JSX.Element {
         <div
           // Fixed-length window: the index is the day, and days never reorder.
           key={index}
-          className={cn('w-[3px] rounded-sm', count > 0 ? 'bg-primary/60' : 'bg-muted')}
+          className={cn('w-[3px] rounded-sm', count > 0 ? 'bg-primary/60' : 'bg-foreground/[0.08]')}
           style={{ height: count > 0 ? `${Math.max((count / max) * 100, 20)}%` : '2px' }}
         />
       ))}
@@ -130,11 +139,14 @@ function AddToProjectButton({
         type="button"
         variant="ghost"
         size="icon"
-        className={cn('text-muted-foreground/60 hover:text-foreground', className)}
+        className={cn(
+          'h-7 w-7 rounded-full text-muted-foreground/60 hover:bg-foreground/[0.06] hover:text-foreground',
+          className,
+        )}
         aria-label={`Add ${skill} to another project`}
         onClick={onClick}
       >
-        <FolderPlus className="h-4 w-4" />
+        <FolderPlus className="h-3.5 w-3.5" />
       </Button>
     </SimpleTooltip>
   );
@@ -231,9 +243,9 @@ export function SkillUsageTab({
   );
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <p className="max-w-2xl text-sm text-muted-foreground">
+    <div className="flex flex-col gap-2">
+      <div className={cn(GLASS_CARD, 'flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3')}>
+        <p className="min-w-64 max-w-2xl flex-1 text-sm text-muted-foreground">
           Counted from the Claude Code session transcripts on this machine, so every skill an agent
           invoked is here, whether the session was started from AgentMate or a terminal. Nothing
           leaves your computer.
@@ -245,14 +257,20 @@ export function SkillUsageTab({
               {timeAgo(report.scannedAt)}
             </span>
           )}
-          <Button variant="outline" size="sm" disabled={isRescanning} onClick={onRescan}>
+          <Button
+            variant="ghost"
+            size="sm"
+            className={PILL_SOFT}
+            disabled={isRescanning}
+            onClick={onRescan}
+          >
             <RefreshCw className={cn('h-3.5 w-3.5', isRescanning && 'animate-spin')} />
             Rescan
           </Button>
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
         <StatTile
           icon={<Sparkles className="h-3.5 w-3.5" />}
           label="Skills used"
@@ -275,175 +293,174 @@ export function SkillUsageTab({
             isPending ? (
               <Skeleton className="h-7 w-20" />
             ) : (
-              <span className="text-lg">{lastUsed ? timeAgo(lastUsed) : '—'}</span>
+              <span className="text-lg">{lastUsed ? timeAgo(lastUsed) : 'Never'}</span>
             )
           }
         />
       </div>
 
       {isPending && (
-        <div className="space-y-3">
-          <Skeleton className="h-32 w-full rounded-lg" />
-          {Array.from({ length: 5 }, (_, index) => (
-            <Skeleton key={index} className="h-[62px] w-full rounded-lg" />
-          ))}
+        <div className="flex flex-col gap-2" role="status" aria-label="Reading sessions">
+          <Skeleton className="h-36 w-full rounded-[calc(var(--radius)+2px)]" />
+          <div className={cn(GLASS_CARD, 'settings-rows')}>
+            {Array.from({ length: 5 }, (_, index) => (
+              <div key={index} className="flex items-center gap-3 px-3.5 py-3">
+                <Skeleton className="h-7 w-7 shrink-0 rounded-full" />
+                <div className="min-w-0 flex-1 space-y-2">
+                  <Skeleton className="h-3.5 w-40" />
+                  <Skeleton className="h-1.5 w-full rounded-full" />
+                </div>
+                <Skeleton className="h-6 w-10" />
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
       {!isPending && stats.length === 0 && (
-        <div className="rounded-lg border border-dashed border-border px-6 py-12 text-center">
-          <ChartSimple className="mx-auto h-6 w-6 text-muted-foreground/50" />
-          <p className="mt-3 text-sm font-medium text-foreground">No skill invocations found.</p>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {(report?.sourceRoots.length ?? 0) === 0
-              ? 'No Claude Code session transcripts on this machine yet.'
-              : 'The sessions read so far never invoked a skill. Counts appear here as soon as one does.'}
-          </p>
+        <div className={GLASS_CARD}>
+          <EmptyState
+            size="lg"
+            icon={ChartSimple}
+            title="No skill invocations found."
+            description={
+              (report?.sourceRoots.length ?? 0) === 0
+                ? 'No Claude Code session transcripts on this machine yet.'
+                : 'The sessions read so far never invoked a skill. Counts appear here as soon as one does.'
+            }
+          />
         </div>
       )}
 
       {!isPending && stats.length > 0 && (
         <>
-          <Card>
-            <CardContent className="space-y-3 p-4">
-              <div className="flex items-center justify-between gap-3">
-                <span className="text-sm font-medium text-foreground">Last 30 days</span>
-                <span className="text-xs text-muted-foreground">
-                  {(report?.dailyTotals ?? []).reduce((sum, count) => sum + count, 0)} invocations
-                </span>
-              </div>
-              <ActivityChart days={report?.days ?? []} counts={report?.dailyTotals ?? []} />
-            </CardContent>
-          </Card>
+          <section aria-label="Last 30 days" className={cn(GLASS_CARD, 'space-y-3 p-4')}>
+            <div className="flex items-center justify-between gap-3">
+              <h2 className={SECTION_HEADING}>Last 30 days</h2>
+              <span className="text-xs text-muted-foreground">
+                {(report?.dailyTotals ?? []).reduce((sum, count) => sum + count, 0)} invocations
+              </span>
+            </div>
+            <ActivityChart days={report?.days ?? []} counts={report?.dailyTotals ?? []} />
+          </section>
 
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="flex items-center gap-1 rounded-md border border-border p-0.5">
-              <Button
-                type="button"
-                size="sm"
-                variant={view === 'skill' ? 'default' : 'ghost'}
-                onClick={() => setView('skill')}
-              >
-                <Sparkles className="h-3.5 w-3.5" /> By skill
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant={view === 'project' ? 'default' : 'ghost'}
-                onClick={() => setView('project')}
-              >
-                <FolderOpen className="h-3.5 w-3.5" /> By project
-              </Button>
-            </div>
-            <div className="relative min-w-56 flex-1">
-              <Search className="pointer-events-none absolute left-2.5 top-2.5 z-10 h-4 w-4 text-muted-foreground" />
-              <Input
-                className="pl-8"
-                placeholder="Search used skills or projects…"
-                value={search}
-                onChange={(event) => {
-                  setSearch(event.target.value);
-                  setVisibleCount(PAGE_SIZE);
-                }}
-              />
-            </div>
+          <div className={cn(GLASS_CARD, 'flex flex-wrap items-center gap-2 px-3 py-2')}>
+            <PillTabs
+              id="skill-usage-view"
+              kind="toggle"
+              label="Group usage"
+              items={[
+                { value: 'skill' as const, label: 'By skill', icon: <Sparkles /> },
+                { value: 'project' as const, label: 'By project', icon: <FolderOpen /> },
+              ]}
+              value={view}
+              onChange={setView}
+            />
+            <SearchPill
+              label="Search used skills"
+              placeholder="Search used skills or projects…"
+              value={search}
+              onValueChange={(value) => {
+                setSearch(value);
+                setVisibleCount(PAGE_SIZE);
+              }}
+              className="min-w-56 flex-1"
+            />
             {view === 'skill' && (
-              <div className="flex items-center gap-1 rounded-md border border-border p-0.5">
-                {SORT_OPTIONS.map((option) => (
-                  <Button
-                    key={option.value}
-                    type="button"
-                    size="sm"
-                    variant={sort === option.value ? 'default' : 'ghost'}
-                    onClick={() => setSort(option.value)}
-                  >
-                    {option.label}
-                  </Button>
-                ))}
-              </div>
+              <PillTabs
+                id="skill-usage-sort"
+                kind="toggle"
+                label="Sort"
+                items={SORT_OPTIONS}
+                value={sort}
+                onChange={setSort}
+              />
             )}
           </div>
 
           {view === 'skill' && (
-            <div className="space-y-2">
-              {visible.map((stat, index) => {
-                const share = maxCount > 0 ? Math.round((stat.count / maxCount) * 100) : 0;
-                const ranked = sort === 'most-used' && !query;
-                return (
-                  <div
-                    key={stat.skill}
-                    className="group rounded-lg border border-border bg-card px-3 py-2.5 transition-colors hover:border-primary/30"
-                  >
-                    <div className="flex items-center gap-3">
-                      <span
-                        className={cn(
-                          'flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-semibold tabular-nums',
-                          ranked && index < 3
-                            ? RANK_STYLES[index]
-                            : 'bg-muted text-muted-foreground',
-                        )}
+            <>
+              {visible.length > 0 && (
+                <div className={cn(GLASS_CARD, 'settings-rows overflow-hidden')}>
+                  {visible.map((stat, index) => {
+                    const share = maxCount > 0 ? Math.round((stat.count / maxCount) * 100) : 0;
+                    const ranked = sort === 'most-used' && !query;
+                    return (
+                      <div
+                        key={stat.skill}
+                        className="group flex items-center gap-3 px-3.5 py-2.5 transition-colors hover:bg-foreground/[0.03]"
                       >
-                        {ranked ? index + 1 : '·'}
-                      </span>
-
-                      <div className="min-w-0 flex-1 space-y-1.5">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span className="truncate text-sm font-medium text-foreground">
-                            {stat.skill}
-                          </span>
-                          {stat.count7d > 0 && (
-                            <Badge variant="secondary">{stat.count7d} this week</Badge>
+                        <span
+                          className={cn(
+                            'flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-semibold tabular-nums',
+                            ranked && index < 3
+                              ? RANK_STYLES[index]
+                              : 'bg-foreground/[0.06] text-muted-foreground',
                           )}
-                          {stat.projects.slice(0, 2).map((project) => (
-                            <SimpleTooltip key={project.path} label={project.path}>
-                              <Badge variant="outline">
-                                {project.label} · {project.count}
-                              </Badge>
-                            </SimpleTooltip>
-                          ))}
-                          {stat.projects.length > 2 && (
-                            <Badge variant="outline">+{stat.projects.length - 2} more</Badge>
-                          )}
+                        >
+                          {ranked ? index + 1 : '·'}
+                        </span>
+
+                        <div className="min-w-0 flex-1 space-y-1.5">
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <span className="mr-0.5 truncate text-sm font-medium text-foreground">
+                              {stat.skill}
+                            </span>
+                            {stat.count7d > 0 && (
+                              <Chip tone="primary">{stat.count7d} this week</Chip>
+                            )}
+                            {stat.projects.slice(0, 2).map((project) => (
+                              <SimpleTooltip key={project.path} label={project.path}>
+                                <Chip>
+                                  {project.label} · {project.count}
+                                </Chip>
+                              </SimpleTooltip>
+                            ))}
+                            {stat.projects.length > 2 && (
+                              <Chip>+{stat.projects.length - 2} more</Chip>
+                            )}
+                          </div>
+                          <div className="h-1.5 w-full overflow-hidden rounded-full bg-foreground/[0.08]">
+                            <div
+                              className="h-full rounded-full bg-primary/70 transition-all group-hover:bg-primary"
+                              style={{ width: `${Math.max(share, 2)}%` }}
+                            />
+                          </div>
                         </div>
-                        <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
-                          <div
-                            className="h-full rounded-full bg-primary/70 transition-all group-hover:bg-primary"
-                            style={{ width: `${Math.max(share, 2)}%` }}
-                          />
+
+                        <MiniTrend daily={stat.daily} />
+
+                        <div className="w-16 shrink-0 text-right">
+                          <div className="text-base font-semibold tabular-nums text-foreground">
+                            {stat.count}
+                          </div>
+                          <div className="text-[11px] text-muted-foreground">
+                            {timeAgo(stat.lastUsedAt)}
+                          </div>
                         </div>
+
+                        <AddToProjectButton
+                          skill={stat.skill}
+                          onClick={() => setAddTarget(stat)}
+                          className="shrink-0"
+                        />
+
+                        <SkillFavoriteButton
+                          starred={favorites.isFavorite(stat.skill)}
+                          onToggle={() => favorites.toggleFavorite(usageFavoriteInput(stat.skill))}
+                          className="shrink-0"
+                        />
                       </div>
-
-                      <MiniTrend daily={stat.daily} />
-
-                      <div className="w-16 shrink-0 text-right">
-                        <div className="text-base font-semibold tabular-nums text-foreground">
-                          {stat.count}
-                        </div>
-                        <div className="text-[11px] text-muted-foreground">
-                          {timeAgo(stat.lastUsedAt)}
-                        </div>
-                      </div>
-
-                      <AddToProjectButton
-                        skill={stat.skill}
-                        onClick={() => setAddTarget(stat)}
-                        className="shrink-0"
-                      />
-
-                      <SkillFavoriteButton
-                        starred={favorites.isFavorite(stat.skill)}
-                        onToggle={() => favorites.toggleFavorite(usageFavoriteInput(stat.skill))}
-                        className="shrink-0"
-                      />
-                    </div>
-                  </div>
-                );
-              })}
+                    );
+                  })}
+                </div>
+              )}
 
               {filtered.length > visible.length && (
-                <div className="flex justify-center pt-2">
+                <div className="flex justify-center pt-1">
                   <Button
-                    variant="outline"
+                    variant="ghost"
+                    className={PILL_SOFT}
                     onClick={() => setVisibleCount((count) => count + PAGE_SIZE)}
                   >
                     Show more ({filtered.length - visible.length} remaining)
@@ -452,68 +469,89 @@ export function SkillUsageTab({
               )}
 
               {filtered.length === 0 && (
-                <p className="text-sm text-muted-foreground">No used skills match your search.</p>
+                <div className={GLASS_CARD}>
+                  <EmptyState
+                    size="sm"
+                    icon={Search}
+                    title="Nothing found"
+                    description="No used skills match your search."
+                  />
+                </div>
               )}
-            </div>
+            </>
           )}
 
           {view === 'project' && (
-            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            <div className="grid grid-cols-1 gap-2 lg:grid-cols-2">
               {projects.map((project) => {
                 const topCount = project.skills[0]?.count ?? 1;
                 return (
-                  <Card key={project.path}>
-                    <CardContent className="space-y-3 p-4">
-                      <div className="flex items-start justify-between gap-2">
+                  <section
+                    key={project.path}
+                    aria-label={project.label}
+                    className={cn(GLASS_CARD, 'space-y-3 p-4')}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex min-w-0 items-center gap-2.5">
+                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-primary/12 text-primary">
+                          <FolderOpen className="h-3.5 w-3.5" />
+                        </div>
                         <div className="min-w-0">
                           <p className="truncate text-sm font-medium text-foreground">
                             {project.label}
                           </p>
                           <p className="truncate text-xs text-muted-foreground">{project.path}</p>
                         </div>
-                        <Badge variant="secondary" className="shrink-0">
-                          {project.total} use{project.total === 1 ? '' : 's'}
-                        </Badge>
                       </div>
-                      <div className="space-y-1.5">
-                        {project.skills.map((entry) => (
-                          <div key={entry.skill} className="group/skill flex items-center gap-2">
-                            <span className="w-40 shrink-0 truncate text-xs text-foreground">
-                              {entry.skill}
-                            </span>
-                            <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted">
-                              <div
-                                className="h-full rounded-full bg-primary/70"
-                                style={{
-                                  width: `${Math.max((entry.count / topCount) * 100, 4)}%`,
-                                }}
-                              />
-                            </div>
-                            <span className="w-6 shrink-0 text-right text-xs tabular-nums text-muted-foreground">
-                              {entry.count}
-                            </span>
-                            <AddToProjectButton
-                              skill={entry.skill}
-                              onClick={() => {
-                                const stat = statBySkill.get(entry.skill);
-                                if (stat) setAddTarget(stat);
+                      <Chip tone="primary">
+                        {project.total} use{project.total === 1 ? '' : 's'}
+                      </Chip>
+                    </div>
+                    <div className="space-y-1.5">
+                      {project.skills.map((entry) => (
+                        <div key={entry.skill} className="group/skill flex items-center gap-2">
+                          <span className="w-40 shrink-0 truncate text-xs text-foreground">
+                            {entry.skill}
+                          </span>
+                          <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-foreground/[0.08]">
+                            <div
+                              className="h-full rounded-full bg-primary/70"
+                              style={{
+                                width: `${Math.max((entry.count / topCount) * 100, 4)}%`,
                               }}
-                              className="h-6 w-6 shrink-0 opacity-0 focus-visible:opacity-100 group-hover/skill:opacity-100"
                             />
                           </div>
-                        ))}
-                      </div>
-                    </CardContent>
-                  </Card>
+                          <span className="w-6 shrink-0 text-right text-xs tabular-nums text-muted-foreground">
+                            {entry.count}
+                          </span>
+                          <AddToProjectButton
+                            skill={entry.skill}
+                            onClick={() => {
+                              const stat = statBySkill.get(entry.skill);
+                              if (stat) setAddTarget(stat);
+                            }}
+                            className="h-6 w-6 shrink-0 opacity-0 focus-visible:opacity-100 group-hover/skill:opacity-100"
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  </section>
                 );
               })}
 
               {projects.length === 0 && (
-                <p className="text-sm text-muted-foreground">
-                  {query
-                    ? 'No projects match your search.'
-                    : 'The sessions read carry no project folder, so there is nothing to group.'}
-                </p>
+                <div className={cn(GLASS_CARD, 'lg:col-span-2')}>
+                  <EmptyState
+                    size="sm"
+                    icon={FolderOpen}
+                    title="Nothing to group"
+                    description={
+                      query
+                        ? 'No projects match your search.'
+                        : 'The sessions read carry no project folder, so there is nothing to group.'
+                    }
+                  />
+                </div>
               )}
             </div>
           )}

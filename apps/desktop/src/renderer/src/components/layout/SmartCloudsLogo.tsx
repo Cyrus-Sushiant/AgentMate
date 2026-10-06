@@ -4,19 +4,18 @@ import { cn } from '@/lib/utils';
 
 /*
  * The logo files come from the SmartClouds website: 60x32 at 1x and 120x64 at 2x. "lg" is the
- * 1x size itself, so it is pixel-exact on standard and HiDPI screens alike. "sm" is what fits
- * the sidebar, where the width is the limit: the mark has to leave room for the name and the
- * version chip in the card, and fit inside the 34px square on the icon rail.
+ * 1x size itself, so it is pixel-exact on standard and HiDPI screens alike. "md" keeps the same
+ * 15:8 shape at a size that credits the maker in the About dialog without competing with the
+ * AgentMate icon above it.
  */
 const SIZES = {
-  sm: { width: 28, height: 15 },
+  md: { width: 45, height: 24 },
   lg: { width: 60, height: 32 },
 } as const;
 
 /**
- * The SmartClouds cloud logo. It is white and grey, so callers put it on a `.brand-tile` (see
- * index.css), the dark rounded square from the company's own favicon, to keep it visible on
- * the light theme.
+ * The SmartClouds cloud logo. It is white and grey, so on the light theme the caller has to
+ * keep it visible, for example with a drop-shadow that traces its edge (see AboutDialog).
  */
 export function SmartCloudsLogo({
   size,

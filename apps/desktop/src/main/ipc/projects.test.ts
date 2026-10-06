@@ -52,9 +52,11 @@ function storedProjects(): Project[] {
   return JSON.parse(readFileSync(userData.dataFile('projects.json'), 'utf-8')) as Project[];
 }
 
+let projectsModule: typeof import('./projects');
+
 beforeEach(async () => {
   folder.path = tempDir('agentmate-projects-folder-');
-  await loadIpc(
+  projectsModule = await loadIpc(
     () => import('./projects'),
     (module) => module.registerProjectHandlers(),
   );
@@ -172,6 +174,59 @@ describe('projects CRUD', () => {
       archived: false,
       pinned: false,
     });
+  });
+});
+
+describe('the WordPress link', () => {
+  const link = {
+    siteId: '6f1c2a9e-3b7d-4c51-9e0a-2d8f4b6c1a03',
+    items: [
+      { kind: 'theme' as const, slug: 'shop' },
+      { kind: 'theme' as const, slug: 'shop' },
+      { kind: 'plugin' as const, slug: '../evil' },
+    ],
+    linkedAt: '2026-10-05T10:00:00.000Z',
+  };
+
+  it('is ignored by projects.create and projects.update', async () => {
+    const created = await create({ wordpress: link });
+    expect(created.wordpress).toBeUndefined();
+    expect(storedProjects()[0].wordpress).toBeUndefined();
+
+    const linked = await projectsModule.createProjectRecord({ ...input(), wordpress: link });
+    const updated = await invoke<Project>(IPC.projects.update, linked.id, {
+      name: 'Renamed',
+      wordpress: { ...link, siteId: 'other-site' },
+    });
+    expect(updated.name).toBe('Renamed');
+    expect(updated.wordpress?.siteId).toBe(link.siteId);
+  });
+
+  it('is normalized when the WordPress flow creates a project', async () => {
+    const created = await projectsModule.createProjectRecord({
+      ...input({ name: 'Shop', prompt: 'Mirror of the shop' }),
+      wordpress: link,
+    });
+    expect(created.wordpress).toEqual({
+      siteId: link.siteId,
+      items: [{ kind: 'theme', slug: 'shop' }],
+      linkedAt: link.linkedAt,
+    });
+    expect(created.prompt).toBe('Mirror of the shop');
+    expect(storedProjects()[0].wordpress?.items).toHaveLength(1);
+    expect((await invoke<Project[]>(IPC.projects.list))[0].wordpress?.siteId).toBe(link.siteId);
+  });
+
+  it('is set and removed only through setProjectWordPressLink', async () => {
+    const project = await create();
+    const linked = await projectsModule.setProjectWordPressLink(project.id, link);
+    expect(linked.wordpress?.items).toEqual([{ kind: 'theme', slug: 'shop' }]);
+    const unlinked = await projectsModule.setProjectWordPressLink(project.id, undefined);
+    expect(unlinked.wordpress).toBeUndefined();
+    expect('wordpress' in storedProjects()[0]).toBe(false);
+    await expect(
+      projectsModule.setProjectWordPressLink(project.id, { ...link, items: [] }),
+    ).rejects.toThrow('not valid');
   });
 });
 

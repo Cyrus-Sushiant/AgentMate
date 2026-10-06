@@ -125,10 +125,7 @@ export function NameDialog({
               aria-invalid={error !== null}
               autoFocus
               onFocus={(event) => event.currentTarget.select()}
-              className={cn(
-                'h-10',
-                error && 'border-destructive/60 focus-visible:ring-destructive/30',
-              )}
+              className="h-10"
             />
             {error && (
               <p role="alert" className="flex items-start gap-1.5 text-xs text-destructive">

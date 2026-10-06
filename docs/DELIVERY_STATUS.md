@@ -46,6 +46,9 @@ Plan: docs/ROADMAP.md
 | E16 | Direct TLS mode | Complete | see git log | Opt-in HTTPS listener bound and closed at runtime (Kestrel endpoint reload), P-256 certificate made on first start and pinned over SSH; desktop self-signs a client certificate with its device key, checked against the enrolled keys on every handshake and request; firewall rule through E13 change sets; direct TLS first, SSH after, a pin mismatch stops the link |
 | E17 | Polish and full OS matrix | Complete | see git log | Nightly full matrix, system tests parameterized by image, visual and keyboard pass of every Deploy screen, README; the full-stack e2e (`deployFullStack.e2e.ts`, AC1) passed on Ubuntu 24.04 and Rocky 9, locally and in nightly run 37116895444 |
 | E18 | Ask AI for Remote Desktop | Complete | | Input through the IronRDP session, screenshots from its canvas; verified against xrdp and XFCE; Codex image answer unverified locally |
+| E19 | WordPress Connector plugin and sync engine | Complete | | Built by four parallel agents against one contract and shared vectors; plugin on PHP 7.4 to 8.4 and multisite, smoke on real WordPress; the sync engine against the real plugin in Docker (`wordpress.int.test.ts`); security review findings fixed; uninstall checked on single site and multisite |
+| E20 | WordPress sites in Deploy | Complete | | Rail group, connect dialog, overview, items, deploys with rollback, access and audit log |
+| E21 | WordPress projects | Complete | | New project flow, WordPress section, pull and deploy reviews with conflicts and the left-out list; `deployWordPress.e2e.ts` passes on the final code (6 of 6, 3.9 minutes; nightly job `wordpress-e2e`). The new-project item step loaded slowly in the e2e window (likely its throttling; unconfirmed in a focused window) |
 
 Status values: Not started, In progress, Blocked, Complete.
 

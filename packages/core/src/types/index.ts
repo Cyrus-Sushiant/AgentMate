@@ -8,6 +8,7 @@ import type { EffortLevel } from '../promptBuilder/runRecommendation.js';
 import type { DesktopPromptBuildWidgetInstance } from '../promptBuilder/types.js';
 import type {
   DesktopWidgetInstance,
+  StatusBarUsageSettings,
   UsageProviderConfig,
   UsageResetAlertSettings,
   UsageThresholdAlertSettings,
@@ -438,6 +439,11 @@ export interface AppSettings {
   geminiApiKey: string | null;
   /** Model id sent with Gemini requests, e.g. "gemini-2.0-flash". */
   geminiModel: string;
+  /**
+   * Embedding model per provider for the help chat's search index. A provider left out uses the
+   * default from the model catalog. Changing one makes the index embed the articles again.
+   */
+  helpEmbeddingModels: Partial<Record<AiProvider, string>>;
   /** AI provider used to generate prompts in Prompt Builder; model comes from that provider's configured model above. */
   promptBuilderProvider: AiProvider;
   /**
@@ -501,6 +507,8 @@ export interface AppSettings {
   usageResetAlerts: UsageResetAlertSettings;
   /** OS notification (in-app toast fallback) when a rate-limit window crosses a percent threshold. */
   usageThresholdAlerts: UsageThresholdAlertSettings;
+  /** Which providers show their plan limits in the bottom status bar; switched in Settings. */
+  statusBarUsage: StatusBarUsageSettings;
   /**
    * Floating pixel companion that walks around the desktop while AgentMate is
    * open. Off until the user turns it on in Settings.

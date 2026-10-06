@@ -1,6 +1,7 @@
 import type { PrReviewComment, PrReviewThread } from '@agentmat/core';
 import { useState } from 'react';
 import { Check, MessageSquare, Send, Spinner, Undo } from '@/components/icons';
+import { MULTILINE_FIELD_RADIUS } from '@/components/ui/textarea';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { timeAgo } from '@/lib/time';
 import { cn } from '@/lib/utils';
@@ -100,7 +101,10 @@ export function ReviewThread({
                 setReplying(false);
               }
             }}
-            className="block w-full resize-y rounded-md border border-input bg-background/60 px-2 py-1.5 text-[12px] outline-none placeholder:text-muted-foreground/70 focus:border-primary/50 focus:ring-2 focus:ring-primary/15"
+            className={cn(
+              'field-surface block w-full resize-y px-3 py-1.5 text-[12px] outline-none',
+              MULTILINE_FIELD_RADIUS,
+            )}
           />
           <div className="flex justify-end gap-1">
             <button type="button" onClick={() => setReplying(false)} className={PR_GHOST_BUTTON}>

@@ -45,29 +45,35 @@ export function CollapsibleText({
   const collapsed = overflowing && !expanded;
 
   return (
-    <div className="overflow-hidden rounded-lg border border-border bg-card">
-      <div className="relative">
-        <p
-          ref={ref}
-          dir={persian.dir}
-          style={collapsed ? { maxHeight: collapsedHeight } : undefined}
-          className={cn(
-            'overflow-hidden whitespace-pre-wrap p-3 text-sm leading-relaxed',
-            persian.className,
-            className,
-          )}
-        >
-          {text}
-        </p>
-        {collapsed && (
-          <div className="pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-card to-transparent" />
+    // A soft inset well, the same as the page kit's SECTION_WELL, so it sits inside a glass card
+    // without an opaque box of its own.
+    <div className="overflow-hidden rounded-xl bg-foreground/[0.03] ring-1 ring-inset ring-foreground/[0.07]">
+      <p
+        ref={ref}
+        dir={persian.dir}
+        // A mask fades the clamped text over any backdrop, where a gradient would need the
+        // well's colour, which is translucent.
+        style={
+          collapsed
+            ? {
+                maxHeight: collapsedHeight,
+                maskImage: 'linear-gradient(to bottom, black calc(100% - 2.5rem), transparent)',
+              }
+            : undefined
+        }
+        className={cn(
+          'overflow-hidden whitespace-pre-wrap p-3 text-sm leading-relaxed',
+          persian.className,
+          className,
         )}
-      </div>
+      >
+        {text}
+      </p>
       {overflowing && (
         <button
           type="button"
           onClick={() => setExpanded((value) => !value)}
-          className="flex w-full items-center justify-center gap-1 border-t border-border px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground"
+          className="flex w-full cursor-pointer items-center justify-center gap-1 px-3 py-1.5 text-xs text-muted-foreground shadow-[inset_0_1px_0_hsl(var(--foreground)/0.08)] transition-colors hover:bg-foreground/[0.04] hover:text-foreground"
         >
           <ChevronDown
             className={cn('h-3.5 w-3.5 transition-transform', expanded && 'rotate-180')}

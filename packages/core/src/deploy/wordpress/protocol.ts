@@ -15,6 +15,13 @@ import type { ProjectWordPressItem } from '../../types/index.js';
  */
 
 export const WP_PROTOCOL_VERSION = 1;
+/**
+ * The connector release bundled with this app (the plugin header's Version). A site running an
+ * older one still works while its protocol matches; the app just offers the newer zip.
+ */
+export const WP_CONNECTOR_VERSION = '1.0.0';
+/** Every time on the wire, and every time the plugin reports, is whole Unix seconds. */
+export type WpUnixSeconds = number;
 /** First line of every canonical string. */
 export const WP_PROTOCOL_PREFIX = 'agentmate-wp/v1';
 export const WP_AUTH_FIELD = 'am_auth';
@@ -23,6 +30,29 @@ export const WP_BUNDLE_FILENAME = 'bundle.bin';
 export const WP_REST_NAMESPACE = 'agentmate/v1';
 /** `admin-ajax.php?action=agentmate_connector&route=<route>`, for sites whose REST API is blocked. */
 export const WP_AJAX_ACTION = 'agentmate_connector';
+/**
+ * The query parameter that names the route on the admin-ajax and rescue endpoints:
+ * `<rescueUrl>?route=/rescue/status`. Same multipart body, same signed reply, on every endpoint.
+ * The client uses the rescue URL from `/hello` only for `/rescue/*` routes, only when it is on the
+ * same origin as one of the key's URLs, and only after the REST and ajax endpoints answered with
+ * something that is not a signed envelope.
+ */
+export const WP_ROUTE_PARAM = 'route';
+
+/*
+ * How the client reads a reply (the plugin must give it what it needs):
+ * - The signed `meta.status` is the status; the HTTP status may have been changed on the way.
+ * - An empty `sig` is accepted only with `meta.status` 429 (the rate limiter skips signing to save
+ *   CPU). The wait comes from the HTTP Retry-After header, or `details.retryAfter` (seconds) on a
+ *   signed `rateLimited` error.
+ * - `staleTimestamp` errors carry `details.serverTime`; the client fixes its clock once and retries.
+ * - A `tooLarge` error, or a plain HTTP 413 from something in front of WordPress, halves the batch.
+ *   A body over post_max_size makes PHP drop the form before the plugin runs, so that one reply
+ *   is signed with `-` for both the nonce and the connection, and is accepted only with a signed
+ *   status of 413, only as `tooLarge`.
+ * - A commit reply with any `syntaxErrors`, `conflicts` or `refusals` is a failure whatever its
+ *   state; the client then calls `/deploy/abort`.
+ */
 /** How far a request's timestamp may be from the site's clock, either way. */
 export const WP_TIMESTAMP_WINDOW_SECONDS = 300;
 /** How long a connection key from wp-admin can be used to pair. */
@@ -172,7 +202,7 @@ export interface WpPendingDeploy {
   deployId: string;
   state: WpDeployState;
   /** Unix seconds; past it the guard rolls the deploy back. */
-  deadline: number;
+  deadline: WpUnixSeconds;
 }
 
 export interface WpSiteInfo {
@@ -186,7 +216,7 @@ export interface WpSiteInfo {
   multisite: boolean;
   activeTheme: { stylesheet: string; template: string };
   https: boolean;
-  serverTime: number;
+  serverTime: WpUnixSeconds;
   /** DISALLOW_FILE_MODS: the site owner switched file changes off, so nothing can be deployed. */
   fileModsDisabled: boolean;
   /** DISALLOW_FILE_EDIT: only the built-in editors are off; deploys still work. */
@@ -203,8 +233,8 @@ export interface WpSiteInfo {
     id: string;
     label: string;
     scope: WpScope;
-    createdAt: number;
-    expiresAt: number | null;
+    createdAt: WpUnixSeconds;
+    expiresAt: WpUnixSeconds | null;
   };
   pendingDeploy: WpPendingDeploy | null;
 }
@@ -274,8 +304,8 @@ export interface WpDeployRecord {
   state: WpDeployState;
   reason?: WpRollbackReason;
   label: string;
-  startedAt: number;
-  finishedAt: number | null;
+  startedAt: WpUnixSeconds;
+  finishedAt: WpUnixSeconds | null;
   connectionLabel: string;
   puts: number;
   deletes: number;
@@ -285,7 +315,7 @@ export interface WpDeployRecord {
 
 export interface WpAuditEntry {
   id: number;
-  at: number;
+  at: WpUnixSeconds;
   event: WpAuditEvent;
   connectionLabel: string | null;
   ip: string;
@@ -351,7 +381,7 @@ export interface WpHelloResponse {
   pluginVersion: string;
   /** Raw 32-byte Ed25519 public key, base64url. Must equal the one in the connection key. */
   sitePublicKey: string;
-  serverTime: number;
+  serverTime: WpUnixSeconds;
   capabilities: string[];
   rescueUrl: string | null;
   multisite: boolean;
@@ -371,9 +401,9 @@ export interface WpPairResponse {
   connectionId: string;
   scope: WpScope;
   label: string;
-  expiresAt: number | null;
+  expiresAt: WpUnixSeconds | null;
   siteName: string;
-  serverTime: number;
+  serverTime: WpUnixSeconds;
 }
 
 export interface WpManifestRequest {

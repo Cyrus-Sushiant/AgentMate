@@ -1,4 +1,5 @@
 import type { VaultEntrySummary } from '@agentmat/core';
+import { motion } from 'framer-motion';
 import { Copy, Key, Star } from '@/components/icons';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
@@ -9,6 +10,9 @@ import type { useVaultActions } from './useVaultActions';
 export function vaultOptionId(id: string): string {
   return `vault-option-${id}`;
 }
+
+const ROW_BUTTON =
+  'flex h-7 w-7 cursor-pointer items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-foreground/10 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring';
 
 function Highlighted({ text, ranges }: { text: string; ranges: [number, number][] }) {
   if (ranges.length === 0) return <>{text}</>;
@@ -33,12 +37,15 @@ export function VaultEntryRow({
   selected,
   onSelect,
   actions,
+  pillTransition,
 }: {
   entry: VaultEntrySummary;
   titleRanges: [number, number][];
   selected: boolean;
   onSelect: () => void;
   actions: ReturnType<typeof useVaultActions>;
+  /** How the selection pill slides between rows; instant when motion is reduced. */
+  pillTransition?: React.ComponentProps<typeof motion.span>['transition'];
 }): React.JSX.Element {
   const secret = primarySecret(entry);
   const canCopyUsername = entry.type === 'login' && entry.username !== '';
@@ -53,16 +60,32 @@ export function VaultEntryRow({
       onClick={onSelect}
       onKeyDown={(event) => event.key === 'Enter' && onSelect()}
       className={cn(
-        'group relative flex h-14 cursor-pointer items-center gap-3 rounded-lg px-2.5 outline-none transition-colors',
-        selected ? 'bg-primary/10 ring-1 ring-primary/30' : 'hover:bg-accent/60',
+        // `isolate` keeps the selection pill behind the row's content without lifting each child.
+        'group relative isolate flex h-12 cursor-pointer items-center gap-2.5 rounded-lg px-2.5 outline-none transition-colors',
+        !selected && 'hover:bg-foreground/[0.06]',
       )}
     >
+      {selected && (
+        <motion.span
+          aria-hidden
+          layoutId="vault-entry-active"
+          transition={pillTransition}
+          className="absolute inset-0 -z-10 rounded-lg bg-primary/12"
+        >
+          <span className="absolute left-0 top-1/2 h-4 w-[3px] -translate-y-1/2 rounded-full bg-primary shadow-[0_0_8px_hsl(var(--primary)/0.7)]" />
+        </motion.span>
+      )}
       <EntryAvatar entry={entry} />
       <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-medium leading-5">
+        <p
+          className={cn(
+            'truncate text-[13px] font-medium leading-5',
+            selected ? 'text-primary' : 'text-foreground',
+          )}
+        >
           <Highlighted text={entry.title} ranges={titleRanges} />
         </p>
-        <p className="truncate text-xs text-muted-foreground">{entrySubtitle(entry)}</p>
+        <p className="truncate text-[11px] text-muted-foreground">{entrySubtitle(entry)}</p>
       </div>
 
       <div
@@ -78,7 +101,7 @@ export function VaultEntryRow({
             <button
               type="button"
               aria-label="Copy username"
-              className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-background hover:text-foreground"
+              className={ROW_BUTTON}
               onClick={(event) => {
                 event.stopPropagation();
                 void actions.copy(entry.id, 'username', 'Username');
@@ -93,7 +116,7 @@ export function VaultEntryRow({
             <button
               type="button"
               aria-label={`Copy ${secret.label.toLowerCase()}`}
-              className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-background hover:text-foreground"
+              className={ROW_BUTTON}
               onClick={(event) => {
                 event.stopPropagation();
                 void actions.copy(entry.id, secret.ref, secret.label);

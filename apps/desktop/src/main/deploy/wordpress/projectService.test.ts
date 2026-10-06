@@ -1,0 +1,843 @@
+import { createHash, randomBytes, randomUUID } from 'node:crypto';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { dirname, join } from 'node:path';
+import {
+  normalizeProjectWordPressLink,
+  type Project,
+  type WpItemRef,
+  wpItemKey,
+} from '@agentmat/core';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import type { DeployWordPressProgressEvent } from '../../../shared/deployWordPressTypes';
+import { wordPressErrorCode } from '../../../shared/wordpressErrors';
+import type { WpProjectsPort } from './projectLink';
+import { WordPressProjectService } from './projectService';
+import { WordPressBases, WordPressState, wordPressStateFilePort } from './state';
+import { FakeConnector } from './testing/fakeConnector';
+import { WP_AGENT_FILES } from './testing/vectors';
+import { createFetchTransport } from './transport';
+
+/**
+ * WordPress projects end to end against the fake connector over HTTP: a new project pulled from
+ * a site, pulls and deploys with their plans, conflicts, PHP syntax errors, health checks that
+ * roll back, cancels, the agent-files fixture on a real deploy, item changes and relinks.
+ */
+
+const THEME: WpItemRef = { kind: 'theme', slug: 'shop' };
+const TOOLS: WpItemRef = { kind: 'plugin', slug: 'tools' };
+const HELLO: WpItemRef = { kind: 'plugin', slug: 'hello.php' };
+const nodeTransport = createFetchTransport(globalThis.fetch as never);
+
+let fake: FakeConnector;
+let dir: string;
+let events: DeployWordPressProgressEvent[];
+let onProgress: ((event: DeployWordPressProgressEvent) => void) | null;
+let projects: Map<string, Project>;
+let service: WordPressProjectService;
+let state: WordPressState;
+let bases: WordPressBases;
+let siteId: string;
+let opCount = 0;
+
+const op = () => `op-test-${++opCount}-${randomUUID().slice(0, 8)}`;
+const sha = (text: string | Buffer) => createHash('sha256').update(text).digest('hex');
+
+const port: WpProjectsPort = {
+  get: async (id) => projects.get(id) ?? null,
+  create: async (input) => {
+    const project = {
+      id: randomUUID(),
+      name: input.name,
+      folderPath: input.folderPath,
+      description: input.description,
+      tags: input.tags,
+      agentType: input.agentType,
+      prompt: input.prompt ?? '',
+      websiteUrl: input.websiteUrl ?? '',
+      wordpress: normalizeProjectWordPressLink(input.wordpress),
+    } as Project;
+    projects.set(project.id, project);
+    return project;
+  },
+  setLink: async (id, link) => {
+    const current = projects.get(id) as Project;
+    const next = { ...current, wordpress: link };
+    if (!link) delete next.wordpress;
+    projects.set(id, next);
+    return next;
+  },
+};
+
+function make(planTtlMs?: number) {
+  state = new WordPressState(wordPressStateFilePort(join(dir, 'deploy-wordpress.json')));
+  bases = new WordPressBases(join(dir, 'bases'));
+  service = new WordPressProjectService({
+    state,
+    bases,
+    transport: nodeTransport,
+    seal: async (plain) => ({
+      mode: 'safeStorage',
+      ciphertext: Buffer.from(plain).toString('base64'),
+    }),
+    unseal: async (envelope) => Buffer.from(envelope.ciphertext, 'base64').toString('utf-8'),
+    isLocked: () => false,
+    progress: (event) => {
+      events.push(event);
+      onProgress?.(event);
+    },
+    hostname: () => 'laptop',
+    saveConnectorZip: async () => ({ saved: false }),
+    sleep: async () => undefined,
+    projects: port,
+    ...(planTtlMs === undefined ? {} : { planTtlMs }),
+  });
+}
+
+beforeEach(async () => {
+  fake = await new FakeConnector().start();
+  fake.addItem(
+    THEME,
+    {
+      'style.css': '/* Theme Name: Shop */',
+      'functions.php': '<?php // shop',
+      'index.php': '<?php // index',
+      'inc/setup.php': '<?php // setup',
+    },
+    { active: true, name: 'Shop' },
+  );
+  fake.addItem(
+    TOOLS,
+    { 'tools.php': '<?php // tools', 'readme.txt': 'Tools' },
+    { active: true, mainFile: 'tools/tools.php', name: 'Tools' },
+  );
+  fake.addItem(HELLO, { 'hello.php': '<?php // hello' }, { isFile: true, name: 'Hello' });
+  dir = mkdtempSync(join(tmpdir(), 'agentmate-wp-projects-'));
+  events = [];
+  onProgress = null;
+  projects = new Map();
+  make();
+  siteId = (await service.connect({ connectionKey: fake.createKey() })).id;
+});
+
+afterEach(async () => {
+  await fake.stop();
+  rmSync(dir, { recursive: true, force: true });
+});
+
+function folder(): string {
+  return join(dir, `project-${randomUUID().slice(0, 8)}`);
+}
+
+async function createShop(items: WpItemRef[] = [THEME], folderPath = folder()): Promise<Project> {
+  return service.createProject({
+    operationId: op(),
+    siteId,
+    items,
+    folderPath,
+    name: 'Shop',
+    agentType: 'claude-code',
+  });
+}
+
+function local(project: Project, path: string): string | null {
+  const full = join(project.folderPath, ...path.split('/'));
+  return existsSync(full) ? readFileSync(full, 'utf-8') : null;
+}
+
+function write(project: Project, path: string, content: string): void {
+  const full = join(project.folderPath, ...path.split('/'));
+  mkdirSync(dirname(full), { recursive: true });
+  writeFileSync(full, content);
+}
+
+async function failure(promise: Promise<unknown>): Promise<Error> {
+  try {
+    await promise;
+  } catch (error) {
+    return error as Error;
+  }
+  throw new Error('Expected the call to fail.');
+}
+
+async function deployAll(project: Project, force = false) {
+  const plan = await service.planDeploy({ projectId: project.id });
+  return { plan, result: await service.deploy({ planId: plan.planId, operationId: op(), force }) };
+}
+
+describe('createProject', () => {
+  it('pulls the items, writes the base and makes the project with its prompt', async () => {
+    const project = await createShop([THEME, TOOLS, HELLO]);
+    expect(local(project, 'wp-content/themes/shop/inc/setup.php')).toBe('<?php // setup');
+    expect(local(project, 'wp-content/plugins/tools/tools.php')).toBe('<?php // tools');
+    expect(local(project, 'wp-content/plugins/hello.php')).toBe('<?php // hello');
+    expect(project.wordpress?.siteId).toBe(siteId);
+    expect(project.wordpress?.items.map(wpItemKey)).toEqual([
+      'theme:shop',
+      'plugin:tools',
+      'plugin:hello.php',
+    ]);
+    expect(project.prompt).toContain(
+      'Theme "Shop" (version 1.0.0, active): wp-content/themes/shop/',
+    );
+    expect(project.prompt).toContain('wp-content/plugins/hello.php');
+    expect(project.websiteUrl).toBe(fake.siteUrl);
+
+    const base = await bases.read(project.id);
+    expect(base?.items['plugin:hello.php']).toEqual({
+      isFile: true,
+      files: { 'hello.php': { sha256: sha('<?php // hello'), size: 14 } },
+    });
+    expect(Object.keys(base?.items['theme:shop'].files ?? {}).sort()).toEqual([
+      'functions.php',
+      'inc/setup.php',
+      'index.php',
+      'style.css',
+    ]);
+    const phases = events.filter((event) => event.kind === 'createProject').map((e) => e.phase);
+    expect(phases[0]).toBe('connecting');
+    expect(phases).toContain('download');
+    expect(phases.at(-1)).toBe('done');
+
+    // Nothing changed on either side since.
+    expect((await service.planDeploy({ projectId: project.id })).changes).toEqual([]);
+    expect((await service.planPull({ projectId: project.id })).changes).toEqual([]);
+    expect(await service.localChanges(project.id)).toMatchObject({
+      added: 0,
+      modified: 0,
+      deleted: 0,
+    });
+  });
+
+  it('refuses item folders that already hold files', async () => {
+    const path = folder();
+    mkdirSync(join(path, 'wp-content', 'themes', 'shop'), { recursive: true });
+    writeFileSync(join(path, 'wp-content', 'themes', 'shop', 'mine.txt'), 'mine');
+    const error = await failure(createShop([THEME], path));
+    expect(wordPressErrorCode(error)).toBe('folderNotEmpty');
+    expect(error.message).toContain('wp-content/themes/shop');
+    expect(readFileSync(join(path, 'wp-content/themes/shop/mine.txt'), 'utf-8')).toBe('mine');
+
+    writeFileSync(join(path, 'wp-content', 'plugins'), 'not a folder');
+    expect(wordPressErrorCode(await failure(createShop([HELLO], path)))).toBe('pathRejected');
+    writeFileSync(join(dir, 'a-file'), 'x');
+    expect(wordPressErrorCode(await failure(createShop([THEME], join(dir, 'a-file'))))).toBe(
+      'folderNotEmpty',
+    );
+  });
+
+  it('removes only what it made when it fails', async () => {
+    const fresh = folder();
+    const missing = await failure(createShop([THEME, { kind: 'plugin', slug: 'nope' }], fresh));
+    expect(wordPressErrorCode(missing)).toBe('itemUnknown');
+    expect(existsSync(fresh)).toBe(false);
+
+    const existing = folder();
+    mkdirSync(existing);
+    writeFileSync(join(existing, 'notes.md'), 'mine');
+    fake.switches.rateLimitNext = 0;
+    onProgress = (event) => {
+      if (event.phase === 'download') fake.switches.foreign = { status: 503 };
+    };
+    expect(wordPressErrorCode(await failure(createShop([THEME], existing)))).toBe(
+      'foreignResponse',
+    );
+    onProgress = null;
+    fake.switches.foreign = null;
+    expect(readFileSync(join(existing, 'notes.md'), 'utf-8')).toBe('mine');
+    expect(existsSync(join(existing, 'wp-content'))).toBe(false);
+    expect(projects.size).toBe(0);
+  });
+
+  it('refuses the connector itself', async () => {
+    fake.addItem({ kind: 'plugin', slug: 'agentmate-connector' }, {}, { protected: true });
+    expect(
+      wordPressErrorCode(
+        await failure(createShop([{ kind: 'plugin', slug: 'agentmate-connector' }])),
+      ),
+    ).toBe('itemProtected');
+  });
+});
+
+describe('deploy', () => {
+  it('sends local changes and moves the base once the site says done', async () => {
+    const project = await createShop([THEME, TOOLS]);
+    write(project, 'wp-content/themes/shop/style.css', '/* Theme Name: Shop 2 */');
+    write(project, 'wp-content/themes/shop/inc/new.php', '<?php // new');
+    rmSync(join(project.folderPath, 'wp-content/themes/shop/index.php'));
+
+    expect(await service.localChanges(project.id)).toMatchObject({
+      added: 1,
+      modified: 1,
+      deleted: 1,
+    });
+    const plan = await service.planDeploy({ projectId: project.id });
+    expect(plan.changes.map((change) => `${change.action}:${change.path}`)).toEqual([
+      'upload:inc/new.php',
+      'deleteRemote:index.php',
+      'upload:style.css',
+    ]);
+    expect(plan.warnings).toContain('touchesActiveThemeCore');
+    expect(plan.expiresAt).toBeGreaterThan(Date.now());
+
+    const result = await service.deploy({ planId: plan.planId, operationId: op(), force: false });
+    expect(result).toMatchObject({ state: 'done', uploaded: 2, deleted: 1 });
+    expect(result.health.map((check) => check.name)).toEqual(['home', 'ajaxPing', 'external']);
+    expect(result.health.at(-1)).toMatchObject({ ok: true, status: 200 });
+    expect(fake.file(THEME, 'style.css')).toBe('/* Theme Name: Shop 2 */');
+    expect(fake.file(THEME, 'inc/new.php')).toBe('<?php // new');
+    expect(fake.file(THEME, 'index.php')).toBeNull();
+    expect(await state.inflight(siteId)).toBeNull();
+    expect(await bases.readPending(project.id)).toBeNull();
+    expect((await service.planDeploy({ projectId: project.id })).changes).toEqual([]);
+    expect(fake.deploys.at(-1)?.label).toBe('AgentMate: Shop');
+    const phases = events.filter((event) => event.kind === 'deploy').map((event) => event.phase);
+    expect(phases).toEqual(
+      expect.arrayContaining(['hashing', 'upload', 'validate', 'verify', 'finalize', 'done']),
+    );
+  });
+
+  it('never sends agent or AgentMate files: the shared fixture', async () => {
+    const project = await createShop([THEME]);
+    const root = 'wp-content/themes/shop';
+    for (const file of WP_AGENT_FILES.files) write(project, `${root}/${file.path}`, file.path);
+    write(project, 'AGENTS.md', 'project agents');
+    write(project, '.claude/settings.json', '{}');
+
+    const plan = await service.planDeploy({ projectId: project.id });
+    const planned = new Set(plan.changes.map((change) => change.path));
+    const leftOut = new Map(plan.leftOut.map((entry) => [entry.path, entry.reason]));
+    for (const file of WP_AGENT_FILES.files) {
+      if (file.expect === 'synced') expect(planned.has(file.path), file.path).toBe(true);
+      else expect(planned.has(file.path), file.path).toBe(false);
+      if (file.expect === 'hardDenied') expect(leftOut.has(file.path), file.path).toBe(true);
+    }
+    expect(leftOut.get('.claude/settings.json')).toBe('agentFiles');
+    expect(leftOut.get('.git/HEAD')).toBe('hardDenied');
+
+    await service.deploy({ planId: plan.planId, operationId: op(), force: false });
+    const onSite = [...(fake.items.get('theme:shop')?.files.keys() ?? [])];
+    for (const file of WP_AGENT_FILES.files.filter((entry) => entry.expect !== 'synced')) {
+      expect(onSite, file.path).not.toContain(file.path);
+    }
+    expect(onSite).toContain('templates/single.html');
+  });
+
+  it('uploads big files in pieces and halves its batches on a 413', async () => {
+    fake.limits.maxRequestBytes = 1024 * 1024;
+    const project = await createShop([THEME]);
+    // Random bytes, so gzip cannot shrink the request under the limit.
+    const big = randomBytes(700 * 1024);
+    const full = join(project.folderPath, 'wp-content/themes/shop/assets/big.bin');
+    mkdirSync(dirname(full), { recursive: true });
+    writeFileSync(full, big);
+    write(project, 'wp-content/themes/shop/assets/small.js', 'small');
+    fake.switches.maxBodyBytes = 400 * 1024;
+    const { result } = await deployAll(project);
+    expect(result.state).toBe('done');
+    expect(fake.items.get('theme:shop')?.files.get('assets/big.bin')?.equals(big)).toBe(true);
+    expect(fake.file(THEME, 'assets/small.js')).toBe('small');
+    expect(Math.max(...fake.uploadSizes)).toBeLessThanOrEqual(256 * 1024);
+    expect(fake.uploadSizes.length).toBeGreaterThanOrEqual(3);
+  });
+
+  it('refuses a deploy with conflicts unless forced', async () => {
+    const project = await createShop([THEME]);
+    write(project, 'wp-content/themes/shop/style.css', 'mine');
+    fake.setFile(THEME, 'style.css', 'theirs');
+    const plan = await service.planDeploy({ projectId: project.id });
+    expect(plan.conflicts.map((change) => change.path)).toEqual(['style.css']);
+    const refused = await failure(
+      service.deploy({ planId: plan.planId, operationId: op(), force: false }),
+    );
+    expect(wordPressErrorCode(refused)).toBe('conflict');
+    expect(refused.message).toBe(
+      '[wp:conflict] 1 file changed both here and on the site.\nwp-content/themes/shop/style.css: changed both here and on the site',
+    );
+    // The same reviewed plan can then go ahead with force.
+    const result = await service.deploy({ planId: plan.planId, operationId: op(), force: true });
+    expect(result.state).toBe('done');
+    expect(fake.file(THEME, 'style.css')).toBe('mine');
+  });
+
+  it('stops when the site changed again after the plan', async () => {
+    const project = await createShop([THEME]);
+    write(project, 'wp-content/themes/shop/style.css', 'mine');
+    const plan = await service.planDeploy({ projectId: project.id });
+    fake.setFile(THEME, 'style.css', 'changed meanwhile');
+    const error = await failure(
+      service.deploy({ planId: plan.planId, operationId: op(), force: false }),
+    );
+    expect(wordPressErrorCode(error)).toBe('conflict');
+    expect(error.message).toContain(
+      'wp-content/themes/shop/style.css: changed on the site since the plan',
+    );
+    expect(fake.deploys).toHaveLength(0);
+  });
+
+  it('reports PHP syntax errors line by line, and leaves the site as it was', async () => {
+    const project = await createShop([THEME]);
+    write(project, 'wp-content/themes/shop/functions.php', '<?php SYNTAX_ERROR');
+    const { plan } = await (async () => {
+      const made = await service.planDeploy({ projectId: project.id });
+      return { plan: made };
+    })();
+    const error = await failure(
+      service.deploy({ planId: plan.planId, operationId: op(), force: false }),
+    );
+    expect(error.message).toBe(
+      '[wp:syntaxError] 1 PHP file has a syntax error.\nwp-content/themes/shop/functions.php:1: syntax error',
+    );
+    expect(fake.deploys.at(-1)?.state).toBe('aborted');
+    expect(fake.file(THEME, 'functions.php')).toBe('<?php // shop');
+    expect(await state.inflight(siteId)).toBeNull();
+    expect(await bases.readPending(project.id)).toBeNull();
+    expect(events.at(-1)).toMatchObject({ kind: 'deploy', phase: 'failed' });
+  });
+
+  it('returns a rolled-back result when the site health check fails', async () => {
+    const project = await createShop([THEME]);
+    write(project, 'wp-content/themes/shop/style.css', 'broken');
+    fake.switches.healthFails = true;
+    const { result } = await deployAll(project);
+    expect(result).toMatchObject({ state: 'rolledBack', reason: 'healthCheck' });
+    expect(fake.file(THEME, 'style.css')).toBe('/* Theme Name: Shop */');
+    expect((await service.planDeploy({ projectId: project.id })).changes).toHaveLength(1);
+  });
+
+  it('rolls back when this computer sees the home page fail after the apply', async () => {
+    const project = await createShop([THEME]);
+    write(project, 'wp-content/themes/shop/style.css', 'breaks the front end');
+    onProgress = (event) => {
+      if (event.phase === 'verify') fake.switches.homeStatus = 500;
+    };
+    const { result } = await deployAll(project);
+    expect(result.state).toBe('rolledBack');
+    expect(result.health.at(-1)).toMatchObject({ name: 'external', ok: false, status: 500 });
+    expect(fake.file(THEME, 'style.css')).toBe('/* Theme Name: Shop */');
+  });
+
+  it('rolls back an applied deploy when cancelled', async () => {
+    const project = await createShop([THEME]);
+    write(project, 'wp-content/themes/shop/style.css', 'new');
+    const plan = await service.planDeploy({ projectId: project.id });
+    const operationId = op();
+    onProgress = (event) => {
+      if (event.phase === 'verify') {
+        fake.switches.delayMs = 300;
+        setTimeout(() => void service.cancel(operationId), 50);
+      }
+    };
+    const error = await failure(service.deploy({ planId: plan.planId, operationId, force: false }));
+    fake.switches.delayMs = 0;
+    expect(wordPressErrorCode(error)).toBe('cancelled');
+    expect(fake.deploys.at(-1)?.state).toBe('rolledBack');
+    expect(fake.file(THEME, 'style.css')).toBe('/* Theme Name: Shop */');
+    expect(await state.inflight(siteId)).toBeNull();
+  });
+
+  it('refuses files changed after the plan, an old plan, and a used plan', async () => {
+    const project = await createShop([THEME]);
+    write(project, 'wp-content/themes/shop/style.css', 'one');
+    const plan = await service.planDeploy({ projectId: project.id });
+    write(project, 'wp-content/themes/shop/style.css', 'two!');
+    expect(
+      wordPressErrorCode(
+        await failure(service.deploy({ planId: plan.planId, operationId: op(), force: false })),
+      ),
+    ).toBe('localChanged');
+    expect(
+      wordPressErrorCode(
+        await failure(service.deploy({ planId: plan.planId, operationId: op(), force: false })),
+      ),
+    ).toBe('planExpired');
+
+    make(1);
+    const old = await service.planDeploy({ projectId: project.id });
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    expect(
+      wordPressErrorCode(
+        await failure(service.deploy({ planId: old.planId, operationId: op(), force: false })),
+      ),
+    ).toBe('planExpired');
+    const pullPlan = await service.planPull({ projectId: project.id });
+    expect(
+      wordPressErrorCode(
+        await failure(service.deploy({ planId: pullPlan.planId, operationId: op(), force: false })),
+      ),
+    ).toBe('planExpired');
+  });
+
+  it('says when there is nothing to deploy, or the key can only read', async () => {
+    const project = await createShop([THEME]);
+    const empty = await service.planDeploy({ projectId: project.id });
+    expect(
+      wordPressErrorCode(
+        await failure(service.deploy({ planId: empty.planId, operationId: op(), force: false })),
+      ),
+    ).toBe('badRequest');
+
+    await service.connect({ connectionKey: fake.createKey({ scope: 'read' }) });
+    write(project, 'wp-content/themes/shop/style.css', 'x');
+    const plan = await service.planDeploy({ projectId: project.id });
+    expect(plan.warnings).toContain('readOnlyScope');
+    expect(
+      wordPressErrorCode(
+        await failure(service.deploy({ planId: plan.planId, operationId: op(), force: false })),
+      ),
+    ).toBe('readOnly');
+  });
+
+  it('creates a new item on the site, and warns about deleting an active plugin main file', async () => {
+    const project = await createShop([TOOLS]);
+    const fresh: WpItemRef = { kind: 'plugin', slug: 'fresh' };
+    await port.setLink(project.id, {
+      siteId,
+      items: [TOOLS, fresh],
+      linkedAt: new Date().toISOString(),
+    });
+    write(project, 'wp-content/plugins/fresh/fresh.php', '<?php // fresh');
+    rmSync(join(project.folderPath, 'wp-content/plugins/tools/tools.php'));
+    const plan = await service.planDeploy({ projectId: project.id });
+    expect(plan.warnings).toEqual(
+      expect.arrayContaining(['createsItem', 'deletesActivePluginMainFile']),
+    );
+    // The fake refuses it like the plugin would, unless forced.
+    const refused = await failure(
+      service.deploy({ planId: plan.planId, operationId: op(), force: false }),
+    );
+    expect(wordPressErrorCode(refused)).toBe('conflict');
+    expect(refused.message).toContain(
+      "wp-content/plugins/tools/tools.php: it would delete an active plugin's main file",
+    );
+    const { result } = await deployAll(
+      { ...project, wordpress: projects.get(project.id)?.wordpress },
+      true,
+    );
+    expect(result.state).toBe('done');
+    expect(fake.file(fresh, 'fresh.php')).toBe('<?php // fresh');
+  });
+
+  it('leaves a missing item folder alone instead of deleting it on the site', async () => {
+    const project = await createShop([THEME]);
+    rmSync(join(project.folderPath, 'wp-content'), { recursive: true });
+    expect((await service.planDeploy({ projectId: project.id })).changes).toEqual([]);
+    expect(await service.localChanges(project.id)).toMatchObject({ deleted: 0 });
+  });
+});
+
+describe('pull', () => {
+  it('downloads site changes, deletes site deletions, and moves the base', async () => {
+    const project = await createShop([THEME, HELLO]);
+    fake.setFile(THEME, 'style.css', 'site edit');
+    fake.setFile(THEME, 'inc/added.php', '<?php // added on site');
+    fake.setFile(THEME, 'inc/setup.php', null);
+    fake.setFile(HELLO, 'hello.php', '<?php // hello 2');
+    const plan = await service.planPull({ projectId: project.id });
+    expect(plan.changes.map((change) => `${change.action}:${change.path}`).sort()).toEqual([
+      'deleteLocal:inc/setup.php',
+      'download:hello.php',
+      'download:inc/added.php',
+      'download:style.css',
+    ]);
+    const result = await service.pull({ planId: plan.planId, operationId: op(), force: false });
+    expect(result).toMatchObject({ downloaded: 3, deletedLocal: 1, conflictCopies: [] });
+    expect(local(project, 'wp-content/themes/shop/style.css')).toBe('site edit');
+    expect(local(project, 'wp-content/themes/shop/inc/setup.php')).toBeNull();
+    expect(local(project, 'wp-content/plugins/hello.php')).toBe('<?php // hello 2');
+    expect((await service.planDeploy({ projectId: project.id })).changes).toEqual([]);
+    expect((await service.planPull({ projectId: project.id })).changes).toEqual([]);
+  });
+
+  it('settles conflicts the way the user chose, keeping a copy of what it replaced', async () => {
+    const project = await createShop([THEME]);
+    write(project, 'wp-content/themes/shop/style.css', 'mine');
+    write(project, 'wp-content/themes/shop/index.php', 'my index');
+    fake.setFile(THEME, 'style.css', 'theirs');
+    fake.setFile(THEME, 'index.php', 'their index');
+    const plan = await service.planPull({ projectId: project.id });
+    expect(plan.conflicts).toHaveLength(2);
+    const result = await service.pull({
+      planId: plan.planId,
+      operationId: op(),
+      force: false,
+      resolutions: { 'theme:shop/style.css': 'takeRemote', 'theme:shop/index.php': 'keepLocal' },
+    });
+    expect(local(project, 'wp-content/themes/shop/style.css')).toBe('theirs');
+    expect(local(project, 'wp-content/themes/shop/index.php')).toBe('my index');
+    expect(result.conflictCopies).toHaveLength(1);
+    expect(result.conflictCopies[0]).toMatch(
+      /^\.agentmate\/wordpress\/conflicts\/[0-9T-]+Z\/wp-content\/themes\/shop\/style\.css$/,
+    );
+    expect(local(project, result.conflictCopies[0])).toBe('mine');
+
+    // Keeping this computer's copy makes the next deploy send it over the site's.
+    const next = await service.planDeploy({ projectId: project.id });
+    expect(next.changes).toEqual([
+      expect.objectContaining({
+        path: 'index.php',
+        action: 'upload',
+        expectedRemote: sha('their index'),
+      }),
+    ]);
+    expect(next.leftOut.some((entry) => entry.path.includes('conflicts'))).toBe(false);
+  });
+
+  it('leaves an unresolved conflict as it is', async () => {
+    const project = await createShop([THEME]);
+    write(project, 'wp-content/themes/shop/style.css', 'mine');
+    fake.setFile(THEME, 'style.css', 'theirs');
+    const plan = await service.planPull({ projectId: project.id });
+    await service.pull({ planId: plan.planId, operationId: op(), force: false });
+    expect(local(project, 'wp-content/themes/shop/style.css')).toBe('mine');
+    expect((await service.planPull({ projectId: project.id })).conflicts).toHaveLength(1);
+  });
+
+  it('refuses to overwrite a file changed after the plan', async () => {
+    const project = await createShop([THEME]);
+    fake.setFile(THEME, 'style.css', 'theirs');
+    const plan = await service.planPull({ projectId: project.id });
+    write(project, 'wp-content/themes/shop/style.css', 'edited meanwhile');
+    expect(
+      wordPressErrorCode(
+        await failure(service.pull({ planId: plan.planId, operationId: op(), force: false })),
+      ),
+    ).toBe('localChanged');
+    expect(local(project, 'wp-content/themes/shop/style.css')).toBe('edited meanwhile');
+  });
+
+  it('refuses a site file that changed after the review, and writes nothing for it', async () => {
+    const project = await createShop([THEME]);
+    fake.setFile(THEME, 'style.css', 'reviewed');
+    const plan = await service.planPull({ projectId: project.id });
+    fake.setFile(THEME, 'style.css', 'swapped after the review');
+    const error = await failure(
+      service.pull({ planId: plan.planId, operationId: op(), force: false }),
+    );
+    expect(wordPressErrorCode(error)).toBe('conflict');
+    expect(error.message).toContain(
+      'wp-content/themes/shop/style.css: changed on the site since the review',
+    );
+    expect(local(project, 'wp-content/themes/shop/style.css')).toBe('/* Theme Name: Shop */');
+  });
+
+  it('fills in an item folder that went missing, and lists what the site left out', async () => {
+    const project = await createShop([THEME]);
+    rmSync(join(project.folderPath, 'wp-content'), { recursive: true });
+    fake.setFile(THEME, 'notes.log', 'log');
+    write(project, '.agentmateignore', 'secret-dir/\n');
+    fake.setFile(THEME, 'secret-dir/a.txt', 'x');
+    const plan = await service.planPull({ projectId: project.id });
+    expect(plan.leftOut).toContainEqual({
+      item: THEME,
+      path: 'secret-dir/a.txt',
+      reason: 'ignored',
+    });
+    await service.pull({ planId: plan.planId, operationId: op(), force: false });
+    expect(local(project, 'wp-content/themes/shop/inc/setup.php')).toBe('<?php // setup');
+    expect(local(project, 'wp-content/themes/shop/notes.log')).toBe('log');
+    expect(local(project, 'wp-content/themes/shop/secret-dir/a.txt')).toBeNull();
+  });
+
+  it('reads big site files in pieces', async () => {
+    fake.limits.maxResponseBytes = 100 * 1024;
+    fake.limits.maxPathsPerRead = 2;
+    const big = Buffer.alloc(300 * 1024, 7);
+    fake.addItem(
+      { kind: 'plugin', slug: 'big' },
+      { 'a.bin': big, 'b.txt': 'b', 'c.txt': 'c', 'd.txt': 'd' },
+    );
+    const project = await createShop([{ kind: 'plugin', slug: 'big' }]);
+    expect(readFileSync(join(project.folderPath, 'wp-content/plugins/big/a.bin')).equals(big)).toBe(
+      true,
+    );
+    expect(local(project, 'wp-content/plugins/big/d.txt')).toBe('d');
+  });
+
+  it('pulls nothing for an item gone from the site', async () => {
+    const project = await createShop([THEME]);
+    fake.items.delete('theme:shop');
+    expect((await service.planPull({ projectId: project.id })).changes).toEqual([]);
+    expect(local(project, 'wp-content/themes/shop/style.css')).not.toBeNull();
+  });
+});
+
+describe('project items and links', () => {
+  it('adds items by pulling them, and drops removed ones from the base', async () => {
+    const project = await createShop([THEME]);
+    const updated = await service.setProjectItems({
+      operationId: op(),
+      projectId: project.id,
+      items: [THEME, TOOLS],
+    });
+    expect(updated.wordpress?.items.map(wpItemKey)).toEqual(['theme:shop', 'plugin:tools']);
+    expect(local(project, 'wp-content/plugins/tools/tools.php')).toBe('<?php // tools');
+    expect(Object.keys((await bases.read(project.id))?.items ?? {}).sort()).toEqual([
+      'plugin:tools',
+      'theme:shop',
+    ]);
+
+    const fewer = await service.setProjectItems({
+      operationId: op(),
+      projectId: project.id,
+      items: [TOOLS],
+    });
+    expect(fewer.wordpress?.items.map(wpItemKey)).toEqual(['plugin:tools']);
+    expect(Object.keys((await bases.read(project.id))?.items ?? {})).toEqual(['plugin:tools']);
+    // The files stay on this computer.
+    expect(local(project, 'wp-content/themes/shop/style.css')).not.toBeNull();
+
+    expect(
+      wordPressErrorCode(
+        await failure(
+          service.setProjectItems({
+            operationId: op(),
+            projectId: project.id,
+            items: [{ kind: 'theme', slug: 'missing' }],
+          }),
+        ),
+      ),
+    ).toBe('itemUnknown');
+    expect(
+      wordPressErrorCode(
+        await failure(
+          service.setProjectItems({
+            operationId: op(),
+            projectId: project.id,
+            items: [THEME, TOOLS],
+          }),
+        ),
+      ),
+    ).toBe('folderNotEmpty');
+  });
+
+  it('relinks to a site connected again, keeping the base only for the same site key', async () => {
+    const project = await createShop([THEME]);
+    const before = await bases.read(project.id);
+    // Connected again from scratch: a new id for the same site.
+    await service.disconnect({ siteId, revokeOnSite: false });
+    const again = await service.connect({ connectionKey: fake.createKey() });
+    expect(again.id).not.toBe(siteId);
+    expect(wordPressErrorCode(await failure(service.planDeploy({ projectId: project.id })))).toBe(
+      'siteUnknown',
+    );
+    const relinked = await service.setProjectItems({
+      operationId: op(),
+      projectId: project.id,
+      siteId: again.id,
+      items: [THEME],
+    });
+    expect(relinked.wordpress?.siteId).toBe(again.id);
+    const kept = await bases.read(project.id);
+    expect(kept?.siteId).toBe(again.id);
+    expect(kept?.items).toEqual(before?.items);
+    siteId = again.id;
+    expect((await service.planDeploy({ projectId: project.id })).changes).toEqual([]);
+  });
+
+  it('drops a base from a different site key on relink', async () => {
+    const project = await createShop([THEME]);
+    await service.disconnect({ siteId, revokeOnSite: false });
+    const again = await service.connect({ connectionKey: fake.createKey() });
+    const base = await bases.read(project.id);
+    await bases.write(project.id, {
+      ...(base as NonNullable<typeof base>),
+      sitePublicKey: 'B'.repeat(43),
+    });
+    await service.setProjectItems({
+      operationId: op(),
+      projectId: project.id,
+      siteId: again.id,
+      items: [THEME],
+    });
+    expect(await bases.read(project.id)).toEqual(
+      expect.objectContaining({ siteId: again.id, items: {} }),
+    );
+    // Without a base, every file is new on both sides but the same, so nothing travels.
+    siteId = again.id;
+    expect((await service.planPull({ projectId: project.id })).changes).toEqual([]);
+  });
+
+  it('drops a base from a staging clone that shares the site key', async () => {
+    const project = await createShop([THEME]);
+    const base = await bases.read(project.id);
+    expect(base?.siteOrigin).toBe(new URL(fake.restUrl).origin);
+    await service.disconnect({ siteId, revokeOnSite: false });
+    const again = await service.connect({ connectionKey: fake.createKey() });
+    // Same key, but written for another address: a clone, not this site.
+    await bases.write(project.id, {
+      ...(base as NonNullable<typeof base>),
+      siteOrigin: 'https://staging.example',
+    });
+    await service.setProjectItems({
+      operationId: op(),
+      projectId: project.id,
+      siteId: again.id,
+      items: [THEME],
+    });
+    expect((await bases.read(project.id))?.items).toEqual({});
+  });
+
+  it('unlinks, and refuses projects that are not linked', async () => {
+    const project = await createShop([THEME]);
+    const unlinked = await service.unlinkProject(project.id);
+    expect(unlinked.wordpress).toBeUndefined();
+    expect(await bases.read(project.id)).toBeNull();
+    for (const call of [
+      service.planDeploy({ projectId: project.id }),
+      service.localChanges(project.id),
+      service.unlinkProject(project.id),
+      service.planPull({ projectId: 'missing' }),
+    ]) {
+      expect(wordPressErrorCode(await failure(call))).toBe('projectNotLinked');
+    }
+  });
+
+  it('refuses items the project does not link', async () => {
+    const project = await createShop([THEME]);
+    const error = await failure(service.planDeploy({ projectId: project.id, items: [TOOLS] }));
+    expect(wordPressErrorCode(error)).toBe('badRequest');
+    expect(error.message).toContain('wp-content/plugins/tools is not linked');
+    const one = await service.planPull({ projectId: project.id, items: [THEME] });
+    expect(one.changes).toEqual([]);
+  });
+});
+
+describe('remoteFile', () => {
+  it('gives the site copy as text, or just its facts', async () => {
+    const project = await createShop([THEME]);
+    expect(
+      await service.remoteFile({ projectId: project.id, item: THEME, path: 'functions.php' }),
+    ).toEqual({
+      text: '<?php // shop',
+      binary: false,
+      tooLarge: false,
+      sha256: sha('<?php // shop'),
+    });
+
+    fake.setFile(THEME, 'logo.png', null);
+    const found = fake.items.get('theme:shop');
+    found?.files.set('logo.png', Buffer.from([137, 80, 78, 71, 0, 1]));
+    expect(
+      await service.remoteFile({ projectId: project.id, item: THEME, path: 'logo.png' }),
+    ).toMatchObject({ text: null, binary: true, tooLarge: false });
+    found?.files.set('bad.txt', Buffer.from([0xff, 0xfe, 0x41]));
+    expect(
+      (await service.remoteFile({ projectId: project.id, item: THEME, path: 'bad.txt' })).binary,
+    ).toBe(true);
+    found?.files.set('huge.css', Buffer.alloc(1024 * 1024 + 1, 65));
+    expect(
+      await service.remoteFile({ projectId: project.id, item: THEME, path: 'huge.css' }),
+    ).toMatchObject({ text: null, tooLarge: true });
+    expect(
+      await service.remoteFile({ projectId: project.id, item: THEME, path: 'gone.css' }),
+    ).toEqual({ text: null, binary: false, tooLarge: false, sha256: null });
+    expect(
+      wordPressErrorCode(
+        await failure(
+          service.remoteFile({ projectId: project.id, item: TOOLS, path: 'tools.php' }),
+        ),
+      ),
+    ).toBe('badRequest');
+  });
+});

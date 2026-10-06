@@ -131,6 +131,51 @@ export const HELP_EMBEDDING_MODELS = {
   ollama: { id: 'nomic-embed-text', dimensions: 768 },
 } as const satisfies Record<'openai' | 'gemini' | 'ollama', EmbeddingModel>;
 
+type EmbeddingProvider = keyof typeof HELP_EMBEDDING_MODELS;
+
+/**
+ * Embedding models offered in Settings for the help chat's search, default first. Ollama's list
+ * is only a starting point: the picker also shows the embedding models installed on the server,
+ * and any model name can be typed in.
+ */
+export const HELP_EMBEDDING_MODEL_OPTIONS: Record<
+  EmbeddingProvider,
+  readonly CatalogModelOption[]
+> = {
+  openai: [
+    { value: 'text-embedding-3-small', label: 'text-embedding-3-small (fast, low cost)' },
+    { value: 'text-embedding-3-large', label: 'text-embedding-3-large (most accurate)' },
+  ],
+  gemini: [{ value: 'gemini-embedding-001', label: 'gemini-embedding-001' }],
+  ollama: [
+    { value: 'nomic-embed-text', label: 'nomic-embed-text (English)' },
+    { value: 'nomic-embed-text-v2-moe', label: 'nomic-embed-text-v2-moe (multilingual)' },
+    { value: 'bge-m3', label: 'bge-m3 (multilingual)' },
+    { value: 'mxbai-embed-large', label: 'mxbai-embed-large (English)' },
+  ],
+};
+
+/** The embedding model the help chat uses with `provider`: the one picked in Settings, or the default. */
+export function helpEmbeddingModel(
+  provider: EmbeddingProvider,
+  picked: Partial<Record<string, string>> | null | undefined,
+): string {
+  return picked?.[provider]?.trim() || HELP_EMBEDDING_MODELS[provider].id;
+}
+
+/** Keeps only non-empty model names for known providers, so a bad settings file cannot break search. */
+export function normalizeHelpEmbeddingModels(
+  value: unknown,
+): Partial<Record<EmbeddingProvider, string>> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+  const out: Partial<Record<EmbeddingProvider, string>> = {};
+  for (const provider of Object.keys(HELP_EMBEDDING_MODELS) as EmbeddingProvider[]) {
+    const model = (value as Record<string, unknown>)[provider];
+    if (typeof model === 'string' && model.trim()) out[provider] = model.trim().slice(0, 200);
+  }
+  return out;
+}
+
 // Tools
 
 /** Strix takes one model in provider/model form. */

@@ -12,7 +12,10 @@ import {
   DEFAULT_WHISPER_MODEL,
   GEMINI_API_MODELS,
   GEMINI_CLI_MODELS,
+  HELP_EMBEDDING_MODEL_OPTIONS,
   HELP_EMBEDDING_MODELS,
+  helpEmbeddingModel,
+  normalizeHelpEmbeddingModels,
   OPENAI_API_MODELS,
   WHISPER_MODELS,
 } from './catalog.js';
@@ -57,5 +60,82 @@ describe('model catalog', () => {
     expect(catalogModelForApiId(`${CLAUDE_MODELS.opus.apiId}-20260101`)).toBe(CLAUDE_MODELS.opus);
     expect(catalogModelForApiId(`${CLAUDE_MODELS.opus.apiId}[1m]`)).toBe(CLAUDE_MODELS.opus);
     expect(catalogModelForApiId('some-other-model')).toBeUndefined();
+  });
+});
+
+describe('help embedding model options', () => {
+  it('offers the default first for every provider', () => {
+    for (const provider of Object.keys(HELP_EMBEDDING_MODELS) as Array<
+      keyof typeof HELP_EMBEDDING_MODELS
+    >) {
+      const values = HELP_EMBEDDING_MODEL_OPTIONS[provider].map((o) => o.value);
+      // The picker shows the first entry as the recommended one, so it has to be what is used when
+      // nothing is picked.
+      expect(values[0], provider).toBe(HELP_EMBEDDING_MODELS[provider].id);
+      expect(new Set(values).size, provider).toBe(values.length);
+    }
+  });
+
+  it('covers exactly the providers that have a default', () => {
+    expect(Object.keys(HELP_EMBEDDING_MODEL_OPTIONS).sort()).toEqual(
+      Object.keys(HELP_EMBEDDING_MODELS).sort(),
+    );
+  });
+});
+
+describe('helpEmbeddingModel', () => {
+  it('returns the model picked for that provider, trimmed', () => {
+    expect(helpEmbeddingModel('openai', { openai: '  text-embedding-3-large ' })).toBe(
+      'text-embedding-3-large',
+    );
+  });
+
+  it('only looks at its own provider', () => {
+    expect(helpEmbeddingModel('gemini', { openai: 'text-embedding-3-large' })).toBe(
+      HELP_EMBEDDING_MODELS.gemini.id,
+    );
+  });
+
+  it('falls back to the default when nothing usable is picked', () => {
+    expect(helpEmbeddingModel('ollama', {})).toBe(HELP_EMBEDDING_MODELS.ollama.id);
+    expect(helpEmbeddingModel('ollama', { ollama: '' })).toBe(HELP_EMBEDDING_MODELS.ollama.id);
+    expect(helpEmbeddingModel('ollama', { ollama: '   ' })).toBe(HELP_EMBEDDING_MODELS.ollama.id);
+    expect(helpEmbeddingModel('ollama', null)).toBe(HELP_EMBEDDING_MODELS.ollama.id);
+    expect(helpEmbeddingModel('ollama', undefined)).toBe(HELP_EMBEDDING_MODELS.ollama.id);
+  });
+});
+
+describe('normalizeHelpEmbeddingModels', () => {
+  it('keeps a good pick for each known provider', () => {
+    expect(normalizeHelpEmbeddingModels({ openai: 'a', gemini: 'b', ollama: 'bge-m3' })).toEqual({
+      openai: 'a',
+      gemini: 'b',
+      ollama: 'bge-m3',
+    });
+  });
+
+  it('drops providers it does not know', () => {
+    expect(normalizeHelpEmbeddingModels({ anthropic: 'x', ollama: 'bge-m3' })).toEqual({
+      ollama: 'bge-m3',
+    });
+  });
+
+  it('drops values that are not non-empty strings', () => {
+    expect(normalizeHelpEmbeddingModels({ openai: 5, gemini: '   ', ollama: ['bge-m3'] })).toEqual(
+      {},
+    );
+    expect(normalizeHelpEmbeddingModels({ openai: null, gemini: { id: 'x' } })).toEqual({});
+  });
+
+  it('trims names and caps them at 200 characters', () => {
+    const out = normalizeHelpEmbeddingModels({ openai: '  spaced  ', ollama: 'm'.repeat(500) });
+    expect(out.openai).toBe('spaced');
+    expect(out.ollama).toHaveLength(200);
+  });
+
+  it('turns anything that is not a plain object into an empty map', () => {
+    for (const junk of [null, undefined, 'openai', 7, true, ['openai']]) {
+      expect(normalizeHelpEmbeddingModels(junk), String(junk)).toEqual({});
+    }
   });
 });
