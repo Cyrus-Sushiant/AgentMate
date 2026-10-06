@@ -38,7 +38,7 @@ export function ResponsePane({ run, onCancel }: ResponsePaneProps): React.JSX.El
 function IdleState(): React.JSX.Element {
   return (
     <div className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center">
-      <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+      <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/12 text-primary shadow-[0_0_40px_-12px_hsl(var(--primary)/0.7)]">
         <Send className="h-5 w-5" />
       </div>
       <div className="space-y-1">
@@ -122,12 +122,12 @@ function ResultView({ result }: { result: ApiExecutionResult }): React.JSX.Eleme
     const error = result.error ?? 'Unknown error';
     return (
       <div className="flex h-full items-start justify-center overflow-auto p-6">
-        <div className="w-full max-w-lg rounded-xl border border-destructive/30 bg-destructive/5 p-4">
+        <div className="w-full max-w-lg rounded-xl bg-destructive/[0.06] p-4 ring-1 ring-inset ring-destructive/30">
           <div className="flex items-center gap-2 text-sm font-semibold text-destructive">
             <TriangleAlert className="h-4 w-4" /> Could not get a response
           </div>
           <p className="mt-2 text-sm text-foreground">{errorHint(error)}</p>
-          <pre className="mt-3 whitespace-pre-wrap break-words rounded-md bg-background/60 p-2 font-mono text-xs text-muted-foreground">
+          <pre className="mt-3 whitespace-pre-wrap break-words rounded-lg bg-background/60 p-2.5 font-mono text-xs text-muted-foreground">
             {error}
           </pre>
         </div>
@@ -149,8 +149,11 @@ function ResponseTabs({
 
   return (
     <Tabs defaultValue="body" className="flex h-full min-h-0 flex-col">
-      <div className="flex items-center justify-between gap-3 border-b border-border px-3">
-        <TabsList className="h-9 border-none bg-transparent">
+      <div className="flex shrink-0 items-center justify-between gap-3 pl-1.5 pr-3 shadow-[inset_0_-1px_0_hsl(var(--border)/0.6)]">
+        <TabsList
+          className="h-9 border-none bg-transparent"
+          containerClassName="min-w-0 border-b-0"
+        >
           <TabsTrigger value="body">Body</TabsTrigger>
           <TabsTrigger value="headers">
             Headers <Count>{response.headers.length}</Count>
@@ -192,9 +195,9 @@ function Count({
     <span
       className={cn(
         'ml-1 rounded-full px-1.5 py-px text-[10px] font-semibold tabular-nums',
-        tone === 'success' && 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400',
-        tone === 'danger' && 'bg-red-500/15 text-red-600 dark:text-red-400',
-        !tone && 'bg-muted text-muted-foreground',
+        tone === 'success' && 'bg-success/15 text-success',
+        tone === 'danger' && 'bg-destructive/15 text-destructive',
+        !tone && 'bg-foreground/[0.06] text-muted-foreground',
       )}
     >
       {children}
@@ -237,13 +240,15 @@ function TimingBreakdown({ timings }: { timings: ApiTimings }): React.JSX.Elemen
 function ResponseMeta({ response }: { response: ApiResponseData }): React.JSX.Element {
   const tone = statusTone(response.status);
   return (
-    <div className="flex shrink-0 items-center gap-2 text-xs">
+    <div className="flex shrink-0 items-center gap-1 text-xs">
       <span
+        data-tone={tone}
         className={cn(
-          'rounded-md px-2 py-0.5 font-semibold tabular-nums ring-1 ring-inset',
+          'mr-1 inline-flex items-center gap-1.5 rounded-full py-0.5 pl-2 pr-2.5 font-semibold tabular-nums ring-1 ring-inset',
           STATUS_TONE_CLASSES[tone],
         )}
       >
+        <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-current" />
         {`${response.status} ${response.statusText}`.trim()}
       </span>
       <SimpleTooltip
@@ -251,7 +256,7 @@ function ResponseMeta({ response }: { response: ApiResponseData }): React.JSX.El
         side="bottom"
         align="end"
       >
-        <span className="cursor-default rounded-md px-1.5 py-0.5 tabular-nums text-muted-foreground hover:bg-accent hover:text-foreground">
+        <span className="cursor-default rounded-full px-2 py-0.5 tabular-nums text-muted-foreground transition-colors hover:bg-foreground/[0.06] hover:text-foreground">
           {formatDuration(response.timings.total)}
         </span>
       </SimpleTooltip>
@@ -260,7 +265,7 @@ function ResponseMeta({ response }: { response: ApiResponseData }): React.JSX.El
         side="bottom"
         align="end"
       >
-        <span className="cursor-default rounded-md px-1.5 py-0.5 tabular-nums text-muted-foreground hover:bg-accent hover:text-foreground">
+        <span className="cursor-default rounded-full px-2 py-0.5 tabular-nums text-muted-foreground transition-colors hover:bg-foreground/[0.06] hover:text-foreground">
           {formatBytes(response.size.headers + response.size.body)}
         </span>
       </SimpleTooltip>
@@ -296,7 +301,11 @@ function ResponseBody({
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex items-center justify-between gap-2 px-3 py-2">
-        <div role="radiogroup" aria-label="Body view" className="flex rounded-lg bg-muted p-0.5">
+        <div
+          role="radiogroup"
+          aria-label="Body view"
+          className="flex rounded-full bg-foreground/[0.05] p-0.5"
+        >
           {views.map((option) => (
             <button
               key={option}
@@ -305,7 +314,7 @@ function ResponseBody({
               aria-checked={view === option}
               onClick={() => setView(option)}
               className={cn(
-                'rounded-md px-2.5 py-1 text-xs font-medium capitalize transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                'rounded-full px-3 py-1 text-xs font-medium capitalize transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
                 view === option
                   ? 'bg-background text-foreground shadow-sm'
                   : 'text-muted-foreground hover:text-foreground',
@@ -324,14 +333,14 @@ function ResponseBody({
               setCopied(true);
               setTimeout(() => setCopied(false), 1200);
             }}
-            className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+            className="flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-foreground/[0.06] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             <Copy className="h-3.5 w-3.5" />
           </button>
         </SimpleTooltip>
       </div>
       {response.bodyTruncated && (
-        <p className="mx-3 mb-2 rounded-md bg-amber-500/10 px-2.5 py-1.5 text-xs text-amber-700 dark:text-amber-400">
+        <p className="mx-3 mb-2 rounded-lg bg-warning/10 px-2.5 py-1.5 text-xs text-warning">
           This response is {formatBytes(response.size.body)}. Only the first{' '}
           {formatBytes(new Blob([response.body]).size)} is shown.
         </p>
@@ -378,7 +387,7 @@ function BodyPreview({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-1.5 px-3 pb-3">
-      <div className="min-h-0 flex-1 overflow-hidden rounded-lg border border-border bg-white">
+      <div className="min-h-0 flex-1 overflow-hidden rounded-lg bg-white ring-1 ring-border/60">
         {isSvg ? (
           <div className="flex h-full items-center justify-center overflow-auto p-4">
             <img
@@ -456,7 +465,7 @@ function TestResults({ result }: { result: ApiExecutionResult }): React.JSX.Elem
       {result.scriptErrors.map((error) => (
         <div
           key={error}
-          className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/5 p-2 text-xs"
+          className="flex items-start gap-2 rounded-lg bg-destructive/[0.06] p-2 text-xs ring-1 ring-inset ring-destructive/30"
         >
           <TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0 text-destructive" />
           <span className="font-mono">{error}</span>
@@ -469,9 +478,9 @@ function TestResults({ result }: { result: ApiExecutionResult }): React.JSX.Elem
             className="flex items-start gap-2 rounded-md px-1 py-1 text-xs"
           >
             {test.passed ? (
-              <CircleCheck className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-500" />
+              <CircleCheck className="mt-0.5 h-3.5 w-3.5 shrink-0 text-success" />
             ) : (
-              <CircleX className="mt-0.5 h-3.5 w-3.5 shrink-0 text-red-500" />
+              <CircleX className="mt-0.5 h-3.5 w-3.5 shrink-0 text-destructive" />
             )}
             <span className="min-w-0">
               <span className="font-medium">{test.name}</span>

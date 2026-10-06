@@ -4,6 +4,7 @@ import { defaultGrammarSettings, defaultProxySettings, isStartupPage } from '@ag
 import { screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { NAV_ITEMS } from '@/components/layout/Sidebar';
+import { queryKeys } from '@/lib/queryKeys';
 import { useThemeStore } from '@/stores/themeStore';
 import { renderWithProviders } from '../../../test/renderer/renderWithProviders';
 
@@ -36,6 +37,7 @@ const { default: SettingsPage } = await import('./SettingsPage');
  */
 const settings = {
   theme: 'system',
+  menuPosition: 'left',
   projectsRootPath: null,
   telegramBotToken: null,
   telegramChatId: null,
@@ -180,6 +182,62 @@ describe('SettingsPage appearance', () => {
     expect(document.documentElement.classList.contains('dark')).toBe(false);
     expect(bridge.$fn('settings.update')).toHaveBeenLastCalledWith({ theme: 'light' });
   });
+
+  it('keeps the main menu on the left until the user moves it', async () => {
+    renderSettings();
+    const group = within(await screen.findByRole('group', { name: 'Main menu' }));
+
+    expect(group.getByRole('button', { name: /^Left/ })).toHaveAttribute('aria-pressed', 'true');
+    expect(group.getByRole('button', { name: /^Top/ })).toHaveAttribute('aria-pressed', 'false');
+  });
+
+  it('moves the main menu to the top and hands the saved settings to the shell', async () => {
+    // Main keeps what was saved, so the refetch after the save has to read it back too.
+    let saved: AppSettings = settings;
+    const { user, bridge, queryClient } = renderSettings({
+      'settings.get': async () => saved,
+      'settings.update': async (patch: unknown) => {
+        saved = { ...saved, ...(patch as Partial<AppSettings>) };
+        return saved;
+      },
+    });
+    const group = within(await screen.findByRole('group', { name: 'Main menu' }));
+
+    await user.click(group.getByRole('button', { name: /^Top/ }));
+
+    expect(bridge.$fn('settings.update')).toHaveBeenCalledWith({ menuPosition: 'top' });
+    await waitFor(() =>
+      expect(group.getByRole('button', { name: /^Top/ })).toHaveAttribute('aria-pressed', 'true'),
+    );
+    // The shell reads this same query, so the menu moves without waiting on a refetch.
+    expect(queryClient.getQueryData<AppSettings>(queryKeys.settings)?.menuPosition).toBe('top');
+  });
+});
+
+describe('SettingsPage general rows', () => {
+  it('saves a switch from the shared card the moment it flips', async () => {
+    const { user, bridge } = renderSettings();
+    await screen.findByText('Keep terminals running');
+
+    await user.click(screen.getByRole('switch', { name: 'Keep terminals running after quitting' }));
+
+    await waitFor(() =>
+      expect(bridge.$fn('settings.update')).toHaveBeenCalledWith({ keepTerminalsRunning: true }),
+    );
+    // The one-control settings share a card rather than each taking a card of its own.
+    expect(card('Keep terminals running')).toBe(card('Workspace notifications'));
+  });
+
+  it('shows only the matching rows of the shared card while searching', async () => {
+    const { user } = renderSettings();
+    await screen.findByText('Keep terminals running');
+
+    await user.type(screen.getByLabelText('Search settings'), 'approval');
+
+    expect(await screen.findByText('Terminal AI notifications')).toBeInTheDocument();
+    expect(screen.queryByText('Keep terminals running')).toBeNull();
+    expect(screen.queryByText('Workspace notifications')).toBeNull();
+  });
 });
 
 describe('SettingsPage startup page', () => {
@@ -220,7 +278,7 @@ describe('SettingsPage startup page', () => {
 });
 
 describe('SettingsPage search', () => {
-  it('finds a setting that lives on another tab and drops the category list', async () => {
+  it('finds a setting that lives on another tab and says which category holds it', async () => {
     const { user } = renderSettings();
     await screen.findByText('Appearance');
 
@@ -228,8 +286,101 @@ describe('SettingsPage search', () => {
 
     expect(await screen.findByText('Backup & restore')).toBeInTheDocument();
     expect(screen.queryByText('Appearance')).toBeNull();
-    // Searching spans every tab, so the category list would only be misleading.
-    expect(screen.queryByRole('navigation', { name: 'Settings categories' })).toBeNull();
+    // Searching spans every tab, so no category reads as the open one; the counts say where
+    // the matches are instead.
+    const nav = categories();
+    expect(within(nav).queryByRole('button', { current: 'page' })).toBeNull();
+    expect(within(nav).getByRole('button', { name: 'Data, 1 match' })).toBeInTheDocument();
+    expect(within(nav).getByRole('button', { name: /^General$/ })).toBeInTheDocument();
+  });
+
+  it('keeps the search at the top of the category list instead of a row of its own', async () => {
+    renderSettings();
+    await screen.findByText('Appearance');
+
+    const field = screen.getByLabelText('Search settings');
+    const column = field.closest('aside');
+    if (!column) throw new Error('The search field is not in the category column');
+    expect(column).toContainElement(categories());
+    // The field comes first, above the categories.
+    expect(
+      field.compareDocumentPosition(categories()) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
+  it('filters as the user types and puts the open section back when cleared', async () => {
+    const { user } = renderSettings({}, '/settings?tab=agents');
+    await screen.findByText('Default CLI');
+    const field = screen.getByLabelText('Search settings');
+
+    await user.type(field, 'telegram');
+
+    expect(await screen.findByText('Telegram bot')).toBeInTheDocument();
+    expect(screen.queryByText('Default CLI')).toBeNull();
+    expect(screen.getByRole('heading', { name: 'Search results' })).toBeInTheDocument();
+
+    // The little x inside the field, not the empty state's button.
+    await user.click(screen.getByRole('button', { name: 'Clear search' }));
+
+    expect(await screen.findByText('Default CLI')).toBeInTheDocument();
+    expect(screen.queryByText('Telegram bot')).toBeNull();
+    expect(field).toHaveValue('');
+    expect(field).toHaveFocus();
+    expect(within(categories()).getByRole('button', { name: /Agents/ })).toHaveAttribute(
+      'aria-current',
+      'page',
+    );
+  });
+
+  it('clears the search with Escape', async () => {
+    const { user } = renderSettings();
+    await screen.findByText('Appearance');
+    const field = screen.getByLabelText('Search settings');
+
+    await user.type(field, 'telegram');
+    await screen.findByText('Telegram bot');
+    await user.keyboard('{Escape}');
+
+    expect(field).toHaveValue('');
+    expect(await screen.findByText('Appearance')).toBeInTheDocument();
+  });
+
+  it('puts the cursor in the search on Ctrl+F', async () => {
+    const { user } = renderSettings();
+    await screen.findByText('Appearance');
+
+    await user.keyboard('{Control>}f{/Control}');
+
+    expect(screen.getByLabelText('Search settings')).toHaveFocus();
+  });
+
+  it('opens a category from the search and leaves the search behind', async () => {
+    const { user } = renderSettings();
+    await screen.findByText('Appearance');
+
+    await user.type(screen.getByLabelText('Search settings'), 'backup');
+    await user.click(within(categories()).getByRole('button', { name: /Notifications/ }));
+
+    expect(await screen.findByText('Telegram bot')).toBeInTheDocument();
+    expect(screen.queryByText('Backup & restore')).toBeNull();
+    expect(screen.getByLabelText('Search settings')).toHaveValue('');
+  });
+
+  it('finds every card it shows, not only the ones on the first tabs', async () => {
+    // These cards used to be missing from the match count, so a search for them claimed
+    // nothing matched while the card was right there.
+    const { user } = renderSettings();
+    await screen.findByText('Appearance');
+    const field = screen.getByLabelText('Search settings');
+
+    await user.type(field, 'worktree');
+    expect(await screen.findByText('Worktrees')).toBeInTheDocument();
+    expect(screen.queryByText(/No settings match/)).toBeNull();
+
+    await user.clear(field);
+    await user.type(field, 'keep running');
+    expect(await screen.findByText('Keep terminals running')).toBeInTheDocument();
+    expect(screen.queryByText(/No settings match/)).toBeNull();
   });
 
   it('matches a section by a keyword that is not in its title', async () => {

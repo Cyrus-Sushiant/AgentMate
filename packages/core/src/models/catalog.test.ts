@@ -12,6 +12,7 @@ import {
   DEFAULT_WHISPER_MODEL,
   GEMINI_API_MODELS,
   GEMINI_CLI_MODELS,
+  HELP_EMBEDDING_MODELS,
   OPENAI_API_MODELS,
   WHISPER_MODELS,
 } from './catalog.js';
@@ -32,6 +33,14 @@ describe('model catalog', () => {
     expect(OPENAI_API_MODELS.map((m) => m.value)).toContain(DEFAULT_OPENAI_API_MODEL);
     expect(GEMINI_API_MODELS.map((m) => m.value)).toContain(DEFAULT_GEMINI_API_MODEL);
     expect(WHISPER_MODELS.map((m) => m.key)).toContain(DEFAULT_WHISPER_MODEL);
+  });
+
+  it('names an embedding model with a positive vector size for every API provider', () => {
+    expect(Object.keys(HELP_EMBEDDING_MODELS).sort()).toEqual(['gemini', 'ollama', 'openai']);
+    for (const model of Object.values(HELP_EMBEDDING_MODELS)) {
+      expect(model.id).not.toBe('');
+      expect(model.dimensions).toBeGreaterThan(0);
+    }
   });
 
   it('only has examples for CLIs in the registry', () => {

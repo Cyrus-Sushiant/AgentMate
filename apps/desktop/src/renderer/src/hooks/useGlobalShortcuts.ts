@@ -21,7 +21,7 @@ function isDialogOpen(): boolean {
 }
 
 /** Routing away from under an open dialog would strand it over the new page. */
-const BLOCKED_BY_DIALOG = new Set<GlobalShortcutCommandId>(['nav.projects']);
+const BLOCKED_BY_DIALOG = new Set<GlobalShortcutCommandId>(['nav.projects', 'nav.help']);
 
 const WORKSPACE_ACTIONS: Record<WorkspaceShortcutCommandId, (event: KeyboardEvent) => void> = {
   'workspace.goToTab': (event) => workspaceCommands.goToTab(digitOf(event.code) ?? 1),
@@ -72,6 +72,7 @@ export function useGlobalShortcuts(): void {
       'terminal.new': () => void openDefaultSession(),
       'terminal.stopRun': stopActiveRun,
       'nav.projects': () => navigate('/projects'),
+      'nav.help': () => navigate('/help'),
       'search.toggle': toggleSearch,
     };
 

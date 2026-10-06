@@ -185,6 +185,8 @@ export const MonacoDiffEditor = forwardRef<MonacoDiffEditorHandle, MonacoDiffEdi
       if (!container) return;
       const editor = monaco.editor.createDiffEditor(container, {
         theme: currentTheme(),
+        // The context menu stays in the page's DOM so index.css can theme it; in a shadow root it can't.
+        useShadowDOM: false,
         readOnly: !editable,
         originalEditable: false,
         automaticLayout: true,

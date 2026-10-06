@@ -22,7 +22,12 @@ interface UrlBarProps {
   onSave: () => void;
 }
 
-/** Method, URL, Send and Save: the row every request starts from. */
+/**
+ * Method, URL, Send and Save: the row every request starts from. The method, the address and
+ * Send share one pill, like the search field in the title bar, so they read as one control.
+ * Save sits beside it. Labels drop to icons when the request area is narrow (it is a container
+ * query on the request panel, see ApiClientPage).
+ */
 export function UrlBar({
   method,
   url,
@@ -37,19 +42,19 @@ export function UrlBar({
 
   return (
     <div className="flex items-center gap-2">
-      <div className="flex h-10 min-w-0 flex-1 items-stretch rounded-lg border border-input bg-background shadow-[inset_0_1px_0_0_hsl(0_0%_100%/0.04)] transition-colors focus-within:border-primary/50 focus-within:ring-2 focus-within:ring-ring/40">
+      <div className="search-pill flex h-10 min-w-0 flex-1 items-center gap-1 rounded-full p-1 transition-colors">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button
               type="button"
               aria-label={`Method ${method}`}
               className={cn(
-                'flex w-[6.5rem] shrink-0 items-center justify-between gap-1 rounded-l-lg border-r border-border px-3 font-mono text-xs font-bold tracking-wide transition-colors hover:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring',
+                'flex h-8 w-[5.75rem] shrink-0 items-center justify-between gap-1 rounded-full bg-current/10 pl-3.5 pr-2.5 font-mono text-xs font-bold tracking-wide transition-colors hover:bg-current/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring data-[state=open]:bg-current/15',
                 methodTone(method),
               )}
             >
               {method}
-              <ChevronDown className="h-3 w-3 text-muted-foreground" />
+              <ChevronDown className="h-3 w-3 opacity-70" />
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start" className="min-w-[8rem]">
@@ -77,25 +82,38 @@ export function UrlBar({
           placeholder="Enter a URL, like https://api.example.com/users or {{baseUrl}}/users"
           spellCheck={false}
           autoComplete="off"
-          className="min-w-0 flex-1 bg-transparent px-3 font-mono text-[13px] outline-none placeholder:font-sans placeholder:text-muted-foreground/70"
+          className="h-full min-w-0 flex-1 bg-transparent px-2 font-mono text-[13px] outline-none placeholder:font-sans placeholder:text-muted-foreground/70"
         />
+        {sending ? (
+          <Button
+            variant="secondary"
+            className="h-8 shrink-0 rounded-full px-3.5 @lg/request:w-[6rem]"
+            onClick={onCancel}
+          >
+            <StopCircle /> Cancel
+          </Button>
+        ) : (
+          <SimpleTooltip label="Send (Ctrl+Enter)" wrapTrigger={!canSend}>
+            <Button
+              className="h-8 shrink-0 rounded-full px-3.5 @lg/request:w-[6rem]"
+              disabled={!canSend}
+              onClick={onSend}
+            >
+              <Send /> Send
+            </Button>
+          </SimpleTooltip>
+        )}
       </div>
 
-      {sending ? (
-        <Button variant="secondary" className="h-10 w-[6.5rem]" onClick={onCancel}>
-          <StopCircle /> Cancel
-        </Button>
-      ) : (
-        <SimpleTooltip label="Send (Ctrl+Enter)" wrapTrigger={!canSend}>
-          <Button className="h-10 w-[6.5rem]" disabled={!canSend} onClick={onSend}>
-            <Send /> Send
-          </Button>
-        </SimpleTooltip>
-      )}
-
       <SimpleTooltip label="Save (Ctrl+S)">
-        <Button variant="outline" className="h-10" onClick={onSave}>
-          <Save /> Save
+        <Button
+          variant="ghost"
+          aria-label="Save"
+          className="search-pill h-10 shrink-0 rounded-full px-3 text-foreground/85 hover:text-foreground @lg/request:px-4"
+          onClick={onSave}
+        >
+          <Save />
+          <span className="hidden @lg/request:inline">Save</span>
         </Button>
       </SimpleTooltip>
     </div>

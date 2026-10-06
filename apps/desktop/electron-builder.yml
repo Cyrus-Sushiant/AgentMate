@@ -43,8 +43,12 @@ extraResources:
 # The workspace search starts ripgrep as a program, and a program can't be run from
 # inside the archive either. The binary lives in a per-platform package beside
 # @vscode/ripgrep, hence the wildcard.
+#
+# The Help index loads sqlite-vec's vec0 library into SQLite as an extension, and SQLite
+# opens it from a real path, so the per-platform packages beside sqlite-vec are unpacked too.
 asarUnpack:
   - '**/node_modules/@vscode/ripgrep*/**'
+  - '**/node_modules/sqlite-vec*/**'
   - '**/node_modules/node-pty/**'
   - '**/node_modules/onnxruntime-node/**'
   - 'out/main/ptyHost.mjs'

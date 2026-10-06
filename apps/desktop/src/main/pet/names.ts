@@ -1,6 +1,7 @@
 import { normalizeDesktopPetName } from '@agentmat/core';
 
 const BUILTIN_PET_NAMES: Record<string, string> = {
+  fandi: 'Fandi',
   claude: 'Claude',
   gremlin: 'Gremlin',
   opencode: 'OpenCode',

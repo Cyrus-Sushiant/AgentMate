@@ -114,9 +114,4 @@ describe('createXterm options', () => {
     const family = String(fake.options?.fontFamily);
     expect(family.startsWith(`'${TERMINAL_RTL_FONT}', 'Cascadia Code'`)).toBe(true);
   });
-
-  it('turns on the joiner API that right-to-left runs are drawn through', () => {
-    createXterm({ sessionId: () => 'session' });
-    expect(fake.options?.allowProposedApi).toBe(true);
-  });
 });

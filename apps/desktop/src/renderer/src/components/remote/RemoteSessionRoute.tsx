@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button';
 import { useChartColors } from '@/lib/chartColors';
 import { describeRemoteQuality, formatMbps } from '@/lib/remoteQuality';
 import { type ControllerRtcState, subscribeControllerRtc } from '@/lib/rtcController';
+import { isTitleBarBlankDoubleClick } from '@/lib/titleBar';
 import { useRemoteStore } from '@/stores/remoteStore';
 import { RemoteScreen } from './RemoteScreen';
 
@@ -80,7 +81,10 @@ export default function RemoteSessionRoute(): React.JSX.Element {
     <div className="flex h-screen w-screen flex-col overflow-hidden bg-background">
       <div
         className="relative flex h-11 shrink-0 items-center gap-3 border-b border-border pl-4 pr-2 [-webkit-app-region:drag]"
-        onDoubleClick={() => void window.agentmat.remoteSessionWindow.maximizeToggle()}
+        onDoubleClick={(e) => {
+          if (isTitleBarBlankDoubleClick(e))
+            void window.agentmat.remoteSessionWindow.maximizeToggle();
+        }}
       >
         <div className="flex shrink-0 items-center gap-2">
           {isMac && <MacTrafficLights {...controlProps} />}

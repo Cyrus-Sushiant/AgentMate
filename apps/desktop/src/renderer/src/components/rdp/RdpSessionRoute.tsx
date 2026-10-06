@@ -33,6 +33,7 @@ import {
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { formatBytes } from '@/lib/format';
 import { queryKeys } from '@/lib/queryKeys';
+import { isTitleBarBlankDoubleClick } from '@/lib/titleBar';
 import { cn } from '@/lib/utils';
 import { initRdpAgentStatus, isRdpAgentActive, useRdpAgentSession } from '@/stores/rdpAgentStore';
 import { RdpAgentOverlay } from './RdpAgentOverlay';
@@ -302,7 +303,9 @@ export default function RdpSessionRoute(): React.JSX.Element {
       {!windowState.isFullScreen && (
         <div
           className="relative flex h-11 shrink-0 items-center gap-3 border-b border-border bg-background pl-4 pr-0 [-webkit-app-region:drag]"
-          onDoubleClick={controlProps.onMaximizeToggle}
+          onDoubleClick={(e) => {
+            if (isTitleBarBlankDoubleClick(e)) controlProps.onMaximizeToggle();
+          }}
         >
           <div className="flex min-w-0 shrink items-center gap-2">
             {isMac && <MacTrafficLights {...controlProps} />}

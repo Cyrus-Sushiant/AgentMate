@@ -10,10 +10,11 @@ import { RequestTabStrip } from '@/components/apiClient/RequestTabStrip';
 import { ResponsePane } from '@/components/apiClient/ResponsePane';
 import { type SaveDestination, SaveRequestDialog } from '@/components/apiClient/SaveRequestDialog';
 import { UrlBar } from '@/components/apiClient/UrlBar';
-import { FilePlus, FolderPlus, FolderTree, Pencil, Send } from '@/components/icons';
+import { ChevronRight, FilePlus, FolderPlus, FolderTree, Pencil, Send } from '@/components/icons';
 import { Button } from '@/components/ui/button';
 import { ResizeHandle } from '@/components/ui/ResizeHandle';
 import { queryKeys } from '@/lib/queryKeys';
+import { cn } from '@/lib/utils';
 import {
   API_REQUEST_HEIGHT,
   API_SIDEBAR_WIDTH,
@@ -29,6 +30,9 @@ type NameDialogState =
   | { kind: 'newFolder'; collectionId: string; parentId: string | null };
 
 const UNTITLED = 'Untitled Request';
+
+/** The page's two cards: the app's glass card, rounded like the Settings cards. */
+const PANEL = 'glass flex flex-col overflow-hidden rounded-[calc(var(--radius)+2px)]';
 
 /** What the name dialog says for each thing it can name. */
 function nameDialogCopy(state: NameDialogState | null) {
@@ -320,11 +324,15 @@ export default function ApiClientPage(): React.JSX.Element {
   const savingTab = tabs.find((t) => t.id === savingTabId) ?? null;
 
   return (
-    <div ref={rootRef} className="flex min-h-0 flex-1 overflow-hidden border-t border-border">
+    // The page already sits in the content island, so the sidebar and the request area are glass
+    // cards on it with a small gap between them, the way cards sit on every other page. The
+    // gap is the resize handle itself, whose line only shows while it is in use.
+    <div ref={rootRef} className="flex min-h-0 flex-1 overflow-hidden p-2">
       <aside
         aria-label="API collections"
-        style={{ width: sidebarWidth }}
-        className="flex shrink-0 flex-col bg-muted/10"
+        // The cap keeps a wide saved width from squeezing the request area on a narrow window.
+        style={{ width: sidebarWidth, maxWidth: '42%' }}
+        className={cn(PANEL, 'shrink-0')}
       >
         <CollectionsSidebar
           collections={collections}
@@ -349,9 +357,12 @@ export default function ApiClientPage(): React.JSX.Element {
         max={API_SIDEBAR_WIDTH.max}
         defaultSize={API_SIDEBAR_WIDTH.default}
         onSizeChange={setSidebarWidth}
+        quiet
+        className="w-2"
       />
 
-      <div className="flex min-w-0 flex-1 flex-col">
+      {/* A container, so the URL bar can tighten up when this card is narrow. */}
+      <div className={cn(PANEL, '@container/request min-w-0 flex-1')}>
         <RequestTabStrip
           tabs={tabs}
           activeTabId={activeTabId}
@@ -417,25 +428,25 @@ export default function ApiClientPage(): React.JSX.Element {
 function EmptyWorkspace({ onNew }: { onNew: () => void }): React.JSX.Element {
   return (
     <div className="flex flex-1 flex-col items-center justify-center gap-4 p-8 text-center">
-      <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+      <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/12 text-primary shadow-[0_0_40px_-12px_hsl(var(--primary)/0.7)]">
         <Send className="h-6 w-6" />
       </div>
       <div className="max-w-sm space-y-1.5">
-        <h2 className="text-base font-semibold">Send your first request</h2>
+        <h2 className="text-base font-semibold tracking-tight">Send your first request</h2>
         <p className="text-sm text-muted-foreground">
           Start a new request, or open one from a collection on the left.
         </p>
       </div>
-      <Button onClick={onNew}>
+      <Button className="rounded-full px-5" onClick={onNew}>
         <FilePlus /> New request
       </Button>
       <p className="text-xs text-muted-foreground">
         Shortcut:{' '}
-        <kbd className="rounded border border-border bg-muted px-1.5 py-0.5 font-mono text-[10px]">
+        <kbd className="rounded-md border border-border bg-foreground/[0.05] px-1.5 py-0.5 font-mono text-[10px]">
           Ctrl
         </kbd>{' '}
         +{' '}
-        <kbd className="rounded border border-border bg-muted px-1.5 py-0.5 font-mono text-[10px]">
+        <kbd className="rounded-md border border-border bg-foreground/[0.05] px-1.5 py-0.5 font-mono text-[10px]">
           N
         </kbd>
       </p>
@@ -466,12 +477,15 @@ function RequestWorkspace({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="space-y-2 px-4 pb-3 pt-3">
+      <div className="space-y-2 px-3 pb-3 pt-2.5">
         <div className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
           {collectionName && (
             <>
-              <span className="truncate">{collectionName}</span>
-              <span aria-hidden>/</span>
+              <span className="flex min-w-0 max-w-[45%] shrink-0 items-center gap-1.5 pl-1">
+                <FolderTree className="h-3 w-3 shrink-0 text-primary" />
+                <span className="truncate">{collectionName}</span>
+              </span>
+              <ChevronRight className="h-2.5 w-2.5 shrink-0 opacity-60" />
             </>
           )}
           <input
@@ -481,7 +495,7 @@ function RequestWorkspace({
             onBlur={(event) => {
               if (!event.target.value.trim()) renameTab(tab.id, UNTITLED);
             }}
-            className="min-w-0 flex-1 rounded-md bg-transparent px-1 py-0.5 text-sm font-medium text-foreground outline-none transition-colors hover:bg-accent/50 focus-visible:bg-accent/50 focus-visible:ring-2 focus-visible:ring-ring/40"
+            className="min-w-0 flex-1 rounded-md bg-transparent px-1.5 py-0.5 text-sm font-medium text-foreground outline-none transition-colors hover:bg-foreground/[0.06] focus-visible:bg-foreground/[0.06] focus-visible:ring-2 focus-visible:ring-ring/40"
           />
         </div>
         <UrlBar

@@ -22,6 +22,14 @@ export function isThemeMode(value: unknown): value is ThemeMode {
   return THEME_MODES.includes(value as ThemeMode);
 }
 
+/** Where the main menu sits: a sidebar down the left edge, or a menu bar under the title bar. */
+export const MENU_POSITIONS = ['left', 'top'] as const;
+export type MenuPosition = (typeof MENU_POSITIONS)[number];
+
+export function isMenuPosition(value: unknown): value is MenuPosition {
+  return MENU_POSITIONS.includes(value as MenuPosition);
+}
+
 /**
  * Where the main window opens. 'last' reopens the page the app was on when it closed; the rest
  * are the sidebar's pages, so the list has to follow the sidebar when a page is added there.
@@ -45,6 +53,7 @@ export const STARTUP_PAGES = [
   '/ask-ai',
   '/remote',
   '/vault',
+  '/help',
   '/settings',
 ] as const;
 export type StartupPage = (typeof STARTUP_PAGES)[number];
@@ -56,6 +65,7 @@ export function isStartupPage(value: unknown): value is StartupPage {
 export type AiProvider = 'openai' | 'ollama' | 'gemini';
 
 export const DESKTOP_PET_IDS = [
+  'fandi',
   'claude',
   'gremlin',
   'opencode',
@@ -134,7 +144,7 @@ export function normalizeCustomDesktopPets(value: unknown): CustomDesktopPet[] {
 export function normalizeDesktopPetId(value: unknown, customIds: readonly string[] = []): string {
   if (isDesktopPetId(value)) return value;
   if (typeof value === 'string' && customIds.includes(value)) return value;
-  return 'tide';
+  return 'fandi';
 }
 
 export function isAnimatedPetFile(fileName: string): boolean {
@@ -391,6 +401,8 @@ export interface AppSettings {
   /** PR comments offered as one-click review requests in the workspace Pull request tab. */
   reviewCommands: string[];
   theme: ThemeMode;
+  /** Whether the main menu is the left sidebar or a menu bar along the top of the window. */
+  menuPosition: MenuPosition;
   /** The page the main window opens on: the one it was on when the app closed, or a fixed page. */
   startupPage: StartupPage;
   /** Folder that holds the user's projects; folder pickers open here instead of the OS default. */
@@ -699,6 +711,29 @@ export function projectRunCommandHint(entry: ProjectRunCommand): string {
   return title ? `${title}: ${entry.command}` : entry.command;
 }
 
+/** Where a WordPress item lives: wp-content/themes, wp-content/plugins or wp-content/mu-plugins. */
+export type ProjectWordPressItemKind = 'theme' | 'plugin' | 'mu-plugin';
+
+/** A theme, plugin or mu-plugin by its folder (or single file) name under its root. */
+export interface ProjectWordPressItem {
+  kind: ProjectWordPressItemKind;
+  slug: string;
+}
+
+/**
+ * A project that mirrors part of a WordPress site connected through the AgentMate Connector
+ * plugin (E21). The folder keeps the site's layout (`wp-content/themes/<slug>/...`), and only
+ * these items are ever pulled or deployed, so anything else in the folder (agent settings,
+ * AgentMate's own files, notes) never reaches the site. What was last synced is kept by the app,
+ * outside the folder.
+ */
+export interface ProjectWordPressLink {
+  /** The connected site in Deploy (deploy-wordpress.json), on this computer. */
+  siteId: string;
+  items: ProjectWordPressItem[];
+  linkedAt: string;
+}
+
 export interface Project {
   id: string;
   name: string;
@@ -771,6 +806,12 @@ export interface Project {
    * competing for space with the ones being worked on. Archiving also unpins.
    */
   archived: boolean;
+  /**
+   * Set when the project mirrors a WordPress site (E21). Only the WordPress channels set or
+   * change it; a plain project update leaves it alone. Not carried by backups, since the site's
+   * keys belong to this computer.
+   */
+  wordpress?: ProjectWordPressLink;
   createdAt: string;
   updatedAt: string;
 }

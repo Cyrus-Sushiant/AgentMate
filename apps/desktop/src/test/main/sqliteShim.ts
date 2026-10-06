@@ -11,7 +11,7 @@ import { DatabaseSync, type SQLInputValue, type StatementSync } from 'node:sqlit
  * the end-to-end suite, which runs inside Electron.
  *
  * Only the surface the app actually uses is covered: prepare/run/get/all, exec, pragma,
- * transaction, close, and the readonly and fileMustExist options.
+ * transaction, loadExtension, close, and the readonly and fileMustExist options.
  */
 
 type Row = Record<string, unknown>;
@@ -92,7 +92,13 @@ export default class Database {
     if (options.fileMustExist && name !== ':memory:' && !existsSync(name)) {
       throw new Error(`unable to open database file: ${name}`);
     }
-    this.db = new DatabaseSync(name, { readOnly: options.readonly === true });
+    // Extensions are allowed so code that loads one (the Help index loads sqlite-vec) runs for real.
+    this.db = new DatabaseSync(name, { readOnly: options.readonly === true, allowExtension: true });
+  }
+
+  loadExtension(path: string): this {
+    this.db.loadExtension(path);
+    return this;
   }
 
   prepare(sql: string): Statement {

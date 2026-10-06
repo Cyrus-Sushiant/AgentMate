@@ -912,6 +912,54 @@ export interface AskAiResult {
   cancelled?: boolean;
 }
 
+/** A question for the Help page's guide, answered from the Help articles. */
+export interface HelpAskInput {
+  provider: AiProvider;
+  model: string;
+  question: string;
+  /** Earlier turns of the help conversation, oldest first. */
+  history?: AskAiHistoryMessage[];
+  /** Caller-generated id that help.cancel(requestId) can abort this request with. */
+  requestId?: string;
+}
+
+/** A help passage an answer was drawn from. `n` is the number the answer cites it by, as in [2]. */
+export interface HelpSource {
+  n: number;
+  slug: string;
+  anchor: string;
+  articleTitle: string;
+  heading: string;
+}
+
+export interface HelpAskResult {
+  ok: boolean;
+  text: string;
+  sources: HelpSource[];
+  /** 'hybrid' when vector and keyword search both ran, 'keyword' when only keywords did. */
+  retrieval?: 'hybrid' | 'keyword';
+  /** Why the answer fell back to keyword search, when there is something the user can fix. */
+  notice?: string;
+  error?: string;
+  cancelled?: boolean;
+}
+
+export interface HelpIndexStatus {
+  /** Passages in the index. */
+  chunks: number;
+  /** Passages that have a vector from the provider's embedder. */
+  embedded: number;
+  backend: 'sqlite-vec' | 'js';
+  /** `<provider>:<model>`, or null when the provider is not set up. */
+  embedder: string | null;
+}
+
+export interface HelpIndexProgress {
+  done: number;
+  total: number;
+  embedder: string;
+}
+
 export interface AskCliInput {
   prompt: string;
   /** The agent CLI to answer with. No other CLI is tried when it isn't installed. */

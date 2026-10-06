@@ -1,0 +1,154 @@
+---
+title: Remote Desktop
+category: Connect
+order: 20
+summary: Sign in to Windows servers and PCs over RDP in their own window, with shared clipboard, file copy, full screen, and an AI that can do tasks on the remote desktop for you.
+keywords: rdp, remote desktop, windows server, windows, mstsc, nla, clipboard, file copy, full screen, ctrl+alt+del, certificate, ask ai, session window, resolution
+---
+
+Remote Desktop lets you sign in to a Windows Server or Windows PC that has Remote Desktop (RDP) turned on. Each connection opens in its own window, like the Windows Remote Desktop Connection app. You can share the clipboard, copy files in both directions, go full screen, and even ask an AI to carry out a task on the remote desktop by looking at the screen and using the mouse and keyboard.
+
+You manage the list of servers from the Remote page. You can have several sessions open at once, one window per server.
+
+## Where to find it
+
+Click **Remote** in the sidebar under **Connect**, then open the **Remote Desktop** tab. You can also open the command palette and type Remote.
+
+## Add a server
+
+1. On the **Remote Desktop** tab, click **Add server** (in the card header, or in the empty state "No Remote Desktop servers yet").
+2. Enter **Nickname** (for example "File server"), **Computer** (an IP address or a name such as `server.example.com`) and **Port** (default 3389).
+3. Enter **Username** (for example `Administrator`) and, if needed, **Domain (optional)**. You can also type `DOMAIN\user` or `user@domain` straight into the username, and then the domain box is disabled.
+4. Enter **Password**.
+5. Optionally click **Display and sharing** to adjust the options below.
+6. Click **Add server**, or press `Ctrl+Enter` (`Cmd+Enter` on macOS).
+
+To change a server, click the pencil on its row. Leave the password blank to keep the saved one. To delete it, click the trash can and confirm **Remove**.
+
+Each row shows the account, the computer (and port if it is not 3389), the resolution and when you last connected.
+
+### Display and sharing options
+
+| Option | What it does |
+| --- | --- |
+| **Resolution** | **Fit the window (follows resizing)** or a fixed size: 1920 × 1080, 1600 × 900, 1366 × 768, 1280 × 720 or 1024 × 768. |
+| **Start in full screen** | Opens the session in full screen. |
+| **Share clipboard** | Copy text and images here and paste them on the server, and the other way around. |
+| **Copy files** | Copy files here and paste them on the server with `Ctrl+V`, and save files copied on the server. It needs clipboard sharing turned on. |
+| **Network Level Authentication** | Signs in before the session starts. Windows Server requires it unless an admin turned it off. If AgentMate and the server cannot agree on security, try switching this. |
+
+The defaults are: fit the window, windowed, clipboard on, file copy on, Network Level Authentication on.
+
+## Connect
+
+Click **Connect** on a server row. A new window opens and shows "Connecting to (name)..." while it signs in. If you set an optional servers passkey (see [Remote](remote.md#the-servers-passkey)) and it is locked, AgentMate asks you to unlock it first, then connects.
+
+### If the connection fails
+
+The window shows "Couldn't connect" with the reason, and two buttons: **Close** and **Reconnect**. Common reasons:
+
+- "Sign-in failed. Check the username, password, and domain."
+- "The server refused this account. It may not be allowed to sign in over Remote Desktop."
+- "AgentMate and the server couldn't agree on security settings. Try switching Network Level Authentication for this server."
+- "Could not reach the server." Check the address, the port and that Remote Desktop is on.
+
+If the session ends later, the window says "Disconnected" with the reason and the same two buttons. **Reconnect** starts again with a fresh sign-in.
+
+### Certificate changed
+
+The first time you connect, AgentMate remembers the server's certificate. If it changes, AgentMate refuses and shows "The server's certificate changed" with who it was issued to and by, its expiry, and the saved and current fingerprints. A change is normal after reinstalling the server or renewing its certificate. If neither happened, someone could be intercepting the connection. Choose **Don't connect** or **Trust and connect**.
+
+## The session window
+
+In a normal window, a bar at the top shows the server name, a status badge (Connected, Connecting..., Failed or Disconnected) and these buttons:
+
+| Button | What it does |
+| --- | --- |
+| **Ask AI** | Starts an AI task on this desktop (see below). Disabled while the AI is already working. |
+| **Ctrl+Alt+Del** | Sends `Ctrl+Alt+Del` to the server. |
+| **Send files** | Opens a file picker to send files to the server. Shown when file copy is on. |
+| **Save files** | Saves files you copied on the server to this computer. Shows a count when files are waiting. Shown when file copy is on. |
+| **1:1** / **Fit** | Switches between actual size and scaling to fit the window. Shown when the server uses a fixed resolution. |
+| **Transfers** | Opens the list of file transfers with progress. Click **Clear finished** to tidy it. |
+| Full screen icon | Enters or leaves full screen. |
+
+Window controls (minimize, maximize, close) are at the right. Closing the window ends the session.
+
+### Full screen
+
+Press `Ctrl+Alt+Break` to switch between full screen and a window, as in the Windows client. In full screen, move the mouse to the top edge of the screen and the connection bar slides down with the same buttons plus **Minimize** and **Disconnect and close**. It hides again a moment after you move away. Turn on **Start in full screen** for a server to always begin that way.
+
+### Resolution
+
+With **Fit the window**, the remote desktop resizes when you resize the window. With a fixed resolution, the server keeps that size and you can use **1:1** or **Fit** to choose between actual pixels and scaling the picture to the window.
+
+### Clipboard
+
+With **Share clipboard** on, text and images you copy on one side can be pasted on the other.
+
+## Copy files
+
+File copy works through the clipboard, so **Share clipboard** and **Copy files** must both be on.
+
+### Send files to the server
+
+Choose one of these:
+
+1. Click **Send files** and pick the files, then press `Ctrl+V` in a folder on the server.
+2. Copy files on your computer, then press `Ctrl+V` in a folder on the server.
+3. Drag files into the session window, then press `Ctrl+V` in a folder on the server.
+
+A note at the top says "Ready on the server. Press Ctrl+V in a folder there to paste it." If the files you copied add up to too much for the clipboard, AgentMate tells you and asks you to drag them into the window instead.
+
+### Save files from the server
+
+1. On the server, select files and copy them (`Ctrl+C`).
+2. In the session window, the **Save files** button shows how many are waiting. Click it.
+3. Pick a folder. The files are saved there, and a note says "Saved to (folder)" with an **Open folder** button. If some failed, it says how many.
+
+## Ask AI on the remote desktop
+
+The **Ask AI** button starts an AI that looks at the remote screen and works the mouse and keyboard one step at a time. It can click, double-click, right-click, move, drag, scroll, type text, press key combinations and wait. You can take over whenever you like.
+
+> [!WARNING]
+> Screenshots of the remote desktop are sent to the AI you pick, so it can see what it is doing. Only use it on desktops where that is acceptable.
+
+### Start a task
+
+1. Connect to a server and wait for **Connected**.
+2. Click **Ask AI**. In the dialog "Ask AI to do something on this desktop", describe the task, for example "Open Notepad and write a shopping list".
+3. Choose the **CLI** that will decide each step. Only installed agent CLIs that can look at a screenshot are listed. If none is installed, the **AI provider in Settings** is used instead, and its model has to be one that can see images (see [AI providers](ai-providers.md)).
+4. Optionally pick a **Model** and an **Effort** level. They are only available for CLIs that support them. **CLI default** keeps the CLI's own setting.
+5. Choose how much control to give the AI:
+   - **Approve each action.** Nothing happens on the desktop until you click **Approve**.
+   - **Auto, guard risky ones.** Asks before shortcuts like `Win+R` or `Alt+F4` and before typing text.
+   - **Fully autonomous.** Runs the whole task unattended. Just watch the desktop.
+6. Click **Start** (or press `Ctrl+Enter`). Your last choices are remembered next time.
+
+### While the AI works
+
+- The remote screen is covered by a see-through layer so a stray click or key press cannot get in the way. A bar at the bottom says "The AI is using this desktop" with a **Take over** button, which stops the task and gives the desktop back to you.
+- A status row under the title bar shows the current step ("Step 3: looking at the screen...", or the action it is performing).
+- When an action needs your approval, the row asks "Step N: do (action)?" with a note about why it is risky when there is one, and **Approve** and **Skip** buttons. A crosshair on the screen shows where a click would land.
+- If the AI needs information from you, the row shows its question with a text box and **Send**.
+- If the task pauses because of an error or because it reached the limit of 40 steps or 30 minutes, the row shows the reason and a **Continue** button. **Stop** ends it.
+- **Stop** (while it runs) ends the task. When it finishes, the row shows "Task complete." or the result, and the X dismisses it.
+
+### History
+
+The **History** button on the status row opens a list of every task the AI ran in this session, with each action, how it went and what you answered. You can copy a transcript. History is kept until AgentMate closes, for up to 20 tasks per session.
+
+## Tips
+
+- If clipboard or file copy do not work, check that **Share clipboard** and **Copy files** are on for that server (use the pencil to edit it).
+- If sign-in works in the Windows Remote Desktop app but not here, try turning **Network Level Authentication** off or on for that server.
+- The keyboard shortcut for full screen is `Ctrl+Alt+Break`. It is caught before the remote screen sees it.
+
+## Related
+
+- [Remote](remote.md)
+- [Remote files](remote-files.md)
+- [Ask AI](ask-ai.md)
+- [AI providers](ai-providers.md)
+- [CLI manager](cli-manager.md)
+- [Troubleshooting](troubleshooting.md)

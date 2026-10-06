@@ -83,7 +83,7 @@ export async function removeCustomPet(id: string): Promise<void> {
     ...latest,
     desktopPetCustoms: latest.desktopPetCustoms.filter((pet) => pet.id !== id),
     desktopPetCharacterId:
-      latest.desktopPetCharacterId === id ? 'tide' : latest.desktopPetCharacterId,
+      latest.desktopPetCharacterId === id ? 'fandi' : latest.desktopPetCharacterId,
   }));
   void petManager.syncFromSettings();
 }

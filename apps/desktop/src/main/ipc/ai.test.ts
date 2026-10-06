@@ -164,6 +164,37 @@ describe('runAiPrompt with Ollama', () => {
   });
 });
 
+describe('runAiPrompt with a system instruction', () => {
+  it('opens the OpenAI conversation with a system message', async () => {
+    fetchMock.mockResolvedValue(answer({ choices: [{ message: { content: 'ok' } }] }));
+    await runAiPrompt('openai', 'gpt-test', 'hello', history, undefined, [], 'Be brief.');
+    expect(JSON.parse(sentBody()).messages).toEqual([
+      { role: 'system', content: 'Be brief.' },
+      { role: 'user', content: 'earlier question' },
+      { role: 'assistant', content: 'earlier answer' },
+      { role: 'user', content: 'hello' },
+    ]);
+  });
+
+  it('sends it to Gemini as system_instruction', async () => {
+    fetchMock.mockResolvedValue(answer({ candidates: [{ content: { parts: [{ text: 'ok' }] } }] }));
+    await runAiPrompt('gemini', 'gem-test', 'hello', [], undefined, [], 'Be brief.');
+    expect(JSON.parse(sentBody())).toEqual({
+      system_instruction: { parts: [{ text: 'Be brief.' }] },
+      contents: [{ role: 'user', parts: [{ text: 'hello' }] }],
+    });
+  });
+
+  it('opens the Ollama conversation with a system message', async () => {
+    fetchMock.mockResolvedValue(answer({ message: { content: 'ok' } }));
+    await runAiPrompt('ollama', 'llama', 'hello', [], undefined, [], 'Be brief.');
+    expect(JSON.parse(sentBody()).messages).toEqual([
+      { role: 'system', content: 'Be brief.' },
+      { role: 'user', content: 'hello' },
+    ]);
+  });
+});
+
 describe('askCli', () => {
   async function headless() {
     const mod = await import('../cli/headlessPrompt');

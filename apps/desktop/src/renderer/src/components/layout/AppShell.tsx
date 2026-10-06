@@ -1,3 +1,4 @@
+import { useQuery } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { AskAiModal } from '@/components/askAi/AskAiModal';
@@ -19,6 +20,7 @@ import { usePetDragGuard } from '@/hooks/usePetDragGuard';
 import { useRememberRoute } from '@/hooks/useRememberRoute';
 import { useScheduledTaskRunner } from '@/hooks/useScheduledTaskRunner';
 import { useVaultEvents } from '@/hooks/useVaultEvents';
+import { queryKeys } from '@/lib/queryKeys';
 import { startRunSessionFeed } from '@/lib/terminal/runSessionFeed';
 import { cn } from '@/lib/utils';
 import { isWorkspacePath } from '@/lib/workspace/commands';
@@ -34,15 +36,17 @@ import {
 import { useTerminalStore } from '@/stores/terminalStore';
 import { useToastHistoryStore } from '@/stores/toastHistoryStore';
 import { useUiStore } from '@/stores/uiStore';
+import { AboutDialog } from './AboutDialog';
 import { LoadingOverlay } from './LoadingOverlay';
 import { Sidebar } from './Sidebar';
 import { StatusBar } from './StatusBar';
 import { TitleBar } from './TitleBar';
+import { TopMenu } from './TopMenu';
 
 /** Where a terminal AI task notification points; see notifySshTaskWaiting() in main. */
 const TERMINAL_SESSION_ROUTE = /^\/terminal-session\/([^/?#]+)/;
 
-function TopBar(): React.JSX.Element {
+function TopBar({ showSidebarToggle }: { showSidebarToggle: boolean }): React.JSX.Element {
   const isTerminalOpen = useTerminalStore((s) => s.isOpen);
   const toggleDrawer = useTerminalStore((s) => s.toggleDrawer);
   const sessions = useTerminalStore((s) => s.sessions);
@@ -74,15 +78,23 @@ function TopBar(): React.JSX.Element {
   return (
     <div className="flex h-14 shrink-0 items-center justify-between gap-3 px-4">
       <div className="flex min-w-0 items-center gap-3">
-        <SimpleTooltip label={sidebarLabel}>
-          <Button variant="ghost" size="icon" aria-label={sidebarLabel} onClick={cycleSidebarMode}>
-            {sidebarMode === 'hidden' ? (
-              <AnglesRight className="h-4 w-4" />
-            ) : (
-              <AnglesLeft className="h-4 w-4" />
-            )}
-          </Button>
-        </SimpleTooltip>
+        {/* With the menu along the top there is no sidebar to fold away. */}
+        {showSidebarToggle ? (
+          <SimpleTooltip label={sidebarLabel}>
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label={sidebarLabel}
+              onClick={cycleSidebarMode}
+            >
+              {sidebarMode === 'hidden' ? (
+                <AnglesRight className="h-4 w-4" />
+              ) : (
+                <AnglesLeft className="h-4 w-4" />
+              )}
+            </Button>
+          </SimpleTooltip>
+        ) : null}
         <div className="flex min-w-0 flex-col justify-center">
           {pageTitle && <span className="truncate text-base font-semibold">{pageTitle}</span>}
           {pageSubtitle && (
@@ -178,6 +190,13 @@ export function AppShell(): React.JSX.Element {
   const { showOverlay: showLoading, booted } = useStartupLoading();
   const scrollRef = useRef<HTMLDivElement>(null);
   const onWorkspace = isWorkspacePath(location.pathname);
+  // Read like any other setting, so a change saved in Settings swaps the menu straight away. It
+  // is part of the cold start's first batch, so the window stays behind the splash until it is in.
+  const settingsQuery = useQuery({
+    queryKey: queryKeys.settings,
+    queryFn: () => window.agentmat.settings.get(),
+  });
+  const menuOnTop = settingsQuery.data?.menuPosition === 'top';
   // The workspace mounts on first visit and then stays, so its terminals survive navigation.
   const [workspaceVisited, setWorkspaceVisited] = useState(onWorkspace);
   if (onWorkspace && !workspaceVisited) setWorkspaceVisited(true);
@@ -247,10 +266,12 @@ export function AppShell(): React.JSX.Element {
       <AskAiModal />
       <ToastHistoryPanel />
       <RunningClisDialog />
+      <AboutDialog />
+      {menuOnTop && <TopMenu />}
       <div className="flex min-h-0 flex-1 overflow-hidden">
-        <Sidebar />
+        {!menuOnTop && <Sidebar />}
         <div className="relative flex min-w-0 flex-1 flex-col">
-          <TopBar />
+          <TopBar showSidebarToggle={!menuOnTop} />
           {/* Pages sit in a rounded island inset from the window edge. The Workspace draws
               its own islands (the panes and the project panel), so there this is a plain box. */}
           <div

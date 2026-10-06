@@ -7,7 +7,7 @@ import { createProject, type LaunchedApp, launchApp } from './app';
  * profile is findable by name and opens its page.
  */
 
-const PALETTE_PLACEHOLDER = 'Search projects, prompt history, skills…';
+const PALETTE_PLACEHOLDER = 'Search projects, history, skills…';
 
 let launched: LaunchedApp | undefined;
 

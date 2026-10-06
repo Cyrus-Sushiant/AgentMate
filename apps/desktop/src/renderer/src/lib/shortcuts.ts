@@ -22,6 +22,7 @@ export type ShortcutCommandId =
   | 'terminal.new'
   | 'terminal.stopRun'
   | 'nav.projects'
+  | 'nav.help'
   | 'search.toggle'
   | 'prompt.generate'
   | 'prompt.translate'
@@ -146,6 +147,15 @@ export const SHORTCUT_COMMANDS: ShortcutCommand[] = [
     group: 'Navigation',
     scope: 'global',
     defaults: [{ code: 'KeyP', mod: true }],
+  },
+  {
+    id: 'nav.help',
+    label: 'Open Help',
+    description:
+      'Opens the Help page, with search and the guide that answers questions about the app.',
+    group: 'Navigation',
+    scope: 'global',
+    defaults: [{ code: 'F1' }],
   },
   {
     id: 'search.toggle',

@@ -1,8 +1,10 @@
 import type { ApiTreeNode } from '@agentmat/core';
 import type { ApiCollectionSummary } from '@shared/apiClientTypes';
+import { LayoutGroup, motion, useReducedMotion } from 'framer-motion';
 import { useMemo, useState } from 'react';
 import {
   ChevronRight,
+  CollapseAll,
   EllipsisVertical,
   FilePlus,
   Folder,
@@ -14,6 +16,7 @@ import {
   Search,
   Trash2,
   TriangleAlert,
+  X,
 } from '@/components/icons';
 import { Button } from '@/components/ui/button';
 import {
@@ -26,7 +29,8 @@ import {
 import { Skeleton } from '@/components/ui/skeleton';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
-import { methodLabel, methodTone } from './format';
+import { methodLabel } from './format';
+import { MethodBadge } from './MethodBadge';
 
 interface CollectionsSidebarProps {
   collections: ApiCollectionSummary[];
@@ -56,12 +60,21 @@ function filterTree(nodes: ApiTreeNode[], query: string): ApiTreeNode[] {
   return out;
 }
 
-const INDENT_REM = 0.85;
+const INDENT_REM = 0.8;
+
+/** The same small uppercase heading the main menu puts over its groups. */
+const SECTION_HEADING =
+  'select-none text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground/60';
+
+/** A small square icon button for the sidebar header, with the main menu's hover wash. */
+const HEADER_BUTTON =
+  'flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-foreground/[0.06] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring';
 
 export function CollectionsSidebar(props: CollectionsSidebarProps): React.JSX.Element {
   const { collections, loading, onNewCollection } = props;
   const [query, setQuery] = useState('');
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
+  const reduceMotion = useReducedMotion();
 
   const needle = query.trim().toLowerCase();
   const visible = useMemo(() => {
@@ -86,72 +99,122 @@ export function CollectionsSidebar(props: CollectionsSidebarProps): React.JSX.El
   // While filtering, everything that is shown is open, so matches are never hidden in a fold.
   const isOpen = (key: string): boolean => needle.length > 0 || expanded.has(key);
 
+  const empty = !loading && collections.length === 0;
+  const pillTransition = reduceMotion
+    ? { duration: 0 }
+    : { type: 'spring' as const, stiffness: 420, damping: 32 };
+
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="flex items-center gap-1.5 p-2">
-        <div className="relative min-w-0 flex-1">
-          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-          <input
-            type="search"
-            aria-label="Filter collections"
-            placeholder="Filter"
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            className="h-8 w-full rounded-md border border-input bg-background pl-8 pr-2 text-xs placeholder:text-muted-foreground focus-visible:border-primary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
-          />
-        </div>
+      <div className="flex h-10 shrink-0 items-center gap-0.5 pl-3.5 pr-2">
+        <h2 className={cn(SECTION_HEADING, 'min-w-0 flex-1 truncate')}>Collections</h2>
+        {expanded.size > 0 && !needle && (
+          <SimpleTooltip label="Collapse all">
+            <button
+              type="button"
+              aria-label="Collapse all"
+              onClick={() => setExpanded(new Set())}
+              className={HEADER_BUTTON}
+            >
+              <CollapseAll className="h-3.5 w-3.5" />
+            </button>
+          </SimpleTooltip>
+        )}
         <SimpleTooltip label="New collection">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8 shrink-0"
+          <button
+            type="button"
             aria-label="New collection"
             onClick={onNewCollection}
+            className={HEADER_BUTTON}
           >
-            <Plus />
-          </Button>
+            <Plus className="h-3.5 w-3.5" />
+          </button>
         </SimpleTooltip>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto px-1.5 pb-3">
-        {loading ? (
-          <div role="status" aria-label="Loading collections" className="space-y-2 p-2">
-            <Skeleton className="h-5 w-3/4" />
-            <Skeleton className="h-5 w-2/3" />
-            <Skeleton className="h-5 w-4/5" />
+      {/* Nothing to filter until there is a collection, so the empty state stands on its own. */}
+      {!empty && (
+        <div className="shrink-0 px-2 pb-2">
+          <div className="search-pill flex h-7 items-center gap-1.5 rounded-full pl-2.5 pr-1 transition-colors">
+            <Search className="h-3 w-3 shrink-0 text-muted-foreground" />
+            <input
+              type="search"
+              aria-label="Filter collections"
+              placeholder="Filter requests"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Escape' && query) {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  setQuery('');
+                }
+              }}
+              spellCheck={false}
+              className="h-full min-w-0 flex-1 bg-transparent text-xs outline-none placeholder:text-muted-foreground/70 [&::-webkit-search-cancel-button]:appearance-none"
+            />
+            {query && (
+              <button
+                type="button"
+                aria-label="Clear filter"
+                onClick={() => setQuery('')}
+                className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-foreground/10 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <X className="h-2.5 w-2.5" />
+              </button>
+            )}
           </div>
-        ) : collections.length === 0 ? (
-          <div className="flex flex-col items-center gap-3 px-4 py-10 text-center">
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+        </div>
+      )}
+
+      <div className="rail-scroll min-h-0 flex-1 overflow-y-auto px-2 pb-2">
+        {loading ? (
+          <div
+            role="status"
+            aria-label="Loading collections"
+            className="flex flex-col gap-1 py-0.5"
+          >
+            <Skeleton className="h-7 w-full rounded-lg" />
+            <Skeleton className="ml-4 h-7 w-[85%] rounded-lg" />
+            <Skeleton className="ml-4 h-7 w-[70%] rounded-lg" />
+            <Skeleton className="h-7 w-[90%] rounded-lg" />
+          </div>
+        ) : empty ? (
+          <div className="flex flex-col items-center gap-3 px-3 pb-6 pt-10 text-center">
+            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-primary/12 text-primary shadow-[0_0_40px_-12px_hsl(var(--primary)/0.7)]">
               <FolderTree className="h-5 w-5" />
             </div>
             <div className="space-y-1">
               <p className="text-sm font-medium">No collections yet</p>
-              <p className="text-xs text-muted-foreground">
+              <p className="text-xs leading-relaxed text-muted-foreground">
                 Collections keep your saved requests together, organised in folders.
               </p>
             </div>
-            <Button size="sm" onClick={onNewCollection}>
+            <Button size="sm" className="rounded-full" onClick={onNewCollection}>
               <Plus /> Create a collection
             </Button>
           </div>
         ) : visible.length === 0 ? (
-          <p className="px-3 py-6 text-center text-xs text-muted-foreground">
-            Nothing matches “{query}”.
-          </p>
-        ) : (
-          <div role="tree" aria-label="Collections">
-            {visible.map(({ collection, tree }) => (
-              <CollectionRow
-                key={collection.id}
-                {...props}
-                collection={collection}
-                tree={tree}
-                isOpen={isOpen}
-                toggle={toggle}
-              />
-            ))}
+          <div className="flex flex-col items-center gap-2 px-3 py-8 text-center">
+            <Search className="h-4 w-4 text-muted-foreground/60" />
+            <p className="text-xs text-muted-foreground">Nothing matches “{query}”.</p>
           </div>
+        ) : (
+          <LayoutGroup id="api-collections">
+            <div role="tree" aria-label="Collections" className="flex flex-col gap-px">
+              {visible.map(({ collection, tree }) => (
+                <CollectionRow
+                  key={collection.id}
+                  {...props}
+                  collection={collection}
+                  tree={tree}
+                  isOpen={isOpen}
+                  toggle={toggle}
+                  pillTransition={pillTransition}
+                />
+              ))}
+            </div>
+          </LayoutGroup>
         )}
       </div>
     </div>
@@ -161,6 +224,7 @@ export function CollectionsSidebar(props: CollectionsSidebarProps): React.JSX.El
 interface RowContext extends CollectionsSidebarProps {
   isOpen: (key: string) => boolean;
   toggle: (key: string) => void;
+  pillTransition: React.ComponentProps<typeof motion.span>['transition'];
 }
 
 function CollectionRow({
@@ -176,20 +240,22 @@ function CollectionRow({
       <TreeRow
         depth={0}
         label={collection.name}
+        strong
         expanded={broken ? undefined : open}
         broken={broken}
         onActivate={() => !broken && ctx.toggle(collection.id)}
+        pillTransition={ctx.pillTransition}
         icon={
           broken ? (
             <SimpleTooltip label={collection.error}>
-              <TriangleAlert className="h-3.5 w-3.5 text-amber-500" />
+              <TriangleAlert className="h-3.5 w-3.5 shrink-0 text-warning" />
             </SimpleTooltip>
           ) : (
-            <FolderTree className="h-3.5 w-3.5 text-primary" />
+            <FolderTree className="h-3.5 w-3.5 shrink-0 text-primary" />
           )
         }
         trailing={
-          <span className="text-[10px] tabular-nums text-muted-foreground/80 group-hover:hidden">
+          <span className="rounded-full bg-foreground/[0.06] px-1.5 text-[10px] leading-4 tabular-nums text-muted-foreground group-hover:hidden group-has-[[data-state=open]]:hidden">
             {collection.requestCount}
           </span>
         }
@@ -219,18 +285,17 @@ function CollectionRow({
         }
       />
       {open && !broken && (
-        <div role="group">
+        <div role="group" className="flex flex-col gap-px pt-px">
           {tree.length === 0 ? (
-            <p className="py-1.5 pl-9 text-xs text-muted-foreground">
-              Empty.{' '}
-              <button
-                type="button"
-                className="font-medium text-primary hover:underline"
-                onClick={() => ctx.onNewRequest(collection.id, null)}
-              >
-                Add a request
-              </button>
-            </p>
+            <button
+              type="button"
+              onClick={() => ctx.onNewRequest(collection.id, null)}
+              style={{ paddingLeft: `${0.35 + INDENT_REM + 0.95}rem` }}
+              className="flex h-7 w-full items-center gap-1.5 rounded-lg pr-2 text-left text-xs text-muted-foreground transition-colors hover:bg-foreground/[0.06] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <FilePlus className="h-3 w-3 shrink-0" />
+              Add a request
+            </button>
           ) : (
             tree.map((node) => (
               <NodeRow key={node.id} {...ctx} collectionId={collection.id} node={node} depth={1} />
@@ -253,23 +318,16 @@ function NodeRow({
   if (node.kind === 'request') {
     const active =
       ctx.activeItem?.collectionId === collectionId && ctx.activeItem.itemId === node.id;
+    const method = node.method ?? 'GET';
     return (
       <TreeRow
         depth={depth}
         label={node.name}
-        ariaLabel={`${methodLabel(node.method ?? 'GET')} ${node.name}`}
+        ariaLabel={`${methodLabel(method)} ${node.name}`}
         selected={active}
         onActivate={() => ctx.onOpenRequest(collectionId, node.id)}
-        icon={
-          <span
-            className={cn(
-              'w-9 shrink-0 text-right font-mono text-[10px] font-bold',
-              methodTone(node.method ?? 'GET'),
-            )}
-          >
-            {methodLabel(node.method ?? 'GET')}
-          </span>
-        }
+        pillTransition={ctx.pillTransition}
+        icon={<MethodBadge method={method} />}
         menu={
           <DropdownMenuItem
             onSelect={() => ctx.onDeleteItem(collectionId, node)}
@@ -290,11 +348,12 @@ function NodeRow({
         label={node.name}
         expanded={open}
         onActivate={() => ctx.toggle(key)}
+        pillTransition={ctx.pillTransition}
         icon={
           open ? (
-            <FolderOpen className="h-3.5 w-3.5 text-muted-foreground" />
+            <FolderOpen className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
           ) : (
-            <Folder className="h-3.5 w-3.5 text-muted-foreground" />
+            <Folder className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
           )
         }
         menu={
@@ -316,7 +375,7 @@ function NodeRow({
         }
       />
       {open && (
-        <div role="group">
+        <div role="group" className="flex flex-col gap-px pt-px">
           {(node.children ?? []).map((child) => (
             <NodeRow
               key={child.id}
@@ -342,9 +401,12 @@ interface TreeRowProps {
   expanded?: boolean;
   selected?: boolean;
   broken?: boolean;
+  /** A collection's own row, which reads a little heavier than what is inside it. */
+  strong?: boolean;
   trailing?: React.ReactNode;
   menu: React.ReactNode;
   onActivate: () => void;
+  pillTransition: RowContext['pillTransition'];
 }
 
 function TreeRow({
@@ -355,9 +417,11 @@ function TreeRow({
   expanded,
   selected = false,
   broken = false,
+  strong = false,
   trailing,
   menu,
   onActivate,
+  pillTransition,
 }: TreeRowProps): React.JSX.Element {
   return (
     <div
@@ -377,13 +441,25 @@ function TreeRow({
       }}
       style={{ paddingLeft: `${0.35 + depth * INDENT_REM}rem` }}
       className={cn(
-        'group relative flex h-7 cursor-pointer select-none items-center gap-1.5 rounded-md pr-1 text-[13px] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring',
+        // `isolate` keeps the active pill behind the row's text without lifting every child.
+        'group relative isolate flex h-7 shrink-0 cursor-pointer select-none items-center gap-1.5 rounded-lg pr-1 text-[13px] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring',
         selected
-          ? 'bg-primary/12 text-foreground before:absolute before:inset-y-1 before:left-0 before:w-0.5 before:rounded-full before:bg-primary'
-          : 'text-foreground/85 hover:bg-accent/60',
+          ? 'font-medium text-primary'
+          : 'text-foreground/85 hover:bg-foreground/[0.06] hover:text-foreground',
+        strong && !selected && 'font-medium text-foreground',
         broken && 'text-muted-foreground',
       )}
     >
+      {selected && (
+        <motion.span
+          aria-hidden
+          layoutId="api-collections-active"
+          transition={pillTransition}
+          className="absolute inset-0 -z-10 rounded-lg bg-primary/12"
+        >
+          <span className="absolute left-0 top-1/2 h-4 w-[3px] -translate-y-1/2 rounded-full bg-primary shadow-[0_0_8px_hsl(var(--primary)/0.7)]" />
+        </motion.span>
+      )}
       <span className="flex w-3 shrink-0 justify-center text-muted-foreground">
         {expanded !== undefined && (
           <ChevronRight
@@ -400,7 +476,7 @@ function TreeRow({
             type="button"
             aria-label={`Actions for ${label}`}
             onClick={(event) => event.stopPropagation()}
-            className="flex h-5 w-5 shrink-0 items-center justify-center rounded text-muted-foreground opacity-0 transition-opacity hover:bg-accent hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100 data-[state=open]:opacity-100"
+            className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md text-muted-foreground opacity-0 transition-opacity hover:bg-foreground/10 hover:text-foreground focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring group-hover:opacity-100 data-[state=open]:opacity-100"
           >
             <EllipsisVertical className="h-3 w-3" />
           </button>

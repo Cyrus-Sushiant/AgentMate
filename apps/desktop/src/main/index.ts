@@ -30,6 +30,7 @@ import { registerExplorerHandlers } from './ipc/explorer';
 import { registerFileSystemHandlers } from './ipc/fileSystem';
 import { registerGitHandlers } from './ipc/git';
 import { registerGrammarHandlers } from './ipc/grammar';
+import { registerHelpHandlers } from './ipc/help';
 import { registerIpGeoHandlers } from './ipc/ipGeo';
 import { registerMcpHandlers } from './ipc/mcp';
 import { registerNotificationHandlers } from './ipc/notifications';
@@ -328,6 +329,7 @@ function registerAllIpcHandlers(): void {
   registerScheduledTaskHandlers();
   registerNotificationHandlers();
   registerAiHandlers();
+  registerHelpHandlers();
   registerSpeechHandlers();
   registerGitHandlers();
   registerWorktreeHandlers();

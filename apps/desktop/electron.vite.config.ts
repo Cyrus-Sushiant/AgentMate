@@ -12,6 +12,9 @@ const forcedExternals = [
   'electron',
   'node-pty',
   'better-sqlite3',
+  // The vector search extension the Help index loads into SQLite. It finds its per-platform
+  // vec0 library with require.resolve at runtime, so it has to stay in node_modules.
+  'sqlite-vec',
   // Local speech-to-text. transformers.js pulls in onnxruntime-node, which
   // dlopen's prebuilt native binaries, so it must stay external. Otherwise
   // Rollup tries to bundle the .node/.dll files.

@@ -4,6 +4,7 @@ import appIconLight from '@/assets/app-icon-light.png';
 import { Search, WindowMaximize, WindowMinimize, X } from '@/components/icons';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { useIsDarkMode } from '@/lib/chartColors';
+import { isTitleBarBlankDoubleClick } from '@/lib/titleBar';
 import { cn } from '@/lib/utils';
 import { useSearchStore } from '@/stores/searchStore';
 import { useShortcutLabel } from '@/stores/shortcutStore';
@@ -119,13 +120,20 @@ export function NativeCaptionButtons({
 
 function SearchTrigger(): React.JSX.Element {
   const openSearch = useSearchStore((s) => s.setOpen);
+  const searchOpen = useSearchStore((s) => s.open);
   const searchShortcut = useShortcutLabel('search.toggle');
 
   return (
     <button
       type="button"
+      data-search-anchor=""
       onClick={() => openSearch(true)}
-      className="search-pill flex h-8 w-full cursor-pointer items-center gap-2 rounded-full pl-3.5 pr-1.5 text-[13px] text-muted-foreground transition-colors hover:text-foreground"
+      className={cn(
+        'search-pill flex h-8 w-full cursor-pointer items-center gap-2 rounded-full pl-3.5 pr-1.5 text-[13px] text-muted-foreground transition-colors hover:text-foreground',
+        // The open search panel sits right on top of this box and is see-through, so the box
+        // steps aside while it is open instead of showing its placeholder through the glass.
+        searchOpen && 'invisible',
+      )}
     >
       <Search className="h-3.5 w-3.5 shrink-0" />
       <span className="flex-1 truncate text-left">Search projects, history, skills…</span>
@@ -158,7 +166,9 @@ export function TitleBar(): React.JSX.Element {
   return (
     <div
       className="relative flex h-11 shrink-0 items-center justify-between border-b border-border/80 pl-4 [-webkit-app-region:drag] glass:border-b-0"
-      onDoubleClick={() => void window.agentmat.window.maximizeToggle()}
+      onDoubleClick={(e) => {
+        if (isTitleBarBlankDoubleClick(e)) void window.agentmat.window.maximizeToggle();
+      }}
     >
       <div className="flex items-center gap-3">
         {isMac && <MacTrafficLights {...controlProps} />}

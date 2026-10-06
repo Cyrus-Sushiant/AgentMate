@@ -109,6 +109,7 @@
     "remark-gfm": "^4.0.1",
     "simple-icons": "^16.28.0",
     "sonner": "^2.0.8",
+    "sqlite-vec": "0.1.9",
     "ssh2": "^1.17.0",
     "tailwind-merge": "^3.6.0",
     "tar": "7.5.22",
@@ -120,6 +121,10 @@
     "@vscode/ripgrep-darwin-arm64": "1.18.0",
     "@vscode/ripgrep-darwin-x64": "1.18.0",
     "@vscode/ripgrep-linux-x64": "1.18.0",
-    "@vscode/ripgrep-win32-x64": "1.18.0"
+    "@vscode/ripgrep-win32-x64": "1.18.0",
+    "sqlite-vec-darwin-arm64": "0.1.9",
+    "sqlite-vec-darwin-x64": "0.1.9",
+    "sqlite-vec-linux-x64": "0.1.9",
+    "sqlite-vec-windows-x64": "0.1.9"
   }
 }

@@ -233,6 +233,9 @@ export class FakeBrowserWindow {
   isMaximized(): boolean {
     return false;
   }
+  isFocused(): boolean {
+    return false;
+  }
   isFullScreen(): boolean {
     return false;
   }

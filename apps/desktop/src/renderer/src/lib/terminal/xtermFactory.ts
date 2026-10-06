@@ -278,9 +278,6 @@ export function createXterm({
     lineHeight: 1.35,
     // The first face only covers Persian and Arabic letters (see addTerminalRtlFont).
     fontFamily: `'${TERMINAL_RTL_FONT}', 'Cascadia Code', 'Cascadia Mono', 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace`,
-    // Right-to-left text is drawn through registerCharacterJoiner, which xterm still files
-    // under its proposed API (see attachRtlRendering).
-    allowProposedApi: true,
     theme,
     // Programs pick their own truecolor pairs, which the theme can't touch. Claude Code's sticky
     // prompt header (gray text on a gray bar) came out barely readable. xterm lightens or darkens

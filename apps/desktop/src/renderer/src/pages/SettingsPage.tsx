@@ -1,4 +1,11 @@
-import type { AiProvider, PingMethod, StartupPage, ThemeMode } from '@agentmat/core';
+import type {
+  AiProvider,
+  AppSettings,
+  MenuPosition,
+  PingMethod,
+  StartupPage,
+  ThemeMode,
+} from '@agentmat/core';
 import {
   CLI_REGISTRY,
   DEFAULT_GEMINI_API_MODEL,
@@ -9,6 +16,7 @@ import {
 } from '@agentmat/core';
 import type { OllamaConnectionTest } from '@shared/apiTypes';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { motion, useReducedMotion } from 'framer-motion';
 import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -36,6 +44,7 @@ import {
   Pause,
   Paw,
   Play,
+  Power,
   RefreshCw,
   Robot,
   Route,
@@ -72,7 +81,6 @@ import { Label } from '@/components/ui/label';
 import { SecretInput } from '@/components/ui/secret-input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Switch } from '@/components/ui/switch';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { VaultSettings } from '@/components/vault/VaultSettings';
 import { queryKeys } from '@/lib/queryKeys';
@@ -117,6 +125,11 @@ const THEME_OPTIONS: { value: ThemeMode; label: string; hint: string; icon: type
   { value: 'system', label: 'System', hint: 'Follow this machine', icon: Monitor },
   { value: 'vscode-dark', label: 'VS Code Dark', hint: 'Blue accent, editor-inspired', icon: Code },
   { value: 'vs2026', label: 'VS 2026', hint: 'Violet accent, modern IDE', icon: VsInfinity },
+];
+
+const MENU_POSITION_OPTIONS: { value: MenuPosition; label: string; hint: string }[] = [
+  { value: 'left', label: 'Left', hint: 'A sidebar down the left edge' },
+  { value: 'top', label: 'Top', hint: 'A menu bar under the title bar' },
 ];
 
 const STARTUP_PAGE_KEYWORDS =
@@ -164,18 +177,22 @@ const PROXY_KEYWORDS =
 const TAB_META: {
   id: SettingsTab;
   label: string;
+  /** One line under the section title saying what lives there. */
+  description: string;
   icon: typeof SettingsIcon;
   keywords: string;
 }[] = [
   {
     id: 'general',
     label: 'General',
+    description: 'How AgentMate looks, where it opens and the everyday defaults for this machine.',
     icon: SettingsIcon,
     keywords: 'appearance theme terminal sessions projects folder skills blueprint presets',
   },
   {
     id: 'agents',
     label: 'Agents',
+    description: 'Which CLI starts, how each one launches, and how agents work with git.',
     icon: Robot,
     keywords:
       'default cli agent order arrange launcher tiles number keys commit message written by style conventional instructions git claude codex model effort permission mode auto yolo',
@@ -183,6 +200,7 @@ const TAB_META: {
   {
     id: 'shortcuts',
     label: 'Shortcuts',
+    description: 'Keys for the app, the Workspace and the commit box.',
     icon: Keyboard,
     keywords:
       'keyboard shortcut shortcuts keybinding hotkey ctrl cmd alt terminal projects palette',
@@ -190,6 +208,7 @@ const TAB_META: {
   {
     id: 'companion',
     label: 'AI Pet',
+    description: 'The desktop companion that keeps an eye on your pipelines and the connection.',
     icon: Paw,
     keywords:
       'pet ai pet my ai pet companion desktop character walk mascot climb rope size click area tight wander gif png webp custom add pipeline github actions fail pass notify internet quality ping offline',
@@ -197,26 +216,36 @@ const TAB_META: {
   {
     id: 'ai',
     label: 'AI',
+    description: 'API keys, local models, voice input and writing checks.',
     icon: MessageSquare,
     keywords:
       'openai gemini ollama api key whisper voice translate writing grammar spelling style languagetool context length num_ctx keep alive test connection local model',
   },
-  { id: 'notifications', label: 'Notifications', icon: Bell, keywords: 'telegram bot chat notify' },
+  {
+    id: 'notifications',
+    label: 'Notifications',
+    description: 'Where AgentMate reaches you when you are away from the app.',
+    icon: Bell,
+    keywords: 'telegram bot chat notify',
+  },
   {
     id: 'network',
     label: 'Network',
+    description: 'How AgentMate reaches the internet and how connection quality is measured.',
     icon: NetworkIcon,
     keywords: PROXY_KEYWORDS,
   },
   {
     id: 'vault',
     label: 'Vault',
+    description: 'When the Vault locks itself and how long copied secrets stay on the clipboard.',
     icon: Vault,
     keywords: VAULT_KEYWORDS,
   },
   {
     id: 'data',
     label: 'Data',
+    description: 'Back up or restore everything on this machine, and keep AgentMate up to date.',
     icon: HardDrive,
     keywords: 'backup restore ping network about version update',
   },
@@ -233,8 +262,170 @@ function matchesQuery(query: string, ...parts: Array<string | undefined>): boole
   return parts.some((part) => part?.toLowerCase().includes(query));
 }
 
+/**
+ * Every card the page can show, with the tab it lives on and the words search finds it by.
+ * The cards and the search counts both read this one list, so a card can't match a search
+ * while the page claims nothing did.
+ */
+const SECTIONS = {
+  appearance: {
+    tab: 'general',
+    title: 'Appearance',
+    keywords:
+      'appearance theme dark light system vscode visual studio vs2026 code look main menu sidebar top bar menu bar navigation position layout',
+  },
+  startupPage: { tab: 'general', title: 'Startup page', keywords: STARTUP_PAGE_KEYWORDS },
+  keepTerminals: {
+    tab: 'general',
+    title: 'Keep terminals running',
+    keywords: 'terminal shell sessions keep running background quit close exit restart update',
+  },
+  workspaceNotifications: {
+    tab: 'general',
+    title: 'Workspace notifications',
+    keywords: 'workspace agent notifications finished done question input alert claude codex',
+  },
+  terminalAiNotifications: {
+    tab: 'general',
+    title: 'Terminal AI notifications',
+    keywords: 'terminal ai task notifications question approval approve command ssh waiting alert',
+  },
+  toolUpdates: {
+    tab: 'general',
+    title: 'Check for CLI and tool updates',
+    keywords: 'cli tool update check automatic daily notification bell version',
+  },
+  terminalBackground: {
+    tab: 'general',
+    title: 'Workspace terminal background',
+    keywords:
+      'workspace terminal background color cli claude code codex gray custom theme foreground contrast',
+  },
+  projectsFolder: {
+    tab: 'general',
+    title: 'Projects folder',
+    keywords: 'projects folder path directory',
+  },
+  skillRepositories: {
+    tab: 'general',
+    title: 'Skill repositories',
+    keywords: 'skills repositories sources',
+  },
+  blueprintPresets: {
+    tab: 'general',
+    title: 'Blueprint presets',
+    keywords: BLUEPRINT_PRESET_KEYWORDS,
+  },
+  androidSdk: {
+    tab: 'general',
+    title: 'Android SDK',
+    keywords: 'android sdk adb emulator avd avdmanager sdkmanager platform-tools path',
+  },
+  defaultCli: {
+    tab: 'agents',
+    title: 'Default CLI',
+    keywords: 'default cli provider agent arguments args flags model',
+  },
+  launchDefaults: { tab: 'agents', title: 'Launch defaults', keywords: LAUNCH_DEFAULTS_KEYWORDS },
+  agentOrder: {
+    tab: 'agents',
+    title: 'Agent order',
+    keywords: 'agent cli order sort arrange workspace launcher tiles number keys',
+  },
+  commitMessages: {
+    tab: 'agents',
+    title: 'Commit messages',
+    keywords: 'commit message ai generate style conventional instructions git workspace',
+  },
+  worktrees: {
+    tab: 'agents',
+    title: 'Worktrees',
+    keywords: 'worktree worktrees git branch parallel folder env copy setup location',
+  },
+  reviewCommands: {
+    tab: 'agents',
+    title: 'Review commands',
+    keywords:
+      'pull request review command bot claude gemini coderabbit codex comment github workspace',
+  },
+  shortcuts: { tab: 'shortcuts', title: 'Keyboard shortcuts', keywords: SHORTCUT_KEYWORDS },
+  companion: {
+    tab: 'companion',
+    title: 'My AI Pet',
+    keywords:
+      'pet ai pet my ai pet companion desktop character walk mascot climb rope size click area tight wander pipeline github actions fail pass internet quality',
+  },
+  providers: {
+    tab: 'ai',
+    title: 'Providers',
+    keywords:
+      'openai gemini ollama api key model prompt builder provider context length num_ctx keep alive test connection',
+  },
+  voiceInput: {
+    tab: 'ai',
+    title: 'Voice input',
+    keywords: 'voice whisper speech microphone transcription',
+  },
+  writingCheck: { tab: 'ai', title: 'Writing check', keywords: WRITING_CHECK_KEYWORDS },
+  translationRetries: {
+    tab: 'ai',
+    title: 'Translation retries',
+    keywords: 'translation retries translate',
+  },
+  telegram: {
+    tab: 'notifications',
+    title: 'Telegram bot',
+    keywords: 'telegram bot token chat notify',
+  },
+  proxy: { tab: 'network', title: 'Proxy', keywords: PROXY_KEYWORDS },
+  pingTargets: {
+    tab: 'network',
+    title: 'Network ping targets',
+    keywords: 'ping network hosts dashboard url http generate_204 icmp status bar',
+  },
+  vault: { tab: 'vault', title: 'Vault', keywords: VAULT_KEYWORDS },
+  backup: {
+    tab: 'data',
+    title: 'Backup & restore',
+    keywords: 'backup restore export import zip environments secrets password vault',
+  },
+  about: { tab: 'data', title: 'About', keywords: 'about version update check' },
+} as const satisfies Record<string, { tab: SettingsTab; title: string; keywords: string }>;
+
+type SectionId = keyof typeof SECTIONS;
+
+const SECTION_IDS = Object.keys(SECTIONS) as SectionId[];
+
+/** The settings that share one card of rows at the top of General. */
+const BEHAVIOR_SECTIONS: SectionId[] = [
+  'startupPage',
+  'keepTerminals',
+  'workspaceNotifications',
+  'terminalAiNotifications',
+  'toolUpdates',
+  'terminalBackground',
+];
+
+function sectionMatches(id: SectionId, query: string): boolean {
+  const section = SECTIONS[id];
+  return matchesQuery(
+    query,
+    section.title,
+    section.keywords,
+    TAB_META.find((item) => item.id === section.tab)?.label,
+  );
+}
+
+function isMacPlatform(): boolean {
+  return typeof navigator !== 'undefined' && /mac/i.test(navigator.platform);
+}
+
+function findShortcutLabel(): string {
+  return isMacPlatform() ? '⌘F' : 'Ctrl+F';
+}
+
 function saveShortcutLabel(): string {
-  return typeof navigator !== 'undefined' && /mac/i.test(navigator.platform) ? '⌘S' : 'Ctrl+S';
+  return isMacPlatform() ? '⌘S' : 'Ctrl+S';
 }
 
 function ExternalLinkButton({
@@ -318,6 +509,42 @@ function SettingsCard({
   );
 }
 
+/**
+ * One line of a grouped card: what the setting does on the left, its control on the right
+ * edge, and anything the control reveals underneath.
+ */
+function SettingsRow({
+  icon: Icon,
+  title,
+  description,
+  control,
+  children,
+}: {
+  icon: typeof Sun;
+  title: string;
+  description?: ReactNode;
+  control: ReactNode;
+  children?: ReactNode;
+}): React.JSX.Element {
+  return (
+    <div className="relative px-5 py-4">
+      <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
+        <div className="flex min-w-[min(100%,16rem)] flex-1 items-start gap-3">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+            <Icon className="h-4 w-4" />
+          </div>
+          <div className="min-w-0 space-y-1">
+            <h3 className="text-sm font-semibold leading-none">{title}</h3>
+            {description ? <p className="text-sm text-muted-foreground">{description}</p> : null}
+          </div>
+        </div>
+        <div className="flex shrink-0 items-center gap-2">{control}</div>
+      </div>
+      {children ? <div className="mt-3 pl-12">{children}</div> : null}
+    </div>
+  );
+}
+
 function ThemePreview({ mode }: { mode: ThemeMode }): React.JSX.Element {
   if (mode === 'system') {
     return (
@@ -356,6 +583,39 @@ function MiniWindow({
         <div className="h-1.5 w-10 rounded-full bg-primary" />
         <div className="mt-0.5 min-h-0 flex-1 rounded-sm bg-foreground/8" />
       </div>
+    </div>
+  );
+}
+
+/** A sketch of the window with the main menu where that option puts it. */
+function MenuPositionPreview({ position }: { position: MenuPosition }): React.JSX.Element {
+  const content = (
+    <div className="flex min-w-0 flex-1 flex-col gap-1 p-1.5">
+      <div className="h-1.5 w-7 rounded-full bg-foreground/25" />
+      <div className="mt-0.5 min-h-0 flex-1 rounded-sm bg-foreground/8" />
+    </div>
+  );
+  if (position === 'left') {
+    return (
+      <div className="flex h-16 overflow-hidden rounded-md border border-border bg-background">
+        <div className="flex w-6 shrink-0 flex-col gap-1 bg-card p-1">
+          <div className="h-1.5 rounded-full bg-primary" />
+          <div className="h-1.5 rounded-full bg-foreground/20" />
+          <div className="h-1.5 rounded-full bg-foreground/20" />
+        </div>
+        {content}
+      </div>
+    );
+  }
+  return (
+    <div className="flex h-16 flex-col overflow-hidden rounded-md border border-border bg-background">
+      <div className="flex shrink-0 items-center gap-1 bg-card px-1.5 py-1">
+        <div className="h-1.5 w-5 rounded-full bg-primary" />
+        <div className="h-1.5 w-4 rounded-full bg-foreground/20" />
+        <div className="h-1.5 w-4 rounded-full bg-foreground/20" />
+        <div className="h-1.5 w-4 rounded-full bg-foreground/20" />
+      </div>
+      {content}
     </div>
   );
 }
@@ -580,6 +840,20 @@ export default function SettingsPage(): React.JSX.Element {
     mutationFn: (startupPage: StartupPage) => window.agentmat.settings.update({ startupPage }),
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: queryKeys.settings }),
   });
+
+  // The shell reads the same settings query, so writing the saved answer straight into the cache
+  // moves the menu in the same render. The tile shows the choice, so no loading overlay either.
+  const menuPositionMutation = useMutation({
+    mutationFn: (menuPosition: MenuPosition) => window.agentmat.settings.update({ menuPosition }),
+    meta: { silentLoading: true },
+    onSuccess: (next: AppSettings) => {
+      queryClient.setQueryData(queryKeys.settings, next);
+      void queryClient.invalidateQueries({ queryKey: queryKeys.settings });
+    },
+  });
+  const menuPosition: MenuPosition = menuPositionMutation.isPending
+    ? menuPositionMutation.variables
+    : (settingsQuery.data?.menuPosition ?? 'left');
 
   async function handleDetectChatId(): Promise<void> {
     if (!botToken.trim()) {
@@ -1047,145 +1321,157 @@ export default function SettingsPage(): React.JSX.Element {
     setSearch('');
   }
 
-  function showSection(sectionTab: SettingsTab, keywords: string, title: string): boolean {
-    if (query)
-      return matchesQuery(
-        query,
-        title,
-        keywords,
-        TAB_META.find((item) => item.id === sectionTab)?.label,
-      );
-    return tab === sectionTab;
+  // A search spans every tab, so a card shows when it matches wherever it lives.
+  function show(id: SectionId): boolean {
+    return query ? sectionMatches(id, query) : tab === SECTIONS[id].tab;
   }
 
-  const visibleCount = [
-    showSection('general', 'appearance theme dark light system look', 'Appearance'),
-    showSection('general', STARTUP_PAGE_KEYWORDS, 'Startup page'),
-    showSection('shortcuts', SHORTCUT_KEYWORDS, 'Keyboard shortcuts'),
-    showSection(
-      'companion',
-      'pet ai pet my ai pet companion desktop character walk mascot climb rope size click area tight wander pipeline github actions fail pass internet quality',
-      'My AI Pet',
-    ),
-    showSection('agents', 'default cli provider agent arguments args flags model', 'Default CLI'),
-    showSection('agents', LAUNCH_DEFAULTS_KEYWORDS, 'Launch defaults'),
-    showSection(
-      'agents',
-      'agent cli order sort arrange workspace launcher tiles number keys',
-      'Agent order',
-    ),
-    showSection(
-      'agents',
-      'commit message ai generate style conventional instructions git workspace',
-      'Commit messages',
-    ),
-    showSection(
-      'general',
-      'workspace terminal background color cli claude code codex gray custom theme foreground contrast',
-      'Workspace terminal background',
-    ),
-    showSection('general', 'projects folder path directory', 'Projects folder'),
-    showSection('general', 'skills repositories sources', 'Skill repositories'),
-    showSection('general', BLUEPRINT_PRESET_KEYWORDS, 'Blueprint presets'),
-    showSection(
-      'ai',
-      'openai gemini ollama api key model prompt builder provider context length num_ctx keep alive test connection',
-      'Providers',
-    ),
-    showSection('ai', 'voice whisper speech microphone transcription', 'Voice input'),
-    showSection('ai', WRITING_CHECK_KEYWORDS, 'Writing check'),
-    showSection('ai', 'translation retries translate', 'Translation retries'),
-    showSection('notifications', 'telegram bot token chat notify', 'Telegram bot'),
-    showSection('network', PROXY_KEYWORDS, 'Proxy'),
-    showSection('vault', VAULT_KEYWORDS, 'Vault'),
-    showSection('network', 'ping network hosts dashboard url http', 'Network ping targets'),
-    showSection(
-      'data',
-      'backup restore export import zip environments secrets password',
-      'Backup & restore',
-    ),
-    showSection('data', 'about version update check', 'About'),
-  ].filter(Boolean).length;
+  /** How many cards on each tab match the search, for the counts beside the categories. */
+  const matchCounts = useMemo(() => {
+    const counts = Object.fromEntries(SETTINGS_TABS.map((id) => [id, 0])) as Record<
+      SettingsTab,
+      number
+    >;
+    if (!query) return counts;
+    for (const id of SECTION_IDS) {
+      if (sectionMatches(id, query)) counts[SECTIONS[id].tab] += 1;
+    }
+    return counts;
+  }, [query]);
+  const matchTotal = Object.values(matchCounts).reduce((sum, count) => sum + count, 0);
+
+  /** The category name over each tab's results, so a search reads in groups. */
+  function searchGroupLabel(groupTab: SettingsTab): ReactNode {
+    if (!query || matchCounts[groupTab] === 0) return null;
+    return (
+      <p className="-mb-1.5 select-none px-1 pt-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground/60 first:pt-0">
+        {TAB_META.find((item) => item.id === groupTab)?.label}
+      </p>
+    );
+  }
+
+  const searchRef = useRef<HTMLInputElement>(null);
+
+  function clearSearch(): void {
+    setSearch('');
+    searchRef.current?.focus();
+  }
+
+  // Ctrl+F puts the cursor in the settings search. Nothing else claims it on this page: the
+  // Vault's own Ctrl+F only runs on the Vault page.
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent): void {
+      if (event.defaultPrevented || event.isComposing) return;
+      if (!(event.metaKey || event.ctrlKey) || event.shiftKey || event.altKey) return;
+      if (!isShortcutLetter(event, 'f')) return;
+      // Keys typed into the terminal drawer belong to its shell, and an open dialog owns the
+      // keyboard while it is up.
+      if (event.target instanceof Element && event.target.closest('.xterm')) return;
+      if (document.querySelector('[role="dialog"][data-state="open"]')) return;
+      event.preventDefault();
+      searchRef.current?.focus();
+      searchRef.current?.select();
+    }
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, []);
+
+  const reduceMotion = useReducedMotion();
+  const pillTransition = reduceMotion
+    ? { duration: 0 }
+    : { type: 'spring' as const, stiffness: 420, damping: 32 };
 
   const repoCount = reposQuery.data?.length ?? 0;
   const telegramReady = Boolean(botToken.trim() && chatId.trim());
+  const activeTab = TAB_META.find((item) => item.id === tab) ?? TAB_META[0];
 
   return (
-    <div className="flex min-h-full flex-col">
-      <div className="sticky top-0 z-20 border-b border-border/80 bg-background/80 px-6 py-3 backdrop-blur-xl">
-        <div className="mx-auto flex w-full max-w-5xl flex-col gap-3">
-          <div className="relative">
-            <Search className="pointer-events-none absolute left-2.5 top-2.5 z-10 h-4 w-4 text-muted-foreground" />
-            <Input
+    <div className="@container/settings flex min-h-full flex-col">
+      <div className="flex w-full flex-1 flex-col @3xl/settings:flex-row @3xl/settings:gap-8 @3xl/settings:px-6">
+        {/* Search sits at the top of the category list, the way Windows Settings has it, so it
+            costs no row of its own. On a narrow island the two fold into one bar over the page. */}
+        <aside className="sticky top-0 z-20 flex shrink-0 items-start gap-2 border-b bg-background/85 px-4 py-2.5 backdrop-blur-xl @3xl/settings:w-52 @3xl/settings:flex-col @3xl/settings:items-stretch @3xl/settings:gap-3 @3xl/settings:self-start @3xl/settings:border-b-0 @3xl/settings:bg-transparent @3xl/settings:px-0 @3xl/settings:py-6 @3xl/settings:backdrop-blur-none">
+          <div className="search-pill flex h-8 w-44 shrink-0 items-center gap-2 rounded-full pl-3 pr-1.5 @3xl/settings:w-full">
+            <Search className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+            <input
+              ref={searchRef}
               value={search}
               onChange={(event) => setSearch(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Escape' && search) {
+                  event.preventDefault();
+                  setSearch('');
+                }
+              }}
               placeholder="Search settings…"
-              className="pl-8 pr-8"
               aria-label="Search settings"
+              spellCheck={false}
+              className="h-full min-w-0 flex-1 bg-transparent text-[13px] outline-none placeholder:text-muted-foreground"
             />
             {search ? (
               <button
                 type="button"
-                className="absolute right-1.5 top-1/2 flex h-7 w-7 -translate-y-1/2 cursor-pointer items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
+                className="flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-foreground/[0.08] hover:text-foreground"
                 aria-label="Clear search"
-                onClick={() => setSearch('')}
+                onClick={clearSearch}
               >
-                <X className="h-3.5 w-3.5" />
+                <X className="h-3 w-3" />
               </button>
-            ) : null}
+            ) : (
+              <kbd className="hidden shrink-0 rounded-full bg-foreground/[0.07] px-2 py-0.5 font-sans text-[10px] font-medium text-muted-foreground @3xl/settings:inline-block">
+                {findShortcutLabel()}
+              </kbd>
+            )}
           </div>
-          {!query ? (
-            <Tabs
-              value={tab}
-              onValueChange={(value) => selectTab(value as SettingsTab)}
-              className="lg:hidden"
-            >
-              <TabsList containerClassName="border-0">
-                {TAB_META.map((item) => (
-                  <TabsTrigger key={item.id} value={item.id} className="gap-1.5">
-                    <item.icon className="h-3.5 w-3.5" />
-                    {item.label}
-                    {tabDirty[item.id] ? (
-                      <span
-                        className="h-1.5 w-1.5 rounded-full bg-primary"
-                        aria-label="Unsaved changes"
-                      />
-                    ) : null}
-                  </TabsTrigger>
-                ))}
-              </TabsList>
-            </Tabs>
-          ) : null}
-        </div>
-      </div>
 
-      <div className="mx-auto flex w-full max-w-5xl flex-1 gap-8 px-6 py-6">
-        {!query ? (
-          <nav
-            aria-label="Settings categories"
-            className="sticky top-[4.75rem] hidden h-fit w-48 shrink-0 lg:block"
-          >
-            <ul className="space-y-1">
+          <nav aria-label="Settings categories" className="min-w-0 flex-1 @3xl/settings:flex-none">
+            <ul className="flex flex-wrap gap-0.5 @3xl/settings:flex-col @3xl/settings:flex-nowrap @3xl/settings:gap-px">
               {TAB_META.map((item) => {
-                const active = tab === item.id;
+                // While searching no single tab is open; the counts say where the matches are.
+                const active = !query && tab === item.id;
+                const count = matchCounts[item.id];
                 return (
-                  <li key={item.id}>
+                  <li key={item.id} className="shrink-0">
                     <button
                       type="button"
                       onClick={() => selectTab(item.id)}
                       className={cn(
-                        'flex w-full cursor-pointer items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition-colors duration-150',
+                        'relative flex w-full cursor-pointer items-center gap-2.5 whitespace-nowrap rounded-lg px-3 py-[5px] text-sm font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/60',
                         active
-                          ? 'bg-primary/15 font-medium text-foreground'
-                          : 'text-muted-foreground hover:bg-accent hover:text-foreground',
+                          ? 'font-semibold text-primary'
+                          : 'text-muted-foreground hover:bg-foreground/[0.06] hover:text-foreground',
+                        query && count === 0 && 'opacity-50',
                       )}
                       aria-current={active ? 'page' : undefined}
                     >
-                      <item.icon className={cn('h-3.5 w-3.5', active && 'text-primary')} />
-                      <span className="flex-1 text-left">{item.label}</span>
+                      {active ? (
+                        <motion.span
+                          layoutId="settings-category-active"
+                          className="absolute inset-0 rounded-lg bg-primary/12"
+                          transition={pillTransition}
+                        />
+                      ) : null}
+                      {active ? (
+                        <span className="absolute left-0 top-1/2 z-10 hidden h-4 w-[3px] -translate-y-1/2 rounded-full bg-primary shadow-[0_0_8px_hsl(var(--primary)/0.7)] @3xl/settings:block" />
+                      ) : null}
+                      <item.icon className="relative z-10 h-4 w-4 shrink-0" />
+                      <span className="relative z-10 flex-1 text-left">{item.label}</span>
+                      {query && count > 0 ? (
+                        <>
+                          <span
+                            aria-hidden
+                            className="relative z-10 rounded-full bg-primary/12 px-1.5 py-0.5 text-[10px] font-semibold leading-none tabular-nums text-primary"
+                          >
+                            {count}
+                          </span>
+                          <span className="sr-only">
+                            , {count} {count === 1 ? 'match' : 'matches'}
+                          </span>
+                        </>
+                      ) : null}
                       {tabDirty[item.id] ? (
                         <span
-                          className="h-1.5 w-1.5 rounded-full bg-primary"
+                          className="relative z-10 h-1.5 w-1.5 shrink-0 rounded-full bg-primary"
                           aria-label="Unsaved changes"
                         />
                       ) : null}
@@ -1195,1187 +1481,1207 @@ export default function SettingsPage(): React.JSX.Element {
               })}
             </ul>
           </nav>
-        ) : null}
+        </aside>
 
-        <div className="min-w-0 flex-1 space-y-4">
-          {settingsQuery.isLoading ? (
-            Array.from({ length: 4 }, (_, index) => (
-              <Card key={index} className="glass">
-                <CardHeader className="flex-row items-start gap-3">
-                  <Skeleton className="h-9 w-9 shrink-0 rounded-lg" />
-                  <div className="flex-1 space-y-2">
-                    <Skeleton className="h-4 w-32" />
-                    <Skeleton className="h-3 w-56" />
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <Skeleton className="h-9 w-full" />
-                </CardContent>
-              </Card>
-            ))
-          ) : settingsQuery.isError ? (
-            <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed border-border px-4 py-16 text-center">
-              <p className="text-sm font-medium">Could not load settings</p>
-              <p className="max-w-sm text-sm text-muted-foreground">
-                Something went wrong reading this machine's defaults.
-              </p>
-              <Button variant="outline" size="sm" onClick={() => void settingsQuery.refetch()}>
-                Try again
-              </Button>
-            </div>
-          ) : visibleCount === 0 ? (
-            <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed border-border px-4 py-16 text-center">
-              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary">
-                <Search className="h-5 w-5" />
-              </div>
-              <div className="space-y-1">
-                <p className="text-sm font-medium">No settings match “{search.trim()}”</p>
+        <div className="min-w-0 flex-1 px-4 pb-8 pt-5 @3xl/settings:max-w-4xl @3xl/settings:px-0 @3xl/settings:pt-6">
+          <header className="mb-5 px-1">
+            <h2 className="text-lg font-semibold tracking-tight">
+              {query ? 'Search results' : activeTab.label}
+            </h2>
+            <p className="mt-0.5 text-sm text-muted-foreground">
+              {!query
+                ? activeTab.description
+                : matchTotal > 0
+                  ? `${matchTotal} ${matchTotal === 1 ? 'setting matches' : 'settings match'} “${search.trim()}” across every category.`
+                  : 'Searched every category.'}
+            </p>
+          </header>
+
+          <div className="flex flex-col gap-4">
+            {settingsQuery.isLoading ? (
+              Array.from({ length: 4 }, (_, index) => (
+                <Card key={index} className="glass">
+                  <CardHeader className="flex-row items-start gap-3">
+                    <Skeleton className="h-9 w-9 shrink-0 rounded-lg" />
+                    <div className="flex-1 space-y-2">
+                      <Skeleton className="h-4 w-32" />
+                      <Skeleton className="h-3 w-56" />
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <Skeleton className="h-9 w-full" />
+                  </CardContent>
+                </Card>
+              ))
+            ) : settingsQuery.isError ? (
+              <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed border-border px-4 py-16 text-center">
+                <p className="text-sm font-medium">Could not load settings</p>
                 <p className="max-w-sm text-sm text-muted-foreground">
-                  Try theme, AI Pet, API key, Telegram, backup, or a category name.
+                  Something went wrong reading this machine's defaults.
                 </p>
+                <Button variant="outline" size="sm" onClick={() => void settingsQuery.refetch()}>
+                  Try again
+                </Button>
               </div>
-              <Button variant="outline" size="sm" onClick={() => setSearch('')}>
-                Clear search
-              </Button>
-            </div>
-          ) : (
-            <>
-              {showSection(
-                'general',
-                'appearance theme dark light system vscode visual studio vs2026 code look',
-                'Appearance',
-              ) && (
-                <SettingsCard
-                  icon={THEME_OPTIONS.find((option) => option.value === theme)?.icon ?? Monitor}
-                  title="Appearance"
-                  description="How AgentMate looks on this machine."
-                >
-                  <div
-                    role="group"
-                    aria-label="Theme"
-                    className="grid grid-cols-1 gap-2 sm:grid-cols-3"
+            ) : query && matchTotal === 0 ? (
+              <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed border-border px-4 py-16 text-center">
+                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary">
+                  <Search className="h-5 w-5" />
+                </div>
+                <div className="space-y-1">
+                  <p className="text-sm font-medium">No settings match “{search.trim()}”</p>
+                  <p className="max-w-sm text-sm text-muted-foreground">
+                    Try theme, AI Pet, API key, Telegram, backup, or a category name.
+                  </p>
+                </div>
+                <Button variant="outline" size="sm" onClick={clearSearch}>
+                  Clear search
+                </Button>
+              </div>
+            ) : (
+              <>
+                {searchGroupLabel('general')}
+
+                {show('appearance') && (
+                  <SettingsCard
+                    icon={THEME_OPTIONS.find((option) => option.value === theme)?.icon ?? Monitor}
+                    title="Appearance"
+                    description="How AgentMate looks on this machine."
                   >
-                    {THEME_OPTIONS.map((option) => {
-                      const active = theme === option.value;
-                      return (
-                        <button
-                          key={option.value}
-                          type="button"
-                          onClick={() => setTheme(option.value)}
-                          className={cn(
-                            'cursor-pointer rounded-lg border p-3 text-left transition-all duration-150',
-                            active
-                              ? 'border-primary/50 bg-primary/10 ring-1 ring-primary/40'
-                              : 'border-border bg-background/40 hover:border-foreground/20 hover:bg-accent/40',
-                          )}
-                          aria-pressed={active}
-                        >
-                          <ThemePreview mode={option.value} />
-                          <div className="mt-2.5 flex items-center gap-2">
-                            <option.icon className="h-3.5 w-3.5 text-muted-foreground" />
-                            <span className="text-sm font-medium">{option.label}</span>
-                          </div>
-                          <p className="mt-0.5 text-xs text-muted-foreground">{option.hint}</p>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </SettingsCard>
-              )}
-
-              {showSection('general', STARTUP_PAGE_KEYWORDS, 'Startup page') &&
-              settingsQuery.data ? (
-                <SettingsCard
-                  icon={History}
-                  title="Startup page"
-                  description="Where AgentMate opens. Last opened page brings back the page and project you were on, whether you closed the app, it restarted for an update or the computer shut down."
-                >
-                  <Combobox
-                    ariaLabel="Startup page"
-                    className="sm:w-72"
-                    value={
-                      startupPageMutation.isPending
-                        ? startupPageMutation.variables
-                        : settingsQuery.data.startupPage
-                    }
-                    onChange={(value) => {
-                      if (isStartupPage(value)) startupPageMutation.mutate(value);
-                    }}
-                    searchPlaceholder="Search pages…"
-                    options={STARTUP_PAGE_OPTIONS}
-                  />
-                </SettingsCard>
-              ) : null}
-
-              {showSection('shortcuts', SHORTCUT_KEYWORDS, 'Keyboard shortcuts') && (
-                <SettingsCard
-                  icon={Keyboard}
-                  title="Keyboard shortcuts"
-                  description="Rebind the app, Workspace and commit box shortcuts. Changes apply right away."
-                >
-                  <ShortcutSettings />
-                </SettingsCard>
-              )}
-
-              {showSection(
-                'companion',
-                'pet ai pet my ai pet companion desktop character walk mascot climb rope size click area tight wander pipeline github actions fail pass internet quality',
-                'My AI Pet',
-              ) && settingsQuery.data ? (
-                <CompanionSettings settings={settingsQuery.data} />
-              ) : null}
-
-              {showSection(
-                'agents',
-                'default cli provider agent arguments args flags model',
-                'Default CLI',
-              ) && (
-                <SettingsCard
-                  icon={TerminalSquare}
-                  title="Default CLI"
-                  description="Used when a feature needs an AI provider without asking."
-                >
-                  <div className="max-w-sm space-y-3">
-                    <Combobox
-                      value={defaultCliId ?? ''}
-                      onChange={(value) => setDefaultCliId(value || null)}
-                      placeholder="No default set"
-                      searchPlaceholder="Search CLIs…"
-                      options={CLI_REGISTRY.map((cli) => ({
-                        value: cli.id,
-                        label: cli.name,
-                        icon: cliOptionIcon(cli.id),
-                      }))}
-                      clearable
-                    />
-                    {/* Per CLI, not per default: switching the default brings up that
-                        CLI's own flags. Every CLI has the same field in CLI Manager. */}
-                    {defaultCliId && <CliArgsField cliId={defaultCliId} />}
-                  </div>
-                </SettingsCard>
-              )}
-
-              {showSection('agents', LAUNCH_DEFAULTS_KEYWORDS, 'Launch defaults') && (
-                <SettingsCard
-                  icon={Play}
-                  title="Launch defaults"
-                  description="The model, effort, and mode each agent starts with. Anything left on Not set is up to the CLI."
-                >
-                  <div className="max-w-3xl">
-                    <CliLaunchDefaultsSettings />
-                  </div>
-                </SettingsCard>
-              )}
-
-              {showSection(
-                'agents',
-                'agent cli order sort arrange workspace launcher tiles number keys',
-                'Agent order',
-              ) && (
-                <SettingsCard
-                  icon={TerminalSquare}
-                  title="Agent order"
-                  description="The order agents are listed in when you start one in the Workspace."
-                >
-                  <div className="max-w-xl">
-                    <CliOrderSettings />
-                  </div>
-                </SettingsCard>
-              )}
-
-              {showSection(
-                'agents',
-                'commit message ai generate style conventional instructions git workspace',
-                'Commit messages',
-              ) && (
-                <SettingsCard
-                  icon={GitCommit}
-                  title="Commit messages"
-                  description="How the sparkle button in the Workspace changes panel writes a commit message for you."
-                >
-                  <CommitMessageSettingsForm />
-                </SettingsCard>
-              )}
-
-              {showSection(
-                'agents',
-                'worktree worktrees git branch parallel folder env copy setup location',
-                'Worktrees',
-              ) && (
-                <SettingsCard
-                  icon={GitBranch}
-                  title="Worktrees"
-                  description="Where new git worktrees go, which local files they start with, and how removing one tidies up."
-                >
-                  <WorktreeSettingsForm />
-                </SettingsCard>
-              )}
-
-              {showSection(
-                'agents',
-                'pull request review command bot claude gemini coderabbit codex comment github workspace',
-                'Review commands',
-              ) && (
-                <SettingsCard
-                  icon={GitPullRequest}
-                  title="Review commands"
-                  description="The comments offered in the workspace Pull request tab to ask a review bot to look at the pull request."
-                >
-                  <ReviewCommandsSettings />
-                </SettingsCard>
-              )}
-
-              {showSection(
-                'general',
-                'terminal shell sessions keep running background quit close exit restart update',
-                'Keep terminals running',
-              ) && settingsQuery.data ? (
-                <SettingsCard
-                  icon={TerminalSquare}
-                  title="Keep terminals running"
-                  description="Terminal sessions carry on in the background after you quit AgentMate, and come back with their output the next time you open it. Restarting to install an update always keeps them."
-                  action={
-                    <Switch
-                      checked={
-                        keepTerminalsMutation.isPending
-                          ? keepTerminalsMutation.variables
-                          : settingsQuery.data.keepTerminalsRunning
-                      }
-                      onCheckedChange={(checked) => keepTerminalsMutation.mutate(checked)}
-                      aria-label="Keep terminals running after quitting"
-                    />
-                  }
-                />
-              ) : null}
-
-              {showSection(
-                'general',
-                'workspace agent notifications finished done question input alert claude codex',
-                'Workspace notifications',
-              ) && settingsQuery.data ? (
-                <SettingsCard
-                  icon={Bell}
-                  title="Workspace notifications"
-                  description="Get a system notification when an agent in a Workspace tab finishes or asks you something while you are looking at another tab, page or app."
-                  action={
-                    <Switch
-                      checked={
-                        workspaceNotificationsMutation.isPending
-                          ? workspaceNotificationsMutation.variables
-                          : settingsQuery.data.workspaceNotifications
-                      }
-                      onCheckedChange={(checked) => workspaceNotificationsMutation.mutate(checked)}
-                      aria-label="Notify when a workspace agent finishes or needs input"
-                    />
-                  }
-                />
-              ) : null}
-
-              {showSection(
-                'general',
-                'terminal ai task notifications question approval approve command ssh waiting alert',
-                'Terminal AI notifications',
-              ) && settingsQuery.data ? (
-                <SettingsCard
-                  icon={Bell}
-                  title="Terminal AI notifications"
-                  description="Get a system notification when an AI task in a terminal asks you something or waits for you to approve a command, while that terminal is hidden or you are in another app."
-                  action={
-                    <Switch
-                      checked={
-                        terminalAiNotificationsMutation.isPending
-                          ? terminalAiNotificationsMutation.variables
-                          : settingsQuery.data.terminalAiNotifications
-                      }
-                      onCheckedChange={(checked) => terminalAiNotificationsMutation.mutate(checked)}
-                      aria-label="Notify when a terminal AI task needs you"
-                    />
-                  }
-                />
-              ) : null}
-
-              {showSection(
-                'general',
-                'cli tool update check automatic daily notification bell version',
-                'Check for CLI and tool updates',
-              ) && settingsQuery.data ? (
-                <SettingsCard
-                  icon={Bell}
-                  title="Check for CLI and tool updates"
-                  description="Once a day, check every installed CLI and tool for a newer version and ring the notification bell when one is found."
-                  action={
-                    <Switch
-                      checked={
-                        checkToolUpdatesMutation.isPending
-                          ? checkToolUpdatesMutation.variables
-                          : settingsQuery.data.checkToolUpdatesEnabled
-                      }
-                      onCheckedChange={(checked) => checkToolUpdatesMutation.mutate(checked)}
-                      aria-label="Automatically check for CLI and tool updates"
-                    />
-                  }
-                />
-              ) : null}
-
-              {showSection(
-                'general',
-                'workspace terminal background color cli claude code codex gray custom theme foreground contrast',
-                'Workspace terminal background',
-              ) && (
-                <SettingsCard
-                  icon={TerminalSquare}
-                  title="Workspace terminal background"
-                  description="Off by default, so a Workspace terminal pane looks the way its CLI would in any ordinary terminal, for example Claude Code's own gray. Turn this on to paint a fixed background instead; the text color adjusts to stay readable on it."
-                  action={
-                    <Switch
-                      checked={terminalCustomBackground}
-                      onCheckedChange={setTerminalCustomBackground}
-                      aria-label="Use a custom Workspace terminal background"
-                    />
-                  }
-                >
-                  {terminalCustomBackground ? (
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="color"
-                        aria-label="Workspace terminal background color"
-                        value={terminalBackgroundColor}
-                        onChange={(event) => setTerminalBackgroundColor(event.target.value)}
-                        className="h-8 w-12 cursor-pointer rounded-md border border-border/70 bg-transparent p-1"
-                      />
-                      <span className="font-mono text-xs text-muted-foreground">
-                        {terminalBackgroundColor}
-                      </span>
-                    </div>
-                  ) : null}
-                </SettingsCard>
-              )}
-
-              {showSection('general', 'projects folder path directory', 'Projects folder') && (
-                <SettingsCard
-                  icon={FolderOpen}
-                  title="Projects folder"
-                  description="Folder pickers open here instead of the system default. Leave empty to use the last system location."
-                  dirty={projectsRootDirty}
-                >
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Input
-                      value={projectsRootPath}
-                      onChange={(event) => {
-                        setProjectsRootPath(event.target.value);
-                        setProjectsRootDirty(true);
-                      }}
-                      placeholder="C:\Users\you\Projects"
-                      className="min-w-[16rem] flex-1 font-mono text-xs"
-                      spellCheck={false}
-                    />
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => void handleBrowseProjectsRoot()}
+                    <div
+                      role="group"
+                      aria-label="Theme"
+                      className="grid grid-cols-1 gap-2 sm:grid-cols-3"
                     >
-                      <FolderOpen /> Browse…
-                    </Button>
-                  </div>
-                </SettingsCard>
-              )}
-
-              {showSection('general', 'skills repositories sources', 'Skill repositories') && (
-                <SettingsCard
-                  icon={Blocks}
-                  title="Skill repositories"
-                  description={
-                    reposQuery.isLoading
-                      ? 'Loading repositories…'
-                      : `${repoCount} repositor${repoCount === 1 ? 'y' : 'ies'} configured. Add and sync sources from the Skills page.`
-                  }
-                  action={
-                    <Button variant="outline" size="sm" onClick={() => navigate('/skills')}>
-                      <Blocks /> Manage
-                    </Button>
-                  }
-                />
-              )}
-
-              {showSection('general', BLUEPRINT_PRESET_KEYWORDS, 'Blueprint presets') && (
-                <SettingsCard
-                  icon={Route}
-                  title="Blueprint presets"
-                  description="Reusable snippets for a project's Blueprint. Clicking one in the wizard appends it to that step."
-                >
-                  <BlueprintPresetSettings />
-                </SettingsCard>
-              )}
-
-              {showSection(
-                'ai',
-                'openai gemini ollama api key model prompt builder provider context length num_ctx keep alive test connection',
-                'Providers',
-              ) && (
-                <SettingsCard
-                  icon={MessageSquare}
-                  title="Providers"
-                  description="Keys and models used by Ask AI and Prompt Builder."
-                  dirty={aiDirty}
-                >
-                  <div className="space-y-5">
-                    <div className="space-y-3">
-                      <div className="flex items-center gap-2">
-                        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                          OpenAI
-                        </p>
-                        <Badge
-                          variant={openaiApiKey.trim() ? 'success' : 'secondary'}
-                          className="font-normal"
-                        >
-                          {openaiApiKey.trim() ? 'Key set' : 'No key'}
-                        </Badge>
-                      </div>
-                      <div className="grid gap-3 sm:grid-cols-2">
-                        <Field
-                          label="API key"
-                          htmlFor="openai-api-key"
-                          hint={
-                            <>
-                              Create one at{' '}
-                              <ExternalLinkButton href="https://platform.openai.com/api-keys">
-                                platform.openai.com/api-keys
-                              </ExternalLinkButton>
-                              .
-                            </>
-                          }
-                          className="sm:col-span-2"
-                        >
-                          <SecretInput
-                            id="openai-api-key"
-                            value={openaiApiKey}
-                            onChange={(value) => {
-                              setOpenaiApiKey(value);
-                              setAiDirty(true);
-                            }}
-                            placeholder="sk-…"
-                          />
-                        </Field>
-                        <Field label="Default model" htmlFor="openai-model">
-                          <Input
-                            id="openai-model"
-                            value={openaiModel}
-                            onChange={(event) => {
-                              setOpenaiModel(event.target.value);
-                              setAiDirty(true);
-                            }}
-                            placeholder={DEFAULT_OPENAI_API_MODEL}
-                            className="font-mono"
-                            spellCheck={false}
-                          />
-                        </Field>
-                      </div>
-                    </div>
-
-                    <div className="space-y-3 border-t border-border/60 pt-5">
-                      <div className="flex items-center gap-2">
-                        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                          Gemini
-                        </p>
-                        <Badge
-                          variant={geminiApiKey.trim() ? 'success' : 'secondary'}
-                          className="font-normal"
-                        >
-                          {geminiApiKey.trim() ? 'Key set' : 'No key'}
-                        </Badge>
-                      </div>
-                      <div className="grid gap-3 sm:grid-cols-2">
-                        <Field
-                          label="API key"
-                          htmlFor="gemini-api-key"
-                          hint={
-                            <>
-                              Create one at{' '}
-                              <ExternalLinkButton href="https://aistudio.google.com/apikey">
-                                aistudio.google.com/apikey
-                              </ExternalLinkButton>
-                              .
-                            </>
-                          }
-                          className="sm:col-span-2"
-                        >
-                          <SecretInput
-                            id="gemini-api-key"
-                            value={geminiApiKey}
-                            onChange={(value) => {
-                              setGeminiApiKey(value);
-                              setAiDirty(true);
-                            }}
-                            placeholder="AIza…"
-                          />
-                        </Field>
-                        <Field label="Default model" htmlFor="gemini-model">
-                          <Input
-                            id="gemini-model"
-                            value={geminiModel}
-                            onChange={(event) => {
-                              setGeminiModel(event.target.value);
-                              setAiDirty(true);
-                            }}
-                            placeholder={DEFAULT_GEMINI_API_MODEL}
-                            className="font-mono"
-                            spellCheck={false}
-                          />
-                        </Field>
-                      </div>
-                    </div>
-
-                    <div className="space-y-3 border-t border-border/60 pt-5">
-                      <div className="flex items-center gap-2">
-                        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                          Ollama
-                        </p>
-                        {ollamaTest ? (
-                          <Badge
-                            variant={ollamaTest.ok ? 'success' : 'destructive'}
-                            className="font-normal"
-                          >
-                            {ollamaTest.ok
-                              ? ollamaTest.version
-                                ? `Connected · ${ollamaTest.version}`
-                                : 'Connected'
-                              : 'Not reachable'}
-                          </Badge>
-                        ) : null}
-                      </div>
-                      <Field
-                        label="Server URL"
-                        htmlFor="ollama-base-url"
-                        hint={
-                          <>
-                            Address of a running{' '}
-                            <ExternalLinkButton href="https://ollama.com">
-                              Ollama
-                            </ExternalLinkButton>{' '}
-                            instance. Leave the default if it runs on this machine.
-                          </>
-                        }
-                      >
-                        <div className="flex max-w-xl items-center gap-2">
-                          <Input
-                            id="ollama-base-url"
-                            value={ollamaBaseUrl}
-                            onChange={(event) => {
-                              setOllamaBaseUrl(event.target.value);
-                              setOllamaTest(null);
-                              setAiDirty(true);
-                            }}
-                            placeholder="http://localhost:11434"
-                            className="font-mono"
-                            spellCheck={false}
-                          />
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="shrink-0"
-                            disabled={testingOllama}
-                            onClick={() => void handleTestOllama()}
-                          >
-                            {testingOllama ? 'Testing…' : 'Test connection'}
-                          </Button>
-                        </div>
-                      </Field>
-                      <div className="grid gap-3 sm:grid-cols-2">
-                        <Field
-                          label="Default model"
-                          hint="Picked first on the Ask AI page and used by Prompt Builder. The list comes from the server above."
-                        >
-                          <div className="flex items-center gap-2">
-                            <Combobox
-                              className="min-w-0 flex-1"
-                              value={ollamaModel}
-                              onChange={(value) => {
-                                setOllamaModel(value);
-                                setAiDirty(true);
-                              }}
-                              options={ollamaModelOptions}
-                              placeholder={
-                                ollamaModelsQuery.isFetching ? 'Loading models…' : 'Choose a model'
-                              }
-                              emptyText="No models found. Is Ollama running?"
-                              clearable
-                            />
-                            <SimpleTooltip label="Refresh model list" wrapTrigger>
-                              <Button
-                                variant="outline"
-                                size="icon"
-                                className="shrink-0"
-                                disabled={ollamaModelsQuery.isFetching}
-                                onClick={() => void ollamaModelsQuery.refetch()}
-                              >
-                                <RefreshCw className="h-3.5 w-3.5" />
-                              </Button>
-                            </SimpleTooltip>
-                          </div>
-                        </Field>
-                        <Field
-                          label="Context length"
-                          htmlFor="ollama-context-length"
-                          hint="Tokens the model keeps in its window (num_ctx). Leave empty to use whatever the model ships with. Bigger values need more RAM or VRAM."
-                        >
-                          <Input
-                            id="ollama-context-length"
-                            inputMode="numeric"
-                            value={ollamaContextLength}
-                            onChange={(event) => {
-                              setOllamaContextLength(event.target.value.replace(/[^0-9]/g, ''));
-                              setAiDirty(true);
-                            }}
-                            placeholder="Model default (e.g. 8192)"
-                            className="font-mono"
-                            spellCheck={false}
-                          />
-                        </Field>
-                        <Field
-                          label="Keep model in memory"
-                          htmlFor="ollama-keep-alive"
-                          hint='How long Ollama holds the model in RAM after a request (keep_alive). Use "5m", "1h", "0" to free it right away, or "-1" to keep it loaded.'
-                        >
-                          <Input
-                            id="ollama-keep-alive"
-                            value={ollamaKeepAlive}
-                            onChange={(event) => {
-                              setOllamaKeepAlive(event.target.value);
-                              setAiDirty(true);
-                            }}
-                            placeholder="5m"
-                            className="font-mono"
-                            spellCheck={false}
-                          />
-                        </Field>
-                      </div>
-                    </div>
-
-                    <div className="border-t border-border/60 pt-5">
-                      <Field
-                        label="Prompt Builder provider"
-                        hint="Used by Generate Prompt. Uses the key and model for that provider above."
-                      >
-                        <Combobox
-                          className="w-40"
-                          value={promptBuilderProvider}
-                          onChange={(value) => {
-                            setPromptBuilderProvider(value as AiProvider);
-                            setAiDirty(true);
-                          }}
-                          options={PROMPT_BUILDER_PROVIDER_OPTIONS}
-                        />
-                      </Field>
-                    </div>
-                  </div>
-                </SettingsCard>
-              )}
-
-              {showSection(
-                'ai',
-                'voice whisper speech microphone transcription',
-                'Voice input',
-              ) && (
-                <SettingsCard
-                  icon={Microphone}
-                  title="Voice input"
-                  description="Local Whisper transcription for Prompt Builder. The model downloads once and stays cached."
-                  dirty={speechDirty}
-                >
-                  <div className="grid max-w-lg grid-cols-1 gap-3 sm:grid-cols-2">
-                    <Field label="Model">
-                      <Combobox
-                        value={speechModel}
-                        onChange={(value) => {
-                          setSpeechModel(value);
-                          setSpeechDirty(true);
-                        }}
-                        options={WHISPER_MODELS.map((m) => ({ value: m.key, label: m.label }))}
-                      />
-                    </Field>
-                    <Field label="Spoken language">
-                      <Combobox
-                        value={speechLanguage}
-                        onChange={(value) => {
-                          setSpeechLanguage(value);
-                          setSpeechDirty(true);
-                        }}
-                        options={SPEECH_LANGUAGES}
-                      />
-                    </Field>
-                  </div>
-                </SettingsCard>
-              )}
-
-              {showSection('ai', WRITING_CHECK_KEYWORDS, 'Writing check') && settingsQuery.data ? (
-                <WritingCheckSettings settings={settingsQuery.data} />
-              ) : null}
-
-              {showSection(
-                'general',
-                'android sdk adb emulator avd avdmanager sdkmanager platform-tools path',
-                'Android SDK',
-              ) && settingsQuery.data ? (
-                <AndroidSdkSettings settings={settingsQuery.data} />
-              ) : null}
-
-              {showSection('ai', 'translation retries translate', 'Translation retries') && (
-                <SettingsCard
-                  icon={Languages}
-                  title="Translation retries"
-                  description="Extra attempts Prompt Builder makes if a translate request fails."
-                  dirty={translateRetriesDirty}
-                >
-                  <Input
-                    type="number"
-                    min={0}
-                    max={10}
-                    value={translateMaxRetriesText}
-                    onChange={(event) => {
-                      setTranslateMaxRetriesText(event.target.value);
-                      setTranslateRetriesDirty(true);
-                    }}
-                    className="w-24"
-                  />
-                </SettingsCard>
-              )}
-
-              {showSection('notifications', 'telegram bot token chat notify', 'Telegram bot') && (
-                <SettingsCard
-                  icon={Bell}
-                  title="Telegram bot"
-                  description="Used by project notification hooks and scheduled task updates."
-                  dirty={telegramDirty}
-                  action={
-                    <Badge
-                      variant={telegramReady ? 'success' : 'secondary'}
-                      className="font-normal"
-                    >
-                      {telegramReady ? 'Ready' : 'Not configured'}
-                    </Badge>
-                  }
-                >
-                  <div className="space-y-4">
-                    <ol className="list-decimal space-y-1 pl-4 text-sm text-muted-foreground">
-                      <li>
-                        Create a bot with{' '}
-                        <ExternalLinkButton href="https://t.me/BotFather">
-                          @BotFather
-                        </ExternalLinkButton>{' '}
-                        and paste its token.
-                      </li>
-                      <li>Message the bot once on Telegram, then detect the chat ID.</li>
-                    </ol>
-
-                    <Field label="Bot token" htmlFor="telegram-bot-token">
-                      <SecretInput
-                        id="telegram-bot-token"
-                        value={botToken}
-                        onChange={(value) => {
-                          setBotToken(value);
-                          setTelegramDirty(true);
-                        }}
-                        placeholder="123456789:AAExampleTokenFromBotFather"
-                        className="max-w-md"
-                      />
-                    </Field>
-
-                    <Field
-                      label="Chat ID"
-                      htmlFor="telegram-chat-id"
-                      hint="Message your bot once on Telegram, then click detect."
-                    >
-                      <div className="flex flex-wrap gap-2">
-                        <Input
-                          id="telegram-chat-id"
-                          value={chatId}
-                          onChange={(event) => {
-                            setChatId(event.target.value);
-                            setTelegramDirty(true);
-                          }}
-                          placeholder="e.g. 123456789"
-                          className="max-w-xs font-mono"
-                          spellCheck={false}
-                        />
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          disabled={detectingChatId || !botToken.trim()}
-                          onClick={() => void handleDetectChatId()}
-                        >
-                          {detectingChatId ? 'Detecting…' : 'Detect from last message'}
-                        </Button>
-                      </div>
-                    </Field>
-
-                    <Field
-                      label="Scheduled tasks chat/group ID"
-                      htmlFor="telegram-scheduled-tasks-chat-id"
-                      hint="Optional. Scheduled tasks post here and the message updates as status changes."
-                    >
-                      <Input
-                        id="telegram-scheduled-tasks-chat-id"
-                        value={scheduledTasksChatId}
-                        onChange={(event) => {
-                          setScheduledTasksChatId(event.target.value);
-                          setTelegramDirty(true);
-                        }}
-                        placeholder="e.g. -1001234567890"
-                        className="max-w-xs font-mono"
-                        spellCheck={false}
-                      />
-                    </Field>
-
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled={
-                        sendingTest || (!botToken.trim() && !settingsQuery.data?.telegramBotToken)
-                      }
-                      onClick={() => void handleSendTest()}
-                    >
-                      {sendingTest ? 'Sending…' : 'Send test'}
-                    </Button>
-                  </div>
-                </SettingsCard>
-              )}
-
-              {showSection('network', PROXY_KEYWORDS, 'Proxy') && settingsQuery.data ? (
-                <ProxySettings
-                  settings={settingsQuery.data}
-                  onDirtyChange={setProxyDirty}
-                  saveRef={proxySaveRef}
-                  resetToken={proxyResetToken}
-                />
-              ) : null}
-
-              {showSection('vault', VAULT_KEYWORDS, 'Vault') && settingsQuery.data ? (
-                <VaultSettings settings={settingsQuery.data} />
-              ) : null}
-
-              {showSection(
-                'network',
-                'ping network hosts dashboard url http generate_204 icmp status bar',
-                'Network ping targets',
-              ) && (
-                <SettingsCard
-                  icon={NetworkIcon}
-                  title="Network ping targets"
-                  description="How connection quality is measured for the status bar and the dashboard Network Status graph. The AI pet uses it too if internet alerts are on. Press Enter to add an entry."
-                  dirty={pingTargetsDirty || pingUrlsDirty}
-                >
-                  <div className="space-y-4">
-                    <div className="space-y-1.5">
-                      <Label className="text-xs text-muted-foreground">Method</Label>
-                      <div
-                        role="radiogroup"
-                        aria-label="Ping method"
-                        className="flex flex-col gap-2 sm:flex-row"
-                      >
-                        {PING_METHOD_OPTIONS.map((option) => (
+                      {THEME_OPTIONS.map((option) => {
+                        const active = theme === option.value;
+                        return (
                           <button
                             key={option.value}
                             type="button"
-                            role="radio"
-                            aria-checked={pingMethod === option.value}
-                            onClick={() => setPingMethod(option.value)}
+                            onClick={() => setTheme(option.value)}
                             className={cn(
-                              'flex-1 cursor-pointer rounded-lg border px-3 py-2 text-left transition-colors',
-                              pingMethod === option.value
-                                ? 'border-primary/60 bg-primary/10'
-                                : 'border-input hover:bg-accent',
+                              'cursor-pointer rounded-lg border p-3 text-left transition-all duration-150',
+                              active
+                                ? 'border-primary/50 bg-primary/10 ring-1 ring-primary/40'
+                                : 'border-border bg-background/40 hover:border-foreground/20 hover:bg-accent/40',
                             )}
+                            aria-pressed={active}
                           >
-                            <div className="text-sm font-medium">{option.label}</div>
-                            <div className="text-[11px] text-muted-foreground">{option.hint}</div>
+                            <ThemePreview mode={option.value} />
+                            <div className="mt-2.5 flex items-center gap-2">
+                              <option.icon className="h-3.5 w-3.5 text-muted-foreground" />
+                              <span className="text-sm font-medium">{option.label}</span>
+                            </div>
+                            <p className="mt-0.5 text-xs text-muted-foreground">{option.hint}</p>
                           </button>
-                        ))}
-                      </div>
+                        );
+                      })}
                     </div>
 
-                    {pingMethod !== 'http' && (
-                      <div className="space-y-1.5">
-                        <Label className="text-xs text-muted-foreground">Hosts to ping</Label>
-                        <HostChips
-                          ariaLabel="Hosts to ping"
-                          value={pingTargetsText}
-                          onChange={(value) => {
-                            setPingTargetsText(value);
-                            setPingTargetsDirty(true);
-                          }}
-                        />
-                      </div>
-                    )}
-
-                    {pingMethod !== 'icmp' && (
-                      <div className="space-y-1.5">
-                        <div className="flex items-center justify-between">
-                          <Label className="text-xs text-muted-foreground">URLs to request</Label>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-7 px-2 text-xs"
-                            onClick={() => {
-                              setPingUrlsText(DEFAULT_PING_URL);
-                              setPingUrlsDirty(true);
-                            }}
-                          >
-                            Reset to default
-                          </Button>
-                        </div>
-                        <HostChips
-                          ariaLabel="URLs to request"
-                          placeholder={DEFAULT_PING_URL}
-                          validate={isHttpUrl}
-                          value={pingUrlsText}
-                          onChange={(value) => {
-                            setPingUrlsText(value);
-                            setPingUrlsDirty(true);
-                          }}
-                        />
-                        <div className="flex items-center gap-2 pt-1">
-                          <Label
-                            htmlFor="ping-url-interval"
-                            className="text-xs text-muted-foreground"
-                          >
-                            Request every
-                          </Label>
-                          <Input
-                            id="ping-url-interval"
-                            type="number"
-                            inputMode="numeric"
-                            min={MIN_PING_URL_INTERVAL_SECONDS}
-                            max={MAX_PING_URL_INTERVAL_SECONDS}
-                            className="h-8 w-20"
-                            value={pingIntervalDraft ?? String(pingUrlIntervalSeconds)}
-                            onChange={(event) => setPingIntervalDraft(event.target.value)}
-                            onBlur={commitPingInterval}
-                            onKeyDown={(event) => {
-                              if (event.key === 'Enter') commitPingInterval();
-                            }}
-                          />
-                          <span className="text-xs text-muted-foreground">
-                            seconds ({MIN_PING_URL_INTERVAL_SECONDS} to{' '}
-                            {MAX_PING_URL_INTERVAL_SECONDS})
-                          </span>
-                        </div>
-                        <p className="text-[11px] text-muted-foreground">
-                          Use this when the network blocks the ping command. Any reply from the
-                          server counts as online, and the time to reply is the latency.
+                    <div className="mt-5 space-y-2">
+                      <div>
+                        <p id="menu-position-label" className="text-sm font-medium">
+                          Main menu
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          Keep it in the sidebar, or move it to a bar along the top so pages get the
+                          full width.
                         </p>
                       </div>
-                    )}
-                  </div>
-                </SettingsCard>
-              )}
-
-              {showSection(
-                'data',
-                'backup restore export import zip environments secrets password vault',
-                'Backup & restore',
-              ) && (
-                <SettingsCard
-                  icon={HardDrive}
-                  title="Backup & restore"
-                  description="Exports include projects, settings, templates, and saved keys, plus project environments when you set a password. Keep the file private. Restoring replaces everything on this machine."
-                >
-                  <div className="space-y-4">
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      <div className="rounded-lg border border-border bg-background/40 p-4">
-                        <p className="text-sm font-medium">Export</p>
-                        <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                          Save a copy of this machine's AgentMate data.
-                        </p>
-                        <div className="mt-3 flex items-center gap-2">
-                          <Switch
-                            id="compress-backup"
-                            checked={compressBackup}
-                            onCheckedChange={setCompressBackup}
-                          />
-                          <Label
-                            htmlFor="compress-backup"
-                            className="font-normal text-muted-foreground"
-                          >
-                            Compress as .zip
-                          </Label>
-                        </div>
-                        <div className="mt-3 flex items-center gap-2">
-                          <Switch
-                            id="backup-environments"
-                            checked={backupEnvironments}
-                            onCheckedChange={setBackupEnvironments}
-                          />
-                          <Label
-                            htmlFor="backup-environments"
-                            className="font-normal text-muted-foreground"
-                          >
-                            Include project environments
-                          </Label>
-                        </div>
-                        <div className="mt-3 flex items-center gap-2">
-                          <Switch
-                            id="backup-vault"
-                            checked={backupVault}
-                            onCheckedChange={setBackupVault}
-                          />
-                          <Label
-                            htmlFor="backup-vault"
-                            className="font-normal text-muted-foreground"
-                          >
-                            Include the Vault (stays encrypted with its master password)
-                          </Label>
-                        </div>
-                        {backupEnvironments && (
-                          <div className="mt-3 space-y-2">
-                            <SecretInput
-                              value={backupPassword}
-                              onChange={setBackupPassword}
-                              placeholder="Backup password"
-                            />
-                            <SecretInput
-                              value={backupPasswordConfirm}
-                              onChange={setBackupPasswordConfirm}
-                              placeholder="Confirm password"
-                            />
-                            <p className="text-xs leading-relaxed text-muted-foreground">
-                              Env files and credentials are encrypted with this password. You need
-                              it to restore them, and it cannot be recovered.
-                            </p>
-                            {backupPassword && backupPasswordProblem && (
-                              <p className="text-xs text-destructive">{backupPasswordProblem}</p>
-                            )}
-                          </div>
-                        )}
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="mt-3"
-                          disabled={exportingBackup || backupPasswordProblem !== null}
-                          onClick={() => void handleExportBackup()}
-                        >
-                          <Download className="h-4 w-4" />
-                          {exportingBackup ? 'Exporting…' : 'Export backup'}
-                        </Button>
-                      </div>
-                      <div className="rounded-lg border border-destructive/25 bg-destructive/5 p-4">
-                        <p className="text-sm font-medium">Restore</p>
-                        <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                          Replaces current data. This cannot be undone.
-                        </p>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="mt-8"
-                          disabled={importingBackup}
-                          onClick={() => void handleImportBackup()}
-                        >
-                          <Upload className="h-4 w-4" />
-                          {importingBackup ? 'Restoring…' : 'Restore from backup…'}
-                        </Button>
+                      <div
+                        role="group"
+                        aria-labelledby="menu-position-label"
+                        className="grid grid-cols-2 gap-2 sm:grid-cols-3"
+                      >
+                        {MENU_POSITION_OPTIONS.map((option) => {
+                          const active = menuPosition === option.value;
+                          return (
+                            <button
+                              key={option.value}
+                              type="button"
+                              onClick={() => {
+                                if (!active) menuPositionMutation.mutate(option.value);
+                              }}
+                              className={cn(
+                                'cursor-pointer rounded-lg border p-3 text-left transition-all duration-150',
+                                active
+                                  ? 'border-primary/50 bg-primary/10 ring-1 ring-primary/40'
+                                  : 'border-border bg-background/40 hover:border-foreground/20 hover:bg-accent/40',
+                              )}
+                              aria-pressed={active}
+                            >
+                              <MenuPositionPreview position={option.value} />
+                              <span className="mt-2.5 block text-sm font-medium">
+                                {option.label}
+                              </span>
+                              <p className="mt-0.5 text-xs text-muted-foreground">{option.hint}</p>
+                            </button>
+                          );
+                        })}
                       </div>
                     </div>
-                  </div>
-                  <BackupEnvironmentsPasswordDialog
-                    open={pendingRestore !== null}
-                    onOpenChange={(open) => {
-                      if (!open) setPendingRestore(null);
-                    }}
-                    environmentCount={pendingRestore?.environmentCount ?? 0}
-                    onRestore={(password) =>
-                      pendingRestore
-                        ? restoreBackup(pendingRestore.token, password)
-                        : Promise.resolve('done')
-                    }
-                  />
-                </SettingsCard>
-              )}
+                  </SettingsCard>
+                )}
 
-              {showSection('data', 'about version update check', 'About') && (
-                <SettingsCard
-                  icon={CircleQuestion}
-                  title="About"
-                  description={`AgentMate ${versionLabel}`}
-                  action={
-                    updateStatus.state === 'downloaded' ? (
-                      <Button size="sm" onClick={() => void window.agentmat.app.quitAndInstall()}>
-                        Restart now
-                      </Button>
-                    ) : updateStatus.state === 'downloading' ? (
-                      <div className="flex items-center gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => void window.agentmat.app.pauseDownload()}
-                        >
-                          <Pause className="h-4 w-4" />
-                          Pause
-                        </Button>
-                        <Button variant="outline" size="sm" onClick={() => openUpdateDialog()}>
-                          Show
-                        </Button>
-                      </div>
-                    ) : updateStatus.state === 'paused' ||
-                      (updateStatus.state === 'error' && updateStatus.resumable) ||
-                      updateStatus.state === 'available' ? (
-                      <Button
-                        size="sm"
-                        onClick={() => {
-                          openUpdateDialog();
-                          void window.agentmat.app.downloadUpdate();
-                        }}
-                      >
-                        {updateStatus.state === 'available' && updateStatus.partialBytes === 0 ? (
-                          <>
-                            <Download className="h-4 w-4" />
-                            Download
-                          </>
-                        ) : (
-                          <>
-                            <Play className="h-4 w-4" />
-                            Resume download
-                          </>
-                        )}
-                      </Button>
-                    ) : (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        disabled={checkingForUpdates}
-                        onClick={() => void handleCheckForUpdates()}
-                      >
-                        <RefreshCw
-                          className={cn('h-4 w-4', checkingForUpdates && 'animate-spin')}
-                        />
-                        {checkingForUpdates ? 'Checking…' : 'Check for updates'}
-                      </Button>
-                    )
-                  }
-                >
-                  <div className="space-y-3">
-                    <p className="text-sm text-muted-foreground">{updateStatusLabel()}</p>
-                    {updatePercent(updateStatus) != null &&
-                    updateStatus.state !== 'downloaded' &&
-                    updateStatus.state !== 'idle' ? (
-                      <UpdateProgressTrack
-                        percent={updatePercent(updateStatus) ?? 0}
-                        live={updateStatus.state === 'downloading'}
-                        reconnecting={
-                          updateStatus.state === 'downloading' && updateStatus.reconnecting
+                {/* The one-control settings share a card as hairline-separated rows, so their
+                  switches line up down one edge instead of each filling a card of its own. */}
+                {BEHAVIOR_SECTIONS.some(show) && settingsQuery.data ? (
+                  <Card className="glass settings-rows">
+                    {show('startupPage') ? (
+                      <SettingsRow
+                        icon={History}
+                        title="Startup page"
+                        description="Where AgentMate opens. Last opened page brings back the page and project you were on, whether you closed the app, it restarted for an update or the computer shut down."
+                        control={
+                          <Combobox
+                            ariaLabel="Startup page"
+                            className="w-56"
+                            value={
+                              startupPageMutation.isPending
+                                ? startupPageMutation.variables
+                                : settingsQuery.data.startupPage
+                            }
+                            onChange={(value) => {
+                              if (isStartupPage(value)) startupPageMutation.mutate(value);
+                            }}
+                            searchPlaceholder="Search pages…"
+                            options={STARTUP_PAGE_OPTIONS}
+                          />
                         }
                       />
                     ) : null}
-                  </div>
-                </SettingsCard>
-              )}
-            </>
-          )}
+
+                    {show('keepTerminals') ? (
+                      <SettingsRow
+                        icon={Power}
+                        title="Keep terminals running"
+                        description="Terminal sessions carry on in the background after you quit AgentMate, and come back with their output the next time you open it. Restarting to install an update always keeps them."
+                        control={
+                          <Switch
+                            checked={
+                              keepTerminalsMutation.isPending
+                                ? keepTerminalsMutation.variables
+                                : settingsQuery.data.keepTerminalsRunning
+                            }
+                            onCheckedChange={(checked) => keepTerminalsMutation.mutate(checked)}
+                            aria-label="Keep terminals running after quitting"
+                          />
+                        }
+                      />
+                    ) : null}
+
+                    {show('workspaceNotifications') ? (
+                      <SettingsRow
+                        icon={Bell}
+                        title="Workspace notifications"
+                        description="Get a system notification when an agent in a Workspace tab finishes or asks you something while you are looking at another tab, page or app."
+                        control={
+                          <Switch
+                            checked={
+                              workspaceNotificationsMutation.isPending
+                                ? workspaceNotificationsMutation.variables
+                                : settingsQuery.data.workspaceNotifications
+                            }
+                            onCheckedChange={(checked) =>
+                              workspaceNotificationsMutation.mutate(checked)
+                            }
+                            aria-label="Notify when a workspace agent finishes or needs input"
+                          />
+                        }
+                      />
+                    ) : null}
+
+                    {show('terminalAiNotifications') ? (
+                      <SettingsRow
+                        icon={Bell}
+                        title="Terminal AI notifications"
+                        description="Get a system notification when an AI task in a terminal asks you something or waits for you to approve a command, while that terminal is hidden or you are in another app."
+                        control={
+                          <Switch
+                            checked={
+                              terminalAiNotificationsMutation.isPending
+                                ? terminalAiNotificationsMutation.variables
+                                : settingsQuery.data.terminalAiNotifications
+                            }
+                            onCheckedChange={(checked) =>
+                              terminalAiNotificationsMutation.mutate(checked)
+                            }
+                            aria-label="Notify when a terminal AI task needs you"
+                          />
+                        }
+                      />
+                    ) : null}
+
+                    {show('toolUpdates') ? (
+                      <SettingsRow
+                        icon={RefreshCw}
+                        title="Check for CLI and tool updates"
+                        description="Once a day, check every installed CLI and tool for a newer version and ring the notification bell when one is found."
+                        control={
+                          <Switch
+                            checked={
+                              checkToolUpdatesMutation.isPending
+                                ? checkToolUpdatesMutation.variables
+                                : settingsQuery.data.checkToolUpdatesEnabled
+                            }
+                            onCheckedChange={(checked) => checkToolUpdatesMutation.mutate(checked)}
+                            aria-label="Automatically check for CLI and tool updates"
+                          />
+                        }
+                      />
+                    ) : null}
+
+                    {show('terminalBackground') ? (
+                      <SettingsRow
+                        icon={TerminalSquare}
+                        title="Workspace terminal background"
+                        description="Off by default, so a Workspace terminal pane looks the way its CLI would in any ordinary terminal, for example Claude Code's own gray. Turn this on to paint a fixed background instead; the text color adjusts to stay readable on it."
+                        control={
+                          <Switch
+                            checked={terminalCustomBackground}
+                            onCheckedChange={setTerminalCustomBackground}
+                            aria-label="Use a custom Workspace terminal background"
+                          />
+                        }
+                      >
+                        {terminalCustomBackground ? (
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="color"
+                              aria-label="Workspace terminal background color"
+                              value={terminalBackgroundColor}
+                              onChange={(event) => setTerminalBackgroundColor(event.target.value)}
+                              className="h-8 w-12 cursor-pointer rounded-md border border-border/70 bg-transparent p-1"
+                            />
+                            <span className="font-mono text-xs text-muted-foreground">
+                              {terminalBackgroundColor}
+                            </span>
+                          </div>
+                        ) : null}
+                      </SettingsRow>
+                    ) : null}
+                  </Card>
+                ) : null}
+
+                {show('projectsFolder') && (
+                  <SettingsCard
+                    icon={FolderOpen}
+                    title="Projects folder"
+                    description="Folder pickers open here instead of the system default. Leave empty to use the last system location."
+                    dirty={projectsRootDirty}
+                  >
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Input
+                        value={projectsRootPath}
+                        onChange={(event) => {
+                          setProjectsRootPath(event.target.value);
+                          setProjectsRootDirty(true);
+                        }}
+                        placeholder="C:\Users\you\Projects"
+                        className="min-w-[16rem] flex-1 font-mono text-xs"
+                        spellCheck={false}
+                      />
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => void handleBrowseProjectsRoot()}
+                      >
+                        <FolderOpen /> Browse…
+                      </Button>
+                    </div>
+                  </SettingsCard>
+                )}
+
+                {show('skillRepositories') && (
+                  <SettingsCard
+                    icon={Blocks}
+                    title="Skill repositories"
+                    description={
+                      reposQuery.isLoading
+                        ? 'Loading repositories…'
+                        : `${repoCount} repositor${repoCount === 1 ? 'y' : 'ies'} configured. Add and sync sources from the Skills page.`
+                    }
+                    action={
+                      <Button variant="outline" size="sm" onClick={() => navigate('/skills')}>
+                        <Blocks /> Manage
+                      </Button>
+                    }
+                  />
+                )}
+
+                {show('blueprintPresets') && (
+                  <SettingsCard
+                    icon={Route}
+                    title="Blueprint presets"
+                    description="Reusable snippets for a project's Blueprint. Clicking one in the wizard appends it to that step."
+                  >
+                    <BlueprintPresetSettings />
+                  </SettingsCard>
+                )}
+
+                {show('androidSdk') && settingsQuery.data ? (
+                  <AndroidSdkSettings settings={settingsQuery.data} />
+                ) : null}
+
+                {searchGroupLabel('agents')}
+
+                {show('defaultCli') && (
+                  <SettingsCard
+                    icon={TerminalSquare}
+                    title="Default CLI"
+                    description="Used when a feature needs an AI provider without asking."
+                  >
+                    <div className="max-w-sm space-y-3">
+                      <Combobox
+                        value={defaultCliId ?? ''}
+                        onChange={(value) => setDefaultCliId(value || null)}
+                        placeholder="No default set"
+                        searchPlaceholder="Search CLIs…"
+                        options={CLI_REGISTRY.map((cli) => ({
+                          value: cli.id,
+                          label: cli.name,
+                          icon: cliOptionIcon(cli.id),
+                        }))}
+                        clearable
+                      />
+                      {/* Per CLI, not per default: switching the default brings up that
+                        CLI's own flags. Every CLI has the same field in CLI Manager. */}
+                      {defaultCliId && <CliArgsField cliId={defaultCliId} />}
+                    </div>
+                  </SettingsCard>
+                )}
+
+                {show('launchDefaults') && (
+                  <SettingsCard
+                    icon={Play}
+                    title="Launch defaults"
+                    description="The model, effort, and mode each agent starts with. Anything left on Not set is up to the CLI."
+                  >
+                    <div className="max-w-3xl">
+                      <CliLaunchDefaultsSettings />
+                    </div>
+                  </SettingsCard>
+                )}
+
+                {show('agentOrder') && (
+                  <SettingsCard
+                    icon={TerminalSquare}
+                    title="Agent order"
+                    description="The order agents are listed in when you start one in the Workspace."
+                  >
+                    <div className="max-w-xl">
+                      <CliOrderSettings />
+                    </div>
+                  </SettingsCard>
+                )}
+
+                {show('commitMessages') && (
+                  <SettingsCard
+                    icon={GitCommit}
+                    title="Commit messages"
+                    description="How the sparkle button in the Workspace changes panel writes a commit message for you."
+                  >
+                    <CommitMessageSettingsForm />
+                  </SettingsCard>
+                )}
+
+                {show('worktrees') && (
+                  <SettingsCard
+                    icon={GitBranch}
+                    title="Worktrees"
+                    description="Where new git worktrees go, which local files they start with, and how removing one tidies up."
+                  >
+                    <WorktreeSettingsForm />
+                  </SettingsCard>
+                )}
+
+                {show('reviewCommands') && (
+                  <SettingsCard
+                    icon={GitPullRequest}
+                    title="Review commands"
+                    description="The comments offered in the workspace Pull request tab to ask a review bot to look at the pull request."
+                  >
+                    <ReviewCommandsSettings />
+                  </SettingsCard>
+                )}
+
+                {searchGroupLabel('shortcuts')}
+
+                {show('shortcuts') && (
+                  <SettingsCard
+                    icon={Keyboard}
+                    title="Keyboard shortcuts"
+                    description="Rebind the app, Workspace and commit box shortcuts. Changes apply right away."
+                  >
+                    <ShortcutSettings />
+                  </SettingsCard>
+                )}
+
+                {searchGroupLabel('companion')}
+
+                {show('companion') && settingsQuery.data ? (
+                  <CompanionSettings settings={settingsQuery.data} />
+                ) : null}
+
+                {searchGroupLabel('ai')}
+
+                {show('providers') && (
+                  <SettingsCard
+                    icon={MessageSquare}
+                    title="Providers"
+                    description="Keys and models used by Ask AI and Prompt Builder."
+                    dirty={aiDirty}
+                  >
+                    <div className="space-y-5">
+                      <div className="space-y-3">
+                        <div className="flex items-center gap-2">
+                          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                            OpenAI
+                          </p>
+                          <Badge
+                            variant={openaiApiKey.trim() ? 'success' : 'secondary'}
+                            className="font-normal"
+                          >
+                            {openaiApiKey.trim() ? 'Key set' : 'No key'}
+                          </Badge>
+                        </div>
+                        <div className="grid gap-3 sm:grid-cols-2">
+                          <Field
+                            label="API key"
+                            htmlFor="openai-api-key"
+                            hint={
+                              <>
+                                Create one at{' '}
+                                <ExternalLinkButton href="https://platform.openai.com/api-keys">
+                                  platform.openai.com/api-keys
+                                </ExternalLinkButton>
+                                .
+                              </>
+                            }
+                            className="sm:col-span-2"
+                          >
+                            <SecretInput
+                              id="openai-api-key"
+                              value={openaiApiKey}
+                              onChange={(value) => {
+                                setOpenaiApiKey(value);
+                                setAiDirty(true);
+                              }}
+                              placeholder="sk-…"
+                            />
+                          </Field>
+                          <Field label="Default model" htmlFor="openai-model">
+                            <Input
+                              id="openai-model"
+                              value={openaiModel}
+                              onChange={(event) => {
+                                setOpenaiModel(event.target.value);
+                                setAiDirty(true);
+                              }}
+                              placeholder={DEFAULT_OPENAI_API_MODEL}
+                              className="font-mono"
+                              spellCheck={false}
+                            />
+                          </Field>
+                        </div>
+                      </div>
+
+                      <div className="space-y-3 border-t border-border/60 pt-5">
+                        <div className="flex items-center gap-2">
+                          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                            Gemini
+                          </p>
+                          <Badge
+                            variant={geminiApiKey.trim() ? 'success' : 'secondary'}
+                            className="font-normal"
+                          >
+                            {geminiApiKey.trim() ? 'Key set' : 'No key'}
+                          </Badge>
+                        </div>
+                        <div className="grid gap-3 sm:grid-cols-2">
+                          <Field
+                            label="API key"
+                            htmlFor="gemini-api-key"
+                            hint={
+                              <>
+                                Create one at{' '}
+                                <ExternalLinkButton href="https://aistudio.google.com/apikey">
+                                  aistudio.google.com/apikey
+                                </ExternalLinkButton>
+                                .
+                              </>
+                            }
+                            className="sm:col-span-2"
+                          >
+                            <SecretInput
+                              id="gemini-api-key"
+                              value={geminiApiKey}
+                              onChange={(value) => {
+                                setGeminiApiKey(value);
+                                setAiDirty(true);
+                              }}
+                              placeholder="AIza…"
+                            />
+                          </Field>
+                          <Field label="Default model" htmlFor="gemini-model">
+                            <Input
+                              id="gemini-model"
+                              value={geminiModel}
+                              onChange={(event) => {
+                                setGeminiModel(event.target.value);
+                                setAiDirty(true);
+                              }}
+                              placeholder={DEFAULT_GEMINI_API_MODEL}
+                              className="font-mono"
+                              spellCheck={false}
+                            />
+                          </Field>
+                        </div>
+                      </div>
+
+                      <div className="space-y-3 border-t border-border/60 pt-5">
+                        <div className="flex items-center gap-2">
+                          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                            Ollama
+                          </p>
+                          {ollamaTest ? (
+                            <Badge
+                              variant={ollamaTest.ok ? 'success' : 'destructive'}
+                              className="font-normal"
+                            >
+                              {ollamaTest.ok
+                                ? ollamaTest.version
+                                  ? `Connected · ${ollamaTest.version}`
+                                  : 'Connected'
+                                : 'Not reachable'}
+                            </Badge>
+                          ) : null}
+                        </div>
+                        <Field
+                          label="Server URL"
+                          htmlFor="ollama-base-url"
+                          hint={
+                            <>
+                              Address of a running{' '}
+                              <ExternalLinkButton href="https://ollama.com">
+                                Ollama
+                              </ExternalLinkButton>{' '}
+                              instance. Leave the default if it runs on this machine.
+                            </>
+                          }
+                        >
+                          <div className="flex max-w-xl items-center gap-2">
+                            <Input
+                              id="ollama-base-url"
+                              value={ollamaBaseUrl}
+                              onChange={(event) => {
+                                setOllamaBaseUrl(event.target.value);
+                                setOllamaTest(null);
+                                setAiDirty(true);
+                              }}
+                              placeholder="http://localhost:11434"
+                              className="font-mono"
+                              spellCheck={false}
+                            />
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="shrink-0"
+                              disabled={testingOllama}
+                              onClick={() => void handleTestOllama()}
+                            >
+                              {testingOllama ? 'Testing…' : 'Test connection'}
+                            </Button>
+                          </div>
+                        </Field>
+                        <div className="grid gap-3 sm:grid-cols-2">
+                          <Field
+                            label="Default model"
+                            hint="Picked first on the Ask AI page and used by Prompt Builder. The list comes from the server above."
+                          >
+                            <div className="flex items-center gap-2">
+                              <Combobox
+                                className="min-w-0 flex-1"
+                                value={ollamaModel}
+                                onChange={(value) => {
+                                  setOllamaModel(value);
+                                  setAiDirty(true);
+                                }}
+                                options={ollamaModelOptions}
+                                placeholder={
+                                  ollamaModelsQuery.isFetching
+                                    ? 'Loading models…'
+                                    : 'Choose a model'
+                                }
+                                emptyText="No models found. Is Ollama running?"
+                                clearable
+                              />
+                              <SimpleTooltip label="Refresh model list" wrapTrigger>
+                                <Button
+                                  variant="outline"
+                                  size="icon"
+                                  className="shrink-0"
+                                  disabled={ollamaModelsQuery.isFetching}
+                                  onClick={() => void ollamaModelsQuery.refetch()}
+                                >
+                                  <RefreshCw className="h-3.5 w-3.5" />
+                                </Button>
+                              </SimpleTooltip>
+                            </div>
+                          </Field>
+                          <Field
+                            label="Context length"
+                            htmlFor="ollama-context-length"
+                            hint="Tokens the model keeps in its window (num_ctx). Leave empty to use whatever the model ships with. Bigger values need more RAM or VRAM."
+                          >
+                            <Input
+                              id="ollama-context-length"
+                              inputMode="numeric"
+                              value={ollamaContextLength}
+                              onChange={(event) => {
+                                setOllamaContextLength(event.target.value.replace(/[^0-9]/g, ''));
+                                setAiDirty(true);
+                              }}
+                              placeholder="Model default (e.g. 8192)"
+                              className="font-mono"
+                              spellCheck={false}
+                            />
+                          </Field>
+                          <Field
+                            label="Keep model in memory"
+                            htmlFor="ollama-keep-alive"
+                            hint='How long Ollama holds the model in RAM after a request (keep_alive). Use "5m", "1h", "0" to free it right away, or "-1" to keep it loaded.'
+                          >
+                            <Input
+                              id="ollama-keep-alive"
+                              value={ollamaKeepAlive}
+                              onChange={(event) => {
+                                setOllamaKeepAlive(event.target.value);
+                                setAiDirty(true);
+                              }}
+                              placeholder="5m"
+                              className="font-mono"
+                              spellCheck={false}
+                            />
+                          </Field>
+                        </div>
+                      </div>
+
+                      <div className="border-t border-border/60 pt-5">
+                        <Field
+                          label="Prompt Builder provider"
+                          hint="Used by Generate Prompt. Uses the key and model for that provider above."
+                        >
+                          <Combobox
+                            className="w-40"
+                            value={promptBuilderProvider}
+                            onChange={(value) => {
+                              setPromptBuilderProvider(value as AiProvider);
+                              setAiDirty(true);
+                            }}
+                            options={PROMPT_BUILDER_PROVIDER_OPTIONS}
+                          />
+                        </Field>
+                      </div>
+                    </div>
+                  </SettingsCard>
+                )}
+
+                {show('voiceInput') && (
+                  <SettingsCard
+                    icon={Microphone}
+                    title="Voice input"
+                    description="Local Whisper transcription for Prompt Builder. The model downloads once and stays cached."
+                    dirty={speechDirty}
+                  >
+                    <div className="grid max-w-lg grid-cols-1 gap-3 sm:grid-cols-2">
+                      <Field label="Model">
+                        <Combobox
+                          value={speechModel}
+                          onChange={(value) => {
+                            setSpeechModel(value);
+                            setSpeechDirty(true);
+                          }}
+                          options={WHISPER_MODELS.map((m) => ({ value: m.key, label: m.label }))}
+                        />
+                      </Field>
+                      <Field label="Spoken language">
+                        <Combobox
+                          value={speechLanguage}
+                          onChange={(value) => {
+                            setSpeechLanguage(value);
+                            setSpeechDirty(true);
+                          }}
+                          options={SPEECH_LANGUAGES}
+                        />
+                      </Field>
+                    </div>
+                  </SettingsCard>
+                )}
+
+                {show('writingCheck') && settingsQuery.data ? (
+                  <WritingCheckSettings settings={settingsQuery.data} />
+                ) : null}
+
+                {show('translationRetries') && (
+                  <SettingsCard
+                    icon={Languages}
+                    title="Translation retries"
+                    description="Extra attempts Prompt Builder makes if a translate request fails."
+                    dirty={translateRetriesDirty}
+                  >
+                    <Input
+                      type="number"
+                      min={0}
+                      max={10}
+                      value={translateMaxRetriesText}
+                      onChange={(event) => {
+                        setTranslateMaxRetriesText(event.target.value);
+                        setTranslateRetriesDirty(true);
+                      }}
+                      className="w-24"
+                    />
+                  </SettingsCard>
+                )}
+
+                {searchGroupLabel('notifications')}
+
+                {show('telegram') && (
+                  <SettingsCard
+                    icon={Bell}
+                    title="Telegram bot"
+                    description="Used by project notification hooks and scheduled task updates."
+                    dirty={telegramDirty}
+                    action={
+                      <Badge
+                        variant={telegramReady ? 'success' : 'secondary'}
+                        className="font-normal"
+                      >
+                        {telegramReady ? 'Ready' : 'Not configured'}
+                      </Badge>
+                    }
+                  >
+                    <div className="space-y-4">
+                      <ol className="list-decimal space-y-1 pl-4 text-sm text-muted-foreground">
+                        <li>
+                          Create a bot with{' '}
+                          <ExternalLinkButton href="https://t.me/BotFather">
+                            @BotFather
+                          </ExternalLinkButton>{' '}
+                          and paste its token.
+                        </li>
+                        <li>Message the bot once on Telegram, then detect the chat ID.</li>
+                      </ol>
+
+                      <Field label="Bot token" htmlFor="telegram-bot-token">
+                        <SecretInput
+                          id="telegram-bot-token"
+                          value={botToken}
+                          onChange={(value) => {
+                            setBotToken(value);
+                            setTelegramDirty(true);
+                          }}
+                          placeholder="123456789:AAExampleTokenFromBotFather"
+                          className="max-w-md"
+                        />
+                      </Field>
+
+                      <Field
+                        label="Chat ID"
+                        htmlFor="telegram-chat-id"
+                        hint="Message your bot once on Telegram, then click detect."
+                      >
+                        <div className="flex flex-wrap gap-2">
+                          <Input
+                            id="telegram-chat-id"
+                            value={chatId}
+                            onChange={(event) => {
+                              setChatId(event.target.value);
+                              setTelegramDirty(true);
+                            }}
+                            placeholder="e.g. 123456789"
+                            className="max-w-xs font-mono"
+                            spellCheck={false}
+                          />
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            disabled={detectingChatId || !botToken.trim()}
+                            onClick={() => void handleDetectChatId()}
+                          >
+                            {detectingChatId ? 'Detecting…' : 'Detect from last message'}
+                          </Button>
+                        </div>
+                      </Field>
+
+                      <Field
+                        label="Scheduled tasks chat/group ID"
+                        htmlFor="telegram-scheduled-tasks-chat-id"
+                        hint="Optional. Scheduled tasks post here and the message updates as status changes."
+                      >
+                        <Input
+                          id="telegram-scheduled-tasks-chat-id"
+                          value={scheduledTasksChatId}
+                          onChange={(event) => {
+                            setScheduledTasksChatId(event.target.value);
+                            setTelegramDirty(true);
+                          }}
+                          placeholder="e.g. -1001234567890"
+                          className="max-w-xs font-mono"
+                          spellCheck={false}
+                        />
+                      </Field>
+
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={
+                          sendingTest || (!botToken.trim() && !settingsQuery.data?.telegramBotToken)
+                        }
+                        onClick={() => void handleSendTest()}
+                      >
+                        {sendingTest ? 'Sending…' : 'Send test'}
+                      </Button>
+                    </div>
+                  </SettingsCard>
+                )}
+
+                {searchGroupLabel('network')}
+
+                {show('proxy') && settingsQuery.data ? (
+                  <ProxySettings
+                    settings={settingsQuery.data}
+                    onDirtyChange={setProxyDirty}
+                    saveRef={proxySaveRef}
+                    resetToken={proxyResetToken}
+                  />
+                ) : null}
+
+                {show('pingTargets') && (
+                  <SettingsCard
+                    icon={NetworkIcon}
+                    title="Network ping targets"
+                    description="How connection quality is measured for the status bar and the dashboard Network Status graph. The AI pet uses it too if internet alerts are on. Press Enter to add an entry."
+                    dirty={pingTargetsDirty || pingUrlsDirty}
+                  >
+                    <div className="space-y-4">
+                      <div className="space-y-1.5">
+                        <Label className="text-xs text-muted-foreground">Method</Label>
+                        <div
+                          role="radiogroup"
+                          aria-label="Ping method"
+                          className="flex flex-col gap-2 sm:flex-row"
+                        >
+                          {PING_METHOD_OPTIONS.map((option) => (
+                            <button
+                              key={option.value}
+                              type="button"
+                              role="radio"
+                              aria-checked={pingMethod === option.value}
+                              onClick={() => setPingMethod(option.value)}
+                              className={cn(
+                                'flex-1 cursor-pointer rounded-lg border px-3 py-2 text-left transition-colors',
+                                pingMethod === option.value
+                                  ? 'border-primary/60 bg-primary/10'
+                                  : 'border-input hover:bg-accent',
+                              )}
+                            >
+                              <div className="text-sm font-medium">{option.label}</div>
+                              <div className="text-[11px] text-muted-foreground">{option.hint}</div>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {pingMethod !== 'http' && (
+                        <div className="space-y-1.5">
+                          <Label className="text-xs text-muted-foreground">Hosts to ping</Label>
+                          <HostChips
+                            ariaLabel="Hosts to ping"
+                            value={pingTargetsText}
+                            onChange={(value) => {
+                              setPingTargetsText(value);
+                              setPingTargetsDirty(true);
+                            }}
+                          />
+                        </div>
+                      )}
+
+                      {pingMethod !== 'icmp' && (
+                        <div className="space-y-1.5">
+                          <div className="flex items-center justify-between">
+                            <Label className="text-xs text-muted-foreground">URLs to request</Label>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 px-2 text-xs"
+                              onClick={() => {
+                                setPingUrlsText(DEFAULT_PING_URL);
+                                setPingUrlsDirty(true);
+                              }}
+                            >
+                              Reset to default
+                            </Button>
+                          </div>
+                          <HostChips
+                            ariaLabel="URLs to request"
+                            placeholder={DEFAULT_PING_URL}
+                            validate={isHttpUrl}
+                            value={pingUrlsText}
+                            onChange={(value) => {
+                              setPingUrlsText(value);
+                              setPingUrlsDirty(true);
+                            }}
+                          />
+                          <div className="flex items-center gap-2 pt-1">
+                            <Label
+                              htmlFor="ping-url-interval"
+                              className="text-xs text-muted-foreground"
+                            >
+                              Request every
+                            </Label>
+                            <Input
+                              id="ping-url-interval"
+                              type="number"
+                              inputMode="numeric"
+                              min={MIN_PING_URL_INTERVAL_SECONDS}
+                              max={MAX_PING_URL_INTERVAL_SECONDS}
+                              className="h-8 w-20"
+                              value={pingIntervalDraft ?? String(pingUrlIntervalSeconds)}
+                              onChange={(event) => setPingIntervalDraft(event.target.value)}
+                              onBlur={commitPingInterval}
+                              onKeyDown={(event) => {
+                                if (event.key === 'Enter') commitPingInterval();
+                              }}
+                            />
+                            <span className="text-xs text-muted-foreground">
+                              seconds ({MIN_PING_URL_INTERVAL_SECONDS} to{' '}
+                              {MAX_PING_URL_INTERVAL_SECONDS})
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-muted-foreground">
+                            Use this when the network blocks the ping command. Any reply from the
+                            server counts as online, and the time to reply is the latency.
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </SettingsCard>
+                )}
+
+                {searchGroupLabel('vault')}
+
+                {show('vault') && settingsQuery.data ? (
+                  <VaultSettings settings={settingsQuery.data} />
+                ) : null}
+
+                {searchGroupLabel('data')}
+
+                {show('backup') && (
+                  <SettingsCard
+                    icon={HardDrive}
+                    title="Backup & restore"
+                    description="Exports include projects, settings, templates, and saved keys, plus project environments when you set a password. Keep the file private. Restoring replaces everything on this machine."
+                  >
+                    <div className="space-y-4">
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <div className="rounded-lg border border-border bg-background/40 p-4">
+                          <p className="text-sm font-medium">Export</p>
+                          <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                            Save a copy of this machine's AgentMate data.
+                          </p>
+                          <div className="mt-3 flex items-center gap-2">
+                            <Switch
+                              id="compress-backup"
+                              checked={compressBackup}
+                              onCheckedChange={setCompressBackup}
+                            />
+                            <Label
+                              htmlFor="compress-backup"
+                              className="font-normal text-muted-foreground"
+                            >
+                              Compress as .zip
+                            </Label>
+                          </div>
+                          <div className="mt-3 flex items-center gap-2">
+                            <Switch
+                              id="backup-environments"
+                              checked={backupEnvironments}
+                              onCheckedChange={setBackupEnvironments}
+                            />
+                            <Label
+                              htmlFor="backup-environments"
+                              className="font-normal text-muted-foreground"
+                            >
+                              Include project environments
+                            </Label>
+                          </div>
+                          <div className="mt-3 flex items-center gap-2">
+                            <Switch
+                              id="backup-vault"
+                              checked={backupVault}
+                              onCheckedChange={setBackupVault}
+                            />
+                            <Label
+                              htmlFor="backup-vault"
+                              className="font-normal text-muted-foreground"
+                            >
+                              Include the Vault (stays encrypted with its master password)
+                            </Label>
+                          </div>
+                          {backupEnvironments && (
+                            <div className="mt-3 space-y-2">
+                              <SecretInput
+                                value={backupPassword}
+                                onChange={setBackupPassword}
+                                placeholder="Backup password"
+                              />
+                              <SecretInput
+                                value={backupPasswordConfirm}
+                                onChange={setBackupPasswordConfirm}
+                                placeholder="Confirm password"
+                              />
+                              <p className="text-xs leading-relaxed text-muted-foreground">
+                                Env files and credentials are encrypted with this password. You need
+                                it to restore them, and it cannot be recovered.
+                              </p>
+                              {backupPassword && backupPasswordProblem && (
+                                <p className="text-xs text-destructive">{backupPasswordProblem}</p>
+                              )}
+                            </div>
+                          )}
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="mt-3"
+                            disabled={exportingBackup || backupPasswordProblem !== null}
+                            onClick={() => void handleExportBackup()}
+                          >
+                            <Download className="h-4 w-4" />
+                            {exportingBackup ? 'Exporting…' : 'Export backup'}
+                          </Button>
+                        </div>
+                        <div className="rounded-lg border border-destructive/25 bg-destructive/5 p-4">
+                          <p className="text-sm font-medium">Restore</p>
+                          <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                            Replaces current data. This cannot be undone.
+                          </p>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="mt-8"
+                            disabled={importingBackup}
+                            onClick={() => void handleImportBackup()}
+                          >
+                            <Upload className="h-4 w-4" />
+                            {importingBackup ? 'Restoring…' : 'Restore from backup…'}
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                    <BackupEnvironmentsPasswordDialog
+                      open={pendingRestore !== null}
+                      onOpenChange={(open) => {
+                        if (!open) setPendingRestore(null);
+                      }}
+                      environmentCount={pendingRestore?.environmentCount ?? 0}
+                      onRestore={(password) =>
+                        pendingRestore
+                          ? restoreBackup(pendingRestore.token, password)
+                          : Promise.resolve('done')
+                      }
+                    />
+                  </SettingsCard>
+                )}
+
+                {show('about') && (
+                  <SettingsCard
+                    icon={CircleQuestion}
+                    title="About"
+                    description={`AgentMate ${versionLabel}`}
+                    action={
+                      updateStatus.state === 'downloaded' ? (
+                        <Button size="sm" onClick={() => void window.agentmat.app.quitAndInstall()}>
+                          Restart now
+                        </Button>
+                      ) : updateStatus.state === 'downloading' ? (
+                        <div className="flex items-center gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => void window.agentmat.app.pauseDownload()}
+                          >
+                            <Pause className="h-4 w-4" />
+                            Pause
+                          </Button>
+                          <Button variant="outline" size="sm" onClick={() => openUpdateDialog()}>
+                            Show
+                          </Button>
+                        </div>
+                      ) : updateStatus.state === 'paused' ||
+                        (updateStatus.state === 'error' && updateStatus.resumable) ||
+                        updateStatus.state === 'available' ? (
+                        <Button
+                          size="sm"
+                          onClick={() => {
+                            openUpdateDialog();
+                            void window.agentmat.app.downloadUpdate();
+                          }}
+                        >
+                          {updateStatus.state === 'available' && updateStatus.partialBytes === 0 ? (
+                            <>
+                              <Download className="h-4 w-4" />
+                              Download
+                            </>
+                          ) : (
+                            <>
+                              <Play className="h-4 w-4" />
+                              Resume download
+                            </>
+                          )}
+                        </Button>
+                      ) : (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={checkingForUpdates}
+                          onClick={() => void handleCheckForUpdates()}
+                        >
+                          <RefreshCw
+                            className={cn('h-4 w-4', checkingForUpdates && 'animate-spin')}
+                          />
+                          {checkingForUpdates ? 'Checking…' : 'Check for updates'}
+                        </Button>
+                      )
+                    }
+                  >
+                    <div className="space-y-3">
+                      <p className="text-sm text-muted-foreground">{updateStatusLabel()}</p>
+                      {updatePercent(updateStatus) != null &&
+                      updateStatus.state !== 'downloaded' &&
+                      updateStatus.state !== 'idle' ? (
+                        <UpdateProgressTrack
+                          percent={updatePercent(updateStatus) ?? 0}
+                          live={updateStatus.state === 'downloading'}
+                          reconnecting={
+                            updateStatus.state === 'downloading' && updateStatus.reconnecting
+                          }
+                        />
+                      ) : null}
+                    </div>
+                  </SettingsCard>
+                )}
+              </>
+            )}
+          </div>
         </div>
       </div>
 
       {anyDirty ? (
-        <div className="sticky bottom-0 z-20 border-t border-border/80 bg-background/85 px-6 py-3 backdrop-blur-xl">
-          <div className="mx-auto flex w-full max-w-5xl items-center justify-between gap-3">
+        <div className="sticky bottom-0 z-20 border-t border-border/80 bg-background/85 px-4 py-3 backdrop-blur-xl @3xl/settings:px-6">
+          <div className="flex w-full items-center justify-between gap-3">
             <p className="text-sm text-muted-foreground">
               Unsaved changes
               <span className="ml-2 hidden text-xs sm:inline">({saveShortcutLabel()} to save)</span>

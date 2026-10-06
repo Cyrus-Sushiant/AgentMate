@@ -18,3 +18,42 @@ export function applyWindowGlass(root: HTMLElement, search: string): void {
   const glass = windowGlassFromSearch(search);
   if (glass) root.dataset.glass = glass;
 }
+
+/** The part of the preload bridge (`window.agentmat.window`) that reports the window's focus. */
+export interface WindowFocusSource {
+  isFocused(): Promise<boolean>;
+  onFocusChange(callback: (isFocused: boolean) => void): () => void;
+}
+
+/** Marks <html> with data-window-inactive while another window is in front. */
+export function setWindowInactive(root: HTMLElement, inactive: boolean): void {
+  if (inactive) root.dataset.windowInactive = '';
+  else delete root.dataset.windowInactive;
+}
+
+/**
+ * Windows swaps Mica for a flat neutral fill while the window is inactive, so index.css repaints
+ * the see-through chrome in the theme's own colors until focus comes back. Only a Mica window
+ * needs this: macOS vibrancy is kept active, and opaque windows never change. Returns the
+ * unsubscribe.
+ */
+export function trackWindowFocus(
+  root: HTMLElement,
+  source: WindowFocusSource | undefined,
+): () => void {
+  if (root.dataset.glass !== 'mica' || !source) return () => undefined;
+
+  // A focus change can land before the first answer does, and it is the newer of the two.
+  let heard = false;
+  const unsubscribe = source.onFocusChange((focused) => {
+    heard = true;
+    setWindowInactive(root, !focused);
+  });
+  source
+    .isFocused()
+    .then((focused) => {
+      if (!heard && typeof focused === 'boolean') setWindowInactive(root, !focused);
+    })
+    .catch(() => undefined);
+  return unsubscribe;
+}

@@ -2,7 +2,7 @@ import { parseScopeId } from '@agentmat/core';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { useQueries, useQuery } from '@tanstack/react-query';
 import { Command as CommandPrimitive } from 'cmdk';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Bell,
@@ -25,11 +25,37 @@ import { useToastHistoryStore } from '@/stores/toastHistoryStore';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
 import { useWorktreeDialogStore } from '@/stores/worktreeDialogStore';
 
+/** The panel's padding plus its 1px border, so its search field lands exactly on the title bar's. */
+const ANCHOR_INSET = 7;
+/** Narrower than this and project paths and skill descriptions would truncate too hard. */
+const MIN_ANCHORED_WIDTH = 480;
+
+/**
+ * Where the title bar's search box is while the panel is open. The panel opens on top of it, so
+ * typing reads as typing into that same box with the results dropping down from it.
+ */
+function useSearchAnchor(open: boolean): DOMRect | null {
+  const [rect, setRect] = useState<DOMRect | null>(null);
+  useLayoutEffect(() => {
+    if (!open) return;
+    const measure = (): void => {
+      const box = document.querySelector('[data-search-anchor]')?.getBoundingClientRect();
+      setRect(box && box.width > 0 ? box : null);
+    };
+    measure();
+    window.addEventListener('resize', measure);
+    return () => window.removeEventListener('resize', measure);
+  }, [open]);
+  return rect;
+}
+
 export function CommandPalette(): React.JSX.Element {
   const open = useSearchStore((s) => s.open);
   const setOpen = useSearchStore((s) => s.setOpen);
   const navigate = useNavigate();
   const [query, setQuery] = useState('');
+  const anchor = useSearchAnchor(open);
+  const anchoredWidth = anchor ? Math.max(anchor.width + ANCHOR_INSET * 2, MIN_ANCHORED_WIDTH) : 0;
 
   useEffect(() => {
     if (!open) setQuery('');
@@ -120,16 +146,27 @@ export function CommandPalette(): React.JSX.Element {
   return (
     <DialogPrimitive.Root open={open} onOpenChange={setOpen}>
       <DialogPrimitive.Portal>
-        <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-black/30 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0" />
-        {/* Drops from just under the title bar's search pill, drawn as the same island surface
-            as the page content. */}
+        {/* Both layers sit over the title bar, whose drag region would otherwise take their clicks. */}
+        <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-black/15 [-webkit-app-region:no-drag] data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0" />
+        {/* Opens over the title bar's search box with its own field in exactly that spot, so the
+            box looks like it grows the results downward. Centred near the top when there is no
+            box to anchor to. */}
         <DialogPrimitive.Content
           onOpenAutoFocus={(e) => e.preventDefault()}
+          style={
+            anchor
+              ? {
+                  top: anchor.top - ANCHOR_INSET,
+                  left: anchor.left + anchor.width / 2 - anchoredWidth / 2,
+                  width: anchoredWidth,
+                }
+              : undefined
+          }
           className={cn(
-            'search-panel fixed left-1/2 top-12 z-50 w-full max-w-xl -translate-x-1/2 text-popover-foreground',
-            'data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0',
-            'data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95',
-            'data-[state=open]:slide-in-from-top-2',
+            'search-panel fixed z-50 text-popover-foreground [-webkit-app-region:no-drag]',
+            'data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0',
+            !anchor &&
+              'left-1/2 top-12 w-full max-w-xl -translate-x-1/2 data-[state=open]:zoom-in-95',
           )}
         >
           <DialogPrimitive.Title className="sr-only">Search AgentMate</DialogPrimitive.Title>
@@ -137,15 +174,15 @@ export function CommandPalette(): React.JSX.Element {
             Search projects, prompt history, and skills.
           </DialogPrimitive.Description>
           <CommandPrimitive className="flex flex-col" loop>
-            <div className="p-2 pb-0">
-              <div className="search-pill flex items-center gap-2.5 rounded-full pl-4 pr-2">
-                <Search className="h-4 w-4 shrink-0 text-muted-foreground" />
+            <div className="p-1.5 pb-0">
+              <div className="search-pill flex h-8 items-center gap-2 rounded-full pl-3.5 pr-1.5">
+                <Search className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                 <CommandPrimitive.Input
                   autoFocus
                   value={query}
                   onValueChange={setQuery}
-                  placeholder="Search projects, prompt history, skills…"
-                  className="h-10 w-full bg-transparent text-[15px] outline-none placeholder:text-muted-foreground"
+                  placeholder="Search projects, history, skills…"
+                  className="h-full w-full bg-transparent text-[13px] outline-none placeholder:text-muted-foreground"
                 />
                 <kbd className="hidden shrink-0 rounded-full bg-foreground/[0.07] px-2 py-0.5 font-sans text-[10px] font-medium text-muted-foreground sm:inline-block">
                   Esc
@@ -158,7 +195,7 @@ export function CommandPalette(): React.JSX.Element {
               </CommandPrimitive.Empty>
 
               <CommandPrimitive.Group
-                heading="Pages"
+                heading="Go to"
                 className="px-1 py-1 text-xs font-medium text-muted-foreground [&_[cmdk-group-heading]]:px-2.5 [&_[cmdk-group-heading]]:pb-1 [&_[cmdk-group-heading]]:pt-2 [&_[cmdk-group-heading]]:text-[10px] [&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-[0.08em] [&_[cmdk-group-heading]]:text-muted-foreground/60"
               >
                 {NAV_ITEMS.map((item) => (

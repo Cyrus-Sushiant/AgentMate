@@ -1,0 +1,179 @@
+---
+title: Token Usage
+category: Agents
+order: 50
+summary: Track tokens, cost and plan limits across your AI coding agents and API providers, get alerts before you hit a limit, and pin live usage widgets to your desktop or Dashboard.
+keywords: token usage, tokens, cost, spend, usage, limits, quota, rate limit, claude code, codex, cursor, openai, openrouter, deepseek, api key, threshold alert, reset alert, widget, desktop widget, glass widget, dashboard, plan limits, 5 hour session, weekly limit
+route: /usage
+---
+
+Token Usage shows how many tokens your AI tools have used and what that is worth in dollars, plus how close you are to your plan's limits. Claude Code, Codex and Cursor connect on their own. API providers such as OpenAI, OpenRouter or DeepSeek connect when you paste a key. You can set alerts for when a limit is nearly used up or has just reset, and pin any card as a frosted-glass widget on your desktop or on the Dashboard.
+
+## Where to find it
+
+Click **Token Usage** in the sidebar under **Agents**, or open the command palette and type "Token Usage". The status bar at the bottom of the window also shows your current limit (see below), and clicking it opens this page.
+
+## How the numbers are collected
+
+There are three kinds of source, and the **Add a provider** dialog labels each one.
+
+| Source | Providers | How it works |
+| --- | --- | --- |
+| **Local logs · automatic** | Claude Code, Codex | AgentMate reads the session logs these CLIs already write on your machine (Claude Code under `~/.claude/projects`, Codex under `~/.codex/sessions`). No key, no network, and every run counts, whether you started it from AgentMate or another terminal. |
+| **Signed-in app · automatic** | Cursor | Cursor keeps no local token log, so AgentMate reads your usage through the Cursor desktop app's signed-in session. Sign in to the Cursor app and the card connects itself. |
+| **API key** | OpenAI, OpenRouter, z.ai, LiteLLM, DeepSeek, Moonshot | You paste a key and AgentMate asks the provider for spend or balance. These providers usually report credit and cost, not raw token counts, so their cards show cost and a limit bar and may show zero tokens. |
+
+Another 54 providers are listed as **Soon** (an integration is registered but not wired yet). The dialog title counts 63 providers in total.
+
+> [!NOTE]
+> Usage is cached for about 30 seconds, and the page re-reads it every 45 seconds. Click **Refresh** to force a fresh scan.
+
+> [!TIP]
+> For OpenAI, use an Admin key, since the organization costs endpoint needs one. LiteLLM reads from `http://localhost:4000` by default.
+
+## The page
+
+### Summary tiles
+
+Four tiles sit at the top: **Tokens today**, **Tokens (7 days)**, **Cost today** and **Providers tracked** (for example 3/63). They add up every tracked provider that loaded successfully. Each tile has a small dashboard icon that adds the tile to your Dashboard (and removes it again, after a confirmation).
+
+### All agents
+
+The **All agents** card combines every tracked provider. It has **Day**, **Week** and **Month** chips and shows the headline token count and cost for that period, averages per day and per agent, a Usage and Cost comparison of the three periods, a **By agent** breakdown with a bar for each provider, and a 14-day trend chart. Icons on the card add it to the Dashboard or pin it to the desktop. If nothing is tracked yet, it says "Track a provider to see combined usage, averages, and cost across your agents."
+
+### Provider cards
+
+Each tracked provider gets its own card with its logo and name. The card shows:
+
+- **Day / Week / Month** chips and the headline tokens and cost for that period, with a per-day average.
+- A limit bar when the provider reports one (for example Cursor's plan quota, or a budget or balance for API providers), with a reset countdown when known.
+- Side-by-side Usage and Cost bars for day, week and month.
+- For Cursor, a breakdown of the period into named slices (for example Auto versus API-priced calls) with tokens, cost and request counts.
+- A 14-day trend sparkline.
+
+A card can also show a **connect** message instead of numbers: "Sign in to the Cursor app to track usage", or "API key required to track usage". If a provider fails to load, the card shows the error in red and the other cards keep working.
+
+The icons in a card's header are:
+
+| Icon | What it does |
+| --- | --- |
+| Bell | Opens **Reset alerts** (on the Claude Code card only). |
+| Warning triangle | Opens **Usage threshold alert** (on the Claude Code card only). |
+| Clock or chart | Switches the card between **Show plan limits** and **Show tokens and cost** (only when the account reports plan limits). |
+| Dashboard | **Add to dashboard** or **Remove from dashboard**. |
+| Pin | **Add to desktop**, which opens the widget dialog. |
+| X | **Remove** the provider from tracking (API-key providers only, since Claude Code, Codex and Cursor are always on). |
+
+### Plan limits view
+
+For Claude Code on a subscription plan, the card can show your plan's rolling limits instead of raw tokens. A plan badge (such as Pro) appears, then one bar per limit with the percent used and a "resets in" countdown:
+
+- **Session (5h)**: the 5-hour block, which starts with your first message after an idle gap.
+- **Weekly**: the rolling 7-day limit.
+- **Weekly (Fable)**: a separate weekly bucket that only plans above Pro have.
+
+The bars turn red at 90% and above. When AgentMate can read your account, the numbers come from the account itself. When it cannot reach it, it reconstructs the windows from your local logs, marks them with a `~` and the word **estimated**, and the tooltip says why. Under the bars you see tokens used today and the dollar-equivalent cost. If the account bills an API key and has no limits, the card stays on the tokens view.
+
+Costs are estimates calculated from token counts with a built-in model price table, so they are "API-equivalent" figures. They are not an invoice.
+
+### Add a provider
+
+1. Click **Add provider** at the top.
+2. Search the list (the box says "Search 63 providers…"). Each row shows the provider, a category badge and its source.
+3. For an API-key provider, paste the key in the box and click **Add**. The row then shows **Added**. Claude Code, Codex and Cursor show **Auto** and need nothing. Providers marked **Soon** cannot be added yet.
+
+Keys are stored in AgentMate's settings on your machine. Remove a provider with the X on its card. That stops tracking it and takes its card off the Dashboard.
+
+### Reorder cards
+
+Click the pencil icon (**Edit card order**) at the top right to show a drag handle on each provider card. Drag cards into the order you want, then click the check mark (**Done editing**).
+
+### Refresh
+
+**Refresh** clears the cache and rescans every provider.
+
+## Alerts
+
+Both alerts watch Claude Code's plan windows (Session, Weekly and Weekly (Fable)). A window your plan does not report shows "Your plan does not report this window" and cannot be used.
+
+### Usage threshold alert
+
+Click the warning triangle on the Claude Code card to open **Usage threshold alert**.
+
+1. Turn on **Notify at threshold**.
+2. Set **Threshold (%)**, from 1 to 100 (the default is 90).
+3. Choose which windows to watch with the switches (**Session (5h)** by default).
+4. Click **Send a test alert** to check that notifications work.
+
+AgentMate checks about once a minute. When a watched window reaches the threshold you get an operating system notification, or an in-app alert if the system cannot show one. It fires once per window until that window resets or drops back below the threshold. Clicking the notification opens Token Usage and highlights the provider's card with a ring.
+
+### Reset alert (Telegram)
+
+Click the bell on the Claude Code card to open **Reset alerts**. When a watched window rolls over and your quota is full again, your Telegram bot sends you a message with the window, the plan, the reset time and the next reset.
+
+1. Set up your Telegram bot token and chat ID in Settings first. See [Notifications and Telegram](notifications-telegram.md).
+2. Turn on **Telegram reset alert**. The switch tells you when the next message is due ("Next message in ..."), or that it is idle.
+3. Choose the windows to watch.
+4. Optionally type a **Chat/group ID** to send these to a different chat. Leave it empty to reuse the chat from Settings. The bot token always comes from Settings.
+5. Click **Send a test alert** and check Telegram.
+
+If you turn it on without a bot token and chat ID, AgentMate warns you: "Add your Telegram bot token and chat ID in Settings to receive these."
+
+## Widgets
+
+A widget is a small frosted-glass window showing one provider's usage, floating on your desktop. They are separate from the main AgentMate window.
+
+### Pin a widget to the desktop
+
+1. Click the pin icon (**Add to desktop**) on a provider card, on the **All agents** card, or when the card is showing plan limits, to pin that view.
+2. In the **Add to desktop** dialog, check the live preview and adjust the settings (below).
+3. Click **Add to desktop**.
+
+You can pin several widgets, even for the same provider (for example one for tokens and one for plan limits). New widgets appear slightly offset so they do not stack exactly.
+
+### Widget settings
+
+The same settings appear in the pin dialog and in the widget itself.
+
+| Setting | What it does |
+| --- | --- |
+| **Period** | Day, Week or Month for the headline numbers. |
+| **Background blur** | How frosted the glass is, from 0 to 100%. |
+| **Background color** | **Theme**, one of the presets (Ink, Slate, Navy, Forest, Wine, Sand, Frost) or a custom color. |
+| **Always on top** | On: stays above other windows. Off: sits on the desktop behind other windows and shows when you show the desktop. |
+| **Size** | S, M or L. You can also resize the widget by dragging its edges. |
+| **Style** | **Color** uses the provider's brand color. **Mono** uses a plain neutral tint. |
+
+### Use a widget
+
+- Drag the thin strip along the top of a widget to move it. Position and size are remembered.
+- Hover a widget to see its buttons. The clock or chart button switches between plan limits and tokens (when the account has limits). The gear opens widget settings, with **Remove from desktop** at the bottom. Click the gear again (**Back to usage**) to return.
+- The period chips inside a widget change its period too.
+- Widgets refresh about once a minute.
+- On Windows and Linux, closing the main AgentMate window closes the widgets too, and they come back the next time you open the app.
+
+See [Widgets and the desktop pet](widgets-desktop-pet.md) for other desktop widgets.
+
+## On the Dashboard
+
+Provider cards, the **All agents** card and the four summary tiles can be pinned to the [Dashboard](dashboard.md) with the dashboard icon. A pinned provider card mirrors the view (tokens or plan limits) its Token Usage card is showing. In the Dashboard's edit mode you can reorder or remove them, and an **Open Token Usage** button takes you back here. If you stop tracking a provider, its Dashboard card says it is no longer tracked.
+
+## The status bar
+
+When a tracked account reports plan limits, the status bar at the bottom shows the provider's logo, the percent used of its soonest-resetting limit and a countdown. Click it to open a **Cloud limits** panel listing each provider's windows with a meter, the percent and a reset countdown. Click a provider in that panel to open Token Usage.
+
+## Tips
+
+- Use **Show plan limits** on the Claude Code card to see how close you are to the 5-hour and weekly caps, and set a threshold alert at 80 or 90 percent so you are warned in time.
+- The **All agents** card is a good one to pin to the desktop with a week period for a quick spend check.
+- If a card looks stale, click **Refresh**. If a number looks wrong for Cursor, make sure you are signed in to the Cursor app.
+- Token counts for API-key providers are often zero because the provider only reports spend or balance.
+
+## Related
+
+- [AI CLI Manager](cli-manager.md)
+- [Dashboard](dashboard.md)
+- [Widgets and the desktop pet](widgets-desktop-pet.md)
+- [Notifications and Telegram](notifications-telegram.md)
+- [Agent Tools](agent-tools.md)
+- [AI providers](ai-providers.md)

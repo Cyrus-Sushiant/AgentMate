@@ -170,6 +170,10 @@ import type {
   GitOpResult,
   GitStatus,
   GitTagInfo,
+  HelpAskInput,
+  HelpAskResult,
+  HelpIndexProgress,
+  HelpIndexStatus,
   ImageFileData,
   InstalledMcpServerRecord,
   InstalledSkillRecord,
@@ -1177,6 +1181,18 @@ const ai = {
   /** Stops an askCli() that was given the same requestId. */
   cancelAskCli: (requestId: string): Promise<boolean> =>
     ipcRenderer.invoke(IPC.ai.cancelAskCli, requestId),
+};
+
+const help = {
+  /** Answers a question about using AgentMate from the Help articles. */
+  ask: (input: HelpAskInput): Promise<HelpAskResult> => ipcRenderer.invoke(IPC.help.ask, input),
+  /** Aborts an in-flight ask() that was given the same requestId. */
+  cancel: (requestId: string): Promise<boolean> => ipcRenderer.invoke(IPC.help.cancel, requestId),
+  /** How much of the Help index the provider's embedder has covered. */
+  status: (provider: HelpAskInput['provider']): Promise<HelpIndexStatus> =>
+    ipcRenderer.invoke(IPC.help.status, provider),
+  onIndexProgress: (callback: (progress: HelpIndexProgress) => void): (() => void) =>
+    subscribe(IPC.help.onIndexProgress, callback),
 };
 
 const speech = {
@@ -2254,6 +2270,13 @@ const windowControls = {
     ipcRenderer.on(IPC.window.onMaximizedChange, listener);
     return () => ipcRenderer.removeListener(IPC.window.onMaximizedChange, listener);
   },
+  isFocused: (): Promise<boolean> => ipcRenderer.invoke(IPC.window.isFocused),
+  onFocusChange: (callback: (isFocused: boolean) => void): (() => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, isFocused: boolean): void =>
+      callback(isFocused);
+    ipcRenderer.on(IPC.window.onFocusChange, listener);
+    return () => ipcRenderer.removeListener(IPC.window.onFocusChange, listener);
+  },
 };
 
 const remoteSessionWindowControls = {
@@ -2456,6 +2479,7 @@ const agentmatApi = {
   promptHistory,
   translate,
   ai,
+  help,
   speech,
   system,
   ipGeo,

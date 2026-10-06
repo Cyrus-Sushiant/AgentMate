@@ -58,4 +58,21 @@ describe('ResizeHandle', () => {
     fireEvent.doubleClick(handle);
     expect(onSizeChange).toHaveBeenLastCalledWith(250);
   });
+
+  it('draws a resting line unless it is quiet', () => {
+    const { handle } = setup();
+    expect(handle.querySelector('[data-resize-line]')).toHaveClass('bg-border');
+  });
+
+  it('hides its line at rest when quiet, and still shows it while dragging', () => {
+    const { handle } = setup({ quiet: true });
+    const line = handle.querySelector('[data-resize-line]');
+    expect(line).toHaveClass('bg-transparent');
+    expect(line).not.toHaveClass('bg-border');
+
+    fireEvent.pointerDown(handle, { button: 0, clientX: 500, pointerId: 1 });
+    expect(line).toHaveClass('bg-primary');
+    fireEvent.pointerUp(handle, { pointerId: 1 });
+    expect(line).toHaveClass('bg-transparent');
+  });
 });

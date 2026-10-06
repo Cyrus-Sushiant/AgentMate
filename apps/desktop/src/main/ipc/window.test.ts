@@ -16,8 +16,9 @@ import {
 
 useTempUserData();
 expectChannelsCovered(IPC.window, [
-  // Sent from main to the renderer rather than invoked, and asserted in its own test below.
+  // Sent from main to the renderer rather than invoked, and asserted in their own tests below.
   IPC.window.onMaximizedChange,
+  IPC.window.onFocusChange,
 ]);
 
 async function register(win: FakeBrowserWindow): Promise<void> {
@@ -72,6 +73,15 @@ describe('window controls', () => {
     // The title bar draws a different icon for each state, so this has to be the live value.
     await expect(invoke(IPC.window.isMaximized)).resolves.toBe(true);
   });
+
+  it('reports whether the window is the active one', async () => {
+    // A page that reloads while another app is in front has to start out in the inactive look.
+    vi.spyOn(win, 'isFocused').mockReturnValue(false);
+    await expect(invoke(IPC.window.isFocused)).resolves.toBe(false);
+
+    vi.spyOn(win, 'isFocused').mockReturnValue(true);
+    await expect(invoke(IPC.window.isFocused)).resolves.toBe(true);
+  });
 });
 
 describe('re-registering for a rebuilt window', () => {
@@ -96,5 +106,16 @@ describe('maximize events', () => {
     win.emit('unmaximize');
 
     expect(win.webContents.sentOn(IPC.window.onMaximizedChange)).toEqual([[true], [false]]);
+  });
+});
+
+describe('focus events', () => {
+  it('tells the renderer when the window loses and regains focus', async () => {
+    // Windows drops Mica to a flat fill while the window is inactive, and the glass chrome
+    // follows these to match it.
+    win.emit('blur');
+    win.emit('focus');
+
+    expect(win.webContents.sentOn(IPC.window.onFocusChange)).toEqual([[false], [true]]);
   });
 });

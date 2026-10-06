@@ -23,6 +23,7 @@ import AskAiPage from './pages/AskAiPage';
 import CliManagerPage from './pages/CliManagerPage';
 import DashboardPage from './pages/DashboardPage';
 import DockerPage from './pages/DockerPage';
+import HelpPage from './pages/HelpPage';
 import McpPage from './pages/McpPage';
 import PipelinesPage from './pages/PipelinesPage';
 import ProjectDetailPage from './pages/ProjectDetailPage';
@@ -217,6 +218,8 @@ export default function App(): React.JSX.Element {
                 <Route path="remote" element={<RemotePage />} />
                 <Route path="remote-files" element={<RemoteFileManagerPage />} />
                 <Route path="settings" element={<SettingsPage />} />
+                <Route path="help" element={<HelpPage />} />
+                <Route path="help/:slug" element={<HelpPage />} />
               </Route>
             </Routes>
             <AppChrome />

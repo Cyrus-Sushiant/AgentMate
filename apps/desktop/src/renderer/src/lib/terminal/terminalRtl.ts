@@ -4,11 +4,7 @@ import { cellWidth, rtlRuns, shapeVisualRuns, startsRightToLeft } from '@/lib/te
 type LineMarker = Pick<IMarker, 'line' | 'isDisposed' | 'dispose'>;
 
 /** The parts of an opened xterm this needs. */
-interface RtlTerminal
-  extends Pick<
-    Terminal,
-    'cols' | 'element' | 'onTitleChange' | 'registerCharacterJoiner' | 'deregisterCharacterJoiner'
-  > {
+interface RtlTerminal extends Pick<Terminal, 'cols' | 'element' | 'onTitleChange'> {
   readonly buffer: { readonly active: Pick<IBuffer, 'viewportY'> };
   registerMarker(cursorYOffset?: number): LineMarker | undefined;
 }
@@ -32,7 +28,7 @@ interface PreorderedLines {
 const RUN_WIDTH_ATTRIBUTE = 'data-rtl-run';
 
 /**
- * The span of a joined run, laid out right to left within the cells the run covers. A run that
+ * The box around a run, laid out right to left within the cells the run covers. A run that
  * is already in display order (`preordered`) is laid out left to right instead; see
  * shapePreordered for its text.
  */
@@ -41,8 +37,7 @@ function layOutRun(span: HTMLElement, cellPx: number, preordered = false): void 
   const width = Number((cellWidth(text) * cellPx).toFixed(3));
   span.setAttribute(RUN_WIDTH_ATTRIBUTE, String(width));
   const style = span.style;
-  // xterm spreads a joined run with letter spacing meant for single cells. That pulls Persian
-  // letters apart, so the run gets a fixed box instead and the browser shapes the text in it.
+  // A fixed box the width of the run's cells, in which the browser shapes the text freely.
   style.letterSpacing = '0px';
   style.display = 'inline-block';
   style.overflow = 'hidden';
@@ -84,6 +79,19 @@ function fitRuns(spans: Iterable<HTMLElement>): void {
 }
 
 /**
+ * True when two spans are drawn the same way. Their inline styles are compared property by
+ * property: a span xterm gave letter spacing lists it before the display set here, one without
+ * lists it after, so the style text alone differs for spans that look the same.
+ */
+function looksAlike(a: HTMLElement, b: HTMLElement): boolean {
+  if (a.className !== b.className || a.style.length !== b.style.length) return false;
+  for (const property of a.style) {
+    if (a.style.getPropertyValue(property) !== b.style.getPropertyValue(property)) return false;
+  }
+  return true;
+}
+
+/**
  * Turns the right-to-left stretches of a run that is already in display order back into reading
  * order (see shapeVisualRuns), so the browser joins their letters without moving them. A box of
  * spans xterm drew letter by letter is first merged back into pieces that look alike, leaving
@@ -98,7 +106,7 @@ function shapePreordered(run: HTMLElement): void {
   }
   let current: HTMLElement | undefined;
   for (const piece of pieces) {
-    if (current?.className === piece.className && current.style.cssText === piece.style.cssText) {
+    if (current !== undefined && looksAlike(current, piece)) {
       current.textContent = (current.textContent ?? '') + (piece.textContent ?? '');
       piece.remove();
     } else {
@@ -141,42 +149,30 @@ function rangeOverText(row: HTMLElement, start: number, end: number): Range | nu
 }
 
 /**
- * xterm skips a join when the cursor or a partial selection sits inside the run, and draws each
- * letter in its own span. Wrapping those spans in one box still lets the browser join the
- * letters and lay them out right to left, and the cursor's span lands on its letter.
+ * Wraps each right-to-left run of the row (see rtlRuns) in one box and lays it out. xterm draws
+ * a row as many spans: one wherever the color changes, and often one per Persian letter, each an
+ * inline block with its own letter spacing, which the browser can neither join letters across
+ * nor reorder. Inside the box those spans become plain text again, so a sentence whose words and
+ * numbers a program colored apart still reads as one sentence, and the cursor's span lands on
+ * its letter.
  */
-function wrapScatteredRuns(
-  row: HTMLElement,
-  texts: Set<string>,
-  cellPx: number,
-  preordered: boolean,
-): HTMLElement[] {
+function wrapRuns(row: HTMLElement, cellPx: number, preordered: boolean): HTMLElement[] {
   const boxes: HTMLElement[] = [];
-  for (const text of texts) {
-    let from = 0;
-    for (;;) {
-      const index = (row.textContent ?? '').indexOf(text, from);
-      if (index < 0) break;
-      from = index + text.length;
-      const range = rangeOverText(row, index, index + text.length);
-      if (!range) break;
-      const first = range.startContainer.childNodes[range.startOffset] ?? range.startContainer;
-      const firstElement = first instanceof HTMLElement ? first : first.parentElement;
-      // xterm joined this one itself.
-      if (firstElement?.closest(`[${RUN_WIDTH_ATTRIBUTE}]`)) continue;
-      const box = document.createElement('span');
-      box.appendChild(range.extractContents());
-      range.insertNode(box);
-      // xterm draws every span as an inline block, which the browser neither joins letters
-      // across nor reorders, and spaces them for single cells. Inside the box they are text.
-      for (const span of box.querySelectorAll('span')) {
-        span.style.display = 'inline';
-        span.style.letterSpacing = '0px';
-      }
-      layOutRun(box, cellPx, preordered);
-      if (preordered) shapePreordered(box);
-      boxes.push(box);
+  // Last run first: shaping a preordered run adds characters, which would shift the offsets of
+  // any run after it.
+  for (const [start, end] of rtlRuns(row.textContent ?? '').reverse()) {
+    const range = rangeOverText(row, start, end);
+    if (!range) continue;
+    const box = document.createElement('span');
+    box.appendChild(range.extractContents());
+    range.insertNode(box);
+    for (const span of box.querySelectorAll('span')) {
+      span.style.display = 'inline';
+      span.style.letterSpacing = '0px';
     }
+    layOutRun(box, cellPx, preordered);
+    if (preordered) shapePreordered(box);
+    boxes.push(box);
   }
   return boxes;
 }
@@ -190,22 +186,14 @@ function cellPxOf(row: HTMLElement | null, cols: number): number {
 /**
  * Draws Persian, Arabic and Hebrew in the terminal the way they are read: letters joined,
  * words right to left, English words and numbers in their places, and every column after the
- * text still lined up. xterm has no bidi support of its own, so each right-to-left run is
- * joined into one span (the same hook ligatures use) and that span is laid out by the browser.
+ * text still lined up. xterm has no bidi support of its own, so each right-to-left run in a row
+ * is gathered into one box that the browser lays out.
  * The buffer is untouched, so copying, searching and what the program sees stay as typed.
  *
  * Call once the terminal is open. Returns a cleanup.
  */
 export function attachRtlRendering(term: RtlTerminal): () => void {
   const rows = term.element?.querySelector<HTMLElement>('.xterm-rows');
-  // The texts xterm is about to draw as joined spans. A span with other text was drawn letter
-  // by letter (the cursor or a partial selection sat inside the run) and is left as it is.
-  const joined = new Set<string>();
-  const joinerId = term.registerCharacterJoiner((text) => {
-    const runs = rtlRuns(text);
-    for (const [start, end] of runs) joined.add(text.slice(start, end));
-    return runs;
-  });
 
   const preordered: PreorderedLines[] = [];
   const titleListener = term.onTitleChange((title) => {
@@ -236,7 +224,7 @@ export function attachRtlRendering(term: RtlTerminal): () => void {
   // through the DOM. Watching the DOM, rather than the render event, also catches the rows it
   // redraws for a hovered link. Mutation callbacks run before the frame is painted.
   const observer = new MutationObserver((records) => {
-    if (joined.size === 0 || !rows) return;
+    if (!rows) return;
     const touched = new Set<HTMLElement>();
     for (const record of records) {
       for (const node of record.addedNodes) {
@@ -247,21 +235,17 @@ export function attachRtlRendering(term: RtlTerminal): () => void {
     }
     const laidOut: HTMLElement[] = [];
     for (const row of touched) {
+      // xterm replaces a row's spans whenever it draws it, so a row that already has a box is
+      // one this has handled since.
+      if (row.querySelector(`[${RUN_WIDTH_ATTRIBUTE}]`)) continue;
       const cellPx = cellPxOf(row, term.cols);
       if (Number.isNaN(cellPx)) continue;
       const line = term.buffer.active.viewportY + Array.prototype.indexOf.call(rows.children, row);
-      const rowPreordered = isPreordered(line);
-      for (const span of row.children) {
-        if (!(span instanceof HTMLElement) || !joined.has(span.textContent ?? '')) continue;
-        layOutRun(span, cellPx, rowPreordered);
-        if (rowPreordered) shapePreordered(span);
-        laidOut.push(span);
-      }
-      laidOut.push(...wrapScatteredRuns(row, joined, cellPx, rowPreordered));
+      laidOut.push(...wrapRuns(row, cellPx, isPreordered(line)));
     }
     fitRuns(laidOut);
-    // Clearing also keeps the wrapping above, itself a DOM change, from being handled again.
-    joined.clear();
+    // The wrapping above is a DOM change of its own; nothing in it needs handling again.
+    observer.takeRecords();
   });
   if (rows) observer.observe(rows, { childList: true, subtree: true });
 
@@ -281,6 +265,5 @@ export function attachRtlRendering(term: RtlTerminal): () => void {
       end?.dispose();
     }
     fonts?.removeEventListener('loadingdone', refit);
-    term.deregisterCharacterJoiner(joinerId);
   };
 }

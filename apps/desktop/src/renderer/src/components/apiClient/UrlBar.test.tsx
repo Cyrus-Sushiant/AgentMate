@@ -55,4 +55,10 @@ describe('UrlBar', () => {
     await user.click(screen.getByRole('button', { name: /save/i }));
     expect(props.onSave).toHaveBeenCalled();
   });
+
+  it('keeps the Save button named when its label folds away on a narrow card', () => {
+    setup();
+    // The visible label hides under a container query, so the name must not depend on it.
+    expect(screen.getByRole('button', { name: 'Save' })).toHaveAttribute('aria-label', 'Save');
+  });
 });

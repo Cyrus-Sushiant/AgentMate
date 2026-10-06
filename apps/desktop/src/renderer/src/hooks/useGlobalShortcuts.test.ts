@@ -131,6 +131,16 @@ describe('useGlobalShortcuts', () => {
     expect(result.current).toBe('/projects');
   });
 
+  it('opens Help on F1, even from a text field', () => {
+    const { result } = renderShortcuts('/settings');
+    const input = document.createElement('input');
+    document.body.append(input);
+    input.focus();
+    press({ code: 'F1', key: 'F1', target: input });
+    expect(result.current).toBe('/help');
+    input.remove();
+  });
+
   it('opens the workspace search on Ctrl+P while on the workspace', () => {
     const { result } = renderShortcuts('/workspace/p1');
     const event = press({ code: 'KeyP', ctrl: true });

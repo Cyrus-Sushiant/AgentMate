@@ -30,11 +30,12 @@ export function statusTone(status: number): StatusTone {
   return 'info';
 }
 
+/** Theme tokens, so the status badge follows each theme's own success and warning colours. */
 export const STATUS_TONE_CLASSES: Record<StatusTone, string> = {
-  success: 'bg-emerald-500/12 text-emerald-700 dark:text-emerald-400 ring-emerald-500/25',
-  info: 'bg-sky-500/12 text-sky-700 dark:text-sky-400 ring-sky-500/25',
-  warning: 'bg-amber-500/12 text-amber-700 dark:text-amber-400 ring-amber-500/25',
-  danger: 'bg-red-500/12 text-red-700 dark:text-red-400 ring-red-500/25',
+  success: 'bg-success/12 text-success ring-success/30',
+  info: 'bg-primary/12 text-primary ring-primary/30',
+  warning: 'bg-warning/12 text-warning ring-warning/30',
+  danger: 'bg-destructive/12 text-destructive ring-destructive/30',
 };
 
 export function formatBytes(bytes: number): string {

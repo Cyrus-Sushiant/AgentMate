@@ -113,6 +113,24 @@ export const GEMINI_API_MODELS: readonly CatalogModelOption[] = [
 /** Google points new projects at Flash. Gemini 2.x is closed to new users. */
 export const DEFAULT_GEMINI_API_MODEL = GEMINI_CLI_MODELS.flash.apiId;
 
+// Help chat (embeddings for the Help articles' search index)
+
+export interface EmbeddingModel {
+  id: string;
+  /** The vector size the index asks for. Gemini can return fewer than its native size. */
+  dimensions: number;
+}
+
+/**
+ * The embedding model the help chat uses with each API provider. Ollama's has to be pulled
+ * (`ollama pull nomic-embed-text`); without it the chat still answers from keyword search.
+ */
+export const HELP_EMBEDDING_MODELS = {
+  openai: { id: 'text-embedding-3-small', dimensions: 1536 },
+  gemini: { id: 'gemini-embedding-001', dimensions: 768 },
+  ollama: { id: 'nomic-embed-text', dimensions: 768 },
+} as const satisfies Record<'openai' | 'gemini' | 'ollama', EmbeddingModel>;
+
 // Tools
 
 /** Strix takes one model in provider/model form. */

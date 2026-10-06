@@ -43,6 +43,7 @@ async function askOpenAi(
   history: AskAiHistoryMessage[],
   signal?: AbortSignal,
   images: string[] = [],
+  system?: string,
 ): Promise<string> {
   const settings = await store.getSettings();
   const apiKey = settings.openaiApiKey?.trim();
@@ -57,6 +58,7 @@ async function askOpenAi(
     body: JSON.stringify({
       model,
       messages: [
+        ...(system ? [{ role: 'system', content: system }] : []),
         ...history.map((h) => ({ role: h.role, content: h.content })),
         {
           role: 'user',
@@ -110,6 +112,7 @@ async function askOllama(
   history: AskAiHistoryMessage[],
   signal?: AbortSignal,
   images: string[] = [],
+  system?: string,
 ): Promise<string> {
   const settings = await store.getSettings();
   const baseUrl = normalizeOllamaUrl(settings.ollamaBaseUrl);
@@ -126,6 +129,7 @@ async function askOllama(
       body: JSON.stringify({
         model,
         messages: [
+          ...(system ? [{ role: 'system', content: system }] : []),
           ...history.map((h) => ({ role: h.role, content: h.content })),
           { role: 'user', content: prompt, ...(images.length > 0 ? { images } : {}) },
         ],
@@ -157,6 +161,7 @@ async function askGemini(
   history: AskAiHistoryMessage[],
   signal?: AbortSignal,
   images: string[] = [],
+  system?: string,
 ): Promise<string> {
   const settings = await store.getSettings();
   const apiKey = settings.geminiApiKey?.trim();
@@ -170,6 +175,7 @@ async function askGemini(
       'x-goog-api-key': apiKey,
     },
     body: JSON.stringify({
+      ...(system ? { system_instruction: { parts: [{ text: system }] } } : {}),
       contents: [
         ...history.map((h) => ({
           role: h.role === 'assistant' ? 'model' : 'user',
@@ -278,7 +284,8 @@ async function testOllamaConnection(baseUrlOverride?: string): Promise<OllamaCon
 /**
  * Shared by the Ask AI IPC handler and other features (e.g. git branch/commit suggestions).
  * `images` are PNG screenshots, base64 without the `data:` prefix, attached to the prompt; the
- * model has to be one that can see images.
+ * model has to be one that can see images. `system` is an instruction that frames the whole
+ * conversation, sent the way each provider expects one rather than as part of the question.
  */
 export async function runAiPrompt(
   provider: AiProvider,
@@ -287,10 +294,11 @@ export async function runAiPrompt(
   history: AskAiHistoryMessage[] = [],
   signal?: AbortSignal,
   images: string[] = [],
+  system?: string,
 ): Promise<string> {
-  if (provider === 'openai') return askOpenAi(model, prompt, history, signal, images);
-  if (provider === 'gemini') return askGemini(model, prompt, history, signal, images);
-  return askOllama(model, prompt, history, signal, images);
+  if (provider === 'openai') return askOpenAi(model, prompt, history, signal, images, system);
+  if (provider === 'gemini') return askGemini(model, prompt, history, signal, images, system);
+  return askOllama(model, prompt, history, signal, images, system);
 }
 
 /** A sizing answer is one short JSON object; a CLI still busy after this has gone astray. */

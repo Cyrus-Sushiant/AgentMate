@@ -69,6 +69,16 @@ describe('ResponsePane', () => {
     expect(screen.getByTestId('monaco-editor')).toHaveValue('{\n  "id": 7,\n  "name": "Ada"\n}');
   });
 
+  it.each([
+    [201, 'Created', 'success'],
+    [304, 'Not Modified', 'info'],
+    [404, 'Not Found', 'warning'],
+    [503, 'Service Unavailable', 'danger'],
+  ])('shows %i %s in the %s tone',(status, statusText, tone) => {
+    show({ status: 'done', result: result({ response: response({ status, statusText }) }) });
+    expect(screen.getByText(`${status} ${statusText}`)).toHaveAttribute('data-tone', tone);
+  });
+
   it('shows the raw body on request', async () => {
     const { user } = show({ status: 'done', result: result() });
     await user.click(screen.getByRole('radio', { name: 'Raw' }));

@@ -345,6 +345,12 @@ export const IPC = {
     askCli: 'ai:askCli',
     cancelAskCli: 'ai:cancelAskCli',
   },
+  help: {
+    ask: 'help:ask',
+    cancel: 'help:cancel',
+    status: 'help:status',
+    onIndexProgress: 'help:onIndexProgress',
+  },
   projectDrafts: {
     listByProject: 'projectDrafts:listByProject',
     create: 'projectDrafts:create',
@@ -406,6 +412,9 @@ export const IPC = {
     close: 'window:close',
     isMaximized: 'window:isMaximized',
     onMaximizedChange: 'window:onMaximizedChange',
+    /** Whether the main window is the active window, so the glass chrome can follow it. */
+    isFocused: 'window:isFocused',
+    onFocusChange: 'window:onFocusChange',
   },
   /** Same shape as `window`, but scoped to the standalone remote session window. */
   remoteSessionWindow: {

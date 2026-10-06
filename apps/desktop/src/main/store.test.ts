@@ -239,17 +239,22 @@ describe('settings migrations', () => {
     expect(settings.vaultLockOnSystemLock).toBe(false);
   });
 
-  it('remembers the 3D rope and parachute once it is switched on', async () => {
-    userData.writeData('settings.json', { desktopPetGear3d: true });
-    const { store } = await loadStore();
-
-    expect((await store.getSettings()).desktopPetGear3d).toBe(true);
-  });
-
-  it('leaves the 3D rope and parachute off on a fresh profile', async () => {
+  it('remembers the 3D rope and parachute once it is switched off', async () => {
+    userData.writeData('settings.json', { desktopPetGear3d: false });
     const { store } = await loadStore();
 
     expect((await store.getSettings()).desktopPetGear3d).toBe(false);
+  });
+
+  it('starts a fresh profile on Fandi, walking the right way with 3D gear', async () => {
+    const { store } = await loadStore();
+
+    const settings = await store.getSettings();
+
+    expect(settings.desktopPetCharacterId).toBe('fandi');
+    expect(settings.desktopPetFlippedIds).toEqual(['fandi']);
+    expect(settings.desktopPetGear3d).toBe(true);
+    expect(settings.desktopPetScale).toBe(100);
   });
 
   it('keeps the flipped pet list to unique character ids', async () => {
@@ -307,6 +312,30 @@ describe('settings migrations', () => {
     const { store } = await loadStore();
 
     expect((await store.getSettings()).startupPage).toBe('/usage');
+  });
+
+  it('keeps the main menu on the left by default, including for a file that predates the setting', async () => {
+    const fresh = await loadStore();
+    expect((await fresh.store.getSettings()).menuPosition).toBe('left');
+
+    userData.writeData('settings.json', { theme: 'dark' });
+    expect((await fresh.store.getSettings()).menuPosition).toBe('left');
+  });
+
+  it('puts the main menu back on the left when the saved position is not one it knows', async () => {
+    const { store } = await loadStore();
+
+    for (const menuPosition of ['diagonal', 42, null, 'TOP']) {
+      userData.writeData('settings.json', { menuPosition });
+      expect((await store.getSettings()).menuPosition).toBe('left');
+    }
+  });
+
+  it('keeps the main menu along the top once it was moved there', async () => {
+    userData.writeData('settings.json', { menuPosition: 'top' });
+    const { store } = await loadStore();
+
+    expect((await store.getSettings()).menuPosition).toBe('top');
   });
 
   it('fills in a key the saved file has never heard of', async () => {

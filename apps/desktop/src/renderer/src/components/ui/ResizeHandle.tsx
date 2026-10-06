@@ -20,6 +20,11 @@ interface ResizeHandleProps {
   defaultSize: number;
   invert?: boolean;
   onSizeChange: (size: number) => void;
+  /**
+   * Hides the line until the handle is hovered, focused or dragged. For a handle that sits in
+   * the gap between two panels, where a resting line would float in the empty space.
+   */
+  quiet?: boolean;
   className?: string;
 }
 
@@ -34,6 +39,7 @@ export function ResizeHandle({
   defaultSize,
   invert = false,
   onSizeChange,
+  quiet = false,
   className,
 }: ResizeHandleProps): React.JSX.Element {
   const [dragging, setDragging] = useState(false);
@@ -96,12 +102,16 @@ export function ResizeHandle({
       )}
     >
       <span
+        data-resize-line
         className={cn(
-          'pointer-events-none transition-colors',
+          'pointer-events-none rounded-full transition-colors',
           vertical ? 'h-full w-px' : 'h-px w-full',
           dragging
             ? 'bg-primary'
-            : 'bg-border group-hover/resize:bg-primary/60 group-focus-visible/resize:bg-primary',
+            : cn(
+                quiet ? 'bg-transparent' : 'bg-border',
+                'group-hover/resize:bg-primary/60 group-focus-visible/resize:bg-primary',
+              ),
         )}
       />
       {/* A wider invisible hit area, so the line is easy to grab without looking thick. */}

@@ -24,15 +24,24 @@ describe('rtlRuns', () => {
     ]);
   });
 
-  it('starts the run at the first word, so an English sentence keeps its own direction', () => {
+  it('keeps an English sentence holding a Persian word left to right', () => {
     expect(runTexts('Hello سلام world')).toEqual(['Hello سلام world']);
-    expect(runTexts('Здравствуй سلام')).toEqual(['Здравствуй سلام']);
+    expect(runTexts('Please read سلام and reply')).toEqual(['Please read سلام and reply']);
+  });
+
+  it('starts a Persian sentence at its first Persian word when English comes before it', () => {
+    // A prompt, a command or a label in front must not make the sentence left to right, or the
+    // English words and numbers inside it land on the wrong side of the Persian ones.
+    expect(runTexts('PS C:\\Users\\arc13> echo سلام hello دنیا')).toEqual(['سلام hello دنیا']);
+    expect(runTexts('Note: سلام 123 دنیا')).toEqual(['سلام 123 دنیا']);
+    expect(runTexts('echo فایل README.md را باز کن')).toEqual(['فایل README.md را باز کن']);
+    expect(runTexts('Здравствуй سلام')).toEqual(['سلام']);
   });
 
   it('leaves a prompt or bullet in front of the text where it is', () => {
     expect(runTexts('> سلام دنیا')).toEqual(['سلام دنیا']);
     expect(runTexts('- کتاب')).toEqual(['کتاب']);
-    expect(runTexts('$ echo سلام')).toEqual(['echo سلام']);
+    expect(runTexts('$ echo سلام')).toEqual(['سلام']);
   });
 
   it('takes a leading number into the run, as in a numbered list', () => {
@@ -47,6 +56,9 @@ describe('rtlRuns', () => {
       '"سلام دنیا، من git commit را زدم"',
     ]);
     expect(runTexts('> «کتاب»')).toEqual(['«کتاب»']);
+    expect(runTexts('Write-Output "من 3 فایل با git commit ذخیره کردم"')).toEqual([
+      '"من 3 فایل با git commit ذخیره کردم"',
+    ]);
     expect(runTexts("'سلام'")).toEqual(["'سلام'"]);
     expect(runTexts('(سلام)')).toEqual(['(سلام)']);
     // Nothing to pair with: the quote stays outside.
@@ -75,7 +87,7 @@ describe('rtlRuns', () => {
 
   it('does not join a lone letter, which has nothing to shape against', () => {
     expect(rtlRuns('و')).toEqual([]);
-    expect(rtlRuns('a و')).toEqual([[0, 3]]);
+    expect(rtlRuns('a و')).toEqual([]);
   });
 
   it('handles Hebrew and Arabic the same way', () => {

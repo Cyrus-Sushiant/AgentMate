@@ -88,6 +88,56 @@ describe('CollectionsSidebar', () => {
     expect(screen.queryByRole('treeitem', { name: /Broken/ })).not.toBeInTheDocument();
   });
 
+  it('clears the filter from its clear button', async () => {
+    const { user } = setup();
+    const filter = screen.getByRole('searchbox', { name: /filter/i });
+    expect(screen.queryByRole('button', { name: 'Clear filter' })).not.toBeInTheDocument();
+
+    await user.type(filter, 'zzz');
+    await user.click(screen.getByRole('button', { name: 'Clear filter' }));
+    expect(filter).toHaveValue('');
+    expect(screen.getByRole('treeitem', { name: /Users API/ })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Clear filter' })).not.toBeInTheDocument();
+  });
+
+  it('clears the filter on Escape', async () => {
+    const { user } = setup();
+    const filter = screen.getByRole('searchbox', { name: /filter/i });
+    await user.type(filter, 'zzz{Escape}');
+    expect(filter).toHaveValue('');
+    expect(screen.getByRole('treeitem', { name: /Users API/ })).toBeInTheDocument();
+  });
+
+  it('leaves the filter out while there is nothing to filter', () => {
+    setup({ collections: [] });
+    expect(screen.queryByRole('searchbox', { name: /filter/i })).not.toBeInTheDocument();
+  });
+
+  it('collapses everything from the header once something is open', async () => {
+    const { user } = setup();
+    expect(screen.queryByRole('button', { name: 'Collapse all' })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('treeitem', { name: /Users API/ }));
+    await user.click(screen.getByRole('treeitem', { name: /Admin/ }));
+    expect(screen.getByRole('treeitem', { name: /Delete user/ })).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Collapse all' }));
+    expect(screen.queryByRole('treeitem', { name: /List users/ })).not.toBeInTheDocument();
+    expect(screen.getByRole('treeitem', { name: /Users API/ })).toHaveAttribute(
+      'aria-expanded',
+      'false',
+    );
+    expect(screen.queryByRole('button', { name: 'Collapse all' })).not.toBeInTheDocument();
+  });
+
+  it('offers to add the first request to an empty collection', async () => {
+    const empty: ApiCollectionSummary = { ...collections[0], id: 'c3', name: 'Empty', tree: [] };
+    const { user, onNewRequest } = setup({ collections: [empty] });
+    await user.click(screen.getByRole('treeitem', { name: /Empty/ }));
+    await user.click(screen.getByRole('button', { name: 'Add a request' }));
+    expect(onNewRequest).toHaveBeenCalledWith('c3', null);
+  });
+
   it('says when nothing matches the filter', async () => {
     const { user } = setup();
     await user.type(screen.getByRole('searchbox', { name: /filter/i }), 'zzz');

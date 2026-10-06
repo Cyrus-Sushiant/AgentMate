@@ -69,7 +69,7 @@
 
 /* Dark theme matches the reference mood board: pure-black main canvas,
    neutral near-black boxes one step lighter, and a saturated spring-green
-   accent. The green gradient lives only on the sidebar (see .sidebar-gradient). */
+   accent. */
 .dark {
   --background: 0 0% 4%;
   --foreground: 0 0% 95%;
@@ -239,76 +239,35 @@ body {
     sans-serif;
 }
 
-/* The only gradient surface in the app: a green wash over the sidebar,
-   echoing the reference design. Deep green-to-black in dark mode, a soft
-   mint tint in light mode. */
+/* The main menu's surface: a flat step off the page canvas in the theme's own card colour, so it
+   reads as its own panel without a colour wash. */
 .sidebar-gradient {
-  background: linear-gradient(
-    180deg,
-    hsl(0 0% 96%) 0%,
-    hsl(150 20% 92%) 55%,
-    hsl(152 38% 84%) 100%
-  );
+  background-color: hsl(var(--card) / 0.6);
 }
 
-.dark .sidebar-gradient {
-  background: linear-gradient(180deg, hsl(0 0% 4%) 0%, hsl(160 22% 6%) 50%, hsl(159 45% 12%) 100%);
-}
-
-.dark.theme-vscode-dark .sidebar-gradient {
-  background: linear-gradient(
-    180deg,
-    hsl(0 0% 12%) 0%,
-    hsl(206 25% 16%) 50%,
-    hsl(206 45% 22%) 100%
-  );
-}
-
-.dark.theme-vs2026 .sidebar-gradient {
-  background: linear-gradient(
-    180deg,
-    hsl(230 16% 11%) 0%,
-    hsl(255 22% 17%) 50%,
-    hsl(265 45% 24%) 100%
-  );
-}
-
-/* On a glass window the same washes go thin, so the material shows through while each
-   theme keeps its colour. */
+/* On a glass window it is only a faint tint, so the material shows through and the panel is
+   held together by its hairline edge. */
 :root[data-glass] .sidebar-gradient {
-  background: linear-gradient(
-    180deg,
-    hsl(0 0% 96% / 0.25) 0%,
-    hsl(150 20% 92% / 0.3) 55%,
-    hsl(152 38% 84% / 0.35) 100%
-  );
+  background-color: hsl(var(--background) / 0.3);
 }
 
-:root[data-glass].dark .sidebar-gradient {
-  background: linear-gradient(
-    180deg,
-    hsl(0 0% 4% / 0.25) 0%,
-    hsl(160 22% 6% / 0.3) 50%,
-    hsl(159 45% 12% / 0.35) 100%
-  );
+/* Inactive Mica window. While another window is in front, Windows swaps Mica for a flat grey,
+   so the chrome loses its wallpaper tint and reads as gone dull and dark. Until focus comes back
+   (lib/windowGlass.ts sets the attribute), the chrome is painted in the theme's own panel color
+   instead, never darker than that grey and close to the glass's own brightness. The body's color
+   transition makes it a fade. */
+:root.dark[data-glass="mica"][data-window-inactive] body {
+  background-color: color-mix(in srgb, hsl(var(--card)), hsl(var(--secondary)));
 }
 
-:root[data-glass].dark.theme-vscode-dark .sidebar-gradient {
-  background: linear-gradient(
-    180deg,
-    hsl(0 0% 12% / 0.25) 0%,
-    hsl(206 25% 16% / 0.3) 50%,
-    hsl(206 45% 22% / 0.35) 100%
-  );
+:root:not(.dark)[data-glass="mica"][data-window-inactive] body {
+  background-color: hsl(var(--background));
 }
 
-:root[data-glass].dark.theme-vs2026 .sidebar-gradient {
-  background: linear-gradient(
-    180deg,
-    hsl(230 16% 11% / 0.25) 0%,
-    hsl(255 22% 17% / 0.3) 50%,
-    hsl(265 45% 24% / 0.35) 100%
-  );
+/* The panel already sits on the theme color here, so its usual tint is dropped to keep it at
+   the glass's brightness. */
+:root[data-glass="mica"][data-window-inactive] .sidebar-gradient {
+  background-color: transparent;
 }
 
 /* A rounded content panel ("island") set into the window chrome: page content, workspace
@@ -362,15 +321,53 @@ button.search-pill:hover {
   border-color: hsl(var(--primary) / 0.45);
 }
 
-/* The search panel: the island surface lifted off the page, with a deeper shadow. */
+/* Rows inside one Settings card, each separated from the one above by a hairline drawn like
+   the .glass card's own edge, so the rows read as part of the same surface. */
+.settings-rows > * + * {
+  border-top: 1px solid hsl(var(--foreground) / 0.08);
+}
+
+/* The search panel: frosted glass lifted off the page. The tint is heavy enough that results stay
+   readable over a busy page, and the blur turns whatever is behind into soft colour. A thin light
+   edge along the top catches the light the way the window's glass does. */
 .search-panel {
   overflow: hidden;
-  border: 1px solid hsl(var(--border) / 0.7);
+  border: 1px solid hsl(var(--foreground) / 0.1);
   border-radius: calc(var(--radius) + 8px);
-  background-color: hsl(var(--popover));
+  background-color: hsl(var(--popover) / 0.72);
+  backdrop-filter: blur(28px) saturate(160%);
   box-shadow:
+    inset 0 1px 0 0 hsl(0 0% 100% / 0.5),
     0 2px 6px hsl(0 0% 0% / 0.08),
     0 24px 64px -16px hsl(0 0% 0% / 0.35);
+}
+
+.dark .search-panel {
+  background-color: hsl(var(--popover) / 0.66);
+  box-shadow:
+    inset 0 1px 0 0 hsl(0 0% 100% / 0.07),
+    0 2px 6px hsl(0 0% 0% / 0.2),
+    0 24px 64px -16px hsl(0 0% 0% / 0.6);
+}
+
+/* SmartClouds brand tile (layout/SmartCloudsLogo.tsx): the dark rounded square from the company's
+   favicon, so the white cloud logo stays visible on the light theme. A soft white bloom sits behind
+   the cloud the way it does on the favicon. The light theme takes its dark from the text colour,
+   the dark themes from the canvas, so the tile reads as recessed there instead of as a hole. */
+.brand-tile {
+  background:
+    radial-gradient(closest-side, hsl(0 0% 100% / 0.16), transparent), hsl(var(--foreground) / 0.9);
+  box-shadow:
+    inset 0 1px 0 0 hsl(0 0% 100% / 0.14),
+    0 1px 3px hsl(0 0% 0% / 0.18);
+}
+
+.dark .brand-tile {
+  background:
+    radial-gradient(closest-side, hsl(0 0% 100% / 0.1), transparent), hsl(var(--background) / 0.8);
+  box-shadow:
+    inset 0 1px 0 0 hsl(0 0% 100% / 0.08),
+    inset 0 0 0 1px hsl(var(--foreground) / 0.08);
 }
 
 /* Placeholder surface for content that is still loading (see ui/skeleton.tsx):
@@ -489,7 +486,6 @@ button.search-pill:hover {
 .glass {
   background: hsl(var(--card) / 0.55);
   backdrop-filter: blur(20px) saturate(140%);
-  -webkit-backdrop-filter: blur(20px) saturate(140%);
   border: 1px solid hsl(var(--foreground) / 0.08);
   box-shadow:
     inset 0 1px 0 0 hsl(0 0% 100% / 0.55),
@@ -509,7 +505,6 @@ button.search-pill:hover {
 .glass-opaque {
   background: hsl(var(--card) / 0.96);
   backdrop-filter: blur(24px) saturate(140%);
-  -webkit-backdrop-filter: blur(24px) saturate(140%);
   border: 1px solid hsl(var(--foreground) / 0.08);
   box-shadow:
     inset 0 1px 0 0 hsl(0 0% 100% / 0.5),
@@ -533,7 +528,6 @@ button.search-pill:hover {
   position: relative;
   background: color-mix(in srgb, var(--widget-bg) calc(var(--widget-frost) * 100%), transparent);
   backdrop-filter: blur(var(--widget-blur)) saturate(160%);
-  -webkit-backdrop-filter: blur(var(--widget-blur)) saturate(160%);
   border: 1px solid hsl(var(--foreground) / 0.12);
   box-shadow:
     inset 0 1px 0 0 hsl(0 0% 100% / 0.45),
@@ -789,7 +783,6 @@ button.search-pill:hover {
   background:
     radial-gradient(120% 120% at 0% 0%, var(--toast-tint), transparent 65%), hsl(var(--card) / 0.66);
   backdrop-filter: blur(24px) saturate(180%);
-  -webkit-backdrop-filter: blur(24px) saturate(180%);
   box-shadow:
     inset 3px 0 0 0 var(--toast-accent),
     inset 0 1px 0 0 hsl(0 0% 100% / 0.4),
@@ -898,7 +891,6 @@ button.search-pill:hover {
   border: 1px solid hsl(var(--foreground) / 0.12);
   background: hsl(var(--card) / 0.85);
   backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
   box-shadow: 0 2px 6px -2px hsl(0 0% 0% / 0.35);
   transition:
     color 150ms ease,
@@ -1715,4 +1707,199 @@ button.search-pill:hover {
     width: 100%;
     opacity: 0.6;
   }
+}
+
+/* Monaco's right-click menu (editor and diff editor). It picks its colors from
+   --vscode-menu-* variables, so pointing those at the app's popover tokens makes it follow
+   every theme, and the shape and blur below match ui/context-menu.tsx. */
+.context-view.monaco-menu-container {
+  --vscode-menu-background: hsl(var(--popover) / 0.85) !important;
+  --vscode-menu-foreground: hsl(var(--popover-foreground)) !important;
+  --vscode-menu-border: hsl(var(--border)) !important;
+  --vscode-menu-selectionBackground: hsl(var(--primary) / 0.12) !important;
+  --vscode-menu-selectionForeground: hsl(var(--foreground)) !important;
+  --vscode-menu-separatorBackground: hsl(var(--border)) !important;
+  --vscode-cornerRadius-large: var(--radius);
+  --vscode-cornerRadius-medium: calc(var(--radius) - 2px);
+  font-family: inherit;
+  backdrop-filter: blur(40px);
+  box-shadow: 0 25px 50px -12px rgb(0 0 0 / 0.5);
+}
+
+.context-view.monaco-menu-container .monaco-menu {
+  padding: 4px;
+  font-family: inherit;
+  letter-spacing: -0.011em;
+}
+
+.context-view.monaco-menu-container .monaco-menu .monaco-action-bar.vertical {
+  padding: 0;
+}
+
+.context-view.monaco-menu-container .monaco-menu .monaco-action-bar.vertical .action-menu-item {
+  height: 26px;
+  margin: 0;
+}
+
+.context-view.monaco-menu-container .monaco-menu .monaco-action-bar.vertical .action-label:not(.separator),
+.context-view.monaco-menu-container .monaco-menu .monaco-action-bar.vertical .keybinding {
+  padding: 0 8px;
+}
+
+.context-view.monaco-menu-container .monaco-menu .monaco-action-bar.vertical .keybinding {
+  font-size: 11px;
+  letter-spacing: 0.02em;
+  opacity: 1;
+  color: hsl(var(--muted-foreground));
+}
+
+.context-view.monaco-menu-container .monaco-menu .monaco-action-bar.vertical .action-label.separator {
+  margin: 4px -4px !important;
+}
+
+/* ── Help page ─────────────────────────────────────────────────────────────
+   Small caps labels match the sidebar's group headings, so the Help page's
+   categories read as the same names the menu uses. */
+.help-eyebrow {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: hsl(var(--muted-foreground) / 0.8);
+}
+
+/* A key name in an article, drawn as a keycap with a pressed-in bottom edge. */
+.help-kbd {
+  display: inline-flex;
+  min-width: 1.45em;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid hsl(var(--foreground) / 0.14);
+  border-bottom-width: 2px;
+  border-radius: 5px;
+  background: hsl(var(--background) / 0.8);
+  padding: 0 0.4em;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.74em;
+  font-weight: 500;
+  line-height: 1.6;
+  color: hsl(var(--foreground) / 0.85);
+}
+
+/* Headings stop short of the top edge when a link scrolls to them. */
+.help-heading {
+  scroll-margin-top: 1.25rem;
+}
+
+/* Numbered steps: the number sits in a small ring beside each step, so a task reads as a
+   sequence at a glance. Nested lists inside a step keep their own plain markers. */
+.help-steps > li {
+  position: relative;
+  counter-increment: step;
+  padding-left: 2.25rem;
+}
+
+.help-steps > li::before {
+  content: counter(step);
+  position: absolute;
+  left: 0;
+  top: 0.18rem;
+  display: flex;
+  height: 1.45rem;
+  width: 1.45rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  border: 1px solid hsl(var(--primary) / 0.35);
+  background: hsl(var(--primary) / 0.08);
+  font-size: 0.72rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: hsl(var(--primary));
+}
+
+.help-prose li > ul,
+.help-prose li > ol {
+  margin-top: 0.4rem;
+  margin-bottom: 0.4rem;
+}
+
+/* The Help home's opening panel: a faint wash of the theme colour from one corner, so the
+   page has a front door without competing with the map of topics below it. */
+.help-hero {
+  border: 1px solid hsl(var(--foreground) / 0.07);
+  background:
+    radial-gradient(120% 140% at 100% 0%, hsl(var(--primary) / 0.13), transparent 55%),
+    radial-gradient(90% 120% at 0% 100%, hsl(var(--primary) / 0.05), transparent 60%),
+    hsl(var(--card) / 0.55);
+}
+
+.help-guide-card {
+  border: 1px solid hsl(var(--foreground) / 0.08);
+  background: hsl(var(--background) / 0.55);
+  backdrop-filter: blur(16px);
+}
+
+.help-guide-card:hover {
+  border-color: hsl(var(--primary) / 0.4);
+}
+
+.help-guide-mark {
+  background: linear-gradient(140deg, hsl(var(--primary) / 0.22), hsl(var(--primary) / 0.06));
+  color: hsl(var(--primary));
+  box-shadow: inset 0 0 0 1px hsl(var(--primary) / 0.25);
+}
+
+.help-pager {
+  border: 1px solid hsl(var(--foreground) / 0.08);
+  transition: border-color 150ms;
+}
+
+.help-pager:hover {
+  border-color: hsl(var(--primary) / 0.4);
+}
+
+/* A citation in a guide answer, [2], drawn as a small numbered pill that links to the passage. */
+.help-cite,
+.help-cite-static {
+  display: inline-flex;
+  height: 1.05rem;
+  min-width: 1.05rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 5px;
+  background: hsl(var(--primary) / 0.14);
+  padding: 0 0.25rem;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  color: hsl(var(--primary));
+  text-decoration: none !important;
+  vertical-align: 0.12em;
+}
+
+a.help-cite:hover {
+  background: hsl(var(--primary) / 0.26);
+}
+
+.help-answer {
+  font-size: 13px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .help-page *,
+  .help-chat * {
+    transition: none !important;
+    animation: none !important;
+  }
+}
+
+/* The Help search results sit over the hero and its chips, so they get a near-opaque fill. */
+.search-panel.help-search-panel {
+  background-color: hsl(var(--popover) / 0.97);
+}
+
+.dark .search-panel.help-search-panel {
+  background-color: hsl(var(--popover) / 0.95);
 }

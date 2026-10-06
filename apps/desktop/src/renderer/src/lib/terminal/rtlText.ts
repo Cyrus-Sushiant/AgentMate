@@ -34,17 +34,39 @@ function breaksAt(text: string, index: number): boolean {
   return ch === ' ' && text[index + 1] === ' ';
 }
 
+const LETTER = /\p{L}/u;
+
+function isRtlLetter(ch: string): boolean {
+  return LETTER.test(ch) && RTL_CHAR.test(ch);
+}
+
+/** How many right-to-left and left-to-right letters text[start, end) holds. */
+function countLetters(text: string, start: number, end: number): { rtl: number; ltr: number } {
+  const counts = { rtl: 0, ltr: 0 };
+  for (let index = start; index < end; index++) {
+    const ch = text[index];
+    if (!LETTER.test(ch)) continue;
+    if (RTL_CHAR.test(ch)) counts.rtl++;
+    else counts.ltr++;
+  }
+  return counts;
+}
+
 /**
  * The [start, end) ranges of `text` to draw as right-to-left runs. A run is one column of text
- * (TUIs separate columns with borders or wide gaps) that holds a right-to-left letter, from its
- * first word to its last visible character. English words inside a Persian sentence stay in
- * the run so they land in the right place, and a run that starts with an English word keeps
- * English direction (see startsRightToLeft).
+ * (TUIs separate columns with borders or wide gaps) that holds a right-to-left letter, up to its
+ * last visible character. English words and numbers inside a Persian sentence stay in the run
+ * so they land in the right place.
  *
- * This is the handler for xterm's `registerCharacterJoiner`.
+ * Where the run starts decides its direction (see startsRightToLeft). When English comes before
+ * the first Persian word (a shell prompt, a command, a label), what follows that word settles
+ * it: mostly Persian is a Persian sentence, which starts at its first Persian word so the
+ * English in front keeps its place; mostly English is an English sentence holding a Persian
+ * word, which starts at its first word and stays left to right.
  */
 export function rtlRuns(text: string): [number, number][] {
   const runs: [number, number][] = [];
+  if (!RTL_CHAR.test(text)) return runs;
   let index = 0;
   while (index < text.length) {
     let chunkEnd = index;
@@ -55,6 +77,12 @@ export function rtlRuns(text: string): [number, number][] {
       while (start < chunkEnd && !WORD_START.test(text[start])) start++;
       let end = chunkEnd;
       while (end > start && text[end - 1] === ' ') end--;
+      let firstRtl = start;
+      while (firstRtl < end && !isRtlLetter(text[firstRtl])) firstRtl++;
+      if (countLetters(text, start, firstRtl).ltr > 0) {
+        const after = countLetters(text, firstRtl, end);
+        if (after.rtl >= after.ltr) start = firstRtl;
+      }
       // A quote or bracket the run closes belongs to it, or both marks would end up on one side.
       const opener = OPENER_FOR[text[end - 1]];
       if (start > index && opener !== undefined && text[start - 1] === opener) start--;

@@ -4,6 +4,7 @@ import brickSprite from '@/assets/pet/brick.png';
 import claudeSprite from '@/assets/pet/claude.webp';
 import cocoaSprite from '@/assets/pet/cocoa.png';
 import emberSprite from '@/assets/pet/ember.png';
+import fandiSprite from '@/assets/pet/fandi.png';
 import gremlinSprite from '@/assets/pet/gremlin.webp';
 import hexSprite from '@/assets/pet/hex.png';
 import mossSprite from '@/assets/pet/moss.png';
@@ -52,6 +53,16 @@ export function chuteFitFor(pet: PetCharacter): ChuteFit {
 }
 
 export const PET_CHARACTERS: PetCharacter[] = [
+  {
+    id: 'fandi',
+    name: 'Fandi',
+    blurb: 'A coder pup in an orange hoodie, out for a walk.',
+    src: fandiSprite,
+    height: 118,
+    // Front paws sit just under the hoodie cuffs, and the risers clip on at the chest.
+    ropeGripY: 0.62,
+    chute: { y: 0.46, spread: 0.34, gap: 0.1, canopy: 1.62 },
+  },
   {
     id: 'claude',
     name: 'Claude',

@@ -23,9 +23,17 @@ const toast = vi.hoisted(() =>
 vi.mock('sonner', () => ({ toast, Toaster: () => null }));
 
 const { NAV_GROUPS, NAV_ITEMS, Sidebar } = await import('./Sidebar');
+const { AboutDialog } = await import('./AboutDialog');
 
+/** The About dialog is mounted once in AppShell; it comes along here so the card can open it. */
 function renderSidebar(route = '/', bridge: Record<string, unknown> = {}) {
-  return renderWithProviders(<Sidebar />, { route, bridge });
+  return renderWithProviders(
+    <>
+      <Sidebar />
+      <AboutDialog />
+    </>,
+    { route, bridge },
+  );
 }
 
 /** The link marked as the current page by NavLink. */
@@ -101,12 +109,43 @@ describe('Sidebar navigation', () => {
     expect(currentLink().textContent).toContain('Settings');
   });
 
+  it('pins Help beside Settings, out of the scrolling list', () => {
+    renderSidebar('/help');
+
+    const list = screen.getByRole('navigation');
+    expect(within(list).queryByRole('link', { name: /Help/ })).toBeNull();
+    expect(currentLink().textContent).toContain('Help');
+    expect(currentLink()).toHaveAttribute('href', '/help');
+  });
+
   it('keeps the groups apart with plain dividers once collapsed', () => {
     renderSidebar();
     act(() => useUiStore.setState({ sidebarMode: 'collapsed' }));
 
     expect(screen.getByRole('group', { name: 'Build' })).toBeTruthy();
     expect(screen.queryByText('Build')).toBeNull();
+  });
+
+  it('draws each entry as a centred square on the icon rail, and as a full row otherwise', () => {
+    renderSidebar('/usage');
+    const linkTo = (href: string): HTMLElement => {
+      const link = screen.getAllByRole('link').find((a) => a.getAttribute('href') === href);
+      if (!link) throw new Error(`no link to ${href}`);
+      return link;
+    };
+
+    expect(linkTo('/usage')).not.toHaveClass('h-8.5', 'w-8.5');
+    expect(linkTo('/skills')).not.toHaveClass('h-8.5', 'w-8.5');
+
+    act(() => useUiStore.setState({ sidebarMode: 'collapsed' }));
+
+    // The current entry and a plain one both get the square, so the active pill and the hover
+    // background are squares. On the rail the link is a tooltip trigger, and its class list has
+    // to stay real classes rather than the source of a className function.
+    for (const href of ['/usage', '/skills', '/settings']) {
+      expect(linkTo(href)).toHaveClass('mx-auto', 'h-8.5', 'w-8.5', 'rounded-lg');
+      expect(linkTo(href).className).not.toContain('=>');
+    }
   });
 
   it('empties out when hidden, so the page gets the full width', () => {
@@ -170,42 +209,110 @@ describe('Sidebar version and updates', () => {
     expect(await screen.findByRole('button', { name: /AgentMate v2\.4\.1/ })).toBeTruthy();
   });
 
-  it('says so when a check finds nothing new', async () => {
-    const { user } = renderSidebar('/', {
+  it('shows the SmartClouds logo, the maker and the version chip on the about card', async () => {
+    renderSidebar('/', { 'app.getVersion': async () => '2.4.1' });
+
+    const card = await screen.findByRole('button', { name: /AgentMate v2\.4\.1/ });
+    expect(card).toHaveAccessibleName('AgentMate v2.4.1, by SmartClouds, about');
+    expect(card).toHaveAttribute('aria-haspopup', 'dialog');
+    expect(within(card).getByText('by SmartClouds')).toBeInTheDocument();
+    expect(within(card).getByText('v2.4.1')).toBeInTheDocument();
+    // The name beside it already says SmartClouds, so the logo itself stays silent.
+    const logo = card.querySelector('img');
+    expect(logo).toHaveAttribute('alt', '');
+    expect(logo?.getAttribute('src')).toContain('smartclouds-logo');
+    expect(logo?.getAttribute('srcset')).toMatch(/ 2x$/);
+  });
+
+  it('opens About when the card is clicked, without starting an update check', async () => {
+    const { user, bridge } = renderSidebar('/', { 'app.getVersion': async () => '2.4.1' });
+
+    await user.click(await screen.findByRole('button', { name: /AgentMate v2\.4\.1/ }));
+
+    expect(await screen.findByRole('dialog', { name: 'About AgentMate' })).toBeInTheDocument();
+    expect(() => bridge.$fn('app.checkForUpdates')).toThrow(/not been touched/);
+  });
+
+  it('checks for updates from the About dialog the card opens', async () => {
+    const { user, bridge } = renderSidebar('/', {
       'app.getVersion': async () => '2.4.1',
       'app.checkForUpdates': async () => ({ state: 'not-available' }),
     });
 
-    await user.click(await screen.findByRole('button', { name: /AgentMate/ }));
+    await user.click(await screen.findByRole('button', { name: /AgentMate v2\.4\.1/ }));
+    const about = await screen.findByRole('dialog', { name: 'About AgentMate' });
+    await user.click(within(about).getByRole('button', { name: 'Check for updates' }));
 
+    expect(bridge.$fn('app.checkForUpdates')).toHaveBeenCalledTimes(1);
     await waitFor(() =>
       expect(toast.success).toHaveBeenCalledWith("You're on the latest version."),
     );
   });
 
-  it('reports a failed check instead of looking like nothing happened', async () => {
-    const { user } = renderSidebar('/', {
-      'app.checkForUpdates': async () => ({ state: 'error', message: 'Update server down.' }),
-    });
+  it('shows a check in progress in place of the version', async () => {
+    renderSidebar('/', { 'app.getVersion': async () => '2.4.1' });
+    const card = await screen.findByRole('button', { name: /AgentMate v2\.4\.1/ });
 
-    await user.click(await screen.findByRole('button', { name: /AgentMate/ }));
+    act(() => useUpdateStore.setState({ status: { state: 'checking' } }));
 
-    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('Update server down.'));
+    expect(within(card).getByText('Checking…')).toBeInTheDocument();
+    expect(within(card).queryByText('v2.4.1')).toBeNull();
+    expect(card).toHaveAccessibleName(/AgentMate v2\.4\.1, by SmartClouds, checking for updates/);
+    expect(card).toHaveAttribute('aria-busy', 'true');
   });
 
-  it('hands a found update to the update dialog rather than toasting it', async () => {
-    const { user } = renderSidebar('/', {
-      'app.checkForUpdates': async () => ({
-        state: 'available',
-        info: { version: '3.0.0', releaseDate: null, releaseNotes: null, sizeBytes: null },
-        partialBytes: 0,
+  it('flags a waiting update on the card', async () => {
+    renderSidebar('/', { 'app.getVersion': async () => '2.4.1' });
+    const card = await screen.findByRole('button', { name: /AgentMate v2\.4\.1/ });
+    expect(card).not.toHaveAccessibleName(/update available/);
+
+    act(() =>
+      useUpdateStore.setState({
+        status: {
+          state: 'downloaded',
+          info: { version: '3.0.0', releaseDate: null, releaseNotes: null, sizeBytes: null },
+        },
       }),
-    });
+    );
 
-    await user.click(await screen.findByRole('button', { name: /AgentMate/ }));
+    expect(card).toHaveAccessibleName('AgentMate v2.4.1, by SmartClouds, update available, about');
+  });
 
-    await waitFor(() => expect(useUpdateStore.getState().dialogOpen).toBe(true));
-    expect(toast.success).not.toHaveBeenCalled();
+  it('shrinks to the SmartClouds logo on the icon rail, still opening About', async () => {
+    const { user } = renderSidebar('/', { 'app.getVersion': async () => '2.4.1' });
+    act(() => useUiStore.setState({ sidebarMode: 'collapsed' }));
+
+    const icon = await screen.findByRole('button', { name: /AgentMate v2\.4\.1, by SmartClouds/ });
+    // The words go with the labels; only the logo is left on the rail.
+    expect(screen.queryByText('by SmartClouds')).toBeNull();
+    expect(screen.queryByText('v2.4.1')).toBeNull();
+    expect(icon.querySelector('img')?.getAttribute('src')).toContain('smartclouds-logo');
+
+    await user.hover(icon);
+    expect((await screen.findAllByText('About AgentMate')).length).toBeGreaterThan(0);
+
+    await user.click(icon);
+    expect(await screen.findByRole('dialog', { name: 'About AgentMate' })).toBeInTheDocument();
+  });
+
+  it('keeps the update dot on the rail when an update is waiting', async () => {
+    renderSidebar('/', { 'app.getVersion': async () => '2.4.1' });
+    act(() => useUiStore.setState({ sidebarMode: 'collapsed' }));
+    const icon = await screen.findByRole('button', { name: /AgentMate v2\.4\.1/ });
+    const quiet = icon.childElementCount;
+
+    act(() =>
+      useUpdateStore.setState({
+        status: {
+          state: 'available',
+          info: { version: '3.0.0', releaseDate: null, releaseNotes: null, sizeBytes: null },
+          partialBytes: 0,
+        },
+      }),
+    );
+
+    expect(icon.childElementCount).toBe(quiet + 1);
+    expect(icon).toHaveAccessibleName(/update available, about$/);
   });
 });
 

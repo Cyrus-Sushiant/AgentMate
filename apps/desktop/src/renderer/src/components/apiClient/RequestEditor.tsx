@@ -16,7 +16,10 @@ export function RequestEditor({ tab }: { tab: ApiTab }): React.JSX.Element {
 
   return (
     <Tabs defaultValue="params" className="flex h-full min-h-0 flex-col">
-      <TabsList className="h-9 shrink-0 border-none bg-transparent px-1">
+      <TabsList
+        className="h-9 shrink-0 border-none bg-transparent px-1.5"
+        containerClassName="shrink-0 border-b-0 shadow-[inset_0_-1px_0_hsl(var(--border)/0.6)]"
+      >
         <TabsTrigger value="params">
           Params <Count value={activeParams} />
         </TabsTrigger>
@@ -31,7 +34,7 @@ export function RequestEditor({ tab }: { tab: ApiTab }): React.JSX.Element {
         </TabsTrigger>
       </TabsList>
 
-      <TabsContent value="params" className="mt-0 min-h-0 flex-1 overflow-y-auto px-3 pb-3">
+      <TabsContent value="params" className="mt-0 min-h-0 flex-1 overflow-y-auto px-3 pb-3 pt-2.5">
         <SectionTitle>Query parameters</SectionTitle>
         <KeyValueTable
           label="Query parameters"
@@ -49,7 +52,7 @@ export function RequestEditor({ tab }: { tab: ApiTab }): React.JSX.Element {
         )}
       </TabsContent>
 
-      <TabsContent value="headers" className="mt-0 min-h-0 flex-1 overflow-y-auto px-3 pb-3">
+      <TabsContent value="headers" className="mt-0 min-h-0 flex-1 overflow-y-auto px-3 pb-3 pt-2.5">
         <KeyValueTable
           label="Headers"
           rows={draft.headers}
@@ -60,7 +63,7 @@ export function RequestEditor({ tab }: { tab: ApiTab }): React.JSX.Element {
         </p>
       </TabsContent>
 
-      <TabsContent value="body" className="mt-0 min-h-0 flex-1 px-3 pb-3">
+      <TabsContent value="body" className="mt-0 min-h-0 flex-1 px-3 pb-3 pt-2.5">
         <BodyEditor
           body={draft.body}
           onChange={(body) => updateDraft(tab.id, (d) => ({ ...d, body }))}
@@ -81,7 +84,7 @@ function Count({ value }: { value: number }): React.JSX.Element | null {
 
 function SectionTitle({ children }: { children: React.ReactNode }): React.JSX.Element {
   return (
-    <h3 className="mb-1.5 mt-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+    <h3 className="mb-1.5 mt-1 select-none text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground/60">
       {children}
     </h3>
   );

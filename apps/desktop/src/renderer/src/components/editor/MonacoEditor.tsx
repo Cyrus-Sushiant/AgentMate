@@ -59,6 +59,8 @@ export function MonacoEditor({
       value,
       language,
       theme: currentMonacoTheme(),
+      // The context menu stays in the page's DOM so index.css can theme it; in a shadow root it can't.
+      useShadowDOM: false,
       automaticLayout: true,
       minimap: { enabled: false },
       fontSize: 13,
