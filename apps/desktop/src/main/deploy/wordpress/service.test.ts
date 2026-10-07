@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { WP_ROUTES, type WpItemRef } from '@agentmat/core';
+import { WP_CONNECTOR_VERSION, WP_ROUTES, type WpItemRef } from '@agentmat/core';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { SecretEnvelope } from '../../../shared/apiTypes';
 import type { DeployWordPressProgressEvent } from '../../../shared/deployWordPressTypes';
@@ -126,7 +126,7 @@ describe('connect', () => {
       transport: 'local-http',
       allowPlainHttp: false,
       hasHttpAuth: false,
-      pluginVersion: '1.0.0',
+      pluginVersion: WP_CONNECTOR_VERSION,
       protocol: 1,
     });
     expect(site.lastSeenAt).toBe(site.connectedAt);
