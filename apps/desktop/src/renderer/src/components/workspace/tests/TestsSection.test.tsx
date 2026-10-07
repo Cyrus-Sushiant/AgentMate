@@ -592,6 +592,72 @@ describe('TestsSection', () => {
     expect(prompt.value).toContain('The Go tests in this repository could not run to completion.');
   });
 
+  it('counts projects that could not run as failures next to failed tests', async () => {
+    renderSection();
+    await screen.findByText('adds', { selector: '[data-test-name]' });
+    startRun();
+    send({
+      type: 'results',
+      runId: 'r1',
+      projectId: 'p1',
+      results: [
+        {
+          id: ids.breaks,
+          testProjectId: 'vitest:',
+          file: 'src/math.test.ts',
+          path: ['math', 'breaks'],
+          status: 'failed',
+          message: 'AssertionError: expected 1 to be 2',
+        },
+        {
+          id: ids.adds,
+          testProjectId: 'vitest:',
+          file: 'src/math.test.ts',
+          path: ['math', 'adds'],
+          status: 'passed',
+        },
+      ],
+    });
+    send({
+      type: 'done',
+      runId: 'r1',
+      projectId: 'p1',
+      summary: summary({
+        running: false,
+        errors: [
+          {
+            kind: 'noResults',
+            testProjectId: 'go:svc',
+            command: 'go test -json ./...',
+            message: 'The Go run ended without reporting any results (exit code 1).',
+            log: '',
+          },
+          {
+            kind: 'timedOut',
+            testProjectId: 'dotnet:srv',
+            command: 'dotnet test',
+            message: 'The .NET run took longer than 30 minutes and was stopped.',
+            log: '',
+          },
+        ],
+      }),
+    });
+
+    const counts = screen.getByRole('group', { name: 'Test run counts' });
+    expect(within(counts).getByText('3 failed')).toBeTruthy();
+    expect(screen.getByTestId('failed-count').textContent).toBe('3');
+    expect(screen.getByRole('radio', { name: /Failed\s*3/ })).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('radio', { name: /Failed\s*3/ }));
+    expect(screen.getByRole('group', { name: 'Go · svc could not run' })).toBeTruthy();
+    expect(screen.getByRole('group', { name: 'dotnet:srv could not run' })).toBeTruthy();
+    expect(screen.getByText('breaks', { selector: '[data-test-name]' })).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('radio', { name: /Passed/ }));
+    expect(screen.queryByRole('group', { name: 'Go · svc could not run' })).toBeNull();
+    expect(screen.queryByRole('group', { name: 'dotnet:srv could not run' })).toBeNull();
+  });
+
   it('points at installing the runner when it is missing, without a fix button', async () => {
     renderSection();
     await screen.findByText('adds', { selector: '[data-test-name]' });

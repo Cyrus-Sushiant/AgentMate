@@ -12,7 +12,7 @@ Two tools in the [Workspace](workspace.md) help you check what an agent built. T
 ## Where to find it
 
 - **Browser**: click **+** in a pane (**New tab**) and choose **Browser**, click **Browser** on an empty pane, or press `Ctrl+Shift+B` (`Cmd+Shift+B` on macOS).
-- **Tests**: open the **Tests** tab (the flask icon) in the project panel on the right of the Workspace. A red number on its icon is how many tests failed in the last run.
+- **Tests**: open the **Tests** tab (the flask icon) in the project panel on the right of the Workspace. A red number on its icon is how many tests failed in the last run, plus any test projects that could not run.
 
 ## The browser tab
 
@@ -143,6 +143,8 @@ The last run comes back when you return to the project, and the failing count st
 ### When tests cannot run
 
 If a test project fails to start (a missing dependency, a broken config), a card says **{project} could not run** with the reason and the command's log. **Copy output** copies it. **Fix with AI** is offered unless the problem is that the test tool was not found.
+
+A project that could not run counts as one failure. It is added to the **failed** count in the summary, to the **Failed** filter and to the red number on the tab's icon, and its card shows under **All** and **Failed**.
 
 ### Fix tests with AI
 

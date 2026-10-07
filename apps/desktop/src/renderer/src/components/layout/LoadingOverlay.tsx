@@ -2,18 +2,24 @@ import { AnimatePresence, motion } from 'framer-motion';
 import appIconDark from '@/assets/app-icon.png';
 import appIconLight from '@/assets/app-icon-light.png';
 import { useIsDarkMode } from '@/lib/chartColors';
+import { cn } from '@/lib/utils';
 
 interface LoadingOverlayProps {
   show: boolean;
   label?: string;
+  /** Overrides for where the sheet sits, for a parent that isn't a clipped island. */
+  className?: string;
 }
 
 /**
- * Full-bleed glass overlay for loads long enough to notice. The ring is a
- * conic-gradient arc masked into a circle (not a full spinner border) so it
- * reads as a slider orbiting the logo rather than a plain spinner.
+ * Frosted glass sheet for loads long enough to notice. It has the same corner
+ * radius as the content islands, so on a page that clips its children it simply
+ * fills the island, and elsewhere (the Workspace) it takes the island's shape
+ * itself. The ring is a conic-gradient arc masked into a circle (not a full
+ * spinner border) so it reads as a slider orbiting the logo rather than a
+ * plain spinner.
  */
-export function LoadingOverlay({ show, label }: LoadingOverlayProps): React.JSX.Element {
+export function LoadingOverlay({ show, label, className }: LoadingOverlayProps): React.JSX.Element {
   const isDark = useIsDarkMode();
 
   return (
@@ -24,7 +30,10 @@ export function LoadingOverlay({ show, label }: LoadingOverlayProps): React.JSX.
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.25, ease: 'easeOut' }}
-          className="absolute inset-0 z-50 flex flex-col items-center justify-center gap-4 bg-background/50 backdrop-blur-xl"
+          className={cn(
+            'absolute inset-0 z-50 flex flex-col items-center justify-center gap-4 rounded-[calc(var(--radius)+4px)] bg-background/50 backdrop-blur-xl',
+            className,
+          )}
         >
           <motion.div
             initial={{ opacity: 0, scale: 0.9 }}

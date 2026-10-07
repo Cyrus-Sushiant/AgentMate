@@ -46,7 +46,7 @@ import { queryKeys } from '@/lib/queryKeys';
 import { cn } from '@/lib/utils';
 import {
   ensureTestRunSubscription,
-  failedResults,
+  failedCount,
   type ProjectTestRun,
   useTestsStore,
 } from '@/stores/testsStore';
@@ -120,9 +120,12 @@ function OutputPane({ projectId }: { projectId: string }) {
   );
 }
 
-/** Failed tests and failed files in the project's latest run, for the tab badge. */
+/**
+ * Failed tests, failed files and test projects that could not run in the project's latest run, for
+ * the tab badge.
+ */
 export function useTestsFailedCount(projectId: string): number {
-  return useTestsStore((s) => failedResults(s.runs[projectId]).length);
+  return useTestsStore((s) => failedCount(s.runs[projectId]));
 }
 
 function useDiscovery(projectId: string) {
@@ -637,7 +640,10 @@ export function TestsSection({ project }: { project: Project }): React.JSX.Eleme
 
   const summary = run.summary;
   const running = summary?.running === true;
+  const runErrors = summary?.errors ?? [];
   const counts = countResults(results);
+  // A test project that could not run shows as a card and counts as a failure next to failed tests.
+  counts.failed += runErrors.length;
   // Queued tests have no result of their own yet, so count them straight from the run.
   const inFlight = results.filter(
     (result) => result.status === 'queued' || result.status === 'running',
@@ -858,14 +864,17 @@ export function TestsSection({ project }: { project: Project }): React.JSX.Eleme
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto py-1">
-        {summary?.errors.map((error) => (
-          <RunErrorCard
-            key={`${error.testProjectId}:${error.kind}`}
-            error={error}
-            label={labelOf(error.testProjectId)}
-            onFix={() => fixResults([], [error])}
-          />
-        ))}
+        {/* They count as failed, so the Passed and Skipped filters leave them out. */}
+        {filter === 'all' || filter === 'failed'
+          ? runErrors.map((error) => (
+              <RunErrorCard
+                key={`${error.testProjectId}:${error.kind}`}
+                error={error}
+                label={labelOf(error.testProjectId)}
+                onFix={() => fixResults([], [error])}
+              />
+            ))
+          : null}
         {discovery.data.truncated ? (
           <Notice tone="warning" size="sm" className="mx-2 mb-1 text-[11px] leading-snug">
             This project has more test files than the panel reads, so some are not listed.

@@ -6,7 +6,8 @@
     "includes": [
       "**",
       "!apps/server-core/**",
-      "!apps/desktop/src/shared/deploy/protocol/generated/**"
+      "!apps/desktop/src/shared/deploy/protocol/generated/**",
+      "!packages/core/src/deploy/wordpress/vectors/**"
     ]
   },
   "formatter": {

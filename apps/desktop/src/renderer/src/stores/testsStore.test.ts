@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import {
   applyRunEvent,
   coalesceEvents,
+  failedCount,
   failedResults,
   type ProjectTestRun,
   useTestsStore,
@@ -121,6 +122,33 @@ describe('applyRunEvent', () => {
     expect(run.results.a.status).toBe('failed');
     expect(run.results.b).toBeUndefined();
     expect(run.results.c.status).toBe('failed');
+  });
+});
+
+describe('failedCount', () => {
+  const error = (testProjectId: string): TestRunSummary['errors'][number] => ({
+    kind: 'noResults',
+    testProjectId,
+    command: 'dotnet test',
+    message: 'The .NET run ended without reporting any results (exit code 5).',
+    log: '',
+  });
+
+  it('counts failed results and the test projects that could not run', () => {
+    const run: ProjectTestRun = {
+      summary: summary({
+        running: false,
+        errors: [error('dotnet:a'), error('dotnet:b'), error('phpunit:')],
+      }),
+      results: { a: result('a', 'failed'), b: result('b', 'passed') },
+      output: '',
+    };
+    expect(failedCount(run)).toBe(4);
+  });
+
+  it('is zero without a run', () => {
+    expect(failedCount(undefined)).toBe(0);
+    expect(failedCount({ summary: null, results: {}, output: '' })).toBe(0);
   });
 });
 

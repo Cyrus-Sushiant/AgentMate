@@ -314,7 +314,14 @@ export function AppShell(): React.JSX.Element {
                   <WorkspaceHost visible={onWorkspace} />
                 </ErrorBoundary>
               )}
-              <LoadingOverlay show={showLoading} />
+              {/* The Workspace has no island around it, so here the sheet is sized like one: it
+                  keeps the same 6px gutter its panes and project panel keep from the window edge,
+                  and draws the island's hairline as an inset ring (a border colour utility loses
+                  to the global border rule). Other pages are already clipped to their island. */}
+              <LoadingOverlay
+                show={showLoading}
+                className={onWorkspace ? 'inset-1.5 ring-1 ring-inset ring-border/60' : undefined}
+              />
             </div>
             {/* A sibling of the page, so the page island makes room for it instead of clipping
                 it. It stays mounted while closed, so its shells keep running. */}

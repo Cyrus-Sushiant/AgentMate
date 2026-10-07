@@ -79,6 +79,15 @@ export function failedResults(run: ProjectTestRun | undefined): TestResult[] {
 }
 
 /**
+ * Failed tests and files plus the test projects that could not run, for every failed count. A test
+ * project that never ran (a missing tool, a crash, a timeout, zero tests reported) has no results
+ * of its own and only exists as a run error, but it is a failure all the same.
+ */
+export function failedCount(run: ProjectTestRun | undefined): number {
+  return failedResults(run).length + (run?.summary?.errors.length ?? 0);
+}
+
+/**
  * Folds the output and results events of each run into one of each, so a burst costs one copy of
  * the results map and one trim of the output instead of one per event. A runner that streams
  * reports alternates the two, output then result for every test, so merging only neighbours of

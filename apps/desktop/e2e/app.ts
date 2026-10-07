@@ -12,12 +12,7 @@ import {
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { basename, delimiter, join } from 'node:path';
-import {
-  type ElectronApplication,
-  _electron as electron,
-  type Page,
-  test,
-} from '@playwright/test';
+import { type ElectronApplication, _electron as electron, type Page, test } from '@playwright/test';
 import { E2E_OUT_DIR, MAIN_LOG_DIR } from './paths';
 
 export interface LaunchedApp {

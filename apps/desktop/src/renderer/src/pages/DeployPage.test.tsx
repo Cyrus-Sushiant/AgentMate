@@ -7,6 +7,7 @@ import type {
   DeploySetupProgressEvent,
 } from '@shared/deployTypes';
 import { screen, waitFor, within } from '@testing-library/react';
+import { useLocation } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ConfirmDialogHost } from '@/components/ConfirmDialog';
 import { useDeploySetupStore } from '@/stores/deploySetupStore';
@@ -36,6 +37,11 @@ vi.mock('@/components/editor/MonacoDiffEditor', () => ({
 }));
 
 const { default: DeployPage } = await import('./DeployPage');
+
+function LocationProbe(): React.JSX.Element {
+  const location = useLocation();
+  return <span data-testid="path">{`${location.pathname}${location.search}`}</span>;
+}
 
 const CORE: DeployCoreRecord = {
   version: '1.53.0',
@@ -107,6 +113,7 @@ function renderPage(bridge: Record<string, unknown> = {}, route = '/deploy') {
     <>
       <DeployPage />
       <ConfirmDialogHost />
+      <LocationProbe />
     </>,
     {
       route,
@@ -796,6 +803,39 @@ describe('DeployPage WordPress sites', () => {
     expect(screen.getByRole('button', { name: /Download the plugin/ })).toBeTruthy();
     await user.click(screen.getByRole('button', { name: /Connect a WordPress site/ }));
     expect(await screen.findByLabelText('Connection key')).toBeTruthy();
+  });
+
+  it('opens Remote and the Cloudflare page from the empty state', async () => {
+    const { user, unmount } = renderPage({
+      'deploy.listServers': async () => [],
+      'deployWordPress.listSites': async () => [],
+    });
+    await user.click(await screen.findByRole('button', { name: /Open Remote/ }));
+    expect(screen.getByTestId('path').textContent).toBe('/remote');
+    unmount();
+
+    const again = renderPage({
+      'deploy.listServers': async () => [],
+      'deployWordPress.listSites': async () => [],
+    });
+    await again.user.click(await screen.findByRole('button', { name: /Manage Cloudflare/ }));
+    expect(screen.getByTestId('path').textContent).toBe('/deploy/cloudflare');
+  });
+
+  it('says why the sites did not load when there are no servers, and tries again', async () => {
+    const { user, bridge } = renderPage({
+      'deploy.listServers': async () => [],
+      'deployWordPress.listSites': async () => {
+        throw new Error('disk is gone');
+      },
+      'deployWordPress.siteInfo': () => new Promise(() => undefined),
+    });
+
+    expect(await screen.findByText('disk is gone')).toBeTruthy();
+    expect(screen.queryByText('No servers yet')).toBeNull();
+    bridge.$set('deployWordPress.listSites', async () => [SITE]);
+    await user.click(screen.getByRole('button', { name: /Try again/ }));
+    expect(await screen.findByRole('heading', { name: 'Bakery' })).toBeTruthy();
   });
 
   it('shows the first site, with no empty state and no Deploy AI, when there are only sites', async () => {

@@ -74,7 +74,7 @@ describe('ResponsePane', () => {
     [304, 'Not Modified', 'info'],
     [404, 'Not Found', 'warning'],
     [503, 'Service Unavailable', 'danger'],
-  ])('shows %i %s in the %s tone',(status, statusText, tone) => {
+  ])('shows %i %s in the %s tone', (status, statusText, tone) => {
     show({ status: 'done', result: result({ response: response({ status, statusText }) }) });
     expect(screen.getByText(`${status} ${statusText}`)).toHaveAttribute('data-tone', tone);
   });
